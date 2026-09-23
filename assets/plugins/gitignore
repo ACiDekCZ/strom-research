@@ -1,0 +1,4 @@
+# Plugins are programs on this computer, allowed by you: never part of a
+# repository. Only strom's own README files are left in.
+/*/*
+!/*/README.md

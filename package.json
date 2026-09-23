@@ -1,0 +1,44 @@
+{
+  "name": "strom-research",
+  "version": "1.0.0",
+  "description": "Genealogical research toolkit for AI coding agents",
+  "type": "module",
+  "bin": {
+    "strom": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "strom": "node src/cli.ts",
+    "test": "node --test --test-reporter=dot \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "npm run build",
+    "release": "node scripts/build-release.ts"
+  },
+  "keywords": [
+    "genealogy",
+    "family-tree",
+    "gedcom",
+    "research",
+    "cli"
+  ],
+  "author": "Milan Víšek",
+  "homepage": "https://github.com/ACiDekCZ/strom-research#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ACiDekCZ/strom-research.git"
+  },
+  "bugs": "https://github.com/ACiDekCZ/strom-research/issues",
+  "license": "MPL-2.0",
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "typescript": "^7.0.2"
+  }
+}

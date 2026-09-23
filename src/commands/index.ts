@@ -1,0 +1,19 @@
+// Registers every command. Order here is the order in help listings.
+import "./meta.ts";
+import "./start.ts";
+import "./trees.ts";
+import "./research.ts";
+import "./intake.ts";
+import "./tasks.ts";
+import "./people.ts";
+import "./batch.ts";
+import "./sources.ts";
+import "./media.ts";
+import "./connectors.ts";
+import "./read.ts";
+import "./analysis.ts";
+import "./story.ts";
+import "./output.ts";
+import "./session.ts";
+import "./checks.ts";
+import "./setup.ts";
