@@ -44,14 +44,16 @@ export type GedProfile = (typeof GED_PROFILES)[number];
 export const STROM_READS_TAGS: string | undefined = undefined;
 
 /**
- * The first Strom version that reads a source's REFN, the citation's DATA DATE and the excerpts of entries
- * (not released yet). Before it they go only into an export with images, made for that version on purpose.
+ * The first Strom version that reads a source's REFN, the citation's DATA DATE and the excerpts of entries.
+ * An app of unknown version is taken for today's (stromapp.info serves the latest; an older one only lists
+ * the tags it leaves out, nothing is lost).
  */
-export const STROM_READS_EXCERPTS: string | undefined = undefined;
+export const STROM_READS_EXCERPTS: string | undefined = "3.1.0";
 
-/** Does this Strom read the standard tags, so the notes repeating them can go? */
-export function stromReadsTags(version: string | undefined, from: string | undefined = STROM_READS_TAGS): boolean {
-  if (!from || !version) return false;
+/** Does this Strom read the standard tags, so the notes repeating them can go? `unknown`: the answer for an app of unknown version. */
+export function stromReadsTags(version: string | undefined, from: string | undefined = STROM_READS_TAGS, unknown = false): boolean {
+  if (!from) return false;
+  if (!version) return unknown;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(from)];
   for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
@@ -104,10 +106,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   const strict = (opts.for ?? "standard") === "standard";
   // Strom profile: say in notes what the Strom app does not read from the tags yet.
   const repeat = !strict && !stromReadsTags(opts.stromVersion);
-  // The entry's own identity and date: any program; Strom from the version that reads them, or when the file carries
-  // images of entries (an older app lists the tags it leaves out — only then, never for a file without images).
+  // The entry's own identity and date: any program; Strom from the version that reads them (unknown: today's), and
+  // always when the file carries images of entries.
   const carries = !!opts.excerpts && tree.list<Source>("source").some((s) => !s.retracted && opts.excerpts!(s).length > 0);
-  const entries = strict || carries || stromReadsTags(opts.stromVersion, STROM_READS_EXCERPTS);
+  const entries = strict || carries || stromReadsTags(opts.stromVersion, STROM_READS_EXCERPTS, true);
 
   const everyone = tree.list<Person>("person");
   const personById = new Map(everyone.map((p) => [p.id, p]));

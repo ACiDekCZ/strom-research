@@ -149,7 +149,9 @@ test("export with images: an excerpt comes from a part of the image fetched shar
 const stromRepo = path.resolve(import.meta.dirname, "..", "..", "..", "strom");
 const tsx = path.join(stromRepo, "node_modules", ".bin", process.platform === "win32" ? "tsx.cmd" : "tsx");
 
-test("an older Strom app takes the export with images: everything but the new tags", { skip: !hasGit || !fs.existsSync(tsx) }, async () => {
+test("the Strom app takes the export with images: an older one everything but the new tags, 3.1.0 the excerpts too", { skip: !hasGit || !fs.existsSync(tsx) }, async () => {
+  const { STROM_READS_EXCERPTS, stromReadsTags } = await import("../../src/gedcom/export.ts");
+  const app = JSON.parse(fs.readFileSync(path.join(stromRepo, "package.json"), "utf8")).version as string;
   const w = await world();
   await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
   await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--recordset", "B1", "--date", "12 MAR 1865", "--transcript", "Joannes", "--clip", "B1:4@0.1,0.4,0.8,0.08"]);
@@ -164,18 +166,26 @@ const parsed = parseGedcom(fs.readFileSync(process.argv[2], "utf8"));
 const conv = convertToStrom(parsed);
 const persons = Object.values(conv.data.persons) as any[];
 const sources = Object.values(conv.data.sources ?? {}) as any[];
-console.log(JSON.stringify({ dropped: [...parsed.droppedTags.entries()], stats: conv.stats, persons: persons.length, sources: sources.map((s) => ({ title: s.title, note: s.note, transcript: s.transcript })), jan: persons[0]?.events?.map((e: any) => ({ type: e.type, sourceIds: e.sourceIds })) }));
+console.log(JSON.stringify({ dropped: [...parsed.droppedTags.entries()], stats: conv.stats, persons: persons.length, sources: sources.map((s) => ({ title: s.title, note: s.note, transcript: s.transcript, refn: s.refn, excerpts: s.excerpts?.length ?? 0 })), jan: persons[0]?.events?.map((e: any) => ({ type: e.type, sourceIds: e.sourceIds })) }));
 `,
   );
   const r = spawnSync(tsx, [script, path.join(w.cwd, "output", "tree-strom.ged")], { cwd: stromRepo, encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout.trim().split("\n").pop()!);
-  // it says which it left out (the source's REFN and the excerpt); the rest comes in whole
-  assert.deepEqual(out.dropped.map((d: [string, number]) => d[0]).sort(), ["OBJE", "REFN"]);
   assert.equal(out.persons, 1);
   assert.equal(out.sources.length, 1);
-  assert.match(out.sources[0].note, /Joannes/);
   assert.equal(out.jan[0].sourceIds.length, 1, "the citation stays");
+  if (stromReadsTags(app, STROM_READS_EXCERPTS)) {
+    // it reads them all: the transcript, the entry's REFN, its excerpt
+    assert.deepEqual(out.dropped, []);
+    assert.match(out.sources[0].transcript, /Joannes/);
+    assert.equal(out.sources[0].refn, "S0001");
+    assert.equal(out.sources[0].excerpts, 1);
+  } else {
+    // it says which it left out (the source's REFN and the excerpt); the rest comes in whole
+    assert.deepEqual(out.dropped.map((d: [string, number]) => d[0]).sort(), ["OBJE", "REFN"]);
+    assert.match(out.sources[0].note, /Joannes/);
+  }
   w.cleanup();
 });
 
@@ -216,6 +226,25 @@ test("media retract: an image put in the wrong place is withdrawn — kept, unus
   const again = await w.ok(["media", "add", detail, "--recordset", "B1", "--image", "2", "--crop", "0,0,0.5,0.5"]);
   assert.doesNotMatch(again.out, /same file/);
   assert.match((await w.ok(["media", "show", "M0002"])).out, /parts of it, sharper .*: M0006/);
+  w.cleanup();
+});
+
+test("the Strom file without images carries the entry's REFN and date for Strom 3.1.0 and an app of unknown version, not for an older one", opts, async () => {
+  const w = await world();
+  await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
+  await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--recordset", "B1", "--date", "12 MAR 1865", "--transcript", "Joannes"]);
+  await w.ok(["event", "add", "P0001", "CHR", "--date", "12 MAR 1865", "--cite", "S0001"]);
+  const ged = () => fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
+  for (const version of [undefined, "3.1.0"]) {
+    if (version) await w.ok(["config", "set", "strom.version", version]);
+    await w.ok(["export", "gedcom", "--for", "strom"]);
+    assert.match(ged(), /0 @S0001@ SOUR\n(?:[^0].*\n)*1 REFN S0001\n/, version ?? "unknown");
+    assert.match(ged(), /2 SOUR @S0001@\n(?:[3-9].*\n)*3 DATA\n4 DATE 12 MAR 1865\n/, version ?? "unknown");
+    assert.doesNotMatch(ged(), /OBJE/, "images only in the export with images");
+  }
+  await w.ok(["config", "set", "strom.version", "3.0.1"]);
+  await w.ok(["export", "gedcom", "--for", "strom"]);
+  assert.doesNotMatch(ged(), /1 REFN S0001|4 DATE 12 MAR 1865/);
   w.cleanup();
 });
 

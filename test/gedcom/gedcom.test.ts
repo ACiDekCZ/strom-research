@@ -210,6 +210,8 @@ test("the Strom version from which the notes repeating the tags are left out", a
   assert.equal(stromReadsTags("1.3.9", "1.4.0"), false);
   assert.equal(stromReadsTags("1.4.0", "1.4.0"), true);
   assert.equal(stromReadsTags("2.0", "1.4.0"), true);
+  assert.equal(stromReadsTags(undefined, "1.4.0", true), true, "unknown Strom taken for today's where nothing is lost");
+  assert.equal(stromReadsTags(undefined, undefined, true), false);
 });
 
 test("Strom's own export comes back: ages in words, cause and address from its notes, a midwife from RELA Present", opts, async () => {
