@@ -54,6 +54,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     url: S(),
     accessed: S(),
     media: { t: "refs", to: "media" },
+    clips: { t: "array", of: { media: R("media", true), region: { t: "object", req: true, of: { x: F, y: F, w: F, h: F } } } },
   },
   repository: {
     name: S({ req: true, max: 200 }),
@@ -80,6 +81,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     names: { t: "array", req: true, min: 1, of: { name: S({ req: true }), lang: S(), from: { t: "number", int: true }, to: { t: "number", int: true } } },
     kind: S(),
     coords: { t: "object", of: { lat: { t: "number", req: true, min: -90, max: 90 }, lon: { t: "number", req: true, min: -180, max: 180 } } },
+    unlocated: S({ max: 300 }),
     parent: R("place"),
     jurisdictions: {
       t: "array",
@@ -154,6 +156,8 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     runner: S(),
     worker: S(),
     agent: S(),
+    model: S(),
+    strom: S(),
     endedBy: S({ enum: ["user", "run", "chat", "agent"] }),
     started: S({ req: true }),
     ended: S(),

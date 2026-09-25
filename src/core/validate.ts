@@ -3,6 +3,7 @@
 
 import {
   DIRECTIONS,
+  REVIEW_SCOPES,
   EVENT_KINDS,
   NOTE_MAX,
   RECORD_TYPES,
@@ -185,6 +186,8 @@ function checkResearch(r: Partial<Research>, out: Problem[]): void {
     out.push({ path: "state", message: `must be one of ${RESEARCH_STATES.join(", ")}` });
   if (typeof r.priority !== "number" || r.priority < 1 || r.priority > 5) out.push({ path: "priority", message: "must be 1..5" });
   if (r.direction === "question" && !str(r.question)) out.push({ path: "question", message: "is required for direction question" });
+  if (r.review !== undefined && (!isObj(r.review) || !REVIEW_SCOPES.includes(r.review.scope as (typeof REVIEW_SCOPES)[number])))
+    out.push({ path: "review.scope", message: `must be one of ${REVIEW_SCOPES.join(", ")}` });
   checkNotes(r.notes, "notes", out);
 }
 

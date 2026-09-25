@@ -28,7 +28,7 @@ function range(v: string): [number, number] {
   return [Number(m[1]), Number(m[2] ?? m[1])];
 }
 
-async function pool<T, R>(items: T[], size: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
+export async function pool<T, R>(items: T[], size: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let next = 0;
   const worker = async () => {

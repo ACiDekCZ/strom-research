@@ -19,11 +19,12 @@ import { gitVersion } from "../core/git.ts";
 import { linuxGitCommand } from "../core/deps.ts";
 import { verifyFast } from "../core/integrity.ts";
 import { currentSession, openSessions } from "../core/session.ts";
+import { readByOtherModels } from "../core/review.ts";
 import { liveHolder } from "../core/lock.ts";
 import { isAgent } from "../core/which.ts";
 import { taskQueue, waitingForUser, waitingLines } from "./tasks.ts";
 import type { Person, Research, Session } from "../core/model.ts";
-import { liveWorkers } from "../core/workers.ts";
+import { liveWorkers, runAlive } from "../core/workers.ts";
 import { label } from "../core/people.ts";
 
 interface Orientation {
@@ -35,11 +36,15 @@ interface Orientation {
   working?: { who: string; since: string; session?: string; task?: string }[];
   researches?: { id: string; name: string; state: string; focus: string }[];
   /** The GEDCOM for the user, and the Strom app: installed here, to be offered, or not wanted. */
-  results?: { file: string; app: "installed" | "offer" | "not-wanted" };
+  results?: { file: string; app: "installed" | "offer" | "not-wanted"; told?: boolean };
   /** A newer version of strom, when one is out. */
   update?: string;
   /** Stories of the ancestors: on, off, or on by default and the user is to be told (they may say no). */
   stories?: "on" | "off" | "tell";
+  /** Tell the user once that they can ask about anyone in the tree right in the conversation. */
+  ask?: boolean;
+  /** Facts that only another model read than the one the user reads with now: offered, never started. */
+  reread?: { facts: number; models: string[]; model: string };
   next: { why: string; command: string };
 }
 
@@ -100,9 +105,30 @@ function orientation(ctx: Context): Orientation {
   const out = path.join(tree.root, "output");
   const wanted = ctx.settings.config.stromApp !== "no";
   const file = path.join(out, wanted ? "tree-strom.ged" : "tree.ged");
-  if (fs.existsSync(file)) base.results = { file, app: !wanted ? "not-wanted" : installedStromApp(ctx.env) ? "installed" : "offer" };
+  // What a conversation tells the user once, not again after it starts afresh (a new conversation, /clear): the Strom app, the stories, asking here.
+  const told = ctx.settings.config.told ?? {};
+  if (fs.existsSync(file)) base.results = { file, app: !wanted ? "not-wanted" : installedStromApp(ctx.env, process.platform, stromAppUrl(ctx.settings)) ? "installed" : "offer", ...(told.app ? { told: true } : {}) };
+  const vision = ctx.settings.models(ctx.settings.agent(tree.config).value, tree.config).vision;
+  if (vision) {
+    const other = readByOtherModels(tree, vision);
+    if (other.facts) base.reread = { ...other, model: vision };
+  }
   const stories = ctx.settings.stories(tree.config);
-  base.stories = !stories.on ? "off" : stories.said ? "on" : "tell";
+  base.stories = !stories.on ? "off" : stories.said || told.stories ? "on" : "tell";
+  if (!told.ask && base.tree.persons > 0) base.ask = true;
+  // Given to an agent in a conversation (not a run nobody watches, not a person): told now.
+  if (isAgent(ctx.env) && !ctx.env.STROM_SESSION) {
+    const now = new Date().toISOString();
+    const fresh = {
+      ...(base.stories === "tell" ? { stories: now } : {}),
+      ...(base.results && base.results.app !== "not-wanted" && !base.results.told ? { app: now } : {}),
+      ...(base.ask ? { ask: now } : {}),
+    };
+    if (Object.keys(fresh).length) {
+      ctx.settings.config.told = { ...told, ...fresh };
+      ctx.settings.save();
+    }
+  }
   // The session this agent works in; else one nobody is working in any more.
   const busy = (s: Session) => (s.worker && workers.some((w) => w.id === s.worker)) || (s.runner && workers.some((w) => w.id === "run"));
   const open = currentSession(tree, ctx.env) ?? sessions.find((s) => !busy(s) && !(s.worker && s.worker !== ctx.env.STROM_WORKER && !human));
@@ -114,7 +140,7 @@ function orientation(ctx: Context): Orientation {
   const elsewhere = isAgent(ctx.env) && !ctx.env.STROM_WORKER && !ctx.env.STROM_SESSION && !inTree;
   if (base.tree.errors > 0) base.next = { why: t("ui.why.check"), command: "strom check" };
   else if (elsewhere) base.next = { why: t("ui.why.handover"), command: "strom chat" };
-  else if (open && human && open.runner && !liveHolder(path.join(tree.root, ".strom", "run.lock"))) base.next = { why: t("ui.why.runleft", { id: open.id }), command: "strom run" };
+  else if (open && human && open.runner && !runAlive(tree.root, open)) base.next = { why: t("ui.why.runleft", { id: open.id }), command: "strom run" };
   else if (open && human && open.runner) base.next = { why: t("ui.why.running", { id: open.id }), command: "strom status" };
   else if (open)
     base.next = human
@@ -144,7 +170,7 @@ register(
       const lang = ctx.uiLang();
       const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
       // Labels in one column, whatever their length in the user's language.
-      const labels = [t("ui.o.home"), t("ui.o.tree"), t("ui.o.lang"), t("ui.o.data"), t("ui.o.results"), t("ui.o.stories"), t("ui.o.update"), t("ui.o.next")];
+      const labels = [t("ui.o.home"), t("ui.o.tree"), t("ui.o.lang"), t("ui.o.data"), t("ui.o.results"), t("ui.o.stories"), t("ui.o.ask"), t("ui.o.reread"), t("ui.o.update"), t("ui.o.next")];
       const width = Math.max(...labels.map((l) => l.length)) + 2;
       const row = (label: string, value: string) => `${label.padEnd(width)}${value}`;
       const check = o.tree ? `${o.tree.errors ? t("ui.o.errors", { n: o.tree.errors }) : t("ui.o.ok")}${o.tree.warnings ? `, ${t("ui.o.warnings", { n: o.tree.warnings })}` : ""}` : "";
@@ -164,15 +190,17 @@ register(
                     t("ui.o.results"),
                     t(
                       o.results.app === "installed"
-                        ? appOpensResearch(ctx.env) ? "ui.o.results.installed.live" : "ui.o.results.installed"
+                        ? appOpensResearch(ctx.settings) && !o.results.told ? "ui.o.results.installed.live" : "ui.o.results.installed"
                         : o.results.app === "offer"
-                          ? appOpensResearch(ctx.env) ? "ui.o.results.offer.live" : "ui.o.results.offer"
+                          ? o.results.told ? "ui.o.results.offered" : appOpensResearch(ctx.settings) ? "ui.o.results.offer.live" : "ui.o.results.offer"
                           : "ui.o.results.plain",
-                      { file: ctx.display(o.results.file), url: stromAppUrl(ctx.env) },
+                      { file: ctx.display(o.results.file), url: stromAppUrl(ctx.settings) },
                     ),
                   )
                 : undefined,
               o.stories ? row(t("ui.o.stories"), t(`ui.o.stories.${o.stories}`)) : undefined,
+              o.ask ? row(t("ui.o.ask"), t("ui.o.ask.tell")) : undefined,
+              o.reread ? row(t("ui.o.reread"), t("ui.o.reread.offer", { n: o.reread.facts, models: o.reread.models.join(", "), model: o.reread.model })) : undefined,
               o.researches?.length
                 ? t("ui.o.research") + "\n" + table(o.researches.map((r) => [`  ${r.id}`, r.name, `[${r.state}]`, r.focus]))
                 : t("ui.o.research.none"),

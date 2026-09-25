@@ -155,3 +155,28 @@ test("check reports references to records that do not exist", opts, async () => 
   assert.ok(fs.existsSync(file));
   w.cleanup();
 });
+
+test("the places of the facts on the map: those off it are listed, the most facts first — identified ones get coordinates, the others say why not", opts, async () => {
+  const w = await world();
+  await w.ok(["person", "add", "Josef /Novák/", "--born", "1850", "--born-place", "Lhota"]);
+  await w.ok(["person", "add", "Marie /Nováková/", "--born", "1852", "--born-place", "Lhota"]);
+  await w.ok(["person", "add", "Karel /Novák/", "--born", "1880", "--born-place", "Borovnice"]);
+  await w.ok(["place", "add", "Lhota", "--kind", "village"]); // L1, no coordinates
+  await w.ok(["place", "add", "Týnec nad Labem", "--lat", "50.042", "--lon", "15.358"]); // on the map
+  await w.ok(["person", "add", "Anna /Nováková/", "--born", "1890", "--born-place", "Týnec nad Labem"]);
+  const list = await w.ok(["place", "list", "--off-map"]);
+  assert.match(list.out, /^Lhota \(2 fact\(s\), L0001\): strom place edit L0001 --lat … --lon …\nBorovnice \(1 fact\(s\), no place yet\): strom place add "Borovnice" --kind … --lat … --lon …\nidentify each first/);
+  assert.match((await w.ok(["check"])).out, /^ok/, "not a fault of the evidence");
+  await w.ok(["session", "start"]);
+  const close = await w.ok(["session", "close", "--summary", "s", "--next", "n"]);
+  assert.match(close.out, /· for the map — places of facts without coordinates \(2\):\n {4}Lhota \(2 fact\(s\), L0001\)[\s\S]*identify each first/);
+  // Not identified yet: it says why, and is left alone; identified: on the map, the why is gone.
+  await w.ok(["place", "edit", "L1", "--unlocated", "který Lhota: zápis neuvádí faru"]);
+  await w.ok(["place", "add", "Borovnice", "--kind", "village", "--lat", "50.117", "--lon", "13.87"]);
+  assert.match((await w.ok(["place", "list", "--off-map"])).out, /^every place of a fact is on the map \(or says why not\)/);
+  await w.ok(["place", "edit", "L1", "--lat", "50.03", "--lon", "13.72"]);
+  assert.equal((await w.ok(["place", "show", "L1", "--json"])).json.place.unlocated, undefined);
+  await w.ok(["export", "gedcom"]);
+  assert.match(fs.readFileSync(path.join(w.cwd, "output", "tree.ged"), "utf8"), /2 PLAC Lhota\n3 MAP\n4 LATI N50\.03\n4 LONG E13\.72/);
+  w.cleanup();
+});

@@ -7,8 +7,13 @@ work folder by itself: it asks strom, which paces every request, keeps to the
 connector's hosts, writes the files and checks that an image is an image.
 
 This page is the whole contract. It is **version 1 and it does not change**:
-a connector written for it keeps working. (A different contract would get a
-new number, and strom would still run version 1.)
+a connector written for it keeps working. It only grows — optional fields,
+new capabilities, new routes:
+- an older strom leaves out what it does not know yet (`strom connector show`
+  says so) and runs the rest;
+- a different contract would get a new number, and strom would still run
+  version 1. A connector written for a newer version than strom runs asks for
+  `strom update`.
 
 ## The folder
 
@@ -78,11 +83,18 @@ starts with `.` or `_` are ignored (`_old-version/`).
     - `unknown`.
   - `terms` (a URL), `termsSummary`, `robots` and `officialExport`: shown to
     the user when they decide.
-  - `pace` (optional): slower than strom's default, never faster.
-    - `minIntervalMs`: time between two requests to a host. The default and
-      the minimum is 2000.
-    - `perHour`: requests to a host in an hour. The default and the maximum is
-      400.
+  - `pace` (optional): the service's own pace, where it states one — its
+    terms, robots.txt (a crawl-delay), the documentation of its API or
+    image server. Nothing made up: without it strom keeps its default.
+    - `minIntervalMs`: time between two requests to a host. The default is
+      2000; less only with `source`, and never below 250.
+    - `perHour`: requests to a host in an hour, where the service has such a
+      cap. The default is none.
+    - `source`: where the service says so (a URL, or a sentence).
+
+    The user may set their own pace for a host
+    (`strom allow host <host> --pace <seconds> --per-hour <n>`); it comes
+    first.
 - `login` (optional): the portal gives more to users who log in, and the
   connector can use the user's own account.
   - `about`: what an account gives, in a sentence the user reads.
@@ -217,16 +229,21 @@ The answer is one line on stdin:
   - `refused`: the archive said no (401 or 403), or asked twice to slow down
     (429);
   - `blocked`: the archive refused earlier and is left alone for now;
-  - `cap`: the hourly cap is reached;
+  - `cap`: the hourly cap of the service (or the user's) is reached, or the
+    server says its limit is used up for longer than strom waits;
   - `silent`: no answer. The server is down, or it blocks this IP;
   - `http`: the server keeps failing, or the request is not valid;
   - `too-big`: text over 5 MB (ask with `save`);
   - `login`: a request with a login value (section 4) that strom will not send.
 
 strom answers requests one at a time, in order, and paces them:
-- at least 2 s apart for each host, and at most 400 an hour;
+- at the service's pace for each host (the connector's `pace`), else at
+  least 2 s apart; an hourly cap only where the service or the user sets one;
+- longer apart while a host answers slowly (the pause is at least as long as
+  its answers take, counted from the answer);
 - shared by everything on this computer;
-- it waits by itself when an archive asks it to (Retry-After).
+- it waits by itself when an archive asks it to (Retry-After), or says its
+  limit is used up (RateLimit headers).
 
 ### 4. The user's login
 

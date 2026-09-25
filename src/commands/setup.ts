@@ -213,7 +213,7 @@ function diagnose(ctx: Context): Check[] {
 
   // For a person: the shortcut on the desktop, the Strom app.
   const desktop = desktopDir(ctx.env);
-  const shortcut = [`${shortcutName(lang)}.command`, `${shortcutName(lang)}.cmd`, "strom-research.desktop"].some((f) => fs.existsSync(path.join(desktop, f)));
+  const shortcut = [`${shortcutName(lang)}.command`, `${shortcutName(lang)}.lnk`, `${shortcutName(lang)}.cmd`, "strom-research.desktop"].some((f) => fs.existsSync(path.join(desktop, f)));
   if (shortcut) add("shortcut", "ok", t("ui.doc.yes"));
   else add("shortcut", "warn", t("ui.doc.none"), FIX, "shortcut");
   const app = stromAppState(ctx.settings);
@@ -248,7 +248,7 @@ async function repair(ctx: Context, checks: Check[], out: (line: string) => void
     for (const f of createShortcut(shortcutName(lang), ctx.env)) out(ui(lang, "ui.setup.shortcut.done", { file: ctx.display(f) }));
   }
   if (todo.has("app") && person && (await ctx.confirm(ui(lang, "ui.fix.app"), false))) {
-    openForUser(stromAppUrl(ctx.env), ctx.env);
+    openForUser(stromAppUrl(ctx.settings), ctx.env);
     out(ui(lang, "ui.app.install"));
   }
 }

@@ -10,7 +10,7 @@ import http from "node:http";
 import http2 from "node:http2";
 import zlib from "node:zlib";
 import type { AddressInfo } from "node:net";
-import { politeGet, politeRequest, hostState, clearBlock, paceOf, hostAllowed, NetError, CookieJar, USER_AGENT, DEFAULT_PACE, COOL_OFF_MS } from "../../src/core/net.ts";
+import { politeGet, politeRequest, hostState, clearBlock, paceOf, hostPace, limitUsedUp, setOwnPace, MIN_INTERVAL_MS, hostAllowed, NetError, CookieJar, USER_AGENT, DEFAULT_PACE, COOL_OFF_MS } from "../../src/core/net.ts";
 
 async function server(): Promise<{ base: string; hits: Record<string, number>; agents: string[]; close: () => Promise<void> }> {
   const hits: Record<string, number> = {};
@@ -59,9 +59,15 @@ test("net: a pause between requests to one host, the strom user agent", async ()
   await srv.close();
 });
 
-test("net: a connector may ask for slower, never faster", () => {
-  assert.deepEqual(paceOf({ minIntervalMs: 100, perHour: 10_000 }), DEFAULT_PACE);
+test("net: the service's pace — faster than strom's only where the service says so; no cap made up; the user's own for a host", () => {
+  assert.deepEqual(paceOf(), { minIntervalMs: 2000, perHour: Infinity }, "a pause, no hourly cap");
+  assert.deepEqual(paceOf({ minIntervalMs: 100, perHour: 10_000 }), { minIntervalMs: 2000, perHour: 10_000 }, "faster without a source: strom's pause");
+  assert.deepEqual(paceOf({ minIntervalMs: 500, source: "https://api.example.org/docs#limits" }), { minIntervalMs: 500, perHour: Infinity });
+  assert.deepEqual(paceOf({ minIntervalMs: 10, source: "the API documentation" }).minIntervalMs, MIN_INTERVAL_MS);
   assert.deepEqual(paceOf({ minIntervalMs: 5000, perHour: 60 }), { minIntervalMs: 5000, perHour: 60 });
+  assert.deepEqual(hostPace({ recent: [], own: { minIntervalMs: 1000, at: "" } }, { minIntervalMs: 5000, perHour: 60 }), { minIntervalMs: 1000, perHour: 60 }, "the user's pause, the service's cap");
+  assert.deepEqual(hostPace({ recent: [], own: { perHour: 0, at: "" } }, { perHour: 60 }).perHour, Infinity, "the user's none");
+  assert.equal(DEFAULT_PACE.perHour, Infinity);
   assert.ok(hostAllowed("iiif.digi.example.cz", ["digi.example.cz"]));
   assert.ok(!hostAllowed("example.cz.evil.org", ["example.cz"]));
 });
@@ -205,4 +211,37 @@ test("net: a header fetch() cannot send is refused before anything goes out — 
   assert.equal(hostState(dir, "archiv.example.org").blockedUntil, undefined, "not left alone for an hour");
   // Latin-1 is what a header carries: "café" goes
   assert.equal((await politeRequest("https://archiv.example.org/x", { ...o, headers: { "X-Note": "café" } })).status, 200);
+});
+
+test("net: the host steers — slow answers stretch the pause, a used-up limit is waited for; the user's own pace", async () => {
+  const h = (o: Record<string, string>) => new Headers(o);
+  assert.equal(limitUsedUp(h({ "ratelimit-remaining": "3" }), 0), undefined);
+  assert.equal(limitUsedUp(h({ "x-ratelimit-remaining": "0", "x-ratelimit-reset": "30" }), 1000), 31_000);
+  assert.equal(limitUsedUp(h({ ratelimit: "limit=100, remaining=0, reset=5" }), 0), 5000);
+  assert.equal(limitUsedUp(h({ "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1900000000" }), 0), 1_900_000_000_000, "the moment itself");
+  const dir = tmp();
+  const waits: number[] = [];
+  let clock = 1_000_000;
+  const answers: Response[] = [
+    new Response("ok", { headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "60" } }),
+    new Response("ok"),
+    new Response("ok"),
+  ];
+  const slow = async () => {
+    clock += 5000; // the host takes 5 s to answer
+    return answers.shift()!;
+  };
+  const o = { stateDir: dir, hosts: ["archive.example.org"], now: () => clock, sleep: async (ms: number) => void (waits.push(ms), (clock += ms)), fetchImpl: slow as typeof fetch };
+  await politeGet("https://archive.example.org/a", o);
+  assert.equal(hostState(dir, "archive.example.org").latencyMs, 5000);
+  assert.equal(hostState(dir, "archive.example.org").waitUntil, 1_005_000 + 60_000);
+  await politeGet("https://archive.example.org/b", o);
+  assert.deepEqual(waits, [60_000], "waited until the host's limit came back — longer than any pause");
+  await politeGet("https://archive.example.org/c", o);
+  assert.equal(waits[1], 5000, "the pause as long as the host takes to answer, not strom's 2 s");
+  // the user's own pace for the host
+  setOwnPace(dir, "archive.example.org", { minIntervalMs: 500, perHour: 2 });
+  assert.deepEqual(hostState(dir, "archive.example.org").own?.perHour, 2);
+  setOwnPace(dir, "archive.example.org", undefined);
+  assert.equal(hostState(dir, "archive.example.org").own, undefined);
 });

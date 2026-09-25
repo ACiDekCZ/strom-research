@@ -18,7 +18,10 @@
 //   DATA/TEXT, a story as a note;
 // - "strom": shaped to what the Strom app reads (agreed with it; its
 //   docs/GEDCOM-IMPORT.md): _WITN, _FREL/_MREL, _STORY, the transcript as the
-//   source's TEXT, a source per PAGE (Strom keeps one PAGE per source). Until
+//   source's TEXT, one source per entry with one PAGE (Strom keeps the first PAGE
+//   of a source; where in the entry a fact was read is the citation's DATA TEXT), and —
+//   in an export with images only — the entry cut out of its scan as the
+//   source's OBJE (_STROM_KIND excerpt, a data URL in FILE). Until
 //   Strom reads AGE, CAUS, ADDR and _FREL/_MREL (STROM_READS_TAGS) they are
 //   also said in notes.
 
@@ -31,12 +34,20 @@ import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
 import { quay } from "../core/evidence.ts";
 import { VERSION, type Tree } from "../core/tree.ts";
+import { dataUrl, type Excerpt } from "../core/excerpt.ts";
+import { mainPerson } from "../core/kin.ts";
 
 export const GED_PROFILES = ["standard", "strom"] as const;
 export type GedProfile = (typeof GED_PROFILES)[number];
 
 /** The first Strom version that reads AGE, CAUS, ADDR, _FREL/_MREL and more source notes itself (not released yet). */
 export const STROM_READS_TAGS: string | undefined = undefined;
+
+/**
+ * The first Strom version that reads a source's REFN, the citation's DATA DATE and the excerpts of entries
+ * (not released yet). Before it they go only into an export with images, made for that version on purpose.
+ */
+export const STROM_READS_EXCERPTS: string | undefined = undefined;
 
 /** Does this Strom read the standard tags, so the notes repeating them can go? */
 export function stromReadsTags(version: string | undefined, from: string | undefined = STROM_READS_TAGS): boolean {
@@ -54,6 +65,8 @@ export interface ExportOptions {
   stromVersion?: string | undefined;
   /** Only these persons (and families among them); default everyone. */
   persons?: Set<string>;
+  /** The Strom profile with images: the entry cut out of its scan, for each source that has clips. */
+  excerpts?: (s: Source) => Excerpt[];
 }
 
 export interface ExportResult {
@@ -91,11 +104,19 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   const strict = (opts.for ?? "standard") === "standard";
   // Strom profile: say in notes what the Strom app does not read from the tags yet.
   const repeat = !strict && !stromReadsTags(opts.stromVersion);
+  // The entry's own identity and date: any program; Strom from the version that reads them, or when the file carries
+  // images of entries (an older app lists the tags it leaves out — only then, never for a file without images).
+  const carries = !!opts.excerpts && tree.list<Source>("source").some((s) => !s.retracted && opts.excerpts!(s).length > 0);
+  const entries = strict || carries || stromReadsTags(opts.stromVersion, STROM_READS_EXCERPTS);
 
   const everyone = tree.list<Person>("person");
   const personById = new Map(everyone.map((p) => [p.id, p]));
   const eventById = new Map<string, Event>([...everyone, ...tree.list<Family>("family")].flatMap((r) => r.events.map((e) => [e.id, e] as const)));
   const persons = everyone.filter((p) => !p.retracted && (!opts.persons || opts.persons.has(p.id)));
+  // The main person first: programs (the Strom app too) open on the first person of a file.
+  const main = mainPerson(tree);
+  const at = persons.findIndex((p) => p.id === main);
+  if (at > 0) persons.unshift(...persons.splice(at, 1));
   const personIds = new Set(persons.map((p) => p.id));
   const families = tree
     .list<Family>("family")
@@ -110,16 +131,11 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   // xrefs: our IDs are already unique and stable — use them directly.
   const x = (id: string) => `@${id}@`;
   const citedSources = new Set<string>();
-  // Strom profile: each page of a source cited at several pages gets a source of its own (S0002, S0002_2, …).
-  const pageXrefs = new Map<string, { xref: string; page: string }[]>();
-  const pageXref = (id: string, page: string): string => {
-    const list = pageXrefs.get(id) ?? [];
-    let hit = list.find((p) => p.page === page);
-    if (!hit) {
-      hit = { xref: list.length ? `@${id}_${list.length + 1}@` : x(id), page };
-      pageXrefs.set(id, [...list, hit]);
-    }
-    return hit.xref;
+  // Strom profile: one PAGE per source (Strom keeps the first) — the source's place in the book, else the first cited.
+  const stromPages = new Map<string, string | undefined>();
+  const stromPage = (s: Source, c: Citation): string | undefined => {
+    if (!stromPages.has(s.id)) stromPages.set(s.id, s.locator ?? c.locator);
+    return stromPages.get(s.id);
   };
 
   // Places with coordinates, looked up by folded name.
@@ -230,14 +246,12 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   const usedRepos = new Set<string>();
   for (const s of sources) {
     if (!citedSources.has(s.id) && opts.persons) continue;
-    // Strom keeps one PAGE per source: another page of it is a source of its own there.
-    const pages = strict ? [undefined] : [undefined, ...(pageXrefs.get(s.id) ?? []).slice(1)];
-    for (const page of pages) writeSource(s, page);
+    writeSource(s);
   }
-  function writeSource(s: Source, page: { xref: string; page: string } | undefined): void {
+  function writeSource(s: Source): void {
     stats.sources++;
-    w.record(page ? page.xref : x(s.id), "SOUR");
-    w.text(1, "TITL", page ? `${s.title} (${page.page})` : s.title);
+    w.record(x(s.id), "SOUR");
+    w.text(1, "TITL", s.title);
     const set = s.recordset ? recordsets.get(s.recordset) : undefined;
     const repo = s.repository ?? set?.repository;
     if (repo && repos.some((r) => r.id === repo)) {
@@ -266,8 +280,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (repeat) {
       if (sections.length) w.text(1, "NOTE", sections.join("\n\n"));
     } else for (const section of sections) w.text(1, "NOTE", section);
-    // The research's number of the source: standard GEDCOM keeps it; Strom reads REFN on people only.
-    if (strict) w.line(1, "REFN", s.id);
+    // The research's number of the source: the Strom app knows the same entry again by it.
+    if (entries) w.line(1, "REFN", s.id);
+    for (const e of opts.excerpts?.(s) ?? []) {
+      w.line(1, "OBJE");
+      w.line(2, "FORM", "jpg");
+      w.line(2, "_STROM_KIND", "excerpt");
+      if (e.url) w.text(2, "_URL", e.url);
+      w.wrapped(2, "FILE", dataUrl(e));
+    }
   }
   for (const r of repos) {
     if (!usedRepos.has(r.id)) continue;
@@ -381,20 +402,28 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (st.note) w.text(2, "NOTE", st.note);
   }
 
-  /** A source citation at `level`; returns the quote when it has to go into a note (Strom does not read DATA). */
+  /**
+   * A source citation at `level`: when the record was made as DATA DATE (5.5.1), the quote as DATA TEXT —
+   * for Strom also where in the entry the fact was read, when that is not the source's PAGE; returns the
+   * quote when it has to go into a note (Strom does not read DATA TEXT yet).
+   */
   function citation(level: number, c: Citation): string | undefined {
     const src = sourceById.get(c.source);
     if (!src) return undefined;
     citedSources.add(c.source);
-    const page = c.locator ?? src.locator;
-    w.line(level, "SOUR", strict ? x(c.source) : pageXref(c.source, page ?? ""));
+    const page = strict ? (c.locator ?? src.locator) : stromPage(src, c);
+    w.line(level, "SOUR", x(c.source));
     if (page) w.text(level + 1, "PAGE", page);
     w.line(level + 1, "QUAY", quay(src, c));
-    if (!c.quote) return undefined;
-    if (!strict) return c.quote;
-    w.line(level + 1, "DATA");
-    w.text(level + 2, "TEXT", c.quote);
-    return undefined;
+    const where = !strict && c.locator && c.locator !== page ? c.locator : undefined;
+    const quote = [where, c.quote].filter(Boolean).join(" — ") || undefined;
+    const date = entries ? src.date : undefined;
+    if (date || quote) {
+      w.line(level + 1, "DATA");
+      if (date) w.line(level + 2, "DATE", date);
+      if (quote) w.text(level + 2, "TEXT", quote);
+    }
+    return strict ? undefined : c.quote;
   }
 
   function participant(pt: Participant, on: "INDI" | "FAM", noteParts: string[], assos: { person: string; rela: string }[]): void {

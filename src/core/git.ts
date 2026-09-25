@@ -165,7 +165,7 @@ export function head(dir: string): string | undefined {
   return headInfo(dir)?.hash;
 }
 
-function tracked(dir: string, p: string): boolean {
+export function tracked(dir: string, p: string): boolean {
   return runGit(dir, ["ls-files", "--error-unmatch", "--", p]).status === 0;
 }
 

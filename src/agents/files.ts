@@ -13,7 +13,7 @@ import type { Tree } from "../core/tree.ts";
 import { PROFILES, SELF_READING } from "./profiles.ts";
 import { Settings } from "../core/config.ts";
 import { configDir } from "../core/paths.ts";
-import { browserConnectors } from "../core/connector.ts";
+import { treeBrowserConnectors } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
 
 export const MARKER = "<!-- strom: generated above this line (strom agents sync); your own notes below are kept -->";
@@ -79,30 +79,37 @@ they ask.
   archive — a few minutes; it then fetches only the images we need, slowly").
 - **Stories of their ancestors**: on by default — once records tell a life,
   strom proposes a task to write it for the family book in the Strom app
-  (the method: a story rests on recorded facts only). When the research
-  starts, tell them in a sentence and that they may say no (\`strom\` shows
-  whether they chose; \`strom config set stories no\`). A story stays a draft
-  until they approve it.
+  (the method: a story rests on recorded facts only). When \`strom\` says to
+  tell them (it does once, not in every conversation), say it in a sentence
+  and that they may say no (\`strom config set stories no\`). A story stays a
+  draft until they approve it.
+- **One person looked at again** ("check grandpa František", "find more
+  about her", after a new model): \`strom review <whom>\` — strom proposes
+  the work as tasks (what the tree already says of them elsewhere, entries to
+  read whole, facts to check); tell them how many and what a session costs,
+  and they choose: here with you, or the agent alone.
 - **What waits for them** (\`strom\` shows it): tell them plainly what to do
   and where, one thing at a time.
 - **Results and the Strom app**: \`output/tree-strom.ged\` is the family tree
   for the Strom app (https://stromapp.info) — strom's companion: a free family
   tree app, no account, their data stay on their computer; it shows the tree,
-  the sources, a map, a family book. When they want to see the results (or
-  once, when the first ones are there), suggest it gently, in a sentence or
-  two: best installed as an app from the browser, from
+  the sources, a map, a family book. When they want to see the results, or
+  when \`strom\` says to offer it (it does once, not in every conversation),
+  suggest it gently, in a sentence or two: best installed as an app from the browser, from
   https://stromapp.info/run/ — \`strom app install\` opens it there and says
   where to click; it works offline then; \`strom app\` opens it, with this
   research when the app can take it — run by you, the app then follows the
   research live, what you record shows there by itself (else in the app:
-  Import, and this file). \`strom\` says which, in its results line. A program they already use is fine too:
+  Import, and this file) — each register entry with its image, cut out of its
+  scan. \`strom\` says which, in its results line. A program they already use is fine too:
   \`output/tree.ged\`. If they do not want it, do not bring it up again.
 - **The tree in this conversation, app or not**: they can simply ask you —
   about anyone in the tree, a family, a line, what is proven and by which
   record, what is still missing. Answer from strom (\`strom person show\`,
   \`family show\`, \`research show\`, \`find\`, \`source show\`, \`story show\`,
   \`gaps\`, \`frontier\`) in plain words: names, dates, places and the record
-  behind each fact, no IDs. Tell them once that they can ask like this.
+  behind each fact, no IDs. When \`strom\` says to (once), tell them they can
+  ask like this.
 
 ${SELF_READING}
 ${MARKER}
@@ -139,8 +146,8 @@ export function claudeSettings(tree: Tree): Record<string, unknown> {
   const settings = new Settings(tree.env, {});
   const shared = settings.shared()?.value;
   const keys = permissionPath(configDir(tree.env));
-  // Connectors whose images come through the user's browser: browser tools, for their sites only.
-  const browser = browserConnectors(tree.env, shared);
+  // Connectors of this tree whose images come through the user's browser: browser tools, for their sites only.
+  const browser = treeBrowserConnectors(tree, shared);
   const sites = [...new Set(browser.flatMap((c) => c.manifest.hosts.map(chromeDomain)))];
   const downloads = permissionPath(settings.downloads());
   const lead = settings.models("claude", tree.config).lead;

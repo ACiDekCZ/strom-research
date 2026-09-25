@@ -19,7 +19,8 @@ import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts
 import { prependPath } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
 import { storyProposals } from "../core/stories.ts";
-import { create, requireRecord, update } from "../core/records.ts";
+import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
+import { create, csvOpt, requireRecord, update } from "../core/records.ts";
 import { taskQueue, waitingLines } from "./tasks.ts";
 import { resolveResearch } from "./research.ts";
 import { writeGedcoms } from "./output.ts";
@@ -31,13 +32,14 @@ import { AGENTS, detectAgent, which } from "../core/which.ts";
 import { keepAwake } from "../core/awake.ts";
 import { stromLauncher } from "../core/self.ts";
 import { phrase } from "../core/phrases.ts";
-import { enterWorker } from "../core/workers.ts";
-import { acquireLock } from "../core/lock.ts";
+import { enterWorker, runAlive, runsAtWork } from "../core/workers.ts";
+import type { Env } from "../core/paths.ts";
 import { assertIntact, snapshot, verifyFast } from "../core/integrity.ts";
 import { guard } from "../core/guard.ts";
 import { hasErrors } from "../core/check.ts";
 import { Tree } from "../core/tree.ts";
-import { browserConnectors, routeOf } from "../core/connector.ts";
+import { treeBrowserConnectors } from "../core/connector.ts";
+import { reviewProposals } from "../core/review.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary), tree.dryRun ? "(dry run — nothing written)" : undefined);
@@ -49,20 +51,27 @@ function researchOf(tree: Tree, ref: unknown): Research | undefined {
   return active.length === 1 ? active[0] : undefined;
 }
 
-/** Create the frontier's proposed tasks, and the stories due (unless the user said no); returns their IDs. */
+/** The places of facts not on the map yet, when a session ends: the few with most facts, to complete while they are fresh. */
+function offMap(tree: Tree): string | undefined {
+  const off = placesOffMap(tree);
+  if (!off.length) return undefined;
+  return lines(`· for the map — places of facts without coordinates (${off.length}):`, ...off.slice(0, 3).map((m) => `    ${offMapLine(m)}`), `    ${OFF_MAP_HOW} · all: strom place list --off-map`);
+}
+
+type Proposal = Omit<Task, "id" | "type" | "created" | "updated" | "notes" | "state">;
+
+/** The tasks strom would propose for a research now: its frontier, the review of a person, the stories due (unless the user said no). */
+export function researchProposals(tree: Tree, research: Research): { proposal: Proposal; kind: string }[] {
+  const out: { proposal: Proposal; kind: string }[] = [];
+  for (const item of frontier(tree, research)) if (item.proposal) out.push({ proposal: { ...item.proposal, origin: "frontier" }, kind: "frontier" });
+  for (const proposal of reviewProposals(tree, research)) out.push({ proposal, kind: "review" });
+  if (new Settings(tree.env, {}).stories(tree.config).on) for (const proposal of storyProposals(tree, research)) out.push({ proposal: { ...proposal, origin: "frontier" }, kind: "story" });
+  return out;
+}
+
+/** Create the tasks strom proposes for a research; returns their IDs. */
 export function applyFrontier(tree: Tree, research: Research): string[] {
-  const created: string[] = [];
-  for (const item of frontier(tree, research)) {
-    if (!item.proposal) continue;
-    const t = create<Task>(tree, "task", { ...item.proposal, state: "open", origin: "frontier" }, (id) => `+${id} task "${truncate(item.proposal!.what, 60)}" (frontier)`);
-    created.push(t.id);
-  }
-  if (new Settings(tree.env, {}).stories(tree.config).on)
-    for (const proposal of storyProposals(tree, research)) {
-      const t = create<Task>(tree, "task", { ...proposal, state: "open", origin: "frontier" }, (id) => `+${id} task "${truncate(proposal.what, 60)}" (story)`);
-      created.push(t.id);
-    }
-  return created;
+  return researchProposals(tree, research).map(({ proposal, kind }) => create<Task>(tree, "task", { ...proposal, state: "open" }, (id) => `+${id} task "${truncate(proposal.what, 60)}" (${kind})`).id);
 }
 
 /** Commit behind the same gate as every write. */
@@ -149,6 +158,7 @@ register(
           written(tree),
           ged ? `GEDCOM ${geds.map((g) => ctx.display(g.file)).join(" · ")}: ${ged.stats.persons} persons, ${ged.stats.families} families` : undefined,
           newTasks.length ? `${newTasks.length} new task(s) from the research frontier` : undefined,
+          offMap(tree),
           // In a conversation, the next task is best begun in a fresh context: all of this one is in strom.
           !s.runner && ctx.env.STROM_NONINTERACTIVE !== "1" ? freshContext(ctx, tree, s) : undefined,
         ),
@@ -183,7 +193,7 @@ register(
       const m = s.metrics ?? {};
       return {
         text: lines(
-          `${s.id} ${s.state}${s.task ? ` · task ${s.task}` : ""}${s.runner ? ` · ${s.runner}` : ""} · ${s.started.slice(0, 16).replace("T", " ")}${s.ended ? ` – ${s.ended.slice(11, 16)}` : ""}`,
+          `${s.id} ${s.state}${s.task ? ` · task ${s.task}` : ""}${s.runner ? ` · ${s.runner}` : ""}${s.agent && s.agent !== s.runner ? ` · ${s.agent}` : ""}${s.model ? ` · ${s.model}` : ""} · ${s.started.slice(0, 16).replace("T", " ")}${s.ended ? ` – ${s.ended.slice(11, 16)}` : ""}`,
           s.summary ? `summary  ${s.summary}` : undefined,
           s.next ? `next     ${s.next}` : undefined,
           Object.keys(m).length
@@ -407,9 +417,10 @@ register({
     "the tree's permissions (anything else is denied), or with the terminal (--interactive). Stops at the\n" +
     "subscription limit, when the queue is empty, or at --until (a session already running finishes, within\n" +
     "--minutes). A session longer than --minutes is stopped (its task goes back to the queue); a task that comes\n" +
-    "back twice in a row with nothing recorded is parked. Arguments after -- go to the agent CLI unchanged.",
+    "back twice in a row with nothing recorded is parked. --task picks the tasks (one session each, in that order;\n" +
+    "one done or held by another agent meanwhile is left out). Arguments after -- go to the agent CLI unchanged.",
   options: [
-    { name: "task", type: "string", value: "<T…>", description: "work on this task (default: the next one)" },
+    { name: "task", type: "string", multiple: true, value: "<T…>", description: "work on these tasks, in this order (repeatable or T0003,T0007; default: the next one of the queue)" },
     { name: "research", type: "string", value: "<G…>", description: "only tasks of this research" },
     { name: "max", type: "string", value: "<n>", description: "at most n sessions (default 1; with --until, no limit)" },
     { name: "until", type: "string", value: "<HH:MM>", description: "start no session after this time" },
@@ -418,7 +429,7 @@ register({
     { name: "model", type: "string", value: "<model>", description: "model of the main agent (default: model.lead)" },
     { name: "interactive", type: "boolean", description: "give the agent the terminal (you can talk to it)" },
   ],
-  examples: ["strom run", "strom run --max 3 --until 23:00", "strom run --interactive", "strom run --agent codex", "strom run --minutes 30 -- --add-dir ~/Scans"],
+  examples: ["strom run", "strom run --max 3 --until 23:00", "strom run --task T0003,T0007", "strom run --interactive", "strom run --agent codex", "strom run --minutes 30 -- --add-dir ~/Scans"],
   run: async (ctx: Context, { opts, extra }) => {
     const root = ctx.tree().root;
     const treeCfg = ctx.tree().config;
@@ -430,19 +441,24 @@ register({
     if (runnerId !== "script" && !which(runner.command, ctx.env))
       throw new StromError(`${runner.command} is not installed`, { hint: runnerId === "claude" ? "install Claude Code: https://claude.com/claude-code — then log in once by running: claude" : `install ${runner.command}` });
     const until = parseUntil(opts.until);
-    const max = opts.max === undefined ? (until ? Infinity : 1) : Number(opts.max);
+    // Tasks the user picked: one session each, in their order (then the queue, when --max asks for more).
+    const picked = csvOpt(opts.task).map((id) => requireRecord<Task>(Tree.open(root, ctx.env), id, "task").id);
+    const max = opts.max === undefined ? (picked.length ? picked.length : until ? Infinity : 1) : Number(opts.max);
     if (max !== Infinity && (!Number.isInteger(max) || max < 1)) throw new UsageError("--max must be a positive number");
     const minutes = ctx.settings.number("run.minutes", treeCfg, DEFAULT_RUN_MINUTES);
     const budget = ctx.settings.number("brief.budget", treeCfg, DEFAULT_BUDGET);
-    const release = acquireLock(path.join(root, ".strom", "run.lock"), { owner: "strom run", waitMs: 0, staleMs: 24 * 3600_000 });
+    // Each run has a name of its own (as a conversation does): several work side by side, never on one task.
+    const worker = `run-${process.pid}-${Date.now().toString(36)}`;
+    const runEnv: Env = { ...ctx.env, STROM_WORKER: worker };
     // Present in the tree for the others at work (conversations with agents): strom shows who works.
-    const leave = enterWorker(root, "run", `${PROFILES[runnerId]?.name ?? runnerId} on its own`);
+    const beside = runsAtWork(root);
+    const leave = enterWorker(root, worker, `${PROFILES[runnerId]?.name ?? runnerId} on its own`);
     const stopAwake = keepAwake(ctx.env);
     // Progress goes to stderr when stdout carries JSON.
     const out = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
     const report: { session: string; task?: string; outcome: string; summary?: string; costUsd?: number }[] = [];
     // Why the run stopped: a code for the exit status and for data, words for the user (their language).
-    const lang = Tree.open(root, ctx.env).lang;
+    const lang = Tree.open(root, runEnv).lang;
     type Stop = "done" | "user" | "time" | "empty" | "problems" | "denied" | "limit" | "auth" | "failed";
     let stopCode: Stop = "done";
     let stopValues: Record<string, string> = {};
@@ -455,31 +471,29 @@ register({
     };
     const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM", "SIGHUP"];
     for (const sig of signals) process.on(sig, onSignal);
+    if (beside.length) out(ui(lang, "ui.run.others", { since: new Date(beside[0]!.since).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) }));
     try {
       {
-        const tree = Tree.open(root, ctx.env);
+        const tree = Tree.open(root, runEnv);
         assertIntact(tree);
         const files = syncAgentFiles(tree);
         if (files.length) tree.withTreeLock(() => tree.commit(`Agent instructions: ${files.join(", ")}`, files));
-        // A session of a run that is no longer running (we hold the run lock): the run was
-        // killed or the computer went down. Close it; its task goes back to the queue.
-        for (const s of openSessions(tree).filter((x) => x.runner)) {
+        // A session of a run that is no longer at work: the run was killed or the computer went down.
+        // Close it; its task goes back to the queue. (The sessions of other runs at work stay theirs.)
+        for (const s of openSessions(tree).filter((x) => x.runner && !runAlive(root, x))) {
           closeSession(tree, s, { summary: phrase(tree.lang, "session.run"), next: "", interrupted: true, endedBy: "run" });
           commitNow(tree, `${s.id} interrupted: its run had stopped`);
           out(ui(lang, "ui.run.gone", { session: s.id, back: s.task ? ui(lang, "ui.run.back", { task: s.task }) : "" }));
         }
       }
-      const bin = shimDir(Tree.open(root, ctx.env));
+      const bin = shimDir(Tree.open(root, runEnv));
       // How the agent is let work, said once: browser tools for whose sites, and a loosening the user chose.
-      const browser = runnerId === "claude" ? browserConnectors(ctx.env, ctx.settings.shared()?.value) : [];
+      // Browser tools only for the archives this tree works with (the plugins folder is shared by every tree).
+      const browser = runnerId === "claude" ? treeBrowserConnectors(Tree.open(root, runEnv), ctx.settings.shared()?.value) : [];
       const permissions = ctx.settings.agentPermissions();
-      for (const c of browser) {
-        const chosen = routeOf(ctx.env, c).chosen;
-        out(`· ${c.name}: images through your browser — the agent gets browser tools for ${c.manifest.hosts.join(", ")}${chosen ? ` (chosen ${chosen.at.slice(0, 10)} ${chosen.by})` : ""}; Chrome with the Claude extension must be running`);
-      }
-      if (browser.length && /haiku/i.test(models.lead ?? ""))
-        out(`  note: browser tools need a model that can review its actions — Sonnet or Opus, not ${models.lead}: strom config set model.lead sonnet`);
-      if (permissions === "full") out("· permissions: full — the agent does everything but what the tree's permissions deny (back: strom config set agent.permissions auto)");
+      for (const c of browser) out(ui(lang, "ui.run.browser", { name: c.manifest.title ?? c.name, hosts: c.manifest.hosts.join(", ") }));
+      if (browser.length && /haiku/i.test(models.lead ?? "")) out(ui(lang, "ui.run.browser.model", { model: models.lead! }));
+      if (permissions === "full") out(ui(lang, "ui.run.full"));
       for (let i = 0; i < max; i++) {
         if (stop.signal.aborted) {
           stopCode = "user";
@@ -489,12 +503,21 @@ register({
           stopCode = "time";
           break;
         }
-        const tree = Tree.open(root, ctx.env); // fresh: the agent wrote from other processes
+        const tree = Tree.open(root, runEnv); // fresh: the agent wrote from other processes
         const research = researchOf(tree, opts.research);
         // Other agents may be at work in this tree (conversations): never their tasks.
         const others = othersAtWork(tree, tree.env, runnerId).tasks;
-        const free = () => taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config) }).find((t) => !others.has(t.id));
-        let task = typeof opts.task === "string" && i === 0 ? requireRecord<Task>(tree, opts.task, "task") : free();
+        // Working alone: now and then a story's turn (in a conversation the user leads).
+        const free = () => taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), storyTurn: true }).find((t) => !others.has(t.id));
+        let task: Task | undefined;
+        if (i < picked.length) {
+          task = tree.get<Task>(picked[i]!);
+          const left = !task || !["open", "doing", "parked", "waiting"].includes(task.state) ? task?.state : others.has(task.id) ? "held" : undefined;
+          if (left) {
+            out(ui(lang, left === "held" ? "ui.run.skip.held" : "ui.run.skip", { task: picked[i]! }));
+            continue;
+          }
+        } else task = free();
         if (!task && research) {
           applyFrontier(tree, research);
           task = free();
@@ -503,7 +526,7 @@ register({
           stopCode = "empty";
           break;
         }
-        const session = startSession(tree, { task, ...(research ? { research: research.id } : {}), runner: runnerId });
+        const session = startSession(tree, { task, ...(research ? { research: research.id } : {}), runner: runnerId, ...(models.lead ? { model: models.lead } : {}) });
         commitNow(tree, `${session.id} session started on ${task.id}`);
         const brief = buildBrief(tree, { task, session, budget, shared: ctx.settings.shared()?.value });
         const briefFile = path.join(root, ".strom", "briefs", `${session.id}.md`);
@@ -516,7 +539,7 @@ register({
           brief.text;
         const kickoff = `You are the researcher in strom session ${session.id}. Run \`strom brief\` and follow it; work only through strom; finish with \`strom session close\`.`;
         const env = {
-          ...prependPath(ctx.env, bin),
+          ...prependPath(runEnv, bin),
           STROM_SESSION: session.id,
           ...(opts.interactive ? {} : { STROM_NONINTERACTIVE: "1" }),
         };
@@ -539,7 +562,7 @@ register({
           signal: stop.signal,
         });
         // Close what the agent left open, record the metrics, export, commit.
-        const after = Tree.open(root, ctx.env);
+        const after = Tree.open(root, runEnv);
         let s = after.get<Session>(session.id)!;
         if (s.state === "open")
           s = closeSession(after, s, {
@@ -550,6 +573,9 @@ register({
             endedBy: result.outcome === "stopped" ? "user" : "agent",
           });
         else update<Session>(after, s.id, "session", (x) => ({ ...x, metrics: result.metrics }), { op: "session.metrics", summary: `${s.id} metrics` });
+        // the model it really ran on, as the agent said (an alias such as "opus" names no version)
+        if (result.metrics.model && s.model !== result.metrics.model)
+          s = update<Session>(after, s.id, "session", (x) => ({ ...x, model: result.metrics.model }), { op: "session.metrics", summary: `${s.id} model ${result.metrics.model}` });
         // A task that comes back again and again without anything being recorded
         // is stuck: park it (the user decides), work on the next one.
         const back = after.get<Task>(task.id);
@@ -601,10 +627,9 @@ register({
       for (const sig of signals) process.off(sig, onSignal);
       stopAwake();
       leave();
-      release();
     }
     // What the research now waits for from the user who started it.
-    const waiting = waitingLines(Tree.open(root, ctx.env), { shared: ctx.settings.shared()?.value, display: (p) => ctx.display(p) });
+    const waiting = waitingLines(Tree.open(root, runEnv), { shared: ctx.settings.shared()?.value, display: (p) => ctx.display(p) });
     const reason = ui(lang, `ui.run.stop.${stopCode}` as UIKey, stopValues);
     return {
       text: lines(ui(lang, "ui.run.summary", { n: report.length, reason }), waiting ? `\n${waiting}` : undefined),

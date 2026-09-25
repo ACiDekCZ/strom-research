@@ -7,7 +7,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { Settings } from "./config.ts";
 import { UsageError } from "./errors.ts";
-import type { Input, Media, Region } from "./model.ts";
+import type { Input, Media, Region, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { safeFolderName } from "./text.ts";
 
@@ -152,7 +152,7 @@ export function inboxFolders(inbox: string): { folder: string; files: string[] }
  * of several copies of the whole image (a reduced download, then the full one), the sharpest.
  */
 export function findImage(all: Media[], recordset: string, image: number): Media | undefined {
-  const of = all.filter((m) => m.recordset === recordset && m.image === image);
+  const of = all.filter((m) => !m.retracted && m.recordset === recordset && m.image === image);
   const pixels = (m: Media) => (m.width ?? 0) * (m.height ?? 0);
   return of.filter((m) => !m.part).sort((a, b) => pixels(b) - pixels(a))[0] ?? of[0];
 }
@@ -175,13 +175,26 @@ export function imageOfRef(all: Media[], recordset: string, image: number): Medi
 export function otherCopies(all: Media[], m: Media): Media[] {
   if (m.part || m.recordset === undefined || m.image === undefined) return [];
   return all
-    .filter((x) => x.id !== m.id && !x.part && x.recordset === m.recordset && x.image === m.image)
+    .filter((x) => x.id !== m.id && !x.retracted && !x.part && x.recordset === m.recordset && x.image === m.image)
     .sort((a, b) => (b.width ?? 0) * (b.height ?? 0) - (a.width ?? 0) * (a.height ?? 0));
 }
 
 /** The same part of an image (to a thousandth of it). */
 export function sameRegion(a: Region, b: Region): boolean {
   return Math.abs(a.x - b.x) < 0.001 && Math.abs(a.y - b.y) < 0.001 && Math.abs(a.w - b.w) < 0.001 && Math.abs(a.h - b.h) < 0.001;
+}
+
+/** No region, or one that covers the whole image. */
+export function isWhole(r: Region | undefined): boolean {
+  return !r || (r.x <= 0.001 && r.y <= 0.001 && r.x + r.w >= 0.999 && r.y + r.h >= 0.999);
+}
+
+/** At most this many clips on a source: an entry, and its continuation over a page break (or two). */
+export const MAX_CLIPS = 3;
+
+/** "M0012@0.05,0.4,0.45,0.18" — a clip as --clip takes it; "M0012" when it is the whole image. */
+export function clipText(c: { media: string; region: Region }): string {
+  return isWhole(c.region) ? c.media : `${c.media}@${regionText(c.region)}`;
 }
 
 /** "0.5,0,0.5,0.5" — a region as --crop takes it. */
@@ -201,7 +214,7 @@ export function sharperPart(all: Media[], whole: Media, r: Region): { part: Medi
   let best: { part: Media; crop: Region; gain: number } | undefined;
   for (const m of all) {
     const p = m.part ?? (m.id !== whole.id ? { x: 0, y: 0, w: 1, h: 1 } : undefined);
-    if (!p || !m.width || m.recordset !== whole.recordset || m.image !== whole.image) continue;
+    if (!p || !m.width || m.retracted || m.recordset !== whole.recordset || m.image !== whole.image) continue;
     if (r.x < p.x - e || r.y < p.y - e || r.x + r.w > p.x + p.w + e || r.y + r.h > p.y + p.h + e) continue;
     const gain = m.width / p.w / whole.width;
     if (gain < 1.2 || (best && gain <= best.gain)) continue;
@@ -222,4 +235,26 @@ export function inputPath(tree: Tree, input: Input): string | undefined {
     return shared ? path.join(shared, input.file.slice(6)) : undefined;
   }
   return undefined;
+}
+
+/**
+ * An entry read from a scan with no transcript: the note that asks for its words, as they stand in the record (its
+ * own language and spelling) — the Strom app shows them next to the entry's image.
+ */
+export function transcriptNote(tree: Tree, s: Source): string | undefined {
+  if (s.retracted || s.transcript?.trim()) return undefined;
+  const onScan = s.clips?.length || s.media?.some((id) => /^image\/(jpeg|png)$/.test(tree.get<Media>(id)?.mime ?? ""));
+  if (!onScan) return undefined;
+  return `note: write the words of the entry as they stand (its own language and spelling, unread letters [?]): strom source edit ${s.id} --transcript @<file> — the Strom app shows them next to its image`;
+}
+
+/**
+ * A source on a scan with no clip: the note that asks for one. The reader has the entry in front of them — it is
+ * the moment to say where it is (the Strom app shows the entry cut out of the scan next to its words).
+ */
+export function clipNote(tree: Tree, s: Source): string | undefined {
+  if (s.retracted || s.clips?.length || !s.media?.length) return undefined;
+  const image = s.media.find((id) => /^image\/(jpeg|png)$/.test(tree.get<Media>(id)?.mime ?? ""));
+  if (!image) return undefined;
+  return `note: say where the entry is on ${image}: strom source edit ${s.id} --clip ${image}@x,y,w,h (the view you read it in prints it: strom media view ${image} --crop …) — the Strom app shows it cut out next to its words`;
 }

@@ -92,6 +92,7 @@ export const claudeRunner: Runner = {
         } catch {
           return;
         }
+        if (msg.type === "system" && msg.subtype === "init" && typeof msg.model === "string") metrics.model = msg.model;
         if (msg.type === "assistant") {
           const content = ((msg.message as { content?: unknown[] })?.content ?? []) as { type: string; text?: string; name?: string; input?: Record<string, unknown> }[];
           for (const b of content) {

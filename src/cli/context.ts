@@ -8,6 +8,7 @@ import { Writable } from "node:stream";
 import { Settings, type Flags } from "../core/config.ts";
 import { displayPath, expandHome, type Env } from "../core/paths.ts";
 import { NeedsConsentError, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
+import { migrate } from "../core/migrate.ts";
 import { Tree, findTreeUpwards, isTreeDir } from "../core/tree.ts";
 import type { TreeConfig } from "../core/model.ts";
 import { readJsonIfExists } from "../core/json.ts";
@@ -188,17 +189,19 @@ export class Context {
 
   /**
    * One of numbered options (1…n, or keys of their own like "0"); Enter takes
-   * the suggested one. Asks again on anything else. Undefined when a test ran
-   * out of answers.
+   * the suggested one. Asks again on anything else. `back` adds "0" with that
+   * label: the person changes their mind, nothing changes — undefined, as when
+   * a test ran out of answers.
    */
-  async choose(question: string, options: { key?: string; label: string }[], suggested: number): Promise<number | undefined> {
+  async choose(question: string, choices: { key?: string; label: string }[], suggested: number, opts: { back?: string } = {}): Promise<number | undefined> {
+    const options = opts.back ? [...choices, { key: "0", label: opts.back }] : choices;
     const keys = options.map((o, i) => o.key ?? String(i + 1));
     for (;;) {
       this.io.stdout(`\n${question ? `${question}\n` : ""}${options.map((o, i) => `  ${keys[i]!.padStart(2)}  ${o.label}`).join("\n")}\n`);
       if (this.io.answers && this.io.answers.length === 0) return undefined;
       const a = await this.ask(`${ui(this.uiLang(), "ui.choose")}`, keys[suggested]);
       const i = keys.indexOf(a.trim());
-      if (i >= 0) return i;
+      if (i >= 0) return i < choices.length ? i : undefined;
       this.io.stdout(ui(this.uiLang(), "ui.bad.choice") + "\n");
     }
   }
@@ -299,6 +302,8 @@ export class Context {
       });
     }
     this.opened = Tree.open(root, this.env);
+    // Data an older strom wrote under an older schema: brought forward first (a dry run too — it is not the command's change).
+    for (const step of migrate(this.opened)) this.io.stderr(`${ui(this.uiLang(), "ui.migrated", { step })}\n`);
     this.opened.dryRun = this.dryRun;
     // A language passed from outside (--lang, STROM_LANG — e.g. by the Strom
     // app) applies to this invocation; the tree keeps its own.

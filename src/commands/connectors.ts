@@ -16,10 +16,11 @@ import { register, type Result } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, runs, shellArg, table } from "../cli/format.ts";
 import { StromError, UsageError } from "../core/errors.ts";
+import { isAgent } from "../core/which.ts";
 import type { Media, RecordSet, Region, Repository } from "../core/model.ts";
 import { requireRecord } from "../core/records.ts";
 import { readable } from "../core/text.ts";
-import { findImage, regionText, sameRegion } from "../core/media.ts";
+import { findImage, isWhole, regionText, sameRegion } from "../core/media.ts";
 import { partRegion } from "../core/views.ts";
 import { loadLogins, loginOf, loginsFile, removeLogin, saveLogin, VISIBLE_FIELDS } from "../core/logins.ts";
 import { readAsset } from "../core/assets.ts";
@@ -27,7 +28,7 @@ import { runGit } from "../core/git.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { Tree } from "../core/tree.ts";
 import { syncAgentFiles } from "../agents/files.ts";
-import { clearBlock, CookieJar, DEFAULT_PACE, hostAllowed, hostState, knownHosts, NetError, paceOf, politeRequest, refusedBy, reserveSlots } from "../core/net.ts";
+import { clearBlock, CookieJar, DEFAULT_PACE, hostAllowed, hostPace, hostState, knownHosts, MIN_INTERVAL_MS, NetError, paceText, politeRequest, refusedBy, reserveSlots, setOwnPace, type Pace } from "../core/net.ts";
 import {
   botCheck,
   fileBase,
@@ -71,6 +72,7 @@ import {
   NAME_RE,
   readManifest,
   routeOf,
+  treeBrowserConnectors,
   routesOf,
   ROUTES,
   runConnector,
@@ -94,6 +96,17 @@ function shared(ctx: Context): string {
 const netDir = (ctx: Context) => path.join(shared(ctx), "net");
 const when = (ms: number) => new Date(ms).toISOString().slice(0, 16).replace("T", " ");
 
+/** The pace for a host now: the user's own for it, else its connector's service's, else strom's. */
+function paceAt(ctx: Context, host: string, c?: Connector): Pace {
+  const by = c ?? listConnectors(ctx.settings.shared()?.value).find((x) => x.manifest.hosts.some((h) => hostAllowed(host, [h])));
+  return hostPace(hostState(netDir(ctx), host), by?.manifest.policy.pace);
+}
+
+/** A connector's pace: that of its first host. */
+function connectorPace(ctx: Context, c: Connector): Pace {
+  return paceAt(ctx, bareHost(c.manifest.hosts[0] ?? ""), c);
+}
+
 function hostLine(ctx: Context, host: string): string {
   const s = hostState(netDir(ctx), host);
   const hour = s.recent.filter((t) => t > Date.now() - 3600_000).length;
@@ -102,6 +115,8 @@ function hostLine(ctx: Context, host: string): string {
     s.blockedUntil && s.blockedUntil > Date.now() ? `⛔ refused us — left alone until ${when(s.blockedUntil)} (${s.reason ?? ""})` : "",
     hour ? `${hour} request(s) in the last hour` : "",
     (s.slowdown ?? 1) > 1 ? `slowed ×${(s.slowdown ?? 1).toFixed(1)}` : "",
+    s.waitUntil && s.waitUntil > Date.now() ? `its limit used up until ${when(s.waitUntil)}` : "",
+    `${paceText(paceAt(ctx, host))}${s.own ? " (yours)" : ""}`,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -110,7 +125,7 @@ function hostLine(ctx: Context, host: string): string {
 /** Ask the user, on a terminal, to allow automated access to a host. */
 async function askHost(ctx: Context, host: string, c?: Connector, byWindow = false): Promise<boolean> {
   if (!byWindow) {
-    ctx.io.stdout("\n" + hostWarning(host, c) + "\n");
+    ctx.io.stdout("\n" + hostWarning(host, c, paceAt(ctx, host, c)) + "\n");
     if (!(await ctx.confirm(`Allow automated access to ${host}?`, false))) return false;
   }
   const all = loadConsents(ctx.env);
@@ -201,7 +216,9 @@ function describeRun(r: RunReport, what: string): string {
 const BOOKS_IN_FULL = 3;
 const BOOKS_SHOWN = 30;
 
-function bookLines(r: RunReport, connector: string, listOne: string): string[] {
+function bookLines(r: RunReport, c: Connector, listOne: string): string[] {
+  // a connector that fetches nothing (the terms forbid it, or it only finds): the images come by hand
+  const fetches = c.manifest.policy.automation !== "manual" && c.manifest.can.some((x) => x === "fetch" || x === "locate");
   const line = (b: FoundBook) => `${b.title}${b.callNumber ? ` (${b.callNumber})` : ""}${b.years ? ` · ${b.years}` : ""}${b.kinds?.length ? ` · ${b.kinds.join(",")}` : ""}${b.images ? ` · ${b.images} images` : ""}`;
   if (r.books.length > BOOKS_IN_FULL)
     return [
@@ -214,7 +231,11 @@ function bookLines(r: RunReport, connector: string, listOne: string): string[] {
       `  ${line(b)}`,
       b.url ? `    ${b.url}` : undefined,
       `    strom recordset add ${shellArg(b.title)}${b.callNumber ? ` --call-number ${shellArg(b.callNumber)}` : ""}${b.kinds?.length ? ` --kinds ${b.kinds.join(",")}` : ""}${b.places?.length ? ` --places ${shellArg(b.places.join(","))}` : ""}${b.years ? ` --years ${b.years}` : ""}${b.url ? ` --url ${shellArg(b.url)}` : ""} --access online-free`,
-      b.id ? `    then: strom fetch ${connector} ${shellArg(b.id)} --images <from-to> --recordset B…` : undefined,
+      !fetches
+        ? `    then: the user saves the images by hand — strom task wait T… --images B…:<from-to> --on "<the book, its link, which images>"`
+        : b.id
+          ? `    then: strom fetch ${c.name} ${shellArg(b.id)} --images <from-to> --recordset B…`
+          : undefined,
     ]
       .filter(Boolean)
       .join("\n"),
@@ -229,7 +250,7 @@ function parseImages(v: unknown, max = 1000): number[] | undefined {
   const z = Number(m[2] ?? m[1]);
   if (a < 1) throw new UsageError("--images: images are counted from 1");
   if (z < a) throw new UsageError("--images: from before to");
-  if (z - a >= max) throw new UsageError(`--images: at most ${max} at a time`, { hint: "the hourly cap of an archive: the rest in the next hour" });
+  if (z - a >= max) throw new UsageError(`--images: at most ${max} at a time`, { hint: "the rest in the next run (an archive's hourly cap: in the next hour)" });
   return Array.from({ length: z - a + 1 }, (_, i) => a + i);
 }
 
@@ -251,8 +272,8 @@ function forbiddenBy(ctx: Context, c: Connector): Repository | undefined {
 }
 
 /** How long a fetch takes at least, at the connector's pace (one request per image). */
-function estimate(c: Connector, images: number): string {
-  const pace = paceOf(c.manifest.policy.pace);
+function estimate(ctx: Context, c: Connector, images: number): string {
+  const pace = connectorPace(ctx, c);
   const secs = Math.round(((images - 1) * pace.minIntervalMs) / 1000);
   const took = secs < 90 ? `${secs} s` : `${Math.round(secs / 60)} min`;
   return `${images} image(s) through ${c.name}: at least ${took} at its pace (one request per image, ≥${pace.minIntervalMs / 1000} s apart)`;
@@ -310,16 +331,18 @@ register(
       const c = findConnector(ctx.settings.shared()?.value, args[0]!);
       const m = c.manifest;
       const direct = directNetwork(c);
-      const pace = paceOf(m.policy.pace);
+      const pace = connectorPace(ctx, c);
+      const own = hostState(netDir(ctx), bareHost(m.hosts[0] ?? "")).own;
       return {
         text: lines(
           `${c.name}${m.version ? ` ${m.version}` : ""} — ${m.title}  (${ctx.display(c.dir)})`,
           `can        ${m.can.join(", ")}`,
+          m.newer ? `newer      ${m.newer.join(", ")} — from a newer contract, left out here (strom update runs them)` : undefined,
           `runs       ${m.run.join(" ")}`,
           `automation ${m.policy.automation}${m.policy.terms ? ` · terms ${m.policy.terms}` : " · terms not recorded"}`,
           m.policy.termsSummary ? `           ${m.policy.termsSummary}` : undefined,
           m.policy.officialExport ? `official   ${m.policy.officialExport}` : undefined,
-          `pace       ≥${pace.minIntervalMs / 1000} s apart, ≤${pace.perHour}/h`,
+          `pace       ${paceText(pace)}${own ? " — yours for the host (strom allow host … --pace auto: the service's again)" : m.policy.pace?.source ? ` — the service's: ${m.policy.pace.source}` : ""}`,
           m.can.includes("fetch") || m.can.includes("locate") ? `images     ${routeText(ctx, c)}` : undefined,
           `consent    ${consentState(ctx, c)}`,
           m.login ? `login      ${loginState(ctx, c)} — ${m.login.about}${m.login.url ? ` (${m.login.url})` : ""}` : undefined,
@@ -338,7 +361,8 @@ register(
     description:
       "Through the browser, the agent fetches them in your own browser (Claude in Chrome), where your login to the\n" +
       "portal lives: strom still plans every request, paces it, and takes the files over from your downloads\n" +
-      "folder, checked and registered. The agent gets browser tools for the connector's sites only, from its next\n" +
+      "folder, checked and registered. The agent gets browser tools for the connector's sites only, in the trees that\n" +
+      "work with the archive (images fetched through it, or an archive, book or record on its site), from its next\n" +
       "session on. Your agent may switch it when you ask it to.",
     args: [{ name: "connector", description: "its name", required: true }],
     options: [{ name: "via", type: "string", value: "<direct|browser>", description: "direct: strom fetches them · browser: your browser does" }],
@@ -376,7 +400,8 @@ register(
           via === "browser"
             ? lines(
                 `${c.name}: images through your browser from now on (${hosts.join(", ")})`,
-                `  · the agent gets browser tools (Claude in Chrome) for these sites only, from its next session${synced.length ? ` (permissions of ${synced.join(", ")} updated)` : ""}. Chrome with the`,
+                `  · the agent gets browser tools (Claude in Chrome) for these sites only, in the family trees that work with this`,
+                `    archive (images fetched through it, or an archive, book or record of theirs on its site), from its next session${synced.length ? ` (permissions of ${synced.join(", ")} updated)` : ""}. Chrome with the`,
                 "    Claude extension must be running then, signed in to the account Claude Code uses; browser tools need a model",
                 "    that can review its actions (Sonnet or Opus, not Haiku)",
                 `  · strom plans and paces every request, and takes the files over from ${ctx.display(s.downloads())}`,
@@ -758,7 +783,14 @@ register(
       const tree = ctx.tree();
       const c = findConnector(ctx.settings.shared()?.value, args[0]!);
       if (opts.take) return takeOver(ctx, c, opts.result === undefined ? undefined : String(opts.result));
-      const perHour = paceOf(c.manifest.policy.pace).perHour;
+      // Through the browser, an agent needs browser tools — only a tree that works with this archive gives them.
+      if (isAgent(ctx.env) && routeOf(ctx.env, c).via === "browser" && !treeBrowserConnectors(tree, ctx.settings.shared()?.value).some((x) => x.name === c.name)) {
+        const site = c.manifest.hosts[0]!;
+        throw new StromError(`this family tree does not work with ${c.manifest.title} yet, so you have no browser tools for ${site}`, {
+          hint: `record the archive: strom repo add "${c.manifest.title}" --url https://${site} — the browser tools come with the next conversation or run (tell the user)`,
+        });
+      }
+      const perHour = Math.min(1000, connectorPace(ctx, c).perHour);
       const wantsPart = opts.crop !== undefined || opts.half !== undefined;
       if (wantsPart && !c.manifest.can.includes("part"))
         throw new UsageError(`connector ${c.name} fetches whole images only (it cannot: part)`, {
@@ -827,11 +859,37 @@ register(
     options: [
       { name: "revoke", type: "boolean", description: "take the consent back" },
       { name: "unblock", type: "boolean", description: "lift a refusal (401/403) early — only after the archive said it is fine" },
+      { name: "pace", type: "string", value: "<seconds|auto>", description: `your own pause between two requests to the host (at least ${MIN_INTERVAL_MS / 1000} s); auto: the service's again` },
+      { name: "per-hour", type: "string", value: "<n|none|auto>", description: "your own hourly cap for the host; none: no cap; auto: the service's again (strom sets none by itself)" },
     ],
-    examples: ["strom allow host archive.example.org", "strom allow host archive.example.org --revoke"],
+    examples: ["strom allow host archive.example.org", "strom allow host archive.example.org --pace 1 --per-hour none", "strom allow host archive.example.org --pace auto --per-hour auto", "strom allow host archive.example.org --revoke"],
     run: async (ctx, { args, opts }) => {
       const host = args[0]!.toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
       const lang = ctx.uiLang();
+      // The user's own pace for the host: theirs to set — asked in a window when an agent runs it.
+      if (opts.pace !== undefined || opts["per-hour"] !== undefined) {
+        const was = hostState(netDir(ctx), host).own;
+        const own = { ...(was?.minIntervalMs !== undefined ? { minIntervalMs: was.minIntervalMs } : {}), ...(was?.perHour !== undefined ? { perHour: was.perHour } : {}) } as { minIntervalMs?: number; perHour?: number };
+        if (opts.pace !== undefined) {
+          const v = String(opts.pace).trim();
+          if (v === "auto") delete own.minIntervalMs;
+          else if (Number(v) * 1000 >= MIN_INTERVAL_MS) own.minIntervalMs = Math.round(Number(v) * 1000);
+          else throw new UsageError(`--pace must be seconds, at least ${MIN_INTERVAL_MS / 1000}, or auto — not "${v}"`);
+        }
+        if (opts["per-hour"] !== undefined) {
+          const v = String(opts["per-hour"]).trim();
+          if (v === "auto") delete own.perHour;
+          else if (v === "none") own.perHour = 0;
+          else if (Number.isInteger(Number(v)) && Number(v) > 0) own.perHour = Number(v);
+          else throw new UsageError(`--per-hour must be a number, none or auto — not "${v}"`);
+        }
+        const c = listConnectors(ctx.settings.shared()?.value).find((x) => x.manifest.hosts.some((h) => hostAllowed(host, [h])));
+        const next = hostPace({ recent: [], own: { ...own, at: "" } }, c?.manifest.policy.pace);
+        ctx.requireHuman(`Set the pace of ${host}: ${paceText(next)}?`, `strom allow host ${host}${opts.pace !== undefined ? ` --pace ${opts.pace}` : ""}${opts["per-hour"] !== undefined ? ` --per-hour ${opts["per-hour"]}` : ""}`, `pace:${host}`, ui(lang, "ui.consent.host.pace", { host, seconds: next.minIntervalMs / 1000, cap: Number.isFinite(next.perHour) ? ui(lang, "ui.pace.cap", { n: next.perHour }) : ui(lang, "ui.pace.nocap") }));
+        const s = setOwnPace(netDir(ctx), host, own);
+        const now = paceAt(ctx, host, c);
+        return { text: `${host}: ${paceText(now)}${s.own ? " — yours" : " — the service's again"}`, data: { host, pace: { minIntervalMs: now.minIntervalMs, perHour: Number.isFinite(now.perHour) ? now.perHour : null }, own: s.own ?? null } };
+      }
       const how = ctx.requireHuman(
         `${opts.revoke ? "Take back" : opts.unblock ? "Lift the refusal of" : "Allow"} automated access to ${host}?`,
         `strom allow host ${host}${opts.revoke ? " --revoke" : opts.unblock ? " --unblock" : ""}`,
@@ -873,7 +931,7 @@ register(
           "hosts (automated access)",
           ...hosts.map((h) => `  ${hostLine(ctx, h)}${all.hosts[h] ? `  · allowed since ${all.hosts[h].at.slice(0, 10)}` : ""}`),
           hosts.length ? undefined : "  (none)",
-          `pace: one request at a time per host, ≥${DEFAULT_PACE.minIntervalMs / 1000} s apart, ≤${DEFAULT_PACE.perHour}/h; a refusal stops for a day`,
+          `pace: one request at a time per host — the service's pace (its connector says it), else ≥${DEFAULT_PACE.minIntervalMs / 1000} s apart; an hourly cap only where the service or you set one; slower while a host answers slowly, a wait when it says its limit is used up; a refusal stops for a day · yours for a host: strom allow host <host> --pace <seconds> --per-hour <n>`,
           Object.keys(loadLogins(ctx.env)).length ? `logins saved (strom login): ${Object.keys(loadLogins(ctx.env)).sort().join(", ")}` : undefined,
           "take back: strom allow connector <name> --revoke · strom allow host <host> --revoke",
         ),
@@ -978,7 +1036,7 @@ async function testWith(ctx: Context, c: Connector, request: ConnectorRequest, m
   return {
     text: lines(
       describeRun(r, `test ${request.cmd}`),
-      r.books.length ? `books (${r.books.length}):\n${bookLines(r, c.name, `strom connector test ${c.name} --list <id>`).join("\n")}` : undefined,
+      r.books.length ? `books (${r.books.length}):\n${bookLines(r, c, `strom connector test ${c.name} --list <id>`).join("\n")}` : undefined,
       r.images.length ? `images (${r.images.length}): ${r.images.map((i) => `${i.n ?? "?"}${i.region ? ` part ${regionText(i.region)}` : ""}=${path.basename(i.file)} ${fs.statSync(i.file).size} B${pixels(i.file)}`).join(", ")} in ${ctx.display(workDir)}` : undefined,
       r.located.length ? `located (${r.located.length}):\n${r.located.map((l) => `  ${l.n}${l.region ? ` part ${regionText(l.region)}` : ""}  ${l.src}${l.url && l.url !== l.src ? `\n       page ${l.url}` : ""}`).join("\n")}` : undefined,
       c.manifest.login ? (loginOf(ctx.env, c) ? "with the user's login" : `without a login${c.manifest.login.required ? "" : " (the user may save one: strom login " + c.name + ")"}`) : undefined,
@@ -1034,7 +1092,7 @@ function pagesOf(ctx: Context, c: Connector): ((r: PageRequest) => PageAnswer | 
 function planPages(ctx: Context, c: Connector, want: PageRequest, resume: Resume, what: string, before?: string): Result {
   const tree = ctx.tree();
   const u = new URL(want.url);
-  const pace = paceOf(c.manifest.policy.pace);
+  const pace = paceAt(ctx, u.hostname, c);
   let times: number[];
   try {
     // one pause ahead: time to open the tab
@@ -1189,7 +1247,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   if (via === "browser" && (request.cmd === "fetch" || request.cmd === "part")) return planBrowser(ctx, c, request, recordset);
   if (!(await ensureAllowed(ctx, c))) return { text: "not allowed — nothing was fetched", exitCode: 1 };
   if (!(await ensureLogin(ctx, c))) return { text: "no login — nothing was fetched", exitCode: 1 };
-  if (request.cmd === "fetch") ctx.io.stderr(estimate(c, request.images.length) + "\n");
+  if (request.cmd === "fetch") ctx.io.stderr(estimate(ctx, c, request.images.length) + "\n");
   if (request.cmd === "fetch" && c.manifest.policy.automation === "unknown")
     ctx.io.stderr(`note: what the terms of ${c.manifest.title} say about automated download is not known yet — strom connector show ${c.name}\n`);
   const workDir = path.join(tree.root, ".strom", "fetch", `${c.name}-${Date.now()}`);
@@ -1204,7 +1262,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   if (request.cmd === "find" || request.cmd === "list") {
     fs.rmSync(workDir, { recursive: true, force: true });
     return {
-      text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c.name, `strom fetch ${c.name} <id> --list`)].join("\n") : "no books found"),
+      text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`)].join("\n") : "no books found"),
       data: r,
       ...(r.stopped && !r.books.length ? { exitCode: 1 } : {}),
     };
@@ -1225,7 +1283,12 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
           gain !== undefined && gain < 1.2 ? "  no sharper than the whole image: the portal gives no more detail than that" : undefined,
           `look at it: strom media view ${recordset}:${request.image} --crop ${regionText(m.part!)} (a view of the image uses the part by itself)`,
         )
-      : res.again.length
+      : res.again.length && whole && res.again.includes(whole.id) && r.images.every((i) => isWhole(i.region))
+        ? lines(
+            `the portal's sharpest of image ${request.image} is the whole scan, registered already: ${whole.id}${whole.width ? ` · ${whole.width}×${whole.height} px` : ""} — no part needed`,
+            `look at it: strom media view ${recordset}:${request.image} --crop ${regionText(request.region)}`,
+          )
+        : res.again.length
         ? lines(`that part is registered already: ${res.again.join(" ")}`, ...res.clashes.map((x) => `⚠ ${x}`))
         : "no part fetched";
     data = { ...data, added: res.added.map((x) => ({ id: x.id, image: x.image, part: x.part })), again: res.again };
@@ -1260,7 +1323,7 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
   const tree = ctx.tree();
   if (!c.manifest.can.includes("locate")) throw new UsageError(`connector ${c.name} cannot say where its images are (can: locate) — the browser has no addresses to fetch`, { hint: `strom connector use ${c.name} --via direct` });
   if (!(await ensureAllowed(ctx, c))) return { text: "not allowed — nothing was planned", exitCode: 1 };
-  const pace = paceOf(c.manifest.policy.pace);
+  const pace = connectorPace(ctx, c);
   const part = request.cmd === "part";
   const asked = part ? [request.image] : request.images;
   // one script waits at most SCRIPT_MS: as many images as fit in it, the rest next time
@@ -1325,13 +1388,16 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
 async function takeOver(ctx: Context, c: Connector, result: string | undefined): Promise<Result> {
   const tree = ctx.tree();
   const all = loadPlans(tree.root, c.name);
-  // pages for the connector first: what they were planned for goes on
-  const pagePlans = all.filter((p) => p.pages?.length);
-  if (pagePlans.length && !tree.dryRun) return takePages(ctx, c, pagePlans, result);
-  const plans = all.filter((p) => p.items.length);
-  if (!plans.length) return { text: `nothing of ${c.name} waits to be taken over — plan it first: strom fetch ${c.name} <book> --images <from-to> --recordset B…`, data: { taken: [] } };
   const dir = ctx.settings.downloads();
   const got = parseResult(result ?? "");
+  // pages for the connector first: what they were planned for goes on — unless the browser saved images
+  // and none of those pages (a page planned in a run given up must not hold back what did arrive)
+  const pagePlans = all.filter((p) => p.pages?.length);
+  const pagesHere = got.some((g) => g.page) || pagePlans.some((p) => p.pages!.some((pg) => findDownload(dir, pg.file).file));
+  const imagesHere = all.some((p) => p.items.some((i) => findDownload(dir, i.file).file));
+  if (pagePlans.length && !tree.dryRun && (pagesHere || !imagesHere)) return takePages(ctx, c, pagePlans, result);
+  const plans = all.filter((p) => p.items.length);
+  if (!plans.length) return { text: `nothing of ${c.name} waits to be taken over — plan it first: strom fetch ${c.name} <book> --images <from-to> --recordset B…`, data: { taken: [] } };
   if (tree.dryRun) {
     const found = plans.flatMap((p) => p.items.filter((i) => findDownload(dir, i.file).file));
     return { text: `dry run: would take over ${found.length} of ${plans.reduce((n, p) => n + p.items.length, 0)} planned image(s) from ${ctx.display(dir)} — nothing was changed`, data: { dryRun: true, found: found.map((i) => i.n) } };

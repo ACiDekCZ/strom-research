@@ -73,16 +73,22 @@ test("a record naming parents: the person's name and the family itself carry the
 
   await w.ok(["name", "add", "P4", "Magdalena /Ševčíková/", "--kind", "birth"]);
   await w.ok(["name", "add", "P4", "Magdalena /Víšková/", "--kind", "married"]);
+  // two facts of one entry, each on its own words
+  await w.ok(["event", "add", "P4", "birth", "--date", "1862", "--cite", "S1", "--locator", "pag. 228", "--quote", "Magdalena Ševčíková"]);
+  await w.ok(["event", "add", "P5", "birth", "--date", "1864", "--cite", "S1", "--locator", "pag. 228", "--quote", "Анна"]);
   await w.ok(["export", "gedcom"]);
   const ged = fs.readFileSync(path.join(w.cwd, "output", "tree.ged"), "utf8");
   assert.match(ged, /1 NAME Šimon \/Ševčík\/\n2 SOUR @S0001@\n3 PAGE pag. 228\n3 QUAY 2\n/);
   assert.match(ged, /1 NAME Magdalena \/Ševčíková\/\n2 TYPE birth\n1 NAME Magdalena \/Víšková\/\n2 TYPE married\n/);
   assert.match(ged, /0 @F0002@ FAM\n1 HUSB @P0003@\n1 CHIL @P0004@\n1 CHIL @P0005@\n1 CHIL @P0006@\n1 SOUR @S0001@\n2 PAGE pag. 228\n2 QUAY 2\n1 SOUR @S0001@\n2 PAGE pag. 229\n/);
   assert.deepEqual(validateGedcom(ged).filter((f) => f.level === "error"), []);
-  // for Strom (one PAGE per source there): the other page is a source of its own
+  // for Strom (it keeps one PAGE per source): one source per entry; where else in it a fact was read is DATA TEXT
   const forStrom = fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
-  assert.match(forStrom, /1 SOUR @S0001@\n2 PAGE pag. 228\n2 QUAY 2\n1 SOUR @S0001_2@\n2 PAGE pag. 229\n/);
-  assert.match(forStrom, /0 @S0001_2@ SOUR\n1 TITL Křest Františka 1862 \(pag. 229\)\n/);
+  assert.match(forStrom, /1 SOUR @S0001@\n2 PAGE pag. 228\n2 QUAY 2\n1 SOUR @S0001@\n2 PAGE pag. 228\n2 QUAY 3\n2 DATA\n3 TEXT pag. 229\n/);
+  assert.doesNotMatch(forStrom, /S0001_2|\(pag. 229\)/);
+  assert.equal(forStrom.match(/^0 @S0001@ SOUR$/gm)?.length, 1);
+  assert.match(forStrom, /1 BIRT\n2 DATE 1862\n2 SOUR @S0001@\n3 PAGE pag. 228\n3 QUAY \d\n3 DATA\n4 TEXT Magdalena Ševčíková\n/);
+  assert.match(forStrom, /1 BIRT\n2 DATE 1864\n2 SOUR @S0001@\n3 PAGE pag. 228\n3 QUAY \d\n3 DATA\n4 TEXT Анна\n/);
   assert.deepEqual(validateGedcom(forStrom).filter((f) => f.level === "error"), []);
   const strict = fs.readFileSync(path.join(w.cwd, "output", "tree.ged"), "utf8");
   assert.deepEqual(validateGedcom(strict, { strict: true }).filter((f) => f.level === "error"), []);

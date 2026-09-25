@@ -4,11 +4,14 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
 import { addPerson, addResearch } from "../core/actions.ts";
+import { applyFrontier, researchProposals } from "./session.ts";
+import { phrase } from "../core/phrases.ts";
 import { UsageError } from "../core/errors.ts";
-import type { Person, Research } from "../core/model.ts";
+import { REVIEW_SCOPES, type Person, type Research, type Session, type Task } from "../core/model.ts";
 import { ancestorGenerations, displayName, label, lifespan, parentsOf, resolvePerson } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
+import { update } from "../core/records.ts";
 
 function int(v: unknown, name: string): number | undefined {
   if (v === undefined) return undefined;
@@ -156,3 +159,67 @@ register(
     },
   },
 );
+
+register({
+  path: ["review"],
+  summary: "Review one person: what the tree already says of them elsewhere, entries to read whole, facts to check — as tasks",
+  group: "research",
+  tree: true,
+  writes: true,
+  description:
+    "Sends the research straight to one person. strom looks at what is recorded and proposes the work, at\n" +
+    "most one task of each kind: what records, notes and the diary say of them outside their data; entries whose\n" +
+    "images are here but were not read whole (transcript, godparents, witnesses, house); facts resting on one\n" +
+    "reading; conflicts left open; with --reread, a second reading of what only another model read — after the\n" +
+    "agent or the model changed. Birth, parents and the story come as in any research. Run again later: what a\n" +
+    "task took up is not proposed again. Nothing is deleted; corrections go through strom with their reasons.",
+  args: [{ name: "person", description: "whom (ID or name)", required: true }],
+  options: [
+    { name: "scope", type: "string", value: "<scope>", description: "person (default), family (with partners and children), line (with the ancestors)" },
+    { name: "reread", type: "boolean", description: "also a second reading of what only another model read (the model you read with now: model.vision)" },
+    { name: "model", type: "string", value: "<model>", description: "with --reread: this model instead of model.vision" },
+  ],
+  examples: ["strom review P0001", 'strom review "Josef Novák" --scope family', "strom review P0001 --reread", "strom review P0001 --dry-run"],
+  run(ctx: Context, { args, opts }) {
+    const tree = ctx.tree();
+    const p = resolvePerson(tree, args[0]!);
+    const scope = (opts.scope as string | undefined) ?? "person";
+    if (!(REVIEW_SCOPES as readonly string[]).includes(scope)) throw new UsageError(`--scope must be one of ${REVIEW_SCOPES.join(", ")}`);
+    let reread: string | undefined;
+    if (opts.reread) {
+      reread = (opts.model as string | undefined) ?? ctx.settings.models(ctx.settings.agent(tree.config).value, tree.config).vision;
+      if (!reread) throw new UsageError("--reread needs the model to read with", { hint: "strom config set model.vision <model> — or strom review … --reread --model <model>" });
+    } else if (opts.model) throw new UsageError("--model goes with --reread");
+    const review = { scope: scope as (typeof REVIEW_SCOPES)[number], ...(reread ? { reread } : {}) };
+    // one review research per person: again later, it goes on where it was
+    const existing = tree.list<Research>("research").find((r) => r.direction === "person" && r.focus === p.id && r.review);
+    let research: Research;
+    if (existing)
+      research = update<Research>(tree, existing.id, "research", (r) => ({ ...r, state: "active", review }), {
+        op: "research.edit",
+        summary: `${existing.id} review again: ${scope}${reread ? `, second reading with ${reread}` : ""}`,
+      });
+    else {
+      const r = addResearch(tree, { name: phrase(tree.lang, "review.research", { name: displayName(p) }), focus: p.id, direction: "person" });
+      research = update<Research>(tree, r.id, "research", (x) => ({ ...x, review }), { op: "research.edit", summary: `${r.id} review: ${scope}${reread ? `, second reading with ${reread}` : ""}` });
+    }
+    const planned = tree.dryRun ? researchProposals(tree, research).map((x) => x.proposal) : [];
+    const created = tree.dryRun ? [] : applyFrontier(tree, research);
+    const tasks = created.map((id) => tree.get<Task>(id)).filter((t): t is Task => !!t);
+    const open = tree.list<Task>("task").filter((t) => t.research === research.id && ["open", "doing"].includes(t.state));
+    // what a session costs here, from those so far: the user decides with the price in view
+    const costs = tree.list<Session>("session").map((s) => s.metrics?.costUsd).filter((c): c is number => typeof c === "number");
+    const avg = costs.length ? costs.reduce((a, b) => a + b, 0) / costs.length : undefined;
+    const list = tree.dryRun ? planned.map((t) => `  would add: ${t.level} · ${t.what}`) : tasks.map((t) => `  ${t.id} ${t.level} · ${t.what}`);
+    const text = lines(
+      ...tree.written.map((o) => o.summary),
+      tree.dryRun ? "(dry run — nothing written)" : undefined,
+      "",
+      list.length ? `${label(p)} — ${tree.dryRun ? planned.length : tasks.length} new task(s):` : `${label(p)} — nothing new to review${open.length ? `; ${open.length} task(s) of the review still open` : ""}`,
+      ...list,
+      open.length ? `${open.length} open in ${research.id}, about ${open.length} session(s)${avg !== undefined ? ` — sessions here cost $${avg.toFixed(2)} on average` : ""}` : undefined,
+      open.length ? `next   strom run --research ${research.id}   (the agent alone) · or in a conversation: strom session start --research ${research.id}` : undefined,
+    );
+    return { text, data: { research, created: tasks, planned, open: open.map((t) => t.id), ...(avg !== undefined ? { avgCostUsd: avg } : {}) } };
+  },
+});

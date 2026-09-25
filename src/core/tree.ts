@@ -27,7 +27,7 @@ import { stringifyCanonical } from "./json.ts";
 import type { Env } from "./paths.ts";
 
 export const TREE_FILE = "strom.json";
-export const VERSION = "1.0.0";
+export const VERSION = "1.1.0";
 
 export interface Op {
   at: string;
@@ -49,6 +49,8 @@ export interface Op {
 const GITIGNORE = `# Strom Research — local state and large files are not versioned
 .strom/
 /media/
+/output/*-strom.ged
+/output/*-images.ged
 node_modules/
 *.tmp
 .DS_Store

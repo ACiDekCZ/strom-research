@@ -55,7 +55,7 @@ EVERY SESSION
 
 RECORDING
 A record (register entry, certificate) — the source first, then its facts:
-  strom source add "Křest Jana Nováka 1885" --kind baptism --recordset B0001 --locator "fol. 12, č. 3" --form original --information primary --transcript @zapis.txt
+  strom source add "Křest Jana Nováka 1885" --kind baptism --recordset B0001 --clip B0001:12@0.05,0.40,0.45,0.18 --locator "fol. 12, č. 3" --form original --information primary --transcript @zapis.txt
   strom person add "Jan /Novák/" --sex M --born "24 JUN 1885" --born-place "Kamenice nad Lipou" --cite S0001
   strom family add --partner P0002 --partner P0003 --child P0001    the baptism naming the parents proves the link
   strom event add P0001 CHR --date "25 JUN 1885" --cite S0001 --locator "fol. 12" --with "godparent:Marie Dvořáková" --status proven
@@ -104,6 +104,10 @@ SEARCHING
   strom search add "Křty Novák 1880-1890" --recordset B0001 --years 1880-1890 --surname Novák --method page-by-page --result negative
   strom search edit Q0001 --recordset B0002 --reason "…"   a search recorded wrongly is corrected, never added again
   strom repo add … · strom recordset add … · strom place jurisdiction …   where the records are
+  strom place add "<village>" --kind village --lat … --lon …   the places of the facts, on the Strom app's map —
+                                       identify the place first (district, parish, today's name: of several
+                                       villages of a name, the one the records mean); not sure: --unlocated "<why>".
+                                       session close and strom place list --off-map say which are still off it
   strom connector list                 connectors: they find books and fetch scans
   strom fetch <connector> --find "<place>" --years 1780-1850
   strom fetch <connector> <book> --images 40-69 --recordset B0001    registered at once
@@ -114,12 +118,23 @@ SEARCHING
 FINDING YOUR WAY
   strom research show G0001 · strom person show P0001 · strom family show F0001
   strom gaps · strom find <text> [<text>…] · strom frontier · strom task list
+  for the user, in the research language: strom stats (how far the research got) · strom recent
+  (what came in lately) · strom plan (what you do next) · strom pedigree [P…] (the ancestors as a
+  tree) · strom person card P… (one life)
+ONE PERSON, LOOKED AT AGAIN (the user asks you to check or complete someone; a new model reads better)
+  strom review P… [--scope family|line] [--reread] — strom proposes tasks: what records, notes and the
+  diary say of them outside their data, entries whose images are here but were not read whole, facts
+  resting on one reading, conflicts left open (--reread: a second reading with the model the user reads
+  with now). Each task's brief lists its items. Tell the user how many and what they cost; they decide.
 STORIES OF THE ANCESTORS (the setting stories — on by default; strom shows it)
   Once records tell a person's life (a baptism and more facts from records), strom proposes a narrate
   task: write the story for the family book — plain words, the research language, every statement on a
   recorded fact (strom story set P… --text @notes/story-P….md --fact E… …). More facts later: it
-  proposes adding to it. A story is a draft until the user approves it (--final). Not told yet: when the
-  research starts, tell the user in a sentence, and that they may say no (strom config set stories no).
+  proposes adding to it. Stories wait behind all the research; working alone
+  (strom run), every few sessions one comes first. In a conversation the user leads: write one when they
+  want it, or offer it when the research has a pause. A story is a draft until the user approves it (--final). When strom says to tell
+  the user (once, not in every conversation): in a sentence, and that they may say no (strom config set
+  stories no).
 
 The result: strom export gedcom writes output/tree.ged (standard GEDCOM for any program) and
 output/tree-strom.ged (for the Strom app) — both from the same evidence, also on session close.
@@ -128,8 +143,8 @@ Changes are committed automatically; you never run git yourself.
 THE STROM APP — where the user sees the result
   The Strom app (https://stromapp.info) is strom's companion: a free family tree app, no account,
   the family's data stay on their computer; it shows the tree, the sources, a map, a family book.
-  When the user wants to see the results (or once, when the first ones are there), suggest it
-  gently, in a sentence or two — best installed as an app from the browser, then it works offline:
+  When the user wants to see the results, or when strom says to offer it (once, not in every
+  conversation), suggest it gently, in a sentence or two — best installed as an app from the browser, then it works offline:
   https://stromapp.info/run/   the app itself: opened in the browser, installed from there (the
                         install icon at the end of the address bar; Safari: File → Add to Dock)
   strom app install     opens it there and says where to click
@@ -137,9 +152,15 @@ THE STROM APP — where the user sees the result
                         run by you, the app follows the research live: what you record shows there
                         by itself — the best way to watch it grow; otherwise in the app: Import,
                         and output/tree-strom.ged
+                        Each entry comes with its image, cut out of its scan (the sources' clips —
+                        give --clip when you record an entry); sources without a clip (read earlier,
+                        or from an older research) — when the user wants them too: strom clips
+                        --dry-run (how many), then strom clips (readers find and check them); their
+                        words, when a clip has none: strom transcripts (read, then checked)
   Without the app, the user can simply ask you about anyone in the tree, a family, a line, what is
-  proven and by which record: answer from strom (person show, family show, research show, find,
-  source show, story show, gaps, frontier) in plain words — names, dates, places, no IDs.
+  proven and by which record, what is new or next: answer from strom (person card, pedigree, stats,
+  recent, plan, person show, family show, research show, find, source show, story show, gaps,
+  frontier) in plain words — names, dates, places, no IDs.
   strom (no arguments) says whether it is installed here (results): not yet — offer to install it; installed —
   just open it. A program they already use is fine too: output/tree.ged. They do not want it:
   never again.

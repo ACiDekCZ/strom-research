@@ -24,8 +24,12 @@ strom runs the connector; you never run it yourself, you test it with
       only finds books and gives their links (`"can": ["find", "list"]`), and
       the user downloads by hand into the inbox.
     - `"unknown"`: you could not find out. Say so; the user decides.
-  - `pace`: slower than strom's default when the terms or robots.txt ask for
-    it, e.g. `{"minIntervalMs": 5000}` for a crawl-delay of 5.
+  - `pace`: the service's own, when it states one — slower when the terms
+    or robots.txt ask for it (`{"minIntervalMs": 5000}` for a crawl-delay of
+    5), faster when its documentation allows it (an API, an image server:
+    `{"minIntervalMs": 500, "source": "<where it says so>"}`), its hourly cap
+    when it has one (`"perHour"`). Never make one up: without it strom keeps
+    its own pause and follows what the server answers.
 - **Never get round a technical measure**: logins you do not have, captchas,
   or tokens meant to stop scripts. Tiles are how many viewers show big images;
   they are a measure against downloading only when the terms or the portal

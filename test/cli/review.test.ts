@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { spawn, spawnSync } from "node:child_process";
+import { enterWorker } from "../../src/core/workers.ts";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { acquireLock } from "../../src/core/lock.ts";
 import { LockedError } from "../../src/core/errors.ts";
@@ -358,7 +359,7 @@ test("strom run: Ctrl-C stops the agent, closes the session and gives the task b
   assert.equal(s.summary, "zastaveno uživatelem", "written into the research: in its language");
   assert.equal(s.endedBy, "user");
   assert.equal(readJsonFile(path.join(w.cwd, "data", "tasks", "T0001.json")).state, "open");
-  assert.ok(!fs.existsSync(path.join(w.cwd, ".strom", "run.lock")));
+  assert.deepEqual(fs.readdirSync(path.join(w.cwd, ".strom", "workers")).filter((f) => f.startsWith("run")), [], "the run is no longer present");
   assert.match((await w.ok(["check"])).out, /^ok/);
   w.cleanup();
 });
@@ -380,6 +381,27 @@ test("strom run: a session left open by a run that was killed is closed by the n
   const r = await w.ok(["run", "--agent", "script"]);
   assert.match(r.out, /· N0001 zavřeno – jeho běh se zastavil; T0001 je zpět ve frontě/);
   assert.match(r.out, /▶ N0002 · T0001/);
+  assert.equal(readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json")).state, "interrupted");
+  w.cleanup();
+});
+
+test("strom run beside another: each run has a name of its own, takes another task and leaves the other's session alone", opts, async () => {
+  const w = await world();
+  for (const what of ["Křest", "Oddavky"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1"]);
+  w.env.STROM_RUNNER_SCRIPT = agent;
+  w.env.AGENT_MODE = "sleep";
+  const first = startRun(w, ["--agent", "script"]);
+  await first.opened;
+  const held = readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json"));
+  assert.match(held.worker, /^run-\d+-/);
+  w.env.AGENT_MODE = "echo";
+  const beside = await w.ok(["run", "--agent", "script", "--json"]);
+  assert.match(beside.err, /⚠ V tomto rodokmenu už pracuje jiný běh \(od \d{1,2}:\d{2}\): tento si vezme jiné úkoly – náklady se sčítají\./);
+  const second = beside.json;
+  assert.notEqual(second.sessions[0].task, held.task, "another task");
+  assert.equal(readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json")).state, "open", "the first run's session is left alone");
+  first.child.kill("SIGINT");
+  assert.equal((await first.exited).code, 0);
   assert.equal(readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json")).state, "interrupted");
   w.cleanup();
 });
@@ -516,5 +538,42 @@ test("frontier: a baptism another task already records or checks in its book is 
   const after = (await w.ok(["frontier", "--json"])).json.frontier.find((i: any) => i.person === "P0001");
   assert.equal(after.coveredBy, "T0001");
   assert.deepEqual((await w.ok(["frontier", "--apply", "--json"])).json.created, []);
+  w.cleanup();
+});
+
+test("strom run --task: the tasks picked, one session each, in that order — one done meanwhile is left out", opts, async () => {
+  const w = await world();
+  for (const what of ["Křest", "Oddavky", "Úmrtí"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1"]);
+  await w.ok(["task", "done", "T0002", "--result", "nalezeno jinde"]);
+  w.env.STROM_RUNNER_SCRIPT = agent;
+  w.env.AGENT_MODE = "echo";
+  const r = await w.ok(["run", "--agent", "script", "--task", "T0003,T0002", "--task", "T0001", "--json"]);
+  assert.deepEqual(r.json.sessions.map((s: { task: string }) => s.task), ["T0003", "T0001"]);
+  assert.match(r.err, /T0002 vynechán: už je hotový nebo zrušený/);
+  w.cleanup();
+});
+
+test("the menu, working alone: the next tasks listed, the time limit said; the queue in order or the tasks picked by number", opts, async () => {
+  const w = await world();
+  for (const [what, p] of [["Křest Josefa", "5"], ["Oddavky rodičů", "3"], ["Úmrtí Josefa", "1"]]) await w.ok(["task", "add", what!, "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1", "--priority", p!]);
+  Object.assign(w.env, { STROM_AGENT: "script", STROM_RUNNER_SCRIPT: agent, AGENT_MODE: "echo" });
+  // 2 working alone · 2 only the ones picked · a wrong answer, then 3 and 1 · Enter · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["2", "2", "4", "3, 1", "", "0"] });
+  assert.match(r.out, /Na řadě jsou tyto úkoly, v pořadí, v jakém je agent vezme:\n {3}1\. Křest Josefa\n {3}2\. Oddavky rodičů\n {3}3\. Úmrtí Josefa\n/);
+  assert.match(r.out, /Na jeden úkol má agent nejvýš 60 minut/);
+  assert.match(r.out, /Čísla ze seznamu, 1 až 3/);
+  const task = (n: string) => readJsonFile(path.join(w.cwd, "data", "sessions", `${n}.json`)).task;
+  assert.deepEqual([task("N0001"), task("N0002")], ["T0003", "T0001"]);
+  assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0003.json")), "only those two");
+  // 0 goes back from both questions: nothing runs.
+  await w.ok([], { tty: true, answers: ["2", "0", "2", "1", "0", "0"] });
+  assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0003.json")));
+  // Another run at work already: said first, and nothing starts without a yes.
+  const other = enterWorker(w.cwd, "run-elsewhere", "Claude Code on its own");
+  const warned = await w.ok([], { tty: true, answers: ["2", "", "0"] });
+  other();
+  assert.match(warned.out, /⚠ Agent už tu pracuje sám \(běhy: 1\)\. Další vedle něj si vezme jiné úkoly – náklady se sčítají\.\nSpustit další vedle něj\? \(a\/n\) \[n\]/);
+  assert.doesNotMatch(warned.out, /Na řadě jsou tyto úkoly/, "no further questions");
+  assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0003.json")));
   w.cleanup();
 });

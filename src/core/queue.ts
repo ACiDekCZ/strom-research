@@ -2,7 +2,11 @@
 // first, but no line takes every session — a line that just had sessions waits
 // while the others get theirs, a task tried again and again sinks instead of
 // being taken forever, and work that needs a download comes after what can be
-// done now. Strategies (setting queue.strategy): balanced (the default), depth
+// done now. The stories of the ancestors come after all the research — also
+// after work that waits for a download: they are never what a session is
+// spent on instead of the research. Working alone (strom run) they still get
+// their turn: after STORY_EVERY sessions without one, a story first. In a
+// conversation the user leads, and a story is written when they want it. Strategies (setting queue.strategy): balanced (the default), depth
 // (stay on the line of the last sessions), priority (strict priority).
 
 import type { Media, Research, Session, Strategy, Task } from "./model.ts";
@@ -18,6 +22,9 @@ const NEEDS_IMAGES = new Set(["link", "verify"]);
 
 /** How many of the last sessions count as "recent" when spreading the work over the lines. */
 const RECENT = 4;
+
+/** Sessions without a story after which a story waiting to be written comes first, once. */
+export const STORY_EVERY = 5;
 
 /** A generation for work about no ancestor (a sibling, a side line, a book): after the close ancestors. */
 const OFF_LINE_GENERATION = 4;
@@ -60,7 +67,7 @@ export function ancestorLines(tree: Tree, focus: string, max = 50): Map<string, 
 }
 
 /** The open tasks in the order to work on them, each with the reason. */
-export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced"): Ranked[] {
+export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean } = {}): Ranked[] {
   const today = now().slice(0, 10);
   const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)));
   const withImages = new Set(tree.list<Media>("media").map((m) => m.recordset));
@@ -87,6 +94,9 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     const t = tasksById.get(s.task!);
     return t ? (place(t)?.line ?? `task:${t.id}`) : undefined;
   });
+  // A story's turn: STORY_EVERY sessions since the last one on a story (or ever), and one waits.
+  const sinceStory = ended.findIndex((s) => tasksById.get(s.task!)?.level === "narrate");
+  const storyDue = !!opts.storyTurn && strategy !== "priority" && (sinceStory === -1 ? ended.length : sinceStory) >= STORY_EVERY;
   const tries = new Map<string, number>();
   for (const s of ended) tries.set(s.task!, (tries.get(s.task!) ?? 0) + 1);
 
@@ -104,8 +114,10 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
           ? 0
           : 2 * t.priority + intake - (gen - 1) - 2 * recent - 1.5 * tried;
     const blocked = lacksImages(tree, t, withImages);
+    const storyTurn = storyDue && t.level === "narrate";
     const why = [
       t.state === "doing" ? "in progress" : undefined,
+      storyTurn ? `a story's turn: none in the last ${STORY_EVERY} sessions` : undefined,
       blocked ? "needs images the user has to download" : undefined,
       `p${t.priority}`,
       t.level === "intake" ? "the user's material" : at ? `generation ${gen}` : "not about an ancestor",
@@ -114,12 +126,14 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     ]
       .filter(Boolean)
       .join(" · ");
-    return { task: t, why, doing: t.state === "doing" ? 0 : 1, blocked: blocked ? 1 : 0, score, gen };
+    return { task: t, why, doing: t.state === "doing" ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : t.level === "narrate" ? 2 : 1, score, gen };
   });
   return rows
     .sort(
       (a, b) =>
         a.doing - b.doing ||
+        // a story's turn first (working alone); otherwise the stories after all the research
+        a.story - b.story ||
         // work that can be done now comes before work that waits for the user's download
         a.blocked - b.blocked ||
         (strategy === "priority" ? b.task.priority - a.task.priority || a.gen - b.gen : b.score - a.score) ||

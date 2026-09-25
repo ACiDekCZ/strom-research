@@ -26,14 +26,22 @@ import { loadUserConfig, Settings, type RouteChoice } from "./config.ts";
 import { readJsonIfExists, writeJson } from "./json.ts";
 import { readAsset } from "./assets.ts";
 import { foldText } from "./text.ts";
-import { CookieJar, hostAllowed, NetError, politeRequest, type Pace } from "./net.ts";
+import { CookieJar, hostAllowed, NetError, paceOf, paceText, politeRequest, type Pace, type ServicePace } from "./net.ts";
 import { loginOf, redactor } from "./logins.ts";
-import type { Region } from "./model.ts";
+import type { Media, RecordSet, Region, Repository, Source } from "./model.ts";
+import type { Tree } from "./tree.ts";
 import { decodeImage, encodeImage, imageSize, imageSizeOfFile } from "../image/index.ts";
 import { blank, paste, toRgb, type RawImage } from "../image/image.ts";
 import { botCheck, type PageAnswer, type PageRequest } from "./browser.ts";
 
+/** The newest version of the contract. */
 export const INTERFACE = 1;
+/**
+ * Every version of the contract this strom runs — each one it ever had: a connector someone built stays
+ * working. Within a version the contract only grows (optional fields, capabilities, routes); what a newer
+ * strom added, an older one leaves out and runs the rest (ConnectorManifest.newer).
+ */
+export const INTERFACES: readonly number[] = [1];
 export const MANIFEST = "connector.json";
 export const CAPABILITIES = ["find", "list", "fetch", "part", "locate"] as const;
 export type Capability = (typeof CAPABILITIES)[number];
@@ -44,7 +52,7 @@ export type Route = (typeof ROUTES)[number];
 export const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 export interface ConnectorManifest {
-  interface: 1;
+  interface: number;
   title: string;
   version?: string;
   /** The program: ["node", "connector.ts"], ["python3", "main.py"] — run in the connector's folder. */
@@ -68,7 +76,7 @@ export interface ConnectorManifest {
     termsSummary?: string;
     robots?: string;
     officialExport?: string;
-    pace?: Partial<Pace>;
+    pace?: ServicePace;
   };
   /** An account on the portal the user may have: what it gives, where to get one, what they type in. */
   login?: {
@@ -79,6 +87,8 @@ export interface ConnectorManifest {
     /** It cannot work without one. */
     required?: boolean;
   };
+  /** Not in the file: what it declares that this strom does not know (from a newer contract) — left out. */
+  newer?: string[];
 }
 
 export interface Connector {
@@ -93,6 +103,8 @@ export interface BrokenConnector {
   name: string;
   dir: string;
   problem: string;
+  /** What to do about it, when it is not a fix in the connector (a newer contract: update strom). */
+  hint?: string;
 }
 
 // ── the plugins folder ───────────────────────────────────────────────────────
@@ -165,7 +177,20 @@ export function readManifest(dir: string): ConnectorManifest {
     throw new UsageError(`${MANIFEST} is not valid JSON: ${(err as Error).message}`);
   }
   const problems: string[] = [];
-  if (m.interface !== INTERFACE) problems.push(`interface: ${INTERFACE} — the version of the contract it is written for`);
+  if (typeof m.interface === "number" && m.interface > Math.max(...INTERFACES))
+    throw new UsageError(`${MANIFEST}: written for version ${m.interface} of the contract — this strom runs ${INTERFACES.join(", ")}`, { hint: "a newer strom runs it: strom update" });
+  if (!INTERFACES.includes(m.interface)) problems.push(`interface: ${INTERFACE} — the version of the contract it is written for`);
+  // Capabilities and routes of a newer contract: left out, the rest runs (an older strom, a connector built for a newer one).
+  const newer: string[] = [];
+  const known = <T extends string>(list: unknown, all: readonly T[], what: string): T[] | unknown => {
+    if (!Array.isArray(list) || list.some((x) => typeof x !== "string")) return list;
+    const unknown = list.filter((x) => !all.includes(x as T) && /^[a-z][a-z-]*$/.test(x));
+    newer.push(...unknown.map((x) => `${what} ${x}`));
+    return list.filter((x) => !unknown.includes(x));
+  };
+  m.can = known(m.can, CAPABILITIES, "can") as Capability[];
+  if (m.routes !== undefined) m.routes = known(m.routes, ROUTES, "route") as Route[];
+  if (newer.length) m.newer = newer;
   if (!m.title || typeof m.title !== "string") problems.push("title: the archive or portal");
   if (!Array.isArray(m.run) || !m.run.length || m.run.some((x) => typeof x !== "string")) problems.push('run: the program, e.g. ["node", "connector.ts"]');
   if (!Array.isArray(m.hosts) || !m.hosts.length || m.hosts.some((h) => typeof h !== "string" || !/^(\*\.)?[a-z0-9.-]+$/i.test(h))) problems.push('hosts: the host names it contacts, e.g. ["digi.example.org"]');
@@ -219,7 +244,7 @@ export function scanConnectors(shared: string | undefined): { connectors: Connec
     try {
       connectors.push({ name: e.name, dir, manifest: readManifest(dir) });
     } catch (err) {
-      broken.push({ name: e.name, dir, problem: (err as Error).message });
+      broken.push({ name: e.name, dir, problem: (err as Error).message, ...(err instanceof UsageError && err.hint ? { hint: err.hint } : {}) });
     }
   }
   return { connectors, broken };
@@ -241,9 +266,34 @@ export function routeOf(env: Env, c: Connector): { via: Route; chosen?: RouteCho
   return chosen && routes.includes(chosen.via) ? { via: chosen.via, chosen } : { via: routes[0]! };
 }
 
-/** Connectors whose images come through the user's own browser on this computer: the agent gets browser tools for their hosts. */
+/** Connectors whose images come through the user's own browser on this computer. */
 export function browserConnectors(env: Env, shared: string | undefined): Connector[] {
   return listConnectors(shared).filter((c) => c.manifest.policy.automation !== "manual" && routeOf(env, c).via === "browser");
+}
+
+/** A site as written anywhere: lower case, without "*." or "www.". */
+function siteOf(host: string): string {
+  return bareHost(host).replace(/^www\./, "");
+}
+
+/**
+ * The browser connectors a tree works with — the agent gets browser tools for their hosts, and only there: images
+ * fetched through one, or an archive, book or record of the tree on its site. The plugins folder is shared by every
+ * tree; a tree whose research never goes to that archive gets no browser.
+ */
+export function treeBrowserConnectors(tree: Tree, shared: string | undefined): Connector[] {
+  const all = browserConnectors(tree.env, shared);
+  if (!all.length) return [];
+  const fetchedBy = new Set(tree.list<Media>("media").flatMap((m) => (m.fetched ? [m.fetched.connector] : [])));
+  const hosts = new Set<string>();
+  for (const r of [...tree.list<Repository>("repository"), ...tree.list<RecordSet>("recordset"), ...tree.list<Source>("source")])
+    if (r.url && !r.retracted)
+      try {
+        hosts.add(siteOf(new URL(r.url).hostname));
+      } catch {
+        // not an address
+      }
+  return all.filter((c) => fetchedBy.has(c.name) || c.manifest.hosts.some((h) => hosts.has(siteOf(h))));
 }
 
 export function findConnector(shared: string | undefined, name: string): Connector {
@@ -252,7 +302,7 @@ export function findConnector(shared: string | undefined, name: string): Connect
   const hit = connectors.find((c) => c.name === name);
   if (hit) return hit;
   const bad = broken.find((b) => b.name === name);
-  if (bad) throw new UsageError(`connector ${name} cannot run: ${bad.problem}`, { hint: `fix it in ${bad.dir} — the contract is ${path.join(connectorsDir(shared), "README.md")}` });
+  if (bad) throw new UsageError(`connector ${name} cannot run: ${bad.problem}`, { hint: bad.hint ?? `fix it in ${bad.dir} — the contract is ${path.join(connectorsDir(shared), "README.md")}` });
   const base = connectorsDir(shared);
   if (/[\\/]/.test(name) || fs.existsSync(path.join(name, MANIFEST)))
     throw new UsageError(`a connector runs from the plugins folder, by its name — not from ${name}`, { hint: `copy the folder into ${base} (or: strom connector add ${name}), then use its folder's name` });
@@ -409,14 +459,14 @@ export function readyConnectors(env: Env, shared: string | undefined, url: strin
 }
 
 /** The warning the user reads before allowing automated access to an archive. */
-export function hostWarning(host: string, c?: Connector): string {
+export function hostWarning(host: string, c?: Connector, pace: Pace = paceOf(c?.manifest.policy.pace)): string {
   const p = c?.manifest.policy;
   return [
     `Automated access to ${host}${c ? ` (${c.manifest.title}, connector ${c.name})` : ""}`,
     "  · Archives run small servers: going too fast slows the archive for everyone and gets your IP blocked.",
     `  · Terms of use: ${p?.terms || "not found yet — read them on the portal before you allow this"}${p?.termsSummary ? `\n    ${p.termsSummary}` : ""}`,
     p ? `  · The connector's reading of them: automation ${p.automation}${p.officialExport ? `; official export: ${p.officialExport}` : ""}` : undefined,
-    "  · strom sends one request at a time, at least 2 s apart, at most 400 an hour; it stops at the first",
+    `  · strom sends one request at a time, ${paceText(pace)}; it stops at the first`,
     "    refusal (401/403) and leaves the archive alone for a day, and for an hour when it asks twice to",
     "    slow down or stops answering.",
     "  · You are responsible for how you use the archive. Prefer its official export where there is one;",
@@ -706,7 +756,7 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
     report.stopped ??= why;
     child.kill();
   };
-  send({ interface: INTERFACE, ...request, ...(login ? { login: true } : {}) });
+  send({ interface: c.manifest.interface, ...request, ...(login ? { login: true } : {}) });
   const lines = readline.createInterface({ input: child.stdout });
   let queue = Promise.resolve();
   lines.on("line", (line) => {

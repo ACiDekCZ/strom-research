@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { UsageError } from "./errors.ts";
 import type { Session, Task } from "./model.ts";
-import { now, type Tree } from "./tree.ts";
+import { now, VERSION, type Tree } from "./tree.ts";
 import { makeNote } from "./actions.ts";
 import type { Env } from "./paths.ts";
 import { detectAgent } from "./which.ts";
@@ -75,7 +75,7 @@ export function openSessions(tree: Tree): Session[] {
 }
 
 /** Start a session on a task (the task goes to "doing"). One open session per agent; one agent per task. */
-export function startSession(tree: Tree, opts: { task?: Task; research?: string; runner?: string }): Session {
+export function startSession(tree: Tree, opts: { task?: Task; research?: string; runner?: string; model?: string }): Session {
   return tree.withTreeLock(() => {
     const me = holderOf(tree.env, opts.runner);
     const busy = openSessions(tree).filter((s) => holder(s) === me && (!opts.research || !s.research || s.research === opts.research));
@@ -90,6 +90,8 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
       });
     const task = opts.task ? (tree.get<Task>(opts.task.id) ?? opts.task) : undefined;
     const agent = detectAgent(tree.env) ?? (opts.runner && opts.runner !== "script" ? opts.runner : undefined);
+    // the model strom started the agent with (strom run, strom chat): what it read with, for a later review
+    const model = opts.model ?? tree.env.STROM_MODEL?.trim();
     const t = now();
     const s: Session = {
       id: tree.allocate("N"),
@@ -104,6 +106,8 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
       ...(opts.runner ? { runner: opts.runner } : {}),
       ...(isWorkerId(tree.env.STROM_WORKER) ? { worker: tree.env.STROM_WORKER } : {}),
       ...(agent ? { agent } : {}),
+      ...(model ? { model } : {}),
+      strom: VERSION,
     };
     tree.put(s, { op: "session.start", targets: [s.id, ...(task ? [task.id] : [])], summary: `${s.id} session started${task ? ` on ${task.id}` : ""}` });
     tree.actor = s.id;

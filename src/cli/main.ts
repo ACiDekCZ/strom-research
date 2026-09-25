@@ -12,6 +12,8 @@ import { resetCache } from "../core/git.ts";
 import { VERSION } from "../core/tree.ts";
 import { isAgent } from "../core/which.ts";
 import { noticeStromApp } from "../core/stromapp.ts";
+import { isNewer } from "../core/update.ts";
+import { refreshGlobal } from "../agents/global.ts";
 import { checkArgs, GroupOnly, parseOptions, resolveCommand, splitPassthrough } from "./execute.ts";
 import "../commands/index.ts";
 
@@ -107,6 +109,13 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     const ctx = Context.fromOptions({ env, cwd, io, json, values: v });
     // Started by the Strom app: remembered quietly (it is where the results go).
     if (env.STROM_APP) noticeStromApp(ctx.settings, env);
+    // The first run of a newer strom: what it taught the agents outside the trees gets this version's text.
+    const last = ctx.settings.config.lastVersion;
+    if (ctx.settings.home() && (!last || isNewer(VERSION, last))) {
+      refreshGlobal(env);
+      ctx.settings.config.lastVersion = VERSION;
+      ctx.settings.save();
+    }
     const args = parsed.positionals;
     checkArgs(def, args);
 

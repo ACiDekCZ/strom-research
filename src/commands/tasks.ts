@@ -11,14 +11,15 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, runs, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
-import { TASK_LEVELS, type Input, type Lesson, type RecordSet, type Research, type Search, type Strategy, type Task } from "../core/model.ts";
+import { TASK_LEVELS, type Input, type Lesson, type RecordSet, type Research, type Search, type Source, type Strategy, type Task } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
 import { resolvePerson } from "../core/people.ts";
+import { foldText } from "../core/text.ts";
 import { now, typeOfId, type Tree } from "../core/tree.ts";
 import { resolveResearch } from "./research.ts";
 import { makeNote } from "../core/actions.ts";
 import { lacksImages, rankTasks, type Ranked } from "../core/queue.ts";
-import { inboxFolderFor, parseImageList } from "../core/media.ts";
+import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
 
 
 function written(tree: Tree): string {
@@ -79,16 +80,16 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
 }
 
 /** The open tasks of the queue in the order to work on them (see core/queue.ts). */
-export function taskQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy } = {}): Task[] {
+export function taskQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean } = {}): Task[] {
   return rankedQueue(tree, filter).map((r) => r.task);
 }
 
-export function rankedQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy } = {}): Ranked[] {
+export function rankedQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean } = {}): Ranked[] {
   const tasks = tree
     .list<Task>("task")
     .filter((t) => !filter.research || !t.research || t.research === filter.research)
     .filter((t) => !filter.level || t.level === filter.level);
-  return rankTasks(tree, tasks, filter.strategy);
+  return rankTasks(tree, tasks, filter.strategy, { storyTurn: filter.storyTurn });
 }
 
 function taskLine(t: Task): string[] {
@@ -130,6 +131,21 @@ function stateChange(tree: Tree, ref: string, state: Task["state"], fields: Part
   }, { op: `task.${verb}`, summary: `${id} ${verb}${fields.result ? `: ${truncate(fields.result, 60)}` : ""}`, reason });
 }
 
+/** Tasks still to be done — the ones a new task must not repeat. */
+const OPEN_STATES: string[] = ["open", "doing", "waiting", "parked"];
+/** How alike two tasks' texts must be to be the same work: anywhere, or in the same books. */
+const SAME_TEXT = 0.75;
+const SAME_TEXT_IN_BOOK = 0.6;
+
+/** How alike two task texts are (0–1): the share of their words in common, any script, accents and punctuation aside. */
+export function alikeness(a: string, b: string): number {
+  const words = (t: string) => new Set(foldText(t).split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean));
+  const [x, y] = [words(a), words(b)];
+  if (!x.size || !y.size) return 0;
+  const common = [...x].filter((w) => y.has(w)).length;
+  return common / (x.size + y.size - common);
+}
+
 register(
   {
     path: ["task", "add"],
@@ -151,6 +167,7 @@ register(
       { name: "about", type: "string", multiple: true, value: "<who>", description: "person/record the task is about, also a conflict X… or hypothesis H… it decides (repeatable)" },
       { name: "research", type: "string", value: "<G…>", description: "research it belongs to (default: the only active one)" },
       { name: "note", type: "string", value: "<text>", description: "short note" },
+      { name: "anyway", type: "boolean", description: "add it although an open task of the same person and level reads the same (it is really other work)" },
     ],
     examples: [
       'strom task add "Křest Jana Nováka (~1905)" --level link --where B0001 --why "potvrdí otce Josefa" --done-when "zápis nalezen, nebo ročníky 1903–1907 prohledány celé" --about P0001 --priority 4',
@@ -164,6 +181,24 @@ register(
       const priority = opts.priority === undefined ? 3 : Number(opts.priority);
       if (!Number.isInteger(priority) || priority < 1 || priority > 5) throw new UsageError("--priority must be 1..5");
       const where = listOpt(opts.where).map((w) => (/^[Bb]\d+$/.test(w) ? requireRecord<RecordSet>(tree, w, "recordset").id : w));
+      const subject = subjects(tree, listOpt(opts.about));
+      const research = defaultResearch(tree, opts.research);
+      // The same work again: an open task of the same person and level that reads the same (or nearly, in the same
+      // books) — not added; what is new goes into that one.
+      if (!opts.anyway) {
+        const books = new Set(where.filter((w) => /^B\d+$/.test(w)));
+        const same = tree
+          .list<Task>("task")
+          .filter((x) => OPEN_STATES.includes(x.state) && x.level === opts.level && x.research === research && x.subject.some((s) => subject.includes(s)))
+          .map((x) => ({ x, alike: alikeness(x.what, args[0]!), books: x.where.some((w) => books.has(w)) }))
+          .filter((m) => m.alike >= SAME_TEXT || (m.books && m.alike >= SAME_TEXT_IN_BOOK))
+          .sort((a, b) => b.alike - a.alike)[0];
+        if (same)
+          throw new UsageError(`a task like this is open already: ${same.x.id} p${same.x.priority} ${same.x.level} "${truncate(same.x.what, 70)}"`, {
+            hint: `add to it: strom task edit ${same.x.id} --priority … --where … --note "…" — or, if it is really other work: --anyway`,
+            details: { task: same.x.id },
+          });
+      }
       const t = create<Task>(
         tree,
         "task",
@@ -174,8 +209,8 @@ register(
           where,
           why: String(opts.why).trim(),
           doneWhen: String(opts["done-when"]).trim(),
-          subject: subjects(tree, listOpt(opts.about)),
-          research: defaultResearch(tree, opts.research),
+          subject,
+          research,
           state: "open",
           origin: tree.actor,
           note: opts.note as string | undefined,
@@ -186,7 +221,7 @@ register(
       const books = new Set(where.filter((w) => /^B\d+$/.test(w)));
       const similar = tree
         .list<Task>("task")
-        .filter((x) => x.id !== t.id && ["open", "doing", "waiting", "parked"].includes(x.state) && x.level === t.level)
+        .filter((x) => x.id !== t.id && OPEN_STATES.includes(x.state) && x.level === t.level)
         .filter((x) => x.subject.some((s) => t.subject.includes(s)) && (books.size === 0 || x.where.some((w) => books.has(w))));
       // A link without images can only wait for the user: say now what to download, while
       // it is known — not in a session spent finding out that there is nothing to read.
@@ -366,7 +401,10 @@ register(
         for (const id of new Set([...t.subject, ...t.where]))
           if (typeOfId(id) === "input" && tree.get<Input>(id)?.state === "new")
             update<Input>(tree, id, "input", (i) => ({ ...i, state: "processed" }), { op: "input.done", summary: `${id} processed (${t.id} done)` });
-      return { text: lines(written(tree), noSearch, handover), data: { task: t } };
+      // The entries it recorded from scans: each with where it is on its image.
+      const recorded = (t.produced ?? []).filter((id) => typeOfId(id) === "source").flatMap((id) => tree.get<Source>(id) ?? []);
+      const unclipped = recorded.flatMap((s) => [clipNote(tree, s), transcriptNote(tree, s)].filter((n): n is string => !!n));
+      return { text: lines(written(tree), noSearch, handover, ...unclipped), data: { task: t } };
     },
   },
   {

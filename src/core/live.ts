@@ -7,10 +7,11 @@
 // anything for a while (LIVE_IDLE_MS), or with strom live stop.
 //
 //   GET <token>/status     the tree, its researches, who is at work, what waits
-//   GET <token>/tree.ged   the tree for the Strom app, as it is now
+//   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*)
+//   GET <token>/images.ged the same (the address an older strom gave)
 //   GET <token>/events     server-sent events: hello, change, working
 //
-// Only pages of the Strom app may read it (CORS: https://stromapp.info, and a
+// Only pages of the Strom app may read it (CORS: https://stromapp.info, its beta, and a
 // local copy on localhost for its development), and a browser asks first
 // whether a public page may talk to this computer (Private Network Access).
 
@@ -22,9 +23,14 @@ import { spawn, spawnSync } from "node:child_process";
 import type { Env } from "./paths.ts";
 import { Tree, VERSION } from "./tree.ts";
 import { exportGedcom } from "../gedcom/export.ts";
+import { excerptSettings, planExcerpts } from "./excerpt.ts";
+
+/** New images for the app, made for at most so long when the tree changed (the rest the next time). */
+const LIVE_IMAGES_MS = 20_000;
 import { liveWorkers } from "./workers.ts";
 import { openSessions } from "./session.ts";
 import { gitProgram } from "./git.ts";
+import { isStromAppOrigin } from "./stromapp.ts";
 import { stromLauncher } from "./self.ts";
 import type { Research, Task } from "./model.ts";
 
@@ -35,6 +41,8 @@ export interface LiveInfo {
   /** The address the app is given (?live=…). */
   url: string;
   started: string;
+  /** The strom version that serves it (a bridge of an older strom has none). */
+  version?: string;
 }
 
 /** Where a running bridge of a tree is noted. */
@@ -66,10 +74,14 @@ function sleep(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-/** Start the bridge of a tree in the background (or find it running); undefined when it did not come up. */
-export function startLive(root: string, env: Env): LiveInfo | undefined {
+/**
+ * Start the bridge of a tree in the background (or find it running); undefined when it did not come up.
+ * `current`: what is asked for is new (a copy with images): a bridge of an older strom is started again.
+ */
+export function startLive(root: string, env: Env, opts: { current?: boolean } = {}): LiveInfo | undefined {
   const running = liveRunning(root);
-  if (running) return running;
+  if (running && (!opts.current || running.version === VERSION)) return running;
+  if (running) stopLive(root);
   fs.rmSync(liveFile(root), { force: true });
   const { command, args } = stromLauncher();
   const child = spawn(command, [...args, "live", "serve"], {
@@ -103,9 +115,7 @@ export function stopLive(root: string): boolean {
 
 /** The pages that may read the bridge: the Strom app, and a local copy of it for its development. */
 function allowedOrigin(origin: string | undefined): string | undefined {
-  if (!origin) return undefined;
-  if (origin === "https://stromapp.info") return origin;
-  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ? origin : undefined;
+  return origin && isStromAppOrigin(origin) ? origin : undefined;
 }
 
 function head(root: string): string {
@@ -178,11 +188,14 @@ export function serveLive(root: string, env: Env): Promise<void> {
     try {
       if (what === "status") {
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(status(root, env)));
-      } else if (what === "tree.ged") {
+      } else if (what === "tree.ged" || what === "images.ged") {
         const h = head(root);
         if (!ged || ged.head !== h) {
           const tree = Tree.open(root, env);
-          ged = { head: h, text: exportGedcom(tree, { for: "strom" }).text };
+          // the images from the cache; new ones made for a while at most (the rest the next time the tree changes)
+          const set = excerptSettings(tree);
+          const images = set ? planExcerpts(tree, set.shared, { quality: set.quality, for: set.for, maxBytes: set.mb * 1024 * 1024, budgetMs: LIVE_IMAGES_MS }) : undefined;
+          ged = { head: h, text: exportGedcom(tree, { for: "strom", ...(images ? { excerpts: images.of } : {}) }).text };
         }
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);
       } else if (what === "events") {
@@ -199,7 +212,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
   return new Promise((resolve) => {
     server.listen(0, "127.0.0.1", () => {
       const port = (server.address() as { port: number }).port;
-      const info: LiveInfo = { port, token, pid: process.pid, url: `http://127.0.0.1:${port}/${token}`, started: new Date().toISOString() };
+      const info: LiveInfo = { port, token, pid: process.pid, url: `http://127.0.0.1:${port}/${token}`, started: new Date().toISOString(), version: VERSION };
       fs.mkdirSync(path.dirname(liveFile(root)), { recursive: true });
       fs.writeFileSync(liveFile(root), JSON.stringify(info, null, 2));
 

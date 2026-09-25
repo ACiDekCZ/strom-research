@@ -14,6 +14,7 @@ import { methodFor } from "../core/assets.ts";
 import { recentSessions } from "../core/session.ts";
 import { calibrationLine } from "../core/calibration.ts";
 import { taskRecordsets } from "../core/frontier.ts";
+import { reviewItems } from "../core/review.ts";
 import { readyConnectors } from "../core/connector.ts";
 import { runs, shellArg } from "../cli/format.ts";
 import { foldText } from "../core/text.ts";
@@ -166,6 +167,10 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
         ...task.notes.slice(-3).map((n) => `note:  ${n.text}`),
       ].filter(Boolean).join("\n"),
     });
+
+  // 2. a review: what each item of the task is, as the tree has it
+  if (task.origin.startsWith("review:") && task.where.length)
+    sections.push({ name: "review", required: true, pointer: `strom task show ${task.id}`, text: ["## To review", ...reviewItems(tree, task)].join("\n") });
 
   // 2a. an imported tree: who in it is probably already in the tree
   const treeInputs = [...new Set([...(task?.subject ?? []), ...(task?.where ?? [])])]

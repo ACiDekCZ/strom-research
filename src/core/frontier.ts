@@ -30,7 +30,7 @@ function birthRecordProven(p: Person): boolean {
 }
 
 /** The kinds of record set in which an event of this kind is written down. */
-const RECORD_KINDS: Record<string, string[]> = {
+export const RECORD_KINDS: Record<string, string[]> = {
   BIRT: ["baptism", "birth"],
   CHR: ["baptism", "birth"],
   BAPM: ["baptism", "birth"],
@@ -49,7 +49,7 @@ function inPlace(place: string, name: string): boolean {
 }
 
 /** Record sets that could hold an event of these kinds at `place` around `year`. */
-function recordsetsCovering(tree: Tree, place: string | undefined, year: number | undefined, kinds: string[]): RecordSet[] {
+export function recordsetsCovering(tree: Tree, place: string | undefined, year: number | undefined, kinds: string[]): RecordSet[] {
   if (!place) return [];
   const key = foldText(place);
   // Names of the place and of the parishes it belonged to.
@@ -132,9 +132,29 @@ function birthEstimate(tree: Tree, p: Person, lang: string): { year?: number; pl
   return { ...(year ? { year } : {}), ...(place ? { place } : {}), ...(from ? { from } : {}) };
 }
 
+/**
+ * The people a research is about, each with their generation from its focus:
+ * the ancestors of an ancestors research; the person (with their family, or
+ * their line) of a person research. Other kinds propose nothing by themselves.
+ */
+export function researchPeople(tree: Tree, research: Research): Map<string, number> {
+  if (research.direction === "ancestors") return ancestorGenerations(tree, research.focus, research.limits?.generations ?? 50);
+  if (research.direction !== "person") return new Map();
+  const scope = research.review?.scope ?? "person";
+  if (scope === "line") return ancestorGenerations(tree, research.focus, research.limits?.generations ?? 50);
+  // generation 1 as in a line of ancestors; the children of a family are generation 0
+  const out = new Map<string, number>([[research.focus, 1]]);
+  if (scope === "family")
+    for (const f of familiesAsPartner(tree, research.focus)) {
+      for (const partner of f.partners) if (!out.has(partner)) out.set(partner, 1);
+      for (const c of f.children) if (!out.has(c.person)) out.set(c.person, 0);
+    }
+  return out;
+}
+
 export function frontier(tree: Tree, research: Research): FrontierItem[] {
-  if (research.direction !== "ancestors") return [];
-  const gens = ancestorGenerations(tree, research.focus, research.limits?.generations ?? 50);
+  // their parents are what the frontier looks for: the children of a family have theirs
+  const gens = [...researchPeople(tree, research)].filter(([, g]) => g >= 1);
   const all = tree.list<Task>("task");
   const tasks = all.filter((t) => FRONTIER_LEVELS.has(t.level));
   const lang = tree.lang;

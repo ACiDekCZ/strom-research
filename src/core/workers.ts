@@ -50,3 +50,18 @@ export function liveWorkers(root: string): Worker[] {
 export function isLiveWorker(root: string, id: string): boolean {
   return !!liveHolder(path.join(dir(root), `${id}.json`), 7 * 24 * 3600_000);
 }
+
+/**
+ * The runs at work in a tree (strom run: each present as a worker of its own, "run-…"). A run of an older strom held
+ * .strom/run.lock instead, and its sessions carry no worker.
+ */
+export function runsAtWork(root: string): Worker[] {
+  const runs = liveWorkers(root).filter((w) => w.id === "run" || w.id.startsWith("run-"));
+  const old = liveHolder(path.join(root, ".strom", "run.lock"));
+  return old ? [...runs, { id: "run", label: old.owner, since: old.at }] : runs;
+}
+
+/** Is the run that holds a session still at work? */
+export function runAlive(root: string, s: { worker?: string }): boolean {
+  return s.worker ? isLiveWorker(root, s.worker) : !!liveHolder(path.join(root, ".strom", "run.lock"));
+}

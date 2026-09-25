@@ -67,6 +67,14 @@ export class GedWriter {
     this.lines.push(value ? `0 ${xref} ${tag} ${value}` : `0 ${xref} ${tag}`);
   }
 
+  /** A long value with no spaces and no "@" (a data URL): cut into CONC lines of the most that fits. */
+  wrapped(level: number, tag: string, value: string): void {
+    const first = MAX_LINE_BYTES - utf8(`${level} ${tag} `);
+    const next = MAX_LINE_BYTES - utf8(`${level + 1} CONC `);
+    this.raw(level, tag, value.slice(0, first));
+    for (let i = first; i < value.length; i += next) this.raw(level + 1, "CONC", value.slice(i, i + next));
+  }
+
   /** A tag with free text of any length: CONT for line breaks, CONC for long lines. */
   text(level: number, tag: string, text: string): void {
     const paragraphs = text

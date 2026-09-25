@@ -238,7 +238,7 @@ test("consent: only the user, on a terminal — never --yes, --json or an agent'
   // the user reads the warning and says yes to the connector, and to its host
   const r = await w.run(["allow", "connector", "zkusebni"], { tty: true, answers: ["y", "y"] });
   assert.equal(r.code, 0, r.err);
-  assert.match(r.out, /Automated access to 127\.0\.0\.1[\s\S]*gets your IP blocked[\s\S]*at most 400 an hour/);
+  assert.match(r.out, /Automated access to 127\.0\.0\.1[\s\S]*gets your IP blocked[\s\S]*at least 2 s apart, no hourly cap/);
   assert.match(r.out, /connector zkusebni allowed\nhosts allowed: 127\.0\.0\.1/);
   const c = readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "consents.json"));
   assert.equal(c.connectors.zkusebni.dir, dir);
@@ -359,7 +359,7 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   // finding books writes nothing
   assert.match((await w.ok(["fetch", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/);
   assert.equal((await w.run(["fetch", "zkusebni", "5359"])).code, 2, "which images?");
-  assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "1-401"])).code, 2, "not more than an hour's cap at once");
+  assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "1-1001"])).code, 2, "not more than a thousand at once");
   w.cleanup();
   await a.close();
 });
@@ -469,6 +469,21 @@ done();
   // a tile left out: a gap, not an image
   const gap = await w.run(["connector", "test", "zkusebni", "--fetch", "gap", "--images", "1"]);
   assert.match(gap.out, /stopped: image 1: the tiles leave a gap near 404,300 px of 800×600 — a tile is missing, or its x, y is wrong/);
+  w.cleanup();
+  await a.close();
+});
+
+test("the pace of a host: strom's pause and no cap made up — the user's own, set in their terminal, back with auto", opts, async () => {
+  const { w, a } = await world();
+  assert.match((await w.ok(["connector", "show", "zkusebni"])).out, /pace\s+at least 2 s apart, no hourly cap/);
+  assert.equal((await w.run(["allow", "host", "127.0.0.1", "--pace", "1"])).code, 4, "the user's decision");
+  assert.equal((await w.run(["allow", "host", "127.0.0.1", "--pace", "0.1"], { tty: true })).code, 2, "not below the shortest pause");
+  const set = await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5", "--per-hour", "3000"], { tty: true });
+  assert.match(set.out, /127\.0\.0\.1: at least 0\.5 s apart, at most 3000 an hour — yours/);
+  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · at least 0\.5 s apart, at most 3000 an hour \(yours\)/);
+  assert.match((await w.ok(["connector", "show", "zkusebni"])).out, /pace\s+at least 0\.5 s apart, at most 3000 an hour — yours for the host/);
+  const back = await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--per-hour", "auto"], { tty: true });
+  assert.match(back.out, /127\.0\.0\.1: at least 2 s apart, no hourly cap — the service's again/);
   w.cleanup();
   await a.close();
 });
@@ -731,6 +746,11 @@ test("a part of an image, sharper: one request, registered with its image — a 
   // tried while building it
   const t = await w.ok(["connector", "test", "zkusebni", "--fetch", "5359", "--images", "2", "--crop", "0,0.5,0.5,0.5"]);
   assert.match(t.out, /images \(1\): 2 part 0,0\.5,0\.5,0\.5=p2\.jpg \d+ B/);
+  // a portal whose sharpest is the whole scan: its "part" is the image registered already — no clash, nothing new
+  program(dir, code.replace('const url = BASE + "/part/"', 'const url = BASE + "/img/"').replace('url);\n} else if (BASE)', 'url, undefined, { x: 0, y: 0, w: 1, h: 1 });\n} else if (BASE)'));
+  const whole = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "2", "--crop", "0,0,0.5,0.5"]);
+  assert.match(whole.out, /the portal's sharpest of image 2 is the whole scan, registered already: M0002 · 400×300 px — no part needed\nlook at it: strom media view B0001:2 --crop 0,0,0\.5,0\.5/);
+  assert.doesNotMatch(whole.out, /⚠/);
   // a connector that gives another image than the one asked for is stopped
   program(dir, code.replace('image(req.image, "p"', 'image(req.image + 1, "p"'));
   const wrong = await w.run(["fetch", "zkusebni", "--recordset", "B1", "--images", "2", "--crop", "0,0,0.5,0.5"]);
@@ -1032,7 +1052,9 @@ done();
   const images = await w.ok(["fetch", "zkusebni", "--take", "--result", bookPage.line, "--json"]);
   assert.equal(images.json.then.plan.items.length, 2, "then the images, planned as ever");
   const tab = await runInTab(images.json.then.script, a.base, downloads, { cookie: "passed=1" });
-  const got = await w.ok(["fetch", "zkusebni", "--take", "--result", tab.line]);
+  // a page planned and never fetched (a run given up) does not hold back the images the browser saved
+  await w.ok(["fetch", "zkusebni", "--find", "Lhota"]);
+  const got = await w.ok(["fetch", "zkusebni", "--take"]);
   assert.match(got.out, /2 image\(s\) taken over from .*: registered M0001 M0002/);
   assert.deepEqual(a.hits.filter((h) => h.startsWith("/g/")).sort(), ["/g/book/5359", "/g/catalog", "/g/catalog", "/g/catalog", "/g/img/5359/1.jpg", "/g/img/5359/2.jpg"].sort());
 
@@ -1096,6 +1118,14 @@ test("the agent's permissions: browser tools only for the sites of connectors se
   const m = readJsonFile(path.join(dir, "connector.json"));
   fs.writeFileSync(path.join(dir, "connector.json"), JSON.stringify({ ...m, can: [...m.can, "locate"], routes: ["direct", "browser"] }));
   await w.ok(["connector", "use", "zkusebni", "--via", "browser"]);
+  // The plugins folder is every tree's: browser tools only where the research works with that archive.
+  assert.ok(!(await settings()).allow.some((r: string) => r.startsWith("mcp__claude-in-chrome")), "this tree has nothing of that archive yet");
+  w.env.CLAUDECODE = "1";
+  const noTools = await w.run(["fetch", "zkusebni", "--find", "Týnec"]);
+  delete w.env.CLAUDECODE;
+  assert.notEqual(noTools.code, 0);
+  assert.match(noTools.err, /does not work with .+ yet, so you have no browser tools for 127\.0\.0\.1\n→ record the archive: strom repo add ".+" --url https:\/\/127\.0\.0\.1/);
+  await w.ok(["repo", "add", "Zkušební archiv", "--url", `http://${m.hosts[0]}/`]);
   const after = await settings();
   assert.ok(after.allow.includes("mcp__claude-in-chrome__javascript_tool"));
   assert.ok(after.allow.includes("ClaudeInChromeDomain(127.0.0.1)"), "its sites, and no others");

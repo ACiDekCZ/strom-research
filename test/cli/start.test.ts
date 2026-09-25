@@ -9,8 +9,9 @@ import { spawnSync } from "node:child_process";
 import http from "node:http";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { conversationArgs } from "../../src/agents/launch.ts";
+import { webAppProfile } from "../../src/core/chromium.ts";
 import { installedStromApp, isStromName } from "../../src/core/stromapp.ts";
-import { createShortcut } from "../../src/core/shortcut.ts";
+import { createShortcut, openInNewTerminal } from "../../src/core/shortcut.ts";
 import { enterWorker } from "../../src/core/workers.ts";
 
 const unix = { skip: !hasGit || process.platform === "win32" };
@@ -54,10 +55,43 @@ test("the menu: results and what waits; unknown choices are asked again", unix, 
   w.env.PATH = pathWith(w, ["claude"]);
   await w.ok(["setup", "--yes"]);
   await w.ok(["init", "Novákovi"]);
-  const r = await w.ok([], { tty: true, answers: ["9", "3", "", "4", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["9", "3", "", "4", "1", "", "0", "0"] });
   assert.match(r.out, /Napište prosím jedno z čísel/);
   assert.match(r.out, /Nic na vás nečeká/);
   assert.match(r.out, /Výsledky zatím nejsou/);
+  w.cleanup();
+});
+
+test("the menu: a person can always change their mind — the current choice suggested, 0 goes back, nothing changes", unix, async () => {
+  const w = new World();
+  w.env.PATH = pathWith(w, ["claude", "codex"]);
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Novákovi"]);
+  await w.ok(["init", "Svobodovi"]);
+  await w.ok(["trees", "use", "Novákovi"]);
+  // another agent: Enter stays · working alone: 0 · another tree: Enter stays · a new one: 0 · quit
+  const r = await w.ok([], { tty: true, answers: ["5", "", "2", "0", "9", "", "9", "3", "0", "0"] });
+  assert.match(r.out, /Který AI agent bude výzkum dělat\?\n {3}1 {2}OpenAI Codex CLI\n {3}0 {2}Zpět – zůstat u: Claude Code\nVyberte \[0\]/);
+  assert.ok(!fs.existsSync(path.join(w.dir, "codex.calls")), "no other agent started");
+  assert.ok(!fs.existsSync(path.join(w.dir, "claude.calls")), "no conversation, no run");
+  assert.match(r.out, /Který rodokmen\?\n {3}1 {2}Novákovi .*\n {3}2 {2}Svobodovi .*\n {3}3 {2}nový rodokmen\n {3}0 {2}Zpět – zůstat u: Novákovi\nVyberte \[1\]/);
+  assert.match(r.out, /Jak se bude jmenovat nový rodokmen\? \(třeba příjmení rodiny; 0 vrátí zpět\)/);
+  assert.equal((await w.ok(["trees", "--json"])).json.trees.length, 2, "no tree made");
+  assert.match((await w.ok(["status"])).out, /Novákovi/, "still the same tree");
+  w.cleanup();
+});
+
+test("setup run again: every choice can be left as it is (0)", unix, async () => {
+  const w = new World();
+  w.env.PATH = pathWith(w, ["claude"]);
+  await w.ok(["setup", "--yes"]);
+  const before = readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
+  const r = await w.ok(["setup"], { tty: true, answers: ["", "", "0", "0", "0", "n", "0"] });
+  assert.match(r.out, /\n {3}0 {2}Nechat, jak je\n/);
+  const after = readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
+  for (const k of ["agent", "models", "stromApp"]) assert.deepEqual(after[k], before[k], k);
+  assert.equal(after.stories ?? "yes", before.stories ?? "yes", "the stories as they were");
+  assert.equal(after.agentPermissions ?? "auto", before.agentPermissions ?? "auto", "the level as it was");
   w.cleanup();
 });
 
@@ -98,9 +132,37 @@ test("strom chat: the agent set up as the user chose — Claude Code, Codex, Ant
   assert.equal(h.json.handover, "none");
   assert.equal(h.json.cwd, w.treeDir("Novákovi"));
   assert.match((await w.ok(["chat"])).out, /Spusťte výzkum sami: v terminálu příkazem strom/);
+  // The window strom opened for it (STROM_HANDOVER): the person's own — the conversation starts there, never another window;
+  // the agent it starts does not carry the mark.
+  w.env.STROM_HANDOVER = "1";
+  await w.ok(["chat"]);
+  assert.match(fs.readFileSync(path.join(w.dir, "claude.calls"), "utf8"), /--permission-mode/);
+  delete w.env.STROM_HANDOVER;
   // An agent strom started is where the research happens already: no second conversation.
   w.env.STROM_WORKER = "claude-1";
   assert.equal((await w.run(["chat"])).code, 2);
+  w.cleanup();
+});
+
+test("the handover window: the agent's marks cleared, STROM_HANDOVER set, one window at a time, the script gone once it ran", () => {
+  const w = new World();
+  const cwd = path.join(w.dir, "Novákovi");
+  fs.mkdirSync(cwd);
+  const env = { ...w.env, STROM_NO_OPEN: "", CLAUDECODE: "1", AI_AGENT: "claude-code_agent", CODEX_SANDBOX: "seatbelt", CODEX_HOME: "/x/codex", STROM_LANG: "de", STROM_SESSION: "X1", DISPLAY: "" };
+  // Linux without a desktop: the script is written, no window opens.
+  assert.equal(openInNewTerminal(["chat", "--agent", "claude"], cwd, env, "linux"), false);
+  const dir = path.join(cwd, ".strom", "open");
+  const [script] = fs.readdirSync(dir);
+  const body = fs.readFileSync(path.join(dir, script!), "utf8");
+  assert.match(body, /^#!\/bin\/sh\nrm -f -- "\$0"\nunset CLAUDECODE AI_AGENT CODEX_SANDBOX\n/);
+  assert.match(body, /export STROM_LANG='de'\nexport STROM_HANDOVER=1\n/);
+  assert.doesNotMatch(body, /CODEX_HOME|STROM_SESSION/, "the user's own settings stay, the agent's session does not go along");
+  assert.equal(openInNewTerminal(["chat"], cwd, env, "linux"), "recent", "one window at a time");
+  // Run, it deletes itself (a copy that stops before strom).
+  const copy = path.join(dir, "copy.command");
+  fs.writeFileSync(copy, body.replace(/^exec .*$/m, "exit 0"));
+  assert.equal(spawnSync("/bin/sh", [copy]).status, 0);
+  assert.ok(!fs.existsSync(copy));
   w.cleanup();
 });
 
@@ -245,16 +307,48 @@ test("the Strom app: noticed quietly — started by it, or installed from the br
   assert.equal(cfg().stromAppSeen, undefined);
   // A Chrome app on macOS, a Start menu shortcut on Windows, a .desktop entry on Linux.
   const home = w.env.HOME!;
-  fs.mkdirSync(path.join(home, "Applications", "Chrome Apps.localized", "Strom.app"), { recursive: true });
-  assert.equal(installedStromApp(w.env, "darwin")?.kind, "Chrome app");
-  const start = path.join(home, "AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Chrome Apps");
+  // Each with the app's id in its browser (and the profile), so that strom opens the research in the app's own window.
+  const id = "gggninmgbfdjkafhnhdnaaaopeicjmjo";
+  const mac = path.join(home, "Applications", "Chrome Apps.localized", "Strom.app", "Contents");
+  fs.mkdirSync(mac, { recursive: true });
+  fs.writeFileSync(path.join(mac, "Info.plist"), `<?xml version="1.0"?><plist><dict>\n\t<key>CrAppModeShortcutID</key>\n\t<string>${id}</string>\n</dict></plist>`);
+  assert.deepEqual(installedStromApp(w.env, "darwin"), { path: path.dirname(mac), kind: "Chrome app", browser: "Google Chrome", appId: id });
+  const start = path.join(home, "AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Edge Apps");
   fs.mkdirSync(start, { recursive: true });
-  fs.writeFileSync(path.join(start, "Strom.lnk"), "");
-  assert.equal(installedStromApp({ ...w.env, APPDATA: undefined }, "win32")?.kind, "Chrome App");
+  fs.writeFileSync(path.join(start, "Strom.lnk"), Buffer.concat([Buffer.from([0x4c, 0, 0, 0]), Buffer.from(`--profile-directory="Profile 2" --app-id=${id}`, "utf16le")]));
+  assert.deepEqual(installedStromApp({ ...w.env, APPDATA: undefined }, "win32"), { path: path.join(start, "Strom.lnk"), kind: "Edge App", browser: "Microsoft Edge", appId: id, profile: "Profile 2" });
   const apps = path.join(home, ".local", "share", "applications");
   fs.mkdirSync(apps, { recursive: true });
-  fs.writeFileSync(path.join(apps, "chrome-abc-Default.desktop"), "[Desktop Entry]\nName=Strom\nExec=chrome --app-id=abc\n");
-  assert.equal(installedStromApp(w.env, "linux")?.kind, "browser app");
+  fs.writeFileSync(path.join(apps, "chrome-abc-Default.desktop"), `[Desktop Entry]\nName=Strom\nExec=/opt/google/chrome/google-chrome --profile-directory=Default --app-id=${id}\n`);
+  assert.deepEqual(installedStromApp(w.env, "linux"), { path: path.join(apps, "chrome-abc-Default.desktop"), kind: "browser app", browser: "Google Chrome", appId: id, profile: "Default" });
+  // Its beta installed beside it is another app: each copy found by the address its shortcut gives (macOS, Linux).
+  const beta = "gfdlgdadfagpfefeenjhmokfielbhchn";
+  const plist = (app: string, at: string, url: string) => {
+    const dir = path.join(home, "Applications", "Chrome Apps.localized", app, "Contents");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "Info.plist"), `<plist><dict>\n\t<key>CrAppModeShortcutID</key>\n\t<string>${at}</string>\n\t<key>CrAppModeShortcutURL</key>\n\t<string>${url}</string>\n</dict></plist>`);
+    return path.dirname(dir);
+  };
+  fs.rmSync(path.dirname(mac), { recursive: true });
+  const betaApp = plist("Strom Beta.app", beta, "https://beta.stromapp.info/run/");
+  assert.equal(installedStromApp(w.env, "darwin"), undefined, "the beta is not the app of stromapp.info");
+  assert.equal(installedStromApp(w.env, "darwin", "https://beta.stromapp.info/run/")?.path, betaApp);
+  const mainApp = plist("Strom - Family Tree.app", id, "https://stromapp.info/run/");
+  assert.equal(installedStromApp(w.env, "darwin")?.path, mainApp);
+  assert.equal(installedStromApp(w.env, "darwin", "https://beta.stromapp.info/run/")?.appId, beta);
+  assert.equal(installedStromApp(w.env, "darwin", "http://127.0.0.1:8080/"), undefined, "a development copy is not installed");
+  assert.equal(installedStromApp({ ...w.env, APPDATA: undefined }, "win32", "https://beta.stromapp.info/run/"), undefined, "a shortcut without its address: by its name, stromapp.info only");
+  fs.writeFileSync(path.join(apps, "chrome-beta-Default.desktop"), `[Desktop Entry]\nName=Strom Beta\nExec=/opt/google/chrome/google-chrome --profile-directory=Default --app=https://beta.stromapp.info/run/\n`);
+  assert.equal(installedStromApp(w.env, "linux", "https://beta.stromapp.info/run/")?.path, path.join(apps, "chrome-beta-Default.desktop"));
+  // The copy strom opens is the user's setting.
+  await w.ok(["config", "set", "strom.app.url", "https://beta.stromapp.info/run/"]);
+  assert.equal(cfg().stromAppUrl, "https://beta.stromapp.info/run/");
+  assert.match((await w.run(["config", "set", "strom.app.url", "https://example.org/"])).err, /invalid strom\.app\.url/);
+  await w.ok(["config", "unset", "strom.app.url"]);
+  assert.equal(cfg().stromAppUrl, undefined);
+  // The profile that holds it (folder names only).
+  fs.mkdirSync(path.join(home, "Library", "Application Support", "Google", "Chrome", "Profile 3", "Web Applications", "Manifest Resources", id), { recursive: true });
+  assert.equal(webAppProfile("Google Chrome", id, w.env, "darwin"), "Profile 3");
   // The app starts strom: remembered, nothing asked.
   w.env.STROM_APP = "1";
   w.env.STROM_APP_VERSION = "2.8.0";
@@ -268,15 +362,72 @@ test("the Strom app: noticed quietly — started by it, or installed from the br
   w.cleanup();
 });
 
+test("the Strom app offered gently: the wizard asks once, the menu says what it can do, a run can be watched live", unix, async () => {
+  const w = new World();
+  w.env.PATH = pathWith(w, ["claude"]);
+  const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
+  // language, folder, model, stories, level, no shortcut — then the Strom app: not now
+  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "n", "2"] });
+  assert.match(s.out, /Aplikace Strom \(zdarma, v prohlížeči\) ukáže výzkum jako rodokmen[\s\S]*1 {2}Ano – nainstalovat ji teď/);
+  assert.equal(cfg().stromApp, "yes");
+  // Again: the answer pre-filled; no — never mentioned after.
+  await w.ok(["setup"], { answers: ["", "", "", "", "", "n", "3"] });
+  assert.equal(cfg().stromApp, "no");
+  await w.ok(["init", "Novákovi"]);
+  const none = await w.ok([], { tty: true, answers: ["0"] });
+  assert.doesNotMatch(none.out, /aplikac/i, "the user's no stands");
+  // Not said yet (an older setup): one quiet line and an item that explains — the answer here: install it.
+  await w.ok(["config", "unset", "strom.app"]);
+  const tip = await w.ok([], { tty: true, answers: ["5", "1", "n", "0"] });
+  assert.match(tip.out, /Tip: výzkum si můžete prohlížet jako rodokmen v aplikaci Strom a sledovat ho živě, když agent pracuje – volba 5\./);
+  assert.match(tip.out, /5 {2}Aplikace Strom – výzkum jako rodokmen, sledovaný živě/);
+  assert.match(tip.out, /Otevřete ji zde: https:\/\/stromapp\.info\/run\//, "tests open nothing: the address is said");
+  assert.match(tip.out, /Až bude nainstalovaná: otevřít v ní výzkum\?/);
+  assert.equal(cfg().stromApp, "yes");
+  // Wanted: the item opens the research, no tip; while an agent is at work it says so.
+  const plain = await w.ok([], { tty: true, answers: ["0"] });
+  assert.match(plain.out, /5 {2}Otevřít výzkum v aplikaci Strom/);
+  assert.doesNotMatch(plain.out, /Tip:/);
+  const leave = enterWorker(w.treeDir("Novákovi"), "codex-1", "Codex conversation");
+  const busy = await w.ok([], { tty: true, answers: ["0"] });
+  assert.match(busy.out, /Agent pracuje – můžete ho živě sledovat v aplikaci Strom: volba 5\./);
+  assert.match(busy.out, /5 {2}Sledovat práci agenta v aplikaci Strom \(živě\)/);
+  leave();
+  // Working alone, with a browser that reaches the bridge: watched live meanwhile? The last answer is suggested.
+  w.env.STROM_APP_DIRS = appsWith(w, ["Google Chrome.app"]);
+  fs.writeFileSync(path.join(w.dir, "Applications", "google-chrome"), "", { mode: 0o755 });
+  const run = await w.run([], { tty: true, answers: ["2", "1", "n", "", "0"] });
+  assert.match(run.out, /Sledovat mezitím práci živě v aplikaci Strom\? \(a\/n\) \[a\]/);
+  assert.equal(cfg().stromAppFollow, "no");
+  const again = await w.run([], { tty: true, answers: ["2", "1"] });
+  assert.match(again.out, /Sledovat mezitím práci živě v aplikaci Strom\? \(a\/n\) \[n\]/);
+  w.cleanup();
+});
+
 test("the results: strom tells the agent to offer the Strom app when it is not installed here — never when unwanted", { skip: !hasGit }, async () => {
   const w = new World();
   await w.withTree();
+  await w.ok(["person", "add", "Jan /Novák/", "--born", "1905"]);
   await w.ok(["export", "gedcom"]);
   w.env.CLAUDECODE = "1";
+  // A run nobody watches tells nobody: nothing is marked as told.
+  w.env.STROM_SESSION = "X0001";
+  assert.equal((await w.ok(["--json"])).json.stories, "tell");
+  delete w.env.STROM_SESSION;
+  const first = await w.ok([]);
+  assert.match(first.out, /výsledky .*tree-strom\.ged – pro aplikaci Strom, tady zatím nenainstalovanou: nabídni uživateli, že v ní může výzkum průběžně sledovat – instalace z https:\/\/stromapp\.info\/run\/ \(strom app install ji tam otevře a řekne, kam kliknout\), pak strom app/);
+  assert.match(first.out, /vyprávění\s+zapnuté \(výchozí\): řekni uživateli \(strom to řekne jen jednou\)/);
+  assert.match(first.out, /otázky\s+řekni uživateli jednou, jednou větou, že se tě tu může zeptat na kohokoli ve stromu/);
+  // Told once: a conversation started afresh (/clear, the next day) does not say it all again.
   const o = (await w.ok(["--json"])).json;
   assert.equal(o.results.app, "offer");
+  assert.equal(o.results.told, true);
+  assert.equal(o.stories, "on");
+  assert.equal(o.ask, undefined);
   assert.match(o.results.file, /tree-strom\.ged$/);
-  assert.match((await w.ok([])).out, /výsledky .*tree-strom\.ged – pro aplikaci Strom, tady zatím nenainstalovanou: nabídni uživateli, že v ní může výzkum průběžně sledovat – instalace z https:\/\/stromapp\.info\/run\/ \(strom app install ji tam otevře a řekne, kam kliknout\), pak strom app/);
+  const again = await w.ok([]);
+  assert.match(again.out, /tree-strom\.ged – pro aplikaci Strom, tady nenainstalovanou; uživatel o ní už ví – zmiň ji znovu, jen když chce vidět výsledky/);
+  assert.doesNotMatch(again.out, /otázky|řekni uživateli/);
   assert.match((await w.ok(["guide"])).out, /THE STROM APP — where the user sees the result/);
   await w.ok(["config", "set", "strom.app", "no"]);
   const n = (await w.ok(["--json"])).json;
@@ -313,6 +464,7 @@ test("the live bridge: the Strom app reads the tree and hears what changes — t
     assert.equal((await ask(`http://127.0.0.1:${info.port}/${"0".repeat(32)}/status`)).status, 404, "without the secret: nothing");
     // Only the app's pages may read it; a browser asks first whether a public page may talk to this computer.
     assert.equal((await ask(`${info.url}/status`, { headers: { Origin: "https://stromapp.info" } })).headers["access-control-allow-origin"], "https://stromapp.info");
+    assert.equal((await ask(`${info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" } })).headers["access-control-allow-origin"], "https://beta.stromapp.info", "its beta too");
     assert.equal((await ask(`${info.url}/status`, { headers: { Origin: "https://evil.example" } })).headers["access-control-allow-origin"], undefined);
     const pre = await ask(`${info.url}/status`, { method: "OPTIONS", headers: { Origin: "https://stromapp.info", "Access-Control-Request-Method": "GET", "Access-Control-Request-Private-Network": "true" } });
     assert.equal(pre.status, 204);
@@ -396,8 +548,19 @@ test("the shortcut on the desktop starts this strom", { skip: process.platform =
   const text = fs.readFileSync(file!, "utf8");
   assert.match(text, /^#!\/bin\/sh\ncd "\$HOME"\nexec "\S*node\S*" "\S+cli\.ts"\n$/);
   assert.ok((fs.statSync(file!).mode & 0o111) !== 0, "runs on a double-click");
+  // its own icon: the Strom app's tree with a magnifying glass (Finder keeps it in the file's attributes)
+  if (process.platform === "darwin") assert.match(spawnSync("xattr", [file!], { encoding: "utf8" }).stdout, /com\.apple\.FinderInfo/);
   const linux = createShortcut("Strom výzkum", w.env, "linux");
-  assert.match(fs.readFileSync(linux[0]!, "utf8"), /Terminal=true/);
+  const entry = fs.readFileSync(linux[0]!, "utf8");
+  assert.match(entry, /Terminal=true/);
+  const icon = /^Icon=(.+)$/m.exec(entry)?.[1];
+  assert.ok(icon && fs.existsSync(icon) && icon.endsWith("icon-512.png"), "the icon strom ships");
+  // Windows without PowerShell (here): the command file on the desktop, as before; with it, a .lnk with the icon
+  if (process.platform !== "win32") {
+    const win = createShortcut("Strom výzkum", w.env, "win32");
+    assert.equal(win[0], path.join(w.env.HOME!, "Desktop", "Strom výzkum.cmd"));
+    assert.match(fs.readFileSync(win[0]!, "utf8"), /^@echo off\r\nchcp 65001/);
+  }
   w.cleanup();
 });
 

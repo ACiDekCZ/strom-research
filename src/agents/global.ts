@@ -53,7 +53,7 @@ mentions strom, a family tree or the Strom app.
 8. The Strom app (https://stromapp.info) is strom's companion: a free family
    tree app, no account, the data stay on the user's computer. The research's
    result (\`output/tree-strom.ged\`) opens in it. When the user wants to see
-   the tree, suggest it gently — best installed as an app from the browser,
+   the tree (or \`strom\` says to offer it — once), suggest it gently — best installed as an app from the browser,
    from https://stromapp.info/run/ (\`strom app install\` opens it there; it
    then works offline); \`strom app\` opens it — with the research, followed
    live while you work, when the app can take it. Without it, the user can ask
@@ -246,6 +246,13 @@ export function uninstallGlobal(t: GlobalTarget): boolean {
   if (rest.trim()) writeFileAtomic(t.file, rest);
   else fs.rmSync(t.file);
   return true;
+}
+
+/** What strom taught the agents (where it did), brought to this version's text; the agents whose files changed. */
+export function refreshGlobal(env: Env): string[] {
+  const changed = new Set<string>();
+  for (const t of globalTargets(env)) if (isInstalled(t) && installGlobal(t)) changed.add(t.agent);
+  return [...changed];
 }
 
 export function isInstalled(t: GlobalTarget): boolean {

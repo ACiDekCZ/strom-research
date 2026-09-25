@@ -19,9 +19,9 @@ DEST="${STROM_INSTALL_DIR:-$HOME/.local/bin}"
 ROOT="${STROM_PROGRAM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/strom}"
 
 case "${LC_ALL:-${LANG:-}}" in
-  cs*) T_DL="Stahuji Strom výzkum"; T_NODE="Stahuji Node.js z nodejs.org"; T_BAD="Stažený soubor je poškozený (kontrolní součet nesedí) – zkuste to znovu."; T_OS="Tento instalátor je pro macOS a Linux; na Windows použijte install.ps1."; T_CPU="Nepodporovaný procesor"; T_OK="Nainstalováno"; T_START="Příště spustíte příkazem: strom"; T_NEW="Otevřete nový terminál, aby příkaz strom fungoval všude."; T_RUN="V tomto terminálu ho zatím spustíte takto" ;;
-  de*) T_DL="Strom Ahnenforschung wird heruntergeladen"; T_NODE="Node.js wird von nodejs.org heruntergeladen"; T_BAD="Die Datei ist beschädigt (Prüfsumme stimmt nicht) – bitte versuchen Sie es erneut."; T_OS="Dieses Installationsprogramm ist für macOS und Linux; unter Windows nehmen Sie install.ps1."; T_CPU="Nicht unterstützter Prozessor"; T_OK="Installiert"; T_START="Nächstes Mal starten Sie es mit: strom"; T_NEW="Öffnen Sie ein neues Terminal, damit der Befehl strom überall funktioniert."; T_RUN="In diesem Terminal starten Sie es vorerst so" ;;
-  *) T_DL="Downloading Strom research"; T_NODE="Downloading Node.js from nodejs.org"; T_BAD="The download is damaged (checksum mismatch) — please try again."; T_OS="This installer is for macOS and Linux; on Windows use install.ps1."; T_CPU="Unsupported processor"; T_OK="Installed"; T_START="Next time start it with: strom"; T_NEW="Open a new terminal so that the strom command works everywhere."; T_RUN="In this terminal, run it as" ;;
+  cs*) T_DL="Stahuji Strom výzkum"; T_DL2=""; T_NODE="Stahuji Node.js z nodejs.org"; T_BAD="Stažený soubor je poškozený (kontrolní součet nesedí) – zkuste to znovu."; T_OS="Tento instalátor je pro macOS a Linux; na Windows použijte install.ps1."; T_CPU="Nepodporovaný procesor"; T_OK="Nainstalováno"; T_START="Příště spustíte příkazem: strom"; T_NEW="Otevřete nový terminál, aby příkaz strom fungoval všude."; T_RUN="V tomto terminálu ho zatím spustíte takto" ;;
+  de*) T_DL="Strom Ahnenforschung"; T_DL2=" wird heruntergeladen"; T_NODE="Node.js wird von nodejs.org heruntergeladen"; T_BAD="Die Datei ist beschädigt (Prüfsumme stimmt nicht) – bitte versuchen Sie es erneut."; T_OS="Dieses Installationsprogramm ist für macOS und Linux; unter Windows nehmen Sie install.ps1."; T_CPU="Nicht unterstützter Prozessor"; T_OK="Installiert"; T_START="Nächstes Mal starten Sie es mit: strom"; T_NEW="Öffnen Sie ein neues Terminal, damit der Befehl strom überall funktioniert."; T_RUN="In diesem Terminal starten Sie es vorerst so" ;;
+  *) T_DL="Downloading Strom research"; T_DL2=""; T_NODE="Downloading Node.js from nodejs.org"; T_BAD="The download is damaged (checksum mismatch) — please try again."; T_OS="This installer is for macOS and Linux; on Windows use install.ps1."; T_CPU="Unsupported processor"; T_OK="Installed"; T_START="Next time start it with: strom"; T_NEW="Open a new terminal so that the strom command works everywhere."; T_RUN="In this terminal, run it as" ;;
 esac
 
 os=$(uname -s)
@@ -80,7 +80,7 @@ if [ ! -x "$node" ] || [ "$("$node" --version 2>/dev/null || true)" != "v$nv" ];
 fi
 
 # strom's code.
-echo "$T_DL ${version}…"
+echo "$T_DL ${version}${T_DL2}…"
 fetch "$BASE/strom-app.tar.gz" "$tmp/strom-app.tar.gz"
 fetch "$BASE/SHASUMS256.txt" "$tmp/SHASUMS256.txt"
 check "$tmp/strom-app.tar.gz" "$tmp/SHASUMS256.txt" "strom-app.tar.gz"

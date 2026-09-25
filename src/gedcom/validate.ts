@@ -53,8 +53,8 @@ const CHILDREN: Record<string, string[]> = {
   ADDR: ["CONT", "ADR1", "ADR2", "ADR3", "CITY", "STAE", "POST", "CTRY"],
 };
 
-const TEXT_TAGS = new Set(["NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS"]);
-const EXTENSIONS = new Set(["_STORY", "_WITN", "_FREL", "_MREL"]);
+const TEXT_TAGS = new Set(["NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL"]);
+const EXTENSIONS = new Set(["_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL"]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */
 function contextOf(anc: string[]): string | undefined {

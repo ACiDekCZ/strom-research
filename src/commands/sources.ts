@@ -1,5 +1,6 @@
 // source · cite · repo · recordset · place — where the evidence comes from.
 
+import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
 import fs from "node:fs";
 import { commands, register, type CommandDef, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
@@ -12,6 +13,7 @@ import {
   SOURCE_KINDS,
   type Calibration,
   type Citation,
+  type Clip,
   type Family,
   type Media,
   type Person,
@@ -24,7 +26,8 @@ import { create, csvOpt, listOpt, normId, requireRecord, textOpt, update } from 
 import { makeNote, parseDate } from "../core/actions.ts";
 import { calibrationLine, fitCalibration } from "../core/calibration.ts";
 import { foldText } from "../core/text.ts";
-import { imageOfRef } from "../core/media.ts";
+import { clipNote, clipText, imageOfRef, MAX_CLIPS, transcriptNote } from "../core/media.ts";
+import { partRegion } from "../core/views.ts";
 import { formatName } from "../core/people.ts";
 import type { Tree } from "../core/tree.ts";
 
@@ -56,6 +59,25 @@ function mediaRefs(tree: Tree, refs: string[]): string[] {
     const m = imageOfRef(tree.list<Media>("media"), b, Number(at[2]));
     if (!m) throw new UsageError(`image ${at[2]} of ${b} is not registered`, { hint: `strom media add <file> --recordset ${b} --image ${at[2]}` });
     return m.id;
+  });
+}
+
+/**
+ * Where the entry is on an image, as its view was cut: "M0012@0.05,0.4,0.45,0.18", "B0001:57@left:0.1,0.4,0.8,0.1"
+ * (a half, then a crop within it), pixels of the registered image, or "M0012" alone (the entry is the whole image).
+ */
+function clipRefs(tree: Tree, specs: string[]): Clip[] {
+  return specs.map((spec) => {
+    const m = /^([^@]+?)(?:@(.+))?$/.exec(spec.trim()) ?? [];
+    let [ref, where] = [m[1] ?? "", m[2]];
+    // "M0012:0.1,0.2,0.3,0.1" — the colon of a record set's image number stays hers
+    const colon = !where && /^([Mm]\d+):(.+)$/.exec(ref);
+    if (colon) [ref, where] = [colon[1]!, colon[2]!];
+    const media = mediaRefs(tree, [ref])[0]!;
+    if (!where) return { media, region: { x: 0, y: 0, w: 1, h: 1 } };
+    const w = /^(?:(left|right|top|bottom)(?::|$))?(.*)$/.exec(where.trim())!;
+    const region = partRegion({ half: w[1], crop: w[2] || undefined }, tree.get<Media>(media));
+    return { media, region };
   });
 }
 
@@ -148,10 +170,17 @@ register(
       { name: "form", type: "string", value: "<form>", description: "original (default), derivative (copy, index — the default for --kind index and in a record set of kind index only), authored (compiled work)" },
       { name: "url", type: "string", value: "<url>", description: "link to the image or catalog entry" },
       { name: "media", type: "string", multiple: true, value: "<M…|B…:n>", description: "the registered image(s) the record is on (repeatable)" },
+      {
+        name: "clip",
+        type: "string",
+        multiple: true,
+        value: "<M…@x,y,w,h>",
+        description: "where the entry itself is on its image — the crop you read it in (the view prints it); a second one when it runs over a page break",
+      },
       { name: "note", type: "string", value: "<text>", description: "short note" },
     ],
     examples: [
-      'strom source add "Křest Jana Nováka 1905" --kind baptism --recordset B0001 --locator "fol. 45, č. 12" --language la --information primary --transcript @zapis.txt',
+      'strom source add "Křest Jana Nováka 1905" --kind baptism --recordset B0001 --locator "fol. 45, č. 12" --language la --information primary --transcript @zapis.txt --clip B0001:2@0.05,0.40,0.45,0.18',
       'strom source add "Rodinný strom od tety Marie" --kind family-tree --form authored --input I0001',
     ],
     run(ctx, { args, opts }) {
@@ -159,7 +188,9 @@ register(
       const book = opts.recordset ? requireRecord<RecordSet>(tree, opts.recordset as string, "recordset") : undefined;
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
       if (opts.input) requireRecord(tree, opts.input as string, "input");
-      const media = mediaRefs(tree, csvOpt(opts.media));
+      const clips = clipRefs(tree, listOpt(opts.clip));
+      if (clips.length > MAX_CLIPS) throw new UsageError(`at most ${MAX_CLIPS} clips: an entry, and its continuation over a page break`);
+      const media = [...new Set([...mediaRefs(tree, csvOpt(opts.media)), ...clips.map((c) => c.media)])];
       // a line of an index is a copy made by another hand; a book with its own index holds originals too
       const kind = oneOf(opts.kind, SOURCE_KINDS, "kind", "other");
       const form = kind === "index" || (book && book.kinds.length > 0 && book.kinds.every((k) => k === "index")) ? "derivative" : "original";
@@ -182,12 +213,13 @@ register(
           url: str(opts.url),
           accessed: str(opts.url) ? new Date().toISOString().slice(0, 10) : undefined,
           ...(media.length ? { media } : {}),
+          ...(clips.length ? { clips } : {}),
           note: str(opts.note),
         },
         (id) => `+${id} source "${truncate(args[0]!, 60)}"${media.length ? ` on ${media.join(" ")}` : ""}`,
         media,
       );
-      return { text: lines(written(tree), "", `cite it: strom cite <event> ${src.id} --locator "…"`), data: { source: src } };
+      return { text: lines(written(tree), clipNote(tree, src), transcriptNote(tree, src), "", `cite it: strom cite <event> ${src.id} --locator "…"`), data: { source: src } };
     },
   },
   {
@@ -240,6 +272,7 @@ register(
         s.recordset || s.repository ? `in     ${[s.recordset, s.repository].filter(Boolean).join(" · ")}${s.locator ? ` · ${s.locator}` : ""}` : s.locator ? `at     ${s.locator}` : undefined,
         s.url ? `url    ${s.url}` : undefined,
         s.media?.length ? `images ${s.media.map((id) => { const m = tree.get<Media>(id); return m ? `${id}${m.recordset ? ` (${m.recordset}:${m.image ?? "?"})` : ""}` : id; }).join(" · ")} — strom media view <M…>` : undefined,
+        s.clips?.length ? `clips  ${s.clips.map((c, i) => `${i + 1}. ${clipText(c)}`).join(" · ")} — where the entry is on its image` : undefined,
         s.transcript ? `\ntranscript\n${s.transcript}` : undefined,
         s.translation ? `\ntranslation\n${s.translation}` : undefined,
         citing.length ? `\ncited by\n${citing.map((c) => `  ${c}`).join("\n")}` : "\ncited by nothing yet",
@@ -472,10 +505,11 @@ register(
       { name: "kind", type: "string", value: "<kind>", description: "village, town, parish, estate, district, …" },
       { name: "lat", type: "string", value: "<deg>", description: "latitude" },
       { name: "lon", type: "string", value: "<deg>", description: "longitude" },
+      { name: "unlocated", type: "string", value: "<why>", description: "no coordinates yet, and why: not identified which of the places of this name it is (coordinates given later clear it)" },
       { name: "parent", type: "string", value: "<L…>", description: "place it belongs to" },
       { name: "note", type: "string", value: "<text>", description: "short note" },
     ],
-    examples: ['strom place add "Týnec nad Labem" --alt "Teinitz an der Elbe@de" --kind town --lat 50.042 --lon 15.358'],
+    examples: ['strom place add "Týnec nad Labem" --alt "Teinitz an der Elbe@de" --kind town --lat 50.042 --lon 15.358', 'strom place add "Lhota" --kind village --unlocated "which Lhota: the record gives no parish"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const names: Place["names"] = [{ name: args[0]!.trim() }];
@@ -492,6 +526,7 @@ register(
           names,
           kind: str(opts.kind),
           coords: lat !== undefined && lon !== undefined ? { lat, lon } : undefined,
+          unlocated: lat === undefined ? str(opts.unlocated) : undefined,
           parent: opts.parent ? normId(opts.parent as string) : undefined,
           jurisdictions: [],
           note: str(opts.note),
@@ -504,12 +539,21 @@ register(
   },
   {
     path: ["place", "list"],
-    summary: "Places known in this tree",
+    summary: "Places known in this tree — or, with --off-map, the places of facts not on the Strom app's map yet",
     group: "sources",
     tree: true,
     args: [{ name: "filter", description: "part of a name" }],
-    run(ctx, { args }) {
+    options: [{ name: "off-map", type: "boolean", description: "places of facts without coordinates (no place record yet, or one without them), the most facts first" }],
+    examples: ["strom place list", "strom place list --off-map"],
+    run(ctx, { args, opts }) {
       const tree = ctx.tree();
+      if (opts["off-map"]) {
+        const off = placesOffMap(tree);
+        return {
+          text: off.length ? lines(...off.map(offMapLine), OFF_MAP_HOW) : "every place of a fact is on the map (or says why not)",
+          data: { offMap: off.map((m) => ({ name: m.name, events: m.events, place: m.place?.id })) },
+        };
+      }
       const all = args[0] ? tree.list<Place>("place").filter((p) => p.names.some((n) => matches(n.name, args[0]!))) : tree.list<Place>("place");
       return {
         text: all.length
@@ -605,13 +649,22 @@ register(
       "Only the options given change; --media adds images, --note adds a note. Changing what a record says or\n" +
       "how good it is (kind, form, information, date, locator, transcript, record set) needs --reason; filling in doesn't.",
     args: [{ name: "source", description: "source ID (S0001)", required: true }],
-    options: editOptions(addOptions("source add"), [{ name: "title", type: "string", value: "<text>", description: "a better title" }]).filter((o) => o.name !== "input"),
-    examples: ['strom source edit S0001 --translation "Jan, son of Josef" --media B0001:2', 'strom source edit S0001 --information secondary --reason "the entry was written years later"'],
+    options: [
+      ...editOptions(addOptions("source add"), [{ name: "title", type: "string", value: "<text>", description: "a better title" }]).filter((o) => o.name !== "input"),
+      { name: "clip-remove", type: "string", value: "<n|all>", description: "take away a clip that is wrong (its number in strom source show), or all of them" },
+    ],
+    examples: [
+      'strom source edit S0001 --translation "Jan, son of Josef" --media B0001:2',
+      'strom source edit S0001 --information secondary --reason "the entry was written years later"',
+      "strom source edit S0001 --clip M0001@0.05,0.42,0.45,0.16",
+    ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (opts.recordset) requireRecord(tree, opts.recordset as string, "recordset");
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
-      const media = mediaRefs(tree, csvOpt(opts.media));
+      const clips = clipRefs(tree, listOpt(opts.clip));
+      const drop = str(opts["clip-remove"]);
+      const media = [...new Set([...mediaRefs(tree, csvOpt(opts.media)), ...clips.map((c) => c.media)])];
       const s = editFields<Source>(
         tree,
         args[0]!,
@@ -633,9 +686,24 @@ register(
         },
         { kind: "other", form: undefined, information: "unknown", date: undefined, locator: undefined, transcript: undefined, recordset: undefined },
         opts,
-        (cur) => (media.some((m) => !(cur.media ?? []).includes(m)) ? { media: [...new Set([...(cur.media ?? []), ...media])] } : {}),
+        (cur) => {
+          let kept = cur.clips ?? [];
+          if (drop === "all") kept = [];
+          else if (drop !== undefined) {
+            const n = Number(drop);
+            if (!Number.isInteger(n) || n < 1 || n > kept.length)
+              throw new UsageError(kept.length ? `--clip-remove takes 1–${kept.length} or all` : `${cur.id} has no clips`, { hint: `strom source show ${cur.id}` });
+            kept = kept.filter((_, i) => i !== n - 1);
+          }
+          const next = [...kept, ...clips.filter((c) => !kept.some((k) => clipText(k) === clipText(c)))];
+          if (next.length > MAX_CLIPS) throw new UsageError(`at most ${MAX_CLIPS} clips: an entry, and its continuation over a page break`, { hint: `take one away: --clip-remove <n> (strom source show ${cur.id})` });
+          return {
+            ...(media.some((m) => !(cur.media ?? []).includes(m)) ? { media: [...new Set([...(cur.media ?? []), ...media])] } : {}),
+            ...(drop !== undefined || clips.length ? { clips: next.length ? next : undefined } : {}),
+          };
+        },
       );
-      return { text: written(tree), data: { source: s } };
+      return { text: lines(written(tree), media.length ? clipNote(tree, s) : undefined, media.length || clips.length ? transcriptNote(tree, s) : undefined), data: { source: s } };
     },
   },
   {
@@ -715,7 +783,7 @@ register(
     description: "--alt adds names; a place's names are never removed.",
     args: [{ name: "place", description: "place ID (L0001)", required: true }],
     options: editOptions(addOptions("place add")),
-    examples: ['strom place edit L0001 --alt "Teinitz an der Elbe@de:1850-1918" --lat 50.042 --lon 15.358'],
+    examples: ['strom place edit L0001 --alt "Teinitz an der Elbe@de:1850-1918" --lat 50.042 --lon 15.358', 'strom place edit L0001 --unlocated "two villages of this name in the district; the record does not say which"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const lat = opts.lat === undefined ? undefined : Number(opts.lat);
@@ -731,13 +799,15 @@ register(
         {
           kind: str(opts.kind),
           coords: lat !== undefined && lon !== undefined ? { lat, lon } : undefined,
+          unlocated: lat === undefined ? str(opts.unlocated) : undefined,
           parent: opts.parent ? normId(opts.parent as string) : undefined,
         },
         {},
         opts,
         (cur) => {
           const add = alt.filter((n) => !cur.names.some((x) => foldText(x.name) === foldText(n.name) && x.lang === n.lang));
-          return add.length ? { names: [...cur.names, ...add] } : {};
+          // located at last: no longer "not identified"
+          return { ...(add.length ? { names: [...cur.names, ...add] } : {}), ...(lat !== undefined && cur.unlocated ? { unlocated: undefined } : {}) };
         },
       );
       return { text: written(tree), data: { place: p } };

@@ -8,17 +8,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, moreLine, paginate, runs, shellArg, table } from "../cli/format.ts";
+import { lines, moreLine, paginate, runs, shellArg, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import type { Input, Media, RecordSet, Region, Source, Task } from "../core/model.ts";
 import { makeNote } from "../core/actions.ts";
-import { collectFiles, fileSha256, findImage, imageNumbers, imageOfRef, inboxFolders, inputPath, mimeOf, otherCopies, parseImageList, regionText, sharperPart, storeShared } from "../core/media.ts";
+import { clipText, collectFiles, fileSha256, findImage, imageNumbers, imageOfRef, inboxFolders, inputPath, isWhole, mimeOf, otherCopies, parseImageList, regionText, sharperPart, storeShared } from "../core/media.ts";
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { imageOf, pageOf } from "../core/calibration.ts";
 import { describeView, makeView, partRegion, viewRegion, VIEW_MAX, type ViewSpec } from "../core/views.ts";
 import { listConnectors, missingConsents } from "../core/connector.ts";
-import type { Tree } from "../core/tree.ts";
+import { now, type Tree } from "../core/tree.ts";
 
 const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".tif", ".tiff", ".gif", ".webp", ".heic", ".jp2", ".bmp"]);
 
@@ -39,7 +39,8 @@ export interface NewImage {
  * and provenance. Tasks that waited for images of the book go back into the queue.
  */
 export function registerImages(tree: Tree, shared: string, items: NewImage[], recordset: string | undefined): { added: Media[]; again: string[]; woken: string[]; clashes: string[]; copies: string[] } {
-  const known = new Map(tree.list<Media>("media").map((m) => [m.sha, m]));
+  // a withdrawn image is no longer known: its file can be registered again, where it belongs
+  const known = new Map(tree.list<Media>("media").filter((m) => !m.retracted).map((m) => [m.sha, m]));
   const added: Media[] = [];
   const again: string[] = [];
   const clashes: string[] = [];
@@ -52,7 +53,9 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
         again.push(k.id);
         // the same scan as another image: a portal serving another book's images, or a file given the wrong number
         const as = (m: { recordset?: string | undefined; image?: number | undefined; part?: Region | undefined }) => `${m.recordset ?? "no record set"}${m.image !== undefined ? `:${m.image}` : ""}${m.part ? ` part ${regionText(m.part)}` : ""}`;
-        if (as(k) !== as({ recordset, image: it.image, part: it.part }))
+        // a portal whose sharpest part is the whole scan gives the image again: that is no clash
+        const sameScan = k.recordset === recordset && k.image === it.image && isWhole(k.part) && isWhole(it.part);
+        if (!sameScan && as(k) !== as({ recordset, image: it.image, part: it.part }))
           clashes.push(`${as({ recordset, image: it.image, part: it.part })} is the same file as ${k.id} (${as(k)}) — not registered again: the portal may have given another book's image, or a number is wrong; check before citing either`);
         continue;
       }
@@ -345,13 +348,14 @@ register(
       const sources = tree.list<Source>("source").filter((s) => s.media?.includes(m.id));
       const b = m.recordset ? tree.get<RecordSet>(m.recordset) : undefined;
       const all = tree.list<Media>("media");
-      const parts = !m.part && m.recordset && m.image !== undefined ? all.filter((x) => x.part && x.recordset === m.recordset && x.image === m.image) : [];
+      const parts = !m.part && m.recordset && m.image !== undefined ? all.filter((x) => x.part && !x.retracted && x.recordset === m.recordset && x.image === m.image) : [];
       const copies = otherCopies(all, m);
       const image = copies.length && m.recordset && m.image !== undefined ? findImage(all, m.recordset, m.image) : undefined;
       return {
         text: lines(
           `${m.id} ${m.part ? `part ${regionText(m.part)} of ` : ""}${b ? `image ${m.image ?? "?"} of ${b.id} ${b.title}` : "image"}${pageLabel(tree, m) ? ` · page ${pageLabel(tree, m)}` : ""}`,
           `${m.width ? `${m.width}×${m.height} px · ` : ""}${Math.round(m.size / 1024)} kB · ${m.mime}${m.from ? ` · from ${m.from}` : ""}${m.url ? ` · ${m.url}` : ""}`,
+          m.retracted ? `RETRACTED ${m.retracted.at.slice(0, 10)}: ${m.retracted.reason} — no view, part or excerpt uses it` : undefined,
           parts.length ? `parts of it, sharper (a view of the image uses them by itself): ${parts.map((p) => `${p.id} ${regionText(p.part!)}${p.width ? ` ${p.width}×${p.height}` : ""}`).join(" · ")}` : undefined,
           copies.length
             ? `other copies of the image: ${copies.map((c) => `${c.id}${c.width ? ` ${c.width}×${c.height}` : ""}`).join(" · ")} — the image is the sharpest (${image!.id}); a view of any copy uses it`
@@ -361,6 +365,30 @@ register(
         ),
         data: { media: m, parts: parts.map((p) => p.id), copies: copies.map((c) => c.id), sources: sources.map((s) => s.id), page: pageLabel(tree, m) || undefined },
       };
+    },
+  },
+  {
+    path: ["media", "retract"],
+    summary: "Withdraw an image registered wrongly — another book's, a wrong number, a part put in the wrong place (kept, marked retracted)",
+    group: "sources",
+    tree: true,
+    writes: true,
+    description:
+      "The image stays in the research with the reason, but no view, sharper part or excerpt uses it any more, and its\n" +
+      "file can be registered again where it belongs. An image a source still cites is not withdrawn: move the\n" +
+      "source to the right image first (strom source edit S… --clip …, --clip-remove).",
+    args: [{ name: "image", description: "M0012", required: true }],
+    examples: ['strom media retract M0001 --reason "a part of another book\'s image 340, not of this one"'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      if (!opts.reason) throw new UsageError("--reason is required", { hint: 'say why: --reason "another book\'s image, same number"' });
+      const m = requireRecord<Media>(tree, normId(args[0]!), "media");
+      if (m.retracted) return { text: `${m.id} is already retracted: ${m.retracted.reason}`, data: { media: m } };
+      const citing = tree.list<Source>("source").filter((s) => !s.retracted && (s.media?.includes(m.id) || s.clips?.some((c) => c.media === m.id)));
+      if (citing.length)
+        throw new UsageError(`${m.id} is cited by ${citing.map((s) => s.id).join(", ")}`, { hint: `move them to the right image first: strom source show ${citing[0]!.id}` });
+      const out = update<Media>(tree, m.id, "media", (x) => ({ ...x, retracted: { at: now(), reason: String(opts.reason) } }), { op: "media.retract", summary: `${m.id} retracted: ${truncate(String(opts.reason), 80)}` });
+      return { text: lines(...tree.written.map((o) => o.summary)), data: { media: out } };
     },
   },
   {
@@ -429,15 +457,23 @@ register(
         canPart && v.scale > 1.25 && inWhole.w * inWhole.h < 0.9
           ? `strom fetch ${from.name} --recordset ${whole!.recordset} --images ${whole!.image} --crop ${regionText(inWhole)}`
           : undefined;
+      // The same part as a clip of the source read in it: of the whole image where it is registered.
+      const clip =
+        !t.media || (!spec.crop && !spec.half)
+          ? undefined
+          : whole && !whole.part
+            ? clipText({ media: whole.id, region: inWhole })
+            : clipText({ media: t.key, region: { x: v.region.x / v.original.width, y: v.region.y / v.original.height, w: v.region.w / v.original.width, h: v.region.h / v.original.height } });
       return {
         text: lines(
           describeView(v, (p) => ctx.display(p), fetchPart),
+          clip ? `the source of an entry read here: --clip ${clip}` : undefined,
           sharper
             ? `from ${sharper.part.id}, ${sharper.part.part ? "a part of the image fetched sharper" : "a sharper copy of the image"} (${sharper.gain.toFixed(1)}× the detail of ${sharper.part.part ? "the whole image" : t.media!.id})`
             : undefined,
           page ? `page ${page}` : undefined,
         ),
-        data: { view: v.file, width: v.width, height: v.height, scale: v.scale, region: v.region, original: v.original, image: t.key, ...(sharper ? { from: sharper.part.id } : {}), page: page || undefined },
+        data: { view: v.file, width: v.width, height: v.height, scale: v.scale, region: v.region, original: v.original, image: t.key, ...(sharper ? { from: sharper.part.id } : {}), page: page || undefined, ...(clip ? { clip } : {}) },
       };
     },
   },

@@ -1,6 +1,11 @@
 // The polite network layer every connector goes through. One request at a time
 // per host with a pause between requests and an hourly cap — shared by every
-// strom process on this computer (state in <shared>/net/). An archive that asks
+// strom process on this computer (state in <shared>/net/). No limit is made
+// up: the pace is the service's (its connector says it, and where the service
+// states it) or strom's default pause, or the user's own for the host; an
+// hourly cap only where the service or the user sets one. The host's answers
+// steer it: slower while it answers slowly, a wait when it says its limit is
+// used up (RateLimit headers, Retry-After). An archive that asks
 // us to slow down (429) gets one more try after the wait it asks for, then an
 // hour off; one that refuses (401/403) is left alone for a day; one that does
 // not answer at all is treated the same way: silence from a live server is
@@ -23,8 +28,16 @@ export interface Pace {
   perHour: number;
 }
 
-/** The defaults are the fastest strom goes; a connector may only ask for slower. */
-export const DEFAULT_PACE: Pace = { minIntervalMs: 2000, perHour: 400 };
+/** strom's own pace for a host whose service says nothing: a pause, no hourly cap. */
+export const DEFAULT_PACE: Pace = { minIntervalMs: 2000, perHour: Infinity };
+/** The shortest pause there is — a service's, or the user's for a host. */
+export const MIN_INTERVAL_MS = 250;
+
+/** The pace a connector gives for its service (connector.json policy.pace): faster than strom's default only with where the service says so. */
+export interface ServicePace extends Partial<Pace> {
+  /** Where the service states its limits (its API documentation, its terms): a URL or a sentence. */
+  source?: string;
+}
 /** How long a host that refused us (401/403) is left alone. */
 export const REFUSED_MS = 24 * 3600_000;
 /** The longest strom waits by itself (an hourly cap, a Retry-After) before it gives up for now. */
@@ -64,6 +77,19 @@ interface HostState {
   http2?: boolean;
   blockedUntil?: number;
   reason?: string;
+  /** How long the host takes to answer, on average (ms). */
+  latencyMs?: number;
+  /** The host said its limit is used up until then (RateLimit headers). */
+  waitUntil?: number;
+  /** The user's own pace for the host (strom allow host --pace/--per-hour). */
+  own?: OwnPace;
+}
+
+/** A host's pace as the user set it: a part unset is the service's (perHour 0: no cap). */
+export interface OwnPace {
+  minIntervalMs?: number;
+  perHour?: number;
+  at: string;
 }
 
 export interface NetOptions {
@@ -71,7 +97,7 @@ export interface NetOptions {
   stateDir: string;
   /** Hosts this caller may contact ("example.org" also allows its subdomains). */
   hosts: string[];
-  pace?: Partial<Pace>;
+  pace?: ServicePace;
   method?: "GET" | "POST" | "HEAD";
   /** Extra request headers (Referer, Accept, a Cookie of the caller's own …); strom sets User-Agent itself. */
   headers?: Record<string, string>;
@@ -158,12 +184,60 @@ export class CookieJar {
 /** For tests running strom in-process: record the pauses instead of sleeping (no env or flag reaches this). */
 export const testHooks: { sleep?: (ms: number) => Promise<void> } = {};
 
-/** The pace for a host: never faster than the defaults. */
-export function paceOf(asked?: Partial<Pace>): Pace {
-  return {
-    minIntervalMs: Math.max(DEFAULT_PACE.minIntervalMs, asked?.minIntervalMs ?? 0),
-    perHour: Math.min(DEFAULT_PACE.perHour, asked?.perHour ?? Infinity),
-  };
+/** The pace a connector gives for its service, on a host the user set nothing for. */
+export function paceOf(asked?: ServicePace): Pace {
+  return hostPace({ recent: [] }, asked);
+}
+
+/**
+ * The pace for a host: the user's own for it first, else the service's — its
+ * pause (faster than strom's default only with where the service says so) and
+ * its hourly cap if it has one — else strom's pause, with no cap. The host's
+ * answers stretch the pause where the requests are made.
+ */
+export function hostPace(s: HostState, asked?: ServicePace): Pace {
+  const service = asked?.minIntervalMs !== undefined && (asked.minIntervalMs >= DEFAULT_PACE.minIntervalMs || asked.source?.trim()) ? asked.minIntervalMs : DEFAULT_PACE.minIntervalMs;
+  const minIntervalMs = Math.max(MIN_INTERVAL_MS, s.own?.minIntervalMs ?? service);
+  // the user's own cap (0: none), else the service's, else none
+  const perHour = s.own?.perHour !== undefined ? s.own.perHour || Infinity : asked?.perHour && asked.perHour > 0 ? asked.perHour : DEFAULT_PACE.perHour;
+  return { minIntervalMs, perHour };
+}
+
+/** A pace in words: "at least 2 s apart" and its hourly cap, if it has one. */
+export function paceText(pace: Pace): string {
+  return `at least ${pace.minIntervalMs / 1000} s apart${Number.isFinite(pace.perHour) ? `, at most ${pace.perHour} an hour` : ", no hourly cap"}`;
+}
+
+/** The pause before the next request to a host: its pace, longer while it answers slowly or asked us to slow down. */
+function gapOf(s: HostState, pace: Pace): number {
+  return Math.max(pace.minIntervalMs, s.latencyMs ?? 0) * (s.slowdown ?? 1);
+}
+
+/** When a host's own limit is used up by its RateLimit headers (RateLimit: remaining=0, reset=…, or X-RateLimit-*). */
+export function limitUsedUp(headers: Headers, now: number): number | undefined {
+  const combined = headers.get("ratelimit") ?? "";
+  const remaining = headers.get("ratelimit-remaining") ?? headers.get("x-ratelimit-remaining") ?? /remaining=(\d+)/.exec(combined)?.[1];
+  if (remaining === undefined || remaining === null || Number(remaining) > 0) return undefined;
+  const reset = Number(headers.get("ratelimit-reset") ?? headers.get("x-ratelimit-reset") ?? /reset=(\d+)/.exec(combined)?.[1]);
+  if (!Number.isFinite(reset)) return now + 60_000;
+  // seconds from now, or (X-RateLimit-Reset of some servers) the moment itself
+  return reset > 1e9 ? reset * 1000 : now + reset * 1000;
+}
+
+/** The user's own pace for a host (strom allow host --pace/--per-hour); undefined parts go back to strom's. */
+export function setOwnPace(dir: string, host: string, own: Omit<OwnPace, "at"> | undefined): HostState {
+  fs.mkdirSync(dir, { recursive: true });
+  const file = stateFile(dir, host);
+  const release = acquireLock(`${file}.lock`, { owner: "strom net", waitMs: 60_000, staleMs: 10 * 60_000 });
+  try {
+    const s = hostState(dir, host);
+    if (own && (own.minIntervalMs !== undefined || own.perHour !== undefined)) s.own = { ...own, at: new Date().toISOString() };
+    else delete s.own;
+    writeJson(file, s);
+    return s;
+  } finally {
+    release();
+  }
 }
 
 export function hostAllowed(host: string, hosts: string[]): boolean {
@@ -240,11 +314,11 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
   headers["user-agent"] = USER_AGENT;
   const cookie = [headers.cookie, opts.cookies?.header(u)].filter(Boolean).join("; ");
   if (cookie) headers.cookie = cookie;
-  const pace = paceOf(opts.pace);
   fs.mkdirSync(opts.stateDir, { recursive: true });
   const file = stateFile(opts.stateDir, host);
   const tries = { busy: 0, slowDown: 0, silent: 0 };
   let upgraded = false;
+  let pace = hostPace(hostState(opts.stateDir, host), opts.pace);
 
   for (;;) {
     // One request at a time per host, across processes: the lock is held from the pause to the answer.
@@ -253,8 +327,10 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
     let failed: unknown;
     let slowed = false;
     let viaH2 = false;
+    let took = 0;
     try {
       let s = hostState(opts.stateDir, host);
+      pace = hostPace(s, opts.pace);
       slowed = (s.slowdown ?? 1) > 1;
       const t = now();
       if (s.blockedUntil && s.blockedUntil > t)
@@ -262,15 +338,20 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
       s.recent = s.recent.filter((x) => x > t - 3600_000);
       if (s.recent.length >= pace.perHour) {
         const free = s.recent[0]! + 3600_000;
-        if (free - t > MAX_WAIT_MS) throw new NetError("cap", host, `${pace.perHour} requests to ${host} in the last hour — the hourly cap; resumes at ${when(free)}`, "go on with other work and come back later");
+        if (free - t > MAX_WAIT_MS) throw new NetError("cap", host, `${pace.perHour} requests to ${host} in the last hour — its hourly cap; resumes at ${when(free)}`, "go on with other work and come back later");
         await sleep(free - t);
       }
-      const gap = (s.last ?? 0) + pace.minIntervalMs * (s.slowdown ?? 1) - now();
+      if (s.waitUntil && s.waitUntil > now()) {
+        if (s.waitUntil - now() > MAX_WAIT_MS) throw new NetError("cap", host, `${host} says its limit is used up — resumes at ${when(s.waitUntil)}`, "go on with other work and come back later");
+        await sleep(s.waitUntil - now());
+      }
+      const gap = (s.last ?? 0) + gapOf(s, pace) - now();
       if (gap > 0) await sleep(gap);
       s.last = now();
       s.recent.push(s.last);
       writeJson(file, s);
       viaH2 = !!s.http2;
+      const asked = now();
       try {
         // redirects are followed here, one by one, so that each target is checked and paced
         const body = opts.body !== undefined && method === "POST" ? { body: opts.body } : {};
@@ -280,6 +361,7 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
       } catch (err) {
         failed = err;
       }
+      took = now() - asked;
       const cool = (ms: number, reason: string) => {
         s = hostState(opts.stateDir, host);
         s.blockedUntil = now() + ms;
@@ -326,11 +408,16 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
     }
     const kind = !res ? "silent" : res.status === 429 ? "slowDown" : res.status >= 500 ? "busy" : undefined;
     if (res && !kind) {
-      if (slowed) {
-        const cur = hostState(opts.stateDir, host);
-        cur.slowdown = Math.max(1, (cur.slowdown ?? 1) * 0.8);
-        writeJson(file, cur);
-      }
+      // an answer without trouble: back towards the pace, how long it took, a limit the host says is used up
+      const cur = hostState(opts.stateDir, host);
+      if (slowed) cur.slowdown = Math.max(1, (cur.slowdown ?? 1) * 0.8);
+      cur.latencyMs = Math.round(cur.latencyMs === undefined ? took : cur.latencyMs * 0.7 + took * 0.3);
+      // the pause counts from the answer: a host that works long on each gets as long to rest
+      cur.last = Math.max(cur.last ?? 0, now());
+      const until = limitUsedUp(res.headers, now());
+      if (until) cur.waitUntil = until;
+      else delete cur.waitUntil;
+      writeJson(file, cur);
       const out: Record<string, string> = {};
       res.headers.forEach((v, k) => {
         if (k !== "set-cookie") out[k] = v;
@@ -360,22 +447,23 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
  * pause, within the hourly cap. The browser keeps to them; strom's own requests
  * to the host wait until they are over. Fewer than asked when the hour is full.
  */
-export function reserveSlots(stateDir: string, host: string, asked: Partial<Pace> | undefined, count: number, opts: { now?: () => number; leadMs?: number } = {}): number[] {
+export function reserveSlots(stateDir: string, host: string, asked: ServicePace | undefined, count: number, opts: { now?: () => number; leadMs?: number } = {}): number[] {
   const now = opts.now ?? Date.now;
-  const pace = paceOf(asked);
   fs.mkdirSync(stateDir, { recursive: true });
   const file = stateFile(stateDir, host);
   const release = acquireLock(`${file}.lock`, { owner: "strom net", waitMs: 10 * 60_000, staleMs: 10 * 60_000 });
   try {
     const s = hostState(stateDir, host);
+    const pace = hostPace(s, asked);
     const t = now();
     if (s.blockedUntil && s.blockedUntil > t)
       throw new NetError("blocked", host, `${host}: ${s.reason ?? "refused us"} — left alone until ${when(s.blockedUntil)}`, "do not retry: go on with other work; the user can lift it early with strom allow host <host> --unblock");
+    if (s.waitUntil && s.waitUntil - t > MAX_WAIT_MS) throw new NetError("cap", host, `${host} says its limit is used up — resumes at ${when(s.waitUntil)}`, "go on with other work and come back later");
     s.recent = s.recent.filter((x) => x > t - 3600_000);
     const free = Math.min(count, pace.perHour - s.recent.length);
-    if (free <= 0) throw new NetError("cap", host, `${pace.perHour} requests to ${host} in the last hour — the hourly cap; resumes at ${when(s.recent[0]! + 3600_000)}`, "go on with other work and come back later");
-    const gap = pace.minIntervalMs * (s.slowdown ?? 1);
-    const first = Math.max(t + (opts.leadMs ?? 0), (s.last ?? 0) + gap);
+    if (free <= 0) throw new NetError("cap", host, `${pace.perHour} requests to ${host} in the last hour — its hourly cap; resumes at ${when(s.recent[0]! + 3600_000)}`, "go on with other work and come back later");
+    const gap = gapOf(s, pace);
+    const first = Math.max(t + (opts.leadMs ?? 0), (s.last ?? 0) + gap, s.waitUntil ?? 0);
     const times = Array.from({ length: free }, (_, i) => first + i * gap);
     s.last = times.at(-1)!;
     s.recent.push(...times);

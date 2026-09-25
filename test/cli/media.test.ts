@@ -184,7 +184,15 @@ test("the queue: work that can be done now before work that waits for a download
   const again = await w.ok(["task", "add", "Křest Jana, syna Josefa", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b", "--about", "P1"]);
   assert.match(again.out, /⚠ similar open task T0003 "Křest" — if it is the same, keep one: strom task drop T0005 --reason "duplicate of T0003" and strom task edit T0003/);
   await w.ok(["recordset", "add", "Zemřelí 1880–1920", "--kinds", "burial"]); // B3
-  assert.doesNotMatch((await w.ok(["task", "add", "Úmrtí", "--level", "link", "--where", "B3", "--why", "a", "--done-when", "b", "--about", "P1"])).out, /similar/, "another book");
+  assert.doesNotMatch((await w.ok(["task", "add", "Úmrtí", "--level", "link", "--where", "B3", "--why", "a", "--done-when", "b", "--about", "P1"])).out, /similar/, "another book"); // T6
+  // The same work in other words: not added — what is new goes into the one there is.
+  await w.ok(["task", "add", "Úmrtí první manželky Jana Nováka (18.2.1885, Týnec)", "--level", "link", "--where", "B3", "--why", "a", "--done-when", "b", "--about", "P1"]); // T7
+  const twice = await w.run(["task", "add", "Úmrtí první manželky Jana Nováka, Týnec 18.2.1885", "--level", "link", "--where", "B3", "--why", "jméno 1. ženy", "--done-when", "b", "--about", "P1"]);
+  assert.equal(twice.code, 2);
+  assert.match(twice.err, /a task like this is open already: T0007 p3 link "Úmrtí první manželky Jana Nováka \(18\.2\.1885, Týnec\)"\n→ add to it: strom task edit T0007 --priority … --where … --note "…" — or, if it is really other work: --anyway/);
+  // Other work on the same person in the same book goes in; so does anything with --anyway.
+  await w.ok(["task", "add", "Úmrtí druhé manželky Jana Nováka (1890, Týnec)", "--level", "link", "--where", "B3", "--why", "a", "--done-when", "b", "--about", "P1"]);
+  await w.ok(["task", "add", "Úmrtí první manželky Jana Nováka, Týnec 18.2.1885", "--level", "link", "--where", "B3", "--why", "a", "--done-when", "b", "--about", "P1", "--anyway"]);
   w.cleanup();
 });
 

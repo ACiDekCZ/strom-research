@@ -4,7 +4,8 @@
 // The story goes into the family book of the Strom app (GEDCOM _STORY).
 
 import type { Event, Person, Research, Task } from "./model.ts";
-import { ancestorGenerations, displayName, familiesAsPartner, lifespan } from "./people.ts";
+import { researchPeople } from "./frontier.ts";
+import { displayName, familiesAsPartner, lifespan } from "./people.ts";
 import { phrase } from "./phrases.ts";
 import type { Tree } from "./tree.ts";
 
@@ -29,11 +30,10 @@ export function factsFromRecords(tree: Tree, p: Person): Event[] {
 
 /** The stories strom proposes to write (or add to) for the ancestors of a research. */
 export function storyProposals(tree: Tree, research: Research): StoryProposal[] {
-  if (research.direction !== "ancestors") return [];
   const lang = tree.lang;
   const narrate = tree.list<Task>("task").filter((t) => t.level === "narrate");
   const out: StoryProposal[] = [];
-  for (const [id, generation] of ancestorGenerations(tree, research.focus, research.limits?.generations ?? 50)) {
+  for (const [id, generation] of researchPeople(tree, research)) {
     const p = tree.get<Person>(id);
     if (!p || p.retracted) continue;
     const facts = factsFromRecords(tree, p);

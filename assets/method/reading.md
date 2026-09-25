@@ -31,8 +31,10 @@ Look at as few pixels as the question needs, and write down what you saw at once
   occupations, godparents, witnesses, midwife, remarks in the margin.
 - **Report image by image, as you go**: the image and page, what was found (or
   nothing), what was illegible and where, the hand, how sure each name is.
-- **Cite the image**: `strom source add … --media B0001:57 --locator "pag. 112,
-  2nd entry"`; a searched range goes in `strom search add … --pages 40-69`.
+- **Cite the image, and where the entry is on it**: `strom source add …
+  --clip B0001:57@0.05,0.40,0.45,0.18 --locator "pag. 112, 2nd entry"` — the
+  crop you read it in, as its view prints it; a searched range goes in
+  `strom search add … --pages 40-69`.
 - Page ↔ image: `strom recordset calibrate B0001 --point 57=112` (measured on
   the image, never guessed); then `strom media view B0001 --page 112` works.
 - **No images here yet:** a connector for that archive

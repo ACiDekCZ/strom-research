@@ -15,7 +15,8 @@ import { agentsHere, DESKTOP_APPS } from "../core/apps.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
-import { noticeStromApp, researchUrl } from "../core/stromapp.ts";
+import { noticeStromApp, researchUrl, stromAppState, stromAppUrl } from "../core/stromapp.ts";
+import { openForUser } from "../core/open.ts";
 import { createShortcut } from "../core/shortcut.ts";
 import { desktopDir } from "../core/paths.ts";
 import { ensureShared } from "../commands/setup.ts";
@@ -35,7 +36,7 @@ export function shortcutName(lang: string): string {
 function shortcutExists(ctx: Context, lang: string): boolean {
   const dir = desktopDir(ctx.env);
   const name = shortcutName(lang);
-  return [`${name}.command`, `${name}.cmd`, "strom-research.desktop"].some((f) => fs.existsSync(path.join(dir, f)));
+  return [`${name}.command`, `${name}.lnk`, `${name}.cmd`, "strom-research.desktop"].some((f) => fs.existsSync(path.join(dir, f)));
 }
 
 export async function setupWizard(ctx: Context): Promise<WizardResult> {
@@ -55,6 +56,8 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
       break;
     }
   }
+  // Run again: each choice can be left as it is (0), the current one suggested.
+  const keep = first ? {} : { back: ui(lang, "ui.keep") };
   // 2. Where the research lives.
   const home = ctx.resolvePath(await ctx.ask(ui(lang, "ui.setup.home"), ctx.display(s.home()?.value ?? s.suggestedHome())));
   cfg.lang = lang;
@@ -84,7 +87,7 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
   if (installed.length === 1) agent = installed[0];
   else if (installed.length > 1) {
     const current = Math.max(0, installed.indexOf(cfg.agent ?? "claude"));
-    const i = await ctx.choose(ui(lang, "ui.setup.agent.pick"), installed.map((id) => ({ label: PROFILES[id]!.name })), current);
+    const i = await ctx.choose(ui(lang, "ui.setup.agent.pick"), installed.map((id) => ({ label: PROFILES[id]!.name })), current, keep);
     agent = installed[i ?? current];
   }
   if (agent) {
@@ -95,7 +98,7 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
     if (has.app && has.cli) {
       const app = DESKTOP_APPS[agent]!.name;
       const current = cfg.agentWhere === "terminal" ? 1 : 0;
-      const i = await ctx.choose(ui(lang, "ui.setup.where"), [{ label: ui(lang, "ui.setup.where.app", { app }) }, { label: ui(lang, "ui.setup.where.terminal", { agent: PROFILES[agent]!.name }) }], current);
+      const i = await ctx.choose(ui(lang, "ui.setup.where"), [{ label: ui(lang, "ui.setup.where.app", { app }) }, { label: ui(lang, "ui.setup.where.terminal", { agent: PROFILES[agent]!.name }) }], current, keep);
       cfg.agentWhere = (i ?? current) === 1 ? "terminal" : "app";
     }
   } else out(ui(lang, "ui.setup.agent.manual", { url: researchUrl(lang, "agents") }));
@@ -109,18 +112,19 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
       ui(lang, "ui.setup.model"),
       [{ label: ui(lang, "ui.setup.model.opus") }, { label: ui(lang, "ui.setup.model.sonnet") }, { label: ui(lang, "ui.setup.model.own") }],
       suggested,
+      keep,
     );
     writeStored(cfg, "model.lead", "claude", models[i ?? suggested]);
   } else if (agent) out(ui(lang, "ui.setup.model.strong", { agent: PROFILES[agent]!.name }));
 
   // 5b. Stories of the ancestors for the family book: on unless the person says no.
-  const si = await ctx.choose(ui(lang, "ui.setup.stories"), [{ label: ui(lang, "ui.setup.stories.yes") }, { label: ui(lang, "ui.setup.stories.no") }], cfg.stories === "no" ? 1 : 0);
+  const si = await ctx.choose(ui(lang, "ui.setup.stories"), [{ label: ui(lang, "ui.setup.stories.yes") }, { label: ui(lang, "ui.setup.stories.no") }], cfg.stories === "no" ? 1 : 0, keep);
   cfg.stories = (si ?? (cfg.stories === "no" ? 1 : 0)) === 1 ? "no" : "yes";
 
   // 6. What the agent may do without asking.
   const now = s.agentPermissions();
   const labels = { ask: ui(lang, "ui.setup.level.ask"), auto: ui(lang, "ui.setup.level.auto"), full: ui(lang, "ui.setup.level.full") };
-  const li = await ctx.choose(ui(lang, "ui.setup.level"), PERMISSION_LEVELS.map((l) => ({ label: labels[l] })), PERMISSION_LEVELS.indexOf(now));
+  const li = await ctx.choose(ui(lang, "ui.setup.level"), PERMISSION_LEVELS.map((l) => ({ label: labels[l] })), PERMISSION_LEVELS.indexOf(now), keep);
   let level = PERMISSION_LEVELS[li ?? PERMISSION_LEVELS.indexOf(now)]!;
   if (level === "full" && now !== "full") {
     out(ui(lang, "ui.setup.level.warn"));
@@ -140,13 +144,42 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
     }
   } else createShortcut(shortcutName(lang), ctx.env);
 
-  // Quietly: the installed agents learn about strom; the Strom app is noticed.
+  // Quietly: the installed agents learn about strom.
   const taught = new Set<string>();
   for (const t of globalTargets(ctx.env).filter((t) => installed.includes(t.agent))) if (installGlobal(t)) taught.add(t.agent);
   for (const a of taught) out(ui(lang, "ui.setup.skill", { agent: PROFILES[a]!.name }));
-  if (noticeStromApp(s, ctx.env, { look: true })) out(ui(lang, "ui.setup.app"));
+
+  // 8. The Strom app: noticed when it is here; else asked once whether they want it (pre-filled after).
+  if (noticeStromApp(s, ctx.env, { look: true }) || stromAppState(s) === "seen") out(ui(lang, "ui.setup.app"));
+  else await askStromApp(ctx, lang, first ? undefined : ui(lang, "ui.keep"));
 
   out();
   out(`${ui(lang, "ui.setup.done")}  (${langName(lang, lang)} · ${ctx.display(home)})`);
   return { home, lang, ...(agent ? { agent } : {}), permissions: level };
+}
+
+/**
+ * Does the person want the Strom app (not found on this computer)? Yes and
+ * install it now: it opens in the browser and strom says where to click; yes
+ * but later; no: strom never mentions it again (strom.app no). Undefined when
+ * not answered or 0 (back) — nothing changes.
+ */
+export async function askStromApp(ctx: Context, lang: string, back: string | undefined = ui(lang, "ui.browse.back")): Promise<"install" | "later" | "no" | undefined> {
+  const said = ctx.settings.config.stromApp;
+  const answers = ["install", "later", "no"] as const;
+  const i = await ctx.choose(
+    ui(lang, "ui.setup.stromapp"),
+    [{ label: ui(lang, "ui.setup.stromapp.install") }, { label: ui(lang, "ui.setup.stromapp.later") }, { label: ui(lang, "ui.setup.stromapp.no") }],
+    said === "no" ? 2 : said === "yes" ? 1 : 0,
+    back ? { back } : {},
+  );
+  if (i === undefined) return undefined;
+  const answer = answers[i]!;
+  ctx.settings.config.stromApp = answer === "no" ? "no" : "yes";
+  ctx.settings.save();
+  if (answer === "install") {
+    const url = stromAppUrl(ctx.settings);
+    ctx.io.stdout(ui(lang, openForUser(url, ctx.env) ? "ui.app.install" : "ui.app.url", { url }) + "\n");
+  }
+  return answer;
 }

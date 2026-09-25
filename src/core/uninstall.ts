@@ -10,6 +10,7 @@ import { spawn, spawnSync } from "node:child_process";
 import type { Env } from "./paths.ts";
 import { desktopDir, userHome } from "./paths.ts";
 import { ownGitDir } from "./git.ts";
+import { shortcutCmdDir } from "./shortcut.ts";
 import { globalTargets, isInstalled, uninstallGlobal } from "../agents/global.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { installation, type Installation } from "./self.ts";
@@ -42,11 +43,12 @@ function shortcuts(env: Env, platform: NodeJS.Platform, names: string[]): string
     platform === "darwin"
       ? names.map((n) => path.join(desktop, `${n}.command`))
       : platform === "win32"
-        ? names.map((n) => path.join(desktop, `${n}.cmd`))
+        ? names.flatMap((n) => [path.join(desktop, `${n}.lnk`), path.join(desktop, `${n}.cmd`), path.join(shortcutCmdDir(env, platform), `${n}.cmd`)])
         : [path.join(env.XDG_DATA_HOME ?? path.join(userHome(env), ".local", "share"), "applications", "strom-research.desktop"), path.join(desktop, "strom-research.desktop")];
   return [...new Set(files)].filter((f) => {
     try {
-      return /strom/i.test(fs.readFileSync(f, "utf8"));
+      // a .lnk holds its paths in UTF-16: read it without the zero bytes
+      return /strom/i.test(fs.readFileSync(f).toString("latin1").replace(/\0/g, ""));
     } catch {
       return false;
     }

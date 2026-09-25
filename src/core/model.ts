@@ -172,6 +172,9 @@ export interface Family extends BaseRecord {
 export const DIRECTIONS = ["ancestors", "descendants", "person", "question"] as const;
 export type Direction = (typeof DIRECTIONS)[number];
 
+/** Whom a review covers: the person, with their partners and children, or with their ancestors. */
+export const REVIEW_SCOPES = ["person", "family", "line"] as const;
+
 export const RESEARCH_STATES = ["active", "paused", "done"] as const;
 export type ResearchState = (typeof RESEARCH_STATES)[number];
 
@@ -183,6 +186,8 @@ export interface Research extends BaseRecord {
   state: ResearchState;
   priority: number;
   limits?: { generations?: number; before?: number };
+  /** A person research that reviews what is recorded (strom review): whom, and a second reading by this model. */
+  review?: { scope: (typeof REVIEW_SCOPES)[number]; reread?: string };
   question?: string;
   parent?: string;
   notes: Note[];
@@ -217,7 +222,15 @@ export interface Source extends BaseRecord {
   accessed?: string;
   /** The registered images the record is on (M…). Only registered images can be cited. */
   media?: string[];
+  /** Where the entry itself is on its images: the part a reader cut out (two when it runs over a page break). */
+  clips?: Clip[];
   notes: Note[];
+}
+
+/** The entry on one registered image: a region of it in fractions (0–1) of that image (M…, a whole image or a part of one). */
+export interface Clip {
+  media: string;
+  region: Region;
 }
 
 export const AUTOMATION = ["allowed", "manual", "forbidden", "unknown"] as const;
@@ -277,6 +290,8 @@ export interface Place extends BaseRecord {
   names: { name: string; lang?: string; from?: number; to?: number }[];
   kind?: string;
   coords?: { lat: number; lon: number };
+  /** Why it has no coordinates: not identified yet (which of the villages of this name). Given coordinates clear it. */
+  unlocated?: string;
   parent?: string;
   jurisdictions: Jurisdiction[];
   notes: Note[];
@@ -420,6 +435,8 @@ export interface Region {
 }
 
 export interface SessionMetrics {
+  /** The model the agent reported it ran on (Claude Code's first event). */
+  model?: string;
   inputTokens?: number;
   outputTokens?: number;
   cacheReadTokens?: number;
@@ -442,6 +459,10 @@ export interface Session extends BaseRecord {
   worker?: string;
   /** The agent CLI: claude, codex, antigravity, opencode. */
   agent?: string;
+  /** The model it ran on, when strom knows it (it started the agent with it, or the agent said so). */
+  model?: string;
+  /** The version of strom it ran with: its method and its checks. */
+  strom?: string;
   /** Closed by strom, not by its agent: stopped by the user, its run or conversation gone, the agent quit. */
   endedBy?: "user" | "run" | "chat" | "agent";
   started: string;
@@ -482,7 +503,21 @@ export interface TreeConfig {
   queueStrategy?: string;
   /** Stories of the ancestors: yes or no (overrides the user's). */
   stories?: string;
+  /** The main person of the tree: first in the GEDCOM files, where the Strom app opens. */
+  mainPerson?: string;
+  /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */
+  excerptsQuality?: string;
+  excerptsFor?: string;
+  excerptsMb?: number;
 }
+
+/** How sharp the entries cut out for the Strom app are, and whose they are (core/excerpt.ts). */
+export const EXCERPT_QUALITIES = ["small", "normal", "sharp"] as const;
+export type ExcerptQuality = (typeof EXCERPT_QUALITIES)[number];
+export const EXCERPT_SCOPES = ["none", "line", "family", "connected", "all"] as const;
+export type ExcerptScope = (typeof EXCERPT_SCOPES)[number];
+/** Default limit of all of them in one file, MB. */
+export const EXCERPTS_MAX_MB = 200;
 
 export const SCHEMA_VERSION = 1;
 

@@ -11,9 +11,10 @@ import { readJsonIfExists, writeJson } from "./json.ts";
 import { detectLang, isValidLang } from "./lang.ts";
 import { UsageError } from "./errors.ts";
 import { DEFAULT_AGENT, PROFILES, TIERS, type Tier } from "../agents/profiles.ts";
-import { STRATEGIES, type Strategy, type TreeConfig } from "./model.ts";
+import { EXCERPT_QUALITIES, EXCERPT_SCOPES, EXCERPTS_MAX_MB, STRATEGIES, type ExcerptQuality, type ExcerptScope, type Strategy, type TreeConfig } from "./model.ts";
 import { downloadsDir } from "./browser.ts";
 import { acquireLock } from "./lock.ts";
+import { isStromAppOrigin } from "./stromapp.ts";
 
 export interface UserConfig {
   /** Strom home: default parent of trees and shared data. */
@@ -56,12 +57,26 @@ export interface UserConfig {
   agentWhere?: string;
   /** The Strom app on this computer: the user said so ("yes") or does not want to hear of it ("no"). */
   stromApp?: string;
+  /** Another copy of the Strom app to open (its beta, its development) instead of https://stromapp.info/run/. */
+  stromAppUrl?: string;
   /** Look for new versions of strom: check (default, at most once a day) or off. */
   updates?: string;
+  /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */
+  excerptsQuality?: string;
+  excerptsFor?: string;
+  excerptsMb?: number;
+  /** The main person of a tree (P…): first in the GEDCOM files, where the Strom app opens. */
+  mainPerson?: string;
   /** The last look for a new version: when, and the newest one then. */
   updateCheck?: { at: string; latest: string };
   /** When and how strom noticed the Strom app (it started strom, or it is installed from the browser). */
   stromAppSeen?: { via: string; at: string; version?: string };
+  /** The version of strom that last ran here: a newer one brings what it put outside the trees up to date. */
+  lastVersion?: string;
+  /** What an agent in a conversation was told to tell the user once — the stories, the Strom app, asking about the tree — and when. */
+  told?: Record<string, string>;
+  /** The last answer to "watch the work live in the Strom app?" when the agent was set to work alone from the menu. */
+  stromAppFollow?: "yes" | "no";
 }
 
 /** A route chosen for a connector: when, and from where (a terminal, or a command without one — an agent or the app). */
@@ -110,7 +125,7 @@ export interface SettingDef {
   env: string;
   /** Can a tree carry its own value (strom.json)? */
   tree: boolean;
-  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version";
+  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url";
   /** The values a "choice" allows. */
   choices?: readonly string[];
   description: string;
@@ -139,6 +154,10 @@ export const SETTINGS: SettingDef[] = [
   { key: "queue.strategy", env: "STROM_QUEUE_STRATEGY", tree: true, kind: "choice", choices: STRATEGIES, description: "order of the task queue: balanced (default — nearest ancestors first, spread over the lines, nothing taken forever), depth (stay on one line), priority (strict priority)" },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
+  { key: "main.person", env: "STROM_MAIN_PERSON", tree: true, kind: "person", description: "the main person of the tree (P…): first in the GEDCOM files — the Strom app opens on them (default: the nearest person descended from every research's focus, else the first research's focus)" },
+  { key: "excerpts.quality", env: "STROM_EXCERPTS_QUALITY", tree: true, kind: "choice", choices: EXCERPT_QUALITIES, description: "the entries cut out of their scans in the file for the Strom app (output/tree-strom.ged): small (1000 px, grey — half the size), normal (default, 1200 px), sharp (1600 px)" },
+  { key: "excerpts.for", env: "STROM_EXCERPTS_FOR", tree: true, kind: "choice", choices: EXCERPT_SCOPES, description: "whose entries get their image in the Strom app: none (the file without images), line (the ancestors), family (default: the ancestors and their families), connected (anyone linked to them), all" },
+  { key: "excerpts.mb", env: "STROM_EXCERPTS_MB", tree: true, kind: "number", description: `limit of all the images in one file for the Strom app, MB (default ${EXCERPTS_MAX_MB}): over it they are made smaller, then the farthest from the research left out — strom says so` },
   { key: "strom.version", env: "STROM_APP_VERSION", tree: true, kind: "version", description: "version of the Strom app the Strom GEDCOM is for (set by the app)" },
   { key: "connectors.consent", env: "STROM_CONNECTORS_CONSENT", tree: false, kind: "choice", choices: ["off", "on"], description: "off (default): connectors run without asking — paced by strom, only to their hosts; on: each needs the user's yes, in their terminal, to it and to each archive host" },
   { key: "browser.downloads", env: "STROM_BROWSER_DOWNLOADS", tree: false, kind: "path", description: "the folder your browser saves downloads into (default: the system's Downloads folder) — strom takes a connector's images over from there" },
@@ -147,6 +166,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "agent.where", env: "STROM_AGENT_WHERE", tree: false, kind: "choice", choices: ["app", "terminal"], description: "where you talk with the agent: app (its desktop app — the easiest), terminal (its CLI) — unset: the app when it is installed" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
+  { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of https://stromapp.info/run/ — its beta (https://beta.stromapp.info/run/), its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
 ];
 
 /** Fields of the stored settings whose key is not the field name. */
@@ -161,6 +181,11 @@ const FIELDS: Record<string, string> = {
   "agent.permissions": "agentPermissions",
   "agent.where": "agentWhere",
   "strom.app": "stromApp",
+  "strom.app.url": "stromAppUrl",
+  "main.person": "mainPerson",
+  "excerpts.quality": "excerptsQuality",
+  "excerpts.for": "excerptsFor",
+  "excerpts.mb": "excerptsMb",
 };
 
 /** Environment variables that are not settings but steer strom. */
@@ -169,7 +194,6 @@ export const OTHER_ENV: { env: string; description: string }[] = [
   { env: "STROM_CONFIG_DIR", description: "where the user config and seal keys live" },
   { env: "STROM_NONINTERACTIVE", description: "1 = never ask, fail with needs-input instead" },
   { env: "STROM_DOCUMENTS", description: "the Documents folder, where strom suggests its home (default: the system's)" },
-  { env: "STROM_APP_URL", description: "another copy of the Strom app to open (its development: http://127.0.0.1:8080/)" },
   { env: "STROM_APP", description: "set by the Strom app when it starts strom (or an agent for it): strom then knows the app is there" },
 ];
 
@@ -218,6 +242,21 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       const c = def.key === "agent.permissions" ? (PERMISSION_ALIASES[v.toLowerCase()] ?? v.toLowerCase()) : v.toLowerCase();
       if (!def.choices?.includes(c)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: def.choices?.join(", ") });
       return c;
+    }
+    case "person":
+      if (!/^[Pp]\d{4,}$/.test(v)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: "a person's ID, e.g. P0009 (strom find <name>)" });
+      return v.toUpperCase();
+    case "url": {
+      // A copy of the Strom app the bridge lets in (core/live.ts) — the bridge's address goes to it.
+      let origin = "";
+      try {
+        origin = new URL(v).origin;
+      } catch {
+        // not an address
+      }
+      if (!isStromAppOrigin(origin))
+        throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: "the Strom app: https://stromapp.info/run/, its beta https://beta.stromapp.info/run/, or a copy on this computer http://127.0.0.1:<port>/" });
+      return v;
     }
     case "version":
       if (!/^\d+(\.\d+){0,2}$/.test(v)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: "a version like 1.4.0" });
@@ -370,7 +409,7 @@ export class Settings {
     return out;
   }
 
-  number(key: "brief.budget" | "run.minutes", tree: TreeConfig | undefined, fallback: number): number {
+  number(key: "brief.budget" | "run.minutes" | "excerpts.mb", tree: TreeConfig | undefined, fallback: number): number {
     const r = this.resolve(key, tree);
     return r ? Number(r.value) : fallback;
   }
@@ -412,6 +451,21 @@ export class Settings {
   stories(tree?: TreeConfig): { on: boolean; said: boolean } {
     const v = this.resolve("stories", tree)?.value;
     return { on: v !== "no", said: v === "yes" || v === "no" };
+  }
+
+  /** The images for the Strom app: how sharp, whose, and the limit of all together (MB). */
+  excerpts(tree?: TreeConfig): { quality: ExcerptQuality; for: ExcerptScope; mb: number } {
+    return {
+      quality: String(this.resolve("excerpts.quality", tree)?.value ?? "normal") as ExcerptQuality,
+      for: String(this.resolve("excerpts.for", tree)?.value ?? "family") as ExcerptScope,
+      mb: this.number("excerpts.mb", tree, EXCERPTS_MAX_MB),
+    };
+  }
+
+  /** The main person of the tree as set (strom config set main.person P…), if anybody did. */
+  mainPerson(tree?: TreeConfig): string | undefined {
+    const r = this.resolve("main.person", tree);
+    return r ? String(r.value) : undefined;
   }
 
   stromVersion(tree?: TreeConfig): string | undefined {

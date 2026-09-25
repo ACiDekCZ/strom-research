@@ -74,7 +74,8 @@ npm: `npm install -g strom-research@latest`.
 **Archives**
 - Downloaders ("connectors") for online archives: the agent builds one itself
   when the research needs an archive strom does not know yet, and tells you
-- A polite limiter for every request (pace, hourly cap, back-off), images
+- A polite limiter for every request (the archive's own pace, slower when it
+  answers slowly, back-off; no limits made up), images
   checked before they are kept; your own login to a paid portal stays with you
 - A standard, versioned plugin interface — see
   [assets/plugins/connectors/README.md](assets/plugins/connectors/README.md)
@@ -86,7 +87,13 @@ npm: `npm install -g strom-research@latest`.
   (on by default, you may say no)
 - The Strom app can open the research directly and follow it live while the
   agent works
+- Each register entry cut out of its scan next to its words, in the file for
+  the Strom app (`excerpts.*` settings)
 - Ask the agent about anyone in the tree — with or without the app
+- Or look through it yourself, in strom's menu: the research at a glance
+  (`strom stats`), what is new (`strom recent`), what the agent does next
+  (`strom plan`), one person's life with its
+  records (`strom person card`), the ancestors as a tree (`strom pedigree`)
 
 **Safe by design**
 - What the agent may do alone is your choice: ask, auto (default) or full

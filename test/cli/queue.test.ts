@@ -4,6 +4,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { World, hasGit } from "../helpers.ts";
+import { Tree } from "../../src/core/tree.ts";
+import { rankTasks } from "../../src/core/queue.ts";
+import type { Task } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
 
@@ -53,6 +56,27 @@ test("queue: the work spreads over the lines — a line that just had a session 
   assert.equal(list[1].why, "p3 · generation 2 · its line had 1 of the last 4 sessions · tried 1×");
   await session(w, "T2");
   assert.deepEqual(await order(w), ["T0001", "T0002"], "and back");
+  w.cleanup();
+});
+
+test("queue: the stories come after all the research — in a conversation always; working alone a story's turn after five sessions without one", opts, async () => {
+  const w = await world();
+  await task(w, "Rodiče Josefa", "P2"); // T1
+  await task(w, "Rodiče Marie", "P3"); // T2
+  await w.ok(["task", "add", "Napsat vyprávění: Josef Novák", "--level", "narrate", "--priority", "1", "--where", "zapsané údaje", "--why", "rodinná kniha", "--done-when", "strom story set P2", "--about", "P2"]); // T3
+  // research that waits for a download still comes before a story
+  await w.ok(["recordset", "add", "Oddaní 1880–1890", "--kinds", "marriage"]); // B1, no images
+  await w.ok(["task", "add", "Sňatek Josefa", "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis nalezen", "--about", "P2", "--priority", "1"]); // T4
+  assert.deepEqual((await order(w)).slice(-2), ["T0004", "T0003"], "the story last, after work waiting for images");
+  for (const id of ["T1", "T2", "T1", "T2", "T1"]) await session(w, id);
+  assert.equal((await order(w)).at(-1), "T0003", "a conversation: the user leads — still last");
+  const tree = Tree.open(w.cwd, w.env);
+  const alone = rankTasks(tree, tree.list<Task>("task"), "balanced", { storyTurn: true });
+  assert.equal(alone[0]!.task.id, "T0003", "working alone: its turn");
+  assert.match(alone[0]!.why, /^a story's turn: none in the last 5 sessions · p1/);
+  await session(w, "T3");
+  const after = Tree.open(w.cwd, w.env);
+  assert.equal(rankTasks(after, after.list<Task>("task"), "balanced", { storyTurn: true }).at(-1)!.task.id, "T0003", "written once: back to the research");
   w.cleanup();
 });
 

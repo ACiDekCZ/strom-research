@@ -15,6 +15,38 @@ const prompt = process.env.STROM_PROMPT ?? "";
 if (process.env.STROM_READER === "1") {
   const { appendFileSync } = await import("node:fs");
   const report = /Write your report to (.+?) AS YOU GO/.exec(prompt)?.[1];
+  // strom clips: where each entry is (every entry found at the same place), then the check (a title with "cizí" is the wrong entry, "úzký" cut off once)
+  if (prompt.includes("find that entry on it")) {
+    // a title with "prošlé" is a search over many entries, not one entry
+    for (const m of prompt.matchAll(/^### (S\d{4}) — (.*)\n(?:(?!###)[\s\S])*?^image (M\d{4}):/gm))
+      appendFileSync(report!, m[2]!.includes("prošlé") ? `## ${m[1]} · ${m[3]}\nresult: many\n\n` : `## ${m[1]} · ${m[3]}\nresult: found\nregion: 0.1,0.2,0.5,0.1\n\n`);
+    process.exit(0);
+  }
+  if (prompt.includes("cut-out of a scan")) {
+    // "úzký": cut off at the bottom the first time, whole once cut out wider
+    const again = /-check\d-\d+\.md$/.test(report!);
+    for (const m of prompt.matchAll(/^### (S\d{4}) · (M\d{4}) — (.*)$/gm))
+      appendFileSync(report!, `## ${m[1]} · ${m[2]}\nverdict: ${m[3]!.includes("cizí") ? "wrong\nwhy: another child" : m[3]!.includes("úzký") && !again ? "cut\nmissing: bottom\nwhy: the last line is cut off" : "ok"}\n\n`);
+    process.exit(0);
+  }
+  // strom transcripts: the words ("nečitelný" cannot be read), then the check ("oprava": corrected, "cizí": another entry)
+  if (prompt.includes("write the entry's words")) {
+    for (const m of prompt.matchAll(/^### (S\d{4}) — (.*)$/gm))
+      appendFileSync(report!, m[2]!.includes("nečitelný") ? `## ${m[1]}\nresult: unreadable\n\n` : `## ${m[1]}\nresult: read\ntranscript:\nJoannes filius\nJosephi Nowak [?]\n\n`);
+    process.exit(0);
+  }
+  if (prompt.includes("hold the words against it")) {
+    for (const m of prompt.matchAll(/^### (S\d{4}) — (.*)$/gm))
+      appendFileSync(
+        report!,
+        m[2]!.includes("cizí")
+          ? `## ${m[1]}\nverdict: wrong\ntranscript:\nwhy: another child\n\n`
+          : m[2]!.includes("oprava")
+            ? `## ${m[1]}\nverdict: fixed\ntranscript:\nJoannes filius\nJosephi Nowák\nwhy: the surname\n\n`
+            : `## ${m[1]}\nverdict: ok\ntranscript:\nwhy: as written\n\n`,
+      );
+    process.exit(0);
+  }
   const images = [...prompt.matchAll(/^- (M\d{4}) · image (\d+)/gm)].map((m) => ({ id: m[1]!, n: m[2]! }));
   if (process.env.AGENT_MODE === "reader-silent") {
     console.log(`## Image ${images[0]!.n} · ${images[0]!.id}\nresult: nothing`);
