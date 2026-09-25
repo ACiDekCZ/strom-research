@@ -57,7 +57,8 @@ export interface Stats {
   /** The ancestor born longest ago whose birth a record proves. */
   oldest?: Who;
   tasks: { queued: number; waiting: number; done: number };
-  sessions: { count: number; last?: string; costUsd?: number };
+  /** costPartial: sessions stopped before they said what they cost (more was spent than costUsd shows). */
+  sessions: { count: number; last?: string; costUsd?: number; costPartial?: number };
   stories: { written: number; final: number };
 }
 
@@ -106,6 +107,7 @@ export function treeStats(tree: Tree, from?: string): Stats {
     const at = s.ended ?? s.started;
     if (!stats.sessions.last || at > stats.sessions.last) stats.sessions.last = at;
     cost += s.metrics?.costUsd ?? 0;
+    if (s.metrics?.costPartial) stats.sessions.costPartial = (stats.sessions.costPartial ?? 0) + 1;
   }
   if (cost > 0) stats.sessions.costUsd = Math.round(cost * 100) / 100;
   for (const r of [...persons, ...families])

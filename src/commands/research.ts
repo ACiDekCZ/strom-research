@@ -208,7 +208,11 @@ register({
     const tasks = created.map((id) => tree.get<Task>(id)).filter((t): t is Task => !!t);
     const open = tree.list<Task>("task").filter((t) => t.research === research.id && ["open", "doing"].includes(t.state));
     // what a session costs here, from those so far: the user decides with the price in view
-    const costs = tree.list<Session>("session").map((s) => s.metrics?.costUsd).filter((c): c is number => typeof c === "number");
+    const costs = tree
+      .list<Session>("session")
+      .filter((s) => !s.metrics?.costPartial) // stopped before it said: more than it shows
+      .map((s) => s.metrics?.costUsd)
+      .filter((c): c is number => typeof c === "number");
     const avg = costs.length ? costs.reduce((a, b) => a + b, 0) / costs.length : undefined;
     const list = tree.dryRun ? planned.map((t) => `  would add: ${t.level} · ${t.what}`) : tasks.map((t) => `  ${t.id} ${t.level} · ${t.what}`);
     const text = lines(

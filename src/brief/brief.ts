@@ -12,6 +12,7 @@ import { displayName, familiesAsChild, familiesAsPartner, formatName, label, lif
 import { langName } from "../core/lang.ts";
 import { methodFor } from "../core/assets.ts";
 import { recentSessions } from "../core/session.ts";
+import { briefClock } from "../core/clock.ts";
 import { calibrationLine } from "../core/calibration.ts";
 import { taskRecordsets } from "../core/frontier.ts";
 import { reviewItems } from "../core/review.ts";
@@ -124,7 +125,7 @@ function repoHint(tree: Tree): string {
   return `archives: ${shown}${repos.length > 4 ? " …" : ""} (another: strom repo add "<archive>" --url …)`;
 }
 
-export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; budget?: number; shared?: string | undefined }): Brief {
+export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; budget?: number; shared?: string | undefined; deadline?: number | undefined }): Brief {
   const budget = opts.budget ?? DEFAULT_BUDGET;
   const task = opts.task;
   const research = (task?.research ? tree.get<Research>(task.research) : undefined) ?? tree.list<Research>("research").find((r) => r.state === "active");
@@ -144,6 +145,7 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
       ...(research?.notes ?? []).slice(-3).map((n) => `From the user: ${n.text}`),
       `Research language: ${langName(lang)} — talk to the user and write notes, tasks and summaries in ${langName(lang)}; transcripts stay in the original language.`,
       "Work ONLY through `strom` commands; never edit files in data/ (it is detected and blocks all writing). Record findings as you go.",
+      opts.deadline !== undefined ? briefClock(opts.deadline) : "",
     ].filter(Boolean).join("\n"),
   });
 

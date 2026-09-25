@@ -58,7 +58,9 @@ npm: `npm install -g strom-research@latest`.
   OpenCode), experienced users in the terminal — strom opens it in the right
   folder, set up as you chose
 - Or let the agent work on its own through the task queue (`strom run`) and
-  read the result
+  read the result — or on and on (`strom run --loop`) while a condition of
+  yours allows it: a gate plugin, e.g. `claude-usage 10` (your Claude
+  subscription's daily ration, 10 points in hand), or one of your own (`strom gate list`)
 - Several agents can work on one family tree side by side, each on its own task
 
 **Evidence first**

@@ -17,11 +17,25 @@ export function codexArgs(opts: Pick<RunOptions, "model" | "extraArgs" | "permis
   return ["exec", "--json", "--skip-git-repo-check", ...sandbox, ...(opts.model ? ["--model", opts.model] : []), ...(opts.extraArgs ?? []), "-"];
 }
 
+/**
+ * Arguments that resume a headless session with a message on stdin (exported for tests). `exec resume` has no
+ * --sandbox or --add-dir: the same sandbox is set through its configuration.
+ */
+export function codexResumeArgs(id: string, opts: Pick<RunOptions, "model" | "permissions" | "shared">): string[] {
+  const sandbox =
+    opts.permissions === "full"
+      ? ["--dangerously-bypass-approvals-and-sandbox"]
+      : ["-c", 'sandbox_mode="workspace-write"', "-c", "sandbox_workspace_write.network_access=true", ...(opts.shared ? ["-c", `sandbox_workspace_write.writable_roots=[${JSON.stringify(opts.shared)}]`] : [])];
+  return ["exec", "resume", "--json", "--skip-git-repo-check", ...sandbox, ...(opts.model ? ["--model", opts.model] : []), id, "-"];
+}
+
 export const codexRunner: Runner = {
   id: "codex",
   command: "codex",
   run(opts: RunOptions): Promise<RunResult> {
-    return runJsonLines("codex", codexArgs(opts), opts.env, opts, (msg, heard) => {
+    const resume = (id: string, message: string) => ({ args: codexResumeArgs(id, opts), input: message });
+    return runJsonLines("codex", codexArgs(opts), opts.env, opts, resume, (msg, heard) => {
+      if (msg.type === "thread.started" && typeof msg.thread_id === "string") heard.sessionId = msg.thread_id;
       const item = msg.item as { type?: string; text?: string; command?: string; exit_code?: number | null; aggregated_output?: string } | undefined;
       if (msg.type === "item.started" && item?.type === "command_execution" && item.command) opts.onProgress?.(`$ ${item.command.replace(/^\S*sh -lc '(.*)'$/s, "$1").split("\n")[0]!.slice(0, 140)}`);
       if (msg.type === "item.completed" && item?.type === "agent_message" && item.text) {

@@ -4,7 +4,8 @@
 // evidence and git denied); what they would ask about is refused in a run
 // nobody watches — under ask and auto that is all; full adds --auto
 // (everything the rules do not deny). Events are JSON lines: text, tool_use,
-// step_start, step_finish (tokens and cost of a step), error.
+// step_start, step_finish (tokens and cost of a step), error; each names its
+// session (sessionID), which `--session` resumes.
 
 import { runJsonLines } from "./jsonl.ts";
 import type { RunOptions, RunResult, Runner } from "./runner.ts";
@@ -20,8 +21,11 @@ export const opencodeRunner: Runner = {
   run(opts: RunOptions): Promise<RunResult> {
     const args = opencodeArgs({ ...opts, kickoff: "Your brief is above. Work only through `strom` in this folder, as it says." });
     const tokens = { input: 0, output: 0, cacheRead: 0 };
-    return runJsonLines("opencode", args, opts.env, opts, (msg, heard) => {
+    // Resumed: its session by id, the message as the prompt.
+    const resume = (id: string, message: string) => ({ args: [...opencodeArgs({ ...opts, kickoff: message }).slice(0, -1), "--session", id, message], input: "" });
+    return runJsonLines("opencode", args, opts.env, opts, resume, (msg, heard) => {
       const part = (msg.part ?? {}) as Record<string, unknown>;
+      if (typeof msg.sessionID === "string") heard.sessionId = msg.sessionID;
       if (msg.type === "tool_use") {
         const state = (part.state ?? {}) as { status?: string; input?: Record<string, unknown>; error?: string };
         const input = state.input ?? {};

@@ -11,7 +11,7 @@ import { register } from "../cli/registry.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table, truncate } from "../cli/format.ts";
-import { UsageError, StromError } from "../core/errors.ts";
+import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
 import type { Research, Session, Task } from "../core/model.ts";
 import { closeSession, currentSession, openSessions, othersAtWork, sessionNote, startSession } from "../core/session.ts";
 import { buildBrief } from "../brief/brief.ts";
@@ -28,8 +28,10 @@ import { syncAgentFiles } from "../agents/files.ts";
 import { setTreeSetting } from "./setup.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { PROFILES } from "../agents/profiles.ts";
-import { AGENTS, detectAgent, which } from "../core/which.ts";
+import { AGENTS, detectAgent, isAgent, which } from "../core/which.ts";
+import { askGate, ensureGatesDir, loadGate, type Gate, type GateAnswer } from "../core/gate.ts";
 import { keepAwake } from "../core/awake.ts";
+import { deadlineOf, WRAP_UP_MS } from "../core/clock.ts";
 import { stromLauncher } from "../core/self.ts";
 import { phrase } from "../core/phrases.ts";
 import { enterWorker, runAlive, runsAtWork } from "../core/workers.ts";
@@ -173,7 +175,7 @@ register(
     tree: true,
     run(ctx) {
       const all = ctx.tree().list<Session>("session").slice().reverse();
-      const cost = (s: Session) => (s.metrics?.costUsd !== undefined ? `$${s.metrics.costUsd.toFixed(2)}` : "");
+      const cost = (s: Session) => costText(s.metrics);
       return {
         text: all.length ? table(all.map((s) => [s.id, s.state, s.task ?? "", s.started.slice(0, 16).replace("T", " "), cost(s), truncate(s.summary ?? "", 70)])) : "no sessions yet → strom session start",
         data: { sessions: all },
@@ -202,7 +204,7 @@ register(
                 m.inputTokens && `${m.inputTokens} in`,
                 m.outputTokens && `${m.outputTokens} out`,
                 m.cacheReadTokens && `${m.cacheReadTokens} cache read`,
-                m.costUsd !== undefined && `$${m.costUsd.toFixed(2)}`,
+                costText(m),
                 s.ended && `${Math.max(1, Math.round((Date.parse(s.ended) - Date.parse(s.started)) / 60000))} min`,
                 m.denied && `${m.denied} refused by permissions`,
               ]
@@ -229,7 +231,7 @@ register(
       const tree = ctx.tree();
       const s = currentSession(tree, ctx.env);
       const task = args[0] ? requireRecord<Task>(tree, args[0], "task") : s?.task ? tree.get<Task>(s.task) : taskQueue(tree, { strategy: ctx.settings.strategy(tree.config) })[0];
-      const b = buildBrief(tree, { ...(task ? { task } : {}), ...(s ? { session: s } : {}), budget: ctx.settings.number("brief.budget", tree.config, DEFAULT_BUDGET), shared: ctx.settings.shared()?.value });
+      const b = buildBrief(tree, { ...(task ? { task } : {}), ...(s ? { session: s, deadline: deadlineOf(ctx.env) } : {}), budget: ctx.settings.number("brief.budget", tree.config, DEFAULT_BUDGET), shared: ctx.settings.shared()?.value });
       if (opts.stats)
         return {
           text: lines(table(b.sections.map((x) => [x.name, `${x.tokens}`, x.cut ? "cut" : ""])), `total ~${b.total} tokens of ${b.budget}`),
@@ -416,20 +418,30 @@ register({
     "One session by default; with --until, session after session until that time. The agent works headless with\n" +
     "the tree's permissions (anything else is denied), or with the terminal (--interactive). Stops at the\n" +
     "subscription limit, when the queue is empty, or at --until (a session already running finishes, within\n" +
-    "--minutes). A session longer than --minutes is stopped (its task goes back to the queue); a task that comes\n" +
-    "back twice in a row with nothing recorded is parked. --task picks the tasks (one session each, in that order;\n" +
-    "one done or held by another agent meanwhile is left out). Arguments after -- go to the agent CLI unchanged.",
+    "--minutes). The agent knows when its session is stopped (the brief; strom's output counts down its last\n" +
+    "10 minutes, a short session its last quarter); at --minutes it is stopped, and Claude Code, Codex and OpenCode\n" +
+    "get 5 minutes more to write down what they found and close (an unfinished task goes back to the queue); a task\n" +
+    "that comes back twice in a row with nothing recorded is parked. --task picks the tasks (one session each, in that order;\n" +
+    "one done or held by another agent meanwhile is left out). --loop: session after session for as long as there\n" +
+    "is work. A gate (setting run.gate, or --gate; plugins/gates/<name>) is asked before each session of --loop and\n" +
+    "--until: go on, wait (the run waits and asks again) or stop — the user's condition, e.g. the subscription's room\n" +
+    "(strom gate list). Tasks started otherwise (one, --max, --task) are the user's choice: the gate is asked once,\n" +
+    "and when it would not start, the user is asked whether to start anyway (an agent: a window of the system).\n" +
+    "Arguments after -- go to the agent CLI unchanged.",
   options: [
     { name: "task", type: "string", multiple: true, value: "<T…>", description: "work on these tasks, in this order (repeatable or T0003,T0007; default: the next one of the queue)" },
     { name: "research", type: "string", value: "<G…>", description: "only tasks of this research" },
     { name: "max", type: "string", value: "<n>", description: "at most n sessions (default 1; with --until, no limit)" },
     { name: "until", type: "string", value: "<HH:MM>", description: "start no session after this time" },
+    { name: "loop", type: "boolean", description: "session after session for as long as there is work (and the gate lets it)" },
+    { name: "gate", type: "string", value: "<name [n]>", description: 'ask this gate before each session, with what it is given, e.g. "claude-usage 20" (default: run.gate)' },
+    { name: "no-gate", type: "boolean", description: "ask no gate this time (only you: an agent cannot)" },
     { name: "minutes", type: "string", value: "<n>", description: `time limit of one session (default: run.minutes, ${DEFAULT_RUN_MINUTES})` },
     { name: "budget", type: "string", value: "<tokens>", description: `brief size (default: brief.budget, ${DEFAULT_BUDGET})` },
     { name: "model", type: "string", value: "<model>", description: "model of the main agent (default: model.lead)" },
     { name: "interactive", type: "boolean", description: "give the agent the terminal (you can talk to it)" },
   ],
-  examples: ["strom run", "strom run --max 3 --until 23:00", "strom run --task T0003,T0007", "strom run --interactive", "strom run --agent codex", "strom run --minutes 30 -- --add-dir ~/Scans"],
+  examples: ["strom run", "strom run --max 3 --until 23:00", "strom run --loop", "strom run --task T0003,T0007", "strom run --interactive", "strom run --agent codex", "strom run --minutes 30 -- --add-dir ~/Scans"],
   run: async (ctx: Context, { opts, extra }) => {
     const root = ctx.tree().root;
     const treeCfg = ctx.tree().config;
@@ -443,9 +455,10 @@ register({
     const until = parseUntil(opts.until);
     // Tasks the user picked: one session each, in their order (then the queue, when --max asks for more).
     const picked = csvOpt(opts.task).map((id) => requireRecord<Task>(Tree.open(root, ctx.env), id, "task").id);
-    const max = opts.max === undefined ? (picked.length ? picked.length : until ? Infinity : 1) : Number(opts.max);
+    const max = opts.max === undefined ? (picked.length ? picked.length : until || opts.loop ? Infinity : 1) : Number(opts.max);
     if (max !== Infinity && (!Number.isInteger(max) || max < 1)) throw new UsageError("--max must be a positive number");
     const minutes = ctx.settings.number("run.minutes", treeCfg, DEFAULT_RUN_MINUTES);
+    const gate = runGate(ctx, opts);
     const budget = ctx.settings.number("brief.budget", treeCfg, DEFAULT_BUDGET);
     // Each run has a name of its own (as a conversation does): several work side by side, never on one task.
     const worker = `run-${process.pid}-${Date.now().toString(36)}`;
@@ -453,13 +466,15 @@ register({
     // Present in the tree for the others at work (conversations with agents): strom shows who works.
     const beside = runsAtWork(root);
     const leave = enterWorker(root, worker, `${PROFILES[runnerId]?.name ?? runnerId} on its own`);
-    const stopAwake = keepAwake(ctx.env);
+    let stopAwake = keepAwake(ctx.env);
     // Progress goes to stderr when stdout carries JSON.
     const out = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
     const report: { session: string; task?: string; outcome: string; summary?: string; costUsd?: number }[] = [];
+    // What the gate answered, for the record of the run.
+    const gates: { at: string; verdict: string; reason?: string; anyway?: boolean }[] = [];
     // Why the run stopped: a code for the exit status and for data, words for the user (their language).
     const lang = Tree.open(root, runEnv).lang;
-    type Stop = "done" | "user" | "time" | "empty" | "problems" | "denied" | "limit" | "auth" | "failed";
+    type Stop = "done" | "user" | "time" | "empty" | "problems" | "denied" | "limit" | "auth" | "failed" | "gate" | "gate.error" | "gate.declined";
     let stopCode: Stop = "done";
     let stopValues: Record<string, string> = {};
     // Ctrl-C, a closed terminal, a shutdown: stop the agent, close its session, give the task back.
@@ -494,6 +509,11 @@ register({
       for (const c of browser) out(ui(lang, "ui.run.browser", { name: c.manifest.title ?? c.name, hosts: c.manifest.hosts.join(", ") }));
       if (browser.length && /haiku/i.test(models.lead ?? "")) out(ui(lang, "ui.run.browser.model", { model: models.lead! }));
       if (permissions === "full") out(ui(lang, "ui.run.full"));
+      // The gate holds a run that goes on by itself (--loop, --until). Tasks the user starts themselves (one, --max n,
+      // --task) are their choice: the gate is asked once, and when it would not start, the user decides.
+      const gateHolds = Boolean(opts.loop || until);
+      let gateAnswered = false;
+      if (gate) out(ui(lang, gateHolds ? "ui.run.gate" : "ui.run.gate.once", { name: gate.manifest.title ?? gate.name }));
       for (let i = 0; i < max; i++) {
         if (stop.signal.aborted) {
           stopCode = "user";
@@ -526,9 +546,47 @@ register({
           stopCode = "empty";
           break;
         }
+        // The user's condition, between sessions only: go on, wait and ask again, or stop — in a run that goes on by
+        // itself. Tasks the user started themselves: asked once, and the user decides when it would not start.
+        if (gate && !gateAnswered) {
+          const said = askGate(gate, runEnv, { tree: root, lang, agent: runnerId, model: models.lead, sessions: report.length, costUsd: report.reduce((a, r) => a + (r.costUsd ?? 0), 0), nextTask: task.id });
+          const answer: (typeof gates)[number] = { at: new Date().toISOString(), verdict: said.verdict, ...(said.reason ? { reason: said.reason } : {}) };
+          gates.push(answer);
+          const name = gate.manifest.title ?? gate.name;
+          if (!gateHolds) {
+            gateAnswered = true;
+            if (said.verdict !== "go") {
+              if (!(await startAnyway(ctx, name, gateReason(said, lang), lang))) {
+                stopCode = "gate.declined";
+                stopValues = { name, reason: gateReason(said, lang) };
+                break;
+              }
+              answer.anyway = true;
+            }
+          } else if (said.verdict === "stop" || said.verdict === "error") {
+            stopCode = said.verdict === "stop" ? "gate" : "gate.error";
+            stopValues = { name, reason: said.reason ?? "" };
+            break;
+          } else if (said.verdict === "wait") {
+            const at = Date.now() + said.waitMs!;
+            if (until && at > until) {
+              stopCode = "time";
+              break;
+            }
+            out(ui(lang, "ui.run.gate.wait", { at: new Date(at).toLocaleString(lang, { weekday: "short", hour: "2-digit", minute: "2-digit" }), reason: said.reason ?? "" }));
+            // nothing to do meanwhile: the computer may sleep
+            stopAwake();
+            await pause(at - Date.now(), stop.signal);
+            stopAwake = keepAwake(ctx.env);
+            i--; // this was no session: ask again, with the queue as it is then
+            continue;
+          }
+        }
         const session = startSession(tree, { task, ...(research ? { research: research.id } : {}), runner: runnerId, ...(models.lead ? { model: models.lead } : {}) });
         commitNow(tree, `${session.id} session started on ${task.id}`);
-        const brief = buildBrief(tree, { task, session, budget, shared: ctx.settings.shared()?.value });
+        // When the agent is stopped: it knows (the brief, strom's reminders near the end), and gets a few minutes more to write down what it found.
+        const deadline = Date.now() + minutes * 60_000;
+        const brief = buildBrief(tree, { task, session, budget, shared: ctx.settings.shared()?.value, deadline });
         const briefFile = path.join(root, ".strom", "briefs", `${session.id}.md`);
         fs.mkdirSync(path.dirname(briefFile), { recursive: true });
         fs.writeFileSync(briefFile, brief.text);
@@ -541,6 +599,8 @@ register({
         const env = {
           ...prependPath(runEnv, bin),
           STROM_SESSION: session.id,
+          STROM_DEADLINE: new Date(deadline).toISOString(),
+          STROM_MINUTES: String(minutes),
           ...(opts.interactive ? {} : { STROM_NONINTERACTIVE: "1" }),
         };
         const result = await runner.run({
@@ -552,6 +612,13 @@ register({
           name: ["Strom", tree.config.name, tree.get<Research>(task.research ?? research?.id ?? "")?.name, `${truncate(task.what, 50)} (${task.id})`].filter(Boolean).join(" · "),
           logFile: path.join(root, ".strom", "runs", `${session.id}.log`),
           timeoutMs: minutes * 60_000,
+          wrapUp: {
+            ms: WRAP_UP_MS,
+            prompt:
+              `Time is up: strom stopped you at the session's limit (${minutes} min). You have ${WRAP_UP_MS / 60_000} minutes, no more. Do not open anything new: ` +
+              "record in strom what you found and have not recorded yet (facts, sources, the images searched, in vain too), " +
+              `then \`strom session close --continue --summary "…" --next "exactly where you stopped"\` (or finish the task, if it is done).`,
+          },
           settingsFile: path.join(root, ".claude", "settings.json"),
           shared: ctx.settings.shared()?.value,
           ...(models.lead ? { model: models.lead } : {}),
@@ -592,7 +659,7 @@ register({
         const geds = writeGedcoms(ctx, after);
         const committed = commitNow(after, `${s.id} ${s.state}: ${truncate(s.summary ?? "", 60)} · ${geds.map((g) => after.relative(g.file)).join(", ")}`);
         report.push({ session: s.id, task: task.id, outcome: result.outcome, ...(s.summary ? { summary: s.summary } : {}), ...(result.metrics.costUsd !== undefined ? { costUsd: result.metrics.costUsd } : {}) });
-        out(`■ ${s.id} ${s.state} · ${result.outcome}${result.metrics.costUsd !== undefined ? ` · $${result.metrics.costUsd.toFixed(2)}` : ""}${s.summary ? ` · ${truncate(s.summary, 80)}` : ""}`);
+        out(`■ ${s.id} ${s.state} · ${result.outcome}${costText(result.metrics) ? ` · ${costText(result.metrics)}` : ""}${s.summary ? ` · ${truncate(s.summary, 80)}` : ""}`);
         if (result.denied?.length) out(ui(lang, "ui.run.denied", { n: result.denied.length, what: result.denied.slice(0, 3).join(" · ") }));
         if (!committed) {
           stopCode = "problems";
@@ -633,11 +700,74 @@ register({
     const reason = ui(lang, `ui.run.stop.${stopCode}` as UIKey, stopValues);
     return {
       text: lines(ui(lang, "ui.run.summary", { n: report.length, reason }), waiting ? `\n${waiting}` : undefined),
-      data: { sessions: report, stopped: reason, stop: stopCode },
-      exitCode: ["failed", "problems", "auth", "denied"].includes(stopCode) ? 1 : 0,
+      data: { sessions: report, stopped: reason, stop: stopCode, ...(gate ? { gate: { name: gate.name, answers: gates } } : {}) },
+      exitCode: ["failed", "problems", "auth", "denied", "gate.error"].includes(stopCode) ? 1 : 0,
     };
   },
 });
+
+/**
+ * The gate this run asks (run.gate, or --gate), or none (--no-gate). Going round the user's gate is the user's
+ * decision: an agent asks them (a window of the system).
+ */
+function runGate(ctx: Context, opts: Record<string, unknown>): Gate | undefined {
+  const set = ctx.settings.runGate();
+  const asked = typeof opts.gate === "string" ? opts.gate : undefined;
+  if (opts["no-gate"]) {
+    if (set && isAgent(ctx.env)) ctx.requireHuman(`Let the agent work on its own without the gate "${set}"?`, "strom run --no-gate", "run.gate", ui(ctx.uiLang(), "ui.consent.gate.skip", { name: set }));
+    return undefined;
+  }
+  const name = asked ?? set;
+  if (!name) return undefined;
+  if (asked && set && asked !== set && isAgent(ctx.env)) ctx.requireHuman(`Ask the gate "${asked}" instead of "${set}"?`, `strom run --gate ${asked}`, "run.gate", ui(ctx.uiLang(), "ui.consent.gate.set", { name: asked }));
+  const shared = ctx.settings.shared()?.value;
+  if (!shared) throw new StromError("no shared folder, so no gates", { hint: "strom setup" });
+  ensureGatesDir(shared);
+  return loadGate(shared, name);
+}
+
+/** Why the gate would not start, for the user: its own words, else what it answered. */
+function gateReason(said: GateAnswer, lang: string): string {
+  return said.reason ?? ui(lang, said.verdict === "error" ? "ui.run.gate.noanswer" : said.verdict === "wait" ? "ui.run.gate.later" : "ui.run.gate.no");
+}
+
+/**
+ * Tasks the user started themselves while the gate would not start: the user decides — on a terminal, a question;
+ * asked by an agent, a window of the system (going round the user's condition is never the agent's decision). A run
+ * nobody can ask keeps to the gate.
+ */
+async function startAnyway(ctx: Context, name: string, reason: string, lang: string): Promise<boolean> {
+  const question = ui(lang, "ui.run.gate.anyway", { name, reason });
+  if (ctx.interactive && !isAgent(ctx.env)) return ctx.confirm(question, false);
+  if (!isAgent(ctx.env)) return false;
+  try {
+    ctx.requireHuman(`Start the tasks although the condition "${name}" would not (${reason})?`, "strom run --no-gate", "run.gate", question);
+    return true;
+  } catch (err) {
+    if (err instanceof NeedsConsentError) throw err; // nobody to ask: the user runs it themselves
+    return false; // the user said no in the window
+  }
+}
+
+/** Wait, until the time or until the user stops the run. */
+function pause(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal.aborted || ms <= 0) return resolve();
+    const t = setTimeout(done, ms);
+    signal.addEventListener("abort", done, { once: true });
+    function done() {
+      clearTimeout(t);
+      signal.removeEventListener("abort", done);
+      resolve();
+    }
+  });
+}
+
+/** What a session cost: "$1.20"; "$0.30+" or "cost unknown" when the agent was stopped before it said. */
+function costText(m: Session["metrics"]): string {
+  if (m?.costPartial) return m.costUsd ? `$${m.costUsd.toFixed(2)}+` : "cost unknown";
+  return m?.costUsd !== undefined ? `$${m.costUsd.toFixed(2)}` : "";
+}
 
 /** How the user clears the agent's context, in the agent's own words. */
 const CLEAR: Record<string, string> = { claude: "/clear", codex: "/new", opencode: "/new" };

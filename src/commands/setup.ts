@@ -35,6 +35,7 @@ import { NeedsInputError, StromError, UsageError } from "../core/errors.ts";
 import { check } from "../core/check.ts";
 import { assertIntact, verifyFull } from "../core/integrity.ts";
 import { ensurePluginsDir } from "../core/connector.ts";
+import { ensureGatesDir, loadGate } from "../core/gate.ts";
 import { downloadsDir } from "../core/browser.ts";
 
 export const SHARED_DIRS = ["media", "catalog", "tools", "cache", "inbox"];
@@ -42,6 +43,7 @@ export const SHARED_DIRS = ["media", "catalog", "tools", "cache", "inbox"];
 export function ensureShared(dir: string): void {
   for (const d of SHARED_DIRS) fs.mkdirSync(path.join(dir, d), { recursive: true });
   ensurePluginsDir(dir);
+  ensureGatesDir(dir);
 }
 
 register({
@@ -415,6 +417,20 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
   // Asking before a connector runs is the user's safeguard: only they take it away.
   if (key === "connectors.consent" && value !== "on" && s.connectorsConsent())
     ctx.requireHuman("Let connectors run without asking you first?", `strom config set connectors.consent ${value ?? "off"}`, "connectors.consent", ui(ctx.uiLang(), "ui.consent.connectors.off"));
+  // The gate decides what working alone spends: set and taken away by the user alone.
+  if (key === "run.gate" && value !== s.runGate())
+    ctx.requireHuman(
+      value ? `Let the gate "${value}" decide when the agent working alone goes on?` : `Remove the gate "${s.runGate()}" — the agent working alone no longer asks it?`,
+      value ? `strom config set run.gate ${value}` : "strom config unset run.gate",
+      "run.gate",
+      ui(ctx.uiLang(), value ? "ui.consent.gate.set" : "ui.consent.gate.unset", { name: String(value ?? s.runGate()) }),
+    );
+  // a gate that is not there (or not a gate) is said now, not at the next run
+  const sh = s.shared()?.value;
+  if (key === "run.gate" && typeof value === "string" && sh) {
+    ensureGatesDir(sh);
+    loadGate(sh, value);
+  }
   writeStored(s.config, key, s.agent(ctx.hasTree() ? ctx.tree().config : undefined).value, value);
   s.save();
   if (key === "shared" && typeof value === "string") ensureShared(value);

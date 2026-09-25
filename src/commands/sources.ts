@@ -285,6 +285,23 @@ register(
 
 // ── repositories ───────────────────────────────────────────────────────────
 
+/** The website's host without "www.", lowercase: https://www.FamilySearch.org/search → familysearch.org. */
+function siteOf(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `https://${url}`).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return undefined;
+  }
+}
+
+/** An archive already here under this name or on this website. */
+export function sameRepository(all: Repository[], name: string, url: string | undefined): Repository | undefined {
+  const folded = foldText(name);
+  const site = siteOf(url);
+  return all.find((r) => foldText(r.name) === folded || (site !== undefined && siteOf(r.url) === site));
+}
+
 register(
   {
     path: ["repo", "add"],
@@ -301,10 +318,17 @@ register(
       { name: "terms", type: "string", value: "<text>", description: "terms of use in one sentence (+ link)" },
       { name: "automation", type: "string", value: "<a>", description: "allowed, manual (browser only), forbidden, unknown (default)" },
       { name: "note", type: "string", value: "<text>", description: "short note" },
+      { name: "another", type: "boolean", description: "a different archive, though one here has its name or website" },
     ],
     examples: ['strom repo add "State Archive, online reading room" --country CZ --url https://archive.example.org --automation manual'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
+      // One archive, one record: a second "FamilySearch" splits its books, terms and lessons in two (found in a live run).
+      const twin = opts.another ? undefined : sameRepository(tree.list<Repository>("repository"), args[0]!, str(opts.url));
+      if (twin)
+        throw new UsageError(`${twin.id} "${twin.name}" is this archive already${twin.url ? ` (${twin.url})` : ""}`, {
+          hint: `use it: --repo ${twin.id} (strom repo show ${twin.id}) — a different archive after all: add --another`,
+        });
       const r = create<Repository>(
         tree,
         "repository",

@@ -16,6 +16,7 @@ import { liveHolder } from "../core/lock.ts";
 import { newerVersion } from "../core/update.ts";
 import { taskQueue, waitingForUser } from "../commands/tasks.ts";
 import { humanTask } from "../commands/browse.ts";
+import { loadGate } from "../core/gate.ts";
 import { lacksImages } from "../core/queue.ts";
 import { othersAtWork } from "../core/session.ts";
 import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
@@ -136,9 +137,13 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
               if (queue.length > shown.length) out(`      ${t("ui.plan.more", { n: queue.length - shown.length })}`);
             }
             out(t("ui.run.limit", { minutes: ctx.settings.number("run.minutes", fresh.config, DEFAULT_RUN_MINUTES) }));
-            const how = shown.length ? await ctx.choose(t("ui.run.what"), [{ label: t("ui.run.queue") }, { label: t("ui.run.pick") }], 0, { back: t("ui.browse.back") }) : 0;
+            // With a gate of the user's (run.gate): on for as long as there is work and the gate lets it.
+            const gate = gateTitle(ctx);
+            const ways = [{ label: t("ui.run.queue") }, { label: t("ui.run.pick") }, ...(gate ? [{ label: t("ui.run.loop", { name: gate }) }] : [])];
+            const how = shown.length ? await ctx.choose(t("ui.run.what"), ways, 0, { back: t("ui.browse.back") }) : 0;
             if (how === undefined) return;
-            if (how === 0) {
+            if (how === 2) args = ["--loop"];
+            else if (how === 0) {
               let n = -1;
               while (!(Number.isInteger(n) && n >= 0 && n <= 100)) {
                 if (outOfAnswers()) return;
@@ -275,6 +280,19 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
 
 /** How many tasks of the queue the menu lists before the agent works alone. */
 const RUN_LIST = 15;
+
+/** The title of the user's gate (run.gate), when there is one to ask. */
+function gateTitle(ctx: Context): string | undefined {
+  const name = ctx.settings.runGate();
+  const shared = ctx.settings.shared()?.value;
+  if (!name || !shared) return undefined;
+  try {
+    const g = loadGate(shared, name);
+    return g.manifest.title ?? g.name;
+  } catch {
+    return name; // the run says what is wrong with it
+  }
+}
 
 /** "2", "1,4", "2-5", "1 3 6-8" → those numbers (1…max), in the order given, each once; undefined when anything else. */
 export function pickNumbers(answer: string, max: number): number[] | undefined {

@@ -442,6 +442,8 @@ export interface SessionMetrics {
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   costUsd?: number;
+  /** Stopped before it said what it cost: more was spent than costUsd (if any) says. */
+  costPartial?: boolean;
   turns?: number;
   durationMs?: number;
   /** Tool calls the agent's permissions refused. */

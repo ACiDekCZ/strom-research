@@ -367,6 +367,7 @@ export const UI = {
   "ui.stats.tasks": "Tasks: in the queue {queued} · waiting for you {waiting} · done {done}",
   "ui.stats.sessions": "Sessions of the agent: {n} · the last {last}",
   "ui.stats.cost": " · cost so far {cost}",
+  "ui.stats.cost.partial": " (without sessions stopped before they said what they cost: {n})",
   "ui.stats.stories": "Stories: {n} (approved {final})",
   "ui.ped.noparents": "parents not known yet",
   "ui.ped.nofather": "father not known yet",
@@ -414,6 +415,20 @@ export const UI = {
   "ui.run.beside": "⚠ An agent is already working on its own here (runs: {n}). Another one beside it takes other tasks — the costs add up.",
   "ui.run.beside.sure": "Start another one beside it?",
   "ui.run.others": "⚠ Another run works in this family tree already (since {since}): this one takes other tasks — the costs add up.",
+  "ui.run.gate": "· condition: {name} — asked before each session; it may make the run wait",
+  "ui.run.gate.wait": "⏸ waiting until {at} — {reason} (Ctrl-C ends the run)",
+  "ui.run.stop.gate": "the condition “{name}” said stop — {reason}",
+  "ui.run.stop.gate.error": "the condition “{name}” gave no proper answer — {reason} (strom gate test)",
+  "ui.run.gate.once": "· condition: {name} — these tasks are yours to start: it is asked once, and if it would not start, you decide",
+  "ui.run.gate.anyway": "The condition “{name}” would not start now — {reason}. Start anyway?",
+  "ui.run.gate.later": "not yet",
+  "ui.run.gate.no": "no",
+  "ui.run.gate.noanswer": "no proper answer (strom gate test)",
+  "ui.run.stop.gate.declined": "not started — the condition “{name}”: {reason}",
+  "ui.run.loop": "Let it work on while there is work and the condition “{name}” allows it",
+  "ui.consent.gate.set": "Let the condition “{name}” decide when the agent working alone goes on?",
+  "ui.consent.gate.unset": "Remove the condition “{name}” — the agent working alone no longer asks it?",
+  "ui.consent.gate.skip": "Let the agent work on its own without the condition “{name}”?",
 } as const;
 
 export type UIKey = keyof typeof UI;

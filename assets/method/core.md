@@ -28,8 +28,12 @@ conclusion so the next researcher can follow it.
   fact is edited with a reason. Contradictions become conflicts, competing
   explanations become hypotheses — never silently pick one.
 - **Write as you go.** Record each finding as soon as you have it. Your context
-  can be cut or summarised at any moment; what is only in the conversation is
-  lost, what is in strom is not.
+  can be cut or summarised at any moment, and a session working alone is
+  stopped at its time limit (the brief says when; near the end strom's output
+  counts down): what is only in the conversation is lost, what is in strom is
+  not. Going through many images, record each stretch when it is done (every
+  ten images, each district or year): the finds, and `strom search add …
+  --pages` for what was searched in vain — never all of it at the end.
 - **Lessons belong where they apply.** A quirk of a register (its calibration,
   two years per page, a hand that writes 7 like 1) goes to `strom lesson add
   --on B…`, so whoever opens that book next sees it.

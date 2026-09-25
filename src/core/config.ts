@@ -37,6 +37,8 @@ export interface UserConfig {
   stromVersion?: string;
   /** Stories of the ancestors: yes (the default) or no. */
   stories?: string;
+  /** The gate the agent working alone asks before each session (plugins/gates/<name>). */
+  runGate?: string;
   /** Model per tier, per agent: { claude: { vision: "opus" } }. */
   models?: Record<string, Partial<Record<Tier, string>>>;
   /** Size of the brief in tokens. */
@@ -125,7 +127,7 @@ export interface SettingDef {
   env: string;
   /** Can a tree carry its own value (strom.json)? */
   tree: boolean;
-  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url";
+  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin";
   /** The values a "choice" allows. */
   choices?: readonly string[];
   description: string;
@@ -151,6 +153,8 @@ export const SETTINGS: SettingDef[] = [
   })),
   { key: "brief.budget", env: "STROM_BRIEF_BUDGET", tree: true, kind: "number", description: `size of the brief in tokens (default ${DEFAULT_BUDGET})` },
   { key: "run.minutes", env: "STROM_RUN_MINUTES", tree: true, kind: "number", description: `time limit of one \`strom run\` session (default ${DEFAULT_RUN_MINUTES})` },
+  // Read from the config file only, changed by the user alone: the gate decides what working alone spends.
+  { key: "run.gate", env: "", tree: false, kind: "plugin", description: "a condition on the agent working alone: the gate (plugins/gates/<name>) strom asks before each session of strom run — go on, wait or stop; its name, then what it is given (strom gate list; e.g. claude-usage 10: the Claude subscription's daily ration, 10 points in hand) — only you set it" },
   { key: "queue.strategy", env: "STROM_QUEUE_STRATEGY", tree: true, kind: "choice", choices: STRATEGIES, description: "order of the task queue: balanced (default — nearest ancestors first, spread over the lines, nothing taken forever), depth (stay on one line), priority (strict priority)" },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
@@ -186,6 +190,7 @@ const FIELDS: Record<string, string> = {
   "excerpts.quality": "excerptsQuality",
   "excerpts.for": "excerptsFor",
   "excerpts.mb": "excerptsMb",
+  "run.gate": "runGate",
 };
 
 /** Environment variables that are not settings but steer strom. */
@@ -243,6 +248,10 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       if (!def.choices?.includes(c)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: def.choices?.join(", ") });
       return c;
     }
+    case "plugin":
+      // its name, then what it is given: "claude-usage 10"
+      if (!/^[a-z0-9][a-z0-9-]*(\s+\S+)*$/.test(v)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: 'a plugin\'s name (lowercase letters, digits and dashes), then what it is given, e.g. "claude-usage 10"' });
+      return v.split(/\s+/).join(" ");
     case "person":
       if (!/^[Pp]\d{4,}$/.test(v)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: "a person's ID, e.g. P0009 (strom find <name>)" });
       return v.toUpperCase();
@@ -442,6 +451,11 @@ export class Settings {
   }
 
   /** What the agent may do without asking — from the config file alone, which only the user raises. */
+  /** The gate of working alone, if the user set one (the config file only). */
+  runGate(): string | undefined {
+    return this.config.runGate || undefined;
+  }
+
   agentPermissions(): AgentPermissions {
     const v = this.config.agentPermissions ?? "auto";
     return PERMISSION_ALIASES[v] ?? (PERMISSION_LEVELS.includes(v as AgentPermissions) ? (v as AgentPermissions) : "auto");

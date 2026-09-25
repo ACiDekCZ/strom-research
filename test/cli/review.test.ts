@@ -14,6 +14,8 @@ import { acquireLock } from "../../src/core/lock.ts";
 import { LockedError } from "../../src/core/errors.ts";
 import { prependPath } from "../../src/runners/runner.ts";
 import { claudeArgs, headlessEnv } from "../../src/runners/claude.ts";
+import { codexResumeArgs } from "../../src/runners/codex.ts";
+import { clockLine, deadlineOf } from "../../src/core/clock.ts";
 import { parseBatch } from "../../src/commands/batch.ts";
 import { permissionPath } from "../../src/agents/files.ts";
 
@@ -323,6 +325,51 @@ test("strom run: a session over its time limit is stopped and its task goes back
   assert.equal(readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json")).state, "interrupted");
   assert.equal(readJsonFile(path.join(w.cwd, "data", "tasks", "T0001.json")).state, "open");
   w.cleanup();
+});
+
+test("strom run: the agent knows when its session is stopped, is reminded near the end, and gets time to write down what it found", opts, async () => {
+  const w = await world();
+  await w.ok(["task", "add", "Křest", "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1"]);
+  w.env.STROM_RUNNER_SCRIPT = agent;
+  w.env.AGENT_MODE = "sleep-wrap";
+  const r = (await w.ok(["run", "--agent", "script", "--minutes", "0.02", "--json"])).json;
+  assert.equal(r.sessions[0].outcome, "timeout");
+  // the brief said when
+  assert.match(fs.readFileSync(path.join(w.cwd, ".strom", "briefs", "N0001.md"), "utf8"), /^Time: this session is stopped at \d\d:\d\d \(it is \d\d:\d\d now\)\. Do not hurry and do not stop early/m);
+  // resumed after the limit: strom's output said the time was up, the agent wrote down what it had and closed
+  const log = fs.readFileSync(path.join(w.cwd, ".strom", "runs", "N0001.log"), "utf8");
+  assert.match(log, /⏳ this session's time is up: record what you found and close it now/);
+  const s = readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json"));
+  assert.equal(s.state, "closed");
+  assert.equal(s.summary, "wrapped up: images 1-10 read, nothing");
+  assert.match(s.notes[0].text, /read images 1-10/);
+  assert.equal(readJsonFile(path.join(w.cwd, "data", "tasks", "T0001.json")).state, "open");
+  w.cleanup();
+});
+
+test("the session's clock: nothing until its last ten minutes, then how long is left, then that it is up", () => {
+  const end = Date.parse("2026-09-25T12:00:00Z");
+  const env = { STROM_DEADLINE: new Date(end).toISOString() };
+  assert.equal(clockLine({}, end), undefined, "no limit, no reminder");
+  assert.equal(clockLine(env, end - 11 * 60_000), undefined);
+  assert.match(clockLine(env, end - 6 * 60_000 + 1)!, /^⏳ 6 min left: this session is stopped at \d\d:\d\d\. Go on, but write each find down/);
+  assert.match(clockLine(env, end - 2 * 60_000)!, /^⏳ 2 min left: .* Record what you have found now/);
+  assert.match(clockLine(env, end + 1)!, /time is up/);
+  // a short session is reminded in proportion: never from its first minute (the agent would give up at once)
+  const short = { ...env, STROM_MINUTES: "5" };
+  assert.equal(clockLine(short, end - 4 * 60_000), undefined);
+  assert.match(clockLine(short, end - 70_000)!, /Go on/);
+  assert.match(clockLine(short, end - 30_000)!, /Record what you have found now/);
+  assert.equal(deadlineOf({ STROM_DEADLINE: "nonsense" }), undefined);
+});
+
+test("resuming an agent to write down what it found: its own session, the same sandbox", () => {
+  assert.deepEqual(codexResumeArgs("abc", { shared: "/s", model: "gpt-5" }), [
+    "exec", "resume", "--json", "--skip-git-repo-check",
+    "-c", 'sandbox_mode="workspace-write"', "-c", "sandbox_workspace_write.network_access=true", "-c", 'sandbox_workspace_write.writable_roots=["/s"]',
+    "--model", "gpt-5", "abc", "-",
+  ]);
+  assert.deepEqual(codexResumeArgs("abc", { permissions: "full" }), ["exec", "resume", "--json", "--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox", "abc", "-"]);
 });
 
 /** `strom run` as a real process (signals reach it, not the test runner); resolves when a session is open. */

@@ -34,6 +34,22 @@ test("sources and citations: a lead becomes probable, proven needs the record", 
   w.cleanup();
 });
 
+test("one archive, one record: a second one with its name or website is refused, unless it is another archive", opts, async () => {
+  const w = await world();
+  await w.ok(["repo", "add", "Státní oblastní archiv v Třeboni", "--url", "https://digi.ceskearchivy.cz/"]);
+  // the same website, written otherwise
+  const site = await w.run(["repo", "add", "Digitální badatelna", "--url", "HTTP://www.Digi.CeskeArchivy.cz/search?x=1"]);
+  assert.notEqual(site.code, 0);
+  assert.match(site.err, /R0002 "Státní oblastní archiv v Třeboni" is this archive already/);
+  assert.match(site.err, /use it: --repo R0002 .* add --another/);
+  // the same name, in another case and decomposed (NFD)
+  assert.notEqual((await w.run(["repo", "add", "STÁTNÍ OBLASTNÍ ARCHIV V TŘEBONI".normalize("NFD")])).code, 0);
+  // two archives on one portal: the user's (or the agent's) word
+  await w.ok(["repo", "add", "Archiv města Plzně", "--url", "https://digi.ceskearchivy.cz/plzen", "--another"]);
+  assert.equal((await w.ok(["repo", "list", "--json"])).json.repositories.length, 3);
+  w.cleanup();
+});
+
 test("facts are changed only with a reason and retracted, never deleted", opts, async () => {
   const w = await world();
   assert.equal((await w.run(["event", "edit", "E1", "--date", "1906"])).code, 2);

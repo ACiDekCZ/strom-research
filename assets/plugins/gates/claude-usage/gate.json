@@ -1,0 +1,10 @@
+{
+  "interface": 1,
+  "title": "Claude usage",
+  "description": "Keeps working alone to the daily ration of your Claude subscription: a session starts only while the week's usage is at least n points behind the share of the week gone (a day ≈ 14.3): strom config set run.gate \"claude-usage 10\" (without a number: 0).",
+  "command": [
+    "node",
+    "gate.ts"
+  ],
+  "timeout": 120
+}

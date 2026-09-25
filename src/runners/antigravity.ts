@@ -30,7 +30,8 @@ export const antigravityRunner: Runner = {
   id: "antigravity",
   command: "agy",
   run(opts: RunOptions): Promise<RunResult> {
-    return runJsonLines("agy", antigravityArgs(opts), opts.env, opts, (msg, heard) => {
+    // Its events name no conversation strom could resume: stopped at the time limit, it is just stopped.
+    return runJsonLines("agy", antigravityArgs(opts), opts.env, opts, undefined, (msg, heard) => {
       const kind = String(msg.event ?? msg.type ?? "");
       if (kind === "result") {
         const r = (msg.result ?? {}) as { status?: string; response?: string; error?: string; num_turns?: number; duration_seconds?: number; usage?: Record<string, number> };

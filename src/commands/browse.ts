@@ -116,7 +116,8 @@ register(
       if (s.sessions.count)
         out.push(
           ui(lang, "ui.stats.sessions", { n: s.sessions.count, last: humanDay(s.sessions.last!, lang) }) +
-            (s.sessions.costUsd ? ui(lang, "ui.stats.cost", { cost: humanCost(s.sessions.costUsd, lang) }) : ""),
+            (s.sessions.costUsd ? ui(lang, "ui.stats.cost", { cost: humanCost(s.sessions.costUsd, lang) }) : "") +
+            (s.sessions.costUsd && s.sessions.costPartial ? ui(lang, "ui.stats.cost.partial", { n: s.sessions.costPartial }) : ""),
         );
       if (s.stories.written) out.push(ui(lang, "ui.stats.stories", { n: s.stories.written, final: s.stories.final }));
       return { text: lines(...out), data: s };

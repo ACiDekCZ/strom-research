@@ -14,6 +14,8 @@ import { isAgent } from "../core/which.ts";
 import { noticeStromApp } from "../core/stromapp.ts";
 import { isNewer } from "../core/update.ts";
 import { refreshGlobal } from "../agents/global.ts";
+import { clockLine } from "../core/clock.ts";
+import { currentSession } from "../core/session.ts";
 import { checkArgs, GroupOnly, parseOptions, resolveCommand, splitPassthrough } from "./execute.ts";
 import "../commands/index.ts";
 
@@ -74,6 +76,9 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
   const json = argv.includes("--json");
   const debug = argv.includes("--debug");
   resetCache();
+  // what ran, for the reminder of the session's time
+  let ran: Context | undefined;
+  let command: string | undefined;
   try {
     // "strom 'person list'" (one quoted word) means the same as strom person list.
     if (argv[0] && !argv[0].startsWith("-") && /\s/.test(argv[0].trim())) argv = [...argv[0].trim().split(/\s+/), ...argv.slice(1)];
@@ -107,6 +112,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     }
 
     const ctx = Context.fromOptions({ env, cwd, io, json, values: v });
+    ran = ctx;
+    command = def.path.join(" ");
     // Started by the Strom app: remembered quietly (it is where the results go).
     if (env.STROM_APP) noticeStromApp(ctx.settings, env);
     // The first run of a newer strom: what it taught the agents outside the trees gets this version's text.
@@ -147,8 +154,24 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // command has the tree to itself from its first read to its commit.
     const result = def.writes && def.tree && def.lock !== "sections" ? await ctx.tree().holdTreeLock(work) : await work();
     print(io, ctx, result);
+    remind(io, ctx, command);
     return result.exitCode ?? EXIT.ok;
   } catch (err) {
-    return printError(io, json, err, debug);
+    const code = printError(io, json, err, debug);
+    remind(io, ran, command);
+    return code;
   }
+}
+
+/** Near the end of a session with a time limit (strom run), every command reminds the agent how long it has left. */
+function remind(io: IO, ctx: Context | undefined, command: string | undefined): void {
+  const line = ctx && command !== "session close" ? clockLine(ctx.env) : undefined;
+  if (!line) return;
+  try {
+    // closed already: nothing to remind of
+    if (ctx!.hasTree() && !currentSession(ctx!.tree(), ctx!.env)) return;
+  } catch {
+    return;
+  }
+  io.stderr(line + "\n");
 }

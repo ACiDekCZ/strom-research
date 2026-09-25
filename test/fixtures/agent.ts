@@ -71,7 +71,16 @@ if (mode === "denied") {
   console.log("denied: Bash: strom input show I0001");
   process.exit(0);
 }
-if (mode === "sleep") {
+if (mode === "sleep-wrap" && process.env.STROM_WRAP_UP === "1") {
+  // stopped at its time limit, then resumed: writes down what it found and closes
+  const r = strom("task", "list");
+  process.stdout.write(r.stderr);
+  strom("session", "note", "read images 1-10: nothing yet");
+  strom("session", "close", "--continue", "--summary", "wrapped up: images 1-10 read, nothing", "--next", "image 11");
+  process.exit(0);
+}
+if (mode === "sleep" && process.env.STROM_WRAP_UP === "1") process.exit(0); // resumed, it writes nothing down
+if (mode === "sleep" || mode === "sleep-wrap") {
   await new Promise((r) => setTimeout(r, 30_000)); // stopped by the session time limit
   process.exit(0);
 }

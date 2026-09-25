@@ -23,7 +23,8 @@ Look at as few pixels as the question needs, and write down what you saw at once
   foreground and let it finish — your session ends with your turn, and
   whatever is left running in the background ends with it.
   (Your own subagents can read too, in batches of at most twelve — but what they
-  report is lost with your session unless you write it down.) Only the entries
+  report is lost with your session unless you write it down: record each
+  report as it comes back, before you send the next readers.) Only the entries
   that will be cited need your own eyes, at full resolution.
 - Old handwriting is decoded, not copied: never a weaker model for handwriting,
   never a guess. "Illegible" is a valid and valuable answer.

@@ -27,6 +27,12 @@ export interface RunOptions {
   /** Stop the agent after this long. */
   timeoutMs?: number;
   /**
+   * Stopped at its time limit, a headless agent that can be resumed gets this
+   * much more time and this message: write down what it found, close the
+   * session (core/clock.ts). An agent that cannot be resumed is just stopped.
+   */
+  wrapUp?: { ms: number; prompt: string };
+  /**
    * The tree's agent settings (permissions), passed explicitly: Claude Code
    * ignores the allow rules of a project's .claude/settings.json until the
    * user has trusted the folder interactively — a new tree never is.

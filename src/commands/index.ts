@@ -18,5 +18,6 @@ import "./browse.ts";
 import "./story.ts";
 import "./output.ts";
 import "./session.ts";
+import "./gates.ts";
 import "./checks.ts";
 import "./setup.ts";
