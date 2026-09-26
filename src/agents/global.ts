@@ -30,8 +30,10 @@ registers, archives, evidence, a family tree the Strom app can import.
 Use it whenever the user wants to research their ancestors or family, or
 mentions strom, a family tree or the Strom app.
 
-1. Run \`strom\` first. It says where the research stands and what to do next
-   (\`strom --json\` for the same as data; \`strom guide\` explains the work).
+1. Run \`strom\` first, and before each step: it says where the research
+   stands and what to do next (\`strom --json\` for the same as data). Read
+   \`strom guide\` before the first step — the rules and the way to work —
+   and work only in strom's sessions on its tasks.
    Run each strom command on its own — no pipes, no \`;\` or \`&&\` chains: you
    may run strom without asking, but not what is chained to it.
 2. Not set up yet: ask the user where to keep the research (suggest
@@ -51,10 +53,13 @@ mentions strom, a family tree or the Strom app.
 6. When strom needs the user's consent it opens a window on their screen —
    tell them to answer it; you cannot. Exit code 4 means the user must run
    the given command themselves.
-7. Scans come through strom. An archive the research needs has no
+7. Old handwriting is read by your strongest model — never a faster or
+   cheaper model, subagent or pass; a name or place the next search depends
+   on is read again on an enlarged crop before it is recorded.
+8. Scans come through strom. An archive the research needs has no
    downloader (connector) yet: build one yourself, unasked
    (\`strom connector new\`), and tell the user in a sentence.
-8. The Strom app (https://stromapp.info) is strom's companion: a free family
+9. The Strom app (https://stromapp.info) is strom's companion: a free family
    tree app, no account, the data stay on the user's computer. The research's
    result (\`output/tree-strom.ged\`) opens in it. When the user wants to see
    the tree (or \`strom\` says to offer it — once), suggest it gently — best installed as an app from the browser,

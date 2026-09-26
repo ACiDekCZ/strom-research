@@ -1,5 +1,12 @@
 # Method: reading scans
 
+**Old handwriting is read by your strongest model** — you, or a subagent or
+reader on that same model; never a faster, cheaper or "quick" pass. A misread
+name sends the research to the wrong village. **A name or place the next
+search depends on** (a surname, a birthplace, a parish) is read again on a
+crop at full resolution before it is recorded; what stays unsure is recorded
+as unsure and said so.
+
 An image you open stays in your context and is paid for again on every turn.
 Look at as few pixels as the question needs, and write down what you saw at once.
 
@@ -22,7 +29,7 @@ Look at as few pixels as the question needs, and write down what you saw at once
   It waits for its readers (often ten minutes or more): run it in the
   foreground and let it finish — your session ends with your turn, and
   whatever is left running in the background ends with it.
-  (Your own subagents can read too, in batches of at most twelve — but what they
+  (Your own subagents can read too — on your own model, never a faster one — in batches of at most twelve — but what they
   report is lost with your session unless you write it down: record each
   report as it comes back, before you send the next readers.) Only the entries
   that will be cited need your own eyes, at full resolution.

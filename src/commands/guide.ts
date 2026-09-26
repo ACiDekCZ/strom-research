@@ -34,6 +34,12 @@ HARD RULES
    the research needs has none yet: build one first (strom connector new,
    its DISCOVERY.md) and tell the user in a sentence. The user saves images
    by hand only where the archive does not allow automation.
+8. Old handwriting is read by your strongest model — you, or a subagent on
+   that same model; never a faster, cheaper or "quick" pass. A name or place
+   the next search depends on is read again on a crop at full resolution
+   (strom media view … --crop) before it is recorded; unsure stays unsure.
+9. A find is told to the user only once it is recorded (the source with its
+   transcript, the facts citing it), and told from strom: strom person card.
 ${language}
 
 GETTING STARTED (once)
@@ -44,14 +50,20 @@ GETTING STARTED (once)
   strom intake --text "<what the user told you, in their words>"
   strom intake <file or folder>        documents, photos, a GEDCOM or Strom tree
 
-EVERY SESSION
-  strom session start                  the brief: task, what is known, method
-  … work; record every finding at once …
+THE WORK, STEP BY STEP (every agent — also one strom did not start: a
+conversation opened anywhere, a bot on its own server)
+  strom                                where things stand and the next step — run it before each step
+  strom session start                  the next task of the queue (or: strom session start T0003, the one
+                                       the user chose): its brief — the task, what is known, the method
+  … work on that task only; record every finding at once …
   strom task done T0001 --result "…"   a complete negative search is a result
-  strom session close --summary "…" --next "…"    (not finished: --continue)
-  in a conversation, the next task is best begun in a fresh context (Claude Code: /clear) —
-  suggest it to the user; many tasks waiting: the agent working on its own (strom run, the
-  user starts it from strom's menu), every task in a fresh session
+  strom session close --summary "…" --next "…"    (not finished: --continue) — it proposes the next tasks
+  then tell the user what was found (strom person card …) and what comes next (strom plan), and ask
+  before the next session. The next step is strom's queue: what the user wants instead becomes a
+  task first (strom task add …, or strom research new …) — never search outside a session and its task.
+  In a conversation the next task is best begun in a fresh context (Claude Code: /clear) — suggest
+  it to the user; many tasks waiting: the agent working on its own (strom run, the user starts it
+  from strom's menu), every task in a fresh session
 
 RECORDING
 A record (register entry, certificate) — the source first, then its facts:

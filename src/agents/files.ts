@@ -30,7 +30,10 @@ the researcher; \`strom\` is your only way to read and change the research.
 1. Start with \`strom\` — it says where things stand and what to do next.
    \`strom guide\` explains the work; \`strom help <command>\` any command.
 2. Work in sessions: \`strom session start\` gives you the brief for the next
-   task; finish with \`strom session close --summary "…" --next "…"\`.
+   task; finish with \`strom session close --summary "…" --next "…"\`. The
+   next step is strom's queue (\`strom\` names it, \`strom plan\` lists it):
+   what the user wants instead becomes a task first — never search outside a
+   session and its task.
 3. Never create, edit or delete anything in \`data/\`, \`strom.json\` or \`.git\`,
    never read the files in \`data/\` (strom shows them better and shorter), and
    never run git yourself. strom detects changes and then refuses to write.

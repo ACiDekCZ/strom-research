@@ -43,10 +43,14 @@ const DELEGATION_RULES = `- Browsing a book, an index or a range of images ("is 
 /** For agents that cannot pick a model for a subagent (Codex, Antigravity, OpenCode, Grok): read yourself, in small batches. */
 export const SELF_READING = `## Reading scans (Codex, Antigravity, OpenCode, Grok)
 
-Read the images yourself, in batches of at most ten: open a batch, write down
-what it gave (strom search add … for what was not found, facts for what was),
-then open the next. Images stay in your context and are paid for on every turn,
-so never keep more than one batch open.
+Read the images yourself, with your strongest model — never hand old
+handwriting to a faster or cheaper model, subagent or pass. Read them
+in batches of at most ten: open a batch, write down what it gave (strom
+search add … for what was not found, facts for what was), then open the
+next. Images stay in your context and are paid for on every turn, so never
+keep more than one batch open. A name or place the next search depends on:
+read it again on a crop at full resolution (\`strom media view … --crop\`)
+before you record it.
 `;
 
 export const PROFILES: Record<string, AgentProfile> = {

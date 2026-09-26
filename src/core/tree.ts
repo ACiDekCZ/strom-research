@@ -27,7 +27,7 @@ import { stringifyCanonical } from "./json.ts";
 import type { Env } from "./paths.ts";
 
 export const TREE_FILE = "strom.json";
-export const VERSION = "1.4.0";
+export const VERSION = "1.4.1";
 
 export interface Op {
   at: string;
