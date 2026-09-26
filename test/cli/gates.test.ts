@@ -183,7 +183,8 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
   // near the end of the week's budget: past the reset, the new week's share
   usage(10, 95);
   const next = await ask("claude-usage 14");
-  assert.equal(Date.parse(next.until), week.getTime() + 0.14 * 7 * 86_400_000);
+  // (to the millisecond: a share of a week is not a whole number of them)
+  assert.ok(Math.abs(Date.parse(next.until) - (week.getTime() + 0.14 * 7 * 86_400_000)) <= 1);
   // a used-up session: until it resets
   usage(100, 10);
   const full = await ask("claude-usage 10");

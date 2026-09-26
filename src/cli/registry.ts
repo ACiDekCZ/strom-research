@@ -84,7 +84,7 @@ export const GLOBAL_OPTIONS: OptionDef[] = [
   { name: "home", type: "string", value: "<dir>", description: "Strom home folder (default from config)" },
   { name: "shared", type: "string", value: "<dir>", description: "shared data folder (media, catalog, tools)" },
   { name: "trees", type: "string", value: "<dir>", description: "folder holding the trees" },
-  { name: "agent", type: "string", value: "<agent>", description: "AI agent: claude, codex, antigravity, opencode (default from config)" },
+  { name: "agent", type: "string", value: "<agent>", description: "AI agent: claude, codex, antigravity, opencode, grok (default from config)" },
   { name: "yes", type: "boolean", description: "accept suggested defaults, never ask" },
   { name: "debug", type: "boolean", description: "show technical details on errors" },
   { name: "version", type: "boolean", description: "print the version of strom" },

@@ -40,8 +40,8 @@ const DELEGATION_RULES = `- Browsing a book, an index or a range of images ("is 
   strom; a negative result of a delegate is recorded as a search "by reader".
 - Only entries that will get a citation need your own eyes.`;
 
-/** For agents that cannot pick a model for a subagent (Codex, Antigravity, OpenCode): read yourself, in small batches. */
-export const SELF_READING = `## Reading scans (Codex, Antigravity, OpenCode)
+/** For agents that cannot pick a model for a subagent (Codex, Antigravity, OpenCode, Grok): read yourself, in small batches. */
+export const SELF_READING = `## Reading scans (Codex, Antigravity, OpenCode, Grok)
 
 Read the images yourself, in batches of at most ten: open a batch, write down
 what it gave (strom search add … for what was not found, facts for what was),
@@ -102,6 +102,17 @@ ${DELEGATION_RULES}
     command: "opencode",
     exit: "/exit",
     url: "https://opencode.ai",
+    delegation: "strom",
+    models: {},
+    instructions: () => SELF_READING,
+  },
+  // xAI's Grok Build: its subagents take only its own models (no cheaper reader worth the images): it reads itself.
+  grok: {
+    id: "grok",
+    name: "Grok Build",
+    command: "grok",
+    exit: "/quit",
+    url: "https://x.ai/cli",
     delegation: "strom",
     models: {},
     instructions: () => SELF_READING,

@@ -22,6 +22,7 @@ import { currentSession, openSessions } from "../core/session.ts";
 import { readByOtherModels } from "../core/review.ts";
 import { liveHolder } from "../core/lock.ts";
 import { isAgent } from "../core/which.ts";
+import { agentsHere } from "../core/apps.ts";
 import { taskQueue, waitingForUser, waitingLines } from "./tasks.ts";
 import type { Person, Research, Session } from "../core/model.ts";
 import { liveWorkers, runAlive } from "../core/workers.ts";
@@ -134,10 +135,13 @@ function orientation(ctx: Context): Orientation {
   const open = currentSession(tree, ctx.env) ?? sessions.find((s) => !busy(s) && !(s.worker && s.worker !== ctx.env.STROM_WORKER && !human));
   const queued = taskQueue(tree).length;
   // An agent outside the tree that strom did not start (it set strom up from the web page, or was
-  // opened in some folder): the research goes on in its own conversation, where the tree lives.
+  // opened in some folder): the research goes on in its own conversation, where the tree lives — when
+  // strom can start one here (the research's agent is on this computer; not so for a bot on its own
+  // server, e.g. Grok Bot: it goes on where it is).
   const rel = path.relative(tree.root, ctx.cwd);
   const inTree = rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
-  const elsewhere = isAgent(ctx.env) && !ctx.env.STROM_WORKER && !ctx.env.STROM_SESSION && !inTree;
+  const chosen = ctx.settings.agent(tree.config).value;
+  const elsewhere = isAgent(ctx.env) && !ctx.env.STROM_WORKER && !ctx.env.STROM_SESSION && !inTree && agentsHere(ctx.env).some((a) => a.id === chosen);
   if (base.tree.errors > 0) base.next = { why: t("ui.why.check"), command: "strom check" };
   else if (elsewhere) base.next = { why: t("ui.why.handover"), command: "strom chat" };
   else if (open && human && open.runner && !runAlive(tree.root, open)) base.next = { why: t("ui.why.runleft", { id: open.id }), command: "strom run" };

@@ -28,16 +28,34 @@ export const AGENTS = [
   { id: "codex", command: "codex", name: "OpenAI Codex CLI" },
   { id: "antigravity", command: "agy", name: "Antigravity CLI" },
   { id: "opencode", command: "opencode", name: "OpenCode" },
+  { id: "grok", command: "grok", name: "Grok Build" },
 ] as const;
 
 /** Which AI agent's shell tool runs strom? (they set these variables) */
 export function detectAgent(env: Env): string | undefined {
+  // Grok first: it passes on the environment it was started from (a Claude Code terminal's too).
+  if (env.GROK_AGENT === "1") return "grok";
   if (env.CLAUDECODE) return "claude";
   if (Object.keys(env).some((k) => k.startsWith("ANTIGRAVITY_"))) return "antigravity";
   if (Object.keys(env).some((k) => k.startsWith("CODEX_"))) return "codex";
   if (env.OPENCODE === "1" || env.OPENCODE_PID) return "opencode";
+  // Cursor's agents — also xAI's Grok Bot, on Cursor's platform (found live): not one strom starts, but an agent
+  if (env.CURSOR_AGENT) return "cursor";
   if (env.AI_AGENT) return env.AI_AGENT.toLowerCase();
   return undefined;
+}
+
+/** What says an agent runs strom (detectAgent) — not the user's own settings of an agent (…_HOME). */
+export function isAgentMark(k: string): boolean {
+  return ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "AI_AGENT", "OPENCODE", "OPENCODE_PID", "GROK_AGENT", "GROK_SESSION_ID", "CURSOR_AGENT"].includes(k) || (/^(CODEX|ANTIGRAVITY)_/.test(k) && !/_HOME$/.test(k));
+}
+
+/**
+ * The environment for an agent strom starts: without the marks of the agent strom itself was run
+ * from (a terminal of Grok's passes them on), so strom in the new agent's shell knows which one it is.
+ */
+export function withoutAgentMarks<T extends Env>(env: T): T {
+  return Object.fromEntries(Object.entries(env).filter(([k]) => !isAgentMark(k))) as T;
 }
 
 /** Is an agent running strom — its shell tool, or an agent strom run started? */

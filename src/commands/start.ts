@@ -15,7 +15,7 @@ import { PROFILES } from "../agents/profiles.ts";
 import { conversationArgs } from "../agents/launch.ts";
 import { globalTargets, installGlobal, isInstalled, uninstallGlobal } from "../agents/global.ts";
 import { syncAgentFiles } from "../agents/files.ts";
-import { AGENTS, findAgent, isAgent } from "../core/which.ts";
+import { AGENTS, findAgent, isAgent, withoutAgentMarks } from "../core/which.ts";
 import { DESKTOP_APPS, agentsHere, whereToTalk } from "../core/apps.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { treeBrowserConnectors } from "../core/connector.ts";
@@ -71,7 +71,7 @@ register({
     "(agent.permissions: ask, auto, full), your model, and asks you what matters. Where you talk (agent.where): the\n" +
     "agent's desktop app when it is installed (Claude, ChatGPT/Codex, OpenCode — the tree folder and the first message\n" +
     "filled in; you confirm the folder and send it), else its CLI in this terminal (Claude Code, Codex, Antigravity,\n" +
-    "OpenCode). The first message is yours to give (--say); without it the agent reports where things\n" +
+    "OpenCode, Grok). The first message is yours to give (--say); without it the agent reports where things\n" +
     "stand and suggests what next.",
   options: [
     { name: "say", type: "string", value: "<text>", description: "your first message to the agent" },
@@ -125,6 +125,7 @@ register({
       return { text: ui(lang, opened ? "ui.chat.handover" : "ui.chat.handover.failed", { agent: profile.name }), data: { agent, handover: opened ? "window" : "none", cwd: tree.root } };
     }
     const base = {
+      root: tree.root,
       kickoff,
       level,
       model: ctx.settings.models(agent, tree.config).lead,
@@ -153,7 +154,7 @@ register({
     if (browserSays) ctx.io.stdout(browserSays + "\n");
     // Claude Code asks once whether the folder is to be trusted — its own safety step, kept; the user knows what to answer.
     if (agent === "claude" && !claudeTrusts(tree.root, ctx.env)) ctx.io.stdout(ui(lang, "ui.chat.trust") + "\n");
-    const env: Record<string, string | undefined> = { ...prependPath(ctx.env, shimDir(tree)), STROM_WORKER: worker, ...(base.model ? { STROM_MODEL: base.model } : {}) };
+    const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree)), STROM_WORKER: worker, ...(base.model ? { STROM_MODEL: base.model } : {}) };
     delete env.STROM_HANDOVER;
     let code: number;
     try {

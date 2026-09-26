@@ -8,7 +8,9 @@
 // is the user's — a password, a consent — strom itself keeps for the user).
 // OpenCode gets a file of its own named in its global config (a global
 // AGENTS.md of strom's would hide the user's ~/.claude/CLAUDE.md, which
-// OpenCode reads when it has none) and `strom *` allowed there.
+// OpenCode reads when it has none) and `strom *` allowed there. Grok Build
+// gets a skill of its own, like Claude Code, and strom allowed in its
+// config.toml (a marked block; the user's own text around it is kept).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -30,6 +32,8 @@ mentions strom, a family tree or the Strom app.
 
 1. Run \`strom\` first. It says where the research stands and what to do next
    (\`strom --json\` for the same as data; \`strom guide\` explains the work).
+   Run each strom command on its own — no pipes, no \`;\` or \`&&\` chains: you
+   may run strom without asking, but not what is chained to it.
 2. Not set up yet: ask the user where to keep the research (suggest
    ~/Documents/Strom) and which language they want, then run
    \`strom setup --home "<folder>" --lang <code> --yes\`, then
@@ -77,7 +81,44 @@ export interface GlobalTarget {
 function allowRules(agent: string): string[] {
   if (agent === "antigravity") return ["command(strom)"];
   const commands = ["strom", ...(installation().launchers ?? [])];
-  return commands.flatMap((c) => [`Bash(${c}:*)`, `PowerShell(${c}:*)`]);
+  // Grok Build: one shell tool (its rules know no PowerShell)
+  return commands.flatMap((c) => (agent === "grok" ? [`Bash(${c}:*)`] : [`Bash(${c}:*)`, `PowerShell(${c}:*)`]));
+}
+
+/**
+ * Grok Build's config.toml, strom's lines marked: a [permission] table of strom's when there is none,
+ * else strom's allow list in the user's table — when it has no allow list of its own (strom does not
+ * rewrite the user's list: Grok then asks before it runs strom, as the user set it).
+ */
+const TOML_BEGIN = "# strom: begin (strom agents install; removed by strom agents uninstall)";
+const TOML_END = "# strom: end";
+
+function grokWithout(text: string): string {
+  const lines = text.split("\n");
+  const out: string[] = [];
+  let inside = false;
+  for (const l of lines) {
+    if (l.trim() === TOML_BEGIN) inside = true;
+    else if (l.trim() === TOML_END) inside = false;
+    else if (!inside) out.push(l);
+  }
+  return out.join("\n");
+}
+
+function grokWith(text: string): string | undefined {
+  const rest = grokWithout(text);
+  const allow = `allow = [${allowRules("grok").map((r) => JSON.stringify(r)).join(", ")}]`;
+  const lines = rest.split("\n");
+  const header = lines.findIndex((l) => /^\s*\[permission\]\s*(#.*)?$/.test(l));
+  if (header < 0) {
+    const body = rest.replace(/\s+$/, "");
+    return `${body ? `${body}\n\n` : ""}${TOML_BEGIN}\n[permission]\n${allow}\n${TOML_END}\n`;
+  }
+  // the user's table: up to the next table
+  let end = lines.findIndex((l, i) => i > header && /^\s*\[/.test(l));
+  if (end < 0) end = lines.length;
+  if (lines.slice(header + 1, end).some((l) => /^\s*allow\s*=/.test(l))) return undefined;
+  return [...lines.slice(0, header + 1), TOML_BEGIN, allow, TOML_END, ...lines.slice(header + 1)].join("\n");
 }
 
 /** A rule of strom's in Claude Code's or Antigravity's settings, whichever installation wrote it. */
@@ -85,6 +126,11 @@ function isStromRule(agent: string, rule: string): boolean {
   if (agent === "antigravity") return rule === "command(strom)";
   return /^(?:Bash|PowerShell)\((?:.*[\\/])?strom(?:\.exe|\.cmd)?:\*\)$/.test(rule);
 }
+/** Grok Build's folder (GROK_HOME, else ~/.grok). */
+function grokDir(env: Env): string {
+  return env.GROK_HOME ?? path.join(userHome(env), ".grok");
+}
+
 /** OpenCode: the rule that lets it run strom without asking. */
 const OPENCODE_STROM = "strom *";
 
@@ -114,6 +160,8 @@ export function globalTargets(env: Env): GlobalTarget[] {
     { agent: "antigravity", file: path.join(home, ".gemini", "antigravity-cli", "settings.json"), kind: "allow" },
     { agent: "opencode", file: path.join(opencodeDir(env), "strom.md"), kind: "own" },
     { agent: "opencode", file: path.join(opencodeDir(env), "opencode.json"), kind: "allow" },
+    { agent: "grok", file: path.join(grokDir(env), "skills", "strom", "SKILL.md"), kind: "own" },
+    { agent: "grok", file: path.join(grokDir(env), "config.toml"), kind: "allow" },
   ];
 }
 
@@ -216,12 +264,16 @@ function removeAllow(t: GlobalTarget, s: Record<string, unknown>): void {
 export function installGlobal(t: GlobalTarget): boolean {
   const cur = read(t.file);
   let next: string;
-  if (t.kind === "allow") {
+  if (t.kind === "allow" && t.agent === "grok") {
+    const with_ = grokWith(cur ?? "");
+    if (with_ === undefined) return false;
+    next = with_;
+  } else if (t.kind === "allow") {
     const s = settingsOf(cur);
     if (!s || hasAllow(t, s)) return false;
     addAllow(t, s);
     next = JSON.stringify(s, null, 2) + "\n";
-  } else if (t.kind === "own") next = t.agent === "claude" ? SKILL : GLOBAL_TEXT;
+  } else if (t.kind === "own") next = t.agent === "claude" || t.agent === "grok" ? SKILL : GLOBAL_TEXT;
   else {
     const rest = cur ? withoutBlock(cur).replace(/\s+$/, "") : "";
     next = `${rest ? `${rest}\n\n` : ""}${BEGIN}\n${GLOBAL_TEXT}${END}\n`;
@@ -236,6 +288,13 @@ export function installGlobal(t: GlobalTarget): boolean {
 export function uninstallGlobal(t: GlobalTarget): boolean {
   const cur = read(t.file);
   if (cur === undefined) return false;
+  if (t.kind === "allow" && t.agent === "grok") {
+    if (!cur.includes(TOML_BEGIN)) return false;
+    const rest = grokWithout(cur);
+    if (rest.trim()) writeFileAtomic(t.file, rest.replace(/\n{3,}/g, "\n\n").replace(/\s*$/, "\n"));
+    else fs.rmSync(t.file);
+    return true;
+  }
   if (t.kind === "allow") {
     const s = settingsOf(cur);
     // Any of strom's rules, also those another installation of strom wrote.
@@ -246,8 +305,8 @@ export function uninstallGlobal(t: GlobalTarget): boolean {
     return true;
   }
   if (t.kind === "own") {
-    // The skill is a folder of its own; OpenCode's instructions one file among the user's.
-    if (t.agent === "claude") fs.rmSync(path.dirname(t.file), { recursive: true, force: true });
+    // A skill is a folder of its own; OpenCode's instructions one file among the user's.
+    if (t.agent === "claude" || t.agent === "grok") fs.rmSync(path.dirname(t.file), { recursive: true, force: true });
     else fs.rmSync(t.file, { force: true });
     return true;
   }
@@ -268,6 +327,7 @@ export function refreshGlobal(env: Env): string[] {
 export function isInstalled(t: GlobalTarget): boolean {
   const cur = read(t.file);
   if (cur === undefined) return false;
+  if (t.kind === "allow" && t.agent === "grok") return cur.includes(TOML_BEGIN) && grokWith(cur) === cur;
   if (t.kind === "allow") return hasAllow(t, settingsOf(cur) ?? {});
   return t.kind === "own" || cur.includes(BEGIN);
 }

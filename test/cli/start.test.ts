@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import http from "node:http";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { conversationArgs } from "../../src/agents/launch.ts";
+import { detectAgent, withoutAgentMarks } from "../../src/core/which.ts";
 import { webAppProfile } from "../../src/core/chromium.ts";
 import { installedStromApp, isStromName } from "../../src/core/stromapp.ts";
 import { createShortcut, openInNewTerminal } from "../../src/core/shortcut.ts";
@@ -95,9 +96,9 @@ test("setup run again: every choice can be left as it is (0)", unix, async () =>
   w.cleanup();
 });
 
-test("strom chat: the agent set up as the user chose — Claude Code, Codex, Antigravity, OpenCode", unix, async () => {
+test("strom chat: the agent set up as the user chose — Claude Code, Codex, Antigravity, OpenCode, Grok", unix, async () => {
   const w = new World();
-  w.env.PATH = pathWith(w, ["claude", "codex", "agy", "opencode"]);
+  w.env.PATH = pathWith(w, ["claude", "codex", "agy", "opencode", "grok"]);
   await w.ok(["setup", "--yes"]);
   await w.ok(["init", "Novákovi"]);
   const print = async (agent: string) => (await w.ok(["chat", "--print", "--agent", agent, "--json"])).json;
@@ -122,12 +123,37 @@ test("strom chat: the agent set up as the user chose — Claude Code, Codex, Ant
   assert.equal(oc.edit["data/*"], "deny");
   assert.equal(oc.read["data/*"], "deny");
   assert.equal(Object.keys(oc.bash)[0], "*", "the general rule first: the last match counts");
+  // Grok Build: the folder trusted (else it reads neither AGENTS.md nor the tree's rules), its own review under auto.
+  const grok = await print("grok");
+  assert.deepEqual(grok.args, ["--trust", "--permission-mode", "auto", claude.args[0]]);
+  const toml = fs.readFileSync(path.join(w.treeDir("Novákovi"), ".grok", "config.toml"), "utf8");
+  assert.match(toml, /^\[permission\]$/m);
+  assert.match(toml, /"Bash\(strom:\*\)"/);
+  for (const rule of ["Read(data/**)", "Edit(data/**)", "Bash(git:*)", "Bash(strom login:*)"]) assert.ok(toml.includes(JSON.stringify(rule)), rule);
+  assert.ok(!toml.includes("PowerShell("), "one shell");
+  // an absolute path as Grok reads it (Claude Code's "//…" is plain text to it)
+  assert.ok(toml.includes(JSON.stringify(`Read(${w.env.STROM_CONFIG_DIR!}/**)`)), "the seal keys by their path");
+  assert.ok(!/"(Read|Edit)\(\/\//.test(toml));
+  assert.match(fs.readFileSync(path.join(w.treeDir("Novákovi"), ".grok", "rules", "strom.md"), "utf8"), /CLAUDE\.md in this folder is written for Claude Code/);
   // An agent elsewhere (it set strom up from the web page) hands the research over: its own
   // conversation, in a new terminal window (not opened in a test: the user is told how).
   w.env.CLAUDECODE = "1";
   // strom tells it so: outside the tree, the next step is the research's own conversation.
   assert.equal((await w.ok(["--json"], { cwd: w.dir })).json.next.command, "strom chat");
   assert.notEqual((await w.ok(["--json"], { cwd: w.treeDir("Novákovi") })).json.next.command, "strom chat", "in the tree folder: go on");
+  // a bot on its own server (Grok Bot, Cursor's platform), no agent strom could start there: it goes on where it is
+  const path0 = w.env.PATH;
+  w.env.PATH = "/usr/bin:/bin"; // (the fake agents above are in the test's own bin folder)
+  delete w.env.CLAUDECODE;
+  const apps0 = w.env.STROM_APP_DIRS;
+  w.env.STROM_APP_DIRS = w.dir; // (no desktop app of an agent there either)
+  w.env.CURSOR_AGENT = "1";
+  assert.notEqual((await w.ok(["--json"], { cwd: w.dir })).json.next.command, "strom chat");
+  delete w.env.CURSOR_AGENT;
+  if (apps0 === undefined) delete w.env.STROM_APP_DIRS;
+  else w.env.STROM_APP_DIRS = apps0;
+  w.env.CLAUDECODE = "1";
+  w.env.PATH = path0;
   const h = await w.ok(["chat", "--json"]);
   assert.equal(h.json.handover, "none");
   assert.equal(h.json.cwd, w.treeDir("Novákovi"));
@@ -244,14 +270,26 @@ test("Gemini CLI is gone: a tree's files for it are taken away, a stored choice 
 });
 
 test("conversation levels map to each agent's own switches", () => {
-  const o = { kickoff: "k", settingsFile: "/t/.claude/settings.json", shared: "/s" };
+  const o = { root: "/t", kickoff: "k", settingsFile: "/t/.claude/settings.json", shared: "/s" };
   assert.deepEqual(conversationArgs("claude", { ...o, level: "ask" }), ["k", "--settings", "/t/.claude/settings.json"]);
   assert.deepEqual(conversationArgs("claude", { ...o, level: "full" }).slice(1, 3), ["--permission-mode", "bypassPermissions"]);
   assert.deepEqual(conversationArgs("codex", { ...o, level: "ask" }).slice(0, 4), ["--sandbox", "workspace-write", "--ask-for-approval", "on-request"]);
   assert.deepEqual(conversationArgs("codex", { ...o, level: "full" }).slice(0, 1), ["--dangerously-bypass-approvals-and-sandbox"]);
-  assert.ok(!conversationArgs("codex", { ...o, level: "full" }).includes("--add-dir"), "no sandbox: nothing to add");
+  assert.ok(!conversationArgs("codex", { ...o, level: "full" }).some((a) => a.includes("writable_roots")), "no sandbox: nothing to add");
+  // its sandbox keeps a .git read-only even in the folder it works in: strom commits every change there
+  assert.ok(conversationArgs("codex", { ...o, level: "ask" }).includes(`sandbox_workspace_write.writable_roots=${JSON.stringify([path.join("/t", ".git"), "/s"])}`));
   assert.deepEqual(conversationArgs("opencode", { ...o, level: "ask" }), ["--prompt", "k"]);
-  assert.deepEqual(conversationArgs("opencode", { ...o, level: "full", model: "anthropic/claude-sonnet-5" }), ["--auto", "--model", "anthropic/claude-sonnet-5", "--prompt", "k"]);
+  assert.deepEqual(conversationArgs("opencode", { ...o, level: "full", model: "anthropic/claude-sonnet-5" }), ["--auto", "--prompt", "k"], "its conversation takes no --model: the tree's opencode.json has it");
+  assert.deepEqual(conversationArgs("grok", { ...o, level: "ask" }), ["--trust", "k"], "ask: its own mode");
+  assert.deepEqual(conversationArgs("grok", { ...o, level: "full", model: "grok-4.7" }), ["--trust", "--always-approve", "--model", "grok-4.7", "k"]);
+});
+
+test("which agent runs strom: Grok passes on the terminal it was started from; an agent strom starts gets no marks of another", () => {
+  assert.equal(detectAgent({ GROK_AGENT: "1", CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli" }), "grok");
+  assert.equal(detectAgent({ CLAUDECODE: "1" }), "claude");
+  assert.equal(detectAgent({ CURSOR_AGENT: "1", SAND_BOX_ID: "x" }), "cursor", "Cursor's agents, Grok Bot among them");
+  const env = withoutAgentMarks({ PATH: "/bin", GROK_AGENT: "1", GROK_SESSION_ID: "x", CODEX_HOME: "/c", CODEX_THREAD_ID: "t", STROM_HOME: "/s" });
+  assert.deepEqual(env, { PATH: "/bin", CODEX_HOME: "/c", STROM_HOME: "/s" }, "an agent's own settings (…_HOME) and strom's stay");
 });
 
 test("agents learn about strom in any folder, and forget it again; the user's own text stays", async () => {
@@ -283,9 +321,21 @@ test("agents learn about strom in any folder, and forget it again; the user's ow
   assert.ok(!fs.existsSync(path.join(ocDir, "AGENTS.md")));
   assert.deepEqual(readJsonFile(path.join(ocDir, "opencode.json")), { permission: { bash: { "strom *": "allow" } }, instructions: [ocOwn] });
   fs.writeFileSync(path.join(ocDir, "opencode.json"), JSON.stringify({ theme: "tokyonight", permission: { bash: "ask" }, instructions: ["~/rules.md"] }));
+  // Grok Build: a skill of its own, strom allowed in its config.toml (strom's lines marked).
+  const grokDir = path.join(w.env.HOME!, ".grok");
+  assert.match(fs.readFileSync(path.join(grokDir, "skills", "strom", "SKILL.md"), "utf8"), /^---\nname: strom\n/);
+  assert.match(fs.readFileSync(path.join(grokDir, "config.toml"), "utf8"), /^# strom: begin .*\n\[permission\]\nallow = \["Bash\(strom:\*\)"\]\n# strom: end\n$/);
+  // the user's own table: strom's allow list goes into it (a second [permission] would break the file)
+  const userToml = '[cli]\ninstaller = "internal"\n\n[permission]\ndeny = ["Bash(rm -rf *)"]\n\n[ui]\npermission_mode = "auto"\n';
+  fs.writeFileSync(path.join(grokDir, "config.toml"), userToml);
   await w.ok(["agents", "install", "--all"]);
+  const grokToml = fs.readFileSync(path.join(grokDir, "config.toml"), "utf8");
+  assert.equal(grokToml.match(/^\[permission\]/gm)?.length, 1);
+  assert.match(grokToml, /\[permission\]\n# strom: begin .*\nallow = \["Bash\(strom:\*\)"\]\n# strom: end\ndeny = /);
   assert.deepEqual(readJsonFile(path.join(ocDir, "opencode.json")), { theme: "tokyonight", permission: { bash: { "*": "ask", "strom *": "allow" } }, instructions: ["~/rules.md", ocOwn] });
   await w.ok(["agents", "uninstall"]);
+  assert.equal(fs.readFileSync(path.join(grokDir, "config.toml"), "utf8"), userToml, "the user's file as it was");
+  assert.ok(!fs.existsSync(path.join(grokDir, "skills", "strom")));
   assert.deepEqual(readJsonFile(path.join(ocDir, "opencode.json")), { theme: "tokyonight", permission: { bash: { "*": "ask" } }, instructions: ["~/rules.md"] });
   assert.ok(!fs.existsSync(ocOwn));
   assert.deepEqual(readJsonFile(agySettings), { theme: "dark", permissions: { allow: ["command(git)"] } });
@@ -593,7 +643,7 @@ test("strom run with Codex, Antigravity and OpenCode: headless, their events rea
   assert.equal(r.json.sessions[0].outcome, "ok");
   assert.match(r.err, /\$ strom brief/, "progress from its events");
   const args = fs.readFileSync(path.join(w.dir, "codex.args"), "utf8");
-  assert.match(args, /^exec --json --skip-git-repo-check --sandbox workspace-write -c sandbox_workspace_write\.network_access=true --add-dir .*shared -$/m);
+  assert.match(args, /^exec --json --skip-git-repo-check --sandbox workspace-write -c sandbox_workspace_write\.network_access=true -c sandbox_workspace_write\.writable_roots=\[".*Novákovi\/\.git",".*shared"\] -$/m);
   assert.match(fs.readFileSync(path.join(w.dir, "codex.brief"), "utf8"), /Křest Jana/, "the brief on stdin");
   const s = (await w.ok(["session", "show", "N0001", "--json"])).json.session;
   assert.equal(s.metrics.inputTokens, 1200);
@@ -618,11 +668,61 @@ test("strom run with Codex, Antigravity and OpenCode: headless, their events rea
   const o = await w.ok(["run", "--agent", "opencode", "--json"]);
   assert.equal(o.json.sessions[0].outcome, "ok");
   assert.match(o.err, /\$ strom brief/);
-  assert.match(fs.readFileSync(path.join(w.dir, "opencode.args"), "utf8"), /^run --format json Your brief is above\./);
+  assert.match(fs.readFileSync(path.join(w.dir, "opencode.args"), "utf8"), /^run --format json --agent strom-run Your brief is above\./);
+  // strom-run: the tree's rules with what would ask refused (OpenCode 2 ends a headless run at a question)
+  const ocRun = readJsonFile(path.join(w.cwd!, "opencode.json")).agent["strom-run"].permission;
+  assert.deepEqual([ocRun.bash["*"], ocRun.bash["strom *"], ocRun.bash["git *"], ocRun.edit["*"], ocRun.edit["notes/*"], ocRun.external_directory["*"]], ["deny", "allow", "deny", "deny", "allow", "deny"]);
   assert.match(fs.readFileSync(path.join(w.dir, "opencode.brief"), "utf8"), /strom session N0003/);
   const os_ = (await w.ok(["session", "show", "N0003", "--json"])).json.session;
   assert.equal(os_.metrics.inputTokens, 1100);
   assert.equal(os_.metrics.outputTokens, 55);
+  // Grok Build: the brief in a file (it reads no stdin), the folder trusted, a session of strom's naming; its end event read.
+  await w.ok(["task", "add", "Křest Anny", "--level", "locate", "--where", "farnost Sloup", "--why", "zkouška", "--done-when", "hotovo"]);
+  fakeHeadless(w, "grok", [
+    { type: "text", data: "Podívám se " },
+    { type: "text", data: "na úkol." },
+    { type: "tool_call", toolCallId: "c1", toolName: "run_terminal_command", status: "in_progress", rawInput: { command: "strom brief" } },
+    { type: "tool_call_update", toolCallId: "c1", status: "completed", rawOutput: {} },
+    { type: "tool_call", toolCallId: "c2", toolName: "run_terminal_command", status: "in_progress", rawInput: { command: "git log" } },
+    { type: "tool_call_update", toolCallId: "c2", status: "failed", content: [{ type: "content", content: { type: "text", text: "Tool `run_terminal_command` was not executed: Denied by permission policy: deny rule on bash matching \"git\"" } }] },
+    { type: "text", data: "Hotovo." },
+    { type: "end", stopReason: "end_turn", sessionId: "s-1", num_turns: 4, usage: { input_tokens: 900, cache_read_input_tokens: 4000, output_tokens: 60, reasoning_tokens: 40 }, modelUsage: { "grok-4.7": { inputTokens: 900, outputTokens: 60 } }, total_cost_usd: 0.0123 },
+  ]);
+  const g = await w.ok(["run", "--agent", "grok", "--json"]);
+  assert.equal(g.json.sessions[0].outcome, "ok");
+  assert.match(g.err, /Podívám se na úkol\./, "its words, whole");
+  assert.match(g.err, /\$ strom brief/);
+  const gargs = fs.readFileSync(path.join(w.dir, "grok.args"), "utf8").trim();
+  assert.match(gargs, /^--trust --prompt-file .*N0004\.prompt\.md --output-format streaming-json --permission-mode dontAsk --session-id [0-9a-f-]{36} --no-auto-update$/);
+  assert.match(fs.readFileSync(path.join(w.cwd!, ".strom", "runs", "N0004.prompt.md"), "utf8"), /strom session N0004/);
+  const gs = (await w.ok(["session", "show", "N0004", "--json"])).json.session;
+  assert.deepEqual([gs.metrics.inputTokens, gs.metrics.outputTokens, gs.metrics.cacheReadTokens, gs.metrics.costUsd, gs.metrics.denied], [900, 100, 4000, 0.0123, 1]);
+  assert.equal(gs.model, "grok-4.7", "the model it ran on");
+  w.cleanup();
+});
+
+test("strom run: the user's level reaches every agent — full is each one's own switch", unix, async () => {
+  const w = new World();
+  w.env.PATH = `${pathWith(w, [])}:/bin:/usr/bin`;
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["config", "set", "agent.permissions", "full"], { tty: true, answers: ["y"] });
+  await w.ok(["init", "Novákovi"]);
+  w.cwd = w.treeDir("Novákovi");
+  const done = [{ type: "turn.completed", usage: {} }];
+  const agents: [string, string, RegExp][] = [
+    ["codex", "codex", / --dangerously-bypass-approvals-and-sandbox /],
+    ["antigravity", "agy", / --dangerously-skip-permissions/],
+    ["opencode", "opencode", /^run --format json --auto /],
+    ["grok", "grok", / --always-approve /],
+  ];
+  for (const [agent, command, full] of agents) {
+    await w.ok(["task", "add", `Křest (${agent})`, "--level", "locate", "--where", "farnost Sloup", "--why", "zkouška", "--done-when", "hotovo"]);
+    fakeHeadless(w, command, done);
+    await w.run(["run", "--agent", agent, "--json"]);
+    assert.match(fs.readFileSync(path.join(w.dir, `${command}.args`), "utf8"), full, agent);
+  }
+  // …and Grok's tree rules keep away what the allow list would have
+  assert.match(fs.readFileSync(path.join(w.cwd, ".grok", "config.toml"), "utf8"), /"Edit\(\.grok\/\*\*\)"/);
   w.cleanup();
 });
 

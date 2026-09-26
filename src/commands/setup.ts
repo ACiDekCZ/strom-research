@@ -195,7 +195,10 @@ function diagnose(ctx: Context): Check[] {
   const found = here.map((a) => a.id);
   const tree = ctx.hasTree() ? ctx.tree().config : undefined;
   const chosen = ctx.settings.agent(tree).value;
-  if (!found.length) add("agent", "fail", t("ui.doc.noagent"), `${FIX}  (${researchUrl(lang, "agents")})`, "agent");
+  // None strom knows, and no person at a terminal: another agent or program runs strom (a bot on its own
+  // server, found live: Grok Bot) — it does the research through strom, nothing is missing for it.
+  if (!found.length && (isAgent(ctx.env) || !ctx.io.tty)) add("agent", "ok", t("ui.doc.agent.other"));
+  else if (!found.length) add("agent", "fail", t("ui.doc.noagent"), `${FIX}  (${researchUrl(lang, "agents")})`, "agent");
   else {
     const names = found.map((id) => `${PROFILES[id]?.name ?? id}${id === chosen ? ` (${t("ui.doc.default")})` : ""}`).join(", ");
     add("agent", found.includes(chosen) ? "ok" : "warn", names, found.includes(chosen) ? undefined : `strom agents use ${found[0]}`);

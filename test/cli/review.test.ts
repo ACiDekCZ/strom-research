@@ -364,12 +364,12 @@ test("the session's clock: nothing until its last ten minutes, then how long is 
 });
 
 test("resuming an agent to write down what it found: its own session, the same sandbox", () => {
-  assert.deepEqual(codexResumeArgs("abc", { shared: "/s", model: "gpt-5" }), [
+  assert.deepEqual(codexResumeArgs("abc", { cwd: "/t", shared: "/s", model: "gpt-5" }), [
     "exec", "resume", "--json", "--skip-git-repo-check",
-    "-c", 'sandbox_mode="workspace-write"', "-c", "sandbox_workspace_write.network_access=true", "-c", 'sandbox_workspace_write.writable_roots=["/s"]',
+    "-c", 'sandbox_mode="workspace-write"', "-c", "sandbox_workspace_write.network_access=true", "-c", `sandbox_workspace_write.writable_roots=${JSON.stringify([path.join("/t", ".git"), "/s"])}`,
     "--model", "gpt-5", "abc", "-",
   ]);
-  assert.deepEqual(codexResumeArgs("abc", { permissions: "full" }), ["exec", "resume", "--json", "--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox", "abc", "-"]);
+  assert.deepEqual(codexResumeArgs("abc", { cwd: "/t", permissions: "full" }), ["exec", "resume", "--json", "--skip-git-repo-check", "--dangerously-bypass-approvals-and-sandbox", "abc", "-"]);
 });
 
 /** `strom run` as a real process (signals reach it, not the test runner); resolves when a session is open. */

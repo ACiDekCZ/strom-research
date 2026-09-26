@@ -2,6 +2,7 @@ import { claudeRunner } from "./claude.ts";
 import { codexRunner } from "./codex.ts";
 import { antigravityRunner } from "./antigravity.ts";
 import { opencodeRunner } from "./opencode.ts";
+import { grokRunner } from "./grok.ts";
 import { scriptRunner } from "./script.ts";
 import type { Runner } from "./runner.ts";
 
@@ -10,6 +11,7 @@ export const RUNNERS: Record<string, Runner> = {
   codex: codexRunner,
   antigravity: antigravityRunner,
   opencode: opencodeRunner,
+  grok: grokRunner,
   script: scriptRunner,
 };
 

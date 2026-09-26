@@ -1,18 +1,21 @@
 // OpenCode runner. Headless: `opencode run --format json "<kickoff>"` in the tree
 // folder with the brief on stdin (it joins what is piped in with the message).
 // The tree's rules are its project config (opencode.json: strom allowed, the
-// evidence and git denied); what they would ask about is refused in a run
-// nobody watches — under ask and auto that is all; full adds --auto
+// evidence and git denied); under ask and auto a run nobody watches is its
+// agent "strom-run" there — the same rules, what would ask refused (OpenCode 2
+// ends a headless run at the first question it cannot ask); full adds --auto
 // (everything the rules do not deny). Events are JSON lines: text, tool_use,
 // step_start, step_finish (tokens and cost of a step), error; each names its
 // session (sessionID), which `--session` resumes.
 
 import { runJsonLines } from "./jsonl.ts";
+import { OPENCODE_RUN_AGENT } from "../agents/files.ts";
 import type { RunOptions, RunResult, Runner } from "./runner.ts";
 
 /** Command-line arguments of a headless run (exported for tests). */
 export function opencodeArgs(opts: Pick<RunOptions, "model" | "extraArgs" | "permissions" | "kickoff">): string[] {
-  return ["run", "--format", "json", ...(opts.permissions === "full" ? ["--auto"] : []), ...(opts.model ? ["--model", opts.model] : []), ...(opts.extraArgs ?? []), opts.kickoff];
+  const level = opts.permissions === "full" ? ["--auto"] : ["--agent", OPENCODE_RUN_AGENT];
+  return ["run", "--format", "json", ...level, ...(opts.model ? ["--model", opts.model] : []), ...(opts.extraArgs ?? []), opts.kickoff];
 }
 
 export const opencodeRunner: Runner = {
@@ -31,7 +34,9 @@ export const opencodeRunner: Runner = {
         const input = state.input ?? {};
         const what = typeof input.command === "string" ? `$ ${input.command}` : typeof input.filePath === "string" ? `${String(part.tool)} ${input.filePath}` : String(part.tool ?? "tool");
         opts.onProgress?.(what.split("\n")[0]!.slice(0, 140));
-        if (state.status === "error" && /reject|denied|not allowed|permission/i.test(state.error ?? "")) heard.denied.push(`${String(part.tool)}: ${what.slice(0, 120)}`);
+        // (its shell tool: "bash", "shell" from OpenCode 2 — named "Bash" like Claude Code's, so a refused strom stops the run)
+        if (state.status === "error" && /reject|denied|not allowed|permission/i.test(state.error ?? ""))
+          heard.denied.push(typeof input.command === "string" ? `Bash: ${input.command.slice(0, 120)}` : `${String(part.tool)}: ${what.slice(0, 120)}`);
       }
       if (msg.type === "text" && typeof part.text === "string" && part.text.trim()) heard.text = part.text;
       if (msg.type === "step_finish") {

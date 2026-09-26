@@ -29,7 +29,7 @@ export interface UserConfig {
   extraTrees?: string[];
   /** The tree used when no other says which (`strom trees use`). */
   currentTree?: string;
-  /** Default AI agent: claude, codex, antigravity, opencode. */
+  /** Default AI agent: claude, codex, antigravity, opencode, grok. */
   agent?: string;
   /** Which GEDCOM files to write: both (default), standard, strom. */
   gedcomFor?: string;
@@ -142,7 +142,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "shared", env: "STROM_SHARED", tree: false, kind: "path", description: "shared data: scans, catalog, tools (default <home>/shared)" },
   { key: "trees", env: "STROM_TREES", tree: false, kind: "path", description: "folder holding the trees (default <home>)" },
   { key: "lang", env: "STROM_LANG", tree: true, kind: "lang", description: "research language: the agent talks and writes in it" },
-  { key: "agent", env: "STROM_AGENT", tree: true, kind: "agent", description: "AI agent doing the research: claude, codex, antigravity, opencode" },
+  { key: "agent", env: "STROM_AGENT", tree: true, kind: "agent", description: "AI agent doing the research: claude, codex, antigravity, opencode, grok" },
   ...TIERS.map((t): SettingDef => ({
     key: `model.${t}`,
     env: t === "lead" ? "STROM_MODEL" : `STROM_MODEL_${t.toUpperCase()}`,

@@ -11,12 +11,16 @@
 // --dangerously-skip-permissions; `strom` is allowed in its settings (strom agents install).
 // OpenCode: ask and auto — the tree's rules (opencode.json), anything else it
 // asks (it has no review of its own); full — --auto, everything the rules do not deny.
+// Grok Build: always --trust (the tree folder: else it reads neither AGENTS.md nor
+// the tree's rules); ask — its own mode; auto — --permission-mode auto (its own
+// review); full — --always-approve (only the deny rules count).
 //
 // Claude Code always gets the tree's allow and deny lists (--settings); Codex
-// works in its sandbox on the tree folder with the shared folder added and the
-// network on (strom fetches).
+// works in its sandbox on the tree folder with its .git (strom commits) and the
+// shared folder writable and the network on (strom fetches).
 
 import { claudeArgs } from "../runners/claude.ts";
+import { codexWritable } from "../runners/codex.ts";
 import type { AgentPermissions } from "../core/config.ts";
 
 export interface LaunchOptions {
@@ -26,6 +30,8 @@ export interface LaunchOptions {
   model?: string | undefined;
   /** The tree's Claude Code settings (allow and deny lists). */
   settingsFile: string;
+  /** The tree folder the agent works in. */
+  root: string;
   /** Shared folder (inbox, plugins) the agent works in besides the tree. */
   shared?: string | undefined;
   /** Browser tools (Claude in Chrome) for connectors that fetch through the browser. */
@@ -44,13 +50,15 @@ export function conversationArgs(agent: string, o: LaunchOptions): string[] {
     const args =
       o.level === "full"
         ? ["--dangerously-bypass-approvals-and-sandbox"]
-        : [...(o.level === "auto" ? ["--approve-for-me"] : ["--sandbox", "workspace-write", "--ask-for-approval", "on-request"]), "-c", "sandbox_workspace_write.network_access=true", ...(o.shared ? ["--add-dir", o.shared] : [])];
+        : [...(o.level === "auto" ? ["--approve-for-me"] : ["--sandbox", "workspace-write", "--ask-for-approval", "on-request"]), "-c", "sandbox_workspace_write.network_access=true", ...codexWritable(o.root, o.shared)];
     return [...args, "--search", ...(o.model ? ["--model", o.model] : []), o.kickoff];
   }
   if (agent === "antigravity") {
     const mode = o.level === "full" ? ["--dangerously-skip-permissions"] : o.level === "auto" ? ["--mode", "accept-edits"] : [];
     return [...mode, ...(o.shared ? ["--add-dir", o.shared] : []), ...(o.model ? ["--model", o.model] : []), "--prompt-interactive", o.kickoff];
   }
-  if (agent === "opencode") return [...(o.level === "full" ? ["--auto"] : []), ...(o.model ? ["--model", o.model] : []), "--prompt", o.kickoff];
+  // (its TUI takes no --model: the model is in the tree's opencode.json)
+  if (agent === "opencode") return [...(o.level === "full" ? ["--auto"] : []), "--prompt", o.kickoff];
+  if (agent === "grok") return ["--trust", ...(o.level === "full" ? ["--always-approve"] : o.level === "auto" ? ["--permission-mode", "auto"] : []), ...(o.model ? ["--model", o.model] : []), o.kickoff];
   throw new Error(`no conversation launcher for agent "${agent}"`);
 }

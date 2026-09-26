@@ -1,7 +1,7 @@
 # Strom Research
 
 Research your family's history with an AI agent. `strom` turns an AI agent —
-Claude Code, OpenAI Codex, Google Antigravity or OpenCode — into a careful
+Claude Code, OpenAI Codex, Google Antigravity, OpenCode or xAI's Grok — into a careful
 genealogical researcher: the agent searches parish registers and archives, you
 decide, and only what a record proves goes into your family tree. The result is
 a GEDCOM file for the [Strom app](https://stromapp.info) or any other program.

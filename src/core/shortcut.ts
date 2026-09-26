@@ -9,6 +9,7 @@ import { spawn, spawnSync } from "node:child_process";
 import type { Env } from "./paths.ts";
 import { configDir, desktopDir, userHome } from "./paths.ts";
 import { stromLauncher } from "./self.ts";
+import { isAgentMark } from "./which.ts";
 import { assetPath } from "./assets.ts";
 
 /** Strom Research's icon, as each system takes it. */
@@ -102,11 +103,6 @@ export function createShortcut(name: string, env: Env, platform: NodeJS.Platform
  */
 /** One handover window at a time: another asked within this long is not opened. */
 export const HANDOVER_GAP_MS = 15_000;
-
-/** What says an agent runs strom (core/which.ts detectAgent) — not the user's own settings of an agent (…_HOME). */
-function isAgentMark(k: string): boolean {
-  return ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "AI_AGENT", "OPENCODE", "OPENCODE_PID"].includes(k) || (/^(CODEX|ANTIGRAVITY)_/.test(k) && !/_HOME$/.test(k));
-}
 
 export function openInNewTerminal(argv: string[], cwd: string, env: Env, platform: NodeJS.Platform = process.platform): boolean | "recent" {
   if (env.STROM_NO_OPEN === "1") return false;

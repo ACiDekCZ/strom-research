@@ -1,9 +1,10 @@
 // Instruction and permission files for the agents that work in a tree.
-// AGENTS.md is the single source every agent reads (Codex, Antigravity and
-// OpenCode natively; CLAUDE.md imports it) and holds nothing agent-specific;
-// each agent's own file adds what only that agent needs. .claude/settings.json
-// (and OpenCode's opencode.json) allow `strom` and deny direct access to the
-// evidence — the first line of defence; the seal is the one that always holds.
+// AGENTS.md is the single source every agent reads (Codex, Antigravity,
+// OpenCode and Grok natively; CLAUDE.md imports it) and holds nothing
+// agent-specific; each agent's own file adds what only that agent needs.
+// .claude/settings.json (and OpenCode's opencode.json, Grok's .grok/config.toml)
+// allow `strom` and deny direct access to the evidence — the first line of
+// defence; the seal is the one that always holds.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -46,7 +47,7 @@ the researcher; \`strom\` is your only way to read and change the research.
    already short, listings take \`--limit\` and \`--page\`, and piped commands may
    be refused by your permissions.
 8. Other agents may work on this tree too (Claude Code, Codex, Antigravity,
-   OpenCode — the user's choice). \`strom\` shows who is working now; never take a task
+   OpenCode, Grok — the user's choice). \`strom\` shows who is working now; never take a task
    another one has started.
 
 ## Working with the user
@@ -137,78 +138,111 @@ export function permissionPath(abs: string): string {
   return win ? `//${win[1]!.toLowerCase()}/${win[2]}` : `/${p}`;
 }
 
+/** A tree's rules in the words Claude Code and Grok Build share: allowed without asking, and denied. */
+interface Rules {
+  allow: string[];
+  deny: string[];
+}
+
 /**
- * Permissions for Claude Code in this tree (paths of this computer). File rules are
- * Edit(…) only: Claude Code checks every file-editing tool against them (Write(…)
- * rules match nothing and are reported as a mistake).
+ * The tree's rules for Claude Code or Grok Build. Grok reads Claude Code's rules too, but an absolute
+ * path in Claude Code's words ("//Users/x") is plain text to it: its own file gets the path as it is.
+ * File rules are Edit(…) only: Claude Code checks every file-editing tool against them (Write(…) rules
+ * match nothing and are reported as a mistake); Grok's Edit covers Write as well.
  */
-export function claudeSettings(tree: Tree): Record<string, unknown> {
+function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
   const settings = new Settings(tree.env, {});
   const shared = settings.shared()?.value;
-  const keys = permissionPath(configDir(tree.env));
-  // Connectors of this tree whose images come through the user's browser: browser tools, for their sites only.
-  const browser = treeBrowserConnectors(tree, shared);
-  const sites = [...new Set(browser.flatMap((c) => c.manifest.hosts.map(chromeDomain)))];
-  const downloads = permissionPath(settings.downloads());
-  const lead = settings.models("claude", tree.config).lead;
-  // A rule for each of Claude Code's shells: Bash, and PowerShell (on Windows) — a Bash rule does not cover it.
-  const shell = (cmd: string) => [`Bash(${cmd})`, `PowerShell(${cmd})`];
+  const claude = agent === "claude";
+  const at = (abs: string) => (claude ? permissionPath(abs) : abs.replace(/\\/g, "/"));
+  const keys = at(configDir(tree.env));
+  // Connectors of this tree whose images come through the user's browser: browser tools (Claude in Chrome), for their sites only.
+  const sites = claude ? [...new Set(treeBrowserConnectors(tree, shared).flatMap((c) => c.manifest.hosts.map(chromeDomain)))] : [];
+  const downloads = at(settings.downloads());
+  // A rule for each of Claude Code's shells: Bash, and PowerShell (on Windows) — a Bash rule does not cover it. Grok has one.
+  const shell = (cmd: string) => (claude ? [`Bash(${cmd})`, `PowerShell(${cmd})`] : [`Bash(${cmd})`]);
   return {
-    permissions: {
-      allow: [
-        ...shell("strom:*"),
-        "Read(inputs/**)",
-        "Read(output/**)",
-        "Read(notes/**)",
-        "Read(.strom/views/**)",
-        // Files the user drops for the research; scans are seen through views only (strom media view).
-        ...(shared ? [`Read(${permissionPath(path.join(shared, "inbox"))}/**)`] : []),
-        "Edit(notes/**)",
-        // A connector it builds for an archive the research needs (strom connector new); strom runs it.
-        ...(shared ? (["Read", "Edit"] as const).map((t) => `${t}(${permissionPath(path.join(shared, "plugins", "connectors"))}/**)`) : []),
-        "WebSearch",
-        "WebFetch",
-        ...(sites.length ? [...CHROME_ALLOW, ...sites] : []),
-      ],
-      deny: [
-        "Read(data/**)",
-        // The media store: images are looked at through views, so strom knows what was seen.
-        ...(shared ? [`Read(${permissionPath(path.join(shared, "media"))}/**)`] : []),
-        "Edit(data/**)",
-        "Edit(strom.json)",
-        "Edit(.git/**)",
-        ...shell("git:*"),
-        // A password is typed by the user in their own terminal, and so is installing a plugin; the seal is strom's.
-        // (Consents the agent may ask for — strom allow …: strom asks the person in a window.)
-        ...shell("strom login:*"),
-        ...shell("strom connector add:*"),
-        ...shell("strom connector remove:*"),
-        ...shell("strom seal:*"),
-        // The limiter's memory (pace, refusals).
-        ...(shared ? [`Edit(${permissionPath(path.join(shared, "net"))}/**)`] : []),
-        // A session ends with its turn: nothing wakes it up later (a live run waited for a wake-up that never came).
-        "ScheduleWakeup",
-        "CronCreate",
-        // The seal keys: an agent that could read them could forge the seal.
-        `Read(${keys}/**)`,
-        `Edit(${keys}/**)`,
-        // What the browser downloads is strom's to take over; the rest of the folder is the user's.
-        `Read(${downloads}/**)`,
-        ...CHROME_DENY,
-        // With full permissions only the deny rules count: what the allow list kept away is kept away here.
-        ...(settings.agentPermissions() === "full" ? BYPASS_DENY : []),
-      ],
-    },
+    allow: [
+      ...shell("strom:*"),
+      "Read(inputs/**)",
+      "Read(output/**)",
+      "Read(notes/**)",
+      "Read(.strom/views/**)",
+      // Files the user drops for the research; scans are seen through views only (strom media view).
+      ...(shared ? [`Read(${at(path.join(shared, "inbox"))}/**)`] : []),
+      "Edit(notes/**)",
+      // A connector it builds for an archive the research needs (strom connector new); strom runs it.
+      ...(shared ? (["Read", "Edit"] as const).map((t) => `${t}(${at(path.join(shared, "plugins", "connectors"))}/**)`) : []),
+      "WebSearch",
+      "WebFetch",
+      ...(sites.length ? [...CHROME_ALLOW, ...sites] : []),
+    ],
+    deny: [
+      "Read(data/**)",
+      // The media store: images are looked at through views, so strom knows what was seen.
+      ...(shared ? [`Read(${at(path.join(shared, "media"))}/**)`] : []),
+      "Edit(data/**)",
+      "Edit(strom.json)",
+      "Edit(.git/**)",
+      ...shell("git:*"),
+      // A password is typed by the user in their own terminal, and so is installing a plugin; the seal is strom's.
+      // (Consents the agent may ask for — strom allow …: strom asks the person in a window.)
+      ...shell("strom login:*"),
+      ...shell("strom connector add:*"),
+      ...shell("strom connector remove:*"),
+      ...shell("strom seal:*"),
+      // The limiter's memory (pace, refusals).
+      ...(shared ? [`Edit(${at(path.join(shared, "net"))}/**)`] : []),
+      // A session ends with its turn: nothing wakes it up later (a live run waited for a wake-up that never came).
+      ...(claude ? ["ScheduleWakeup", "CronCreate"] : []),
+      // The seal keys: an agent that could read them could forge the seal.
+      `Read(${keys}/**)`,
+      `Edit(${keys}/**)`,
+      // What the browser downloads is strom's to take over; the rest of the folder is the user's.
+      `Read(${downloads}/**)`,
+      ...(claude ? CHROME_DENY : []),
+      // With full permissions only the deny rules count: what the allow list kept away is kept away here.
+      ...(settings.agentPermissions() === "full" ? BYPASS_DENY : []),
+    ],
+  };
+}
+
+/** Permissions for Claude Code in this tree (paths of this computer). */
+export function claudeSettings(tree: Tree): Record<string, unknown> {
+  const lead = new Settings(tree.env, {}).models("claude", tree.config).lead;
+  return {
+    permissions: treeRules(tree, "claude"),
     // The user's model: the desktop app cannot be given one when it opens (the CLI is, with --model).
     ...(lead ? { model: lead } : {}),
   };
 }
+
+/**
+ * Grok Build's rules for this tree (.grok/config.toml, read once the folder is trusted — strom starts it
+ * so). It reads .claude/settings.json as well; this file says the same with paths it understands.
+ */
+export function grokConfig(tree: Tree): string {
+  const { allow, deny } = treeRules(tree, "grok");
+  // A TOML basic string is written like a JSON one.
+  const list = (xs: string[]) => `[\n${xs.map((x) => `  ${JSON.stringify(x)},`).join("\n")}\n]`;
+  return `# strom: generated (strom agents sync) — Grok Build's rules for this family tree; changed by strom only\n[permission]\nallow = ${list(allow)}\ndeny = ${list(deny)}\n`;
+}
+
+/** Grok Build reads CLAUDE.md too (for Claude Code's projects): what in it is not for Grok. */
+const GROK_RULES = `# Grok Build in this family tree
+
+CLAUDE.md in this folder is written for Claude Code: its way of delegating (the
+Agent tool, the models opus, sonnet and haiku) is not yours. Follow AGENTS.md,
+and read scans yourself as it says under "Reading scans".
+`;
 
 /** Denied as well when the user lets the agent do everything else (agent.permissions full). */
 export const BYPASS_DENY = [
   // its own permissions and instructions
   "Edit(.claude/**)",
   ...["AGENTS.md", "CLAUDE.md"].map((f) => `Edit(${f})`),
+  // (Grok Build's own rules and instructions)
+  "Edit(.grok/**)",
   // downloads round strom's limiter
   "Bash(curl:*)",
   "Bash(wget:*)",
@@ -228,47 +262,65 @@ export function opencodeConfig(tree: Tree): Record<string, unknown> {
   const abs = (p: string) => p.replace(/\\/g, "/");
   const full = settings.agentPermissions() === "full";
   const users = ["strom login *", "strom seal *", "strom connector add *", "strom connector remove *"];
+  // The user's model ("provider/model"): its conversation takes no --model, it reads it here.
+  const lead = settings.models("opencode", tree.config).lead;
+  const permission = {
+    bash: {
+      "*": "ask",
+      "strom *": "allow",
+      ...Object.fromEntries(users.map((c) => [c, "deny"])),
+      "git *": "deny",
+      ...(full ? { "curl *": "deny", "wget *": "deny" } : {}),
+    },
+    read: { "*": "allow", "data/*": "deny", ".git/*": "deny" },
+    edit: {
+      "*": "ask",
+      "notes/*": "allow",
+      "data/*": "deny",
+      ".git/*": "deny",
+      "strom.json": "deny",
+      // its own rules and instructions
+      "opencode.json": "deny",
+      ...Object.fromEntries(["AGENTS.md", "CLAUDE.md", ".claude/*"].map((f) => [f, "deny"])),
+    },
+    external_directory: {
+      "*": "ask",
+      ...(shared
+        ? {
+            [`${abs(path.join(shared, "inbox"))}/*`]: "allow",
+            [`${abs(path.join(shared, "plugins", "connectors"))}/*`]: "allow",
+            // images are looked at through views, so strom knows what was seen; the limiter's memory is strom's
+            [`${abs(path.join(shared, "media"))}/*`]: "deny",
+            [`${abs(path.join(shared, "net"))}/*`]: "deny",
+          }
+        : {}),
+      // the seal keys, and what the browser downloads (strom's to take over)
+      [`${abs(configDir(tree.env))}/*`]: "deny",
+      [`${abs(settings.downloads())}/*`]: "deny",
+    },
+    webfetch: "allow",
+    websearch: "allow",
+  };
+  // What would ask is refused when nobody watches: OpenCode 2 ends a whole headless run at the first question
+  // it cannot ask (found live), where a refusal only fails that call.
+  const refused = (v: unknown): unknown =>
+    v === "ask" ? "deny" : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, refused(x)])) : v;
   return {
     $schema: "https://opencode.ai/config.json",
-    permission: {
-      bash: {
-        "*": "ask",
-        "strom *": "allow",
-        ...Object.fromEntries(users.map((c) => [c, "deny"])),
-        "git *": "deny",
-        ...(full ? { "curl *": "deny", "wget *": "deny" } : {}),
+    ...(lead ? { model: lead } : {}),
+    permission,
+    agent: {
+      [OPENCODE_RUN_AGENT]: {
+        mode: "primary",
+        description: "strom run: the agent working alone, nobody to ask — what the rules do not allow is refused",
+        permission: refused(permission),
       },
-      read: { "*": "allow", "data/*": "deny", ".git/*": "deny" },
-      edit: {
-        "*": "ask",
-        "notes/*": "allow",
-        "data/*": "deny",
-        ".git/*": "deny",
-        "strom.json": "deny",
-        // its own rules and instructions
-        "opencode.json": "deny",
-        ...Object.fromEntries(["AGENTS.md", "CLAUDE.md", ".claude/*"].map((f) => [f, "deny"])),
-      },
-      external_directory: {
-        "*": "ask",
-        ...(shared
-          ? {
-              [`${abs(path.join(shared, "inbox"))}/*`]: "allow",
-              [`${abs(path.join(shared, "plugins", "connectors"))}/*`]: "allow",
-              // images are looked at through views, so strom knows what was seen; the limiter's memory is strom's
-              [`${abs(path.join(shared, "media"))}/*`]: "deny",
-              [`${abs(path.join(shared, "net"))}/*`]: "deny",
-            }
-          : {}),
-        // the seal keys, and what the browser downloads (strom's to take over)
-        [`${abs(configDir(tree.env))}/*`]: "deny",
-        [`${abs(settings.downloads())}/*`]: "deny",
-      },
-      webfetch: "allow",
-      websearch: "allow",
     },
   };
 }
+
+/** OpenCode's agent for a run nobody watches under ask and auto (opencode run --agent). */
+export const OPENCODE_RUN_AGENT = "strom-run";
 
 /** Files strom wrote for Gemini CLI (gone: Google ended it for personal accounts) — taken away when they are strom's. */
 const OBSOLETE: [string, (text: string) => boolean][] = [
@@ -288,7 +340,7 @@ function withUserPart(file: string, generated: string): string {
   return generated;
 }
 
-export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), "opencode.json"];
+export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md")];
 
 export function syncAgentFiles(tree: Tree): string[] {
   const written: string[] = [];
@@ -309,6 +361,8 @@ export function syncAgentFiles(tree: Tree): string[] {
   write("CLAUDE.md", claudeMd(tree));
   write(path.join(".claude", "settings.json"), JSON.stringify(claudeSettings(tree), null, 2) + "\n");
   write("opencode.json", JSON.stringify(opencodeConfig(tree), null, 2) + "\n");
+  write(path.join(".grok", "config.toml"), grokConfig(tree));
+  write(path.join(".grok", "rules", "strom.md"), GROK_RULES);
   for (const [rel, ours] of OBSOLETE) {
     const file = path.join(tree.root, rel);
     let text: string;

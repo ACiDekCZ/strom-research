@@ -61,7 +61,7 @@ Environment variables, besides the user's own:
 | `STROM_GATE` | the gate's name |
 | `STROM_TREE` | the family tree's folder |
 | `STROM_LANG` | the research language (cs, de, en…) |
-| `STROM_AGENT` | the agent: claude, codex, antigravity, opencode |
+| `STROM_AGENT` | the agent: claude, codex, antigravity, opencode, grok |
 | `STROM_MODEL` | the main model, when one is set |
 | `STROM_SESSIONS` | sessions this run has had |
 | `STROM_COST_USD` | what this run has cost so far (as the agent reported it) |

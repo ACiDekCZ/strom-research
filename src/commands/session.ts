@@ -28,7 +28,7 @@ import { syncAgentFiles } from "../agents/files.ts";
 import { setTreeSetting } from "./setup.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { PROFILES } from "../agents/profiles.ts";
-import { AGENTS, detectAgent, isAgent, which } from "../core/which.ts";
+import { AGENTS, detectAgent, isAgent, which, withoutAgentMarks } from "../core/which.ts";
 import { askGate, ensureGatesDir, loadGate, type Gate, type GateAnswer } from "../core/gate.ts";
 import { keepAwake } from "../core/awake.ts";
 import { deadlineOf, WRAP_UP_MS } from "../core/clock.ts";
@@ -420,7 +420,7 @@ register({
     "the tree's permissions (anything else is denied), or with the terminal (--interactive). Stops at the\n" +
     "subscription limit, when the queue is empty, or at --until (a session already running finishes, within\n" +
     "--minutes). The agent knows when its session is stopped (the brief; strom's output counts down its last\n" +
-    "10 minutes, a short session its last quarter); at --minutes it is stopped, and Claude Code, Codex and OpenCode\n" +
+    "10 minutes, a short session its last quarter); at --minutes it is stopped, and Claude Code, Codex, OpenCode and Grok\n" +
     "get 5 minutes more to write down what they found and close (an unfinished task goes back to the queue); a task\n" +
     "that comes back twice in a row with nothing recorded is parked. --task picks the tasks (one session each, in that order;\n" +
     "one done or held by another agent meanwhile is left out). --loop: session after session for as long as there\n" +
@@ -601,7 +601,7 @@ register({
           brief.text;
         const kickoff = `You are the researcher in strom session ${session.id}. Run \`strom brief\` and follow it; work only through strom; finish with \`strom session close\`.`;
         const env = {
-          ...prependPath(runEnv, bin),
+          ...prependPath(withoutAgentMarks(runEnv), bin),
           STROM_SESSION: session.id,
           STROM_DEADLINE: new Date(deadline).toISOString(),
           STROM_MINUTES: String(minutes),
@@ -627,7 +627,9 @@ register({
           shared: ctx.settings.shared()?.value,
           ...(models.lead ? { model: models.lead } : {}),
           ...(opts.interactive ? { interactive: true } : {}),
-          ...(runnerId === "claude" ? { chrome: browser.length > 0, permissions, remote: ctx.settings.agentRemote() } : {}),
+          // the level for every agent (each maps it to its own switches); the browser and Remote Control are Claude Code's
+          permissions,
+          ...(runnerId === "claude" ? { chrome: browser.length > 0, remote: ctx.settings.agentRemote() } : {}),
           ...(extra?.length ? { extraArgs: extra } : {}),
           onProgress: (l) => out(`  · ${l}`),
           signal: stop.signal,
@@ -775,7 +777,7 @@ function costText(m: Session["metrics"]): string {
 }
 
 /** How the user clears the agent's context, in the agent's own words. */
-const CLEAR: Record<string, string> = { claude: "/clear", codex: "/new", opencode: "/new" };
+const CLEAR: Record<string, string> = { claude: "/clear", codex: "/new", opencode: "/new", grok: "/new" };
 
 /** The hint after a session in a conversation: the next task in a fresh context (images stay in a context and are paid on every turn). */
 function freshContext(ctx: Context, tree: Tree, s: Session): string {

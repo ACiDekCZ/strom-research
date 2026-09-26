@@ -189,6 +189,23 @@ test("doctor reports git and missing home with a fix", async () => {
   w.cleanup();
 });
 
+test("doctor: no agent strom knows — missing for a person at a terminal, fine when another agent or program runs strom", async () => {
+  const w = new World();
+  w.env.PATH = pathWith(w, []);
+  await w.ok(["setup", "--yes"]);
+  const person = (await w.run(["doctor", "--json"], { tty: true })).json.checks.find((c: any) => c.name === "agent");
+  assert.equal(person.status, "fail");
+  // an agent strom knows by its marks, at a terminal too (Grok Bot: Cursor's platform)
+  w.env.CURSOR_AGENT = "1";
+  assert.equal((await w.run(["doctor", "--json"], { tty: true })).json.checks.find((c: any) => c.name === "agent").status, "ok");
+  delete w.env.CURSOR_AGENT;
+  // (a bot on its own server, e.g. Grok Bot: no terminal of a person, no agent strom knows)
+  const bot = (await w.run(["doctor", "--json"])).json.checks.find((c: any) => c.name === "agent");
+  assert.equal(bot.status, "ok");
+  assert.match(JSON.stringify(bot), /jiný agent nebo program/);
+  w.cleanup();
+});
+
 test("doctor --fix: what strom can put right, each with the user's yes — here, or in a window for an agent's user", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
@@ -255,7 +272,7 @@ test("each agent gets delegation rules for its kind; models per tier are configu
   let agents = fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8");
   assert.doesNotMatch(agents, /Delegating work|strom read/);
   assert.match(agents, /no pipes/);
-  assert.match(agents, /Reading scans \(Codex, Antigravity, OpenCode\)/);
+  assert.match(agents, /Reading scans \(Codex, Antigravity, OpenCode, Grok\)/);
   assert.match(agents, /batches of at most ten/);
   assert.match(claude, /not the way "Reading scans" in AGENTS\.md says/);
   await w.ok(["agents", "use", "codex", "--for-tree"]);

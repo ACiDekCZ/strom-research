@@ -461,7 +461,7 @@ export interface Session extends BaseRecord {
   runner?: string;
   /** Which of the agents working side by side holds it (STROM_WORKER, set by strom chat). */
   worker?: string;
-  /** The agent CLI: claude, codex, antigravity, opencode. */
+  /** The agent CLI: claude, codex, antigravity, opencode, grok. */
   agent?: string;
   /** The model it ran on, when strom knows it (it started the agent with it, or the agent said so). */
   model?: string;
