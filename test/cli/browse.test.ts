@@ -130,8 +130,8 @@ test("what the agent will do next: the queue in its order, for the user — reco
 test("the menu: look through the family tree", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   await family(w);
-  // 4 look through · 5 the ancestors (Enter: the main person) · Enter · 1 the overview · Enter · 0 back · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["4", "5", "", "", "1", "", "0", "0"] });
+  // 5 look through · 5 the ancestors (Enter: the main person) · Enter · 1 the overview · Enter · 0 back · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["5", "5", "", "", "1", "", "0", "0"] });
   assert.match(r.out, /Prohlížet rodokmen: přehled, osoby, předkové, co je nového/);
   assert.match(r.out, /Čí předky\? \(jméno nebo ID jako P0012; 0 vrátí zpět\) \[Jan Novák\]/);
   assert.match(r.out, /├─ Josef Novák/);

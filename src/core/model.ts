@@ -336,6 +336,8 @@ export interface Task extends BaseRecord {
   research?: string;
   state: (typeof TASK_STATES)[number];
   parkedUntil?: string;
+  /** Why it was put aside (strom task park --reason, or strom run parking a stuck task). */
+  parkedReason?: string;
   waitingOn?: string;
   /** The images it waits for, which the user saves by hand: of this record set, into this folder of the shared inbox. */
   awaits?: { recordset: string; images: string; folder: string };

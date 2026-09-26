@@ -48,6 +48,57 @@ export const CHROME_DENY = ["file_upload", "upload_image", "shortcuts_execute", 
 /** The permission rule of Claude in Chrome for one site. */
 export const chromeDomain = (host: string) => `ClaudeInChromeDomain(${host.replace(/^\*\./, "").toLowerCase()})`;
 
+/** Claude in Chrome in the Chrome Web Store: the extension Claude Code's browser tools work through. */
+export const CLAUDE_IN_CHROME_ID = "fcoeoabgfenejglbffodgkkbkcdhcgfn";
+export const CLAUDE_IN_CHROME_URL = `https://chromewebstore.google.com/detail/${CLAUDE_IN_CHROME_ID}`;
+
+/** The folders of the browsers' profiles (Chrome, Edge, Brave take extensions from the Chrome Web Store). */
+function browserDataDirs(env: Env, platform: NodeJS.Platform): { browser: string; dir: string }[] {
+  const home = userHome(env);
+  if (platform === "darwin") {
+    const base = path.join(home, "Library", "Application Support");
+    return [
+      { browser: "Chrome", dir: path.join(base, "Google", "Chrome") },
+      { browser: "Edge", dir: path.join(base, "Microsoft Edge") },
+      { browser: "Brave", dir: path.join(base, "BraveSoftware", "Brave-Browser") },
+    ];
+  }
+  if (platform === "win32") {
+    const base = env.LOCALAPPDATA ?? path.join(home, "AppData", "Local");
+    return [
+      { browser: "Chrome", dir: path.join(base, "Google", "Chrome", "User Data") },
+      { browser: "Edge", dir: path.join(base, "Microsoft", "Edge", "User Data") },
+      { browser: "Brave", dir: path.join(base, "BraveSoftware", "Brave-Browser", "User Data") },
+    ];
+  }
+  const base = env.XDG_CONFIG_HOME ?? path.join(home, ".config");
+  return [
+    { browser: "Chrome", dir: path.join(base, "google-chrome") },
+    { browser: "Edge", dir: path.join(base, "microsoft-edge") },
+    { browser: "Brave", dir: path.join(base, "BraveSoftware", "Brave-Browser") },
+  ];
+}
+
+/**
+ * Is Claude in Chrome installed — in which browsers? Only the extension's folder in the profiles is looked for (its
+ * name), nothing else of the browser is read. Whether it is signed in and connected strom cannot see.
+ */
+export function claudeInChrome(env: Env, platform: NodeJS.Platform = process.platform): { browsers: string[]; extension: string[] } {
+  const browsers: string[] = [];
+  const extension: string[] = [];
+  for (const { browser, dir } of browserDataDirs(env, platform)) {
+    let profiles: string[];
+    try {
+      profiles = fs.readdirSync(dir).filter((n) => n === "Default" || /^Profile \d+$/u.test(n));
+    } catch {
+      continue;
+    }
+    browsers.push(browser);
+    if (profiles.some((p) => fs.existsSync(path.join(dir, p, "Extensions", CLAUDE_IN_CHROME_ID)))) extension.push(browser);
+  }
+  return { browsers, extension };
+}
+
 export interface PlanItem {
   n: number;
   /** The image's own address. */

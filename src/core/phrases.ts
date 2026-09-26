@@ -87,6 +87,8 @@ export const PHRASES = {
   "intake.done.imported": "the leads are checked for obvious mistakes (duplicates, impossible dates) and the first locate/link tasks exist",
   "intake.done.read": "what it adds to the tree is entered as leads citing it (strom source add … --kind family-tree --form authored --input {id}) — or the input is skipped with a reason (strom input skip {id} --reason …)",
   "intake.done": "every person and fact in it is recorded (a source if it is an original document, leads otherwise) and cited — or the input is skipped with a reason (strom input skip I… --reason …)",
+
+  "task.answer": "The user answered (to: {asked}): {answer}",
 } as const;
 
 export type PhraseKey = keyof typeof PHRASES;

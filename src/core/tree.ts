@@ -27,7 +27,7 @@ import { stringifyCanonical } from "./json.ts";
 import type { Env } from "./paths.ts";
 
 export const TREE_FILE = "strom.json";
-export const VERSION = "1.2.0";
+export const VERSION = "1.3.0";
 
 export interface Op {
   at: string;
@@ -110,6 +110,10 @@ export class Tree {
   private undo = new Map<string, Buffer | null>();
   /** Ops written during this process (for the automatic commit message). */
   readonly written: Op[] = [];
+  /** Of `written`, how many were told to onCommit already. */
+  private told = 0;
+  /** Told of each commit with the operations it saved (the CLI tells the user's hooks: core/hooks.ts). */
+  static onCommit: ((tree: Tree, ops: Op[], commit: string) => void) | undefined;
 
   readonly env: Env;
   /** Bumped on every write; lets derived indexes know they are stale. */
@@ -256,6 +260,7 @@ export class Tree {
     this.touchedOps.clear();
     this.counters = undefined;
     this.written.length = 0;
+    this.told = 0;
     this.version++;
     return restored;
   }
@@ -434,7 +439,17 @@ export class Tree {
   commit(message: string, pathspec: string[] = ["."]): string | undefined {
     const key = this.requireKey();
     git.resetCache(this.root); // another process may have committed since this one last looked
-    return git.commitAll(this.root, message, pathspec, (treeHash) => commitSeal(key, treeHash));
+    const hash = git.commitAll(this.root, message, pathspec, (treeHash) => commitSeal(key, treeHash));
+    if (hash) {
+      const ops = this.written.slice(this.told);
+      this.told = this.written.length;
+      try {
+        if (ops.length) Tree.onCommit?.(this, ops, hash);
+      } catch {
+        // whoever listens never undoes a commit
+      }
+    }
+    return hash;
   }
 
   /** Append a signed operation to the current log (inside withTreeLock). */

@@ -9,7 +9,10 @@ import { groupHelp, helpFor } from "./help.ts";
 import { autoCommit } from "./commit.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { resetCache } from "../core/git.ts";
-import { VERSION } from "../core/tree.ts";
+import { Tree, VERSION } from "../core/tree.ts";
+import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
+import { prependPath } from "../runners/runner.ts";
+import { shimDir } from "../commands/session.ts";
 import { isAgent } from "../core/which.ts";
 import { noticeStromApp } from "../core/stromapp.ts";
 import { isNewer } from "../core/update.ts";
@@ -114,6 +117,18 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     const ctx = Context.fromOptions({ env, cwd, io, json, values: v });
     ran = ctx;
     command = def.path.join(" ");
+    // What is saved into a research, the user's hooks are told of (in the background).
+    Tree.onCommit = (tree, ops, commit) => {
+      if (!ctx.settings.config.hooks?.length || env.STROM_HOOK) return;
+      // this strom on the hook's PATH: it reads more of what was saved (strom person card P0012)
+      fireHooks(ctx.settings.shared()?.value, ctx.settings.config.hooks, prependPath(env, shimDir(tree)), {
+        interface: HOOK_INTERFACE,
+        tree: { name: tree.config.name, id: tree.config.id, root: tree.root, lang: tree.lang },
+        commit,
+        at: new Date().toISOString(),
+        events: ops.map((o) => ({ op: o.op, targets: o.targets, summary: o.summary, at: o.at, by: o.by, ...(o.reason ? { reason: o.reason } : {}) })),
+      });
+    };
     // Started by the Strom app: remembered quietly (it is where the results go).
     if (env.STROM_APP) noticeStromApp(ctx.settings, env);
     // The first run of a newer strom: what it taught the agents outside the trees gets this version's text.

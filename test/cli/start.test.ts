@@ -55,7 +55,7 @@ test("the menu: results and what waits; unknown choices are asked again", unix, 
   w.env.PATH = pathWith(w, ["claude"]);
   await w.ok(["setup", "--yes"]);
   await w.ok(["init", "Novákovi"]);
-  const r = await w.ok([], { tty: true, answers: ["9", "3", "", "4", "1", "", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["9", "3", "", "5", "1", "0", "0"] });
   assert.match(r.out, /Napište prosím jedno z čísel/);
   assert.match(r.out, /Nic na vás nečeká/);
   assert.match(r.out, /Výsledky zatím nejsou/);
@@ -70,7 +70,7 @@ test("the menu: a person can always change their mind — the current choice sug
   await w.ok(["init", "Svobodovi"]);
   await w.ok(["trees", "use", "Novákovi"]);
   // another agent: Enter stays · working alone: 0 · another tree: Enter stays · a new one: 0 · quit
-  const r = await w.ok([], { tty: true, answers: ["5", "", "2", "0", "9", "", "9", "3", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["9", "", "2", "0", "8", "", "8", "3", "0", "0"] });
   assert.match(r.out, /Který AI agent bude výzkum dělat\?\n {3}1 {2}OpenAI Codex CLI\n {3}0 {2}Zpět – zůstat u: Claude Code\nVyberte \[0\]/);
   assert.ok(!fs.existsSync(path.join(w.dir, "codex.calls")), "no other agent started");
   assert.ok(!fs.existsSync(path.join(w.dir, "claude.calls")), "no conversation, no run");
@@ -378,20 +378,20 @@ test("the Strom app offered gently: the wizard asks once, the menu says what it 
   assert.doesNotMatch(none.out, /aplikac/i, "the user's no stands");
   // Not said yet (an older setup): one quiet line and an item that explains — the answer here: install it.
   await w.ok(["config", "unset", "strom.app"]);
-  const tip = await w.ok([], { tty: true, answers: ["5", "1", "n", "0"] });
-  assert.match(tip.out, /Tip: výzkum si můžete prohlížet jako rodokmen v aplikaci Strom a sledovat ho živě, když agent pracuje – volba 5\./);
-  assert.match(tip.out, /5 {2}Aplikace Strom – výzkum jako rodokmen, sledovaný živě/);
+  const tip = await w.ok([], { tty: true, answers: ["6", "1", "n", "0"] });
+  assert.match(tip.out, /Tip: výzkum si můžete prohlížet jako rodokmen v aplikaci Strom a sledovat ho živě, když agent pracuje – volba 6\./);
+  assert.match(tip.out, /6 {2}Aplikace Strom – výzkum jako rodokmen, sledovaný živě/);
   assert.match(tip.out, /Otevřete ji zde: https:\/\/stromapp\.info\/run\//, "tests open nothing: the address is said");
   assert.match(tip.out, /Až bude nainstalovaná: otevřít v ní výzkum\?/);
   assert.equal(cfg().stromApp, "yes");
   // Wanted: the item opens the research, no tip; while an agent is at work it says so.
   const plain = await w.ok([], { tty: true, answers: ["0"] });
-  assert.match(plain.out, /5 {2}Otevřít výzkum v aplikaci Strom/);
+  assert.match(plain.out, /6 {2}Otevřít výzkum v aplikaci Strom/);
   assert.doesNotMatch(plain.out, /Tip:/);
   const leave = enterWorker(w.treeDir("Novákovi"), "codex-1", "Codex conversation");
   const busy = await w.ok([], { tty: true, answers: ["0"] });
-  assert.match(busy.out, /Agent pracuje – můžete ho živě sledovat v aplikaci Strom: volba 5\./);
-  assert.match(busy.out, /5 {2}Sledovat práci agenta v aplikaci Strom \(živě\)/);
+  assert.match(busy.out, /Agent pracuje – můžete ho živě sledovat v aplikaci Strom: volba 6\./);
+  assert.match(busy.out, /6 {2}Sledovat práci agenta v aplikaci Strom \(živě\)/);
   leave();
   // Working alone, with a browser that reaches the bridge: watched live meanwhile? The last answer is suggested.
   w.env.STROM_APP_DIRS = appsWith(w, ["Google Chrome.app"]);

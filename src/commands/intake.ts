@@ -75,8 +75,8 @@ function groupTask(tree: Tree, inputs: Input[], research: string | undefined, im
 }
 
 /** More images than this in one folder look like the scans of a book, not family documents. */
-const BOOK_OF_SCANS = 20;
-const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".tif", ".tiff", ".jp2", ".gif", ".webp", ".heic"]);
+export const BOOK_OF_SCANS = 20;
+export const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".tif", ".tiff", ".jp2", ".gif", ".webp", ".heic"]);
 
 register(
   {

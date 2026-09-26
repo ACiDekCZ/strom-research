@@ -44,7 +44,7 @@ test("review: what the tree says of the person elsewhere, entries to read whole,
   assert.match(r.out, /T0002 enrich · What the tree already says of Josef Novák \(\*1885\) outside their data: S0002/);
   assert.match(r.out, /T0003 enrich · Read whole the entries of Josef Novák \(\*1885\): S0001/);
   assert.match(r.out, /T0004 verify · Check the facts of Josef Novák \(\*1885\) that rest on one reading: E0001/);
-  assert.match(r.out, /next   strom run --research G0001/);
+  assert.match(r.out, /next: strom run --research G0001/);
   const t1 = readJsonFile(path.join(w.cwd, "data", "tasks", "T0002.json"));
   assert.equal(t1.origin, "review:mentions");
   assert.deepEqual(t1.where, ["S0002"]);
@@ -54,7 +54,7 @@ test("review: what the tree says of the person elsewhere, entries to read whole,
   assert.match((await w.ok(["brief", "T4"])).out, /## To review\n  E0001 CHR 3 MAR 1885, Kamenice nad Lipou \[probable\] — S0001 \(M0001\)/);
 
   // again: nothing twice while the tasks are open
-  assert.match((await w.ok(["review", "P1"])).out, /nothing new to review; 5 task\(s\) of the review still open/);
+  assert.match((await w.ok(["review", "P1"])).out, /nothing new to review\n[\s\S]*5 task\(s\) open in G0001/);
   // done — and a new record names him: only that one comes
   await w.ok(["task", "done", "T2", "--result", "S0002: godfather, farmer at no. 5 — recorded"]);
   await w.ok(["source", "add", "Pozemková kniha Kamenice", "--kind", "land", "--transcript", "Novák Josef koupil dům čp. 5 roku 1912."]); // S3
@@ -66,6 +66,24 @@ test("review: what the tree says of the person elsewhere, entries to read whole,
   await w.ok(["task", "done", "T6", "--result", "recorded"]);
   assert.match((await w.ok(["review", "P1"])).out, /nothing new to review/);
   assert.match((await w.ok(["check"])).out, /^ok/);
+  w.cleanup();
+});
+
+test("review with nothing new: no research made for it, and it says why — the work that covers the person already, how to go on with it", opts, async () => {
+  const w = await world();
+  await w.ok(["lang", "cs"]);
+  await w.ok(["person", "add", "Marie /Horáková/", "--sex", "F", "--born", "1910"]); // P3, a lead only
+  await w.ok(["task", "add", "Sňatek Karla a Marie", "--level", "locate", "--where", "Týnec", "--why", "a", "--done-when", "b", "--about", "P3"]); // T1
+  await w.ok(["task", "park", "T1", "--reason", "matrika ještě není online"]);
+  const r = await w.ok(["review", "P3"]);
+  assert.match(r.out, /^P0003 Marie Horáková \(\*1910\) — nic nového k revizi\n  P0003 Marie Horáková \(\*1910\): už to pokrývá T0001 \(odložený: matrika ještě není online\) — Sňatek Karla a Marie\n    pokračovat v něm: strom task wake T0001/);
+  assert.doesNotMatch(r.out, /research|review/, "nothing written, nothing in English");
+  assert.equal((await w.ok(["research", "list", "--json"])).json.researches.length, 0, "no empty review research");
+  assert.equal((await w.ok(["review", "P3", "--json"])).json.research, null);
+  // the task says why it waits, and how to go on
+  assert.match((await w.ok(["task", "show", "T1"])).out, /\nparked matrika ještě není online — strom task wake T0001 to go on\n/);
+  await w.ok(["task", "wake", "T1"]);
+  assert.equal(readJsonFile(path.join(w.cwd, "data", "tasks", "T0001.json")).parkedReason, undefined, "awake: the reason goes with the parking");
   w.cleanup();
 });
 
@@ -114,7 +132,8 @@ test("review of a family and in the research language; the menu offers it", opts
   assert.match(r.out, /Ověřit údaje osoby Josef Novák \(\*1885\), které stojí na jednom čtení: E0001, E0003\n/);
   assert.match(r.out, /Ověřit údaje osoby Anna Dvořáková \(\*1888\), které stojí na jednom čtení: E0002\n/, "the wife too — their marriage once");
   assert.equal((await w.run(["review", "P1", "--scope", "všichni"])).code, 2);
-  const menu = await w.run(["menu"], { tty: true, answers: ["5", "Josef", "n", "n", "", "0"] });
+  // 4 add to the research · 3 review one person · Josef · not the family · not now · Enter · 0 back · 0 quit
+  const menu = await w.run(["menu"], { tty: true, answers: ["4", "3", "Josef", "n", "n", "", "0", "0"] });
   assert.match(menu.out, /Revize osoby: prověřit a doplnit, co o ní víme/);
   w.cleanup();
 });

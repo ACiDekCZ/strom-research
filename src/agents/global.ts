@@ -93,6 +93,16 @@ function opencodeDir(env: Env): string {
   return path.join(env.XDG_CONFIG_HOME ?? path.join(userHome(env), ".config"), "opencode");
 }
 
+/** Claude Code starts its own conversations with Remote Control (its setting remoteControlAtStartup, the user's own). */
+export function claudeRemoteAtStartup(env: Env): boolean {
+  try {
+    const file = path.join(env.CLAUDE_CONFIG_DIR ?? path.join(userHome(env), ".claude"), "settings.json");
+    return (JSON.parse(fs.readFileSync(file, "utf8")) as { remoteControlAtStartup?: unknown }).remoteControlAtStartup === true;
+  } catch {
+    return false; // no settings, or not readable: not on
+  }
+}
+
 export function globalTargets(env: Env): GlobalTarget[] {
   const home = userHome(env);
   return [

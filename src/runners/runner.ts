@@ -40,6 +40,8 @@ export interface RunOptions {
   settingsFile?: string;
   /** Browser tools (Claude in Chrome): on for connectors that fetch through the user's browser, off otherwise. */
   chrome?: boolean;
+  /** Claude Code's Remote Control: the session followed and steered from claude.ai or a phone (agent.remote). */
+  remote?: boolean;
   /** What the agent may do without asking (the user's setting agent.permissions). */
   permissions?: AgentPermissions;
   /** The shared folder (inbox, plugins): a workspace folder of the agent besides the tree. */

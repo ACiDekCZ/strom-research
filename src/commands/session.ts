@@ -41,6 +41,7 @@ import { guard } from "../core/guard.ts";
 import { hasErrors } from "../core/check.ts";
 import { Tree } from "../core/tree.ts";
 import { treeBrowserConnectors } from "../core/connector.ts";
+import { browserNote } from "./connectors.ts";
 import { reviewProposals } from "../core/review.ts";
 
 function written(tree: Tree): string {
@@ -508,6 +509,9 @@ register({
       const permissions = ctx.settings.agentPermissions();
       for (const c of browser) out(ui(lang, "ui.run.browser", { name: c.manifest.title ?? c.name, hosts: c.manifest.hosts.join(", ") }));
       if (browser.length && /haiku/i.test(models.lead ?? "")) out(ui(lang, "ui.run.browser.model", { model: models.lead! }));
+      // Archives through the browser with an agent that has no browser tools, or without the extension: said before it starts.
+      const browserSays = browserNote(ctx, Tree.open(root, runEnv), runnerId);
+      if (browserSays) out(browserSays);
       if (permissions === "full") out(ui(lang, "ui.run.full"));
       // The gate holds a run that goes on by itself (--loop, --until). Tasks the user starts themselves (one, --max n,
       // --task) are their choice: the gate is asked once, and when it would not start, the user decides.
@@ -623,7 +627,7 @@ register({
           shared: ctx.settings.shared()?.value,
           ...(models.lead ? { model: models.lead } : {}),
           ...(opts.interactive ? { interactive: true } : {}),
-          ...(runnerId === "claude" ? { chrome: browser.length > 0, permissions } : {}),
+          ...(runnerId === "claude" ? { chrome: browser.length > 0, permissions, remote: ctx.settings.agentRemote() } : {}),
           ...(extra?.length ? { extraArgs: extra } : {}),
           onProgress: (l) => out(`  · ${l}`),
           signal: stop.signal,
@@ -648,10 +652,11 @@ register({
         const back = after.get<Task>(task.id);
         const idle = back && back.state === "open" ? idleSessions(after, task.id) : 0;
         if (idle >= MAX_IDLE_SESSIONS) {
-          update<Task>(after, task.id, "task", (t) => ({ ...t, state: "parked" }), {
+          const why = `${idle} sessions in a row recorded nothing for it — needs a look (strom task show ${task.id})`;
+          update<Task>(after, task.id, "task", (t) => ({ ...t, state: "parked", parkedReason: why }), {
             op: "task.park",
             summary: `${task.id} park: ${idle} sessions without a result`,
-            reason: `${idle} sessions in a row recorded nothing for it — needs a look (strom task show ${task.id})`,
+            reason: why,
           });
           out(ui(lang, "ui.run.parked", { task: task.id, n: idle }));
         }

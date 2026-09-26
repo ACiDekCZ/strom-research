@@ -51,7 +51,10 @@ import {
   type PlanItem,
   type PlanPage,
   type Resume,
+  claudeInChrome,
+  CLAUDE_IN_CHROME_URL,
 } from "../core/browser.ts";
+import { PROFILES } from "../agents/profiles.ts";
 import {
   bareHost,
   changedSinceConsent,
@@ -408,6 +411,7 @@ register(
                 "    (another folder: strom config set browser.downloads <folder>)",
                 `  · the first time, Chrome asks whether ${hosts[0]} may download several files: allow it once`,
                 `  · back: strom connector use ${c.name} --via direct`,
+                ...browserWarnings(ctx),
               )
             : lines(`${c.name}: images directly through strom from now on, paced (${hosts.join(", ")})`, routesOf(c).includes("browser") ? `  · through your browser again: strom connector use ${c.name} --via browser` : undefined),
         data: { connector: c.name, via, hosts, synced },
@@ -1580,4 +1584,26 @@ function textFiles(dir: string): string[] {
   };
   walk(dir);
   return out;
+}
+
+/**
+ * What the person is told of the archives this tree reaches through their browser, for the agent that works: only
+ * Claude Code has browser tools (Claude in Chrome), and the extension must be in a browser here. Nothing to say: undefined.
+ */
+export function browserNote(ctx: Context, tree: Tree, agent: string): string | undefined {
+  const via = treeBrowserConnectors(tree, ctx.settings.shared()?.value);
+  if (!via.length) return undefined;
+  const lang = ctx.uiLang();
+  const names = via.map((c) => c.manifest.title ?? c.name).join(", ");
+  if (agent !== "claude") return ui(lang, "ui.browser.agent", { names, agent: PROFILES[agent]?.name ?? agent });
+  const found = claudeInChrome(ctx.env).extension;
+  return found.length ? undefined : ui(lang, "ui.browser.noext", { names, url: CLAUDE_IN_CHROME_URL });
+}
+
+/** Through the browser: what stands in the way here (English, for the agent — which tells the user). */
+function browserWarnings(ctx: Context): string[] {
+  const agent = ctx.settings.agent(ctx.hasTree() ? ctx.tree().config : undefined).value;
+  if (agent !== "claude")
+    return [`  ⚠ only Claude Code has browser tools (Claude in Chrome); this research's agent is ${PROFILES[agent]?.name ?? agent} — tell the user: they save these images by hand, or choose Claude Code (strom agents use claude)`];
+  return claudeInChrome(ctx.env).extension.length ? [] : [`  ⚠ the Claude in Chrome extension is in no browser here — tell the user to install it and sign in: ${CLAUDE_IN_CHROME_URL}`];
 }

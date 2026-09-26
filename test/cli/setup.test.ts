@@ -294,7 +294,9 @@ test("a new version: seen at most once a day, said by strom, the menu and doctor
   assert.match((await w.ok(["update"])).out, /běží ze zdrojáků: git pull/, "run from sources: git's way");
   assert.match((await w.run(["doctor"])).out, /nová verze\s+vyšla 9\.9\.10\s+→ strom update/);
   // The menu offers it.
-  assert.match((await w.ok([], { tty: true, answers: ["0"] })).out, /Vyšla nová verze stromu: 9\.9\.10\.[\s\S]*Aktualizovat strom na 9\.9\.10/);
+  const said = /Vyšla nová verze stromu: 9\.9\.10 – aktualizovat ji můžete v Nastavení \(volba (\d)\)\./.exec((await w.ok([], { tty: true, answers: ["0"] })).out);
+  assert.ok(said, "said above the menu, with where");
+  assert.match((await w.ok([], { tty: true, answers: [said[1]!, "0", "0"] })).out, /Nastavení \(na tomto počítači\)\n[\s\S]* {3}\d {2}Aktualizovat strom na 9\.9\.10\n {3}0 {2}Zpět/);
   // Off: never asked, never said.
   await w.ok(["config", "set", "updates", "off"]);
   delete w.env.STROM_UPDATES;

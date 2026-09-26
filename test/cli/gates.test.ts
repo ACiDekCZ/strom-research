@@ -120,7 +120,7 @@ test("the gate is the user's: an agent neither sets, removes nor goes round it; 
   assert.match(bad.err, /no gate "nikde"/);
   await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
   w.env.CLAUDECODE = "1";
-  for (const args of [["config", "unset", "run.gate"], ["config", "set", "run.gate", "claude-usage"], ["run", "--agent", "script", "--no-gate"]]) {
+  for (const args of [["config", "unset", "run.gate"], ["config", "set", "run.gate", "claude-usage"], ["run", "--agent", "script", "--no-gate"], ["config", "set", "agent.remote", "on"]]) {
     const r = await w.run(args);
     assert.equal(r.code, 4, args.join(" "));
     assert.match(r.err + r.out, /an agent cannot answer this/);

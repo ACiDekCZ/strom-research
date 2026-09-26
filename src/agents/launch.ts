@@ -32,12 +32,14 @@ export interface LaunchOptions {
   chrome?: boolean;
   /** The conversation's name in the agent's list of sessions (Claude Code: --name). */
   name?: string | undefined;
+  /** Claude Code's Remote Control (agent.remote). */
+  remote?: boolean;
 }
 
 /** The command line of a conversation with this agent. */
 export function conversationArgs(agent: string, o: LaunchOptions): string[] {
   if (agent === "claude")
-    return claudeArgs({ interactive: true, kickoff: o.kickoff, permissions: o.level, settingsFile: o.settingsFile, ...(o.name ? { name: o.name } : {}), ...(o.model ? { model: o.model } : {}), ...(o.chrome !== undefined ? { chrome: o.chrome } : {}) });
+    return claudeArgs({ interactive: true, kickoff: o.kickoff, permissions: o.level, settingsFile: o.settingsFile, ...(o.name ? { name: o.name } : {}), ...(o.model ? { model: o.model } : {}), ...(o.chrome !== undefined ? { chrome: o.chrome } : {}), ...(o.remote ? { remote: true } : {}) });
   if (agent === "codex") {
     const args =
       o.level === "full"

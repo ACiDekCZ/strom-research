@@ -119,7 +119,7 @@ register(
             (s.sessions.costUsd ? ui(lang, "ui.stats.cost", { cost: humanCost(s.sessions.costUsd, lang) }) : "") +
             (s.sessions.costUsd && s.sessions.costPartial ? ui(lang, "ui.stats.cost.partial", { n: s.sessions.costPartial }) : ""),
         );
-      if (s.stories.written) out.push(ui(lang, "ui.stats.stories", { n: s.stories.written, final: s.stories.final }));
+      if (s.stories.written) out.push(ui(lang, "ui.stats.stories", { n: s.stories.written }));
       return { text: lines(...out), data: s };
     },
   },
@@ -167,7 +167,7 @@ register(
       }
       if (c.story) {
         const text = c.story.text.replace(/\*\*/g, "").trim();
-        out.push("", ui(lang, "ui.card.story", { status: ui(lang, c.story.status === "final" ? "ui.card.story.final" : "ui.card.story.draft") }));
+        out.push("", ui(lang, "ui.card.story"));
         // markdown headings as plain lines
         out.push(text.split("\n").map((l) => (l.trim() ? `  ${l.trim().replace(/^#+\s*/, "")}` : "")).join("\n"));
       }

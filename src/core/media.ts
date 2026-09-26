@@ -72,17 +72,28 @@ export function mimeOf(file: string): string {
   return MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream";
 }
 
-/** Every file under the given paths (folders recursively), hidden files skipped. */
+/**
+ * Every file under the given paths (folders recursively), hidden files skipped. What is inside a folder but cannot be
+ * read (a broken link or alias, a folder the system keeps to itself) is left out; the paths given must be there.
+ */
 export function collectFiles(paths: string[]): string[] {
   const out: string[] = [];
-  const walk = (p: string) => {
+  const walk = (p: string, given: boolean) => {
     const base = path.basename(p);
-    if (base.startsWith(".") || base === "Thumbs.db" || base === "desktop.ini") return;
-    const st = fs.statSync(p);
-    if (st.isDirectory()) for (const e of fs.readdirSync(p).sort()) walk(path.join(p, e));
+    if (!given && (base.startsWith(".") || base === "Thumbs.db" || base === "desktop.ini")) return;
+    let st: fs.Stats;
+    let names: string[] = [];
+    try {
+      st = fs.statSync(p);
+      if (st.isDirectory()) names = fs.readdirSync(p).sort();
+    } catch (err) {
+      if (given) throw err;
+      return;
+    }
+    if (st.isDirectory()) for (const e of names) walk(path.join(p, e), false);
     else if (st.isFile()) out.push(p);
   };
-  for (const p of paths) walk(p);
+  for (const p of paths) walk(p, true);
   return out;
 }
 

@@ -153,7 +153,7 @@ test("connector new: in the plugins folder, next to the contract, kept out of ev
   assert.equal(spawnSync("git", ["init", "-q"], { cwd: shared }).status, 0);
   fs.writeFileSync(path.join(plugins, "connectors", "stray.zip"), "x");
   const seen = spawnSync("git", ["status", "--porcelain", "--untracked-files=all", "plugins"], { cwd: shared, encoding: "utf8" }).stdout;
-  assert.deepEqual(seen.trim().split("\n").map((l) => l.slice(3)).sort(), ["plugins/.gitignore", "plugins/README.md", "plugins/connectors/README.md", "plugins/gates/README.md"]);
+  assert.deepEqual(seen.trim().split("\n").map((l) => l.slice(3)).sort(), ["plugins/.gitignore", "plugins/README.md", "plugins/connectors/README.md", "plugins/gates/README.md", "plugins/hooks/README.md"]);
   assert.equal((await w.run(["connector", "new", "Velká Písmena", "--url", "https://x.org"])).code, 2);
   assert.equal((await w.run(["connector", "new", "bez-url"])).code, 2);
   assert.equal((await w.run(["connector", "new", "statni-archiv", "--url", "https://x.org"])).code, 2, "exists already");

@@ -20,6 +20,7 @@ import { openForUser } from "../core/open.ts";
 import { createShortcut } from "../core/shortcut.ts";
 import { desktopDir } from "../core/paths.ts";
 import { ensureShared } from "../commands/setup.ts";
+import { moveHome, planMove, repointSettings, sameFolder } from "../core/relocate.ts";
 
 export interface WizardResult {
   home: string;
@@ -59,9 +60,15 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
   // Run again: each choice can be left as it is (0), the current one suggested.
   const keep = first ? {} : { back: ui(lang, "ui.keep") };
   // 2. Where the research lives.
-  const home = ctx.resolvePath(await ctx.ask(ui(lang, "ui.setup.home"), ctx.display(s.home()?.value ?? s.suggestedHome())));
+  const was = s.home()?.value;
+  const typed = (await ctx.ask(ui(lang, first ? "ui.setup.home" : "ui.setup.home.again"), ctx.display(was ?? s.suggestedHome()))).trim();
+  // Run again: 0 (or nothing) keeps the folder, like every other answer here.
+  let home = was && (typed === "0" || !typed) ? was : ctx.resolvePath(typed || ctx.display(s.suggestedHome()));
+  // Another folder while the research is in the old one: it moves along (trees, the shared folder) — or stays where it is.
+  if (was && !sameFolder(home, was)) home = await moveResearch(ctx, lang, was, home);
   cfg.lang = lang;
-  cfg.home = home;
+  if (was && !sameFolder(home, was)) repointSettings(s, ctx.env, was, home);
+  else if (!was) cfg.home = home;
   s.save();
   fs.mkdirSync(home, { recursive: true });
   fs.mkdirSync(s.trees()!.value, { recursive: true });
@@ -182,4 +189,39 @@ export async function askStromApp(ctx: Context, lang: string, back: string | und
     ctx.io.stdout(ui(lang, openForUser(url, ctx.env) ? "ui.app.install" : "ui.app.url", { url }) + "\n");
   }
   return answer;
+}
+
+/**
+ * The research to another folder: what moves is said (the trees, the shared folder with the plugins and images), and it
+ * moves on the person's yes. Where it cannot (somebody at work, a folder with something in it, into itself) it stays.
+ * Returns the folder the research is in afterwards.
+ */
+async function moveResearch(ctx: Context, lang: string, from: string, to: string): Promise<string> {
+  const out = (line: string) => ctx.io.stdout(line + "\n");
+  // Set from outside (STROM_HOME): the folder is not the wizard's to change.
+  if (ctx.settings.home()?.source !== "config") {
+    out(ui(lang, "ui.home.env", { from: ctx.display(from) }));
+    return from;
+  }
+  const plan = planMove(from, to, ctx.knownTrees().map((k) => k.root));
+  if (!plan.content) return to;
+  const where = { from: ctx.display(from), to: ctx.display(plan.to) };
+  if (plan.problem) {
+    out(ui(lang, `ui.home.${plan.problem}`, { ...where, trees: plan.busy.join(", ") }));
+    out(ui(lang, "ui.home.stays", where));
+    return from;
+  }
+  out(ui(lang, "ui.home.what", { ...where, trees: plan.trees.length ? plan.trees.join(", ") : "–" }));
+  if (!(await ctx.confirm(ui(lang, "ui.home.sure"), true))) {
+    out(ui(lang, "ui.home.stays", where));
+    return from;
+  }
+  try {
+    const how = moveHome(plan);
+    out(ui(lang, how === "moved" ? "ui.home.moved" : "ui.home.copied", where));
+    return plan.to;
+  } catch (err) {
+    out(ui(lang, "ui.home.failed", { ...where, reason: (err as Error).message }));
+    return from;
+  }
 }

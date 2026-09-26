@@ -5,6 +5,9 @@ import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
 import { addPerson, addResearch } from "../core/actions.ts";
 import { applyFrontier, researchProposals } from "./session.ts";
+import { frontier } from "../core/frontier.ts";
+import { parkedWhy } from "./tasks.ts";
+import { ui, type UIKey } from "../cli/ui.ts";
 import { phrase } from "../core/phrases.ts";
 import { UsageError } from "../core/errors.ts";
 import { REVIEW_SCOPES, type Person, type Research, type Session, type Task } from "../core/model.ts";
@@ -12,6 +15,7 @@ import { ancestorGenerations, displayName, label, lifespan, parentsOf, resolvePe
 import { foldText } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
 import { update } from "../core/records.ts";
+import { isAgent } from "../core/which.ts";
 
 function int(v: unknown, name: string): number | undefined {
   if (v === undefined) return undefined;
@@ -191,22 +195,31 @@ register({
       if (!reread) throw new UsageError("--reread needs the model to read with", { hint: "strom config set model.vision <model> — or strom review … --reread --model <model>" });
     } else if (opts.model) throw new UsageError("--model goes with --reread");
     const review = { scope: scope as (typeof REVIEW_SCOPES)[number], ...(reread ? { reread } : {}) };
+    const lang = tree.lang;
     // one review research per person: again later, it goes on where it was
     const existing = tree.list<Research>("research").find((r) => r.direction === "person" && r.focus === p.id && r.review);
-    let research: Research;
-    if (existing)
-      research = update<Research>(tree, existing.id, "research", (r) => ({ ...r, state: "active", review }), {
-        op: "research.edit",
-        summary: `${existing.id} review again: ${scope}${reread ? `, second reading with ${reread}` : ""}`,
-      });
-    else {
-      const r = addResearch(tree, { name: phrase(tree.lang, "review.research", { name: displayName(p) }), focus: p.id, direction: "person" });
-      research = update<Research>(tree, r.id, "research", (x) => ({ ...x, review }), { op: "research.edit", summary: `${r.id} review: ${scope}${reread ? `, second reading with ${reread}` : ""}` });
+    // What it would propose, asked before anything is written: with nothing to do, no research is made for it.
+    const draft: Research = existing
+      ? { ...existing, state: "active", review }
+      : ({ id: "G?", type: "research", name: phrase(lang, "review.research", { name: displayName(p) }), focus: p.id, direction: "person", state: "active", review, notes: [] } as unknown as Research);
+    const planned = researchProposals(tree, draft).map((x) => x.proposal);
+    let research: Research = draft;
+    let tasks: Task[] = [];
+    if (planned.length && !tree.dryRun) {
+      if (existing)
+        research = update<Research>(tree, existing.id, "research", (r) => ({ ...r, state: "active", review }), {
+          op: "research.edit",
+          summary: `${existing.id} review again: ${scope}${reread ? `, second reading with ${reread}` : ""}`,
+        });
+      else {
+        const r = addResearch(tree, { name: draft.name, focus: p.id, direction: "person" });
+        research = update<Research>(tree, r.id, "research", (x) => ({ ...x, review }), { op: "research.edit", summary: `${r.id} review: ${scope}${reread ? `, second reading with ${reread}` : ""}` });
+      }
+      tasks = applyFrontier(tree, research)
+        .map((id) => tree.get<Task>(id))
+        .filter((t): t is Task => !!t);
     }
-    const planned = tree.dryRun ? researchProposals(tree, research).map((x) => x.proposal) : [];
-    const created = tree.dryRun ? [] : applyFrontier(tree, research);
-    const tasks = created.map((id) => tree.get<Task>(id)).filter((t): t is Task => !!t);
-    const open = tree.list<Task>("task").filter((t) => t.research === research.id && ["open", "doing"].includes(t.state));
+    const open = existing ? tree.list<Task>("task").filter((t) => t.research === existing.id && ["open", "doing"].includes(t.state)) : [];
     // what a session costs here, from those so far: the user decides with the price in view
     const costs = tree
       .list<Session>("session")
@@ -214,16 +227,41 @@ register({
       .map((s) => s.metrics?.costUsd)
       .filter((c): c is number => typeof c === "number");
     const avg = costs.length ? costs.reduce((a, b) => a + b, 0) / costs.length : undefined;
-    const list = tree.dryRun ? planned.map((t) => `  would add: ${t.level} · ${t.what}`) : tasks.map((t) => `  ${t.id} ${t.level} · ${t.what}`);
+    // A person at a terminal (the menu) reads the tasks and what comes next, not the operations and commands.
+    const human = ctx.io.tty && !isAgent(ctx.env);
+    const list = tree.dryRun
+      ? planned.map((t) => ui(lang, "ui.review.would", { level: t.level, what: t.what }))
+      : tasks.map((t) => (human ? `  • ${t.what}` : `  ${t.id} ${t.level} · ${t.what}`));
+    // Nothing new: why — the work that covers them already (a parked task says how to go on), a search done in vain.
+    const why = list.length ? [] : coveredLines(tree, draft, lang, human);
+    const inReview = existing ?? (planned.length && !tree.dryRun ? research : undefined);
     const text = lines(
-      ...tree.written.map((o) => o.summary),
-      tree.dryRun ? "(dry run — nothing written)" : undefined,
-      "",
-      list.length ? `${label(p)} — ${tree.dryRun ? planned.length : tasks.length} new task(s):` : `${label(p)} — nothing new to review${open.length ? `; ${open.length} task(s) of the review still open` : ""}`,
+      ...(human ? [] : tree.written.map((o) => o.summary)),
+      tree.dryRun ? ui(lang, "ui.review.dry") : undefined,
+      (tree.written.length && !human) || tree.dryRun ? "" : undefined,
+      list.length ? ui(lang, "ui.review.new", { name: label(p), n: list.length }) : ui(lang, "ui.review.nothing", { name: label(p) }),
       ...list,
-      open.length ? `${open.length} open in ${research.id}, about ${open.length} session(s)${avg !== undefined ? ` — sessions here cost $${avg.toFixed(2)} on average` : ""}` : undefined,
-      open.length ? `next   strom run --research ${research.id}   (the agent alone) · or in a conversation: strom session start --research ${research.id}` : undefined,
+      ...why,
+      open.length || tasks.length
+        ? ui(lang, "ui.review.open", { n: open.length || tasks.length, research: inReview!.id }) + (avg !== undefined ? ui(lang, "ui.review.cost", { cost: avg.toFixed(2) }) : "")
+        : undefined,
+      (open.length || tasks.length) && inReview ? ui(lang, human ? "ui.review.next.human" : "ui.review.next", { research: inReview.id }) : undefined,
     );
-    return { text, data: { research, created: tasks, planned, open: open.map((t) => t.id), ...(avg !== undefined ? { avgCostUsd: avg } : {}) } };
+    return { text, data: { research: inReview ?? null, created: tasks, planned, open: open.map((t) => t.id), ...(why.length ? { why } : {}), ...(avg !== undefined ? { avgCostUsd: avg } : {}) } };
   },
 });
+
+/** Why a review found nothing new, person by person: the work that covers them already, or a search done in vain. */
+function coveredLines(tree: Tree, research: Research, lang: string, human = false): string[] {
+  const out: string[] = [];
+  for (const item of frontier(tree, research)) {
+    const name = label(item.person);
+    const t = item.coveredBy ? tree.get<Task>(item.coveredBy) : undefined;
+    if (t) {
+      const why = parkedWhy(tree, t);
+      out.push(ui(lang, "ui.review.covered", { name, task: t.id, state: ui(lang, `ui.review.state.${t.state}` as UIKey) + (why ? `: ${why}` : ""), what: t.what }));
+      if (t.state === "parked") out.push(ui(lang, human ? "ui.review.wake.human" : "ui.review.wake", { task: t.id }));
+    } else if (item.exhausted?.length) out.push(ui(lang, "ui.review.exhausted", { name, tasks: item.exhausted.join(", ") }));
+  }
+  return out;
+}

@@ -18,6 +18,8 @@ import { foldText } from "../core/text.ts";
 import { now, typeOfId, type Tree } from "../core/tree.ts";
 import { resolveResearch } from "./research.ts";
 import { makeNote } from "../core/actions.ts";
+import { phrase } from "../core/phrases.ts";
+import { readJsonLines } from "../core/json.ts";
 import { lacksImages, rankTasks, type Ranked } from "../core/queue.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
 
@@ -96,6 +98,22 @@ function taskLine(t: Task): string[] {
   return [t.id, `p${t.priority}`, t.level, t.state === "open" ? "" : `[${t.state}]`, truncate(t.what, 70)];
 }
 
+/** Why a task was put aside: on the task, or — parked by an older strom — in the history. */
+export function parkedWhy(tree: Tree, t: Task): string | undefined {
+  if (t.state !== "parked") return undefined;
+  if (t.parkedReason) return t.parkedReason;
+  const dir = path.join(tree.dataDir, "ops");
+  let last: { at: string; reason?: string } | undefined;
+  try {
+    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".jsonl")))
+      for (const o of readJsonLines<{ op: string; targets: string[]; at: string; reason?: string }>(path.join(dir, f)))
+        if (o.op === "task.park" && o.targets.includes(t.id) && (!last || o.at > last.at)) last = o;
+  } catch {
+    // no history to read
+  }
+  return last?.reason;
+}
+
 function taskDetail(tree: Tree, t: Task): string {
   const where = t.where.map((w) => {
     const b = /^B\d{4,}$/.test(w) ? tree.get<RecordSet>(w) : undefined;
@@ -106,6 +124,7 @@ function taskDetail(tree: Tree, t: Task): string {
   return lines(
     `${t.id} ${t.what}`,
     `level ${t.level} · priority ${t.priority} · ${t.state}${t.research ? ` · research ${t.research}` : ""}${t.parkedUntil ? ` · parked until ${t.parkedUntil}` : ""}${t.waitingOn ? ` · waiting on ${t.waitingOn}` : ""}`,
+    t.state === "parked" ? `parked ${parkedWhy(tree, t) ?? "(no reason recorded)"} — strom task wake ${t.id} to go on` : undefined,
     `where  ${where.join("\n       ")}`,
     `why    ${t.why}`,
     `done   ${t.doneWhen}`,
@@ -122,7 +141,10 @@ function stateChange(tree: Tree, ref: string, state: Task["state"], fields: Part
   return update<Task>(tree, id, "task", (t) => {
     if (t.state === "done" && state !== "open") throw new UsageError(`${id} is already done`);
     const next: Task = { ...t, state, ...fields };
-    if (state !== "parked") delete next.parkedUntil;
+    if (state !== "parked") {
+      delete next.parkedUntil;
+      delete next.parkedReason;
+    } else if (reason) next.parkedReason = reason;
     if (state !== "waiting") {
       delete next.waitingOn;
       delete next.awaits;
@@ -430,10 +452,22 @@ register(
     group: "tasks",
     tree: true,
     writes: true,
+    description: "--answer: what the user found or decided for a task that waited for them (a link, a book's number) — kept on\nthe task with what it asked, so the agent reads both in its brief.",
     args: [{ name: "task", description: "task ID", required: true }],
-    run(ctx, { args }) {
+    options: [{ name: "answer", type: "string", value: "<text>", description: "the user's answer to what the task waited for" }],
+    examples: ["strom task wake T0002", 'strom task wake T0003 --answer "https://archive.example.org/book/5359"'],
+    run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const t = stateChange(tree, args[0]!, "open", {}, undefined, "wake");
+      const id = normId(args[0]!, "task");
+      const answer = typeof opts.answer === "string" && opts.answer.trim() ? opts.answer.trim() : undefined;
+      const t = tree.withTreeLock(() => {
+        const before = requireRecord<Task>(tree, id, "task");
+        // an answer is to what the task waits for: one that waits no more (done, dropped, taken up) is left as it is
+        if (answer && before.state !== "waiting")
+          throw new UsageError(`${id} does not wait for the user (it is ${before.state}) — the answer is not needed there`, { hint: `strom task show ${id}` });
+        const note = answer ? makeNote(tree, phrase(tree.lang, "task.answer", { asked: truncate(before.waitingOn || before.what, 120), answer })) : undefined;
+        return stateChange(tree, id, "open", note ? { notes: [...before.notes, note] } : {}, undefined, "wake");
+      });
       return { text: written(tree), data: { task: t } };
     },
   },

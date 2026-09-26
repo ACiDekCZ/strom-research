@@ -22,6 +22,7 @@ import { installation, stromLauncher } from "../core/self.ts";
 import { VERSION } from "../core/tree.ts";
 import { installUpdate, isNewer, knownNewerVersion, latestVersion, newerNode, newerVersion, type Updated } from "../core/update.ts";
 import { desktopDir } from "../core/paths.ts";
+import { planMove } from "../core/relocate.ts";
 import { researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
 import { isInstalled } from "../agents/global.ts";
 import { shortcutName } from "../cli/wizard.ts";
@@ -36,7 +37,9 @@ import { check } from "../core/check.ts";
 import { assertIntact, verifyFull } from "../core/integrity.ts";
 import { ensurePluginsDir } from "../core/connector.ts";
 import { ensureGatesDir, loadGate } from "../core/gate.ts";
-import { downloadsDir } from "../core/browser.ts";
+import { ensureHooksDir } from "../core/hooks.ts";
+import { claudeInChrome, CLAUDE_IN_CHROME_URL, downloadsDir } from "../core/browser.ts";
+import { browserConnectors } from "../core/connector.ts";
 
 export const SHARED_DIRS = ["media", "catalog", "tools", "cache", "inbox"];
 
@@ -44,6 +47,7 @@ export function ensureShared(dir: string): void {
   for (const d of SHARED_DIRS) fs.mkdirSync(path.join(dir, d), { recursive: true });
   ensurePluginsDir(dir);
   ensureGatesDir(dir);
+  ensureHooksDir(dir);
 }
 
 register({
@@ -79,6 +83,9 @@ register({
         },
       ]);
 
+    if (cfg.home && flags.home) guardResearchFolder(ctx, "home", flags.home);
+    if (flags.shared) guardResearchFolder(ctx, "shared", flags.shared);
+    if (flags.trees) guardResearchFolder(ctx, "trees", flags.trees);
     let home = flags.home ? ctx.resolvePath(flags.home) : suggestedHome;
     let shared = flags.shared ? ctx.resolvePath(flags.shared) : undefined;
     let trees = flags.trees ? ctx.resolvePath(flags.trees) : undefined;
@@ -211,6 +218,17 @@ function diagnose(ctx: Context): Check[] {
     add("level", "ok", t(`ui.setup.level.${level}` as UIKey));
     const model = ctx.settings.models(chosen, tree).lead;
     if (model) add("model", "ok", model);
+  }
+
+  // Archives through the browser: only Claude Code has browser tools, and they work through the Claude in Chrome extension.
+  const shared = ctx.settings.shared()?.value;
+  const viaBrowser = shared ? browserConnectors(ctx.env, shared) : [];
+  if (viaBrowser.length) {
+    const names = viaBrowser.map((c) => c.manifest.title ?? c.name).join(", ");
+    const ext = claudeInChrome(ctx.env).extension;
+    if (chosen !== "claude") add("browser", "warn", t("ui.doc.browser.agent", { names, agent: PROFILES[chosen]?.name ?? chosen }), found.includes("claude") ? "strom agents use claude" : undefined);
+    else if (ext.length) add("browser", "ok", t("ui.doc.browser.ok", { browsers: ext.join(", ") }));
+    else add("browser", "warn", t("ui.doc.browser.noext", { names }), CLAUDE_IN_CHROME_URL);
   }
 
   // For a person: the shortcut on the desktop, the Strom app.
@@ -404,8 +422,26 @@ function raises(now: AgentPermissions, value: string | number | undefined): bool
 }
 
 /** Change a user setting (the config file on this computer). */
+/**
+ * Where the research lives (home, trees, shared) changes only with the research moving along — which the person does in
+ * the wizard (strom setup in a terminal, the menu's settings). A folder set to another place with the research left in
+ * the old one would lose the trees from the list and the plugins and images from sight.
+ */
+function guardResearchFolder(ctx: Context, key: string, next: string | undefined): void {
+  const now = key === "home" ? ctx.settings.home()?.value : key === "trees" ? ctx.settings.trees()?.value : key === "shared" ? ctx.settings.shared()?.value : undefined;
+  // unset: back to the default under home (none for home itself)
+  const home = ctx.settings.home()?.value;
+  const target = next !== undefined ? ctx.resolvePath(next) : key === "shared" && home ? path.join(home, "shared") : key === "trees" ? home : undefined;
+  if (!now || (target && path.resolve(target) === path.resolve(now))) return;
+  if (!planMove(now, target ?? now, []).content) return;
+  throw new UsageError(`the research is in ${ctx.display(now)} — changing ${key} would leave it behind`, {
+    hint: "the user moves it: strom setup in their terminal (or the menu: Settings → the setup), which moves the trees and the shared folder along",
+  });
+}
+
 function setUserSetting(ctx: Context, key: string, value: string | number | undefined): void {
   const s = ctx.settings;
+  guardResearchFolder(ctx, key, value === undefined ? undefined : String(value));
   // Loosening the agent's permissions is the user's decision alone.
   if (key === "agent.permissions" && raises(s.agentPermissions(), value))
     ctx.requireHuman(
@@ -414,6 +450,9 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
       "agent.permissions",
       ui(ctx.uiLang(), value === "full" ? "ui.consent.level.full" : "ui.consent.level.auto"),
     );
+  // Sessions steered from elsewhere (Remote Control): the user's decision alone.
+  if (key === "agent.remote" && value === "on" && !s.agentRemote())
+    ctx.requireHuman("Start the Claude Code sessions with Remote Control (followed and steered from claude.ai or your phone)?", "strom config set agent.remote on", "agent.remote", ui(ctx.uiLang(), "ui.consent.remote"));
   // Asking before a connector runs is the user's safeguard: only they take it away.
   if (key === "connectors.consent" && value !== "on" && s.connectorsConsent())
     ctx.requireHuman("Let connectors run without asking you first?", `strom config set connectors.consent ${value ?? "off"}`, "connectors.consent", ui(ctx.uiLang(), "ui.consent.connectors.off"));

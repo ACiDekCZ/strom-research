@@ -19,6 +19,7 @@ import { AGENTS, findAgent, isAgent } from "../core/which.ts";
 import { DESKTOP_APPS, agentsHere, whereToTalk } from "../core/apps.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { treeBrowserConnectors } from "../core/connector.ts";
+import { browserNote } from "./connectors.ts";
 import { appOpensResearch, importAppUrl, installedStromApp, liveAppUrl, noticeStromApp, STROM_APP_URL, stromAppUrl } from "../core/stromapp.ts";
 import { liveRunning, serveLive, startLive, stopLive } from "../core/live.ts";
 import { openForUser } from "../core/open.ts";
@@ -132,7 +133,7 @@ register({
       // its research when there is one, the day.
       name: ["Strom", tree.config.name, researches.length === 1 ? researches[0]!.name : undefined, new Date().toLocaleDateString(lang, { day: "numeric", month: "numeric" })].filter(Boolean).join(" · "),
       shared,
-      ...(agent === "claude" ? { chrome: treeBrowserConnectors(tree, shared).length > 0 } : {}),
+      ...(agent === "claude" ? { chrome: treeBrowserConnectors(tree, shared).length > 0, remote: ctx.settings.agentRemote() } : {}),
     };
     const args = conversationArgs(agent, base);
     if (opts.print) return { text: [program ?? profile.command, ...args].map(shellQuote).join(" "), data: { command: program ?? profile.command, args, cwd: tree.root } };
@@ -148,6 +149,8 @@ register({
     const worker = `${agent}-${process.pid}-${Date.now().toString(36)}`;
     const leave = enterWorker(tree.root, worker, `${profile.name} conversation`);
     ctx.io.stdout(ui(lang, "ui.chat.open", { agent: profile.name, exit: profile.exit }) + "\n");
+    const browserSays = browserNote(ctx, tree, agent);
+    if (browserSays) ctx.io.stdout(browserSays + "\n");
     // Claude Code asks once whether the folder is to be trusted — its own safety step, kept; the user knows what to answer.
     if (agent === "claude" && !claudeTrusts(tree.root, ctx.env)) ctx.io.stdout(ui(lang, "ui.chat.trust") + "\n");
     const env: Record<string, string | undefined> = { ...prependPath(ctx.env, shimDir(tree)), STROM_WORKER: worker, ...(base.model ? { STROM_MODEL: base.model } : {}) };

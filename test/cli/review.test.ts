@@ -490,6 +490,9 @@ test("agent permissions use this computer's paths; PATH is replaced, not duplica
   assert.deepEqual(claudeArgs({ kickoff: "k", chrome: false }).slice(-1), ["--no-chrome"]);
   assert.deepEqual(claudeArgs({ kickoff: "k", chrome: true, permissions: "full" }).slice(4), ["--permission-mode", "bypassPermissions", "--chrome"]);
   assert.deepEqual(claudeArgs({ interactive: true, kickoff: "k", permissions: "full" }), ["k", "--permission-mode", "bypassPermissions"]);
+  // Remote Control (agent.remote): always with a name — a bare flag would take the next argument
+  assert.deepEqual(claudeArgs({ interactive: true, kickoff: "k", name: "Strom · Novákovi", remote: true }), ["k", "--permission-mode", "auto", "--name", "Strom · Novákovi", "--remote-control", "Strom · Novákovi"]);
+  assert.deepEqual(claudeArgs({ kickoff: "k", remote: true }).slice(-2), ["--remote-control", "Strom"]);
   // ask: Claude Code's own mode — it asks about what the tree's permissions do not decide; headless never asks
   assert.deepEqual(claudeArgs({ interactive: true, kickoff: "k", permissions: "ask" }), ["k"]);
   assert.deepEqual(claudeArgs({ kickoff: "k", permissions: "ask" }).slice(4, 6), ["--permission-mode", "dontAsk"]);

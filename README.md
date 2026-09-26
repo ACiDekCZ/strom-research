@@ -61,6 +61,9 @@ npm: `npm install -g strom-research@latest`.
   read the result — or on and on (`strom run --loop`) while a condition of
   yours allows it: a gate plugin, e.g. `claude-usage 10` (your Claude
   subscription's daily ration, 10 points in hand), or one of your own (`strom gate list`)
+- Hear what it finds as it finds it: a hook plugin of yours is told of every
+  save — a person added, a session closed — and can send it to your phone
+  (`strom hook on <name>`, the interface in `plugins/hooks/README.md`)
 - Several agents can work on one family tree side by side, each on its own task
 
 **Evidence first**

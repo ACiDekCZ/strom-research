@@ -19,5 +19,6 @@ import "./story.ts";
 import "./output.ts";
 import "./session.ts";
 import "./gates.ts";
+import "./hooks.ts";
 import "./checks.ts";
 import "./setup.ts";

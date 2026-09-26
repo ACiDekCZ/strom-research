@@ -27,7 +27,7 @@ function describeTool(block: { name?: string; input?: Record<string, unknown> })
 }
 
 /** Command-line arguments for a run (exported for tests). */
-export function claudeArgs(opts: Pick<RunOptions, "interactive" | "kickoff" | "name" | "model" | "extraArgs" | "settingsFile" | "chrome" | "permissions">): string[] {
+export function claudeArgs(opts: Pick<RunOptions, "interactive" | "kickoff" | "name" | "model" | "extraArgs" | "settingsFile" | "chrome" | "permissions" | "remote">): string[] {
   const level = opts.permissions ?? "auto";
   const mode = level === "full" ? "bypassPermissions" : !opts.interactive ? "dontAsk" : level === "auto" ? "auto" : undefined;
   const args = opts.interactive ? [opts.kickoff] : ["-p", "--output-format", "stream-json", "--verbose"];
@@ -36,6 +36,8 @@ export function claudeArgs(opts: Pick<RunOptions, "interactive" | "kickoff" | "n
   if (opts.name) args.push("--name", opts.name);
   if (opts.model) args.push("--model", opts.model);
   if (opts.chrome !== undefined) args.push(opts.chrome ? "--chrome" : "--no-chrome");
+  // named always: its value is optional, and a bare flag would take the next argument
+  if (opts.remote) args.push("--remote-control", opts.name ?? "Strom");
   args.push(...(opts.extraArgs ?? []));
   return args;
 }
