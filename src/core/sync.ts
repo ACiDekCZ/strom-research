@@ -416,7 +416,86 @@ export function receivedSince(root: string, since: number): string | undefined {
   if (!fs.existsSync(dir)) return undefined;
   return fs
     .readdirSync(dir)
-    .filter((f) => f.endsWith(".ged"))
+    .filter((f) => f.endsWith(".ged") && !f.startsWith("adopt-"))
+    .map((f) => path.join(dir, f))
+    .filter((f) => fs.statSync(f).mtimeMs >= since)
+    .sort()
+    .pop();
+}
+
+// ── a tree of the Strom app becomes a research (strom-research://new, ?adopt=) ──
+
+/** Where a new research waits for the tree of the app it was started for: the app's mark, since when. */
+const ADOPT_FILE = path.join(".strom", "adopt.json");
+/** How long the app's mark is good (the app keeps it an hour too). */
+export const ADOPT_FOR_MS = 60 * 60_000;
+
+/** This research waits for the app's tree with this mark (the link's app=…). */
+export function awaitAdoption(root: string, token: string): void {
+  fs.mkdirSync(path.join(root, ".strom"), { recursive: true });
+  fs.writeFileSync(path.join(root, ADOPT_FILE), JSON.stringify({ token, at: new Date().toISOString() }));
+}
+
+/** The mark of the tree this research waits for — none when it waits for none, got it already, or waited too long. */
+export function pendingAdoption(root: string): string | undefined {
+  try {
+    const a = JSON.parse(fs.readFileSync(path.join(root, ADOPT_FILE), "utf8")) as { token?: string; at?: string; done?: string };
+    return a.token && !a.done && Date.now() - Date.parse(a.at ?? "") < ADOPT_FOR_MS ? a.token : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The app's tree for a new research (POST <bridge>/adopt): a GEDCOM, kept in the inbox for the research in the
+ * terminal to take in — nothing of the research changes here. Taken once; the file it was kept as.
+ */
+export function receiveAdopted(root: string, text: string): string {
+  if (!pendingAdoption(root)) throw new UsageError("this research waits for no tree");
+  if (!/^\uFEFF?\s*0\s+HEAD/.test(text)) throw new UsageError("not a GEDCOM file");
+  if (!/^1 INDI\b|^0 @[^@]+@ INDI\b/m.test(text)) throw new UsageError("empty: no people in it");
+  const dir = path.join(root, SYNC_INBOX);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `adopt-${new Date().toISOString().replace(/[:.]/g, "-")}.ged`);
+  fs.writeFileSync(file, text);
+  const a = JSON.parse(fs.readFileSync(path.join(root, ADOPT_FILE), "utf8")) as Record<string, string>;
+  fs.writeFileSync(path.join(root, ADOPT_FILE), JSON.stringify({ ...a, done: new Date().toISOString() }));
+  return file;
+}
+
+/** Why the app's tree was not taken (POST <bridge>/adopt refused): noted for the research in the terminal, which stops waiting. */
+export function noteAdoptFailed(root: string, why: "empty" | "other"): void {
+  const dir = path.join(root, SYNC_INBOX);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `adopt-failed-${Date.now()}.json`), JSON.stringify({ why, at: new Date().toISOString() }));
+}
+
+/** The app's tree was refused since `since` (ms): why. */
+export function adoptFailedSince(root: string, since: number): "empty" | "other" | undefined {
+  const dir = path.join(root, SYNC_INBOX);
+  if (!fs.existsSync(dir)) return undefined;
+  const last = fs
+    .readdirSync(dir)
+    .filter((f) => f.startsWith("adopt-failed-"))
+    .map((f) => path.join(dir, f))
+    .filter((f) => fs.statSync(f).mtimeMs >= since)
+    .sort()
+    .pop();
+  if (!last) return undefined;
+  try {
+    return (JSON.parse(fs.readFileSync(last, "utf8")) as { why: "empty" | "other" }).why;
+  } catch {
+    return "other";
+  }
+}
+
+/** The tree the app handed over since `since` (ms), if any. */
+export function adoptedSince(root: string, since: number): string | undefined {
+  const dir = path.join(root, SYNC_INBOX);
+  if (!fs.existsSync(dir)) return undefined;
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.startsWith("adopt-") && f.endsWith(".ged"))
     .map((f) => path.join(dir, f))
     .filter((f) => fs.statSync(f).mtimeMs >= since)
     .sort()
@@ -600,7 +679,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     }
     if (was && !partial)
       for (const b of was)
-        if (!incKeys.has(factKey(b)) && !used.has(factKey(b)) && carried.has(kindOf(b.kind)) && ourKeys.has(factKey(b)))
+        if (!incKeys.has(factKey(b)) && !used.has(factKey(b)) && carried.has(kindOf(b.kind)) && ourKeys.has(factKey(b)) && !keptOnce(owner, b, inc))
           push({ kind: "fact.gone", action: "report", ...owner, was: b });
   };
 
@@ -661,6 +740,18 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
 }
 
 /** Does the research's fact say all the file's fact says, and more: the same kind, and each of its date, place, value the same or missing in the file. */
+/**
+ * The Strom app keeps a couple's marriages and divorces as the course of one union: two marriages with no divorce
+ * between are one marriage to it, the first (found live, 2026-09-27: a marriage from the register and a later
+ * record's other date). A further one of these missing while the file has one of that kind is its shape, not an edit.
+ */
+const UNION_KINDS = new Set(["MARR", "DIV"]);
+
+function keptOnce(owner: { family?: string }, gone: SFact, file: SFact[]): boolean {
+  const kind = kindOf(gone.kind);
+  return !!owner.family && UNION_KINDS.has(kind) && file.some((f) => kindOf(f.kind) === kind);
+}
+
 function knowsMore(ours: SFact, file: SFact): boolean {
   if (kindOf(ours.kind) !== kindOf(file.kind)) return false;
   const same = (a: string | undefined, b: string | undefined) => !b || exact(a) === exact(b);
@@ -775,6 +866,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
             "conflict",
             {
               title: title.slice(0, 200),
+              fact: c.fact.kind,
               subject: [owner],
               claims: [
                 { ...(mine.citations[0] ? { source: mine.citations[0].source } : {}), value: describe(mine), note: `the research: ${mine.id}` },

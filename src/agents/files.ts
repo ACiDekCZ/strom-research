@@ -98,7 +98,7 @@ they ask.
 - **Their edits in the Strom app** ("I fixed grandma's birthday in the
   app", a .ged or .json they exported): \`strom sync <file>\` shows what it
   would take — tell them, write it on their yes (\`--apply\`); a sync is
-  undone with \`strom sync undo I…\`.
+  undone with \`strom sync undo I…\`. Straight from the app: \`strom sync --app\`.
 - **What waits for them** (\`strom\` shows it): tell them plainly what to do
   and where, one thing at a time.
 - **Results and the Strom app**: \`output/tree-strom.ged\` is the family tree

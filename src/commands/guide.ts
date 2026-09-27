@@ -147,13 +147,18 @@ THE STROM APP'S EDITS, ANOTHER FAMILY TREE (the user changed the tree in the Str
   --only 1,3). Additions become leads; a change to a fact a record proves becomes a conflict (sync.edits: the
   user's choice). A file of another research, or of few of our people, is refused; strom sync undo I… takes a
   sync back. After it: the user opens the research in the Strom app again to have the tree updated.
+  Straight from the app: strom sync --app (the user presses Send in the app). With strom-research:// links set
+  up on this computer (the user's yes: strom link on, the setup wizard; strom link status says) the app starts it
+  itself with one click, and opens an excerpt of an entry in full quality; its menus also open the research, a
+  conversation with you (of one person), a task that waits for the user, a person's review, a new direction — each
+  said and asked in a terminal first. Tell the user once when they use the app.
 STORIES OF THE ANCESTORS (the setting stories — on by default; strom shows it)
   Once records tell a person's life (a baptism and more facts from records), strom proposes a narrate
   task: write the story for the family book — plain words, the research language, every statement on a
   recorded fact (strom story set P… --text @notes/story-P….md --fact E… …). More facts later: it
   proposes adding to it. Stories wait behind all the research; working alone
   (strom run), every few sessions one comes first. In a conversation the user leads: write one when they
-  want it, or offer it when the research has a pause. A story is a draft until the user approves it (--final). When strom says to tell
+  want it, or offer it when the research has a pause. A story is a draft until the user approves it (strom story approve P…; the Strom app asks it too). When strom says to tell
   the user (once, not in every conversation): in a sentence, and that they may say no (strom config set
   stories no).
 

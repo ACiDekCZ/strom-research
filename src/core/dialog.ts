@@ -69,3 +69,26 @@ export function systemDialog(text: DialogText, env: Env, platform: NodeJS.Platfo
   }
   return undefined;
 }
+
+/**
+ * Say something in a window (one button): what a link from the Strom app could not do, with no terminal to say it
+ * in. False when this computer cannot show one.
+ */
+export function systemNotice(title: string, message: string, ok: string, env: Env, platform: NodeJS.Platform = process.platform): boolean {
+  if (env.STROM_NO_DIALOG === "1") return false;
+  const run = (cmd: string, args: string[]) =>
+    spawnSync(cmd, args, { encoding: "utf8", timeout: (WAIT_SECONDS + 10) * 1000, windowsHide: false, env: env as NodeJS.ProcessEnv });
+  if (platform === "darwin") {
+    const script = `display dialog ${appleString(message)} with title ${appleString(title)} buttons {${appleString(ok)}} default button ${appleString(ok)} with icon note giving up after ${WAIT_SECONDS}`;
+    return !run("osascript", ["-e", script]).error;
+  }
+  if (platform === "win32") {
+    const ps = `Add-Type -AssemblyName PresentationFramework; [void][System.Windows.MessageBox]::Show(${psString(message)}, ${psString(title)}, 'OK', 'Information', 'OK', 'DefaultDesktopOnly')`;
+    const r = run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps]);
+    return !r.error && r.status === 0;
+  }
+  if (!env.DISPLAY && !env.WAYLAND_DISPLAY) return false;
+  if (which("zenity", env)) return !run("zenity", ["--info", "--title", title, "--text", message, "--timeout", String(WAIT_SECONDS)]).error;
+  if (which("kdialog", env)) return !run("kdialog", ["--title", title, "--msgbox", message]).error;
+  return false;
+}

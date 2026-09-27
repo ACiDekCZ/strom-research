@@ -178,3 +178,10 @@ export function recentSessions(tree: Tree, research?: string, n = 2): Session[] 
     .sort((a, b) => (b.ended ?? b.updated).localeCompare(a.ended ?? a.updated))
     .slice(0, n);
 }
+
+/** What the agent's sessions of a month ("2026-09", by when they started) cost: how many, the dollars known (a session stopped before it said: its known part). */
+export function monthSpend(tree: Tree, month: string): { month: string; sessions: number; amount: number } {
+  const of = tree.list<Session>("session").filter((s) => s.started.slice(0, 7) === month);
+  const amount = of.reduce((sum, s) => sum + (s.metrics?.costUsd ?? 0), 0);
+  return { month, sessions: of.length, amount: Math.round(amount * 100) / 100 };
+}

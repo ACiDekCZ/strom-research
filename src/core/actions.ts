@@ -905,3 +905,16 @@ export function setStory(tree: Tree, id: string, input: StoryInput): Person | Fa
     return updated;
   });
 }
+
+/** The user approved the story as it is: no longer a draft (the text stays). */
+export function approveStory(tree: Tree, id: string): Person | Family {
+  return tree.withTreeLock(() => {
+    const rec = tree.get<Person | Family>(id);
+    if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`);
+    if (!rec.story) throw new UsageError(`${id} has no story yet`, { hint: `strom story set ${id} --text @file --fact E…` });
+    if (rec.story.status === "final") return rec;
+    const updated = { ...rec, story: { ...rec.story, status: "final" as const }, updated: now() } as Person | Family;
+    tree.put(updated, { op: "story.approve", targets: [id], summary: `${id} story approved` });
+    return updated;
+  });
+}

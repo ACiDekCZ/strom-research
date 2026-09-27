@@ -10,4 +10,5 @@ A story is written from the facts, for the family.
 - Write it to a file in notes/, then `strom story set P… --text @notes/story-P….md
   --fact E… --fact E… --note "what is inferred"`: every fact it leans on goes
   in --fact. A couple's story goes on the family (F…).
-- It stays a draft; `--final` only when the user approved it.
+- It stays a draft; when the user says it is right: `strom story approve P…`
+  (the Strom app asks them too).

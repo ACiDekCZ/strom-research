@@ -21,5 +21,6 @@ import "./output.ts";
 import "./session.ts";
 import "./gates.ts";
 import "./hooks.ts";
+import "./links.ts";
 import "./checks.ts";
 import "./setup.ts";

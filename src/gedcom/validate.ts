@@ -24,11 +24,15 @@ const FAM_EVENTS = ["MARR", "DIV", "MARB", "MARC", "MARL", "MARS", "ANUL", "DIVF
 
 /** Allowed child tags by parent context ("INDI", "INDI.BIRT", …). CONC/CONT are allowed under anything with text. */
 const CHILDREN: Record<string, string[]> = {
-  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD"],
+  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF"],
   "HEAD.SOUR": ["VERS", "NAME", "CORP", "DATA"],
   "HEAD.GEDC": ["VERS", "FORM"],
   "HEAD.DATE": ["TIME"],
-  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", ...INDI_EVENTS],
+  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", ...INDI_EVENTS],
+  "INDI._STROM_CONFLICT": ["TYPE", "TITL", "STAT", "VAL", "DECI"],
+  "INDI._STROM_HYPO": ["TITL", "NOTE"],
+  "INDI._STROM_SEARCHED": ["TITL", "DATE", "RESN", "_AT"],
+  _STROM_VALUE: ["SOUR"],
   "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE"],
   "INDI.FAMC": ["PEDI", "NOTE"],
   "INDI.FAMS": ["NOTE"],
@@ -53,8 +57,11 @@ const CHILDREN: Record<string, string[]> = {
   ADDR: ["CONT", "ADR1", "ADR2", "ADR3", "CITY", "STAE", "POST", "CTRY"],
 };
 
-const TEXT_TAGS = new Set(["NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL"]);
-const EXTENSIONS = new Set(["_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD"]);
+const TEXT_TAGS = new Set(["NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "VAL", "DECI"]);
+const EXTENSIONS = new Set([
+  "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
+  "_STROM_ASOF", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_AT",
+]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */
 function contextOf(anc: string[]): string | undefined {
@@ -75,6 +82,7 @@ function contextOf(anc: string[]): string | undefined {
     return `${record}.${parent}`;
   }
   if (depth === 3 && parent === "ASSO") return "EVENT.ASSO";
+  if (depth === 3 && (parent === "VAL" || parent === "DECI") && anc[1] === "_STROM_CONFLICT") return "_STROM_VALUE";
   if (depth === 3 && (parent === "HUSB" || parent === "WIFE") && record === "FAM") return `EVENT.${parent}`;
   return undefined;
 }

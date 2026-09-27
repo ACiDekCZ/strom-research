@@ -355,6 +355,8 @@ export interface Task extends BaseRecord {
 export interface Conflict extends BaseRecord {
   type: "conflict";
   title: string;
+  /** The fact it is about, by its GEDCOM tag (BIRT, DEAT, NAME, SEX, MARR…), when known. */
+  fact?: string;
   subject: string[];
   claims: { source?: string; value: string; note?: string }[];
   state: "open" | "resolved";

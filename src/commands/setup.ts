@@ -23,9 +23,10 @@ import { VERSION } from "../core/tree.ts";
 import { installUpdate, isNewer, knownNewerVersion, latestVersion, newerNode, newerVersion, type Updated } from "../core/update.ts";
 import { desktopDir } from "../core/paths.ts";
 import { planMove } from "../core/relocate.ts";
-import { researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
+import { appOpensLinks, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
 import { isInstalled } from "../agents/global.ts";
-import { shortcutName } from "../cli/wizard.ts";
+import { offerLinks, shortcutName } from "../cli/wizard.ts";
+import { linkHandlerState } from "../core/links.ts";
 import type { UIKey } from "../cli/ui.ts";
 
 import { globalTargets, installGlobal } from "../agents/global.ts";
@@ -149,7 +150,7 @@ interface Check {
   detail: string;
   fix?: string;
   /** What strom doctor --fix can do about it itself. */
-  repair?: "git" | "agent" | "knows" | "shortcut" | "app";
+  repair?: "git" | "agent" | "knows" | "shortcut" | "app" | "links";
 }
 
 function nodeOk(version: string): boolean {
@@ -241,6 +242,12 @@ function diagnose(ctx: Context): Check[] {
   else add("shortcut", "warn", t("ui.doc.none"), FIX, "shortcut");
   const app = stromAppState(ctx.settings);
   add("app", "ok", t(`ui.doc.app.${app}` as UIKey), app === "unknown" ? FIX : undefined, app === "unknown" ? "app" : undefined);
+  // …and whether it may start the research here (strom-research:// links): only while the app is wanted
+  if (app !== "no" && appOpensLinks(ctx.settings)) {
+    const links = linkHandlerState(ctx.env);
+    if (links === "ours") add("links", "ok", t("ui.doc.links.ours"));
+    else add("links", "warn", t(`ui.doc.links.${links}` as UIKey), FIX, "links");
+  }
 
   if (ctx.hasTree()) {
     const tr = ctx.tree();
@@ -270,6 +277,7 @@ async function repair(ctx: Context, checks: Check[], out: (line: string) => void
   if (todo.has("shortcut") && person && (await ctx.confirm(ui(lang, "ui.setup.shortcut", {}), true))) {
     for (const f of createShortcut(shortcutName(lang), ctx.env)) out(ui(lang, "ui.setup.shortcut.done", { file: ctx.display(f) }));
   }
+  if (todo.has("links") && person) await offerLinks(ctx, lang);
   if (todo.has("app") && person && (await ctx.confirm(ui(lang, "ui.fix.app"), false))) {
     openForUser(stromAppUrl(ctx.settings), ctx.env);
     out(ui(lang, "ui.app.install"));

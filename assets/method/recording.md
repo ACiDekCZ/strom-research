@@ -56,7 +56,9 @@ without --dry-run. `#name` labels what a line creates, `@name` uses it later.
 - What a finding means for other tasks: `strom task edit T… --note "…"`.
 - Records about one person disagree (a name, a date, an age): record both
   claims and your reasoning — `strom conflict add "<question>" --about P…
-  --claim "S…:<what it says>" --claim "S…:<what the other says>"`. Records
+  --fact BIRT --claim "S…:<what it says>" --claim "S…:<what the other says>"`
+  (`--fact`: the fact's tag — BIRT, DEAT, NAME, SEX… — the Strom app shows the
+  conflict there). Records
   that give different parents are first two people (see core); they are one
   person with a conflict only once something else proves it. What would decide
   it, if not at hand, is a task about it: `strom task add … --about X…` (or H…).

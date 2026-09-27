@@ -20,7 +20,8 @@ import { DESKTOP_APPS, agentsHere, whereToTalk } from "../core/apps.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { treeBrowserConnectors } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
-import { appOpensResearch, importAppUrl, installedStromApp, liveAppUrl, noticeStromApp, STROM_APP_URL, stromAppUrl } from "../core/stromapp.ts";
+import { offerLinks } from "../cli/wizard.ts";
+import { appOpensLinks, appOpensResearch, importAppUrl, installedStromApp, liveAppUrl, noticeStromApp, STROM_APP_URL, stromAppUrl } from "../core/stromapp.ts";
 import { liveRunning, serveLive, startLive, stopLive } from "../core/live.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut, openInNewTerminal } from "../core/shortcut.ts";
@@ -194,7 +195,7 @@ register(
       { name: "images", type: "boolean", description: "each entry with its image (the default; kept for older scripts)" },
     ],
     examples: ["strom app", "strom app --live", "strom app install"],
-    run(ctx, { opts }) {
+    async run(ctx, { opts }) {
       const lang = ctx.uiLang();
       const root = appOpensResearch(ctx.settings) ? ctx.locateTree() : undefined;
       if (root) {
@@ -225,6 +226,9 @@ register(
         const webApp = installed?.appId && installed.browser ? { browser: installed.browser, appId: installed.appId, ...(installed.profile ? { profile: installed.profile } : {}) } : undefined;
         const browser = chromiumBrowser(ctx.env);
         if (webApp || browser) {
+          // The first time a person opens the research in an app that opens links: may it start the research here? (once)
+          if (ctx.interactive && !isAgent(ctx.env) && appOpensLinks(ctx.settings, ctx.settings.stromVersion(tree.config)) && ctx.settings.config.links === undefined)
+            await offerLinks(ctx, lang, { ask: false });
           // The bridge serves the tree's GEDCOM to the app; it ends by itself when nobody asks it anything.
           const info = startLive(root, ctx.env, { current: true });
           if (!info) throw new StromError("the bridge did not start", { hint: "strom live serve shows why" });

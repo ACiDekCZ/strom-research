@@ -15,9 +15,10 @@ import { agentsHere, DESKTOP_APPS } from "../core/apps.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
-import { noticeStromApp, researchUrl, stromAppState, stromAppUrl } from "../core/stromapp.ts";
+import { appOpensLinks, noticeStromApp, researchUrl, stromAppState, stromAppUrl } from "../core/stromapp.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut } from "../core/shortcut.ts";
+import { linkFiles, linkHandlerState, registerLinks } from "../core/links.ts";
 import { desktopDir } from "../core/paths.ts";
 import { ensureShared } from "../commands/setup.ts";
 import { moveHome, planMove, repointSettings, sameFolder } from "../core/relocate.ts";
@@ -160,9 +161,38 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
   if (noticeStromApp(s, ctx.env, { look: true }) || stromAppState(s) === "seen") out(ui(lang, "ui.setup.app"));
   else await askStromApp(ctx, lang, first ? undefined : ui(lang, "ui.keep"));
 
+  // 9. The Strom app may start the research here (strom-research:// links): asked while it is wanted; refreshed quietly after.
+  if (stromAppState(s) !== "no" && appOpensLinks(s)) await offerLinks(ctx, lang);
+
   out();
   out(`${ui(lang, "ui.setup.done")}  (${langName(lang, lang)} · ${ctx.display(home)})`);
   return { home, lang, ...(agent ? { agent } : {}), permissions: level };
+}
+
+/**
+ * strom-research:// links: set up on the person's yes, the answer kept (a no is not asked again unasked:
+ * `ask` — the wizard, doctor --fix — asks all the same, suggesting what they said). Set up before by strom: set up
+ * again quietly.
+ */
+export async function offerLinks(ctx: Context, lang: string, opts: { ask?: boolean } = { ask: true }): Promise<void> {
+  if (linkHandlerState(ctx.env) === "ours") return;
+  const said = ctx.settings.config.links;
+  const made = linkFiles(ctx.env).length > 0;
+  if (!made) {
+    if (said === "no" && !opts.ask) return;
+    const yes = await ctx.confirm(ui(lang, "ui.setup.links"), said !== "no");
+    ctx.settings.reload();
+    ctx.settings.config.links = yes ? "yes" : "no";
+    ctx.settings.save();
+    if (!yes) return;
+  }
+  let done = false;
+  try {
+    done = registerLinks(ctx.env);
+  } catch {
+    done = false;
+  }
+  ctx.io.stdout(ui(lang, done ? "ui.setup.links.done" : "ui.link.on.failed") + "\n");
 }
 
 /**

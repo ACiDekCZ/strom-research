@@ -66,6 +66,14 @@ function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang
   );
 }
 
+/** The Strom app at this address: installed from a Chromium browser first, else in such a browser's tab (never Safari: it cannot reach the bridge). */
+export function openAppAt(ctx: Context, url: string): boolean {
+  const installed = installedStromApp(ctx.env, process.platform, stromAppUrl(ctx.settings));
+  const webApp = installed?.appId && installed.browser ? { browser: installed.browser, appId: installed.appId, ...(installed.profile ? { profile: installed.profile } : {}) } : undefined;
+  const browser = chromiumBrowser(ctx.env);
+  return Boolean((webApp && openWebApp(webApp, url, ctx.env)) || (browser && openInBrowser(browser, url, ctx.env)));
+}
+
 /**
  * The Strom app sends the tree itself: the bridge started, the app opened with ?send= (installed from a Chromium
  * browser first, else in such a browser's tab), and the tree waited for. The file it came as, or what to do instead.
@@ -75,13 +83,10 @@ async function fromApp(ctx: Context, root: string, lang: string): Promise<{ file
   const info = startLive(root, ctx.env, { current: true });
   if (!info) throw new StromError("the bridge did not start", { hint: "strom live serve shows why" });
   const url = sendAppUrl(info.url, ctx.settings);
-  const installed = installedStromApp(ctx.env, process.platform, stromAppUrl(ctx.settings));
-  const webApp = installed?.appId && installed.browser ? { browser: installed.browser, appId: installed.appId, ...(installed.profile ? { profile: installed.profile } : {}) } : undefined;
-  const browser = chromiumBrowser(ctx.env);
   const since = Date.now();
-  const opened = (webApp && openWebApp(webApp, url, ctx.env)) || (browser && openInBrowser(browser, url, ctx.env));
+  const opened = openAppAt(ctx, url);
   const minutes = Math.max(1, Math.round(Number(ctx.env.STROM_SYNC_WAIT_MS ?? 10 * 60_000) / 60_000));
-  ctx.io.stderr(`${opened ? ui(lang, "ui.sync.wait", { min: minutes }) : ui(lang, "ui.app.url", { url })}\n`);
+  ctx.io.stderr(`${opened ? `${ui(lang, "ui.sync.wait", { min: minutes })}\n${ui(lang, "ui.sync.wait.open", { url })}` : ui(lang, "ui.app.url", { url })}\n`);
   const until = since + Number(ctx.env.STROM_SYNC_WAIT_MS ?? 10 * 60_000);
   while (Date.now() < until) {
     const file = receivedSince(root, since);
@@ -92,6 +97,15 @@ async function fromApp(ctx: Context, root: string, lang: string): Promise<{ file
     await new Promise((r) => setTimeout(r, 500));
   }
   return { text: ui(lang, "ui.sync.waited", { min: minutes }) };
+}
+
+/** A family tree file without the images written into it (data: URLs): a GEDCOM's FILE with its CONC lines, a JSON's strings. */
+export function withoutImages(text: string): string {
+  const left = (bytes: number) => `[image left out, ${Math.round(bytes / 1024)} kB]`;
+  // GEDCOM: n FILE data:… and the n+1 CONC/CONT lines that go on with it
+  const ged = text.replace(/^(\d+) FILE data:[^\r\n]*(?:\r?\n(?:\d+) CON[CT] [^\r\n]*)*/gm, (m, level: string) => `${level} FILE ${left(m.length)}`);
+  // JSON: "data:image/…;base64,…"
+  return ged.replace(/"data:image\/[^"]*"/g, (m) => `"${left(m.length)}"`);
 }
 
 function numbers(v: unknown, max: number): Set<number> | undefined {
@@ -182,7 +196,9 @@ register(
         if (stored) {
           tree.remember(path.join(tree.root, stored));
           fs.mkdirSync(path.join(tree.root, "inputs"), { recursive: true });
-          fs.copyFileSync(file, path.join(tree.root, stored));
+          // kept as the document the source cites — without the images in it (the research's own excerpts, back from
+          // the app: megabytes in the history for nothing)
+          fs.writeFileSync(path.join(tree.root, stored), withoutImages(fs.readFileSync(file, "utf8")));
         }
         input = create<SyncInput>(
           tree,

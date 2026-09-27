@@ -17,6 +17,7 @@ import { isAgent } from "../core/which.ts";
 import { noticeStromApp } from "../core/stromapp.ts";
 import { isNewer } from "../core/update.ts";
 import { refreshGlobal } from "../agents/global.ts";
+import { linkFiles, linkHandlerState, registerLinks } from "../core/links.ts";
 import { clockLine } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
 import { checkArgs, GroupOnly, parseOptions, resolveCommand, splitPassthrough } from "./execute.ts";
@@ -135,6 +136,12 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     const last = ctx.settings.config.lastVersion;
     if (ctx.settings.home() && (!last || isNewer(VERSION, last))) {
       refreshGlobal(env);
+      // …and the links from the Strom app lead to this strom again (where strom made them)
+      try {
+        if (linkFiles(env).length && linkHandlerState(env) !== "ours") registerLinks(env);
+      } catch {
+        // strom doctor says so
+      }
       ctx.settings.config.lastVersion = VERSION;
       ctx.settings.save();
     }

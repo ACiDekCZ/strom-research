@@ -91,7 +91,7 @@ test("the Strom file carries the entries cut out of their scans by default; it s
   assert.equal(r.json.images.excerpts, 1);
   assert.deepEqual(r.json.images.unclipped, ["S0002"]);
   const ged = fs.readFileSync(file, "utf8");
-  assert.match(ged, /0 @S0001@ SOUR[\s\S]*?1 REFN S0001\n1 OBJE\n2 FORM jpg\n2 _STROM_KIND excerpt\n2 _URL https:\/\/archive\.example\.org\/book\/1\n2 FILE data:image\/jpeg;base64,/);
+  assert.match(ged, /0 @S0001@ SOUR[\s\S]*?1 REFN S0001\n1 OBJE\n2 FORM jpg\n2 _STROM_KIND excerpt\n2 _STROM_CLIP c[0-9a-f]{10}\n2 _URL https:\/\/archive\.example\.org\/book\/1\n2 FILE data:image\/jpeg;base64,/);
   assert.match(ged, /2 SOUR @S0001@\n3 QUAY \d\n3 DATA\n4 DATE 12 MAR 1865/, "when the entry was made");
   assert.deepEqual(validateGedcom(ged).filter((f) => f.level === "error"), []);
   // the excerpt: the clip with a margin, at most 1200 px on its long side
@@ -258,7 +258,7 @@ test("a document the user gave as a scan is its own excerpt, the whole image", o
   await w.ok(["event", "add", "P0001", "BIRT", "--date", "1901", "--cite", "S0001"]);
   const r = await w.ok(["export", "gedcom", "--images", "--json"]);
   const ged = fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
-  assert.match(ged, /0 @S0001@ SOUR\n(?:[^0].*\n)*1 OBJE\n2 FORM jpg\n2 _STROM_KIND excerpt\n2 FILE data:image\/jpeg;base64,/);
+  assert.match(ged, /0 @S0001@ SOUR\n(?:[^0].*\n)*1 OBJE\n2 FORM jpg\n2 _STROM_KIND excerpt\n2 _STROM_CLIP input\n2 FILE data:image\/jpeg;base64,/);
   assert.doesNotMatch(r.out, /no clip/);
   w.cleanup();
 });

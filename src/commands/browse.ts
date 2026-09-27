@@ -14,6 +14,8 @@ import { knownGenerations, ownerName, pedigree, personCard, recent, treeStats, t
 import type { Tree } from "../core/tree.ts";
 import type { Family, Person, RecordSet, Session, Source, Task } from "../core/model.ts";
 import { displayName } from "../core/people.ts";
+import { humanTask } from "../cli/human.ts";
+export { humanTask };
 import { lacksImages } from "../core/queue.ts";
 import { rankedQueue, waitingForUser } from "./tasks.ts";
 
@@ -69,20 +71,6 @@ function drawPedigree(root: PedigreeNode, lang: string): string[] {
   };
   walk(root, "");
   return out;
-}
-
-/** What the agent wrote into a task, for the user: the records it names by ID by their names ("S0001" → its title). */
-export function humanTask(tree: Tree, text: string, lang: string): string {
-  const name = (id: string): string => {
-    const r = tree.get<Person | Family | Source | RecordSet | Session>(id);
-    if (!r) return id;
-    if (r.type === "session") return ui(lang, "ui.plan.session", { day: humanDay(r.started, lang) });
-    if (r.type === "person") return `${displayName(r)} [${r.id}]`;
-    if (r.type === "family") return r.partners.map((x) => tree.get<Person>(x)).filter((x): x is Person => !!x).map(displayName).join(" & ") || id;
-    return r.title;
-  };
-  // A list of IDs as a list of names, each once (two sessions of one day read as one).
-  return text.replace(/\b[PFSBN]\d{4,}\b(?:, [PFSBN]\d{4,}\b)*/g, (ids) => [...new Set(ids.split(", ").map(name))].join(", "));
 }
 
 function more(n: number, lang: string): string | undefined {

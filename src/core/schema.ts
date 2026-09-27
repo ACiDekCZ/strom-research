@@ -125,6 +125,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
   },
   conflict: {
     title: S({ req: true, max: 200 }),
+    fact: S({ max: 8 }),
     subject: RS(ANY_SUBJECT, 1),
     claims: { t: "array", req: true, min: 2, of: { source: R("source"), value: S({ req: true, max: 500 }), note: S({ max: 500 }) } },
     state: S({ req: true, enum: ["open", "resolved"] }),

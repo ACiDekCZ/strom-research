@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import { register } from "../cli/registry.ts";
 import { lines } from "../cli/format.ts";
-import { setStory, findEventOwner } from "../core/actions.ts";
+import { approveStory, setStory, findEventOwner } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
 import { csvOpt, normId, textOpt } from "../core/records.ts";
 import { resolvePerson } from "../core/people.ts";
@@ -48,6 +48,23 @@ register(
       });
       const missing = rec.story!.facts.length === 0 ? "note: no --fact given — say which facts the story rests on" : undefined;
       return { text: lines(...tree.written.map((o) => o.summary), tree.dryRun ? "(dry run — nothing written)" : undefined, missing), data: { story: rec.story } };
+    },
+  },
+  {
+    path: ["story", "approve"],
+    summary: "The user approved the story as it is: no longer a draft",
+    group: "people",
+    tree: true,
+    writes: true,
+    description: "Only on the user's word (they read it and said it is right): the text stays, the draft becomes the story of the family book.",
+    args: [{ name: "who", description: "person (ID or name) or family (F…)", required: true }],
+    examples: ["strom story approve P0001"],
+    run(ctx, { args }) {
+      const tree = ctx.tree();
+      const id = owner(tree, args[0]!);
+      const was = tree.get<Person | Family>(id)?.story?.status;
+      const rec = approveStory(tree, id);
+      return { text: was === "final" ? `${id} story was approved already` : lines(...tree.written.map((o) => o.summary)), data: { story: rec.story } };
     },
   },
   {

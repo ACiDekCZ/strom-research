@@ -141,6 +141,15 @@ async function newResearch(ctx: Context, run: Run, lang: string, root: string): 
     if (sex === undefined) return;
     who = [`--new-person=${name}`, "--sex", ["M", "F", "U"][sex]!];
   }
+  await startDirection(ctx, run, lang, root, direction, who, name, question);
+}
+
+/**
+ * A new direction for someone chosen (the menu, a link of the Strom app): its title and what the person knows of
+ * it asked, the research made; the same research still going is only named.
+ */
+export async function startDirection(ctx: Context, run: Run, lang: string, root: string, direction: "ancestors" | "descendants" | "question", who: string[], name: string, question?: string): Promise<void> {
+  const t = translator(lang);
   // The same research again (this person, this direction, still going): said which one it is, nothing made.
   const focus = who[0] === "--person" ? who[1] : undefined;
   const same =
@@ -180,13 +189,7 @@ async function syncTree(ctx: Context, run: Run, lang: string, root: string): Pro
   if (!noApp(ctx) && appSendsChanges(ctx.settings)) {
     const from = await ctx.choose(t("ui.sync.from"), [{ label: t("ui.sync.from.app") }, { label: t("ui.sync.from.file") }], 0, { back: t("ui.browse.back") });
     if (from === undefined) return;
-    if (from === 0) {
-      const since = Date.now();
-      if ((await run(["sync", "--app"])) !== 0) return pause(ctx, lang);
-      file = receivedSince(root, since);
-      if (!file) return pause(ctx, lang);
-      return confirmSync(ctx, run, lang, root, file);
-    }
+    if (from === 0) return syncFromApp(ctx, run, lang, root);
   }
   for (;;) {
     if (outOfAnswers(ctx)) return;
@@ -210,8 +213,20 @@ async function syncTree(ctx: Context, run: Run, lang: string, root: string): Pro
   return confirmSync(ctx, run, lang, root, file, count);
 }
 
+/** The tree straight from the Strom app (the menu, or a strom-research://send link): shown, then written on the person's word. */
+export async function syncFromApp(ctx: Context, run: Run, lang: string, root: string, enter: "ui.enter" | "ui.enter.close" = "ui.enter", back?: () => void): Promise<void> {
+  const since = Date.now();
+  const code = await run(["sync", "--app"]);
+  // the person is in the app: what came of it is here (a terminal opened for a link brings itself forward)
+  back?.();
+  if (code !== 0) return pause(ctx, lang, enter);
+  const file = receivedSince(root, since);
+  if (!file) return pause(ctx, lang, enter);
+  return confirmSync(ctx, run, lang, root, file, undefined, enter);
+}
+
 /** What the tree brings is shown: written on the person's word — all, or the ones they pick. */
-async function confirmSync(ctx: Context, run: Run, lang: string, root: string, file: string, known?: number): Promise<void> {
+async function confirmSync(ctx: Context, run: Run, lang: string, root: string, file: string, known?: number, enter: "ui.enter" | "ui.enter.close" = "ui.enter"): Promise<void> {
   const t = translator(lang);
   let count = known ?? 0;
   if (known === undefined)
@@ -221,7 +236,7 @@ async function confirmSync(ctx: Context, run: Run, lang: string, root: string, f
     } catch {
       count = 0;
     }
-  if (!count) return pause(ctx, lang);
+  if (!count) return pause(ctx, lang, enter);
   const how = await ctx.choose(t("ui.sync.how"), [{ label: t("ui.sync.all") }, { label: t("ui.sync.some") }], 0, { back: t("ui.browse.back") });
   if (how === undefined) return;
   let only: string[] = [];
@@ -231,7 +246,7 @@ async function confirmSync(ctx: Context, run: Run, lang: string, root: string, f
     only = ["--only", picked.map((i) => i + 1).join(",")];
   }
   if ((await run(["sync", file, "--apply", ...only])) === 0 && !noApp(ctx)) ctx.io.stdout(t("ui.sync.app") + "\n");
-  await pause(ctx, lang);
+  await pause(ctx, lang, enter);
 }
 
 /** The people no record of their own proves: listed, then all of them a batch at a time, or the ones picked by number. */
@@ -302,10 +317,16 @@ async function reviewPerson(ctx: Context, run: Run, lang: string, root: string):
   const person = await pickPerson(ctx, lang, root, t("ui.review.who"));
   if (!person) return;
   const family = await ctx.confirm(t("ui.review.family"), false);
-  if ((await run(["review", person.id, ...(family ? ["--scope", "family"] : [])])) !== 0) return pause(ctx, lang);
+  await reviewOne(ctx, run, lang, root, person.id, family ? "family" : "person");
+  await pause(ctx, lang);
+}
+
+/** One person's review (the menu, a link of the Strom app), then the agent offered for its tasks — the person's choice, no suggested. */
+export async function reviewOne(ctx: Context, run: Run, lang: string, root: string, person: string, scope: "person" | "family" | "line"): Promise<void> {
+  const t = translator(lang);
+  if ((await run(["review", person, ...(scope !== "person" ? ["--scope", scope] : [])])) !== 0) return;
   const tree = Tree.open(root, ctx.env);
-  const research = tree.list<Research>("research").find((r) => r.direction === "person" && r.focus === person.id && r.review && !r.review.people);
+  const research = tree.list<Research>("research").find((r) => r.direction === "person" && r.focus === person && r.review && !r.review.people);
   const open = research ? tree.list<Task>("task").filter((x) => x.research === research.id && x.state === "open").length : 0;
   if (research && open && (await ctx.confirm(t("ui.review.run", { n: open }), false))) await run(["run", "--research", research.id, "--max", String(open)]);
-  await pause(ctx, lang);
 }

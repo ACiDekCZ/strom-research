@@ -79,6 +79,7 @@ async function seeded(): Promise<World> {
   await w.ok(["task", "add", "Kde je kniha oddaných", "--level", "locate", "--where", "archiv", "--why", "sňatek", "--done-when", "odkaz"]); // T0003
   await w.ok(["task", "wait", "T0003", "--on", "odkaz na knihu oddaných"]); // waits for the user
   await w.ok(["recordset", "add", "Týnec 18"]); // B0002
+  await w.ok(["story", "set", "P0001", "--text", "Jan byl mlynář v Týnci."]); // a draft, for the example of story approve
   await w.ok(["search", "add", "Křty Novák 1903–1907", "--recordset", "B0001", "--years", "1903-1907", "--method", "page-by-page", "--result", "negative"]); // Q0001
   return w;
 }

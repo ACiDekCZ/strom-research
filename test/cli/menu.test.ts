@@ -321,7 +321,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   const target = path.join(w.dir, "Nové místo");
   fs.mkdirSync(target);
   fs.writeFileSync(path.join(target, ".DS_Store"), "");
-  const r = await w.ok([], { tty: true, answers: ["7", "1", "", target, "", "0", "0", "0", "n", "0", "5", "1", "", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["7", "1", "", target, "", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
   assert.match(r.out, /✓ Výzkum je teď ve složce .*Nové místo\./);
   assert.match(r.out, /Novákovi – přehled výzkumu/, "the menu goes on, the tree opened where it is now");
   assert.doesNotMatch(r.out + r.err, /not a Strom tree|error:/);

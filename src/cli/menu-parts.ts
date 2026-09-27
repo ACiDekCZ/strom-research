@@ -26,8 +26,8 @@ export function outOfAnswers(ctx: Context): boolean {
 }
 
 /** "Press Enter to go back to the menu." — unless there is nobody to press it. */
-export async function pause(ctx: Context, lang: string): Promise<void> {
-  if (!outOfAnswers(ctx)) await ctx.ask(ui(lang, "ui.enter"));
+export async function pause(ctx: Context, lang: string, enter: "ui.enter" | "ui.enter.close" = "ui.enter"): Promise<void> {
+  if (!outOfAnswers(ctx)) await ctx.ask(ui(lang, enter));
 }
 
 /**

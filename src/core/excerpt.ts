@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Clip, ExcerptQuality, ExcerptScope, Family, Input, Media, Person, Region, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
-import { inputPath, sharperPart } from "./media.ts";
+import { clipText, inputPath, sharperPart } from "./media.ts";
 import { kinship } from "./kin.ts";
 import { Settings } from "./config.ts";
 import { crop, resize, toGrey, type RawImage } from "../image/image.ts";
@@ -46,7 +46,16 @@ export interface Excerpt {
   height: number;
   /** The page in the online archive. */
   url?: string | undefined;
+  /** Which of the source's excerpts it is (_STROM_CLIP): the Strom app asks for it again by it (a link, core/links.ts). */
+  clip?: string;
 }
+
+/** A clip's mark: from where it is (its image and region) — a clip made again is another excerpt; "input": a document the user gave. */
+export function clipMark(c: Clip): string {
+  return `c${crypto.createHash("sha256").update(clipText(c)).digest("hex").slice(0, 10)}`;
+}
+
+export const INPUT_MARK = "input";
 
 /** A clip with the margin an excerpt keeps round it. */
 export function withMargin(r: Region): Region {
@@ -92,7 +101,7 @@ export function renderClip(
   if (fs.existsSync(cache)) {
     const jpeg = fs.readFileSync(cache);
     const size = imageSize(jpeg);
-    if (size) return { media: m.id, from: src.id, jpeg, ...size, url };
+    if (size) return { media: m.id, from: src.id, jpeg, ...size, url, clip: clipMark(clip) };
   }
   if (cachedOnly) return LATER;
   const img = decodeImage(fs.readFileSync(file));
@@ -100,7 +109,7 @@ export function renderClip(
   const out = finish(crop(img, px.x, px.y, Math.max(1, Math.min(px.w, img.width - px.x)), Math.max(1, Math.min(px.h, img.height - px.y))), level);
   fs.mkdirSync(path.dirname(cache), { recursive: true });
   fs.writeFileSync(cache, out.jpeg);
-  return { media: m.id, from: src.id, ...out, url };
+  return { media: m.id, from: src.id, ...out, url, clip: clipMark(clip) };
 }
 
 /** The image of a document the user gave (an input), when it is one: JPEG or PNG on this computer. */
@@ -120,13 +129,13 @@ export function renderInput(tree: Tree, id: string, level: ExcerptLevel = LEVELS
   if (fs.existsSync(cache)) {
     const jpeg = fs.readFileSync(cache);
     const size = imageSize(jpeg);
-    if (size) return { media: found.input.id, from: found.input.id, jpeg, ...size };
+    if (size) return { media: found.input.id, from: found.input.id, jpeg, ...size, clip: INPUT_MARK };
   }
   if (cachedOnly) return LATER;
   const out = finish(decodeImage(fs.readFileSync(found.file)), level);
   fs.mkdirSync(path.dirname(cache), { recursive: true });
   fs.writeFileSync(cache, out.jpeg);
-  return { media: found.input.id, from: found.input.id, ...out };
+  return { media: found.input.id, from: found.input.id, ...out, clip: INPUT_MARK };
 }
 
 /** The same excerpt at a lower level, made from the excerpt itself (quick: no scan is opened again). */
@@ -266,4 +275,49 @@ export function planExcerpts(
 /** An excerpt as the Strom app takes it: a data URL. */
 export function dataUrl(e: Excerpt): string {
   return `data:image/jpeg;base64,${Buffer.from(e.jpeg).toString("base64")}`;
+}
+
+/** The margin round an excerpt opened in full: the lines round the entry stay in view. */
+const FULL_MARGIN = 0.1;
+
+/** An excerpt in full, for the user's own viewer: a file here, the page in the online archive, or why not. */
+export type FullExcerpt = { file: string } | { url: string } | { missing: "clip" | "scan" };
+
+/**
+ * One excerpt of a source (by its mark) as sharp as the research has it — the region with more round it, from the
+ * sharpest image of that place, not made smaller (a strom-research://excerpt link from the Strom app, which keeps
+ * them small). A document the user gave: the file itself. Made once, in .strom/excerpts.
+ */
+export function fullExcerpt(tree: Tree, shared: string, s: Source, mark: string): FullExcerpt {
+  if (mark === INPUT_MARK) {
+    const found = !s.clips?.length ? inputImage(tree, s.input) : undefined;
+    return found ? { file: found.file } : { missing: "clip" };
+  }
+  const clip = s.clips?.find((c) => clipMark(c) === mark);
+  if (!clip) return { missing: "clip" };
+  const all = tree.list<Media>("media");
+  const m = all.find((x) => x.id === clip.media);
+  if (!m) return { missing: "clip" };
+  const pad = FULL_MARGIN * Math.max(clip.region.w, clip.region.h);
+  const f = (n: number) => Math.min(1, Math.max(0, n));
+  const x = f(clip.region.x - pad);
+  const y = f(clip.region.y - pad);
+  const wanted = { x, y, w: f(clip.region.x + clip.region.w + pad) - x, h: f(clip.region.y + clip.region.h + pad) - y };
+  const sharper = sharperPart(all, m, wanted);
+  const src = sharper?.part ?? m;
+  const region = sharper?.crop ?? wanted;
+  const file = path.join(shared, src.file);
+  if (!fs.existsSync(file)) {
+    const url = m.url ?? src.url;
+    return url ? { url } : { missing: "scan" };
+  }
+  const key = crypto.createHash("sha256").update(JSON.stringify({ sha: src.sha, region, full: 1 })).digest("hex").slice(0, 16);
+  const cache = path.join(tree.root, ".strom", "excerpts", `full-${s.id}-${src.id}-${key}.jpg`);
+  if (fs.existsSync(cache)) return { file: cache };
+  const img = decodeImage(fs.readFileSync(file));
+  const px = { x: Math.round(region.x * img.width), y: Math.round(region.y * img.height), w: Math.round(region.w * img.width), h: Math.round(region.h * img.height) };
+  const cut = crop(img, px.x, px.y, Math.max(1, Math.min(px.w, img.width - px.x)), Math.max(1, Math.min(px.h, img.height - px.y)));
+  fs.mkdirSync(path.dirname(cache), { recursive: true });
+  fs.writeFileSync(cache, encodeImage(cut, "jpeg", 92));
+  return { file: cache };
 }

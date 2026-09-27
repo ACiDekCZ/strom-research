@@ -259,3 +259,44 @@ test("straight from the Strom app: it sends the tree to the bridge — only its 
     w.cleanup();
   }
 });
+
+test("a couple's second marriage the app folds into the first is not the user's edit; both taken away is said", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["lang", "cs"]);
+  await w.ok(["person", "add", "Antonín /Dvořák/", "--sex", "M"]);
+  await w.ok(["person", "add", "Božena /Nová/", "--sex", "F"]);
+  await w.ok(["family", "add", "--partner", "P1", "--partner", "P2"]);
+  await w.ok(["event", "add", "F1", "MARR", "--date", "9 MAY 1885"]);
+  await w.ok(["event", "add", "F1", "MARR", "--date", "19 MAY 1885", "--place", "Kněževes"]);
+  // another couple, its marriage kept by the user
+  await w.ok(["person", "add", "Jan /Dvořák/", "--sex", "M"]);
+  await w.ok(["person", "add", "Marie /Malá/", "--sex", "F"]);
+  await w.ok(["family", "add", "--partner", "P3", "--partner", "P4"]);
+  await w.ok(["event", "add", "F2", "MARR", "--date", "1910"]);
+  const ged = path.join(w.dir, "strom.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", ged]);
+  const t = fs.readFileSync(ged, "utf8");
+  assert.equal((t.match(/^1 MARR$/gm) ?? []).length, 3);
+  // the app keeps the first marriage of the union only
+  const first = t.replace(/(1 MARR\r?\n(?:[2-9].*\r?\n)*)1 MARR\r?\n(?:[2-9].*\r?\n)*/, "$1");
+  assert.equal((first.match(/^1 MARR$/gm) ?? []).length, 2);
+  fs.writeFileSync(path.join(w.dir, "z-aplikace.ged"), first);
+  const r = await w.ok(["sync", path.join(w.dir, "z-aplikace.ged"), "--json"]);
+  assert.deepEqual(r.json.changes, [], JSON.stringify(r.json.changes));
+  // the user took the first couple's marriage away (the app has none of it): said
+  const none = t.replace(/1 MARR\r?\n(?:[2-9].*\r?\n)*1 MARR\r?\n(?:[2-9].*\r?\n)*/, "");
+  assert.equal((none.match(/^1 MARR$/gm) ?? []).length, 1);
+  fs.writeFileSync(path.join(w.dir, "bez-snatku.ged"), none);
+  const gone = await w.ok(["sync", path.join(w.dir, "bez-snatku.ged"), "--json"]);
+  assert.deepEqual(gone.json.changes.map((c: { kind: string }) => c.kind), ["fact.gone", "fact.gone"]);
+  w.cleanup();
+});
+
+test("the tree kept as the sync's document leaves out the images written into it (the research's own excerpts)", async () => {
+  const { withoutImages } = await import("../../src/commands/sync.ts");
+  const ged = "0 @S1@ SOUR\n1 OBJE\n2 FORM jpg\n2 FILE data:image/jpeg;base64,AAAA\n3 CONC BBBB\n3 CONC CCCC\n2 _URL https://archiv.example.org/1\n1 NOTE Přepis\n2 CONC dál\n";
+  assert.equal(withoutImages(ged), "0 @S1@ SOUR\n1 OBJE\n2 FORM jpg\n2 FILE [image left out, 0 kB]\n2 _URL https://archiv.example.org/1\n1 NOTE Přepis\n2 CONC dál\n");
+  assert.equal(withoutImages('{"excerpts":[{"dataUrl":"data:image/png;base64,QUJD","caption":"Křest"}]}'), '{"excerpts":[{"dataUrl":"[image left out, 0 kB]","caption":"Křest"}]}');
+  assert.equal(withoutImages("1 FILE https://example.org/a.jpg\n"), "1 FILE https://example.org/a.jpg\n", "a file named by address stays");
+});

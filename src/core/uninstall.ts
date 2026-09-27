@@ -14,13 +14,14 @@ import { shortcutCmdDir } from "./shortcut.ts";
 import { globalTargets, isInstalled, uninstallGlobal } from "../agents/global.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { installation, type Installation } from "./self.ts";
+import { linkFiles, unregisterLinks } from "./links.ts";
 
 /** The mark the installer (install/install.sh) puts on the PATH line it adds. */
 const MARK = "# strom research";
 
 export interface Removal {
   /** What it is: what an agent was taught, the shortcut, strom's own git, a PATH entry, the program. */
-  kind: "agent" | "shortcut" | "git" | "path" | "program";
+  kind: "agent" | "shortcut" | "links" | "git" | "path" | "program";
   /** The agent's name (kind agent). */
   agent?: string;
   path: string;
@@ -123,6 +124,7 @@ export function uninstallPlan(env: Env, names: string[], opts: { platform?: Node
   for (const t of globalTargets(env).filter((t) => isInstalled(t)))
     remove.push({ kind: "agent", agent: PROFILES[t.agent]?.name ?? t.agent, path: t.file, remove: () => uninstallGlobal(t) });
   for (const f of shortcuts(env, platform, names)) remove.push({ kind: "shortcut", path: f, remove: () => (fs.rmSync(f, { force: true }), true) });
+  for (const f of linkFiles(env, platform)) remove.push({ kind: "links", path: f, remove: () => unregisterLinks(env, platform) });
   const inst = opts.install ?? installation();
   const git = ownGitDir(env);
   // strom's own git lives in the installation's folder on Windows; alone, it goes by itself.

@@ -63,6 +63,8 @@ export interface UserConfig {
   agentRemote?: string;
   /** The Strom app on this computer: the user said so ("yes") or does not want to hear of it ("no"). */
   stromApp?: string;
+  /** strom-research:// links from the Strom app: the person said yes (set up) or no (never asked again; strom link on changes it). */
+  links?: "yes" | "no";
   /** Another copy of the Strom app to open (its beta, its development) instead of https://stromapp.info/run/. */
   stromAppUrl?: string;
   /** Look for new versions of strom: check (default, at most once a day) or off. */

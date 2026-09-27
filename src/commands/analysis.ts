@@ -311,9 +311,10 @@ register(
     options: [
       { name: "about", type: "string", multiple: true, value: "<who>", description: "person/record concerned (repeatable)" },
       { name: "claim", type: "string", multiple: true, value: "<S…: value>", description: 'a claim, e.g. "S0027: aged 27 at marriage 1839" (repeat for each)' },
+      { name: "fact", type: "string", value: "<TAG>", description: "the fact it is about, by its GEDCOM tag: BIRT, DEAT, BAPM, BURI, MARR, NAME, SEX… (the Strom app shows it there)" },
       { name: "note", type: "string", value: "<text>", description: "short note" },
     ],
-    examples: ['strom conflict add "Rok narození Josefa" --about P0002 --claim "S0001: 27 let při sňatku 1839" --claim "S0002: 70 let při úmrtí 1883"'],
+    examples: ['strom conflict add "Rok narození Josefa" --about P0002 --fact BIRT --claim "S0001: 27 let při sňatku 1839" --claim "S0002: 70 let při úmrtí 1883"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const claims = listOpt(opts.claim).map((c) => {
@@ -324,7 +325,9 @@ register(
       if (claims.length < 2) throw new UsageError("a conflict needs at least two --claim", { hint: '--claim "S0027: 27 years" --claim "S0031: 70 years"' });
       const subject = anyRefs(tree, listOpt(opts.about));
       if (!subject.length) throw new UsageError("--about is required");
-      const x = create<Conflict>(tree, "conflict", { title: args[0]!.trim(), subject, claims, state: "open", note: opts.note as string | undefined }, (id) => `+${id} conflict "${truncate(args[0]!, 60)}"`, subject);
+      const fact = typeof opts.fact === "string" ? opts.fact.trim().toUpperCase() : undefined;
+      if (fact !== undefined && !/^(?:[A-Z]{3,4}|_[A-Z]{2,6})$/.test(fact)) throw new UsageError(`--fact is a GEDCOM tag (BIRT, DEAT, NAME, SEX…), not "${opts.fact}"`);
+      const x = create<Conflict>(tree, "conflict", { title: args[0]!.trim(), ...(fact ? { fact } : {}), subject, claims, state: "open", note: opts.note as string | undefined }, (id) => `+${id} conflict "${truncate(args[0]!, 60)}"`, subject);
       return { text: written(tree), data: { conflict: x } };
     },
   },

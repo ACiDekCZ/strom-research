@@ -27,7 +27,7 @@
 
 import { GedWriter } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
-import type { ChildRelation, Citation, Event, Family, Name, Participant, Person, Place, RecordSet, Repository, Source, Story } from "../core/model.ts";
+import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
 import { birthEvent, displayName, formatName, gedcomName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { dateYears } from "../core/gdate.ts";
@@ -74,6 +74,16 @@ export interface ExportOptions {
   head?: string;
   /** In memory only (strom sync), never in a file: each fact's ID under it (2 _EID E0001). */
   ids?: boolean;
+  /** The Strom profile, for an app that opens strom-research:// links (appOpensLinks): each excerpt's mark (2 _STROM_CLIP). */
+  clips?: boolean;
+  /** …and the links this computer takes (1 _STROM_LINKS send excerpt) — only in the GEDCOM the bridge serves, never in a file. */
+  links?: string[];
+  /**
+   * The Strom profile, for an app that shows what the research knows of a person (appOpensLinks): its open and
+   * decided conflicts, open hypotheses, what was searched for them (_STROM_CONFLICT, _STROM_HYPO, _STROM_SEARCHED)
+   * and as of when (1 _STROM_ASOF). The app never sends them back: the research is where they live.
+   */
+  research?: boolean;
 }
 
 export interface ExportResult {
@@ -152,6 +162,19 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   const coords = new Map<string, { lat: number; lon: number }>();
   for (const pl of tree.list<Place>("place")) if (pl.coords) for (const n of pl.names) coords.set(foldText(n.name), pl.coords);
 
+  // What the research knows beyond the facts (the Strom profile, opts.research): read once.
+  const research = {
+    conflicts: opts.research ? tree.list<Conflict>("conflict") : [],
+    hypotheses: opts.research ? tree.list<Hypothesis>("hypothesis").filter((h) => h.state === "open") : [],
+    // a search is of the people of the task it served
+    searched: opts.research
+      ? tree
+          .list<Search>("search")
+          .map((q) => ({ search: q, people: (q.task ? tree.get<Task>(q.task)?.subject : undefined) ?? [] }))
+          .filter((x) => x.people.length)
+      : [],
+  };
+
   // ── header ──
   w.line(0, "HEAD");
   w.line(1, "SOUR", "STROM_RESEARCH");
@@ -164,6 +187,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     // …and of which state of it: a tree coming back is compared with what it was given (strom sync)
     const head = opts.head ?? git.head(tree.root);
     if (head) w.line(1, "_STROM_HEAD", head);
+    if (opts.links?.length) w.line(1, "_STROM_LINKS", opts.links.join(" "));
+    if (opts.research) w.line(1, "_STROM_ASOF", new Date().toISOString().slice(0, 10));
   }
   w.line(1, "SUBM", "@U1@");
   w.line(1, "GEDC");
@@ -208,6 +233,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const n of p.notes) w.text(1, "NOTE", n.text);
     for (const d of [...nameQuotes, ...deferred]) w.text(1, "NOTE", d);
     story(p.story);
+    if (opts.research && opts.for === "strom") known(p);
     for (const link of famc.get(p.id) ?? []) {
       w.line(1, "FAMC", x(link.fam));
       if (link.relation === "adopted" || link.relation === "foster") w.line(2, "PEDI", link.relation);
@@ -302,6 +328,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       w.line(1, "OBJE");
       w.line(2, "FORM", "jpg");
       w.line(2, "_STROM_KIND", "excerpt");
+      if (opts.clips && e.clip) w.line(2, "_STROM_CLIP", e.clip);
       if (e.url) w.text(2, "_URL", e.url);
       w.wrapped(2, "FILE", dataUrl(e));
     }
@@ -399,6 +426,39 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
    * The story of a person or a couple: _STORY as Strom reads it (the facts it
    * rests on as DATA lines, the caveat as NOTE); a note in strict GEDCOM.
    */
+  /** What the research knows of a person beyond the facts: its conflicts, open hypotheses, what was searched for them. */
+  function known(p: Person): void {
+    const about = (subject: string[]) => subject.includes(p.id) || subject.some((id) => families.some((f) => f.id === id && f.partners.includes(p.id)));
+    for (const c of research.conflicts.filter((x) => about(x.subject))) {
+      w.line(1, "_STROM_CONFLICT", c.id);
+      // the fact it is about: its tag, else a conflict of the research named by its title
+      w.line(2, "TYPE", c.fact ?? "EVEN");
+      w.text(2, "TITL", c.title);
+      w.line(2, "STAT", c.state === "resolved" ? "decided" : "open");
+      for (const claim of c.claims) {
+        w.text(2, "VAL", claim.value);
+        if (claim.source && sourceById.has(claim.source)) {
+          citedSources.add(claim.source);
+          w.line(3, "SOUR", x(claim.source));
+        }
+      }
+      if (c.state === "resolved" && c.resolution) w.text(2, "DECI", c.resolution);
+    }
+    for (const h of research.hypotheses.filter((x) => about(x.subject))) {
+      w.line(1, "_STROM_HYPO");
+      w.text(2, "TITL", h.question);
+      w.text(2, "NOTE", h.variants.map((v) => `${v.label}: ${v.claim}`).join("\n"));
+    }
+    for (const q of research.searched.filter((x) => x.people.includes(p.id)).map((x) => x.search)) {
+      w.line(1, "_STROM_SEARCHED");
+      w.text(2, "TITL", q.question);
+      const years = /^(\d{3,4})(?:\s*[-–]\s*(\d{3,4}))?$/.exec(q.scope.years ?? "");
+      if (years) w.line(2, "DATE", years[2] && years[2] !== years[1] ? `FROM ${years[1]} TO ${years[2]}` : years[1]!);
+      w.line(2, "RESN", q.result === "found" ? "found" : "none");
+      w.line(2, "_AT", q.created.slice(0, 10));
+    }
+  }
+
   function story(st: Story | undefined): void {
     if (!st) return;
     if (strict) {

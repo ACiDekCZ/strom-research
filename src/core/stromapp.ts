@@ -50,9 +50,32 @@ export function appSendsChanges(settings: Settings): boolean {
   return APP_SENDS_CHANGES !== undefined || stromAppUrl(settings) !== STROM_APP_URL;
 }
 
+/**
+ * The Strom app opens strom-research:// links (the app's spec docs/ZADANI_VYZKUM_ODKAZY_Z_APLIKACE.md): it reads
+ * each excerpt's mark (_STROM_CLIP) and the links a research offers (_STROM_LINKS in the GEDCOM the bridge serves).
+ * The first version of stromapp.info that does (3.4.0, 2026-09-27); another copy of the app (its beta, its
+ * development: strom.app.url) is taken as current. An app of a known version (strom.version) goes by it.
+ */
+export const APP_OPENS_LINKS: string | undefined = "3.4.0";
+
+export function appOpensLinks(settings: Settings, version?: string): boolean {
+  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (!APP_OPENS_LINKS) return false;
+  if (!version) return true;
+  const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const [a, b] = [n(version), n(APP_OPENS_LINKS)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */
 export function sendAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;
+}
+
+/** The address that opens the Strom app to hand one of its trees to a new research (strom-research://new). */
+export function adoptAppUrl(bridge: string, settings: Settings): string {
+  return `${stromAppUrl(settings)}?adopt=${encodeURIComponent(bridge)}`;
 }
 
 /** The address that opens the Strom app following a research through its bridge. */

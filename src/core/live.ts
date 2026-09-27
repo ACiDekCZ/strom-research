@@ -27,15 +27,21 @@ import type { Env } from "./paths.ts";
 import { Tree, VERSION } from "./tree.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { excerptSettings, planExcerpts } from "./excerpt.ts";
-import { noteNothingSent, receiveTree, SYNC_MAX_BYTES } from "./sync.ts";
+import { noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receiveTree, SYNC_MAX_BYTES } from "./sync.ts";
 import { ui } from "../cli/ui.ts";
 
 /** New images for the app, made for at most so long when the tree changed (the rest the next time). */
 const LIVE_IMAGES_MS = 20_000;
 import { liveWorkers } from "./workers.ts";
-import { openSessions } from "./session.ts";
+import { monthSpend, openSessions } from "./session.ts";
+import { rankTasks } from "./queue.ts";
+import { humanTask } from "../cli/human.ts";
+import { knownNewerVersion } from "./update.ts";
+import type { SyncInput } from "./sync.ts";
 import { gitProgram } from "./git.ts";
-import { isStromAppOrigin } from "./stromapp.ts";
+import { appOpensLinks, isStromAppOrigin } from "./stromapp.ts";
+import { Settings } from "./config.ts";
+import { linkActions, linkHandlerState } from "./links.ts";
 import { stromLauncher } from "./self.ts";
 import type { Research, Task } from "./model.ts";
 
@@ -143,10 +149,47 @@ function working(root: string, tree: Tree): { who: string; since: string; sessio
   });
 }
 
+/** How long what the system says of the links is taken as true (asking it costs a program started). */
+const LINKS_FRESH_MS = 60_000;
+let linksSeen: { at: number; actions: string[] } | undefined;
+
+/** The strom-research:// links this computer takes: said to the app only while the scheme leads to this strom. */
+function links(env: Env): string[] {
+  if (!linksSeen || Date.now() - linksSeen.at > LINKS_FRESH_MS) linksSeen = { at: Date.now(), actions: linkActions(linkHandlerState(env)) };
+  return linksSeen.actions;
+}
+
+/** At most so many tasks of the queue the app is told (the rest counted): what comes next, then what was put aside. */
+const QUEUE_NEXT = 14;
+const QUEUE_PARKED = 6;
+
+/** The agent's queue in its order, for the user (records by their names), and how many more there are. */
+function queue(tree: Tree, settings: Settings): { queue: { id: string; text: string; state: "next" | "parked" }[]; queueMore: number } {
+  const lang = tree.lang;
+  const next = rankTasks(tree, tree.list<Task>("task"), settings.strategy(tree.config)).map((r) => r.task);
+  const parked = tree.list<Task>("task").filter((t) => t.state === "parked");
+  const item = (state: "next" | "parked") => (t: Task) => ({ id: t.id, text: humanTask(tree, t.what, lang), state });
+  const shown = [...next.slice(0, QUEUE_NEXT).map(item("next")), ...parked.slice(0, QUEUE_PARKED).map(item("parked"))];
+  return { queue: shown, queueMore: next.length + parked.length - shown.length };
+}
+
+/** The last tree the Strom app sent (through the bridge) that the research took and has not taken back. */
+function lastIntake(tree: Tree): { id: string; at: string } | undefined {
+  const last = tree
+    .list<SyncInput>("input")
+    .filter((i) => i.sync && !i.sync.undone && i.sync.applied.length && i.name.startsWith("strom-app-"))
+    .sort((a, b) => a.created.localeCompare(b.created))
+    .pop();
+  return last ? { id: last.id, at: last.created } : undefined;
+}
+
 /** What the app shows beside the tree. */
 function status(root: string, env: Env): Record<string, unknown> {
   const tree = Tree.open(root, env);
+  const settings = new Settings(env, {});
   const waiting = tree.list<Task>("task").filter((t) => t.state === "waiting");
+  const newer = knownNewerVersion(settings, env);
+  const intake = lastIntake(tree);
   return {
     strom: VERSION,
     tree: { id: tree.config.id, name: tree.config.name, lang: tree.lang },
@@ -156,7 +199,13 @@ function status(root: string, env: Env): Record<string, unknown> {
     researches: tree.list<Research>("research").map((r) => ({ id: r.id, name: r.name, state: r.state })),
     working: working(root, tree),
     open: openSessions(tree).map((s) => ({ id: s.id, task: s.task, started: s.started })),
-    waiting: waiting.map((t) => ({ id: t.id, what: t.what, on: t.waitingOn ?? "" })),
+    // since when it waits: its last change is the one that made it wait
+    waiting: waiting.map((t) => ({ id: t.id, what: t.what, on: t.waitingOn ?? "", at: t.updated })),
+    links: links(env),
+    ...queue(tree, settings),
+    ...(newer ? { update: { version: newer } } : {}),
+    spend: { ...monthSpend(tree, new Date().toISOString().slice(0, 7)), currency: "USD" },
+    ...(intake ? { lastIntake: intake } : {}),
   };
 }
 
@@ -167,7 +216,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
   const pollMs = Number(env.STROM_LIVE_POLL_MS ?? 2000);
   const streams = new Set<http.ServerResponse>();
   let last = Date.now();
-  let ged: { head: string; text: string } | undefined;
+  let ged: { head: string; links: string; text: string } | undefined;
 
   const server = http.createServer((req, res) => {
     last = Date.now();
@@ -194,21 +243,38 @@ export function serveLive(root: string, env: Env): Promise<void> {
       nothing(req, res, origin);
       return;
     }
+    if (req.method === "POST" && t === token && what === "adopt") {
+      receive(req, res, origin, "adopt");
+      return;
+    }
     if (req.method !== "GET" || t !== token) {
       res.writeHead(404).end();
       return;
     }
     try {
-      if (what === "status") {
+      if (what === "adopt") {
+        // the new research started from the app's link: which tree of the app it waits for (its mark), its name
+        const mark = pendingAdoption(root);
+        const tree = Tree.open(root, env);
+        const body = mark ? { token: mark, name: tree.config.name, tree: tree.config.id } : { error: "this research waits for no tree" };
+        res.writeHead(mark ? 200 : 404, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+      } else if (what === "status") {
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(status(root, env)));
       } else if (what === "tree.ged" || what === "images.ged") {
         const h = head(root);
-        if (!ged || ged.head !== h) {
+        if (!ged || ged.head !== h || ged.links !== (appOpensLinks(new Settings(env, {})) ? links(env).join(" ") : "")) {
           const tree = Tree.open(root, env);
           // the images from the cache; new ones made for a while at most (the rest the next time the tree changes)
           const set = excerptSettings(tree);
           const images = set ? planExcerpts(tree, set.shared, { quality: set.quality, for: set.for, maxBytes: set.mb * 1024 * 1024, budgetMs: LIVE_IMAGES_MS }) : undefined;
-          ged = { head: h, text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}) }).text };
+          // an app that opens strom-research:// links: each excerpt's mark, and the links this computer takes
+          const opens = appOpensLinks(new Settings(env, {}));
+          const offered = opens ? links(env) : [];
+          ged = {
+            head: h,
+            links: offered.join(" "),
+            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(offered.length ? { links: offered } : {}) }).text,
+          };
         }
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);
       } else if (what === "events") {
@@ -223,7 +289,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
   });
 
   /** The user's tree from the app: only from its pages, only so large; the answer in the research's language. */
-  const receive = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined) => {
+  const receive = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, as: "sync" | "adopt" = "sync") => {
     const reply = (code: number, body: Record<string, unknown>) =>
       res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
     const lang = () => {
@@ -251,10 +317,19 @@ export function serveLive(root: string, env: Env): Promise<void> {
         return;
       }
       try {
-        const got = receiveTree(root, env, Buffer.concat(chunks).toString("utf8"));
+        const text = Buffer.concat(chunks).toString("utf8");
+        if (as === "adopt") {
+          // kept for the research in the terminal to take in; the app links its tree to this research
+          receiveAdopted(root, text);
+          reply(200, { tree: Tree.open(root, env).config.id, head: head(root) ?? "" });
+          return;
+        }
+        const got = receiveTree(root, env, text);
         reply(200, { ok: true, changes: got.changes, file: path.basename(got.file) });
       } catch (e) {
         const m = (e as Error).message;
+        // the new research in the terminal waits for it: told, it stops waiting
+        if (as === "adopt" && pendingAdoption(root)) noteAdoptFailed(root, /empty|no people/.test(m) ? "empty" : "other");
         const key = /another research/.test(m) ? "ui.sync.bridge.other" : /does not look like/.test(m) ? "ui.sync.bridge.foreign" : /empty|no people|not a GEDCOM/.test(m) ? "ui.sync.bridge.empty" : undefined;
         reply(400, { error: key ? ui(lang(), key) : m });
       }
