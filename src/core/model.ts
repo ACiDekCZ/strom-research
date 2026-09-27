@@ -186,8 +186,13 @@ export interface Research extends BaseRecord {
   state: ResearchState;
   priority: number;
   limits?: { generations?: number; before?: number };
-  /** A person research that reviews what is recorded (strom review): whom, and a second reading by this model. */
-  review?: { scope: (typeof REVIEW_SCOPES)[number]; reread?: string };
+  /**
+   * A person research that reviews what is recorded (strom review): whom, and a second reading by this model.
+   * `people`: a review of several people (strom review P… P…), the focus the first of them (what an older strom,
+   * which knows no `people`, reviews); `unproven`: they are the people no record of their own proves (strom
+   * review --unproven), a batch at a time, each until a record proves them.
+   */
+  review?: { scope: (typeof REVIEW_SCOPES)[number]; reread?: string; people?: string[]; unproven?: boolean };
   question?: string;
   parent?: string;
   notes: Note[];

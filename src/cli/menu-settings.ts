@@ -8,7 +8,9 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import type { UIKey } from "./ui.ts";
 import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
-import { Tree } from "../core/tree.ts";
+import { Tree, VERSION } from "../core/tree.ts";
+import { replacedOnDisk } from "../core/self.ts";
+import { shortcutName } from "./wizard.ts";
 import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
 import { askGate, ensureGatesDir, listGates, loadGate } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
@@ -18,9 +20,9 @@ import { PROFILES } from "../agents/profiles.ts";
 import { loadLogins } from "../core/logins.ts";
 import { claudeRemoteAtStartup } from "../agents/global.ts";
 
-export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<void> {
+export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
-  await subMenu(ctx, lang, () => {
+  return subMenu(ctx, lang, () => {
     ctx.settings.reload();
     const shared = ctx.settings.shared()?.value;
     const tree = root ? Tree.open(root, ctx.env).config : undefined;
@@ -64,7 +66,18 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
         },
       });
     }
-    if (newer) items.push({ key: "7", label: t("ui.menu.update", { version: newer }), act: async () => void (await run(["update"])) });
+    if (newer)
+      items.push({
+        key: "7",
+        label: t("ui.menu.update", { version: newer }),
+        act: async () => {
+          if ((await run(["update"])) !== 0) return;
+          // this menu is still the old strom: the new one starts with the next strom
+          if (!replacedOnDisk(VERSION)) return;
+          ctx.io.stdout(t("ui.update.restart", { shortcut: shortcutName(lang) }) + "\n");
+          return "quit";
+        },
+      });
     return { title: t("ui.settings.title"), items };
   });
 }

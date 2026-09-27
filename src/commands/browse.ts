@@ -20,8 +20,9 @@ import { rankedQueue, waitingForUser } from "./tasks.ts";
 /** Most rows a section of `recent` lists; the rest is counted. */
 const RECENT_ROWS = 15;
 
+/** A person as the user reads them, with the ID to name them by later ("strom review P0012", the agent). */
 function whoText(w: Who): string {
-  return w.years ? `${w.name} (${w.years})` : w.name;
+  return `${w.years ? `${w.name} (${w.years})` : w.name} [${w.id}]`;
 }
 
 /** The person asked for, else the main person of the tree. */
@@ -76,7 +77,7 @@ export function humanTask(tree: Tree, text: string, lang: string): string {
     const r = tree.get<Person | Family | Source | RecordSet | Session>(id);
     if (!r) return id;
     if (r.type === "session") return ui(lang, "ui.plan.session", { day: humanDay(r.started, lang) });
-    if (r.type === "person") return displayName(r);
+    if (r.type === "person") return `${displayName(r)} [${r.id}]`;
     if (r.type === "family") return r.partners.map((x) => tree.get<Person>(x)).filter((x): x is Person => !!x).map(displayName).join(" & ") || id;
     return r.title;
   };
@@ -196,7 +197,7 @@ register(
         `  ${t.state === "doing" ? ui(lang, "ui.plan.now") : `${++n}.`}`,
         `${truncate(humanTask(tree, t.what, lang), 110)}${lacksImages(tree, t) ? ui(lang, "ui.plan.images") : ""}`,
       ]);
-      const storyNames = [...new Set(stories.map((t) => tree.get<Person>(t.subject[0] ?? "")).filter((p): p is Person => !!p).map(displayName))];
+      const storyNames = [...new Set(stories.map((t) => tree.get<Person>(t.subject[0] ?? "")).filter((p): p is Person => !!p).map((p) => `${displayName(p)} [${p.id}]`))];
       const out: (string | undefined)[] = [ui(lang, "ui.plan.title", { name: tree.config.name })];
       if (!queue.length) out.push(`  ${ui(lang, "ui.plan.none")}`);
       else {

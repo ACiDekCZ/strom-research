@@ -112,7 +112,7 @@ export function taskRecordsets(tree: Tree, task: Task): { sets: RecordSet[]; gue
  * 25 years before their marriage, else about 28 before their eldest known child —
  * where that happened. An estimate widens the years a search has to cover.
  */
-function birthEstimate(tree: Tree, p: Person, lang: string): { year?: number; place?: string; from?: string } {
+export function birthEstimate(tree: Tree, p: Person, lang: string): { year?: number; place?: string; from?: string } {
   const own = birthEvent(p);
   const ownYear = own?.date ? dateYears(own.date)[0] : undefined;
   if (ownYear && own?.place) return { year: ownYear, place: own.place };
@@ -140,6 +140,17 @@ function birthEstimate(tree: Tree, p: Person, lang: string): { year?: number; pl
 export function researchPeople(tree: Tree, research: Research): Map<string, number> {
   if (research.direction === "ancestors") return ancestorGenerations(tree, research.focus, research.limits?.generations ?? 50);
   if (research.direction !== "person") return new Map();
+  // a review of several people; of the people without a record of their own: each until one proves them
+  if (research.review?.people) {
+    const unproven = !!research.review.unproven;
+    const proven = (p: Person) => p.events.some((e) => !e.retracted && (e.status === "proven" || e.status === "probable"));
+    return new Map(
+      research.review.people
+        .map((id) => tree.get<Person>(id))
+        .filter((p): p is Person => p?.type === "person" && !p.retracted && !(unproven && proven(p)))
+        .map((p) => [p.id, 1]),
+    );
+  }
   const scope = research.review?.scope ?? "person";
   if (scope === "line") return ancestorGenerations(tree, research.focus, research.limits?.generations ?? 50);
   // generation 1 as in a line of ancestors; the children of a family are generation 0

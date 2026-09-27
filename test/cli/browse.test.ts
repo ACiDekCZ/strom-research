@@ -48,7 +48,7 @@ test("the research at a glance, the ancestors of one person, one person's card",
   assert.match(stats, /^Novákovi – přehled výzkumu/);
   assert.match(stats, /Osoby: 4 · rodiny: 2 · záznamy z pramenů: 1/);
   assert.match(stats, /Údaje: doložené 3 · pravděpodobné 1 · možné 0 · jen stopy 1/);
-  assert.match(stats, /Předkové – Jan Novák \(\*1905\):\n {2}rodiče +známých 2 z 2 · narození doloženo: 0\n {2}prarodiče +známých 1 z 4 · narození doloženo: 0/);
+  assert.match(stats, /Předkové – Jan Novák \(\*1905\) \[P0001\]:\n {2}rodiče +známých 2 z 2 · narození doloženo: 0\n {2}prarodiče +známých 1 z 4 · narození doloženo: 0/);
   const json = (await w.ok(["stats", "--json"])).json;
   assert.deepEqual(json.generations.map((g: { known: number }) => g.known), [2, 1]);
   assert.equal(json.from.id, "P0001");
@@ -56,18 +56,18 @@ test("the research at a glance, the ancestors of one person, one person's card",
   const ped = (await w.ok(["pedigree"])).out;
   assert.equal(
     ped.split("\n").slice(0, 6).join("\n"),
-    ["Jan Novák (*1905) ✓", "├─ Josef Novák", "│  ├─ Václav Novák", "│  │  └─ ? rodiče zatím neznámí", "│  └─ ? matka zatím neznámá", "└─ Marie Dvořáková (*<1885)"].join("\n"),
+    ["Jan Novák (*1905) [P0001] ✓", "├─ Josef Novák [P0002]", "│  ├─ Václav Novák [P0004]", "│  │  └─ ? rodiče zatím neznámí", "│  └─ ? matka zatím neznámá", "└─ Marie Dvořáková (*<1885) [P0003]"].join("\n"),
   );
   assert.match(ped, /U každého nejdřív otec, pak matka · ✓ narození doloženo záznamem/);
   assert.match((await w.ok(["pedigree", "Jan Novák", "--generations", "2"])).out, /Známí předkové sahají až do 3\. generace: strom pedigree P0001 --generations 3/);
   assert.notEqual((await w.run(["pedigree", "--generations", "0"])).code, 0);
 
   const jan = (await w.ok(["person", "card", "jan novak"])).out;
-  assert.match(jan, /^Jan Novák \(\*1905\)\n {2}narození +25\. 6\. 1905 · doloženo — Křest Jana Nováka 1905\n {2}křest +26\. 6\. 1905, Týnec nad Labem č\. 12 · doloženo/);
-  assert.match(jan, /Rodiče: Josef Novák, Marie Dvořáková \(\*<1885\)/);
+  assert.match(jan, /^Jan Novák \(\*1905\) \[P0001\]\n {2}narození +25\. 6\. 1905 · doloženo — Křest Jana Nováka 1905\n {2}křest +26\. 6\. 1905, Týnec nad Labem č\. 12 · doloženo/);
+  assert.match(jan, /Rodiče: Josef Novák \[P0002\], Marie Dvořáková \(\*<1885\) \[P0003\]/);
   const josef = (await w.ok(["person", "card", "P0002"])).out;
   assert.match(josef, /povolání +mlynář, 1905 · doloženo/);
-  assert.match(josef, /Rodiče: Václav Novák\nManželka: Marie Dvořáková \(\*<1885\)\n {2}sňatek +mezi 1900 a 1904 · pravděpodobné — Křest Jana Nováka 1905\n {2}Děti: Jan Novák \(\*1905\)/);
+  assert.match(josef, /Rodiče: Václav Novák \[P0004\]\nManželka: Marie Dvořáková \(\*<1885\) \[P0003\]\n {2}sňatek +mezi 1900 a 1904 · pravděpodobné — Křest Jana Nováka 1905\n {2}Děti: Jan Novák \(\*1905\) \[P0001\]/);
   // The same in English, when the research is.
   const en = (await w.ok(["person", "card", "P0001", "--lang", "en"])).out;
   assert.match(en, /birth +25 Jun 1905 · proven/);
@@ -85,7 +85,7 @@ test("what came in lately: new people, facts added or refined, what the agent di
   const r = (await w.ok(["recent"])).out;
   assert.match(r, /^Co přibylo od \d{1,2}\. \d{1,2}\./);
   assert.match(r, /Nové osoby: 5 · údaje: nové \d+, upřesněné 0/);
-  assert.match(r, /Noví lidé:\n(.*\n)* {2}Иван Петров \(\*1901\)/);
+  assert.match(r, /Noví lidé:\n(.*\n)* {2}Иван Петров \(\*1901\) \[P0005\]/);
   assert.match(r, /Jan Novák – narození: 25\. 6\. 1905 · doloženo/);
   assert.match(r, /Novák & Marie Dvořáková – sňatek: mezi 1900 a 1904/);
   assert.match(r, /Co dělal agent:\n {2}\d{1,2}\. \d{1,2}\. – (.+: )?Rejstřík prošel, Josef nalezen/);
@@ -117,7 +117,7 @@ test("what the agent will do next: the queue in its order, for the user — reco
   const plan = (await w.ok(["plan"])).out;
   assert.match(plan, /^Co agent udělá dál – Novákovi:\n {2}právě teď +Přečíst celý zápis Křest Jana Nováka 1905\n/, "in progress first; a record by its title");
   assert.match(plan, /\n {2}1\. +Oddavky Josefa a Marie \(nejdřív potřebuje snímky\)\n/);
-  assert.match(plan, /Potom vyprávění: 1 \(Josef Novák\)/);
+  assert.match(plan, /Potom vyprávění: 1 \(Josef Novák \[P0002\]\)/);
   assert.match(plan, /Pořadí změníte v rozhovoru s agentem/);
   assert.doesNotMatch(plan, /T000|B0001|S0001|narrate|link/, "no IDs, no levels");
   const json = (await w.ok(["plan", "--json"])).json;
@@ -134,7 +134,7 @@ test("the menu: look through the family tree", { skip: !hasGit || process.platfo
   const r = await w.ok([], { tty: true, answers: ["5", "5", "", "", "1", "", "0", "0"] });
   assert.match(r.out, /Prohlížet rodokmen: přehled, osoby, předkové, co je nového/);
   assert.match(r.out, /Čí předky\? \(jméno nebo ID jako P0012; 0 vrátí zpět\) \[Jan Novák\]/);
-  assert.match(r.out, /├─ Josef Novák/);
+  assert.match(r.out, /├─ Josef Novák \[P0002\]/);
   assert.match(r.out, /Novákovi – přehled výzkumu/);
   assert.match(r.out, /Na shledanou/);
   w.cleanup();

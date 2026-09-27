@@ -24,7 +24,7 @@ const FAM_EVENTS = ["MARR", "DIV", "MARB", "MARC", "MARL", "MARS", "ANUL", "DIVF
 
 /** Allowed child tags by parent context ("INDI", "INDI.BIRT", …). CONC/CONT are allowed under anything with text. */
 const CHILDREN: Record<string, string[]> = {
-  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE"],
+  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD"],
   "HEAD.SOUR": ["VERS", "NAME", "CORP", "DATA"],
   "HEAD.GEDC": ["VERS", "FORM"],
   "HEAD.DATE": ["TIME"],
@@ -54,7 +54,7 @@ const CHILDREN: Record<string, string[]> = {
 };
 
 const TEXT_TAGS = new Set(["NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL"]);
-const EXTENSIONS = new Set(["_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL"]);
+const EXTENSIONS = new Set(["_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD"]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */
 function contextOf(anc: string[]): string | undefined {

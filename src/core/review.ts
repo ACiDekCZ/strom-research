@@ -9,7 +9,7 @@
 
 import type { Conflict, Event, Family, Hypothesis, Lesson, Person, RecordSet, Research, Search, Session, Source, Task } from "./model.ts";
 import { dateYears } from "./gdate.ts";
-import { RECORD_KINDS, recordsetsCovering, researchPeople } from "./frontier.ts";
+import { birthEstimate, RECORD_KINDS, recordsetsCovering, researchPeople } from "./frontier.ts";
 import { birthEvent, displayName, familiesAsPartner, lifespan } from "./people.ts";
 import { phrase, type PhraseKey } from "./phrases.ts";
 import { foldText } from "./text.ts";
@@ -64,11 +64,55 @@ function citedFor(tree: Tree, p: Person): Set<string> {
     for (const c of family?.citations ?? []) out.add(c.source);
   }
   for (const n of p.names) for (const c of n.citations ?? []) out.add(c.source);
+  // the record naming a family — a child's baptism names its parents — also without a fact of the family
+  for (const f of tree.list<Family>("family"))
+    if (!f.retracted && (f.partners.includes(p.id) || f.children.some((c) => c.person === p.id))) for (const c of f.citations ?? []) out.add(c.source);
   for (const other of tree.list<Person>("person"))
     for (const e of other.events) if (e.participants?.some((x) => x.person === p.id)) for (const c of e.citations) out.add(c.source);
   for (const f of tree.list<Family>("family"))
     for (const e of f.events) if (e.participants?.some((x) => x.person === p.id)) for (const c of e.citations) out.add(c.source);
   return out;
+}
+
+/** How a person without a record of their own stands: no record at all, named in one (a child's baptism, a family), or only leads. */
+export type UnprovenKind = "none" | "named" | "leads";
+
+export interface Unproven {
+  person: Person;
+  kind: UnprovenKind;
+  /** The records that name them all the same. */
+  sources: string[];
+  /** Born less than DEATH_AFTER_YEARS ago, no death recorded: alive, most likely — the family's to tell, not the registers'. */
+  living: boolean;
+}
+
+/**
+ * The people no record of their own proves: not one fact of theirs proven or
+ * probable — the living among them marked. Each with how they stand — a record names them elsewhere, their
+ * facts are only leads, or nothing but a note says where they come from.
+ */
+export function unprovenPeople(tree: Tree): Unproven[] {
+  const out: Unproven[] = [];
+  for (const p of tree.list<Person>("person")) {
+    if (p.retracted) continue;
+    const facts = p.events.filter((e) => !e.retracted && e.status !== "retracted" && e.status !== "disproven");
+    if (facts.some((e) => e.status === "proven" || e.status === "probable")) continue;
+    const sources = [...citedFor(tree, p)];
+    const kind: UnprovenKind = facts.some((e) => e.citations.length) ? "leads" : sources.length ? "named" : "none";
+    out.push({ person: p, kind, sources, living: livingBorn(tree, p) !== undefined });
+  }
+  return out;
+}
+
+/**
+ * Most likely alive: born (or, by their marriage or eldest child, about) less than DEATH_AFTER_YEARS ago, and no
+ * death recorded — the year, else undefined. Their records are the family's; the registers of those years are
+ * mostly closed.
+ */
+export function livingBorn(tree: Tree, p: Person): number | undefined {
+  if (p.events.some((e) => !e.retracted && e.status !== "disproven" && DEATHS.has(e.kind))) return undefined;
+  const born = birthEstimate(tree, p, tree.lang).year;
+  return born !== undefined && born > new Date().getFullYear() - DEATH_AFTER_YEARS ? born : undefined;
 }
 
 /** The models that read each source: the sessions that recorded or corrected it (the user's hand counts as "user"). */
@@ -196,9 +240,12 @@ export function reviewProposals(tree: Tree, research: Research): ReviewProposal[
     };
     propose("mentions", "enrich", mentionsOf(tree, p, citedFor(tree, p)));
     propose("entries", "enrich", entriesOf(tree, p));
-    const single = singleReadings(tree, p);
-    propose("verify", "verify", single);
-    if (reread && readers) propose("reread", "verify", rereads(tree, p, reread, readers).filter((e) => !single.includes(e)), { model: reread });
+    // the people without a record want one of their own first: checking what their family's facts rest on can wait
+    if (!research.review?.unproven) {
+      const single = singleReadings(tree, p);
+      propose("verify", "verify", single);
+      if (reread && readers) propose("reread", "verify", rereads(tree, p, reread, readers).filter((e) => !single.includes(e)), { model: reread });
+    }
     propose("conflicts", "verify", openConflicts(tree, p));
     out.push(...gaps(tree, research, p, name, tasks));
   }

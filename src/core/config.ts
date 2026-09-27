@@ -162,6 +162,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "queue.strategy", env: "STROM_QUEUE_STRATEGY", tree: true, kind: "choice", choices: STRATEGIES, description: "order of the task queue: balanced (default — nearest ancestors first, spread over the lines, nothing taken forever), depth (stay on one line), priority (strict priority)" },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
+  { key: "sync.edits", env: "STROM_SYNC_EDITS", tree: true, kind: "choice", choices: ["conflict", "user"], description: "your edits in the Strom app (or another program's file) to a fact a record proves, taken by strom sync: conflict (default — the research keeps the record's, a conflict for you to decide) or user (your edit wins, the record's fact is withdrawn with the reason)" },
   { key: "main.person", env: "STROM_MAIN_PERSON", tree: true, kind: "person", description: "the main person of the tree (P…): first in the GEDCOM files — the Strom app opens on them (default: the nearest person descended from every research's focus, else the first research's focus)" },
   { key: "excerpts.quality", env: "STROM_EXCERPTS_QUALITY", tree: true, kind: "choice", choices: EXCERPT_QUALITIES, description: "the entries cut out of their scans in the file for the Strom app (output/tree-strom.ged): small (1000 px, grey — half the size), normal (default, 1200 px), sharp (1600 px)" },
   { key: "excerpts.for", env: "STROM_EXCERPTS_FOR", tree: true, kind: "choice", choices: EXCERPT_SCOPES, description: "whose entries get their image in the Strom app: none (the file without images), line (the ancestors), family (default: the ancestors and their families), connected (anyone linked to them), all" },
@@ -476,6 +477,11 @@ export class Settings {
   stories(tree?: TreeConfig): { on: boolean; said: boolean } {
     const v = this.resolve("stories", tree)?.value;
     return { on: v !== "no", said: v === "yes" || v === "no" };
+  }
+
+  /** strom sync: whether the user's edit to a fact a record proves wins, or becomes a conflict. */
+  syncEdits(tree?: TreeConfig): "conflict" | "user" {
+    return this.resolve("sync.edits", tree)?.value === "user" ? "user" : "conflict";
   }
 
   /** The images for the Strom app: how sharp, whose, and the limit of all together (MB). */

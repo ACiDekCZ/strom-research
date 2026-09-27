@@ -38,6 +38,16 @@ async function seeded(): Promise<World> {
   await w.ok(["source", "add", "Křest", "--kind", "baptism", "--form", "original", "--information", "primary"]);
   await w.ok(["source", "add", "Sňatek", "--kind", "marriage"]);
   await w.ok(["intake", "--text", "Děda Jan byl mlynář"]);
+  // family trees coming back from the Strom app (strom sync): its GEDCOM, its JSON, one taken in already (I0002, to undo)
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", path.join(w.cwd, "rodina.ged")]);
+  fs.mkdirSync(path.join(w.env.HOME!, "Downloads"), { recursive: true });
+  fs.copyFileSync(path.join(w.cwd, "rodina.ged"), path.join(w.env.HOME!, "Downloads", "rodina.ged"));
+  const research = { id: JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id };
+  const jan = { id: "a", firstName: "Jan", lastName: "Novák", gender: "male", refn: "P0001" };
+  const kids = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`k${i}`, { id: `k${i}`, firstName: `Dítě${i}`, lastName: "Novák", gender: "male", birthDate: `19${30 + i}` }]));
+  fs.writeFileSync(path.join(w.cwd, "rodina.json"), JSON.stringify({ research, persons: { a: jan, ...kids(2) }, partnerships: {} }));
+  fs.writeFileSync(path.join(w.dir, "loni.json"), JSON.stringify({ research, persons: { a: jan, k9: { id: "k9", firstName: "Ludmila", lastName: "Nováková", gender: "female" } }, partnerships: {} }));
+  await w.ok(["sync", path.join(w.dir, "loni.json"), "--apply"]); // I0002
   fs.writeFileSync(path.join(w.cwd, "zapis.txt"), "Joannes filius Josephi\n");
   fs.mkdirSync(path.join(w.cwd, "notes"), { recursive: true });
   fs.writeFileSync(path.join(w.cwd, "notes", "story-P0001.md"), "Jan byl mlynář v Týnci.\n");

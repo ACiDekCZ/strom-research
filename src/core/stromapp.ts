@@ -39,6 +39,22 @@ export function appOpensResearch(settings: Settings): boolean {
   return APP_OPENS_RESEARCH || stromAppUrl(settings) !== STROM_APP_URL;
 }
 
+/**
+ * The Strom app sends the user's edits back (?send=<the bridge>, POST <bridge>/sync — the app's spec
+ * docs/ZADANI_SYNC_Z_APLIKACE.md): the first version of stromapp.info that does (3.3.0, 2026-09-27).
+ * Another copy of the app (its beta, its development: strom.app.url) is taken as current.
+ */
+export const APP_SENDS_CHANGES: string | undefined = "3.3.0";
+
+export function appSendsChanges(settings: Settings): boolean {
+  return APP_SENDS_CHANGES !== undefined || stromAppUrl(settings) !== STROM_APP_URL;
+}
+
+/** The address that opens the Strom app to send the user's edited tree to the bridge. */
+export function sendAppUrl(bridge: string, settings: Settings): string {
+  return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;
+}
+
 /** The address that opens the Strom app following a research through its bridge. */
 export function liveAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?live=${encodeURIComponent(bridge)}`;

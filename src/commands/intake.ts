@@ -160,6 +160,8 @@ register(
             });
             report.push(`  ${input.id} tree: ${imported.persons} persons, ${imported.families} families, ${imported.events} facts as leads${imported.matched ? `, ${imported.matched} matched to existing` : ""}${imported.problems.length ? ` (${imported.problems.length} unreadable lines)` : ""}`);
             if (imported.extended.length) report.push(`  added to what we have (leads — check them): ${imported.extended.slice(0, 6).join(" · ")}${imported.extended.length > 6 ? " …" : ""}`);
+            // the research's own tree coming back: sync sees what was changed in it too, not only what was added
+            if (imported.matched && imported.matched >= imported.persons) report.push(`  it is this research's tree coming back: strom sync "${ctx.display(file)}" shows what was changed in it too`);
             const system = `gedcom:${sha.slice(0, 12)}`;
             const dupes = likelyDuplicates(tree, tree.list<Person>("person").filter((p) => p.refs?.some((r) => r.system === system)).map((p) => p.id));
             if (dupes.length) report.push(`  probably already in the tree: ${dupes.map((d) => `${d.person.id}≈${d.same.id}`).join(", ")} (the review task lists them)`);

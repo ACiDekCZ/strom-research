@@ -36,6 +36,7 @@ import { quay } from "../core/evidence.ts";
 import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, type Excerpt } from "../core/excerpt.ts";
 import { mainPerson } from "../core/kin.ts";
+import * as git from "../core/git.ts";
 
 export const GED_PROFILES = ["standard", "strom"] as const;
 export type GedProfile = (typeof GED_PROFILES)[number];
@@ -69,6 +70,10 @@ export interface ExportOptions {
   persons?: Set<string>;
   /** The Strom profile with images: the entry cut out of its scan, for each source that has clips. */
   excerpts?: (s: Source) => Excerpt[];
+  /** The Strom profile: the commit of the research the file is of (default: the tree's HEAD) — what strom sync compares a returning tree with. */
+  head?: string;
+  /** In memory only (strom sync), never in a file: each fact's ID under it (2 _EID E0001). */
+  ids?: boolean;
 }
 
 export interface ExportResult {
@@ -76,6 +81,9 @@ export interface ExportResult {
   lines: string[];
   stats: { persons: number; families: number; sources: number; repositories: number; events: number; skipped: number };
 }
+
+/** Whose IDs a person's REFN carries: a tree coming back is matched by them (strom sync, the Strom app). */
+export const REFN_TYPE = "strom-research";
 
 /** Tags whose value IS the fact and rides on the tag line. */
 const VALUE_TAGS = new Set(["OCCU", "RELI", "TITL", "NATI"]);
@@ -151,7 +159,12 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   w.line(2, "NAME", "Strom Research");
   w.line(1, "DATE", gedDate(new Date()));
   // Which research this is: the Strom app updates the same tree when it is opened again.
-  if (opts.for === "strom") w.line(1, "_STROM_TREE", tree.config.id);
+  if (opts.for === "strom") {
+    w.line(1, "_STROM_TREE", tree.config.id);
+    // …and of which state of it: a tree coming back is compared with what it was given (strom sync)
+    const head = opts.head ?? git.head(tree.root);
+    if (head) w.line(1, "_STROM_HEAD", head);
+  }
   w.line(1, "SUBM", "@U1@");
   w.line(1, "GEDC");
   w.line(2, "VERS", "5.5.1");
@@ -183,6 +196,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     }
     w.line(1, "SEX", p.sex);
     w.line(1, "REFN", p.id);
+    w.line(2, "TYPE", REFN_TYPE);
     const deferred: string[] = [];
     const assos: { person: string; rela: string }[] = [];
     for (const e of preferredOrder(p.events)) deferred.push(...event(e, "INDI", {}, assos));
@@ -326,6 +340,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (VALUE_TAGS.has(tag)) w.line(1, tag, e.value);
     else w.line(1, tag, tag === "EVEN" && !typeLabel ? e.value : empty && Y_TAGS.has(tag) ? "Y" : undefined);
     if (tag === "EVEN" && typeLabel) w.line(2, "TYPE", typeLabel);
+    if (opts.ids) w.line(2, "_EID", e.id);
     if (e.date) w.line(2, "DATE", e.date);
     if (e.place) {
       w.line(2, "PLAC", e.place);

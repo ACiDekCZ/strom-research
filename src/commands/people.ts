@@ -8,7 +8,7 @@ import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
 import { INFORMATION } from "../core/evidence.ts";
-import { EVENT_KINDS, NAME_KINDS, type Citation, type Event, type Family, type Name, type Person, type Research } from "../core/model.ts";
+import { EVENT_KINDS, NAME_KINDS, type Citation, type Event, type Family, type Name, type Person, type Research, type Task } from "../core/model.ts";
 import {
   ancestorGenerations,
   displayName,
@@ -22,6 +22,7 @@ import {
   resolvePerson,
 } from "../core/people.ts";
 import { resolveResearch } from "./research.ts";
+import { DEATH_AFTER_YEARS, unprovenPeople, type UnprovenKind } from "../core/review.ts";
 import { foldText } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
 
@@ -176,9 +177,10 @@ register(
     options: [
       { name: "research", type: "string", value: "<G…>", description: "only people in scope of this research, with generations" },
       { name: "generation", type: "string", value: "<n>", description: "only this generation (with --research)" },
+      { name: "unproven", type: "boolean", description: "only people no record of their own proves: how each stands, the records naming them, open tasks" },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
     ],
-    examples: ["strom person list", "strom person list visek", "strom person list --research G0001 --generation 3"],
+    examples: ["strom person list", "strom person list visek", "strom person list --research G0001 --generation 3", "strom person list --unproven"],
     run(ctx: Context, { args, opts }: Input) {
       const tree = ctx.tree();
       let people = tree.list<Person>("person").filter((p) => !p.retracted);
@@ -191,6 +193,7 @@ register(
         if (opts.generation) people = people.filter((p) => gens!.get(p.id) === Number(opts.generation));
         people.sort((a, b) => gens!.get(a.id)! - gens!.get(b.id)! || a.id.localeCompare(b.id));
       }
+      if (opts.unproven) return unprovenList(ctx, tree, people, gens);
       const page = paginate(people, ctx.limit, ctx.page);
       const rows = page.items.map((p) => [
         p.id,
@@ -700,3 +703,64 @@ register(
     },
   },
 );
+
+const UNPROVEN_KIND: Record<UnprovenKind, string> = { named: "named in a record", leads: "leads only", none: "no record" };
+
+/** The people no record of their own proves: how each stands, the records that name them, the tasks already on them. */
+function unprovenList(ctx: Context, tree: Tree, people: Person[], gens: Map<string, number> | undefined) {
+  const among = new Set(people.map((p) => p.id));
+  const found = unprovenPeople(tree).filter((u) => among.has(u.person.id));
+  // the living come apart: the family's to tell, no research of the registers
+  const all = found.filter((u) => !u.living);
+  const living = found.filter((u) => u.living);
+  const open = tree.list<Task>("task").filter((t) => ["open", "doing", "parked", "waiting"].includes(t.state));
+  const tasksOf = (id: string) => open.filter((t) => t.subject.includes(id)).map((t) => t.id);
+  const counts = { named: 0, leads: 0, none: 0 };
+  for (const u of all) counts[u.kind]++;
+  const page = paginate(all, ctx.limit, ctx.page);
+  const rows = page.items.map((u) => {
+    const tasks = tasksOf(u.person.id);
+    return [
+      u.person.id,
+      displayName(u.person),
+      lifespan(u.person),
+      gens ? `G${gens.get(u.person.id)}` : "",
+      UNPROVEN_KIND[u.kind] + (u.sources.length ? `: ${u.sources.slice(0, 3).join(" ")}${u.sources.length > 3 ? " …" : ""}` : ""),
+      u.kind === "none" && !u.person.notes.length ? "no note where from" : "",
+      tasks.length ? `tasks ${tasks.slice(0, 2).join(" ")}${tasks.length > 2 ? " …" : ""}` : "",
+    ];
+  });
+  const livingLine = living.length
+    ? `living, most likely (born less than ${DEATH_AFTER_YEARS} years ago, no death recorded) — not counted, no tasks: ${living.map((u) => `${u.person.id} ${displayName(u.person)}`).join(" · ")}`
+    : undefined;
+  const text = !all.length
+    ? lines("everyone rests on a record of their own", livingLine)
+    : lines(
+        `${all.length} without a record of their own — named in a record: ${counts.named} · leads only: ${counts.leads} · no record: ${counts.none}`,
+        table(rows),
+        moreLine(page, "strom person list --unproven"),
+        livingLine,
+        "",
+        "tasks for them: strom review --unproven (a batch at a time) · strom review P… P… (these) · strom review P… (one)",
+      );
+  return {
+    text,
+    data: {
+      total: page.total,
+      page: page.page,
+      pages: page.pages,
+      counts,
+      living: living.map((u) => u.person.id),
+      persons: page.items.map((u) => ({
+        id: u.person.id,
+        name: displayName(u.person),
+        lifespan: lifespan(u.person),
+        kind: u.kind,
+        sources: u.sources,
+        notes: u.person.notes.length,
+        tasks: tasksOf(u.person.id),
+        ...(gens ? { generation: gens.get(u.person.id) } : {}),
+      })),
+    },
+  };
+}

@@ -16,7 +16,8 @@ export type Run = (argv: string[], quiet?: boolean) => Promise<number>;
 export interface Item {
   key: string;
   label: string;
-  act: () => Promise<boolean | void>;
+  /** true: back (a submenu) or quit (the menu); "quit": out of the menu from a submenu too. */
+  act: () => Promise<boolean | "quit" | void>;
 }
 
 /** The test (or a script) gave all its answers: nothing more is asked. */
@@ -34,7 +35,7 @@ export async function pause(ctx: Context, lang: string): Promise<void> {
  * An item's act returning true leaves the submenu. An act waits for Enter itself, only after a long answer —
  * never after 0 or a question left: the person went back, nothing to read.
  */
-export async function subMenu(ctx: Context, lang: string, build: () => { title?: string; items: Item[] }): Promise<void> {
+export async function subMenu(ctx: Context, lang: string, build: () => { title?: string; items: Item[] }): Promise<"quit" | void> {
   for (;;) {
     if (outOfAnswers(ctx)) return;
     const { title, items } = build();
@@ -48,7 +49,9 @@ export async function subMenu(ctx: Context, lang: string, build: () => { title?:
       all.length - 1,
     );
     if (i === undefined) return;
-    if ((await guarded(ctx, lang, all[i]!.act)) === true) return;
+    const done = await guarded(ctx, lang, all[i]!.act);
+    if (done === "quit") return "quit";
+    if (done === true) return;
   }
 }
 
@@ -139,7 +142,7 @@ export function claudeHere(ctx: Context, tree: TreeConfig | undefined): boolean 
  * An item's act, and what goes wrong in it said in a sentence — the menu goes on (a folder that could not be read, a
  * command that refused): never a crash of the menu with an agent's error.
  */
-export async function guarded(ctx: Context, lang: string, act: () => Promise<boolean | void>): Promise<boolean | void> {
+export async function guarded(ctx: Context, lang: string, act: () => Promise<boolean | "quit" | void>): Promise<boolean | "quit" | void> {
   try {
     return await act();
   } catch (err) {

@@ -44,6 +44,22 @@ export function installation(): Installation {
   return (cached = { kind: "npm" });
 }
 
+/**
+ * Another strom on disk than the one running (strom update replaced its code or its Node): this process goes on
+ * with what it loaded, so a person is told to start strom again. `version`: the running one's.
+ */
+export function replacedOnDisk(version: string): boolean {
+  const inst = installation();
+  if (inst.kind !== "installed" || !inst.root) return false;
+  try {
+    const app = JSON.parse(fs.readFileSync(path.join(inst.root, "app", "package.json"), "utf8")) as { version?: string };
+    const info = JSON.parse(fs.readFileSync(path.join(inst.root, "install.json"), "utf8")) as { node?: string };
+    return app.version !== version || info.node !== inst.node;
+  } catch {
+    return false;
+  }
+}
+
 /** The program and arguments that run strom: this Node and its entry script (cli.ts from sources, cli.js built). */
 export function stromLauncher(): { command: string; args: string[] } {
   const cli = path.resolve(path.dirname(here), "..", here.endsWith(".ts") ? "cli.ts" : "cli.js");

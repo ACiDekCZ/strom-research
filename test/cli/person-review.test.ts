@@ -169,6 +169,7 @@ test("review: a marriage of a couple with children and a death of someone born l
   // the living: no death looked for
   await w.ok(["person", "add", "Eva /Nováková/", "--sex", "F"]); // P4
   await w.ok(["event", "add", "P4", "BIRT", "--date", "1990", "--place", "Kamenice nad Lipou"]);
-  assert.doesNotMatch((await w.ok(["review", "P4"])).out, /Death of|deaths of/);
+  // reviewed all the same (the user asked): still no death looked for
+  assert.doesNotMatch((await w.ok(["review", "P4", "--living"])).out, /Death of|deaths of/);
   w.cleanup();
 });

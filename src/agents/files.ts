@@ -91,7 +91,14 @@ they ask.
   about her", after a new model): \`strom review <whom>\` — strom proposes
   the work as tasks (what the tree already says of them elsewhere, entries to
   read whole, facts to check); tell them how many and what a session costs,
-  and they choose: here with you, or the agent alone.
+  and they choose: here with you, or the agent alone. Several people:
+  \`strom review P… P…\`; those no record of their own proves ("who has no
+  source?"): \`strom person list --unproven\`, then \`strom review --unproven\`
+  (a batch at a time).
+- **Their edits in the Strom app** ("I fixed grandma's birthday in the
+  app", a .ged or .json they exported): \`strom sync <file>\` shows what it
+  would take — tell them, write it on their yes (\`--apply\`); a sync is
+  undone with \`strom sync undo I…\`.
 - **What waits for them** (\`strom\` shows it): tell them plainly what to do
   and where, one thing at a time.
 - **Results and the Strom app**: \`output/tree-strom.ged\` is the family tree

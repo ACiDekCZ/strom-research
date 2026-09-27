@@ -10,6 +10,9 @@
 //   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*)
 //   GET <token>/images.ged the same (the address an older strom gave)
 //   GET <token>/events     server-sent events: hello, change, working
+//   POST <token>/sync      the Strom app sends the user's edited tree back (?send=): kept to be shown
+//                          and written on the user's word (strom sync) — nothing of the research changes
+//   POST <token>/cancel    …or says it sends nothing ({"reason": "unchanged" | "cancelled" | "no-tree"})
 //
 // Only pages of the Strom app may read it (CORS: https://stromapp.info, its beta, and a
 // local copy on localhost for its development), and a browser asks first
@@ -24,6 +27,8 @@ import type { Env } from "./paths.ts";
 import { Tree, VERSION } from "./tree.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { excerptSettings, planExcerpts } from "./excerpt.ts";
+import { noteNothingSent, receiveTree, SYNC_MAX_BYTES } from "./sync.ts";
+import { ui } from "../cli/ui.ts";
 
 /** New images for the app, made for at most so long when the tree changed (the rest the next time). */
 const LIVE_IMAGES_MS = 20_000;
@@ -173,7 +178,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     if (req.method === "OPTIONS") {
       if (origin) {
-        res.setHeader("Access-Control-Allow-Methods", "GET");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST");
         res.setHeader("Access-Control-Allow-Headers", String(req.headers["access-control-request-headers"] ?? ""));
         if (req.headers["access-control-request-private-network"]) res.setHeader("Access-Control-Allow-Private-Network", "true");
       }
@@ -181,6 +186,14 @@ export function serveLive(root: string, env: Env): Promise<void> {
       return;
     }
     const [, t, what] = (req.url ?? "").split("?")[0]!.split("/");
+    if (req.method === "POST" && t === token && what === "sync") {
+      receive(req, res, origin);
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "cancel") {
+      nothing(req, res, origin);
+      return;
+    }
     if (req.method !== "GET" || t !== token) {
       res.writeHead(404).end();
       return;
@@ -195,7 +208,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
           // the images from the cache; new ones made for a while at most (the rest the next time the tree changes)
           const set = excerptSettings(tree);
           const images = set ? planExcerpts(tree, set.shared, { quality: set.quality, for: set.for, maxBytes: set.mb * 1024 * 1024, budgetMs: LIVE_IMAGES_MS }) : undefined;
-          ged = { head: h, text: exportGedcom(tree, { for: "strom", ...(images ? { excerpts: images.of } : {}) }).text };
+          ged = { head: h, text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}) }).text };
         }
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);
       } else if (what === "events") {
@@ -208,6 +221,68 @@ export function serveLive(root: string, env: Env): Promise<void> {
       res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" }).end((e as Error).message);
     }
   });
+
+  /** The user's tree from the app: only from its pages, only so large; the answer in the research's language. */
+  const receive = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined) => {
+    const reply = (code: number, body: Record<string, unknown>) =>
+      res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+    const lang = () => {
+      try {
+        return Tree.open(root, env).lang;
+      } catch {
+        return "en";
+      }
+    };
+    if (!origin) {
+      reply(403, { error: "only the Strom app may send a tree here" });
+      return;
+    }
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let over = false;
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size > SYNC_MAX_BYTES) over = true;
+      else chunks.push(c);
+    });
+    req.on("end", () => {
+      if (over) {
+        reply(413, { error: ui(lang(), "ui.sync.bridge.large") });
+        return;
+      }
+      try {
+        const got = receiveTree(root, env, Buffer.concat(chunks).toString("utf8"));
+        reply(200, { ok: true, changes: got.changes, file: path.basename(got.file) });
+      } catch (e) {
+        const m = (e as Error).message;
+        const key = /another research/.test(m) ? "ui.sync.bridge.other" : /does not look like/.test(m) ? "ui.sync.bridge.foreign" : /empty|no people|not a GEDCOM/.test(m) ? "ui.sync.bridge.empty" : undefined;
+        reply(400, { error: key ? ui(lang(), key) : m });
+      }
+    });
+  };
+
+  /** The app sends nothing (unchanged, the user said no, no tree of this research): strom sync --app stops waiting. */
+  const nothing = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined) => {
+    const reply = (code: number, body: Record<string, unknown>) =>
+      res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+    if (!origin) {
+      reply(403, { error: "only the Strom app may say so" });
+      return;
+    }
+    let body = "";
+    req.on("data", (c: Buffer) => {
+      if (body.length < 4096) body += c.toString("utf8");
+    });
+    req.on("end", () => {
+      let reason = "cancelled";
+      try {
+        reason = String((JSON.parse(body) as { reason?: unknown }).reason ?? reason);
+      } catch {
+        reason = body.trim() || reason;
+      }
+      reply(200, { ok: true, reason: noteNothingSent(root, reason) });
+    });
+  };
 
   return new Promise((resolve) => {
     server.listen(0, "127.0.0.1", () => {

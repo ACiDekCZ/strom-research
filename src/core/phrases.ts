@@ -39,6 +39,7 @@ export const PHRASES = {
   "story.done": "strom story set {id} with every fact it rests on (--fact) — a draft until the user approves it",
 
   "review.research": "Review of {name}",
+  "review.unproven.research": "People without a record of their own",
   "review.more": " (and {count} more after these)",
   "review.mentions.what": "What the tree already says of {name} outside their data: {list}{more}",
   "review.mentions.why": "records, notes or the diary name {name}, yet their data do not show it — the cheapest finds of a review ({research})",

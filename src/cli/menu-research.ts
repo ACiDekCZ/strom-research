@@ -6,10 +6,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "./context.ts";
-import { agentReady, droppedPaths, pause, pickPerson, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
+import { agentReady, droppedPaths, outOfAnswers, pause, pickPerson, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
 import { Tree } from "../core/tree.ts";
 import type { Research, Task } from "../core/model.ts";
-import { displayName } from "../core/people.ts";
+import { displayName, lifespan } from "../core/people.ts";
+import { DEATH_AFTER_YEARS, unprovenPeople } from "../core/review.ts";
+import { planSync, readTreeFile, receivedSince } from "../core/sync.ts";
+import { appSendsChanges, stromAppState } from "../core/stromapp.ts";
+import { UNPROVEN_BATCH } from "../commands/research.ts";
 import { expandHome } from "../core/paths.ts";
 import { collectFiles } from "../core/media.ts";
 import { BOOK_OF_SCANS, IMAGE_EXT } from "../commands/intake.ts";
@@ -21,7 +25,14 @@ export async function addToResearch(ctx: Context, run: Run, lang: string, root: 
       { key: "1", label: t("ui.more.intake"), act: async () => void (await addMaterial(ctx, run, lang, root)) },
       { key: "2", label: t("ui.more.research"), act: async () => void (await newResearch(ctx, run, lang, root)) },
     ];
-    if (Tree.open(root, ctx.env).count("person") > 0) items.push({ key: "3", label: t("ui.menu.review"), act: async () => void (await reviewPerson(ctx, run, lang, root)) });
+    const tree = Tree.open(root, ctx.env);
+    if (tree.count("person") > 0) {
+      items.push({ key: "3", label: t("ui.menu.review"), act: async () => void (await reviewPerson(ctx, run, lang, root)) });
+      items.push({ key: "4", label: t(noApp(ctx) ? "ui.more.sync.noapp" : "ui.more.sync"), act: async () => void (await syncTree(ctx, run, lang, root)) });
+    }
+    // only when there are some: the people no record of their own proves — last, it shows only sometimes
+    const unproven = unprovenPeople(tree).filter((u) => !u.living).length;
+    if (unproven) items.push({ key: "5", label: t("ui.menu.unproven", { n: unproven }), act: async () => void (await reviewUnproven(ctx, run, lang, root)) });
     return { title: t("ui.more.title"), items };
   });
 }
@@ -158,6 +169,133 @@ async function newResearch(ctx: Context, run: Run, lang: string, root: string): 
   await offerChat(ctx, run, lang, root, t("ui.research.chat"), t("ui.research.say", { name: made.name }));
 }
 
+/** The person said no to the Strom app: it is not named. */
+const noApp = (ctx: Context) => stromAppState(ctx.settings) === "no";
+
+/** A family tree coming back (the Strom app, another program): what changed in it, shown, then written on the person's word. */
+async function syncTree(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
+  const t = translator(lang);
+  let file: string | undefined;
+  // straight from the Strom app, where it can send the tree (and the person wants it)
+  if (!noApp(ctx) && appSendsChanges(ctx.settings)) {
+    const from = await ctx.choose(t("ui.sync.from"), [{ label: t("ui.sync.from.app") }, { label: t("ui.sync.from.file") }], 0, { back: t("ui.browse.back") });
+    if (from === undefined) return;
+    if (from === 0) {
+      const since = Date.now();
+      if ((await run(["sync", "--app"])) !== 0) return pause(ctx, lang);
+      file = receivedSince(root, since);
+      if (!file) return pause(ctx, lang);
+      return confirmSync(ctx, run, lang, root, file);
+    }
+  }
+  for (;;) {
+    if (outOfAnswers(ctx)) return;
+    const answer = (await ctx.ask(t(noApp(ctx) ? "ui.sync.path.noapp" : "ui.sync.path"))).trim();
+    if (!answer || answer === "0") return;
+    const resolve = (p: string) => path.resolve(ctx.cwd, expandHome(p, ctx.env));
+    const dropped = droppedPaths(answer).map(resolve);
+    file = [dropped[0], resolve(answer)].find((p): p is string => !!p && fs.existsSync(p) && fs.statSync(p).isFile());
+    if (file) break;
+    ctx.io.stdout(t("ui.intake.missing", { path: answer }) + "\n");
+  }
+  // what it would take, asked first: nothing to write — nothing asked
+  let count: number;
+  try {
+    const tree = Tree.open(root, ctx.env);
+    count = planSync(tree, readTreeFile(file), ctx.settings.syncEdits(tree.config)).changes.length;
+  } catch {
+    count = 0;
+  }
+  if ((await run(["sync", file])) !== 0 || !count) return pause(ctx, lang);
+  return confirmSync(ctx, run, lang, root, file, count);
+}
+
+/** What the tree brings is shown: written on the person's word — all, or the ones they pick. */
+async function confirmSync(ctx: Context, run: Run, lang: string, root: string, file: string, known?: number): Promise<void> {
+  const t = translator(lang);
+  let count = known ?? 0;
+  if (known === undefined)
+    try {
+      const tree = Tree.open(root, ctx.env);
+      count = planSync(tree, readTreeFile(file), ctx.settings.syncEdits(tree.config)).changes.length;
+    } catch {
+      count = 0;
+    }
+  if (!count) return pause(ctx, lang);
+  const how = await ctx.choose(t("ui.sync.how"), [{ label: t("ui.sync.all") }, { label: t("ui.sync.some") }], 0, { back: t("ui.browse.back") });
+  if (how === undefined) return;
+  let only: string[] = [];
+  if (how === 1) {
+    const picked = await pickNumbers(ctx, lang, Array.from({ length: count }, (_, i) => String(i + 1)));
+    if (!picked?.length) return;
+    only = ["--only", picked.map((i) => i + 1).join(",")];
+  }
+  if ((await run(["sync", file, "--apply", ...only])) === 0 && !noApp(ctx)) ctx.io.stdout(t("ui.sync.app") + "\n");
+  await pause(ctx, lang);
+}
+
+/** The people no record of their own proves: listed, then all of them a batch at a time, or the ones picked by number. */
+async function reviewUnproven(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
+  const t = translator(lang);
+  const out = (line: string) => ctx.io.stdout(line + "\n");
+  const tree = Tree.open(root, ctx.env);
+  const found = unprovenPeople(tree);
+  const all = found.filter((u) => !u.living);
+  const living = found.filter((u) => u.living);
+  const open = tree.list<Task>("task").filter((x) => ["open", "doing", "parked", "waiting"].includes(x.state));
+  out(t("ui.unproven.title"));
+  all.forEach((u, i) => {
+    const busy = open.some((x) => x.subject.includes(u.person.id));
+    const life = lifespan(u.person);
+    out(`  ${String(i + 1).padStart(2)}. ${u.person.id} ${displayName(u.person)}${life ? ` (${life})` : ""} — ${t(`ui.unproven.${u.kind}`)}${busy ? ` · ${t("ui.unproven.tasks")}` : ""}`);
+  });
+  if (living.length) out(t("ui.unproven.living", { years: DEATH_AFTER_YEARS, names: living.map((u) => `${u.person.id} ${displayName(u.person)}`).join(", ") }));
+  const how = await ctx.choose(t("ui.unproven.how"), [{ label: t("ui.unproven.all", { n: UNPROVEN_BATCH }) }, { label: t("ui.unproven.pick") }], 0, { back: t("ui.browse.back") });
+  if (how === undefined) return;
+  let argv: string[];
+  if (how === 0) argv = ["review", "--unproven"];
+  else {
+    const picked = await pickNumbers(ctx, lang, all.map((u) => u.person.id));
+    if (!picked?.length) return;
+    argv = ["review", ...picked.map((i) => all[i]!.person.id)];
+  }
+  if ((await run(argv)) !== 0) return pause(ctx, lang);
+  const after = Tree.open(root, ctx.env);
+  const ids = argv.slice(1).filter((a) => a.startsWith("P"));
+  const research = after
+    .list<Research>("research")
+    .find((r) => r.direction === "person" && r.state === "active" && (ids.length ? r.review?.people?.length === ids.length && ids.every((id) => r.review!.people!.includes(id)) : r.review?.unproven));
+  const waiting = research ? after.list<Task>("task").filter((x) => x.research === research.id && x.state === "open").length : 0;
+  if (research && waiting && (await ctx.confirm(t("ui.review.run", { n: waiting }), false))) await run(["run", "--research", research.id, "--max", String(waiting)]);
+  await pause(ctx, lang);
+}
+
+/** Numbers of a list as a person types them: "1 3 5-7", "2,4", or the IDs shown ("P0012"); each once, in their order. Undefined: back. */
+async function pickNumbers(ctx: Context, lang: string, ids: string[]): Promise<number[] | undefined> {
+  const count = ids.length;
+  const t = translator(lang);
+  for (;;) {
+    const answer = (await ctx.ask(t("ui.unproven.numbers"))).trim();
+    if (!answer || answer === "0") return undefined;
+    const out: number[] = [];
+    const bad: string[] = [];
+    for (const part of answer.split(/[\s,;]+/u).filter(Boolean)) {
+      const id = ids.indexOf(part.toUpperCase());
+      if (id >= 0) {
+        if (!out.includes(id)) out.push(id);
+        continue;
+      }
+      const m = /^(\d+)(?:\s*[-–]\s*(\d+))?$/u.exec(part);
+      const from = m ? Number(m[1]) : NaN;
+      const to = m?.[2] ? Number(m[2]) : from;
+      if (!m || from < 1 || to > count || to < from) bad.push(part);
+      else for (let i = from; i <= to; i++) if (!out.includes(i - 1)) out.push(i - 1);
+    }
+    if (!bad.length) return out;
+    ctx.io.stdout(t("ui.unproven.bad", { x: bad.join(", ") }) + "\n");
+  }
+}
+
 /** One person, looked at again: what the tree says of them elsewhere, what to read whole, what to check. */
 async function reviewPerson(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
   const t = translator(lang);
@@ -166,7 +304,7 @@ async function reviewPerson(ctx: Context, run: Run, lang: string, root: string):
   const family = await ctx.confirm(t("ui.review.family"), false);
   if ((await run(["review", person.id, ...(family ? ["--scope", "family"] : [])])) !== 0) return pause(ctx, lang);
   const tree = Tree.open(root, ctx.env);
-  const research = tree.list<Research>("research").find((r) => r.direction === "person" && r.focus === person.id && r.review);
+  const research = tree.list<Research>("research").find((r) => r.direction === "person" && r.focus === person.id && r.review && !r.review.people);
   const open = research ? tree.list<Task>("task").filter((x) => x.research === research.id && x.state === "open").length : 0;
   if (research && open && (await ctx.confirm(t("ui.review.run", { n: open }), false))) await run(["run", "--research", research.id, "--max", String(open)]);
   await pause(ctx, lang);

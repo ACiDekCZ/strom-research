@@ -138,6 +138,15 @@ ONE PERSON, LOOKED AT AGAIN (the user asks you to check or complete someone; a n
   diary say of them outside their data, entries whose images are here but were not read whole, facts
   resting on one reading, conflicts left open (--reread: a second reading with the model the user reads
   with now). Each task's brief lists its items. Tell the user how many and what they cost; they decide.
+  Several at once: strom review P… P… (one review). The people no record of their own proves (strom check
+  counts them): strom person list --unproven (how each stands; the living apart — no tasks for them);
+  strom review --unproven proposes their work a batch at a time — again for the next batch, nothing twice.
+THE STROM APP'S EDITS, ANOTHER FAMILY TREE (the user changed the tree in the Strom app, or brings a .ged/.json)
+  strom sync <file> shows what it would take: what the file adds, what the user changed since the research
+  gave it (_STROM_HEAD), what is no longer in it. Show the user the list; write it on their yes (--apply, some:
+  --only 1,3). Additions become leads; a change to a fact a record proves becomes a conflict (sync.edits: the
+  user's choice). A file of another research, or of few of our people, is refused; strom sync undo I… takes a
+  sync back. After it: the user opens the research in the Strom app again to have the tree updated.
 STORIES OF THE ANCESTORS (the setting stories — on by default; strom shows it)
   Once records tell a person's life (a baptism and more facts from records), strom proposes a narrate
   task: write the story for the family book — plain words, the research language, every statement on a

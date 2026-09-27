@@ -6,6 +6,7 @@ import { lines, table } from "../cli/format.ts";
 import { addPerson, addResearch } from "../core/actions.ts";
 import { applyFrontier, researchProposals } from "./session.ts";
 import { frontier } from "../core/frontier.ts";
+import { DEATH_AFTER_YEARS, livingBorn, unprovenPeople } from "../core/review.ts";
 import { parkedWhy } from "./tasks.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { phrase } from "../core/phrases.ts";
@@ -164,56 +165,111 @@ register(
   },
 );
 
+/** People without a record in one review at a time. */
+export const UNPROVEN_BATCH = 10;
+
 register({
   path: ["review"],
-  summary: "Review one person: what the tree already says of them elsewhere, entries to read whole, facts to check — as tasks",
+  summary: "Review a person, several, or those no record proves: what the tree says of them elsewhere, entries to read, facts to check — as tasks",
   group: "research",
   tree: true,
   writes: true,
   description:
-    "Sends the research straight to one person. strom looks at what is recorded and proposes the work, at\n" +
-    "most one task of each kind: what records, notes and the diary say of them outside their data; entries whose\n" +
-    "images are here but were not read whole (transcript, godparents, witnesses, house); facts resting on one\n" +
-    "reading; conflicts left open; with --reread, a second reading of what only another model read — after the\n" +
-    "agent or the model changed. Birth, parents and the story come as in any research. Run again later: what a\n" +
-    "task took up is not proposed again. Nothing is deleted; corrections go through strom with their reasons.",
-  args: [{ name: "person", description: "whom (ID or name)", required: true }],
+    "Sends the research straight to one person — or to several named at once (one review for them all), or with\n" +
+    "--unproven to the people no record of their own proves (strom person list --unproven), a batch at a time: run\n" +
+    "it again for the next batch; who is proved leaves the review. strom looks at what is recorded and proposes\n" +
+    "the work, at most one task of each kind for a person: what records, notes and the diary say of them outside\n" +
+    "their data; entries whose images are here but were not read whole (transcript, godparents, witnesses,\n" +
+    "house); facts resting on one reading; conflicts left open; with --reread, a second reading of what only\n" +
+    "another model read — after the agent or the model changed. Birth, parents and the story come as in any\n" +
+    "research. Run again later: what a task took up, or a task open elsewhere covers, is not proposed again.\n" +
+    "Nothing is deleted; corrections go through strom with their reasons.",
+  args: [{ name: "person", description: "whom (ID or name); several: one review for them all; none with --unproven", variadic: true }],
   options: [
-    { name: "scope", type: "string", value: "<scope>", description: "person (default), family (with partners and children), line (with the ancestors)" },
+    { name: "scope", type: "string", value: "<scope>", description: "one person: person (default), family (with partners and children), line (with the ancestors)" },
+    { name: "unproven", type: "boolean", description: "the people no record of their own proves (strom person list --unproven), a batch at a time" },
+    { name: "max", type: "string", value: "<n>", description: `with --unproven: at most so many people in the batch (default ${UNPROVEN_BATCH})` },
+    { name: "living", type: "boolean", description: "review someone most likely alive (born less than 100 years ago) all the same — the user asked for it" },
     { name: "reread", type: "boolean", description: "also a second reading of what only another model read (the model you read with now: model.vision)" },
     { name: "model", type: "string", value: "<model>", description: "with --reread: this model instead of model.vision" },
   ],
-  examples: ["strom review P0001", 'strom review "Josef Novák" --scope family', "strom review P0001 --reread", "strom review P0001 --dry-run"],
-  run(ctx: Context, { args, opts }) {
+  examples: [
+    "strom review P0001",
+    'strom review "Josef Novák" --scope family',
+    "strom review P0001 P0002",
+    "strom review --unproven",
+    "strom review P0001 --reread",
+    "strom review P0001 --dry-run",
+  ],
+  async run(ctx: Context, { args, opts }) {
     const tree = ctx.tree();
-    const p = resolvePerson(tree, args[0]!);
+    const unproven = !!opts.unproven;
+    if (unproven && args.length) throw new UsageError("--unproven reviews the people without a record — no person with it", { hint: "strom review --unproven · or strom review <person>" });
+    if (!unproven && !args.length) throw new UsageError("whom? a person, several, or --unproven", { hint: "strom review P0001 · strom review P0001 P0002 · strom review --unproven" });
+    if (!unproven && opts.max !== undefined) throw new UsageError("--max goes with --unproven");
+    if ((unproven || args.length > 1) && opts.scope !== undefined) throw new UsageError("--scope is for one person's review");
     const scope = (opts.scope as string | undefined) ?? "person";
     if (!(REVIEW_SCOPES as readonly string[]).includes(scope)) throw new UsageError(`--scope must be one of ${REVIEW_SCOPES.join(", ")}`);
+    const max = int(opts.max, "max") ?? UNPROVEN_BATCH;
+    if (max < 1) throw new UsageError("--max must be 1 or more");
     let reread: string | undefined;
     if (opts.reread) {
       reread = (opts.model as string | undefined) ?? ctx.settings.models(ctx.settings.agent(tree.config).value, tree.config).vision;
       if (!reread) throw new UsageError("--reread needs the model to read with", { hint: "strom config set model.vision <model> — or strom review … --reread --model <model>" });
     } else if (opts.model) throw new UsageError("--model goes with --reread");
-    const review = { scope: scope as (typeof REVIEW_SCOPES)[number], ...(reread ? { reread } : {}) };
     const lang = tree.lang;
-    // one review research per person: again later, it goes on where it was
-    const existing = tree.list<Research>("research").find((r) => r.direction === "person" && r.focus === p.id && r.review);
+    const chosen = [...new Map(args.map((a) => resolvePerson(tree, a)).map((x) => [x.id, x])).values()];
+    // the living are the family's to tell: reviewed only when the person says so
+    const living = chosen.map((x) => ({ x, born: livingBorn(tree, x) })).filter((l) => l.born !== undefined);
+    if (living.length && !opts.living && !ctx.yes && !tree.dryRun) {
+      const who = living.map((l) => `${label(l.x)}`).join(", ");
+      if (ctx.interactive && !isAgent(ctx.env)) {
+        if (!(await ctx.confirm(ui(lang, "ui.review.living", { who, years: DEATH_AFTER_YEARS }), false))) return { text: ui(lang, "ui.review.living.no"), data: { research: null, created: [], planned: [], open: [], living: living.map((l) => l.x.id) } };
+      } else
+        throw new UsageError(`most likely alive (born less than ${DEATH_AFTER_YEARS} years ago, no death recorded): ${who}`, {
+          hint: `ask the user whether to review them all the same; if yes: strom review ${args.join(" ")} --living`,
+        });
+    }
+    const p = chosen.length === 1 ? chosen[0] : undefined;
+    const several = chosen.length > 1;
+    const sameSet = (ids: string[] | undefined) => !!ids && ids.length === chosen.length && chosen.every((x) => ids.includes(x.id));
+    // one review research per person, per set of people, one of the people without a record: again later, it goes on where it was
+    const existing = tree
+      .list<Research>("research")
+      .find(
+        (r) =>
+          r.direction === "person" &&
+          r.review &&
+          (unproven ? !!r.review.unproven : several ? !r.review.unproven && sameSet(r.review.people) : !r.review.people && r.focus === p!.id),
+      );
+    let review: NonNullable<Research["review"]> = { scope: scope as (typeof REVIEW_SCOPES)[number], ...(reread ? { reread } : {}) };
+    let left = 0;
+    if (unproven) {
+      const batch = unprovenBatch(tree, existing, max, review);
+      if (!batch.people.length) return { text: ui(lang, "ui.review.unproven.none"), data: { research: existing ?? null, created: [], planned: [], open: [] } };
+      review = { ...review, people: batch.people, unproven: true };
+      left = batch.left;
+    } else if (several) review = { ...review, people: chosen.map((x) => x.id) };
+    const names = chosen.map((x) => displayName(x));
+    const name = unproven ? phrase(lang, "review.unproven.research") : names.length > 3 ? `${names.slice(0, 3).join(", ")} +${names.length - 3}` : names.join(", ");
+    const focus = p?.id ?? review.people![0]!;
     // What it would propose, asked before anything is written: with nothing to do, no research is made for it.
     const draft: Research = existing
-      ? { ...existing, state: "active", review }
-      : ({ id: "G?", type: "research", name: phrase(lang, "review.research", { name: displayName(p) }), focus: p.id, direction: "person", state: "active", review, notes: [] } as unknown as Research);
+      ? { ...existing, focus, state: "active", review }
+      : ({ id: "G?", type: "research", name: unproven ? name : phrase(lang, "review.research", { name }), focus, direction: "person", state: "active", review, notes: [] } as unknown as Research);
     const planned = researchProposals(tree, draft).map((x) => x.proposal);
     let research: Research = draft;
     let tasks: Task[] = [];
+    const what = unproven ? `${review.people!.length} without a record of their own` : several ? review.people!.join(" ") : scope;
     if (planned.length && !tree.dryRun) {
       if (existing)
-        research = update<Research>(tree, existing.id, "research", (r) => ({ ...r, state: "active", review }), {
+        research = update<Research>(tree, existing.id, "research", (r) => ({ ...r, focus, state: "active", review }), {
           op: "research.edit",
-          summary: `${existing.id} review again: ${scope}${reread ? `, second reading with ${reread}` : ""}`,
+          summary: `${existing.id} review again: ${what}${reread ? `, second reading with ${reread}` : ""}`,
         });
       else {
-        const r = addResearch(tree, { name: draft.name, focus: p.id, direction: "person" });
-        research = update<Research>(tree, r.id, "research", (x) => ({ ...x, review }), { op: "research.edit", summary: `${r.id} review: ${scope}${reread ? `, second reading with ${reread}` : ""}` });
+        const r = addResearch(tree, { name: draft.name, focus, direction: "person" });
+        research = update<Research>(tree, r.id, "research", (x) => ({ ...x, review }), { op: "research.edit", summary: `${r.id} review: ${what}${reread ? `, second reading with ${reread}` : ""}` });
       }
       tasks = applyFrontier(tree, research)
         .map((id) => tree.get<Task>(id))
@@ -239,17 +295,47 @@ register({
       ...(human ? [] : tree.written.map((o) => o.summary)),
       tree.dryRun ? ui(lang, "ui.review.dry") : undefined,
       (tree.written.length && !human) || tree.dryRun ? "" : undefined,
-      list.length ? ui(lang, "ui.review.new", { name: label(p), n: list.length }) : ui(lang, "ui.review.nothing", { name: label(p) }),
+      list.length ? ui(lang, "ui.review.new", { name: p ? label(p) : name, n: list.length }) : ui(lang, "ui.review.nothing", { name: p ? label(p) : name }),
       ...list,
       ...why,
       open.length || tasks.length
         ? ui(lang, "ui.review.open", { n: open.length || tasks.length, research: inReview!.id }) + (avg !== undefined ? ui(lang, "ui.review.cost", { cost: avg.toFixed(2) }) : "")
         : undefined,
       (open.length || tasks.length) && inReview ? ui(lang, human ? "ui.review.next.human" : "ui.review.next", { research: inReview.id }) : undefined,
+      left ? ui(lang, human ? "ui.review.unproven.left.human" : "ui.review.unproven.left", { n: left }) : undefined,
     );
-    return { text, data: { research: inReview ?? null, created: tasks, planned, open: open.map((t) => t.id), ...(why.length ? { why } : {}), ...(avg !== undefined ? { avgCostUsd: avg } : {}) } };
+    return {
+      text,
+      data: { research: inReview ?? null, created: tasks, planned, open: open.map((t) => t.id), ...(unproven ? { people: review.people, left } : {}), ...(why.length ? { why } : {}), ...(avg !== undefined ? { avgCostUsd: avg } : {}) },
+    };
   },
 });
+
+const OPEN_TASK = new Set(["open", "doing", "parked", "waiting"]);
+
+/**
+ * The next batch of people without a record of their own: those whose tasks of the review are still open stay;
+ * then the ones strom has work for — a record naming them first (the quickest to prove), then leads, then
+ * nothing — those never in a batch before those tried already. How many more wait besides.
+ */
+function unprovenBatch(tree: Tree, existing: Research | undefined, max: number, review: NonNullable<Research["review"]>): { people: string[]; left: number } {
+  // the living are the family's to tell: no research of the registers for them
+  const all = unprovenPeople(tree).filter((u) => !u.living);
+  const tasks = existing ? tree.list<Task>("task").filter((t) => t.research === existing.id) : [];
+  const busy = (id: string) => tasks.some((t) => t.subject.includes(id) && OPEN_TASK.has(t.state));
+  const keep = all.filter((u) => busy(u.person.id)).map((u) => u.person.id);
+  const before = new Set(existing?.review?.people ?? []);
+  const order: Record<string, number> = { named: 0, leads: 1, none: 2 };
+  const rest = all
+    .filter((u) => !keep.includes(u.person.id))
+    .sort((a, b) => Number(before.has(a.person.id)) - Number(before.has(b.person.id)) || order[a.kind]! - order[b.kind]! || a.person.id.localeCompare(b.person.id));
+  // only those strom has work for: what it would propose for all of them, asked once
+  const draft = { ...(existing ?? { id: "G?", type: "research", name: "", direction: "person", state: "active", notes: [] }), review: { ...review, people: rest.map((u) => u.person.id), unproven: true } } as Research;
+  const planned = researchProposals(tree, { ...draft, focus: rest[0]?.person.id ?? "" }).map((x) => x.proposal);
+  const workable = rest.filter((u) => planned.some((x) => x.subject.includes(u.person.id))).map((u) => u.person.id);
+  const people = [...keep, ...workable].slice(0, Math.max(max, keep.length));
+  return { people, left: all.length - people.length };
+}
 
 /** Why a review found nothing new, person by person: the work that covers them already, or a search done in vain. */
 function coveredLines(tree: Tree, research: Research, lang: string, human = false): string[] {

@@ -7,6 +7,7 @@ import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
 import { check, type Finding } from "../core/check.ts";
 import { guard } from "../core/guard.ts";
+import { unprovenPeople } from "../core/review.ts";
 import { verifyFast, verifyFull } from "../core/integrity.ts";
 import { createKey, verifyCommitSeal } from "../core/seal.ts";
 import { NeedsConsentError, StromError } from "../core/errors.ts";
@@ -26,6 +27,7 @@ export function report(findings: Finding[], okText: string) {
   return { text, data: { ok: errors.length === 0, findings }, exitCode: errors.length ? 1 : 0 };
 }
 
+
 register(
   {
     path: ["check"],
@@ -34,7 +36,11 @@ register(
     tree: true,
     run(ctx) {
       const tree = ctx.tree();
-      return report([...verifyFull(tree).findings, ...check(tree), ...guard(tree)], "ok — data consistent, sealed, nothing lost");
+      const out = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree)], "ok — data consistent, sealed, nothing lost");
+      // not an error — research to do: who rests on no record of their own
+      const unproven = unprovenPeople(tree).filter((u) => !u.living).length;
+      if (!unproven) return out;
+      return { ...out, text: lines(out.text, `note: ${unproven} people rest on no record of their own → strom person list --unproven`), data: { ...out.data, unproven } };
     },
   },
   {

@@ -206,7 +206,8 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         },
         {
           key: "4",
-          label: t("ui.menu.more"),
+          // the Strom app named only for someone who has not said no to it
+          label: t(stromAppState(ctx.settings) === "no" ? "ui.menu.more" : "ui.menu.more.app"),
           act: async () => addToResearch(ctx, run, lang, root!),
         },
         {
@@ -267,7 +268,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
     const i = await ctx.choose("", items.map((it) => ({ key: it.key === "0" ? "0" : String(++n), label: it.label })), 0);
     if (i === undefined) return;
     const quit = await guarded(ctx, lang, items[i]!.act);
-    if (quit === true) {
+    if (quit === true || quit === "quit") {
       out(t("ui.menu.bye"));
       return;
     }

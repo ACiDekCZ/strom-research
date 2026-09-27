@@ -188,6 +188,9 @@ function checkResearch(r: Partial<Research>, out: Problem[]): void {
   if (r.direction === "question" && !str(r.question)) out.push({ path: "question", message: "is required for direction question" });
   if (r.review !== undefined && (!isObj(r.review) || !REVIEW_SCOPES.includes(r.review.scope as (typeof REVIEW_SCOPES)[number])))
     out.push({ path: "review.scope", message: `must be one of ${REVIEW_SCOPES.join(", ")}` });
+  if (isObj(r.review) && r.review.people !== undefined && (!Array.isArray(r.review.people) || !r.review.people.every((x) => str(x))))
+    out.push({ path: "review.people", message: "must be a list of person IDs" });
+  if (isObj(r.review) && r.review.unproven !== undefined && typeof r.review.unproven !== "boolean") out.push({ path: "review.unproven", message: "must be true or false" });
   checkNotes(r.notes, "notes", out);
 }
 
