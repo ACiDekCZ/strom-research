@@ -160,7 +160,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
 
   // Places with coordinates, looked up by folded name.
   const coords = new Map<string, { lat: number; lon: number }>();
-  for (const pl of tree.list<Place>("place")) if (pl.coords) for (const n of pl.names) coords.set(foldText(n.name), pl.coords);
+  for (const pl of tree.list<Place>("place")) if (pl.coords && !pl.retracted) for (const n of pl.names) coords.set(foldText(n.name), pl.coords);
 
   // What the research knows beyond the facts (the Strom profile, opts.research): read once.
   const research = {

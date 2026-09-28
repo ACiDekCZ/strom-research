@@ -71,6 +71,12 @@ if (mode === "denied") {
   console.log("denied: Bash: strom input show I0001");
   process.exit(0);
 }
+if (mode === "denied-once") {
+  // one compound command refused (strom … && a loop), the rest of its work through strom as usual
+  console.log("denied: Bash: strom fetch x 1 --images 9-9 && for i in 9; strom media view B1:$i; end");
+  strom("session", "close", "--continue", "--summary", "read what it could", "--next", "the rest");
+  process.exit(0);
+}
 if (mode === "sleep-wrap" && process.env.STROM_WRAP_UP === "1") {
   // stopped at its time limit, then resumed: writes down what it found and closes
   const r = strom("task", "list");

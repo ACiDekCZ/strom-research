@@ -300,3 +300,48 @@ test("the tree kept as the sync's document leaves out the images written into it
   assert.equal(withoutImages('{"excerpts":[{"dataUrl":"data:image/png;base64,QUJD","caption":"Křest"}]}'), '{"excerpts":[{"dataUrl":"[image left out, 0 kB]","caption":"Křest"}]}');
   assert.equal(withoutImages("1 FILE https://example.org/a.jpg\n"), "1 FILE https://example.org/a.jpg\n", "a file named by address stays");
 });
+
+test("places on the map: a position the user corrected or set in the app is taken (no record proves one), undone back; the Strom app's JSON too; without the state a difference only when picked", opts, async () => {
+  const { w } = await world();
+  await w.ok(["place", "add", "Kamenice", "--kind", "village", "--lat", "49.1", "--lon", "15.2"]); // L1
+  await w.ok(["event", "add", "P3", "BIRT", "--date", "1890", "--place", "Týnec"]);
+  const ged = path.join(w.dir, "strom.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", ged]);
+  const given = fs.readFileSync(ged, "utf8");
+  assert.match(given, /2 PLAC Kamenice\n3 MAP\n4 LATI N49\.1\n4 LONG E15\.2\n/);
+  // in the app: Kamenice moved, Týnec found on the map (as the app writes them: six decimals)
+  const moved = given.replace("4 LATI N49.1\n4 LONG E15.2", "4 LATI N49.366571\n4 LONG E15.041234").replace("2 PLAC Týnec\n", "2 PLAC Týnec\n3 MAP\n4 LATI N50.042\n4 LONG E15.358\n");
+  const file = path.join(w.dir, "mapa.ged");
+  fs.writeFileSync(file, moved);
+  const r = await w.ok(["sync", file]);
+  assert.match(r.out, /1\. Kamenice: poloha na mapě 49\.1, 15\.2 → 49\.366571, 15\.041234 → výzkum převezme vaši polohu \(žádný zápis ji nedokládá\)/);
+  assert.match(r.out, /2\. Týnec: poloha na mapě 50\.042, 15\.358 → výzkum převezme vaši polohu/);
+  const done = await w.ok(["sync", file, "--apply"]);
+  assert.match(done.out, /Zapsáno změn z mapa\.ged: 2 \(I0001\)/);
+  const places = (await w.ok(["place", "list", "--json"])).json;
+  const at = (name: string) => places.places.find((p: { names: { name: string }[] }) => p.names[0]!.name === name)?.coords;
+  assert.deepEqual(at("Kamenice"), { lat: 49.366571, lon: 15.041234 });
+  assert.deepEqual(at("Týnec"), { lat: 50.042, lon: 15.358 });
+  assert.deepEqual((await w.ok(["sync", file, "--json"])).json.changes, [], "the same file again: nothing");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", ged]);
+  assert.match(fs.readFileSync(ged, "utf8"), /2 PLAC Týnec\n3 MAP\n4 LATI N50\.042\n4 LONG E15\.358\n/);
+  assert.equal((await w.ok(["check"])).code, 0);
+  // taken back: Kamenice where it was, Týnec withdrawn — off the map again
+  await w.ok(["sync", "undo", "I1"]);
+  const back = (await w.ok(["place", "list", "--json"])).json.places;
+  assert.deepEqual(back.find((p: { id: string }) => p.id === "L0001").coords, { lat: 49.1, lon: 15.2 });
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", ged]);
+  assert.doesNotMatch(fs.readFileSync(ged, "utf8"), /2 PLAC Týnec\n3 MAP/);
+  // the Strom app's JSON: its coordinates by its own key of the place's name
+  const id = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id;
+  const app = {
+    research: { id },
+    persons: { a: { id: "a", firstName: "Josef", lastName: "Novák", gender: "male", refn: "P0001", refnType: "strom-research", events: [{ type: "baptism", date: "1885-03-03", place: "Kamenice" }] } },
+    partnerships: {},
+    places: { kamenice: { lat: 49.2, lon: 15.1, label: "Kamenice, okres Jihlava" } },
+  };
+  fs.writeFileSync(path.join(w.dir, "strom.json"), JSON.stringify(app));
+  const j = (await w.ok(["sync", path.join(w.dir, "strom.json"), "--json"])).json.changes.filter((c: { kind: string }) => c.kind === "place.coords");
+  assert.deepEqual(j.map((c: { action: string; place: { name: string; lat: number } }) => [c.action, c.place.name, c.place.lat]), [["pick", "Kamenice", 49.2]], "no state of the research: a difference only when picked");
+  w.cleanup();
+});

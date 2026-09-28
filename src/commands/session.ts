@@ -637,6 +637,8 @@ register({
         // Close what the agent left open, record the metrics, export, commit.
         const after = Tree.open(root, runEnv);
         let s = after.get<Session>(session.id)!;
+        // strom worked for the agent when it closed the session itself or recorded something
+        const ranStrom = s.state !== "open" || sessionWrites(after, s.id) > 0;
         if (s.state === "open")
           s = closeSession(after, s, {
             summary: result.outcome === "stopped" ? phrase(after.lang, "session.user") : phrase(after.lang, "session.agent", { outcome: result.outcome }),
@@ -677,7 +679,9 @@ register({
           break;
         }
         // An agent that may not run strom can do nothing: stop, do not burn session after session.
-        if (result.denied?.some((d) => /^Bash: (\S*\/)?strom\b/.test(d))) {
+        // A refused command that only starts with strom (strom … && sed …, a loop) is no such thing
+        // when strom worked for it otherwise.
+        if (!ranStrom && result.denied?.some((d) => /^Bash: (\S*\/)?strom\b/.test(d))) {
           stopCode = "denied";
           break;
         }

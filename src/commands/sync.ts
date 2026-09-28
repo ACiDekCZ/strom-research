@@ -25,6 +25,9 @@ function factText(f: SFact | undefined, lang: string): string {
   return [f.value, humanDate(f.date, lang), humanPlace(f.place, undefined, lang)].filter(Boolean).join(", ") || "—";
 }
 
+/** A position on the map as a map shows it: degrees, six decimals at most. */
+const point = (p: { lat: number; lon: number }) => `${+p.lat.toFixed(6)}, ${+p.lon.toFixed(6)}`;
+
 /** One change as the user reads it, with what strom does with it. */
 function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): string {
   const name = (key: string | undefined) => {
@@ -46,8 +49,12 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
     text: truncate(c.text ?? "", 120),
     child: name(c.child),
     kids: c.kind === "family.new" && c.text ? ` + ${c.text.split(" ").filter(Boolean).map(name).join(", ")}` : "",
+    place: c.place?.name ?? "",
+    at: c.place ? point(c.place) : "",
+    from: c.place?.was ? point(c.place.was) : "",
   };
-  return `${ui(lang, `ui.sync.${c.kind}` as UIKey, v)} → ${ui(lang, `ui.sync.do.${c.action}` as UIKey)}`;
+  const key = c.kind === "place.coords" && !c.place?.was ? "ui.sync.place.located" : `ui.sync.${c.kind}`;
+  return `${ui(lang, key as UIKey, v)} → ${ui(lang, `ui.sync.do.${c.action}` as UIKey)}`;
 }
 
 function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang: string, edits: string): string {

@@ -21,7 +21,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { eventKind, type Conflict, type Event, type Family, type Input, type Person, type Source } from "./model.ts";
+import { eventKind, type Conflict, type Event, type Family, type Input, type Person, type Place, type Source } from "./model.ts";
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, retractEvent, retractPerson } from "./actions.ts";
 import { exportGedcom, REFN_TYPE } from "../gedcom/export.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
@@ -63,6 +63,13 @@ export interface SFamily {
   id?: string;
 }
 
+/** Where a place is on the map, as a file has it (the Strom app keeps it for the place's name). */
+export interface SPlace {
+  name: string;
+  lat: number;
+  lon: number;
+}
+
 export interface Snapshot {
   format: "gedcom" | "strom-json";
   /** The research the file is of (_STROM_TREE), and the state of it (_STROM_HEAD). */
@@ -70,6 +77,8 @@ export interface Snapshot {
   head?: string;
   persons: Map<string, SPerson>;
   families: SFamily[];
+  /** The places with coordinates, by placeKey. */
+  places?: Map<string, SPlace>;
   problems: string[];
 }
 
@@ -84,6 +93,47 @@ const kindOf = (k: string) => (k === "CHR" ? "BAPM" : k);
 export const factKey = (f: SFact) => [kindOf(f.kind), f.date ?? "", exact(f.place), exact(f.value), f.date || f.place ? "" : fold(f.label)].join("|");
 /** A name for a comparison: "? /Novák/", "Jan //" and "Jan /?/" are the names the research has. */
 const nameKey = (n: string) => exact(n.replace(/[/?]/g, " "));
+
+/** A place's name as the Strom app keys its coordinates (placeKey of its places.ts): no accents, case, stops or commas. */
+export const placeKey = (s: string) => foldText(s.replace(/[.,;]/g, " ")).replace(/\s+/g, " ").trim();
+
+/** The Strom app's own key of a place's coordinates in its JSON (places.ts). */
+const appPlaceKey = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[.,;]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/** GEDCOM's N50.042 / E15.358 (also a bare or negative number): degrees, the south and west negative. */
+function degrees(v: string | undefined, neg: string, max: number): number | undefined {
+  const m = /^\s*([NSEW])?\s*(-?\d{1,3}(?:\.\d+)?)\s*$/i.exec(v ?? "");
+  if (!m) return undefined;
+  const n = Number(m[2]) * (m[1]?.toUpperCase() === neg ? -1 : 1);
+  return Number.isFinite(n) && Math.abs(n) <= max ? n : undefined;
+}
+
+/** The places of a GEDCOM with their MAP > LATI/LONG, wherever a PLAC is. */
+function gedPlaces(records: GedNode[]): Map<string, SPlace> {
+  const out = new Map<string, SPlace>();
+  const walk = (n: GedNode) => {
+    for (const c of n.children) {
+      const map = c.tag === "PLAC" ? c.children.find((x) => x.tag === "MAP") : undefined;
+      const lat = map ? degrees(val(map, "LATI"), "S", 90) : undefined;
+      const lon = map ? degrees(val(map, "LONG"), "W", 180) : undefined;
+      const name = c.value.replace(/\s+/g, " ").trim();
+      if (lat !== undefined && lon !== undefined && name && !out.has(placeKey(name))) out.set(placeKey(name), { name, lat, lon });
+      walk(c);
+    }
+  };
+  for (const r of records) if (r.tag === "INDI" || r.tag === "FAM") walk(r);
+  return out;
+}
+
+/** The same point: the Strom app keeps six decimals. */
+const samePoint = (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => Math.abs(a.lat - b.lat) < 5e-7 && Math.abs(a.lon - b.lon) < 5e-7;
 
 /** The Strom app's "Birth (alternative record)": a second birth or death of ours coming back as an event of its own. */
 const ALTERNATIVE: Record<string, string> = {
@@ -201,7 +251,7 @@ export function readGedcom(text: string): Snapshot {
   }
   const treeId = val(head, "_STROM_TREE");
   const at = val(head, "_STROM_HEAD");
-  return { format: "gedcom", ...(treeId ? { treeId } : {}), ...(at ? { head: at } : {}), persons, families, problems };
+  return { format: "gedcom", ...(treeId ? { treeId } : {}), ...(at ? { head: at } : {}), persons, families, places: gedPlaces(records), problems };
 }
 
 /** The Strom app's life events → our kinds. */
@@ -242,7 +292,7 @@ interface AppPartnership {
 
 /** A tree of the Strom app (its JSON) as a snapshot. */
 export function readStromJson(data: unknown): Snapshot {
-  const d = data as { persons?: Record<string, AppPerson>; partnerships?: Record<string, AppPartnership>; research?: { id?: string; head?: string } };
+  const d = data as { persons?: Record<string, AppPerson>; partnerships?: Record<string, AppPartnership>; places?: Record<string, { lat?: unknown; lon?: unknown }>; research?: { id?: string; head?: string } };
   if (!d || typeof d !== "object" || !d.persons || typeof d.persons !== "object") throw new UsageError("not a family tree of the Strom app: no persons in it");
   const keys = new Map<string, string>();
   const persons = new Map<string, SPerson>();
@@ -298,8 +348,17 @@ export function readStromJson(data: unknown): Snapshot {
     }
     families.push({ partners, children: (u.childIds ?? []).map((c) => keys.get(c)).filter((k): k is string => !!k), facts });
   }
+  // the app's coordinates are kept for the place's name (its placeKey): the names are its facts'
+  const places = new Map<string, SPlace>();
+  const geo = d.places && typeof d.places === "object" ? d.places : {};
+  for (const f of [...persons.values()].flatMap((p) => p.facts).concat(families.flatMap((x) => x.facts))) {
+    const k = f.place ? placeKey(f.place) : "";
+    const g = f.place ? geo[appPlaceKey(f.place)] : undefined;
+    if (!g || places.has(k) || typeof g.lat !== "number" || typeof g.lon !== "number") continue;
+    if (Math.abs(g.lat) <= 90 && Math.abs(g.lon) <= 180) places.set(k, { name: f.place!, lat: g.lat, lon: g.lon });
+  }
   const r = d.research;
-  return { format: "strom-json", ...(r?.id ? { treeId: r.id } : {}), ...(r?.head ? { head: r.head } : {}), persons, families, problems: [] };
+  return { format: "strom-json", ...(r?.id ? { treeId: r.id } : {}), ...(r?.head ? { head: r.head } : {}), persons, families, places, problems: [] };
 }
 
 /** A file coming back: GEDCOM or the Strom app's JSON; empty or unreadable throws. */
@@ -572,10 +631,11 @@ export type ChangeKind =
   | "family.new"
   | "child.new"
   | "child.gone"
-  | "person.gone";
+  | "person.gone"
+  | "place.coords";
 
-/** What strom does with a change: adds it, corrects a lead, a conflict, the user's edit wins, only when picked, nothing. */
-export type ChangeAction = "add" | "correct" | "conflict" | "user" | "pick" | "report";
+/** What strom does with a change: adds it, corrects a lead, a conflict, the user's edit wins, the place's position set, only when picked, nothing. */
+export type ChangeAction = "add" | "correct" | "conflict" | "user" | "set" | "pick" | "report";
 
 export interface Change {
   n: number;
@@ -590,6 +650,8 @@ export interface Change {
   /** The partners (keys) of a family change. */
   partners?: string[];
   child?: string;
+  /** place.coords: the place as the file has it, the research's place and where the research has it now. */
+  place?: SPlace & { id?: string; was?: { lat: number; lon: number } };
   fact?: SFact;
   /** What the research has (ours) — for a change or a difference. */
   was?: SFact;
@@ -736,7 +798,28 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       for (const c of b.children) if (!now.has(c) && o.children.includes(c) && incoming.persons.has(c)) push({ kind: "child.gone", action: "report", family: fam.id, partners, child: c });
     }
   }
+
+  // places on the map: no record proves a position, so the user's is taken — set where the research has none,
+  // or changed in the app since it was given (the research's as it was given); anything else only when picked
+  const ourPlaces = researchPlaces(tree);
+  for (const [k, p] of incoming.places ?? []) {
+    const mine = ourPlaces.get(k);
+    const here = mine?.coords;
+    if (here && samePoint(here, p)) continue;
+    const given = base?.places?.get(k);
+    if (given && samePoint(given, p)) continue; // as it was given: the research moved it since
+    const action = !here || (given && samePoint(given, here)) ? "set" : "pick";
+    push({ kind: "place.coords", action, place: { ...p, ...(mine ? { id: mine.id } : {}), ...(here ? { was: here } : {}) } });
+  }
   return { changes, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity };
+}
+
+/** The research's places by placeKey of each of their names — one with coordinates first, as the export gives them. */
+function researchPlaces(tree: Tree): Map<string, Place> {
+  const out = new Map<string, Place>();
+  for (const p of tree.list<Place>("place"))
+    if (!p.retracted) for (const n of p.names) if (!out.has(placeKey(n.name)) || (p.coords && !out.get(placeKey(n.name))!.coords)) out.set(placeKey(n.name), p);
+  return out;
 }
 
 /** Does the research's fact say all the file's fact says, and more: the same kind, and each of its date, place, value the same or missing in the file. */
@@ -797,9 +880,9 @@ function knownNewcomers(incoming: Snapshot, ours: Snapshot): void {
 
 /** What one sync wrote, to undo it: kept on its input. */
 export interface Applied {
-  do: "event.add" | "event.edit" | "event.retract" | "conflict.add" | "name.add" | "note.add" | "person.add" | "family.add" | "child.add" | "sex.edit";
+  do: "event.add" | "event.edit" | "event.retract" | "conflict.add" | "name.add" | "note.add" | "person.add" | "family.add" | "child.add" | "sex.edit" | "place.add" | "place.edit";
   id: string;
-  /** event.edit: the fact before; event.retract: its status; sex.edit: the sex before; note.add: the note's time; child.add: the child. */
+  /** event.edit: the fact before; event.retract: its status; sex.edit: the sex before; note.add: the note's time; child.add: the child; place.edit: its position before (JSON). */
   before?: SFact | string;
 }
 
@@ -915,6 +998,23 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
         applied.push({ do: "child.add", id: c.family, before: child });
         break;
       }
+      case "place.coords": {
+        const p = c.place;
+        if (!p) break;
+        const coords = { lat: p.lat, lon: p.lon };
+        const mine = p.id ? tree.get<Place>(p.id) : undefined;
+        if (mine && !mine.retracted) {
+          update<Place>(tree, mine.id, "place", ({ unlocated: _found, ...rest }) => ({ ...rest, coords }), {
+            op: "place.edit",
+            summary: `${mine.id} at ${p.lat}, ${p.lon}: ${reason}`,
+          });
+          applied.push({ do: "place.edit", id: mine.id, before: JSON.stringify({ coords: mine.coords, unlocated: mine.unlocated }) });
+        } else {
+          const made = create<Place>(tree, "place", { names: [{ name: p.name }], coords, jurisdictions: [], note: `the position from ${reason}` } as never, (id) => `+${id} place "${p.name}" (from ${source.id})`);
+          applied.push({ do: "place.add", id: made.id });
+        }
+        break;
+      }
       default:
         break;
     }
@@ -980,6 +1080,17 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         break;
       case "person.add":
         if (!tree.get<Person>(a.id)?.retracted) retractPerson(tree, a.id, reason);
+        break;
+      case "place.edit": {
+        const b = JSON.parse(String(a.before ?? "{}")) as Pick<Place, "coords" | "unlocated">;
+        update<Place>(tree, a.id, "place", ({ coords: _now, unlocated: _u, ...p }) => ({ ...p, ...(b.coords ? { coords: b.coords } : {}), ...(b.unlocated ? { unlocated: b.unlocated } : {}) }), {
+          op: "place.edit",
+          summary: `${a.id} position back: ${reason}`,
+        });
+        break;
+      }
+      case "place.add":
+        update<Place>(tree, a.id, "place", (p) => ({ ...p, retracted: { at: now(), reason } }), { op: "place.retract", summary: `${a.id} retracted: ${reason}` });
         break;
     }
     n++;

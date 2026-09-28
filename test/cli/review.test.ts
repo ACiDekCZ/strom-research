@@ -531,6 +531,19 @@ test("strom run: an agent not allowed to run strom stops the loop at once", opts
   w.cleanup();
 });
 
+test("strom run: one refused command that starts with strom does not stop a loop the agent otherwise worked in", opts, async () => {
+  const w = await world();
+  await w.ok(["task", "add", "Křest", "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1"]);
+  await w.ok(["task", "add", "Jiný", "--level", "locate", "--where", "Jinde", "--why", "a", "--done-when", "b"]);
+  w.env.STROM_RUNNER_SCRIPT = agent;
+  w.env.AGENT_MODE = "denied-once";
+  const r = await w.run(["run", "--agent", "script", "--max", "2", "--json"]);
+  assert.equal(r.json.sessions.length, 2, "the second session started");
+  assert.notEqual(r.json.stop, "denied");
+  assert.match(r.err, /oprávnění odmítla 1×: Bash: strom fetch/);
+  w.cleanup();
+});
+
 test("live run findings: a citation without a fact cites the name; a search task without a recorded search is flagged", opts, async () => {
   const w = await world();
   await w.ok(["source", "add", "Vyprávění", "--kind", "family-memory", "--form", "authored"]);
