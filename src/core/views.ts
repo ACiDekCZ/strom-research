@@ -98,7 +98,17 @@ export function tiles(region: { x: number; y: number; w: number; h: number }, ma
 
 /** Make (or reuse) a view of an image file. `key` names it (M0012, I0003). */
 export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec): View {
-  if (!fs.existsSync(source)) throw new UsageError(`the image file is missing: ${source}`, { hint: "the shared folder may have moved: strom config where" });
+  if (!fs.existsSync(source)) {
+    // a research handed over without its images: the archive gives the same scan again
+    const m = /^M\d+$/.test(key) ? tree.get<Media>(key) : undefined;
+    const again =
+      m?.fetched && m.recordset && m.image !== undefined
+        ? `strom fetch ${m.fetched.connector} ${m.fetched.book} --recordset ${m.recordset} --images ${m.image}${m.part ? ` --crop ${[m.part.x, m.part.y, m.part.w, m.part.h].join(",")}` : ""}`
+        : undefined;
+    throw new UsageError(`the image file is missing: ${source}`, {
+      hint: again ? `fetch it again from the archive (checked: the same scan): ${again} — or the shared folder moved: strom config where` : "the shared folder may have moved: strom config where",
+    });
+  }
   const bytes = new Uint8Array(fs.readFileSync(source));
   const size = imageSize(bytes);
   if (!size) {

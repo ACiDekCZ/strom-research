@@ -28,7 +28,9 @@ import { askStromApp } from "./wizard.ts";
 import { openForUser } from "../core/open.ts";
 import type { Person, Research } from "../core/model.ts";
 import { displayName } from "../core/people.ts";
-import { agentReady, guarded, pause as partsPause, pickPerson, subMenu, type Item, type Run } from "./menu-parts.ts";
+import { agentReady, droppedPaths, guarded, pause as partsPause, pickPerson, subMenu, type Item, type Run } from "./menu-parts.ts";
+import { packPlan } from "../core/pack.ts";
+import { expandHome } from "../core/paths.ts";
 import { offerAgent } from "./fixes.ts";
 import { addToResearch } from "./menu-research.ts";
 import { waitingForYou } from "./menu-waiting.ts";
@@ -398,11 +400,34 @@ async function pickTree(ctx: Context, run: Run, lang: string): Promise<void> {
   }
   const at = known.findIndex((k) => k.root === here);
   const options = [...known.map((k) => ({ label: `${k.name}  (${ctx.display(k.root)})` })), { label: ui(lang, "ui.trees.new") }];
+  // handing a research over: this one packed, one someone sent unpacked
+  const packAt = at >= 0 ? options.push({ label: ui(lang, "ui.trees.pack", { name: known[at]!.name }) }) - 1 : -1;
+  const unpackAt = options.push({ label: ui(lang, "ui.trees.unpack") }) - 1;
   const back = at >= 0 ? { back: ui(lang, "ui.back.stay", { name: known[at]!.name }) } : {};
   const i = await ctx.choose(ui(lang, "ui.trees.pick"), options, Math.max(0, at), back);
   if (i === undefined || i === at) return;
   if (i < known.length) {
     await run(["trees", "use", known[i]!.root], true);
+    return;
+  }
+  if (i === packAt) {
+    const tree = Tree.open(known[at]!.root, ctx.env);
+    const shared = ctx.settings.shared()!.value;
+    const size = (all: boolean) => (packPlan(tree, shared, all).media.reduce((s, m) => s + m.size, 0) / 1e6).toFixed(0);
+    const which = await ctx.choose(ui(lang, "ui.pack.which"), [{ label: ui(lang, "ui.pack.opt.records", { mb: size(false) }) }, { label: ui(lang, "ui.pack.opt.all", { mb: size(true) }) }], 0, { back: ui(lang, "ui.browse.back") });
+    if (which === undefined) return;
+    await run(["pack", "--tree", tree.root, ...(which === 1 ? ["--all-images"] : [])]);
+    await partsPause(ctx, lang);
+    return;
+  }
+  if (i === unpackAt) {
+    const answer = (await ctx.ask(ui(lang, "ui.unpack.file"))).trim();
+    if (!answer || answer === "0") return;
+    const resolve = (p: string) => path.resolve(ctx.cwd, expandHome(p, ctx.env));
+    const dropped = droppedPaths(answer).map(resolve);
+    const file = dropped.length === 1 && fs.existsSync(dropped[0]!) ? dropped[0]! : resolve(answer);
+    await run(["unpack", file]);
+    await partsPause(ctx, lang);
     return;
   }
   const name = (await ctx.ask(ui(lang, "ui.tree.name.new"), ui(lang, "ui.tree.default"))).trim();

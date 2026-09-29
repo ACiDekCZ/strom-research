@@ -38,17 +38,25 @@ export interface NewImage {
  * Register images of a record set: stored once by content, each with its number
  * and provenance. Tasks that waited for images of the book go back into the queue.
  */
-export function registerImages(tree: Tree, shared: string, items: NewImage[], recordset: string | undefined): { added: Media[]; again: string[]; woken: string[]; clashes: string[]; copies: string[] } {
+export function registerImages(tree: Tree, shared: string, items: NewImage[], recordset: string | undefined): { added: Media[]; again: string[]; restored: string[]; woken: string[]; clashes: string[]; copies: string[] } {
   // a withdrawn image is no longer known: its file can be registered again, where it belongs
   const known = new Map(tree.list<Media>("media").filter((m) => !m.retracted).map((m) => [m.sha, m]));
   const added: Media[] = [];
   const again: string[] = [];
+  const restored: string[] = [];
   const clashes: string[] = [];
   const copies: string[] = [];
   tree.withTreeLock(() => {
     for (const it of items) {
       const sha = fileSha256(it.file);
       const k = known.get(sha);
+      if (k && !tree.dryRun && !fs.existsSync(path.join(shared, k.file))) {
+        // its file is not here (a research handed over without its images): the same scan, put back where it was
+        fs.mkdirSync(path.dirname(path.join(shared, k.file)), { recursive: true });
+        fs.copyFileSync(it.file, path.join(shared, k.file));
+        restored.push(k.id);
+        continue;
+      }
       if (k) {
         again.push(k.id);
         // the same scan as another image: a portal serving another book's images, or a file given the wrong number
@@ -110,7 +118,7 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
       });
       woken.push(t.id);
     }
-  return { added, again, woken, clashes, copies };
+  return { added, again, restored, woken, clashes, copies };
 }
 
 function sharedDir(ctx: Context): string {
@@ -277,7 +285,7 @@ register(
             hint: "rename the files by the image number the viewer shows (9.jpg), or --image <n> for one file",
           });
       }
-      const { added, again, woken, clashes, copies } = registerImages(tree, shared, items, recordset);
+      const { added, again, restored, woken, clashes, copies } = registerImages(tree, shared, items, recordset);
       if (opts.inbox && !tree.dryRun) {
         for (const f of files) fs.rmSync(f, { force: true }); // now in the store
         for (const p of paths) if (p !== inbox && fs.existsSync(p) && fs.statSync(p).isDirectory() && collectFiles([p]).length === 0) fs.rmSync(p, { recursive: true, force: true });
@@ -286,7 +294,8 @@ register(
       const text = lines(
         added.length
           ? `${added.length} image(s) registered: ${added[0]!.id}${added.length > 1 ? `–${added.at(-1)!.id}` : ""}${recordset ? ` of ${recordset}` : ""}${nums.length ? ` (images ${runs(nums)})` : ""}`
-          : "no new images",
+          : restored.length ? undefined : "no new images",
+        restored.length ? `${restored.length} image(s) put back (their file was not here; the same scan): ${restored.slice(0, 5).join(" ")}${restored.length > 5 ? " …" : ""}` : undefined,
         again.length ? `${again.length} already registered (same content): ${again.slice(0, 5).join(" ")}${again.length > 5 ? " …" : ""}` : undefined,
         ...clashes.slice(0, 10).map((c) => `⚠ ${c}`),
         ...copies.slice(0, 10),

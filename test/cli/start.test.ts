@@ -75,10 +75,24 @@ test("the menu: a person can always change their mind — the current choice sug
   assert.match(r.out, /Který AI agent bude výzkum dělat\?\n {3}1 {2}OpenAI Codex CLI\n {3}0 {2}Zpět – zůstat u: Claude Code\nVyberte \[0\]/);
   assert.ok(!fs.existsSync(path.join(w.dir, "codex.calls")), "no other agent started");
   assert.ok(!fs.existsSync(path.join(w.dir, "claude.calls")), "no conversation, no run");
-  assert.match(r.out, /Který rodokmen\?\n {3}1 {2}Novákovi .*\n {3}2 {2}Svobodovi .*\n {3}3 {2}nový rodokmen\n {3}0 {2}Zpět – zůstat u: Novákovi\nVyberte \[1\]/);
+  assert.match(r.out, /Který rodokmen\?\n {3}1 {2}Novákovi .*\n {3}2 {2}Svobodovi .*\n {3}3 {2}nový rodokmen\n {3}4 {2}zabalit „Novákovi“ a poslat někomu \(soubor ZIP\)\n {3}5 {2}rodokmen, který vám někdo poslal \(soubor ZIP\)\n {3}0 {2}Zpět – zůstat u: Novákovi\nVyberte \[1\]/);
   assert.match(r.out, /Jak se bude jmenovat nový rodokmen\? \(třeba příjmení rodiny; 0 vrátí zpět\)/);
   assert.equal((await w.ok(["trees", "--json"])).json.trees.length, 2, "no tree made");
   assert.match((await w.ok(["status"])).out, /Novákovi/, "still the same tree");
+  // handing it over from the menu: packed, then unpacked by someone else (a file dragged in)
+  const p = await w.ok([], { tty: true, answers: ["8", "4", "1", "", "0"] });
+  assert.match(p.out, /Které snímky přibalit\?\n {3}1 {2}ty, na kterých jsou zápisy – 0 MB[^\n]*\n {3}2 {2}všechny – 0 MB\n {3}0 /);
+  assert.match(p.out, /Zabaleno „Novákovi“: (.+\.zip) \(/);
+  const zip = path.join(w.env.HOME!, /Zabaleno „Novákovi“: ~\/(.+\.zip) \(/.exec(p.out)![1]!);
+  assert.ok(fs.existsSync(zip), zip);
+  const b = new World();
+  b.env.PATH = pathWith(b, ["claude"]);
+  await b.ok(["setup", "--yes"]);
+  await b.ok(["init", "Dvořákovi"]);
+  const u = await b.ok([], { tty: true, answers: ["8", "4", `'${zip}'`, "a", "", "0"] });
+  assert.match(u.out, /Přetáhněte sem soubor ZIP[\s\S]*„Novákovi“ je tady/);
+  assert.equal((await b.ok(["trees", "--json"])).json.trees.length, 2);
+  b.cleanup();
   w.cleanup();
 });
 

@@ -1226,13 +1226,15 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     });
   if (recordset && request.cmd === "fetch") {
     // what is registered already is not asked for again (a part of an image is not the image)
-    const have = new Set(tree.list<Media>("media").filter((m) => m.recordset === recordset && !m.part && m.image !== undefined).map((m) => m.image));
+    // …unless its file is not here (a research handed over without its images): fetched again, put back
+    const here = (m: Media) => fs.existsSync(path.join(shared(ctx), m.file));
+    const have = new Set(tree.list<Media>("media").filter((m) => m.recordset === recordset && !m.part && m.image !== undefined && here(m)).map((m) => m.image));
     const asked = request.images;
     request.images = asked.filter((n) => !have.has(n));
     if (!request.images.length) return { text: `images ${runs(asked)} of ${recordset} are registered already — nothing fetched`, data: { added: [], again: asked } };
   }
   if (recordset && request.cmd === "part") {
-    const had = tree.list<Media>("media").find((m) => m.recordset === recordset && m.image === request.image && m.part && sameRegion(m.part, request.region));
+    const had = tree.list<Media>("media").find((m) => m.recordset === recordset && m.image === request.image && m.part && sameRegion(m.part, request.region) && fs.existsSync(path.join(shared(ctx), m.file)));
     if (had) return { text: `part ${regionText(request.region)} of image ${request.image} of ${recordset} is registered already: ${had.id} — nothing fetched`, data: { added: [], again: [had.id] } };
   }
   if (tree.dryRun) {
@@ -1292,6 +1294,8 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
             `the portal's sharpest of image ${request.image} is the whole scan, registered already: ${whole.id}${whole.width ? ` · ${whole.width}×${whole.height} px` : ""} — no part needed`,
             `look at it: strom media view ${recordset}:${request.image} --crop ${regionText(request.region)}`,
           )
+        : res.restored.length
+        ? `part ${regionText(request.region)} of image ${request.image} of ${recordset} fetched again and put back (its file was not here; the same scan): ${res.restored.join(" ")} · ${took}`
         : res.again.length
         ? lines(`that part is registered already: ${res.again.join(" ")}`, ...res.clashes.map((x) => `⚠ ${x}`))
         : "no part fetched";
@@ -1300,12 +1304,13 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     const res = registerImages(tree, shared(ctx), r.images.map((i) => ({ file: i.file, image: i.n, url: i.url, from: from(i.file), fetched })), recordset);
     const nums = res.added.map((m) => m.image).filter((n): n is number => n !== undefined);
     text = lines(
-      `${res.added.length} image(s) of ${recordset}${nums.length ? ` (images ${Math.min(...nums)}–${Math.max(...nums)})` : ""} fetched and registered · ${took}`,
+      res.added.length || !res.restored.length ? `${res.added.length} image(s) of ${recordset}${nums.length ? ` (images ${Math.min(...nums)}–${Math.max(...nums)})` : ""} fetched and registered · ${took}` : undefined,
+      res.restored.length ? `${res.restored.length} image(s) of ${recordset} fetched again and put back (their file was not here; the same scan): ${res.restored.slice(0, 5).join(" ")}${res.restored.length > 5 ? " …" : ""} · ${took}` : undefined,
       res.again.length ? `${res.again.length} already registered` : undefined,
       ...res.clashes.slice(0, 10).map((x) => `⚠ ${x}`),
       res.woken.length ? `back in the queue (they waited for these images): ${res.woken.join(" ")}` : undefined,
     );
-    data = { ...data, added: res.added.map((m) => ({ id: m.id, image: m.image })), again: res.again, woken: res.woken, clashes: res.clashes };
+    data = { ...data, added: res.added.map((m) => ({ id: m.id, image: m.image })), again: res.again, restored: res.restored, woken: res.woken, clashes: res.clashes };
     fs.rmSync(workDir, { recursive: true, force: true });
   } else if (r.images.length) {
     // into the inbox, one folder for the book: the usual way from there
@@ -1443,7 +1448,7 @@ async function takeOver(ctx: Context, c: Connector, result: string | undefined):
     if (plan.recordset) {
       const res = registerImages(tree, shared(ctx), mine.map((t) => ({ file: t.file, image: t.item.n, url: t.item.url, from: `connector ${c.name} · your browser · ${path.basename(t.file)}`, part: t.item.region, fetched })), plan.recordset);
       added.push(...res.added.map((m) => ({ id: m.id, ...(m.image !== undefined ? { image: m.image } : {}) })));
-      again.push(...res.again);
+      again.push(...res.again, ...res.restored);
       notes.push(...res.clashes);
       woken.push(...res.woken);
       for (const t of mine) for (const x of [t.file, ...t.others]) fs.rmSync(x, { force: true });

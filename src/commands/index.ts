@@ -5,6 +5,7 @@ import "./trees.ts";
 import "./research.ts";
 import "./intake.ts";
 import "./sync.ts";
+import "./pack.ts";
 import "./tasks.ts";
 import "./people.ts";
 import "./batch.ts";

@@ -6,6 +6,7 @@
 // always for code that goes round strom. A local server plays the archive; the
 // pauses are recorded, not slept.
 
+import { readEntry, readZip, unzipTo, ZipWriter } from "../../src/core/zip.ts";
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -352,6 +353,17 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   const hits = a.hits.length;
   assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1"])).out, /images 1–3 of B0001 are registered already — nothing fetched/);
   assert.equal(a.hits.length, hits, "not asked for again");
+  // a research handed over without its images: the view says how to get the scan, fetching puts it back
+  fs.rmSync(path.join(w.home, "shared", m.file));
+  const gone = await w.run(["media", "view", "B1:2"]);
+  assert.match(gone.err, /the image file is missing[\s\S]*fetch it again from the archive \(checked: the same scan\): strom fetch zkusebni 5359 --recordset B0001 --images 2/);
+  const back = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1"]);
+  assert.match(back.out, /1 image\(s\) of B0001 fetched again and put back \(their file was not here; the same scan\): M0002/);
+  assert.doesNotMatch(back.out, /fetched and registered/);
+  assert.equal(a.hits.length, hits + 1, "only the missing image asked for");
+  assert.ok(fs.existsSync(path.join(w.home, "shared", m.file)));
+  await w.ok(["media", "view", "B1:2"]);
+  assert.match((await w.ok(["check"])).out, /^ok/);
   // without a record set: into the inbox, a folder for the book
   const inbox = await w.ok(["fetch", "zkusebni", "5359", "--images", "2-3"]);
   assert.match(inbox.out, /2 image\(s\) fetched into the inbox: zkusebni 5359\/[\s\S]*strom media add --inbox "zkusebni 5359" --recordset B…/);
@@ -361,6 +373,64 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   assert.equal((await w.run(["fetch", "zkusebni", "5359"])).code, 2, "which images?");
   assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "1-1001"])).code, 2, "not more than a thousand at once");
   w.cleanup();
+  await a.close();
+});
+
+test("pack and unpack: the research handed over — the tree with its history, the images its records stand on, the connectors; the rest fetched again", opts, async () => {
+  const { w, a } = await world();
+  await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`]); // B0001
+  await w.ok(["person", "add", "Jan /Novák/", "--born", "1805"]);
+  await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1"]);
+  await w.ok(["source", "add", "Křest Jana Nováka 1805", "--kind", "baptism", "--recordset", "B1", "--locator", "fol. 2", "--information", "primary", "--form", "original", "--clip", "B0001:2@0.05,0.40,0.45,0.18"]);
+  const zip = path.join(w.dir, "balík.zip");
+  const r = await w.ok(["pack", "--out", zip]);
+  assert.match(r.out, /Zabaleno „Novákovi“: .*balík\.zip/);
+  assert.match(r.out, /snímky: 1 \(/);
+  assert.match(r.out, /vynechané snímky: 2 \(/);
+  assert.match(r.out, /konektory: zkusebni/);
+  const names = readZip(zip).map((e) => e.name);
+  for (const n of ["JAK-NAVAZAT.txt", "strom-pack.json", "Windows.cmd", "macOS.command", "Linux.sh", "Novákovi/strom.json", "Novákovi/.git/HEAD", "Novákovi/.git/refs/heads/", "shared/plugins/connectors/zkusebni/connector.json"])
+    assert.ok(names.includes(n), `${n} in ${names.slice(0, 40).join(" ")}`);
+  assert.equal(names.filter((n) => n.startsWith("shared/media/")).length, 1, "only the image the record stands on");
+  assert.ok(!names.some((n) => n.includes(".strom/")), "nothing of this computer's state");
+  assert.match(readEntry(zip, readZip(zip).find((e) => e.name === "macOS.command")!).toString(), /STROM_INSTALL_ONLY=1 sh[\s\S]*"\$STROM" unpack "\$\(pwd\)"/);
+  assert.match(readEntry(zip, readZip(zip).find((e) => e.name === "Windows.cmd")!).toString(), /\r\ncall "%STROM%" unpack "%~dp0\."\r\n/);
+
+  // someone new: strom just installed, nothing set up — the wizard first, then the research in place
+  const b = new World();
+  b.env.LANG = "cs_CZ.UTF-8";
+  assert.equal((await b.run(["unpack", zip])).code, 4, "an agent never unpacks: it adds connectors");
+  const u = await b.ok(["unpack", zip], { answers: ["cs", "", "", "", "n", "a"] });
+  assert.match(u.out, /„Novákovi“ \(ze stromu [\d.]+, uloženo [\d-]+\) · snímky: 1 · zkusebni/);
+  assert.match(u.out, /„Novákovi“ je tady: [\s\S]*snímky do sdílené složky: 1[\s\S]*konektory: zkusebni[\s\S]*prohledané stránky, které v něm nejsou: 2[\s\S]*převzato na tento počítač/);
+  const root = b.treeDir("Novákovi");
+  assert.match((await b.ok(["check"], { cwd: root })).out, /^ok/);
+  assert.match((await b.ok(["person", "list"], { cwd: root })).out, /P0001  Jan Novák/);
+  assert.ok(fs.existsSync(path.join(b.home, "shared", "plugins", "connectors", "zkusebni", "connector.json")));
+  assert.ok(fs.readFileSync(path.join(root, ".claude", "settings.json"), "utf8").includes(b.home), "the tree's permissions name this computer's folders");
+  // the image the record stands on is here; a page searched through comes from the archive again
+  await b.ok(["media", "view", "B1:2"], { cwd: root });
+  assert.match((await b.run(["media", "view", "B1:1"], { cwd: root })).err, /strom fetch zkusebni 5359 --recordset B0001 --images 1/);
+  assert.match((await b.ok(["fetch", "zkusebni", "5359", "--recordset", "B1", "--images", "1"], { cwd: root })).out, /fetched again and put back/);
+  await b.ok(["person", "add", "Marie /Nováková/"], { cwd: root });
+  // the same research again: said, nothing written
+  assert.match((await b.run(["unpack", zip], { answers: ["a"] })).err, /tento výzkum už tu je/);
+  // the folder a system unpacked it into works too
+  const c = new World();
+  await c.ok(["setup", "--yes"]);
+  const folder = path.join(c.dir, "Stažené", "balík");
+  unzipTo(zip, folder);
+  await c.ok(["unpack", path.dirname(folder)], { answers: ["a"] });
+  assert.match((await c.ok(["check"], { cwd: c.treeDir("Novákovi") })).out, /^ok/);
+  // a ZIP that would write outside its folder is refused before anything
+  const evil = path.join(c.dir, "zlý.zip");
+  const z = new ZipWriter(evil);
+  z.add("strom-pack.json", Buffer.from("{}"));
+  z.add("../../venku.txt", Buffer.from("x"));
+  z.close();
+  assert.match((await c.run(["unpack", evil], { answers: ["a"] })).err, /a file outside the package/);
+  assert.ok(!fs.existsSync(path.join(c.dir, "venku.txt")));
+  for (const x of [w, b, c]) x.cleanup();
   await a.close();
 });
 

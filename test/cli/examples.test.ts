@@ -16,7 +16,7 @@ import { guideText } from "../../src/commands/guide.ts";
 const opts = { skip: !hasGit };
 
 /** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
-const NOT_RUN = new Set(["setup", "init", "run", "read", "seal adopt", "connector add", "connector remove", "connector probe", "allow connector", "allow host", "login", "uninstall", "update", "gate test", "hook on", "hook test"]); // uninstall, update: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests)
+const NOT_RUN = new Set(["setup", "init", "run", "read", "seal adopt", "unpack", "connector add", "connector remove", "connector probe", "allow connector", "allow host", "login", "uninstall", "update", "gate test", "hook on", "hook test"]); // uninstall, update, unpack: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests)
 
 async function seeded(): Promise<World> {
   const w = new World();

@@ -99,6 +99,12 @@ npm: `npm install -g strom-research@latest`.
   (`strom stats`), what is new (`strom recent`), what the agent does next
   (`strom plan`), one person's life with its
   records (`strom person card`), the ancestors as a tree (`strom pedigree`)
+- Hand the research to a relative in one small ZIP file (`strom pack`): the
+  family tree with its history, the images its records stand on and the
+  connectors — the pages only searched through the archive gives again. They
+  double-click the launcher inside (Windows, macOS, Linux): it installs strom
+  where it is missing, puts the research in place and takes it over
+  (`strom unpack`)
 
 **Safe by design**
 - What the agent may do alone is your choice: ask, auto (default) or full
