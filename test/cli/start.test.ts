@@ -589,7 +589,8 @@ test("the live bridge does not end because of one error, says what happened in i
   const events = http.get(`${first.url}/events`);
   events.on("error", () => {});
   try {
-    await new Promise((r) => setTimeout(r, 300));
+    // its hello: the bridge has read the tree once (a slow start would find it broken and say "the start failed")
+    await new Promise((r) => events.on("response", (res) => res.once("data", r)));
     const config = path.join(w.cwd, "strom.json");
     const good = fs.readFileSync(config, "utf8");
     fs.writeFileSync(config, good.slice(0, 20));

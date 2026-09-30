@@ -13,17 +13,19 @@ import { ui, type UIKey } from "../cli/ui.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table, truncate } from "../cli/format.ts";
 import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
-import type { Research, Session, Task } from "../core/model.ts";
+import type { Person, Research, Session, Task } from "../core/model.ts";
 import { closeSession, currentSession, openSessions, othersAtWork, sessionNote, startSession } from "../core/session.ts";
 import { reviveLive } from "../core/live.ts";
 import { buildBrief } from "../brief/brief.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
 import { prependPath } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
+import { treeEdges, type Edge, type Island } from "../core/edge.ts";
+import { label, parentsOf, resolvePerson } from "../core/people.ts";
 import { storyProposals } from "../core/stories.ts";
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
 import { create, csvOpt, requireRecord, update } from "../core/records.ts";
-import { taskQueue, waitingLines } from "./tasks.ts";
+import { offTreeLine, taskQueue, waitingLines } from "./tasks.ts";
 import { resolveResearch } from "./research.ts";
 import { writeGedcoms } from "./output.ts";
 import { syncAgentFiles } from "../agents/files.ts";
@@ -115,7 +117,9 @@ register(
       const s = startSession(tree, { ...(task ? { task } : {}), ...(research ? { research: research.id } : {}) });
       reviveLive(tree.root, ctx.env);
       const brief = buildBrief(tree, { ...(task ? { task } : {}), session: s, budget: ctx.settings.number("brief.budget", tree.config, DEFAULT_BUDGET), shared: ctx.settings.shared()?.value });
-      return { text: lines(written(tree), "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections } };
+      // a task the queue holds back, started by its ID: the agent hears why before it begins
+      const off = task && args[0] ? offTreeLine(tree, task, true) : undefined;
+      return { text: lines(written(tree), off, "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections, ...(off ? { offTree: true } : {}) } };
     },
   },
   {
@@ -316,7 +320,143 @@ register(
       };
     },
   },
+  {
+    path: ["edge"],
+    summary: "Where the tree ends: above whom it does not go on, why (what the records say so far) and what comes next — what the Strom app shows on those cards",
+    group: "tasks",
+    tree: true,
+    args: [{ name: "person", description: "whose edge in full: ID (P0001) or name (default: every edge the research reaches)", variadic: true }],
+    options: [{ name: "all", type: "boolean", description: "also the edges no direction reaches: family outside the directions, people off the tree" }],
+    examples: ["strom edge", "strom edge P0001", "strom edge --all --json"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const { edges, islands } = treeEdges(tree);
+      const who = (id: string) => {
+        const p = tree.get<Person>(id);
+        return p ? label(p) : id;
+      };
+      if (args.length) {
+        const people = args.map((a) => resolvePerson(tree, a));
+        const out: string[] = [];
+        for (const p of people) {
+          const e = edges.get(p.id);
+          const isle = islands.get(p.id);
+          if (out.length) out.push("");
+          if (!e) out.push(`${label(p)} — ${parentsOf(tree, p.id).length === 2 ? "the tree goes on above: a record proves the parents" : "nothing the research knows of the edge above yet (no direction reaches them, no work on it)"}`);
+          else out.push(...edgeLines(tree, e, who));
+          if (isle) out.push(islandLine(isle, who));
+        }
+        const data = people.map((p) => ({ person: p.id, edge: edges.get(p.id) ?? null, island: islands.get(p.id) ? { ...islands.get(p.id)!, people: islands.get(p.id)!.people.length } : null }));
+        return { text: lines(...out), data: { edges: data } };
+      }
+      const reached = new Set(["in", "limit", "paused", "done"]);
+      const shown = [...edges.values()].filter((e) => opts.all || reached.has(e.scope)).sort((a, b) => (a.generation ?? 99) - (b.generation ?? 99) || a.person.localeCompare(b.person));
+      const count = (k: "end" | "next") => [...shown.reduce((m, e) => m.set(e[k], (m.get(e[k]) ?? 0) + 1), new Map<string, number>())].map(([v, n]) => `${v} ${n}`).join(", ");
+      const hidden = edges.size - shown.length;
+      return {
+        text: shown.length
+          ? lines(
+              table(
+                shown.map((e) => [
+                  e.person,
+                  e.generation !== undefined ? `G${e.generation}` : "",
+                  e.missing,
+                  e.scope === "in" ? "" : e.scope,
+                  e.end,
+                  e.next,
+                  truncate(edgeNext(e), 70),
+                ]),
+              ),
+              "",
+              `ends: ${count("end")}`,
+              `next: ${count("next")}`,
+              hidden ? `${hidden} more no direction reaches (strom edge --all)` : undefined,
+              "one in full: strom edge P…",
+            )
+          : "no edge the research reaches — every person in its directions has parents a record proves",
+        data: { edges: shown, islands: [...new Set(islands.values())].map((i) => ({ ...i, people: i.people.length, first: i.people[0] })) },
+      };
+    },
+  },
 );
+
+/** What comes next at an edge, in a few words: the first task and where it stands, else what the user decides. */
+function edgeNext(e: Edge): string {
+  const t = e.tasks[0];
+  const hyp = e.hypotheses.find((h) => h.joins.length);
+  const join = hyp ? ` · ${hyp.id} ${hyp.island ? `joins ${hyp.joins.join(" ")} (${hyp.island.people} people off the tree)` : `would join through ${hyp.joins.join(" ")}`}` : "";
+  if (t) return `${t.id}${t.position ? ` #${t.position}` : ""}${t.held ? ` (${t.held})` : ""}${e.tasks.length > 1 ? ` +${e.tasks.length - 1}` : ""}${join}`;
+  if (e.next === "decide") return `tried ${e.tried.join(" ")} — ask the user${join}`;
+  return join.replace(/^ · /, "");
+}
+
+const MISSING_WORDS: Record<Edge["missing"], string> = {
+  parents: "both parents unknown",
+  father: "the father unknown",
+  mother: "the mother unknown",
+  proof: "no record proves the parents recorded",
+};
+const SCOPE_WORDS: Record<Edge["scope"], string> = {
+  in: "reached by",
+  limit: "at the limit of",
+  paused: "in a paused direction,",
+  done: "in an ended direction,",
+  living: "most likely alive — not researched",
+  outside: "family of the tree no direction goes through",
+  "off-tree": "of a family nothing links to the tree yet",
+};
+const END_WORDS: Record<Edge["end"], string> = {
+  unnamed: "the baptism names no father (born out of wedlock)",
+  lost: "the records of those years are lost",
+  "before-records": "born before the known birth records of the place begin",
+  gap: "the known records have a gap in those years",
+  "not-found": "searched in vain everywhere strom knew to look",
+  offline: "the books left are only in the archive",
+  partly: "searched in part",
+  unsearched: "not searched yet",
+  "no-books": "no book of the birthplace known",
+  "no-place": "the birthplace unknown",
+  "no-clue": "nothing to go on: no year, no place of birth",
+};
+const NEXT_WORDS: Record<Edge["next"], string> = {
+  working: "an agent works on it now",
+  waiting: "waits for the user",
+  queued: "in the queue",
+  held: "waits out of the queue",
+  proposed: "strom proposes it with the next session",
+  decide: "everything strom could propose was tried — the user decides",
+  none: "nothing planned",
+};
+
+/** One edge in full, for the agent. */
+function edgeLines(tree: Tree, e: Edge, who: (id: string) => string): string[] {
+  const y = (r: { from: number; to: number }) => (r.from === r.to ? `${r.from}` : `${r.from}–${r.to}`);
+  const est = e.estimate;
+  const basis = est?.basis ? ` (estimated from ${est.basis.kind === "MARR" ? "the marriage" : "the eldest child"} ${est.basis.year})` : "";
+  return [
+    `${who(e.person)} — the tree ends above: ${MISSING_WORDS[e.missing]}`,
+    `  ${SCOPE_WORDS[e.scope]}${e.research ? ` ${e.research}, generation ${e.generation}` : ""}`,
+    `  the records: ${END_WORDS[e.end]}${e.recordsFrom ? ` (from ${e.recordsFrom})` : ""}`,
+    e.window ? `  baptism sought ${y(e.window)}${est?.place ? ` in ${est.place}` : ""}${basis}` : est?.place ? `  born in ${est.place}, year unknown` : undefined,
+    e.books.length ? `  books: ${e.books.map((b) => `${b.id}${b.years ? ` (${b.years})` : ""}${b.access.startsWith("online") ? "" : ` ${b.access}`}`).join(", ")}` : undefined,
+    e.covered.length ? `  searched in vain: ${e.covered.map(y).join(", ")}` : undefined,
+    e.noRecords.length ? `  no records known: ${e.noRecords.map(y).join(", ")}` : undefined,
+    `  next: ${NEXT_WORDS[e.next]}`,
+    ...e.tasks.map((t) => `    ${t.id} ${t.level} ${t.state}${t.position ? ` #${t.position}` : ""}${t.held ? ` (waits: ${t.held}${t.until ? ` until ${t.until}` : ""})` : ""}${t.on ? ` — ${truncate(t.on, 60)}` : ""}: ${truncate(t.what, 90)}`),
+    e.tried.length ? `  tried: ${e.tried.join(" ")}` : undefined,
+    ...e.hypotheses.map(
+      (h) =>
+        `  ${h.id} ${truncate(h.question, 90)}${!h.joins.length ? "" : h.island ? ` — would join ${h.joins.map(who).join(", ")} of a family off the tree (${h.island.people} people, ${h.island.held} tasks wait for it)` : ` — would join them to the tree through ${h.joins.map(who).join(", ")}`}${h.tests.length ? `; tested by ${h.tests.join(" ")}` : "; no task tests it"}`,
+    ),
+    e.conflicts.length ? `  open conflicts: ${e.conflicts.join(" ")}` : undefined,
+    e.searches || e.sessions ? `  work so far: ${e.searches} search${e.searches === 1 ? "" : "es"}, ${e.sessions} session${e.sessions === 1 ? "" : "s"}${e.cost !== undefined ? `, $${e.cost.toFixed(2)}${e.costPartial ? "+" : ""}` : ""}${e.last ? `; last ${e.last}` : ""}` : undefined,
+  ].filter((x): x is string => x !== undefined);
+}
+
+function islandLine(i: Island, who: (id: string) => string): string {
+  const joins = i.hypotheses.map((h) => `${h.id} (to ${h.joins.map(who).join(", ")})`);
+  return `  of a family nothing links to the tree: ${i.people.length} people, ${i.held} tasks wait for it${joins.length ? `; would join it: ${joins.join(", ")}` : "; no hypothesis would join it yet"}`;
+}
 
 // ── agents ─────────────────────────────────────────────────────────────────
 

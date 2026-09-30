@@ -99,7 +99,8 @@ export class World {
   }
 
   cleanup(): void {
-    fs.rmSync(this.dir, { recursive: true, force: true });
+    // a bridge just stopped may still write its last line into the tree: tried again (ENOTEMPTY)
+    fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 }
 

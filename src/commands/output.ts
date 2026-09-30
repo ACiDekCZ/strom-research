@@ -17,7 +17,7 @@ import { UsageError } from "../core/errors.ts";
 import { excerptSettings, planExcerpts, type ExcerptReport } from "../core/excerpt.ts";
 import { runGit, tracked } from "../core/git.ts";
 import { Settings } from "../core/config.ts";
-import { appOpensLinks } from "../core/stromapp.ts";
+import { appOpensLinks, appShowsEdges } from "../core/stromapp.ts";
 import { EXCERPT_QUALITIES, EXCERPT_SCOPES, type ExcerptQuality, type ExcerptScope } from "../core/model.ts";
 
 function findingRows(f: GedFinding[]): string {
@@ -89,7 +89,9 @@ export function writeTreeGed(
   // an app that opens links shows what the research knows of a person too (the same version)
   const research = opts.for === "strom" && appOpensLinks(new Settings(tree.env, {}), opts.stromVersion);
   const clips = research && !!images;
-  const result = exportGedcom(tree, { for: opts.for, stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}) });
+  // …and where the tree ends, for an app that shows it
+  const edges = opts.for === "strom" && appShowsEdges(new Settings(tree.env, {}), opts.stromVersion);
+  const result = exportGedcom(tree, { for: opts.for, stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}), ...(edges ? { edges } : {}) });
   const findings = validateGedcom(result.text, opts.for === "standard" ? { strict: true } : {});
   const file = opts.out ?? gedFile(tree, opts.for, opts.research);
   if (!hasGedErrors(findings) && !tree.dryRun) {

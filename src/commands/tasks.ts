@@ -22,6 +22,8 @@ import { makeNote } from "../core/actions.ts";
 import { phrase } from "../core/phrases.ts";
 import { readJsonLines } from "../core/json.ts";
 import { lacksImages, rankTasks, type Ranked } from "../core/queue.ts";
+import { joiningHypotheses, offTree } from "../core/kin.ts";
+import { aboutPeople } from "../core/directions.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
 
 
@@ -98,6 +100,22 @@ export function rankedQueue(tree: Tree, filter: { research?: string; level?: str
     .filter((t) => !filter.research || (scope ? ofResearch(tree, t, scope) : t.research === filter.research))
     .filter((t) => !filter.level || t.level === filter.level);
   return rankTasks(tree, tasks, filter.strategy, { storyTurn: filter.storyTurn });
+}
+
+/**
+ * What an agent is told of a task about people nothing links to the tree (core/kin.ts offTree): it waits out of the
+ * queue until the user asks for it or the hypothesis that would join them is decided; the task that tests that
+ * hypothesis names it. Undefined for a task of the tree.
+ */
+export function offTreeLine(tree: Tree, t: Task, starting = false): string | undefined {
+  if (!offTree(tree)(t)) return undefined;
+  const joins = joiningHypotheses(tree, aboutPeople(tree, t.subject));
+  const first = joins.length
+    ? `test first what would join them: ${joins.map((h) => `${h.id} "${truncate(h.question, 70)}"`).join("; ")} — a task that tests it names it (--about ${joins[0]!.id})`
+    : "first a link to a person of the tree: a hypothesis (strom hypothesis add … --about P… of the tree) and a task that tests it, naming it (--about H…)";
+  return starting
+    ? `⚠ ${t.id} is about people nothing links to the tree yet: go on only if the user asked for this work. Else close the session (strom session close --continue …) and ${first}`
+    : `· ${t.id} is about people nothing links to the tree yet: it waits out of the queue until the user asks for it or a hypothesis joins them — ${first}`;
 }
 
 function taskLine(t: Task): string[] {
@@ -258,6 +276,7 @@ register(
         text: lines(
           written(tree),
           ...similar.map((x) => `⚠ similar ${x.state} task ${x.id} "${truncate(x.what, 60)}" — if it is the same, keep one: strom task drop ${t.id} --reason "duplicate of ${x.id}" and strom task edit ${x.id} --where … --note "…"`),
+          offTreeLine(tree, t),
           noImages ? `· no images for it here yet — if the user has to download them, say which now: strom task wait ${t.id} --images B…:<numbers> --on "<the book, its link, which images>"` : undefined,
         ),
         data: { task: t, similar: similar.map((x) => x.id), needsImages: noImages },
@@ -279,7 +298,13 @@ register(
       const strategy = ctx.settings.strategy(tree.config);
       const queue = rankedQueue(tree, { ...(research ? { research } : {}), ...(opts.level ? { level: String(opts.level) } : {}), strategy });
       const first = queue[0];
-      if (!first) return { text: 'no open tasks → strom research show <G…> to see what is missing, then strom task add', data: { task: null } };
+      if (!first) {
+        const held = tree.list<Task>("task").filter(offTree(tree)).filter((t) => t.state === "open").length;
+        const text = held
+          ? `no open task of the tree — ${held} wait about people nothing links to it yet (strom task list --off-tree): test the hypothesis that would join them, or ask the user`
+          : "no open tasks → strom research show <G…> to see what is missing, then strom task add";
+        return { text, data: { task: null, offTree: held } };
+      }
       const t = first.task;
       return {
         text: lines(taskDetail(tree, t), "", `first because: ${first.why} (queue: ${strategy})`, `start it: strom task start ${t.id}`),
@@ -301,6 +326,7 @@ register(
       { name: "research", type: "string", value: "<G…>", description: "only this research" },
       { name: "level", type: "string", value: "<level>", description: "only this level" },
       { name: "about", type: "string", value: "<who>", description: "only tasks about this person/record (also X…, H…)" },
+      { name: "off-tree", type: "boolean", description: "the open tasks that wait out of the queue: about people nothing links to the tree yet" },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
     ],
     run(ctx, { opts }) {
@@ -308,7 +334,9 @@ register(
       const research = typeof opts.research === "string" ? resolveResearch(tree, opts.research).id : undefined;
       let all: Task[];
       const why = new Map<string, string>();
-      if (!opts.state) {
+      const off = offTree(tree);
+      if (opts["off-tree"]) all = tree.list<Task>("task").filter((t) => t.state === "open" && off(t) && (!opts.level || t.level === opts.level));
+      else if (!opts.state) {
         const ranked = rankedQueue(tree, { ...(research ? { research } : {}), ...(opts.level ? { level: String(opts.level) } : {}), strategy: ctx.settings.strategy(tree.config) });
         for (const r of ranked) why.set(r.task.id, r.why);
         all = ranked.map((r) => r.task);
@@ -323,8 +351,13 @@ register(
         all = all.filter((t) => t.subject.includes(id));
       }
       const page = paginate(all, ctx.limit, ctx.page);
+      // the queue says what waits out of it for a link to the tree
+      const held = !opts.state && !opts["off-tree"] && !opts.about ? tree.list<Task>("task").filter((t) => t.state === "open" && off(t)).length : 0;
       return {
-        text: all.length ? lines(table(page.items.map(taskLine)), moreLine(page, "strom task list")) : "no tasks",
+        text: lines(
+          all.length ? lines(table(page.items.map(taskLine)), moreLine(page, "strom task list")) : "no tasks",
+          held ? `${held} more wait out of the queue: about people nothing links to the tree yet (strom task list --off-tree)` : undefined,
+        ),
         data: { total: page.total, tasks: opts.full ? page.items : page.items.map((t) => ({ id: t.id, priority: t.priority, level: t.level, state: t.state, what: t.what, subject: t.subject, ...(why.has(t.id) ? { why: why.get(t.id) } : {}) })) },
       };
     },
@@ -381,7 +414,7 @@ register(
         summary: `${id} ${fields.map((f) => (f === "doneWhen" ? "done-when" : f === "subject" ? "about" : f)).join(", ")}${change.where ? ` → ${truncate(change.where.join("; "), 50)}` : ""}`,
         reason: opts.reason as string | undefined,
       });
-      return { text: written(tree), data: { task: t } };
+      return { text: lines(written(tree), change.subject ? offTreeLine(tree, t) : undefined), data: { task: t } };
     },
   },
   {

@@ -116,3 +116,39 @@ test("queue: the user's material first; strategies depth and priority on request
   assert.equal((await w.run(["config", "set", "queue.strategy", "random"])).code, 2);
   w.cleanup();
 });
+
+test("queue: a family nothing links to the tree waits — for the user, or for the hypothesis that would join it", opts, async () => {
+  const w = await world();
+  await w.ok(["person", "add", "Pavel /Novák/", "--sex", "M"]); // P5: found in the records, not linked
+  await w.ok(["person", "add", "Matouš /Novák/", "--sex", "M"]); // P6: his son, maybe Václav's father
+  await w.ok(["family", "add", "--partner", "P5", "--child", "P6"]);
+  await task(w, "Rodiče Václava", "P4"); // T1: the tree
+  const added = await task(w, "Rodiče Pavla", "P5"); // T2: above a family off the tree
+  assert.match(added.out, /T0002 is about people nothing links to the tree yet/);
+  assert.deepEqual(await order(w), ["T0001"]);
+  const list = await w.ok(["task", "list"]);
+  assert.match(list.out, /1 more wait out of the queue: about people nothing links to the tree yet \(strom task list --off-tree\)/);
+  assert.deepEqual((await w.ok(["task", "list", "--off-tree", "--json"])).json.tasks.map((t: any) => t.id), ["T0002"]);
+  // the hypothesis that would join it: said where the work is held back, and a task that tests it is the tree's
+  await w.ok(["hypothesis", "add", "Kdo byl otcem Václava?", "--about", "P4", "--about", "P6", "--variant", "A: Matouš", "--variant", "B: jiný"]);
+  await task(w, "Křest Václava: otec Matouš?", "H0001"); // T3
+  assert.deepEqual(await order(w), ["T0001", "T0003"]);
+  // started by its ID (the user asked for it): allowed, the agent hears why it was held
+  const started = await w.ok(["session", "start", "T0002"]);
+  assert.match(started.out, /⚠ T0002 is about people nothing links to the tree yet: go on only if the user asked for this work/);
+  assert.match(started.out, /H0001 "Kdo byl otcem Václava\?"/);
+  await w.ok(["session", "close", "--continue", "--summary", "nic", "--next", "dál"]);
+  // the link proven and recorded: the family is the tree's, its work back in the queue
+  await w.ok(["family", "add", "--partner", "P6", "--child", "P4"]);
+  assert.deepEqual((await order(w)).sort(), ["T0001", "T0002", "T0003"]);
+});
+
+test("queue: the user's own wish — a direction of someone off the tree — brings their work in", opts, async () => {
+  const w = await world();
+  await w.ok(["person", "add", "Pavel /Černý/", "--sex", "M"]); // P5
+  await task(w, "Rodiče Pavla", "P5"); // T1
+  assert.deepEqual(await order(w), []);
+  assert.match((await w.ok(["task", "next"])).out, /no open task of the tree — 1 wait about people nothing links to it yet/);
+  await w.ok(["research", "new", "Předci Pavla", "--person", "P5"]);
+  assert.deepEqual(await order(w), ["T0001"]);
+});

@@ -68,6 +68,25 @@ export function appOpensLinks(settings: Settings, version?: string): boolean {
   return true;
 }
 
+/**
+ * The Strom app shows where the tree ends (the app's spec docs/ZADANI_VYZKUM_kraj-stromu.md): per person above whom
+ * the tree does not go on, what the research knows there (_STROM_EDGE), and the families nothing links to the tree
+ * (_STROM_ISLAND). The first version of stromapp.info that does (3.6.0, 2026-09-30); another copy of the app (its
+ * beta, its development: strom.app.url) is taken as current. An app of a known version (strom.version) goes by it;
+ * an unknown one is taken as today's (an older app only skips the tags).
+ */
+export const APP_SHOWS_EDGES: string | undefined = "3.6.0";
+
+export function appShowsEdges(settings: Settings, version?: string): boolean {
+  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (!APP_SHOWS_EDGES) return false;
+  if (!version) return true;
+  const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const [a, b] = [n(version), n(APP_SHOWS_EDGES)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */
 export function sendAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;

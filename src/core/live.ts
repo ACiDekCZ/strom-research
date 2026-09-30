@@ -53,7 +53,7 @@ import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion } from "./update.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
-import { appOpensLinks, isStromAppOrigin } from "./stromapp.ts";
+import { appOpensLinks, appShowsEdges, isStromAppOrigin } from "./stromapp.ts";
 import { Settings } from "./config.ts";
 import { linkActions, linkHandlerState } from "./links.ts";
 import { stromLauncher } from "./self.ts";
@@ -337,6 +337,34 @@ function whoAtWork(label: string, lang: string): string {
   return chat ? phrase(lang, "who.chat", { agent: chat[1]! }) : label;
 }
 
+/**
+ * The person an agent works on, for the app to follow it in the tree: the first person its task is about (a marriage
+ * names both, the one it asks about first), else the last one its session wrote about.
+ */
+function workedOn(root: string, tree: Tree, s: Session, task: Task | undefined): { person?: string } {
+  const known = (id: string) => /^P\d{1,7}$/.test(id) && tree.get(id) !== undefined;
+  const first = (task?.subject ?? []).find(known);
+  if (first) return { person: first };
+  const file = path.join(root, "data", "ops", `${s.id}.jsonl`);
+  let lines: string[] = [];
+  try {
+    lines = fs.readFileSync(file, "utf8").split("\n");
+  } catch {
+    return {};
+  }
+  for (let i = lines.length - 1; i >= 0; i--) {
+    let op: Op;
+    try {
+      op = JSON.parse(lines[i]!) as Op;
+    } catch {
+      continue; // empty, or a line being written
+    }
+    const person = (op.targets ?? []).findLast(known);
+    if (person) return { person };
+  }
+  return {};
+}
+
 /** Who is at work now, on which task (an agent strom started, and its open session). */
 function working(root: string, tree: Tree, all: Scope[]): { who: string; since: string; session?: string; task?: string; person?: string; research?: string; paused?: Paused }[] {
   const open = openSessions(tree);
@@ -348,7 +376,7 @@ function working(root: string, tree: Tree, all: Scope[]): { who: string; since: 
       who: whoAtWork(w.label, tree.lang),
       since: w.since,
       ...(w.paused ? { paused: w.paused } : {}),
-      ...(s ? { session: s.id, ...(s.task ? { task: task ? `${task.id} ${task.what}` : s.task, ...personOf(task) } : {}) } : {}),
+      ...(s ? { session: s.id, ...(s.task ? { task: task ? `${task.id} ${task.what}` : s.task } : {}), ...workedOn(root, tree, s, task) } : {}),
       ...(research ? { research } : {}),
     };
   });
@@ -565,11 +593,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
           const images = set ? planExcerpts(tree, set.shared, { quality: set.quality, for: set.for, maxBytes: set.mb * 1024 * 1024, budgetMs: LIVE_IMAGES_MS }) : undefined;
           // an app that opens strom-research:// links: each excerpt's mark, and the links this computer takes
           const opens = appOpensLinks(new Settings(env, {}));
+          // …and where the tree ends, for an app that shows it
+          const edges = appShowsEdges(new Settings(env, {}));
           const offered = opens ? links(env) : [];
           ged = {
             head: h,
             links: offered.join(" "),
-            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(offered.length ? { links: offered } : {}) }).text,
+            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(offered.length ? { links: offered } : {}) }).text,
           };
         }
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);

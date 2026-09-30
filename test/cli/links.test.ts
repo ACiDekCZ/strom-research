@@ -284,6 +284,27 @@ test("the bridge says which links work here (none unless registered) and serves 
     assert.equal(kindOf("Nová osoba: Karel Novák [P0003]"), "person");
     assert.equal(kindOf("Nový snímek: Kniha N 1850-1870 (obr. 1)"), "source");
     assert.equal(kindOf("Agent začal: Sňatek"), "other");
+    // the person an agent works on, for the app to follow it in the tree: the first its task is about (a marriage:
+    // both named, the one asked about first) …
+    const { enterWorker } = await import("../../src/core/workers.ts");
+    const leave = enterWorker(w.cwd, "run-t", "Claude Code on its own");
+    w.env.STROM_WORKER = "run-t";
+    const at = async () => ((await (await fetch(`${info.url}/status`)).json()) as { working: { task?: string; person?: string }[] }).working;
+    try {
+      await w.ok(["session", "start", "T0002"]);
+      assert.deepEqual((await at()).map((x) => [x.task?.slice(0, 5), x.person]), [["T0002", "P0001"]]);
+      await w.ok(["session", "close", "--summary", "nic", "--next", "dál", "--continue"]);
+      // … a task about nobody: the one its session last wrote about
+      await w.ok(["task", "add", "Katalog farnosti", "--level", "locate", "--where", "katalog", "--why", "přehled", "--done-when", "seznam"]);
+      await w.ok(["session", "start", "T0003"]);
+      assert.equal((await at())[0]!.person, undefined, "nobody yet");
+      await w.ok(["event", "add", "P0003", "BIRT", "--date", "1870"]);
+      assert.equal((await at())[0]!.person, "P0003");
+      await w.ok(["session", "close", "--summary", "nic", "--next", "dál", "--continue"]);
+    } finally {
+      delete w.env.STROM_WORKER;
+      leave();
+    }
     const ged = await (await fetch(`${info.url}/tree.ged`)).text();
     assert.match(ged, new RegExp(`2 _STROM_CLIP ${mark}`));
     assert.doesNotMatch(ged, /_STROM_LINKS/, "not registered here: not offered");
@@ -447,7 +468,8 @@ test("what the research knows of a person, for an app that shows it: its conflic
   const ged = fs.readFileSync(file, "utf8");
   assert.match(ged, /^1 _STROM_ASOF \d{4}-\d{2}-\d{2}$/m);
   assert.match(ged, /1 _STROM_CONFLICT X0001\n2 TYPE BIRT\n2 TITL Rok narození Jana\n2 STAT open\n2 VAL 12 MAR 1865\n3 SOUR @S0001@\n2 VAL 1866\n3 SOUR @S0002@\n/);
-  assert.match(ged, /1 _STROM_HYPO\n2 TITL Otec: Václav, nebo Josef\?\n2 NOTE A: Václav Novák, mlynář\n3 CONT B: Josef Novák, sedlák\n/);
+  // the hypothesis by its ID, which an app that shows where the tree ends names it by (_STROM_EDGE)
+  assert.match(ged, /1 _STROM_HYPO H0001\n2 TITL Otec: Václav, nebo Josef\?\n2 NOTE A: Václav Novák, mlynář\n3 CONT B: Josef Novák, sedlák\n/);
   assert.match(ged, /1 _STROM_SEARCHED\n2 TITL Sňatek Jana\n2 DATE FROM 1885 TO 1895\n2 RESN none\n2 _AT \d{4}-\d{2}-\d{2}\n/);
   assert.deepEqual(validateGedcom(ged).filter((f) => f.level === "error"), []);
   // decided: which, and a conflict of no known fact named by its title

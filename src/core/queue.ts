@@ -6,7 +6,9 @@
 // after work that waits for a download: they are never what a session is
 // spent on instead of the research. Working alone (strom run) they still get
 // their turn: after STORY_EVERY sessions without one, a story first. In a
-// conversation the user leads, and a story is written when they want it. Strategies (setting queue.strategy): balanced (the default), depth
+// conversation the user leads, and a story is written when they want it. Work
+// about people nothing links to the tree waits until the user asks for it or a
+// hypothesis joins them (core/kin.ts offTree). Strategies (setting queue.strategy): balanced (the default), depth
 // (stay on the line of the last sessions), priority (strict priority).
 
 import type { Media, Research, Session, Strategy, Task } from "./model.ts";
@@ -15,6 +17,7 @@ import { taskRecordsets } from "./frontier.ts";
 import { now, type Tree } from "./tree.ts";
 import { subjectPeople } from "./records.ts";
 import { directionOf, scopes } from "./directions.ts";
+import { offTree } from "./kin.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
 
@@ -73,8 +76,10 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   const researches = tree.list<Research>("research");
   // a direction the user paused or ended: its tasks wait (one at work goes on)
   const stopped = new Set(researches.filter((r) => r.state !== "active").map((r) => r.id));
-  const all = stopped.size ? scopes(tree) : [];
-  const waits = (t: Task) => t.state !== "doing" && stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? "");
+  const all = scopes(tree);
+  // work about people nothing links to the tree waits for the user or for the hypothesis that joins them (core/kin.ts)
+  const off = offTree(tree);
+  const waits = (t: Task) => t.state !== "doing" && ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? "")) || off(t));
   const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)) && !waits(t));
   const withImages = new Set(tree.list<Media>("media").map((m) => m.recordset));
   const lines = new Map<string, Map<string, { gen: number; line: string }>>();
@@ -86,7 +91,8 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   };
   /** The nearest ancestor a task is about: its generation and line. */
   const place = (t: Task) => {
-    const map = linesOf(t.research);
+    // a task of no research of its own: the direction its people are in (directions.ts), as the menu and the app say
+    const map = linesOf(t.research ?? directionOf(tree, t, all));
     const found = [...t.subject, ...subjectPeople(tree, t.subject)].map((s) => map?.get(s)).filter((x): x is { gen: number; line: string } => !!x);
     return found.sort((a, b) => a.gen - b.gen)[0];
   };

@@ -28,10 +28,12 @@ const CHILDREN: Record<string, string[]> = {
   "HEAD.SOUR": ["VERS", "NAME", "CORP", "DATA"],
   "HEAD.GEDC": ["VERS", "FORM"],
   "HEAD.DATE": ["TIME"],
-  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", ...INDI_EVENTS],
+  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_STROM_EDGE", "_STROM_ISLAND", ...INDI_EVENTS],
   "INDI._STROM_CONFLICT": ["TYPE", "TITL", "STAT", "VAL", "DECI"],
   "INDI._STROM_HYPO": ["TITL", "NOTE"],
   "INDI._STROM_SEARCHED": ["TITL", "DATE", "RESN", "_AT"],
+  "INDI._STROM_EDGE": ["_SCOPE", "_RESEARCH", "_GEN", "_END", "_NEXT", "_EST", "DATE", "_RECORDS", "_BOOK", "_COVERED", "_NORECORDS", "_TASK", "_TRIED", "_HYPO", "_CONFLICT", "_SEARCHES", "_SESSIONS", "_LAST"],
+  "INDI._STROM_ISLAND": ["_HYPO", "_HELD"],
   _STROM_VALUE: ["SOUR"],
   "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE"],
   "INDI.FAMC": ["PEDI", "NOTE"],
@@ -61,6 +63,10 @@ const TEXT_TAGS = new Set(["NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STO
 const EXTENSIONS = new Set([
   "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
   "_STROM_ASOF", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_AT",
+  // where the tree ends (_STROM_EDGE) and the families nothing links to it (_STROM_ISLAND), with their parts
+  "_STROM_EDGE", "_STROM_ISLAND", "_SCOPE", "_RESEARCH", "_GEN", "_END", "_NEXT", "_EST", "_BASIS", "_RECORDS", "_BOOK", "_ACCESS",
+  "_COVERED", "_NORECORDS", "_TASK", "_LEVEL", "_POS", "_HELD", "_UNTIL", "_TRIED", "_HYPO", "_JOIN", "_ISLAND", "_TEST", "_CONFLICT",
+  "_SEARCHES", "_SESSIONS", "_COST", "_PARTIAL", "_LAST",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */

@@ -37,6 +37,14 @@ conclusion so the next researcher can follow it.
 - **Lessons belong where they apply.** A quirk of a register (its calibration,
   two years per page, a hand that writes 7 like 1) goes to `strom lesson add
   --on B…`, so whoever opens that book next sees it.
+- **The tree first, then above it.** A family found in the records that no
+  family link joins to the tree is not researched further — not its parents,
+  not its children — until the link is proven, or the user asks for it. First
+  the hypothesis that would join it (`strom hypothesis add … --about` a person
+  of the tree), then a task that tests it and names it (`--about H…`). The
+  queue holds back every other task about people off the tree
+  (`strom task list --off-tree`); they come back by themselves once the link
+  is recorded.
 - **Stay within the task.** New questions become new tasks (`strom task add`,
   with where and done-when), not detours. A new task whose images are not here
   gets them now: through the archive's connector (built first when it has

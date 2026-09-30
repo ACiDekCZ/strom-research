@@ -2,9 +2,10 @@
 // app opens on them), and how near anyone is to the people the research is
 // for (which entries get their image in the Strom app first).
 
-import type { Person, Research } from "./model.ts";
+import type { Hypothesis, Person, Research, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { Settings } from "./config.ts";
+import { aboutPeople } from "./directions.ts";
 import { ancestorGenerations, familiesAsChild, familiesAsPartner } from "./people.ts";
 
 /** How near a person is: 0 an ancestor (or the person the research is for), 1 their family, 2 linked further. Unlinked: none. */
@@ -62,7 +63,7 @@ export function mainPerson(tree: Tree): string | undefined {
  * their ancestors 0, the partners, children and children's partners of those 1, anyone linked by family further 2.
  */
 export function kinship(tree: Tree): Map<string, Kin> {
-  const roots = [...new Set([...researches(tree).map((r) => r.focus), mainPerson(tree)].filter((x): x is string => !!x))];
+  const roots = [...new Set([...researches(tree).flatMap((r) => [r.focus, ...(r.review?.people ?? [])]), mainPerson(tree)].filter((x): x is string => !!x))];
   const out = new Map<string, Kin>();
   for (const r of roots) for (const id of ancestorGenerations(tree, r).keys()) out.set(id, 0);
   for (const a of [...out.keys()])
@@ -84,4 +85,41 @@ export function kinship(tree: Tree): Map<string, Kin> {
       }
   }
   return out;
+}
+
+/**
+ * Work about people nothing links to the tree yet: none of the people a task is about (with those of the conflicts
+ * and hypotheses it names) is kin of the people the research is for. It waits out of the queue until the user asks
+ * for it (a direction or a review of one of them makes them the research's) or a hypothesis that joins them to the
+ * tree is decided and recorded. A task that tests that hypothesis names it (--about H…) or the person of the tree
+ * it would join, and so is in the queue. The user's material (intake) and work at hand never wait; a tree with
+ * nobody to be for holds nothing.
+ */
+export function offTree(tree: Tree): (t: Task) => boolean {
+  const kin = kinship(tree);
+  if (!kin.size) return () => false;
+  return (t) => {
+    if (t.level === "intake" || t.state === "doing") return false;
+    const about = aboutPeople(tree, t.subject);
+    return about.length > 0 && !about.some((p) => kin.has(p));
+  };
+}
+
+/**
+ * The open hypotheses that would join people off the tree to it: each names someone of the tree and someone of
+ * their family (the people family links join to them) — the work to do before any work on them.
+ */
+export function joiningHypotheses(tree: Tree, people: string[]): Hypothesis[] {
+  const kin = kinship(tree);
+  const family = new Set<string>();
+  const queue = people.filter((p) => !kin.has(p));
+  while (queue.length) {
+    const p = queue.shift()!;
+    if (family.has(p)) continue;
+    family.add(p);
+    queue.push(...familiesAsPartner(tree, p).flatMap((f) => [...f.partners, ...f.children.map((c) => c.person)]), ...familiesAsChild(tree, p).flatMap((f) => f.partners));
+  }
+  return tree
+    .list<Hypothesis>("hypothesis")
+    .filter((h) => h.state === "open" && h.subject.some((s) => family.has(s)) && h.subject.some((s) => kin.has(s)));
 }

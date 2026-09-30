@@ -23,9 +23,9 @@ export interface FrontierItem {
 
 const OPEN_STATES = new Set(["open", "doing", "parked", "waiting"]);
 const FINISHED_STATES = new Set(["done", "dropped"]);
-const FRONTIER_LEVELS = new Set(["locate", "link", "request"]);
+export const FRONTIER_LEVELS = new Set(["locate", "link", "request"]);
 
-function birthRecordProven(p: Person): boolean {
+export function birthRecordProven(p: Person): boolean {
   return p.events.some((e) => ["BIRT", "CHR", "BAPM"].includes(e.kind) && (e.status === "proven" || e.status === "probable") && !e.retracted);
 }
 
@@ -107,12 +107,21 @@ export function taskRecordsets(tree: Tree, task: Task): { sets: RecordSet[]; gue
   return { sets: [...found.values()], guessed: true };
 }
 
+export interface BirthEstimate {
+  year?: number;
+  place?: string;
+  /** What the year is estimated from, in words of the research language (none: their own birth). */
+  from?: string;
+  /** …and as data: their marriage, or their eldest known child, in that year. */
+  basis?: { kind: "MARR" | "child"; year: number };
+}
+
 /**
  * When and where a person was born, if only roughly: their own birth, else about
  * 25 years before their marriage, else about 28 before their eldest known child —
  * where that happened. An estimate widens the years a search has to cover.
  */
-export function birthEstimate(tree: Tree, p: Person, lang: string): { year?: number; place?: string; from?: string } {
+export function birthEstimate(tree: Tree, p: Person, lang: string): BirthEstimate {
   const own = birthEvent(p);
   const ownYear = own?.date ? dateYears(own.date)[0] : undefined;
   if (ownYear && own?.place) return { year: ownYear, place: own.place };
@@ -129,7 +138,15 @@ export function birthEstimate(tree: Tree, p: Person, lang: string): { year?: num
   const year = ownYear ?? (marrYear ? marrYear - 25 : eldest ? eldest.year! - 28 : undefined);
   const place = own?.place ?? marr?.place ?? eldest?.b?.place;
   const from = ownYear ? undefined : marrYear ? phrase(lang, "estimate.marriage", { year: marrYear }) : eldest ? phrase(lang, "estimate.child", { year: eldest.year! }) : undefined;
-  return { ...(year ? { year } : {}), ...(place ? { place } : {}), ...(from ? { from } : {}) };
+  const basis = ownYear || !year ? undefined : marrYear ? { kind: "MARR" as const, year: marrYear } : { kind: "child" as const, year: eldest!.year! };
+  return { ...(year ? { year } : {}), ...(place ? { place } : {}), ...(from ? { from } : {}), ...(basis ? { basis } : {}) };
+}
+
+/** The years a search for a birth has to cover: a few around a known year, wider around an estimate. */
+export function birthWindow(est: BirthEstimate): { from: number; to: number } | undefined {
+  if (!est.year) return undefined;
+  const span = est.from ? 10 : 3;
+  return { from: est.year - span, to: est.year + span };
 }
 
 /**
@@ -204,7 +221,7 @@ export function frontier(tree: Tree, research: Research): FrontierItem[] {
       const tried = new Set(finished.filter((t) => t.level === "link").flatMap((t) => t.where));
       const place = est.place;
       // an estimate needs a wider search than a known year
-      const span = est.from ? 10 : 3;
+      const span = est.from ? 10 : 3; // as birthWindow
       const about = est.from && year ? phrase(lang, "born.about", { year, from: est.from }) : "";
       const reason = phrase(lang, hasBirthFamily ? "reason.unproven" : "reason.unknown");
       const sets = candidateRecordsets(tree, place, year).filter((b) => !tried.has(b.id));

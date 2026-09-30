@@ -37,6 +37,8 @@ import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, type Excerpt } from "../core/excerpt.ts";
 import { mainPerson } from "../core/kin.ts";
 import * as git from "../core/git.ts";
+import { treeEdges, type Edge, type Island } from "../core/edge.ts";
+import { humanTask } from "../cli/human.ts";
 
 export const GED_PROFILES = ["standard", "strom"] as const;
 export type GedProfile = (typeof GED_PROFILES)[number];
@@ -84,6 +86,12 @@ export interface ExportOptions {
    * and as of when (1 _STROM_ASOF). The app never sends them back: the research is where they live.
    */
   research?: boolean;
+  /**
+   * …and, for an app that shows where the tree ends (appShowsEdges), what the research knows there: per person above
+   * whom the tree does not go on, why and what comes next (_STROM_EDGE), per person of a family nothing links to the
+   * tree, the hypotheses that would join it (_STROM_ISLAND) — core/edge.ts. Of the research at the time of the file.
+   */
+  edges?: boolean;
 }
 
 export interface ExportResult {
@@ -175,6 +183,9 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       : [],
   };
 
+  // Where the tree ends, and the families nothing links to it (the Strom profile, opts.edges).
+  const ends = opts.edges && opts.for === "strom" ? treeEdges(tree) : undefined;
+
   // ── header ──
   w.line(0, "HEAD");
   w.line(1, "SOUR", "STROM_RESEARCH");
@@ -234,6 +245,12 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const d of [...nameQuotes, ...deferred]) w.text(1, "NOTE", d);
     story(p.story);
     if (opts.research && opts.for === "strom") known(p);
+    if (ends) {
+      const e = ends.edges.get(p.id);
+      if (e) edge(e);
+      const isle = ends.islands.get(p.id);
+      if (isle) island(isle);
+    }
     for (const link of famc.get(p.id) ?? []) {
       w.line(1, "FAMC", x(link.fam));
       if (link.relation === "adopted" || link.relation === "foster") w.line(2, "PEDI", link.relation);
@@ -445,7 +462,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (c.state === "resolved" && c.resolution) w.text(2, "DECI", c.resolution);
     }
     for (const h of research.hypotheses.filter((x) => about(x.subject))) {
-      w.line(1, "_STROM_HYPO");
+      w.line(1, "_STROM_HYPO", h.id);
       w.text(2, "TITL", h.question);
       w.text(2, "NOTE", h.variants.map((v) => `${v.label}: ${v.claim}`).join("\n"));
     }
@@ -457,6 +474,79 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       w.line(2, "RESN", q.result === "found" ? "found" : "none");
       w.line(2, "_AT", q.created.slice(0, 10));
     }
+  }
+
+
+  /** Years as a GEDCOM date: one year, or FROM … TO …. */
+  function years(r: { from: number; to: number }): string {
+    return r.from === r.to ? String(r.from) : `FROM ${r.from} TO ${r.to}`;
+  }
+
+  /**
+   * Where the tree ends above a person: what is missing, whether the research reaches them, what the records say
+   * so far, what comes next — and what that rests on (core/edge.ts; the app's ZADANI_VYZKUM_kraj-stromu.md).
+   */
+  function edge(e: Edge): void {
+    w.line(1, "_STROM_EDGE", e.missing);
+    w.line(2, "_SCOPE", e.scope);
+    if (e.research) w.line(2, "_RESEARCH", e.research);
+    if (e.generation !== undefined) w.line(2, "_GEN", String(e.generation));
+    w.line(2, "_END", e.end);
+    w.line(2, "_NEXT", e.next);
+    if (e.estimate) {
+      w.line(2, "_EST", e.estimate.year ? String(e.estimate.year) : "");
+      if (e.estimate.place) w.text(3, "PLAC", e.estimate.place);
+      if (e.estimate.basis) w.line(3, "_BASIS", `${e.estimate.basis.kind} ${e.estimate.basis.year}`);
+    }
+    if (e.window) w.line(2, "DATE", years(e.window));
+    if (e.recordsFrom) w.line(2, "_RECORDS", String(e.recordsFrom));
+    for (const b of e.books) {
+      w.line(2, "_BOOK", b.id);
+      w.text(3, "TITL", b.title);
+      const y = /^(\d{3,4})(?:\s*[-–]\s*(\d{3,4}))?$/.exec(b.years ?? "");
+      if (y) w.line(3, "DATE", years({ from: Number(y[1]), to: Number(y[2] ?? y[1]) }));
+      w.line(3, "_ACCESS", b.access);
+    }
+    for (const r of e.covered) w.line(2, "_COVERED", years(r));
+    for (const r of e.noRecords) w.line(2, "_NORECORDS", years(r));
+    for (const t of e.tasks) {
+      w.line(2, "_TASK", t.id);
+      w.line(3, "_LEVEL", t.level);
+      w.line(3, "STAT", t.state);
+      w.text(3, "TITL", humanTask(tree, t.what, lang));
+      if (t.position) w.line(3, "_POS", String(t.position));
+      if (t.held) w.line(3, "_HELD", t.held);
+      if (t.until) w.line(3, "_UNTIL", t.until);
+      if (t.on) w.text(3, "NOTE", t.on);
+    }
+    for (const id of e.tried) w.line(2, "_TRIED", id);
+    for (const h of e.hypotheses) {
+      w.line(2, "_HYPO", h.id);
+      for (const j of h.joins) w.line(3, "_JOIN", j);
+      if (h.island) {
+        w.line(3, "_ISLAND", String(h.island.people));
+        w.line(3, "_HELD", String(h.island.held));
+      }
+      for (const t of h.tests) w.line(3, "_TEST", t);
+    }
+    for (const c of e.conflicts) w.line(2, "_CONFLICT", c);
+    if (e.searches) w.line(2, "_SEARCHES", String(e.searches));
+    if (e.sessions) {
+      w.line(2, "_SESSIONS", String(e.sessions));
+      if (e.cost !== undefined) w.line(3, "_COST", e.cost.toFixed(2));
+      if (e.costPartial) w.line(3, "_PARTIAL", "Y");
+    }
+    if (e.last) w.line(2, "_LAST", e.last);
+  }
+
+  /** A person of a family nothing links to the tree: how many people it has, the hypotheses that would join it, the tasks waiting for it. */
+  function island(i: Island): void {
+    w.line(1, "_STROM_ISLAND", String(i.people.length));
+    for (const h of i.hypotheses) {
+      w.line(2, "_HYPO", h.id);
+      for (const j of h.joins) w.line(3, "_JOIN", j);
+    }
+    if (i.held) w.line(2, "_HELD", String(i.held));
   }
 
   function story(st: Story | undefined): void {
