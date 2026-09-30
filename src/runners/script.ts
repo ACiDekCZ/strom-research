@@ -4,7 +4,7 @@
 // prompt both on stdin (like a headless agent) and in STROM_PROMPT.
 
 import { spawn } from "node:child_process";
-import { appendLog, looksLikeLimit, stopTree, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { appendLog, looksLikeLimit, OWN_GROUP, stopTree, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 
 export const scriptRunner: Runner = {
   id: "script",
@@ -27,6 +27,7 @@ function once(opts: RunOptions, prompt: string, timeoutMs: number | undefined, w
       cwd: opts.cwd,
       env: { ...(opts.env as NodeJS.ProcessEnv), STROM_PROMPT: prompt, ...(wrapUp ? { STROM_WRAP_UP: "1" } : {}) },
       stdio: ["pipe", "pipe", "pipe"],
+      detached: OWN_GROUP,
     });
     child.stdin.end(prompt);
     let timedOut = false;

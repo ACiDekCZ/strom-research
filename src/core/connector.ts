@@ -285,6 +285,12 @@ export function treeBrowserConnectors(tree: Tree, shared: string | undefined): C
   const all = browserConnectors(tree.env, shared);
   if (!all.length) return [];
   const fetchedBy = new Set(tree.list<Media>("media").flatMap((m) => (m.fetched ? [m.fetched.connector] : [])));
+  const hosts = new Set(treeSites(tree));
+  return all.filter((c) => fetchedBy.has(c.name) || c.manifest.hosts.some((h) => hosts.has(siteOf(h))));
+}
+
+/** The sites of the archives a tree's records name (repositories, record sets, sources with an address). */
+function treeSites(tree: Tree): string[] {
   const hosts = new Set<string>();
   for (const r of [...tree.list<Repository>("repository"), ...tree.list<RecordSet>("recordset"), ...tree.list<Source>("source")])
     if (r.url && !r.retracted)
@@ -293,7 +299,24 @@ export function treeBrowserConnectors(tree: Tree, shared: string | undefined): C
       } catch {
         // not an address
       }
-  return all.filter((c) => fetchedBy.has(c.name) || c.manifest.hosts.some((h) => hosts.has(siteOf(h))));
+  return [...hosts];
+}
+
+/**
+ * Browser tools for the tree's agent (Claude in Chrome): whether its sessions get them, and for which sites.
+ * `agent.browser` archives (default): only where a connector of the tree fetches through the browser, for its sites;
+ * always (the user's choice): every session, for the sites of the tree's archives and of the connectors — a
+ * conversation asks about any other, a run nobody watches uses none other.
+ */
+export function agentBrowser(tree: Tree, shared: string | undefined): { on: boolean; hosts: string[]; always: boolean } {
+  const via = treeBrowserConnectors(tree, shared);
+  const always = new Settings(tree.env, {}).resolve("agent.browser", tree.config)?.value === "always";
+  const hosts = new Set(via.flatMap((c) => c.manifest.hosts));
+  if (always) {
+    for (const c of shared ? scanConnectors(shared).connectors : []) for (const h of c.manifest.hosts) hosts.add(h);
+    for (const h of treeSites(tree)) hosts.add(h);
+  }
+  return { on: always || via.length > 0, hosts: [...hosts], always };
 }
 
 export function findConnector(shared: string | undefined, name: string): Connector {

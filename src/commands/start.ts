@@ -18,7 +18,7 @@ import { syncAgentFiles } from "../agents/files.ts";
 import { AGENTS, findAgent, isAgent, withoutAgentMarks } from "../core/which.ts";
 import { DESKTOP_APPS, agentsHere, whereToTalk } from "../core/apps.ts";
 import { assertIntact } from "../core/integrity.ts";
-import { treeBrowserConnectors } from "../core/connector.ts";
+import { agentBrowser } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { offerLinks } from "../cli/wizard.ts";
 import { appOpensLinks, appOpensResearch, importAppUrl, installedStromApp, liveAppUrl, noticeStromApp, STROM_APP_URL, stromAppUrl } from "../core/stromapp.ts";
@@ -135,7 +135,7 @@ register({
       // its research when there is one, the day.
       name: ["Strom", tree.config.name, researches.length === 1 ? researches[0]!.name : undefined, new Date().toLocaleDateString(lang, { day: "numeric", month: "numeric" })].filter(Boolean).join(" · "),
       shared,
-      ...(agent === "claude" ? { chrome: treeBrowserConnectors(tree, shared).length > 0, remote: ctx.settings.agentRemote() } : {}),
+      ...(agent === "claude" ? { chrome: agentBrowser(tree, shared).on, remote: ctx.settings.agentRemote() } : {}),
     };
     const args = conversationArgs(agent, base);
     if (opts.print) return { text: [program ?? profile.command, ...args].map(shellQuote).join(" "), data: { command: program ?? profile.command, args, cwd: tree.root } };
@@ -271,7 +271,10 @@ register(
     description:
       "A small web server on this computer only (127.0.0.1, a secret address), that only reads: the Strom app, opened with\n" +
       "strom app --live, takes the tree from it and hears what changes — who is at work on what, what was recorded, what\n" +
-      "waits for the user. It ends by itself when nobody asks it anything for two hours, or with strom live stop.",
+      "waits for the user. It ends by itself when nobody asks it anything for two hours, or with strom live stop.\n" +
+      "One error does not end it (a read that fails is tried again); what it did and what went wrong is in .strom/live.log.\n" +
+      "Started again it takes the address it had (its port while free), so the app following it goes on by itself;\n" +
+      "one that ended without a word is started again when a session starts.",
     examples: ["strom live", "strom live start", "strom live stop"],
     run(ctx) {
       const tree = ctx.tree();

@@ -11,8 +11,9 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, runs, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
-import { TASK_LEVELS, type Input, type Lesson, type RecordSet, type Research, type Search, type Source, type Strategy, type Task } from "../core/model.ts";
+import { TASK_LEVELS, type Input, type Lesson, type RecordSet, type Research, type Search, type Session, type Source, type Strategy, type Task } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
+import { directionOf, ofResearch, scopes } from "../core/directions.ts";
 import { resolvePerson } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { now, typeOfId, type Tree } from "../core/tree.ts";
@@ -40,10 +41,14 @@ function subjects(tree: Tree, refs: string[]): string[] {
   });
 }
 
-function defaultResearch(tree: Tree, ref: unknown): string | undefined {
+/** A new task's research: the one named, else the session's that adds it, else the one active research its people belong to. */
+function defaultResearch(tree: Tree, ref: unknown, subject: string[] = []): string | undefined {
   if (typeof ref === "string") return resolveResearch(tree, ref).id;
+  const session = typeOfId(tree.actor) === "session" ? tree.get<Session>(tree.actor) : undefined;
+  if (session?.research) return session.research;
   const active = tree.list<Research>("research").filter((r) => r.state === "active");
-  return active.length === 1 ? active[0]!.id : undefined;
+  if (active.length === 1) return active[0]!.id;
+  return directionOf(tree, { subject }, scopes(tree).filter((s) => s.research.state === "active"));
 }
 
 /** What the research waits for from outside — mostly from the user: scans to download, a book to find, a reply. */
@@ -87,9 +92,10 @@ export function taskQueue(tree: Tree, filter: { research?: string; level?: strin
 }
 
 export function rankedQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean } = {}): Ranked[] {
+  const scope = filter.research ? scopes(tree).find((s) => s.research.id === filter.research) : undefined;
   const tasks = tree
     .list<Task>("task")
-    .filter((t) => !filter.research || !t.research || t.research === filter.research)
+    .filter((t) => !filter.research || (scope ? ofResearch(tree, t, scope) : t.research === filter.research))
     .filter((t) => !filter.level || t.level === filter.level);
   return rankTasks(tree, tasks, filter.strategy, { storyTurn: filter.storyTurn });
 }
@@ -204,7 +210,7 @@ register(
       if (!Number.isInteger(priority) || priority < 1 || priority > 5) throw new UsageError("--priority must be 1..5");
       const where = listOpt(opts.where).map((w) => (/^[Bb]\d+$/.test(w) ? requireRecord<RecordSet>(tree, w, "recordset").id : w));
       const subject = subjects(tree, listOpt(opts.about));
-      const research = defaultResearch(tree, opts.research);
+      const research = defaultResearch(tree, opts.research, subject);
       // The same work again: an open task of the same person and level that reads the same (or nearly, in the same
       // books) — not added; what is new goes into that one.
       if (!opts.anyway) {
@@ -308,7 +314,8 @@ register(
         all = ranked.map((r) => r.task);
       } else {
         all = tree.list<Task>("task").filter((t) => opts.state === "all" || t.state === opts.state);
-        if (research) all = all.filter((t) => t.research === research);
+        const scope = research ? scopes(tree).find((s) => s.research.id === research) : undefined;
+        if (scope) all = all.filter((t) => ofResearch(tree, t, scope));
         if (opts.level) all = all.filter((t) => t.level === opts.level);
       }
       if (opts.about) {

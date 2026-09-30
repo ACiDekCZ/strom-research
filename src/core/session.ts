@@ -14,6 +14,7 @@ import { now, VERSION, type Tree } from "./tree.ts";
 import { makeNote } from "./actions.ts";
 import type { Env } from "./paths.ts";
 import { detectAgent } from "./which.ts";
+import { finishAsked, finishFile } from "./clock.ts";
 import { isLiveWorker, isWorkerId } from "./workers.ts";
 
 function currentFile(tree: Tree, env: Env = tree.env): string {
@@ -142,7 +143,7 @@ export interface CloseInput {
 export function closeSession(tree: Tree, s: Session, input: CloseInput): Session {
   if (!input.interrupted && (!input.summary.trim() || !input.next.trim()))
     throw new UsageError("closing needs --summary and --next", { hint: 'e.g. --summary "found the baptism, parents Josef and Marie" --next "marriage of Josef ~1898 in B0002"' });
-  return tree.withTreeLock(() => {
+  const closed = tree.withTreeLock(() => {
     s = tree.get<Session>(s.id) ?? s;
     const task = s.task ? tree.get<Task>(s.task) : undefined;
     if (task && task.state === "doing") {
@@ -161,13 +162,17 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
       ...(input.summary.trim() ? { summary: input.summary.trim() } : {}),
       ...(input.next.trim() ? { next: input.next.trim() } : {}),
       ...(input.metrics ? { metrics: input.metrics } : {}),
-      ...(input.endedBy ? { endedBy: input.endedBy } : {}),
+      // asked to finish by the user (strom session finish): theirs, and a run stops after it
+      ...(input.endedBy ? { endedBy: input.endedBy } : finishAsked(tree.root, s.id) ? { endedBy: "user" as const } : {}),
     };
     tree.put(closed, { op: "session.close", targets: [s.id], summary: `${s.id} ${closed.state}: ${(input.summary || "no summary").slice(0, 80)}` });
     // Only the session this agent calls its current one is forgotten — not another agent's.
     if (currentSession(tree, tree.env)?.id === s.id) setCurrent(tree, undefined);
     return closed;
   });
+  // asked to finish (strom session finish): done
+  if (!tree.dryRun) fs.rmSync(finishFile(tree.root, closed.id), { force: true });
+  return closed;
 }
 
 /** The last closed sessions (newest first), optionally of one research. */

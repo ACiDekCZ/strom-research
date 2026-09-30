@@ -61,6 +61,10 @@ conversation opened anywhere, a bot on its own server)
   then tell the user what was found (strom person card …) and what comes next (strom plan), and ask
   before the next session. The next step is strom's queue: what the user wants instead becomes a
   task first (strom task add …, or strom research new …) — never search outside a session and its task.
+  The user names a research (G…) to work on: its tasks only — strom session start --research G….
+  A side of the family no direction reaches (a spouse's line) is a direction of its own: strom research
+  new --person <them>. The user wants a direction to wait or to end: strom research pause|done G… (its
+  tasks leave the queue, nothing is deleted; strom research resume G… brings them back).
   In a conversation the next task is best begun in a fresh context (Claude Code: /clear) — suggest
   it to the user; many tasks waiting: the agent working on its own (strom run, the user starts it
   from strom's menu), every task in a fresh session
@@ -155,7 +159,8 @@ THE STROM APP'S EDITS, ANOTHER FAMILY TREE (the user changed the tree in the Str
 STORIES OF THE ANCESTORS (the setting stories — on by default; strom shows it)
   Once records tell a person's life (a baptism and more facts from records), strom proposes a narrate
   task: write the story for the family book — plain words, the research language, every statement on a
-  recorded fact (strom story set P… --text @notes/story-P….md --fact E… …). More facts later: it
+  recorded fact (strom story set P… --text @notes/story-P….md --title "…" --fact E… …; paragraphs,
+  "## " subheadings, "- " bullets, **bold**, *italic* — nothing else shows in the app). More facts later: it
   proposes adding to it. Stories wait behind all the research; working alone
   (strom run), every few sessions one comes first. In a conversation the user leads: write one when they
   want it, or offer it when the research has a pause. A story is a draft until the user approves it (strom story approve P…; the Strom app asks it too). When strom says to tell

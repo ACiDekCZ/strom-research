@@ -14,6 +14,7 @@ import { parentsOf } from "./people.ts";
 import { taskRecordsets } from "./frontier.ts";
 import { now, type Tree } from "./tree.ts";
 import { subjectPeople } from "./records.ts";
+import { directionOf, scopes } from "./directions.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
 
@@ -69,9 +70,13 @@ export function ancestorLines(tree: Tree, focus: string, max = 50): Map<string, 
 /** The open tasks in the order to work on them, each with the reason. */
 export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean } = {}): Ranked[] {
   const today = now().slice(0, 10);
-  const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)));
-  const withImages = new Set(tree.list<Media>("media").map((m) => m.recordset));
   const researches = tree.list<Research>("research");
+  // a direction the user paused or ended: its tasks wait (one at work goes on)
+  const stopped = new Set(researches.filter((r) => r.state !== "active").map((r) => r.id));
+  const all = stopped.size ? scopes(tree) : [];
+  const waits = (t: Task) => t.state !== "doing" && stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? "");
+  const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)) && !waits(t));
+  const withImages = new Set(tree.list<Media>("media").map((m) => m.recordset));
   const lines = new Map<string, Map<string, { gen: number; line: string }>>();
   const linesOf = (researchId: string | undefined) => {
     const r = researches.find((x) => x.id === researchId) ?? (researches.length === 1 ? researches[0] : undefined);

@@ -90,6 +90,19 @@ if (mode === "sleep" || mode === "sleep-wrap") {
   await new Promise((r) => setTimeout(r, 30_000)); // stopped by the session time limit
   process.exit(0);
 }
+if (mode === "finish") {
+  // works on, running strom now and then, until strom says the user asks it to finish: then writes down and closes
+  for (let i = 0; i < 300; i++) {
+    const r = strom("task", "list");
+    if (/the user asks you to finish this session now/.test(r.stderr)) {
+      strom("session", "note", "images 1-5 read: nothing");
+      strom("session", "close", "--continue", "--summary", "asked to finish: images 1-5 read, nothing", "--next", "image 6");
+      process.exit(0);
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  process.exit(0);
+}
 if (mode === "idle") {
   // works on nothing, hands the task back
   strom("session", "close", "--continue", "--summary", "nothing yet", "--next", "try again");

@@ -8,11 +8,11 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "./context.ts";
 import { outOfAnswers, translator, type Run } from "./menu-parts.ts";
-import { offerChat } from "./menu-research.ts";
+import { directionTasks, offerChat, setDirection } from "./menu-research.ts";
 import { humanCost, humanDay, humanTask } from "./human.ts";
 import { lines, truncate } from "./format.ts";
 import { Tree } from "../core/tree.ts";
-import type { Conflict, Person, Session, Source, Task } from "../core/model.ts";
+import type { Conflict, Person, Research, Session, Source, Task } from "../core/model.ts";
 import { monthSpend } from "../core/session.ts";
 import { adoptFailedSince, adoptedSince, awaitAdoption, nothingSince, type SyncInput } from "../core/sync.ts";
 import { startLive } from "../core/live.ts";
@@ -59,6 +59,36 @@ export async function taskDo(ctx: Context, run: Run, lang: string, root: string,
   if ((await run(["task", what, id, ...reason], true)) !== 0) return false;
   out(ctx, t(`ui.link.task.${what}.done`));
   return true;
+}
+
+/** A direction of the research paused, ended (each with the person's reason, if they give one) or taken up again. */
+export async function directionDo(ctx: Context, run: Run, lang: string, root: string, id: string, what: "pause" | "done" | "resume"): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const r = tree.get<Research>(id);
+  if (!r || r.type !== "research") return stop(ctx, t("ui.link.direction.none", { id }));
+  const state = what === "pause" ? "paused" : what === "resume" ? "active" : "done";
+  if (r.state === state) return stop(ctx, state === "active" ? t("ui.research.exists", { name: r.name }) : t("ui.link.direction.cannot", { name: r.name, state: t(`ui.dirs.${state}`) }));
+  if (!(await asks(ctx, lang, root, t(`ui.link.what.direction.${what}`, { name: r.name, n: directionTasks(tree, r.id) })))) return false;
+  let reason: string | undefined;
+  if (what !== "resume") {
+    reason = (await ctx.ask(t("ui.link.direction.why"))).trim();
+    if (reason === "0") return false;
+  }
+  await setDirection(ctx, run, lang, root, r, what, reason || undefined);
+  return true;
+}
+
+/** A session at work asked to finish: its agent writes down what it found and closes it; a run starts no next one. */
+export async function finishSession(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const s = tree.get<Session>(id);
+  if (!s || s.type !== "session" || s.state !== "open") return stop(ctx, t("ui.link.finish.none", { session: id }));
+  const task = s.task ? tree.get<Task>(s.task) : undefined;
+  const agent = PROFILES[s.agent ?? ""]?.name ?? s.agent ?? "";
+  if (!(await asks(ctx, lang, root, t("ui.link.what.finish", { agent, session: s.id, task: task ? truncate(humanTask(tree, task.what, lang), 80) : "–" })))) return false;
+  return (await run(["session", "finish", s.id])) === 0;
 }
 
 /** The agent's sessions, the latest first, and what this month's cost. */

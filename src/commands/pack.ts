@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
+import type { Context } from "../cli/context.ts";
 import { lines } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { NeedsConsentError, UsageError } from "../core/errors.ts";
@@ -16,6 +17,26 @@ import { isAgent } from "../core/which.ts";
 import { ensureShared } from "./setup.ts";
 
 const mb = (bytes: number) => (bytes / 1e6 < 10 ? (bytes / 1e6).toFixed(1) : Math.round(bytes / 1e6).toString());
+
+/** Where a package goes unless named: the desktop (else the home), the tree's name and the day, a free name. */
+export function defaultPackFile(ctx: Context, tree: Tree): string {
+  const base = `${safeFolderName(tree.config.name) || "tree"} ${new Date().toISOString().slice(0, 10)}`;
+  const desk = desktopDir(ctx.env);
+  const dir = fs.existsSync(desk) ? desk : userHome(ctx.env);
+  let out = path.join(dir, `${base}.zip`);
+  for (let n = 2; fs.existsSync(out); n++) out = path.join(dir, `${base} (${n}).zip`);
+  return out;
+}
+
+/** The package with its how-to and launchers in the research language. */
+export function packTree(tree: Tree, shared: string, out: string, all: boolean): ReturnType<typeof writePack> {
+  const readme = {
+    name: ui(tree.config.lang, "ui.pack.readme.file"),
+    text: ui(tree.config.lang, "ui.pack.readme", { name: tree.config.name, win: INSTALL_WINDOWS, unix: INSTALL_UNIX }),
+  };
+  const say = { extract: ui(tree.config.lang, "ui.pack.launch.extract"), failed: ui(tree.config.lang, "ui.pack.launch.failed") };
+  return writePack(tree, shared, out, { all, readme, say });
+}
 
 register({
   path: ["pack"],
@@ -37,16 +58,7 @@ register({
     const shared = ctx.settings.shared()!.value;
     const lang = ctx.uiLang();
     const all = Boolean(opts["all-images"]);
-    const day = new Date().toISOString().slice(0, 10);
-    const base = `${safeFolderName(tree.config.name) || "tree"} ${day}`;
-    let out: string;
-    if (opts.out) out = ctx.resolvePath(String(opts.out));
-    else {
-      const desk = desktopDir(ctx.env);
-      const dir = fs.existsSync(desk) ? desk : userHome(ctx.env);
-      out = path.join(dir, `${base}.zip`);
-      for (let n = 2; fs.existsSync(out); n++) out = path.join(dir, `${base} (${n}).zip`);
-    }
+    let out = opts.out ? ctx.resolvePath(String(opts.out)) : defaultPackFile(ctx, tree);
     if (!out.toLowerCase().endsWith(".zip")) out += ".zip";
     if (fs.existsSync(out)) throw new UsageError(`${ctx.display(out)} is there already`, { hint: "another --out, or without it" });
     if (ctx.dryRun) {
@@ -54,12 +66,7 @@ register({
       const bytes = plan.media.reduce((s, m) => s + m.size, 0);
       return { text: `dry run: would pack "${tree.config.name}" with ${plan.media.length} image(s) (${mb(bytes)} MB) into ${ctx.display(out)} — nothing written`, data: { out, plan } };
     }
-    const readme = {
-      name: ui(tree.config.lang, "ui.pack.readme.file"),
-      text: ui(tree.config.lang, "ui.pack.readme", { name: tree.config.name, win: INSTALL_WINDOWS, unix: INSTALL_UNIX }),
-    };
-    const say = { extract: ui(tree.config.lang, "ui.pack.launch.extract"), failed: ui(tree.config.lang, "ui.pack.launch.failed") };
-    const r = writePack(tree, shared, out, { all, readme, say });
+    const r = packTree(tree, shared, out, all);
     const took = r.plan.media.reduce((s, m) => s + m.size, 0);
     const text = lines(
       ui(lang, "ui.pack.done", { name: tree.config.name, file: ctx.display(r.file), mb: mb(r.bytes) }),

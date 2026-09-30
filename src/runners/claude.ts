@@ -14,7 +14,7 @@
 // otherwise (--no-chrome), whatever Claude Code's own default is.
 
 import { randomUUID } from "node:crypto";
-import { appendLog, looksLikeLimit, spawnAgent, stopTree, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { appendLog, looksLikeLimit, OWN_GROUP, spawnAgent, stopTree, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 import type { SessionMetrics } from "../core/model.ts";
 
 function describeTool(block: { name?: string; input?: Record<string, unknown> }): string {
@@ -82,6 +82,7 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
       env: opts.interactive ? opts.env : headlessEnv(opts.env, opts.timeoutMs),
       stdio: opts.interactive ? "inherit" : ["pipe", "pipe", "pipe"],
       windowsHide: !opts.interactive,
+      detached: !opts.interactive && OWN_GROUP,
     });
     // The brief goes in on stdin: no limit on its length on any platform.
     if (!opts.interactive) child.stdin?.end(input);

@@ -461,6 +461,9 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
       "agent.permissions",
       ui(ctx.uiLang(), value === "full" ? "ui.consent.level.full" : "ui.consent.level.auto"),
     );
+  // The browser in every session: the user's decision alone.
+  if (key === "agent.browser" && value === "always" && s.resolve("agent.browser", ctx.hasTree() ? ctx.tree().config : undefined)?.value !== "always")
+    ctx.requireHuman("Give the agent browser tools (Claude in Chrome) in every research session?", "strom config set agent.browser always", "agent.browser", ui(ctx.uiLang(), "ui.consent.browser"));
   // Sessions steered from elsewhere (Remote Control): the user's decision alone.
   if (key === "agent.remote" && value === "on" && !s.agentRemote())
     ctx.requireHuman("Start the Claude Code sessions with Remote Control (followed and steered from claude.ai or your phone)?", "strom config set agent.remote on", "agent.remote", ui(ctx.uiLang(), "ui.consent.remote"));

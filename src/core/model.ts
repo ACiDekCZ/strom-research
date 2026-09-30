@@ -184,6 +184,8 @@ export interface Research extends BaseRecord {
   focus: string;
   direction: Direction;
   state: ResearchState;
+  /** When its state last changed (strom research pause|done|resume); before, its creation. */
+  stateSince?: string;
   priority: number;
   limits?: { generations?: number; before?: number };
   /**

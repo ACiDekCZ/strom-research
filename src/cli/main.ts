@@ -18,7 +18,7 @@ import { noticeStromApp } from "../core/stromapp.ts";
 import { isNewer } from "../core/update.ts";
 import { refreshGlobal } from "../agents/global.ts";
 import { linkFiles, linkHandlerState, registerLinks } from "../core/links.ts";
-import { clockLine } from "../core/clock.ts";
+import { clockLine, FINISH_LINE, finishAsked } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
 import { checkArgs, GroupOnly, parseOptions, resolveCommand, splitPassthrough } from "./execute.ts";
 import "../commands/index.ts";
@@ -185,9 +185,25 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
   }
 }
 
-/** Near the end of a session with a time limit (strom run), every command reminds the agent how long it has left. */
+/**
+ * Near the end of a session with a time limit (strom run), every command reminds the agent how long it has left;
+ * a session the user asked to finish (strom session finish) is told to write down and close, from its next command.
+ */
 function remind(io: IO, ctx: Context | undefined, command: string | undefined): void {
-  const line = ctx && command !== "session close" ? clockLine(ctx.env) : undefined;
+  if (!ctx || command === "session close" || command === "session finish") return;
+  const session = ctx.env.STROM_SESSION;
+  if (session) {
+    try {
+      const root = ctx.locateTree();
+      if (root && finishAsked(root, session)) {
+        io.stderr(FINISH_LINE + "\n");
+        return;
+      }
+    } catch {
+      // no tree here: only the clock
+    }
+  }
+  const line = clockLine(ctx.env);
   if (!line) return;
   try {
     // closed already: nothing to remind of

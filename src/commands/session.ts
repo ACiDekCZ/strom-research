@@ -6,6 +6,7 @@
 // sessions not a single token is spent.
 
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
@@ -14,6 +15,7 @@ import { lines, table, truncate } from "../cli/format.ts";
 import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
 import type { Research, Session, Task } from "../core/model.ts";
 import { closeSession, currentSession, openSessions, othersAtWork, sessionNote, startSession } from "../core/session.ts";
+import { reviveLive } from "../core/live.ts";
 import { buildBrief } from "../brief/brief.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
 import { prependPath } from "../runners/runner.ts";
@@ -31,16 +33,17 @@ import { PROFILES } from "../agents/profiles.ts";
 import { AGENTS, detectAgent, isAgent, which, withoutAgentMarks } from "../core/which.ts";
 import { askGate, ensureGatesDir, loadGate, type Gate, type GateAnswer } from "../core/gate.ts";
 import { keepAwake } from "../core/awake.ts";
-import { deadlineOf, WRAP_UP_MS } from "../core/clock.ts";
+import { askFinish, deadlineOf, finishAsked, WRAP_UP_MS } from "../core/clock.ts";
+import { OWN_GROUP } from "../runners/runner.ts";
 import { stromLauncher } from "../core/self.ts";
 import { phrase } from "../core/phrases.ts";
-import { enterWorker, runAlive, runsAtWork } from "../core/workers.ts";
+import { enterWorker, markPaused, runAlive, runsAtWork } from "../core/workers.ts";
 import type { Env } from "../core/paths.ts";
 import { assertIntact, snapshot, verifyFast } from "../core/integrity.ts";
 import { guard } from "../core/guard.ts";
 import { hasErrors } from "../core/check.ts";
 import { Tree } from "../core/tree.ts";
-import { treeBrowserConnectors } from "../core/connector.ts";
+import { agentBrowser, treeBrowserConnectors } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { reviewProposals } from "../core/review.ts";
 
@@ -74,6 +77,8 @@ export function researchProposals(tree: Tree, research: Research): { proposal: P
 
 /** Create the tasks strom proposes for a research; returns their IDs. */
 export function applyFrontier(tree: Tree, research: Research): string[] {
+  // a direction paused or ended proposes nothing (resumed: what it would, at once)
+  if (research.state !== "active") return [];
   return researchProposals(tree, research).map(({ proposal, kind }) => create<Task>(tree, "task", { ...proposal, state: "open" }, (id) => `+${id} task "${truncate(proposal.what, 60)}" (${kind})`).id);
 }
 
@@ -108,6 +113,7 @@ register(
       const task = args[0] ? requireRecord<Task>(tree, args[0], "task") : taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config) }).find((t) => !others.has(t.id));
       if (task && !["open", "doing", "parked"].includes(task.state)) throw new UsageError(`${task.id} is ${task.state}`);
       const s = startSession(tree, { ...(task ? { task } : {}), ...(research ? { research: research.id } : {}) });
+      reviveLive(tree.root, ctx.env);
       const brief = buildBrief(tree, { ...(task ? { task } : {}), session: s, budget: ctx.settings.number("brief.budget", tree.config, DEFAULT_BUDGET), shared: ctx.settings.shared()?.value });
       return { text: lines(written(tree), "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections } };
     },
@@ -125,6 +131,29 @@ register(
       if (!s) throw new UsageError("no open session", { hint: "strom session start" });
       sessionNote(tree, s, args[0]!);
       return { text: written(tree) };
+    },
+  },
+  {
+    path: ["session", "finish"],
+    summary: "Ask a session at work to finish now: its agent writes down what it found and closes it",
+    group: "research",
+    tree: true,
+    description:
+      "For the user: a session of strom run (or a conversation) is told, from the next strom command its agent runs, to\n" +
+      "start nothing new, record what it has and close the session (the task back to the queue when unfinished).\n" +
+      "Nothing is stopped by force; the run it belongs to stops after it (as at the first Ctrl-C in its terminal).",
+    args: [{ name: "session", description: "session ID (default: the one open session)" }],
+    examples: ["strom session finish", "strom session finish N0001"],
+    run(ctx, { args }) {
+      const tree = ctx.tree();
+      const lang = tree.lang;
+      const open = openSessions(tree);
+      const s = args[0] ? requireRecord<Session>(tree, args[0], "session") : open.length === 1 ? open[0] : undefined;
+      if (!s && !open.length) throw new UsageError(ui(lang, "ui.session.finish.none"), { hint: "strom session list" });
+      if (!s) throw new UsageError(ui(lang, "ui.session.finish.which", { sessions: open.map((x) => x.id).join(", ") }), { hint: `strom session finish ${open[0]!.id}` });
+      if (s.state !== "open") throw new UsageError(ui(lang, "ui.session.finish.closed", { session: s.id }), { hint: "strom session list" });
+      askFinish(tree.root, s.id, ctx.env.STROM_WORKER ?? "user");
+      return { text: ui(lang, "ui.session.finish.done", { session: s.id, task: s.task ?? "–" }), data: { session: s.id, task: s.task ?? null, asked: true } };
     },
   },
   {
@@ -437,6 +466,7 @@ register({
     { name: "loop", type: "boolean", description: "session after session for as long as there is work (and the gate lets it)" },
     { name: "gate", type: "string", value: "<name [n]>", description: 'ask this gate before each session, with what it is given, e.g. "claude-usage 20" (default: run.gate)' },
     { name: "no-gate", type: "boolean", description: "ask no gate this time (only you: an agent cannot)" },
+    { name: "follow", type: "boolean", description: "open the Strom app to follow the work live when the first session starts (after the gate)" },
     { name: "minutes", type: "string", value: "<n>", description: `time limit of one session (default: run.minutes, ${DEFAULT_RUN_MINUTES})` },
     { name: "budget", type: "string", value: "<tokens>", description: `brief size (default: brief.budget, ${DEFAULT_BUDGET})` },
     { name: "model", type: "string", value: "<model>", description: "model of the main agent (default: model.lead)" },
@@ -473,15 +503,27 @@ register({
     const report: { session: string; task?: string; outcome: string; summary?: string; costUsd?: number }[] = [];
     // What the gate answered, for the record of the run.
     const gates: { at: string; verdict: string; reason?: string; anyway?: boolean }[] = [];
+    // The Strom app opened to follow the run (--follow): once, when its first session starts.
+    let followed = false;
     // Why the run stopped: a code for the exit status and for data, words for the user (their language).
     const lang = Tree.open(root, runEnv).lang;
     type Stop = "done" | "user" | "time" | "empty" | "problems" | "denied" | "limit" | "auth" | "failed" | "gate" | "gate.error" | "gate.declined";
     let stopCode: Stop = "done";
     let stopValues: Record<string, string> = {};
-    // Ctrl-C, a closed terminal, a shutdown: stop the agent, close its session, give the task back.
+    // The first Ctrl-C while a session works: it is asked to finish (the agent writes down what it found and closes
+    // it), then the run stops — no next session. Ctrl-C again, a closed terminal, a shutdown: stop the agent now,
+    // close its session, give the task back. (Windows: the console stops the agent itself — now.)
     const stop = new AbortController();
+    let atWorkOn: string | undefined;
+    let finishing = false;
     const onSignal = (sig: NodeJS.Signals) => {
-      if (stop.signal.aborted) process.exit(130); // a second Ctrl-C: now
+      if (stop.signal.aborted) process.exit(130); // a third Ctrl-C: at once
+      if (sig === "SIGINT" && atWorkOn && !finishing && OWN_GROUP && !opts.interactive) {
+        finishing = true;
+        askFinish(root, atWorkOn, "user");
+        out(`\n${ui(lang, "ui.run.finishing", { session: atWorkOn })}`);
+        return;
+      }
       out(`\n${ui(lang, "ui.run.stopping")} (${sig})`);
       stop.abort();
     };
@@ -508,6 +550,9 @@ register({
       const browser = runnerId === "claude" ? treeBrowserConnectors(Tree.open(root, runEnv), ctx.settings.shared()?.value) : [];
       const permissions = ctx.settings.agentPermissions();
       for (const c of browser) out(ui(lang, "ui.run.browser", { name: c.manifest.title ?? c.name, hosts: c.manifest.hosts.join(", ") }));
+      // agent.browser always (the user's choice): the browser in every session, for the research's archives
+      const web = runnerId === "claude" ? agentBrowser(Tree.open(root, runEnv), ctx.settings.shared()?.value) : undefined;
+      if (web?.always) out(ui(lang, "ui.run.browser.always", { hosts: web.hosts.length ? web.hosts.join(", ") : "–" }));
       if (browser.length && /haiku/i.test(models.lead ?? "")) out(ui(lang, "ui.run.browser.model", { model: models.lead! }));
       // Archives through the browser with an agent that has no browser tools, or without the extension: said before it starts.
       const browserSays = browserNote(ctx, Tree.open(root, runEnv), runnerId);
@@ -519,7 +564,7 @@ register({
       let gateAnswered = false;
       if (gate) out(ui(lang, gateHolds ? "ui.run.gate" : "ui.run.gate.once", { name: gate.manifest.title ?? gate.name }));
       for (let i = 0; i < max; i++) {
-        if (stop.signal.aborted) {
+        if (stop.signal.aborted || finishing) {
           stopCode = "user";
           break;
         }
@@ -580,7 +625,13 @@ register({
             out(ui(lang, "ui.run.gate.wait", { at: new Date(at).toLocaleString(lang, { weekday: "short", hour: "2-digit", minute: "2-digit" }), reason: said.reason ?? "" }));
             // nothing to do meanwhile: the computer may sleep
             stopAwake();
-            await pause(at - Date.now(), stop.signal);
+            // the Strom app shows the run paused until then, not at work
+            markPaused(root, worker, { until: new Date(at).toISOString(), ...(said.reason ? { reason: said.reason } : {}) });
+            try {
+              await pause(at - Date.now(), stop.signal);
+            } finally {
+              markPaused(root, worker, undefined);
+            }
             stopAwake = keepAwake(ctx.env);
             i--; // this was no session: ask again, with the queue as it is then
             continue;
@@ -588,6 +639,16 @@ register({
         }
         const session = startSession(tree, { task, ...(research ? { research: research.id } : {}), runner: runnerId, ...(models.lead ? { model: models.lead } : {}) });
         commitNow(tree, `${session.id} session started on ${task.id}`);
+        // the Strom app followed the research and its bridge ended without a word: on its address again
+        reviveLive(root, ctx.env);
+        // The Strom app follows it from the first session on — not while the run still waits for its gate.
+        if (opts.follow && !followed) {
+          followed = true;
+          const { command, args: self } = stromLauncher();
+          const app = spawnSync(command, [...self, "app", "--live"], { cwd: root, env: ctx.env, encoding: "utf8", windowsHide: true, timeout: 60_000 });
+          const said = `${app.stdout ?? ""}${app.stderr ?? ""}`.trim();
+          if (said) out(said);
+        }
         // When the agent is stopped: it knows (the brief, strom's reminders near the end), and gets a few minutes more to write down what it found.
         const deadline = Date.now() + minutes * 60_000;
         const brief = buildBrief(tree, { task, session, budget, shared: ctx.settings.shared()?.value, deadline });
@@ -607,6 +668,7 @@ register({
           STROM_MINUTES: String(minutes),
           ...(opts.interactive ? {} : { STROM_NONINTERACTIVE: "1" }),
         };
+        atWorkOn = session.id;
         const result = await runner.run({
           cwd: root,
           prompt,
@@ -629,16 +691,19 @@ register({
           ...(opts.interactive ? { interactive: true } : {}),
           // the level for every agent (each maps it to its own switches); the browser and Remote Control are Claude Code's
           permissions,
-          ...(runnerId === "claude" ? { chrome: browser.length > 0, remote: ctx.settings.agentRemote() } : {}),
+          ...(runnerId === "claude" ? { chrome: Boolean(web?.on), remote: ctx.settings.agentRemote() } : {}),
           ...(extra?.length ? { extraArgs: extra } : {}),
           onProgress: (l) => out(`  · ${l}`),
           signal: stop.signal,
         });
+        atWorkOn = undefined;
         // Close what the agent left open, record the metrics, export, commit.
         const after = Tree.open(root, runEnv);
         let s = after.get<Session>(session.id)!;
         // strom worked for the agent when it closed the session itself or recorded something
         const ranStrom = s.state !== "open" || sessionWrites(after, s.id) > 0;
+        // the user asked it to finish (strom session finish, the Strom app's "finish and stop"): no next session
+        const askedToFinish = finishAsked(root, s.id) || s.endedBy === "user";
         if (s.state === "open")
           s = closeSession(after, s, {
             summary: result.outcome === "stopped" ? phrase(after.lang, "session.user") : phrase(after.lang, "session.agent", { outcome: result.outcome }),
@@ -674,7 +739,7 @@ register({
           stopCode = "problems";
           break;
         }
-        if (stop.signal.aborted) {
+        if (stop.signal.aborted || finishing || askedToFinish) {
           stopCode = "user";
           break;
         }

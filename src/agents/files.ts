@@ -14,7 +14,7 @@ import type { Tree } from "../core/tree.ts";
 import { PROFILES, SELF_READING } from "./profiles.ts";
 import { Settings } from "../core/config.ts";
 import { configDir } from "../core/paths.ts";
-import { treeBrowserConnectors } from "../core/connector.ts";
+import { agentBrowser } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
 
 export const MARKER = "<!-- strom: generated above this line (strom agents sync); your own notes below are kept -->";
@@ -166,8 +166,10 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
   const claude = agent === "claude";
   const at = (abs: string) => (claude ? permissionPath(abs) : abs.replace(/\\/g, "/"));
   const keys = at(configDir(tree.env));
-  // Connectors of this tree whose images come through the user's browser: browser tools (Claude in Chrome), for their sites only.
-  const sites = claude ? [...new Set(treeBrowserConnectors(tree, shared).flatMap((c) => c.manifest.hosts.map(chromeDomain)))] : [];
+  // Browser tools (Claude in Chrome): for the sites of the connectors fetching through the browser — or, agent.browser
+  // always, of every archive of the research (anything else is asked in a conversation, not used in a run).
+  const web = claude ? agentBrowser(tree, shared) : { on: false, hosts: [] };
+  const sites = [...new Set(web.hosts.map(chromeDomain))];
   const downloads = at(settings.downloads());
   // A rule for each of Claude Code's shells: Bash, and PowerShell (on Windows) — a Bash rule does not cover it. Grok has one.
   const shell = (cmd: string) => (claude ? [`Bash(${cmd})`, `PowerShell(${cmd})`] : [`Bash(${cmd})`]);
@@ -185,7 +187,7 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
       ...(shared ? (["Read", "Edit"] as const).map((t) => `${t}(${at(path.join(shared, "plugins", "connectors"))}/**)`) : []),
       "WebSearch",
       "WebFetch",
-      ...(sites.length ? [...CHROME_ALLOW, ...sites] : []),
+      ...(web.on ? [...CHROME_ALLOW, ...sites] : []),
     ],
     deny: [
       "Read(data/**)",

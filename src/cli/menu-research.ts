@@ -8,6 +8,8 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { agentReady, droppedPaths, outOfAnswers, pause, pickPerson, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
 import { Tree } from "../core/tree.ts";
+import { directionOf, scopes } from "../core/directions.ts";
+import type { UIKey } from "./ui.ts";
 import type { Research, Task } from "../core/model.ts";
 import { displayName, lifespan } from "../core/people.ts";
 import { DEATH_AFTER_YEARS, unprovenPeople } from "../core/review.ts";
@@ -30,9 +32,10 @@ export async function addToResearch(ctx: Context, run: Run, lang: string, root: 
       items.push({ key: "3", label: t("ui.menu.review"), act: async () => void (await reviewPerson(ctx, run, lang, root)) });
       items.push({ key: "4", label: t(noApp(ctx) ? "ui.more.sync.noapp" : "ui.more.sync"), act: async () => void (await syncTree(ctx, run, lang, root)) });
     }
+    if (tree.count("research") > 0) items.push({ key: "5", label: t("ui.more.directions"), act: async () => void (await directions(ctx, run, lang, root)) });
     // only when there are some: the people no record of their own proves — last, it shows only sometimes
     const unproven = unprovenPeople(tree).filter((u) => !u.living).length;
-    if (unproven) items.push({ key: "5", label: t("ui.menu.unproven", { n: unproven }), act: async () => void (await reviewUnproven(ctx, run, lang, root)) });
+    if (unproven) items.push({ key: String(items.length + 1), label: t("ui.menu.unproven", { n: unproven }), act: async () => void (await reviewUnproven(ctx, run, lang, root)) });
     return { title: t("ui.more.title"), items };
   });
 }
@@ -159,6 +162,12 @@ export async function startDirection(ctx: Context, run: Run, lang: string, root:
           .find((r) => r.focus === focus && r.direction === direction && r.state === "active")
       : undefined;
   if (same) return void ctx.io.stdout(t("ui.research.exists", { name: same.name }) + "\n");
+  // …paused or ended: taken up again rather than made twice
+  const stopped = focus && direction !== "question" ? Tree.open(root, ctx.env).list<Research>("research").find((r) => r.focus === focus && r.direction === direction) : undefined;
+  if (stopped) {
+    if (await ctx.confirm(t("ui.research.resume", { name: stopped.name, state: t(`ui.dirs.${stopped.state}` as UIKey) }))) await setDirection(ctx, run, lang, root, stopped, "resume");
+    return;
+  }
   const suggested = question ?? t(direction === "ancestors" ? "ui.research.title.ancestors" : "ui.research.title.descendants", { name });
   const title = (await ctx.ask(t("ui.research.title"), suggested)).trim();
   if (title === "0") return;
@@ -175,7 +184,36 @@ export async function startDirection(ctx: Context, run: Run, lang: string, root:
   if (!made) return;
   if (knows && knows !== "0") await run(["intake", `--text=${knows}`, "--research", made.id], true);
   ctx.io.stdout(t("ui.research.done", { name: made.name }) + "\n");
-  await offerChat(ctx, run, lang, root, t("ui.research.chat"), t("ui.research.say", { name: made.name }));
+  await offerChat(ctx, run, lang, root, t("ui.research.chat"), t("ui.research.say", { name: made.name, id: made.id }));
+}
+
+/** A direction's tasks not finished: open, at work, put aside or waiting for the user. */
+export function directionTasks(tree: Tree, research: string): number {
+  const all = scopes(tree);
+  return tree.list<Task>("task").filter((x) => ["open", "doing", "parked", "waiting"].includes(x.state) && directionOf(tree, x, all) === research).length;
+}
+
+/** The directions of the research, each with how it goes and its tasks: one paused, ended or taken up again. */
+async function directions(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const all = tree.list<Research>("research");
+  const label = (r: Research) => t("ui.dirs.item", { name: r.name, state: t(`ui.dirs.${r.state}` as UIKey), n: directionTasks(tree, r.id) });
+  const i = await ctx.choose(t("ui.dirs.pick"), all.map((r) => ({ label: label(r) })), all.length, { back: t("ui.browse.back") });
+  if (i === undefined) return;
+  const r = all[i]!;
+  const acts = r.state === "active" ? (["pause", "done"] as const) : r.state === "paused" ? (["resume", "done"] as const) : (["resume"] as const);
+  const a = await ctx.choose(t("ui.dirs.what", { name: r.name }), acts.map((x) => ({ label: t(`ui.dirs.do.${x}` as UIKey) })), acts.length, { back: t("ui.browse.back") });
+  if (a === undefined) return;
+  await setDirection(ctx, run, lang, root, r, acts[a]!);
+}
+
+/** A direction paused, ended or taken up again (with the person's reason), and what that means for its tasks. */
+export async function setDirection(ctx: Context, run: Run, lang: string, root: string, r: Research, act: "pause" | "resume" | "done", reason?: string): Promise<void> {
+  const t = translator(lang);
+  if ((await run(["research", act, r.id, ...(reason ? [`--reason=${reason}`] : [])], true)) !== 0) return;
+  const state = act === "pause" ? "paused" : act === "resume" ? "active" : "done";
+  ctx.io.stdout(t(`ui.dirs.${state}.now` as UIKey, { name: r.name, n: directionTasks(Tree.open(root, ctx.env), r.id) }) + "\n");
 }
 
 /** The person said no to the Strom app: it is not named. */

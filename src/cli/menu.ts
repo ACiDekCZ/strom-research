@@ -190,7 +190,11 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
                 ctx.settings.config.stromAppFollow = follow ? "yes" : "no";
                 ctx.settings.save();
               }
-              if (follow) await run(["app", "--live"]);
+              // opened when the first session starts: a run may wait for its gate first
+              if (follow) {
+                args.push("--follow");
+                out(t("ui.run.follow.later"));
+              }
             }
             out(t("ui.run.start"));
             await run(["run", ...args]);
@@ -234,13 +238,15 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
             if (i !== undefined) await run(["chat", "--agent", others[i]!.id]);
           },
         };
+      // Another tree, right after the research's own items.
+      items.push({ key: "6", label: known.length > 1 ? t("ui.menu.trees") : t("ui.menu.newtree"), act: async () => pickTree(ctx, run, lang) });
       // The Strom app: open the research in it (live while an agent is at work); not known yet: what it is, and whether they want it.
       const app = stromAppState(ctx.settings);
       if (app !== "no") {
         const atWork = liveWorkers(root).length > 0 || runsAtWork(root).length > 0;
         const hasApp = app !== "unknown" || Boolean(installedStromApp(ctx.env, process.platform, stromAppUrl(ctx.settings)));
         appItem = {
-          key: "5",
+          key: "7",
           label: t(!hasApp ? "ui.menu.app.new" : atWork ? "ui.menu.app.watch" : "ui.menu.app"),
           act: async () => openStromApp(ctx, run, lang, hasApp),
         };
@@ -251,11 +257,9 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       // Several trees and none chosen: pick one first.
       items.push({ key: "1", label: t("ui.menu.trees"), act: async () => pickTree(ctx, run, lang) });
     }
-    // What changes nothing of the research: the newer strom, the settings of this computer (with the check), another tree.
-    // At most nine: the newer strom is taken in the settings, the line above says where.
-    const settings: Item = { key: "6", label: t("ui.menu.settings"), act: async () => settingsMenu(ctx, run, lang, root, newer) };
+    // The settings of this computer (with the check); at most nine: the newer strom is taken in the settings, the line above says where.
+    const settings: Item = { key: "8", label: t("ui.menu.settings"), act: async () => settingsMenu(ctx, run, lang, root, newer) };
     items.push(settings);
-    if (root) items.push({ key: "8", label: known.length > 1 ? t("ui.menu.trees") : t("ui.menu.newtree"), act: async () => pickTree(ctx, run, lang) });
     // Only with several agents here: last, so that it moves no other number.
     if (other) items.push(other);
     items.push({ key: "0", label: t("ui.menu.quit"), act: async () => true });
@@ -403,6 +407,7 @@ async function pickTree(ctx: Context, run: Run, lang: string): Promise<void> {
   // handing a research over: this one packed, one someone sent unpacked
   const packAt = at >= 0 ? options.push({ label: ui(lang, "ui.trees.pack", { name: known[at]!.name }) }) - 1 : -1;
   const unpackAt = options.push({ label: ui(lang, "ui.trees.unpack") }) - 1;
+  const removeAt = known.length ? options.push({ label: ui(lang, "ui.trees.remove") }) - 1 : -1;
   const back = at >= 0 ? { back: ui(lang, "ui.back.stay", { name: known[at]!.name }) } : {};
   const i = await ctx.choose(ui(lang, "ui.trees.pick"), options, Math.max(0, at), back);
   if (i === undefined || i === at) return;
@@ -417,6 +422,13 @@ async function pickTree(ctx: Context, run: Run, lang: string): Promise<void> {
     const which = await ctx.choose(ui(lang, "ui.pack.which"), [{ label: ui(lang, "ui.pack.opt.records", { mb: size(false) }) }, { label: ui(lang, "ui.pack.opt.all", { mb: size(true) }) }], 0, { back: ui(lang, "ui.browse.back") });
     if (which === undefined) return;
     await run(["pack", "--tree", tree.root, ...(which === 1 ? ["--all-images"] : [])]);
+    await partsPause(ctx, lang);
+    return;
+  }
+  if (i === removeAt) {
+    const which = await ctx.choose(ui(lang, "ui.remove.which"), known.map((k) => ({ label: `${k.name}  (${ctx.display(k.root)})` })), known.length, { back: ui(lang, "ui.browse.back") }); // Enter goes back
+    if (which === undefined) return;
+    await run(["trees", "remove", known[which]!.root]);
     await partsPause(ctx, lang);
     return;
   }

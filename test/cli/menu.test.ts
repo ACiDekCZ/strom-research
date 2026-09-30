@@ -94,9 +94,9 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   fs.mkdirSync(hook, { recursive: true });
   fs.writeFileSync(path.join(hook, "hook.json"), JSON.stringify({ interface: 1, title: "Zpráva do telefonu", command: ["node", "hook.ts"] }));
   const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  // 7 settings · 2 working alone · 1 minutes: 90 · 2 the condition: 1 Claude usage, 12 · 0 back
+  // 8 settings · 2 working alone · 1 minutes: 90 · 2 the condition: 1 Claude usage, 12 · 0 back
   // · 3 hooks · 1 on: yes · 0 back · 6 Remote Control: yes · 4 archives · 1 ask first: yes · 0 back · 0 back · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["7", "2", "1", "90", "2", "1", "12", "0", "3", "1", "a", "0", "6", "a", "4", "1", "a", "0", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["8", "2", "1", "90", "2", "1", "12", "0", "3", "1", "a", "0", "6", "a", "4", "1", "a", "0", "0", "0"] });
   assert.match(r.out, /Nastavení \(na tomto počítači\)\n {3}1 {2}Jazyk, agent, model/);
   assert.match(r.out, /Samostatná práce agenta: 90 min na úkol · podmínka: Claude usage 12/);
   assert.match(r.out, /Zpráva do telefonu: zapnuto/);
@@ -109,7 +109,7 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   assert.equal(c.agentRemote, "on");
   assert.equal(c.connectorsConsent, "on");
   // and back: no condition, the hook off — 0 in a question changes nothing
-  await w.ok([], { tty: true, answers: ["7", "2", "2", "2", "0", "3", "1", "0", "0", "0"] });
+  await w.ok([], { tty: true, answers: ["8", "2", "2", "2", "0", "3", "1", "0", "0", "0"] });
   assert.equal(config().runGate, undefined);
   assert.equal(config().hooks, undefined);
   w.cleanup();
@@ -118,8 +118,8 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
 test("the menu without an AI agent: said, item 1 gets one, nothing offered that needs it — nothing of Claude's; the numbers stay", unix, async () => {
   const w = await world();
   fs.rmSync(path.join(w.dir, "bin", "claude"));
-  // 1 get an agent: 3 later · Enter · 2 working alone: said · Enter · 4 add · 1 material · 2 what is known · the text · 0 · 7 settings · 0 · 0
-  const r = await w.ok([], { tty: true, answers: ["1", "3", "", "2", "", "4", "1", "2", "Babička Anna pocházela z Kolína.", "0", "7", "0", "0"] });
+  // 1 get an agent: 3 later · Enter · 2 working alone: said · Enter · 4 add · 1 material · 2 what is known · the text · 0 · 8 settings · 0 · 0
+  const r = await w.ok([], { tty: true, answers: ["1", "3", "", "2", "", "4", "1", "2", "Babička Anna pocházela z Kolína.", "0", "8", "0", "0"] });
   assert.match(r.out, /Na počítači zatím není žádný AI agent – výzkum dělá on\. Volba 1 ho nainstaluje\./);
   assert.match(r.out, / 1 {2}Nainstalovat nebo vybrat AI agenta\n {3}2 {2}Nechat agenta pracovat samotného\n {3}3 {2}Co čeká na vás/, "the same numbers as with an agent");
   assert.match(r.out, /Agent se do toho pustí, až bude na počítači/);
@@ -141,7 +141,8 @@ test("the menu never has more than nine items: two agents and a new version at o
   const items = [...r.out.matchAll(/^ {3}(\d) {2}/gmu)].map((m) => Number(m[1]));
   assert.deepEqual(items, [1, 2, 3, 4, 5, 6, 7, 8, 9, 0], r.out);
   assert.match(r.out, /Tentokrát mluvit s jiným agentem/);
-  assert.match(r.out, /Vyšla nová verze stromu: 9\.9\.9 – aktualizovat ji můžete v Nastavení \(volba 7\)\./);
+  assert.match(r.out, / 6 {2}Jiný rodokmen[^\n]*\n {3}7 {2}Aplikace Strom[^\n]*\n {3}8 {2}Nastavení[^\n]*\n {3}9 {2}Tentokrát mluvit s jiným agentem/, "another tree 6, the settings 8, another agent last");
+  assert.match(r.out, /Vyšla nová verze stromu: 9\.9\.9 – aktualizovat ji můžete v Nastavení \(volba 8\)\./);
   w.cleanup();
 });
 
@@ -194,7 +195,7 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
   assert.equal((await w.ok(["research", "list", "--json"])).json.researches.length, 1);
   // claude-usage takes a number of points; a tree with a time of its own gets the change
   await w.ok(["config", "set", "run.minutes", "45", "--for-tree"]);
-  const s = await w.ok([], { tty: true, answers: ["7", "2", "2", "1", "hodně", "15", "1", "30", "0", "0", "0"] });
+  const s = await w.ok([], { tty: true, answers: ["8", "2", "2", "1", "hodně", "15", "1", "30", "0", "0", "0"] });
   assert.match(s.out, /Napište prosím počet bodů od 0 do 100/);
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).runGate, "claude-usage 15");
   assert.match(s.out, /Čas na jeden úkol: 30 min/);
@@ -214,7 +215,7 @@ test("Remote Control on in Claude Code itself: the settings say so, and what str
   fs.mkdirSync(claudeDir);
   fs.writeFileSync(path.join(claudeDir, "settings.json"), JSON.stringify({ remoteControlAtStartup: true }));
   w.env.CLAUDE_CONFIG_DIR = claudeDir;
-  const r = await w.ok([], { tty: true, answers: ["7", "6", "n", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["8", "6", "n", "0", "0"] });
   assert.match(r.out, /Sledovat agenta z telefonu \(Remote Control\): rozhovory ano, samostatná práce ne/);
   assert.match(r.out, /Samostatnou práci agenta \(volba 2 v menu\) až když zapnete i tohle\.\nZapnout to i pro samostatnou práci\?/);
   w.cleanup();
@@ -270,11 +271,11 @@ test(
 test("the Strom app wanted but not installed here: installing it from the browser is offered first, else it opens", unix, async () => {
   const w = await world();
   await w.ok(["config", "set", "strom.app", "yes"]);
-  // 6 the app · yes, install it · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["6", "", "0"] });
+  // 7 the app · yes, install it · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["7", "", "0"] });
   assert.match(r.out, /Aplikace Strom na tomto počítači ještě není nainstalovaná\. Nainstalovat ji teď jako aplikaci z prohlížeče/);
   // no: it opens in the browser, as before
-  const no = await w.ok([], { tty: true, answers: ["6", "n", "0"] });
+  const no = await w.ok([], { tty: true, answers: ["7", "n", "0"] });
   assert.match(no.out, /Nainstalovat ji teď jako aplikaci z prohlížeče/);
   w.cleanup();
 });
@@ -284,10 +285,11 @@ test("archives through the browser: the way each downloader takes, switched in t
   const dir = await fakeConnector(w, "archiv-a");
   const manifest = readJsonFile(path.join(dir, "connector.json"));
   fs.writeFileSync(path.join(dir, "connector.json"), JSON.stringify({ ...manifest, routes: ["direct", "browser"], can: [...new Set([...(manifest.can ?? []), "locate"])] }, null, 2));
-  // 7 settings · 4 archives · 2 through the browser · yes · 0 · 0 · 0
-  const r = await w.ok([], { tty: true, answers: ["7", "4", "2", "", "0", "0", "0"] });
+  // 8 settings · 4 archives · 3 through the browser · yes · 0 · 0 · 0
+  const r = await w.ok([], { tty: true, answers: ["8", "4", "3", "", "0", "0", "0"] });
+  assert.match(r.out, /2 {2}Prohlížeč pro agenta \(Claude in Chrome\): jen pro archivy přes prohlížeč/);
   assert.match(r.out, /• Testovací archiv — snímky přímo, strom hlídá tempo/);
-  assert.match(r.out, /2 {2}Testovací archiv: stahovat raději přes váš prohlížeč/);
+  assert.match(r.out, /3 {2}Testovací archiv: stahovat raději přes váš prohlížeč/);
   assert.match(r.out, /✓ Testovací archiv: odteď přes váš prohlížeč\./);
   assert.match(r.out, /• Testovací archiv — snímky přes váš prohlížeč/);
   assert.match(r.out, /Chrome k tomu potřebuje rozšíření Claude in Chrome .* tady ho v žádném prohlížeči nevidím: https:\/\/chromewebstore\.google\.com\/detail\//);
@@ -300,8 +302,9 @@ test("archives through the browser: the way each downloader takes, switched in t
   fs.writeFileSync(path.join(w.dir, "bin", "codex"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   await w.ok(["agents", "use", "codex"]);
   assert.match((await w.run(["doctor"])).out, /Testovací archiv stahují přes prohlížeč – to umí jen Claude Code \(teď: OpenAI Codex CLI\)/);
-  const a = await w.ok([], { tty: true, answers: ["7", "4", "0", "0", "0"] });
+  const a = await w.ok([], { tty: true, answers: ["8", "4", "0", "0", "0"] });
   assert.match(a.out, /Testovací archiv: stahuje se přes prohlížeč – to umí jen Claude Code \(rozšíření Claude in Chrome\); výzkum teď dělá OpenAI Codex CLI\./);
+  assert.doesNotMatch(a.out, /Prohlížeč pro agenta/, "only Claude Code has browser tools: not offered for another agent");
   w.cleanup();
 });
 
@@ -321,7 +324,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   const target = path.join(w.dir, "Nové místo");
   fs.mkdirSync(target);
   fs.writeFileSync(path.join(target, ".DS_Store"), "");
-  const r = await w.ok([], { tty: true, answers: ["7", "1", "", target, "", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["8", "1", "", target, "", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
   assert.match(r.out, /✓ Výzkum je teď ve složce .*Nové místo\./);
   assert.match(r.out, /Novákovi – přehled výzkumu/, "the menu goes on, the tree opened where it is now");
   assert.doesNotMatch(r.out + r.err, /not a Strom tree|error:/);
@@ -345,7 +348,7 @@ test("what a review of the menu found: words that start with a dash, Enter in a 
   const hook = path.join(w.home, "shared", "plugins", "hooks", "zprava");
   fs.mkdirSync(hook, { recursive: true });
   fs.writeFileSync(path.join(hook, "hook.json"), JSON.stringify({ interface: 1, command: ["node", "hook.ts"] }));
-  await w.ok([], { tty: true, answers: ["7", "3", "", "", "0"] });
+  await w.ok([], { tty: true, answers: ["8", "3", "", "", "0"] });
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).hooks, undefined);
   // a hook turned on whose folder is gone can be turned off
   await w.ok(["hook", "on", "zprava"], { tty: true });

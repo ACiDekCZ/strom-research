@@ -43,9 +43,16 @@ test("a person runs strom: the first family tree, straight into the conversation
   assert.ok(call.startsWith(fs.realpathSync(w.treeDir("Novákovi"))), `in the tree folder: ${call}`);
   assert.match(call, /chci začít zkoumat svoje předky/, "the first message, in the user's language");
   assert.match(call, /--permission-mode auto --settings .+\/Novákovi\/\.claude\/settings\.json/);
+  assert.match(call, /--no-chrome/, "no archive through the browser: no browser tools");
   assert.match(r.out, /Rodokmen: Novákovi · 0 osob/);
   assert.match(r.out, /1 {2}Začít výzkum s agentem/);
   assert.match(r.out, /Na shledanou/);
+  // the browser in every session, the user's choice: the conversation gets it
+  await w.ok(["config", "set", "agent.browser", "always"], { tty: true, answers: ["a"] });
+  fs.rmSync(path.join(w.dir, "claude.calls"));
+  await w.ok(["chat"], { tty: true });
+  assert.match(fs.readFileSync(path.join(w.dir, "claude.calls"), "utf8"), / --chrome\b/);
+  await w.ok(["config", "unset", "agent.browser"]);
   // An agent (or a script) still gets the orientation, never the menu.
   assert.match((await w.ok([])).out, /^strom \S+ — nástroj pro genealogický výzkum s AI agenty/);
   w.cleanup();
@@ -71,16 +78,16 @@ test("the menu: a person can always change their mind — the current choice sug
   await w.ok(["init", "Svobodovi"]);
   await w.ok(["trees", "use", "Novákovi"]);
   // another agent: Enter stays · working alone: 0 · another tree: Enter stays · a new one: 0 · quit
-  const r = await w.ok([], { tty: true, answers: ["9", "", "2", "0", "8", "", "8", "3", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["9", "", "2", "0", "6", "", "6", "3", "0", "0"] });
   assert.match(r.out, /Který AI agent bude výzkum dělat\?\n {3}1 {2}OpenAI Codex CLI\n {3}0 {2}Zpět – zůstat u: Claude Code\nVyberte \[0\]/);
   assert.ok(!fs.existsSync(path.join(w.dir, "codex.calls")), "no other agent started");
   assert.ok(!fs.existsSync(path.join(w.dir, "claude.calls")), "no conversation, no run");
-  assert.match(r.out, /Který rodokmen\?\n {3}1 {2}Novákovi .*\n {3}2 {2}Svobodovi .*\n {3}3 {2}nový rodokmen\n {3}4 {2}zabalit „Novákovi“ a poslat někomu \(soubor ZIP\)\n {3}5 {2}rodokmen, který vám někdo poslal \(soubor ZIP\)\n {3}0 {2}Zpět – zůstat u: Novákovi\nVyberte \[1\]/);
+  assert.match(r.out, /Který rodokmen\?\n {3}1 {2}Novákovi .*\n {3}2 {2}Svobodovi .*\n {3}3 {2}nový rodokmen\n {3}4 {2}zabalit „Novákovi“ a poslat někomu \(soubor ZIP\)\n {3}5 {2}rodokmen, který vám někdo poslal \(soubor ZIP\)\n {3}6 {2}odebrat rodokmen z tohoto počítače\n {3}0 {2}Zpět – zůstat u: Novákovi\nVyberte \[1\]/);
   assert.match(r.out, /Jak se bude jmenovat nový rodokmen\? \(třeba příjmení rodiny; 0 vrátí zpět\)/);
   assert.equal((await w.ok(["trees", "--json"])).json.trees.length, 2, "no tree made");
   assert.match((await w.ok(["status"])).out, /Novákovi/, "still the same tree");
   // handing it over from the menu: packed, then unpacked by someone else (a file dragged in)
-  const p = await w.ok([], { tty: true, answers: ["8", "4", "1", "", "0"] });
+  const p = await w.ok([], { tty: true, answers: ["6", "4", "1", "", "0"] });
   assert.match(p.out, /Které snímky přibalit\?\n {3}1 {2}ty, na kterých jsou zápisy – 0 MB[^\n]*\n {3}2 {2}všechny – 0 MB\n {3}0 /);
   assert.match(p.out, /Zabaleno „Novákovi“: (.+\.zip) \(/);
   const zip = path.join(w.env.HOME!, /Zabaleno „Novákovi“: ~\/(.+\.zip) \(/.exec(p.out)![1]!);
@@ -89,9 +96,13 @@ test("the menu: a person can always change their mind — the current choice sug
   b.env.PATH = pathWith(b, ["claude"]);
   await b.ok(["setup", "--yes"]);
   await b.ok(["init", "Dvořákovi"]);
-  const u = await b.ok([], { tty: true, answers: ["8", "4", `'${zip}'`, "a", "", "0"] });
+  const u = await b.ok([], { tty: true, answers: ["6", "4", `'${zip}'`, "a", "", "0"] });
   assert.match(u.out, /Přetáhněte sem soubor ZIP[\s\S]*„Novákovi“ je tady/);
   assert.equal((await b.ok(["trees", "--json"])).json.trees.length, 2);
+  // taking one off from the menu: Enter goes back, nothing taken off
+  const rm = await b.ok([], { tty: true, answers: ["6", "6", "", "0"] });
+  assert.match(rm.out, /Který rodokmen odebrat z tohoto počítače\?\n[\s\S]* {3}0 {2}Zpět\nVyberte \[0\]/);
+  assert.equal((await b.ok(["trees", "--json"])).json.trees.length, 2, "nothing taken off");
   b.cleanup();
   w.cleanup();
 });
@@ -442,20 +453,20 @@ test("the Strom app offered gently: the wizard asks once, the menu says what it 
   assert.doesNotMatch(none.out, /aplikac/i, "the user's no stands");
   // Not said yet (an older setup): one quiet line and an item that explains — the answer here: install it.
   await w.ok(["config", "unset", "strom.app"]);
-  const tip = await w.ok([], { tty: true, answers: ["6", "1", "n", "0"] });
-  assert.match(tip.out, /Tip: výzkum si můžete prohlížet jako rodokmen v aplikaci Strom a sledovat ho živě, když agent pracuje – volba 6\./);
-  assert.match(tip.out, /6 {2}Aplikace Strom – výzkum jako rodokmen, sledovaný živě/);
+  const tip = await w.ok([], { tty: true, answers: ["7", "1", "n", "0"] });
+  assert.match(tip.out, /Tip: výzkum si můžete prohlížet jako rodokmen v aplikaci Strom a sledovat ho živě, když agent pracuje – volba 7\./);
+  assert.match(tip.out, /7 {2}Aplikace Strom – výzkum jako rodokmen, sledovaný živě/);
   assert.match(tip.out, /Otevřete ji zde: https:\/\/stromapp\.info\/run\//, "tests open nothing: the address is said");
   assert.match(tip.out, /Až bude nainstalovaná: otevřít v ní výzkum\?/);
   assert.equal(cfg().stromApp, "yes");
   // Wanted: the item opens the research, no tip; while an agent is at work it says so.
   const plain = await w.ok([], { tty: true, answers: ["0"] });
-  assert.match(plain.out, /6 {2}Otevřít výzkum v aplikaci Strom/);
+  assert.match(plain.out, /7 {2}Otevřít výzkum v aplikaci Strom/);
   assert.doesNotMatch(plain.out, /Tip:/);
   const leave = enterWorker(w.treeDir("Novákovi"), "codex-1", "Codex conversation");
   const busy = await w.ok([], { tty: true, answers: ["0"] });
-  assert.match(busy.out, /Agent pracuje – můžete ho živě sledovat v aplikaci Strom: volba 6\./);
-  assert.match(busy.out, /6 {2}Sledovat práci agenta v aplikaci Strom \(živě\)/);
+  assert.match(busy.out, /Agent pracuje – můžete ho živě sledovat v aplikaci Strom: volba 7\./);
+  assert.match(busy.out, /7 {2}Sledovat práci agenta v aplikaci Strom \(živě\)/);
   leave();
   // Working alone, with a browser that reaches the bridge: watched live meanwhile? The last answer is suggested.
   w.env.STROM_APP_DIRS = appsWith(w, ["Google Chrome.app"]);
@@ -554,10 +565,84 @@ test("the live bridge: the Strom app reads the tree and hears what changes — t
       setTimeout(() => (req.destroy(), reject(new Error(`no change heard: ${text}`))), 8000);
     });
     assert.match(heard, /event: change\ndata: .*Karel/);
+    // when: the commit's own time, as /log gives it
+    const change = JSON.parse(/event: change\ndata: (.*)/.exec(heard)![1]!) as { head: string; at: string; entries: { head: string; at: string; what: string[] }[] };
+    assert.equal(change.at, spawnSync("git", ["log", "-1", "--format=%cI", change.head], { cwd: w.cwd, encoding: "utf8" }).stdout.trim());
+    // each new commit as /log gives it
+    assert.equal(change.entries[0]!.head, change.head);
+    assert.equal(change.entries[0]!.at, change.at);
+    assert.match(change.entries.flatMap((e) => e.what).join("\n"), /Karel/);
   } finally {
     await w.ok(["live", "stop"]);
   }
   assert.equal((await w.ok(["live", "--json"])).json.running, false);
+  w.cleanup();
+});
+
+test("the live bridge does not end because of one error, says what happened in its log, and comes back on its address", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = new World();
+  await w.withTree();
+  w.env.STROM_LIVE_POLL_MS = "100";
+  const log = path.join(w.cwd, ".strom", "live.log");
+  const first = (await w.ok(["live", "start", "--json"])).json;
+  // The app follows it; meanwhile the tree cannot be read (another strom writing it that moment).
+  const events = http.get(`${first.url}/events`);
+  events.on("error", () => {});
+  try {
+    await new Promise((r) => setTimeout(r, 300));
+    const config = path.join(w.cwd, "strom.json");
+    const good = fs.readFileSync(config, "utf8");
+    fs.writeFileSync(config, good.slice(0, 20));
+    await new Promise((r) => setTimeout(r, 500));
+    const broken = await ask(`${first.url}/status`);
+    assert.equal(broken.status, 500);
+    assert.ok(JSON.parse(broken.body).error, "a short JSON");
+    fs.writeFileSync(config, good);
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal((await ask(`${first.url}/status`)).status, 200, "it goes on");
+    events.destroy();
+    const said = fs.readFileSync(log, "utf8");
+    assert.match(said, /started: strom .*a new address/);
+    assert.match(said, /a tick failed \(tried again\): .*\n\s+at /, "the error with its stack");
+    assert.equal(said.match(/a tick failed/g)!.length, 1, "written once, not at every tick");
+    assert.match(said, /works again \(\d+× failed\)/);
+    assert.match(said, /GET \/…\/status failed/, "the secret is not written");
+    assert.doesNotMatch(said, new RegExp(first.token));
+    // Stopped and started again: the same address, so the app goes on by itself.
+    await w.ok(["live", "stop"]);
+    await new Promise((r) => setTimeout(r, 300));
+    assert.match(fs.readFileSync(log, "utf8"), /stop asked: strom live stop\n.*ended: SIGTERM/);
+    const again = (await w.ok(["live", "start", "--json"])).json;
+    assert.equal(again.url, first.url);
+    assert.match(fs.readFileSync(log, "utf8"), /the address of the last bridge/);
+    // Ended without a word (killed): the next session brings it back, on its address; one stopped stays stopped.
+    process.kill(again.pid, "SIGKILL");
+    await new Promise((r) => setTimeout(r, 200));
+    await w.ok(["person", "add", "Karel /Novák/", "--sex", "M"]);
+    await w.ok(["session", "start"]);
+    const back = (await w.ok(["live", "--json"])).json;
+    assert.equal(back.running, true);
+    assert.equal(back.url, first.url);
+    assert.notEqual(back.pid, again.pid);
+    assert.match(fs.readFileSync(log, "utf8"), new RegExp(`the bridge ${again.pid} ended without a word: started again`));
+    await w.ok(["live", "stop"]);
+    await w.ok(["session", "close", "--continue", "--summary", "nothing yet", "--next", "the same again"]);
+    await w.ok(["session", "start"]);
+    assert.equal((await w.ok(["live", "--json"])).json.running, false, "stopped by the user: not brought back");
+    // Its port taken meanwhile: another one.
+    const blocker = http.createServer();
+    await new Promise<void>((r) => blocker.listen(first.port, "127.0.0.1", r));
+    try {
+      const moved = (await w.ok(["live", "start", "--json"])).json;
+      assert.notEqual(moved.port, first.port);
+      assert.match(fs.readFileSync(log, "utf8"), new RegExp(`port ${first.port} is taken: another one`));
+    } finally {
+      blocker.close();
+    }
+  } finally {
+    events.destroy();
+    await w.run(["live", "stop"]);
+  }
   w.cleanup();
 });
 

@@ -7,7 +7,7 @@
 
 import type { SessionMetrics } from "../core/model.ts";
 import type { Env } from "../core/paths.ts";
-import { appendLog, looksLikeLimit, spawnAgent, stopTree, type RunOptions, type RunResult } from "./runner.ts";
+import { appendLog, looksLikeLimit, OWN_GROUP, spawnAgent, stopTree, type RunOptions, type RunResult } from "./runner.ts";
 
 /** What a runner learns from its agent's events. */
 export interface Heard {
@@ -84,7 +84,7 @@ function attempt(
   onEvent: (msg: Record<string, unknown>, heard: Heard) => void,
 ): Promise<{ code: number | null; timedOut: boolean; stderr: string; failed?: string }> {
   return new Promise((resolve) => {
-    const child = spawnAgent(command, args, { cwd: opts.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    const child = spawnAgent(command, args, { cwd: opts.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: OWN_GROUP });
     child.stdin?.end(input);
     let timedOut = false;
     const timer = timeoutMs

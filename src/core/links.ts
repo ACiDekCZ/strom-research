@@ -32,15 +32,19 @@ export const LINK_SCHEME = "strom-research";
  * as it is now into the app's window, open the research's menu, a conversation with the agent (of one person),
  * a task (answered, put aside, given up, back in the queue), a person's review, a new direction from a person —
  * and (the app's second wave) a new research with a tree of the app, strom's update, the agent's sessions and
- * what they cost, a conflict decided (by the user or the agent), a story approved, a sync taken back, the setup.
+ * what they cost, a conflict decided (by the user or the agent), a story approved, a sync taken back, the setup —
+ * and (the app's 3.5.0) the research followed live in the app's window; a direction of the research paused, ended or
+ * taken up again, a conversation about one direction, a session at work asked to finish.
  */
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
 export const LINK_DIRECTIONS = ["ancestors", "descendants"] as const;
 /** What a link does with a task: put it aside, give it up, back into the queue (none: answer it). */
 export const LINK_TASK_DOS = ["park", "drop", "wake"] as const;
+/** What a link does with a direction of the research (strom research pause|done|resume). */
+export const LINK_DIRECTION_DOS = ["pause", "done", "resume"] as const;
 /** What a link does with a conflict: the user decides it, or leaves it to the agent. */
 export const LINK_CONFLICT_DOS = ["decide", "agent"] as const;
 
@@ -50,6 +54,8 @@ const PERSON = /^P\d{1,9}$/;
 const TASK = /^T\d{1,9}$/;
 const CONFLICT = /^X\d{1,9}$/;
 const INPUT = /^I\d{1,9}$/;
+const RESEARCH = /^G\d{1,9}$/;
+const SESSION = /^N\d{1,9}$/;
 /** The app's own mark of a tree it hands over (32 random bytes, base64url). */
 export const APP_TOKEN = /^[A-Za-z0-9_-]{22,43}$/;
 /** An excerpt's mark (_STROM_CLIP): letters, digits and "-", at most 32. */
@@ -58,18 +64,21 @@ export const CLIP_MARK = /^[A-Za-z0-9-]{1,32}$/;
 export type Link =
   | { action: "send"; tree: string }
   | { action: "app"; tree: string }
+  | { action: "live"; tree: string }
   | { action: "open"; tree: string }
   | { action: "update"; tree: string }
   | { action: "sessions"; tree: string }
   | { action: "setup"; tree: string }
   | { action: "excerpt"; tree: string; source: string; clip: string }
-  | { action: "chat"; tree: string; person?: string }
+  | { action: "chat"; tree: string; person?: string; research?: string }
   | { action: "task"; tree: string; task: string; do?: (typeof LINK_TASK_DOS)[number] }
   | { action: "review"; tree: string; person: string; scope: (typeof LINK_SCOPES)[number] }
   | { action: "research"; tree: string; person: string; direction: (typeof LINK_DIRECTIONS)[number] }
   | { action: "conflict"; tree: string; id: string; do: (typeof LINK_CONFLICT_DOS)[number] }
   | { action: "story"; tree: string; person: string; do: "final" }
   | { action: "sync-undo"; tree: string; intake: string }
+  | { action: "direction"; tree: string; id: string; do: (typeof LINK_DIRECTION_DOS)[number] }
+  | { action: "finish"; tree: string; session: string }
   | { action: "new"; app: string }
   | { action: "menu" };
 
@@ -119,6 +128,7 @@ export function parseLink(text: string | undefined): Link {
   switch (action) {
     case "send":
     case "app":
+    case "live":
     case "open":
     case "update":
     case "sessions":
@@ -130,8 +140,10 @@ export function parseLink(text: string | undefined): Link {
       if (!SOURCE.test(source) || !CLIP_MARK.test(clip)) throw new LinkError("no excerpt named");
       return { action, tree: id, source, clip };
     }
-    case "chat":
-      return { action, tree: id, ...(person ? { person } : {}) };
+    case "chat": {
+      const research = idOf(q, "research", RESEARCH, false);
+      return { action, tree: id, ...(person ? { person } : {}), ...(research ? { research } : {}) };
+    }
     case "task": {
       const task = idOf(q, "task", TASK, true)!;
       return { action, tree: id, task, ...(q.has("do") ? { do: oneOf(q, "do", LINK_TASK_DOS) } : {}) };
@@ -148,6 +160,10 @@ export function parseLink(text: string | undefined): Link {
       return { action, tree: id, id: idOf(q, "id", CONFLICT, true)!, do: oneOf(q, "do", LINK_CONFLICT_DOS, "decide") };
     case "sync-undo":
       return { action, tree: id, intake: idOf(q, "intake", INPUT, true)! };
+    case "direction":
+      return { action, tree: id, id: idOf(q, "id", RESEARCH, true)!, do: oneOf(q, "do", LINK_DIRECTION_DOS) };
+    case "finish":
+      return { action, tree: id, session: idOf(q, "session", SESSION, true)! };
   }
   throw new LinkError(`unknown action "${action.slice(0, 32)}"`);
 }

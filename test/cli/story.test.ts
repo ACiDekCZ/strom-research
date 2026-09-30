@@ -47,3 +47,27 @@ test("story set / show: the facts it rests on, draft or final, _STORY in the GED
   assert.match((await w.ok(["check"])).out, /^ok/);
   w.cleanup();
 });
+
+test("the story's format: its title from a first \"# \" line (or dropped when it repeats --title); what the Strom app shows as plain text is said, never refused", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["research", "new", "Předci", "--new-person", "František /Víšek/", "--sex", "M"]);
+  const story = async (args: string[]) => {
+    const r = await w.ok(["story", "set", "P1", ...args, "--json"]);
+    return { out: (await w.ok(["story", "set", "P1", ...args])).out, story: r.json.story as { title?: string; text: string } };
+  };
+  let r = await story(["--text", "# Syn podruha\n\nFrantišek se narodil ve Vavřinci.\n\n## Dětství\n\n- **Antonín**, otec\n- *podruh*: bez vlastního domu"]);
+  assert.equal(r.story.title, "Syn podruha");
+  assert.match(r.story.text, /^František se narodil/);
+  assert.doesNotMatch(r.out, /plain text/, "all of it in the app's set");
+  r = await story(["--text", "#  SYN PODRUHA \n\nFrantišek.", "--title", "Syn podruha"]);
+  assert.equal(r.story.text, "František.", "the same title: once");
+  r = await story(["--text", "# Mládí\n\nFrantišek.", "--title", "Syn podruha"]);
+  assert.equal(r.story.title, "Syn podruha");
+  assert.match(r.story.text, /^# Mládí/, "another heading stays");
+  // a date may start a line: one "1. ledna" is no list
+  assert.doesNotMatch((await story(["--text", "1. ledna 1831 se narodil.\n\n* 1831 Vavřinec\n\nPak žil."])).out, /plain text/, "nor is \"* 1831\" a bullet: the sign of a birth");
+  const outside = await story(["--text", "Viz [matrika](https://example.org).\n\n> citace\n\n| a | b |\n| - | - |\n\n1. první\n2. druhý\n\n* Antonín"]);
+  assert.match(outside.out, /note: the Strom app shows links, tables, quotes \(> \), numbered lists, bullets other than "- " as plain text/);
+  w.cleanup();
+});

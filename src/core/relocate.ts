@@ -55,16 +55,16 @@ export function sameFolder(a: string, b: string, platform: NodeJS.Platform = pro
   return within(path.resolve(a), path.resolve(b), platform) && within(path.resolve(b), path.resolve(a), platform);
 }
 
-/** Somebody at work in a tree: an agent present, a run, a command holding its lock, the live bridge. */
-function atWork(root: string): boolean {
-  return liveWorkers(root).length > 0 || runsAtWork(root).length > 0 || Boolean(liveHolder(path.join(root, ".strom", "tree.lock"))) || Boolean(liveRunning(root));
+/** Somebody at work in a tree: an agent present, a run, a command holding its lock, the live bridge (unless `bridge: false`: it only reads). */
+export function atWork(root: string, opts: { bridge?: boolean } = {}): boolean {
+  return liveWorkers(root).length > 0 || runsAtWork(root).length > 0 || Boolean(liveHolder(path.join(root, ".strom", "tree.lock"))) || (opts.bridge !== false && Boolean(liveRunning(root)));
 }
 
 /** `trees`: the folders of the trees strom knows (those inside `from` move along). */
 export function planMove(from: string, to: string, trees: string[]): MovePlan {
   const names = entries(from);
   const inside = trees.filter((t) => within(t, from));
-  const busy = inside.filter(atWork).map((t) => path.basename(t));
+  const busy = inside.filter((t) => atWork(t)).map((t) => path.basename(t));
   // The top of a disk (its own hidden folders only): into a folder named like the old one there.
   const there = entries(to);
   const target = there.length && there.every((n) => DISK.has(n)) ? path.join(to, path.basename(from) || "Strom") : to;

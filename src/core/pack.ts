@@ -331,3 +331,32 @@ export function unpack(pack: { manifest: PackManifest; dir: string }, treesDir: 
     throw e;
   }
 }
+
+/** The files of the shared store a tree names (its images, the family's material kept there), by its folder alone. */
+export function sharedFilesOf(root: string): Map<string, number> {
+  const out = new Map<string, number>();
+  const read = (dir: string, f: (r: { file?: string; size?: number }) => void) => {
+    let names: string[] = [];
+    try {
+      names = fs.readdirSync(path.join(root, "data", dir)).filter((n) => n.endsWith(".json"));
+    } catch {
+      return;
+    }
+    for (const n of names)
+      try {
+        f(JSON.parse(fs.readFileSync(path.join(root, "data", dir, n), "utf8")) as { file?: string; size?: number });
+      } catch {
+        // an unreadable record names nothing
+      }
+  };
+  read("images", (m) => m.file && out.set(m.file, m.size ?? 0));
+  read("inputs", (i) => i.file?.startsWith("media:") && out.set(i.file.slice(6), i.size ?? 0));
+  return out;
+}
+
+/** The files of the shared store only this tree names — none of the other trees (their folders) does. */
+export function onlyItsFiles(root: string, others: string[], shared: string): { file: string; size: number }[] {
+  const theirs = new Set<string>();
+  for (const o of others) for (const f of sharedFilesOf(o).keys()) theirs.add(f);
+  return [...sharedFilesOf(root)].filter(([f]) => !theirs.has(f) && fs.existsSync(path.join(shared, f))).map(([file, size]) => ({ file, size }));
+}

@@ -116,14 +116,27 @@ export function spawnAgent(command: string, args: string[], opts: SpawnOptions &
   return spawn(found, args, { ...opts, env: opts.env as NodeJS.ProcessEnv });
 }
 
-/** Stop a child and everything it started (Windows: the whole process tree). */
+/**
+ * A headless agent in a process group of its own (not on Windows, whose console sends Ctrl-C to every process of
+ * it): Ctrl-C in the terminal reaches strom alone, which asks the session to finish first (strom run).
+ */
+export const OWN_GROUP = process.platform !== "win32";
+
+/** Stop a child and everything it started (Windows: the whole process tree; elsewhere its own group, when it has one). */
 export function stopTree(child: ChildProcess): void {
   if (child.exitCode !== null || child.pid === undefined) return;
   if (process.platform === "win32") spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
   else {
-    child.kill("SIGTERM");
+    const kill = (sig: NodeJS.Signals) => {
+      try {
+        process.kill(-child.pid!, sig); // its group: what it started too
+      } catch {
+        child.kill(sig); // no group of its own
+      }
+    };
+    kill("SIGTERM");
     setTimeout(() => {
-      if (child.exitCode === null) child.kill("SIGKILL");
+      if (child.exitCode === null) kill("SIGKILL");
     }, 5000).unref();
   }
 }

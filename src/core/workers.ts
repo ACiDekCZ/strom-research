@@ -13,10 +13,38 @@ export interface Worker {
   /** What it is, for people: "Claude Code conversation". */
   label: string;
   since: string;
+  /** A run waiting for its gate: when it asks again, and what the gate said. */
+  paused?: Paused;
+}
+
+export interface Paused {
+  until: string;
+  reason?: string;
 }
 
 function dir(root: string): string {
   return path.join(root, ".strom", "workers");
+}
+
+function pauseFile(root: string, id: string): string {
+  return path.join(dir(root), `${id}.paused`);
+}
+
+/** A run waits for its gate (the app shows it paused, not at work) — or goes on (undefined). */
+export function markPaused(root: string, id: string, paused: Paused | undefined): void {
+  const file = pauseFile(root, id);
+  if (!paused) return fs.rmSync(file, { force: true });
+  fs.mkdirSync(dir(root), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(paused));
+}
+
+function pausedOf(root: string, id: string): Paused | undefined {
+  try {
+    const p = JSON.parse(fs.readFileSync(pauseFile(root, id), "utf8")) as Paused;
+    return typeof p.until === "string" ? { until: p.until, ...(typeof p.reason === "string" ? { reason: p.reason } : {}) } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** A worker's name, safe as a file name. */
@@ -40,9 +68,15 @@ export function liveWorkers(root: string): Worker[] {
   }
   for (const f of files) {
     const file = path.join(dir(root), f);
+    const id = f.slice(0, -5);
     const info = liveHolder(file, 7 * 24 * 3600_000);
-    if (info) out.push({ id: f.slice(0, -5), label: info.owner, since: info.at });
-    else fs.rmSync(file, { force: true });
+    if (info) {
+      const paused = pausedOf(root, id);
+      out.push({ id, label: info.owner, since: info.at, ...(paused ? { paused } : {}) });
+    } else {
+      fs.rmSync(file, { force: true });
+      fs.rmSync(pauseFile(root, id), { force: true });
+    }
   }
   return out;
 }

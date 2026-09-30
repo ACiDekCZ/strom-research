@@ -6,6 +6,8 @@
 // the limit an agent that can be resumed gets a few minutes more to write down
 // what it found and close the session (runners: wrapUp).
 
+import fs from "node:fs";
+import path from "node:path";
 import type { Env } from "./paths.ts";
 
 /** From how long before the end strom's output reminds the agent (a short session: its last quarter). */
@@ -14,6 +16,29 @@ export const REMIND_MS = 10 * 60_000;
 export const CLOSE_MS = 3 * 60_000;
 /** The time an agent stopped at its limit gets to write down what it found. */
 export const WRAP_UP_MS = 5 * 60_000;
+
+/**
+ * The user asked a session to finish now (strom session finish): a file of the tree's own, read by every strom
+ * command the session's agent runs — a run's session cannot be told otherwise (it reads no input).
+ */
+export function finishFile(root: string, session: string): string {
+  return path.join(root, ".strom", "finish", `${session}.json`);
+}
+
+export function askFinish(root: string, session: string, by: string): void {
+  fs.mkdirSync(path.dirname(finishFile(root, session)), { recursive: true });
+  fs.writeFileSync(finishFile(root, session), JSON.stringify({ at: new Date().toISOString(), by }) + "\n");
+}
+
+export function finishAsked(root: string, session: string): boolean {
+  return fs.existsSync(finishFile(root, session));
+}
+
+/** What every strom command says to the agent of a session the user asked to finish. */
+export const FINISH_LINE =
+  "⏳ the user asks you to finish this session now: start nothing new; record in strom what you found and have not recorded yet " +
+  '(facts, sources, the images searched, in vain too), then strom session close --continue --summary "…" --next "exactly where you stopped" ' +
+  "(or finish the task, if it is done).";
 
 /** When this session is stopped (ms since the epoch), if a run set a limit. */
 export function deadlineOf(env: Env): number | undefined {

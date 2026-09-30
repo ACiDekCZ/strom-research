@@ -91,6 +91,11 @@ function aboutPerson(lang: string, p: Person): string {
   return ui(lang, "ui.link.chat.say", { person: who(p) });
 }
 
+/** The conversation's first message about one direction: its name and ID, from the research's own record. */
+function aboutDirection(lang: string, r: Research): string {
+  return ui(lang, "ui.link.chat.research.say", { name: r.name, id: r.id });
+}
+
 /** The conversation's first message about a conflict: its ID and title from the research itself. */
 function aboutConflict(root: string, ctx: Context, id: string): string | undefined {
   const tree = Tree.open(root, ctx.env);
@@ -133,7 +138,8 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     // commands, which ask themselves
     case "open":
     case "app":
-      return { text: "", data: { done: (await run(link.action === "open" ? [] : ["app"])) === 0, action: link.action, tree: root } };
+    case "live":
+      return { text: "", data: { done: (await run(link.action === "open" ? [] : link.action === "live" ? ["app", "--live"] : ["app"])) === 0, action: link.action, tree: root } };
     case "update":
     case "setup":
       return end((await run([link.action])) === 0);
@@ -167,6 +173,14 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       const { undoSending } = await import("../cli/menu-links.ts");
       return end(await undoSending(ctx, run, treeLang, root, link.intake));
     }
+    case "direction": {
+      const { directionDo } = await import("../cli/menu-links.ts");
+      return end(await directionDo(ctx, run, treeLang, root, link.id, link.do));
+    }
+    case "finish": {
+      const { finishSession } = await import("../cli/menu-links.ts");
+      return end(await finishSession(ctx, run, treeLang, root, link.session));
+    }
   }
   const named = "person" in link ? link.person : undefined;
   const person = named ? personOf(root, ctx, named) : undefined;
@@ -174,10 +188,18 @@ async function inTerminal(ctx: Context, link: TreeLink) {
   const { asks } = await import("../cli/menu-links.ts");
   switch (link.action) {
     case "chat": {
+      // one direction: its tasks only (the research's own name and ID in the first message)
+      const direction = link.research ? tree.get<Research>(link.research) : undefined;
+      if (link.research && direction?.type !== "research") return said("ui.link.direction.none", { id: link.research });
       // the agent costs: said and asked first, then the conversation as strom chat starts it
-      const what = person ? ui(treeLang, "ui.link.what.chat.person", { agent, person: who(person) }) : ui(treeLang, "ui.link.what.chat", { agent });
+      const what = direction
+        ? ui(treeLang, "ui.link.what.chat.research", { agent, name: direction.name })
+        : person
+          ? ui(treeLang, "ui.link.what.chat.person", { agent, person: who(person) })
+          : ui(treeLang, "ui.link.what.chat", { agent });
       if (!(await asks(ctx, treeLang, root, what, ui(treeLang, "ui.link.cost")))) return { text: "", data: { done: false, action: link.action, tree: root } };
-      return { text: "", data: { done: (await run(["chat", ...(person ? [`--say=${aboutPerson(treeLang, person)}`] : [])])) === 0, action: link.action, tree: root } };
+      const first = direction ? aboutDirection(treeLang, direction) : person ? aboutPerson(treeLang, person) : undefined;
+      return { text: "", data: { done: (await run(["chat", ...(first ? [`--say=${first}`] : [])])) === 0, action: link.action, tree: root } };
     }
     case "story": {
       const { approveStory } = await import("../cli/menu-links.ts");
@@ -212,6 +234,8 @@ async function inTerminal(ctx: Context, link: TreeLink) {
 async function withoutTerminal(ctx: Context, link: TreeLink, root: string) {
   const run = await runnerOf(ctx)(root);
   if (link.action === "app") return { text: "", data: { done: (await run(["app"], true)) === 0, action: "app", tree: root } };
+  // followed live: the bridge started (or the one running), its address into the app's window — strom app --live
+  if (link.action === "live") return { text: "", data: { done: (await run(["app", "--live"], true)) === 0, action: "live", tree: root } };
   if (link.action !== "chat" && !(link.action === "conflict" && link.do === "agent")) return undefined;
   const tree = Tree.open(root, ctx.env);
   if (whereToTalk(ctx.settings.agent(tree.config).value, ctx.settings.agentWhere(), ctx.env) !== "app") return undefined;
@@ -219,6 +243,10 @@ async function withoutTerminal(ctx: Context, link: TreeLink, root: string) {
   if (link.action === "conflict") {
     first = aboutConflict(root, ctx, link.id);
     if (!first) return say(ctx, "ui.link.conflict.none", { id: link.id }, { tree: link.tree });
+  } else if (link.action === "chat" && link.research) {
+    const direction = tree.get<Research>(link.research);
+    if (direction?.type !== "research") return say(ctx, "ui.link.direction.none", { id: link.research }, { tree: link.tree });
+    first = aboutDirection(tree.lang, direction);
   } else if (link.action === "chat" && link.person) {
     const person = personOf(root, ctx, link.person);
     if (!person) return say(ctx, "ui.link.noperson", { person: link.person }, { tree: link.tree });
@@ -253,6 +281,7 @@ register(
       "strom-research://excerpt?tree=<id>&source=S0042&clip=<its mark> — the excerpt from the scan, not made smaller, in the\n" +
       "viewer of the system (the page in the online archive when the scan is not here). Nothing is written.\n" +
       "strom-research://app?tree=<id> — the research as it is now into the app's open window (strom app).\n" +
+      "strom-research://live?tree=<id> — the research followed live in the app's window (strom app --live).\n" +
       "strom-research://open?tree=<id> — the research's menu in a terminal.\n" +
       "strom-research://chat?tree=<id>[&person=P0012] — a conversation with the agent (strom chat; of one person: its first\n" +
       "message names only who). strom-research://task?tree=<id>&task=T0007 — the task that waits for the user, answered.\n" +
@@ -262,6 +291,10 @@ register(
       "strom-research://conflict?tree=<id>&id=X0007&do=decide|agent — decided by the user (which claim, why) or left to the agent.\n" +
       "strom-research://story?tree=<id>&person=P0012&do=final — the story approved (strom story approve).\n" +
       "strom-research://sync-undo?tree=<id>&intake=I0042 — a sending from the app taken back (strom sync undo).\n" +
+      "strom-research://direction?tree=<id>&id=G0002&do=pause|done|resume — a direction paused, ended (the reason asked) or\n" +
+      "taken up again (strom research pause|done|resume).\n" +
+      "strom-research://chat?tree=<id>&research=G0002 — a conversation about one direction, its tasks only.\n" +
+      "strom-research://finish?tree=<id>&session=N0012 — the session at work asked to finish (strom session finish).\n" +
       "strom-research://update|sessions|setup?tree=<id> — strom update, the agent's sessions and their cost, strom setup.\n" +
       "strom-research://new?app=<the app's mark> — a tree of the app becomes a new research: named, made, the app hands the\n" +
       "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app.\n" +

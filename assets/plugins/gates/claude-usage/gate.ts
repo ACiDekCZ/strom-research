@@ -87,7 +87,8 @@ const now = Date.now();
 const start = week.resets.getTime() - WEEK;
 const gone = Math.max(0, Math.min(100, ((now - start) / WEEK) * 100));
 const behind = gone - week.used;
-const v = { used: week.used, gone: Math.round(gone), behind: Math.round(behind), min };
+// shown rounded down: never "15 in hand (at least 15 needed)" for 14.6 — and gone − used stays what it says
+const v = { used: week.used, gone: Math.floor(gone), behind: Math.floor(behind), min };
 if (session && session.used >= 100) answer(1, say("session"), session.resets ? new Date(session.resets.getTime() + 60_000) : undefined);
 if (behind < min) {
   // when the week gone reaches usage + the number; past the reset, the new week's number

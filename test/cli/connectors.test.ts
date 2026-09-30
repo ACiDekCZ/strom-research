@@ -1185,6 +1185,17 @@ test("the agent's permissions: browser tools only for the sites of connectors se
   assert.ok(!before.allow.some((r: string) => r.startsWith("mcp__claude-in-chrome")), "no browser without a connector that uses it");
   assert.ok(before.deny.includes("mcp__claude-in-chrome__file_upload"), "never a file of this computer uploaded to a site");
   assert.ok(before.deny.some((r: string) => /^Read\(.*\/Downloads\/\*\*\)$/.test(r)), "the downloads folder is the user's");
+  // agent.browser always (the user's choice, never an agent's): the browser in every session, for the sites of the archives
+  w.env.CLAUDECODE = "1";
+  assert.equal((await w.run(["config", "set", "agent.browser", "always"])).code, 4);
+  delete w.env.CLAUDECODE;
+  await w.ok(["config", "set", "agent.browser", "always"], { tty: true, answers: ["a"] });
+  const always = await settings();
+  assert.ok(always.allow.includes("mcp__claude-in-chrome__navigate"));
+  assert.ok(always.allow.includes("ClaudeInChromeDomain(127.0.0.1)"), "the connectors' sites without asking");
+  assert.ok(always.deny.includes("mcp__claude-in-chrome__file_upload"), "still never an upload");
+  await w.ok(["config", "unset", "agent.browser"]);
+  assert.ok(!(await settings()).allow.some((r: string) => r.startsWith("mcp__claude-in-chrome")), "back: none");
   const m = readJsonFile(path.join(dir, "connector.json"));
   fs.writeFileSync(path.join(dir, "connector.json"), JSON.stringify({ ...m, can: [...m.can, "locate"], routes: ["direct", "browser"] }));
   await w.ok(["connector", "use", "zkusebni", "--via", "browser"]);

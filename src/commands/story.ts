@@ -11,6 +11,36 @@ import { csvOpt, normId, textOpt } from "../core/records.ts";
 import { resolvePerson } from "../core/people.ts";
 import type { Family, Person } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
+import { foldText } from "../core/text.ts";
+
+/**
+ * The one heading a story has is its title (--title). A first line "# …" is taken as the title when none is given,
+ * and dropped when it only repeats it; any other "# …" line stays (the Strom app shows it as a subheading).
+ */
+function titleOf(text: string, title: string | undefined): { text: string; title?: string } {
+  const [first = "", ...rest] = text.replace(/\r\n?/g, "\n").trimStart().split("\n");
+  const heading = /^#[ \t]+(.+?)[ \t#]*$/.exec(first)?.[1]?.trim();
+  if (!heading) return { text, ...(title ? { title } : {}) };
+  if (!title?.trim()) return { text: rest.join("\n"), title: heading };
+  return foldText(heading) === foldText(title) ? { text: rest.join("\n"), title } : { text, title };
+}
+
+/**
+ * What the Strom app shows as plain text (its set: paragraphs, "## " subheadings, "- " bullets, **bold**,
+ * *italic*): said, never refused. Numbered lists count only as two such lines in a row — a date may start a line.
+ */
+function outsideSet(text: string): string[] {
+  const found: string[] = [];
+  const lns = text.split("\n");
+  if (/\[[^\]\n]+\]\([^)\n]+\)/.test(text)) found.push("links");
+  if (lns.filter((l) => /^\s*\|.*\|\s*$/.test(l)).length >= 2) found.push("tables");
+  if (lns.some((l) => /^\s*>/.test(l))) found.push("quotes (> )");
+  if (/`[^`\n]+`/.test(text)) found.push("code");
+  if (lns.some((l, i) => /^\s*\d+[.)]\s/.test(l) && /^\s*\d+[.)]\s/.test(lns[i + 1] ?? ""))) found.push("numbered lists");
+  // "* 1831" is the sign of a birth, no bullet
+  if (lns.some((l) => /^\s*[*+]\s+(?!\d)/.test(l))) found.push('bullets other than "- "');
+  return found;
+}
 
 function owner(tree: Tree, ref: string): string {
   return /^F\d+$/i.test(ref.trim()) ? normId(ref, "family") : resolvePerson(tree, ref).id;
@@ -24,8 +54,10 @@ register(
     tree: true,
     writes: true,
     description:
-      "Every statement rests on a recorded fact: list them with --fact. Paragraphs are separated by a blank line;\n" +
-      "**bold** is kept. Writing it again replaces it (the history keeps the old one).",
+      "Every statement rests on a recorded fact: list them with --fact. Paragraphs are separated by a blank line.\n" +
+      "Kept: \"## subheading\" lines, \"- \" bullet lines, **bold**, *italic*; anything else shows as plain text in the\n" +
+      "Strom app. The title goes in --title (a first line \"# …\" is taken as it). Writing it again replaces it (the\n" +
+      "history keeps the old one).",
     args: [{ name: "who", description: "person (ID or name) or family (F…)", required: true }],
     options: [
       { name: "text", type: "string", value: "<text|@file>", description: "the story, in the research language" },
@@ -37,17 +69,20 @@ register(
     examples: ['strom story set P0001 --text @notes/story-P0001.md --title "The miller of Týnec" --fact E0001 --fact E0002 --note "The house is inferred from the census."'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const text = textOpt(opts.text, (p) => fs.readFileSync(ctx.resolvePath(p), "utf8"));
-      if (!text?.trim()) throw new UsageError("--text is required", { hint: "--text @notes/story.md (a file) or the text itself" });
+      const given = textOpt(opts.text, (p) => fs.readFileSync(ctx.resolvePath(p), "utf8"));
+      if (!given?.trim()) throw new UsageError("--text is required", { hint: "--text @notes/story.md (a file) or the text itself" });
+      const { text, title } = titleOf(given, opts.title as string | undefined);
       const rec = setStory(tree, owner(tree, args[0]!), {
         text,
-        title: opts.title as string | undefined,
+        title,
         facts: csvOpt(opts.fact).map((f) => normId(f)),
         note: opts.note as string | undefined,
         final: Boolean(opts.final),
       });
       const missing = rec.story!.facts.length === 0 ? "note: no --fact given — say which facts the story rests on" : undefined;
-      return { text: lines(...tree.written.map((o) => o.summary), tree.dryRun ? "(dry run — nothing written)" : undefined, missing), data: { story: rec.story } };
+      const outside = outsideSet(rec.story!.text);
+      const plain = outside.length ? `note: the Strom app shows ${outside.join(", ")} as plain text — keep to paragraphs, "## " subheadings, "- " bullets, **bold**, *italic*` : undefined;
+      return { text: lines(...tree.written.map((o) => o.summary), tree.dryRun ? "(dry run — nothing written)" : undefined, missing, plain), data: { story: rec.story } };
     },
   },
   {

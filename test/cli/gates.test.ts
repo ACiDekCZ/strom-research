@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 
 const opts = { skip: !hasGit };
@@ -198,5 +199,50 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
   assert.equal((await ask("claude-usage x")).verdict, "stop", "not a number");
   fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\necho 'something else'\n", { mode: 0o755 });
   assert.equal((await ask("claude-usage 10")).verdict, "stop", "a form it cannot read: stop, never spend blind");
+  w.cleanup();
+});
+
+test("a run waiting for its gate is paused, not at work: the Strom app hears until when and why", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = await world([{ code: 1, say: { reason: "týden je z 92 % pryč", wait: 7200 } }]);
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  // a real run (a signal reaches it, not the test runner), waiting for the gate
+  const child = spawn(process.execPath, [path.join(import.meta.dirname, "..", "..", "src", "cli.ts"), "run", "--agent", "script", "--loop"], { cwd: w.cwd, env: w.env, stdio: "ignore" });
+  const exited = new Promise((resolve) => child.on("exit", resolve));
+  const workers = path.join(w.cwd, ".strom", "workers");
+  const paused = () => (fs.existsSync(workers) ? fs.readdirSync(workers).filter((f) => f.endsWith(".paused")) : []);
+  for (const t0 = Date.now(); !paused().length; ) {
+    assert.ok(Date.now() - t0 < 20_000, "the run never waited");
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  const info = (await w.ok(["live", "start", "--json"])).json;
+  try {
+    const status = (await (await fetch(`${info.url}/status`)).json()) as { working: { who: string; task?: string; paused?: { until: string; reason?: string } }[] };
+    const run = status.working.find((x) => x.paused);
+    assert.ok(run, JSON.stringify(status.working));
+    assert.equal(run.paused!.reason, "týden je z 92 % pryč");
+    assert.ok(Math.abs(Date.parse(run.paused!.until) - (Date.now() + 7200_000)) < 60_000, run.paused!.until);
+    assert.equal(run.task, undefined, "no session while it waits");
+    assert.match(run.who, / – samostatná práce$/, "who works: in the research language");
+  } finally {
+    await w.ok(["live", "stop"]);
+  }
+  // stopped while it waits: it is no longer paused
+  child.kill("SIGTERM");
+  await exited;
+  assert.deepEqual(paused(), []);
+  w.cleanup();
+});
+
+test("the Strom app follows a run from its first session on — never while the gate holds it back", opts, async () => {
+  const w = await world([{ code: 2, say: { reason: "týden je pryč" } }]);
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  const held = await w.ok(["run", "--agent", "script", "--loop", "--follow"]);
+  assert.match(held.out + held.err, /podmínka „Zkouška“ řekla dost/);
+  assert.doesNotMatch(held.out + held.err, /Aplikace Strom/, "no session: the app not opened");
+  // sessions: the app opened once, as the first began (a test opens nothing for real)
+  const r = await w.ok(["run", "--agent", "script", "--max", "2", "--no-gate", "--follow"], { tty: true });
+  const said = r.out + r.err;
+  assert.equal(said.match(/Aplikace Strom se otevřela/g)?.length, 1, said);
+  assert.ok(said.indexOf("Aplikace Strom se otevřela") < said.indexOf("▶ N0001"), said);
   w.cleanup();
 });

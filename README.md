@@ -105,6 +105,9 @@ npm: `npm install -g strom-research@latest`.
   double-click the launcher inside (Windows, macOS, Linux): it installs strom
   where it is missing, puts the research in place and takes it over
   (`strom unpack`)
+- Take a family tree off the computer (`strom trees remove`): a backup offered
+  first, its name typed to confirm, then into the system's trash with the
+  images no other tree uses — never deleted for good
 
 **Safe by design**
 - What the agent may do alone is your choice: ask, auto (default) or full

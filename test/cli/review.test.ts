@@ -363,6 +363,30 @@ test("the session's clock: nothing until its last ten minutes, then how long is 
   assert.equal(deadlineOf({ STROM_DEADLINE: "nonsense" }), undefined);
 });
 
+test("a session asked to finish (strom session finish): its agent is told at each strom command until it closes", { skip: !hasGit }, async () => {
+  const w = new World();
+  await w.withTree();
+  assert.match((await w.run(["session", "finish"])).err, /v tomto výzkumu teď žádné sezení neběží/);
+  const id = (await w.ok(["session", "start", "--json"])).json.session.id as string;
+  // the session's agent: strom commands with its session in the environment
+  const agent = async (args: string[]) => {
+    w.env.STROM_SESSION = id;
+    try {
+      return await w.ok(args);
+    } finally {
+      delete w.env.STROM_SESSION;
+    }
+  };
+  assert.doesNotMatch((await agent(["status"])).err, /finish this session/);
+  assert.match((await w.ok(["session", "finish"])).out, new RegExp(`Sezení ${id} \\(úkol .*\\) dostalo žádost skončit`));
+  assert.match((await agent(["status"])).err, /⏳ the user asks you to finish this session now: start nothing new; record in strom what you found/);
+  assert.doesNotMatch((await w.ok(["status"])).err, /finish this session/, "only its own agent is told");
+  await agent(["session", "close", "--continue", "--summary", "nic", "--next", "dál"]);
+  assert.ok(!fs.existsSync(path.join(w.cwd, ".strom", "finish", `${id}.json`)), "done with: gone");
+  assert.match((await w.run(["session", "finish", id])).err, /už je uzavřené/);
+  w.cleanup();
+});
+
 test("resuming an agent to write down what it found: its own session, the same sandbox", () => {
   assert.deepEqual(codexResumeArgs("abc", { cwd: "/t", shared: "/s", model: "gpt-5" }), [
     "exec", "resume", "--json", "--skip-git-repo-check",
@@ -389,7 +413,49 @@ function startRun(w: World, args: string[]) {
   return { child, exited, opened };
 }
 
-test("strom run: Ctrl-C stops the agent, closes the session and gives the task back", opts, async () => {
+test("strom run: the first Ctrl-C asks the session to finish — the agent writes down and closes it, no next session", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = await world();
+  for (const what of ["Křest", "Oddavky"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1"]);
+  w.env.STROM_RUNNER_SCRIPT = agent;
+  w.env.AGENT_MODE = "finish";
+  const run = startRun(w, ["--agent", "script", "--max", "3"]);
+  await run.opened;
+  run.child.kill("SIGINT");
+  const r = await run.exited;
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /■ Ctrl-C: sezení N0001 dostalo žádost skončit – agent zapíše, co našel, a sezení uzavře, pak běh skončí/);
+  assert.match(r.out, /sezení: 1 · konec: zastavili jste/);
+  const s = readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json"));
+  assert.equal(s.state, "closed", "closed by its agent, not cut off");
+  assert.match(s.summary, /asked to finish: images 1-5 read/);
+  assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0002.json")), "no next session");
+  assert.ok(!fs.existsSync(path.join(w.cwd, ".strom", "finish", "N0001.json")));
+  w.cleanup();
+});
+
+test("the Strom app's \"finish and stop\" (strom-research://finish): the session at work finishes, and the run starts no next one", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = await world();
+  for (const what of ["Křest", "Oddavky"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1"]);
+  w.env.STROM_RUNNER_SCRIPT = agent;
+  w.env.AGENT_MODE = "finish";
+  const run = startRun(w, ["--agent", "script", "--max", "3"]);
+  await run.opened;
+  const tree = readJsonFile(path.join(w.cwd, "strom.json")).id;
+  const asked = await w.ok(["link", "open", `strom-research://finish?tree=${tree}&session=N0001`], { tty: true, answers: ["a", ""] });
+  assert.match(asked.out, /Aplikace Strom žádá: požádat agenta .*, aby dokončil sezení N0001 \(/);
+  assert.match(asked.out, /Sezení N0001 \(úkol .*\) dostalo žádost skončit/);
+  const r = await run.exited;
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /sezení: 1 · konec: zastavili jste/);
+  const s = readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json"));
+  assert.equal(s.state, "closed", "closed by its agent");
+  assert.equal(s.endedBy, "user", "the user's end: no failure of the agent");
+  assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0002.json")), "no next session");
+  assert.match((await w.ok(["link", "open", `strom-research://finish?tree=${tree}&session=N0001`], { tty: true, answers: [""] })).out, /Sezení N0001 už neběží/);
+  w.cleanup();
+});
+
+test("strom run: Ctrl-C twice stops the agent now, closes the session and gives the task back", opts, async () => {
   const w = await world();
   await w.ok(["task", "add", "Křest", "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1"]);
   w.env.STROM_RUNNER_SCRIPT = agent;
@@ -397,6 +463,11 @@ test("strom run: Ctrl-C stops the agent, closes the session and gives the task b
   const run = startRun(w, ["--agent", "script", "--max", "3"]);
   await run.opened;
   run.child.kill("SIGINT");
+  // Windows: the console stops the agent at the first one already
+  if (process.platform !== "win32") {
+    await new Promise((r) => setTimeout(r, 300));
+    run.child.kill("SIGINT");
+  }
   const r = await run.exited;
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /■ zastavuji – sezení se zavře a jeho úkol se vrátí do fronty.*\(SIGINT\)/);
@@ -448,6 +519,10 @@ test("strom run beside another: each run has a name of its own, takes another ta
   assert.notEqual(second.sessions[0].task, held.task, "another task");
   assert.equal(readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json")).state, "open", "the first run's session is left alone");
   first.child.kill("SIGINT");
+  if (process.platform !== "win32") {
+    await new Promise((r) => setTimeout(r, 300));
+    first.child.kill("SIGINT"); // the first asks it to finish; this one: now
+  }
   assert.equal((await first.exited).code, 0);
   assert.equal(readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json")).state, "interrupted");
   w.cleanup();

@@ -7,8 +7,12 @@ A story is written from the facts, for the family.
   unknown. Never fill gaps with plausible fiction.
 - Use the research language and plain words; explain old occupations and
   terms the reader will not know.
+- Format: paragraphs separated by a blank line; within them only "## "
+  subheadings, "- " bullet lines, **bold** and *italic* — the Strom app shows
+  anything else (links, tables, quotes, numbered lists) as plain text. The
+  title goes in --title, not as a "# " line in the text.
 - Write it to a file in notes/, then `strom story set P… --text @notes/story-P….md
-  --fact E… --fact E… --note "what is inferred"`: every fact it leans on goes
+  --title "…" --fact E… --fact E… --note "what is inferred"`: every fact it leans on goes
   in --fact. A couple's story goes on the family (F…).
 - It stays a draft; when the user says it is right: `strom story approve P…`
   (the Strom app asks them too).

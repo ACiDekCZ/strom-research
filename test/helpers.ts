@@ -45,6 +45,8 @@ export class World {
       STROM_UPDATES: "off",
       // No desktop apps of this computer: a test puts the ones it wants into a folder of its own.
       STROM_APP_DIRS: "",
+      // Nothing into the computer's trash.
+      STROM_TRASH: path.join(this.dir, "trash"),
     };
     this.cwd = this.dir;
   }

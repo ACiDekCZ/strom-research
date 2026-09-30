@@ -61,6 +61,7 @@ export interface UserConfig {
   agentWhere?: string;
   /** Claude Code sessions strom starts with Remote Control: on, off (default). */
   agentRemote?: string;
+  agentBrowser?: string;
   /** The Strom app on this computer: the user said so ("yes") or does not want to hear of it ("no"). */
   stromApp?: string;
   /** strom-research:// links from the Strom app: the person said yes (set up) or no (never asked again; strom link on changes it). */
@@ -175,6 +176,7 @@ export const SETTINGS: SettingDef[] = [
   // Read from the config file only — no variable, no flag, no tree: nothing an agent can set.
   { key: "agent.permissions", env: "", tree: false, kind: "choice", choices: PERMISSION_LEVELS, description: "what the agent may do without asking you: ask (what the tree allows; anything else it asks), auto (default: what the tree allows; anything else the agent's own review decides, asking only when risky), full (everything but what the tree denies) — only you raise it" },
   { key: "agent.where", env: "STROM_AGENT_WHERE", tree: false, kind: "choice", choices: ["app", "terminal"], description: "where you talk with the agent: app (its desktop app — the easiest), terminal (its CLI) — unset: the app when it is installed" },
+  { key: "agent.browser", env: "", tree: true, kind: "choice", choices: ["archives", "always"], description: "browser tools (Claude in Chrome) for the Claude Code sessions strom starts: archives (default) — only in a research whose connectors fetch through the browser, for their sites; always — in every session, for the sites of the research's archives (a conversation asks about others) — only you turn it on" },
   { key: "agent.remote", env: "", tree: false, kind: "choice", choices: ["on", "off"], description: "the Claude Code sessions strom starts (strom run, strom chat in the terminal) with Remote Control: on — follow and steer them from claude.ai or the Claude app on your phone; off (default) — only you turn it on" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
@@ -193,6 +195,7 @@ const FIELDS: Record<string, string> = {
   "agent.permissions": "agentPermissions",
   "agent.where": "agentWhere",
   "agent.remote": "agentRemote",
+  "agent.browser": "agentBrowser",
   "strom.app": "stromApp",
   "strom.app.url": "stromAppUrl",
   "main.person": "mainPerson",

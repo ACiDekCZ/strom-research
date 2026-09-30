@@ -225,7 +225,9 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
     const saved = loadLogins(ctx.env);
     const connectors = listConnectors(shared);
     const consent = ctx.settings.connectorsConsent();
-    const agent = ctx.settings.agent(root ? Tree.open(root, ctx.env).config : undefined).value;
+    const treeConfig = root ? Tree.open(root, ctx.env).config : undefined;
+    const agent = ctx.settings.agent(treeConfig).value;
+    const always = ctx.settings.resolve("agent.browser", treeConfig)?.value === "always";
     const via = (c: Connector) => (c.manifest.policy.automation === "manual" ? "manual" : routeOf(ctx.env, c).via);
     // Each downloader on a line of its own: how its images come, and its login where it can use one.
     const lines = connectors.map((c) => {
@@ -258,6 +260,20 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
           if (await ctx.confirm(t(consent ? "ui.archives.consent.off" : "ui.archives.consent.on"), false)) await run(["config", "set", "connectors.consent", consent ? "off" : "on"], true);
         },
       },
+      // The browser for the agent in every session: Claude Code's alone, shown only when it does the research and is here.
+      ...(claudeHere(ctx, treeConfig)
+        ? [
+            {
+              key: "b",
+              label: t("ui.archives.agentbrowser", { state: t(always ? "ui.archives.agentbrowser.always" : "ui.archives.agentbrowser.archives") }),
+              act: async () => {
+                out(t("ui.archives.agentbrowser.about"));
+                if (await ctx.confirm(t(always ? "ui.archives.agentbrowser.off" : "ui.archives.agentbrowser.on"), false))
+                  await run(always ? ["config", "unset", "agent.browser"] : ["config", "set", "agent.browser", "always"], true);
+              },
+            },
+          ]
+        : []),
       ...switchable.map((c) => {
         const next = via(c) === "browser" ? "direct" : "browser";
         const name = c.manifest.title ?? c.name;

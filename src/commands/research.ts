@@ -1,6 +1,6 @@
 // research new · list · show — named goals inside a tree.
 
-import { register } from "../cli/registry.ts";
+import { register, type CommandDef } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
 import { addPerson, addResearch } from "../core/actions.ts";
@@ -14,7 +14,8 @@ import { UsageError } from "../core/errors.ts";
 import { REVIEW_SCOPES, type Person, type Research, type Session, type Task } from "../core/model.ts";
 import { ancestorGenerations, displayName, label, lifespan, parentsOf, resolvePerson } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
-import type { Tree } from "../core/tree.ts";
+import { now, type Tree } from "../core/tree.ts";
+import { directionOf, scopes } from "../core/directions.ts";
 import { update } from "../core/records.ts";
 import { isAgent } from "../core/which.ts";
 
@@ -116,6 +117,51 @@ register(
       return { text: table(all.map((r) => researchLine(tree, r))), data: { researches: all } };
     },
   },
+  ...(["pause", "resume", "done"] as const).map((act): CommandDef => ({
+    path: ["research", act],
+    summary:
+      act === "pause"
+        ? "Pause a research direction: its tasks wait out of the queue, nothing new is proposed for it"
+        : act === "resume"
+          ? "Resume a paused or finished research direction: its tasks back in the queue, what it would propose added"
+          : "End a research direction (done): its tasks leave the queue, nothing is deleted",
+    group: "research",
+    tree: true,
+    writes: true,
+    description:
+      "The user's decision about where the research goes (an agent runs it when the user asks). Nothing is\n" +
+      "deleted: the direction's tasks stay as they are, out of the queue while it is paused or done; a session\n" +
+      "at work on one of them goes on. strom research resume brings them back.",
+    args: [{ name: "research", description: "ID (G0001) or part of the name", required: true }],
+    options: act === "resume" ? [] : [{ name: "reason", type: "string" as const, value: "<text>", description: "why (kept as a note of the research)" }],
+    examples: act === "pause" ? ['strom research pause G0001 --reason "the family asked to wait"'] : act === "resume" ? ["strom research resume G0001"] : ["strom research done G0001"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const r = resolveResearch(tree, args[0]!);
+      const state = act === "pause" ? "paused" : act === "resume" ? "active" : "done";
+      const reason = typeof opts.reason === "string" && opts.reason.trim() ? opts.reason.trim() : undefined;
+      const waiting = (id: string) => {
+        const all = scopes(tree);
+        return tree.list<Task>("task").filter((t) => ["open", "parked", "waiting"].includes(t.state) && directionOf(tree, t, all) === id).length;
+      };
+      if (r.state === state) return { text: `${r.id} is ${state} already`, data: { research: r, changed: false, tasks: waiting(r.id) } };
+      const next = update<Research>(tree, r.id, "research", (x) => ({ ...x, state, stateSince: now(), notes: reason ? [...x.notes, { text: `${state}: ${reason}`, at: new Date().toISOString(), by: tree.actor }] : x.notes }), {
+        op: `research.${act}`,
+        summary: `${r.id} ${state}: ${r.name}`,
+        ...(reason ? { reason } : {}),
+      });
+      const created = act === "resume" ? applyFrontier(tree, next) : [];
+      const n = waiting(r.id);
+      return {
+        text: lines(
+          ...tree.written.map((o) => o.summary),
+          tree.dryRun ? "(dry run — nothing written)" : undefined,
+          act === "resume" ? `its tasks are back in the queue: ${n}` : `its tasks wait out of the queue: ${n} → strom research resume ${r.id}`,
+        ),
+        data: { research: next, changed: true, tasks: n, created },
+      };
+    },
+  })),
   {
     path: ["research", "show"],
     summary: "One research: goal, focus person, known ancestors, what is missing",
