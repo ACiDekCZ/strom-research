@@ -29,6 +29,7 @@ import { fromFlexDate, houseOf, importDate } from "./import.ts";
 import { normalizeAge } from "./age.ts";
 import { create, update } from "./records.ts";
 import { foldText } from "./text.ts";
+import { labels } from "../gedcom/labels.ts";
 import { UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { now, Tree } from "./tree.ts";
@@ -45,6 +46,8 @@ export interface SFact {
   cause?: string;
   age?: string;
   house?: string;
+  /** A couple's fact: each partner's age (the person's key → GEDCOM form). */
+  ages?: Record<string, string>;
   /** Ours and base only: the fact's ID in the research. */
   id?: string;
 }
@@ -150,8 +153,8 @@ const ALTERNATIVE: Record<string, string> = {
 /** Facts there is one of: an edit of one is a change, not a second fact. */
 const ONE = new Set(["BIRT", "BAPM", "DEAT", "BURI", "CREM", "MARR", "DIV"]);
 
-function gedFacts(node: GedNode): SFact[] {
-  return cleanFacts(rawFacts(node));
+function gedFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: string | undefined }): SFact[] {
+  return cleanFacts(rawFacts(node, couple));
 }
 
 /** What the Strom app adds of its own: an alternative birth or death as an event, a "Birth record" beside a birth, every couple married. */
@@ -175,7 +178,7 @@ function cleanFacts(facts: SFact[]): SFact[] {
   );
 }
 
-function rawFacts(node: GedNode): SFact[] {
+function rawFacts(node: GedNode, couple?: { HUSB?: string | undefined; WIFE?: string | undefined }): SFact[] {
   const out: SFact[] = [];
   for (const c of node.children) {
     if (["NAME", "SEX", "REFN", "NOTE", "FAMC", "FAMS", "HUSB", "WIFE", "CHIL", "SOUR", "OBJE", "ASSO", "_STORY"].includes(c.tag)) continue;
@@ -189,7 +192,19 @@ function rawFacts(node: GedNode): SFact[] {
     const value = c.value.trim();
     if (value && value !== "Y") f.value = value.replace(/\s+/g, " ");
     if (kind === "EVEN") f.label = val(c, "TYPE") ?? f.value ?? "EVEN";
-    details(f, val(c, "CAUS"), val(c, "AGE"), val(c, "ADDR"));
+    // a couple's residence written as an event named so (for a Strom app before its couple's events): their residence
+    if (couple && kind === "EVEN" && COUPLE_RESIDENCE.has(fold(f.label))) {
+      f.kind = "RESI";
+      delete f.label;
+    }
+    details(f, val(c, "CAUS"), couple ? undefined : val(c, "AGE"), val(c, "ADDR"));
+    if (couple)
+      for (const role of ["HUSB", "WIFE"] as const) {
+        const who = couple[role];
+        const age = val(c.children.find((x) => x.tag === role), "AGE");
+        const a = who && age?.trim() ? normalizeAge(age) : undefined;
+        if (a) f.ages = { ...f.ages, [who!]: a };
+      }
     const id = val(c, "_EID");
     if (id) f.id = id;
     out.push(f);
@@ -207,8 +222,19 @@ function details(f: SFact, cause: string | undefined, age: string | undefined, h
   if (h) f.house = h;
 }
 
-/** The details of a fact the research compares (DETAILS of SFact). */
+/** The details of a fact the research compares, besides the partners' ages. */
 const DETAILS = ["cause", "age", "house"] as const;
+
+/** A couple's residence as an event of that name (the export's label in any language). */
+const COUPLE_RESIDENCE = new Set(["en", "cs", "de", "pl", "sk"].map((l) => fold(labels(l)("RESI"))));
+
+/** What a fact says besides, one entry each: cause, age, house, and "ages:<key>" for a partner's age. */
+function detailsOf(f: { cause?: string | undefined; age?: string | undefined; house?: string | undefined; ages?: Record<string, string> | undefined }): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const d of DETAILS) if (f[d]) out[d] = f[d]!;
+  for (const [who, a] of Object.entries(f.ages ?? {})) if (a) out[`ages:${who}`] = a;
+  return out;
+}
 
 /** Every note under a record, its facts' and citations' too, as one text. */
 function allNotes(n: GedNode, noteText: (n: GedNode) => string): string {
@@ -266,7 +292,7 @@ export function readGedcom(text: string): Snapshot {
   const families: SFamily[] = [];
   for (const r of records.filter((x) => x.tag === "FAM")) {
     const who = (tag: string) => children(r, tag).map((c) => keys.get(c.value.trim())).filter((k): k is string => !!k && persons.has(k));
-    families.push({ partners: [...who("HUSB"), ...who("WIFE")], children: who("CHIL"), facts: gedFacts(r) });
+    families.push({ partners: [...who("HUSB"), ...who("WIFE")], children: who("CHIL"), facts: gedFacts(r, { HUSB: who("HUSB")[0], WIFE: who("WIFE")[0] }) });
   }
   const treeId = val(head, "_STROM_TREE");
   const at = val(head, "_STROM_HEAD");
@@ -279,6 +305,12 @@ const APP_EVENTS: Record<string, string> = {
   emigration: "EMIG", immigration: "IMMI", education: "EDUC", religion: "RELI", custom: "EVEN", confirmation: "CONF",
   firstCommunion: "FCOM", barMitzvah: "BARM", batMitzvah: "BASM", ordination: "ORDN", adoption: "ADOP", naturalization: "NATU",
   will: "WILL", probate: "PROB", title: "TITL", nationality: "NATI", cremation: "CREM",
+};
+
+/** The Strom app's events of a couple (its 3.8) → GEDCOM tags. */
+const APP_COUPLE_EVENTS: Record<string, string> = {
+  engagement: "ENGA", banns: "MARB", marriageLicence: "MARL", marriageContract: "MARC", marriageSettlement: "MARS",
+  residence: "RESI", census: "CENS", divorceFiled: "DIVF", annulment: "ANUL", custom: "EVEN",
 };
 
 /** Facts whose value is what they are (the GEDCOM tag's value). */
@@ -314,6 +346,10 @@ interface AppPartnership {
   endDate?: string;
   endPlace?: string;
   address?: string;
+  /** The partners' ages at the wedding: the app's person id → age (3.7). */
+  ages?: Record<string, string>;
+  /** The couple's other events (the app's 3.8, data version 10). */
+  events?: { type: string; customLabel?: string; date?: string; place?: string; note?: string; cause?: string; address?: string; ages?: Record<string, string> }[];
 }
 
 /** A tree of the Strom app (its JSON) as a snapshot. */
@@ -363,6 +399,16 @@ export function readStromJson(data: unknown): Snapshot {
       said: p.notes ?? "",
     });
   }
+  // a partner's age by the app's person id → by the person's key
+  const partnersAges = (ages: Record<string, string> | undefined): Record<string, string> | undefined => {
+    const out: Record<string, string> = {};
+    for (const [id, raw] of Object.entries(ages ?? {})) {
+      const key = keys.get(id);
+      const a = key && typeof raw === "string" && raw.trim() ? normalizeAge(raw) : undefined;
+      if (key && a) out[key] = a;
+    }
+    return Object.keys(out).length ? out : undefined;
+  };
   const families: SFamily[] = [];
   for (const u of Object.values(d.partnerships ?? {})) {
     const partners = [u.person1Id, u.person2Id].map((x) => (x ? keys.get(x) : undefined)).filter((k): k is string => !!k);
@@ -373,7 +419,23 @@ export function readStromJson(data: unknown): Snapshot {
       if (g) f.date = g;
       if (u.startPlace?.trim()) f.place = u.startPlace.trim();
       details(f, undefined, undefined, u.address);
+      const ages = partnersAges(u.ages);
+      if (ages) f.ages = ages;
       facts.push(f);
+    }
+    // the couple's other events (the app's 3.8)
+    for (const e of u.events ?? []) {
+      const kind = APP_COUPLE_EVENTS[e.type];
+      if (!kind) continue;
+      const f: SFact = { kind };
+      const g = fromFlexDate(e.date);
+      if (g) f.date = g;
+      if (e.place?.trim()) f.place = e.place.trim().replace(/\s+/g, " ");
+      if (kind === "EVEN") f.label = e.customLabel || "EVEN";
+      details(f, e.cause, undefined, e.address);
+      const ages = partnersAges(e.ages);
+      if (ages) f.ages = ages;
+      if (f.date || f.place || f.label || kind !== "EVEN") facts.push(f);
     }
     // the divorce (the app's 3.7 keeps its place too)
     if (u.status === "divorced" && (u.endDate || u.endPlace)) {
@@ -753,14 +815,18 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       if (ourKeys.has(k)) {
         // the research has it: what the file says of it besides (its cause, age, house) may be the user's — paired
         // with the same details first (one lived in several houses of a place: each its own fact)
-        const sameDetails = (a: SFact, b: SFact) => DETAILS.every((d) => !a[d] || exact(a[d]) === exact(b[d]));
+        const sameDetails = (a: SFact, b: SFact) => {
+          const [x, y] = [detailsOf(a), detailsOf(b)];
+          return Object.keys(x).every((d) => exact(x[d]) === exact(y[d]));
+        };
         const mates = our.filter((x) => factKey(x) === k);
         if (mates.some((x) => sameDetails(f, x)) || was?.some((x) => factKey(x) === k && sameDetails(f, x))) continue;
         const o = mates.find((x) => !inc.some((i) => factKey(i) === k && sameDetails(i, x))) ?? mates[0]!;
         const b = was?.find((x) => factKey(x) === k && (!x.id || x.id === o.id));
-        const changed = DETAILS.filter((d) => f[d] && exact(f[d]) !== exact(o[d]) && !(b && exact(f[d]) === exact(b[d])));
+        const [fd, od, bd] = [detailsOf(f), detailsOf(o), b ? detailsOf(b) : undefined];
+        const changed = Object.keys(fd).filter((d) => exact(fd[d]) !== exact(od[d]) && !(bd && exact(fd[d]) === exact(bd[d])));
         if (changed.length) {
-          const added = changed.every((d) => !o[d]);
+          const added = changed.every((d) => !od[d]);
           const action = added ? "add" : !was ? "pick" : recordBacked(tree, eventById(tree, o.id)) ? "conflict" : "correct";
           if (action !== "conflict" || !openConflict(tree, owner.person ?? owner.family, f)) push({ kind: "fact.detail", action, ...owner, fact: f, was: o });
         }
@@ -1043,13 +1109,16 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           applied.push({ do: "conflict.add", id: x.id });
           break;
         }
-        const set = Object.fromEntries(DETAILS.filter((d) => c.fact![d] && c.fact![d] !== mine[d]).map((d) => [d, c.fact![d]!]));
-        editEvent(tree, mine.id, set, `${c.action === "add" ? "added from" : "corrected in"} ${reason}`);
+        const [fd, md] = [detailsOf(c.fact), detailsOf(mine)];
+        const changed = Object.keys(fd).filter((d) => fd[d] !== md[d] && (!d.startsWith("ages:") || !!who(d.slice(5))));
+        if (!changed.length) break;
+        editEvent(tree, mine.id, detailEdit(Object.fromEntries(changed.map((d) => [d.startsWith("ages:") ? `ages:${who(d.slice(5))}` : d, fd[d]!]))), `${c.action === "add" ? "added from" : "corrected in"} ${reason}`);
+        const set = Object.fromEntries(changed.map((d) => [d, fd[d]]));
         update<Person | Family>(tree, owner, owner.startsWith("F") ? "family" : "person", (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id && !e.citations.some((x) => x.source === source.id) ? { ...e, citations: [...e.citations, cite(`${c.fact!.kind} ${Object.keys(set).join(" ")}`)] } : e)) }), {
           op: "event.cite",
           summary: `${mine.id} cites ${source.id}`,
         });
-        applied.push({ do: "event.detail", id: mine.id, before: JSON.stringify(Object.fromEntries(DETAILS.map((d) => [d, mine[d] ?? ""]))) });
+        applied.push({ do: "event.detail", id: mine.id, before: JSON.stringify(Object.fromEntries(changed.map((d) => [d.startsWith("ages:") ? `ages:${who(d.slice(5))}` : d, md[d] ?? ""]))) });
         break;
       }
       case "name.new": {
@@ -1116,8 +1185,19 @@ function nameOf(gedName: string): { given: string; surname: string } {
   return { given: `${m[1]!.trim()} ${m[3]!.trim()}`.trim(), surname: m[2]!.trim() };
 }
 
-function describe(f: { date?: string | undefined; place?: string | undefined; value?: string | undefined; cause?: string | undefined; age?: string | undefined; house?: string | undefined }): string {
-  return [f.value, f.date, f.place, f.house && `house ${f.house}`, f.age && `aged ${f.age}`, f.cause && `cause ${f.cause}`].filter(Boolean).join(", ") || "—";
+/** Details ("ages:P0001" among them) as an edit of the fact; an empty one takes it away. */
+function detailEdit(d: Record<string, string>): { cause?: string; age?: string; house?: string; ages?: Record<string, string> } {
+  const out: { cause?: string; age?: string; house?: string; ages?: Record<string, string> } = {};
+  for (const [k, v] of Object.entries(d)) {
+    if (k.startsWith("ages:")) out.ages = { ...out.ages, [k.slice(5)]: v };
+    else if (k === "cause" || k === "age" || k === "house") out[k] = v;
+  }
+  return out;
+}
+
+function describe(f: { date?: string | undefined; place?: string | undefined; value?: string | undefined; cause?: string | undefined; age?: string | undefined; house?: string | undefined; ages?: Record<string, string> | undefined }): string {
+  const ages = Object.entries(f.ages ?? {}).map(([who, a]) => `${who} aged ${a}`);
+  return [f.value, f.date, f.place, f.house && `house ${f.house}`, f.age && `aged ${f.age}`, ...ages, f.cause && `cause ${f.cause}`].filter(Boolean).join(", ") || "—";
 }
 
 /** Undo one sync: what it added withdrawn, what it corrected put back, its conflicts closed — each with the reason. */
@@ -1138,9 +1218,10 @@ export function undoSync(tree: Tree, input: SyncInput): number {
       case "event.detail": {
         // what it was put back: a detail it had, and none where it had none
         const e = eventById(tree, a.id);
-        const before = JSON.parse(String(a.before ?? "{}")) as Record<(typeof DETAILS)[number], string>;
-        const edit = Object.fromEntries(DETAILS.filter((d) => (before[d] ?? "") !== (e?.[d] ?? "")).map((d) => [d, before[d] ?? ""]));
-        if (e && Object.keys(edit).length) editEvent(tree, a.id, edit, reason);
+        const before = JSON.parse(String(a.before ?? "{}")) as Record<string, string>;
+        const now = e ? detailsOf(e) : {};
+        const back = Object.fromEntries(Object.entries(before).filter(([d, v]) => v !== (now[d] ?? "")));
+        if (e && Object.keys(back).length) editEvent(tree, a.id, detailEdit(back), reason);
         break;
       }
       case "event.retract":

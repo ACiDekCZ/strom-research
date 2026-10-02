@@ -663,7 +663,8 @@ export function editEvent(tree: Tree, eventId: string, edit: EventEdit, reason?:
   const date = edit.date === undefined ? undefined : parseDate(edit.date);
   // an empty age takes it away
   const age = edit.age === undefined ? undefined : edit.age.trim() ? parseAge(edit.age) : "";
-  const ages = edit.ages ? Object.fromEntries(Object.entries(edit.ages).map(([who, a]) => [who, parseAge(a, who)])) : undefined;
+  // an empty age of a partner takes it away
+  const ages = edit.ages ? Object.fromEntries(Object.entries(edit.ages).map(([who, a]) => [who, a.trim() ? parseAge(a, who) : ""])) : undefined;
   return replaceEvent(tree, eventId, (e) => {
     const changed: string[] = [];
     const set = <K extends "date" | "place" | "house" | "cause" | "value" | "label" | "age">(k: K, v: string | undefined) => {
@@ -686,7 +687,9 @@ export function editEvent(tree: Tree, eventId: string, edit: EventEdit, reason?:
     }
     if (ages) {
       for (const [who, a] of Object.entries(ages)) if (e.ages?.[who] !== undefined && e.ages[who] !== a) changed.push(`age of ${who}`);
-      next.ages = { ...e.ages, ...ages };
+      const merged = Object.fromEntries(Object.entries({ ...e.ages, ...ages }).filter(([, a]) => a));
+      if (Object.keys(merged).length) next.ages = merged;
+      else delete next.ages;
     }
     const key = (p: Participant) => `${p.role}|${p.person ?? foldText(p.name ?? "")}`;
     if (edit.drop?.length) {

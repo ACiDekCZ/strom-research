@@ -101,6 +101,8 @@ export interface ExportOptions {
    * them beside it (2 _DRAFT under _STORY): the approved one stays the story until they decide.
    */
   storyDrafts?: boolean;
+  /** For a Strom app that keeps a couple's events (APP_SHOWS_COUPLE_EVENTS): their residence as RESI under FAM. */
+  coupleResi?: boolean;
 }
 
 export interface ExportResult {
@@ -381,8 +383,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const allowed = on === "INDI" ? INDI_TAGS : FAM_TAGS;
     let tag = e.kind;
     let typeLabel = e.label;
-    if (on === "FAM" && tag === "RESI" && strict) {
-      // standard on FAM; Strom does not read it yet, so only in strict
+    if (on === "FAM" && tag === "RESI" && (strict || opts.coupleResi)) {
+      // standard on FAM; for a Strom app before its couple's events an EVEN named so
     } else if (AS_EVEN[tag] || !allowed.has(tag)) {
       typeLabel = e.label ?? (AS_EVEN[tag] ? L(AS_EVEN[tag]!) : L(tag as LabelKey) ?? tag);
       tag = "EVEN";

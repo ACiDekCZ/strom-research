@@ -21,15 +21,16 @@ import { startLive } from "../core/live.ts";
 import { appSendsChanges, installedStromApp, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
 import { chromiumBrowser, openInBrowser, openWebApp } from "../core/chromium.ts";
 
-function factText(f: SFact | undefined, lang: string): string {
+function factText(f: SFact | undefined, lang: string, name: (key: string) => string = (k) => k): string {
   if (!f) return "—";
-  return [f.value, humanDate(f.date, lang), humanPlace(f.place, undefined, lang), detailText(f, lang)].filter(Boolean).join(", ") || "—";
+  return [f.value, humanDate(f.date, lang), humanPlace(f.place, undefined, lang), detailText(f, lang, name)].filter(Boolean).join(", ") || "—";
 }
 
-/** What a fact says besides: its house, age and cause. */
-function detailText(f: SFact | undefined, lang: string): string {
+/** What a fact says besides: its house, age (a couple's: each partner's) and cause. */
+function detailText(f: SFact | undefined, lang: string, name: (key: string) => string = (k) => k): string {
   if (!f) return "";
-  return [f.house && ui(lang, "ui.sync.house", { x: f.house }), f.age && humanAge(f.age, lang), f.cause && ui(lang, "ui.sync.cause", { x: f.cause })].filter(Boolean).join(", ");
+  const ages = Object.entries(f.ages ?? {}).map(([who, a]) => `${name(who)} ${humanAge(a, lang)}`);
+  return [f.house && ui(lang, "ui.sync.house", { x: f.house }), f.age && humanAge(f.age, lang), ...ages, f.cause && ui(lang, "ui.sync.cause", { x: f.cause })].filter(Boolean).join(", ");
 }
 
 /** A position on the map as a map shows it: degrees, six decimals at most. */
@@ -44,15 +45,17 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
     return p ? `${(p.names[0] ? `${p.names[0].given} ${p.names[0].surname}` : key).trim()} [${key}]` : key;
   };
   const who = c.partners ? c.partners.map(name).join(" & ") || c.family || "?" : name(c.person);
+  // a partner in their age: the given name
+  const short = (key: string) => (key.startsWith("x:") ? name(key) : (tree.get<Person>(key)?.names[0]?.given ?? key));
   const kind = (f: SFact | undefined) => (f ? eventName(f.kind, lang, f.label) : "");
   const v = {
     n: c.n,
     who,
     name: name(c.person),
     kind: kind(c.fact ?? c.was),
-    fact: `${kind(c.fact ?? c.was)} ${factText(c.fact ?? c.was, lang)}`,
-    was: c.kind === "fact.detail" ? detailText(c.was, lang) || "—" : factText(c.was, lang),
-    now: c.kind === "fact.detail" ? detailText(c.fact, lang) : factText(c.fact, lang),
+    fact: `${kind(c.fact ?? c.was)} ${factText(c.fact ?? c.was, lang, short)}`,
+    was: c.kind === "fact.detail" ? detailText(c.was, lang, short) || "—" : factText(c.was, lang, short),
+    now: c.kind === "fact.detail" ? detailText(c.fact, lang, short) : factText(c.fact, lang, short),
     when: [humanDate(c.fact?.date, lang), humanPlace(c.fact?.place, undefined, lang)].filter(Boolean).join(", "),
     text: truncate(c.text ?? "", 120),
     child: name(c.child),

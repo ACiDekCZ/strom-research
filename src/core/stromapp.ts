@@ -88,6 +88,24 @@ export function appShowsEdges(settings: Settings, version?: string): boolean {
 }
 
 /**
+ * The Strom app keeps a couple's events as events (the app's spec docs/ZADANI_VYZKUM_udalosti-paru.md, its 3.8.0):
+ * their residence goes to it as 1 RESI under FAM (before: an EVEN named so — an older app keeps either in the couple's
+ * note). stromapp.info from 3.8.0 (2026-10-02); another copy of the app (its beta, its development) is taken as current.
+ * An app of unknown version: today's.
+ */
+export const APP_SHOWS_COUPLE_EVENTS: string | undefined = "3.8.0";
+
+export function appShowsCoupleEvents(settings: Settings, version?: string): boolean {
+  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (!APP_SHOWS_COUPLE_EVENTS) return false;
+  if (!version) return true;
+  const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const [a, b] = [n(version), n(APP_SHOWS_COUPLE_EVENTS)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
+/**
  * The Strom app shows the new version of a story the user approved, waiting beside it (the app's spec
  * docs/ZADANI_VYZKUM_vypraveni-zamek.md): 2 _DRAFT under _STORY, and in the bridge's waiting (kind story). stromapp.info
  * from 3.7.0 (2026-10-02); another copy of the app (its beta, its development: strom.app.url) is taken as current, so it

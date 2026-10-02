@@ -10,7 +10,7 @@ import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
-import { appShowsEdges, APP_SHOWS_EDGES, appShowsStoryDrafts, APP_SHOWS_STORY_DRAFTS } from "../../src/core/stromapp.ts";
+import { appShowsCoupleEvents, APP_SHOWS_COUPLE_EVENTS, appShowsEdges, APP_SHOWS_EDGES, appShowsStoryDrafts, APP_SHOWS_STORY_DRAFTS } from "../../src/core/stromapp.ts";
 import { Settings } from "../../src/core/config.ts";
 
 const opts = { skip: !hasGit };
@@ -132,6 +132,12 @@ test("edge: the Strom app gets them from the version that shows them — its bet
   assert.equal(appShowsStoryDrafts(at(), "3.7.0"), true);
   assert.equal(appShowsStoryDrafts(at()), true, "an unknown version: today's");
   assert.equal(appShowsStoryDrafts(at("https://beta.stromapp.info/run/"), "3.6.0"), true);
+  // a couple's events as events: from the app's 3.8.0, its beta at once
+  assert.equal(APP_SHOWS_COUPLE_EVENTS, "3.8.0");
+  assert.equal(appShowsCoupleEvents(at(), "3.7.0"), false);
+  assert.equal(appShowsCoupleEvents(at(), "3.8.0"), true);
+  assert.equal(appShowsCoupleEvents(at()), true, "an unknown version: today's");
+  assert.equal(appShowsCoupleEvents(at("https://beta.stromapp.info/run/"), "3.7.0"), true);
   w.cleanup();
 });
 

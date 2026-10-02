@@ -10,7 +10,7 @@ import path from "node:path";
 import http from "node:http";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
-import type { Person } from "../../src/core/model.ts";
+import type { Family, Person } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
 
@@ -345,6 +345,65 @@ test("what the user added to a fact in the app — its cause, age, house — is 
   const json = path.join(w.dir, "strom.json");
   fs.writeFileSync(json, JSON.stringify(app));
   assert.match((await w.ok(["sync", json])).out, /Antonín Dvořák \[P0001\]: úmrtí 1901, Týnec — — → čp\. 7, 61 let, příčina souchotiny → doplní se k údaji s odkazem na váš strom/, "an addition: taken also without the state");
+  w.cleanup();
+});
+
+test("a couple's events from the Strom app 3.8: their residence as RESI for it, the partners' ages and the couple's events taken from its GEDCOM and its JSON (data version 10); undone back", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["lang", "cs"]);
+  await w.ok(["source", "add", "Oddací kniha", "--kind", "marriage"]);
+  await w.ok(["person", "add", "Antonín /Dvořák/", "--sex", "M"]);
+  await w.ok(["person", "add", "Božena /Nová/", "--sex", "F"]);
+  await w.ok(["family", "add", "--partner", "P1", "--partner", "P2"]);
+  await w.ok(["event", "add", "F1", "MARR", "--date", "9 MAY 1885", "--place", "Týnec", "--cite", "S1"]);
+  await w.ok(["event", "add", "F1", "RESI", "--place", "Lhota", "--house", "12"]);
+  // the residence of a couple: RESI for an app that keeps a couple's events, else an event named so
+  const ged = path.join(w.dir, "strom.ged");
+  await w.ok(["config", "set", "strom.app.url", "https://beta.stromapp.info/run/"]);
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", ged]);
+  const t = fs.readFileSync(ged, "utf8");
+  assert.match(t, /0 @F0001@ FAM[\s\S]*\n1 RESI\n2 PLAC Lhota\n2 ADDR čp\. 12\n/);
+  await w.ok(["config", "unset", "strom.app.url"]);
+  await w.ok(["config", "set", "strom.version", "3.7.0"]);
+  const older = path.join(w.dir, "older.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", older]);
+  assert.match(fs.readFileSync(older, "utf8"), /\n1 EVEN\n2 TYPE Bydliště\n2 PLAC Lhota/);
+  // either comes back as the same residence
+  fs.writeFileSync(path.join(w.dir, "z-aplikace.ged"), t);
+  assert.deepEqual((await w.ok(["sync", path.join(w.dir, "z-aplikace.ged"), "--json"])).json.changes, []);
+  // in the app: the partners' ages at the wedding added (a record's fact: added to it), banns added
+  const edited = t.replace(/(1 MARR\n2 DATE 9 MAY 1885\n2 PLAC Týnec\n)/, "$12 HUSB\n3 AGE 28y\n2 WIFE\n3 AGE 22y\n").replace(/(0 @F0001@ FAM\n)/, "$11 MARB\n2 DATE 19 APR 1885\n2 PLAC Týnec\n");
+  const file = path.join(w.dir, "vek.ged");
+  fs.writeFileSync(file, edited);
+  const r = await w.ok(["sync", file]);
+  assert.match(r.out, /Antonín Dvořák \[P0001\] & Božena Nová \[P0002\]: sňatek 9\. 5\. 1885, Týnec — — → Antonín 28 let, Božena 22 let → doplní se k údaji/);
+  assert.match(r.out, /nové — ohlášky 19\. 4\. 1885, Týnec → přidá se jako vodítko/);
+  await w.ok(["sync", file, "--apply"]);
+  const marr = () => Tree.open(w.cwd, w.env).get<Family>("F0001")!.events.find((e) => e.kind === "MARR")!;
+  assert.deepEqual(marr().ages, { P0001: "28y", P0002: "22y" });
+  await w.ok(["sync", "undo", "I1"]);
+  assert.equal(marr().ages, undefined);
+  // the app's JSON of data version 10: the couple's events and the partners' ages by its own ids
+  const id = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id;
+  const app = {
+    version: 10,
+    research: { id },
+    persons: {
+      a: { id: "a", firstName: "Antonín", lastName: "Dvořák", gender: "male", refn: "P0001" },
+      b: { id: "b", firstName: "Božena", lastName: "Nová", gender: "female", refn: "P0002" },
+    },
+    partnerships: {
+      u: {
+        person1Id: "a", person2Id: "b", childIds: [], status: "married", startDate: "1885-05-09", startPlace: "Týnec", ages: { a: "28 let" },
+        events: [{ type: "residence", place: "Lhota", address: "čp. 12" }, { type: "banns", date: "1885-04-19", place: "Týnec" }, { type: "custom", customLabel: "Smlouva o výměnku", date: "1890" }],
+      },
+    },
+  };
+  const json = path.join(w.dir, "strom.json");
+  fs.writeFileSync(json, JSON.stringify(app));
+  const j = (await w.ok(["sync", json, "--json"])).json.changes.map((c: { kind: string; fact?: { kind: string; label?: string; ages?: Record<string, string> } }) => [c.kind, c.fact?.kind, c.fact?.label ?? c.fact?.ages?.P0001 ?? ""]);
+  assert.deepEqual(j, [["fact.detail", "MARR", "28y"], ["fact.new", "MARB", ""], ["fact.new", "EVEN", "Smlouva o výměnku"]], JSON.stringify(j));
   w.cleanup();
 });
 

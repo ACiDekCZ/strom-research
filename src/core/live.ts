@@ -53,7 +53,7 @@ import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion } from "./update.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
-import { appOpensLinks, appShowsEdges, appShowsStoryDrafts, isStromAppOrigin } from "./stromapp.ts";
+import { appOpensLinks, appShowsCoupleEvents, appShowsEdges, appShowsStoryDrafts, isStromAppOrigin } from "./stromapp.ts";
 import { Settings } from "./config.ts";
 import { linkActions, linkHandlerState } from "./links.ts";
 import { stromLauncher } from "./self.ts";
@@ -625,11 +625,12 @@ export function serveLive(root: string, env: Env): Promise<void> {
           // …and where the tree ends, for an app that shows it
           const edges = appShowsEdges(new Settings(env, {}));
           const storyDrafts = appShowsStoryDrafts(new Settings(env, {}));
+          const coupleResi = appShowsCoupleEvents(new Settings(env, {}));
           const offered = opens ? links(env) : [];
           ged = {
             head: h,
             links: offered.join(" "),
-            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(offered.length ? { links: offered } : {}) }).text,
+            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(offered.length ? { links: offered } : {}) }).text,
           };
         }
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);

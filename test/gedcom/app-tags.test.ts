@@ -71,3 +71,32 @@ console.log(JSON.stringify({ dropped: [...parsed.droppedTags.entries()], story: 
   assert.match(JSON.stringify(out.story?.draft ?? null), /Jan byl mlynář v Týnci\./, JSON.stringify(out.story));
   w.cleanup();
 });
+
+test("the Strom app's own parser reads a couple's residence sent as RESI under FAM and drops nothing", { skip: !hasGit || !fs.existsSync(tsx) }, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
+  await w.ok(["person", "add", "Marie /Nová/", "--sex", "F"]);
+  await w.ok(["family", "add", "--partner", "P1", "--partner", "P2"]);
+  await w.ok(["event", "add", "F1", "RESI", "--place", "Lhota", "--house", "12"]);
+  const ged = path.join(w.dir, "resi.ged");
+  fs.writeFileSync(ged, exportGedcom(Tree.open(w.cwd, w.env), { for: "strom", coupleResi: true }).text);
+  assert.match(fs.readFileSync(ged, "utf8"), /\n1 RESI\n2 PLAC Lhota\n/);
+  const script = path.join(w.dir, "read.ts");
+  fs.writeFileSync(
+    script,
+    `import fs from "node:fs";
+import { parseGedcom, convertToStrom } from ${JSON.stringify(path.join(stromRepo, "src", "ged-parser.ts"))};
+const parsed = parseGedcom(fs.readFileSync(process.argv[2], "utf8"));
+const u = Object.values(convertToStrom(parsed).data.partnerships)[0] as any;
+console.log(JSON.stringify({ dropped: [...parsed.droppedTags.entries()], couple: u }));
+`,
+  );
+  const r = spawnSync(tsx, [script, ged], { cwd: stromRepo, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout.trim().split("\n").pop()!);
+  assert.deepEqual(out.dropped, []);
+  // an app of 3.8 keeps it as the couple's event; an older one in their note — either way it is there
+  assert.match(JSON.stringify(out.couple), /Lhota/);
+  w.cleanup();
+});

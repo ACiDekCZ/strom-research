@@ -20,7 +20,7 @@ const INDI_EVENTS = [
   "NATU", "RELI", "TITL", "NATI", "ADOP", "WILL", "PROB", "BURI", "CREM", "CENS", "EVEN", "RETI", "BLES", "CAST", "DSCR", "IDNO",
   "NCHI", "NMR", "PROP", "SSN", "FACT",
 ];
-const FAM_EVENTS = ["MARR", "DIV", "MARB", "MARC", "MARL", "MARS", "ANUL", "DIVF", "ENGA", "CENS", "EVEN", "NCHI"];
+const FAM_EVENTS = ["MARR", "DIV", "MARB", "MARC", "MARL", "MARS", "ANUL", "DIVF", "ENGA", "CENS", "RESI", "EVEN", "NCHI"];
 
 /** Allowed child tags by parent context ("INDI", "INDI.BIRT", …). CONC/CONT are allowed under anything with text. */
 const CHILDREN: Record<string, string[]> = {
