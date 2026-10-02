@@ -102,7 +102,7 @@ test("export: two files from the same evidence — standard and for Strom; valid
   assert.ok(ged.indexOf("1 MARR\n2 DATE 12 FEB 1898") < ged.indexOf("1 MARR\n2 DATE 1898\n"), "the cited marriage before the lead");
   assert.match(ged, /2 HUSB\n3 AGE 28y\n2 WIFE\n3 AGE 22y/);
   assert.match(ged, /1 DEAT\n2 DATE 1950\n2 AGE 74y/);
-  assert.match(ged, /Věk: Josef Novák 28 let, Marie Svobodová 22 let/, "ages also in the note until Strom reads AGE");
+  assert.doesNotMatch(ged, /Věk: Josef Novák 28 let/, "Strom reads AGE (STROM_READS_TAGS): not repeated in the note");
   assert.match(ged, /Zápis: „Josephus Novák annorum 28“/);
   assert.match(ged, /1 FAM[\s\S]*?1 ENGA\n2 DATE 1897/);
   assert.match(ged, /1 REPO @R0001@\n2 CALN Sig\. 12\/7/);
@@ -190,7 +190,7 @@ test("cause of death, the files the settings ask for, the Strom version that rea
   const strom = fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
   assert.match(standard, /1 DEAT\n2 DATE 1901\n2 PLAC Týnec\n2 ADDR (čp\.|House No\.) 7\n3 CITY Týnec\n2 CAUS Lungensucht\n2 AGE 61y\n/);
   assert.match(strom, /2 ADDR (čp\.|House No\.) 7\n2 CAUS Lungensucht\n2 AGE 61y\n/);
-  assert.match(strom, /(Příčina|Cause): Lungensucht/, "said in the note too until Strom reads CAUS");
+  assert.doesNotMatch(strom, /(Příčina|Cause): Lungensucht/, "Strom reads CAUS; an app of unknown version is today's");
   assert.doesNotMatch(standard, /(Příčina|Cause): Lungensucht/);
   // only the Strom file, for this tree
   fs.rmSync(path.join(w.cwd, "output"), { recursive: true });
@@ -199,19 +199,28 @@ test("cause of death, the files the settings ask for, the Strom version that rea
   assert.deepEqual(fs.readdirSync(path.join(w.cwd, "output")), ["tree-strom.ged"]);
   assert.equal((await w.run(["config", "set", "gedcom.for", "gramps"])).code, 2);
   assert.equal((await w.run(["config", "set", "strom.version", "one"])).code, 2);
-  await w.ok(["config", "set", "strom.version", "1.4.0"]);
+  // an app older than STROM_READS_TAGS gets them in the note too
+  await w.ok(["config", "set", "strom.version", "2.9.0"]);
+  await w.ok(["export", "gedcom"]);
+  const older = fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
+  assert.match(older, /(Příčina|Cause): Lungensucht/);
+  assert.match(older, /(Věk|Age): 61/);
+  await w.ok(["config", "set", "strom.version", "3.0.0"]);
+  await w.ok(["export", "gedcom"]);
+  assert.doesNotMatch(fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8"), /(Příčina|Cause): Lungensucht/);
   w.cleanup();
 });
 
 test("the Strom version from which the notes repeating the tags are left out", async () => {
-  const { stromReadsTags } = await import("../../src/gedcom/export.ts");
-  assert.equal(stromReadsTags("1.4.0", undefined), false, "not released yet: keep the notes");
+  const { stromReadsTags, STROM_READS_TAGS } = await import("../../src/gedcom/export.ts");
+  assert.equal(STROM_READS_TAGS, "3.0.0", "the app reads AGE, CAUS, ADDR and _FREL/_MREL since 3.0.0");
+  assert.equal(stromReadsTags("1.4.0", ""), false, "not released yet: keep the notes");
   assert.equal(stromReadsTags(undefined, "1.4.0"), false, "unknown Strom: keep them");
   assert.equal(stromReadsTags("1.3.9", "1.4.0"), false);
   assert.equal(stromReadsTags("1.4.0", "1.4.0"), true);
   assert.equal(stromReadsTags("2.0", "1.4.0"), true);
   assert.equal(stromReadsTags(undefined, "1.4.0", true), true, "unknown Strom taken for today's where nothing is lost");
-  assert.equal(stromReadsTags(undefined, undefined, true), false);
+  assert.equal(stromReadsTags(undefined, "", true), false);
 });
 
 test("Strom's own export comes back: ages in words, cause and address from its notes, a midwife from RELA Present", opts, async () => {

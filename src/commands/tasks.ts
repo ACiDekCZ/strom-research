@@ -24,6 +24,7 @@ import { readJsonLines } from "../core/json.ts";
 import { lacksImages, rankTasks, type Ranked } from "../core/queue.ts";
 import { joiningHypotheses, offTree } from "../core/kin.ts";
 import { aboutPeople } from "../core/directions.ts";
+import { storiesToApprove } from "../core/stories.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
 
 
@@ -67,7 +68,10 @@ export function waitingForUser(tree: Tree): { id: string; what: string; on: stri
  */
 export function waitingLines(tree: Tree, where: { shared?: string; display?: (p: string) => string } = {}, max = 5): string | undefined {
   const w = tree.list<Task>("task").filter((t) => t.state === "waiting");
-  if (!w.length) return undefined;
+  // the new versions of stories the user approved: they decide (the lock)
+  const stories = storiesToApprove(tree).map((s) => s.id);
+  const storyLine = stories.length ? `  ${ui(tree.lang, "ui.wait.stories", { ids: stories.join(" ") })}` : undefined;
+  if (!w.length) return stories.length ? lines(ui(tree.lang, "ui.wait.title", { n: stories.length }), storyLine) : undefined;
   const show = where.display ?? ((p: string) => p);
   const lang = tree.lang;
   const images = (t: Task) => {
@@ -80,9 +84,10 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
     ];
   };
   return lines(
-    ui(lang, "ui.wait.title", { n: w.length }),
+    ui(lang, "ui.wait.title", { n: w.length + stories.length }),
     ...w.slice(0, max).flatMap((t) => [`  ${t.id}  ${truncate(t.waitingOn || t.what, 150)}`, ...images(t)]),
     w.length > max ? `  … strom task list --state waiting` : undefined,
+    storyLine,
     `  ${ui(lang, "ui.wait.how1")}`,
     `  ${ui(lang, "ui.wait.how2")}`,
   );

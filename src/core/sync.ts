@@ -25,7 +25,8 @@ import { eventKind, type Conflict, type Event, type Family, type Input, type Per
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, retractEvent, retractPerson } from "./actions.ts";
 import { exportGedcom, REFN_TYPE } from "../gedcom/export.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
-import { fromFlexDate, importDate } from "./import.ts";
+import { fromFlexDate, houseOf, importDate } from "./import.ts";
+import { normalizeAge } from "./age.ts";
 import { create, update } from "./records.ts";
 import { foldText } from "./text.ts";
 import { UsageError } from "./errors.ts";
@@ -40,6 +41,10 @@ export interface SFact {
   place?: string;
   value?: string;
   label?: string;
+  /** What the record says of it besides (the Strom app's fields from 3.7): the cause, the age (GEDCOM form), the house. */
+  cause?: string;
+  age?: string;
+  house?: string;
   /** Ours and base only: the fact's ID in the research. */
   id?: string;
 }
@@ -184,12 +189,26 @@ function rawFacts(node: GedNode): SFact[] {
     const value = c.value.trim();
     if (value && value !== "Y") f.value = value.replace(/\s+/g, " ");
     if (kind === "EVEN") f.label = val(c, "TYPE") ?? f.value ?? "EVEN";
+    details(f, val(c, "CAUS"), val(c, "AGE"), val(c, "ADDR"));
     const id = val(c, "_EID");
     if (id) f.id = id;
     out.push(f);
   }
   return out;
 }
+
+/** A fact's cause, age and house as the file has them, in the research's form (an age it cannot read: none). */
+function details(f: SFact, cause: string | undefined, age: string | undefined, house: string | undefined): void {
+  const c = cause?.replace(/\s+/g, " ").trim();
+  if (c) f.cause = c;
+  const a = age?.trim() ? normalizeAge(age) : undefined;
+  if (a) f.age = a;
+  const h = house?.trim() ? houseOf(house) : "";
+  if (h) f.house = h;
+}
+
+/** The details of a fact the research compares (DETAILS of SFact). */
+const DETAILS = ["cause", "age", "house"] as const;
 
 /** Every note under a record, its facts' and citations' too, as one text. */
 function allNotes(n: GedNode, noteText: (n: GedNode) => string): string {
@@ -279,7 +298,11 @@ interface AppPerson {
   refnType?: string;
   isPlaceholder?: boolean;
   nameVariants?: string[];
-  events?: { type: string; customLabel?: string; date?: string; place?: string; note?: string }[];
+  birthAddress?: string;
+  deathCause?: string;
+  deathAge?: string;
+  deathAddress?: string;
+  events?: { type: string; customLabel?: string; date?: string; place?: string; note?: string; cause?: string; age?: string; address?: string }[];
 }
 interface AppPartnership {
   person1Id?: string;
@@ -288,6 +311,9 @@ interface AppPartnership {
   status?: string;
   startDate?: string;
   startPlace?: string;
+  endDate?: string;
+  endPlace?: string;
+  address?: string;
 }
 
 /** A tree of the Strom app (its JSON) as a snapshot. */
@@ -303,23 +329,25 @@ export function readStromJson(data: unknown): Snapshot {
     const key = refn && OUR_ID.test(refn) && (!p.refnType || p.refnType === REFN_TYPE) && !persons.has(refn) ? refn : `x:${p.id}`;
     keys.set(p.id, key);
     const facts: SFact[] = [];
-    const fact = (kind: string, date?: string, place?: string, label?: string, value?: string) => {
+    const fact = (kind: string, date?: string, place?: string, label?: string, value?: string, more: { cause?: string | undefined; age?: string | undefined; house?: string | undefined } = {}) => {
       const f: SFact = { kind };
       const g = fromFlexDate(date);
       if (g) f.date = g;
       if (place?.trim()) f.place = place.trim().replace(/\s+/g, " ");
       if (label) f.label = label;
       if (value?.trim()) f.value = value.trim().replace(/\s+/g, " ");
+      details(f, more.cause, more.age, more.house);
       if (f.date || f.place || label || kind !== "EVEN") facts.push(f);
     };
-    if (p.birthDate || p.birthPlace) fact("BIRT", p.birthDate, p.birthPlace);
-    if (p.deathDate || p.deathPlace) fact("DEAT", p.deathDate, p.deathPlace);
+    if (p.birthDate || p.birthPlace || p.birthAddress) fact("BIRT", p.birthDate, p.birthPlace, undefined, undefined, { house: p.birthAddress });
+    if (p.deathDate || p.deathPlace || p.deathCause || p.deathAge || p.deathAddress)
+      fact("DEAT", p.deathDate, p.deathPlace, undefined, undefined, { cause: p.deathCause, age: p.deathAge, house: p.deathAddress });
     for (const e of p.events ?? []) {
       const kind = APP_EVENTS[e.type];
       if (!kind || ((kind === "BIRT" || kind === "DEAT") && facts.some((f) => f.kind === kind))) continue;
       // an occupation, a religion, a title: the app keeps what it is as the event's note (its first line)
       const value = VALUE_KINDS.has(kind) ? e.note?.split("\n")[0] : undefined;
-      fact(kind === "MILI" ? "EVEN" : kind, e.date, e.place, kind === "EVEN" ? e.customLabel || "EVEN" : undefined, value);
+      fact(kind === "MILI" ? "EVEN" : kind, e.date, e.place, kind === "EVEN" ? e.customLabel || "EVEN" : undefined, value, { cause: e.cause, age: e.age, house: e.address });
     }
     const name = `${p.firstName ?? ""} /${p.lastName ?? ""}/`.trim();
     if (!key.startsWith("P") && !`${p.firstName ?? ""}${p.lastName ?? ""}`.replace(/[?\s]/g, "")) {
@@ -344,6 +372,15 @@ export function readStromJson(data: unknown): Snapshot {
       const g = fromFlexDate(u.startDate);
       if (g) f.date = g;
       if (u.startPlace?.trim()) f.place = u.startPlace.trim();
+      details(f, undefined, undefined, u.address);
+      facts.push(f);
+    }
+    // the divorce (the app's 3.7 keeps its place too)
+    if (u.status === "divorced" && (u.endDate || u.endPlace)) {
+      const f: SFact = { kind: "DIV" };
+      const g = fromFlexDate(u.endDate);
+      if (g) f.date = g;
+      if (u.endPlace?.trim()) f.place = u.endPlace.trim();
       facts.push(f);
     }
     families.push({ partners, children: (u.childIds ?? []).map((c) => keys.get(c)).filter((k): k is string => !!k), facts });
@@ -625,6 +662,7 @@ export type ChangeKind =
   | "fact.changed"
   | "fact.differs"
   | "fact.gone"
+  | "fact.detail"
   | "name.new"
   | "sex.changed"
   | "note.new"
@@ -700,9 +738,10 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const partial = !!base && incoming.persons.size < base.persons.size / 2;
   const changes: Change[] = [];
   const push = (c: Omit<Change, "n">) => changes.push({ ...c, n: changes.length + 1 });
-  // the kinds of facts the file carries at all: one it never has is not "gone" (the app does not keep it)
+  // the kinds of facts the file carries at all, of people and of families apart: one it never has is not "gone" (the
+  // app does not keep it — the Strom app keeps a family's other events in the couple's note, though its people have them)
   const carried = new Set([...incoming.persons.values()].flatMap((p) => p.facts.map((f) => kindOf(f.kind))));
-  for (const f of incoming.families) for (const x of f.facts) carried.add(kindOf(x.kind));
+  const carriedFam = new Set(incoming.families.flatMap((f) => f.facts.map((x) => kindOf(x.kind))));
 
   const factsDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, inc: SFact[], our: SFact[], was: SFact[] | undefined, isOurs: boolean) => {
     const ourKeys = new Set(our.map(factKey));
@@ -711,7 +750,22 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     const used = new Set<string>();
     for (const f of inc) {
       const k = factKey(f);
-      if (ourKeys.has(k)) continue; // the research has it
+      if (ourKeys.has(k)) {
+        // the research has it: what the file says of it besides (its cause, age, house) may be the user's — paired
+        // with the same details first (one lived in several houses of a place: each its own fact)
+        const sameDetails = (a: SFact, b: SFact) => DETAILS.every((d) => !a[d] || exact(a[d]) === exact(b[d]));
+        const mates = our.filter((x) => factKey(x) === k);
+        if (mates.some((x) => sameDetails(f, x)) || was?.some((x) => factKey(x) === k && sameDetails(f, x))) continue;
+        const o = mates.find((x) => !inc.some((i) => factKey(i) === k && sameDetails(i, x))) ?? mates[0]!;
+        const b = was?.find((x) => factKey(x) === k && (!x.id || x.id === o.id));
+        const changed = DETAILS.filter((d) => f[d] && exact(f[d]) !== exact(o[d]) && !(b && exact(f[d]) === exact(b[d])));
+        if (changed.length) {
+          const added = changed.every((d) => !o[d]);
+          const action = added ? "add" : !was ? "pick" : recordBacked(tree, eventById(tree, o.id)) ? "conflict" : "correct";
+          if (action !== "conflict" || !openConflict(tree, owner.person ?? owner.family, f)) push({ kind: "fact.detail", action, ...owner, fact: f, was: o });
+        }
+        continue;
+      }
       if (our.some((o) => knowsMore(o, f))) continue; // the file knows less of it (the date lost on the way)
       if (was && baseKeys.has(k)) continue; // as it was given: the research changed it since
       const kind = kindOf(f.kind);
@@ -741,7 +795,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     }
     if (was && !partial)
       for (const b of was)
-        if (!incKeys.has(factKey(b)) && !used.has(factKey(b)) && carried.has(kindOf(b.kind)) && ourKeys.has(factKey(b)) && !keptOnce(owner, b, inc))
+        if (!incKeys.has(factKey(b)) && !used.has(factKey(b)) && (owner.family ? carriedFam : carried).has(kindOf(b.kind)) && ourKeys.has(factKey(b)) && !keptOnce(owner, b, inc))
           push({ kind: "fact.gone", action: "report", ...owner, was: b });
   };
 
@@ -880,9 +934,9 @@ function knownNewcomers(incoming: Snapshot, ours: Snapshot): void {
 
 /** What one sync wrote, to undo it: kept on its input. */
 export interface Applied {
-  do: "event.add" | "event.edit" | "event.retract" | "conflict.add" | "name.add" | "note.add" | "person.add" | "family.add" | "child.add" | "sex.edit" | "place.add" | "place.edit";
+  do: "event.add" | "event.edit" | "event.detail" | "event.retract" | "conflict.add" | "name.add" | "note.add" | "person.add" | "family.add" | "child.add" | "sex.edit" | "place.add" | "place.edit";
   id: string;
-  /** event.edit: the fact before; event.retract: its status; sex.edit: the sex before; note.add: the note's time; child.add: the child; place.edit: its position before (JSON). */
+  /** event.edit: the fact before; event.detail: its cause, age and house before (JSON); event.retract: its status; sex.edit: the sex before; note.add: the note's time; child.add: the child; place.edit: its position before (JSON). */
   before?: SFact | string;
 }
 
@@ -902,7 +956,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
   const changes = plan.changes.filter(taken).length;
   const ids = new Map<string, string>(); // a new person's key → their ID
   const who = (key: string | undefined) => (key ? (ids.get(key) ?? (key.startsWith("x:") ? undefined : key)) : undefined);
-  const fields = (f: SFact) => ({ kind: f.kind, date: f.date, place: f.place, value: f.value, label: f.label });
+  const fields = (f: SFact) => ({ kind: f.kind, date: f.date, place: f.place, value: f.value, label: f.label, cause: f.cause, age: f.age, house: f.house });
 
   // new people first: facts and families point at them
   for (const c of plan.changes.filter((x) => x.kind === "person.new" && taken(x))) {
@@ -962,6 +1016,40 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           );
           applied.push({ do: "conflict.add", id: x.id });
         }
+        break;
+      }
+      case "fact.detail": {
+        const mine = c.was?.id ? eventById(tree, c.was.id) : undefined;
+        if (!owner || !c.fact || !mine) break;
+        // picked without the state it was given: a record's fact is not overwritten
+        if (c.action === "conflict" || (c.action === "pick" && recordBacked(tree, mine))) {
+          const title = `${(c.name ?? owner).replace(/\//g, "").replace(/\s+/g, " ").trim()}: ${c.fact.kind} — ${describe(mine)} × ${describe(c.fact)}`;
+          const x = create<Conflict>(
+            tree,
+            "conflict",
+            {
+              title: title.slice(0, 200),
+              fact: c.fact.kind,
+              subject: [owner],
+              claims: [
+                { ...(mine.citations[0] ? { source: mine.citations[0].source } : {}), value: describe(mine), note: `the research: ${mine.id}` },
+                { source: source.id, value: describe(c.fact), note: "the user's edit" },
+              ],
+              state: "open",
+            } as never,
+            (id) => `+${id} conflict "${title.slice(0, 60)}"`,
+            [owner],
+          );
+          applied.push({ do: "conflict.add", id: x.id });
+          break;
+        }
+        const set = Object.fromEntries(DETAILS.filter((d) => c.fact![d] && c.fact![d] !== mine[d]).map((d) => [d, c.fact![d]!]));
+        editEvent(tree, mine.id, set, `${c.action === "add" ? "added from" : "corrected in"} ${reason}`);
+        update<Person | Family>(tree, owner, owner.startsWith("F") ? "family" : "person", (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id && !e.citations.some((x) => x.source === source.id) ? { ...e, citations: [...e.citations, cite(`${c.fact!.kind} ${Object.keys(set).join(" ")}`)] } : e)) }), {
+          op: "event.cite",
+          summary: `${mine.id} cites ${source.id}`,
+        });
+        applied.push({ do: "event.detail", id: mine.id, before: JSON.stringify(Object.fromEntries(DETAILS.map((d) => [d, mine[d] ?? ""]))) });
         break;
       }
       case "name.new": {
@@ -1028,8 +1116,8 @@ function nameOf(gedName: string): { given: string; surname: string } {
   return { given: `${m[1]!.trim()} ${m[3]!.trim()}`.trim(), surname: m[2]!.trim() };
 }
 
-function describe(f: { date?: string | undefined; place?: string | undefined; value?: string | undefined }): string {
-  return [f.value, f.date, f.place].filter(Boolean).join(", ") || "—";
+function describe(f: { date?: string | undefined; place?: string | undefined; value?: string | undefined; cause?: string | undefined; age?: string | undefined; house?: string | undefined }): string {
+  return [f.value, f.date, f.place, f.house && `house ${f.house}`, f.age && `aged ${f.age}`, f.cause && `cause ${f.cause}`].filter(Boolean).join(", ") || "—";
 }
 
 /** Undo one sync: what it added withdrawn, what it corrected put back, its conflicts closed — each with the reason. */
@@ -1045,6 +1133,14 @@ export function undoSync(tree: Tree, input: SyncInput): number {
       case "event.edit": {
         const b = a.before as SFact;
         editEvent(tree, a.id, { date: b.date ?? "", place: b.place ?? "", ...(b.value !== undefined ? { value: b.value } : {}) }, reason);
+        break;
+      }
+      case "event.detail": {
+        // what it was put back: a detail it had, and none where it had none
+        const e = eventById(tree, a.id);
+        const before = JSON.parse(String(a.before ?? "{}")) as Record<(typeof DETAILS)[number], string>;
+        const edit = Object.fromEntries(DETAILS.filter((d) => (before[d] ?? "") !== (e?.[d] ?? "")).map((d) => [d, before[d] ?? ""]));
+        if (e && Object.keys(edit).length) editEvent(tree, a.id, edit, reason);
         break;
       }
       case "event.retract":

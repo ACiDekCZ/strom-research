@@ -21,9 +21,9 @@
 //   source's TEXT, one source per entry with one PAGE (Strom keeps the first PAGE
 //   of a source; where in the entry a fact was read is the citation's DATA TEXT), and —
 //   in an export with images only — the entry cut out of its scan as the
-//   source's OBJE (_STROM_KIND excerpt, a data URL in FILE). Until
-//   Strom reads AGE, CAUS, ADDR and _FREL/_MREL (STROM_READS_TAGS) they are
-//   also said in notes.
+//   source's OBJE (_STROM_KIND excerpt, a data URL in FILE). For a Strom
+//   older than STROM_READS_TAGS, AGE, CAUS, ADDR and _FREL/_MREL are also said
+//   in notes.
 
 import { GedWriter } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
@@ -43,8 +43,12 @@ import { humanTask } from "../cli/human.ts";
 export const GED_PROFILES = ["standard", "strom"] as const;
 export type GedProfile = (typeof GED_PROFILES)[number];
 
-/** The first Strom version that reads AGE, CAUS, ADDR, _FREL/_MREL and more source notes itself (not released yet). */
-export const STROM_READS_TAGS: string | undefined = undefined;
+/**
+ * The first Strom version that reads AGE, CAUS, ADDR, _FREL/_MREL and more source notes itself (each NOTE, REPO >
+ * CALN, the transcript as TEXT): 3.0.0 — found 2026-10-02, when the notes repeating them showed every cause and age
+ * twice. An app of unknown version is taken for today's: every app that opens a research reads them.
+ */
+export const STROM_READS_TAGS: string | undefined = "3.0.0";
 
 /**
  * The first Strom version that reads a source's REFN, the citation's DATA DATE and the excerpts of entries.
@@ -92,6 +96,11 @@ export interface ExportOptions {
    * tree, the hypotheses that would join it (_STROM_ISLAND) — core/edge.ts. Of the research at the time of the file.
    */
   edges?: boolean;
+  /**
+   * …and, for an app that shows it (appShowsStoryDrafts), the new version of a story the user approved, waiting for
+   * them beside it (2 _DRAFT under _STORY): the approved one stays the story until they decide.
+   */
+  storyDrafts?: boolean;
 }
 
 export interface ExportResult {
@@ -131,7 +140,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   const stats = { persons: 0, families: 0, sources: 0, repositories: 0, events: 0, skipped: 0 };
   const strict = (opts.for ?? "standard") === "standard";
   // Strom profile: say in notes what the Strom app does not read from the tags yet.
-  const repeat = !strict && !stromReadsTags(opts.stromVersion);
+  const repeat = !strict && !stromReadsTags(opts.stromVersion, STROM_READS_TAGS, true);
   // The entry's own identity and date: any program; Strom from the version that reads them (unknown: today's), and
   // always when the file carries images of entries.
   const carries = !!opts.excerpts && tree.list<Source>("source").some((s) => !s.retracted && opts.excerpts!(s).length > 0);
@@ -407,10 +416,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (repeat) noteParts.push(`${L("cause")}: ${e.cause}`);
     }
     // Ages: a person's under the event, the partners' under HUSB/WIFE.
+    // An age that is no GEDCOM AGE ("dospělý") has no tag to go into: the note says it, whatever Strom reads.
     const ageNotes: string[] = [];
+    let ageUntagged = false;
     if (on === "INDI" && e.age) {
       const age = normalizeAge(e.age);
       if (age && isGedcomAge(age)) w.line(2, "AGE", age);
+      else ageUntagged = true;
       ageNotes.push(humanAge(age ?? e.age, lang));
     }
     if (on === "FAM" && e.ages)
@@ -418,17 +430,18 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         const raw = id ? e.ages[id] : undefined;
         if (!raw) continue;
         const age = normalizeAge(raw);
-        if (!age) continue;
-        w.line(2, role);
-        w.line(3, "AGE", age);
-        ageNotes.push(`${displayName(personById.get(id!)!)} ${humanAge(age, lang)}`);
+        if (age && isGedcomAge(age)) {
+          w.line(2, role);
+          w.line(3, "AGE", age);
+        } else ageUntagged = true;
+        ageNotes.push(`${displayName(personById.get(id!)!)} ${humanAge(age ?? raw, lang)}`);
       }
     for (const c of e.citations) citation(2, c);
     for (const pt of e.participants ?? []) participant(pt, on, noteParts, assos);
     if (e.status === "lead" || e.status === "possible") noteParts.unshift(L(e.status));
     if (!VALUE_TAGS.has(tag) && e.value && tag !== "EVEN") noteParts.push(e.value);
-    // Strom does not read AGE and citation DATA yet: say it in the note too.
-    if (repeat && ageNotes.length) noteParts.push(`${L("age")}: ${ageNotes.join(", ")}`);
+    // The ages for a Strom older than STROM_READS_TAGS (or with no AGE form), the words of the record always.
+    if ((repeat || ageUntagged) && ageNotes.length) noteParts.push(`${L("age")}: ${ageNotes.join(", ")}`);
     if (!strict) for (const c of e.citations) if (c.quote) noteParts.push(`${L("quote")}: „${c.quote}“`);
     if (e.note) noteParts.push(e.note);
     if (noteParts.length) {
@@ -560,13 +573,25 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (st.title) w.text(2, "TITL", st.title);
     w.line(2, "STAT", st.status === "final" ? "hotovo" : "navrh");
     w.text(2, "TEXT", st.text);
-    for (const id of st.facts) {
-      const e = eventById.get(id);
-      if (!e || e.retracted) continue;
-      const cites = [...new Set(e.citations.map((c) => c.source))].join(", ");
-      w.line(2, "DATA", [e.kind, e.date, e.place, e.value, cites ? `[${cites}]` : ""].filter(Boolean).join(" ").slice(0, 200));
-    }
+    const data = (level: number, facts: string[]) => {
+      for (const id of facts) {
+        const e = eventById.get(id);
+        if (!e || e.retracted) continue;
+        const cites = [...new Set(e.citations.map((c) => c.source))].join(", ");
+        w.line(level, "DATA", [e.kind, e.date, e.place, e.value, cites ? `[${cites}]` : ""].filter(Boolean).join(" ").slice(0, 200));
+      }
+    };
+    data(2, st.facts);
     if (st.note) w.text(2, "NOTE", st.note);
+    // the new version of a story the user approved: it waits for them, the approved one stays (an app that shows it)
+    if (st.draft && opts.storyDrafts) {
+      w.line(2, "_DRAFT");
+      if (st.draft.title) w.text(3, "TITL", st.draft.title);
+      w.text(3, "TEXT", st.draft.text);
+      data(3, st.draft.facts);
+      if (st.draft.note) w.text(3, "NOTE", st.draft.note);
+      w.line(3, "_AT", st.draft.at.slice(0, 10));
+    }
   }
 
   /**

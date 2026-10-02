@@ -36,6 +36,9 @@ export const LINK_SCHEME = "strom-research";
  * and (the app's 3.5.0) the research followed live in the app's window; a direction of the research paused, ended or
  * taken up again, a conversation about one direction, a session at work asked to finish.
  */
+/** A story: approved (or, beside an approved one, its new version approved in its place), or that new version not wanted. */
+export const LINK_STORY_DOS = ["final", "keep"] as const;
+
 export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
@@ -75,7 +78,7 @@ export type Link =
   | { action: "review"; tree: string; person: string; scope: (typeof LINK_SCOPES)[number] }
   | { action: "research"; tree: string; person: string; direction: (typeof LINK_DIRECTIONS)[number] }
   | { action: "conflict"; tree: string; id: string; do: (typeof LINK_CONFLICT_DOS)[number] }
-  | { action: "story"; tree: string; person: string; do: "final" }
+  | { action: "story"; tree: string; person: string; partner?: string; do: (typeof LINK_STORY_DOS)[number] }
   | { action: "sync-undo"; tree: string; intake: string }
   | { action: "direction"; tree: string; id: string; do: (typeof LINK_DIRECTION_DOS)[number] }
   | { action: "finish"; tree: string; session: string }
@@ -154,7 +157,9 @@ export function parseLink(text: string | undefined): Link {
       if (!person) throw new LinkError("no person named");
       if (action === "review") return { action, tree: id, person, scope: oneOf(q, "scope", LINK_SCOPES, "person") };
       if (action === "research") return { action, tree: id, person, direction: oneOf(q, "direction", LINK_DIRECTIONS, "ancestors") };
-      return { action, tree: id, person, do: oneOf(q, "do", ["final"] as const) };
+      // a couple's story: the app knows no family IDs, so the family of the two partners
+      const partner = idOf(q, "partner", PERSON, false);
+      return { action, tree: id, person, ...(partner ? { partner } : {}), do: oneOf(q, "do", LINK_STORY_DOS) };
     }
     case "conflict":
       return { action, tree: id, id: idOf(q, "id", CONFLICT, true)!, do: oneOf(q, "do", LINK_CONFLICT_DOS, "decide") };

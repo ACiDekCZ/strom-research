@@ -9,6 +9,8 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import { World, hasGit } from "../helpers.ts";
+import { Tree } from "../../src/core/tree.ts";
+import type { Person } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
 
@@ -290,6 +292,81 @@ test("a couple's second marriage the app folds into the first is not the user's 
   fs.writeFileSync(path.join(w.dir, "bez-snatku.ged"), none);
   const gone = await w.ok(["sync", path.join(w.dir, "bez-snatku.ged"), "--json"]);
   assert.deepEqual(gone.json.changes.map((c: { kind: string }) => c.kind), ["fact.gone", "fact.gone"]);
+  w.cleanup();
+});
+
+test("what the user added to a fact in the app — its cause, age, house — is taken: added to the research's fact, a lead corrected, a record's word a conflict; undone back", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["lang", "cs"]);
+  await w.ok(["source", "add", "Úmrtí v Týnci", "--kind", "death"]);
+  await w.ok(["person", "add", "Antonín /Dvořák/", "--sex", "M"]);
+  await w.ok(["event", "add", "P1", "DEAT", "--date", "1901", "--place", "Týnec", "--cite", "S1"]);
+  await w.ok(["person", "add", "Božena /Nová/", "--sex", "F"]);
+  await w.ok(["event", "add", "P2", "DEAT", "--date", "1903", "--place", "Týnec", "--age", "54"]);
+  await w.ok(["person", "add", "Karel /Malý/", "--sex", "M"]);
+  await w.ok(["event", "add", "P3", "DEAT", "--date", "1905", "--place", "Týnec", "--cause", "tuberkulóza", "--cite", "S1"]);
+  const ged = path.join(w.dir, "strom.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", ged]);
+  const t = fs.readFileSync(ged, "utf8");
+  // in the app: a cause where the research has none, another age, another cause than the record's — and the same house again
+  const edited = t
+    .replace(/(2 DATE 1901\n2 PLAC Týnec\n)/, "$12 CAUS souchotiny\n")
+    .replace("2 AGE 54y", "2 AGE 60y")
+    .replace("2 CAUS tuberkulóza", "2 CAUS zápal plic");
+  assert.equal((edited.match(/souchotiny|60y|zápal plic/g) ?? []).length, 3);
+  const file = path.join(w.dir, "z-aplikace.ged");
+  fs.writeFileSync(file, edited);
+  const r = await w.ok(["sync", file]);
+  assert.match(r.out, /Antonín Dvořák \[P0001\]: úmrtí 1901, Týnec — — → příčina souchotiny → doplní se k údaji s odkazem na váš strom/);
+  assert.match(r.out, /Božena Nová \[P0002\]: úmrtí 1903, Týnec — 54 let → 60 let → opraví vodítko výzkumu/);
+  assert.match(r.out, /Karel Malý \[P0003\]: úmrtí 1905, Týnec — příčina tuberkulóza → příčina zápal plic → rozpor k rozhodnutí/);
+  await w.ok(["sync", file, "--apply"]);
+  const death = (p: string) => (Tree.open(w.cwd, w.env).get<Person>(p)!.events.find((e) => e.kind === "DEAT"))!;
+  assert.equal(death("P0001").cause, "souchotiny");
+  assert.equal(death("P0001").status, "probable", "the record's fact stays as it was");
+  assert.ok(death("P0001").citations.some((c) => c.source === "S0002"), "the cause cites the user's tree");
+  assert.equal(death("P0002").age, "60y");
+  assert.equal(death("P0003").cause, "tuberkulóza", "a record's word is not overwritten");
+  assert.equal((await w.ok(["conflict", "list", "--json"])).json.conflicts.length, 1);
+  // taken in already: nothing new
+  assert.match((await w.ok(["sync", file, "--again"])).out, /nic nového/);
+  await w.ok(["sync", "undo", "I1"]);
+  assert.equal(death("P0001").cause, undefined);
+  assert.equal(death("P0002").age, "54y");
+  // the app's JSON says the same of a death
+  const id = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id;
+  const app = {
+    version: 9,
+    research: { id },
+    persons: { a: { id: "a", firstName: "Antonín", lastName: "Dvořák", gender: "male", refn: "P0001", deathDate: "1901", deathPlace: "Týnec", deathCause: "souchotiny", deathAge: "61 let", deathAddress: "čp. 7" } },
+    partnerships: {},
+  };
+  const json = path.join(w.dir, "strom.json");
+  fs.writeFileSync(json, JSON.stringify(app));
+  assert.match((await w.ok(["sync", json])).out, /Antonín Dvořák \[P0001\]: úmrtí 1901, Týnec — — → čp\. 7, 61 let, příčina souchotiny → doplní se k údaji s odkazem na váš strom/, "an addition: taken also without the state");
+  w.cleanup();
+});
+
+test("a couple's other event the Strom app keeps in their note (its families have none) is not taken away", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["lang", "cs"]);
+  await w.ok(["person", "add", "Antonín /Dvořák/", "--sex", "M"]);
+  await w.ok(["person", "add", "Božena /Nová/", "--sex", "F"]);
+  await w.ok(["event", "add", "P1", "EVEN", "--label", "Požár stavení", "--date", "1890"]);
+  await w.ok(["family", "add", "--partner", "P1", "--partner", "P2"]);
+  await w.ok(["event", "add", "F1", "MARR", "--date", "9 MAY 1885"]);
+  await w.ok(["event", "add", "F1", "EVEN", "--label", "Smlouva o výměnku"]);
+  const ged = path.join(w.dir, "strom.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", ged]);
+  const t = fs.readFileSync(ged, "utf8");
+  // the app: the couple's event a line of their note
+  const app = t.replace(/1 EVEN\r?\n2 TYPE Smlouva o výměnku\r?\n(?:[2-9].*\r?\n)*/, "1 NOTE Event: Smlouva o výměnku\n");
+  assert.notEqual(app, t);
+  fs.writeFileSync(path.join(w.dir, "z-aplikace.ged"), app);
+  const r = await w.ok(["sync", path.join(w.dir, "z-aplikace.ged"), "--json"]);
+  assert.deepEqual(r.json.changes, [], JSON.stringify(r.json.changes));
   w.cleanup();
 });
 

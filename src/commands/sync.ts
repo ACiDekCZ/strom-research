@@ -14,6 +14,7 @@ import type { Person, Source } from "../core/model.ts";
 import { fileSha256, MAX_IN_TREE, mimeOf } from "../core/media.ts";
 import { create, update } from "../core/records.ts";
 import { safeFolderName } from "../core/text.ts";
+import { humanAge } from "../core/age.ts";
 import { now, type Tree } from "../core/tree.ts";
 import { applySync, nothingSince, planSync, readTreeFile, receivedSince, undoSync, type Change, type Plan, type SFact, type Snapshot, type SyncInput } from "../core/sync.ts";
 import { startLive } from "../core/live.ts";
@@ -22,7 +23,13 @@ import { chromiumBrowser, openInBrowser, openWebApp } from "../core/chromium.ts"
 
 function factText(f: SFact | undefined, lang: string): string {
   if (!f) return "—";
-  return [f.value, humanDate(f.date, lang), humanPlace(f.place, undefined, lang)].filter(Boolean).join(", ") || "—";
+  return [f.value, humanDate(f.date, lang), humanPlace(f.place, undefined, lang), detailText(f, lang)].filter(Boolean).join(", ") || "—";
+}
+
+/** What a fact says besides: its house, age and cause. */
+function detailText(f: SFact | undefined, lang: string): string {
+  if (!f) return "";
+  return [f.house && ui(lang, "ui.sync.house", { x: f.house }), f.age && humanAge(f.age, lang), f.cause && ui(lang, "ui.sync.cause", { x: f.cause })].filter(Boolean).join(", ");
 }
 
 /** A position on the map as a map shows it: degrees, six decimals at most. */
@@ -44,8 +51,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
     name: name(c.person),
     kind: kind(c.fact ?? c.was),
     fact: `${kind(c.fact ?? c.was)} ${factText(c.fact ?? c.was, lang)}`,
-    was: factText(c.was, lang),
-    now: factText(c.fact, lang),
+    was: c.kind === "fact.detail" ? detailText(c.was, lang) || "—" : factText(c.was, lang),
+    now: c.kind === "fact.detail" ? detailText(c.fact, lang) : factText(c.fact, lang),
+    when: [humanDate(c.fact?.date, lang), humanPlace(c.fact?.place, undefined, lang)].filter(Boolean).join(", "),
     text: truncate(c.text ?? "", 120),
     child: name(c.child),
     kids: c.kind === "family.new" && c.text ? ` + ${c.text.split(" ").filter(Boolean).map(name).join(", ")}` : "",
@@ -54,7 +62,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
     from: c.place?.was ? point(c.place.was) : "",
   };
   const key = c.kind === "place.coords" && !c.place?.was ? "ui.sync.place.located" : `ui.sync.${c.kind}`;
-  return `${ui(lang, key as UIKey, v)} → ${ui(lang, `ui.sync.do.${c.action}` as UIKey)}`;
+  const does = c.kind === "fact.detail" && c.action === "add" ? "ui.sync.do.detail" : `ui.sync.do.${c.action}`;
+  return `${ui(lang, key as UIKey, v)} → ${ui(lang, does as UIKey)}`;
 }
 
 function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang: string, edits: string): string {

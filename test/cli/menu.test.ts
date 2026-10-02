@@ -9,6 +9,9 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { World, fakeConnector, hasGit, readJsonFile } from "../helpers.ts";
 import { droppedPaths } from "../../src/cli/menu-parts.ts";
+import { Tree } from "../../src/core/tree.ts";
+import { exportGedcom } from "../../src/gedcom/export.ts";
+import { validateGedcom } from "../../src/gedcom/validate.ts";
 
 const unix = { skip: !hasGit || process.platform === "win32" };
 
@@ -365,5 +368,58 @@ test("what a review of the menu found: words that start with a dash, Enter in a 
   fs.symlinkSync(path.join(w.dir, "nikde"), path.join(docs, "alias"));
   const r = await w.ok([], { tty: true, answers: ["4", "1", "1", `"${docs}"`, "n", "0", "0"] });
   assert.match(r.out, /✓ Přidáno do výzkumu: 1\./);
+  w.cleanup();
+});
+
+test("a story the person approved is locked: written again, the new version waits beside it — the menu shows it, they take it or keep the old one", unix, async () => {
+  const w = await world();
+  await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
+  await w.ok(["story", "set", "P0001", "--text", "Jan byl mlynář."]);
+  await w.ok(["story", "approve", "P0001"]);
+  const story = async () => (await w.ok(["story", "show", "P0001", "--json"])).json.story;
+  // written again: the approved one stays, the new version waits
+  const set = await w.ok(["story", "set", "P0001", "--text", "Jan byl mlynář v Týnci."]);
+  assert.match(set.out, /the user approved the story before: it stays as it is, the new version waits for them/);
+  let st = await story();
+  assert.equal(st.status, "final");
+  assert.equal(st.text, "Jan byl mlynář.");
+  assert.equal(st.draft.text, "Jan byl mlynář v Týnci.");
+  assert.match((await w.ok(["story", "show", "P0001"])).out, /── a new version \(\d{4}-\d{2}-\d{2}\) waits for the user: strom story approve P0001/);
+  assert.match((await w.ok([])).out, /nové verze vyprávění, která jste schválili – přečíst a rozhodnout: P0001/, "the agent hears it waits for the user");
+  // for the Strom app that shows it: the new version under the approved story, valid
+  const tree = Tree.open(w.cwd, w.env);
+  const ged = exportGedcom(tree, { for: "strom", storyDrafts: true }).text;
+  assert.match(ged, /1 _STORY\n2 TYPE vypraveni\n2 STAT hotovo\n2 TEXT Jan byl mlynář\.\n2 _DRAFT\n3 TEXT Jan byl mlynář v Týnci\.\n3 _AT \d{4}-\d{2}-\d{2}\n/);
+  assert.deepEqual(validateGedcom(ged), []);
+  assert.doesNotMatch(exportGedcom(tree, { for: "strom" }).text, /_DRAFT/, "an app that does not show it: the approved story alone");
+  assert.doesNotMatch(exportGedcom(tree, { for: "standard", storyDrafts: true }).text, /_DRAFT|v Týnci/);
+  // the menu: it waits for the person; they keep the old one (3 what waits · 1 the story · 2 keep · 0 · 0)
+  const kept = await w.ok([], { tty: true, answers: ["3", "1", "2", "0", "0"] });
+  assert.match(kept.out, /Čeká na vás: 1/);
+  assert.match(kept.out, /1\. Nová verze vyprávění o Jan Novák \[P0001\] – schválené zůstává, dokud nerozhodnete/);
+  assert.match(kept.out, /Nová verze vyprávění o Jan Novák \[P0001\] \(\d{4}-\d{2}-\d{2}\) – schválené zůstává, dokud nerozhodnete:\n\nJan byl mlynář v Týnci\./);
+  assert.match(kept.out, /✓ Schválené vyprávění zůstává, nová verze je pryč/);
+  st = await story();
+  assert.equal(st.text, "Jan byl mlynář.");
+  assert.equal(st.draft, undefined);
+  // again, and taken (3 · 1 · 1 the new version · 0 · 0): it is the story now, approved
+  await w.ok(["story", "set", "P0001", "--text", "Jan byl mlynář v Týnci nad Labem."]);
+  const taken = await w.ok([], { tty: true, answers: ["3", "1", "1", "0", "0"] });
+  assert.match(taken.out, /✓ Vyprávěním je teď nová verze, schválená/);
+  st = await story();
+  assert.equal(st.status, "final");
+  assert.equal(st.text, "Jan byl mlynář v Týnci nad Labem.");
+  assert.equal(st.draft, undefined);
+  // approved at once when the user says so (--final): no version waits
+  await w.ok(["story", "set", "P0001", "--text", "Jan, mlynář.", "--final"]);
+  st = await story();
+  assert.equal(st.text, "Jan, mlynář.");
+  assert.equal(st.draft, undefined);
+  assert.equal((await w.run(["story", "discard", "P0001"])).code, 2, "nothing waits");
+  // a draft not approved yet is no lock: rewritten in place
+  await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"]);
+  await w.ok(["story", "set", "P0002", "--text", "Marie."]);
+  await w.ok(["story", "set", "P0002", "--text", "Marie z Týnce."]);
+  assert.deepEqual([(await w.ok(["story", "show", "P0002", "--json"])).json.story.text, (await w.ok(["story", "show", "P0002", "--json"])).json.story.draft], ["Marie z Týnce.", undefined]);
   w.cleanup();
 });

@@ -202,8 +202,14 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       return { text: "", data: { done: (await run(["chat", ...(first ? [`--say=${first}`] : [])])) === 0, action: link.action, tree: root } };
     }
     case "story": {
-      const { approveStory } = await import("../cli/menu-links.ts");
-      return end(await approveStory(ctx, run, treeLang, root, person!, who(person!)));
+      const { approveStory, coupleStory } = await import("../cli/menu-links.ts");
+      if (!link.partner) return end(await approveStory(ctx, run, treeLang, root, person!, who(person!), link.do));
+      const partner = personOf(root, ctx, link.partner);
+      if (!partner) return said("ui.link.noperson", { person: link.partner });
+      const couple = `${who(person!)} & ${who(partner)}`;
+      const family = coupleStory(Tree.open(root, ctx.env), person!.id, partner.id);
+      if (!family) return said("ui.link.story.nocouple", { couple });
+      return end(await approveStory(ctx, run, treeLang, root, family, couple, link.do));
     }
     case "review": {
       const what = ui(treeLang, `ui.link.what.review.${link.scope}` as UIKey, { person: who(person!) });
@@ -289,7 +295,7 @@ register(
       "strom-research://research?tree=<id>&person=P0012&direction=ancestors|descendants — a new direction (research new).\n" +
       "strom-research://task?…&task=T0007&do=park|drop|wake — the task put aside, given up, back in the queue (the reason asked).\n" +
       "strom-research://conflict?tree=<id>&id=X0007&do=decide|agent — decided by the user (which claim, why) or left to the agent.\n" +
-      "strom-research://story?tree=<id>&person=P0012&do=final — the story approved (strom story approve).\n" +
+      "strom-research://story?tree=<id>&person=P0012[&partner=P0013]&do=final|keep — the story approved (strom story approve), of a couple with partner=.\n" +
       "strom-research://sync-undo?tree=<id>&intake=I0042 — a sending from the app taken back (strom sync undo).\n" +
       "strom-research://direction?tree=<id>&id=G0002&do=pause|done|resume — a direction paused, ended (the reason asked) or\n" +
       "taken up again (strom research pause|done|resume).\n" +

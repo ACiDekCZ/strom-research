@@ -37,7 +37,7 @@ import type { Env } from "./paths.ts";
 import { Tree, VERSION, type Op } from "./tree.ts";
 import { changeLines, type ChangeKind } from "./changelog.ts";
 import { directionOf, scopes, type Scope } from "./directions.ts";
-import { ancestorGenerations } from "./people.ts";
+import { ancestorGenerations, displayName } from "./people.ts";
 import { phrase } from "./phrases.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { excerptSettings, planExcerpts } from "./excerpt.ts";
@@ -53,11 +53,12 @@ import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion } from "./update.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
-import { appOpensLinks, appShowsEdges, isStromAppOrigin } from "./stromapp.ts";
+import { appOpensLinks, appShowsEdges, appShowsStoryDrafts, isStromAppOrigin } from "./stromapp.ts";
 import { Settings } from "./config.ts";
 import { linkActions, linkHandlerState } from "./links.ts";
 import { stromLauncher } from "./self.ts";
-import type { Session, Task } from "./model.ts";
+import type { Family, Person, Session, Task } from "./model.ts";
+import { storiesToApprove } from "./stories.ts";
 
 export interface LiveInfo {
   port: number;
@@ -329,6 +330,30 @@ function personOf(t: Task | undefined): { person?: string } {
   return people.length === 1 ? { person: people[0]! } : {};
 }
 
+/** The new versions of approved stories, as items of `waiting`: whose (a couple's: person and partner), since when. */
+function storiesWaiting(tree: Tree): Record<string, unknown>[] {
+  return storiesToApprove(tree).flatMap((s) => {
+    const rec = tree.get<Person | Family>(s.id);
+    if (!rec) return [];
+    const people = rec.type === "family" ? rec.partners : [rec.id];
+    const name = (id: string) => {
+      const p = tree.get<Person>(id);
+      return p ? displayName(p) : id;
+    };
+    return [
+      {
+        kind: "story",
+        id: rec.id,
+        what: ui(tree.lang, "ui.waiting.story", { who: people.map(name).join(" & ") }),
+        on: "",
+        at: s.at,
+        ...(people[0] ? { person: people[0] } : {}),
+        ...(people[1] ? { partner: people[1] } : {}),
+      },
+    ];
+  });
+}
+
 /** Who works, as the user reads it: "Claude Code on its own", "Codex conversation" in the research language. */
 function whoAtWork(label: string, lang: string): string {
   const run = /^(.+) on its own$/.exec(label);
@@ -492,7 +517,11 @@ function status(root: string, env: Env): Record<string, unknown> {
     working: atWork,
     open: openSessions(tree).map((s) => ({ id: s.id, task: s.task, started: s.started })),
     // since when it waits: its last change is the one that made it wait
-    waiting: waiting.map((t) => ({ id: t.id, what: t.what, on: t.waitingOn ?? "", at: t.updated, ...personOf(t), ...researchOf(tree, t, all) })),
+    waiting: [
+      ...waiting.map((t) => ({ id: t.id, what: t.what, on: t.waitingOn ?? "", at: t.updated, ...personOf(t), ...researchOf(tree, t, all) })),
+      // a new version of an approved story, as the menu counts it — for an app that shows it (the _DRAFT gate)
+      ...(appShowsStoryDrafts(settings) ? storiesWaiting(tree) : []),
+    ],
     links: links(env),
     ...queue(tree, next, all),
     ...(newer ? { update: { version: newer } } : {}),
@@ -595,11 +624,12 @@ export function serveLive(root: string, env: Env): Promise<void> {
           const opens = appOpensLinks(new Settings(env, {}));
           // …and where the tree ends, for an app that shows it
           const edges = appShowsEdges(new Settings(env, {}));
+          const storyDrafts = appShowsStoryDrafts(new Settings(env, {}));
           const offered = opens ? links(env) : [];
           ged = {
             head: h,
             links: offered.join(" "),
-            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(offered.length ? { links: offered } : {}) }).text,
+            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(offered.length ? { links: offered } : {}) }).text,
           };
         }
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);

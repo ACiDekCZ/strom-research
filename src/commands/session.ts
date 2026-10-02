@@ -73,7 +73,7 @@ export function researchProposals(tree: Tree, research: Research): { proposal: P
   const out: { proposal: Proposal; kind: string }[] = [];
   for (const item of frontier(tree, research)) if (item.proposal) out.push({ proposal: { ...item.proposal, origin: "frontier" }, kind: "frontier" });
   for (const proposal of reviewProposals(tree, research)) out.push({ proposal, kind: "review" });
-  if (new Settings(tree.env, {}).stories(tree.config).on) for (const proposal of storyProposals(tree, research)) out.push({ proposal: { ...proposal, origin: "frontier" }, kind: "story" });
+  if (new Settings(tree.env, {}).stories(tree.config).on) for (const proposal of storyProposals(tree, research)) out.push({ proposal: { ...proposal, origin: proposal.origin ?? "frontier" }, kind: "story" });
   return out;
 }
 

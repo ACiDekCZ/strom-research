@@ -37,6 +37,10 @@ export const PHRASES = {
   "story.where": "the facts recorded (strom person show {id})",
   "story.why": "{count} facts from records tell the life (generation {generation} of {research}); the family reads it in the Strom app's family book",
   "story.done": "strom story set {id} with every fact it rests on (--fact) — a draft until the user approves it",
+  "story.sources.what": "Beyond the registers, for the story of {name}: newspapers, directories, military, land and court records, graves, the history of the place",
+  "story.sources.where": "the digitised newspapers, books and archives of the country and time; the web (indexes and trees are leads only)",
+  "story.sources.why": "the story is to tell more than the registers do — every word still on a record; then strom proposes the story",
+  "story.sources.done": "each find recorded as a source and a fact with its citation (the person matched by more than the name), the history of the place as a source, every search recorded — also in vain",
 
   "review.research": "Review of {name}",
   "review.unproven.research": "People without a record of their own",
@@ -144,6 +148,7 @@ export const PHRASES = {
   "log.repository.edit": "Archive changed: {name}",
   "log.story.set": "Story: {who}",
   "log.story.approve": "Story approved: {who}",
+  "log.story.discard": "The new version of the story not wanted, the approved one stays: {who}",
   "log.note.add": "Note: {name}",
   "log.input.add": "Material from the family: {name}",
   "log.input.sync": "Family tree taken in: {name}",

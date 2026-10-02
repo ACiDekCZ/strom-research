@@ -87,6 +87,24 @@ export function appShowsEdges(settings: Settings, version?: string): boolean {
   return true;
 }
 
+/**
+ * The Strom app shows the new version of a story the user approved, waiting beside it (the app's spec
+ * docs/ZADANI_VYZKUM_vypraveni-zamek.md): 2 _DRAFT under _STORY, and in the bridge's waiting (kind story). stromapp.info
+ * from 3.7.0 (2026-10-02); another copy of the app (its beta, its development: strom.app.url) is taken as current, so it
+ * can be built. An app of unknown version: today's.
+ */
+export const APP_SHOWS_STORY_DRAFTS: string | undefined = "3.7.0";
+
+export function appShowsStoryDrafts(settings: Settings, version?: string): boolean {
+  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (!APP_SHOWS_STORY_DRAFTS) return false;
+  if (!version) return true;
+  const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const [a, b] = [n(version), n(APP_SHOWS_STORY_DRAFTS)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */
 export function sendAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;

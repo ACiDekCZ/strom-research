@@ -54,7 +54,7 @@ const CHILDREN: Record<string, string[]> = {
   "EVENT.ASSO": ["RELA", "NOTE"],
   "EVENT.HUSB": ["AGE"],
   "EVENT.WIFE": ["AGE"],
-  _STORY: ["TYPE", "TITL", "STAT", "TEXT", "DATA", "NOTE"],
+  _STORY: ["TYPE", "TITL", "STAT", "TEXT", "DATA", "NOTE", "_DRAFT"],
   _WITN: ["RELA", "NOTE"],
   ADDR: ["CONT", "ADR1", "ADR2", "ADR3", "CITY", "STAE", "POST", "CTRY"],
 };
@@ -67,6 +67,8 @@ const EXTENSIONS = new Set([
   "_STROM_EDGE", "_STROM_ISLAND", "_SCOPE", "_RESEARCH", "_GEN", "_END", "_NEXT", "_EST", "_BASIS", "_RECORDS", "_BOOK", "_ACCESS",
   "_COVERED", "_NORECORDS", "_TASK", "_LEVEL", "_POS", "_HELD", "_UNTIL", "_TRIED", "_HYPO", "_JOIN", "_ISLAND", "_TEST", "_CONFLICT",
   "_SEARCHES", "_SESSIONS", "_COST", "_PARTIAL", "_LAST",
+  // the new version of an approved story, waiting for the user
+  "_DRAFT",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */

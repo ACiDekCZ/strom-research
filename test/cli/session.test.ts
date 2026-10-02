@@ -66,6 +66,16 @@ test("stories of the ancestors: on by default, proposed once records tell a life
   await w.ok(["event", "add", "P1", "OCCU", "--value", "mlynář", ...cite]);
   assert.deepEqual((await w.ok(["frontier", "--json"])).json.stories, [], "two facts from records: not yet a life");
   await w.ok(["event", "add", "P1", "RESI", "--place", "Týnec nad Labem", "--house", "12", ...cite]);
+  // First, once, the search beyond the registers; the story when it is finished.
+  const before = (await w.ok(["frontier", "--json"])).json.stories;
+  assert.equal(before.length, 1);
+  assert.equal(before[0].level, "enrich");
+  assert.equal(before[0].origin, "story:sources");
+  assert.match(before[0].what, /^Mimo matriky, pro vyprávění: Jan Novák .*noviny, adresáře/);
+  const search = (await w.ok(["frontier", "--apply", "--json"])).json.created.at(-1);
+  assert.equal((await w.ok(["frontier", "--json"])).json.stories.length, 0, "the story waits for the search");
+  assert.match((await w.ok(["brief", search])).out, /## Beyond the registers[\s\S]*Your person, not a namesake/);
+  await w.ok(["task", "done", search, "--result", "nic dalšího se nenašlo"]);
   const due = (await w.ok(["frontier", "--json"])).json.stories;
   assert.equal(due.length, 1);
   assert.equal(due[0].level, "narrate");
@@ -89,6 +99,35 @@ test("stories of the ancestors: on by default, proposed once records tell a life
   assert.equal((await w.ok(["frontier", "--json"])).json.stories.length, 0);
   assert.equal((await w.ok(["--json"])).json.stories, "off");
   w.cleanup();
+});
+
+test("the search beyond the registers before a story: the user may say no to it, or drop it — the story comes either way; the background on its sources", opts, async () => {
+  const w = await world();
+  await w.ok(["source", "add", "Křest Jana Nováka 1905", "--kind", "baptism", "--recordset", "B0001", "--locator", "fol. 45, č. 12", "--information", "primary"]);
+  const cite = ["--cite", "S0001", "--locator", "fol. 45, č. 12"];
+  for (const e of [["CHR", "--date", "25 JUN 1905", "--place", "Týnec nad Labem"], ["OCCU", "--value", "mlynář"], ["RESI", "--place", "Týnec nad Labem", "--house", "12"]]) await w.ok(["event", "add", "P1", ...e, ...cite]);
+  // dropped (the user's answer about the search, not about the story): the story is proposed
+  const search = (await w.ok(["frontier", "--apply", "--json"])).json.created.at(-1);
+  await w.ok(["task", "add", "Křest Josefa", "--level", "link", "--where", "B0001", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
+  const order = (await w.ok(["task", "list", "--json"])).json.tasks.map((t: any) => t.id);
+  assert.ok(order.indexOf(search) > order.indexOf("T0003"), `with the stories, after the research: ${order}`);
+  assert.match((await w.ok(["plan"])).out, /Potom vyprávění: 1 \(Jan Novák/);
+  await w.ok(["task", "drop", search, "--reason", "nechci"]);
+  assert.equal((await w.ok(["frontier", "--json"])).json.stories[0].level, "narrate");
+  // no search at all, the user's setting: the story at once
+  const w2 = await world();
+  await w2.ok(["config", "set", "stories.sources", "no"]);
+  await w2.ok(["source", "add", "Křest Jana Nováka 1905", "--kind", "baptism", "--recordset", "B0001", "--locator", "fol. 45, č. 12", "--information", "primary"]);
+  for (const e of [["CHR", "--date", "25 JUN 1905", "--place", "Týnec nad Labem"], ["OCCU", "--value", "mlynář"], ["RESI", "--place", "Týnec nad Labem", "--house", "12"]]) await w2.ok(["event", "add", "P1", ...e, ...cite]);
+  assert.equal((await w2.ok(["frontier", "--json"])).json.stories[0].level, "narrate");
+  // the background of place and time: only from a source recorded, named with --source
+  await w.ok(["source", "add", "Dějiny Týnce nad Labem", "--kind", "book", "--form", "authored", "--transcript", "Roku 1866 prošla městem pruská vojska."]);
+  fs.writeFileSync(path.join(w.cwd, "notes", "story-P1.md"), "Jan Novák byl mlynářem v Týnci nad Labem.\n");
+  assert.match((await w.run(["story", "set", "P1", "--text", "@notes/story-P1.md", "--source", "S0009"])).err, /no source S0009/);
+  await w.ok(["story", "set", "P1", "--text", "@notes/story-P1.md", "--source", "S0002"]);
+  assert.match((await w.ok(["story", "show", "P1"])).out, /the background of place and time from\n\s+S0002 Dějiny Týnce nad Labem/);
+  w.cleanup();
+  w2.cleanup();
 });
 
 test("a session: start prints the brief, close needs summary and the task settled", opts, async () => {

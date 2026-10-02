@@ -127,6 +127,11 @@ function checkStory(st: unknown, out: Problem[]): void {
   if (!str(s.text)) out.push({ path: "story.text", message: "is required" });
   if (s.status !== "draft" && s.status !== "final") out.push({ path: "story.status", message: "must be draft or final" });
   if (!Array.isArray(s.facts) || s.facts.some((f) => !EVENT_ID.test(String(f)))) out.push({ path: "story.facts", message: "must be a list of event IDs" });
+  if (s.draft === undefined) return;
+  if (!isObj(s.draft)) return void out.push({ path: "story.draft", message: "must be an object" });
+  if (s.status !== "final") out.push({ path: "story.draft", message: "only beside an approved story" });
+  if (!str(s.draft.text)) out.push({ path: "story.draft.text", message: "is required" });
+  if (!Array.isArray(s.draft.facts) || s.draft.facts.some((f) => !EVENT_ID.test(String(f)))) out.push({ path: "story.draft.facts", message: "must be a list of event IDs" });
 }
 
 function checkPerson(p: Partial<Person>, out: Problem[]): void {

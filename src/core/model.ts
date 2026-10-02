@@ -127,7 +127,25 @@ export interface Story {
   text: string;
   /** The facts it leans on (E…). */
   facts: string[];
+  /** The sources of the background of place and time it tells (S…): not facts of the person. */
+  sources?: string[];
   /** The author's caveat. */
+  note?: string;
+  at: string;
+  by: string;
+  /**
+   * A new version written after the user approved the story (the lock): it waits for them — approved, it takes the
+   * story's place; discarded, the approved one stays. The approved story is never rewritten in place.
+   */
+  draft?: StoryDraft;
+}
+
+/** A new version of an approved story, waiting for the user. */
+export interface StoryDraft {
+  title?: string;
+  text: string;
+  facts: string[];
+  sources?: string[];
   note?: string;
   at: string;
   by: string;

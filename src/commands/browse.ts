@@ -17,6 +17,7 @@ import { displayName } from "../core/people.ts";
 import { humanTask } from "../cli/human.ts";
 export { humanTask };
 import { lacksImages } from "../core/queue.ts";
+import { forStory } from "../core/stories.ts";
 import { rankedQueue, waitingForUser } from "./tasks.ts";
 
 /** Most rows a section of `recent` lists; the rest is counted. */
@@ -176,8 +177,9 @@ register(
       const count = positive(opts.count, "count", 10, 200);
       // The order of a conversation (the story's turn is only for working alone).
       const queue = rankedQueue(tree, { strategy: ctx.settings.strategy(tree.config) }).map((r) => r.task);
-      const work = queue.filter((t) => t.level !== "narrate");
-      const stories = queue.filter((t) => t.level === "narrate");
+      // the stories, with the searches beyond the registers before them
+      const work = queue.filter((t) => !forStory(t));
+      const stories = queue.filter(forStory);
       const waiting = waitingForUser(tree).length;
       const shown = work.slice(0, count);
       let n = 0;

@@ -9,7 +9,12 @@ import { subMenu, translator, type Item, type Run } from "./menu-parts.ts";
 import { offerChat } from "./menu-research.ts";
 import { truncate } from "./format.ts";
 import { Tree } from "../core/tree.ts";
-import type { RecordSet, Task } from "../core/model.ts";
+import type { Family, Person, RecordSet, Task } from "../core/model.ts";
+import { storiesToApprove } from "../core/stories.ts";
+import { displayName, lifespan } from "../core/people.ts";
+
+/** A person for the person reading: "Jan Novák (*1905) [P0001]". */
+const label = (p: Person) => `${displayName(p)}${lifespan(p) ? ` (${lifespan(p)})` : ""} [${p.id}]`;
 import { openForUser } from "../core/open.ts";
 
 /** At most this many are listed to answer (the menu's nine); the rest after them. */
@@ -68,24 +73,74 @@ export async function waitingTask(ctx: Context, run: Run, lang: string, root: st
   return true;
 }
 
+/** Whose story it is, for the person: "Jan Novák (*1905) [P0001]", a couple by both. */
+function storyOf(tree: Tree, id: string): string {
+  const r = tree.get<Person | Family>(id);
+  if (r?.type === "person") return label(r);
+  if (r?.type === "family")
+    return r.partners
+      .map((p) => tree.get<Person>(p))
+      .filter((p): p is Person => !!p)
+      .map(label)
+      .join(" & ");
+  return id;
+}
+
+/**
+ * The new version of a story the person approved before (the lock): read, then it takes the old one's place, or the
+ * old one stays. `how` (a link of the Strom app): what was asked for there — still asked here, with the text before it.
+ */
+export async function decideStory(ctx: Context, run: Run, lang: string, root: string, id: string, who: string, how?: "final" | "keep"): Promise<boolean> {
+  const t = translator(lang);
+  const out = (line: string) => ctx.io.stdout(line + "\n");
+  const draft = Tree.open(root, ctx.env).get<Person | Family>(id)?.story?.draft;
+  if (!draft) {
+    out(t("ui.waiting.gone"));
+    return false;
+  }
+  out("");
+  out(t("ui.story.new.title", { who, day: draft.at.slice(0, 10) }));
+  out("");
+  if (draft.title) out(`„${draft.title}“`);
+  out(draft.text.replace(/\*\*/g, ""));
+  if (draft.note) out(`\n(${draft.note})`);
+  const i = await ctx.choose(t("ui.story.new.pick"), [{ label: t("ui.story.new.take") }, { label: t("ui.story.new.keep") }], how === "keep" ? 1 : 0, { back: t("ui.browse.back") });
+  if (i === undefined) return false;
+  if ((await run(["story", i === 0 ? "approve" : "discard", id], true)) !== 0) return false;
+  out(t(i === 0 ? "ui.story.new.taken" : "ui.story.new.kept"));
+  return true;
+}
+
 export async function waitingForYou(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
   const t = translator(lang);
   await subMenu(ctx, lang, () => {
     const tree = Tree.open(root, ctx.env);
     const waiting = tree.list<Task>("task").filter((x) => x.state === "waiting");
-    if (!waiting.length) return { title: t("ui.waiting.none"), items: [] };
+    const stories = storiesToApprove(tree);
+    if (!waiting.length && !stories.length) return { title: t("ui.waiting.none"), items: [] };
+    // the tasks first, then the stories: at most the menu's nine together
     const shown = waiting.slice(0, SHOWN);
-    const text: string[] = [t("ui.waiting.title", { n: waiting.length })];
+    const shownStories = stories.slice(0, SHOWN - shown.length);
+    const text: string[] = [t("ui.waiting.title", { n: waiting.length + stories.length })];
     for (const [k, x] of shown.entries()) {
       text.push("", ` ${k + 1}. ${x.what}`, ...whatToDo(ctx, lang, tree, x));
     }
+    for (const [k, s] of shownStories.entries()) text.push("", ` ${shown.length + k + 1}. ${t("ui.waiting.story", { who: storyOf(tree, s.id) })}`);
     if (shown.some((x) => x.awaits)) text.push("", t("ui.wait.how1"), t("ui.wait.how2"));
-    if (waiting.length > SHOWN) text.push("", t("ui.waiting.more", { n: waiting.length - SHOWN }));
-    const items: Item[] = shown.map((x, k) => ({
-      key: String(k + 1),
-      label: x.awaits ? t("ui.waiting.folder", { k: k + 1 }) : t("ui.waiting.answer", { k: k + 1, what: truncate(x.what, 60) }),
-      act: () => takeUp(ctx, run, lang, root, x),
-    }));
-    return { title: `${text.join("\n")}\n\n${t("ui.waiting.pick")}`, items };
+    const hidden = waiting.length + stories.length - shown.length - shownStories.length;
+    if (hidden > 0) text.push("", t("ui.waiting.more", { n: hidden }));
+    const items: Item[] = [
+      ...shown.map((x, k) => ({
+        key: String(k + 1),
+        label: x.awaits ? t("ui.waiting.folder", { k: k + 1 }) : t("ui.waiting.answer", { k: k + 1, what: truncate(x.what, 60) }),
+        act: () => takeUp(ctx, run, lang, root, x),
+      })),
+      ...shownStories.map((s, k) => ({
+        key: String(shown.length + k + 1),
+        label: t("ui.waiting.story.read", { k: shown.length + k + 1, who: storyOf(tree, s.id) }),
+        act: async () => void (await decideStory(ctx, run, lang, root, s.id, storyOf(tree, s.id))),
+      })),
+    ];
+    return { title: `${text.join("\n")}\n\n${t(shown.length ? "ui.waiting.pick" : "ui.waiting.pick.story")}`, items };
   });
 }

@@ -28,7 +28,9 @@ import {
   RECORD_TYPES,
   type AnyRecord,
   type RecordType,
+  type Source,
   type Story,
+  type StoryDraft,
 } from "./model.ts";
 import { displayName, familiesAsChild, familiesAsPartner, gedcomName, isBirthFamily, notAName, parseName, primaryName, sameName, slashInName } from "./people.ts";
 import { foldText } from "./text.ts";
@@ -659,7 +661,8 @@ export interface EventEdit {
  */
 export function editEvent(tree: Tree, eventId: string, edit: EventEdit, reason?: string): Event {
   const date = edit.date === undefined ? undefined : parseDate(edit.date);
-  const age = edit.age === undefined ? undefined : parseAge(edit.age);
+  // an empty age takes it away
+  const age = edit.age === undefined ? undefined : edit.age.trim() ? parseAge(edit.age) : "";
   const ages = edit.ages ? Object.fromEntries(Object.entries(edit.ages).map(([who, a]) => [who, parseAge(a, who)])) : undefined;
   return replaceEvent(tree, eventId, (e) => {
     const changed: string[] = [];
@@ -876,42 +879,77 @@ export interface StoryInput {
   text: string;
   title?: string | undefined;
   facts?: string[] | undefined;
+  /** The sources of the background of place and time (S…). */
+  sources?: string[] | undefined;
   note?: string | undefined;
   final?: boolean | undefined;
 }
 
-/** Write (or rewrite) the story of a person or a couple. The facts it leans on must exist. */
+/**
+ * Write (or rewrite) the story of a person or a couple. The facts it leans on must exist. A story the user approved is
+ * locked: written again, the new version waits beside it for their approval (story.draft) — unless they approve it now
+ * (final).
+ */
 export function setStory(tree: Tree, id: string, input: StoryInput): Person | Family {
   const text = input.text.replace(/\r\n?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (!text) throw new UsageError("the story is empty");
   const facts = [...new Set((input.facts ?? []).map((f) => f.trim().toUpperCase()))];
   for (const f of facts) findEventOwner(tree, f);
+  const sources = [...new Set((input.sources ?? []).map((s) => s.trim().toUpperCase()))];
+  for (const s of sources) if (tree.get<Source>(s)?.type !== "source") throw new UsageError(`no source ${s}`, { hint: "the background of place and time is recorded first: strom source add … --kind book|newspaper|web" });
   return tree.withTreeLock(() => {
     const rec = tree.get<Person | Family>(id);
     if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`);
     if (rec.mergedInto) throw new UsageError(`${id} was merged into ${rec.mergedInto}`);
-    const story: Story = {
+    const version: StoryDraft = {
       ...(input.title?.trim() ? { title: input.title.trim() } : {}),
-      status: input.final ? "final" : "draft",
       text,
       facts,
+      ...(sources.length ? { sources } : {}),
       ...(input.note?.trim() ? { note: input.note.trim() } : {}),
       at: now(),
       by: tree.actor,
     };
-    const updated = { ...rec, story, updated: now() } as Person | Family;
     const words = text.split(/\s+/).length;
+    if (rec.story?.status === "final" && !input.final) {
+      const updated = { ...rec, story: { ...rec.story, draft: version }, updated: now() } as Person | Family;
+      tree.put(updated, { op: "story.set", targets: [id], summary: `${id} story: a new version (${words} words) waits for the user's approval; the approved one stays` });
+      return updated;
+    }
+    const story: Story = { ...version, status: input.final ? "final" : "draft" };
+    const updated = { ...rec, story, updated: now() } as Person | Family;
     tree.put(updated, { op: "story.set", targets: [id], summary: `${id} story${rec.story ? " rewritten" : ""}: ${words} words, ${story.status}` });
     return updated;
   });
 }
 
-/** The user approved the story as it is: no longer a draft (the text stays). */
+/** The new version of an approved story is not wanted: it goes, the approved story stays (the history keeps it). */
+export function discardStoryDraft(tree: Tree, id: string): Person | Family {
+  return tree.withTreeLock(() => {
+    const rec = tree.get<Person | Family>(id);
+    if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`);
+    if (!rec.story?.draft) throw new UsageError(`${id} has no new version of its story waiting`, { hint: `strom story show ${id}` });
+    const { draft: _gone, ...story } = rec.story;
+    const updated = { ...rec, story, updated: now() } as Person | Family;
+    tree.put(updated, { op: "story.discard", targets: [id], summary: `${id} story: the new version discarded, the approved one stays` });
+    return updated;
+  });
+}
+
+/**
+ * The user approved the story as it is: no longer a draft (the text stays), locked — or, when a new version waits
+ * beside an approved one, that new version takes its place, approved.
+ */
 export function approveStory(tree: Tree, id: string): Person | Family {
   return tree.withTreeLock(() => {
     const rec = tree.get<Person | Family>(id);
     if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`);
     if (!rec.story) throw new UsageError(`${id} has no story yet`, { hint: `strom story set ${id} --text @file --fact E…` });
+    if (rec.story.draft) {
+      const updated = { ...rec, story: { ...rec.story.draft, status: "final" as const }, updated: now() } as Person | Family;
+      tree.put(updated, { op: "story.approve", targets: [id], summary: `${id} story: the new version approved, in place of the old one` });
+      return updated;
+    }
     if (rec.story.status === "final") return rec;
     const updated = { ...rec, story: { ...rec.story, status: "final" as const }, updated: now() } as Person | Family;
     tree.put(updated, { op: "story.approve", targets: [id], summary: `${id} story approved` });

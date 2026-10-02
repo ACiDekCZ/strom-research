@@ -10,7 +10,7 @@ import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
-import { appShowsEdges, APP_SHOWS_EDGES } from "../../src/core/stromapp.ts";
+import { appShowsEdges, APP_SHOWS_EDGES, appShowsStoryDrafts, APP_SHOWS_STORY_DRAFTS } from "../../src/core/stromapp.ts";
 import { Settings } from "../../src/core/config.ts";
 
 const opts = { skip: !hasGit };
@@ -126,6 +126,12 @@ test("edge: the Strom app gets them from the version that shows them — its bet
   assert.equal(appShowsEdges(at(), "3.5.0"), false);
   assert.equal(appShowsEdges(at(), "3.6.0"), true);
   assert.equal(appShowsEdges(at()), true, "an unknown version: today's");
+  // the new version of an approved story beside it: from the app's 3.7.0
+  assert.equal(APP_SHOWS_STORY_DRAFTS, "3.7.0");
+  assert.equal(appShowsStoryDrafts(at(), "3.6.0"), false);
+  assert.equal(appShowsStoryDrafts(at(), "3.7.0"), true);
+  assert.equal(appShowsStoryDrafts(at()), true, "an unknown version: today's");
+  assert.equal(appShowsStoryDrafts(at("https://beta.stromapp.info/run/"), "3.6.0"), true);
   w.cleanup();
 });
 

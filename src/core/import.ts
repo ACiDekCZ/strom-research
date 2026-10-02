@@ -56,7 +56,49 @@ export function importDate(raw: string | undefined): string | undefined {
     .replace(/^(AFTER|>)\s*/, "AFT ")
     .replace(/\?$/, "")
     .trim();
-  return normalizeDate(cleaned);
+  return normalizeDate(cleaned) ?? localDate(raw);
+}
+
+// Words other programs write in place of GEDCOM's ("Po 1919", "kolem 1850", "zwischen 1811 und 1812",
+// "около 1870"), folded: Czech, Slovak, German, Polish, Russian, Ukrainian, English.
+const DATE_QUALIFIER: Record<string, "AFT" | "BEF" | "ABT"> = {
+  ...Object.fromEntries(["after", "po", "nach", "после", "після"].map((w) => [w, "AFT"])),
+  ...Object.fromEntries(["before", "pred", "vor", "przed", "do", "bis", "до"].map((w) => [w, "BEF"])),
+  ...Object.fromEntries(
+    ["about", "circa", "ca", "c", "cca", "kolem", "okolo", "asi", "zhruba", "priblizne", "um", "etwa", "ungefahr", "ok", "около", "близько", "приблизно"].map((w) => [w, "ABT"]),
+  ),
+};
+const DATE_RANGE: Record<string, "BET" | "FROM"> = {
+  ...Object.fromEntries(["between", "mezi", "medzi", "miedzy", "pomiedzy", "zwischen", "между", "між"].map((w) => [w, "BET"])),
+  ...Object.fromEntries(["from", "od", "von", "ab", "с", "з", "від"].map((w) => [w, "FROM"])),
+};
+const DATE_JOIN = new Set(["and", "a", "i", "und", "и", "і", "та", "to", "do", "bis", "по", "до"]);
+/** "po roce 1919", "im Jahr 1850", "1870 г.": words around the year that say nothing. */
+const DATE_FILLER = new Set(["r", "roku", "roce", "rokem", "rok", "im", "jahr", "jahre", "year", "the", "г", "года", "году", "року", "рік"]);
+
+/** A date written in words of a language ("Po 1919" → "AFT 1919"); undefined when it is not one. */
+function localDate(raw: string): string | undefined {
+  const words = foldText(raw)
+    .split(" ")
+    .map((w) => w.replace(/[.,]+$/u, ""))
+    .filter((w) => w && !DATE_FILLER.has(w));
+  const plain = (part: string[]): string | undefined => {
+    const d = part.length ? normalizeDate(part.join(" ")) : undefined;
+    return d && !/^(ABT|CAL|EST|BEF|AFT|BET|FROM|TO) /.test(d) ? d : undefined;
+  };
+  const first = words[0] ?? "";
+  const range = DATE_RANGE[first];
+  if (range) {
+    const j = words.findIndex((w, i) => i > 1 && DATE_JOIN.has(w));
+    const a = plain(j > 0 ? words.slice(1, j) : words.slice(1));
+    const b = j > 0 ? plain(words.slice(j + 1)) : undefined;
+    if (!a) return undefined;
+    if (range === "BET") return b ? `BET ${a} AND ${b}` : undefined;
+    return j > 0 ? (b ? `FROM ${a} TO ${b}` : undefined) : `FROM ${a}`;
+  }
+  const q = DATE_QUALIFIER[first];
+  const d = q ? plain(words.slice(1)) : undefined;
+  return q && d ? `${q} ${d}` : undefined;
 }
 
 function makeSource(tree: Tree, title: string, input: string): Source {
@@ -419,6 +461,12 @@ export function isStromJson(data: unknown): data is { persons: Record<string, St
 /** Strom flexible date ("~1900", "<1900-05", "1900-05-03") → GEDCOM. */
 export function fromFlexDate(flex: string | undefined): string | undefined {
   if (!flex) return undefined;
+  // a range ("1785..1804"): between the two
+  const range = /^(.+?)\.\.(.+)$/.exec(flex.trim());
+  if (range) {
+    const [a, b] = [fromFlexDate(range[1]), fromFlexDate(range[2])];
+    return a && b && !/^(ABT|BEF|AFT|BET|FROM|TO) /.test(a) && !/^(ABT|BEF|AFT|BET|FROM|TO) /.test(b) ? normalizeDate(`BET ${a} AND ${b}`) : undefined;
+  }
   const m = /^([~<>])?(\d{3,4})(?:-(\d{2}))?(?:-(\d{2}))?$/.exec(flex.trim());
   if (!m) return importDate(flex);
   const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
@@ -507,7 +555,7 @@ export function importStromJson(
 }
 
 /** "čp. 13", "č. p. 13", "Nr. 13", "House No. 13" → "13": the house, without the word for it. */
-function houseOf(address: string): string {
+export function houseOf(address: string): string {
   return address
     .replace(/\s+/g, " ")
     .trim()

@@ -12,7 +12,7 @@ import { directionTasks, offerChat, setDirection } from "./menu-research.ts";
 import { humanCost, humanDay, humanTask } from "./human.ts";
 import { lines, truncate } from "./format.ts";
 import { Tree } from "../core/tree.ts";
-import type { Conflict, Person, Research, Session, Source, Task } from "../core/model.ts";
+import type { Conflict, Family, Person, Research, Session, Source, Task } from "../core/model.ts";
 import { monthSpend } from "../core/session.ts";
 import { adoptFailedSince, adoptedSince, awaitAdoption, nothingSince, type SyncInput } from "../core/sync.ts";
 import { startLive } from "../core/live.ts";
@@ -138,17 +138,35 @@ export async function decideConflict(ctx: Context, run: Run, lang: string, root:
   return true;
 }
 
-/** A story the person read and approves: no longer a draft. */
-export async function approveStory(ctx: Context, run: Run, lang: string, root: string, person: Person, who: string): Promise<boolean> {
+/**
+ * A story the person read and approves: no longer a draft, locked. Beside an approved one, its new version: read and
+ * approved in its place, or not wanted (keep: the approved one stays) — as the menu's "What waits for you".
+ */
+export async function approveStory(ctx: Context, run: Run, lang: string, root: string, person: Person | Family, who: string, how: "final" | "keep" = "final"): Promise<boolean> {
   const t = translator(lang);
   const st = person.story;
   if (!st) return stop(ctx, t("ui.link.story.none", { person: who }));
+  if (st.draft) {
+    const { decideStory } = await import("./menu-waiting.ts");
+    return decideStory(ctx, run, lang, root, person.id, who, how);
+  }
+  if (how === "keep") return stop(ctx, t("ui.link.story.nonew", { person: who }));
   if (st.status === "final") return stop(ctx, t("ui.link.story.final", { person: who }));
   out(ctx, lines(st.title ? `„${st.title}“` : undefined, "", st.text.replace(/\*\*/g, ""), ""));
   if (!(await asks(ctx, lang, root, t("ui.link.what.story", { person: who })))) return false;
   if ((await run(["story", "approve", person.id], true)) !== 0) return false;
   out(ctx, t("ui.link.story.done"));
   return true;
+}
+
+/**
+ * The family whose story a link of the Strom app means by its two partners (the app knows no family IDs): of several,
+ * the one with a new version waiting, then one with a story, then the first.
+ */
+export function coupleStory(tree: Tree, a: string, b: string): Family | undefined {
+  if (a === b) return undefined;
+  const theirs = tree.list<Family>("family").filter((f) => !f.retracted && f.partners.includes(a) && f.partners.includes(b));
+  return theirs.find((f) => f.story?.draft) ?? theirs.find((f) => f.story) ?? theirs[0];
 }
 
 /** What the research took from the Strom app, taken back on the person's word. */

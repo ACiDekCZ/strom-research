@@ -190,9 +190,9 @@ test("a house number is the house, not the place: its own field, ADDR in the GED
   const strict = fs.readFileSync(path.join(w.cwd, "output", "tree.ged"), "utf8");
   assert.match(strict, /1 CHR\n2 DATE 1885\n2 PLAC Vavřinec\n(?:3 .*\n)*2 ADDR (čp\.|House No\.) 13\n3 CITY Vavřinec\n/);
   assert.deepEqual(validateGedcom(strict, { strict: true }).filter((f) => f.level === "error"), []);
-  // for Strom: the value on the ADDR line, no CITY; and in the note until Strom reads ADDR
+  // for Strom: the value on the ADDR line, no CITY; Strom reads ADDR, so not in the note too
   const ged = fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
   assert.match(ged, /2 ADDR (čp\.|House No\.) 13\n(?!3 CITY)/);
-  assert.match(ged, /2 NOTE (čp\.|House No\.) 13/);
+  assert.doesNotMatch(ged, /2 NOTE (čp\.|House No\.) 13/);
   w.cleanup();
 });

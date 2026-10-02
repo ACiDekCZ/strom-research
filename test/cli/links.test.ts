@@ -67,6 +67,7 @@ test("a link is checked part by part: the action, the research's id, the source,
   bad(`strom-research://conflict?tree=${ID}&id=C0007`, /no id named/);
   assert.deepEqual(parseLink(`strom-research://story?tree=${ID}&person=P0012&do=final`), { action: "story", tree: ID, person: "P0012", do: "final" });
   bad(`strom-research://story?tree=${ID}&person=P0012`, /unknown do/);
+  assert.deepEqual(parseLink(`strom-research://story?tree=${ID}&person=P0012&do=keep`), { action: "story", tree: ID, person: "P0012", do: "keep" });
   assert.deepEqual(parseLink(`strom-research://sync-undo?tree=${ID}&intake=I0042`), { action: "sync-undo", tree: ID, intake: "I0042" });
   bad(`strom-research://sync-undo?tree=${ID}&intake=S0042`, /no intake named/);
   for (const a of ["update", "sessions", "setup"]) assert.deepEqual(parseLink(`strom-research://${a}?tree=${ID}`), { action: a, tree: ID });
@@ -246,6 +247,10 @@ test("the bridge says which links work here (none unless registered) and serves 
   await w.ok(["task", "wait", "T0001", "--on", "Poslat odkaz na knihu."]);
   await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"]);
   await w.ok(["task", "add", "Sňatek", "--level", "locate", "--where", "matriky farnosti", "--why", "rodina", "--done-when", "zápis", "--about", "P0001", "--about", "P0002"]);
+  // a new version of a couple's approved story waits too, as the menu counts it
+  await w.ok(["family", "add", "--partner", "P0001", "--partner", "P0002"]);
+  await w.ok(["story", "set", "F0001", "--text", "Jan a Marie se vzali.", "--fact", "E0001", "--final"]);
+  await w.ok(["story", "set", "F0001", "--text", "Jan a Marie se vzali v Týnci.", "--fact", "E0001"]);
   const info = (await w.ok(["live", "start", "--json"])).json;
   try {
     const status = (await (await fetch(`${info.url}/status`)).json()) as { links: string[]; waiting: { id: string; at: string; person?: string }[]; queue: { id: string; person?: string }[] };
@@ -255,6 +260,9 @@ test("the bridge says which links work here (none unless registered) and serves 
     assert.ok(Date.now() - Date.parse(status.waiting[0]!.at) < 60_000, status.waiting[0]?.at);
     // the one person a task is about, for the app's badge on them; about two: none
     assert.equal(status.waiting[0]?.person, "P0001");
+    const story = status.waiting.find((x) => (x as { kind?: string }).kind === "story") as Record<string, string> | undefined;
+    assert.deepEqual(story && { id: story.id, person: story.person, partner: story.partner }, { id: "F0001", person: "P0001", partner: "P0002" }, JSON.stringify(status.waiting));
+    assert.match(story!.what ?? "", /Nová verze vyprávění o Jan Novák & Marie Nováková/);
     const both = status.queue.find((q) => q.id === "T0002");
     assert.ok(both && !("person" in both), JSON.stringify(status.queue));
     // when the research last changed: the time of its last commit
@@ -446,6 +454,26 @@ test("the second wave in the research's terminal: a task put aside, given up and
   assert.match(story.out, /Jan se narodil v Týnci\.\n\nAplikace Strom žádá: schválit vyprávění osoby Jan Novák \(\*1865\) \[P0001\], jak je/);
   assert.equal((await w.ok(["story", "show", "P0001", "--json"])).json.story.status, "final");
   assert.match((await open("story", "&person=P0001&do=final", [""])).out, /už je schválené/);
+  // locked: written again, the new version waits — the app asks to keep the old one, or to take the new one
+  await w.ok(["story", "set", "P0001", "--text", "Jan se narodil v Týnci nad Labem.", "--fact", "E0001"]);
+  const keep = await open("story", "&person=P0001&do=keep", [""]);
+  assert.match(keep.out, /Nová verze vyprávění o Jan Novák \(\*1865\) \[P0001\] \(\d{4}-\d{2}-\d{2}\) – schválené zůstává, dokud nerozhodnete:\n\nJan se narodil v Týnci nad Labem\./);
+  assert.match(keep.out, /✓ Schválené vyprávění zůstává/);
+  assert.equal((await w.ok(["story", "show", "P0001", "--json"])).json.story.text, "Jan se narodil v Týnci.");
+  await w.ok(["story", "set", "P0001", "--text", "Jan se narodil v Týnci nad Labem.", "--fact", "E0001"]);
+  assert.match((await open("story", "&person=P0001&do=final", [""])).out, /✓ Vyprávěním je teď nová verze, schválená/);
+  assert.equal((await w.ok(["story", "show", "P0001", "--json"])).json.story.text, "Jan se narodil v Týnci nad Labem.");
+  assert.match((await open("story", "&person=P0001&do=keep", [""])).out, /Žádná nová verze vyprávění o Jan Novák \(\*1865\) \[P0001\] nečeká/);
+  // a couple's story: the app names the two partners (it knows no family IDs)
+  const anna = (await w.ok(["person", "add", "Anna /Svobodová/", "--sex", "F", "--json"])).json.person.id;
+  const fam = (await w.ok(["family", "add", "--partner", "P0001", "--partner", anna, "--json"])).json.family.id;
+  await w.ok(["story", "set", fam, "--text", "Jan a Anna se vzali.", "--fact", "E0001", "--final"]);
+  await w.ok(["story", "set", fam, "--text", "Jan a Anna se vzali v Týnci.", "--fact", "E0001"]);
+  const couple = await open("story", `&person=${anna}&partner=P0001&do=final`, [""]);
+  assert.match(couple.out, /Nová verze vyprávění o Anna Svobodová[^\n]* & Jan Novák[\s\S]*Jan a Anna se vzali v Týnci\.[\s\S]*✓ Vyprávěním je teď nová verze, schválená/);
+  assert.equal((await w.ok(["story", "show", fam, "--json"])).json.story.text, "Jan a Anna se vzali v Týnci.");
+  assert.match((await open("story", `&person=${anna}&partner=P0001&do=keep`, [""])).out, /Žádná nová verze vyprávění o Anna Svobodová[^\n]* & Jan Novák[^\n]* nečeká/);
+  assert.match((await open("story", "&person=P0001&partner=P0001&do=final", [""])).out, /nejsou ve výzkumu pár/);
 
   assert.match((await open("sessions", "", [""])).out, /Sezení agenta – Novákovi\n {2}Agent na tomto výzkumu zatím nepracoval\./);
   assert.match((await open("sync-undo", "&intake=I0042", [""])).out, /I0042 není v tomto výzkumu poslání z aplikace Strom/);

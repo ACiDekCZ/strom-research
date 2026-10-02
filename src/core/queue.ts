@@ -18,6 +18,7 @@ import { now, type Tree } from "./tree.ts";
 import { subjectPeople } from "./records.ts";
 import { directionOf, scopes } from "./directions.ts";
 import { offTree } from "./kin.ts";
+import { forStory } from "./stories.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
 
@@ -106,7 +107,10 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     return t ? (place(t)?.line ?? `task:${t.id}`) : undefined;
   });
   // A story's turn: STORY_EVERY sessions since the last one on a story (or ever), and one waits.
-  const sinceStory = ended.findIndex((s) => tasksById.get(s.task!)?.level === "narrate");
+  const sinceStory = ended.findIndex((s) => {
+    const t = tasksById.get(s.task!);
+    return !!t && forStory(t);
+  });
   const storyDue = !!opts.storyTurn && strategy !== "priority" && (sinceStory === -1 ? ended.length : sinceStory) >= STORY_EVERY;
   const tries = new Map<string, number>();
   for (const s of ended) tries.set(s.task!, (tries.get(s.task!) ?? 0) + 1);
@@ -125,7 +129,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
           ? 0
           : 2 * t.priority + intake - (gen - 1) - 2 * recent - 1.5 * tried;
     const blocked = lacksImages(tree, t, withImages);
-    const storyTurn = storyDue && t.level === "narrate";
+    const storyTurn = storyDue && forStory(t);
     const why = [
       t.state === "doing" ? "in progress" : undefined,
       storyTurn ? `a story's turn: none in the last ${STORY_EVERY} sessions` : undefined,
@@ -137,7 +141,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     ]
       .filter(Boolean)
       .join(" · ");
-    return { task: t, why, doing: t.state === "doing" ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : t.level === "narrate" ? 2 : 1, score, gen };
+    return { task: t, why, doing: t.state === "doing" ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen };
   });
   return rows
     .sort(

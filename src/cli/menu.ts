@@ -39,6 +39,7 @@ import { mainPerson } from "../core/kin.ts";
 import { AGENTS, findAgent } from "../core/which.ts";
 import { agentsHere } from "../core/apps.ts";
 import { PROFILES } from "../agents/profiles.ts";
+import { forStory, storiesToApprove } from "../core/stories.ts";
 
 
 /** Create a family tree and say so in the user's words (init itself talks to agents). */
@@ -100,7 +101,8 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
     const newer = await newerVersion(ctx.settings, ctx.env);
     if (root) {
       const tree = Tree.open(root, ctx.env);
-      const waiting = waitingForUser(tree).length;
+      // the tasks that wait for the person, and the new versions of the stories they approved
+      const waiting = waitingForUser(tree).length + storiesToApprove(tree).length;
       const started = tree.list<Research>("research").length > 0;
       out(t("ui.menu.tree", { name: tree.config.name, persons: tree.count("person") }));
       // No agent yet (none installed, or not the one chosen): the research waits for it, and item 1 gets one.
@@ -154,7 +156,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
             if (shown.length) {
               out(t("ui.run.next"));
               for (const [k, x] of shown.entries())
-                out(`  ${String(k + 1).padStart(2)}. ${truncate(humanTask(fresh, x.what, lang), 100)}${x.level === "narrate" ? t("ui.run.story") : ""}${lacksImages(fresh, x) ? t("ui.plan.images") : ""}`);
+                out(`  ${String(k + 1).padStart(2)}. ${truncate(humanTask(fresh, x.what, lang), 100)}${forStory(x) ? t("ui.run.story") : ""}${lacksImages(fresh, x) ? t("ui.plan.images") : ""}`);
               if (queue.length > shown.length) out(`      ${t("ui.plan.more", { n: queue.length - shown.length })}`);
             }
             out(t("ui.run.limit", { minutes: ctx.settings.number("run.minutes", fresh.config, DEFAULT_RUN_MINUTES) }));

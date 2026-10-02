@@ -57,9 +57,25 @@ test("dates written by other programs", () => {
   assert.equal(importDate("c. 1840"), "ABT 1840");
   assert.equal(importDate("1905?"), "1905");
   assert.equal(importDate("po válce"), undefined);
+  // the words of a language in place of GEDCOM's, also decomposed and in Cyrillic
+  assert.equal(importDate("Po 1919"), "AFT 1919");
+  assert.equal(importDate("po roce 1919"), "AFT 1919");
+  assert.equal(importDate("Před 3 MAR 1850".normalize("NFD")), "BEF 3 MAR 1850");
+  assert.equal(importDate("kolem r. 1850"), "ABT 1850");
+  assert.equal(importDate("około 1870"), "ABT 1870");
+  assert.equal(importDate("около 1870 г."), "ABT 1870");
+  assert.equal(importDate("zwischen 1811 und 1812"), "BET 1811 AND 1812");
+  assert.equal(importDate("mezi 1811 a 1812"), "BET 1811 AND 1812");
+  assert.equal(importDate("od 1839 do 1845"), "FROM 1839 TO 1845");
+  assert.equal(importDate("von 1839"), "FROM 1839");
+  assert.equal(importDate("mezi 1811"), undefined);
+  assert.equal(importDate("po ABT 1919"), undefined);
   assert.equal(fromFlexDate("~1872"), "ABT 1872");
   assert.equal(fromFlexDate("<1900-05"), "BEF MAY 1900");
   assert.equal(fromFlexDate("1900-05-03"), "3 MAY 1900");
+  assert.equal(fromFlexDate("1785..1804"), "BET 1785 AND 1804");
+  assert.equal(fromFlexDate("1900-05..1901"), "BET MAY 1900 AND 1901");
+  assert.equal(fromFlexDate("~1785..1804"), undefined);
 });
 
 test("intake a folder: every file an input, one task for the folder; hidden files skipped; duplicates skipped", opts, async () => {
