@@ -162,6 +162,38 @@ export function rotate(img: RawImage, degrees: 90 | 180 | 270): RawImage {
   return { width: nw, height: nh, channels: c, data: out };
 }
 
+/** A picture as it is shown: turned and mirrored by its EXIF orientation (2–8), as a viewer does; 1 or none: as it is. */
+export function upright(img: RawImage, orient: number | undefined): RawImage {
+  if (!orient || orient < 2 || orient > 8) return img;
+  const { width: w, height: h, channels: c } = img;
+  const across = orient >= 5;
+  const nw = across ? h : w;
+  const nh = across ? w : h;
+  // where each shown pixel lies in the file
+  type At = (x: number, y: number) => [number, number];
+  const ways: At[] = [
+    (x, y) => [x, y],
+    (x, y) => [x, y],
+    (x, y) => [w - 1 - x, y],
+    (x, y) => [w - 1 - x, h - 1 - y],
+    (x, y) => [x, h - 1 - y],
+    (x, y) => [y, x],
+    (x, y) => [y, h - 1 - x],
+    (x, y) => [w - 1 - y, h - 1 - x],
+    (x, y) => [w - 1 - y, x],
+  ];
+  const from = ways[orient]!;
+  const out = new Uint8Array(img.data.length);
+  for (let y = 0; y < nh; y++)
+    for (let x = 0; x < nw; x++) {
+      const [sx, sy] = from(x, y);
+      const s = (sy * w + sx) * c;
+      const d = (y * nw + x) * c;
+      for (let k = 0; k < c; k++) out[d + k] = img.data[s + k]!;
+    }
+  return { width: nw, height: nh, channels: c, data: out };
+}
+
 /** 3×5 pixel digits for grid labels. */
 const DIGITS = ["111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001", "111100111001111", "111100111101111", "111001001001001", "111101111101111", "111101111001111"];
 

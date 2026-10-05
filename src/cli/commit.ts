@@ -4,6 +4,7 @@
 import { hasErrors } from "../core/check.ts";
 import { guard } from "../core/guard.ts";
 import { snapshot, verifyFast } from "../core/integrity.ts";
+import { isArchive } from "../core/mode.ts";
 import type { Context } from "./context.ts";
 import type { CommandDef } from "./registry.ts";
 
@@ -44,7 +45,10 @@ export function autoCommit(ctx: Context, def: CommandDef): NotCommitted | undefi
   const written = new Set<string>(["data/_counters.json"]);
   for (const op of tree.written) for (const f of op.files) written.add(f.path);
   for (const f of tree.opsFilesTouched()) written.add(f);
-  tree.withTreeLock(() => tree.commit(message, [...written, "notes", "tools", "inputs", "output"]));
+  // an archive: no agent edits its free-form folders — a person's own file in notes/ is theirs, never swept into a
+  // commit of something else (found on Windows: strom mode committed a file of the user's) — nor by the switch itself
+  const free = isArchive(tree) || def.path[0] === "mode" ? ["inputs", "output"] : ["notes", "tools", "inputs", "output"];
+  tree.withTreeLock(() => tree.commit(message, [...written, ...free]));
   tree.settle();
   return undefined;
 }

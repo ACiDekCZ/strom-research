@@ -8,14 +8,14 @@ import { canonicalize, stringifyCanonical, writeJson, readJson } from "../../src
 import { detectLang, normalizeLang } from "../../src/core/lang.ts";
 import { Settings } from "../../src/core/config.ts";
 import { configDir, defaultHome, displayPath, expandHome } from "../../src/core/paths.ts";
-import { gedcomName, parseName, slashInName } from "../../src/core/people.ts";
+import { conflictTitle, gedcomName, parseName, slashInName } from "../../src/core/people.ts";
 import { foldText, safeFolderName } from "../../src/core/text.ts";
 import { acquireLock } from "../../src/core/lock.ts";
 import { LockedError } from "../../src/core/errors.ts";
 import { signOp, verifyOp } from "../../src/core/seal.ts";
 import { eventKind } from "../../src/core/model.ts";
 import { VERSION } from "../../src/core/tree.ts";
-import { gitProgram, resetCache } from "../../src/core/git.ts";
+import { appleGit, gitProgram, resetCache } from "../../src/core/git.ts";
 
 test("git is found where it is: STROM_GIT, PATH, or where Git for Windows put it (a PATH not updated yet)", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom git "));
@@ -31,6 +31,27 @@ test("git is found where it is: STROM_GIT, PATH, or where Git for Windows put it
   fs.writeFileSync(own, "");
   resetCache();
   assert.equal(gitProgram({ PATH: "", ProgramFiles: pf, LOCALAPPDATA: path.join(dir, "local") }, "win32"), own);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("macOS: the command line tools' git itself, not the stand-in /usr/bin/git; another git on PATH as it is; elsewhere untouched", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom git "));
+  // no tools installed: no git (the stand-in would open Apple's installer)
+  assert.equal(appleGit(() => undefined), undefined);
+  // the tools' folder without a git of its own (or none said): the stand-in, as before
+  assert.equal(appleGit(() => dir), "/usr/bin/git");
+  assert.equal(appleGit(() => ""), "/usr/bin/git");
+  const tools = path.join(dir, "usr", "bin", "git");
+  fs.mkdirSync(path.dirname(tools), { recursive: true });
+  fs.writeFileSync(tools, "");
+  assert.equal(appleGit(() => dir), tools);
+  // a git first on PATH that is not the stand-in (Homebrew's): taken as it is, on every system
+  const brew = path.join(dir, "brew", "bin");
+  fs.mkdirSync(brew, { recursive: true });
+  fs.writeFileSync(path.join(brew, "git"), "", { mode: 0o755 });
+  for (const platform of ["darwin", "linux"] as const) assert.equal(gitProgram({ PATH: `${brew}${path.delimiter}/usr/bin` }, platform), path.join(brew, "git"));
+  // Linux: /usr/bin/git is git itself
+  if (fs.existsSync("/usr/bin/git")) assert.equal(gitProgram({ PATH: "/usr/bin" }, "linux"), "/usr/bin/git");
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -165,4 +186,17 @@ test("image numbers: the part of an archive's file names that changes, not its c
   assert.deepEqual(imageNumbers(["004951234_00007.jpg", "004951234_00012.jpg", "004951234_00013.jpg"]), [7, 12, 13]);
   assert.deepEqual(imageNumbers(["page-9.png", "page-10.png"]), [9, 10]);
   assert.deepEqual(imageNumbers(["Křest.jpg"]), [undefined]);
+});
+
+test("a conflict of the user's edit an older strom titled in GEDCOM words reads in the research's language (found on Mac: \"Petr Svoboda: SEX — U × F\" in the Strom app)", () => {
+  const tree = (lang: string) => ({ lang, get: () => undefined }) as never;
+  const of = (title: string, fact: string) => ({ id: "X0001", type: "conflict", title, fact, subject: ["P0009"], claims: [{ value: "a", note: "the research: E0001" }, { value: "b", note: "the user's edit" }], state: "open" }) as never;
+  assert.equal(conflictTitle(tree("cs"), of("Petr Svoboda: SEX — U × F", "SEX")), "Petr Svoboda: Pohlaví — neznámé × žena");
+  assert.equal(conflictTitle(tree("de"), of("Petr Svoboda: SEX — M × F", "SEX")), "Petr Svoboda: Geschlecht — Mann × Frau");
+  assert.equal(conflictTitle(tree("cs"), of("Jan Dvořák: parents — Karel Dvořák × Petr Novák", "FAMC")), "Jan Dvořák: Rodiče — Karel Dvořák × Petr Novák");
+  assert.equal(conflictTitle(tree("cs"), of("Josef Novák: BIRT — 1905 × 1904", "BIRT")), "Josef Novák: Narození — 1905 × 1904");
+  assert.equal(conflictTitle(tree("en"), of("Josef Novák: BIRT — 1905 × 1904", "BIRT")), "Josef Novák: Birth — 1905 × 1904");
+  // an agent's own title stays as it wrote it
+  const own = { ...(of("Josef Novák: BIRT — 1905 × 1904", "BIRT") as object), claims: [{ value: "1905", note: "baptism" }, { value: "1904", note: "census" }] } as never;
+  assert.equal(conflictTitle(tree("cs"), own), "Josef Novák: BIRT — 1905 × 1904");
 });

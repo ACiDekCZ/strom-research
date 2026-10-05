@@ -65,7 +65,7 @@ test("a forged operation (hash matches, signature does not) is detected", opts, 
   const edited = fs.readFileSync(file, "utf8").replace('"sex": "M"', '"sex": "F"');
   fs.writeFileSync(file, edited);
   const opsDir = path.join(w.cwd, "data", "ops");
-  const log = path.join(opsDir, fs.readdirSync(opsDir)[0]!);
+  const log = path.join(opsDir, (fs.readdirSync(opsDir, { recursive: true }) as string[]).find((f) => f.endsWith(".jsonl"))!);
   const lines = fs.readFileSync(log, "utf8").trimEnd().split("\n");
   const last = JSON.parse(lines[lines.length - 1]!);
   const sha = (await import("node:crypto")).createHash("sha256").update(edited).digest("hex");
@@ -78,8 +78,14 @@ test("a forged operation (hash matches, signature does not) is detected", opts, 
 
 test("a rewritten operation log breaks the chain", opts, async () => {
   const w = await seeded();
+  // one commit of several operations (a family tree taken in)
+  const ged = path.join(w.dir, "tree.ged");
+  fs.writeFileSync(ged, ["0 HEAD", "1 GEDC", "2 VERS 5.5.1", "1 CHAR UTF-8", "0 @I1@ INDI", "1 NAME Karel /Dvořák/", "0 @I2@ INDI", "1 NAME Marie /Dvořáková/", "0 TRLR", ""].join("\n"));
+  await w.ok(["sync", ged, "--apply", "--force"]);
   const opsDir = path.join(w.cwd, "data", "ops");
-  const log = path.join(opsDir, fs.readdirSync(opsDir)[0]!);
+  // a log of one commit with more than one operation in it (each commit its own log)
+  const log = (fs.readdirSync(opsDir, { recursive: true }) as string[]).filter((f) => f.endsWith(".jsonl")).map((f) => path.join(opsDir, f)).find((f) => fs.readFileSync(f, "utf8").trimEnd().split("\n").length > 1)!;
+  assert.ok(log, "a log of several operations");
   const lines = fs.readFileSync(log, "utf8").trimEnd().split("\n");
   fs.writeFileSync(log, [lines[1], lines[0]].join("\n") + "\n");
   const v = (await w.run(["verify", "--json"])).json;

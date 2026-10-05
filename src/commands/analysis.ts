@@ -2,6 +2,7 @@
 
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
+import { ui, type UIKey } from "../cli/ui.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import {
@@ -20,18 +21,22 @@ import {
   type RecordType,
   type Research,
   type Search,
+  type Source,
   type Task,
 } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
-import { ancestorGenerations, birthEvent, deathEvent, displayName, familiesAsPartner, lifespan, parentsOf, primaryName, resolvePerson } from "../core/people.ts";
+import { ancestorGenerations, birthEvent, claimText, conflictTitle, deathEvent, displayName, familiesAsPartner, lifespan, parentsOf, primaryName, resolvePerson } from "../core/people.ts";
+import { changeLines } from "../core/changelog.ts";
+import { isAgent } from "../core/which.ts";
 import { foldText } from "../core/text.ts";
 import { makeNote } from "../core/actions.ts";
+import { takeSide } from "../core/sync.ts";
 import { currentSession } from "../core/session.ts";
 import { typeOfId, type Tree } from "../core/tree.ts";
 import { resolveResearch } from "./research.ts";
 
 function written(tree: Tree): string {
-  return lines(...tree.written.map((o) => o.summary), tree.dryRun ? "(dry run — nothing written)" : undefined);
+  return lines(...tree.written.map((o) => o.summary));
 }
 
 function oneOf<T extends string>(v: unknown, allowed: readonly T[], name: string): T {
@@ -61,9 +66,39 @@ function taskLines(tree: Tree, id: string): string | undefined {
 }
 
 /** After a conflict or hypothesis is settled: the tasks still open on it. */
+/**
+ * The sources a hypothesis names (in its question, variants, support, notes, decision) that none of the facts of its
+ * people cite — said when it is decided (found live: a fallen soldier's memorial and a casualty list kept in the
+ * research's notes while who he was stayed a hypothesis; decided by a marriage entry, his death was never written).
+ */
+function sourcesNotOnPeople(tree: Tree, h: Hypothesis): { person: string; sources: string[] }[] {
+  const text = [h.question, h.decision ?? "", ...h.variants.flatMap((v) => [v.claim, ...v.support, ...v.against]), ...h.notes.map((n) => n.text)].join("\n");
+  const named = [...new Set(text.match(/(?<![\p{L}\p{N}])S\d{4,}(?!\p{N})/gu) ?? [])].filter((s) => {
+    const src = tree.get<Source>(s);
+    return src?.type === "source" && !src.retracted;
+  });
+  if (!named.length) return [];
+  const out: { person: string; sources: string[] }[] = [];
+  for (const id of h.subject.filter((x) => x.startsWith("P"))) {
+    const p = tree.get<Person>(id);
+    if (!p || p.type !== "person" || p.retracted) continue;
+    const cited = new Set<string>();
+    const add = (cs?: { source: string }[]) => cs?.forEach((c) => cited.add(c.source));
+    for (const e of p.events) add(e.citations);
+    for (const n of p.names) add(n.citations);
+    for (const f of tree.list<Family>("family").filter((f) => !f.retracted && (f.partners.includes(id) || f.children.some((c) => c.person === id)))) {
+      add(f.citations);
+      for (const e of f.events) add(e.citations);
+    }
+    const missing = named.filter((s) => !cited.has(s));
+    if (missing.length) out.push({ person: id, sources: missing });
+  }
+  return out;
+}
+
 function stillOpen(tree: Tree, id: string): string | undefined {
   const open = tasksAbout(tree, id).filter((t) => !["done", "dropped"].includes(t.state));
-  return open.length ? `still open about ${id}: ${open.map((t) => t.id).join(", ")} — close them: strom task done ${open[0]!.id} --result "…"` : undefined;
+  return open.length ? ui(tree.lang, "ui.conflict.tasks-open", { id, tasks: open.map((t) => t.id).join(", "), first: open[0]!.id }) : undefined;
 }
 
 // ── searches ───────────────────────────────────────────────────────────────
@@ -339,18 +374,48 @@ register(
     writes: true,
     args: [{ name: "conflict", description: "conflict ID (X0001)", required: true }],
     options: [
-      { name: "resolution", type: "string", value: "<text>", description: "the conclusion" },
+      { name: "resolution", type: "string", value: "<text>", description: "the conclusion (with --take: the value taken, by default)" },
       { name: "reasoning", type: "string", value: "<text>", description: "why — which evidence outweighs which" },
+      { name: "take", type: "string", value: "<user|research>", description: "a conflict of the user's edit in the Strom app: whose value the fact keeps — the user's is written into it" },
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      if (!opts.resolution || !opts.reasoning) throw new UsageError("--resolution and --reasoning are required");
       const id = normId(args[0]!, "conflict");
-      const x = update<Conflict>(tree, id, "conflict", (c) => ({ ...c, state: "resolved", resolution: String(opts.resolution), reasoning: String(opts.reasoning) }), {
-        op: "conflict.resolve",
-        summary: `${id} resolved`,
+      const c0 = requireRecord<Conflict>(tree, id, "conflict");
+      const take = opts.take === undefined ? undefined : String(opts.take).toLowerCase();
+      if (take !== undefined && take !== "user" && take !== "research") throw new UsageError(`--take is user or research, not "${opts.take}"`, { code: "conflict.take", params: { take: String(opts.take) } });
+      // a conflict of the user's edit in the Strom app: a fact's, a child's parents, a name's or a sex's
+      const ofEdit = Boolean(c0.edit || c0.parents || ((c0.fact === "NAME" || c0.fact === "SEX") && c0.claims.some((c) => c.note === "the user's edit")));
+      if (take && !ofEdit) throw new UsageError(`${id} is no conflict of an edit in the Strom app: write what you conclude with the commands that change facts, then resolve it with --resolution`, { hint: `strom conflict show ${id}`, code: "conflict.no-edit", params: { id } });
+      // the conclusion naming one side's value exactly: that side taken (found on Mac: "tesař" resolved, the fact left
+      // "kovář", the app then showing kovář in silence)
+      const user = c0.claims.find((c) => c.note === "the user's edit");
+      const research = c0.claims.find((c) => c.note?.startsWith("the research"));
+      const said = opts.resolution ? foldText(String(opts.resolution)).trim() : undefined;
+      // (as strom compares it, or in words as the person reads it)
+      const names = (c: typeof user) => (c ? [c.value, claimText(tree, c0, c)].map((v) => foldText(v).trim()) : []);
+      const side = (take as "user" | "research" | undefined) ?? (ofEdit && said ? (names(user).includes(said) ? "user" : names(research).includes(said) ? "research" : undefined) : undefined);
+      // the decision the Strom app shows: the side's value in the research's language
+      const resolution = opts.resolution ? String(opts.resolution) : side === "user" && user ? claimText(tree, c0, user) : side === "research" && research ? claimText(tree, c0, research) : undefined;
+      // what is missing, said exactly (found on Mac: "--resolution and --reasoning" where --take gave the one)
+      if (!resolution && !opts.reasoning)
+        throw new UsageError("--resolution and --reasoning are required", ofEdit ? { hint: `or take a side: strom conflict resolve ${id} --take user|research --reasoning "<why>"`, code: "conflict.needs-side", params: { id } } : { code: "conflict.needs" });
+      if (!opts.reasoning) throw new UsageError("--reasoning is required", { hint: `strom conflict resolve ${id} … --reasoning "<why>"`, code: "conflict.needs-reasoning", params: { id } });
+      if (!resolution) throw new UsageError("--resolution is required", { ...(ofEdit ? { hint: `or take a side: strom conflict resolve ${id} --take user|research` } : {}), code: "conflict.needs-resolution", params: { id } });
+      let did: string | undefined;
+      const x = tree.withTreeLock(() => {
+        if (side) did = takeSide(tree, tree.get<Conflict>(id)!, side, String(opts.reasoning));
+        return update<Conflict>(tree, id, "conflict", (c) => ({ ...c, state: "resolved", resolution, reasoning: String(opts.reasoning) }), {
+          op: "conflict.resolve",
+          summary: `${id} resolved${side ? ` — the ${side === "user" ? "user's edit" : "research's"} taken` : ""}`,
+        });
       });
-      return { text: lines(written(tree), stillOpen(tree, id)), data: { conflict: x } };
+      // what was saved, in the research's language — the user's decision, whoever typed it (found on Mac: "X0001
+      // resolved — the user's edit taken" in a Czech research, through an agent); a conclusion of neither side leaves
+      // the fact as it was — said, with how to take the user's
+      const shown = lines(...changeLines(tree, tree.written, "", tree.lang).map((l) => l.text));
+      const left = c0.edit && !side ? ui(tree.lang, "ui.conflict.left", { fact: c0.edit.event, value: research ? claimText(tree, c0, research) : "?", id }) : undefined;
+      return { text: lines(shown, left, stillOpen(tree, id)), data: { conflict: x, ...(side ? { taken: side } : {}), ...(did ? { written: did } : {}) } };
     },
   },
   {
@@ -360,8 +425,9 @@ register(
     tree: true,
     options: [{ name: "all", type: "boolean", description: "include resolved" }],
     run(ctx, { opts }) {
-      const all = ctx.tree().list<Conflict>("conflict").filter((c) => opts.all || c.state === "open");
-      return { text: all.length ? table(all.map((c) => [c.id, c.state, truncate(c.title, 60), c.subject.join(" ")])) : "no open conflicts", data: { conflicts: all } };
+      const tree = ctx.tree();
+      const all = tree.list<Conflict>("conflict").filter((c) => opts.all || c.state === "open");
+      return { text: all.length ? table(all.map((c) => [c.id, ui(tree.lang, c.state === "resolved" ? "ui.conflict.state.resolved" : "ui.conflict.state.open"), truncate(conflictTitle(tree, c), 60), c.subject.join(" ")])) : ui(tree.lang, opts.all ? "ui.conflict.none.all" : "ui.conflict.none"), data: { conflicts: all } };
     },
   },
   {
@@ -373,14 +439,18 @@ register(
     run(ctx, { args }) {
       const tree = ctx.tree();
       const c = requireRecord<Conflict>(tree, args[0]!, "conflict");
+      // the person reads it in the research's language (found on Mac: "about", "claim" in a Czech research)
+      const t = (k: UIKey) => ui(tree.lang, k);
+      // a sex in words, as its title says it (found on Mac: "U", "F" under "Pohlaví — neznámé × žena")
+      const value = (v: string) => (c.fact === "SEX" && /^[MFU]$/.test(v) ? t(v === "U" ? "ui.conflict.sex.U" : (`ui.show.sex.${v}` as UIKey)) : v);
       return {
         text: lines(
-          `${c.id} ${c.title}  [${c.state}]`,
-          `about  ${c.subject.join(" ")}`,
+          `${c.id} ${conflictTitle(tree, c)}  [${t(c.state === "resolved" ? "ui.conflict.state.resolved" : "ui.conflict.state.open")}]`,
+          `${t("ui.conflict.about")}  ${c.subject.join(" ")}`,
           taskLines(tree, c.id),
-          ...c.claims.map((cl) => `claim  ${cl.source ? `${cl.source}: ` : ""}${cl.value}`),
-          c.resolution ? `\nresolution  ${c.resolution}\nreasoning   ${c.reasoning ?? ""}` : undefined,
-          ...c.notes.map((n) => `note   ${n.text}`),
+          ...c.claims.map((cl) => `${t("ui.conflict.claim")}  ${cl.source ? `${cl.source}: ` : ""}${value(claimText(tree, c, cl))}`),
+          c.resolution ? `\n${t("ui.conflict.resolution")}  ${c.resolution}\n${t("ui.conflict.reasoning")}  ${c.reasoning ?? ""}` : undefined,
+          ...c.notes.map((n) => `${t("ui.conflict.note")}  ${n.text}`),
         ),
         data: { conflict: c },
       };
@@ -469,7 +539,10 @@ register(
         },
         { op: "hypothesis.decide", summary: `${id} ${opts.abandon ? "abandoned" : "decided"}${reason ? " again" : ""}`, reason },
       );
-      return { text: lines(written(tree), stillOpen(tree, id)), data: { hypothesis: h } };
+      // decided: the sources it names that its people's facts do not cite yet — what they say goes on the people now
+      const unrecorded = opts.abandon ? [] : sourcesNotOnPeople(tree, h);
+      const say = unrecorded.map((u) => `${u.person}: ${u.sources.join(", ")} — named by ${id}, cited by none of ${u.person}'s facts: what they say of ${u.person} goes on ${u.person} now (event add ${u.person} … --cite ${u.sources[0]}); a note or the diary does not reach the tree`);
+      return { text: lines(written(tree), ...say, stillOpen(tree, id)), data: { hypothesis: h, ...(unrecorded.length ? { unrecorded } : {}) } };
     },
   },
   {

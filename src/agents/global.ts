@@ -15,7 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Env } from "../core/paths.ts";
-import { userHome } from "../core/paths.ts";
+import { isolated, userHome } from "../core/paths.ts";
 import { writeFileAtomic } from "../core/json.ts";
 import { installation } from "../core/self.ts";
 
@@ -33,7 +33,9 @@ mentions strom, a family tree or the Strom app.
 1. Run \`strom\` first, and before each step: it says where the research
    stands and what to do next (\`strom --json\` for the same as data). Read
    \`strom guide\` before the first step — the rules and the way to work —
-   and work only in strom's sessions on its tasks.
+   and work only in strom's sessions on its tasks. \`strom help <command>\`
+   is any command's help for you (English; \`strom help\`: every command by
+   group) — \`--human\` is the user's, in their language.
    Run each strom command on its own — no pipes, no \`;\` or \`&&\` chains: you
    may run strom without asking, but not what is chained to it.
 2. Not set up yet: ask the user where to keep the research (suggest
@@ -155,6 +157,8 @@ export function claudeRemoteAtStartup(env: Env): boolean {
 }
 
 export function globalTargets(env: Env): GlobalTarget[] {
+  // an isolated installation teaches the agents nothing: they are the person's, and know the person's own strom
+  if (isolated(env)) return [];
   const home = userHome(env);
   return [
     { agent: "claude", file: path.join(env.CLAUDE_CONFIG_DIR ?? path.join(home, ".claude"), "skills", "strom", "SKILL.md"), kind: "own" },

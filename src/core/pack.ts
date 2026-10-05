@@ -218,7 +218,7 @@ export function writePack(
 
 /** A package given as the ZIP file or the folder a system unpacked it into: its manifest and where it lies. */
 export function findPack(src: string): { manifest: PackManifest; dir: string; zip?: string; tmp?: string } {
-  if (!fs.existsSync(src)) throw new UsageError(`there is no ${src}`, { hint: "give the ZIP file you were sent (drag it into the terminal)" });
+  if (!fs.existsSync(src)) throw new UsageError(`there is no ${src}`, { hint: "the ZIP file that came (dragged into the terminal)", code: "pack.missing", params: { path: src } });
   const read = (text: string): PackManifest => {
     const m = JSON.parse(text) as PackManifest;
     if (m.kind !== "strom-research-pack" || !m.tree?.id || !m.folder) throw new UsageError("this is not a research packed by strom");
@@ -229,7 +229,7 @@ export function findPack(src: string): { manifest: PackManifest; dir: string; zi
     // the folder itself, or the one folder a system's unpacking put around it
     const candidates = [src, ...fs.readdirSync(src, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => path.join(src, e.name))];
     const dir = candidates.find((d) => fs.existsSync(path.join(d, PACK_MANIFEST)));
-    if (!dir) throw new UsageError(`no ${PACK_MANIFEST} in ${src}: not a research packed by strom`, { hint: "give the ZIP file you were sent" });
+    if (!dir) throw new UsageError(`no ${PACK_MANIFEST} in ${src}: not a research packed by strom`, { hint: "the ZIP file that came", code: "pack.no-manifest", params: { manifest: PACK_MANIFEST, path: src } });
     return { manifest: read(fs.readFileSync(path.join(dir, PACK_MANIFEST), "utf8")), dir };
   }
   const entries = readZip(src);

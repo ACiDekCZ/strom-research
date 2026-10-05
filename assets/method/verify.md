@@ -15,3 +15,9 @@ first name) needs a second, independent reading.
   resolution. Where it differs from your reading (a digit, a name), look again
   at that spot; what stays uncertain goes into the note, and a real
   disagreement between two readings is a conflict, not a choice.
+- What the user transcribed in the Strom app (a task "Read for the research what
+  the user wrote…"): find each record the source names (its book, page, archive),
+  register its image, and read it blind yourself. Agreeing → a note on the
+  source that the research read it too (`strom source edit S… --note`), the
+  facts stay; differing → a conflict with both readings. Never overwrite the
+  user's transcript, never take it for proven.

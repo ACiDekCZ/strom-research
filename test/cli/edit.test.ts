@@ -26,7 +26,7 @@ test("source edit: fill in freely, change evidence only with a reason", opts, as
   const r = await w.ok(["source", "edit", "S1", "--translation", "@preklad.txt", "--language", "de", "--information", "primary", "--note", "přečteno v plném rozlišení"]);
   assert.match(r.out, /S0001 translation, language, information, note/);
   assert.equal((await w.run(["source", "edit", "S1", "--transcript", "Franz, Sohn des Anton Víšek"])).code, 2, "the transcript is evidence");
-  assert.match((await w.run(["source", "edit", "S1", "--locator", "pag. 229"])).err, /changing locator of S0001 needs --reason/);
+  assert.match((await w.run(["source", "edit", "S1", "--locator", "pag. 229"])).err, /u S0001 se mění --locator — chybí --reason/);
   await w.ok(["source", "edit", "S1", "--transcript", "Franz, Sohn des Anton Víšek", "--reason", "re-read: Víšek with an accent"]);
   await w.ok(["source", "edit", "S1", "--information", "primary"]); // the same value is no change
   const s = (await w.ok(["source", "show", "S1", "--json"])).json.source;
@@ -35,7 +35,7 @@ test("source edit: fill in freely, change evidence only with a reason", opts, as
   assert.deepEqual([s.language, s.information, s.locator, s.notes.length], ["de", "primary", "pag. 228", 1]);
   assert.equal((await w.run(["source", "edit", "S1"])).code, 2, "nothing to change");
   assert.equal((await w.run(["source", "edit", "S1", "--form", "copy"])).code, 2, "invalid form");
-  const log = fs.readdirSync(path.join(w.cwd, "data", "ops")).map((f) => fs.readFileSync(path.join(w.cwd, "data", "ops", f), "utf8")).join("");
+  const log = (fs.readdirSync(path.join(w.cwd, "data", "ops"), { recursive: true }) as string[]).filter((f) => f.endsWith(".jsonl")).map((f) => fs.readFileSync(path.join(w.cwd, "data", "ops", f), "utf8")).join("");
   assert.match(log, /"op":"source.edit".*"reason":"re-read: Víšek with an accent"/);
   assert.match((await w.ok(["check"])).out, /^ok/);
   w.cleanup();
@@ -75,19 +75,41 @@ test("a second record adds to a fact: ages, house, witnesses free; changing what
   // the same witness again is not added twice; another age for a partner is a change
   await w.ok(["event", "edit", "E1", "--with", "witness:Martin Martinek"]);
   assert.equal((await w.ok(["family", "show", "F1", "--json"])).json.family.events[0].participants.length, 3);
-  assert.match((await w.run(["event", "edit", "E1", "--age", "wife:18"])).err, /changing the age of P0002 of E0001 needs --reason/);
-  assert.match((await w.run(["event", "edit", "E1", "--house", "22"])).err, /changing the house of E0001 needs --reason/);
+  assert.match((await w.run(["event", "edit", "E1", "--age", "wife:18"])).err, /u E0001 se mění --age — chybí --reason/);
+  assert.match((await w.run(["event", "edit", "E1", "--house", "22"])).err, /u E0001 se mění --house — chybí --reason/);
   assert.match((await w.run(["event", "edit", "E1", "--age", "27"])).err, /one --age|whose age/);
   await w.ok(["event", "edit", "E1", "--house", "22", "--reason", "re-read: 22"]);
   e = (await w.ok(["family", "show", "F1", "--json"])).json.family.events[0];
   assert.equal(e.house, "22");
   // a participant recorded in the wrong role is taken off and entered again — a change, with its reason
-  assert.match((await w.run(["event", "edit", "E1", "--without", "witness:Joseph Urban", "--with", "officiant:Joseph Urban"])).err, /changing the participants of E0001 needs --reason/);
+  assert.match((await w.run(["event", "edit", "E1", "--without", "witness:Joseph Urban", "--with", "officiant:Joseph Urban"])).err, /u E0001 se mění --without — chybí --reason/);
   assert.match((await w.run(["event", "edit", "E1", "--without", "witness:Jan Dvořák", "--reason", "x"])).err, /E0001 has no witness Jan Dvořák[\s\S]*witness:Martin Martinek/);
   await w.ok(["event", "edit", "E1", "--without", "svědek:JOSEPH URBAN", "--with", "officiant:Joseph Urban", "--reason", "the record names him the second priest"]);
   e = (await w.ok(["family", "show", "F1", "--json"])).json.family.events[0];
   assert.deepEqual(e.participants.map((p: any) => `${p.role}:${p.name}`), ["witness:Martin Martinek", "officiant:Vinzenz Bistrzitzky", "officiant:Joseph Urban"]);
   assert.match((await w.ok(["check"])).out, /^ok/);
+  w.cleanup();
+});
+
+test("a hypothesis decided: the sources it names that its person's facts do not cite are said — what they say goes on the person, not only into notes", opts, async () => {
+  // found live: a fallen soldier's memorial and a casualty list kept in notes while who he was stayed a hypothesis;
+  // decided by a marriage entry, his death was never written
+  const w = await world();
+  await w.ok(["research", "new", "Předci", "--new-person", "Mikuláš /Horák/", "--sex", "M"]); // P1
+  await w.ok(["source", "add", "Pomník padlým v Dubí", "--kind", "other"]); // S1
+  await w.ok(["source", "add", "Oddací matrika Dubí 1907", "--kind", "marriage"]); // S2
+  await w.ok(["event", "add", "P1", "OCCU", "--value", "rolník", "--date", "1907", "--place", "Dubí", "--cite", "S2"]);
+  await w.ok(["hypothesis", "add", "Je padlý Mikuláš z pomníku (S0001) náš Mikuláš?", "--about", "P1", "--variant", "A: týž", "--variant", "B: jmenovec"]);
+  await w.ok(["hypothesis", "argue", "H1", "A", "--for", "S0002: oddavky 1907, otec Josef"]);
+  const d = await w.ok(["hypothesis", "decide", "H1", "--decision", "A — oddavky S0002 a pomník S0001 se shodují"]);
+  assert.match(d.out, /P0001: S0001 — named by H0001, cited by none of P0001's facts: what they say of P0001 goes on P0001 now \(event add P0001 … --cite S0001\)/);
+  assert.doesNotMatch(d.out, /S0002 —|S0001, S0002/, "the marriage is on him already");
+  // written on him: nothing to say; abandoned: nothing either
+  await w.ok(["event", "add", "P1", "DEAT", "--date", "1915", "--cite", "S1"]);
+  const again = await w.ok(["hypothesis", "decide", "H1", "--decision", "A — týž", "--reason", "the death written"]);
+  assert.doesNotMatch(again.out, /cited by none/);
+  await w.ok(["hypothesis", "add", "Kdo je Jan z pomníku (S0001)?", "--about", "P1", "--variant", "A: syn", "--variant", "B: bratr"]);
+  assert.doesNotMatch((await w.ok(["hypothesis", "decide", "H2", "--decision", "nelze", "--abandon"])).out, /cited by none/);
   w.cleanup();
 });
 

@@ -165,6 +165,29 @@ export function safeEntryName(raw: string): string | undefined {
   return parts.join("/") + (name.endsWith("/") ? "/" : "");
 }
 
+/** The upper half of a DOS code page (0x80–0xFF): the names in a ZIP that Windows made without saying UTF-8. */
+const CP437 =
+  "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■\u00a0";
+/** …of Central Europe (Czech, Slovak, Polish Windows). */
+const CP852 =
+  "ÇüéâäůćçłëŐőîŹÄĆÉĹĺôöĽľŚśÖÜŤťŁ×čáíóúĄąŽžĘę¬źČş«»░▒▓│┤ÁÂĚŞ╣║╗╝Żż┐└┴┬├─┼Ăă╚╔╩╦╠═╬¤đĐĎËďŇÍÎě┘┌█▄ŢŮ▀ÓßÔŃńňŠšŔÚŕŰýÝţ´\u00ad˝˛ˇ˘§÷¸°¨˙űŘř■\u00a0";
+
+export const CODE_PAGES = { CP437, CP852 };
+
+/**
+ * A name of a ZIP that does not say it is UTF-8: UTF-8 all the same when it reads as such (many programs write it so),
+ * else the DOS code page whose reading has the fewest drawing marks in it — Central European first when they tie.
+ */
+export function zipName(raw: Buffer): string {
+  if (raw.every((b) => b < 0x80)) return raw.toString("latin1");
+  const utf8 = raw.toString("utf8");
+  if (!utf8.includes("\ufffd")) return utf8;
+  const read = (page: string) => [...raw].map((b) => (b < 0x80 ? String.fromCharCode(b) : page[b - 0x80]!)).join("");
+  const marks = (s: string) => [...s].filter((c) => /[\u2500-\u25ff\u00a4-\u00bf\u2310-\u2321\u0391-\u03c9]/u.test(c)).length;
+  const [a, b] = [read(CP852), read(CP437)];
+  return marks(b) < marks(a) ? b : a;
+}
+
 /** The entries of a ZIP file (what a system's own "compress" makes too). Unsafe names: BadZip. */
 export function readZip(file: string): ZipEntry[] {
   const fd = fs.openSync(file, "r");
@@ -194,7 +217,7 @@ export function readZip(file: string): ZipEntry[] {
       const extraLen = cd.readUInt16LE(p + 30);
       const commentLen = cd.readUInt16LE(p + 32);
       const raw = cd.subarray(p + 46, p + 46 + nameLen);
-      const rawName = flags & 0x0800 ? raw.toString("utf8") : raw.toString("latin1");
+      const rawName = flags & 0x0800 ? raw.toString("utf8") : zipName(raw);
       const name = safeEntryName(rawName);
       if (name === undefined) throw new BadZip(`a file outside the package: ${rawName}`);
       const attr = cd.readUInt32LE(p + 38) >>> 16;

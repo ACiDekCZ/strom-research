@@ -12,6 +12,7 @@ import { langName } from "../core/lang.ts";
 import { writeFileAtomic } from "../core/json.ts";
 import type { Tree } from "../core/tree.ts";
 import { PROFILES, SELF_READING } from "./profiles.ts";
+import { isArchive } from "../core/mode.ts";
 import { Settings } from "../core/config.ts";
 import { configDir } from "../core/paths.ts";
 import { agentBrowser } from "../core/connector.ts";
@@ -352,9 +353,44 @@ function withUserPart(file: string, generated: string): string {
   return generated;
 }
 
+/** strom's own files of the agents taken out of a tree (an archive): only those nobody else wrote in. */
+function dropAgentFiles(tree: Tree): string[] {
+  const gone: string[] = [];
+  const generated: [string, string][] = [
+    ["AGENTS.md", agentsMd(tree)],
+    ["CLAUDE.md", claudeMd(tree)],
+    [path.join(".claude", "settings.json"), JSON.stringify(claudeSettings(tree), null, 2) + "\n"],
+    ["opencode.json", JSON.stringify(opencodeConfig(tree), null, 2) + "\n"],
+    [path.join(".grok", "config.toml"), grokConfig(tree)],
+    [path.join(".grok", "rules", "strom.md"), GROK_RULES],
+  ];
+  for (const [rel, content] of generated) {
+    const file = path.join(tree.root, rel);
+    let text: string;
+    try {
+      text = fs.readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    // a person's notes below the mark, or a file changed by hand: theirs, it stays
+    const at = text.indexOf(MARKER);
+    const ours = at >= 0 ? !text.slice(at + MARKER.length).trim() : text === content;
+    if (!ours) continue;
+    if (!tree.dryRun) {
+      fs.rmSync(file);
+      for (let dir = path.dirname(file); dir !== tree.root && fs.readdirSync(dir).length === 0; dir = path.dirname(dir)) fs.rmdirSync(dir);
+    }
+    gone.push(rel.split(path.sep).join("/"));
+  }
+  return gone;
+}
+
 export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md")];
 
 export function syncAgentFiles(tree: Tree): string[] {
+  // an archive: no agent works on it, and nothing of one shows in its folder (Milan's decision, 2026-10-03) — strom's own
+  // files of the agents go (what a person wrote in them stays); research switched on writes them again
+  if (isArchive(tree)) return dropAgentFiles(tree);
   const written: string[] = [];
   const write = (rel: string, content: string) => {
     const file = path.join(tree.root, rel);

@@ -4,6 +4,7 @@
 // description), WHY it matters, and WHEN it is done. A task without "where"
 // is a wish; strom refuses it.
 
+import { opsLogs } from "../core/opslog.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { ui } from "../cli/ui.ts";
@@ -25,11 +26,13 @@ import { lacksImages, rankTasks, type Ranked } from "../core/queue.ts";
 import { joiningHypotheses, offTree } from "../core/kin.ts";
 import { aboutPeople } from "../core/directions.ts";
 import { storiesToApprove } from "../core/stories.ts";
+import { receivedPending } from "../core/sync.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
+import { isArchive } from "../core/mode.ts";
 
 
 function written(tree: Tree): string {
-  return lines(...tree.written.map((o) => o.summary), tree.dryRun ? "(dry run — nothing written)" : undefined);
+  return lines(...tree.written.map((o) => o.summary));
 }
 
 /** Resolve subject references: IDs of any type, or person names. */
@@ -58,7 +61,7 @@ function defaultResearch(tree: Tree, ref: unknown, subject: string[] = []): stri
 export function waitingForUser(tree: Tree): { id: string; what: string; on: string }[] {
   return tree
     .list<Task>("task")
-    .filter((t) => t.state === "waiting")
+    .filter((t) => t.state === "waiting" && !isArchive(tree))
     .map((t) => ({ id: t.id, what: t.what, on: t.waitingOn ?? "" }));
 }
 
@@ -67,11 +70,14 @@ export function waitingForUser(tree: Tree): { id: string; what: string; on: stri
  * the book's link and the folder they go into: facts, while the request itself is in their language.
  */
 export function waitingLines(tree: Tree, where: { shared?: string; display?: (p: string) => string } = {}, max = 5): string | undefined {
-  const w = tree.list<Task>("task").filter((t) => t.state === "waiting");
+  const w = isArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting");
   // the new versions of stories the user approved: they decide (the lock)
   const stories = storiesToApprove(tree).map((s) => s.id);
   const storyLine = stories.length ? `  ${ui(tree.lang, "ui.wait.stories", { ids: stories.join(" ") })}` : undefined;
-  if (!w.length) return stories.length ? lines(ui(tree.lang, "ui.wait.title", { n: stories.length }), storyLine) : undefined;
+  // trees the Strom app sent on its own: the user writes or throws them away (the menu), never the agent
+  const sent = receivedPending(tree.root);
+  const sentLine = sent.length ? `  ${ui(tree.lang, "ui.wait.sent", { n: sent.length, changes: sent.reduce((a, r) => a + r.changes, 0) })}` : undefined;
+  if (!w.length) return stories.length || sent.length ? lines(ui(tree.lang, "ui.wait.title", { n: stories.length + sent.length }), sentLine, storyLine) : undefined;
   const show = where.display ?? ((p: string) => p);
   const lang = tree.lang;
   const images = (t: Task) => {
@@ -84,7 +90,8 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
     ];
   };
   return lines(
-    ui(lang, "ui.wait.title", { n: w.length + stories.length }),
+    ui(lang, "ui.wait.title", { n: w.length + stories.length + sent.length }),
+    sentLine,
     ...w.slice(0, max).flatMap((t) => [`  ${t.id}  ${truncate(t.waitingOn || t.what, 150)}`, ...images(t)]),
     w.length > max ? `  … strom task list --state waiting` : undefined,
     storyLine,
@@ -131,11 +138,10 @@ function taskLine(t: Task): string[] {
 export function parkedWhy(tree: Tree, t: Task): string | undefined {
   if (t.state !== "parked") return undefined;
   if (t.parkedReason) return t.parkedReason;
-  const dir = path.join(tree.dataDir, "ops");
   let last: { at: string; reason?: string } | undefined;
   try {
-    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".jsonl")))
-      for (const o of readJsonLines<{ op: string; targets: string[]; at: string; reason?: string }>(path.join(dir, f)))
+    for (const f of opsLogs(tree.dataDir))
+      for (const o of readJsonLines<{ op: string; targets: string[]; at: string; reason?: string }>(f))
         if (o.op === "task.park" && o.targets.includes(t.id) && (!last || o.at > last.at)) last = o;
   } catch {
     // no history to read

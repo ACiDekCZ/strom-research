@@ -151,6 +151,17 @@ THE STROM APP'S EDITS, ANOTHER FAMILY TREE (the user changed the tree in the Str
   --only 1,3). Additions become leads; a change to a fact a record proves becomes a conflict (sync.edits: the
   user's choice). A file of another research, or of few of our people, is refused; strom sync undo I… takes a
   sync back. After it: the user opens the research in the Strom app again to have the tree updated.
+  The app's sources come too: an entry the user transcribed in the app becomes a source of the research and its
+  facts cite it — a lead (a task to read the record for the research) unless the app says the user's transcripts
+  count (evidence) or the user verified it; a record you read that the user read otherwise is kept as a note
+  beside your reading, with a task to read it again. Never take the user's reading for proven.
+  The app also sends on its own, and what it sends is written at once (additions, leads corrected, a change of a
+  fact a record proves a conflict for the user): a commit of the sync — undo is the user's (strom sync undo I…).
+  Only when the user reviews each send (setting sync.review on, theirs) does it wait (strom sync --inbox): then the
+  user writes it or throws it away (the menu's What waits for you) — never you.
+AN ARCHIVE (strom shows "an archive"; strom mode): the user enters the data in the Strom app and the research keeps
+  them — no agent works on it (strom chat, run, session start refuse; its tasks wait put aside). Tell the user;
+  only they switch work with an agent on (strom mode research, or the menu). Never switch it yourself.
   Straight from the app: strom sync --app (the user presses Send in the app). With strom-research:// links set
   up on this computer (the user's yes: strom link on, the setup wizard; strom link status says) the app starts it
   itself with one click, and opens an excerpt of an entry in full quality; its menus also open the research, a
@@ -208,7 +219,7 @@ OUTPUT AND ERRORS
 - Settings and how to override them: strom config where.
 
 MORE
-  strom help <command>                 short help with examples
+  strom help <command>                 short help with examples (strom help: every command by group)
   strom commands <group> --json        options and examples of a group
 `;
 }

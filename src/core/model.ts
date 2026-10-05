@@ -185,7 +185,18 @@ export interface Family extends BaseRecord {
   citations?: Citation[];
   notes: Note[];
   refs?: ExternalRef[];
+  /** Two parents of a child who are no couple, as the Strom app keeps them (its _STROM_NO_COUPLE). */
+  noCouple?: true;
+  /**
+   * How the couple is bound where its facts cannot say it: partners or separated (the Strom app's _STAT); a family of
+   * one partner — married to somebody unknown, with no child or with their children — any of the four (its bare MARR,
+   * DIV or _STAT); none: the one parent's children, no couple.
+   */
+  union?: Union;
 }
+
+export const UNIONS = ["married", "divorced", "partners", "separated"] as const;
+export type Union = (typeof UNIONS)[number];
 
 export const DIRECTIONS = ["ancestors", "descendants", "person", "question"] as const;
 export type Direction = (typeof DIRECTIONS)[number];
@@ -249,6 +260,11 @@ export interface Source extends BaseRecord {
   media?: string[];
   /** Where the entry itself is on its images: the part a reader cut out (two when it runs over a page break). */
   clips?: Clip[];
+  /**
+   * A source the user wrote in the Strom app, taken in by strom sync: whether its transcript counts as the user's
+   * reading of the record (the app's "my transcripts are evidence" when it was sent, or "transcript verified").
+   */
+  app?: { read: boolean; verified?: boolean };
   notes: Note[];
 }
 
@@ -363,6 +379,10 @@ export interface Task extends BaseRecord {
   parkedUntil?: string;
   /** Why it was put aside (strom task park --reason, or strom run parking a stuck task). */
   parkedReason?: string;
+  /** Put aside because the research is an archive: back in the queue when work with an agent is switched on. */
+  heldBy?: "archive";
+  /** What it was when the archive put it aside, when it was not open: waiting for the user — waiting again after. */
+  heldFrom?: "waiting";
   waitingOn?: string;
   /** The images it waits for, which the user saves by hand: of this record set, into this folder of the shared inbox. */
   awaits?: { recordset: string; images: string; folder: string };
@@ -378,7 +398,18 @@ export interface Conflict extends BaseRecord {
   /** The fact it is about, by its GEDCOM tag (BIRT, DEAT, NAME, SEX, MARR…), when known. */
   fact?: string;
   subject: string[];
-  claims: { source?: string; value: string; note?: string }[];
+  /** value: the claim as strom compares it; text: as a person reads it, in the research's language (the Strom app shows it). */
+  claims: { source?: string; value: string; note?: string; text?: string }[];
+  /**
+   * A conflict of the user's edit in the Strom app with a fact of the research: that fact, the user's value of it and
+   * the sources they gave it — what `strom conflict resolve --take user` writes.
+   */
+  edit?: { event: string; date?: string; place?: string; value?: string; cites?: Citation[] };
+  /**
+   * A conflict of whose child a person is (FAMC) the user's parents opened: the child, the research's family of them and
+   * the parents the user gave — what `strom conflict resolve --take user` writes (the child moved to those parents).
+   */
+  parents?: { child: string; from: string; partners: string[]; to?: string };
   state: "open" | "resolved";
   resolution?: string;
   reasoning?: string;
@@ -425,8 +456,18 @@ export interface Input extends BaseRecord {
   state: "new" | "processed" | "skipped";
   source?: string;
   imported?: { persons: number; families: number; sources: number };
+  /** The people it is of, as the user said (the Strom app: "send material" of a person). */
+  persons?: string[];
+  /** A batch of the Strom app it came in (.strom/batches/<id>.json), and its path there ("Babička/Dopisy/1946.jpg"). */
+  batch?: string;
+  path?: string;
+  /** What it is, as whoever sorted the batch found (strom input sort): a record, a document, a photo, nothing of the family. */
+  sorted?: { as: (typeof SORT_KINDS)[number]; persons?: string[]; source?: string; reason?: string; at: string; by: string };
   notes: Note[];
 }
+
+/** What a file of a batch is found to be: a record (it becomes a source), a document of the family, a photo, nothing of the family. */
+export const SORT_KINDS = ["source", "document", "photo", "unrelated"] as const;
 
 /** One registered image (a scan of a page, a photo of a document): the file lives in shared/media. */
 export interface Media extends BaseRecord {
@@ -511,6 +552,11 @@ export type AnyRecord =
 /** Tree-level configuration stored in <tree>/strom.json. */
 export interface TreeConfig {
   schema: number;
+  /**
+   * An archive (the user's choice, strom mode): the user enters the data in the Strom app, the research keeps them,
+   * their history and the sources — no agent works on it, its tasks wait put aside. None: a research with an agent.
+   */
+  mode?: "archive";
   /** Random id; names the seal key of this tree. */
   id: string;
   name: string;
@@ -550,7 +596,7 @@ export type ExcerptScope = (typeof EXCERPT_SCOPES)[number];
 /** Default limit of all of them in one file, MB. */
 export const EXCERPTS_MAX_MB = 200;
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const NOTE_MAX = 500;
 

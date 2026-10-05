@@ -17,7 +17,7 @@ import { UsageError } from "../core/errors.ts";
 import { excerptSettings, planExcerpts, type ExcerptReport } from "../core/excerpt.ts";
 import { runGit, tracked } from "../core/git.ts";
 import { Settings } from "../core/config.ts";
-import { appOpensLinks, appShowsCoupleEvents, appShowsEdges, appShowsStoryDrafts } from "../core/stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appOpensLinks, appShowsCoupleEvents, appShowsEdges, appShowsSourceReads, appShowsFactStatus, appShowsStoryDrafts, appTurnsExcerpts } from "../core/stromapp.ts";
 import { EXCERPT_QUALITIES, EXCERPT_SCOPES, type ExcerptQuality, type ExcerptScope } from "../core/model.ts";
 
 function findingRows(f: GedFinding[]): string {
@@ -94,7 +94,13 @@ export function writeTreeGed(
   // …and the new versions of stories the user approved, for an app that shows them
   const storyDrafts = opts.for === "strom" && appShowsStoryDrafts(new Settings(tree.env, {}), opts.stromVersion);
   const coupleResi = opts.for === "strom" && appShowsCoupleEvents(new Settings(tree.env, {}), opts.stromVersion);
-  const result = exportGedcom(tree, { for: opts.for, stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}) });
+  // …and who read each source, for an app that shows it
+  const sourceReads = opts.for === "strom" && appShowsSourceReads(new Settings(tree.env, {}), opts.stromVersion);
+  const factStatus = opts.for === "strom" && appShowsFactStatus(new Settings(tree.env, {}), opts.stromVersion);
+  const turnsExcerpts = opts.for === "strom" && appTurnsExcerpts(new Settings(tree.env, {}), opts.stromVersion);
+  const noCouple = opts.for === "strom" && appKnowsNoCouple(new Settings(tree.env, {}), opts.stromVersion);
+  const archive = opts.for === "strom" && appKnowsArchive(new Settings(tree.env, {}), opts.stromVersion);
+  const result = exportGedcom(tree, { for: opts.for, stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}) });
   const findings = validateGedcom(result.text, opts.for === "standard" ? { strict: true } : {});
   const file = opts.out ?? gedFile(tree, opts.for, opts.research);
   if (!hasGedErrors(findings) && !tree.dryRun) {

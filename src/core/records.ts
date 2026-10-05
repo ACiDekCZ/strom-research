@@ -5,6 +5,7 @@ import { UsageError } from "./errors.ts";
 import { RECORD_TYPES, type AnyRecord, type Conflict, type Hypothesis, type RecordType } from "./model.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
 import { makeNote } from "./actions.ts";
+import { heldInArchive } from "./mode.ts";
 
 type Fields<T> = Omit<T, "id" | "type" | "created" | "updated" | "notes"> & { note?: string | undefined };
 
@@ -13,10 +14,12 @@ export function create<T extends AnyRecord>(tree: Tree, type: RecordType, fields
   return tree.withTreeLock(() => {
     const t = now();
     const { note, ...rest } = fields as Record<string, unknown> & { note?: string };
+    // a task coming into an archive waits put aside: no agent takes it
+    const fieldsNow = type === "task" ? heldInArchive(tree, rest) : rest;
     const rec = {
       id: tree.allocate(RECORD_TYPES[type].prefix),
       type,
-      ...stripUndefined(rest),
+      ...stripUndefined(fieldsNow),
       notes: note ? [makeNote(tree, note)] : [],
       created: t,
       updated: t,
@@ -71,8 +74,8 @@ export function normId(ref: string, type?: RecordType): string {
 export function requireRecord<T extends AnyRecord>(tree: Tree, ref: string, type: RecordType): T {
   const id = normId(ref, type);
   const rec = tree.get<T>(id);
-  if (!rec) throw new UsageError(`no ${type} ${id}`, { hint: `strom ${type === "repository" ? "repo" : type} list` });
-  if (rec.mergedInto) throw new UsageError(`${id} was merged into ${rec.mergedInto}`, { hint: `strom ${type === "repository" ? "repo" : type} show ${rec.mergedInto}` });
+  if (!rec) throw new UsageError(`no ${type} ${id}`, { hint: `strom ${type === "repository" ? "repo" : type} list`, code: "record.none", params: { kind: type, id } });
+  if (rec.mergedInto) throw new UsageError(`${id} was merged into ${rec.mergedInto}`, { hint: `strom ${type === "repository" ? "repo" : type} show ${rec.mergedInto}`, code: "record.merged", params: { id, into: rec.mergedInto } });
   return rec;
 }
 

@@ -7,6 +7,15 @@ import fs from "node:fs";
 
 export type Env = Record<string, string | undefined>;
 
+/**
+ * An isolated installation (STROM_ISOLATED=1, its installer keeps it in install.json): a second strom beside the
+ * person's own, for trying a version — nothing outside its folders: no PATH, no strom-research:// links, nothing
+ * taught to the agents.
+ */
+export function isolated(env: Env): boolean {
+  return env.STROM_ISOLATED === "1";
+}
+
 export function userHome(env: Env): string {
   return env.HOME || env.USERPROFILE || os.homedir();
 }
@@ -41,10 +50,11 @@ function xdgUserDir(env: Env, key: string): string | undefined {
 export function documentsDir(env: Env, platform: NodeJS.Platform = process.platform): string {
   if (env.STROM_DOCUMENTS) return path.resolve(expandHome(env.STROM_DOCUMENTS, env));
   const home = userHome(env);
-  if (platform === "linux") return xdgUserDir(env, "XDG_DOCUMENTS_DIR") ?? path.join(home, "Documents");
+  if (platform === "linux") return (isolated(env) ? undefined : xdgUserDir(env, "XDG_DOCUMENTS_DIR")) ?? path.join(home, "Documents");
   // OneDrive keeps the documents on Windows when it backs them up, as it does the desktop.
   if (platform === "win32") {
-    const oneDrive = env.OneDrive ? path.join(env.OneDrive, "Documents") : undefined;
+    // (an isolated installation: its own HOME only)
+    const oneDrive = env.OneDrive && !isolated(env) ? path.join(env.OneDrive, "Documents") : undefined;
     if (oneDrive && fs.existsSync(oneDrive)) return oneDrive;
   }
   return path.join(home, "Documents");
@@ -53,9 +63,10 @@ export function documentsDir(env: Env, platform: NodeJS.Platform = process.platf
 /** The desktop folder (OneDrive keeps it on Windows when it backs the desktop up). */
 export function desktopDir(env: Env, platform: NodeJS.Platform = process.platform): string {
   const home = userHome(env);
-  if (platform === "linux") return xdgUserDir(env, "XDG_DESKTOP_DIR") ?? path.join(home, "Desktop");
+  if (platform === "linux") return (isolated(env) ? undefined : xdgUserDir(env, "XDG_DESKTOP_DIR")) ?? path.join(home, "Desktop");
   if (platform === "win32") {
-    const oneDrive = env.OneDrive ? path.join(env.OneDrive, "Desktop") : undefined;
+    // (an isolated installation: its own HOME only)
+    const oneDrive = env.OneDrive && !isolated(env) ? path.join(env.OneDrive, "Desktop") : undefined;
     if (oneDrive && fs.existsSync(oneDrive)) return oneDrive;
   }
   return path.join(home, "Desktop");

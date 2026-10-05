@@ -19,6 +19,9 @@ import { imageOf, pageOf } from "../core/calibration.ts";
 import { describeView, makeView, partRegion, viewRegion, VIEW_MAX, type ViewSpec } from "../core/views.ts";
 import { listConnectors, missingConsents } from "../core/connector.ts";
 import { now, type Tree } from "../core/tree.ts";
+import { originalMax, parseRegion, takeOriginal } from "../core/originals.ts";
+import { batchFull, batchPath, noteBatch, openBatch, type Batch } from "../core/batches.ts";
+import { readEntry, readZip, type ZipEntry } from "../core/zip.ts";
 
 const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".tif", ".tiff", ".gif", ".webp", ".heic", ".jp2", ".bmp"]);
 
@@ -202,6 +205,7 @@ register(
       { name: "inbox", type: "boolean", description: "take the files the user put in the shared inbox (they are moved into the store); a folder there is named as the argument — one folder, one record set" },
       { name: "half", type: "string", value: "<side>", description: "the file is a half of image n: left, right, top or bottom (a half page saved on its own)" },
       { name: "crop", type: "string", value: "<x,y,w,h>", description: "the file is this part of image n: fractions of it, or pixels of the registered image (a detail saved from the viewer)" },
+      { name: "from-input", type: "string", multiple: true, value: "<I…>", description: "inputs that are the scans of a book (a batch from the Strom app): their files registered as its images, numbered by their names" },
     ],
     examples: [
       "strom media add ~/Downloads/tynec17 --recordset B0001 --url https://archive.example.org/register/17",
@@ -233,14 +237,30 @@ register(
         // "." = the files lying in the inbox itself, not its folders
         paths = paths.flatMap((p) => (p === inbox ? (folders.find((f) => f.folder === "")?.files ?? []) : [p]));
       } else paths = args.map((a) => ctx.resolvePath(a));
+      // scans of a book that came as material (a batch): their files, numbered by the names they came with
+      const fromInputs = (Array.isArray(opts["from-input"]) ? opts["from-input"] : opts["from-input"] ? [opts["from-input"]] : []).flatMap((x) => String(x).split(",")).filter(Boolean);
+      const names = new Map<string, string>();
+      const taken: Input[] = [];
+      if (fromInputs.length) {
+        if (!opts.recordset) throw new UsageError("the scans of which book? --recordset B…", { hint: 'strom recordset add "<the book>" … first' });
+        for (const a of fromInputs) {
+          const i = requireRecord<Input>(tree, a, "input");
+          const f = inputPath(tree, i);
+          if (!f || !fs.existsSync(f)) throw new UsageError(`${i.id}: its file is not on this computer`);
+          names.set(f, i.path ?? i.name);
+          taken.push(i);
+          paths.push(f);
+        }
+      }
       if (paths.length === 0) throw new UsageError("give files or folders, or --inbox");
       for (const p of paths) if (!fs.existsSync(p)) throw new UsageError(`no such file or folder: ${ctx.display(p)}`);
+      const nameOf = (f: string) => names.get(f) ?? f;
       const files = collectFiles(paths).filter((f) => IMAGE_EXT.has(path.extname(f).toLowerCase()));
       // numbers are read per folder: one download names its files one way
       const numbers = new Map<string, number | undefined>();
-      for (const dir of new Set(files.map((f) => path.dirname(f)))) {
-        const group = files.filter((f) => path.dirname(f) === dir);
-        imageNumbers(group).forEach((n, i) => numbers.set(group[i]!, n));
+      for (const dir of new Set(files.map((f) => path.dirname(nameOf(f))))) {
+        const group = files.filter((f) => path.dirname(nameOf(f)) === dir);
+        imageNumbers(group.map(nameOf)).forEach((n, i) => numbers.set(group[i]!, n));
       }
       if (files.length === 0) throw new UsageError("no images there", { hint: "JPEG, PNG, TIFF … files; documents go in with strom intake" });
       // a folder the user filled for a waiting task (strom task wait --images) says which book and which images
@@ -263,7 +283,7 @@ register(
         image: opts.image !== undefined ? Number(opts.image) : first !== undefined ? first + i : numbers.get(file),
         url: opts.url as string | undefined,
         // the original file name always stays: it is how the archive numbered the image
-        from: opts.from ? `${opts.from} · ${path.basename(file)}` : path.basename(file),
+        from: opts.from ? `${opts.from} · ${path.basename(nameOf(file))}` : path.basename(nameOf(file)),
       }));
       if (wantsPart && recordset) {
         const it = items[0]!;
@@ -286,6 +306,14 @@ register(
           });
       }
       const { added, again, restored, woken, clashes, copies } = registerImages(tree, shared, items, recordset);
+      // the material is the book's images now: sorted, done with
+      for (const i of taken) {
+        const m = tree.list<Media>("media").find((x) => x.sha === i.sha && !x.retracted);
+        update<Input>(tree, i.id, "input", (x) => ({ ...x, state: "processed", sorted: { as: "source", reason: `${m ? `${m.id}, ` : ""}an image of ${recordset}`, at: new Date().toISOString(), by: tree.actor } }), {
+          op: "input.sort",
+          summary: `${i.id} an image of ${recordset}${m ? ` (${m.id})` : ""}`,
+        });
+      }
       if (opts.inbox && !tree.dryRun) {
         for (const f of files) fs.rmSync(f, { force: true }); // now in the store
         for (const p of paths) if (p !== inbox && fs.existsSync(p) && fs.statSync(p).isDirectory() && collectFiles([p]).length === 0) fs.rmSync(p, { recursive: true, force: true });
@@ -301,7 +329,6 @@ register(
         ...copies.slice(0, 10),
         copies.length > 10 ? `… and ${copies.length - 10} more images with a sharper copy` : undefined,
         woken.length ? `back in the queue (they waited for these images): ${woken.join(" ")}` : undefined,
-        tree.dryRun ? "(dry run — nothing written)" : undefined,
         added[0] ? `\nlook at one: strom media view ${recordset && added[0].image !== undefined ? `${recordset}:${added[0].image}` : added[0].id} --grid` : undefined,
       );
       return { text, data: { added: added.map((m) => ({ id: m.id, image: m.image })), again, woken, clashes, copies } };
@@ -390,7 +417,7 @@ register(
     examples: ['strom media retract M0001 --reason "a part of another book\'s image 340, not of this one"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      if (!opts.reason) throw new UsageError("--reason is required", { hint: 'say why: --reason "another book\'s image, same number"' });
+      if (!opts.reason) throw new UsageError("--reason is required", { hint: 'say why: --reason "another book\'s image, same number"', code: "reason.missing" });
       const m = requireRecord<Media>(tree, normId(args[0]!), "media");
       if (m.retracted) return { text: `${m.id} is already retracted: ${m.retracted.reason}`, data: { media: m } };
       const citing = tree.list<Source>("source").filter((s) => !s.retracted && (s.media?.includes(m.id) || s.clips?.some((c) => c.media === m.id)));
@@ -487,3 +514,123 @@ register(
     },
   },
 );
+
+register({
+  path: ["media", "original"],
+  summary: "Take an original the Strom app sent (the bridge runs it): kept unchanged outside git — an image of a source, or material for people",
+  group: "inputs",
+  tree: true,
+  writes: true,
+  description:
+    "The bridge receives the file (PUT <token>/media/<sha256>), checks its SHA-256 and runs this. It is moved into the\n" +
+    "shared media store by its content. With --source: an image of that source (the part the entry is on as its clip,\n" +
+    "when it has none) and a task to read it; else an input of the people with an intake task (what comes for them\n" +
+    "within a while shares one). The same content again: only said. In an archive the tasks wait put aside.\n" +
+    "--batch: one file of a batch (its path in it with --path): an input with no task of its own — the batch's tasks come\n" +
+    "when it is closed (strom input batch done). --zip: a ZIP of a batch, unpacked file by file (a ZIP in it is only said).\n" +
+    "Material of the family on this computer goes in with strom intake.",
+  args: [{ name: "file", description: "the received file (it is moved)", required: true }],
+  options: [
+    { name: "sha", type: "string", value: "<sha256>", description: "its SHA-256 (checked)" },
+    { name: "name", type: "string", value: "<name>", description: "its name in the app" },
+    { name: "person", type: "string", multiple: true, value: "<P…>", description: "a person it is of (repeatable)" },
+    { name: "source", type: "string", value: "<S…>", description: "the source it is an image of" },
+    { name: "region", type: "string", value: "<x,y,w,h>", description: "where the entry is on it (fractions of the image)" },
+    { name: "note", type: "string", value: "<text>", description: "what the user said of it" },
+    { name: "batch", type: "string", value: "<id>", description: "the batch of the app it comes in" },
+    { name: "path", type: "string", value: "<path>", description: "its path in the batch (Babička/Dopisy/1946.jpg)" },
+    { name: "zip", type: "boolean", description: "a ZIP of the batch: unpacked, each file taken" },
+  ],
+  examples: ["strom media original ~/Downloads/dopis.png --name dopis.png --person P0001"],
+  run(ctx, { args, opts }) {
+    const tree = ctx.tree();
+    const shared = sharedDir(ctx);
+    const file = ctx.resolvePath(args[0]!);
+    if (!fs.existsSync(file)) throw new UsageError(`no such file: ${args[0]}`);
+    const sha = typeof opts.sha === "string" ? opts.sha.toLowerCase() : fileSha256(file);
+    if (!/^[0-9a-f]{64}$/.test(sha) || fileSha256(file) !== sha) throw new UsageError("the file is not the one named: its SHA-256 differs", { hint: "send it again" });
+    const persons = (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).flatMap((p) => String(p).split(",")).map((p) => p.trim().toUpperCase()).filter(Boolean);
+    const name = typeof opts.name === "string" ? opts.name : path.basename(file);
+    const batch = typeof opts.batch === "string" ? opts.batch : undefined;
+    const where = batchPath(typeof opts.path === "string" ? opts.path : undefined) ?? batchPath(name) ?? name;
+    if (opts.zip && !batch) throw new UsageError("a ZIP comes in a batch", { hint: "--batch <id>" });
+    const got = tree.withTreeLock(() => {
+      if (!batch)
+        return takeOriginal(tree, shared, file, sha, {
+          name,
+          persons,
+          source: typeof opts.source === "string" ? opts.source.toUpperCase() : undefined,
+          region: parseRegion(typeof opts.region === "string" ? opts.region : undefined),
+          note: typeof opts.note === "string" ? opts.note : undefined,
+        });
+      let b = openBatch(tree.root, batch);
+      if (!b.persons?.length && persons.length) b = { ...b, persons };
+      if (!opts.zip) {
+        const size = fs.statSync(file).size;
+        const full = batchFull(b, size, ctx.env);
+        if (full) throw new UsageError(full);
+        try {
+          const one = takeOriginal(tree, shared, file, sha, { name: path.basename(where), persons, batch, path: where, note: typeof opts.note === "string" ? opts.note : undefined });
+          noteBatch(tree.root, b, one.known ? { known: one.known } : { input: one.input!, bytes: size });
+          return { ...one, batch };
+        } catch (e) {
+          if (e instanceof UsageError) noteBatch(tree.root, b, { refused: { path: where, why: e.message } });
+          throw e;
+        }
+      }
+      return { batch, zip: takeZip(ctx, tree, shared, file, where, b, persons) };
+    });
+    const text = "known" in got && got.known ? `the research has it already: ${got.known}` : lines(...tree.written.map((o) => o.summary));
+    return { text, data: got };
+  },
+});
+
+/** A ZIP of a batch: each file in it taken as one of the batch (its path: the ZIP's name and its own); the ZIP not kept. */
+function takeZip(ctx: Context, tree: Tree, shared: string, file: string, zipPath: string, start: Batch, persons: string[]): { name: string; files: number; inputs: string[]; known: string[]; refused: { path: string; why: string }[]; nested: string[] } {
+  let entries: ZipEntry[];
+  try {
+    entries = readZip(file);
+  } catch (e) {
+    fs.rmSync(file, { force: true });
+    throw new UsageError(`${path.basename(zipPath)}: ${(e as Error).message}`, { hint: "unpack it in the system and send the folder" });
+  }
+  const max = originalMax(ctx.env);
+  let b = start;
+  const out = { name: zipPath, files: 0, inputs: [] as string[], known: [] as string[], refused: [] as { path: string; why: string }[], nested: [] as string[] };
+  entries.forEach((e, n) => {
+    const base = e.name.split("/").filter(Boolean).at(-1) ?? "";
+    if (e.dir || e.link || e.name.startsWith("__MACOSX/") || base.startsWith(".") || base === "Thumbs.db" || base === "desktop.ini") return;
+    const where = batchPath(`${zipPath}/${e.name}`)!;
+    out.files++;
+    const refuse = (why: string) => {
+      out.refused.push({ path: where, why });
+      b = noteBatch(tree.root, b, { refused: { path: where, why } });
+    };
+    if (/\.zip$/i.test(base)) {
+      out.nested.push(where);
+      b = noteBatch(tree.root, b, { nested: where });
+      return;
+    }
+    if (e.size > max) return refuse(`larger than ${Math.round(max / 1024 / 1024)} MB`);
+    const full = batchFull(b, e.size, ctx.env);
+    if (full) return refuse(full);
+    const tmp = `${file}.${n}`;
+    try {
+      fs.writeFileSync(tmp, readEntry(file, e));
+      const one = takeOriginal(tree, shared, tmp, fileSha256(tmp), { name: base, persons, batch: b.id, path: where });
+      if (one.known) {
+        out.known.push(one.known);
+        b = noteBatch(tree.root, b, { known: one.known });
+      } else {
+        out.inputs.push(one.input!);
+        b = noteBatch(tree.root, b, { input: one.input!, bytes: e.size });
+      }
+    } catch (err) {
+      refuse((err as Error).message);
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
+  });
+  fs.rmSync(file, { force: true });
+  return out;
+}

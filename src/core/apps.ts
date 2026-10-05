@@ -93,6 +93,30 @@ export function whereToTalk(agent: string, chosen: string | undefined, env: Env)
   return chosen === "terminal" ? "terminal" : "app";
 }
 
+/** One way to talk with an agent: its desktop app, or its CLI in the terminal. */
+export interface Way {
+  agent: string;
+  where: Where;
+}
+
+/** Every way to talk with the agents here, in strom's order: each agent's app first (the easiest), then its terminal. */
+export function waysHere(here: AgentHere[]): Way[] {
+  return here.flatMap((a) => [...(a.app ? [{ agent: a.id, where: "app" as const }] : []), ...(a.cli ? [{ agent: a.id, where: "terminal" as const }] : [])]);
+}
+
+/**
+ * The way to suggest among `ways`: the agent's as it is talked with now (`chosen`: agent.where), else the first app
+ * here (the easiest), else the first way.
+ */
+export function suggestedWay(ways: Way[], agent: string | undefined, chosen: string | undefined): number {
+  const where: Where = chosen === "terminal" ? "terminal" : "app";
+  const exact = ways.findIndex((w) => w.agent === agent && w.where === where);
+  if (exact >= 0) return exact;
+  const same = ways.findIndex((w) => w.agent === agent);
+  if (same >= 0) return same;
+  return Math.max(0, ways.findIndex((w) => w.where === "app"));
+}
+
 /** Is strom run by an agent inside a desktop app? (Claude Code says where it runs.) */
 export function inDesktopApp(env: Env): boolean {
   return /desktop/i.test(env.CLAUDE_CODE_ENTRYPOINT ?? "");

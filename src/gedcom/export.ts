@@ -27,17 +27,18 @@
 
 import { GedWriter } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
-import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
-import { birthEvent, displayName, formatName, gedcomName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
+import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
+import { birthEvent, claimText, conflictTitle, displayName, formatName, gedcomName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
 import { quay } from "../core/evidence.ts";
 import { VERSION, type Tree } from "../core/tree.ts";
-import { dataUrl, type Excerpt } from "../core/excerpt.ts";
+import { dataUrl, turned, type Excerpt } from "../core/excerpt.ts";
 import { mainPerson } from "../core/kin.ts";
 import * as git from "../core/git.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
+import { readersOf } from "../core/review.ts";
 import { humanTask } from "../cli/human.ts";
 
 export const GED_PROFILES = ["standard", "strom"] as const;
@@ -103,6 +104,19 @@ export interface ExportOptions {
   storyDrafts?: boolean;
   /** For a Strom app that keeps a couple's events (APP_SHOWS_COUPLE_EVENTS): their residence as RESI under FAM. */
   coupleResi?: boolean;
+  /** For a Strom app that shows who read a source (APP_SHOWS_SOURCE_READS): _STROM_READ, and _STROM_VERIFIED on the app's. */
+  sourceReads?: boolean;
+  /** For a Strom app that keeps parents who are no couple (APP_KNOWS_NO_COUPLE): _STROM_NO_COUPLE on such a family. */
+  noCouple?: boolean;
+  /** The Strom profile, an app that shows it (APP_SHOWS_FACT_STATUS): how sure each fact is as 2 _STROM_STATUS, not as a note. */
+  factStatus?: boolean;
+  /** For a Strom app that knows an archive (APP_KNOWS_ARCHIVE): 1 _STROM_MODE archive in the header. */
+  archive?: boolean;
+  /**
+   * For a Strom app that turns an excerpt itself (APP_TURNS_EXCERPTS): one cut from a picture on its side as it lies,
+   * with 2 _STROM_ORIENT. Anything else gets it turned already, without the tag (an older app would show it lying).
+   */
+  turnsExcerpts?: boolean;
 }
 
 export interface ExportResult {
@@ -162,7 +176,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     .filter((f) => !f.retracted)
     .map((f) => ({ ...f, partners: f.partners.filter((p) => personIds.has(p)), children: f.children.filter((c) => personIds.has(c.person)) }))
     .filter((f) => f.partners.length + f.children.length > (opts.persons ? 1 : 0));
-  const sources = tree.list<Source>("source").filter((s) => !s.retracted);
+  // The Strom app gets no source of a sync ("edits in the Strom app"): its own tree cited back at it, one more each send,
+  // cluttering its list of sources — the facts it alone stands for are leads (a note says so). Other programs get it.
+  const syncs = strict ? new Set<string>() : new Set(tree.list<Input & { sync?: unknown }>("input").filter((i) => i.sync).map((i) => i.id));
+  const sources = tree.list<Source>("source").filter((s) => !s.retracted && !(s.input && syncs.has(s.input)));
   const sourceById = new Map(sources.map((s) => [s.id, s]));
   const repos = tree.list<Repository>("repository");
   const recordsets = new Map(tree.list<RecordSet>("recordset").map((b) => [b.id, b]));
@@ -197,6 +214,9 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   // Where the tree ends, and the families nothing links to it (the Strom profile, opts.edges).
   const ends = opts.edges && opts.for === "strom" ? treeEdges(tree) : undefined;
 
+  // Who read each source (the Strom profile, opts.sourceReads).
+  const readers = opts.sourceReads && opts.for === "strom" ? readersOf(tree) : undefined;
+
   // ── header ──
   w.line(0, "HEAD");
   w.line(1, "SOUR", "STROM_RESEARCH");
@@ -211,6 +231,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (head) w.line(1, "_STROM_HEAD", head);
     if (opts.links?.length) w.line(1, "_STROM_LINKS", opts.links.join(" "));
     if (opts.research) w.line(1, "_STROM_ASOF", new Date().toISOString().slice(0, 10));
+    // an archive (no agent; the app's data written as they come): for an app that knows it (APP_KNOWS_ARCHIVE)
+    if (opts.archive && tree.config.mode === "archive") w.line(1, "_STROM_MODE", "archive");
   }
   w.line(1, "SUBM", "@U1@");
   w.line(1, "GEDC");
@@ -286,7 +308,9 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const deferred: string[] = [];
     for (const c of [...f.children].sort((m, n) => born(m.person) - born(n.person))) {
       w.line(1, "CHIL", x(c.person));
-      if (!c.relations) continue;
+      // a stepchild of both (or of the one parent): PEDI has no word for it — the Strom app and others read _FREL/_MREL
+      // (found on Mac: a stepchild lost in the app after a load of the research)
+      if (!c.relations && (strict || c.relation !== "step")) continue;
       // A child related differently to each parent (a stepchild of the husband, the wife's own):
       // _FREL/_MREL as Legacy, RootsMagic and FTM write it; strict GEDCOM has no place for it but a note.
       const rel = (p: Person | undefined) => (p ? relationTo(c, p.id) : undefined);
@@ -301,6 +325,20 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         deferred.push(`${displayName(personById.get(c.person)!)} — ${who}`);
       }
     }
+    // parents who are no couple (one parent alone, or two the app keeps so), nothing of a couple with them: said, so the
+    // Strom app draws no placeholder partner beside the one
+    const parents = [husb, wife].filter(Boolean).length;
+    const coupled = f.events.some((e) => !e.retracted) || f.notes.length > 0 || !!f.story || (f.citations ?? []).some((c) => sourceById.has(c.source)) || !!f.union;
+    if (opts.noCouple && opts.for === "strom" && (parents === 1 || (parents === 2 && f.noCouple)) && !coupled) w.line(1, "_STROM_NO_COUPLE", "Y");
+    // how the couple is bound where its facts cannot say it: one partner married to somebody unknown (with no child, or
+    // with their children) — a bare MARR, and DIV when divorced, as the Strom app's beta.55 and beta.56 write it (any
+    // program reads a marriage); partners or separated as the app's _STAT
+    const had = (kind: string) => f.events.some((e) => !e.retracted && e.kind === kind);
+    if (parents === 1 && f.union) {
+      if ((f.union === "married" || f.union === "divorced") && !had("MARR")) w.line(1, "MARR");
+      if (f.union === "divorced" && !had("DIV")) w.line(1, "DIV");
+    }
+    if (!strict && (f.union === "partners" || f.union === "separated")) w.line(1, "_STAT", f.union === "partners" ? "Partners" : "Separated");
     for (const c of f.citations ?? []) {
       const q = citation(1, c);
       if (q) deferred.push(`${L("family")} — ${L("quote")}: „${q}“`);
@@ -352,13 +390,27 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     } else for (const section of sections) w.text(1, "NOTE", section);
     // The research's number of the source: the Strom app knows the same entry again by it.
     if (entries) w.line(1, "REFN", s.id);
-    for (const e of opts.excerpts?.(s) ?? []) {
+    // who read the record: the user (their transcript in the app, when it counts), the research, both; nobody: none
+    if (readers && s.kind !== "family-tree" && s.kind !== "family-memory") {
+      const who = readers.get(s.id) ?? new Set<string>();
+      const user = who.has("user");
+      const research = [...who].some((x) => x !== "user");
+      if (user || research) w.line(1, "_STROM_READ", user && research ? "both" : user ? "user" : "research");
+    }
+    if (opts.sourceReads && s.app?.verified) w.line(1, "_STROM_VERIFIED", "Y");
+    for (const cut of opts.excerpts?.(s) ?? []) {
+      const e = opts.turnsExcerpts ? cut : turned(cut);
       w.line(1, "OBJE");
       w.line(2, "FORM", "jpg");
       w.line(2, "_STROM_KIND", "excerpt");
       if (opts.clips && e.clip) w.line(2, "_STROM_CLIP", e.clip);
       if (e.url) w.text(2, "_URL", e.url);
       w.wrapped(2, "FILE", dataUrl(e));
+      // the original it is cut from, by its content: the app knows the research has it (and sends it not again)
+      const original = tree.get<Media | Input>(e.media);
+      if (original?.sha) w.line(2, "_STROM_SHA", original.sha);
+      // cut as the picture lies in its file: how the app turns it for showing (a phone's photo, EXIF 2–8)
+      if (e.orient) w.line(2, "_STROM_ORIENT", String(e.orient));
     }
   }
   for (const r of repos) {
@@ -440,7 +492,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       }
     for (const c of e.citations) citation(2, c);
     for (const pt of e.participants ?? []) participant(pt, on, noteParts, assos);
-    if (e.status === "lead" || e.status === "possible") noteParts.unshift(L(e.status));
+    if (opts.factStatus && opts.for === "strom") w.line(2, "_STROM_STATUS", e.status);
+    else if (e.status === "lead" || e.status === "possible") noteParts.unshift(L(e.status));
     if (!VALUE_TAGS.has(tag) && e.value && tag !== "EVEN") noteParts.push(e.value);
     // The ages for a Strom older than STROM_READS_TAGS (or with no AGE form), the words of the record always.
     if ((repeat || ageUntagged) && ageNotes.length) noteParts.push(`${L("age")}: ${ageNotes.join(", ")}`);
@@ -465,10 +518,11 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       w.line(1, "_STROM_CONFLICT", c.id);
       // the fact it is about: its tag, else a conflict of the research named by its title
       w.line(2, "TYPE", c.fact ?? "EVEN");
-      w.text(2, "TITL", c.title);
+      w.text(2, "TITL", conflictTitle(tree, c));
       w.line(2, "STAT", c.state === "resolved" ? "decided" : "open");
       for (const claim of c.claims) {
-        w.text(2, "VAL", claim.value);
+        // in the research's language (found on Mac: "14 JAN 1931, Dolní Lhota, house 12" in the app's dialog)
+        w.text(2, "VAL", claimText(tree, c, claim));
         if (claim.source && sourceById.has(claim.source)) {
           citedSources.add(claim.source);
           w.line(3, "SOUR", x(claim.source));

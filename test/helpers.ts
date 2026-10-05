@@ -12,6 +12,13 @@ const gitGlobal = path.join(os.tmpdir(), `strom-test-gitconfig-${process.pid}`);
 fs.writeFileSync(gitGlobal, "");
 process.env.GIT_CONFIG_GLOBAL = gitGlobal;
 process.env.GIT_CONFIG_NOSYSTEM = "1";
+// The test process itself from the person's home and settings: anything a test starts without a world's
+// environment (a process spawned with the inherited one, code reading process.env) never reaches the real
+// ~/.config/strom (found 2026-10-04: a first run of a new version claimed in the developer's own config).
+const isolatedHome = fs.mkdtempSync(path.join(os.tmpdir(), "strom-test-home-"));
+process.env.HOME = isolatedHome;
+process.env.USERPROFILE = isolatedHome;
+process.env.STROM_CONFIG_DIR = path.join(isolatedHome, "config");
 
 export const hasGit = spawnSync("git", ["--version"]).status === 0;
 
@@ -37,6 +44,8 @@ export class World {
       STROM_CONFIG_DIR: path.join(this.dir, "config"),
       LANG: "cs_CZ.UTF-8",
       PATH: process.env.PATH ?? "",
+      // what Node compiled stays compiled for the strom processes a test starts (test/setup.ts)
+      ...(process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {}),
       // No windows, no browser, no installers from a test.
       STROM_NO_DIALOG: "1",
       STROM_NO_OPEN: "1",
@@ -59,7 +68,7 @@ export class World {
     return path.join(this.home, name);
   }
 
-  async run(args: string[], opts: { answers?: string[]; cwd?: string; tty?: boolean; stdin?: string; dialog?: boolean } = {}): Promise<RunResult> {
+  async run(args: string[], opts: { answers?: string[]; cwd?: string; tty?: boolean; stdin?: string; dialog?: boolean; env?: Record<string, string> } = {}): Promise<RunResult> {
     let out = "";
     let err = "";
     const io = {
@@ -71,7 +80,7 @@ export class World {
       // The window of a consent, answered by the person at the screen.
       ...(opts.dialog !== undefined ? { dialog: () => opts.dialog } : {}),
     };
-    const code = await main(args, io, this.env, opts.cwd ?? this.cwd);
+    const code = await main(args, io, opts.env ? { ...this.env, ...opts.env } : this.env, opts.cwd ?? this.cwd);
     let json: any;
     if (args.includes("--json")) {
       try {
@@ -84,7 +93,7 @@ export class World {
   }
 
   /** Run and fail loudly on a non-zero exit. */
-  async ok(args: string[], opts: { answers?: string[]; cwd?: string; tty?: boolean; stdin?: string; dialog?: boolean } = {}): Promise<RunResult> {
+  async ok(args: string[], opts: { answers?: string[]; cwd?: string; tty?: boolean; stdin?: string; dialog?: boolean; env?: Record<string, string> } = {}): Promise<RunResult> {
     const r = await this.run(args, opts);
     if (r.code !== 0) throw new Error(`strom ${args.join(" ")} → exit ${r.code}\n${r.out}\n${r.err}`);
     return r;
@@ -99,6 +108,15 @@ export class World {
   }
 
   cleanup(): void {
+    // a bridge a test left running (one that failed before strom live stop): ended with its folder
+    const trees = path.join(this.env.HOME!, "Documents", "Strom");
+    for (const t of fs.existsSync(trees) ? fs.readdirSync(trees) : []) {
+      try {
+        process.kill((JSON.parse(fs.readFileSync(path.join(trees, t, ".strom", "live.json"), "utf8")) as { pid: number }).pid, "SIGTERM");
+      } catch {
+        // none running
+      }
+    }
     // a bridge just stopped may still write its last line into the tree: tried again (ENOTEMPTY)
     fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }

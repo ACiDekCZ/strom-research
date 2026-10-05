@@ -3,6 +3,10 @@
 
 import fs from "node:fs";
 import { main } from "./cli/main.ts";
+import { installation, withInstallEnv } from "./core/self.ts";
+
+// The environment this installation was installed with (its own settings, isolated): for this strom and all it starts.
+Object.assign(process.env, withInstallEnv(process.env, installation().env));
 
 // Windows consoles: make sure non-ASCII names print correctly.
 if (process.platform === "win32") process.stdout.setDefaultEncoding?.("utf8");

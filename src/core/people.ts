@@ -3,9 +3,10 @@
 
 import { AmbiguousError, UsageError } from "./errors.ts";
 import { dateYears, yearLabel } from "./gdate.ts";
-import type { ChildLink, ChildRelation, Event, Family, Name, Person } from "./model.ts";
+import type { ChildLink, ChildRelation, Conflict, Event, Family, Name, Person } from "./model.ts";
 import { foldText, tokens } from "./text.ts";
 import type { Tree } from "./tree.ts";
+import { UI, ui, type UIKey } from "../cli/ui.ts";
 
 /**
  * Parse "Jan /Novák/", "Jan Novák" (last word = surname) or "/Novák/". The
@@ -234,13 +235,13 @@ export function resolvePerson(tree: Tree, ref: string): Person {
   const id = ref.trim().toUpperCase();
   if (/^P\d+$/.test(id)) {
     const p = tree.get<Person>(id.length < 5 ? "P" + id.slice(1).padStart(4, "0") : id);
-    if (!p) throw new UsageError(`no person ${ref}`, { hint: "strom person list" });
+    if (!p) throw new UsageError(`no person ${ref}`, { hint: "strom person list", code: "record.none", params: { kind: "person", id: ref } });
     if (p.mergedInto) throw new UsageError(`${p.id} was merged into ${p.mergedInto}`, { hint: `strom person show ${p.mergedInto}` });
     return p;
   }
   const hits = findPersons(tree, ref);
   if (hits.length === 1) return hits[0]!;
-  if (hits.length === 0) throw new UsageError(`no person matches "${ref}"`, { hint: `strom person list ${foldText(ref).split(" ").pop() ?? ""}`.trim() });
+  if (hits.length === 0) throw new UsageError(`no person matches "${ref}"`, { hint: `strom person list ${foldText(ref).split(" ").pop() ?? ""}`.trim(), code: "person.no-match", params: { ref } });
   // Exact full-name match wins over prefix matches.
   const exact = hits.filter((p) => p.names.some((n) => foldText(formatName(n)) === foldText(ref)));
   if (exact.length === 1) return exact[0]!;
@@ -297,4 +298,51 @@ export function likelyDuplicates(tree: Tree, ids: string[]): { person: Person; s
           }
       }
   return out;
+}
+
+/**
+ * A conflict's title as it is read now: one the Strom app's edit opened starts with its person's name when it was
+ * opened — the name the person is shown by now in its place (found on Mac: "Jon Berg: BIRT…" after the research renamed
+ * him Johannes Bergh). Any other title as it was written.
+ */
+export function conflictTitle(tree: Tree, c: Conflict): string {
+  const ofApp = !!(c.edit || c.parents || c.claims.some((x) => x.note === "the user's edit"));
+  const title = ofApp ? inWords(c.title, tree.lang) : c.title;
+  const p = ofApp && c.subject[0]?.startsWith("P") ? tree.get<Person>(c.subject[0]) : undefined;
+  const m = p && !p.retracted ? /^([^:\n]{1,200}): /.exec(title) : null;
+  if (!p || !m) return title;
+  return `${gedcomName(primaryName(p)).replace(/\//g, "").replace(/\s+/g, " ").trim()}: ${title.slice(m[0].length)}`;
+}
+
+/**
+ * A claim of a conflict as a person reads it, in the research's language (the Strom app's dialog, conflict show, the
+ * decision taken): its words (`text`); else, a conflict of the user's edit an older strom opened, its side of the title
+ * ("… — 14. 1. 1931, Dolní Lhota, čp. 12 × …"; found on Mac: "14 JAN 1931, Dolní Lhota, house 12" in a Czech research);
+ * else the claim as written.
+ */
+export function claimText(tree: Tree, c: Conflict, claim: Conflict["claims"][number]): string {
+  if (claim.text) return claim.text;
+  const i = c.claims.indexOf(claim);
+  const ofApp = !!(c.edit || c.parents || c.claims.some((x) => x.note === "the user's edit"));
+  // a title cut at its length says one side no more
+  if (ofApp && c.claims.length === 2 && i >= 0 && c.title.length < 200) {
+    const m = / — (.*) × (.*)$/s.exec(conflictTitle(tree, c));
+    if (m && !m[1]!.includes(" × ")) return m[i + 1]!;
+  }
+  return claim.value;
+}
+
+/**
+ * A title an older strom wrote for the user's edit ("Petr Svoboda: SEX — U × F") in the research's language: what it is
+ * about in words, a sex too ("Petr Svoboda: Pohlaví — neznámé × žena"); the values otherwise as they were written.
+ */
+function inWords(title: string, lang: string): string {
+  const m = /^([^:\n]{1,200}): (SEX|NAME|parents|[A-Z]{3,4}) — (.*) × (.*)$/s.exec(title);
+  if (!m) return title;
+  const tag = m[2]!;
+  const key = (tag === "SEX" ? "ui.conflict.sex" : tag === "NAME" ? "ui.conflict.name" : tag === "parents" ? "ui.conflict.parents" : `ui.ev.${tag === "BAPM" ? "CHR" : tag}`) as UIKey;
+  if (!(key in UI)) return title;
+  const sex = (s: string) => (tag !== "SEX" ? s : s === "M" ? ui(lang, "ui.show.sex.M") : s === "F" ? ui(lang, "ui.show.sex.F") : s === "U" ? ui(lang, "ui.conflict.sex.U") : s);
+  const what = ui(lang, key);
+  return `${m[1]}: ${what.charAt(0).toUpperCase()}${what.slice(1)} — ${sex(m[3]!)} × ${sex(m[4]!)}`;
 }

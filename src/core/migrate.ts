@@ -21,8 +21,17 @@ export interface Migration {
   run(tree: Tree): void;
 }
 
-/** The steps from schema 1 on (none yet: 1 is the schema strom 1.0 was published with). */
-export const MIGRATIONS: Migration[] = [];
+/** The steps from schema 1 on (1 is the schema strom 1.0 was published with). */
+export const MIGRATIONS: Migration[] = [
+  {
+    // 1.12: each commit's operations in a file of its own, in the folder of its day (data/ops/<yyyy-mm>/<dd>/…) — an
+    // older strom would not read them and take the records they sealed for edits made outside it. Nothing is
+    // rewritten: the logs written before stay where they are and are read as they were.
+    to: 2,
+    what: "the operations of each commit in a file of its own",
+    run() {},
+  },
+];
 
 /** Bring the tree to the target schema; returns what was done, one line a step. */
 export function migrate(tree: Tree, migrations: Migration[] = MIGRATIONS, target = SCHEMA_VERSION): string[] {

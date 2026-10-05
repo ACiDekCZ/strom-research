@@ -63,6 +63,13 @@ export function humanDay(iso: string, lang: string): string {
   return format(lang, d, d.getUTCFullYear() === new Date().getUTCFullYear() ? "daymonth" : "day");
 }
 
+/** A moment of the research (an ISO time) on this computer's clock: "3. 10. 23:01" — which of a day's sends it was. */
+export function humanWhen(iso: string, lang: string): string {
+  const d = new Date(iso);
+  const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${humanDay(new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())).toISOString(), lang)} ${time}`;
+}
+
 /** An amount in US dollars (what the agents' providers bill). */
 export function humanCost(usd: number, lang: string): string {
   try {

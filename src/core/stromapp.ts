@@ -19,6 +19,50 @@ export function isStromAppOrigin(origin: string): boolean {
   return origin === "https://stromapp.info" || origin === "https://beta.stromapp.info" || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 }
 
+/**
+ * The copy of the Strom app the person installed strom from, when it is another than stromapp.info (its beta, its
+ * development): the line it shows carries its address (STROM_APP_URL beside STROM_FROM_APP). Only the app's own pages.
+ */
+export function appUrlFromInstall(env: { STROM_FROM_APP?: string | undefined; STROM_APP_URL?: string | undefined }): string | undefined {
+  const raw = env.STROM_FROM_APP?.trim() ? env.STROM_APP_URL?.trim() : undefined;
+  if (!raw) return undefined;
+  try {
+    const u = new URL(raw);
+    if (!/^https?:$/.test(u.protocol) || !isStromAppOrigin(u.origin) || u.username || u.password) return undefined;
+    const url = u.href;
+    return url === STROM_APP_URL ? undefined : url;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Installed from the Strom app: which copy — its address (its beta, its development), null for stromapp.info itself (its
+ * line carries no address), undefined when not installed from the app or the address is no copy of it.
+ */
+export function appCopyOfInstall(env: { STROM_FROM_APP?: string | undefined; STROM_APP_URL?: string | undefined }): string | null | undefined {
+  if (!env.STROM_FROM_APP?.trim()) return undefined;
+  const raw = env.STROM_APP_URL?.trim();
+  if (!raw) return null;
+  const copy = appUrlFromInstall(env);
+  if (copy) return copy;
+  try {
+    return new URL(raw).href === STROM_APP_URL ? null : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The name of the app's tree the line of the app carries (STROM_FROM_APP_NAME): what the research is called unless the
+ * person says another — plain text only, one line, at most 80 characters.
+ */
+export function appTreeNameFromInstall(env: { STROM_FROM_APP?: string | undefined; STROM_FROM_APP_NAME?: string | undefined }): string | undefined {
+  if (!env.STROM_FROM_APP?.trim()) return undefined;
+  const name = (env.STROM_FROM_APP_NAME ?? "").normalize("NFC").replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, 80).trim();
+  return name || undefined;
+}
+
 /** The Strom app's address: the setting strom.app.url (STROM_APP_URL) points strom at another copy of it (its beta, its development). */
 export function stromAppUrl(settings: Settings): string {
   const url = settings.resolve("strom.app.url")?.value;
@@ -101,6 +145,96 @@ export function appShowsCoupleEvents(settings: Settings, version?: string): bool
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(APP_SHOWS_COUPLE_EVENTS)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
+/**
+ * The Strom app knows a research that is only an archive (the app's spec docs/ZADANI_VYZKUM_app-vstup-dat.md, step F):
+ * 1 _STROM_MODE archive in the header of the Strom file (/status says it too: accepts.mode) — it hides what leads to
+ * an agent. stromapp.info from 3.9.0; another copy of the app is taken as current. An app of unknown version: none
+ * (3.9 always says its version, so one that says none is older — promised to the app at its 3.9).
+ */
+export const APP_KNOWS_ARCHIVE: string | undefined = "3.9.0";
+
+export function appKnowsArchive(settings: Settings, version?: string): boolean {
+  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (!APP_KNOWS_ARCHIVE || !version) return false;
+  const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const [a, b] = [n(version), n(APP_KNOWS_ARCHIVE)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
+/**
+ * The Strom app shows who read a source (the app's spec docs/ZADANI_VYZKUM_app-vstup-dat.md, step B): 1 _STROM_READ
+ * user|research|both on each record the research has (none: nobody read it — the user's transcript a lead), and
+ * 1 _STROM_VERIFIED Y on a source of the app whose transcript the user verified. stromapp.info from 3.9.0; another
+ * copy of the app (its beta, its development) is taken as current. An app of unknown version: none (3.9 always says
+ * its version, so one that says none is older — promised to the app at its 3.9).
+ */
+export const APP_SHOWS_SOURCE_READS: string | undefined = "3.9.0";
+
+export function appShowsSourceReads(settings: Settings, version?: string): boolean {
+  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (!APP_SHOWS_SOURCE_READS || !version) return false;
+  const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const [a, b] = [n(version), n(APP_SHOWS_SOURCE_READS)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
+/**
+ * The Strom app keeps parents of a child who are no couple (the app's spec docs/ZADANI_VYZKUM_app-vstup-dat.md, P1):
+ * 1 _STROM_NO_COUPLE Y on a family of one parent with nothing of a couple (no marriage, events, notes, sources), and
+ * on one of two parents the app sent so — without it the app draws a placeholder "?" partner beside the one parent.
+ * stromapp.info from 3.9.0; another copy of the app (its beta, its development) is taken as current. An app of
+ * unknown version: today's (an older one lists the tag as unsupported and draws the placeholder as before, nothing
+ * lost).
+ */
+export const APP_KNOWS_NO_COUPLE: string | undefined = "3.9.0";
+
+export function appKnowsNoCouple(settings: Settings, version?: string): boolean {
+  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (!APP_KNOWS_NO_COUPLE) return false;
+  if (!version) return true;
+  const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const [a, b] = [n(version), n(APP_KNOWS_NO_COUPLE)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
+/**
+ * The Strom app shows how sure each fact is (the app's spec docs/ZADANI_VYZKUM_app-vstup-dat.md, "stav údaje"):
+ * 2 _STROM_STATUS lead|possible|probable|proven under each fact, in place of the note "Lead — not proven by a record"
+ * (which landed among the user's notes). stromapp.info from 3.9.0 (its betas from 3.9.0-beta.9 read it: a pre-release
+ * counts as its version); another copy of the app (its beta, its development) is taken as current. An app of unknown
+ * version keeps the note: an older one would lose what the note says.
+ */
+export const APP_SHOWS_FACT_STATUS: string | undefined = "3.9.0";
+
+export function appShowsFactStatus(settings: Settings, version?: string): boolean {
+  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (!APP_SHOWS_FACT_STATUS || !version) return false;
+  const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const [a, b] = [n(version), n(APP_SHOWS_FACT_STATUS)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
+/**
+ * The Strom app turns an excerpt cut from a picture that lies on its side (2 _STROM_ORIENT 2–8, a phone's photo): from
+ * 3.9.0 (the app's spec docs/ZADANI_VYZKUM_app-vstup-dat.md); another copy of the app is taken as current. An app of
+ * unknown version (one older than 3.9 says none) gets the excerpt turned already, without the tag — it would show it
+ * lying on its side.
+ */
+export const APP_TURNS_EXCERPTS: string | undefined = "3.9.0";
+
+export function appTurnsExcerpts(settings: Settings, version?: string): boolean {
+  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (!APP_TURNS_EXCERPTS || !version) return false;
+  const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const [a, b] = [n(version), n(APP_TURNS_EXCERPTS)];
   for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
   return true;
 }

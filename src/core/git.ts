@@ -7,7 +7,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { StromError } from "./errors.ts";
 import type { Env } from "./paths.ts";
-import { userHome } from "./paths.ts";
+import { configDir, isolated, userHome } from "./paths.ts";
+import { installation } from "./self.ts";
 import { which } from "./which.ts";
 
 export interface GitResult {
@@ -50,18 +51,21 @@ function git(cwd: string, args: string[], input?: string): string {
 }
 
 export function gitInstallHint(platform: NodeJS.Platform = process.platform): string {
-  if (platform === "linux") return "install git with your package manager, e.g. sudo apt install git  /  sudo dnf install git";
+  if (platform === "linux") return "git from the system's package manager, e.g. sudo apt install git  /  sudo dnf install git";
   return "strom doctor --fix installs it";
 }
 
-export function gitMissingError(): StromError {
+export function gitMissingError(platform: NodeJS.Platform = process.platform): StromError {
   return new StromError("git is not installed — Strom keeps the research history in git", {
-    hint: gitInstallHint(),
+    hint: gitInstallHint(platform),
+    code: platform === "linux" ? "git.missing-linux" : "git.missing",
   });
 }
 
 /** strom's own git on Windows (MinGit, installed by strom doctor --fix — for strom only, no admin, not on PATH). */
 export function ownGitDir(env: Env): string {
+  // an isolated installation: in its own folder (the person's strom keeps its own)
+  if (isolated(env)) return path.join(installation().root ?? configDir(env), "git");
   return path.join(env.LOCALAPPDATA ?? path.join(userHome(env), "AppData", "Local"), "Programs", "Strom", "git");
 }
 
@@ -88,10 +92,27 @@ export function gitProgram(env: Env = process.env, platform: NodeJS.Platform = p
         .filter((d): d is string => Boolean(d))
         .map((d) => path.join(d, "Git", "cmd", "git.exe"))
         .find((f) => fs.existsSync(f));
-    if (found === "/usr/bin/git" && platform === "darwin" && spawnSync("xcode-select", ["-p"], { stdio: "ignore" }).status !== 0) found = undefined;
+    if (found === "/usr/bin/git" && platform === "darwin") found = appleGit();
   }
   programs.set(key, found);
   return found;
+}
+
+/**
+ * macOS: /usr/bin/git is a stand-in that asks xcrun where the command line tools are on every run — four times
+ * slower than their git itself (73 vs 18 ms; strom runs git several times a write). Without the tools: none.
+ */
+export function appleGit(toolsDir: () => string | undefined = xcodeSelect): string | undefined {
+  const dir = toolsDir();
+  if (dir === undefined) return undefined;
+  const own = dir && path.join(dir, "usr", "bin", "git");
+  return own && fs.existsSync(own) ? own : "/usr/bin/git";
+}
+
+/** Where Apple's developer tools are (`xcode-select -p`); undefined: none installed. */
+function xcodeSelect(): string | undefined {
+  const r = spawnSync("xcode-select", ["-p"], { encoding: "utf8" });
+  return r.status === 0 ? r.stdout.trim() : undefined;
 }
 
 /** Git version string, or undefined when git is not available. */
@@ -110,19 +131,23 @@ export function isRepo(dir: string): boolean {
 
 export function initRepo(dir: string): void {
   git(dir, ["init", "-q"]);
-  // Stable behaviour on every platform and with non-ASCII file names.
-  git(dir, ["config", "core.autocrlf", "false"]);
-  git(dir, ["config", "core.quotepath", "off"]);
-  git(dir, ["config", "commit.gpgsign", "false"]);
-  ensureIdentity(dir);
+  // Stable behaviour on every platform and with non-ASCII file names — written at once, not a git each.
+  const settings = ["[core]", "\tautocrlf = false", "\tquotepath = off", "[commit]", "\tgpgsign = false", ...identityLines(dir)];
+  fs.appendFileSync(path.join(dir, ".git", "config"), `${settings.join("\n")}\n`);
 }
 
 /** Non-technical users have no git identity; set a local one if needed. */
 export function ensureIdentity(dir: string): void {
-  const name = runGit(dir, ["config", "user.name"]).stdout.trim();
-  const email = runGit(dir, ["config", "user.email"]).stdout.trim();
-  if (!name) git(dir, ["config", "user.name", "Strom"]);
-  if (!email) git(dir, ["config", "user.email", "strom@localhost"]);
+  const lines = identityLines(dir);
+  if (lines.length) fs.appendFileSync(path.join(dir, ".git", "config"), `${lines.join("\n")}\n`);
+}
+
+/** The identity git lacks here (none set globally or in the repository), as lines of its config. */
+function identityLines(dir: string): string[] {
+  const set = runGit(dir, ["config", "--get-regexp", "^user\\.(name|email)$"]).stdout;
+  const has = (key: string) => set.split("\n").some((l) => l.toLowerCase().startsWith(`${key} `) && l.slice(key.length + 1).trim());
+  const lines = [...(has("user.name") ? [] : ["\tname = Strom"]), ...(has("user.email") ? [] : ["\temail = strom@localhost"])];
+  return lines.length ? ["[user]", ...lines] : [];
 }
 
 export interface HeadInfo {
@@ -134,12 +159,15 @@ export interface HeadInfo {
 // HEAD only changes when strom commits, so it is read once per command.
 const headCache = new Map<string, HeadInfo | null>();
 
-/** Forget cached git state (at the start of every command, and when a tree is reopened). */
-export function resetCache(dir?: string): void {
+/**
+ * Forget cached git state (when a tree is reopened; everything after git was installed). At the start of a command
+ * (`command`) a git found stays found — looking costs processes, and only installing one changes it.
+ */
+export function resetCache(dir?: string, at: "command" | "all" = "all"): void {
   if (dir) headCache.delete(dir);
   else {
     headCache.clear();
-    programs.clear();
+    for (const [key, found] of programs) if (at === "all" || !found) programs.delete(key);
   }
 }
 
@@ -167,6 +195,15 @@ export function head(dir: string): string | undefined {
 
 export function tracked(dir: string, p: string): boolean {
   return runGit(dir, ["ls-files", "--error-unmatch", "--", p]).status === 0;
+}
+
+/** Which of these paths (files or folders) git knows — one process for all of them. */
+function trackedOf(dir: string, paths: string[]): Set<string> {
+  const files = runGit(dir, ["ls-files", "-z", "--", ...paths]).stdout.split("\0").filter(Boolean);
+  return new Set(paths.filter((p) => {
+    const rel = p.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "");
+    return files.some((f) => f === rel || f.startsWith(`${rel}/`));
+  }));
 }
 
 const FALLBACK_IDENTITY = {
@@ -206,7 +243,9 @@ export function commitAll(
 ): string | undefined {
   // Paths that no longer exist are fine for `add -A` only if git knows them;
   // filter missing, untracked-never-seen paths out to keep `add` from failing.
-  const specs = pathspec.filter((p) => p === "." || fs.existsSync(path.join(dir, p)) || tracked(dir, p));
+  const missing = pathspec.filter((p) => p !== "." && !fs.existsSync(path.join(dir, p)));
+  const known = missing.length ? trackedOf(dir, missing) : new Set<string>();
+  const specs = pathspec.filter((p) => !missing.includes(p) || known.has(p));
   if (specs.length) git(dir, ["add", "-A", "--", ...specs]);
   const tree = git(dir, ["write-tree"]).trim();
   const parent = headInfo(dir);

@@ -175,7 +175,7 @@ register({
     }
     const text = lines(
       table(report.flatMap((r) => r.summaries.map((s, i) => [i === 0 ? `${r.line}` : "", s, i === 0 && r.label ? `#${r.label}` : ""]))),
-      `${report.length} command(s) as one change${tree.dryRun ? " (dry run — nothing written)" : ""}`,
+      `${report.length} command(s) as one change`,
     );
     return { text, data: { lines: report, labels: Object.fromEntries(labels) } };
   },

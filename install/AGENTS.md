@@ -34,7 +34,10 @@ their language.
 3. Run `strom`. It says where things stand and what to do next — follow it.
    Not set up yet: ask the user where to keep the research (suggest the
    default it names) and which language they want, then run the setup
-   command it gives you. `strom guide` explains the whole work.
+   command it gives you. If an agent has both a desktop app and a terminal
+   here, strom says which the user talks in; ask which they prefer (the app
+   is the easiest): `strom setup --where app|terminal`. `strom guide`
+   explains the whole work; `strom help` lists every command for you.
 4. From here on strom leads the work — the same for every agent, also for
    one on its own server: read `strom guide` before the first step (the rules
    of the research and the way to work, kept up to date with strom), and run
@@ -43,9 +46,11 @@ their language.
    change the research only through `strom` commands, and ask the user before
    decisions: whom to research, what they know, anything that needs their
    permission. When strom opens a window asking for consent, tell the user to
-   answer it — you cannot.
+   answer it — you cannot. A research may be an archive (no agent work):
+   strom says so; only the user switches it on (`strom mode research`).
 5. Next time the user can simply ask you to continue the research, or run
-   `strom` in a terminal (or the "Strom research" shortcut on the desktop).
+   `strom` in a terminal (or the "Strom research" shortcut on the desktop);
+   the commands a person uses, in their language: `strom help --human`.
    To remove strom again: `strom uninstall` (the research stays).
 
 Source code and license (MPL-2.0): https://github.com/ACiDekCZ/strom-research

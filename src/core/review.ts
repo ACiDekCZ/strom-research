@@ -118,11 +118,19 @@ export function livingBorn(tree: Tree, p: Person): number | undefined {
 /** The models that read each source: the sessions that recorded or corrected it (the user's hand counts as "user"). */
 export function readersOf(tree: Tree): Map<string, Set<string>> {
   const model = new Map(tree.list<Session>("session").map((s) => [s.id, s.model ?? "unknown"]));
+  // a source the user wrote in the Strom app: theirs is a reading only when it counts (Source.app), whoever ran the
+  // sync; an agent read it when it edited it
+  const fromApp = new Map(tree.list<Source>("source").filter((s) => s.app).map((s) => [s.id, s.app!]));
   const out = new Map<string, Set<string>>();
+  for (const [id, app] of fromApp) if (app.read) out.set(id, new Set(["user"]));
   for (const op of tree.readOps()) {
     if (op.op !== "source.add" && op.op !== "source.edit") continue;
     const who = op.by === "user" ? "user" : (model.get(op.by) ?? "unknown");
-    for (const id of op.targets) if (id.startsWith("S")) (out.get(id) ?? out.set(id, new Set()).get(id)!).add(who);
+    for (const id of op.targets) {
+      if (!id.startsWith("S")) continue;
+      if (fromApp.has(id) && (op.op === "source.add" || !model.has(op.by))) continue;
+      (out.get(id) ?? out.set(id, new Set()).get(id)!).add(who);
+    }
   }
   return out;
 }

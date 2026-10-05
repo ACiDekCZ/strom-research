@@ -19,10 +19,11 @@ import { whereToTalk } from "../core/apps.ts";
 import { pause } from "../cli/menu-parts.ts";
 import type { RunIn } from "../cli/menu-links.ts";
 import { fullExcerpt } from "../core/excerpt.ts";
+import { knownOriginal } from "../core/originals.ts";
 import { openForUser } from "../core/open.ts";
 import { openInNewTerminal } from "../core/shortcut.ts";
 import { systemNotice } from "../core/dialog.ts";
-import { configDir } from "../core/paths.ts";
+import { configDir, isolated } from "../core/paths.ts";
 
 /** The researches here with this id — a copy of a research folder has its id too; the current one first. */
 function researchesWithId(ctx: Context, id: string): { name: string; root: string }[] {
@@ -103,7 +104,7 @@ function aboutConflict(root: string, ctx: Context, id: string): string | undefin
   return c && c.type === "conflict" && c.state === "open" ? ui(tree.lang, "ui.link.conflict.say", { id: c.id, title: c.title }) : undefined;
 }
 
-type TreeLink = Exclude<Link, { action: "menu" | "excerpt" | "new" }>;
+type TreeLink = Exclude<Link, { action: "menu" | "excerpt" | "media" | "new" }>;
 
 /** What a link asks, in this terminal: which copy of the research, then as the menu does it. */
 async function inTerminal(ctx: Context, link: TreeLink) {
@@ -172,6 +173,16 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     case "sync-undo": {
       const { undoSending } = await import("../cli/menu-links.ts");
       return end(await undoSending(ctx, run, treeLang, root, link.intake));
+    }
+    case "sync": {
+      // the tree the app sent: shown here, written or thrown away on the person's word (it waits in the inbox)
+      const { receivedPending } = await import("../core/sync.ts");
+      const waiting = receivedPending(root);
+      const sent = link.intake ? waiting.find((r) => r.intake === link.intake) : waiting[0];
+      if (!sent) return said("ui.link.sync.none");
+      const { decideSent } = await import("../cli/menu-research.ts");
+      await decideSent(ctx, run, treeLang, root, sent, "ui.enter.close");
+      return { text: "", data: { done: true, action: link.action, tree: root } };
     }
     case "direction": {
       const { directionDo } = await import("../cli/menu-links.ts");
@@ -286,6 +297,8 @@ register(
       "what it brings is shown and written on the user's word, as the menu's \"straight from the Strom app\").\n" +
       "strom-research://excerpt?tree=<id>&source=S0042&clip=<its mark> — the excerpt from the scan, not made smaller, in the\n" +
       "viewer of the system (the page in the online archive when the scan is not here). Nothing is written.\n" +
+      "strom-research://media?tree=<id>&sha=<sha256> — an original the Strom app sent (or any file the research keeps by\n" +
+      "that content), in the viewer of the system. Nothing is written.\n" +
       "strom-research://app?tree=<id> — the research as it is now into the app's open window (strom app).\n" +
       "strom-research://live?tree=<id> — the research followed live in the app's window (strom app --live).\n" +
       "strom-research://open?tree=<id> — the research's menu in a terminal.\n" +
@@ -297,6 +310,7 @@ register(
       "strom-research://conflict?tree=<id>&id=X0007&do=decide|agent — decided by the user (which claim, why) or left to the agent.\n" +
       "strom-research://story?tree=<id>&person=P0012[&partner=P0013]&do=final|keep — the story approved (strom story approve), of a couple with partner=.\n" +
       "strom-research://sync-undo?tree=<id>&intake=I0042 — a sending from the app taken back (strom sync undo).\n" +
+      "strom-research://sync?tree=<id>&do=show[&intake=R…] — a tree the app sent that waits: shown, then written or thrown away.\n" +
       "strom-research://direction?tree=<id>&id=G0002&do=pause|done|resume — a direction paused, ended (the reason asked) or\n" +
       "taken up again (strom research pause|done|resume).\n" +
       "strom-research://chat?tree=<id>&research=G0002 — a conversation about one direction, its tasks only.\n" +
@@ -337,6 +351,20 @@ register(
         if (openInNewTerminal(["link", "open", linkText(link)], where, ctx.env) === false) return say(ctx, "ui.link.noterminal.new");
         return { text: "", data: { done: true, action: "new" } };
       }
+      if (link.action === "media") {
+        // an original the app sent: the file itself, in the viewer of the system; nothing written
+        const shared = ctx.settings.shared()?.value;
+        const copies = researchesWithId(ctx, link.tree);
+        if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
+        for (const c of copies) {
+          const known = knownOriginal(Tree.open(c.root, ctx.env), shared, link.sha);
+          if (known?.file && fs.existsSync(known.file)) {
+            openForUser(known.file, ctx.env);
+            return { text: ctx.display(known.file), data: { done: true, action: "media", file: known.file, known: known.id } };
+          }
+        }
+        return say(ctx, "ui.link.nomedia", {}, { tree: link.tree, sha: link.sha });
+      }
       if (link.action !== "excerpt") {
         // a terminal to show it in: this one, or a new window (the system started strom with none)
         if (ctx.io.tty) return inTerminal(ctx, link);
@@ -374,6 +402,7 @@ register(
     run(ctx) {
       const lang = ctx.uiLang();
       if (linkHandlerState(ctx.env) === "ours") return { text: ui(lang, "ui.link.on.done"), data: { on: true } };
+      if (isolated(ctx.env)) return { text: ui(lang, "ui.link.isolated"), data: { on: false, isolated: true }, exitCode: 1 };
       ctx.requireHuman("Let the Strom app start strom on this computer (strom-research:// links)?", "strom link on", "links", ui(lang, "ui.setup.links"));
       const on = registerLinks(ctx.env);
       if (on) keepAnswer(ctx, "yes");

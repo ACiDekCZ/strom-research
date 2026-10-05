@@ -34,6 +34,9 @@ conclusion so the next researcher can follow it.
   not. Going through many images, record each stretch when it is done (every
   ten images, each district or year): the finds, and `strom search add …
   --pages` for what was searched in vain — never all of it at the end.
+  A fact of a person goes on the person (`event add`); a note or the diary is
+  for what is not a fact yet. What you held back while who it was stayed a
+  hypothesis goes on the person when you decide it.
 - **Lessons belong where they apply.** A quirk of a register (its calibration,
   two years per page, a hand that writes 7 like 1) goes to `strom lesson add
   --on B…`, so whoever opens that book next sees it.

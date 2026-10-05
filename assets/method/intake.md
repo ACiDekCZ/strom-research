@@ -28,3 +28,27 @@ family tree. Your job is to turn it into evidence without inventing anything.
    (`locate` if the archive or book is unknown, `link` if it is known.)
 7. Close the task with what came out of it (`strom task done T… --result "…"`;
    its input is marked processed with it).
+
+## A batch from the Strom app (many files at once)
+
+The user sent a folder, a ZIP or a box of papers from the Strom app; the task
+lists about 25 of its files, with the path each had there
+(`Babička/Dopisy/1946.jpg` — the folders say much). They are kept unchanged
+outside the tree's history: what you do not record of them stays private.
+
+1. **Look over all of them first, cheaply**: `strom input show I…` for each —
+   the name, the path, the type; images in a small view (`strom media view
+   I… --grid`), not read whole. Sort each at once: `strom input sort I… [I…]
+   --as source|document|photo|unrelated --person P…`. Read in depth only what
+   belongs to the people of the research.
+2. **Not of the family** (a tax form, a holiday photo of strangers, the same
+   picture again in another size): `--as unrelated --reason "…"` and nothing
+   of it is written anywhere. Someone living: sort it, record nothing of them.
+3. **Scans of a book** (many numbered images of one register): not read file
+   by file — `strom recordset add "<the book>" …`, then `strom media add
+   --from-input I… --recordset B…` (the numbers come from their names); then
+   read the entries you need as from any book.
+4. **A record or document**: as above (steps 2–4), `--input I…` on the source,
+   then `strom input sort I… --as source --source S…`.
+5. Close the task when every file of it is sorted; the next part of the batch
+   is its own task.

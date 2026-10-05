@@ -109,7 +109,7 @@ test("--dry-run changes nothing", opts, async () => {
   const w = new World();
   await w.withTree();
   const r = await w.ok(["person", "add", "Jan /Novák/", "--dry-run"]);
-  assert.match(r.out, /dry run/);
+  assert.match(r.out, /^Nanečisto \(--dry-run\): nic se nezapsalo/m);
   assert.ok(!fs.existsSync(path.join(w.cwd, "data", "persons")));
   assert.deepEqual(readJsonFile(path.join(w.cwd, "data", "_counters.json")), {});
   w.cleanup();

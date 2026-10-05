@@ -9,25 +9,31 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { outOfAnswers, translator, type Run } from "./menu-parts.ts";
 import { directionTasks, offerChat, setDirection } from "./menu-research.ts";
-import { humanCost, humanDay, humanTask } from "./human.ts";
+import { humanCost, humanDay, humanTask, humanWhen } from "./human.ts";
 import { lines, truncate } from "./format.ts";
+import { isArchive } from "../core/mode.ts";
 import { Tree } from "../core/tree.ts";
 import type { Conflict, Family, Person, Research, Session, Source, Task } from "../core/model.ts";
 import { monthSpend } from "../core/session.ts";
-import { adoptFailedSince, adoptedSince, awaitAdoption, nothingSince, type SyncInput } from "../core/sync.ts";
+import { adoptFailedSince, adoptedAt, awaitAdoption, nothingSince, undoSync, type SyncInput } from "../core/sync.ts";
+import { changeLines } from "../core/changelog.ts";
 import { startLive } from "../core/live.ts";
-import { adoptAppUrl } from "../core/stromapp.ts";
+import { adoptAppUrl, appTreeNameFromInstall } from "../core/stromapp.ts";
+import { appMarkFromInstall } from "../core/links.ts";
+import { settleFromApp } from "./wizard.ts";
 import { isValidLang } from "../core/lang.ts";
-import { agentsHere } from "../core/apps.ts";
+import { agentsHere, suggestedWay, waysHere, type Where } from "../core/apps.ts";
+import { chooseWay } from "./ways.ts";
+import { claimText } from "../core/people.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
 import { StromError } from "../core/errors.ts";
 
 /** What the Strom app asks, said before anything is done; true when the person goes on. */
-export async function asks(ctx: Context, lang: string, root: string, what: string, note?: string): Promise<boolean> {
+export async function asks(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true): Promise<boolean> {
   const name = Tree.open(root, ctx.env).config.name;
   ctx.io.stdout(lines(translator(lang)("ui.link.asks", { what, name }), note, "") + "\n");
-  return ctx.confirm(translator(lang)("ui.link.go"), true);
+  return ctx.confirm(translator(lang)("ui.link.go"), suggested);
 }
 
 const out = (ctx: Context, line: string) => ctx.io.stdout(line + "\n");
@@ -120,10 +126,10 @@ export async function decideConflict(ctx: Context, run: Run, lang: string, root:
   if (!c || c.type !== "conflict") return stop(ctx, t("ui.link.conflict.none", { id }));
   if (c.state === "resolved") return stop(ctx, t("ui.link.conflict.decided", { resolution: c.resolution ?? "" }));
   if (!(await asks(ctx, lang, root, t("ui.link.what.conflict.decide", { title: c.title })))) return false;
-  const claim = (x: Conflict["claims"][number]) => `${x.value}${x.source ? ` — ${tree.get<Source>(x.source)?.title ?? x.source}` : ""}`;
+  const claim = (x: Conflict["claims"][number]) => `${claimText(tree, c, x)}${x.source ? ` — ${tree.get<Source>(x.source)?.title ?? x.source}` : ""}`;
   const i = await ctx.choose(t("ui.link.conflict.pick"), [...c.claims.map((x) => ({ label: claim(x) })), { label: t("ui.link.conflict.other") }], 0, { back: t("ui.browse.back") });
   if (i === undefined) return false;
-  let resolution = i < c.claims.length ? `${c.claims[i]!.value}${c.claims[i]!.source ? ` (${c.claims[i]!.source})` : ""}` : "";
+  let resolution = i < c.claims.length ? `${claimText(tree, c, c.claims[i]!)}${c.claims[i]!.source ? ` (${c.claims[i]!.source})` : ""}` : "";
   if (!resolution) {
     resolution = (await ctx.ask(t("ui.link.conflict.own"))).trim();
     if (!resolution || resolution === "0") return false;
@@ -169,13 +175,28 @@ export function coupleStory(tree: Tree, a: string, b: string): Family | undefine
   return theirs.find((f) => f.story?.draft) ?? theirs.find((f) => f.story) ?? theirs[0];
 }
 
-/** What the research took from the Strom app, taken back on the person's word. */
-export async function undoSending(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<boolean> {
+/**
+ * What the research took from the Strom app, taken back on the person's word — asked by the app's link, or by the person
+ * in the menu (then never "the Strom app asks": found on Mac).
+ */
+export async function undoSending(ctx: Context, run: Run, lang: string, root: string, id: string, fromMenu = false): Promise<boolean> {
   const t = translator(lang);
   const input = Tree.open(root, ctx.env).get<SyncInput>(id);
   if (!input || input.type !== "input" || !input.sync) return stop(ctx, t("ui.link.sync.none", { input: id }));
   if (input.sync.undone) return stop(ctx, t("ui.link.sync.was"));
-  if (!(await asks(ctx, lang, root, t("ui.link.what.sync", { day: humanDay(input.created, lang), n: input.sync.applied.length })))) return false;
+  // what goes back, line by line, before the person says yes — and no is what Enter says (found on Windows: "2 changes"
+  // of a send the app counted as 1, a yes on Enter)
+  const preview = Tree.open(root, ctx.env);
+  preview.dryRun = true;
+  preview.withTreeLock(() => undoSync(preview, input));
+  const ops = isArchive(preview) ? preview.written.filter((o) => !o.op.startsWith("task.")) : preview.written;
+  // what it is now beside what it goes back to (found on Mac: only the value it would have again)
+  const said = changeLines(preview, ops, "", lang, Tree.open(root, ctx.env)).map((l) => `  ${l.text}`);
+  const when = humanWhen(input.created, lang);
+  if (fromMenu) {
+    out(ctx, lines(t("ui.more.undo.what", { when }), ...said, ""));
+    if (!(await ctx.confirm(t("ui.link.go"), false))) return false;
+  } else if (!(await asks(ctx, lang, root, t("ui.link.what.sync", { when }), lines(...said), false))) return false;
   return (await run(["sync", "undo", id])) === 0;
 }
 
@@ -185,12 +206,14 @@ export async function undoSending(ctx: Context, run: Run, lang: string, root: st
  * the research sent back to the app — then the conversation offered.
  */
 export async function newFromApp(ctx: Context, runIn: RunIn, token: string, openAt: (url: string) => boolean, forward: () => void): Promise<boolean> {
-  // strom not set up yet (the app is how this person came): the setup first
-  if (!ctx.settings.home()?.value) {
+  // strom not set up yet (the app is how this person came): the setup first — the agent and where to talk with it
+  // chosen there, not asked again
+  const setUp = !ctx.settings.home()?.value;
+  if (setUp) {
     await (await runIn(undefined))(["setup"]);
     ctx.settings.reload();
     if (!ctx.settings.home()?.value) return false;
-  }
+  } else if (appMarkFromInstall(ctx.env)) await settleFromApp(ctx, ctx.uiLang(), { shortcut: true });
   let lang = ctx.uiLang();
   let t = translator(lang);
   out(ctx, t("ui.link.new.title"));
@@ -198,8 +221,10 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
   // the name; an empty research of that name (a handover that did not come) is taken again
   let name = "";
   let root: string | undefined;
+  // suggested: the app's tree's name (its line carries it), else the usual one — Enter never ends the handover
+  const suggested = appTreeNameFromInstall(ctx.env) ?? t("ui.tree.default");
   for (;;) {
-    name = (await ctx.ask(t("ui.link.new.name"))).trim().replace(/\s+/gu, " ");
+    name = ((await ctx.ask(t("ui.link.new.name"), suggested)) || suggested).trim().replace(/\s+/gu, " ");
     if (!name || name === "0") return false;
     const same = ctx.knownTrees().find((k) => foldText(k.name) === foldText(name) || path.basename(k.root) === safeFolderName(name));
     if (!same) break;
@@ -220,13 +245,16 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
     }
     if (outOfAnswers(ctx)) return false;
   }
-  const here = agentsHere(ctx.env).map((a) => a.id);
+  const ways = waysHere(agentsHere(ctx.env));
   const mine = ctx.settings.agent().value;
   let agent = mine;
-  if (here.length > 1) {
-    const i = await ctx.choose(t("ui.setup.agent.pick"), here.map((id) => ({ label: PROFILES[id]!.name })), Math.max(0, here.indexOf(mine)), { back: t("ui.browse.back") });
+  let where: Where | undefined;
+  // an archive (the setup's choice: no agent) needs none; each agent's app and terminal a line of their own
+  if (!setUp && ways.length > 1 && ctx.settings.config.mode !== "archive") {
+    const i = await chooseWay(ctx, lang, ways, suggestedWay(ways, mine, ctx.settings.agentWhere()), { back: t("ui.browse.back") });
     if (i === undefined) return false;
-    agent = here[i]!;
+    agent = ways[i]!.agent;
+    where = ways[i]!.where;
   }
   if (!root) {
     let said = "";
@@ -236,6 +264,8 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
   }
   const run = await runIn(root);
   if (agent !== mine) await run(["agents", "use", agent, "--for-tree"], true);
+  // where the person talks with the agents (the setting of this computer, as the setup keeps it)
+  if (where && where !== ctx.settings.agentWhere()) await run(["config", "set", "agent.where", where], true);
 
   // the app hands its tree over to the bridge of this research
   awaitAdoption(root, token);
@@ -246,16 +276,25 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
   const waitMs = Number(ctx.env.STROM_ADOPT_WAIT_MS ?? 30 * 60_000);
   const minutes = Math.max(1, Math.round(waitMs / 60_000));
   out(ctx, openAt(url) ? `${t("ui.link.new.wait", { min: minutes })}\n${t("ui.sync.wait.open", { url })}` : t("ui.app.url", { url }));
-  let file: string | undefined;
+  // the bridge takes the tree in itself (as the app's trees are, its sources the research's): whether or not this
+  // terminal still waits, it is in once the app has handed it over — here only what came of it
+  let done: { input?: string } | undefined;
+  // a copy of the app that does not know the tree (no-tree: stromapp.info opened, the tree is in its beta) ends
+  // nothing — the right one may still hand it over; said once
+  let elsewhere = false;
   while (Date.now() < since + waitMs) {
-    file = adoptedSince(root, since);
-    if (file) break;
+    done = adoptedAt(root, since);
+    if (done) break;
     const failed = adoptFailedSince(root, since);
     if (failed) {
       forward();
-      return stop(ctx, t(failed === "empty" ? "ui.link.new.empty" : "ui.link.new.failed", { name }));
+      return stop(ctx, [t(failed.why === "empty" ? "ui.link.new.empty" : "ui.link.new.failed", { name }), failed.reason].filter(Boolean).join("\n"));
     }
-    if (nothingSince(root, since)) {
+    const nothing = nothingSince(root, since);
+    if (nothing === "no-tree") {
+      if (!elsewhere) out(ctx, t("ui.link.new.elsewhere"));
+      elsewhere = true;
+    } else if (nothing) {
       forward();
       out(ctx, t("ui.link.new.none", { name }));
       return false;
@@ -263,18 +302,22 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
     await new Promise((r) => setTimeout(r, 500));
   }
   forward();
-  if (!file) return stop(ctx, t("ui.link.new.waited", { name, min: minutes }));
+  if (!done) return stop(ctx, t("ui.link.new.waited", { name, min: minutes }));
 
-  // the family's tree, as leads (without the images written into it: the research keeps its own)
-  const { withoutImages } = await import("../commands/sync.ts");
-  const kept = path.join(path.dirname(file), `${safeFolderName(name)}.ged`);
-  fs.writeFileSync(kept, withoutImages(fs.readFileSync(file, "utf8")));
-  if ((await run(["intake", kept], true)) !== 0) return false;
   const tree = Tree.open(root, ctx.env);
-  out(ctx, t("ui.link.new.taken", { name, persons: tree.count("person"), families: tree.count("family") }));
-  // the research as it is now back into the app's window: the same tree, now of the research
-  if ((await run(["app"], true)) === 0) out(ctx, t("ui.link.new.back"));
-  await offerChat(ctx, run, lang, root, t("ui.link.new.chat"), t("ui.link.new.say"));
+  const sources = tree.list<Source>("source").filter((s) => !s.retracted && s.kind !== "family-tree").length;
+  out(ctx, t(isArchive(tree) ? "ui.link.new.taken.archive" : "ui.link.new.taken", { name, persons: tree.countLive("person"), families: tree.countLive("family"), sources }));
+  // the research as it is now back into the app's window: the same tree, now of the research (not opened: its address said)
+  let said = "";
+  if ((await run(["app", "--json"], true, (s) => (said += s))) === 0) {
+    const shown = JSON.parse(said) as { opened?: boolean; url?: string; via?: string; file?: string };
+    // no browser to hand it over: the file to drag into the app
+    if (shown.via === "drag" && shown.file) out(ctx, t("ui.app.drag", { file: ctx.display(shown.file), shown: shown.opened ? t("ui.app.drag.shown") : "" }));
+    else out(ctx, shown.opened ? t("ui.link.new.back") : t("ui.app.url", { url: shown.url ?? "" }));
+  }
+  // an archive (no agent): what is next is the app's; else the first conversation offered
+  if (isArchive(tree)) out(ctx, t("ui.link.new.archive"));
+  else await offerChat(ctx, run, lang, root, t("ui.link.new.chat"), t("ui.link.new.say"));
   return true;
 }
 

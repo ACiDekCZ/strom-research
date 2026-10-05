@@ -1,26 +1,31 @@
 // CLI entry: find the command, parse options, run it, print the result,
 // and commit what a writing command changed. Returns the exit code.
 
-import { EXIT, StromError, UsageError } from "../core/errors.ts";
+import { Cancelled, EXIT, StromError, UsageError } from "../core/errors.ts";
 import type { Env } from "../core/paths.ts";
 import { Context, type IO } from "./context.ts";
 import type { Result } from "./registry.ts";
-import { groupHelp, helpFor } from "./help.ts";
+import { groupHelpAs, helpAs } from "./help.ts";
 import { autoCommit } from "./commit.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { resetCache } from "../core/git.ts";
 import { Tree, VERSION } from "../core/tree.ts";
+import { settleArchive } from "../core/mode.ts";
+import { liveRunning, reviveLive, startLive } from "../core/live.ts";
 import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
 import { prependPath } from "../runners/runner.ts";
 import { shimDir } from "../commands/session.ts";
 import { isAgent } from "../core/which.ts";
 import { noticeStromApp } from "../core/stromapp.ts";
 import { isNewer } from "../core/update.ts";
+import { installation } from "../core/self.ts";
 import { refreshGlobal } from "../agents/global.ts";
-import { linkFiles, linkHandlerState, registerLinks } from "../core/links.ts";
+import { refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishAsked } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
 import { checkArgs, GroupOnly, parseOptions, resolveCommand, splitPassthrough } from "./execute.ts";
+import { placeholders, UI, ui, type UIKey } from "./ui.ts";
+import { catalog, localized } from "../core/phrases.ts";
 import "../commands/index.ts";
 
 export { splitCommand } from "./execute.ts";
@@ -43,7 +48,7 @@ function systemError(e: NodeJS.ErrnoException): StromError | undefined {
       return new UsageError(`no such file or folder${where}`, { hint: "check the path (relative paths start in the current folder)" });
     case "EACCES":
     case "EPERM":
-      return new UsageError(`no permission to use${where}`, { hint: "choose a folder you can write to" });
+      return new UsageError(`no permission to use${where}`, { hint: "a folder with the right to write in it", code: "fs.no-permission", params: { where } });
     case "EISDIR":
       return new UsageError(`a folder was given where a file is expected${where}`);
     case "ENOTDIR":
@@ -54,15 +59,35 @@ function systemError(e: NodeJS.ErrnoException): StromError | undefined {
   return undefined;
 }
 
-function printError(io: IO, json: boolean, err: unknown, debug: boolean): number {
+/**
+ * An error with a code, as a person reads it: in the research's language (the same words whatever ran it — found on
+ * Windows: a Czech research refusing a file in English); the English message where the language has no text, or the
+ * text needs what the error does not carry. A program reads the English and the code (--json).
+ */
+function inLanguage(e: StromError, lang: string | undefined): { message: string; hint?: string; prefix?: string } {
+  const key = `ui.error.${e.code}`;
+  const own = (k: string) => (lang && e.code && k in UI && catalog(lang)[k] ? UI[k as UIKey] : undefined);
+  const fits = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].every((m) => e.params?.[m[1]!] !== undefined);
+  const message = own(key);
+  if (!message || !fits(message)) return { message: e.message, ...(e.hint ? { hint: e.hint } : {}) };
+  const hint = e.hint && own(`${key}.hint`);
+  // the word before it too, where the message is the person's language (never "chyba:" before English words), and
+  // the placeholders of the commands it names (<input> → <podklad>)
+  const say = (text: string) => placeholders(lang!, text);
+  return { message: say(localized(lang!, key, message, e.params)), ...(e.hint ? { hint: say(hint ? localized(lang!, `${key}.hint`, hint, e.params) : e.hint) } : {}), prefix: ui(lang!, "ui.error.prefix") };
+}
+
+function printError(io: IO, json: boolean, err: unknown, debug: boolean, lang?: string): number {
   const e = err instanceof StromError ? err : (systemError(err as NodeJS.ErrnoException) ?? err);
   if (e instanceof StromError) {
     if (json) io.stdout(toJson(e.toJSON()));
+    else if (e instanceof Cancelled) io.stderr(`${lang ? ui(lang, "ui.cancelled") : e.message}\n`); // the person's Ctrl-C: no error
     else {
-      io.stderr(`error: ${e.message}\n`);
+      const said = inLanguage(e, lang);
+      io.stderr(`${said.prefix ?? "error"}: ${said.message}\n`);
       const cands = (e.details as { candidates?: { label: string }[] } | undefined)?.candidates;
       if (cands) for (const c of cands) io.stderr(`  ${c.label}\n`);
-      if (e.hint) for (const h of e.hint.split("\n")) io.stderr(`→ ${h}\n`);
+      if (said.hint) for (const h of said.hint.split("\n")) io.stderr(`→ ${h}\n`);
       if (debug && (err as Error).stack) io.stderr((err as Error).stack + "\n");
     }
     return e.exitCode;
@@ -79,7 +104,7 @@ function printError(io: IO, json: boolean, err: unknown, debug: boolean): number
 export async function main(argv: string[], io: IO, env: Env, cwd: string): Promise<number> {
   const json = argv.includes("--json");
   const debug = argv.includes("--debug");
-  resetCache();
+  resetCache(undefined, "command");
   // what ran, for the reminder of the session's time
   let ran: Context | undefined;
   let command: string | undefined;
@@ -97,7 +122,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       resolved = resolveCommand(argv);
     } catch (err) {
       if (err instanceof GroupOnly) {
-        io.stdout(groupHelp(err.group) + "\n");
+        const c = Context.fromOptions({ env, cwd, io, json, values: {} });
+        io.stdout(groupHelpAs(err.group, { archive: c.archiveHere(), human: false, lang: c.uiLang(), pointer: io.tty && !isAgent(env) }) + "\n");
         return EXIT.ok;
       }
       throw err;
@@ -107,7 +133,10 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     const parsed = parseOptions(def, rest);
     const v = parsed.values;
     if (v.help) {
-      io.stdout(helpFor(def.path) + "\n");
+      // the agent's help, whoever asks (Milan, 2026-10-04: "výchozí je pro agenta"); a person at a terminal is told in a
+      // line of their language how to get theirs (strom help <command> --human)
+      const c = Context.fromOptions({ env, cwd, io, json, values: v });
+      io.stdout(helpAs(def.path, { archive: c.archiveHere(), human: false, lang: c.uiLang(), pointer: io.tty && !isAgent(env) }) + "\n");
       return EXIT.ok;
     }
     if (v.version) {
@@ -134,16 +163,39 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     if (env.STROM_APP) noticeStromApp(ctx.settings, env);
     // The first run of a newer strom: what it taught the agents outside the trees gets this version's text.
     const last = ctx.settings.config.lastVersion;
-    if (ctx.settings.home() && (!last || isNewer(VERSION, last))) {
+    // never in a strom that strom started itself (a bridge, a send it writes): those would start bridges that start
+    // bridges (found on Mac: an update started one hundreds of times over) — and claimed first, once. Never from the
+    // sources against the person's own settings either (only with settings of its own, STROM_CONFIG_DIR: a test, a
+    // live test): a candidate being made is no update (found 2026-10-04: the test suite claimed one in the developer's)
+    const fromSources = installation().kind === "source" && !env.STROM_CONFIG_DIR;
+    if (ctx.settings.home() && (!last || isNewer(VERSION, last)) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources) {
+      ctx.settings.config.lastVersion = VERSION;
+      ctx.settings.save();
       refreshGlobal(env);
-      // …and the links from the Strom app lead to this strom again (where strom made them)
+      // …and the links from the Strom app lead to this strom again (where strom made them on this person's yes —
+      // never another installation's: one with its own settings asks)
       try {
-        if (linkFiles(env).length && linkHandlerState(env) !== "ours") registerLinks(env);
+        refreshLinks(ctx.settings.config.links, env);
       } catch {
         // strom doctor says so
       }
-      ctx.settings.config.lastVersion = VERSION;
-      ctx.settings.save();
+      // …and the researches catch up with what this version keeps (an archive's tasks that wait put aside, logged)
+      for (const k of ctx.knownTrees()) {
+        try {
+          settleArchive(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: its next bridge or switch settles it
+        }
+        // the bridges the Strom app follows go on with this version at their addresses: one of an older strom started
+        // again, one the installer ended to replace the program (Windows: its files are held while it runs) back
+        try {
+          const running = liveRunning(k.root);
+          if (running && running.version !== VERSION) startLive(k.root, env, { current: true });
+          else if (!running) reviveLive(k.root, env);
+        } catch {
+          // its next session brings it back (reviveLive)
+        }
+      }
     }
     const args = parsed.positionals;
     checkArgs(def, args);
@@ -175,11 +227,30 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // Other strom processes may write to the same tree (other agents, a run): a writing
     // command has the tree to itself from its first read to its commit.
     const result = def.writes && def.tree && def.lock !== "sections" ? await ctx.tree().holdTreeLock(work) : await work();
+    // a dry run says so, last, in the person's language — it reads as what would happen, never as done (found on
+    // Windows: "taken back" of a dry run, nothing told it apart)
+    if (ctx.dryRun) {
+      const said = ui(ctx.uiLang(), "ui.dry.done");
+      result.text = result.text?.trim() ? `${result.text.replace(/\n+$/, "")}\n\n${said}` : said;
+      if (result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), dryRun: true };
+    }
     print(io, ctx, result);
     remind(io, ctx, command);
     return result.exitCode ?? EXIT.ok;
   } catch (err) {
-    const code = printError(io, json, err, debug);
+    let lang: string | undefined;
+    try {
+      // an unknown command or option has no context yet: the person's language all the same
+      lang = (ran ?? Context.fromOptions({ env, cwd, io, json, values: {} })).uiLang();
+    } catch {
+      // no language to say it in: English
+    }
+    // a person at a terminal who typed a command strom does not know: their help (strom help --human), or the menu —
+    // an agent the catalog, as ever (found on Mac: "→ strom help" in English for a person)
+    const said = err instanceof UsageError && err.code === "command.unknown" && io.tty && !isAgent(env)
+      ? new UsageError(err.message, { hint: "strom help --human — or just strom: the menu", code: "command.unknown.person", params: err.params })
+      : err;
+    const code = printError(io, json, said, debug, lang);
     remind(io, ran, command);
     return code;
   }

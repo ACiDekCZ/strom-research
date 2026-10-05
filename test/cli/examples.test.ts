@@ -39,13 +39,13 @@ async function seeded(): Promise<World> {
   await w.ok(["source", "add", "Sňatek", "--kind", "marriage"]);
   await w.ok(["intake", "--text", "Děda Jan byl mlynář"]);
   // family trees coming back from the Strom app (strom sync): its GEDCOM, its JSON, one taken in already (I0002, to undo)
-  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", path.join(w.cwd, "rodina.ged")]);
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", path.join(w.cwd, "family.ged")]);
   fs.mkdirSync(path.join(w.env.HOME!, "Downloads"), { recursive: true });
-  fs.copyFileSync(path.join(w.cwd, "rodina.ged"), path.join(w.env.HOME!, "Downloads", "rodina.ged"));
+  fs.copyFileSync(path.join(w.cwd, "family.ged"), path.join(w.env.HOME!, "Downloads", "family.ged"));
   const research = { id: JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id };
   const jan = { id: "a", firstName: "Jan", lastName: "Novák", gender: "male", refn: "P0001" };
   const kids = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`k${i}`, { id: `k${i}`, firstName: `Dítě${i}`, lastName: "Novák", gender: "male", birthDate: `19${30 + i}` }]));
-  fs.writeFileSync(path.join(w.cwd, "rodina.json"), JSON.stringify({ research, persons: { a: jan, ...kids(2) }, partnerships: {} }));
+  fs.writeFileSync(path.join(w.cwd, "family.json"), JSON.stringify({ research, persons: { a: jan, ...kids(2) }, partnerships: {} }));
   fs.writeFileSync(path.join(w.dir, "loni.json"), JSON.stringify({ research, persons: { a: jan, k9: { id: "k9", firstName: "Ludmila", lastName: "Nováková", gender: "female" } }, partnerships: {} }));
   await w.ok(["sync", path.join(w.dir, "loni.json"), "--apply"]); // I0002
   fs.writeFileSync(path.join(w.cwd, "zapis.txt"), "Joannes filius Josephi\n");
@@ -65,6 +65,10 @@ async function seeded(): Promise<World> {
   fs.copyFileSync(path.join(scans, "s0002.jpg"), path.join(w.env.HOME!, "Downloads", "40-left.jpg")); // a half page saved on its own
   fs.mkdirSync(path.join(w.env.HOME!, "Downloads", "rodina"), { recursive: true });
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "rodina", "dopis.txt"), "Milá Marie …\n");
+  fs.copyFileSync(path.join(scans, "png-bw.png"), path.join(w.env.HOME!, "Downloads", "dopis.png")); // an original as the app sends it
+  const boxed = path.join(w.dir, "krabice-foto.png");
+  fs.copyFileSync(path.join(scans, "png-rgba.png"), boxed);
+  await w.ok(["media", "original", boxed, "--batch", "4f1c2a9e-0b7d-4c55-9a7e-3d2c1b0a9f88", "--path", "Krabice/foto.png"]); // I0003, a batch of the app
   // a connector in the plugins folder, answering from memory (no network in this test)
   await fakeConnector(w, "example-archive");
   const manifest = path.join(pluginDir(w, "example-archive"), "connector.json");
@@ -145,11 +149,19 @@ test("the examples that are not run name real commands and options", () => {
 test("every command in the guide, the agent files and the method pack exists, with its options", opts, async () => {
   const w = new World();
   await w.withTree();
+  // the agent files of a German research too (an agent's instructions whatever the research's language)
+  const de = new World();
+  de.env.LANG = "de_DE.UTF-8";
+  await de.withTree();
+  await de.ok(["agents", "sync"]);
   const texts: Record<string, string> = {
     guide: guideText("cs"),
     "AGENTS.md": fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8"),
     "CLAUDE.md": fs.readFileSync(path.join(w.cwd, "CLAUDE.md"), "utf8"),
+    "AGENTS.md (de)": fs.readFileSync(path.join(de.cwd, "AGENTS.md"), "utf8"),
+    "CLAUDE.md (de)": fs.readFileSync(path.join(de.cwd, "CLAUDE.md"), "utf8"),
   };
+  de.cleanup();
   const methodDir = path.join(import.meta.dirname, "..", "..", "assets", "method");
   for (const f of fs.readdirSync(methodDir)) texts[`method/${f}`] = fs.readFileSync(path.join(methodDir, f), "utf8");
   const problems: string[] = [];

@@ -60,12 +60,12 @@ test("the menu: material from the family — a folder dragged in, what the perso
   for (let i = 1; i <= 21; i++) fs.writeFileSync(path.join(book, `${i}.jpg`), `image ${i}`);
   const scans = await w.ok([], { tty: true, answers: ["4", "1", "1", `"${book}"`, "n", "0", "0"] });
   assert.match(scans.out, /Ve složce sken matriky je 21 obrázků\. Jsou to rodinné dokumenty a fotky\?/);
-  assert.match(scans.out, /řekněte agentovi v rozhovoru, odkud jsou/);
+  assert.match(scans.out, /stačí agentovi v rozhovoru říct, odkud jsou/);
   assert.equal((await w.ok(["input", "list", "--json"])).json.inputs.length, 3, "nothing taken in");
   // a path that is not there is asked again
   const missing = await w.ok([], { tty: true, answers: ["4", "1", "1", "/nikde/nic", "0", "0", "0"] });
   assert.match(missing.out, /Nenašel jsem: \/nikde\/nic/);
-  assert.doesNotMatch(missing.out, /Stiskněte Enter/, "0 goes back at once: nothing to read, no Enter");
+  assert.doesNotMatch(missing.out, /Enter vrátí do nabídky/, "0 goes back at once: nothing to read, no Enter");
   w.cleanup();
 });
 
@@ -98,13 +98,13 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   fs.writeFileSync(path.join(hook, "hook.json"), JSON.stringify({ interface: 1, title: "Zpráva do telefonu", command: ["node", "hook.ts"] }));
   const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   // 8 settings · 2 working alone · 1 minutes: 90 · 2 the condition: 1 Claude usage, 12 · 0 back
-  // · 3 hooks · 1 on: yes · 0 back · 6 Remote Control: yes · 4 archives · 1 ask first: yes · 0 back · 0 back · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["8", "2", "1", "90", "2", "1", "12", "0", "3", "1", "a", "0", "6", "a", "4", "1", "a", "0", "0", "0"] });
+  // · 3 hooks · 1 on: yes · 0 back · 7 Remote Control: yes · 4 archives · 1 ask first: yes · 0 back · 0 back · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["8", "2", "1", "90", "2", "1", "12", "0", "3", "1", "a", "0", "7", "a", "4", "1", "a", "0", "0", "0"] });
   assert.match(r.out, /Nastavení \(na tomto počítači\)\n {3}1 {2}Jazyk, agent, model/);
   assert.match(r.out, /Samostatná práce agenta: 90 min na úkol · podmínka: Claude usage 12/);
   assert.match(r.out, /Zpráva do telefonu: zapnuto/);
   assert.match(r.out, /Sledovat agenta z telefonu \(Remote Control\): rozhovory i samostatná práce/);
-  assert.match(r.out, /Stahovače se vás ptají, než začnou: zapnuto/);
+  assert.match(r.out, /Stahovače se ptají, než začnou: zapnuto/);
   const c = config();
   assert.equal(c.runMinutes, 90);
   assert.equal(c.runGate, "claude-usage 12");
@@ -124,7 +124,7 @@ test("the menu without an AI agent: said, item 1 gets one, nothing offered that 
   // 1 get an agent: 3 later · Enter · 2 working alone: said · Enter · 4 add · 1 material · 2 what is known · the text · 0 · 8 settings · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["1", "3", "", "2", "", "4", "1", "2", "Babička Anna pocházela z Kolína.", "0", "8", "0", "0"] });
   assert.match(r.out, /Na počítači zatím není žádný AI agent – výzkum dělá on\. Volba 1 ho nainstaluje\./);
-  assert.match(r.out, / 1 {2}Nainstalovat nebo vybrat AI agenta\n {3}2 {2}Nechat agenta pracovat samotného\n {3}3 {2}Co čeká na vás/, "the same numbers as with an agent");
+  assert.match(r.out, / 1 {2}Nainstalovat nebo vybrat AI agenta\n {3}2 {2}Nechat agenta pracovat samotného\n {3}3 {2}Co čeká/, "the same numbers as with an agent");
   assert.match(r.out, /Agent se do toho pustí, až bude na počítači/);
   // Claude Code is named only where it is recommended to install
   assert.doesNotMatch(r.out.replace(/.*Nainstalovat Claude Code hned.*\n/u, ""), /Remote Control|Claude|Začít na něm s agentem|Projít to s agentem/);
@@ -145,7 +145,7 @@ test("the menu never has more than nine items: two agents and a new version at o
   assert.deepEqual(items, [1, 2, 3, 4, 5, 6, 7, 8, 9, 0], r.out);
   assert.match(r.out, /Tentokrát mluvit s jiným agentem/);
   assert.match(r.out, / 6 {2}Jiný rodokmen[^\n]*\n {3}7 {2}Aplikace Strom[^\n]*\n {3}8 {2}Nastavení[^\n]*\n {3}9 {2}Tentokrát mluvit s jiným agentem/, "another tree 6, the settings 8, another agent last");
-  assert.match(r.out, /Vyšla nová verze stromu: 9\.9\.9 – aktualizovat ji můžete v Nastavení \(volba 8\)\./);
+  assert.match(r.out, /Vyšla nová verze stromu: 9\.9\.9 – aktualizovat ji jde v Nastavení \(volba 8\)\./);
   w.cleanup();
 });
 
@@ -159,15 +159,15 @@ test("the menu: what waits for the person — what to do for each, the folder fo
   await w.ok(["task", "wait", "T2", "--images", "B1:9-10", "--on", "snímky 9–10 knihy Žďár"]);
   // 3 what waits · 2 open the folder of the images · 1 answer the first · the link · not with the agent now · 0 back · 0 quit
   const r = await w.ok([], { tty: true, answers: ["3", "2", "1", "https://archive.example.org/book/77", "n", "0", "0"] });
-  assert.match(r.out, /Agent od vás potřebuje \(2\):\n\n 1\. Kde jsou zapsány křty obce Týnec\n {4}Co udělat: V badatelně archivu najít knihu narozených pro Týnec a poslat odkaz na ni\./);
-  assert.match(r.out, / 2\. Křest Jana\n {4}Uložit ručně: snímky 9–10 z Žďár N 1784–1820 · https:\/\/archive\.example\.org\/book\/5359\n {4}uložte je do .+inbox\/B0001 Žďár N 1784–1820\//);
+  assert.match(r.out, /Agent potřebuje \(2\):\n\n 1\. Kde jsou zapsány křty obce Týnec\n {4}Co udělat: V badatelně archivu najít knihu narozených pro Týnec a poslat odkaz na ni\./);
+  assert.match(r.out, / 2\. Křest Jana\n {4}Uložit ručně: snímky 9–10 z Žďár N 1784–1820 · https:\/\/archive\.example\.org\/book\/5359\n {4}uložit je do .+inbox\/B0001 Žďár N 1784–1820\//);
   assert.match(r.out, /1 {2}Odpovědět k 1: Kde jsou zapsány křty obce Týnec\n {3}2 {2}Otevřít složku pro snímky k 2/);
-  assert.match(r.out, /✓ Úkol se vrátil agentovi i s vaší odpovědí\./);
+  assert.match(r.out, /✓ Úkol se vrátil agentovi i s odpovědí\./);
   const t1 = (await w.ok(["task", "show", "T1", "--json"])).json.task;
   assert.equal(t1.state, "open");
   assert.match(t1.notes.at(-1).text, /^Odpověď uživatele \(na: V badatelně archivu najít knihu narozených pro Týnec.*\): https:\/\/archive\.example\.org\/book\/77$/);
   // what is left: the images only
-  assert.match(r.out, /Agent od vás potřebuje \(1\):\n\n 1\. Křest Jana/);
+  assert.match(r.out, /Agent potřebuje \(1\):\n\n 1\. Křest Jana/);
   w.cleanup();
 });
 
@@ -199,7 +199,7 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
   // claude-usage takes a number of points; a tree with a time of its own gets the change
   await w.ok(["config", "set", "run.minutes", "45", "--for-tree"]);
   const s = await w.ok([], { tty: true, answers: ["8", "2", "2", "1", "hodně", "15", "1", "30", "0", "0", "0"] });
-  assert.match(s.out, /Napište prosím počet bodů od 0 do 100/);
+  assert.match(s.out, /Čekám počet bodů od 0 do 100/);
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).runGate, "claude-usage 15");
   assert.match(s.out, /Čas na jeden úkol: 30 min/);
   assert.equal((await w.ok(["config", "get", "run.minutes", "--json"])).json.value, 30);
@@ -212,15 +212,32 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
   w.cleanup();
 });
 
+test("the settings: a research with an agent, or only an archive — switched there and back; the archive's menu has no agent in it, its first item switches it on; the numbers stay", unix, async () => {
+  const w = await world();
+  // 8 settings · 6 research or archive · 2 only an archive · yes · Enter · 0 back · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["8", "6", "2", "a", "", "0", "0"] });
+  assert.match(r.out, /6 {2}Výzkum, nebo jen archiv: výzkum: hledání v matrikách a archivech/);
+  assert.match(r.out, /Výzkum je teď archiv\./);
+  const menu = await w.ok([], { tty: true, answers: ["0"] });
+  assert.match(menu.out, /Archiv: data přicházejí z aplikace Strom\./);
+  assert.match(menu.out, / 1 {2}Zapnout výzkum: hledání v matrikách a archivech\n {3}2 {2}Co nového přišlo\n {3}3 {2}Co čeká/);
+  assert.doesNotMatch(menu.out, /agent/i, "nothing of an agent in an archive");
+  // 1 switch work with an agent on · yes · Enter · 0 quit
+  const back = await w.ok([], { tty: true, answers: ["1", "a", "", "0"] });
+  assert.match(back.out, /Práce s agentem je zapnutá\./);
+  assert.equal((await w.ok(["mode", "--json"])).json.mode, "research");
+  w.cleanup();
+});
+
 test("Remote Control on in Claude Code itself: the settings say so, and what strom's own setting adds", unix, async () => {
   const w = await world();
   const claudeDir = path.join(w.dir, "claude config");
   fs.mkdirSync(claudeDir);
   fs.writeFileSync(path.join(claudeDir, "settings.json"), JSON.stringify({ remoteControlAtStartup: true }));
   w.env.CLAUDE_CONFIG_DIR = claudeDir;
-  const r = await w.ok([], { tty: true, answers: ["8", "6", "n", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["8", "7", "n", "0", "0"] });
   assert.match(r.out, /Sledovat agenta z telefonu \(Remote Control\): rozhovory ano, samostatná práce ne/);
-  assert.match(r.out, /Samostatnou práci agenta \(volba 2 v menu\) až když zapnete i tohle\.\nZapnout to i pro samostatnou práci\?/);
+  assert.match(r.out, /Samostatnou práci agenta \(volba 2 v menu\) až po zapnutí i tohohle\.\nZapnout to i pro samostatnou práci\?/);
   w.cleanup();
 });
 
@@ -292,9 +309,9 @@ test("archives through the browser: the way each downloader takes, switched in t
   const r = await w.ok([], { tty: true, answers: ["8", "4", "3", "", "0", "0", "0"] });
   assert.match(r.out, /2 {2}Prohlížeč pro agenta \(Claude in Chrome\): jen pro archivy přes prohlížeč/);
   assert.match(r.out, /• Testovací archiv — snímky přímo, strom hlídá tempo/);
-  assert.match(r.out, /3 {2}Testovací archiv: stahovat raději přes váš prohlížeč/);
-  assert.match(r.out, /✓ Testovací archiv: odteď přes váš prohlížeč\./);
-  assert.match(r.out, /• Testovací archiv — snímky přes váš prohlížeč/);
+  assert.match(r.out, /3 {2}Testovací archiv: stahovat raději přes prohlížeč/);
+  assert.match(r.out, /✓ Testovací archiv: odteď přes prohlížeč\./);
+  assert.match(r.out, /• Testovací archiv — snímky přes prohlížeč/);
   assert.match(r.out, /Chrome k tomu potřebuje rozšíření Claude in Chrome .* tady ho v žádném prohlížeči nevidím: https:\/\/chromewebstore\.google\.com\/detail\//);
   assert.match((await w.run(["doctor"])).out, /prohlížeč \(Claude in Chrome\)\s+rozšíření není nainstalované \(potřebuje ho Testovací archiv\)/);
   // the extension in Chrome's profile: found
@@ -385,7 +402,7 @@ test("a story the person approved is locked: written again, the new version wait
   assert.equal(st.text, "Jan byl mlynář.");
   assert.equal(st.draft.text, "Jan byl mlynář v Týnci.");
   assert.match((await w.ok(["story", "show", "P0001"])).out, /── a new version \(\d{4}-\d{2}-\d{2}\) waits for the user: strom story approve P0001/);
-  assert.match((await w.ok([])).out, /nové verze vyprávění, která jste schválili – přečíst a rozhodnout: P0001/, "the agent hears it waits for the user");
+  assert.match((await w.ok([])).out, /nové verze schválených vyprávění – přečíst a rozhodnout: P0001/, "the agent hears it waits for the user");
   // for the Strom app that shows it: the new version under the approved story, valid
   const tree = Tree.open(w.cwd, w.env);
   const ged = exportGedcom(tree, { for: "strom", storyDrafts: true }).text;
@@ -395,9 +412,9 @@ test("a story the person approved is locked: written again, the new version wait
   assert.doesNotMatch(exportGedcom(tree, { for: "standard", storyDrafts: true }).text, /_DRAFT|v Týnci/);
   // the menu: it waits for the person; they keep the old one (3 what waits · 1 the story · 2 keep · 0 · 0)
   const kept = await w.ok([], { tty: true, answers: ["3", "1", "2", "0", "0"] });
-  assert.match(kept.out, /Čeká na vás: 1/);
-  assert.match(kept.out, /1\. Nová verze vyprávění o Jan Novák \[P0001\] – schválené zůstává, dokud nerozhodnete/);
-  assert.match(kept.out, /Nová verze vyprávění o Jan Novák \[P0001\] \(\d{4}-\d{2}-\d{2}\) – schválené zůstává, dokud nerozhodnete:\n\nJan byl mlynář v Týnci\./);
+  assert.match(kept.out, /Čeká: 1/);
+  assert.match(kept.out, /1\. Nová verze vyprávění o Jan Novák \[P0001\] – schválené zůstává až do rozhodnutí/);
+  assert.match(kept.out, /Nová verze vyprávění o Jan Novák \[P0001\] \(\d{4}-\d{2}-\d{2}\) – schválené zůstává až do rozhodnutí:\n\nJan byl mlynář v Týnci\./);
   assert.match(kept.out, /✓ Schválené vyprávění zůstává, nová verze je pryč/);
   st = await story();
   assert.equal(st.text, "Jan byl mlynář.");

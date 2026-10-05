@@ -110,7 +110,9 @@ export function commands(): readonly CommandDef[] {
 }
 
 export function optionsOf(def: CommandDef): OptionDef[] {
-  return [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : []), ...GLOBAL_OPTIONS];
+  // a command's own option of a global's name is its own (strom help --agent: the catalog, not an agent's name)
+  const own = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])];
+  return [...own, ...GLOBAL_OPTIONS.filter((g) => !own.some((o) => o.name === g.name))];
 }
 
 /** Longest registered command path matching the leading words. */

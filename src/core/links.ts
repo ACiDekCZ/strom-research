@@ -20,9 +20,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import type { Env } from "./paths.ts";
-import { userHome } from "./paths.ts";
+import { isolated, userHome } from "./paths.ts";
 import { stromLauncher } from "./self.ts";
 import { ICON } from "./shortcut.ts";
 
@@ -39,7 +39,7 @@ export const LINK_SCHEME = "strom-research";
 /** A story: approved (or, beside an approved one, its new version approved in its place), or that new version not wanted. */
 export const LINK_STORY_DOS = ["final", "keep"] as const;
 
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
@@ -48,6 +48,8 @@ export const LINK_DIRECTIONS = ["ancestors", "descendants"] as const;
 export const LINK_TASK_DOS = ["park", "drop", "wake"] as const;
 /** What a link does with a direction of the research (strom research pause|done|resume). */
 export const LINK_DIRECTION_DOS = ["pause", "done", "resume"] as const;
+/** A tree the app sent that waits in the research's inbox: shown, then written or thrown away on the person's word. */
+export const LINK_SYNC_DOS = ["show"] as const;
 /** What a link does with a conflict: the user decides it, or leaves it to the agent. */
 export const LINK_CONFLICT_DOS = ["decide", "agent"] as const;
 
@@ -57,10 +59,21 @@ const PERSON = /^P\d{1,9}$/;
 const TASK = /^T\d{1,9}$/;
 const CONFLICT = /^X\d{1,9}$/;
 const INPUT = /^I\d{1,9}$/;
+/** A tree the app sent, as the bridge marked it (core/sync.ts receiveTree). */
+const RECEIVED = /^R\d{17}-[0-9a-f]{4}$/;
 const RESEARCH = /^G\d{1,9}$/;
 const SESSION = /^N\d{1,9}$/;
 /** The app's own mark of a tree it hands over (32 random bytes, base64url). */
 export const APP_TOKEN = /^[A-Za-z0-9_-]{22,43}$/;
+/**
+ * The tree of the Strom app the person installed strom for: its mark, given to the installer by the line the app
+ * shows (STROM_FROM_APP) — strom installed, that tree becomes a research as from the link new?app=. Only the mark.
+ */
+export function appMarkFromInstall(env: { STROM_FROM_APP?: string | undefined }): string | undefined {
+  const m = env.STROM_FROM_APP?.trim();
+  return m && APP_TOKEN.test(m) ? m : undefined;
+}
+
 /** An excerpt's mark (_STROM_CLIP): letters, digits and "-", at most 32. */
 export const CLIP_MARK = /^[A-Za-z0-9-]{1,32}$/;
 
@@ -73,6 +86,7 @@ export type Link =
   | { action: "sessions"; tree: string }
   | { action: "setup"; tree: string }
   | { action: "excerpt"; tree: string; source: string; clip: string }
+  | { action: "media"; tree: string; sha: string }
   | { action: "chat"; tree: string; person?: string; research?: string }
   | { action: "task"; tree: string; task: string; do?: (typeof LINK_TASK_DOS)[number] }
   | { action: "review"; tree: string; person: string; scope: (typeof LINK_SCOPES)[number] }
@@ -80,6 +94,7 @@ export type Link =
   | { action: "conflict"; tree: string; id: string; do: (typeof LINK_CONFLICT_DOS)[number] }
   | { action: "story"; tree: string; person: string; partner?: string; do: (typeof LINK_STORY_DOS)[number] }
   | { action: "sync-undo"; tree: string; intake: string }
+  | { action: "sync"; tree: string; do: (typeof LINK_SYNC_DOS)[number]; intake?: string }
   | { action: "direction"; tree: string; id: string; do: (typeof LINK_DIRECTION_DOS)[number] }
   | { action: "finish"; tree: string; session: string }
   | { action: "new"; app: string }
@@ -143,6 +158,12 @@ export function parseLink(text: string | undefined): Link {
       if (!SOURCE.test(source) || !CLIP_MARK.test(clip)) throw new LinkError("no excerpt named");
       return { action, tree: id, source, clip };
     }
+    case "media": {
+      // an original the app sent, by its content: only the hash
+      const sha = (q.get("sha") ?? "").toLowerCase();
+      if (!/^[0-9a-f]{64}$/.test(sha)) throw new LinkError("no file named");
+      return { action, tree: id, sha };
+    }
     case "chat": {
       const research = idOf(q, "research", RESEARCH, false);
       return { action, tree: id, ...(person ? { person } : {}), ...(research ? { research } : {}) };
@@ -165,6 +186,12 @@ export function parseLink(text: string | undefined): Link {
       return { action, tree: id, id: idOf(q, "id", CONFLICT, true)!, do: oneOf(q, "do", LINK_CONFLICT_DOS, "decide") };
     case "sync-undo":
       return { action, tree: id, intake: idOf(q, "intake", INPUT, true)! };
+    case "sync": {
+      // the send the app knows by the mark the bridge gave it; none: the newest that waits
+      const intake = q.get("intake") ?? "";
+      if (intake && !RECEIVED.test(intake)) throw new LinkError("no send named");
+      return { action, tree: id, do: oneOf(q, "do", LINK_SYNC_DOS, "show"), ...(intake ? { intake } : {}) };
+    }
     case "direction":
       return { action, tree: id, id: idOf(q, "id", RESEARCH, true)!, do: oneOf(q, "do", LINK_DIRECTION_DOS) };
     case "finish":
@@ -262,7 +289,7 @@ export function linuxDesktopEntry(argv: string[]): string {
   ].join("\n");
 }
 
-type Sys = (cmd: string, args: string[]) => { status: number | null; stdout: string };
+export type Sys = (cmd: string, args: string[]) => { status: number | null; stdout: string };
 
 const sys: Sys = (cmd, args) => {
   const r = spawnSync(cmd, args, { encoding: "utf8", timeout: 30_000, windowsHide: true });
@@ -281,6 +308,25 @@ function macHandlerPath(run: Sys): string {
 /** The mark inside strom's applet: what it runs (another strom's applet, or one of an older place, is not ours). */
 function macMark(app: string): string {
   return path.join(app, "Contents", "Resources", "strom-link.json");
+}
+
+/**
+ * linkHandlerState without waiting: the system asked by a program in the background (the bridge answers meanwhile).
+ * What it answers is read the same way.
+ */
+export async function linkHandlerStateLater(env: Env, platform: NodeJS.Platform = process.platform): Promise<HandlerState> {
+  if (env.STROM_NO_INSTALL === "1") return "none";
+  const calls: { cmd: string; args: string[]; r: { status: number | null; stdout: string } }[] = [];
+  // the commands it would run, found by a dry pass, then each asked in the background
+  linkHandlerState(env, platform, (cmd, args) => {
+    calls.push({ cmd, args, r: { status: null, stdout: "" } });
+    return { status: null, stdout: "" };
+  });
+  for (const c of calls)
+    c.r = await new Promise((resolve) => {
+      execFile(c.cmd, c.args, { encoding: "utf8", timeout: 30_000, windowsHide: true }, (err, stdout) => resolve({ status: err ? (typeof err.code === "number" ? err.code : null) : 0, stdout: stdout ?? "" }));
+    });
+  return linkHandlerState(env, platform, (cmd, args) => calls.find((c) => c.cmd === cmd && JSON.stringify(c.args) === JSON.stringify(args))?.r ?? { status: null, stdout: "" });
 }
 
 /** Does the scheme lead to this strom? No system is asked from a test (STROM_NO_INSTALL). */
@@ -323,6 +369,8 @@ export function linkActions(state: HandlerState): string[] {
 /** Register the scheme for this user (or register it again: this strom moved, was updated); true when it leads to this strom now. */
 export function registerLinks(env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): boolean {
   if (env.STROM_NO_INSTALL === "1" && run === sys) return false;
+  // an isolated installation: the links stay the person's own strom's
+  if (isolated(env)) return false;
   const argv = handlerArgv(env, platform);
   if (platform === "darwin") {
     const app = macApp(env);
@@ -363,6 +411,15 @@ export function registerLinks(env: Env, platform: NodeJS.Platform = process.plat
   return linkHandlerState(env, platform, run) === "ours";
 }
 
+/**
+ * After an update: the links lead to this strom again — only where strom set them up on this person's yes (`said`,
+ * the user config's `links`); another installation's (one key for all on Windows) is never taken quietly.
+ */
+export function refreshLinks(said: string | undefined, env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): boolean {
+  if (said !== "yes" || isolated(env) || !linkFiles(env, platform, run).length || linkHandlerState(env, platform, run) === "ours") return false;
+  return registerLinks(env, platform, run);
+}
+
 /** What strom put there for the links (for strom uninstall): the applet, the registry key or the entry. */
 export function linkFiles(env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): string[] {
   if (platform === "darwin") return fs.existsSync(macApp(env)) && fs.existsSync(macMark(macApp(env))) ? [macApp(env)] : [];
@@ -374,8 +431,44 @@ export function linkFiles(env: Env, platform: NodeJS.Platform = process.platform
   return fs.existsSync(linuxEntry(env)) ? [linuxEntry(env)] : [];
 }
 
+/**
+ * Whose the registration is: this strom's, another strom's still on this computer (another installation — on Windows
+ * one key for all), one of a strom no longer there (its program gone: stale), or none.
+ */
+export function linkOwner(env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): { owner: "ours" | "other" | "stale" | "none"; program?: string } {
+  if (!linkFiles(env, platform, run).length) return { owner: "none" };
+  const argv = handlerArgv(env, platform);
+  // what it runs: the words before "link open", the files among them
+  const whose = (words: string[], ours: boolean) => {
+    if (ours) return { owner: "ours" as const };
+    const files = words.slice(0, Math.max(0, words.indexOf("link"))).filter((w) => (platform === "win32" ? path.win32 : path.posix).isAbsolute(w) && !w.includes("="));
+    const program = files[files.length - 1];
+    return { owner: files.every((f) => fs.existsSync(f)) && files.length ? ("other" as const) : ("stale" as const), ...(program ? { program } : {}) };
+  };
+  if (platform === "darwin") {
+    let words: string[] = [];
+    try {
+      words = (JSON.parse(fs.readFileSync(macMark(macApp(env)), "utf8")) as { argv?: string[] }).argv ?? [];
+    } catch {
+      // a mark not read: a strom no longer known
+    }
+    return whose(words, JSON.stringify(words) === JSON.stringify(argv));
+  }
+  if (platform === "win32") {
+    const value = /REG_(?:EXPAND_)?SZ\s+(.*)$/m.exec(run("reg.exe", ["query", `${WIN_KEY}\\shell\\open\\command`, "/ve"]).stdout)?.[1]?.trim() ?? "";
+    return whose([...value.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]!), value === windowsCommand(argv));
+  }
+  const text = fs.readFileSync(linuxEntry(env), "utf8");
+  const exec = /^Exec=(.*)$/m.exec(text)?.[1] ?? "";
+  const words = [...exec.matchAll(/"((?:[^"\\]|\\.)*)"|(\S+)/g)].map((m) => (m[1] ?? m[2]!).replace(/\\(.)/g, "$1"));
+  return whose(words, text === linuxDesktopEntry(argv));
+}
+
 /** Take the scheme off again (strom link off, strom uninstall); true when nothing of strom's is left for it. */
 export function unregisterLinks(env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): boolean {
+  if (isolated(env)) return true;
+  // another installation's stays (found on Windows: a test installation's uninstall took the main one's key)
+  if (linkOwner(env, platform, run).owner === "other") return true;
   if (platform === "darwin") {
     const app = macApp(env);
     if (fs.existsSync(macMark(app))) {

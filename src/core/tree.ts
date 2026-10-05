@@ -22,12 +22,15 @@ import { RECORD_TYPES, ALL_PREFIXES, SCHEMA_VERSION, type AnyRecord, type Record
 import { validateRecord } from "./validate.ts";
 import { NeedsConsentError, StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
+import { opsLogs } from "./opslog.ts";
 import { commitSeal, createKey, fingerprint, loadKey, sha256, signOp, type SealedFile } from "./seal.ts";
 import { stringifyCanonical } from "./json.ts";
 import type { Env } from "./paths.ts";
 
 export const TREE_FILE = "strom.json";
-export const VERSION = "1.11.0";
+// between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
+// at a release the release's own (package.json)
+export const VERSION = "1.12.0";
 
 export interface Op {
   at: string;
@@ -106,6 +109,8 @@ export class Tree {
   private lastSigs = new Map<string, string>();
   /** Operation logs this process appended to (to commit them). */
   private touchedOps = new Set<string>();
+  /** The log each actor writes until the next commit: a file of its own, closed by the commit. */
+  private opsNow = new Map<string, string>();
   /** Original content of every file this command changed (null = did not exist): the undo log. */
   private undo = new Map<string, Buffer | null>();
   /** Ops written during this process (for the automatic commit message). */
@@ -180,11 +185,9 @@ export class Tree {
         return fn();
       } finally {
         this.lockDepth--;
-        // Back at a whole command's hold (holdTreeLock): its IDs are on disk before it commits.
-        if (this.lockDepth === 1) this.flushCounters();
       }
     }
-    return withLock(this.lockFile(), { owner: `strom ${this.actor}`, waitMs: LOCK_WAIT_MS, staleMs: 60_000 }, () => {
+    return withLock(this.lockFile(), { owner: `strom ${this.actor}`, waitMs: this.lockWait(), staleMs: 60_000 }, () => {
       this.lockDepth = 1;
       this.fresh();
       try {
@@ -201,9 +204,15 @@ export class Tree {
    * its commit — so another process never slips in between (the usual way for
    * a writing command; long ones lock only while they write).
    */
+  /** How long a writer waits for the tree (STROM_LOCK_WAIT_MS: a test, or a bridge that tries again later itself). */
+  private lockWait(): number {
+    const n = Number(this.env.STROM_LOCK_WAIT_MS);
+    return Number.isFinite(n) && n >= 0 && this.env.STROM_LOCK_WAIT_MS !== undefined ? n : LOCK_WAIT_MS;
+  }
+
   async holdTreeLock<T>(fn: () => Promise<T>): Promise<T> {
     if (this.lockDepth > 0) return fn();
-    const release = acquireLock(this.lockFile(), { owner: `strom ${this.actor}`, waitMs: LOCK_WAIT_MS, staleMs: 60_000 });
+    const release = acquireLock(this.lockFile(), { owner: `strom ${this.actor}`, waitMs: this.lockWait(), staleMs: 60_000 });
     this.lockDepth = 1;
     this.fresh();
     try {
@@ -258,6 +267,7 @@ export class Tree {
     this.single.clear();
     this.lastSigs.clear();
     this.touchedOps.clear();
+    this.opsNow.clear();
     this.counters = undefined;
     this.written.length = 0;
     this.told = 0;
@@ -323,6 +333,14 @@ export class Tree {
   }
 
   /** Number of records of a type without reading them. */
+  /** The records of a type that stand: not withdrawn, not merged into another — what a person is told there are. */
+  countLive(type: RecordType): number {
+    return this.list<AnyRecord>(type).filter((r) => {
+      const x = r as { retracted?: unknown; mergedInto?: string };
+      return !x.retracted && !x.mergedInto;
+    }).length;
+  }
+
   count(type: RecordType): number {
     const loaded = this.cache.get(type);
     if (loaded) return loaded.size;
@@ -378,10 +396,24 @@ export class Tree {
 
   // ── writing ────────────────────────────────────────────────────────────
 
+  /**
+   * The operation log of this commit: a small file of its own in the folder of its day
+   * (ops/<yyyy-mm>/<dd>/<actor or session>.<time>-<random>.jsonl), never written again once committed — git stores
+   * what changed, not a growing log again at each commit (found on Mac: a month's log of 3.4 MB stored again by every
+   * send of the Strom app), and no folder of them grows past a day's. The logs of older strom versions (one per month
+   * or session, ops/<name>.jsonl) stay as they are and are read as before (opsLogs, opsLogsOf).
+   */
   private opsFile(): string {
-    const month = now().slice(0, 7);
+    const at = now();
+    const month = at.slice(0, 7);
     const name = this.actor === "user" || this.actor === "agent" ? `${this.actor}-${month}` : this.actor;
-    return path.join(this.dataDir, "ops", `${name}.jsonl`);
+    const known = this.opsNow.get(name);
+    if (known) return known;
+    const when = at.slice(11).replace(/[-:.]/g, "");
+    const file = path.join(this.dataDir, "ops", month, at.slice(8, 10), `${name}.${when}-${crypto.randomBytes(3).toString("hex")}.jsonl`);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    this.opsNow.set(name, file);
+    return file;
   }
 
   private lastSig(file: string): string {
@@ -438,8 +470,14 @@ export class Tree {
   /** Sealed commit of everything under pathspec. */
   commit(message: string, pathspec: string[] = ["."]): string | undefined {
     const key = this.requireKey();
-    git.resetCache(this.root); // another process may have committed since this one last looked
+    // its IDs on disk before it commits (written once here, not after every record: a sync of 2 200 people wrote the
+    // counters thousands of times)
+    this.flushCounters();
+    // another process may have committed since this one last looked — under the lock it read HEAD afresh already
+    if (this.lockDepth === 0) git.resetCache(this.root);
     const hash = git.commitAll(this.root, message, pathspec, (treeHash) => commitSeal(key, treeHash));
+    // the logs this commit holds are closed: what comes next goes into new ones
+    this.opsNow.clear();
     if (hash) {
       const ops = this.written.slice(this.told);
       this.told = this.written.length;
@@ -492,12 +530,9 @@ export class Tree {
   }
 
   readOps(): Op[] {
-    const dir = path.join(this.dataDir, "ops");
-    if (!fs.existsSync(dir)) return [];
     const out: Op[] = [];
-    for (const f of fs.readdirSync(dir).sort()) {
-      if (!f.endsWith(".jsonl")) continue;
-      for (const line of fs.readFileSync(path.join(dir, f), "utf8").split("\n")) {
+    for (const f of opsLogs(this.dataDir)) {
+      for (const line of fs.readFileSync(f, "utf8").split("\n")) {
         if (!line.trim()) continue;
         try {
           out.push(JSON.parse(line) as Op);

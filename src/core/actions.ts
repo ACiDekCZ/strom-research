@@ -31,6 +31,7 @@ import {
   type Source,
   type Story,
   type StoryDraft,
+  type Union,
 } from "./model.ts";
 import { displayName, familiesAsChild, familiesAsPartner, gedcomName, isBirthFamily, notAName, parseName, primaryName, sameName, slashInName } from "./people.ts";
 import { foldText } from "./text.ts";
@@ -113,14 +114,14 @@ export function parseParticipant(tree: Tree, spec: string): Participant {
   const who = m[2]!.trim();
   if (/^P\d+$/i.test(who)) {
     const id = "P" + who.slice(1).padStart(4, "0");
-    if (!tree.get(id)) throw new UsageError(`no person ${who}`);
+    if (!tree.get(id)) throw new UsageError(`no person ${who}`, { code: "record.none", params: { kind: "person", id: who } });
     return { role, person: id };
   }
   return { role, name: who };
 }
 
 function checkCitation(tree: Tree, c: Citation): void {
-  if (tree.get(c.source)?.type !== "source") throw new UsageError(`no source ${c.source}`, { hint: 'strom source add "<title>" …' });
+  if (tree.get(c.source)?.type !== "source") throw new UsageError(`no source ${c.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: c.source } });
 }
 
 /** A list of citations with one more; the same place of the same source twice is refused. */
@@ -141,7 +142,7 @@ export function makeEvent(tree: Tree, input: EventInput, forFamily = false): Eve
     });
   const citations = input.citations ?? [];
   for (const c of citations)
-    if (tree.get(c.source)?.type !== "source") throw new UsageError(`no source ${c.source}`, { hint: 'strom source add "<title>" …' });
+    if (tree.get(c.source)?.type !== "source") throw new UsageError(`no source ${c.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: c.source } });
   const status = parseStatus(input.status, defaultStatus(tree, citations));
   checkStatus(tree, status, citations);
   if (forFamily && input.age?.trim())
@@ -239,7 +240,7 @@ export function addPerson(tree: Tree, input: PersonInput): Person {
 
 function requirePerson(tree: Tree, id: string): Person {
   const p = tree.get<Person>(id);
-  if (!p || p.type !== "person") throw new UsageError(`no person ${id}`, { hint: "strom person list" });
+  if (!p || p.type !== "person") throw new UsageError(`no person ${id}`, { hint: "strom person list", code: "record.none", params: { kind: "person", id: id } });
   if (p.mergedInto) throw new UsageError(`${id} was merged into ${p.mergedInto}`, { hint: `use ${p.mergedInto}` });
   return p;
 }
@@ -247,6 +248,10 @@ function requirePerson(tree: Tree, id: string): Person {
 export interface FamilyInput {
   partners: string[];
   children: string[];
+  /** Two parents of a child who are no couple (the Strom app's). */
+  noCouple?: boolean | undefined;
+  /** How the couple is bound where its facts cannot say it (Family.union). */
+  union?: Union | undefined;
   relation?: string | undefined;
   married?: string | undefined;
   marriedPlace?: string | undefined;
@@ -271,7 +276,7 @@ export function addFamily(tree: Tree, input: FamilyInput): Family {
   if (relation === "birth")
     for (const c of input.children) {
       const fam = familiesAsChild(tree, c).find((f) => isBirthFamily(f, c));
-      if (fam) throw new UsageError(`${c} already has birth parents in ${fam.id}`, { hint: `strom family show ${fam.id} — or, if these are other parents: --relation adopted|step|foster` });
+      if (fam) throw new UsageError(`${c} already has birth parents in ${fam.id}`, { hint: `strom family show ${fam.id} — or, if these are other parents: --relation adopted|step|foster`, code: "child.parents-exist", params: { person: c, family: fam.id } });
     }
   parseDate(input.married, "marriage date");
   const married = Boolean(input.married || input.marriedPlace);
@@ -292,6 +297,8 @@ export function addFamily(tree: Tree, input: FamilyInput): Family {
       // Without a marriage the record is evidence of the family itself (a child's parents).
       ...(input.citation && !married ? { citations: [input.citation] } : {}),
       notes: input.note ? [makeNote(tree, input.note)] : [],
+      ...(input.noCouple && input.partners.length === 2 ? { noCouple: true as const } : {}),
+      ...(input.union ? { union: input.union } : {}),
       created: t,
       updated: t,
     };
@@ -316,11 +323,11 @@ export function addChild(tree: Tree, familyId: string, child: string, relationIn
   if (citation) checkCitation(tree, citation);
   return tree.withTreeLock(() => {
     const fam = tree.get<Family>(familyId);
-    if (!fam || fam.type !== "family") throw new UsageError(`no family ${familyId}`);
-    if (fam.children.some((c) => c.person === child) || fam.partners.includes(child)) throw new UsageError(`${child} is already in ${familyId}`);
+    if (!fam || fam.type !== "family") throw new UsageError(`no family ${familyId}`, { code: "record.none", params: { kind: "family", id: familyId } });
+    if (fam.children.some((c) => c.person === child) || fam.partners.includes(child)) throw new UsageError(`${child} is already in ${familyId}`, { code: "child.in-family", params: { person: child, family: familyId } });
     if (relation === "birth") {
       const other = familiesAsChild(tree, child).find((f) => isBirthFamily(f, child));
-      if (other) throw new UsageError(`${child} already has birth parents in ${other.id}`);
+      if (other) throw new UsageError(`${child} already has birth parents in ${other.id}`, { code: "child.parents-exist", params: { person: child, family: other.id } });
     }
     // One entry names the parents and each child: the family may cite it already.
     const cited = citation && (fam.citations ?? []).some((x) => x.source === citation.source && x.locator === citation.locator);
@@ -353,7 +360,7 @@ export interface FamilyEdit {
  */
 export function editFamily(tree: Tree, familyId: string, edit: FamilyEdit, reason?: string): Family {
   if (!edit.partner && !edit.child && !edit.remove) throw new UsageError("nothing to change", { hint: `strom family edit ${familyId} --partner <who> · --child <who> --relation step [--parent <who>] · --remove <who>` });
-  if ((edit.child || edit.remove) && !reason?.trim()) throw new UsageError("changing who belongs to a family, or how, needs --reason", { hint: 'e.g. --reason "the baptism names Jan as stepfather"' });
+  if ((edit.child || edit.remove) && !reason?.trim()) throw new UsageError("changing who belongs to a family, or how, needs --reason", { hint: 'e.g. --reason "the baptism names Jan as stepfather"', code: "family.needs-reason" });
   if (edit.child && !edit.relation) throw new UsageError("--child needs --relation", { hint: RELATIONS.join(", ") });
   if (edit.relation && !edit.child) throw new UsageError("--relation belongs to a --child");
   if (edit.parent && !edit.child) throw new UsageError("--parent belongs to a --child");
@@ -361,7 +368,7 @@ export function editFamily(tree: Tree, familyId: string, edit: FamilyEdit, reaso
   if (relation && !RELATIONS.includes(relation)) throw new UsageError(`invalid relation "${edit.relation}"`, { hint: RELATIONS.join(", ") });
   return tree.withTreeLock(() => {
     const fam = tree.get<Family>(familyId);
-    if (!fam || fam.type !== "family") throw new UsageError(`no family ${familyId}`);
+    if (!fam || fam.type !== "family") throw new UsageError(`no family ${familyId}`, { code: "record.none", params: { kind: "family", id: familyId } });
     const next: Family = structuredClone(fam);
     const what: string[] = [];
     if (edit.partner) {
@@ -388,7 +395,7 @@ export function editFamily(tree: Tree, familyId: string, edit: FamilyEdit, reaso
       }
       if (isBirthFamily(next, edit.child)) {
         const other = familiesAsChild(tree, edit.child).find((f) => f.id !== familyId && isBirthFamily(f, edit.child!));
-        if (other) throw new UsageError(`${edit.child} already has birth parents in ${other.id}`);
+        if (other) throw new UsageError(`${edit.child} already has birth parents in ${other.id}`, { code: "child.parents-exist", params: { person: edit.child, family: other.id } });
       }
     }
     if (edit.remove) {
@@ -517,7 +524,7 @@ function replaceEvent(tree: Tree, eventId: string, change: (e: Event) => Event, 
 /** Attach a citation to a fact; optionally raise its status. */
 export function citeEvent(tree: Tree, eventId: string, citation: Citation, status?: string): Event {
   const src = tree.get(citation.source);
-  if (!src || src.type !== "source") throw new UsageError(`no source ${citation.source}`, { hint: 'strom source add "<title>" …' });
+  if (!src || src.type !== "source") throw new UsageError(`no source ${citation.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: citation.source } });
   const newStatus = status === undefined ? undefined : parseStatus(status, "lead");
   return replaceEvent(tree, eventId, (e) => {
     if (e.citations.some((c) => c.source === citation.source && c.locator === citation.locator)) throw new UsageError(`${e.id} already cites ${citation.source} there`);
@@ -547,7 +554,7 @@ export function citeRecord(tree: Tree, id: string, citation: Citation): Person |
       tree.put(updated, { op: "family.cite", targets: [id], summary: `${id} ← ${citation.source}` });
       return updated;
     }
-    throw new UsageError(`no person or family ${id}`);
+    throw new UsageError(`no person or family ${id}`, { code: "record.none", params: { kind: "person or family", id: id } });
   });
 }
 
@@ -557,6 +564,8 @@ export interface NameInput {
   citation?: Citation | undefined;
   /** Show the person by this name. */
   primary?: boolean | undefined;
+  /** Another form beside the name the person is shown by, never in its place (a name a sync adds). */
+  other?: boolean | undefined;
 }
 
 /**
@@ -593,9 +602,9 @@ export function addName(tree: Tree, id: string, input: NameInput): { person: Per
       const primary = primaryName(p);
       const plain = !name.kind || name.kind === "birth";
       // "Markéta" of the family memory is "Markéta /Růžičková/" of the register: one name, now complete.
-      completes = Boolean(plain && !primary.surname && name.surname && foldText(primary.given) === foldText(name.given) && !primary.citations?.length);
+      completes = Boolean(!input.other && plain && !primary.surname && name.surname && foldText(primary.given) === foldText(name.given) && !primary.citations?.length);
       const rest = completes ? p.names.filter((n) => n !== primary) : p.names;
-      names = input.primary || (plain && !primary.surname && name.surname) ? [added, ...rest] : [...rest, added];
+      names = !input.other && (input.primary || (plain && !primary.surname && name.surname)) ? [added, ...rest] : [...rest, added];
     }
     const updated: Person = { ...p, names, updated: now() };
     tree.put(updated, {
@@ -626,7 +635,7 @@ export function editPerson(tree: Tree, id: string, edit: PersonEdit, reason?: st
     const primary = primaryName(p);
     // Filling in an unknown sex is no change; another sex or another name is.
     const overwrites = (sex !== undefined && p.sex !== "U" && p.sex !== sex) || name;
-    if (overwrites && !reason?.trim()) throw new UsageError("changing a name or a known sex needs --reason", { hint: 'e.g. --reason "misread: the register has Víšek, not Višek"' });
+    if (overwrites && !reason?.trim()) throw new UsageError("changing a name or a known sex needs --reason", { hint: 'e.g. --reason "misread: the register has Novák, not Nowak"', code: "person.needs-reason" });
     const names = name ? p.names.map((n) => (n === primary ? { ...n, given: name.given, surname: name.surname } : n)) : p.names;
     const updated: Person = { ...p, ...(sex !== undefined ? { sex } : {}), names, updated: now() };
     const what = [sex !== undefined ? `sex ${sex}` : "", name ? `name ${gedcomName(name)}` : ""].filter(Boolean).join(", ");
@@ -660,7 +669,8 @@ export interface EventEdit {
  * was known — or the status — needs a reason.
  */
 export function editEvent(tree: Tree, eventId: string, edit: EventEdit, reason?: string): Event {
-  const date = edit.date === undefined ? undefined : parseDate(edit.date);
+  // an empty date takes it away (a fact corrected to one without a day: an occupation)
+  const date = edit.date === undefined ? undefined : edit.date.trim() ? parseDate(edit.date) : "";
   // an empty age takes it away
   const age = edit.age === undefined ? undefined : edit.age.trim() ? parseAge(edit.age) : "";
   // an empty age of a partner takes it away
@@ -712,14 +722,19 @@ export function editEvent(tree: Tree, eventId: string, edit: EventEdit, reason?:
       checkStatus(tree, next.status, next.citations);
     }
     if (changed.length && !reason?.trim())
-      throw new UsageError(`changing the ${changed.join(", ")} of ${e.id} needs --reason`, { hint: 'e.g. --reason "record S0012 gives 1811, not 1813"' });
+      throw new UsageError(`changing the ${changed.join(", ")} of ${e.id} needs --reason`, {
+        hint: 'e.g. --reason "record S0012 gives 1811, not 1813"',
+        // the options that change it, the same words in every language
+        code: "event.needs-reason",
+        params: { id: e.id, fields: [...new Set(changed.map((c) => (c.startsWith("age") ? "--age" : c === "participants" ? "--without" : `--${c}`)))].join(", ") },
+      });
     return next;
   }, { op: "event.edit", summary: (e) => `${e.id} ${e.kind} edited`, reason });
 }
 
 /** Withdraw a fact without deleting it. */
 export function retractEvent(tree: Tree, eventId: string, reason: string): Event {
-  if (!reason?.trim()) throw new UsageError("retracting needs --reason");
+  if (!reason?.trim()) throw new UsageError("retracting needs --reason", { code: "retract.needs-reason" });
   return replaceEvent(tree, eventId, (e) => ({ ...e, status: "retracted", retracted: { at: now(), reason: reason.trim() } }), {
     op: "event.retract",
     summary: (e) => `${e.id} ${e.kind} retracted`,
@@ -733,7 +748,7 @@ export function retractEvent(tree: Tree, eventId: string, reason: string): Event
  * the listings and the GEDCOM. A duplicate is merged instead.
  */
 export function retractPerson(tree: Tree, id: string, reason: string): Person {
-  if (!reason?.trim()) throw new UsageError("retracting needs --reason", { hint: 'e.g. --reason "misread: the entry names Anna, not Anton"' });
+  if (!reason?.trim()) throw new UsageError("retracting needs --reason", { hint: 'e.g. --reason "misread: the entry names Anna, not Anton"', code: "retract.needs-reason" });
   return tree.withTreeLock(() => {
     const p = requirePerson(tree, id);
     if (p.retracted) throw new UsageError(`${id} is already retracted`);
@@ -786,7 +801,7 @@ function repoint(tree: Tree, from: string, to: string, skip: Set<string>, op: { 
  * "merged into". Different birth parents or sexes are refused.
  */
 export function mergePersons(tree: Tree, keepId: string, otherId: string, reason: string): { person: Person; repointed: number } {
-  if (!reason?.trim()) throw new UsageError("merging needs --reason", { hint: 'e.g. --reason "same baptism entry: B0003:114"' });
+  if (!reason?.trim()) throw new UsageError("merging needs --reason", { hint: 'e.g. --reason "same baptism entry: B0003:114"', code: "merge.needs-reason" });
   if (keepId === otherId) throw new UsageError("that is the same person");
   return tree.withTreeLock(() => {
     const keep = requirePerson(tree, keepId);
@@ -835,12 +850,12 @@ export function mergePersons(tree: Tree, keepId: string, otherId: string, reason
 
 /** Two records of one family (the same couple): partners, children, facts and citations go to `keep`. */
 export function mergeFamilies(tree: Tree, keepId: string, otherId: string, reason: string): { family: Family; repointed: number } {
-  if (!reason?.trim()) throw new UsageError("merging needs --reason", { hint: 'e.g. --reason "the same couple: Antonín Víšek and Markéta Růžičková"' });
+  if (!reason?.trim()) throw new UsageError("merging needs --reason", { hint: 'e.g. --reason "the same couple: Jan Novák and Marie Svobodová"', code: "merge.needs-reason" });
   if (keepId === otherId) throw new UsageError("that is the same family");
   return tree.withTreeLock(() => {
     const get = (id: string) => {
       const f = tree.get<Family>(id);
-      if (!f || f.type !== "family") throw new UsageError(`no family ${id}`);
+      if (!f || f.type !== "family") throw new UsageError(`no family ${id}`, { code: "record.none", params: { kind: "family", id: id } });
       if (f.retracted) throw new UsageError(`${id} is retracted`);
       return f;
     };
@@ -899,10 +914,10 @@ export function setStory(tree: Tree, id: string, input: StoryInput): Person | Fa
   const facts = [...new Set((input.facts ?? []).map((f) => f.trim().toUpperCase()))];
   for (const f of facts) findEventOwner(tree, f);
   const sources = [...new Set((input.sources ?? []).map((s) => s.trim().toUpperCase()))];
-  for (const s of sources) if (tree.get<Source>(s)?.type !== "source") throw new UsageError(`no source ${s}`, { hint: "the background of place and time is recorded first: strom source add … --kind book|newspaper|web" });
+  for (const s of sources) if (tree.get<Source>(s)?.type !== "source") throw new UsageError(`no source ${s}`, { hint: "the background of place and time is recorded first: strom source add … --kind book|newspaper|web", code: "story.no-source", params: { kind: "source", id: s } });
   return tree.withTreeLock(() => {
     const rec = tree.get<Person | Family>(id);
-    if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`);
+    if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`, { code: "record.none", params: { kind: "person or family", id: id } });
     if (rec.mergedInto) throw new UsageError(`${id} was merged into ${rec.mergedInto}`);
     const version: StoryDraft = {
       ...(input.title?.trim() ? { title: input.title.trim() } : {}),
@@ -930,7 +945,7 @@ export function setStory(tree: Tree, id: string, input: StoryInput): Person | Fa
 export function discardStoryDraft(tree: Tree, id: string): Person | Family {
   return tree.withTreeLock(() => {
     const rec = tree.get<Person | Family>(id);
-    if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`);
+    if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`, { code: "record.none", params: { kind: "person or family", id: id } });
     if (!rec.story?.draft) throw new UsageError(`${id} has no new version of its story waiting`, { hint: `strom story show ${id}` });
     const { draft: _gone, ...story } = rec.story;
     const updated = { ...rec, story, updated: now() } as Person | Family;
@@ -946,7 +961,7 @@ export function discardStoryDraft(tree: Tree, id: string): Person | Family {
 export function approveStory(tree: Tree, id: string): Person | Family {
   return tree.withTreeLock(() => {
     const rec = tree.get<Person | Family>(id);
-    if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`);
+    if (!rec || (rec.type !== "person" && rec.type !== "family")) throw new UsageError(`no person or family ${id}`, { code: "record.none", params: { kind: "person or family", id: id } });
     if (!rec.story) throw new UsageError(`${id} has no story yet`, { hint: `strom story set ${id} --text @file --fact E…` });
     if (rec.story.draft) {
       const updated = { ...rec, story: { ...rec.story.draft, status: "final" as const }, updated: now() } as Person | Family;

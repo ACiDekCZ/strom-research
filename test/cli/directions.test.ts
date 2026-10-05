@@ -50,7 +50,7 @@ test("the menu: Add to the research → the directions — each with how it goes
   const r = await w.ok([], { tty: true, answers: ["4", "5", "1", "1", "0", "0"] });
   assert.match(r.out, /5 {2}Směry výzkumu: pozastavit, ukončit nebo znovu spustit/);
   assert.match(r.out, /1 {2}Předci Josefa – běží · úkoly: 1\n +2 {2}Kdo byla Anna\? – běží · úkoly: 1\n +0 {2}Zpět/);
-  assert.match(r.out, /⏸ „Předci Josefa“ je pozastavený: jeho úkoly \(1\) počkají, dokud ho tady znovu nespustíte\./);
+  assert.match(r.out, /⏸ „Předci Josefa“ je pozastavený: jeho úkoly \(1\) počkají, dokud se tady znovu nespustí\./);
   // a paused one: taken up again or ended
   const again = await w.ok([], { tty: true, answers: ["4", "5", "1", "1", "0", "0"] });
   assert.match(again.out, /Předci Josefa – pozastavený · úkoly: 1/);

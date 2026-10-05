@@ -25,6 +25,9 @@ import { resolveResearch } from "./research.ts";
 import { DEATH_AFTER_YEARS, unprovenPeople, type UnprovenKind } from "../core/review.ts";
 import { foldText } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
+import { isAgent } from "../core/which.ts";
+import { UI, ui, type UIKey } from "../cli/ui.ts";
+import { eventName, humanDate, humanPlace, statusName } from "../cli/human.ts";
 
 function list(v: unknown): string[] {
   if (v === undefined) return [];
@@ -91,34 +94,51 @@ function informationOpt(v: unknown): Citation["information"] {
 }
 
 function written(tree: Tree): string {
-  return lines(...tree.written.map((o) => o.summary), tree.dryRun ? "(dry run — nothing written)" : undefined);
+  return lines(...tree.written.map((o) => o.summary));
 }
 
-function citesOf(citations: Citation[] | undefined): string {
-  return (citations ?? []).map((c) => c.source + (c.locator ? ` ${c.locator}` : "") + (c.information ? ` (${c.information})` : "")).join(", ");
+
+/**
+ * The words of a listing in the research's language where a person reads it at a terminal (found on Mac: "names",
+ * "facts", "family" in a Czech research); an agent reads the English it knows, the same lines as ever.
+ */
+function wordsFor(ctx: Context, tree: Tree) {
+  const lang = ctx.io.tty && !isAgent(ctx.env) ? tree.lang : undefined;
+  const say = (key: UIKey, english: string, params?: Record<string, string | number>) => (lang ? ui(lang, key, params) : english);
+  const word = (kind: string, value: string) => (lang && `ui.show.${kind}.${value}` in UI ? ui(lang, `ui.show.${kind}.${value}` as UIKey) : value);
+  return { lang, say, word };
+}
+type Words = ReturnType<typeof wordsFor>;
+const ENGLISH: Words = { lang: undefined, say: (_k, english) => english, word: (_k, v) => v };
+
+/** The citations; for a person what a family tree a sync gave cites by the part it came from ("name", "BIRT") said in words. */
+function citesOf(citations: Citation[] | undefined, w: Words = ENGLISH): string {
+  const where = (l: string) => (!w.lang ? l : `ui.show.loc.${l}` in UI ? w.word("loc", l) : /^[A-Z_]{3,5}$/.test(l) ? eventName(l, w.lang) : l);
+  return (citations ?? []).map((c) => c.source + (c.locator ? ` ${where(c.locator)}` : "") + (c.information ? ` (${w.word("info", c.information)})` : "")).join(", ");
 }
 
-function nameLine(n: Name): string {
-  const cites = citesOf(n.citations);
-  return `${formatName(n)}${n.kind ? ` (${n.kind})` : ""}${cites ? `  ← ${cites}` : ""}`;
+function nameLine(n: Name, w: Words = ENGLISH): string {
+  const cites = citesOf(n.citations, w);
+  return `${formatName(n)}${n.kind ? ` (${w.word("name", n.kind)})` : ""}${cites ? `  ← ${cites}` : ""}`;
 }
 
-function eventLine(e: Event): string {
-  const cites = citesOf(e.citations);
-  const who = (e.participants ?? []).map((p) => `${p.role} ${p.person ?? p.name}`).join(", ");
+function eventLine(e: Event, w: Words = ENGLISH): string {
+  const cites = citesOf(e.citations, w);
+  const who = (e.participants ?? []).map((p) => `${w.word("role", p.role)} ${p.person ?? p.name}`).join(", ");
+  const ages = e.ages ? Object.entries(e.ages).map(([p, a]) => `${w.word("who", p)} ${a}`).join(", ") : "";
   return [
     e.id,
-    e.kind,
-    e.label ?? "",
-    e.date ?? "",
-    [e.place, e.house ? `house ${e.house}` : ""].filter(Boolean).join(", "),
+    w.lang ? eventName(e.kind, w.lang, e.label) : e.kind,
+    w.lang ? "" : (e.label ?? ""),
+    w.lang ? humanDate(e.date, w.lang) : (e.date ?? ""),
+    w.lang ? humanPlace(e.place, e.house, w.lang) : [e.place, e.house ? `house ${e.house}` : ""].filter(Boolean).join(", "),
     e.value ?? "",
-    e.age ? `age ${e.age}` : "",
-    e.ages ? `ages ${Object.entries(e.ages).map(([p, a]) => `${p} ${a}`).join(", ")}` : "",
-    `[${e.status}]`,
+    e.age ? w.say("ui.show.age", `age ${e.age}`, { age: e.age }) : "",
+    ages ? w.say("ui.show.ages", `ages ${ages}`, { ages }) : "",
+    `[${w.lang ? statusName(e.status, w.lang) : e.status}]`,
     cites ? `← ${cites}` : "",
-    who ? `with ${who}` : "",
-    e.retracted ? `(retracted: ${e.retracted.reason})` : "",
+    who ? w.say("ui.show.with", `with ${who}`, { who }) : "",
+    e.retracted ? w.say("ui.show.retracted", `(retracted: ${e.retracted.reason})`, { reason: e.retracted.reason }) : "",
   ]
     .filter(Boolean)
     .join("  ");
@@ -232,37 +252,40 @@ register(
       const parents = familiesAsChild(tree, p.id);
       const partnerships = familiesAsPartner(tree, p.id);
       const researches = tree.list<Research>("research").filter((r) => ancestorGenerations(tree, r.focus).has(p.id));
+      const w = wordsFor(ctx, tree);
+      const unknown = w.say("ui.show.unknown", "(unknown)");
       const out: (string | undefined)[] = [
-        `${p.id} ${displayName(p)}${lifespan(p) ? ` (${lifespan(p)})` : ""}  sex ${p.sex}`,
-        ...(p.names.length > 1 || p.names.some((n) => n.citations?.length) ? ["", "names", ...p.names.map((n) => `  ${nameLine(n)}`)] : []),
+        `${p.id} ${displayName(p)}${lifespan(p) ? ` (${lifespan(p)})` : ""}  ${w.lang ? w.word("sex", p.sex) : `sex ${p.sex}`}`,
+        ...(p.names.length > 1 || p.names.some((n) => n.citations?.length) ? ["", w.say("ui.show.names", "names"), ...p.names.map((n) => `  ${nameLine(n, w)}`)] : []),
         "",
-        "facts",
-        p.events.length ? table(p.events.map((e) => [`  ${eventLine(e)}`])) : "  (none)",
-        ...p.events.filter((e) => e.note).map((e) => `  ${e.id} note: ${truncate(e.note!, 160)}`),
+        w.say("ui.show.facts", "facts"),
+        p.events.length ? table(p.events.map((e) => [`  ${eventLine(e, w)}`])) : `  ${w.say("ui.show.none", "(none)")}`,
+        ...p.events.filter((e) => e.note).map((e) => `  ${e.id} ${w.say("ui.show.note", "note")}: ${truncate(e.note!, 160)}`),
         "",
-        "family",
+        w.say("ui.show.family", "family"),
       ];
+      const parentsWord = w.say("ui.show.parents", "parents");
       for (const f of parents) {
         const link = f.children.find((c) => c.person === p.id)!;
         const names = f.partners.map((id) => {
           const x = tree.get<Person>(id);
           const rel = relationTo(link, id);
-          return `${x ? label(x) : id}${rel !== "birth" && link.relations ? ` [${rel}]` : ""}`;
+          return `${x ? label(x) : id}${rel !== "birth" && link.relations ? ` [${w.word("rel", rel)}]` : ""}`;
         });
-        out.push(`  parents  ${f.id}: ${names.join(" & ") || "(unknown)"}${link.relation !== "birth" && !link.relations ? ` [${link.relation}]` : ""}`);
+        out.push(`  ${parentsWord}  ${f.id}: ${names.join(" & ") || unknown}${link.relation !== "birth" && !link.relations ? ` [${w.word("rel", link.relation)}]` : ""}`);
       }
-      if (parents.length === 0) out.push("  parents  (unknown)");
+      if (parents.length === 0) out.push(`  ${parentsWord}  ${unknown}`);
       for (const f of partnerships) {
         const partner = f.partners.filter((id) => id !== p.id).map((id) => tree.get<Person>(id)).filter(Boolean).map((x) => label(x!));
-        out.push(`  partner  ${f.id}: ${partner.join(", ") || "(unknown)"}`);
-        for (const e of f.events) out.push(`    ${eventLine(e)}`);
+        out.push(`  ${w.say("ui.show.partner", "partner")}  ${f.id}: ${partner.join(", ") || unknown}`);
+        for (const e of f.events) out.push(`    ${eventLine(e, w)}`);
         for (const c of f.children) {
           const child = tree.get<Person>(c.person);
-          if (child) out.push(`    child  ${label(child)}${c.relation !== "birth" ? ` [${c.relation}]` : ""}`);
+          if (child) out.push(`    ${w.say("ui.show.child", "child")}  ${label(child)}${c.relation !== "birth" ? ` [${w.word("rel", c.relation)}]` : ""}`);
         }
       }
-      if (researches.length) out.push("", `in research  ${researches.map((r) => `${r.id} ${r.name}`).join(" · ")}`);
-      if (p.notes.length) out.push("", "notes", ...p.notes.map((n) => `  ${n.at.slice(0, 10)} ${n.text}`));
+      if (researches.length) out.push("", `${w.say("ui.show.research", "in research")}  ${researches.map((r) => `${r.id} ${r.name}`).join(" · ")}`);
+      if (p.notes.length) out.push("", w.say("ui.show.notes", "notes"), ...p.notes.map((n) => `  ${n.at.slice(0, 10)} ${n.text}`));
       return {
         text: lines(...out),
         data: { person: p, parentFamilies: parents, partnerFamilies: partnerships, researches: researches.map((r) => r.id) },
@@ -417,23 +440,25 @@ register(
       const tree = ctx.tree();
       const f = requireRecord<Family>(tree, args[0]!, "family");
       const partners = f.partners.map((id) => tree.get<Person>(id)).filter(Boolean).map((p) => label(p!));
+      const w = wordsFor(ctx, tree);
+      const none = `  ${w.say("ui.show.none", "(none)")}`;
       const out = [
-        `${f.id} ${partners.join(" & ") || "(no partners known)"}`,
-        f.citations?.length ? `evidence of the family  ← ${citesOf(f.citations)}` : undefined,
+        `${f.id} ${partners.join(" & ") || w.say("ui.show.nopartners", "(no partners known)")}`,
+        f.citations?.length ? `${w.say("ui.show.evidence", "evidence of the family")}  ← ${citesOf(f.citations, w)}` : undefined,
         "",
-        "facts",
-        f.events.length ? table(f.events.map((e) => [`  ${eventLine(e)}`])) : "  (none)",
-        ...f.events.filter((e) => e.note).map((e) => `  ${e.id} note: ${truncate(e.note!, 160)}`),
+        w.say("ui.show.facts", "facts"),
+        f.events.length ? table(f.events.map((e) => [`  ${eventLine(e, w)}`])) : none,
+        ...f.events.filter((e) => e.note).map((e) => `  ${e.id} ${w.say("ui.show.note", "note")}: ${truncate(e.note!, 160)}`),
         "",
-        "children",
+        w.say("ui.show.children", "children"),
         ...(f.children.length
           ? f.children.map((c) => {
               const child = tree.get<Person>(c.person);
-              const own = Object.entries(c.relations ?? {}).map(([who, rel]) => `${rel} of ${who}`);
-              return `  ${child ? label(child) : c.person}${c.relation !== "birth" || own.length ? ` [${[c.relation !== "birth" ? c.relation : "", ...own].filter(Boolean).join(", ")}]` : ""}`;
+              const own = Object.entries(c.relations ?? {}).map(([who, rel]) => w.say("ui.show.relof", `${rel} of ${who}`, { rel: w.word("rel", rel), who }));
+              return `  ${child ? label(child) : c.person}${c.relation !== "birth" || own.length ? ` [${[c.relation !== "birth" ? w.word("rel", c.relation) : "", ...own].filter(Boolean).join(", ")}]` : ""}`;
             })
-          : ["  (none)"]),
-        ...(f.notes.length ? ["", "notes", ...f.notes.map((n) => `  ${n.at.slice(0, 10)} ${n.text}`)] : []),
+          : [none]),
+        ...(f.notes.length ? ["", w.say("ui.show.notes", "notes"), ...f.notes.map((n) => `  ${n.at.slice(0, 10)} ${n.text}`)] : []),
       ];
       return { text: lines(...out), data: { family: f } };
     },

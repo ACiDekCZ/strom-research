@@ -118,7 +118,7 @@ test("what the agent will do next: the queue in its order, for the user — reco
   assert.match(plan, /^Co agent udělá dál – Novákovi:\n {2}právě teď +Přečíst celý zápis Křest Jana Nováka 1905\n/, "in progress first; a record by its title");
   assert.match(plan, /\n {2}1\. +Oddavky Josefa a Marie \(nejdřív potřebuje snímky\)\n/);
   assert.match(plan, /Potom vyprávění: 1 \(Josef Novák \[P0002\]\)/);
-  assert.match(plan, /Pořadí změníte v rozhovoru s agentem/);
+  assert.match(plan, /Pořadí se mění v rozhovoru s agentem/);
   assert.doesNotMatch(plan, /T000|B0001|S0001|narrate|link/, "no IDs, no levels");
   const json = (await w.ok(["plan", "--json"])).json;
   assert.deepEqual(json.tasks.map((t: { id: string }) => t.id).slice(0, 2), ["T0002", "T0001"]);

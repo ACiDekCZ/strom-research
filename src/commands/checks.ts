@@ -1,5 +1,7 @@
 // check · verify · guard · repair · seal adopt · history
 
+import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+import { isArchive } from "../core/mode.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
@@ -12,17 +14,22 @@ import { verifyFast, verifyFull } from "../core/integrity.ts";
 import { createKey, verifyCommitSeal } from "../core/seal.ts";
 import { NeedsConsentError, StromError } from "../core/errors.ts";
 import * as git from "../core/git.ts";
+import { ui } from "../cli/ui.ts";
+import { history } from "../core/live.ts";
+import { humanWhen } from "../cli/human.ts";
 import type { Tree } from "../core/tree.ts";
 
-export function report(findings: Finding[], okText: string) {
+/** Findings as a table (strom's own words: what to run), the sum in the research's language when given. */
+export function report(findings: Finding[], okText: string, lang?: string) {
   const errors = findings.filter((f) => f.level === "error");
+  const sum = { errors: errors.length, warnings: findings.length - errors.length };
   const text =
     findings.length === 0
       ? okText
       : lines(
           table(findings.map((f) => [f.level === "error" ? "ERROR" : "warn", f.code, f.id ?? f.file ?? "", f.message, f.hint ? `→ ${f.hint}` : ""])),
           "",
-          `${errors.length} error(s), ${findings.length - errors.length} warning(s)`,
+          lang ? ui(lang, "ui.check.found", sum) : `${sum.errors} error(s), ${sum.warnings} warning(s)`,
         );
   return { text, data: { ok: errors.length === 0, findings }, exitCode: errors.length ? 1 : 0 };
 }
@@ -36,11 +43,19 @@ register(
     tree: true,
     run(ctx) {
       const tree = ctx.tree();
-      const out = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree)], "ok — data consistent, sealed, nothing lost");
+      // its verdict and sum in the research's language: the person follows it in the agent's session too
+      const checked = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree)], ui(tree.lang, "ui.check.ok"), tree.lang);
+      // much kept beside the research that can go (an older strom never tidied it): a sentence, in the research's language
+      const disk = tidyPlan(tree);
+      const out =
+        disk.frees >= TIDY_SAID
+          ? { ...checked, text: lines(checked.text, ui(tree.lang, "ui.tidy.hint", { strom: mb(disk.size.strom, tree.lang), size: mb(disk.frees, tree.lang) })), data: { ...checked.data, disk: { strom: disk.size.strom, frees: disk.frees } } }
+          : checked;
       // not an error — research to do: who rests on no record of their own
       const unproven = unprovenPeople(tree).filter((u) => !u.living).length;
-      if (!unproven) return out;
-      return { ...out, text: lines(out.text, `note: ${unproven} people rest on no record of their own → strom person list --unproven`), data: { ...out.data, unproven } };
+      // an archive: what to research is no matter of it
+      if (!unproven || isArchive(tree)) return out;
+      return { ...out, text: lines(out.text, ui(tree.lang, "ui.check.unproven", { n: unproven })), data: { ...out.data, unproven } };
     },
   },
   {
@@ -175,10 +190,18 @@ register(
     run(ctx) {
       const tree = ctx.tree();
       const commits = git.log(tree.root, ctx.limit);
-      const text = commits.length
-        ? table(commits.map((c) => [c.hash.slice(0, 8), c.at.slice(0, 16).replace("T", " "), c.subject]))
-        : "no history yet";
-      return { text, data: { commits } };
+      // what each change was, in the research's language as the Strom app shows it (/log) — a change with nothing to
+      // show a person (the agents' files, the tree made) left out of the lines, never out of --json (found 2026-10-04:
+      // "strom sync undo: 5 changes" in a German research)
+      const lang = tree.lang;
+      const said = new Map(history(tree.root, tree, [`-n${Math.max(1, ctx.limit)}`]).map((e) => [e.head, e.text]));
+      const rows = commits.flatMap((c) => {
+        // no operation behind it (only its English subject): nothing for a person
+        const text = (said.get(c.hash) ?? []).filter((t) => t !== c.subject);
+        if (!text.length) return [];
+        return [[c.hash.slice(0, 8), humanWhen(c.at, lang), text.length > 1 ? `${text[0]} ${ui(lang, "ui.recent.morechanges", { n: text.length - 1 })}` : text[0]!]];
+      });
+      return { text: rows.length ? table(rows) : ui(lang, "ui.history.none"), data: { commits } };
     },
   },
 );

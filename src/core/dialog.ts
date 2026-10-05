@@ -16,7 +16,18 @@ export interface DialogText {
 }
 
 /** How long the window waits for an answer before it counts as a no. */
-const WAIT_SECONDS = 300;
+export const WAIT_SECONDS = 300;
+
+/**
+ * Windows: the window's owner — an invisible form in the middle of the main screen, on top of all and active — so the
+ * question comes up in front and in sight (found on Windows: with no owner it came up off the screen, answered blind).
+ */
+const WIN_OWNER =
+  "Add-Type -AssemblyName System.Windows.Forms, System.Drawing; " +
+  "$f = New-Object System.Windows.Forms.Form; $f.TopMost = $true; $f.ShowInTaskbar = $false; $f.StartPosition = 'Manual'; " +
+  "$a = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea; $f.Size = New-Object System.Drawing.Size(1, 1); " +
+  "$f.Location = New-Object System.Drawing.Point([int]($a.X + $a.Width / 2), [int]($a.Y + $a.Height / 2)); $f.Opacity = 0; " +
+  "$f.Show(); $f.Activate(); ";
 
 /** AppleScript string literal. */
 function appleString(s: string): string {
@@ -47,10 +58,7 @@ export function systemDialog(text: DialogText, env: Env, platform: NodeJS.Platfo
     return r.status === 0 && r.stdout.includes(`button returned:${text.yes}`) && !r.stdout.includes("gave up:true");
   }
   if (platform === "win32") {
-    const ps =
-      "Add-Type -AssemblyName PresentationFramework; " +
-      `$r = [System.Windows.MessageBox]::Show(${psString(text.question)}, ${psString(text.title)}, 'YesNo', 'Warning', 'No', 'DefaultDesktopOnly'); ` +
-      "Write-Output $r";
+    const ps = `${WIN_OWNER}$r = [System.Windows.Forms.MessageBox]::Show($f, ${psString(text.question)}, ${psString(text.title)}, 'YesNo', 'Warning', 'Button2'); $f.Dispose(); Write-Output $r`;
     const r = run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps]);
     if (r.error || r.status !== 0) return undefined;
     return r.stdout.trim() === "Yes";
@@ -83,7 +91,7 @@ export function systemNotice(title: string, message: string, ok: string, env: En
     return !run("osascript", ["-e", script]).error;
   }
   if (platform === "win32") {
-    const ps = `Add-Type -AssemblyName PresentationFramework; [void][System.Windows.MessageBox]::Show(${psString(message)}, ${psString(title)}, 'OK', 'Information', 'OK', 'DefaultDesktopOnly')`;
+    const ps = `${WIN_OWNER}[void][System.Windows.Forms.MessageBox]::Show($f, ${psString(message)}, ${psString(title)}, 'OK', 'Information'); $f.Dispose()`;
     const r = run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps]);
     return !r.error && r.status === 0;
   }

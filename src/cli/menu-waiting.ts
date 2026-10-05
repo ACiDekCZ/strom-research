@@ -6,16 +6,19 @@
 import path from "node:path";
 import type { Context } from "./context.ts";
 import { subMenu, translator, type Item, type Run } from "./menu-parts.ts";
-import { offerChat } from "./menu-research.ts";
+import { decideSent, offerChat } from "./menu-research.ts";
 import { truncate } from "./format.ts";
 import { Tree } from "../core/tree.ts";
 import type { Family, Person, RecordSet, Task } from "../core/model.ts";
 import { storiesToApprove } from "../core/stories.ts";
+import { receivedPending } from "../core/sync.ts";
+import { humanDay } from "./human.ts";
 import { displayName, lifespan } from "../core/people.ts";
 
 /** A person for the person reading: "Jan Novák (*1905) [P0001]". */
 const label = (p: Person) => `${displayName(p)}${lifespan(p) ? ` (${lifespan(p)})` : ""} [${p.id}]`;
 import { openForUser } from "../core/open.ts";
+import { isArchive } from "../core/mode.ts";
 
 /** At most this many are listed to answer (the menu's nine); the rest after them. */
 const SHOWN = 9;
@@ -115,32 +118,42 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
   const t = translator(lang);
   await subMenu(ctx, lang, () => {
     const tree = Tree.open(root, ctx.env);
-    const waiting = tree.list<Task>("task").filter((x) => x.state === "waiting");
+    const waiting = isArchive(tree) ? [] : tree.list<Task>("task").filter((x) => x.state === "waiting");
     const stories = storiesToApprove(tree);
-    if (!waiting.length && !stories.length) return { title: t("ui.waiting.none"), items: [] };
-    // the tasks first, then the stories: at most the menu's nine together
-    const shown = waiting.slice(0, SHOWN);
-    const shownStories = stories.slice(0, SHOWN - shown.length);
-    const text: string[] = [t("ui.waiting.title", { n: waiting.length + stories.length })];
+    // what the Strom app sent on its own: first, the person's own edits
+    const sent = receivedPending(root);
+    if (!waiting.length && !stories.length && !sent.length) return { title: t("ui.waiting.none"), items: [] };
+    // the trees from the app first, then the tasks, then the stories: at most the menu's nine together
+    const shownSent = sent.slice(0, SHOWN);
+    const shown = waiting.slice(0, SHOWN - shownSent.length);
+    const shownStories = stories.slice(0, SHOWN - shownSent.length - shown.length);
+    const k0 = shownSent.length;
+    const text: string[] = [t(sent.length && !waiting.length && !stories.length ? "ui.waiting.title.sent" : "ui.waiting.title", { n: waiting.length + stories.length + sent.length })];
+    for (const [k, r] of shownSent.entries()) text.push("", ` ${k + 1}. ${t("ui.waiting.sent", { day: humanDay(r.at, lang), time: r.at.slice(11, 16), n: r.changes })}`);
     for (const [k, x] of shown.entries()) {
-      text.push("", ` ${k + 1}. ${x.what}`, ...whatToDo(ctx, lang, tree, x));
+      text.push("", ` ${k0 + k + 1}. ${x.what}`, ...whatToDo(ctx, lang, tree, x));
     }
-    for (const [k, s] of shownStories.entries()) text.push("", ` ${shown.length + k + 1}. ${t("ui.waiting.story", { who: storyOf(tree, s.id) })}`);
+    for (const [k, s] of shownStories.entries()) text.push("", ` ${k0 + shown.length + k + 1}. ${t("ui.waiting.story", { who: storyOf(tree, s.id) })}`);
     if (shown.some((x) => x.awaits)) text.push("", t("ui.wait.how1"), t("ui.wait.how2"));
-    const hidden = waiting.length + stories.length - shown.length - shownStories.length;
+    const hidden = waiting.length + stories.length + sent.length - shownSent.length - shown.length - shownStories.length;
     if (hidden > 0) text.push("", t("ui.waiting.more", { n: hidden }));
     const items: Item[] = [
-      ...shown.map((x, k) => ({
+      ...shownSent.map((r, k) => ({
         key: String(k + 1),
-        label: x.awaits ? t("ui.waiting.folder", { k: k + 1 }) : t("ui.waiting.answer", { k: k + 1, what: truncate(x.what, 60) }),
+        label: t("ui.waiting.sent.read", { k: k + 1 }),
+        act: async () => void (await decideSent(ctx, run, lang, root, r)),
+      })),
+      ...shown.map((x, k) => ({
+        key: String(k0 + k + 1),
+        label: x.awaits ? t("ui.waiting.folder", { k: k0 + k + 1 }) : t("ui.waiting.answer", { k: k0 + k + 1, what: truncate(x.what, 60) }),
         act: () => takeUp(ctx, run, lang, root, x),
       })),
       ...shownStories.map((s, k) => ({
-        key: String(shown.length + k + 1),
-        label: t("ui.waiting.story.read", { k: shown.length + k + 1, who: storyOf(tree, s.id) }),
+        key: String(k0 + shown.length + k + 1),
+        label: t("ui.waiting.story.read", { k: k0 + shown.length + k + 1, who: storyOf(tree, s.id) }),
         act: async () => void (await decideStory(ctx, run, lang, root, s.id, storyOf(tree, s.id))),
       })),
     ];
-    return { title: `${text.join("\n")}\n\n${t(shown.length ? "ui.waiting.pick" : "ui.waiting.pick.story")}`, items };
+    return { title: `${text.join("\n")}\n\n${t(shown.length || shownSent.length ? "ui.waiting.pick" : "ui.waiting.pick.story")}`, items };
   });
 }

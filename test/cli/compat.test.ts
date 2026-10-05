@@ -35,8 +35,19 @@ for (const archive of fs.existsSync(releases) ? fs.readdirSync(releases).filter(
   const version = archive.replace(/\.tar\.gz$/, "");
   test(`a research of strom ${version} goes on with this one`, { skip: !hasGit || !hasTar }, async () => {
     const w = unpack(path.join(releases, archive));
-    // What it recorded reads as it was written.
-    assert.match((await w.ok(["check"])).out, /^ok|\n0 error\(s\)/);
+    const schema = (readJsonFile(path.join(w.cwd, "strom.json")) as { schema?: number }).schema ?? 1;
+    // What it recorded reads as it was written — brought forward first when its schema is older, said in the
+    // research's language.
+    const first = await w.ok(["check"]);
+    assert.match(first.out, /^ok — data souhlasí|\nchyby: 0,/, first.out);
+    const brought = /^Data rodokmenu jsou převedená pro tuto verzi stromu \(operace každého uložení ve vlastním malém souboru; ve výzkumu se nic nezměnilo\)\.$/m;
+    if (schema < SCHEMA_VERSION) assert.match(first.err, brought, first.err);
+    else assert.doesNotMatch(first.err, brought, "the schema of today: nothing to bring forward");
+    assert.doesNotMatch(first.err, /schema \d/);
+    // its history says it so too (found on Mac: "schema 2: the operations…" in a Czech history)
+    const said = (await w.ok(["status"])).out;
+    if (schema < SCHEMA_VERSION) assert.match(said, /Data rodokmenu jsou převedená pro tuto verzi stromu/, said);
+    assert.doesNotMatch(said, /schema \d/);
     const jan = (await w.ok(["person", "show", "P1", "--json"])).json;
     assert.match(JSON.stringify(jan), /25 JUN 1905/);
     assert.match((await w.ok(["source", "show", "S1"])).out, /Joannes filius Josephi Novák/);
@@ -55,7 +66,7 @@ for (const archive of fs.existsSync(releases) ? fs.readdirSync(releases).filter(
     await w.ok(["event", "add", "P1", "OCCU", "--value", "mlynář", "--cite", "S1"]);
     await w.ok(["session", "start", "T1"]);
     await w.ok(["session", "close", "--continue", "--summary", "kniha prošla", "--next", "oddavky v jiné farnosti"]);
-    assert.match((await w.ok(["check"])).out, /^ok|\n0 error\(s\)/);
+    assert.match((await w.ok(["check"])).out, /^ok — data souhlasí|\nchyby: 0,/);
     const tree = Tree.open(w.cwd, w.env);
     assert.equal(tree.config.schema, SCHEMA_VERSION);
     assert.equal(tree.list<Person>("person").length, 4);

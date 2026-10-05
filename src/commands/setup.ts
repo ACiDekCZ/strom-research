@@ -1,5 +1,6 @@
 // setup · doctor · config — the environment around the trees.
 
+import { gitSize, lastCompacted } from "../core/history.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -8,7 +9,7 @@ import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
 import { checkValue, configFile, DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, OTHER_ENV, SETTINGS, settingDef, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
-import type { Tree } from "../core/tree.ts";
+import type { Input, Media } from "../core/model.ts";
 import { gitVersion } from "../core/git.ts";
 import { linuxGitCommand } from "../core/deps.ts";
 import { fixGit, offerAgent } from "../cli/fixes.ts";
@@ -19,9 +20,14 @@ import { detectAgent, isAgent } from "../core/which.ts";
 import { agentsHere, DESKTOP_APPS, inDesktopApp, whereToTalk } from "../core/apps.ts";
 import { setupWizard } from "../cli/wizard.ts";
 import { installation, stromLauncher } from "../core/self.ts";
-import { VERSION } from "../core/tree.ts";
+import { liveRunning } from "../core/live.ts";
+import { mb, sharedMedia, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+
+/** So many bytes of the shared store no research here names: worth a warning. */
+const MEDIA_UNNAMED_SAID = 500 * 1024 * 1024;
+import { Tree, VERSION } from "../core/tree.ts";
 import { installUpdate, isNewer, knownNewerVersion, latestVersion, newerNode, newerVersion, type Updated } from "../core/update.ts";
-import { desktopDir } from "../core/paths.ts";
+import { desktopDir, isolated } from "../core/paths.ts";
 import { planMove } from "../core/relocate.ts";
 import { appOpensLinks, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
 import { isInstalled } from "../agents/global.ts";
@@ -61,8 +67,9 @@ register({
     "shortcut. Without a terminal (an agent): pass the values or --yes to accept the suggestions.\n" +
     "Trees and shared data (scans, catalog) live under one home by default; --shared/--trees separate them.\n" +
     "Either way the installed agents learn about strom in any folder (strom agents install).",
-  examples: ["strom setup", "strom setup --yes --lang cs", 'strom setup --home "~/Documents/Strom" --shared "/Volumes/Big/strom-shared" --lang cs'],
-  run: async (ctx) => {
+  options: [{ name: "where", type: "string", value: "<app|terminal>", description: "where the user talks with the agent: its desktop app or the terminal (agent.where; asked in the wizard)" }],
+  examples: ["strom setup", "strom setup --yes --lang cs", "strom setup --yes --where terminal", 'strom setup --home "~/Documents/Strom" --shared "/Volumes/Big/strom-shared" --lang cs'],
+  run: async (ctx, { opts }) => {
     const s = ctx.settings;
     if (ctx.interactive && !isAgent(ctx.env)) {
       const r = await setupWizard(ctx);
@@ -99,20 +106,22 @@ register({
     let agent = (flags.agent ?? cfg.agent ?? (running && PROFILES[running] ? running : undefined) ?? installed[0] ?? "claude").toLowerCase();
 
     if (ctx.interactive) {
-      if (!flags.home) home = ctx.resolvePath(await ctx.ask("Where should Strom keep your research?", ctx.display(home)));
+      if (!flags.home) home = ctx.resolvePath(await ctx.ask("Where should Strom keep the research?", ctx.display(home)));
       if (!flags.shared && !flags.trees && (await ctx.confirm("Keep scans and the archive catalog in a separate folder (e.g. a bigger disk)?", false)))
         shared = ctx.resolvePath(await ctx.ask("Folder for shared data:", ctx.display(path.join(home, "shared"))));
-      if (!flags.lang) lang = (await ctx.ask(`Research language (the agent talks to you in it):`, lang)).toLowerCase();
+      if (!flags.lang) lang = (await ctx.ask(`Research language (the agent talks with the user in it):`, lang)).toLowerCase();
       if (!flags.agent) agent = (await ctx.ask(`Which AI agent does the research? (${Object.keys(PROFILES).join(", ")})`, agent)).toLowerCase();
     }
     if (!PROFILES[agent]) throw new UsageError(`unknown agent "${agent}"`, { hint: Object.keys(PROFILES).join(", ") });
+    if (opts.where !== undefined && opts.where !== "app" && opts.where !== "terminal") throw new UsageError(`strom setup --where takes app or terminal, not "${String(opts.where)}"`, { hint: "strom setup --yes --where terminal" });
     if (!isValidLang(lang)) throw new UsageError(`invalid language code "${lang}"`, { hint: "use a code like cs, en, de" });
 
     cfg.home = home;
     cfg.lang = lang;
     cfg.agent = agent;
     // Set up by an agent working in its desktop app: that is where this person talks with it.
-    if (!cfg.agentWhere && inDesktopApp(ctx.env)) cfg.agentWhere = "app";
+    if (opts.where === "app" || opts.where === "terminal") cfg.agentWhere = opts.where;
+    else if (!cfg.agentWhere && inDesktopApp(ctx.env)) cfg.agentWhere = "app";
     if (shared) cfg.shared = shared;
     if (trees) cfg.trees = trees;
     s.save();
@@ -123,6 +132,12 @@ register({
     ensureShared(sharedDir);
     // The installed agents learn about strom in any folder.
     const taught = [...new Set(globalTargets(ctx.env).filter((t) => installed.includes(t.agent) && installGlobal(t)).map((t) => t.agent))];
+    // Where the user talks with it: said, and the other way when both are here (the user's choice, never guessed)
+    const has = agentsHere(ctx.env).find((a) => a.id === agent);
+    const where = has ? whereToTalk(agent, s.agentWhere(), ctx.env) : undefined;
+    const talk = !where
+      ? undefined
+      : `${where === "app" ? `in the ${DESKTOP_APPS[agent]!.name} desktop app` : "in the terminal (its CLI)"}${has!.app && has!.cli ? ` — both are here; the user decides: strom setup --where ${where === "app" ? "terminal" : "app"}` : ""}`;
 
     const text = lines(
       "Strom is set up.",
@@ -132,13 +147,14 @@ register({
         ["  shared", ctx.display(sharedDir)],
         ["  language", `${langName(lang)} (${lang})${langDetected ? " — detected from the system; the user speaks another? strom config set lang <code>" : ""}`],
         ["  agent", `${PROFILES[agent]!.name}${installed.includes(agent) ? "" : " — not installed yet"}`],
+        ...(talk ? [["  talk", talk]] : []),
         ...taught.map((a) => ["  knows strom", `${PROFILES[a]!.name}, in any folder`]),
         ["  config", ctx.display(configFile(ctx.env))],
       ]),
       "",
       'next   strom init "<tree name, e.g. the family surname>"',
     );
-    return { text, data: { home, trees: treesDir, shared: sharedDir, lang, agent, config: configFile(ctx.env) } };
+    return { text, data: { home, trees: treesDir, shared: sharedDir, lang, agent, ...(where ? { where } : {}), config: configFile(ctx.env) } };
   },
 });
 
@@ -161,6 +177,9 @@ function nodeOk(version: string): boolean {
 const FIX = "strom doctor --fix";
 
 /** Everything strom needs and has on this computer, in the user's language. */
+/** The checks of the agents: what they are, know, may do, where the person talks with them, their model and browser. */
+const AGENT_CHECKS = new Set(["agent", "knows", "where", "level", "model", "browser", "remote"]);
+
 function diagnose(ctx: Context): Check[] {
   const lang = ctx.uiLang();
   const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
@@ -169,7 +188,8 @@ function diagnose(ctx: Context): Check[] {
     checks.push({ name, label: t(`ui.doc.${name}` as UIKey), status, detail, ...(fix ? { fix } : {}), ...(repair ? { repair } : {}) });
 
   // The program itself: the installer's (its own Node), or npm's or the sources' on the Node of the computer.
-  if (installation().kind === "installed") add("program", "ok", t("ui.doc.installed", { version: VERSION, node: process.version }));
+  if (installation().kind === "installed")
+    add("program", "ok", `${t("ui.doc.installed", { version: VERSION, node: process.version })}${isolated(ctx.env) ? ` · ${t("ui.doc.isolated", { folder: ctx.display(installation().root ?? "") })}` : ""}`);
   else if (nodeOk(process.version)) add("program", "ok", t("ui.doc.innode", { version: VERSION, node: process.version }));
   else add("program", "fail", t("ui.doc.oldnode", { node: process.version }), "https://nodejs.org");
   const newer = knownNewerVersion(ctx.settings, ctx.env);
@@ -189,6 +209,42 @@ function diagnose(ctx: Context): Check[] {
     add("shared", sharedOk ? "ok" : "warn", ctx.display(shared.value), sharedOk ? undefined : "strom setup --yes");
     const trees = ctx.knownTrees();
     add("trees", "ok", trees.length ? trees.map((k) => k.name).join(", ") : t("ui.doc.none"));
+    // the disk: what strom keeps beside each research (strom tidy frees it), the shared scans (only said)
+    const named = new Set<string>();
+    let beside = 0;
+    let history = 0;
+    const much: string[] = [];
+    const wrong: string[] = [];
+    for (const k of trees) {
+      // the history: how much it takes; a check of it that found something wrong (packing it: core/history.ts)
+      const size = gitSize(k.root);
+      history += size ? size.loose + size.packed : 0;
+      const last = lastCompacted(k.root);
+      if (last && !last.ok) wrong.push(t("ui.doc.history.wrong", { name: k.name, error: last.error ?? "" }));
+      try {
+        const tree = Tree.open(k.root, ctx.env);
+        for (const r of [...tree.list<Media>("media"), ...tree.list<Input>("input")]) if (r.sha) named.add(r.sha.toLowerCase());
+        const plan = tidyPlan(tree);
+        beside += plan.size.strom;
+        if (plan.frees >= TIDY_SAID) much.push(t("ui.doc.disk.tree", { name: k.name, size: mb(plan.frees, lang) }));
+      } catch {
+        // a tree not readable here: said by its own checks
+      }
+    }
+    // a warning, never a repair: tidying takes the person's yes (strom tidy, the menu's settings → disk space)
+    if (trees.length) add("disk", much.length ? "warn" : "ok", much.length ? much.join(" · ") : t("ui.doc.disk.ok", { size: mb(beside, lang) }), much.length ? t("ui.doc.disk.fix") : undefined);
+    if (trees.length) add("history", wrong.length ? "warn" : "ok", wrong.length ? wrong.join(" · ") : t("ui.doc.history.ok", { size: mb(history, lang) }));
+    if (sharedOk) {
+      const m = sharedMedia(shared.value, named);
+      add(
+        "media",
+        // files nobody here names, much of them: said as a warning (a material taken back, a tree taken off) — never removed
+        m.unnamed.bytes >= MEDIA_UNNAMED_SAID && trees.length ? "warn" : "ok",
+        t("ui.doc.media.ok", { size: mb(m.bytes, lang), n: m.files }) +
+          (m.twice.n ? t("ui.doc.media.twice", { n: m.twice.n, size: mb(m.twice.bytes, lang) }) : "") +
+          (m.unnamed.n && trees.length ? t("ui.doc.media.unnamed", { n: m.unnamed.n, size: mb(m.unnamed.bytes, lang) }) : ""),
+      );
+    }
   }
 
   // Agents: their CLI or their desktop app — found, never started here.
@@ -206,7 +262,8 @@ function diagnose(ctx: Context): Check[] {
     // Do the agents here know strom in any folder, and may they run it?
     const missing = globalTargets(ctx.env).filter((x) => found.includes(x.agent) && !isInstalled(x));
     const agentsMissing = [...new Set(missing.map((x) => PROFILES[x.agent]?.name ?? x.agent))];
-    if (agentsMissing.length) add("knows", "warn", t("ui.doc.knows.no", { agents: agentsMissing.join(", ") }), FIX, "knows");
+    if (isolated(ctx.env)) add("knows", "ok", t("ui.doc.knows.isolated"));
+    else if (agentsMissing.length) add("knows", "warn", t("ui.doc.knows.no", { agents: agentsMissing.join(", ") }), FIX, "knows");
     else add("knows", "ok", t("ui.doc.knows.yes"));
     const level = ctx.settings.agentPermissions();
     if (found.includes(chosen)) {
@@ -239,13 +296,18 @@ function diagnose(ctx: Context): Check[] {
   const desktop = desktopDir(ctx.env);
   const shortcut = [`${shortcutName(lang)}.command`, `${shortcutName(lang)}.lnk`, `${shortcutName(lang)}.cmd`, "strom-research.desktop"].some((f) => fs.existsSync(path.join(desktop, f)));
   if (shortcut) add("shortcut", "ok", t("ui.doc.yes"));
+  // an isolated installation puts nothing on the desktop (found on Mac: "none → strom doctor --fix")
+  else if (isolated(ctx.env)) add("shortcut", "ok", t("ui.doc.shortcut.isolated"));
   else add("shortcut", "warn", t("ui.doc.none"), FIX, "shortcut");
   const app = stromAppState(ctx.settings);
-  add("app", "ok", t(`ui.doc.app.${app}` as UIKey), app === "unknown" ? FIX : undefined, app === "unknown" ? "app" : undefined);
+  // (an isolated installation uses none on purpose: the app is the person's own strom's)
+  if (isolated(ctx.env)) add("app", "ok", t("ui.doc.app.isolated"));
+  else add("app", "ok", t(`ui.doc.app.${app}` as UIKey), app === "unknown" ? FIX : undefined, app === "unknown" ? "app" : undefined);
   // …and whether it may start the research here (strom-research:// links): only while the app is wanted
   if (app !== "no" && appOpensLinks(ctx.settings)) {
     const links = linkHandlerState(ctx.env);
-    if (links === "ours") add("links", "ok", t("ui.doc.links.ours"));
+    if (isolated(ctx.env)) add("links", "ok", t("ui.doc.links.isolated"));
+    else if (links === "ours") add("links", "ok", t("ui.doc.links.ours"));
     else add("links", "warn", t(`ui.doc.links.${links}` as UIKey), FIX, "links");
   }
 
@@ -298,19 +360,23 @@ register({
     const lang = ctx.uiLang();
     const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
     await newerVersion(ctx.settings, ctx.env, { fresh: true, timeoutMs: 3000 });
-    let checks = diagnose(ctx);
+    // an archive: nothing of an agent or AI checked or said (Milan's decision, 2026-10-03)
+    const archive = ctx.archiveHere();
+    const shown = (all: Check[]) => (archive ? all.filter((c) => !AGENT_CHECKS.has(c.name)) : all);
+    let checks = shown(diagnose(ctx));
     const said: string[] = [];
     if (opts.fix) {
       const fixable = checks.some((c) => c.repair && (c.status !== "ok" || c.repair === "app"));
       if (fixable) await repair(ctx, checks, (line) => (ctx.interactive ? ctx.io.stdout(line + "\n") : said.push(line)));
-      checks = diagnose(ctx);
+      checks = shown(diagnose(ctx));
     }
     const bad = checks.filter((c) => c.status === "fail").length;
     const mark = { ok: "✓", warn: "!", fail: "✗" } as const;
     const text = lines(
       ...said,
       ...(said.length ? [""] : []),
-      table(checks.map((c) => [` ${mark[c.status]}`, c.label, c.detail, c.fix ? `→ ${c.fix}` : ""])),
+      // what to do right after its detail: a long detail of another check (every tree's name) pads no column before it
+      table(checks.map((c) => [` ${mark[c.status]}`, c.label, c.fix ? `${c.detail}  → ${c.fix}` : c.detail])),
       "",
       bad === 0 ? t("ui.doc.allok") : t("ui.doc.problems", { n: bad }),
     );
@@ -360,9 +426,16 @@ register({
     // The agents learn what the new version tells them.
     const { command, args } = stromLauncher();
     spawnSync(command, [...args, "agents", "install"], { stdio: "ignore", env: ctx.env as NodeJS.ProcessEnv, windowsHide: true });
+    // The bridges the Strom app follows go on with the new version, at their addresses (the app goes on by itself)
+    let bridges = 0;
+    for (const k of ctx.knownTrees()) {
+      if (!liveRunning(k.root)) continue;
+      const r = spawnSync(command, [...args, "live", "start", "--current", "--json"], { cwd: k.root, env: { ...(ctx.env as NodeJS.ProcessEnv), STROM_TREE: k.root }, stdio: "ignore", windowsHide: true, timeout: 60_000 });
+      if (r.status === 0) bridges++;
+    }
     return {
-      text: lines(newer ? t("ui.update.done", { version: done.version, previous: VERSION }) : undefined, done.node ? t("ui.update.node.done", done.node) : undefined),
-      data: { previous: VERSION, version: done.version, updated: true, ...(done.node ? { node: done.node } : {}) },
+      text: lines(newer ? t("ui.update.done", { version: done.version, previous: VERSION }) : undefined, done.node ? t("ui.update.node.done", done.node) : undefined, bridges ? t("ui.update.bridges", { n: bridges }) : undefined),
+      data: { previous: VERSION, version: done.version, updated: true, ...(done.node ? { node: done.node } : {}), bridges },
     };
   },
 });
@@ -399,9 +472,19 @@ function effective(ctx: Context, def: SettingDef): { value: string | number | un
  * Change a setting of one tree (strom.json): a logged operation, committed
  * together with the agent files that depend on it.
  */
+/** What only the user decides about what the Strom app sends: their edits winning over records, sends written unasked. */
+function syncDecisions(ctx: Context, key: string, value: string | number | undefined): void {
+  const tree = ctx.hasTree() ? ctx.tree().config : undefined;
+  if (key === "sync.edits" && value === "user" && ctx.settings.syncEdits(tree) !== "user")
+    ctx.requireHuman("Let your edits in the Strom app win over what a record says (the record's fact withdrawn with the reason)?", "strom config set sync.edits user", "sync.edits", ui(ctx.uiLang(), "ui.consent.edits.user"));
+  if (key === "sync.review" && value !== "on" && ctx.settings.syncReview(tree))
+    ctx.requireHuman("Write what the Strom app sends at once, without your word for each send?", "strom config set sync.review off", "sync.review", ui(ctx.uiLang(), "ui.consent.review.off"));
+}
+
 export function setTreeSetting(ctx: Context, key: string, value: string | number | undefined): Tree {
+  syncDecisions(ctx, key, value);
   const def = settingDef(key);
-  if (!def.tree) throw new UsageError(`${key} is a setting of your computer, not of a tree`, { hint: `strom config set ${key} <value>` });
+  if (!def.tree) throw new UsageError(`${key} is a setting of this computer, not of a tree`, { hint: `strom config set ${key} <value>` });
   const tree = ctx.tree();
   assertIntact(tree);
   const agent = ctx.settings.agent(tree.config).value;
@@ -414,17 +497,6 @@ export function setTreeSetting(ctx: Context, key: string, value: string | number
   tree.settle();
   return tree;
 }
-
-/** What the user reads before they let the agent do everything but what is denied. */
-export const BYPASS_WARNING = [
-  "Full: the agent does everything but what the tree's permissions deny, without asking.",
-  "  · The allow list no longer counts. The agent may run any program on this computer, read and change",
-  "    any file you can, and reach any web site — strom denies only a few (the evidence, its own settings",
-  "    and instructions, git, curl and wget, your consents and logins), and cannot foresee every way round.",
-  "  · A web page or a document the agent reads may carry instructions meant for it (prompt injection).",
-  "  · strom still guards the evidence: a change in data/ that did not go through strom blocks every commit.",
-  "  · Meant for a computer or an account that holds nothing else of value. Back: strom config set agent.permissions auto",
-].join("\n");
 
 /** Does this value let the agent do more than now? */
 function raises(now: AgentPermissions, value: string | number | undefined): boolean {
@@ -452,6 +524,7 @@ function guardResearchFolder(ctx: Context, key: string, next: string | undefined
 
 function setUserSetting(ctx: Context, key: string, value: string | number | undefined): void {
   const s = ctx.settings;
+  syncDecisions(ctx, key, value);
   guardResearchFolder(ctx, key, value === undefined ? undefined : String(value));
   // Loosening the agent's permissions is the user's decision alone.
   if (key === "agent.permissions" && raises(s.agentPermissions(), value))
@@ -466,10 +539,10 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
     ctx.requireHuman("Give the agent browser tools (Claude in Chrome) in every research session?", "strom config set agent.browser always", "agent.browser", ui(ctx.uiLang(), "ui.consent.browser"));
   // Sessions steered from elsewhere (Remote Control): the user's decision alone.
   if (key === "agent.remote" && value === "on" && !s.agentRemote())
-    ctx.requireHuman("Start the Claude Code sessions with Remote Control (followed and steered from claude.ai or your phone)?", "strom config set agent.remote on", "agent.remote", ui(ctx.uiLang(), "ui.consent.remote"));
+    ctx.requireHuman("Start the Claude Code sessions with Remote Control (followed and steered from claude.ai or a phone)?", "strom config set agent.remote on", "agent.remote", ui(ctx.uiLang(), "ui.consent.remote"));
   // Asking before a connector runs is the user's safeguard: only they take it away.
   if (key === "connectors.consent" && value !== "on" && s.connectorsConsent())
-    ctx.requireHuman("Let connectors run without asking you first?", `strom config set connectors.consent ${value ?? "off"}`, "connectors.consent", ui(ctx.uiLang(), "ui.consent.connectors.off"));
+    ctx.requireHuman("Let connectors run without asking first?", `strom config set connectors.consent ${value ?? "off"}`, "connectors.consent", ui(ctx.uiLang(), "ui.consent.connectors.off"));
   // The gate decides what working alone spends: set and taken away by the user alone.
   if (key === "run.gate" && value !== s.runGate())
     ctx.requireHuman(
@@ -539,9 +612,10 @@ register(
       const value = checkValue(def, args[1]!, (p) => ctx.resolvePath(p));
       // In their own terminal the user reads what full means and says yes once more.
       if (def.key === "agent.permissions" && value === "full" && ctx.settings.agentPermissions() !== "full" && !opts["for-tree"] && ctx.interactive && !isAgent(ctx.env)) {
-        ctx.io.stderr(BYPASS_WARNING + "\n");
+        const lang = ctx.uiLang();
+        ctx.io.stderr(ui(lang, "ui.full.warning") + "\n");
         const now = ctx.settings.agentPermissions();
-        if (!(await ctx.confirm("Turn full on?", false))) return { text: `agent.permissions unchanged: ${now}`, data: { key: def.key, value: now, scope: "user" }, exitCode: 1 };
+        if (!(await ctx.confirm(ui(lang, "ui.full.ask"), false))) return { text: ui(lang, "ui.full.unchanged", { level: now }), data: { key: def.key, value: now, scope: "user" }, exitCode: 1 };
       }
       if (opts["for-tree"]) {
         const tree = setTreeSetting(ctx, def.key, value);

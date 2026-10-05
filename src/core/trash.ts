@@ -23,7 +23,7 @@ function run(command: string, args: string[], env: Env): boolean {
 /** Move a file or folder into the trash; `name` is what it is called there. Throws when no trash takes it. */
 export function moveToTrash(target: string, env: Env, name = path.basename(target), platform: NodeJS.Platform = process.platform): void {
   if (!fs.existsSync(target)) return;
-  const fail = () => new StromError(`could not put ${target} into the trash`, { hint: "move the folder into the trash yourself" });
+  const fail = () => new StromError(`could not put ${target} into the trash`, { hint: "the folder can be moved into the trash by hand", code: "trash.failed", params: { target } });
   if (env.STROM_TRASH) {
     // a test's own trash: nothing of the computer's
     fs.mkdirSync(env.STROM_TRASH, { recursive: true });

@@ -13,8 +13,8 @@ import type { Tree } from "./tree.ts";
 import { clipText, inputPath, sharperPart } from "./media.ts";
 import { kinship } from "./kin.ts";
 import { Settings } from "./config.ts";
-import { crop, resize, toGrey, type RawImage } from "../image/image.ts";
-import { decodeImage, encodeImage, imageSize } from "../image/index.ts";
+import { crop, resize, toGrey, upright, type RawImage } from "../image/image.ts";
+import { decodeImage, encodeImage, exifOrientation, imageSize } from "../image/index.ts";
 
 /** How an excerpt is made: its longest side, its pixels at most, JPEG quality, grey or in colour. */
 export interface ExcerptLevel {
@@ -48,6 +48,8 @@ export interface Excerpt {
   url?: string | undefined;
   /** Which of the source's excerpts it is (_STROM_CLIP): the Strom app asks for it again by it (a link, core/links.ts). */
   clip?: string;
+  /** The EXIF orientation of the picture it is cut from (2–8): cut as the picture lies in its file, turned for showing. */
+  orient?: number;
 }
 
 /** A clip's mark: from where it is (its image and region) — a clip made again is another excerpt; "input": a document the user gave. */
@@ -74,6 +76,14 @@ function finish(img: RawImage, level: ExcerptLevel): { jpeg: Uint8Array; width: 
   return { jpeg: encodeImage(img, "jpeg", level.q), width: img.width, height: img.height };
 }
 
+/** An excerpt turned as its picture is shown (for an app that does not turn it itself): no orientation left to say. */
+export function turned(e: Excerpt): Excerpt {
+  if (!e.orient || e.orient === 1) return e;
+  const img = upright(decodeImage(e.jpeg), e.orient);
+  const { orient: _, ...rest } = e;
+  return { ...rest, jpeg: encodeImage(img, "jpeg", 90), width: img.width, height: img.height };
+}
+
 /** Not made yet, and there was no time for it now (an export with a time budget): the next export makes it. */
 export const LATER = Symbol("later");
 
@@ -98,10 +108,12 @@ export function renderClip(
   const key = crypto.createHash("sha256").update(JSON.stringify({ sha: src.sha, region, level })).digest("hex").slice(0, 16);
   const cache = path.join(tree.root, ".strom", "excerpts", `${src.id}-${key}.jpg`);
   const url = m.url ?? src.url;
+  const o = exifOrientation(file);
+  const orient = o && o !== 1 ? { orient: o } : {};
   if (fs.existsSync(cache)) {
     const jpeg = fs.readFileSync(cache);
     const size = imageSize(jpeg);
-    if (size) return { media: m.id, from: src.id, jpeg, ...size, url, clip: clipMark(clip) };
+    if (size) return { media: m.id, from: src.id, jpeg, ...size, url, clip: clipMark(clip), ...orient };
   }
   if (cachedOnly) return LATER;
   const img = decodeImage(fs.readFileSync(file));
@@ -109,7 +121,7 @@ export function renderClip(
   const out = finish(crop(img, px.x, px.y, Math.max(1, Math.min(px.w, img.width - px.x)), Math.max(1, Math.min(px.h, img.height - px.y))), level);
   fs.mkdirSync(path.dirname(cache), { recursive: true });
   fs.writeFileSync(cache, out.jpeg);
-  return { media: m.id, from: src.id, ...out, url, clip: clipMark(clip) };
+  return { media: m.id, from: src.id, ...out, url, clip: clipMark(clip), ...orient };
 }
 
 /** The image of a document the user gave (an input), when it is one: JPEG or PNG on this computer. */
@@ -126,16 +138,18 @@ export function renderInput(tree: Tree, id: string, level: ExcerptLevel = LEVELS
   if (!found) return undefined;
   const key = crypto.createHash("sha256").update(JSON.stringify({ sha: found.input.sha ?? found.file, level })).digest("hex").slice(0, 16);
   const cache = path.join(tree.root, ".strom", "excerpts", `${found.input.id}-${key}.jpg`);
+  const o = exifOrientation(found.file);
+  const orient = o && o !== 1 ? { orient: o } : {};
   if (fs.existsSync(cache)) {
     const jpeg = fs.readFileSync(cache);
     const size = imageSize(jpeg);
-    if (size) return { media: found.input.id, from: found.input.id, jpeg, ...size, clip: INPUT_MARK };
+    if (size) return { media: found.input.id, from: found.input.id, jpeg, ...size, clip: INPUT_MARK, ...orient };
   }
   if (cachedOnly) return LATER;
   const out = finish(decodeImage(fs.readFileSync(found.file)), level);
   fs.mkdirSync(path.dirname(cache), { recursive: true });
   fs.writeFileSync(cache, out.jpeg);
-  return { media: found.input.id, from: found.input.id, ...out, clip: INPUT_MARK };
+  return { media: found.input.id, from: found.input.id, ...out, clip: INPUT_MARK, ...orient };
 }
 
 /** The same excerpt at a lower level, made from the excerpt itself (quick: no scan is opened again). */

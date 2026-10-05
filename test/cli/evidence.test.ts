@@ -137,7 +137,13 @@ test("conflicts, hypotheses and lessons", opts, async () => {
   assert.equal((await w.run(["conflict", "add", "Rok narození", "--about", "P1", "--claim", "S1: 27 let"])).code, 2); // one claim
   await w.ok(["conflict", "add", "Rok narození", "--about", "jan novak", "--claim", "S1: 27 let v 1839", "--claim", "S2: 70 let v 1883"]);
   await w.ok(["conflict", "resolve", "X1", "--resolution", "1811/12", "--reasoning", "sňatek je bližší narození"]);
-  assert.match((await w.ok(["conflict", "list"])).out, /no open conflicts/);
+  assert.match((await w.ok(["conflict", "list"])).out, /žádné otevřené rozpory/, "in the research's language");
+  // what a person reads of a conflict, in the research's language (found on Mac: "about", "claim")
+  const shown = (await w.ok(["conflict", "show", "X1"])).out;
+  assert.match(shown, /\[rozhodnutý\]\ntýká se  P\d+[\s\S]*tvrzení  S\d+: 27 let v 1839/, shown);
+  assert.doesNotMatch(shown, /\b(about|claim|resolution|reasoning)\b/, shown);
+  // an argument missing: said in the research's language, the word before it too
+  assert.match((await w.run(["sync", "undo"])).err, /^chyba: chybí <podklad>\n→ strom help sync undo\n/);
   await w.ok(["hypothesis", "add", "Kdo byl otec?", "--about", "P1", "--variant", "A: Josef z čp. 12", "--variant", "B: Josef z čp. 31"]);
   await w.ok(["hypothesis", "argue", "H1", "A", "--for", "S1 jmenuje čp. 12"]);
   assert.match((await w.ok(["hypothesis", "show", "H1"])).out, /A: Josef z čp\. 12\n\s+\+ S1 jmenuje čp\. 12/);

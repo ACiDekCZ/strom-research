@@ -1,5 +1,6 @@
 // Hooks: the user's programs told of what is saved into a research (core/hooks.ts).
 
+import { opsLogs } from "../core/opslog.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
@@ -51,15 +52,8 @@ function setHook(ctx: Context, name: string, on: boolean) {
 
 /** The last operations saved into this research, newest last. */
 function lastOps(root: string, n: number): HookEvent[] {
-  const dir = path.join(root, "data", "ops");
-  let files: string[] = [];
-  try {
-    files = fs.readdirSync(dir).filter((f) => f.endsWith(".jsonl"));
-  } catch {
-    return [];
-  }
-  return files
-    .flatMap((f) => readJsonLines<Op>(path.join(dir, f)))
+  return opsLogs(path.join(root, "data"))
+    .flatMap((f) => readJsonLines<Op>(f))
     .sort((a, b) => a.at.localeCompare(b.at))
     .slice(-n)
     .map((o) => ({ op: o.op, targets: o.targets, summary: o.summary, at: o.at, by: o.by, ...(o.reason ? { reason: o.reason } : {}) }));
@@ -74,13 +68,14 @@ register(
       const s = shared(ctx);
       const on = ctx.settings.config.hooks ?? [];
       const hooks = listHooks(s);
+      const lang = ctx.uiLang();
       return {
         text: lines(
           hooks.length
             ? table(hooks.map((h) => [on.includes(h.name) ? `${h.name} ◀ on` : h.name, h.manifest.title ?? "", (h.manifest.events ?? ["*"]).join(" "), h.manifest.command.join(" ")]))
-            : "no hooks",
-          on.length ? `on: ${on.join(", ")} (strom hook off <name>)` : "none is on: strom hook on <name> (only you)",
-          `folder: ${ctx.display(hooksDir(s))} — copy a hook's folder in to install it (the interface: README.md there)`,
+            : ui(lang, "ui.hook.none"),
+          on.length ? ui(lang, "ui.hook.on", { hooks: on.join(", ") }) : ui(lang, "ui.hook.unset"),
+          ui(lang, "ui.hook.folder", { folder: ctx.display(hooksDir(s)) }),
         ),
         data: {
           folder: hooksDir(s),

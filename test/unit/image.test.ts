@@ -114,3 +114,22 @@ test("the size of an image file, whatever metadata comes before its frame (found
   assert.equal(imageSizeOfFile(path.join(tmp, "missing.jpg")), undefined);
   fs.rmSync(tmp, { recursive: true, force: true });
 });
+
+test("a picture as it is shown: each EXIF orientation turned and mirrored as a viewer does", async () => {
+  const { upright } = await import("../../src/image/image.ts");
+  // 3 wide, 2 high, grey: a b c / d e f
+  const img = { width: 3, height: 2, channels: 1 as const, data: Uint8Array.from([1, 2, 3, 4, 5, 6]) };
+  const shown = (o: number) => {
+    const r = upright(img, o);
+    return [r.width, r.height, [...r.data].join("")];
+  };
+  assert.deepEqual(shown(1), [3, 2, "123456"]);
+  assert.deepEqual(shown(2), [3, 2, "321654"], "mirrored");
+  assert.deepEqual(shown(3), [3, 2, "654321"], "upside down");
+  assert.deepEqual(shown(4), [3, 2, "456123"], "mirrored top to bottom");
+  assert.deepEqual(shown(5), [2, 3, "142536"], "transposed");
+  assert.deepEqual(shown(6), [2, 3, "415263"], "a quarter clockwise");
+  assert.deepEqual(shown(7), [2, 3, "635241"], "transversed");
+  assert.deepEqual(shown(8), [2, 3, "362514"], "a quarter anticlockwise");
+  assert.equal(upright(img, undefined), img);
+});

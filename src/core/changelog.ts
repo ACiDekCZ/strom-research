@@ -8,15 +8,19 @@
 
 import type { Op, Tree } from "./tree.ts";
 import type { AnyRecord, Conflict, Family, Hypothesis, Input, Lesson, Media, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task } from "./model.ts";
-import { displayName, lifespan } from "./people.ts";
+import { conflictTitle, displayName, lifespan } from "./people.ts";
 import { ownerName, cardFact } from "./overview.ts";
 import { phrase, type PhraseKey } from "./phrases.ts";
 import { eventName, humanDate, humanPlace, humanTask } from "../cli/human.ts";
+import { UI, ui, type UIKey } from "../cli/ui.ts";
 
 /** Operations nobody needs to read: what another line says already, or bookkeeping. */
 const QUIET = new Set(["session.metrics", "task.start", "task.continue", "session.note"]);
 
 /** The one-line form of an operation, by its kind: {who} a person or family, {name} the record. */
+/** What strom mode logs (core/mode.ts), as the history says it. */
+const MODE_SAID: Record<string, PhraseKey> = { "the research is an archive": "log.mode.archive", "the research works with an agent again": "log.mode.research" };
+
 const SAID: Record<string, PhraseKey> = {
   "person.add": "log.person.add",
   "person.name": "log.person.name",
@@ -46,6 +50,7 @@ const SAID: Record<string, PhraseKey> = {
   "hypothesis.decide": "log.hypothesis.decide",
   "conflict.add": "log.conflict.add",
   "conflict.resolve": "log.conflict.resolve",
+  "conflict.edit": "log.conflict.edit",
   "place.add": "log.place.add",
   "place.edit": "log.place.edit",
   "place.jurisdiction": "log.place.edit",
@@ -58,6 +63,14 @@ const SAID: Record<string, PhraseKey> = {
   "input.add": "log.input.add",
   "input.sync": "log.input.sync",
   "input.done": "log.input.done",
+  "input.sync.undo": "log.input.sync.undo",
+  "person.restore": "log.person.restore",
+  "family.retract": "log.family.retract",
+  "source.retract": "log.source.retract",
+  "source.sync": "log.source.edit",
+  "place.retract": "log.place.retract",
+  "repo.retract": "log.repository.retract",
+  "name.cite": "log.person.cite",
   "research.add": "log.research.add",
   "research.edit": "log.research.edit",
   "research.pause": "log.research.pause",
@@ -109,7 +122,7 @@ function kindOf(op: string): ChangeKind {
 }
 
 /** Lines of what a commit saved, in the research language, each with what it is about; its subject when it logged no operation. */
-export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string): { text: string; kind: ChangeKind }[] {
+export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string, was?: Tree): { text: string; kind: ChangeKind }[] {
   const get = <T extends AnyRecord>(id: string | undefined) => (id ? tree.get<T>(id) : undefined);
   const who = (id: string | undefined): string => {
     const r = get<Person | Family>(id);
@@ -135,9 +148,10 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
         return task(r.id);
       case "session":
         return r.task ? task(r.task) : r.id;
+      case "conflict":
+        return short(conflictTitle(tree, r));
       case "source":
       case "recordset":
-      case "conflict":
         return short(r.title);
       case "research":
       case "repository":
@@ -155,10 +169,10 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
         return (r as { id: string }).id;
     }
   };
-  const fact = (owner: string | undefined, eventId: string | undefined): string | undefined => {
-    const e = get<Person | Family>(owner)?.events.find((x) => x.id === eventId);
+  const fact = (owner: string | undefined, eventId: string | undefined, at: Tree = tree): string | undefined => {
+    const e = (owner ? at.get<Person | Family>(owner) : undefined)?.events.find((x) => x.id === eventId);
     if (!e) return undefined;
-    const f = cardFact(tree, e);
+    const f = cardFact(at, e);
     const what = [f.value, humanDate(f.date, lang), humanPlace(f.place, f.house, lang)].filter(Boolean).join(", ");
     return `${eventName(f.kind, lang, f.label)}${what ? `: ${what}` : ""}`;
   };
@@ -184,9 +198,29 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       if (m?.image !== undefined) images.get(key)!.push(m.image);
       continue;
     }
+    // a citation taken off (an undo of a send): said as that, never as "a record for" (found on Mac: "E0013 cites no
+    // more S0007: sync I0014 undone" in English to a person)
+    if (/^\S+ cites no more /.test(o.summary)) {
+      const f = fact(first, second ?? /^(E\d+) /.exec(o.summary)?.[1]);
+      say(f ? phrase(lang, "log.event.uncite", { who: who(first), fact: f }) : phrase(lang, o.op === "family.cite" ? "log.family.uncite" : "log.person.uncite", { who: who(first) }));
+      continue;
+    }
+    // a citation put back (an undo of a send that had taken it off): said as that, never as a new record for the fact
+    // (found on Mac: "Doklad k údaji: … narození: 1904" before an undo — taken off, or kept?)
+    if (o.op === "event.cite" && /^\S+ cites \S+(?:, \S+)* again: /.test(o.summary)) {
+      const f = fact(first, second ?? /^(E\d+) /.exec(o.summary)?.[1]);
+      if (f) {
+        say(phrase(lang, "log.event.recite", { who: who(first), fact: f }));
+        continue;
+      }
+    }
     if (EVENT_SAID[o.op]) {
-      const f = fact(first, second);
-      say(f ? phrase(lang, EVENT_SAID[o.op]!, { who: who(first), fact: f }) : o.summary);
+      // an undo names its fact in what it says, its owner alone in its targets
+      const id = second ?? /^(E\d+) /.exec(o.summary)?.[1];
+      const f = fact(first, id);
+      // what it was before too, where a preview knows it (an undo of a send: "narození: 1871 → 1870")
+      const before = was && o.op === "event.edit" ? fact(first, id, was) : undefined;
+      say(f ? phrase(lang, EVENT_SAID[o.op]!, { who: who(first), fact: before && before !== f ? `${before} → ${f.replace(/^[^:]*: /, "")}` : f }) : o.summary);
       continue;
     }
     if (o.op === "search.add" || o.op === "search.edit") {
@@ -195,12 +229,53 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       continue;
     }
     if (o.op === "family.child") {
-      say(phrase(lang, "log.family.child", { who: who(first), child: who(second) }));
+      // a child moved there names the child in what it says, the family alone in its targets
+      say(phrase(lang, "log.family.child", { who: who(first), child: who(second ?? /\+child (P\d+)/.exec(o.summary)?.[1]) }));
+      continue;
+    }
+    // what the line is about besides its person, from what the operation says of it: the name, the note, the fact
+    if (o.op === "person.name" || o.op === "name.remove") {
+      const m = o.op === "person.name" ? /^\S+ name (.+?)(?: \([\w-]+\))?(?: ← \S+)?$/.exec(o.summary) : /^\S+ name (.+?) removed[:,]/.exec(o.summary);
+      say(m ? phrase(lang, o.op === "person.name" ? "log.name.add" : "log.name.remove", { name: m[1]!.replace(/\//g, " ").replace(/\s+/g, " ").trim(), who: who(first) }) : o.op === "person.name" ? phrase(lang, "log.person.name", { who: who(first) }) : o.summary);
+      continue;
+    }
+    if (o.op === "note.remove") {
+      const m = /^\S+ note "(.*)" removed:/.exec(o.summary);
+      say(m ? phrase(lang, "log.note.remove", { note: m[1]!, name: name(first) }) : o.summary);
+      continue;
+    }
+    if (o.op === "event.status" || o.op === "event.restore") {
+      const f = fact(first, /^(E\d+)/.exec(o.summary)?.[1]);
+      say(f ? phrase(lang, o.op === "event.status" ? "log.event.status" : "log.event.restore", { who: who(first), fact: f }) : o.summary);
       continue;
     }
     if (o.op === "person.merge" || o.op === "family.merge") {
       say(phrase(lang, "log.merge", { who: who(second) }));
       continue;
+    }
+    // the data brought to a newer schema: said in the research's language (found on Mac: "schema 2: the operations…" in
+    // a Czech history), as the person was told when it happened
+    if (o.op === "tree.migrate") {
+      const step = `ui.migrated.${/^schema (\d+):/.exec(o.summary)?.[1]}` as UIKey;
+      say(step in UI ? ui(lang, "ui.migrated", { step: ui(lang, step) }) : o.summary);
+      continue;
+    }
+    // strom mode: said in the research's language (found on Windows: "the research is an archive" in a Czech history)
+    if (o.op === "config.set" && MODE_SAID[o.summary]) {
+      say(phrase(lang, MODE_SAID[o.summary]!));
+      continue;
+    }
+    // what the Strom app sent: said so, never "material from the family" with the file's name (found on Mac)
+    if (o.op === "input.add" || o.op === "input.sync" || o.op === "input.sync.undo") {
+      const i = get<Input & { sync?: unknown }>(first);
+      if (i?.name?.startsWith("strom-app-")) {
+        say(phrase(lang, o.op === "input.sync.undo" ? "log.input.app.undo" : "log.input.app"));
+        continue;
+      }
+      if (i?.sync && o.op === "input.add") {
+        say(phrase(lang, "log.input.sync", { name: name(first) }));
+        continue;
+      }
     }
     const key = SAID[o.op];
     say(key ? phrase(lang, key, { who: who(first), name: name(first) }) : o.summary);

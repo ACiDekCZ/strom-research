@@ -5,15 +5,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import { newerVersion } from "../core/update.ts";
+import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { appOpensResearch, installedStromApp, stromAppUrl } from "../core/stromapp.ts";
 import { register, commands, describe, GROUPS } from "../cli/registry.ts";
 import { UsageError } from "../core/errors.ts";
 import type { Context } from "../cli/context.ts";
-import { helpFor } from "../cli/help.ts";
+import { helpAs } from "../cli/help.ts";
 import { lines, table } from "../cli/format.ts";
 import { guideText } from "./guide.ts";
 import { langName } from "../core/lang.ts";
-import { ui, type UIKey } from "../cli/ui.ts";
+import { placeholders, ui, type UIKey } from "../cli/ui.ts";
 import { VERSION } from "../core/tree.ts";
 import { gitVersion } from "../core/git.ts";
 import { linuxGitCommand } from "../core/deps.ts";
@@ -27,6 +28,7 @@ import { taskQueue, waitingForUser, waitingLines } from "./tasks.ts";
 import type { Person, Research, Session } from "../core/model.ts";
 import { liveWorkers, runAlive } from "../core/workers.ts";
 import { label } from "../core/people.ts";
+import { isArchive } from "../core/mode.ts";
 
 interface Orientation {
   version: string;
@@ -82,8 +84,8 @@ function orientation(ctx: Context): Orientation {
     name: tree.config.name,
     root: tree.root,
     lang: tree.lang,
-    persons: tree.count("person"),
-    families: tree.count("family"),
+    persons: tree.countLive("person"),
+    families: tree.countLive("family"),
     errors: findings.filter((f) => f.level === "error").length,
     warnings: findings.filter((f) => f.level === "warn").length,
   };
@@ -143,6 +145,8 @@ function orientation(ctx: Context): Orientation {
   const chosen = ctx.settings.agent(tree.config).value;
   const elsewhere = isAgent(ctx.env) && !ctx.env.STROM_WORKER && !ctx.env.STROM_SESSION && !inTree && agentsHere(ctx.env).some((a) => a.id === chosen);
   if (base.tree.errors > 0) base.next = { why: t("ui.why.check"), command: "strom check" };
+  // an archive: no agent works on it — the data come from the Strom app; only the person switches work with an agent on
+  else if (isArchive(tree)) base.next = human ? { why: t("ui.why.archive.human"), command: "strom" } : { why: t("ui.why.archive.agent"), command: "strom sync --inbox" };
   else if (elsewhere) base.next = { why: t("ui.why.handover"), command: "strom chat" };
   else if (open && human && open.runner && !runAlive(tree.root, open)) base.next = { why: t("ui.why.runleft", { id: open.id }), command: "strom run" };
   else if (open && human && open.runner) base.next = { why: t("ui.why.running", { id: open.id }), command: "strom status" };
@@ -151,9 +155,9 @@ function orientation(ctx: Context): Orientation {
       ? { why: t("ui.why.open.human", { id: open.id }), command: `strom session close ${open.id} --interrupted` }
       : { why: t("ui.why.open.agent", { id: open.id, on: open.task ? ` ${t("ui.o.on", { task: open.task })}` : "" }), command: "strom brief" };
   else if (researches.length === 0 && queued === 0)
-    base.next = { why: t("ui.why.research"), command: 'strom research new "<name>" --new-person "<Given /Surname/>" --born "<date>" --born-place "<place>"' };
+    base.next = { why: t("ui.why.research"), command: 'strom research new "<research name>" --new-person "<Given /Surname/>" --born "<date>" --born-place "<place>"' };
   else if (queued === 0 && waitingForUser(tree).length) base.next = { why: t("ui.why.waiting"), command: "strom task list --state waiting" };
-  else if (queued === 0 && tree.count("input") === 0) base.next = { why: t("ui.why.intake"), command: 'strom intake --text "<what the user told you>"' };
+  else if (queued === 0 && tree.count("input") === 0) base.next = { why: t("ui.why.intake"), command: 'strom intake --text "<what the family knows>"' };
   else if (queued > 0) base.next = human ? { why: t("ui.why.run", { n: queued }), command: "strom run" } : { why: t("ui.why.session", { n: queued }), command: "strom session start" };
   else {
     const active = researches.find((r) => r.state === "active") ?? researches[0]!;
@@ -174,26 +178,34 @@ register(
       const lang = ctx.uiLang();
       const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
       // Labels in one column, whatever their length in the user's language.
-      const labels = [t("ui.o.home"), t("ui.o.tree"), t("ui.o.lang"), t("ui.o.data"), t("ui.o.results"), t("ui.o.stories"), t("ui.o.ask"), t("ui.o.reread"), t("ui.o.update"), t("ui.o.next")];
+      const labels = [t("ui.o.home"), t("ui.o.tree"), t("ui.o.lang"), t("ui.o.data"), t("ui.o.results"), t("ui.o.stories"), t("ui.o.ask"), t("ui.o.reread"), t("ui.o.update"), t("ui.o.disk"), t("ui.o.next")];
       const width = Math.max(...labels.map((l) => l.length)) + 2;
       const row = (label: string, value: string) => `${label.padEnd(width)}${value}`;
+      // an archive: nothing of an agent or AI (Milan's decision, 2026-10-03) — what the agent is told of stories,
+      // questions and readings again is research
+      const archive = ctx.hasTree() && isArchive(ctx.tree());
+      const disk = ctx.hasTree() ? tidyPlan(ctx.tree()) : undefined;
       const check = o.tree ? `${o.tree.errors ? t("ui.o.errors", { n: o.tree.errors }) : t("ui.o.ok")}${o.tree.warnings ? `, ${t("ui.o.warnings", { n: o.tree.warnings })}` : ""}` : "";
       const text = lines(
-        t("ui.o.title", { version: o.version }),
-        t("ui.o.rule"),
+        t(archive ? "ui.o.title.archive" : "ui.o.title", { version: o.version }),
+        t(archive ? "ui.o.rule.archive" : "ui.o.rule"),
         "",
         row(t("ui.o.home"), o.home ? ctx.display(o.home) : t("ui.o.notsetup")),
         o.update ? row(t("ui.o.update"), t("ui.o.update.new", { version: o.update, current: o.version })) : undefined,
         o.tree
           ? lines(
               row(t("ui.o.tree"), `${o.tree.name}  (${ctx.display(o.tree.root)})`),
-              row(t("ui.o.lang"), `${langName(o.tree.lang, lang)} (${o.tree.lang}) — ${t("ui.o.langnote")}`),
+              // an archive: what it is, not what an agent does in it (found on Windows: "mluv s uživatelem" in an archive)
+              row(t("ui.o.lang"), `${langName(o.tree.lang, lang)} (${o.tree.lang})${archive ? "" : ` — ${t("ui.o.langnote")}`}`),
               row(t("ui.o.data"), t("ui.o.counts", { persons: o.tree.persons, families: o.tree.families, check })),
               o.results
                 ? row(
                     t("ui.o.results"),
                     t(
-                      o.results.app === "installed"
+                      // an archive: its data come from the app — never "not installed here, offer it" (found on Windows)
+                      archive
+                        ? "ui.o.results.plain"
+                        : o.results.app === "installed"
                         ? appOpensResearch(ctx.settings) && !o.results.told ? "ui.o.results.installed.live" : "ui.o.results.installed"
                         : o.results.app === "offer"
                           ? o.results.told ? "ui.o.results.offered" : appOpensResearch(ctx.settings) ? "ui.o.results.offer.live" : "ui.o.results.offer"
@@ -202,9 +214,10 @@ register(
                     ),
                   )
                 : undefined,
-              o.stories ? row(t("ui.o.stories"), t(`ui.o.stories.${o.stories}`)) : undefined,
-              o.ask ? row(t("ui.o.ask"), t("ui.o.ask.tell")) : undefined,
-              o.reread ? row(t("ui.o.reread"), t("ui.o.reread.offer", { n: o.reread.facts, models: o.reread.models.join(", "), model: o.reread.model })) : undefined,
+              archive ? row(t("ui.o.mode"), t("ui.o.mode.archive")) : undefined,
+              o.stories && !archive ? row(t("ui.o.stories"), t(`ui.o.stories.${o.stories}`)) : undefined,
+              o.ask && !archive ? row(t("ui.o.ask"), t("ui.o.ask.tell")) : undefined,
+              o.reread && !archive ? row(t("ui.o.reread"), t("ui.o.reread.offer", { n: o.reread.facts, models: o.reread.models.join(", "), model: o.reread.model })) : undefined,
               o.researches?.length
                 ? t("ui.o.research") + "\n" + table(o.researches.map((r) => [`  ${r.id}`, r.name, `[${r.state}]`, r.focus]))
                 : t("ui.o.research.none"),
@@ -212,12 +225,14 @@ register(
                 ? t("ui.o.working") + "\n" + table(o.working.map((w) => [`  ${w.who}`, t("ui.o.since", { time: w.since.slice(11, 16) }), w.task ? t("ui.o.on", { task: w.task }) : ""]))
                 : undefined,
               ctx.hasTree() ? waitingLines(ctx.tree(), { shared: ctx.settings.shared()?.value, display: (p) => ctx.display(p) }) : undefined,
+              // much kept beside the research (an older strom never tidied): the person frees it
+              disk && disk.frees >= TIDY_SAID ? row(t("ui.o.disk"), t(archive ? "ui.tidy.hint" : "ui.o.disk.tidy", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) })) : undefined,
             )
           : o.trees.length > 1
             ? t("ui.o.trees") + "\n" + table(o.trees.map((x) => [`  ${x.name}`, ctx.display(x.root)]))
             : undefined,
         "",
-        row(t("ui.o.next"), o.next.command),
+        row(t("ui.o.next"), placeholders(lang, o.next.command)),
         `${" ".repeat(width)}(${o.next.why})`,
       );
       return { text, data: o };
@@ -229,6 +244,11 @@ register(
     group: "start",
     run(ctx) {
       const lang = ctx.hasTree() ? ctx.tree().lang : ctx.settings.home() ? ctx.settings.lang().value : undefined;
+      // an archive: what it holds and who switches research on — nothing of an agent's work (Milan's decision, 2026-10-03)
+      if (ctx.hasTree() && isArchive(ctx.tree())) {
+        const said = ui(ctx.tree().lang, "ui.guide.archive");
+        return { text: said, data: { guide: said, lang, archive: true } };
+      }
       const text = guideText(lang);
       return { text, data: { guide: text, lang } };
     },
@@ -258,11 +278,19 @@ register(
   },
   {
     path: ["help"],
-    summary: "Help for a command: strom help <command>",
+    summary: "Help for a command: strom help <command> — what an agent reads, in English (a person's help in their language: --human)",
     group: "start",
     args: [{ name: "command", description: "command words, e.g. person add", variadic: true }],
-    run(_ctx, input) {
-      const text = helpFor(input.args);
+    options: [
+      { name: "human", type: "boolean", description: "a person's help in the research language: the commands a person uses, a sentence each" },
+      { name: "agent", type: "boolean", description: "the English help an agent reads (the default; kept for scripts that ask for it)" },
+    ],
+    examples: ["strom help", "strom help sync", "strom help person add", "strom help --human"],
+    run(ctx, input) {
+      // the agent's help, whoever asks — a person's only with --human (Milan, 2026-10-04); a person at a terminal is told
+      // how in a line of their language
+      const human = Boolean(input.opts.human) && !input.opts.agent;
+      const text = helpAs(input.args, { archive: ctx.archiveHere(), human, lang: ctx.uiLang(), pointer: !human && ctx.io.tty && !isAgent(ctx.env) });
       return { text, data: { help: text } };
     },
   },

@@ -28,10 +28,16 @@ export function releaseBase(env: Env): string {
 
 /** Is version a newer than b? (1.10.0 > 1.9.2) */
 export function isNewer(a: string, b: string): boolean {
-  const n = (v: string) => v.replace(/^v/, "").split(/[.-]/).map((x) => Number.parseInt(x, 10) || 0);
-  const [x, y] = [n(a), n(b)];
-  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
-  return false;
+  const split = (v: string) => {
+    const [main = "", pre] = v.trim().replace(/^v/, "").split(/-(.*)/s);
+    return { main: main.split(".").map((x) => Number.parseInt(x, 10) || 0), pre };
+  };
+  const [x, y] = [split(a), split(b)];
+  for (let i = 0; i < 3; i++) if ((x.main[i] ?? 0) !== (y.main[i] ?? 0)) return (x.main[i] ?? 0) > (y.main[i] ?? 0);
+  // the same version: the release is newer than its candidates (1.12.0 > 1.12.0-rc.7), rc.8 than rc.7
+  if (!x.pre || !y.pre) return !x.pre && !!y.pre;
+  const num = (p: string) => Number.parseInt(/(\d+)$/.exec(p)?.[1] ?? "0", 10);
+  return num(x.pre) > num(y.pre);
 }
 
 /** Where the official Node comes from (nodejs.org's layout: <base>/v<version>/<archive>, SHASUMS256.txt beside). */

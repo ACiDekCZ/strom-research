@@ -13,21 +13,32 @@ import type { UIKey } from "./ui.ts";
 import type { Research, Task } from "../core/model.ts";
 import { displayName, lifespan } from "../core/people.ts";
 import { DEATH_AFTER_YEARS, unprovenPeople } from "../core/review.ts";
-import { planSync, readTreeFile, receivedSince } from "../core/sync.ts";
+import { planSync, readTreeFile, receivedAll, receivedSince, SYNC_INBOX, type Received, type SyncInput } from "../core/sync.ts";
+import { undoSending } from "./menu-links.ts";
+import { humanWhen } from "./human.ts";
 import { appSendsChanges, stromAppState } from "../core/stromapp.ts";
 import { UNPROVEN_BATCH } from "../commands/research.ts";
 import { expandHome } from "../core/paths.ts";
 import { collectFiles } from "../core/media.ts";
+import { isArchive } from "../core/mode.ts";
 import { BOOK_OF_SCANS, IMAGE_EXT } from "../commands/intake.ts";
 
 export async function addToResearch(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
   const t = translator(lang);
   await subMenu(ctx, lang, () => {
+    const tree = Tree.open(root, ctx.env);
+    // an archive: what comes in only — a new direction, a review, the directions are research
+    if (isArchive(tree)) {
+      const items: Item[] = [{ key: "1", label: t("ui.more.intake"), act: async () => void (await addMaterial(ctx, run, lang, root)) }];
+      if (tree.count("person") > 0) items.push({ key: "4", label: t(noApp(ctx) ? "ui.more.sync.noapp" : "ui.more.sync"), act: async () => void (await syncTree(ctx, run, lang, root)) });
+      const undo = undoLast(ctx, run, lang, root, "5");
+      if (undo) items.push(undo);
+      return { title: t("ui.more.title.archive"), items };
+    }
     const items: Item[] = [
       { key: "1", label: t("ui.more.intake"), act: async () => void (await addMaterial(ctx, run, lang, root)) },
       { key: "2", label: t("ui.more.research"), act: async () => void (await newResearch(ctx, run, lang, root)) },
     ];
-    const tree = Tree.open(root, ctx.env);
     if (tree.count("person") > 0) {
       items.push({ key: "3", label: t("ui.menu.review"), act: async () => void (await reviewPerson(ctx, run, lang, root)) });
       items.push({ key: "4", label: t(noApp(ctx) ? "ui.more.sync.noapp" : "ui.more.sync"), act: async () => void (await syncTree(ctx, run, lang, root)) });
@@ -36,8 +47,22 @@ export async function addToResearch(ctx: Context, run: Run, lang: string, root: 
     // only when there are some: the people no record of their own proves — last, it shows only sometimes
     const unproven = unprovenPeople(tree).filter((u) => !u.living).length;
     if (unproven) items.push({ key: String(items.length + 1), label: t("ui.menu.unproven", { n: unproven }), act: async () => void (await reviewUnproven(ctx, run, lang, root)) });
+    const undo = undoLast(ctx, run, lang, root, String(items.length + 1));
+    if (undo) items.push(undo);
     return { title: t("ui.more.title"), items };
   });
+}
+
+/**
+ * The last send of the Strom app the research wrote, taken back (what goes back shown first, Enter says no) — only while
+ * there is one, so last (found on Windows: in neither the menu nor the archive's, only through the app's link).
+ */
+function undoLast(ctx: Context, run: Run, lang: string, root: string, key: string): Item | undefined {
+  const last = receivedAll(root).find((r) => r.state === "written" && r.input);
+  if (!last?.input) return undefined;
+  const input = Tree.open(root, ctx.env).get<SyncInput>(last.input);
+  if (!input?.sync || input.sync.undone) return undefined;
+  return { key, label: translator(lang)("ui.more.undo", { when: humanWhen(input.created, lang) }), act: async () => void (await undoSending(ctx, run, lang, root, input.id, true)) };
 }
 
 /** Files, folders or what the person knows, as inputs of the research; the agent reads them in its next work. */
@@ -263,8 +288,26 @@ export async function syncFromApp(ctx: Context, run: Run, lang: string, root: st
   return confirmSync(ctx, run, lang, root, file, undefined, enter);
 }
 
-/** What the tree brings is shown: written on the person's word — all, or the ones they pick. */
-async function confirmSync(ctx: Context, run: Run, lang: string, root: string, file: string, known?: number, enter: "ui.enter" | "ui.enter.close" = "ui.enter"): Promise<void> {
+/**
+ * A tree the Strom app sent on its own, waiting in the inbox: what it brings shown, then written (all or some) or
+ * thrown away on the person's word — or left waiting (0). False: it waits no more.
+ */
+export async function decideSent(ctx: Context, run: Run, lang: string, root: string, sent: Received, enter: "ui.enter" | "ui.enter.close" = "ui.enter"): Promise<boolean> {
+  const file = path.join(root, SYNC_INBOX, sent.file);
+  if (!fs.existsSync(file)) {
+    ctx.io.stdout(translator(lang)("ui.waiting.gone") + "\n");
+    return false;
+  }
+  if ((await run(["sync", file])) !== 0) {
+    await pause(ctx, lang, enter);
+    return true;
+  }
+  await confirmSync(ctx, run, lang, root, file, undefined, enter, sent);
+  return true;
+}
+
+/** What the tree brings is shown: written on the person's word — all, or the ones they pick; a send of the app thrown away too. */
+async function confirmSync(ctx: Context, run: Run, lang: string, root: string, file: string, known?: number, enter: "ui.enter" | "ui.enter.close" = "ui.enter", sent?: Received): Promise<void> {
   const t = translator(lang);
   let count = known ?? 0;
   if (known === undefined)
@@ -275,8 +318,15 @@ async function confirmSync(ctx: Context, run: Run, lang: string, root: string, f
       count = 0;
     }
   if (!count) return pause(ctx, lang, enter);
-  const how = await ctx.choose(t("ui.sync.how"), [{ label: t("ui.sync.all") }, { label: t("ui.sync.some") }], 0, { back: t("ui.browse.back") });
+  const how = await ctx.choose(t("ui.sync.how"), [{ label: t("ui.sync.all") }, { label: t("ui.sync.some") }, ...(sent ? [{ label: t("ui.sent.discard") }] : [])], 0, { back: t(sent ? "ui.sent.later" : "ui.browse.back") });
   if (how === undefined) return;
+  if (how === 2 && sent) {
+    // why, for the app (it shows it): the person's words, or none
+    const reason = (await ctx.ask(t("ui.sent.why"))).trim();
+    if (reason === "0") return;
+    if ((await run(["sync", "discard", sent.intake, ...(reason ? [`--reason=${reason}`] : [])])) === 0 && !noApp(ctx)) ctx.io.stdout(t("ui.sent.discarded.app") + "\n");
+    return pause(ctx, lang, enter);
+  }
   let only: string[] = [];
   if (how === 1) {
     const picked = await pickNumbers(ctx, lang, Array.from({ length: count }, (_, i) => String(i + 1)));

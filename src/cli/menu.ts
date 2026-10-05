@@ -11,8 +11,11 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
+import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { Tree, VERSION } from "../core/tree.ts";
+import { diskVersion } from "../core/self.ts";
 import { liveHolder } from "../core/lock.ts";
+import { reviveLive } from "../core/live.ts";
 import { newerVersion } from "../core/update.ts";
 import { taskQueue, waitingForUser } from "../commands/tasks.ts";
 import { humanTask } from "../commands/browse.ts";
@@ -24,22 +27,27 @@ import { truncate } from "./format.ts";
 import { installedStromApp, noticeStromApp, stromAppState, stromAppUrl } from "../core/stromapp.ts";
 import { chromiumBrowser } from "../core/chromium.ts";
 import { liveWorkers, runsAtWork } from "../core/workers.ts";
-import { askStromApp } from "./wizard.ts";
+import { askStromApp, settleInstall, shortcutName } from "./wizard.ts";
 import { openForUser } from "../core/open.ts";
 import type { Person, Research } from "../core/model.ts";
 import { displayName } from "../core/people.ts";
 import { agentReady, droppedPaths, guarded, pause as partsPause, pickPerson, subMenu, type Item, type Run } from "./menu-parts.ts";
 import { packPlan } from "../core/pack.ts";
-import { expandHome } from "../core/paths.ts";
+import { expandHome, isolated } from "../core/paths.ts";
 import { offerAgent } from "./fixes.ts";
 import { addToResearch } from "./menu-research.ts";
 import { waitingForYou } from "./menu-waiting.ts";
 import { settingsMenu } from "./menu-settings.ts";
 import { mainPerson } from "../core/kin.ts";
-import { AGENTS, findAgent } from "../core/which.ts";
-import { agentsHere } from "../core/apps.ts";
+import { findAgent } from "../core/which.ts";
+import { agentsHere, waysHere, whereToTalk, type Way } from "../core/apps.ts";
+import { chooseWay, wayName } from "./ways.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { forStory, storiesToApprove } from "../core/stories.ts";
+import { receivedPending } from "../core/sync.ts";
+import { isArchive } from "../core/mode.ts";
+import { switchTo } from "./menu-mode.ts";
+import { appMarkFromInstall } from "../core/links.ts";
 
 
 /** Create a family tree and say so in the user's words (init itself talks to agents). */
@@ -51,6 +59,13 @@ async function createTree(ctx: Context, run: Run, lang: string, name: string): P
   return made?.root;
 }
 
+/** Each tree of the app the installer named is taken once a process (the menu may be entered again). */
+const fromAppDone = new Set<string>();
+/** The trees whose bridge the menu brought back (one that ended without a word): once a process. */
+const revived = new Set<string>();
+/** An installation over kept settings is looked over once a process. */
+let installSettled = false;
+
 export async function runMenu(ctx: Context, run: Run): Promise<void> {
   const out = (line = "") => ctx.io.stdout(line + "\n");
   const outOfAnswers = () => ctx.io.answers !== undefined && ctx.io.answers.length === 0;
@@ -59,18 +74,38 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
     if (!outOfAnswers()) await ctx.ask(ui(lang, "ui.enter"));
   };
 
-  // First time on this computer: the wizard.
+  // Installed for a tree of the Strom app (the line it shows, STROM_FROM_APP): the setup if it is the first time, then
+  // that tree becomes a research — once, then the menu
+  const mark = appMarkFromInstall(ctx.env);
+  if (mark && !fromAppDone.has(mark)) {
+    fromAppDone.add(mark);
+    await run(["link", "open", `strom-research://new?app=${mark}`]);
+    reload();
+  }
+  // First time on this computer: the wizard. Installed again over settings kept from before (the installer started
+  // strom): what the setup puts here, by what is here
   if (!ctx.settings.home()) {
     await run(["setup"]);
     reload();
     if (!ctx.settings.home()) return;
+  } else if (ctx.env.STROM_INSTALLER === "1" && !mark && !installSettled) {
+    installSettled = true;
+    await settleInstall(ctx, ctx.uiLang());
+    reload();
   }
   noticeStromApp(ctx.settings, ctx.env, { look: true });
 
+  let toldNewer = false;
   for (;;) {
     reload();
     const lang = ctx.uiLang();
     const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
+    // strom updated while this menu is open (the installer, npm, another window): said once — the menu is never ended
+    const disk = diskVersion(ctx.env);
+    if (!toldNewer && disk && disk.version !== VERSION) {
+      toldNewer = true;
+      ctx.io.stdout(`\n${t("ui.update.restart", { shortcut: shortcutName(lang) })}\n`);
+    }
     const known = ctx.knownTrees();
     let root: string | undefined;
     try {
@@ -86,8 +121,9 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       const made = await createTree(ctx, run, lang, name);
       if (!made) return;
       reload();
-      // Straight into the first conversation — with an agent here; without one, the menu says how to get it.
-      if (agentReady(ctx, Tree.open(made, ctx.env).config)) await run(["chat"]);
+      // Straight into the first conversation — with an agent here; without one, the menu says how to get it. An isolated
+      // installation (trying a version) starts none by itself: the menu.
+      if (agentReady(ctx, Tree.open(made, ctx.env).config) && !isolated(ctx.env)) await run(["chat"]);
       if (outOfAnswers()) return;
       continue;
     }
@@ -101,14 +137,30 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
     const newer = await newerVersion(ctx.settings, ctx.env);
     if (root) {
       const tree = Tree.open(root, ctx.env);
+      // the bridge the Strom app follows, ended without a word (killed, the computer gone down): back with the menu —
+      // an archive has no sessions to bring it back (found on Mac: the app "not running" until strom live start)
+      if (!revived.has(root)) {
+        revived.add(root);
+        try {
+          reviveLive(root, ctx.env);
+        } catch {
+          // its next start brings it back
+        }
+      }
       // the tasks that wait for the person, and the new versions of the stories they approved
-      const waiting = waitingForUser(tree).length + storiesToApprove(tree).length;
+      const waiting = waitingForUser(tree).length + storiesToApprove(tree).length + receivedPending(root).length;
       const started = tree.list<Research>("research").length > 0;
-      out(t("ui.menu.tree", { name: tree.config.name, persons: tree.count("person") }));
+      out(t("ui.menu.tree", { name: tree.config.name, persons: tree.countLive("person") }));
       // No agent yet (none installed, or not the one chosen): the research waits for it, and item 1 gets one.
       const ready = agentReady(ctx, tree.config);
-      if (!ready) out(t(agentsHere(ctx.env).length ? "ui.menu.noagent.chosen" : "ui.menu.noagent"));
+      // An archive: the data come from the Strom app, no agent — said instead
+      const archive = isArchive(tree);
+      if (archive) out(t("ui.menu.archive"));
+      else if (!ready) out(t(agentsHere(ctx.env).length ? "ui.menu.noagent.chosen" : "ui.menu.noagent"));
       if (waiting) out(t("ui.menu.waiting", { count: waiting }));
+      // much kept beside the research that can go (an older strom never tidied it): said, freed in the settings
+      const disk = tidyPlan(tree);
+      if (disk.frees >= TIDY_SAID) out(t("ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) }));
       const runs = runsAtWork(root).length;
       if (runs) out(t(runs > 1 ? "ui.menu.working.more" : "ui.menu.working", { n: runs }));
       items.push(
@@ -215,7 +267,9 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         {
           key: "4",
           // the Strom app named only for someone who has not said no to it
-          label: t(stromAppState(ctx.settings) === "no" ? "ui.menu.more" : "ui.menu.more.app"),
+          label: archive
+            ? t(stromAppState(ctx.settings) === "no" ? "ui.menu.more.archive.noapp" : "ui.menu.more.archive")
+            : t(stromAppState(ctx.settings) === "no" ? "ui.menu.more" : "ui.menu.more.app"),
           act: async () => addToResearch(ctx, run, lang, root!),
         },
         {
@@ -224,20 +278,35 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
           act: async () => browse(ctx, run, lang, root!),
         },
       );
-      // Several agents on this computer: this conversation with another one (the default stays).
+      // An archive: no conversation, no agent working alone — work with an agent switched on instead, and what came lately
+      // (the numbers stay where a person knows them)
+      if (archive)
+        for (const [k, it] of items.entries()) {
+          if (it.key === "1") items[k] = { key: "1", label: t("ui.menu.archive.agent"), act: async () => switchTo(ctx, run, lang, root!, "research") };
+          else if (it.key === "2")
+            items[k] = {
+              key: "2",
+              label: t("ui.menu.archive.recent"),
+              act: async () => {
+                await run(["recent"]);
+                await pause(lang);
+              },
+            };
+        }
+      // Another agent on this computer, or the same one elsewhere (its app, its terminal): this conversation so (the
+      // default stays).
       const current = ctx.settings.agent(tree.config).value;
-      const others = agentsHere(ctx.env)
-        .filter((a) => a.id !== current)
-        .map((a) => AGENTS.find((x) => x.id === a.id)!);
-      other = !others.length
+      const now: Way = { agent: current, where: whereToTalk(current, ctx.settings.agentWhere(), ctx.env) };
+      const others = waysHere(agentsHere(ctx.env)).filter((w) => w.agent !== now.agent || w.where !== now.where);
+      other = !others.length || archive
         ? undefined
         : {
           key: "9",
           label: t("ui.menu.otheragent"),
           act: async () => {
             // Enter (and 0) stay with the agent of the research: choosing another is a step the person takes on purpose.
-            const i = await ctx.choose(t("ui.setup.agent.pick"), others.map((a) => ({ label: a.name })), others.length, { back: t("ui.back.stay", { name: PROFILES[current]?.name ?? current }) });
-            if (i !== undefined) await run(["chat", "--agent", others[i]!.id]);
+            const i = await chooseWay(ctx, lang, others, others.length, { back: t("ui.back.stay", { name: PROFILES[current] ? wayName(lang, now) : current }) });
+            if (i !== undefined) await run(["chat", "--agent", others[i]!.agent, "--where", others[i]!.where]);
           },
         };
       // Another tree, right after the research's own items.
@@ -252,7 +321,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
           label: t(!hasApp ? "ui.menu.app.new" : atWork ? "ui.menu.app.watch" : "ui.menu.app"),
           act: async () => openStromApp(ctx, run, lang, hasApp),
         };
-        appTip = !hasApp ? "ui.menu.app.tip" : atWork ? "ui.menu.app.live" : undefined;
+        appTip = archive ? (!hasApp ? "ui.menu.app.tip.archive" : undefined) : !hasApp ? "ui.menu.app.tip" : atWork ? "ui.menu.app.live" : undefined;
         items.push(appItem);
       }
     } else {
@@ -260,7 +329,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       items.push({ key: "1", label: t("ui.menu.trees"), act: async () => pickTree(ctx, run, lang) });
     }
     // The settings of this computer (with the check); at most nine: the newer strom is taken in the settings, the line above says where.
-    const settings: Item = { key: "8", label: t("ui.menu.settings"), act: async () => settingsMenu(ctx, run, lang, root, newer) };
+    const settings: Item = { key: "8", label: t(ctx.archiveHere() ? "ui.menu.settings.archive" : "ui.menu.settings"), act: async () => settingsMenu(ctx, run, lang, root, newer) };
     items.push(settings);
     // Only with several agents here: last, so that it moves no other number.
     if (other) items.push(other);
@@ -273,7 +342,8 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
 
     // Numbered in the order shown; 0 always quits.
     let n = 0;
-    const i = await ctx.choose("", items.map((it) => ({ key: it.key === "0" ? "0" : String(++n), label: it.label })), 0);
+    // Enter: the conversation — in an archive what came in lately (switching research on is a step taken on purpose)
+    const i = await ctx.choose("", items.map((it) => ({ key: it.key === "0" ? "0" : String(++n), label: it.label })), root && ctx.archiveHere() ? 1 : 0);
     if (i === undefined) return;
     const quit = await guarded(ctx, lang, items[i]!.act);
     if (quit === true || quit === "quit") {
@@ -333,7 +403,8 @@ async function browse(ctx: Context, run: Run, lang: string, root: string): Promi
         ? [
             { key: "1", label: t("ui.browse.stats"), act: async () => show(["stats"]) },
             { key: "2", label: t("ui.browse.recent"), act: async () => show(["recent"]) },
-            { key: "2", label: t("ui.browse.plan"), act: async () => show(["plan"]) },
+            // what the agent does next: not in an archive (nobody works on it)
+            ...(isArchive(tree) ? [] : [{ key: "2", label: t("ui.browse.plan"), act: async () => show(["plan"]) }]),
             {
               key: "3",
               label: t("ui.browse.card"),

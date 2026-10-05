@@ -10,14 +10,15 @@ import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { decodeImage, encodeImage, imageSize } from "../../src/image/index.ts";
 import { resize } from "../../src/image/image.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
-import { LinkError, linkActions, linkHandlerState, linkText, LINUX_ENTRY, linuxDesktopEntry, macScript, parseLink, registerLinks, unregisterLinks, windowsCommand } from "../../src/core/links.ts";
+import { LinkError, linkActions, linkHandlerState, linkText, LINUX_ENTRY, linuxDesktopEntry, linkOwner, macApp, macScript, parseLink, refreshLinks, registerLinks, unregisterLinks, windowsCommand, type Sys } from "../../src/core/links.ts";
+import { Settings } from "../../src/core/config.ts";
+import { offerLinks } from "../../src/cli/wizard.ts";
+import { uninstallPlan } from "../../src/core/uninstall.ts";
+import type { Context } from "../../src/cli/context.ts";
 import { clipMark } from "../../src/core/excerpt.ts";
 import { Tree } from "../../src/core/tree.ts";
 import type { Media } from "../../src/core/model.ts";
-
-const opts = { skip: !hasGit };
-const fixtures = path.join(import.meta.dirname, "..", "fixtures", "images");
-const ID = "0f8c2d4e-1b2a-4c3d-9e8f-7a6b5c4d3e2f";
+import { opts, fixtures, ID, world } from "./links.helpers.ts";
 
 test("a link is checked part by part: the action, the research's id, the source, the excerpt's mark — anything else is only said", () => {
   assert.deepEqual(parseLink(`strom-research://send?tree=${ID}`), { action: "send", tree: ID });
@@ -113,7 +114,7 @@ test("registered on Linux and Windows through the system's own tools (here faked
   const entry = fs.readFileSync(file, "utf8");
   assert.match(entry, /^Exec=\/usr\/bin\/env "STROM_CONFIG_DIR=[^"]+config" .* link open %u$/m, "its settings folder goes along");
   assert.equal(linkHandlerState(env, "linux", linux), "ours");
-  assert.deepEqual(linkActions("ours"), ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish"]);
+  assert.deepEqual(linkActions("ours"), ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media"]);
   // strom moved (its entry runs another place): not ours — the app is told nothing
   fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace(/^Exec=.*$/m, "Exec=/old/node /old/cli.js link open %u"));
   assert.equal(linkHandlerState(env, "linux", linux), "other");
@@ -157,22 +158,173 @@ test("registered on Linux and Windows through the system's own tools (here faked
   w.cleanup();
 });
 
-/** A tree with one baptism clipped on a big scan (3200×2400) of a book with a page online. */
-async function world(): Promise<{ w: World; id: string; mark: string }> {
+test("a no to the links registers nothing — on Windows, macOS and Linux (here faked); another installation's stays as it is, also after an update", async () => {
   const w = new World();
-  await w.withTree();
-  await w.ok(["recordset", "add", "Kniha N 1850-1870", "--kinds", "baptism", "--places", "Týnec", "--years", "1850-1870"]);
-  const scans = path.join(w.dir, "kniha");
-  fs.mkdirSync(scans);
-  fs.writeFileSync(path.join(scans, "s0001.jpg"), encodeImage(resize(decodeImage(fs.readFileSync(path.join(fixtures, "s0001.jpg"))), 3200, 2400), "jpeg"));
-  await w.ok(["media", "add", scans, "--recordset", "B1", "--url", "https://archive.example.org/book/1"]);
-  await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
-  await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--recordset", "B1", "--clip", "B1:1@0.1,0.4,0.8,0.08"]);
-  await w.ok(["event", "add", "P0001", "CHR", "--date", "12 MAR 1865", "--cite", "S0001"]);
-  const id = readJsonFile(path.join(w.cwd, "strom.json")).id;
-  const s = readJsonFile(path.join(w.cwd, "data", "sources", "S0001.json"));
-  return { w, id, mark: clipMark(s.clips[0]) };
-}
+  const env = { ...w.env, XDG_DATA_HOME: path.join(w.dir, "data"), XDG_CONFIG_HOME: path.join(w.dir, "cfg") };
+  const appDir = macApp(env);
+  for (const platform of ["win32", "darwin", "linux"] as const) {
+    // the system: what is registered, and each change asked of it
+    const reg = new Map<string, string>();
+    let macHandler = "";
+    let xdg = "";
+    const writes: string[] = [];
+    const run: Sys = (cmd, args) => {
+      if (cmd === "reg.exe" && args[0] === "query") {
+        const v = reg.get(args[1]!);
+        return v === undefined ? { status: 1, stdout: "" } : { status: 0, stdout: `\r\n${args[1]}\r\n    (Default)    REG_SZ    ${v}\r\n` };
+      }
+      if (cmd === "osascript") return { status: 0, stdout: `${macHandler}\n` };
+      if (cmd === "xdg-mime" && args[0] === "query") return { status: 0, stdout: `${xdg}\n` };
+      writes.push(`${cmd} ${args.join(" ")}`);
+      if (cmd === "reg.exe" && args[0] === "add" && args.includes("/ve")) reg.set(args[1]!, args[args.indexOf("/d") + 1]!);
+      if (cmd === "osacompile") fs.mkdirSync(path.join(appDir, "Contents", "Resources"), { recursive: true }), (macHandler = appDir);
+      if (cmd === "xdg-mime" && args[0] === "default") xdg = args[1]!;
+      return { status: 0, stdout: "" };
+    };
+    const entry = path.join(env.XDG_DATA_HOME, "applications", LINUX_ENTRY);
+    const what = () => ({ reg: [...reg.entries()], mac: fs.existsSync(appDir) ? fs.readdirSync(path.join(appDir, "Contents", "Resources")) : [], linux: fs.existsSync(entry) ? fs.readFileSync(entry, "utf8") : "" });
+    const person = (answer: boolean) => {
+      const out: string[] = [];
+      const ctx = { env, settings: new Settings(env, {}), io: { stdout: (t: string) => out.push(t) }, confirm: async () => answer, archiveHere: () => false } as unknown as Context;
+      return { ctx, out };
+    };
+    const offer = (answer: boolean) => {
+      const p = person(answer);
+      return offerLinks(p.ctx, "cs", { platform, run }).then(() => p);
+    };
+    const said = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).links;
+
+    // 1. nothing set up: a no writes nothing
+    await offer(false);
+    assert.deepEqual(writes, [], `${platform}: ${writes.join("; ")}`);
+    assert.deepEqual(what(), { reg: [], mac: [], linux: "" }, platform);
+    assert.equal(said(), "no");
+    // …nor the first run of a newer strom
+    assert.equal(refreshLinks(said(), env, platform, run), false);
+    assert.deepEqual(writes, [], platform);
+
+    // 2. set up by another installation (its own settings): asked again, a no leaves it as it is
+    const key = "HKCU\\Software\\Classes\\strom-research\\shell\\open\\command";
+    if (platform === "win32") reg.set(key, `"C:\\Jinde\\node.exe" "C:\\Jinde\\cli.js" link open "%1"`);
+    if (platform === "darwin") {
+      fs.mkdirSync(path.join(appDir, "Contents", "Resources"), { recursive: true });
+      fs.writeFileSync(path.join(appDir, "Contents", "Resources", "strom-link.json"), JSON.stringify({ argv: ["/jinde/node", "/jinde/cli.js"] }));
+      macHandler = appDir;
+    }
+    if (platform === "linux") {
+      fs.mkdirSync(path.dirname(entry), { recursive: true });
+      fs.writeFileSync(entry, "[Desktop Entry]\nExec=/jinde/node /jinde/cli.js link open %u\n");
+      xdg = LINUX_ENTRY;
+    }
+    const before = what();
+    for (const config of [undefined, "no"]) {
+      const s = new Settings(env, {});
+      s.config.links = config as "no" | undefined;
+      s.save();
+      assert.equal(refreshLinks(config, env, platform, run), false, `${platform}: after an update, ${config}`);
+      const p = await offer(false);
+      assert.ok(p.out.length === 0, `${platform}: nothing said done`);
+      assert.deepEqual(writes, [], `${platform} (${config}): ${writes.join("; ")}`);
+      assert.deepEqual(what(), before, platform);
+      assert.equal(said(), "no");
+    }
+
+    // 3. a yes: registered for this strom (the fake is no fake of nothing)
+    await offer(true);
+    assert.ok(writes.length > 0, platform);
+    assert.equal(said(), "yes");
+    // the person's own yes: after an update set up again
+    writes.length = 0;
+    if (platform === "win32") reg.set(key, `"C:\\stary\\node.exe" "C:\\stary\\cli.js" link open "%1"`);
+    if (platform === "linux") fs.writeFileSync(entry, "[Desktop Entry]\nExec=/stary/node link open %u\n");
+    if (platform === "darwin") fs.writeFileSync(path.join(appDir, "Contents", "Resources", "strom-link.json"), "{}");
+    refreshLinks("yes", env, platform, run);
+    assert.ok(writes.length > 0, `${platform}: set up again after an update`);
+
+    fs.rmSync(appDir, { recursive: true, force: true });
+    fs.rmSync(entry, { force: true });
+    fs.rmSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), { force: true });
+  }
+  w.cleanup();
+});
+
+test("another installation's links stay its own: said in the question (no suggested), kept by link off and uninstall; a strom no longer there leaves its links to be taken", async () => {
+  const w = new World();
+  const env = { ...w.env, XDG_DATA_HOME: path.join(w.dir, "data"), XDG_CONFIG_HOME: path.join(w.dir, "cfg") };
+  const appDir = macApp(env);
+  const entry = path.join(env.XDG_DATA_HOME, "applications", LINUX_ENTRY);
+  // another installation: its Node and its code are there
+  const jinde = path.join(w.dir, "jinde");
+  fs.mkdirSync(jinde, { recursive: true });
+  const [node, cli] = [path.join(jinde, "node"), path.join(jinde, "cli.js")];
+  fs.writeFileSync(node, "");
+  fs.writeFileSync(cli, "");
+  for (const platform of ["win32", "darwin", "linux"] as const) {
+    const reg = new Map<string, string>();
+    const writes: string[] = [];
+    const run: Sys = (cmd, args) => {
+      if (cmd === "reg.exe" && args[0] === "query") {
+        const v = reg.get(args[1]!);
+        return v === undefined ? { status: 1, stdout: "" } : { status: 0, stdout: `\r\n${args[1]}\r\n    (Default)    REG_SZ    ${v}\r\n` };
+      }
+      if (cmd === "osascript") return { status: 0, stdout: `${appDir}\n` };
+      if (cmd === "xdg-mime" && args[0] === "query") return { status: 0, stdout: `${LINUX_ENTRY}\n` };
+      writes.push(`${cmd} ${args.join(" ")}`);
+      if (cmd === "reg.exe" && args[0] === "delete") reg.clear();
+      return { status: 0, stdout: "" };
+    };
+    const key = "HKCU\\Software\\Classes\\strom-research\\shell\\open\\command";
+    const setUp = () => {
+      if (platform === "win32") reg.set(key, `"${node}" "${cli}" link open "%1"`);
+      if (platform === "darwin") {
+        fs.mkdirSync(path.join(appDir, "Contents", "Resources"), { recursive: true });
+        fs.writeFileSync(path.join(appDir, "Contents", "Resources", "strom-link.json"), JSON.stringify({ argv: [node, cli, "link", "open"] }));
+      }
+      if (platform === "linux") {
+        fs.mkdirSync(path.dirname(entry), { recursive: true });
+        fs.writeFileSync(entry, linuxDesktopEntry([node, cli, "link", "open"]));
+      }
+    };
+    const there = () => (platform === "win32" ? reg.size > 0 : fs.existsSync(platform === "darwin" ? appDir : entry));
+    setUp();
+    assert.deepEqual(linkOwner(env, platform, run), { owner: "other", program: cli }, platform);
+
+    // the question says whose they are, and suggests no
+    let suggested: boolean | undefined;
+    const out: string[] = [];
+    const ctx = { env, settings: new Settings(env, {}), io: { stdout: (t: string) => out.push(t) }, display: (p: string) => p, confirm: async (_q: string, s: boolean) => ((suggested = s), false), archiveHere: () => false } as unknown as Context;
+    await offerLinks(ctx, "cs", { platform, run });
+    assert.equal(suggested, false, platform);
+    assert.match(out.join(""), /vedou na jinou instalaci stromu na tomto počítači \(.*cli\.js\)/, platform);
+
+    // link off and uninstall of this strom keep them
+    assert.equal(unregisterLinks(env, platform, run), true);
+    assert.ok(there(), `${platform}: another installation's links stay`);
+    assert.deepEqual(writes, [], platform);
+    if (platform !== "win32") assert.deepEqual(uninstallPlan(env, [], { platform }).remove.filter((r) => r.kind === "links"), [], platform);
+
+    // its program gone: a strom no longer there — taken off
+    fs.renameSync(jinde, `${jinde}-pryc`);
+    assert.equal(linkOwner(env, platform, run).owner, "stale", platform);
+    if (platform !== "win32") assert.equal(uninstallPlan(env, [], { platform }).remove.filter((r) => r.kind === "links").length, 1, platform);
+    assert.equal(unregisterLinks(env, platform, run), true);
+    assert.ok(!there(), `${platform}: taken off`);
+    fs.renameSync(`${jinde}-pryc`, jinde);
+    fs.rmSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), { force: true });
+  }
+  w.cleanup();
+});
+
+test("an isolated installation registers no links: link on says so, the setup's question is not asked", async () => {
+  const w = new World();
+  w.env.STROM_ISOLATED = "1";
+  const r = await w.run(["link", "on", "--json"], { tty: true });
+  assert.equal(r.code, 1);
+  assert.deepEqual(r.json, { on: false, isolated: true });
+  const ctx = { env: w.env, settings: new Settings(w.env, {}), io: { stdout: () => undefined }, confirm: async () => assert.fail("not asked") } as unknown as Context;
+  await offerLinks(ctx, "cs", { platform: "win32", run: () => assert.fail("the system not asked") });
+  w.cleanup();
+});
 
 test("each excerpt carries its mark (_STROM_CLIP) for an app that opens links — stromapp.info from 3.4.0, its beta; the links themselves never in a file", opts, async () => {
   const { w, mark } = await world();
@@ -233,353 +385,9 @@ test("send: a research here opens in a terminal (none from a test: said how to d
   const { w, id } = await world();
   const r = await w.ok(["link", "open", `strom-research://send?tree=${id}`, "--json"]);
   assert.equal(r.json.done, false);
-  assert.match((await w.ok(["link", "open", `strom-research://send?tree=${id}`])).out, /strom nemohl otevřít okno terminálu\. Spusťte strom a zvolte: Rozšířit výzkum → Načíst úpravy z aplikace Strom/);
+  assert.match((await w.ok(["link", "open", `strom-research://send?tree=${id}`])).out, /strom nemohl otevřít okno terminálu\. Spustit strom a zvolit: Rozšířit výzkum → Načíst úpravy z aplikace Strom/);
   assert.match((await w.ok(["link", "open", "strom-research://send?tree=11111111-2222-3333-4444-555555555555"])).out, /na tomto počítači není/);
   // the status: nowhere (a test never registers)
   assert.equal((await w.ok(["link", "status", "--json"])).json.state, "none");
-  w.cleanup();
-});
-
-test("the bridge says which links work here (none unless registered) and serves each excerpt's mark to an app that reads it", { skip: !hasGit || process.platform === "win32" }, async () => {
-  const { w, mark } = await world();
-  await w.ok(["config", "set", "strom.app.url", "https://beta.stromapp.info/run/"]);
-  await w.ok(["task", "add", "Křest Marie", "--level", "locate", "--where", "matriky farnosti", "--why", "rodiče", "--done-when", "zápis", "--about", "P0001"]);
-  await w.ok(["task", "wait", "T0001", "--on", "Poslat odkaz na knihu."]);
-  await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"]);
-  await w.ok(["task", "add", "Sňatek", "--level", "locate", "--where", "matriky farnosti", "--why", "rodina", "--done-when", "zápis", "--about", "P0001", "--about", "P0002"]);
-  // a new version of a couple's approved story waits too, as the menu counts it
-  await w.ok(["family", "add", "--partner", "P0001", "--partner", "P0002"]);
-  await w.ok(["story", "set", "F0001", "--text", "Jan a Marie se vzali.", "--fact", "E0001", "--final"]);
-  await w.ok(["story", "set", "F0001", "--text", "Jan a Marie se vzali v Týnci.", "--fact", "E0001"]);
-  const info = (await w.ok(["live", "start", "--json"])).json;
-  try {
-    const status = (await (await fetch(`${info.url}/status`)).json()) as { links: string[]; waiting: { id: string; at: string; person?: string }[]; queue: { id: string; person?: string }[] };
-    assert.deepEqual(status.links, []);
-    // since when a task waits: the app shows it
-    assert.equal(status.waiting[0]?.id, "T0001");
-    assert.ok(Date.now() - Date.parse(status.waiting[0]!.at) < 60_000, status.waiting[0]?.at);
-    // the one person a task is about, for the app's badge on them; about two: none
-    assert.equal(status.waiting[0]?.person, "P0001");
-    const story = status.waiting.find((x) => (x as { kind?: string }).kind === "story") as Record<string, string> | undefined;
-    assert.deepEqual(story && { id: story.id, person: story.person, partner: story.partner }, { id: "F0001", person: "P0001", partner: "P0002" }, JSON.stringify(status.waiting));
-    assert.match(story!.what ?? "", /Nová verze vyprávění o Jan Novák & Marie Nováková/);
-    const both = status.queue.find((q) => q.id === "T0002");
-    assert.ok(both && !("person" in both), JSON.stringify(status.queue));
-    // when the research last changed: the time of its last commit
-    const git = (...args: string[]) => spawnSync("git", args, { cwd: w.cwd, encoding: "utf8" }).stdout.trim();
-    assert.equal((status as { headAt?: string }).headAt, git("log", "-1", "--format=%cI"));
-    // what the research saved, newest first, each commit with the task it was saved for
-    await w.ok(["session", "start", "T0002"]);
-    await w.ok(["person", "add", "Karel /Novák/", "--sex", "M"]);
-    await w.ok(["session", "close", "--summary", "Karel zapsán.", "--continue", "--next", "Sňatek dál."]);
-    const { entries } = (await (await fetch(`${info.url}/log`)).json()) as { entries: { head: string; at: string; what: string[]; text: string[]; kinds: string[]; task?: string }[] };
-    assert.equal(entries.length, Number(git("rev-list", "--count", "HEAD")));
-    assert.equal(entries[0]!.head, git("rev-parse", "HEAD"));
-    assert.equal(entries[0]!.at, git("log", "-1", "--format=%cI"));
-    const karel = entries.find((e) => e.what.some((l) => l.startsWith("+P0003")));
-    assert.ok(karel, JSON.stringify(entries.slice(0, 3)));
-    assert.match(karel.task ?? "", /^T0002 Sňatek/);
-    assert.equal(entries.at(-1)!.task, undefined, "saved in no session: no task");
-    // what each saved, as the user reads it: the research language, records by their names
-    const text = entries.flatMap((e) => e.text);
-    assert.ok(karel.text.includes("Nová osoba: Karel Novák [P0003]"), JSON.stringify(karel));
-    assert.ok(text.includes("Nový snímek: Kniha N 1850-1870 (obr. 1)"), JSON.stringify(text));
-    assert.ok(text.some((l) => /^Jan Novák \(\*1865\) \[P0001\] – křest: 12\. 3\. 1865$/.test(l)), JSON.stringify(text));
-    assert.ok(text.some((l) => /^Agent začal: Sňatek$/.test(l)) && text.some((l) => /^Čeká na vás: Křest Marie$/.test(l)), JSON.stringify(text));
-    // each line with what it is about, for the app's filters
-    assert.ok(entries.every((e) => e.kinds.length === e.text.length));
-    const kindOf = (line: string) => entries.flatMap((e) => e.text.map((l, i) => [l, e.kinds[i]])).find(([l]) => l === line)?.[1];
-    assert.equal(kindOf("Nová osoba: Karel Novák [P0003]"), "person");
-    assert.equal(kindOf("Nový snímek: Kniha N 1850-1870 (obr. 1)"), "source");
-    assert.equal(kindOf("Agent začal: Sňatek"), "other");
-    // the person an agent works on, for the app to follow it in the tree: the first its task is about (a marriage:
-    // both named, the one asked about first) …
-    const { enterWorker } = await import("../../src/core/workers.ts");
-    const leave = enterWorker(w.cwd, "run-t", "Claude Code on its own");
-    w.env.STROM_WORKER = "run-t";
-    const at = async () => ((await (await fetch(`${info.url}/status`)).json()) as { working: { task?: string; person?: string }[] }).working;
-    try {
-      await w.ok(["session", "start", "T0002"]);
-      assert.deepEqual((await at()).map((x) => [x.task?.slice(0, 5), x.person]), [["T0002", "P0001"]]);
-      await w.ok(["session", "close", "--summary", "nic", "--next", "dál", "--continue"]);
-      // … a task about nobody: the one its session last wrote about
-      await w.ok(["task", "add", "Katalog farnosti", "--level", "locate", "--where", "katalog", "--why", "přehled", "--done-when", "seznam"]);
-      await w.ok(["session", "start", "T0003"]);
-      assert.equal((await at())[0]!.person, undefined, "nobody yet");
-      await w.ok(["event", "add", "P0003", "BIRT", "--date", "1870"]);
-      assert.equal((await at())[0]!.person, "P0003");
-      await w.ok(["session", "close", "--summary", "nic", "--next", "dál", "--continue"]);
-    } finally {
-      delete w.env.STROM_WORKER;
-      leave();
-    }
-    const ged = await (await fetch(`${info.url}/tree.ged`)).text();
-    assert.match(ged, new RegExp(`2 _STROM_CLIP ${mark}`));
-    assert.doesNotMatch(ged, /_STROM_LINKS/, "not registered here: not offered");
-  } finally {
-    await w.ok(["live", "stop"]);
-  }
-  w.cleanup();
-});
-
-test("asked once, the first time a person opens the research in an app that opens links — the answer kept; an older stromapp.info: not asked", { skip: !hasGit || process.platform === "win32" }, async () => {
-  const { w } = await world();
-  // a Chromium browser here (the research opens in it through the bridge)
-  const apps = path.join(w.dir, "apps");
-  fs.mkdirSync(path.join(apps, process.platform === "darwin" ? "Google Chrome.app" : ""), { recursive: true });
-  if (process.platform !== "darwin") fs.writeFileSync(path.join(apps, "google-chrome"), "", { mode: 0o755 });
-  w.env.STROM_APP_DIRS = apps;
-  const question = /Dovolit aplikaci Strom spouštět výzkum na tomto počítači\?/;
-  const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  try {
-    w.env.STROM_APP_VERSION = "3.3.0";
-    assert.doesNotMatch((await w.ok(["app"], { tty: true, answers: [] })).out, question, "stromapp.info before 3.4.0 does not open links");
-    delete w.env.STROM_APP_VERSION;
-    const first = await w.ok(["app"], { tty: true, answers: ["n"] });
-    assert.match(first.out, question);
-    assert.equal(config().links, "no");
-    assert.doesNotMatch((await w.ok(["app"], { tty: true, answers: [] })).out, question, "a no is kept");
-    // not asked yet, and an agent opens the app: never asked
-    const cfg = config();
-    delete cfg.links;
-    fs.writeFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), JSON.stringify(cfg));
-    const byAgent = await w.run(["app"], { tty: false });
-    assert.doesNotMatch(byAgent.out, question);
-    assert.equal(config().links, undefined);
-    // a yes: set up (here a test never touches the system — said so), kept
-    const yes = await w.ok(["app"], { tty: true, answers: ["a"] });
-    assert.match(yes.out, question);
-    assert.match(yes.out, /Odkazy z aplikace Strom se na tomto počítači nepodařilo nastavit/);
-    assert.equal(config().links, "yes");
-  } finally {
-    await w.run(["live", "stop"]);
-  }
-  w.cleanup();
-});
-
-test("the app's menus through links, in the research's terminal: a task answered, a person reviewed, a new direction — each said and asked first; unknown ones only said", opts, async () => {
-  const { w, id } = await world();
-  const open = (action: string, query = "", answers: string[] = []) => w.run(["link", "open", `strom-research://${action}?tree=${id}${query}`], { tty: true, answers });
-  // a task that waits for the user: what it asks, the answer, the task back to the agent (and the time it waits since, for the app)
-  await w.ok(["task", "add", "Kde jsou zapsány křty obce Týnec", "--level", "locate", "--where", "matriky farnosti", "--why", "křest Jana", "--done-when", "kniha nalezena"]);
-  await w.ok(["task", "wait", "T0001", "--on", "Poslat odkaz na knihu narozených."]);
-  const answered = await open("task", "&task=T0001", ["https://archive.example.org/book/77", "n", ""]);
-  assert.match(answered.out, / Kde jsou zapsány křty obce Týnec\n {4}Co udělat: Poslat odkaz na knihu narozených\./);
-  assert.match(answered.out, /✓ Úkol se vrátil agentovi i s vaší odpovědí\./);
-  const t1 = (await w.ok(["task", "show", "T0001", "--json"])).json.task;
-  assert.equal(t1.state, "open");
-  assert.match(t1.notes.at(-1).text, /https:\/\/archive\.example\.org\/book\/77$/);
-  assert.match((await open("task", "&task=T0001", [""])).out, /Tento úkol už na vás nečeká/);
-  // a person reviewed: said what it does, a no writes nothing, a yes the tasks
-  const no = await open("review", "&person=P0001&scope=family", ["n", ""]);
-  assert.match(no.out, /Aplikace Strom žádá: prověřit znovu osobu Jan Novák .*\[P0001\] i s partnery a dětmi\.\nVýzkum: Novákovi\nVýzkum zapíše úkoly pro agenta – teď se nic nehledá a nic se neplatí\./);
-  assert.equal((await w.ok(["research", "list", "--json"])).json.researches.length, 0);
-  await open("review", "&person=P0001&scope=family", ["a", "n", ""]);
-  const review = (await w.ok(["research", "list", "--json"])).json.researches.find((r: { direction: string }) => r.direction === "person");
-  assert.equal(review?.review?.scope, "family");
-  // a new direction from a person: the title suggested, made
-  const made = await open("research", "&person=P0001&direction=ancestors", ["a", "", "", "n", ""]);
-  assert.match(made.out, /Aplikace Strom žádá: hledat předky osoby Jan Novák/);
-  assert.ok((await w.ok(["research", "list", "--json"])).json.researches.some((r: { direction: string; focus: string }) => r.direction === "ancestors" && r.focus === "P0001"));
-  const again = await open("research", "&person=P0001&direction=ancestors", [""]);
-  assert.match(again.out, /^Takový výzkum už je: „Předci: Jan Novák“ – agent v něm pokračuje\./, "the same direction again: only named, nothing asked");
-  // …paused: taken up again, never made twice
-  const ancestors = (await w.ok(["research", "list", "--json"])).json.researches.find((r: { direction: string }) => r.direction === "ancestors");
-  await w.ok(["research", "pause", ancestors.id]);
-  const resumed = await open("research", "&person=P0001&direction=ancestors", ["a", "a", ""]);
-  assert.match(resumed.out, /Takový výzkum už je, pozastavený: „Předci: Jan Novák“\. Spustit ho znovu\?[\s\S]*▶ „Předci: Jan Novák“ zase běží/);
-  const after = (await w.ok(["research", "list", "--json"])).json.researches.filter((r: { direction: string }) => r.direction === "ancestors");
-  assert.deepEqual(after.map((r: { state: string }) => r.state), ["active"]);
-  // a person the research does not have; the agent costs — a no starts nothing
-  assert.match((await open("review", "&person=P0099", [""])).out, /Osoba P0099 v tomto výzkumu není/);
-  const chat = await open("chat", "&person=P0001", ["n"]);
-  assert.match(chat.out, /Aplikace Strom žádá: rozhovor s agentem \(Claude Code\) o osobě Jan Novák .*\[P0001\]\.\nVýzkum: Novákovi\nAgent pracuje na vaše předplatné nebo kredit AI\./);
-  // followed live, without a terminal: as strom app --live, nothing asked
-  const live = (await w.ok(["link", "open", `strom-research://live?tree=${id}`, "--json"])).json;
-  assert.equal(live.action, "live");
-  assert.equal(live.tree, w.treeDir("Novákovi"));
-  // with Chrome here: the bridge started, its address into the app's window
-  const apps = path.join(w.dir, "Applications");
-  fs.mkdirSync(path.join(apps, "Google Chrome.app"), { recursive: true });
-  fs.writeFileSync(path.join(apps, "google-chrome"), "#!/bin/sh\n", { mode: 0o755 });
-  w.env.STROM_APP_DIRS = apps;
-  try {
-    assert.equal((await w.ok(["link", "open", `strom-research://live?tree=${id}`, "--json"])).json.done, true);
-    assert.equal((await w.ok(["live", "--json"], { cwd: w.treeDir("Novákovi") })).json.running, true);
-  } finally {
-    await w.ok(["live", "stop"], { cwd: w.treeDir("Novákovi") });
-    delete w.env.STROM_APP_DIRS;
-  }
-  // no terminal (the system started strom): a window of its own — none from a test, said how to go on
-  assert.match((await w.run(["link", "open", `strom-research://open?tree=${id}`])).out, /strom nemohl otevřít okno terminálu\. Spusťte strom \(výzkum Novákovi\)/);
-  w.cleanup();
-});
-
-test("the second wave in the research's terminal: a task put aside, given up and back; a conflict decided; a story approved; sessions; a sending that is none", opts, async () => {
-  const { w, id } = await world();
-  const open = (action: string, query = "", answers: string[] = []) => w.run(["link", "open", `strom-research://${action}?tree=${id}${query}`], { tty: true, answers });
-  await w.ok(["task", "add", "Křest Marie v Týnci", "--level", "locate", "--where", "matriky farnosti", "--why", "rodiče", "--done-when", "zápis"]);
-  const parked = await open("task", "&task=T0001&do=park", ["a", "Archiv je zavřený", ""]);
-  assert.match(parked.out, /Aplikace Strom žádá: odložit úkol: Křest Marie v Týnci/);
-  assert.match(parked.out, /✓ Úkol je odložený\./);
-  let t = (await w.ok(["task", "show", "T0001", "--json"])).json.task;
-  assert.equal(t.state, "parked");
-  assert.equal(t.parkedReason, "Archiv je zavřený");
-  assert.match((await open("task", "&task=T0001&do=park", [""])).out, /Tento úkol teď takhle změnit nejde/);
-  await open("task", "&task=T0001&do=wake", ["a", ""]);
-  assert.equal((await w.ok(["task", "show", "T0001", "--json"])).json.task.state, "open");
-  // a reason not typed: the app's words
-  await open("task", "&task=T0001&do=drop", ["a", "", ""]);
-  t = (await w.ok(["task", "show", "T0001", "--json"])).json.task;
-  assert.equal(t.state, "dropped");
-  assert.match((await open("task", "&task=T0099&do=drop", [""])).out, /Úkol T0099 v tomto výzkumu není/);
-
-  // a conflict: which claim holds, and why — the user's decision
-  await w.ok(["source", "add", "Úmrtí Jana", "--kind", "death"]);
-  await w.ok(["conflict", "add", "Rok narození Jana", "--about", "P0001", "--fact", "BIRT", "--claim", "S0001: 1865", "--claim", "S0002: 70 let při úmrtí 1937"]);
-  const decided = await open("conflict", "&id=X0001", ["a", "1", "Křest je zapsán hned po narození", ""]);
-  assert.match(decided.out, /1 {2}1865 — Křest Jana/);
-  const x = (await w.ok(["conflict", "show", "X0001", "--json"])).json.conflict;
-  assert.equal(x.state, "resolved");
-  assert.equal(x.resolution, "1865 (S0001)");
-  assert.equal(x.reasoning, "Křest je zapsán hned po narození (rozhodnutí uživatele)");
-  assert.match((await open("conflict", "&id=X0001", [""])).out, /Tento rozpor už je rozhodnutý: 1865 \(S0001\)/);
-  // left to the agent: the cost said, a no starts nothing
-  await w.ok(["conflict", "add", "Jméno matky", "--about", "P0001", "--claim", "S0001: Anna", "--claim", "S0002: Marie"]);
-  assert.match((await open("conflict", "&id=X0002&do=agent", ["n"])).out, /nechat rozpor na agentovi \(Claude Code\): Jméno matky\nVýzkum: Novákovi\nAgent pracuje na vaše předplatné/);
-
-  // a story: read, approved
-  await w.ok(["story", "set", "P0001", "--text", "Jan se narodil v Týnci.", "--fact", "E0001"]);
-  const story = await open("story", "&person=P0001&do=final", ["a", ""]);
-  assert.match(story.out, /Jan se narodil v Týnci\.\n\nAplikace Strom žádá: schválit vyprávění osoby Jan Novák \(\*1865\) \[P0001\], jak je/);
-  assert.equal((await w.ok(["story", "show", "P0001", "--json"])).json.story.status, "final");
-  assert.match((await open("story", "&person=P0001&do=final", [""])).out, /už je schválené/);
-  // locked: written again, the new version waits — the app asks to keep the old one, or to take the new one
-  await w.ok(["story", "set", "P0001", "--text", "Jan se narodil v Týnci nad Labem.", "--fact", "E0001"]);
-  const keep = await open("story", "&person=P0001&do=keep", [""]);
-  assert.match(keep.out, /Nová verze vyprávění o Jan Novák \(\*1865\) \[P0001\] \(\d{4}-\d{2}-\d{2}\) – schválené zůstává, dokud nerozhodnete:\n\nJan se narodil v Týnci nad Labem\./);
-  assert.match(keep.out, /✓ Schválené vyprávění zůstává/);
-  assert.equal((await w.ok(["story", "show", "P0001", "--json"])).json.story.text, "Jan se narodil v Týnci.");
-  await w.ok(["story", "set", "P0001", "--text", "Jan se narodil v Týnci nad Labem.", "--fact", "E0001"]);
-  assert.match((await open("story", "&person=P0001&do=final", [""])).out, /✓ Vyprávěním je teď nová verze, schválená/);
-  assert.equal((await w.ok(["story", "show", "P0001", "--json"])).json.story.text, "Jan se narodil v Týnci nad Labem.");
-  assert.match((await open("story", "&person=P0001&do=keep", [""])).out, /Žádná nová verze vyprávění o Jan Novák \(\*1865\) \[P0001\] nečeká/);
-  // a couple's story: the app names the two partners (it knows no family IDs)
-  const anna = (await w.ok(["person", "add", "Anna /Svobodová/", "--sex", "F", "--json"])).json.person.id;
-  const fam = (await w.ok(["family", "add", "--partner", "P0001", "--partner", anna, "--json"])).json.family.id;
-  await w.ok(["story", "set", fam, "--text", "Jan a Anna se vzali.", "--fact", "E0001", "--final"]);
-  await w.ok(["story", "set", fam, "--text", "Jan a Anna se vzali v Týnci.", "--fact", "E0001"]);
-  const couple = await open("story", `&person=${anna}&partner=P0001&do=final`, [""]);
-  assert.match(couple.out, /Nová verze vyprávění o Anna Svobodová[^\n]* & Jan Novák[\s\S]*Jan a Anna se vzali v Týnci\.[\s\S]*✓ Vyprávěním je teď nová verze, schválená/);
-  assert.equal((await w.ok(["story", "show", fam, "--json"])).json.story.text, "Jan a Anna se vzali v Týnci.");
-  assert.match((await open("story", `&person=${anna}&partner=P0001&do=keep`, [""])).out, /Žádná nová verze vyprávění o Anna Svobodová[^\n]* & Jan Novák[^\n]* nečeká/);
-  assert.match((await open("story", "&person=P0001&partner=P0001&do=final", [""])).out, /nejsou ve výzkumu pár/);
-
-  assert.match((await open("sessions", "", [""])).out, /Sezení agenta – Novákovi\n {2}Agent na tomto výzkumu zatím nepracoval\./);
-  assert.match((await open("sync-undo", "&intake=I0042", [""])).out, /I0042 není v tomto výzkumu poslání z aplikace Strom/);
-  w.cleanup();
-});
-
-test("what the research knows of a person, for an app that shows it: its conflicts, open hypotheses, what was searched for them — in the Strom file only", opts, async () => {
-  const { w } = await world();
-  await w.ok(["source", "add", "Úmrtí Jana", "--kind", "death"]);
-  await w.ok(["conflict", "add", "Rok narození Jana", "--about", "P0001", "--fact", "BIRT", "--claim", "S0001: 12 MAR 1865", "--claim", "S0002: 1866"]);
-  await w.ok(["hypothesis", "add", "Otec: Václav, nebo Josef?", "--about", "P0001", "--variant", "A: Václav Novák, mlynář", "--variant", "B: Josef Novák, sedlák"]);
-  await w.ok(["task", "add", "Oddací matrika Týnec", "--level", "locate", "--where", "B0001", "--why", "sňatek", "--done-when", "zápis", "--about", "P0001"]);
-  await w.ok(["search", "add", "Sňatek Jana", "--recordset", "B0001", "--years", "1885-1895", "--method", "page-by-page", "--result", "negative", "--task", "T0001"]);
-  const file = path.join(w.cwd, "output", "tree-strom.ged");
-  await w.ok(["config", "set", "strom.version", "3.3.0"]);
-  await w.ok(["export", "gedcom"]);
-  assert.doesNotMatch(fs.readFileSync(file, "utf8"), /_STROM_CONFLICT|_STROM_ASOF/, "an older app: not before it reads them");
-  await w.ok(["config", "unset", "strom.version"]);
-  await w.ok(["export", "gedcom"]);
-  const ged = fs.readFileSync(file, "utf8");
-  assert.match(ged, /^1 _STROM_ASOF \d{4}-\d{2}-\d{2}$/m);
-  assert.match(ged, /1 _STROM_CONFLICT X0001\n2 TYPE BIRT\n2 TITL Rok narození Jana\n2 STAT open\n2 VAL 12 MAR 1865\n3 SOUR @S0001@\n2 VAL 1866\n3 SOUR @S0002@\n/);
-  // the hypothesis by its ID, which an app that shows where the tree ends names it by (_STROM_EDGE)
-  assert.match(ged, /1 _STROM_HYPO H0001\n2 TITL Otec: Václav, nebo Josef\?\n2 NOTE A: Václav Novák, mlynář\n3 CONT B: Josef Novák, sedlák\n/);
-  assert.match(ged, /1 _STROM_SEARCHED\n2 TITL Sňatek Jana\n2 DATE FROM 1885 TO 1895\n2 RESN none\n2 _AT \d{4}-\d{2}-\d{2}\n/);
-  assert.deepEqual(validateGedcom(ged).filter((f) => f.level === "error"), []);
-  // decided: which, and a conflict of no known fact named by its title
-  await w.ok(["conflict", "resolve", "X0001", "--resolution", "12 MAR 1865 (S0001)", "--reasoning", "křest"]);
-  await w.ok(["conflict", "add", "Stav Jana", "--about", "P0001", "--claim", "S0001: svobodný", "--claim", "S0002: vdovec"]);
-  await w.ok(["export", "gedcom"]);
-  const again = fs.readFileSync(file, "utf8");
-  assert.match(again, /2 STAT decided\n(?:2 VAL .*\n3 SOUR .*\n)+2 DECI 12 MAR 1865 \(S0001\)\n/);
-  assert.match(again, /1 _STROM_CONFLICT X0002\n2 TYPE EVEN\n2 TITL Stav Jana\n/);
-  // a standard GEDCOM for another program: none of it
-  await w.ok(["export", "gedcom", "--for", "standard"]);
-  assert.doesNotMatch(fs.readFileSync(path.join(w.cwd, "output", "tree.ged"), "utf8"), /_STROM_/);
-  w.cleanup();
-});
-
-test("a tree of the app becomes a new research: named, the app hands it to the bridge (GET/POST /adopt), taken in as leads; the status tells the queue and the month's spend", { skip: !hasGit || process.platform === "win32" }, async () => {
-  const w = new World();
-  // no agent of this computer: nothing is offered that would start one
-  w.env.PATH = [path.dirname(process.execPath), "/usr/bin", "/bin"].join(path.delimiter);
-  w.env.STROM_ADOPT_WAIT_MS = "60000";
-  await w.ok(["setup", "--yes"]);
-  await w.ok(["config", "set", "strom.app.url", "https://beta.stromapp.info/run/"]);
-  const token = "Qm9sZC1kZW1vLXRva2VuLWZvci1zdHJvbS1hcHAtMDEy".slice(0, 43);
-  const origin = { Origin: "https://beta.stromapp.info" };
-  const root = w.treeDir("Dvořákovi");
-  const flow = w.run(["link", "open", `strom-research://new?app=${token}`], { tty: true, answers: ["Dvořákovi", "", "n", ""] });
-  // the app: the bridge of the new research, which tree it waits for, the tree handed over
-  let url = "";
-  for (let i = 0; i < 100 && !url; i++) {
-    await new Promise((r) => setTimeout(r, 100));
-    try {
-      url = JSON.parse(fs.readFileSync(path.join(root, ".strom", "live.json"), "utf8")).url;
-    } catch {
-      // not yet
-    }
-  }
-  try {
-    assert.ok(url, "the bridge of the new research");
-    const asked = (await (await fetch(`${url}/adopt`)).json()) as { token: string; name: string; tree: string };
-    assert.equal(asked.token, token);
-    assert.equal(asked.name, "Dvořákovi");
-    const ged = ["0 HEAD", "1 SOUR STROM", "1 GEDC", "2 VERS 5.5.1", "1 CHAR UTF-8", "0 @I1@ INDI", "1 NAME Karel /Dvořák/", "1 SEX M", "1 BIRT", "2 DATE 1901", "0 @I2@ INDI", "1 NAME Marie /Dvořáková/", "1 SEX F", "0 @F1@ FAM", "1 HUSB @I1@", "1 WIFE @I2@", "0 TRLR", ""].join("\n");
-    assert.equal((await fetch(`${url}/adopt`, { method: "POST", body: ged })).status, 403, "only the app's pages");
-    const handed = await fetch(`${url}/adopt`, { method: "POST", body: ged, headers: { ...origin, "Content-Type": "text/plain; charset=utf-8" } });
-    const got = (await handed.json()) as { tree: string; head: string };
-    assert.equal(handed.status, 200);
-    assert.equal(got.tree, asked.tree);
-    assert.match(got.head, /^[0-9a-f]{40}$/);
-    // taken once
-    assert.equal((await fetch(`${url}/adopt`, { method: "POST", body: ged, headers: origin })).status, 400);
-    assert.equal((await fetch(`${url}/adopt`)).status, 404);
-    const r = await flow;
-    assert.match(r.out, /Aplikace Strom chce začít výzkum s jedním svým rodokmenem\./);
-    assert.match(r.out, /✓ Rodokmen je ve výzkumu „Dvořákovi“: osob 2, rodin 1 – jako vodítka/);
-    const people = (await w.ok(["person", "list", "--json"], { cwd: root })).json;
-    assert.equal(JSON.stringify(people).includes("Dvořák"), true);
-    // the status: the queue, the month's spend (no sessions yet), no sending of the app yet
-    const status = (await (await fetch(`${url}/status`)).json()) as Record<string, any>;
-    assert.ok(Array.isArray(status.queue));
-    assert.equal(typeof status.queueMore, "number");
-    assert.deepEqual(status.spend, { month: new Date().toISOString().slice(0, 7), sessions: 0, amount: 0, currency: "USD" });
-    assert.equal(status.lastIntake, undefined);
-    assert.equal(status.update, undefined);
-  } finally {
-    await w.run(["live", "stop"], { cwd: root });
-  }
-  w.cleanup();
-});
-
-test("a tree of the app refused (no people in it): the new research in the terminal is told and stops waiting", { skip: !hasGit || process.platform === "win32" }, async () => {
-  const { w } = await world();
-  const { adoptFailedSince, awaitAdoption } = await import("../../src/core/sync.ts");
-  const since = Date.now();
-  awaitAdoption(w.cwd, "B".repeat(43));
-  const info = (await w.ok(["live", "start", "--json"])).json;
-  try {
-    const empty = ["0 HEAD", "1 GEDC", "2 VERS 5.5.1", "0 TRLR", ""].join("\n");
-    const r = await fetch(`${info.url}/adopt`, { method: "POST", body: empty, headers: { Origin: "https://stromapp.info" } });
-    assert.equal(r.status, 400);
-    assert.equal(adoptFailedSince(w.cwd, since), "empty");
-  } finally {
-    await w.ok(["live", "stop"]);
-  }
   w.cleanup();
 });

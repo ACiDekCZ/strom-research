@@ -100,7 +100,7 @@ test("review --reread: a second reading of what only another model read; session
   delete w.env.STROM_MODEL;
   const n1 = readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json"));
   assert.equal(n1.model, "claude-sonnet-4-5");
-  assert.match(n1.strom, /^\d+\.\d+\.\d+$/);
+  assert.match(n1.strom, /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/);
   assert.match((await w.ok(["session", "show", "N1"])).out, /N0001 closed · task T0001 · claude-sonnet-4-5/);
 
   // the user reads with another model now: strom says so, and does nothing by itself

@@ -204,7 +204,7 @@ test("a task waiting for the images of its book comes back when they are registe
   await w.ok(["task", "wait", "T1", "--on", "images 1–3 of B0001 in the inbox"]);
   assert.equal((await w.ok(["task", "next", "--json"])).json.task, null, "a waiting task is not offered");
   // the user sees what the research waits for
-  for (const cmd of [["status"], []]) assert.match((await w.ok(cmd)).out, /čeká na vás \(1\)\n  T0001  images 1–3 of B0001 in the inbox\n  snímky patří do schránky \(inbox\), pro každou knihu vlastní složka, každý pojmenovaný číslem snímku/);
+  for (const cmd of [["status"], []]) assert.match((await w.ok(cmd)).out, /čeká \(1\)\n  T0001  images 1–3 of B0001 in the inbox\n  snímky patří do schránky \(inbox\), pro každou knihu vlastní složka, každý pojmenovaný číslem snímku/);
   assert.match((await w.ok([])).out, /dál\s+strom task list --state waiting/);
   const r = await w.ok(["media", "add", scans, "--recordset", "B1"]);
   assert.match(r.out, /back in the queue \(they waited for these images\): T0001/);
@@ -227,7 +227,7 @@ test("images the user saves by hand: the folder is made and shown with the link,
   assert.ok(t.where.includes("B0002"));
   assert.match(
     (await w.ok(["status"])).out,
-    /čeká na vás \(1\)\n  T0001  snímky 9–10 knihy Žďár \(https:\/\/archive\.example\.org\/book\/5359\)\n {9}snímky 9–10 z B0002 Žďár N 1784–1820 · https:\/\/archive\.example\.org\/book\/5359\n {9}uložte je do .*B0002 Žďár N 1784–1820[\/\\]\n/,
+    /čeká \(1\)\n  T0001  snímky 9–10 knihy Žďár \(https:\/\/archive\.example\.org\/book\/5359\)\n {9}snímky 9–10 z B0002 Žďár N 1784–1820 · https:\/\/archive\.example\.org\/book\/5359\n {9}uložit je do .*B0002 Žďár N 1784–1820[\/\\]\n/,
   );
   assert.equal((await w.run(["task", "wait", "T1", "--images", "B2:x", "--on", "?"])).code, 2);
   // saved under the portal's own names, whose numbers are something else (×10): nothing is taken

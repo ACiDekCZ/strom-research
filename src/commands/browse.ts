@@ -18,6 +18,7 @@ import { humanTask } from "../cli/human.ts";
 export { humanTask };
 import { lacksImages } from "../core/queue.ts";
 import { forStory } from "../core/stories.ts";
+import { isArchive } from "../core/mode.ts";
 import { rankedQueue, waitingForUser } from "./tasks.ts";
 
 /** Most rows a section of `recent` lists; the rest is counted. */
@@ -43,14 +44,19 @@ function positive(value: unknown, name: string, fallback: number, max: number): 
   return n;
 }
 
-/** A fact as a person reads it: "25. 6. 1905, Týnec nad Labem č. 12 · doloženo — Křest Jana Nováka 1905". */
-function factText(f: CardFact, lang: string): string {
+/**
+ * A fact as a person reads it: "25. 6. 1905, Týnec nad Labem č. 12 · doloženo — Křest Jana Nováka 1905". In an archive
+ * what the person entered is their word, never "only a lead" (found on Mac: every fact from the app so); what a record
+ * proves still says so.
+ */
+function factText(f: CardFact, lang: string, archive = false): string {
   const core = [f.value, humanDate(f.date, lang), humanPlace(f.place, f.house, lang), f.cause].filter(Boolean).join(", ");
-  return `${core ? `${core} · ` : ""}${statusName(f.status, lang)}${f.source ? ` — ${truncate(f.source, 70)}` : ""}`;
+  const sure = archive && f.status === "lead" ? "" : statusName(f.status, lang);
+  return `${[core, sure].filter(Boolean).join(" · ")}${f.source ? ` — ${truncate(f.source, 70)}` : ""}`;
 }
 
-function factRows(facts: CardFact[], lang: string, indent: string): string {
-  return table(facts.map((f) => [`${indent}${eventName(f.kind, lang, f.label)}`, factText(f, lang)]));
+function factRows(facts: CardFact[], lang: string, indent: string, archive = false): string {
+  return table(facts.map((f) => [`${indent}${eventName(f.kind, lang, f.label)}`, factText(f, lang, archive)]));
 }
 
 function drawPedigree(root: PedigreeNode, lang: string): string[] {
@@ -102,8 +108,9 @@ register(
         else out.push(table(s.generations.map((g) => [`  ${generationName(g.generation, lang)}`, ui(lang, "ui.stats.gen", { known: g.known, expected: g.expected, proven: g.proven })])));
         if (s.oldest) out.push(ui(lang, "ui.stats.oldest", { name: whoText(s.oldest) }));
       }
-      out.push("", ui(lang, "ui.stats.tasks", s.tasks));
-      if (s.sessions.count)
+      // an archive: nobody works on it — no tasks, no sessions said
+      if (!isArchive(tree)) out.push("", ui(lang, "ui.stats.tasks", s.tasks));
+      if (s.sessions.count && !isArchive(tree))
         out.push(
           ui(lang, "ui.stats.sessions", { n: s.sessions.count, last: humanDay(s.sessions.last!, lang) }) +
             (s.sessions.costUsd ? ui(lang, "ui.stats.cost", { cost: humanCost(s.sessions.costUsd, lang) }) : "") +
@@ -147,12 +154,12 @@ register(
       const c = personCard(tree, resolvePerson(tree, args[0]!));
       const out: (string | undefined)[] = [whoText(c.person)];
       if (c.otherNames.length) out.push(`  ${ui(lang, "ui.card.also", { names: c.otherNames.join(", ") })}`);
-      out.push(c.facts.length ? factRows(c.facts, lang, "  ") : `  ${ui(lang, "ui.card.nofacts")}`, "");
+      out.push(c.facts.length ? factRows(c.facts, lang, "  ", ctx.archiveHere()) : `  ${ui(lang, "ui.card.nofacts")}`, "");
       out.push(c.parents.length ? ui(lang, "ui.card.parents", { names: c.parents.map(whoText).join(", ") }) : ui(lang, "ui.card.noparents"));
       for (const f of c.families) {
         const key = f.partner?.sex === "F" ? "ui.card.wife" : f.partner?.sex === "M" ? "ui.card.husband" : c.sex === "M" ? "ui.card.wife" : c.sex === "F" ? "ui.card.husband" : "ui.card.partner";
         out.push(ui(lang, key, { name: f.partner ? whoText(f.partner) : ui(lang, "ui.card.unknown") }));
-        if (f.facts.length) out.push(factRows(f.facts, lang, "  "));
+        if (f.facts.length) out.push(factRows(f.facts, lang, "  ", ctx.archiveHere()));
         if (f.children.length) out.push(`  ${ui(lang, "ui.card.children", { names: f.children.map(whoText).join(", ") })}`);
       }
       if (c.story) {
@@ -174,6 +181,7 @@ register(
     run(ctx: Context, { opts }) {
       const tree = ctx.tree();
       const lang = ctx.uiLang();
+      if (isArchive(tree)) return { text: ui(lang, "ui.plan.archive", { name: tree.config.name }), data: { archive: true, tasks: [] } };
       const count = positive(opts.count, "count", 10, 200);
       // The order of a conversation (the story's turn is only for working alone).
       const queue = rankedQueue(tree, { strategy: ctx.settings.strategy(tree.config) }).map((r) => r.task);
@@ -212,21 +220,23 @@ register(
       const tree = ctx.tree();
       const lang = ctx.uiLang();
       const days = positive(opts.days, "days", 7, 3660);
-      const r = recent(tree, new Date(Date.now() - days * 86_400_000).toISOString());
+      // never since before the tree began (found on Windows: "since 27. 9." in a tree made on 3. 10.)
+      const back = new Date(Date.now() - days * 86_400_000).toISOString();
+      const r = recent(tree, tree.config.created && tree.config.created > back ? tree.config.created : back);
       const since = humanDay(r.since, lang);
       const refined = r.facts.filter((f) => f.refined).length;
       if (!r.persons.length && !r.facts.length && !r.sources.length && !r.stories.length && !r.sessions.length && !r.tasksDone)
         return { text: ui(lang, "ui.recent.nothing", { since }), data: { days, ...r } };
       const out: (string | undefined)[] = [
         ui(lang, "ui.recent.title", { since }),
-        ui(lang, "ui.recent.counts", { persons: r.persons.length, facts: r.facts.length - refined, refined, sources: r.sources.length, stories: r.stories.length, done: r.tasksDone }),
+        ui(lang, ctx.archiveHere() ? "ui.recent.counts.archive" : "ui.recent.counts", { persons: r.persons.length, facts: r.facts.length - refined, refined, sources: r.sources.length, stories: r.stories.length, done: r.tasksDone }),
       ];
       if (r.persons.length) out.push("", ui(lang, "ui.recent.persons"), ...r.persons.slice(0, RECENT_ROWS).map((p) => `  ${whoText(p)}`), more(r.persons.length - RECENT_ROWS, lang));
       if (r.facts.length)
         out.push(
           "",
           ui(lang, "ui.recent.facts"),
-          ...r.facts.slice(0, RECENT_ROWS).map((f) => `  ${ownerName(tree, f.owner)} – ${eventName(f.fact.kind, lang, f.fact.label)}: ${factText(f.fact, lang)}${f.refined ? ` (${ui(lang, "ui.recent.refined")})` : ""}`),
+          ...r.facts.slice(0, RECENT_ROWS).map((f) => `  ${ownerName(tree, f.owner)} – ${eventName(f.fact.kind, lang, f.fact.label)}: ${factText(f.fact, lang, ctx.archiveHere())}${f.refined ? ` (${ui(lang, "ui.recent.refined")})` : ""}`),
           more(r.facts.length - RECENT_ROWS, lang),
         );
       if (r.stories.length) out.push("", ui(lang, "ui.recent.stories"), ...r.stories.map((p) => `  ${whoText(p)}`));

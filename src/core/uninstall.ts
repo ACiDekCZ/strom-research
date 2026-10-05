@@ -8,13 +8,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import type { Env } from "./paths.ts";
-import { desktopDir, userHome } from "./paths.ts";
+import { desktopDir, isolated, userHome } from "./paths.ts";
 import { ownGitDir } from "./git.ts";
 import { shortcutCmdDir } from "./shortcut.ts";
 import { globalTargets, isInstalled, uninstallGlobal } from "../agents/global.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { installation, type Installation } from "./self.ts";
-import { linkFiles, unregisterLinks } from "./links.ts";
+import { linkFiles, linkOwner, unregisterLinks } from "./links.ts";
 
 /** The mark the installer (install/install.sh) puts on the PATH line it adds. */
 const MARK = "# strom research";
@@ -25,7 +25,81 @@ export interface Removal {
   /** The agent's name (kind agent). */
   agent?: string;
   path: string;
-  remove(): boolean;
+  /** Done; false: it failed; "later": once this process has ended (the program on Windows: its Node runs it). */
+  remove(): boolean | "later";
+}
+
+/** A strom of this installation running now (not this one): a bridge, or one in another window. */
+export interface OwnProcess {
+  pid: number;
+  /** strom's arguments ("live serve", "menu", "" for the menu). */
+  args: string;
+  bridge: boolean;
+}
+
+type Sys = (cmd: string, args: string[]) => { status: number | null; stdout: string };
+const sys: Sys = (cmd, args) => {
+  const r = spawnSync(cmd, args, { encoding: "utf8", timeout: 20_000, windowsHide: true });
+  return { status: r.status, stdout: r.stdout ?? "" };
+};
+
+/** End a process of this installation (a bridge nobody could stop as a bridge): asked, then forced. */
+export function endProcess(pid: number, waitMs = 3000): boolean {
+  const alive = () => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  try {
+    process.kill(pid);
+  } catch {
+    return !alive();
+  }
+  for (const until = Date.now() + waitMs; Date.now() < until && alive(); ) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+  if (alive())
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // gone meanwhile
+    }
+  return !alive();
+}
+
+/**
+ * The strom processes of the installation in `root` — its own Node running its code — other than this one and the
+ * one that started it (found on Windows: an open menu and a bridge kept the folder, which then stayed whole).
+ */
+export function ownProcesses(root: string, platform: NodeJS.Platform = process.platform, run: Sys = sys): OwnProcess[] {
+  const node = platform === "win32" ? path.win32.join(root, "node", "node.exe") : path.posix.join(root, "node", "bin", "node");
+  const lines: { pid: number; exe: string; command: string }[] = [];
+  if (platform === "win32") {
+    const r = run("powershell.exe", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Select-Object ProcessId,ExecutablePath,CommandLine | ConvertTo-Json -Compress",
+    ]);
+    try {
+      const got = JSON.parse(r.stdout || "[]") as { ProcessId: number; ExecutablePath?: string; CommandLine?: string } | { ProcessId: number; ExecutablePath?: string; CommandLine?: string }[];
+      for (const p of Array.isArray(got) ? got : [got]) lines.push({ pid: p.ProcessId, exe: p.ExecutablePath ?? "", command: p.CommandLine ?? "" });
+    } catch {
+      return [];
+    }
+  } else {
+    const r = run("ps", ["-axo", "pid=,command="]);
+    for (const l of r.stdout.split("\n")) {
+      const m = /^\s*(\d+)\s+(.*)$/.exec(l);
+      if (m && m[2]!.startsWith(node)) lines.push({ pid: Number(m[1]), exe: node, command: m[2]! });
+    }
+  }
+  const same = (a: string, b: string) => (platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b);
+  return lines
+    .filter((l) => same(l.exe, node) && l.pid !== process.pid && l.pid !== process.ppid)
+    .map((l) => {
+      const args = (/cli\.js"?\s*(.*)$/.exec(l.command)?.[1] ?? "").trim();
+      return { pid: l.pid, args, bridge: /^live serve\b/.test(args) };
+    });
 }
 
 function exists(p: string): boolean {
@@ -94,20 +168,24 @@ function onWindowsPath(dir: string): boolean {
  * Linux; on Windows the folder is deleted by a small command a moment after
  * strom ends.
  */
-function removeInstallation(root: string, launchers: string[], platform: NodeJS.Platform): boolean {
+function removeInstallation(root: string, launchers: string[], platform: NodeJS.Platform): boolean | "later" {
   const outside = launchers.filter((l) => path.dirname(l) !== root);
   for (const l of outside) fs.rmSync(l, { force: true });
   if (platform !== "win32") {
     fs.rmSync(root, { recursive: true, force: true });
-    return true;
+    return !fs.existsSync(root);
   }
-  const child = spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/c", `ping 127.0.0.1 -n 3 >nul & rmdir /s /q "${root}"`], {
+  // Windows: its Node runs this — the folder goes once it has ended (tried a while: a window closing)
+  // (verbatim: Node would put backslashes before the quotes, which cmd does not read)
+  const command = `for /l %i in (1,1,15) do @(ping 127.0.0.1 -n 3 >nul & rmdir /s /q "${root}" 2>nul & if not exist "${root}" exit /b 0)`;
+  const child = spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", `"${command}"`], {
+    windowsVerbatimArguments: true,
     detached: true,
     stdio: "ignore",
     windowsHide: true,
   });
   child.unref();
-  return true;
+  return "later";
 }
 
 export interface UninstallPlan {
@@ -124,13 +202,17 @@ export function uninstallPlan(env: Env, names: string[], opts: { platform?: Node
   for (const t of globalTargets(env).filter((t) => isInstalled(t)))
     remove.push({ kind: "agent", agent: PROFILES[t.agent]?.name ?? t.agent, path: t.file, remove: () => uninstallGlobal(t) });
   for (const f of shortcuts(env, platform, names)) remove.push({ kind: "shortcut", path: f, remove: () => (fs.rmSync(f, { force: true }), true) });
-  for (const f of linkFiles(env, platform)) remove.push({ kind: "links", path: f, remove: () => unregisterLinks(env, platform) });
+  // this strom's links (or a strom's no longer there) — never another installation's
+  // (an isolated installation made none)
+  if (!isolated(env) && linkOwner(env, platform).owner !== "other")
+    for (const f of linkFiles(env, platform)) remove.push({ kind: "links", path: f, remove: () => unregisterLinks(env, platform) });
   const inst = opts.install ?? installation();
   const git = ownGitDir(env);
   // strom's own git lives in the installation's folder on Windows; alone, it goes by itself.
   if (platform === "win32" && exists(git) && !(inst.root && git.startsWith(inst.root + path.sep)))
     remove.push({ kind: "git", path: git, remove: () => (fs.rmSync(git, { recursive: true, force: true }), true) });
-  if (platform !== "win32") {
+  // an isolated installation put no line on PATH: those there are the person's own strom's
+  if (platform !== "win32" && !isolated(env)) {
     for (const f of pathLines(env)) remove.push({ kind: "path", path: f, remove: () => dropLines(f) });
     const fish = path.join(env.XDG_CONFIG_HOME ?? path.join(userHome(env), ".config"), "fish", "conf.d", "strom.fish");
     try {
@@ -143,7 +225,7 @@ export function uninstallPlan(env: Env, names: string[], opts: { platform?: Node
   if (program) {
     const launchers = inst.launchers ?? [];
     const dirs = [...new Set([program, ...launchers.map((l) => path.dirname(l))])];
-    if (platform === "win32") for (const d of dirs.filter((d) => onWindowsPath(d))) remove.push({ kind: "path", path: d, remove: () => dropWindowsPath(d) });
+    if (platform === "win32" && !isolated(env)) for (const d of dirs.filter((d) => onWindowsPath(d))) remove.push({ kind: "path", path: d, remove: () => dropWindowsPath(d) });
     remove.push({ kind: "program", path: program, remove: () => removeInstallation(program, launchers, platform) });
   }
   return { remove, npm: inst.kind === "npm", ...(program ? { program } : {}) };

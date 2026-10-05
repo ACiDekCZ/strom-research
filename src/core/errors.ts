@@ -8,34 +8,50 @@ export const EXIT = {
   needsInput: 3,
   needsConsent: 4,
   locked: 5,
+  cancelled: 130,
 } as const;
 
 export type ExitCode = (typeof EXIT)[keyof typeof EXIT];
+
+/**
+ * What went wrong as a program reads it (the Strom app says it in its own language — its language need not be the
+ * research's): a stable code and its parameters (IDs), beside the English message.
+ */
+export interface ErrorCode {
+  code: string;
+  params?: Record<string, string>;
+}
 
 export class StromError extends Error {
   readonly exitCode: ExitCode;
   readonly hint: string | undefined;
   readonly details: unknown;
+  readonly code: string | undefined;
+  readonly params: Record<string, string> | undefined;
 
-  constructor(message: string, opts: { exitCode?: ExitCode; hint?: string; details?: unknown } = {}) {
+  constructor(message: string, opts: { exitCode?: ExitCode; hint?: string; details?: unknown } & Partial<ErrorCode> = {}) {
     super(message);
     this.name = "StromError";
     this.exitCode = opts.exitCode ?? EXIT.error;
     this.hint = opts.hint;
     this.details = opts.details;
+    this.code = opts.code;
+    this.params = opts.params;
   }
 
   toJSON(): Record<string, unknown> {
     const out: Record<string, unknown> = { status: "error", message: this.message };
     if (this.hint) out.hint = this.hint;
     if (this.details !== undefined) out.details = this.details;
+    if (this.code) out.code = this.code;
+    if (this.params) out.params = this.params;
     return out;
   }
 }
 
 /** Invalid arguments or an ambiguous reference. */
 export class UsageError extends StromError {
-  constructor(message: string, opts: { hint?: string; details?: unknown } = {}) {
+  constructor(message: string, opts: { hint?: string; details?: unknown } & Partial<ErrorCode> = {}) {
     super(message, { ...opts, exitCode: EXIT.usage });
     this.name = "UsageError";
   }
@@ -44,6 +60,14 @@ export class UsageError extends StromError {
 export interface Candidate {
   id: string;
   label: string;
+}
+
+/** Ctrl-C at a question: the person stopped it, nothing was changed — said calmly, never as an error. */
+export class Cancelled extends StromError {
+  constructor() {
+    super("cancelled with Ctrl-C, nothing changed", { exitCode: EXIT.cancelled, code: "cancelled" });
+    this.name = "Cancelled";
+  }
 }
 
 /** A name matched more than one record. Never pick one silently. */
@@ -80,10 +104,8 @@ export class NeedsInputError extends StromError {
   readonly needs: Need[];
 
   constructor(needs: Need[]) {
-    super(`missing setting: ${needs.map((n) => n.key).join(", ")}`, {
-      exitCode: EXIT.needsInput,
-      hint: needs.map((n) => n.set).join("\n"),
-    });
+    const keys = needs.map((n) => n.key).join(", ");
+    super(`missing setting: ${keys}`, { exitCode: EXIT.needsInput, hint: needs.map((n) => n.set).join("\n"), code: "setting.missing", params: { keys } });
     this.name = "NeedsInputError";
     this.needs = needs;
   }
@@ -97,10 +119,12 @@ export class NeedsInputError extends StromError {
 export class NeedsConsentError extends StromError {
   readonly needs: Need[];
 
-  constructor(needs: Need[]) {
+  /** `says`: the question as the person reads it (their language) — said so at a terminal (ui.error.consent). */
+  constructor(needs: Need[], says?: string) {
     super(`consent required — ${needs.map((n) => n.question).join(" · ")}`, {
       exitCode: EXIT.needsConsent,
       hint: `ask the user to run in their own terminal: ${needs.map((n) => n.set).join(" ; ")}`,
+      ...(says ? { code: "consent", params: { question: says, set: needs.map((n) => n.set).join(" ; ") } } : {}),
     });
     this.name = "NeedsConsentError";
     this.needs = needs;

@@ -19,6 +19,8 @@ import { claudeInChrome, CLAUDE_IN_CHROME_URL } from "../core/browser.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { loadLogins } from "../core/logins.ts";
 import { claudeRemoteAtStartup } from "../agents/global.ts";
+import { chooseMode } from "./menu-mode.ts";
+import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -32,16 +34,18 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
     const anyHook = shared ? listHooks(shared).length > 0 : false;
     // The items always here first, in the same order; what shows only sometimes (Remote Control, a newer strom) after
     // them — the numbers a person knows never move.
+    // an archive: nothing of an agent — working alone, the downloaders, Remote Control not shown
+    const archive = ctx.archiveHere();
     const items: Item[] = [
       // After the wizard the menu starts afresh: the research may be in another folder now.
-      { key: "1", label: t("ui.settings.wizard"), act: async () => (await run(["setup"]), true) },
-      { key: "2", label: t("ui.settings.alone", { minutes, gate: gate ? gateName(shared, gate) : t("ui.settings.gate.none") }), act: async () => alone(ctx, run, lang, root) },
+      { key: "1", label: t(archive ? "ui.settings.wizard.archive" : "ui.settings.wizard"), act: async () => (await run(["setup"]), true) },
+      ...(archive ? [] : [{ key: "2", label: t("ui.settings.alone", { minutes, gate: gate ? gateName(shared, gate) : t("ui.settings.gate.none") }), act: async () => alone(ctx, run, lang, root) }]),
       {
         key: "3",
         label: t("ui.settings.hooks", { state: on.length ? on.join(", ") : t(anyHook ? "ui.settings.off" : "ui.hooks.nothing") }),
         act: async () => (shared ? hooks(ctx, run, lang, shared) : undefined),
       },
-      { key: "4", label: t("ui.settings.archives"), act: async () => archives(ctx, run, lang, shared, root) },
+      ...(archive ? [] : [{ key: "4", label: t("ui.settings.archives"), act: async () => archives(ctx, run, lang, shared, root) }]),
       {
         key: "5",
         label: t("ui.menu.doctor"),
@@ -52,12 +56,19 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
         },
       },
     ];
-    if (claudeHere(ctx, tree)) {
+    // the research of the tree worked on: with an agent, or only an archive of the data from the Strom app
+    if (root)
+      items.push({
+        key: "6",
+        label: t("ui.settings.mode", { state: t(tree?.mode === "archive" ? "ui.mode.archive" : "ui.mode.research") }),
+        act: async () => chooseMode(ctx, run, lang, root),
+      });
+    if (!archive && claudeHere(ctx, tree)) {
       // Claude Code may do it for its conversations itself (its own setting): what holds is said as it is.
       const own = claudeRemoteAtStartup(ctx.env);
       const remote = ctx.settings.agentRemote();
       items.push({
-        key: "6",
+        key: "7",
         label: t("ui.settings.remote", { state: t(remote ? "ui.settings.remote.both" : own ? "ui.settings.remote.chats" : "ui.settings.off") }),
         act: async () => {
           ctx.io.stdout(t(own ? "ui.settings.remote.own" : "ui.settings.remote.about") + "\n");
@@ -68,7 +79,7 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
     }
     if (newer)
       items.push({
-        key: "7",
+        key: "8",
         label: t("ui.menu.update", { version: newer }),
         act: async () => {
           if ((await run(["update"])) !== 0) return;
@@ -78,6 +89,28 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
           return "quit";
         },
       });
+    // what strom keeps beside the research, when there is much of it to free: shown, then the person's yes
+    if (root) {
+      const plan = tidyPlan(Tree.open(root, ctx.env));
+      if (plan.frees >= TIDY_SAID)
+        items.push({
+          key: "9",
+          label: t("ui.menu.settings.tidy", { size: mb(plan.frees, lang) }),
+          act: async () => {
+            await run(["tidy"]);
+            await pause(ctx, lang);
+          },
+        });
+    }
+    // a person's help in their language (strom help --human) — last, so the numbers a person knows never move
+    items.push({
+      key: "help",
+      label: t("ui.settings.help"),
+      act: async () => {
+        await run(["help", "--human"]);
+        await pause(ctx, lang);
+      },
+    });
     return { title: t("ui.settings.title"), items };
   });
 }

@@ -486,14 +486,14 @@ export function hostWarning(host: string, c?: Connector, pace: Pace = paceOf(c?.
   const p = c?.manifest.policy;
   return [
     `Automated access to ${host}${c ? ` (${c.manifest.title}, connector ${c.name})` : ""}`,
-    "  · Archives run small servers: going too fast slows the archive for everyone and gets your IP blocked.",
-    `  · Terms of use: ${p?.terms || "not found yet — read them on the portal before you allow this"}${p?.termsSummary ? `\n    ${p.termsSummary}` : ""}`,
+    "  · Archives run small servers: going too fast slows the archive for everyone and gets this computer's address blocked.",
+    `  · Terms of use: ${p?.terms || "not found yet — to be read on the portal before allowing this"}${p?.termsSummary ? `\n    ${p.termsSummary}` : ""}`,
     p ? `  · The connector's reading of them: automation ${p.automation}${p.officialExport ? `; official export: ${p.officialExport}` : ""}` : undefined,
     `  · strom sends one request at a time, ${paceText(pace)}; it stops at the first`,
     "    refusal (401/403) and leaves the archive alone for a day, and for an hour when it asks twice to",
     "    slow down or stops answering.",
-    "  · You are responsible for how you use the archive. Prefer its official export where there is one;",
-    "    when in doubt, ask the archive.",
+    "  · How the archive is used is the responsibility of whoever allows it. Its official export first, where there is one;",
+    "    when in doubt, the archive is to be asked.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -508,9 +508,9 @@ export function codeWarning(c: Connector, source: string, direct: string[]): str
     `  contacts:  ${m.hosts.join(", ")} — only through strom's limiter`,
     `  can:       ${m.can.join(", ")}`,
     direct.length
-      ? `  ⚠ its code reaches the network or other programs directly — strom cannot pace or stop that:\n${direct.slice(0, 8).map((d) => `      ${d}`).join("\n")}\n    you will be asked again after every change of it`
-      : "  its code uses no network of its own (checked); your agent may go on improving it without asking you again",
-    m.policy.automation === "manual" ? "  ⚠ its own reading of the portal's terms: automation is not allowed — it only helps you download by hand" : undefined,
+      ? `  ⚠ its code reaches the network or other programs directly — strom cannot pace or stop that:\n${direct.slice(0, 8).map((d) => `      ${d}`).join("\n")}\n    asked again after every change of it`
+      : "  its code uses no network of its own (checked); the agent may go on improving it without asking again",
+    m.policy.automation === "manual" ? "  ⚠ its own reading of the portal's terms: automation is not allowed — it only helps download by hand" : undefined,
   ]
     .filter(Boolean)
     .join("\n");

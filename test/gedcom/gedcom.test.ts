@@ -223,6 +223,55 @@ test("the Strom version from which the notes repeating the tags are left out", a
   assert.equal(stromReadsTags(undefined, "", true), false);
 });
 
+test("how sure a fact is: _STROM_STATUS for an app that shows it (its beta at once), the note for any other", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["lang", "cs"]);
+  await w.ok(["person", "add", "Anna /Dvořáková/", "--sex", "F", "--born", "1888"]);
+  const out = path.join(w.dir, "s.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", out]);
+  let t = fs.readFileSync(out, "utf8");
+  assert.match(t, /1 BIRT\r?\n2 DATE 1888\r?\n2 NOTE Vodítko — nedoloženo záznamem\./, "stromapp.info: the note, until it reads the tag");
+  assert.doesNotMatch(t, /_STROM_STATUS/);
+  await w.ok(["config", "set", "strom.app.url", "https://beta.stromapp.info/run/"]);
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", out]);
+  t = fs.readFileSync(out, "utf8");
+  assert.match(t, /1 BIRT\r?\n2 DATE 1888\r?\n2 _STROM_STATUS lead/);
+  assert.doesNotMatch(t, /Vodítko/, "no note among the user's");
+  const { appShowsFactStatus, APP_SHOWS_FACT_STATUS } = await import("../../src/core/stromapp.ts");
+  const { Settings } = await import("../../src/core/config.ts");
+  const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
+  assert.equal(APP_SHOWS_FACT_STATUS, "3.9.0");
+  assert.equal(appShowsFactStatus(prod), false, "an app of unknown version keeps the note");
+  assert.equal(appShowsFactStatus(prod, "3.8.2"), false, "an older app keeps the note");
+  assert.equal(appShowsFactStatus(prod, "3.9.0-beta.9"), true, "a pre-release of 3.9.0 reads it");
+  assert.equal(appShowsFactStatus(prod, "3.9.0"), true);
+  assert.equal(appShowsFactStatus(prod, "3.10.1"), true);
+  w.cleanup();
+});
+
+test("the Strom app 3.9.0 reads who read a source, an archive and parents who are no couple: the gates open from it; an app of unknown version (3.9 always says its version) gets the first two none", opts, async () => {
+  const w = new World();
+  const m = await import("../../src/core/stromapp.ts");
+  const { Settings } = await import("../../src/core/config.ts");
+  const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
+  const beta = new Settings({ ...w.env, STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
+  for (const [gate, open, unknown] of [
+    [m.APP_SHOWS_SOURCE_READS, m.appShowsSourceReads, false],
+    [m.APP_KNOWS_ARCHIVE, m.appKnowsArchive, false],
+    [m.APP_KNOWS_NO_COUPLE, m.appKnowsNoCouple, true],
+  ] as const) {
+    assert.equal(gate, "3.9.0");
+    assert.equal(open(prod, "3.8.2"), false, "an older app: nothing");
+    assert.equal(open(prod, "3.9.0-beta.9"), true);
+    assert.equal(open(prod, "3.9.0"), true);
+    assert.equal(open(prod, "3.10.1"), true);
+    assert.equal(open(prod), unknown, "an app of unknown version");
+    assert.equal(open(beta), true, "the beta: at once");
+  }
+  w.cleanup();
+});
+
 test("Strom's own export comes back: ages in words, cause and address from its notes, a midwife from RELA Present", opts, async () => {
   const w = new World();
   await w.withTree();

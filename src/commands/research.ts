@@ -95,7 +95,6 @@ register(
       });
       const text = lines(
         ...tree.written.map((o) => o.summary),
-        tree.dryRun ? "(dry run — nothing written)" : undefined,
         "",
         tree.count("input") === 0
           ? `next   strom intake --text "<what the user told you about ${displayName(focus)} and the family>"`
@@ -155,7 +154,6 @@ register(
       return {
         text: lines(
           ...tree.written.map((o) => o.summary),
-          tree.dryRun ? "(dry run — nothing written)" : undefined,
           act === "resume" ? `its tasks are back in the queue: ${n}` : `its tasks wait out of the queue: ${n} → strom research resume ${r.id}`,
         ),
         data: { research: next, changed: true, tasks: n, created },
@@ -339,7 +337,6 @@ register({
     const inReview = existing ?? (planned.length && !tree.dryRun ? research : undefined);
     const text = lines(
       ...(human ? [] : tree.written.map((o) => o.summary)),
-      tree.dryRun ? ui(lang, "ui.review.dry") : undefined,
       (tree.written.length && !human) || tree.dryRun ? "" : undefined,
       list.length ? ui(lang, "ui.review.new", { name: p ? label(p) : name, n: list.length }) : ui(lang, "ui.review.nothing", { name: p ? label(p) : name }),
       ...list,

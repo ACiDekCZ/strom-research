@@ -5,6 +5,7 @@
 // closes what the agent left open, exports the GEDCOM and commits. Between
 // sessions not a single token is spent.
 
+import { opsLogsOf } from "../core/opslog.ts";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -44,13 +45,15 @@ import type { Env } from "../core/paths.ts";
 import { assertIntact, snapshot, verifyFast } from "../core/integrity.ts";
 import { guard } from "../core/guard.ts";
 import { hasErrors } from "../core/check.ts";
+import { autoTidy } from "../core/tidy.ts";
 import { Tree } from "../core/tree.ts";
 import { agentBrowser, treeBrowserConnectors } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { reviewProposals } from "../core/review.ts";
+import { refuseInArchive } from "../core/mode.ts";
 
 function written(tree: Tree): string {
-  return lines(...tree.written.map((o) => o.summary), tree.dryRun ? "(dry run — nothing written)" : undefined);
+  return lines(...tree.written.map((o) => o.summary));
 }
 
 function researchOf(tree: Tree, ref: unknown): Research | undefined {
@@ -109,6 +112,7 @@ register(
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
+      refuseInArchive(tree, "strom session start");
       const research = researchOf(tree, opts.research);
       // The next task nobody else is working on (other agents may be at work in this tree).
       const others = othersAtWork(tree).tasks;
@@ -189,6 +193,8 @@ register(
       const newTasks = research ? applyFrontier(tree, research) : [];
       const geds = tree.dryRun ? [] : writeGedcoms(ctx, tree);
       const ged = geds[0];
+      // what strom keeps beside the research, in order (a tree tidied once)
+      autoTidy(tree);
       return {
         text: lines(
           written(tree),
@@ -515,7 +521,9 @@ register(
         ctx.settings.save();
       }
       const installed = which(PROFILES[id]!.command, ctx.env);
-      return { text: `${PROFILES[id]!.name} ${opts["for-tree"] ? "for this tree" : "is your default agent"}${installed ? "" : " — not installed yet"}`, data: { agent: id, tree: Boolean(opts["for-tree"]) } };
+      const lang = ctx.uiLang();
+      const said = ui(lang, opts["for-tree"] ? "ui.agent.tree" : "ui.agent.default", { agent: PROFILES[id]!.name });
+      return { text: installed ? said : ui(lang, "ui.agent.missing", { said }), data: { agent: id, tree: Boolean(opts["for-tree"]) } };
     },
   },
 );
@@ -548,10 +556,8 @@ const MAX_IDLE_SESSIONS = 2;
 
 /** How many research writes a session made (bookkeeping of sessions and tasks does not count). */
 function sessionWrites(tree: Tree, sessionId: string): number {
-  const file = path.join(tree.dataDir, "ops", `${sessionId}.jsonl`);
-  if (!fs.existsSync(file)) return 0;
   let n = 0;
-  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+  for (const line of opsLogsOf(tree.dataDir, sessionId).flatMap((file) => fs.readFileSync(file, "utf8").split("\n"))) {
     const op = /"op":"([^"]+)"/.exec(line)?.[1];
     if (op && !op.startsWith("session.") && !op.startsWith("task.")) n++;
   }
@@ -614,6 +620,7 @@ register({
   ],
   examples: ["strom run", "strom run --max 3 --until 23:00", "strom run --loop", "strom run --task T0003,T0007", "strom run --interactive", "strom run --agent codex", "strom run --minutes 30 -- --add-dir ~/Scans"],
   run: async (ctx: Context, { opts, extra }) => {
+    refuseInArchive(ctx.tree(), "strom run");
     const root = ctx.tree().root;
     const treeCfg = ctx.tree().config;
     const runnerId = ctx.settings.agent(treeCfg).value;
@@ -872,6 +879,7 @@ register({
         if (research) applyFrontier(after, research);
         const geds = writeGedcoms(ctx, after);
         const committed = commitNow(after, `${s.id} ${s.state}: ${truncate(s.summary ?? "", 60)} · ${geds.map((g) => after.relative(g.file)).join(", ")}`);
+        autoTidy(after);
         report.push({ session: s.id, task: task.id, outcome: result.outcome, ...(s.summary ? { summary: s.summary } : {}), ...(result.metrics.costUsd !== undefined ? { costUsd: result.metrics.costUsd } : {}) });
         out(`■ ${s.id} ${s.state} · ${result.outcome}${costText(result.metrics) ? ` · ${costText(result.metrics)}` : ""}${s.summary ? ` · ${truncate(s.summary, 80)}` : ""}`);
         if (result.denied?.length) out(ui(lang, "ui.run.denied", { n: result.denied.length, what: result.denied.slice(0, 3).join(" · ") }));

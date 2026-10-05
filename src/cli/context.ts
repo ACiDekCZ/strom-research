@@ -7,7 +7,7 @@ import readline from "node:readline/promises";
 import { Writable } from "node:stream";
 import { Settings, type Flags } from "../core/config.ts";
 import { displayPath, expandHome, type Env } from "../core/paths.ts";
-import { NeedsConsentError, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
+import { Cancelled, NeedsConsentError, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
 import { migrate } from "../core/migrate.ts";
 import { Tree, findTreeUpwards, isTreeDir } from "../core/tree.ts";
 import type { TreeConfig } from "../core/model.ts";
@@ -15,8 +15,8 @@ import { readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
 import { currentSession } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
-import { systemDialog, type DialogText } from "../core/dialog.ts";
-import { ui } from "./ui.ts";
+import { systemDialog, WAIT_SECONDS, type DialogText } from "../core/dialog.ts";
+import { UI, ui, type UIKey } from "./ui.ts";
 
 export interface IO {
   stdout: (s: string) => void;
@@ -117,10 +117,18 @@ export class Context {
     if (this.io.answers) {
       this.io.stdout(prompt + "\n");
       answer = this.io.answers.shift() ?? "";
+      if (answer === "\u0003") throw new Cancelled(); // Ctrl-C, as a test types it
     } else {
       const rl = readline.createInterface({ input: this.io.stdin ?? process.stdin, output: process.stdout });
       try {
         answer = await rl.question(prompt);
+      } catch (err) {
+        // Ctrl-C at the question (Node: "Aborted with Ctrl+C", found on Mac as the menu's "that did not work")
+        if ((err as { code?: string }).code === "ABORT_ERR") {
+          process.stdout.write("\n");
+          throw new Cancelled();
+        }
+        throw err;
       } finally {
         rl.close();
       }
@@ -166,6 +174,20 @@ export class Context {
   }
 
   /**
+   * An archive here: the tree worked on is one (else, with none, the person's setting for new researches) — what is
+   * shown then says nothing of an agent or AI (Milan's decision, 2026-10-03).
+   */
+  archiveHere(): boolean {
+    try {
+      const root = this.locateTree();
+      if (root) return readJsonIfExists<TreeConfig>(path.join(root, "strom.json"))?.mode === "archive";
+    } catch {
+      // no tree to say
+    }
+    return this.settings.config.mode === "archive";
+  }
+
+  /**
    * A consent is the user's. In their own terminal they gave it by running the
    * command. Anywhere else — an agent's session, the app — the person at the
    * screen is asked in a window of the system, which the agent can neither see
@@ -180,11 +202,14 @@ export class Context {
     if (this.env.STROM_NONINTERACTIVE !== "1" && opts.window !== false) {
       const lang = this.uiLang();
       const text: DialogText = { title: ui(lang, "ui.dialog.title"), question: says ?? question, yes: ui(lang, "ui.dialog.yes"), no: ui(lang, "ui.dialog.no") };
+      // said first where it runs: a window can be behind others, and the command waits for it without a word
+      this.io.stderr(`${ui(lang, "ui.dialog.waiting", { minutes: String(WAIT_SECONDS / 60), question: text.question })}\n`);
       const answer = this.io.dialog ? this.io.dialog(text) : systemDialog(text, this.env);
       if (answer === true) return "window";
       if (answer === false) throw new StromError(ui(lang, "ui.dialog.refused"), { hint: `the user said no to: ${question} — do not ask again unless they want to` });
     }
-    throw new NeedsConsentError([{ key, kind: "consent", question: `${question}${agent ? " (an agent cannot answer this)" : ""}`, set }]);
+    // a person (a script, no terminal) reads it in their language; an agent the English it goes by
+    throw new NeedsConsentError([{ key, kind: "consent", question: `${question}${agent ? " (an agent cannot answer this)" : ""}`, set }], agent ? undefined : says);
   }
 
   /**
@@ -196,13 +221,23 @@ export class Context {
   async choose(question: string, choices: { key?: string; label: string }[], suggested: number, opts: { back?: string } = {}): Promise<number | undefined> {
     const options = opts.back ? [...choices, { key: "0", label: opts.back }] : choices;
     const keys = options.map((o, i) => o.key ?? String(i + 1));
+    const lang = this.uiLang();
+    this.io.stdout(`\n${question ? `${question}\n` : ""}${options.map((o, i) => `  ${keys[i]!.padStart(2)}  ${o.label}`).join("\n")}\n`);
     for (;;) {
-      this.io.stdout(`\n${question ? `${question}\n` : ""}${options.map((o, i) => `  ${keys[i]!.padStart(2)}  ${o.label}`).join("\n")}\n`);
       if (this.io.answers && this.io.answers.length === 0) return undefined;
-      const a = await this.ask(`${ui(this.uiLang(), "ui.choose")}`, keys[suggested]);
-      const i = keys.indexOf(a.trim());
+      const a = (await this.ask(`${ui(lang, "ui.choose")}`, keys[suggested])).trim();
+      const i = keys.indexOf(a);
       if (i >= 0) return i < choices.length ? i : undefined;
-      this.io.stdout(ui(this.uiLang(), "ui.bad.choice") + "\n");
+      // asked again in one line, the options stay above it; a command typed here is said where it goes
+      const out = options[keys.indexOf("0")];
+      const command = /^strom(\s|$)/iu.test(a);
+      this.io.stdout(
+        (command && out
+          ? ui(lang, "ui.bad.command", { key: "0", label: out.label, command: a })
+          : command
+            ? ui(lang, "ui.bad.command.only", { command: a })
+            : ui(lang, "ui.bad.choice", { keys: keys.join(", ") })) + "\n",
+      );
     }
   }
 
@@ -238,7 +273,7 @@ export class Context {
           set: `strom setup --home "${this.display(suggested)}" --yes`,
         },
       ]);
-    const answer = await this.ask("Where should Strom keep your research?", this.display(suggested));
+    const answer = await this.ask(ui(this.uiLang(), "ui.setup.home"), this.display(suggested));
     return this.saveHome(this.resolvePath(answer));
   }
 
@@ -279,8 +314,8 @@ export class Context {
       const key = foldText(ref);
       const hits = this.knownTrees().filter((t) => foldText(t.name) === key || foldText(path.basename(t.root)) === key);
       if (hits.length === 1) return hits[0]!.root;
-      if (hits.length > 1) throw new UsageError(`tree name "${ref}" is ambiguous`, { hint: "pass the folder path: --tree <dir>" });
-      throw new UsageError(`no tree "${ref}"`, { hint: "strom trees" });
+      if (hits.length > 1) throw new UsageError(`tree name "${ref}" is ambiguous`, { hint: "pass the folder path: --tree <dir>", code: "tree.ambiguous", params: { name: ref } });
+      throw new UsageError(`no tree "${ref}"`, { hint: "strom trees", code: "tree.unknown", params: { name: ref } });
     }
     const up = findTreeUpwards(this.cwd);
     if (up) return up;
@@ -296,14 +331,18 @@ export class Context {
     const root = this.locateTree();
     if (!root) {
       const known = this.knownTrees();
-      if (known.length === 0) throw new StromError("no tree yet", { hint: 'create one: strom init "<tree name>"' });
-      throw new UsageError("which tree? there are several", {
-        hint: `pass --tree <name>: ${known.map((t) => `"${t.name}"`).join(", ")}`,
-      });
+      if (known.length === 0) throw new StromError("no tree yet", { hint: 'create one: strom init "<tree name>"', code: "tree.none" });
+      const names = known.map((t) => `"${t.name}"`).join(", ");
+      throw new UsageError("which tree? there are several", { hint: `pass --tree <name>: ${names}`, code: "tree.which", params: { names } });
     }
     this.opened = Tree.open(root, this.env);
     // Data an older strom wrote under an older schema: brought forward first (a dry run too — it is not the command's change).
-    for (const step of migrate(this.opened)) this.io.stderr(`${ui(this.uiLang(), "ui.migrated", { step })}\n`);
+    // said in the person's language: each step by its own sentence (the commit keeps the English one)
+    for (const step of migrate(this.opened)) {
+      const to = /^schema (\d+)/.exec(step)?.[1];
+      const key = `ui.migrated.${to}` as UIKey;
+      this.io.stderr(`${ui(this.uiLang(), "ui.migrated", { step: key in UI ? ui(this.uiLang(), key) : step })}\n`);
+    }
     this.opened.dryRun = this.dryRun;
     // A language passed from outside (--lang, STROM_LANG — e.g. by the Strom
     // app) applies to this invocation; the tree keeps its own.
@@ -311,9 +350,10 @@ export class Context {
     if (lang.source === "flag" || lang.source === "env") this.opened.langOverride = lang.value;
     // Inside an open session every write is logged under the session's ID;
     // an agent writing outside a session is logged as "agent", never as the user.
-    const session = currentSession(this.opened, this.env);
+    // What the bridge writes for the Strom app (STROM_FOR_APP) is the person's in the app: the user's.
+    const session = this.env.STROM_FOR_APP === "1" ? undefined : currentSession(this.opened, this.env);
     if (session) this.opened.actor = session.id;
-    else if (isAgent(this.env)) this.opened.actor = "agent";
+    else if (isAgent(this.env) && this.env.STROM_FOR_APP !== "1") this.opened.actor = "agent";
     return this.opened;
   }
 

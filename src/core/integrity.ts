@@ -12,6 +12,7 @@
 // full (`strom verify`, `strom check`)
 //   Every operation of every log and every record file, plus the commit seal.
 
+import { opsLogs } from "./opslog.ts";
 import fs from "node:fs";
 import path from "node:path";
 import * as git from "./git.ts";
@@ -179,13 +180,10 @@ export function verifyFull(tree: Tree): Integrity {
   const tampered = new Set<string>();
   headSeal(tree, findings);
   const latest = new Map<string, string>();
-  const opsDir = path.join(tree.dataDir, "ops");
   const all: Op[] = [];
-  if (fs.existsSync(opsDir))
-    for (const f of fs.readdirSync(opsDir).sort()) {
-      if (!f.endsWith(".jsonl")) continue;
-      const rel = `data/ops/${f}`;
-      const ops = parseOps(fs.readFileSync(path.join(opsDir, f), "utf8"), rel, findings);
+  for (const file of opsLogs(tree.dataDir)) {
+      const rel = path.relative(tree.root, file).split(path.sep).join("/");
+      const ops = parseOps(fs.readFileSync(file, "utf8"), rel, findings);
       checkOps(tree, ops, "", rel, findings);
       all.push(...ops);
     }

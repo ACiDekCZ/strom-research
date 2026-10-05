@@ -32,7 +32,7 @@ import { formatName } from "../core/people.ts";
 import type { Tree } from "../core/tree.ts";
 
 function written(tree: Tree): string {
-  return lines(...tree.written.map((o) => o.summary), tree.dryRun ? "(dry run — nothing written)" : undefined);
+  return lines(...tree.written.map((o) => o.summary));
 }
 
 function str(v: unknown): string | undefined {
@@ -123,7 +123,7 @@ function editFields<T extends Source | Repository | RecordSet | Place>(
       const old = cur as unknown as Record<string, unknown>;
       const overwritten = keys.filter((k) => k in evidence && old[k] !== undefined && old[k] !== evidence[k] && JSON.stringify(old[k]) !== JSON.stringify(changes[k]));
       if (overwritten.length && !reason)
-        throw new UsageError(`changing ${overwritten.join(", ")} of ${id} needs --reason`, { hint: 'what a record says is evidence: e.g. --reason "re-read at full resolution"' });
+        throw new UsageError(`changing ${overwritten.join(", ")} of ${id} needs --reason`, { hint: 'what a record says is evidence: e.g. --reason "re-read at full resolution"', code: "record.needs-reason", params: { id, fields: overwritten.map((k) => `--${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`).join(", ") } });
       return { ...cur, ...changes, ...(note ? { notes: [...cur.notes, makeNote(tree, note)] } : {}) };
     },
     { op: `${type}.edit`, summary: `${id} ${[...given.map(([k]) => k), ...(note ? ["note"] : [])].join(", ") || "edited"}`, reason },

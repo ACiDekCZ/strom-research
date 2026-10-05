@@ -104,8 +104,10 @@ function unknownCommand(words: string[]): UsageError {
   const same = (inGroup.length ? inGroup : all).filter((c) => c.split(" ").length === words.length);
   const hits = suggest(typed, same.length ? same : all);
   const more = hits.length ? hits : suggest(words[0] ?? "", [...new Set(all.map((c) => c.split(" ")[0]!))]);
+  const near = more.map((c) => `strom ${c}`).join(" · ");
   return new UsageError(`unknown command "strom ${typed}"`, {
-    hint: more.length ? `did you mean: ${more.map((c) => `strom ${c}`).join(" · ")}` : "strom help   (all commands)",
+    hint: more.length ? `similar command: ${near}` : "strom help   (all commands)",
+    ...(more.length ? { code: "command.near", params: { cmd: typed, near } } : { code: "command.unknown", params: { cmd: typed } }),
   });
 }
 
@@ -129,15 +131,19 @@ export function parseOptions(def: CommandDef, rest: string[]): { values: Input["
     if (e.code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
       // "strom brief --task T0003": the task is an argument there, not an option
       const arg = def.args?.find((a) => `--${a.name}` === opt);
-      if (arg) throw new UsageError(`${opt.slice(2)} is an argument of ${cmd}, not an option`, { hint: `strom ${def.path.join(" ")} <${arg.name}>` });
+      if (arg) throw new UsageError(`${opt.slice(2)} is an argument of ${cmd}, not an option`, { hint: `strom ${def.path.join(" ")} <${arg.name}>`, code: "option.is-arg", params: { opt, cmd, arg: arg.name } });
       const near = suggest(opt, optionsOf(def).map((o) => `--${o.name}`));
       throw new UsageError(`unknown option ${opt} for ${cmd}`, {
-        hint: near.length ? `did you mean ${near.join(" or ")}?` : `${own.length ? `options: ${own.join(" ")} · ` : ""}strom help ${def.path.join(" ")}`,
+        hint: near.length ? `similar option: ${near.join(" · ")}` : `${own.length ? `options: ${own.join(" ")} · ` : ""}strom help ${def.path.join(" ")}`,
+        ...(near.length ? { code: "option.near", params: { opt, cmd, near: near.join(" · ") } } : own.length ? { code: "option.unknown", params: { opt, cmd, options: own.join(" "), path: def.path.join(" ") } } : {}),
       });
     }
     if (e.code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
       const o = defs.find((d) => `--${d.name}` === opt);
-      throw new UsageError(o?.type === "boolean" ? `${opt} takes no value` : `${opt} needs a value${o?.value ? ` ${o.value}` : ""}`, { hint: `strom help ${def.path.join(" ")}` });
+      throw new UsageError(o?.type === "boolean" ? `${opt} takes no value` : `${opt} needs a value${o?.value ? ` ${o.value}` : ""}`, {
+        hint: `strom help ${def.path.join(" ")}`,
+        ...(o?.type === "boolean" ? { code: "option.no-value", params: { opt } } : o?.value ? { code: "option.needs-value", params: { opt, value: o.value, path: def.path.join(" ") } } : {}),
+      });
     }
     throw new UsageError(e.message.split("\n")[0] ?? "invalid arguments", { hint: `strom help ${def.path.join(" ")}` });
   }
@@ -149,10 +155,10 @@ export function checkArgs(def: CommandDef, args: string[]): void {
   const required = declared.filter((a) => a.required);
   if (args.length < required.length) {
     const missing = required[args.length]!;
-    throw new UsageError(`missing <${missing.name}>: ${missing.description}`, { hint: `strom help ${def.path.join(" ")}` });
+    throw new UsageError(`missing <${missing.name}>: ${missing.description}`, { hint: `strom help ${def.path.join(" ")}`, code: "arg.missing", params: { arg: missing.name, cmd: def.path.join(" ") } });
   }
   if (!declared.some((a) => a.variadic) && args.length > declared.length)
-    throw new UsageError(`unexpected argument "${args[declared.length]}"`, { hint: `strom help ${def.path.join(" ")} — quote values with spaces` });
+    throw new UsageError(`unexpected argument "${args[declared.length]}"`, { hint: `strom help ${def.path.join(" ")} — quote values with spaces`, code: "arg.extra", params: { arg: args[declared.length]!, cmd: def.path.join(" ") } });
 }
 
 /** Split off everything after a bare "--" (passed through to another program). */

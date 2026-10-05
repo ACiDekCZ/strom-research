@@ -106,3 +106,47 @@ export function imageSizeOfFile(file: string): { width: number; height: number }
     if (fd !== undefined) fs.closeSync(fd);
   }
 }
+
+/**
+ * The orientation a JPEG's EXIF gives (1–8: how a viewer turns the picture as it lies in the file), undefined when it
+ * gives none. strom itself works on the picture as it lies (views, clips, excerpts): the app turns what it shows.
+ */
+export function exifOrientation(file: string): number | undefined {
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(file, "r");
+    const head = Buffer.alloc(128 * 1024);
+    const n = fs.readSync(fd, head, 0, head.length, 0);
+    const b = head.subarray(0, n);
+    if (b[0] !== 0xff || b[1] !== 0xd8) return undefined;
+    let p = 2;
+    while (p + 4 <= b.length && b[p] === 0xff) {
+      const marker = b[p + 1]!;
+      const len = b.readUInt16BE(p + 2);
+      if (marker === 0xda || marker === 0xd9) return undefined; // the picture begins: no EXIF before it
+      if (marker === 0xe1 && b.toString("latin1", p + 4, p + 10) === "Exif\0\0") {
+        const t = p + 10;
+        const le = b.toString("latin1", t, t + 2) === "II";
+        const u16 = (o: number) => (le ? b.readUInt16LE(o) : b.readUInt16BE(o));
+        const u32 = (o: number) => (le ? b.readUInt32LE(o) : b.readUInt32BE(o));
+        const ifd = t + u32(t + 4);
+        const count = u16(ifd);
+        for (let i = 0; i < count; i++) {
+          const e = ifd + 2 + i * 12;
+          if (e + 12 > b.length) return undefined;
+          if (u16(e) === 0x0112) {
+            const v = u16(e + 8);
+            return v >= 1 && v <= 8 ? v : undefined;
+          }
+        }
+        return undefined;
+      }
+      p += 2 + len;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}

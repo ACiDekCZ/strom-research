@@ -186,8 +186,8 @@ async function ensureAllowed(ctx: Context, c: Connector): Promise<boolean> {
   const changed = miss.code === "changed";
   const how = ctx.requireHuman(
     consentRequired(ctx.env)
-      ? `${changed ? "The code of" : "Run"} connector ${c.name} (${c.manifest.title})${changed ? " changed since you allowed it — allow it again" : ""}${miss.hosts.length ? `, with automated access to ${miss.hosts.join(", ")}` : ""}?`
-      : `Connector ${c.name} (${c.manifest.title}) reaches the network itself, past strom's limiter${changed ? ", and its code changed since you allowed it" : ""} — run it?`,
+      ? `${changed ? "The code of" : "Run"} connector ${c.name} (${c.manifest.title})${changed ? " changed since it was allowed — allow it again" : ""}${miss.hosts.length ? `, with automated access to ${miss.hosts.join(", ")}` : ""}?`
+      : `Connector ${c.name} (${c.manifest.title}) reaches the network itself, past strom's limiter${changed ? ", and its code changed since it was allowed" : ""} — run it?`,
     `strom allow connector ${c.name}`,
     `connector:${c.name}`,
     consentWindow(ctx, c),
@@ -199,7 +199,7 @@ async function ensureAllowed(ctx: Context, c: Connector): Promise<boolean> {
 function consentState(ctx: Context, c: Connector): string {
   const miss = missingConsents(ctx.env, c);
   if (!miss.code && !miss.hosts.length) return !consentRequired(ctx.env) ? "ready" : changedSinceConsent(ctx.env, c) ? "allowed (changed since)" : "allowed";
-  return [miss.code === "new" ? "needs your consent" : miss.code === "changed" ? "code changed — needs your consent again" : "", miss.hosts.length ? `hosts not allowed: ${miss.hosts.join(", ")}` : ""].filter(Boolean).join("; ");
+  return [miss.code === "new" ? "needs a consent" : miss.code === "changed" ? "code changed — needs a consent again" : "", miss.hosts.length ? `hosts not allowed: ${miss.hosts.join(", ")}` : ""].filter(Boolean).join("; ");
 }
 
 /** " · 4317×3233 px" of an image file, when strom can read its size. */

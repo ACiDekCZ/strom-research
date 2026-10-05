@@ -2,6 +2,7 @@
 
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
+import { ui } from "../cli/ui.ts";
 import { lines, table } from "../cli/format.ts";
 import { StromError } from "../core/errors.ts";
 import { askGate, ensureGatesDir, gatesDir, listGates, loadGate } from "../core/gate.ts";
@@ -23,12 +24,12 @@ register(
       const set = ctx.settings.runGate();
       const setName = set?.split(" ")[0];
       const gates = listGates(s);
-      const folder = `folder: ${ctx.display(gatesDir(s))} — copy a gate's folder in to install it (the interface: README.md there)`;
+      const lang = ctx.uiLang();
       return {
         text: lines(
-          gates.length ? table(gates.map((g) => [g.name === setName ? `${g.name} ◀ run.gate${set !== setName ? ` (${set})` : ""}` : g.name, g.manifest.title ?? "", g.manifest.command.join(" ")])) : "no gates",
-          set ? `asked before each session of strom run: ${set} (strom config unset run.gate: none)` : "none is asked: strom config set run.gate <name> (only you)",
-          folder,
+          gates.length ? table(gates.map((g) => [g.name === setName ? `${g.name} ◀ run.gate${set !== setName ? ` (${set})` : ""}` : g.name, g.manifest.title ?? "", g.manifest.command.join(" ")])) : ui(lang, "ui.gate.none"),
+          set ? ui(lang, "ui.gate.asked", { gate: set }) : ui(lang, "ui.gate.unset"),
+          ui(lang, "ui.gate.folder", { folder: ctx.display(gatesDir(s)) }),
         ),
         data: { folder: gatesDir(s), gate: set ?? null, gates: gates.map((g) => ({ name: g.name, title: g.manifest.title, command: g.manifest.command, dir: g.dir })) },
       };

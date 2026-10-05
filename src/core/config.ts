@@ -31,6 +31,8 @@ export interface UserConfig {
   currentTree?: string;
   /** Default AI agent: claude, codex, antigravity, opencode, grok. */
   agent?: string;
+  /** What a new research is: an archive (the setup wizard with no agent here), else one with an agent. */
+  mode?: "archive";
   /** Which GEDCOM files to write: both (default), standard, strom. */
   gedcomFor?: string;
   /** The Strom app version the Strom GEDCOM is for. */
@@ -167,6 +169,8 @@ export const SETTINGS: SettingDef[] = [
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
   { key: "stories.sources", env: "STROM_STORIES_SOURCES", tree: true, kind: "choice", choices: ["yes", "no"], description: "before a story is written, a search beyond the registers — newspapers, directories, military, land and court records, graves, the history of the place — so the story can tell more, every word still on a record: yes (default, while stories are on), no (the story from what the research found)" },
   { key: "sync.edits", env: "STROM_SYNC_EDITS", tree: true, kind: "choice", choices: ["conflict", "user"], description: "your edits in the Strom app (or another program's file) to a fact a record proves, taken by strom sync: conflict (default — the research keeps the record's, a conflict for you to decide) or user (your edit wins, the record's fact is withdrawn with the reason)" },
+  // Read from the config files only (the user's or the tree's) — no variable: turning it off is the user's decision.
+  { key: "sync.review", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "what the Strom app sends: off (default — written at once: additions, the leads corrected, a record's fact changed a conflict for you to decide; strom sync undo takes a send back) or on (each send waits for your word: the menu's What waits for you) — an archive writes always" },
   { key: "main.person", env: "STROM_MAIN_PERSON", tree: true, kind: "person", description: "the main person of the tree (P…): first in the GEDCOM files — the Strom app opens on them (default: the nearest person descended from every research's focus, else the first research's focus)" },
   { key: "excerpts.quality", env: "STROM_EXCERPTS_QUALITY", tree: true, kind: "choice", choices: EXCERPT_QUALITIES, description: "the entries cut out of their scans in the file for the Strom app (output/tree-strom.ged): small (1000 px, grey — half the size), normal (default, 1200 px), sharp (1600 px)" },
   { key: "excerpts.for", env: "STROM_EXCERPTS_FOR", tree: true, kind: "choice", choices: EXCERPT_SCOPES, description: "whose entries get their image in the Strom app: none (the file without images), line (the ancestors), family (default: the ancestors and their families), connected (anyone linked to them), all" },
@@ -179,6 +183,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "agent.where", env: "STROM_AGENT_WHERE", tree: false, kind: "choice", choices: ["app", "terminal"], description: "where you talk with the agent: app (its desktop app — the easiest), terminal (its CLI) — unset: the app when it is installed" },
   { key: "agent.browser", env: "", tree: true, kind: "choice", choices: ["archives", "always"], description: "browser tools (Claude in Chrome) for the Claude Code sessions strom starts: archives (default) — only in a research whose connectors fetch through the browser, for their sites; always — in every session, for the sites of the research's archives (a conversation asks about others) — only you turn it on" },
   { key: "agent.remote", env: "", tree: false, kind: "choice", choices: ["on", "off"], description: "the Claude Code sessions strom starts (strom run, strom chat in the terminal) with Remote Control: on — follow and steer them from claude.ai or the Claude app on your phone; off (default) — only you turn it on" },
+  { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it) or archive (the data come from the Strom app, no agent; the setup wizard sets it when no agent is here) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
   { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of https://stromapp.info/run/ — its beta (https://beta.stromapp.info/run/), its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
@@ -491,6 +496,11 @@ export class Settings {
   }
 
   /** strom sync: whether the user's edit to a fact a record proves wins, or becomes a conflict. */
+  /** Each send of the Strom app waits for the user's word (sync.review on); off (default): written at once. */
+  syncReview(tree?: TreeConfig): boolean {
+    return this.resolve("sync.review", tree)?.value === "on";
+  }
+
   syncEdits(tree?: TreeConfig): "conflict" | "user" {
     return this.resolve("sync.edits", tree)?.value === "user" ? "user" : "conflict";
   }

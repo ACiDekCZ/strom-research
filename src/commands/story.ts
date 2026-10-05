@@ -89,7 +89,7 @@ register(
         ? `the user approved the story before: it stays as it is, the new version waits for them — tell them, they approve it (strom story approve ${rec.id}) or keep the old one (strom story discard ${rec.id})`
         : undefined;
       const plain = outside.length ? `note: the Strom app shows ${outside.join(", ")} as plain text — keep to paragraphs, "## " subheadings, "- " bullets, **bold**, *italic*` : undefined;
-      return { text: lines(...tree.written.map((o) => o.summary), tree.dryRun ? "(dry run — nothing written)" : undefined, locked, missing, plain), data: { story: rec.story } };
+      return { text: lines(...tree.written.map((o) => o.summary), locked, missing, plain), data: { story: rec.story } };
     },
   },
   {
@@ -136,7 +136,7 @@ register(
       const tree = ctx.tree();
       const id = owner(tree, args[0]!);
       const rec = tree.get<Person | Family>(id);
-      if (!rec) throw new UsageError(`no family ${id}`);
+      if (!rec) throw new UsageError(`no family ${id}`, { code: "record.none", params: { kind: "family", id: id } });
       const st = rec.story;
       if (!st) return { text: `${id} has no story yet → strom story set ${id} --text @file --fact E…`, data: { story: null } };
       const facts = st.facts.map((f) => {
