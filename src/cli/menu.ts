@@ -25,7 +25,7 @@ import { othersAtWork } from "../core/session.ts";
 import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
 import { truncate } from "./format.ts";
 import { installedStromApp, noticeStromApp, stromAppState, stromAppUrl } from "../core/stromapp.ts";
-import { chromiumBrowser } from "../core/chromium.ts";
+import { appBrowsers } from "../core/chromium.ts";
 import { liveWorkers, runsAtWork } from "../core/workers.ts";
 import { askStromApp, settleInstall, shortcutName } from "./wizard.ts";
 import { openForUser } from "../core/open.ts";
@@ -236,9 +236,9 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
                 else out(t("ui.run.which.bad", { n: shown.length }));
               }
             }
-            // With the Strom app, the work can be watched live meanwhile (a Chromium browser reaches the bridge); the last answer is suggested.
+            // With the Strom app, the work can be watched live meanwhile (a browser here reaches the bridge); the last answer is suggested.
             const app = stromAppState(ctx.settings);
-            if ((app === "yes" || app === "seen") && chromiumBrowser(ctx.env)) {
+            if ((app === "yes" || app === "seen") && appBrowsers(ctx.env).length > 0) {
               const follow = await ctx.confirm(t("ui.run.follow"), ctx.settings.config.stromAppFollow !== "no");
               if (ctx.settings.config.stromAppFollow !== (follow ? "yes" : "no")) {
                 ctx.settings.config.stromAppFollow = follow ? "yes" : "no";

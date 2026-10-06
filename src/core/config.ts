@@ -68,8 +68,12 @@ export interface UserConfig {
   stromApp?: string;
   /** strom-research:// links from the Strom app: the person said yes (set up) or no (never asked again; strom link on changes it). */
   links?: "yes" | "no";
+  /** The shortcut on the desktop: the person said no — not asked again unasked (the setup run again asks, suggesting no). */
+  shortcut?: "no";
   /** Another copy of the Strom app to open (its beta, its development) instead of https://stromapp.info/run/. */
   stromAppUrl?: string;
+  /** The browser the Strom app is opened in (the one it came from, or the person's choice): chrome, edge, … */
+  appBrowser?: string;
   /** Look for new versions of strom: check (default, at most once a day) or off. */
   updates?: string;
   /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */
@@ -186,6 +190,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it) or archive (the data come from the Strom app, no agent; the setup wizard sets it when no agent is here) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
+  { key: "app.browser", env: "STROM_APP_BROWSER", tree: false, kind: "choice", choices: ["chrome", "edge", "brave", "opera", "firefox", "chromium"], description: "the browser strom opens the Strom app in — the one its tree came from (strom keeps it), or yours: chrome, edge, brave, opera, firefox, chromium (another Chromium: Vivaldi, Arc) — unset: the default browser when the app reaches strom from it, else the app installed from a browser, else the first such browser here" },
   { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of https://stromapp.info/run/ — its beta (https://beta.stromapp.info/run/), its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
 ];
 
@@ -204,6 +209,7 @@ const FIELDS: Record<string, string> = {
   "agent.browser": "agentBrowser",
   "strom.app": "stromApp",
   "strom.app.url": "stromAppUrl",
+  "app.browser": "appBrowser",
   "main.person": "mainPerson",
   "excerpts.quality": "excerptsQuality",
   "excerpts.for": "excerptsFor",
@@ -465,6 +471,12 @@ export class Settings {
   /** Claude Code sessions strom starts with Remote Control (agent.remote: on). */
   agentRemote(): boolean {
     return this.resolve("agent.remote")?.value === "on";
+  }
+
+  /** The browser the Strom app is opened in, if the person (or the tree's coming from the app) said. */
+  appBrowser(): string | undefined {
+    const r = this.resolve("app.browser");
+    return r ? String(r.value) : undefined;
   }
 
   /** Where the user wants to talk with the agent, if they said (env, else the config); see whereToTalk. */

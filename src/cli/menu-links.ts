@@ -15,10 +15,16 @@ import { isArchive } from "../core/mode.ts";
 import { Tree } from "../core/tree.ts";
 import type { Conflict, Family, Person, Research, Session, Source, Task } from "../core/model.ts";
 import { monthSpend } from "../core/session.ts";
-import { adoptFailedSince, adoptedAt, awaitAdoption, nothingSince, undoSync, type SyncInput } from "../core/sync.ts";
+import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, SYNC_INBOX, undoSync, withoutImages, type SyncInput } from "../core/sync.ts";
+import { moveToTrash } from "../core/trash.ts";
+import { noteMovedByFile } from "../core/transfer.ts";
+import { appBrowsers, browserKind, kindReaches, type BrowserKind } from "../core/chromium.ts";
+import { appWindow } from "../core/appbrowser.ts";
+import { moveTree, type Move } from "./move.ts";
 import { changeLines } from "../core/changelog.ts";
 import { startLive } from "../core/live.ts";
 import { adoptAppUrl, appTreeNameFromInstall } from "../core/stromapp.ts";
+import { stromReadsTags } from "../gedcom/export.ts";
 import { appMarkFromInstall } from "../core/links.ts";
 import { settleFromApp } from "./wizard.ts";
 import { isValidLang } from "../core/lang.ts";
@@ -28,6 +34,7 @@ import { claimText } from "../core/people.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
 import { StromError } from "../core/errors.ts";
+import { forgetTree } from "../commands/trees.ts";
 
 /** What the Strom app asks, said before anything is done; true when the person goes on. */
 export async function asks(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true): Promise<boolean> {
@@ -37,6 +44,9 @@ export async function asks(ctx: Context, lang: string, root: string, what: strin
 }
 
 const out = (ctx: Context, line: string) => ctx.io.stdout(line + "\n");
+
+/** The app that loads the research's version itself right after a hand-over (the research's numbers for its people). */
+const APP_LOADS_ADOPTED = "3.9.0";
 
 /** What stopped it, said; nothing was done. */
 function stop(ctx: Context, line: string): false {
@@ -201,11 +211,45 @@ export async function undoSending(ctx: Context, run: Run, lang: string, root: st
 }
 
 /**
+ * The research made from the tree's file with no browser to connect: taken in as the app's trees are (strom sync
+ * --apply --force, without its images: its sources the research's), then what came of it said — and the first
+ * conversation offered.
+ */
+async function fromFile(ctx: Context, run: Run, root: string, name: string, file: string, from: string): Promise<boolean> {
+  const t = translator(Tree.open(root, ctx.env).lang);
+  // the move is finished later — strom app, once a browser that reaches strom is here (D10)
+  noteMovedByFile(root, { from, file });
+  const dir = path.join(root, SYNC_INBOX);
+  fs.mkdirSync(dir, { recursive: true });
+  const kept = path.join(dir, `${safeFolderName(name)}.json`);
+  fs.writeFileSync(kept, withoutImages(fs.readFileSync(file, "utf8")));
+  if ((await run(["sync", kept, "--apply", "--force"], true)) !== 0) return stop(ctx, t("ui.link.new.failed", { name }));
+  const tree = Tree.open(root, ctx.env);
+  const sources = tree.list<Source>("source").filter((s) => !s.retracted && s.kind !== "family-tree").length;
+  // a tree with no people yet (C1): handed over all the same — the research linked, its people come by the app's sends
+  if (tree.countLive("person") === 0) out(ctx, t("ui.link.new.taken.empty", { name }));
+  else out(ctx, t(isArchive(tree) ? "ui.link.new.taken.archive" : "ui.link.new.taken", { name, persons: tree.countLive("person"), families: tree.countLive("family"), sources }));
+  if (isArchive(tree)) out(ctx, t("ui.link.new.archive"));
+  else await offerChat(ctx, run, tree.lang, root, t("ui.link.new.chat"), t("ui.link.new.say"));
+  return true;
+}
+
+/**
  * A tree of the Strom app becomes a new research (strom-research://new?app=<its mark>): named, its language and
  * agent chosen, made; the app opened to hand the tree over (?adopt=<the bridge>), the tree taken in as leads,
  * the research sent back to the app — then the conversation offered.
  */
-export async function newFromApp(ctx: Context, runIn: RunIn, token: string, openAt: (url: string) => boolean, forward: () => void): Promise<boolean> {
+export async function newFromApp(ctx: Context, runIn: RunIn, token: string, openAt: (url: string) => boolean, forward: () => void, opts: { browser?: BrowserKind; file?: string } = {}): Promise<boolean> {
+  // The browser the app runs in (its link's browser=, the line's STROM_FROM_BROWSER — the app's 3.9.1): the app keeps
+  // the tree there. One the app cannot reach strom from (Safari), or the tree saved as a file for that (STROM_FROM_FILE):
+  // the tree moves to a browser that can — asked first, before anything is set up (no: nothing is)
+  const from = opts.browser ?? browserKind(ctx.env.STROM_FROM_BROWSER);
+  const given = opts.file ?? (ctx.env.STROM_FROM_FILE?.trim() || undefined);
+  let move: Move | undefined;
+  if (given || (from && !kindReaches(from))) {
+    move = await moveTree(ctx, token, from, given);
+    if (!move) return false;
+  }
   // strom not set up yet (the app is how this person came): the setup first — the agent and where to talk with it
   // chosen there, not asked again
   const setUp = !ctx.settings.home()?.value;
@@ -214,6 +258,13 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
     ctx.settings.reload();
     if (!ctx.settings.home()?.value) return false;
   } else if (appMarkFromInstall(ctx.env)) await settleFromApp(ctx, ctx.uiLang(), { shortcut: true });
+  // the copy of the app the tree comes from, carried by its file when the line had no room for it (Win + R: 259
+  // characters) — kept as the line's STROM_APP_URL is
+  if (move?.mark.app && !ctx.env.STROM_APP_URL?.trim()) {
+    ctx.settings.reload();
+    ctx.settings.config.stromAppUrl = move.mark.app;
+    ctx.settings.save();
+  }
   let lang = ctx.uiLang();
   let t = translator(lang);
   out(ctx, t("ui.link.new.title"));
@@ -221,64 +272,134 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
   // the name; an empty research of that name (a handover that did not come) is taken again
   let name = "";
   let root: string | undefined;
-  // suggested: the app's tree's name (its line carries it), else the usual one — Enter never ends the handover
-  const suggested = appTreeNameFromInstall(ctx.env) ?? t("ui.tree.default");
-  for (;;) {
-    name = ((await ctx.ask(t("ui.link.new.name"), suggested)) || suggested).trim().replace(/\s+/gu, " ");
-    if (!name || name === "0") return false;
-    const same = ctx.knownTrees().find((k) => foldText(k.name) === foldText(name) || path.basename(k.root) === safeFolderName(name));
-    if (!same) break;
-    if (Tree.open(same.root, ctx.env).count("person") === 0) {
-      root = same.root;
-      break;
+  // a research made for a tree of the app that never came (installed from an older app, the tree stayed in Safari):
+  // the tree goes into it, nothing set up again (suggested) — or a new research (D4)
+  const waiting = ctx
+    .knownTrees()
+    .map((k) => ({ ...k, never: adoptionNeverCame(k.root) }))
+    .filter((k): k is typeof k & { never: { at: string } } => Boolean(k.never))
+    .sort((a, b) => Date.parse(b.never.at) - Date.parse(a.never.at))[0];
+  if (waiting) {
+    const tw = Tree.open(waiting.root, ctx.env);
+    const i = await ctx.choose(t("ui.link.new.into.ask", { name: tw.config.name, when: humanWhen(waiting.never.at, lang) }), [{ label: t("ui.link.new.into", { name: tw.config.name }) }, { label: t("ui.link.new.into.new") }], 0, { back: t("ui.move.cancel") });
+    if (i === undefined) {
+      if (move) out(ctx, t("ui.move.file.kept", { file: ctx.display(move.file) }));
+      return false;
     }
-    out(ctx, t("ui.link.new.exists", { name }));
-    if (outOfAnswers(ctx)) return false;
-  }
-  for (;;) {
-    const a = (await ctx.ask(t("ui.setup.lang"), lang)).trim().toLowerCase();
-    if (a === "0") return false;
-    if (isValidLang(a)) {
-      lang = a;
+    if (i === 0) {
+      root = waiting.root;
+      name = tw.config.name;
+      lang = tw.lang;
       t = translator(lang);
-      break;
     }
-    if (outOfAnswers(ctx)) return false;
   }
+  const joined = Boolean(root);
+  // suggested: the app's tree's name (its line carries it), else the usual one — Enter never ends the handover
+  const suggested = (move?.mark.tree || undefined) ?? appTreeNameFromInstall(ctx.env) ?? t("ui.tree.default");
   const ways = waysHere(agentsHere(ctx.env));
   const mine = ctx.settings.agent().value;
   let agent = mine;
   let where: Where | undefined;
-  // an archive (the setup's choice: no agent) needs none; each agent's app and terminal a line of their own
-  if (!setUp && ways.length > 1 && ctx.settings.config.mode !== "archive") {
-    const i = await chooseWay(ctx, lang, ways, suggestedWay(ways, mine, ctx.settings.agentWhere()), { back: t("ui.browse.back") });
-    if (i === undefined) return false;
-    agent = ways[i]!.agent;
-    where = ways[i]!.where;
+  let archive = false;
+  // asked step by step, 0 one step back (the name's 0: nothing set up, found on a Mac: 0 at the agent ended it all); a
+  // research joined asks none. With an agent here the research with it is suggested and an archive is the other choice,
+  // as in the setup (an archive the setup chose, or the setup just run: as it is); each agent's app and terminal a line
+  // of their own
+  for (let step = joined ? 3 : 0; step < 3; ) {
+    if (step === 0) {
+      name = ((await ctx.ask(t("ui.link.new.name"), suggested)) || suggested).trim().replace(/\s+/gu, " ");
+      if (!name || name === "0") {
+        if (move) out(ctx, t("ui.move.file.kept", { file: ctx.display(move.file) }));
+        return false;
+      }
+      const same = ctx.knownTrees().find((k) => foldText(k.name) === foldText(name) || path.basename(k.root) === safeFolderName(name));
+      root = same?.root;
+      if (same && Tree.open(same.root, ctx.env).count("person") > 0) {
+        root = undefined;
+        out(ctx, t("ui.link.new.exists", { name }));
+        if (outOfAnswers(ctx)) return false;
+        continue;
+      }
+      step = 1;
+    } else if (step === 1) {
+      const a = (await ctx.ask(t("ui.setup.lang"), lang)).trim().toLowerCase();
+      if (a === "0") step = 0;
+      else if (isValidLang(a)) {
+        lang = a;
+        t = translator(lang);
+        step = 2;
+      } else if (outOfAnswers(ctx)) return false;
+    } else {
+      step = 3;
+      // no agent here: an archive, nothing asked (N9: the setup run before an agent left, its research mode kept)
+      if (!root && ways.length === 0) archive = true;
+      if (root || setUp || ways.length === 0 || ctx.settings.config.mode === "archive") continue;
+      const pick = suggestedWay(ways, mine, ctx.settings.agentWhere());
+      const k = await ctx.choose(t("ui.setup.fromapp"), [{ label: t("ui.setup.fromapp.archive") }, { label: t("ui.setup.fromapp.agent", { agent: PROFILES[ways[pick]!.agent]!.name }) }], 1, { back: t("ui.browse.back") });
+      archive = k === 0;
+      if (k === undefined) step = 1;
+      else if (k === 1 && ways.length > 1) {
+        const i = await chooseWay(ctx, lang, ways, pick, { back: t("ui.browse.back") });
+        if (i === undefined) step = 2;
+        else {
+          agent = ways[i]!.agent;
+          where = ways[i]!.where;
+        }
+      }
+    }
   }
+  // made here: an empty research of it is not left behind when the app hands nothing over (N4)
+  const made = !root;
   if (!root) {
     let said = "";
-    const code = await (await runIn(undefined))(["init", name, "--lang", lang, "--json"], true, (s) => (said += s));
+    const code = await (await runIn(undefined))(["init", name, "--lang", lang, ...(archive ? ["--mode", "archive"] : []), "--json"], true, (s) => (said += s));
     if (code !== 0) return false;
     root = (JSON.parse(said) as { root: string }).root;
   }
   const run = await runIn(root);
-  if (agent !== mine) await run(["agents", "use", agent, "--for-tree"], true);
+  if (!archive && agent !== mine) await run(["agents", "use", agent, "--for-tree"], true);
   // where the person talks with the agents (the setting of this computer, as the setup keeps it)
   if (where && where !== ctx.settings.agentWhere()) await run(["config", "set", "agent.where", where], true);
 
-  // the app hands its tree over to the bridge of this research
-  awaitAdoption(root, token);
+  // no browser: the research made from the file — the app and the research go on through files
+  if (move && "without" in move) return fromFile(ctx, run, root, name, move.file, move.from);
+  // the browser the app opens in from now on: the one it moves to, else the one the tree came from (while it is here)
+  const keep = move && "browser" in move ? move.browser.kind : from && kindReaches(from) && appBrowsers(ctx.env).some((b) => b.kind === from) ? from : undefined;
+  if (keep && keep !== ctx.settings.appBrowser()) {
+    await run(["config", "set", "app.browser", keep], true);
+    ctx.settings.reload();
+  }
+
+  // the app hands its tree over to the bridge of this research (a tree moving: the app there takes its file first)
+  awaitAdoption(root, token, move?.file, !made);
   const info = startLive(root, ctx.env, { current: true });
   if (!info) throw new StromError("the bridge did not start", { hint: "strom live serve shows why" });
   const url = adoptAppUrl(info.url, ctx.settings);
   const since = Date.now();
   const waitMs = Number(ctx.env.STROM_ADOPT_WAIT_MS ?? 30 * 60_000);
   const minutes = Math.max(1, Math.round(waitMs / 60_000));
+  // a browser installed just now asks its own questions at its first start (signing in, the default browser): the
+  // address to open in it once they are answered (D8)
+  if (move && "browser" in move && move.installed) out(ctx, t("ui.move.fresh", { browser: move.browser.name }));
   out(ctx, openAt(url) ? `${t("ui.link.new.wait", { min: minutes })}\n${t("ui.sync.wait.open", { url })}` : t("ui.app.url", { url }));
+  // the file of the move: in the trash once the tree is handed over, else kept where it is (said, D9)
+  const keptFile = () => {
+    if (move) out(ctx, t("ui.move.file.kept", { file: ctx.display(move.file) }));
+  };
+  // the app has not asked the research a thing for a while: a browser may keep it from strom (its permission for the
+  // local network, D7) — said once, and again at the end
+  const blockedAfter = Number(ctx.env.STROM_ADOPT_HINT_MS ?? 2 * 60_000);
+  let toldBlocked = false;
+  // named as the browser the app opened in names it (Edge 154: Apps on device, not Local network — F5)
+  const opensIn = appWindow(ctx.settings, ctx.env).browser;
+  const blocked =
+    opensIn?.kind === "brave" ? t("ui.link.new.blocked.brave")
+    : opensIn?.kind === "firefox" ? t("ui.link.new.blocked.firefox")
+    : opensIn && kindReaches(opensIn.kind) ? t("ui.link.new.blocked.chromium", { browser: opensIn.name })
+    : t("ui.link.new.blocked");
   // the bridge takes the tree in itself (as the app's trees are, its sources the research's): whether or not this
   // terminal still waits, it is in once the app has handed it over — here only what came of it
-  let done: { input?: string } | undefined;
+  let done: { input?: string; app?: string } | undefined;
   // a copy of the app that does not know the tree (no-tree: stromapp.info opened, the tree is in its beta) ends
   // nothing — the right one may still hand it over; said once
   let elsewhere = false;
@@ -288,6 +409,7 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
     const failed = adoptFailedSince(root, since);
     if (failed) {
       forward();
+      keptFile();
       return stop(ctx, [t(failed.why === "empty" ? "ui.link.new.empty" : "ui.link.new.failed", { name }), failed.reason].filter(Boolean).join("\n"));
     }
     const nothing = nothingSince(root, since);
@@ -296,20 +418,46 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
       elsewhere = true;
     } else if (nothing) {
       forward();
-      out(ctx, t("ui.link.new.none", { name }));
+      // the app said no (Nepředávat): nothing set up halfway — the research made for it, still empty, into the trash
+      if (made && Tree.open(root, ctx.env).count("person") === 0) {
+        forgetTree(ctx, root, "the Strom app handed no tree over");
+        out(ctx, t("ui.link.new.none.trashed", { name }));
+      } else out(ctx, t("ui.link.new.none", { name }));
+      keptFile();
       return false;
+    }
+    if (!toldBlocked && Date.now() - since > blockedAfter && !adoptAskedSince(root, since)) {
+      toldBlocked = true;
+      out(ctx, blocked);
     }
     await new Promise((r) => setTimeout(r, 500));
   }
   forward();
-  if (!done) return stop(ctx, t("ui.link.new.waited", { name, min: minutes }));
+  if (!done) {
+    keptFile();
+    return stop(ctx, lines(t("ui.link.new.waited", { name, min: minutes }), adoptAskedSince(root, since) ? undefined : blocked));
+  }
+  // handed over: the file of the move is the browser's now — into the trash (never deleted for good)
+  if (move && "browser" in move && fs.existsSync(move.file)) {
+    try {
+      moveToTrash(move.file, ctx.env);
+      out(ctx, t("ui.move.file.trashed", { file: ctx.display(move.file) }));
+    } catch {
+      keptFile();
+    }
+  }
 
   const tree = Tree.open(root, ctx.env);
   const sources = tree.list<Source>("source").filter((s) => !s.retracted && s.kind !== "family-tree").length;
-  out(ctx, t(isArchive(tree) ? "ui.link.new.taken.archive" : "ui.link.new.taken", { name, persons: tree.countLive("person"), families: tree.countLive("family"), sources }));
-  // the research as it is now back into the app's window: the same tree, now of the research (not opened: its address said)
+  // a tree with no people yet (C1): handed over all the same — the research linked, its people come by the app's sends
+  if (tree.countLive("person") === 0) out(ctx, t("ui.link.new.taken.empty", { name }));
+  else out(ctx, t(isArchive(tree) ? "ui.link.new.taken.archive" : "ui.link.new.taken", { name, persons: tree.countLive("person"), families: tree.countLive("family"), sources }));
+  // the research as it is now back into the app's window: the same tree, now of the research (not opened: its address
+  // said) — an app from 3.9.0 loads it itself right after the hand-over, so nothing is opened a second time (N12: a
+  // second tab asking to load the research's version)
   let said = "";
-  if ((await run(["app", "--json"], true, (s) => (said += s))) === 0) {
+  if (done?.app && stromReadsTags(done.app, APP_LOADS_ADOPTED)) out(ctx, t("ui.link.new.back"));
+  else if ((await run(["app", "--json"], true, (s) => (said += s))) === 0) {
     const shown = JSON.parse(said) as { opened?: boolean; url?: string; via?: string; file?: string };
     // no browser to hand it over: the file to drag into the app
     if (shown.via === "drag" && shown.file) out(ctx, t("ui.app.drag", { file: ctx.display(shown.file), shown: shown.opened ? t("ui.app.drag.shown") : "" }));

@@ -22,8 +22,8 @@ import { isArchive } from "../core/mode.ts";
 import { applySync, discardReceived, nothingSince, withoutImages, planSync, readTreeFile, receivedAll, receivedPending, receivedSince, receivedOf, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput } from "../core/sync.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { startLive } from "../core/live.ts";
-import { appSendsChanges, installedStromApp, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
-import { chromiumBrowser, openInBrowser, openWebApp } from "../core/chromium.ts";
+import { appSendsChanges, sendAppUrl } from "../core/stromapp.ts";
+import { appWindow, openAppIn, replaceGone } from "../core/appbrowser.ts";
 import { isAgent } from "../core/which.ts";
 
 /**
@@ -176,12 +176,13 @@ function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang
   );
 }
 
-/** The Strom app at this address: installed from a Chromium browser first, else in such a browser's tab (never Safari: it cannot reach the bridge). */
+/** The Strom app at this address, where it opens (core/appbrowser.ts: the browser its tree came from first; never Safari: it cannot reach the bridge). */
 export function openAppAt(ctx: Context, url: string): boolean {
-  const installed = installedStromApp(ctx.env, process.platform, stromAppUrl(ctx.settings));
-  const webApp = installed?.appId && installed.browser ? { browser: installed.browser, appId: installed.appId, ...(installed.profile ? { profile: installed.profile } : {}) } : undefined;
-  const browser = chromiumBrowser(ctx.env);
-  return Boolean((webApp && openWebApp(webApp, url, ctx.env)) || (browser && openInBrowser(browser, url, ctx.env)));
+  const win = appWindow(ctx.settings, ctx.env);
+  // the browser kept for the app is no longer here: said, the one it opens in now kept instead
+  const replaced = replaceGone(ctx.settings, win);
+  if (replaced) ctx.io.stdout(ui(ctx.uiLang(), replaced.now ? "ui.app.browser.gone" : "ui.app.browser.gone.none", { gone: replaced.gone, now: replaced.now ?? "" }) + "\n");
+  return openAppIn(win, url, ctx.env).opened;
 }
 
 /**

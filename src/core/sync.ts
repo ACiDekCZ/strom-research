@@ -1557,10 +1557,30 @@ const ADOPT_FILE = path.join(".strom", "adopt.json");
 /** How long the app's mark is good (the app keeps it an hour too). */
 export const ADOPT_FOR_MS = 60 * 60_000;
 
-/** This research waits for the app's tree with this mark (the link's app=…). */
-export function awaitAdoption(root: string, token: string): void {
+/**
+ * This research waits for the app's tree with this mark (the link's app=…). `transfer`: the file the app's tree came
+ * in from a browser the app cannot reach strom from (Safari: strom-prenos-….json) — the bridge gives it to the app in
+ * the browser it moves to (GET /transfer) while the research waits.
+ */
+export function awaitAdoption(root: string, token: string, transfer?: string, existing = false): void {
   fs.mkdirSync(path.join(root, ".strom"), { recursive: true });
-  fs.writeFileSync(path.join(root, ADOPT_FILE), JSON.stringify({ token, at: new Date().toISOString() }));
+  fs.writeFileSync(path.join(root, ADOPT_FILE), JSON.stringify({ token, at: new Date().toISOString(), ...(transfer ? { transfer } : {}), ...(existing ? { existing } : {}) }));
+}
+
+/**
+ * What this research waits for: the mark, until when, the file of a transfer (while it is there), and whether the tree
+ * goes into a research made before (`existing`: one whose tree never came, D4) — none when it waits for none.
+ */
+export function adoptionWait(root: string): { token: string; until: string; transfer?: string; existing?: true } | undefined {
+  try {
+    const a = JSON.parse(fs.readFileSync(path.join(root, ADOPT_FILE), "utf8")) as { token?: string; at?: string; done?: string; transfer?: string; existing?: boolean };
+    const at = Date.parse(a.at ?? "");
+    if (!a.token || a.done || !(Date.now() - at < ADOPT_FOR_MS)) return undefined;
+    const transfer = a.transfer && fs.existsSync(a.transfer) ? a.transfer : undefined;
+    return { token: a.token, until: new Date(at + ADOPT_FOR_MS).toISOString(), ...(transfer ? { transfer } : {}), ...(a.existing ? { existing: true as const } : {}) };
+  } catch {
+    return undefined;
+  }
 }
 
 /** The mark of the tree this research waits for — none when it waits for none, got it already, or waited too long. */
@@ -1581,7 +1601,8 @@ export function pendingAdoption(root: string): string | undefined {
 export function receiveAdopted(root: string, text: string, from?: string): string {
   if (!pendingAdoption(root)) throw new UsageError("this research waits for no tree", { code: "adopt.none" });
   if (!/^\uFEFF?\s*0\s+HEAD/.test(text)) throw new UsageError("not a GEDCOM file", { code: "tree.unreadable" });
-  if (!/^1 INDI\b|^0 @[^@]+@ INDI\b/m.test(text)) throw new UsageError("empty: no people in it", { code: "tree.empty" });
+  // a tree with no people yet (installed from the app's start screen, C1) is handed over too: the research stays empty,
+  // linked to the app, and its first people come by a send (adoptedEmpty)
   const dir = path.join(root, SYNC_INBOX);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, `adopt-${new Date().toISOString().replace(/[:.]/g, "-")}.ged`), text);
@@ -1599,17 +1620,56 @@ export function receiveAdopted(root: string, text: string, from?: string): strin
   return kept;
 }
 
-/** The app's tree taken in (its input): the research waits for no tree any more. */
-export function markAdopted(root: string, input: string | undefined): void {
-  const a = JSON.parse(fs.readFileSync(path.join(root, ADOPT_FILE), "utf8")) as Record<string, string>;
-  fs.writeFileSync(path.join(root, ADOPT_FILE), JSON.stringify({ ...a, done: new Date().toISOString(), ...(input ? { input } : {}) }));
+/**
+ * A research made for a tree of the app that never came (its handover did not happen — the tree stayed in a browser
+ * the app could not reach strom from): since when. Waiting still, or waited out; never one that got its tree.
+ */
+export function adoptionNeverCame(root: string): { at: string } | undefined {
+  try {
+    const a = JSON.parse(fs.readFileSync(path.join(root, ADOPT_FILE), "utf8")) as { token?: string; at?: string; done?: string };
+    return a.token && !a.done && a.at ? { at: a.at } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
-/** The app's tree taken in since `since` (ms): its input (empty when it brought nothing to write). */
-export function adoptedAt(root: string, since: number): { input?: string } | undefined {
+/** The app asked what this research waits for (GET /adopt): noted once — a terminal still waiting knows the app got here. */
+export function noteAdoptAsked(root: string): void {
   try {
-    const a = JSON.parse(fs.readFileSync(path.join(root, ADOPT_FILE), "utf8")) as { done?: string; input?: string };
-    return a.done && Date.parse(a.done) >= since ? { ...(a.input ? { input: a.input } : {}) } : undefined;
+    const a = JSON.parse(fs.readFileSync(path.join(root, ADOPT_FILE), "utf8")) as Record<string, string>;
+    if (a.asked && Date.parse(a.asked) >= Date.parse(a.at ?? "")) return;
+    fs.writeFileSync(path.join(root, ADOPT_FILE), JSON.stringify({ ...a, asked: new Date().toISOString() }));
+  } catch {
+    // nothing waits
+  }
+}
+
+/** Whether the app has asked this research since `since` (ms) what it waits for. */
+export function adoptAskedSince(root: string, since: number): boolean {
+  try {
+    const a = JSON.parse(fs.readFileSync(path.join(root, ADOPT_FILE), "utf8")) as { asked?: string };
+    return Boolean(a.asked && Date.parse(a.asked) >= since);
+  } catch {
+    return false;
+  }
+}
+
+/** A GEDCOM of the app's with no people in it (a tree just made, C1): handed over, nothing to take in. */
+export function adoptedEmpty(text: string): boolean {
+  return !/^1 INDI\b|^0 @[^@]+@ INDI\b/m.test(text);
+}
+
+/** The app's tree taken in (its input; `app`: the version of the app that handed it over): the research waits for no tree any more. */
+export function markAdopted(root: string, input: string | undefined, app?: string): void {
+  const a = JSON.parse(fs.readFileSync(path.join(root, ADOPT_FILE), "utf8")) as Record<string, string>;
+  fs.writeFileSync(path.join(root, ADOPT_FILE), JSON.stringify({ ...a, done: new Date().toISOString(), ...(input ? { input } : {}), ...(app ? { app } : {}) }));
+}
+
+/** The app's tree taken in since `since` (ms): its input (empty when it brought nothing to write), the app's version. */
+export function adoptedAt(root: string, since: number): { input?: string; app?: string } | undefined {
+  try {
+    const a = JSON.parse(fs.readFileSync(path.join(root, ADOPT_FILE), "utf8")) as { done?: string; input?: string; app?: string };
+    return a.done && Date.parse(a.done) >= since ? { ...(a.input ? { input: a.input } : {}), ...(a.app ? { app: a.app } : {}) } : undefined;
   } catch {
     return undefined;
   }

@@ -25,6 +25,7 @@ import type { Env } from "./paths.ts";
 import { isolated, userHome } from "./paths.ts";
 import { stromLauncher } from "./self.ts";
 import { ICON } from "./shortcut.ts";
+import { browserKind, type BrowserKind } from "./chromium.ts";
 
 export const LINK_SCHEME = "strom-research";
 /**
@@ -63,6 +64,8 @@ const INPUT = /^I\d{1,9}$/;
 const RECEIVED = /^R\d{17}-[0-9a-f]{4}$/;
 const RESEARCH = /^G\d{1,9}$/;
 const SESSION = /^N\d{1,9}$/;
+/** The name the app gives the tree's file of a move (its strom-prenos-<8 of its mark>.json). */
+const TRANSFER_NAME = /^strom-prenos-[A-Za-z0-9_-]{8}\.json$/;
 /** The app's own mark of a tree it hands over (32 random bytes, base64url). */
 export const APP_TOKEN = /^[A-Za-z0-9_-]{22,43}$/;
 /**
@@ -72,6 +75,41 @@ export const APP_TOKEN = /^[A-Za-z0-9_-]{22,43}$/;
 export function appMarkFromInstall(env: { STROM_FROM_APP?: string | undefined }): string | undefined {
   const m = env.STROM_FROM_APP?.trim();
   return m && APP_TOKEN.test(m) ? m : undefined;
+}
+
+/** What the one variable of the app's line gives, in the five of an older line. */
+const FROM_VARS = ["STROM_FROM_APP", "STROM_FROM_BROWSER", "STROM_FROM_FILE", "STROM_APP_URL", "STROM_FROM_APP_NAME"] as const;
+
+/**
+ * The app's install line in one variable (the app's 3.9.1-beta.4, research 1.12.1: Win + R takes 259 characters, five
+ * variables left no room for the tree's name): STROM_FROM = "1|<mark>|<browser>|<the file's 8 characters>|<app: empty —
+ * stromapp.info, beta, or the copy's address>|<name: all after the fifth |>", every separator kept. A later shape adds
+ * its fields before the name: read by the same places, its name the last field. Read too without the shape ("<mark>|
+ * <browser>|<1: the file named after the mark>|<app>|<name: all after the fourth |>"; a mark is never digits alone).
+ * Set, it alone counts — the five variables of an older line are put as it says (empty: none) and read as before;
+ * unset, the five are read as they are.
+ */
+export function expandFromLine(env: Env): void {
+  const line = env.STROM_FROM?.trim();
+  if (!line) return;
+  let parts = line.split("|");
+  // a shape before the mark: 1 (its name all after the fifth |); a later one: the same places, its name the last field
+  let name: string;
+  if (/^\d{1,3}$/.test(parts[0]!.trim())) {
+    const shape = parts[0]!.trim();
+    parts = parts.slice(1);
+    name = shape === "1" ? parts.slice(4).join("|") : parts.length > 4 ? parts[parts.length - 1]! : "";
+  } else name = parts.slice(4).join("|");
+  const [mark = "", browser = "", file = "", app = ""] = parts.map((p) => p.trim());
+  for (const k of FROM_VARS) delete env[k];
+  if (!APP_TOKEN.test(mark)) return;
+  env.STROM_FROM_APP = mark;
+  if (browser) env.STROM_FROM_BROWSER = browser;
+  // the file the app names after the mark (transferFileName: strom-prenos-<its first 8>.json), or its 8 characters
+  if (file === "1") env.STROM_FROM_FILE = `strom-prenos-${mark.slice(0, 8)}.json`;
+  else if (/^[A-Za-z0-9_-]{8}$/.test(file)) env.STROM_FROM_FILE = `strom-prenos-${file}.json`;
+  if (app) env.STROM_APP_URL = app === "beta" ? "https://beta.stromapp.info/run/" : app;
+  if (name.trim()) env.STROM_FROM_APP_NAME = name.trim();
 }
 
 /** An excerpt's mark (_STROM_CLIP): letters, digits and "-", at most 32. */
@@ -97,7 +135,7 @@ export type Link =
   | { action: "sync"; tree: string; do: (typeof LINK_SYNC_DOS)[number]; intake?: string }
   | { action: "direction"; tree: string; id: string; do: (typeof LINK_DIRECTION_DOS)[number] }
   | { action: "finish"; tree: string; session: string }
-  | { action: "new"; app: string }
+  | { action: "new"; app: string; browser?: BrowserKind; file?: string }
   | { action: "menu" };
 
 /** Why a link was not taken: said to the user, never acted on. */
@@ -137,7 +175,11 @@ export function parseLink(text: string | undefined): Link {
   if (action === "new") {
     const app = q.get("app") ?? "";
     if (!APP_TOKEN.test(app)) throw new LinkError("no tree of the app named");
-    return { action, app };
+    // the browser the app runs in (its 3.9.1): one of fixed words, any other "other"
+    const browser = browserKind(q.get("browser") ?? undefined);
+    // the tree's file of a move (Safari: strom-prenos-<8 of its mark>.json) — only a name of that one shape, never a path
+    const file = q.get("file") ?? "";
+    return { action, app, ...(browser ? { browser } : {}), ...(TRANSFER_NAME.test(file) ? { file } : {}) };
   }
   const tree = q.get("tree") ?? "";
   if (!UUID.test(tree)) throw new LinkError("no research named");

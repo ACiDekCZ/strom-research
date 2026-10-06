@@ -342,7 +342,7 @@ register(
         if (ctx.io.tty) {
           const { newFromApp } = await import("../cli/menu-links.ts");
           const { openAppAt } = await import("./sync.ts");
-          const done = await newFromApp(ctx, runnerOf(ctx), link.app, (url) => openAppAt(ctx, url), () => bringForward(ctx.env));
+          const done = await newFromApp(ctx, runnerOf(ctx), link.app, (url) => openAppAt(ctx, url), () => bringForward(ctx.env), { ...(link.browser ? { browser: link.browser } : {}), ...(link.file ? { file: link.file } : {}) });
           if (!done) await pause(ctx, ctx.uiLang(), "ui.enter.close");
           return { text: "", data: { done, action: "new" } };
         }

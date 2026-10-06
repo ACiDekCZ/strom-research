@@ -25,7 +25,11 @@ export function isStromAppOrigin(origin: string): boolean {
  */
 export function appUrlFromInstall(env: { STROM_FROM_APP?: string | undefined; STROM_APP_URL?: string | undefined }): string | undefined {
   const raw = env.STROM_FROM_APP?.trim() ? env.STROM_APP_URL?.trim() : undefined;
-  if (!raw) return undefined;
+  return raw ? appCopyUrl(raw) : undefined;
+}
+
+/** An address of another copy of the Strom app (its beta, its development) as the app says it; undefined: stromapp.info itself, or no copy of it. */
+export function appCopyUrl(raw: string): string | undefined {
   try {
     const u = new URL(raw);
     if (!/^https?:$/.test(u.protocol) || !isStromAppOrigin(u.origin) || u.username || u.password) return undefined;

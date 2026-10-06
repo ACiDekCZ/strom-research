@@ -257,3 +257,13 @@ test("a newer version: by its numbers, the release newer than its candidates, rc
   assert.equal(isNewer("1.12.0", "1.12.0"), false);
   assert.equal(isNewer("v1.2.10", "1.2.9"), true);
 });
+
+test("the Windows installer needs no -ExecutionPolicy Bypass: nothing of Windows PowerShell 5.1's script modules, which the policy Restricted keeps from loading (Get-FileHash, the archive's, …) — SHA-256 by .NET", () => {
+  const ps1 = fs.readFileSync(path.join(import.meta.dirname, "..", "..", "install", "install.ps1"), "utf8");
+  const code = ps1.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+  for (const cmd of ["Get-FileHash", "Expand-Archive", "Compress-Archive", "New-TemporaryFile", "Format-Hex", "Import-PowerShellDataFile", "ConvertFrom-SddlString", "Import-Module", "Set-ExecutionPolicy"])
+    assert.doesNotMatch(code, new RegExp(`\\b${cmd}\\b`, "i"), `${cmd} in install.ps1`);
+  assert.match(code, /\[Security\.Cryptography\.SHA256\]::Create\(\)/);
+  // no script of its own run as a file (that one would need the policy): the installer is the one expression `irm | iex` runs
+  assert.doesNotMatch(code, /\s-File\b|\.ps1['"]?\s*$|&\s*['"][^'"]+\.ps1/m);
+});

@@ -8,12 +8,17 @@
 # the user's PATH and starts strom — its setup wizard takes over.
 # No admin rights; nothing downloaded is a program of ours: strom's code is
 # plain JavaScript anyone can read.
-# STROM_FROM_APP: the mark of a family tree of the Strom app (the line the app
-# shows sets it) — strom set up, that tree becomes a research of its own:
-#   powershell -ExecutionPolicy Bypass -c "$env:STROM_FROM_APP='<mark>'; irm <this file's address> | iex"
-# Another copy of the app (its beta) adds its address: $env:STROM_APP_URL='https://beta.stromapp.info/run/';
-# strom keeps it (strom.app.url) and opens that copy from then on.
-# STROM_FROM_APP_NAME: that tree's name in the app — the research's suggested name.
+# STROM_FROM: a family tree of the Strom app (the line the app shows sets it; one variable, as Win+R takes 259
+# characters) — strom set up, that tree becomes a research of its own:
+#   powershell -ExecutionPolicy Bypass -c "si env:STROM_FROM '1|<mark>|<browser>|<file>|<app>|<name>'; irm <this file's address> | iex"
+# (si = Set-Item, with no $: the same line works from Win+R, cmd and pasted into an open PowerShell, which would
+# expand a "$env:…" of its own to nothing before the inner one ever sees it). Every field but the mark may be empty:
+# the browser the app runs in (chrome, edge, firefox, safari, mobile…) — strom opens the app there; the 8 characters
+# of the file the app saved the tree in (strom-prenos-<…>.json: a browser the app cannot reach strom from) — it moves
+# to one that can, on the person's word; another copy of the app (beta, or its address) — strom keeps it
+# (strom.app.url); the tree's name in the app — the research's suggested name (a ' doubled: '').
+# The line of an older app, read the same when STROM_FROM is not set: STROM_FROM_APP, STROM_FROM_BROWSER,
+# STROM_FROM_FILE, STROM_APP_URL, STROM_FROM_APP_NAME.
 # STROM_DOWNLOAD_BASE, STROM_NODE_BASE: other places to download from;
 # STROM_INSTALL_DIR: another folder.
 # STROM_ISOLATED=1: a second strom beside the person's own, to try a version — with STROM_INSTALL_DIR and
@@ -29,7 +34,38 @@ $dest = if ($env:STROM_INSTALL_DIR) { $env:STROM_INSTALL_DIR } else { Join-Path 
 
 # the language strom is told (STROM_LANG, as strom itself reads it), else the system's
 $lang = if ($env:STROM_LANG) { ($env:STROM_LANG -split '[-_.]')[0].ToLower() } else { (Get-Culture).TwoLetterISOLanguageName }
-function T($en, $czech, $german) { if ($lang -eq 'cs') { $czech } elseif ($lang -eq 'de') { $german } else { $en } }
+# Windows PowerShell 5.1 may read this script in another code page — `irm` of a file served with no charset as
+# ISO-8859-1, a file with no BOM in the system's ANSI code page — so "výzkum" would come out as "vÃ½zkum". The probe
+# (two letters: "…" tells ISO-8859-1 from Windows-1252) says how it was read; T puts each text back: only what reads
+# as UTF-8 bytes in that code page (a path the system gave, correct as it is, stays).
+$probe = 'ý…'
+$misread = $null
+if ($probe.Length -ne 2) {
+  foreach ($cp in @(28591, 1252, [Text.Encoding]::Default.CodePage)) {
+    try { $e = [Text.Encoding]::GetEncoding($cp) } catch { continue }
+    if ([Text.Encoding]::UTF8.GetString($e.GetBytes($probe)) -eq ([string][char]0xFD + [char]0x2026)) { $misread = $e; break }
+  }
+}
+$utf8Strict = New-Object Text.UTF8Encoding($false, $true)
+function Undo-Misread($s) {
+  if (-not $misread -or -not $s) { return $s }
+  $out = New-Object Text.StringBuilder
+  $run = New-Object Collections.Generic.List[byte]
+  $raw = ''
+  foreach ($c in (([string]$s).ToCharArray() + [char]0)) {
+    # (assigned straight: an if around it would unroll the byte[] into a scalar)
+    $b = $null
+    if ($c -ne [char]0) { $b = $misread.GetBytes([string]$c) }
+    if ($null -ne $b -and $b.Length -eq 1 -and $b[0] -ge 0x80 -and $misread.GetString($b) -eq [string]$c) { $run.Add($b[0]); $raw += $c; continue }
+    if ($run.Count) {
+      try { [void]$out.Append($utf8Strict.GetString($run.ToArray())) } catch { [void]$out.Append($raw) }
+      $run.Clear(); $raw = ''
+    }
+    if ($c -ne [char]0) { [void]$out.Append($c) }
+  }
+  $out.ToString()
+}
+function T($en, $czech, $german) { Undo-Misread $(if ($lang -eq 'cs') { $czech } elseif ($lang -eq 'de') { $german } else { $en }) }
 
 $isolated = $env:STROM_ISOLATED -eq '1'
 if ($isolated -and (-not $env:STROM_INSTALL_DIR -or -not $env:STROM_CONFIG_DIR)) {
@@ -47,7 +83,11 @@ function Get-File($url, $out) {
 function Test-Sum($file, $sums, $name) {
   $line = Get-Content $sums | Where-Object { $_ -like "*  $name" } | Select-Object -First 1
   $want = if ($line) { $line.Split(' ')[0].ToLower() } else { '' }
-  $got = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+  # SHA-256 by .NET, never Get-FileHash: in Windows PowerShell 5.1 that one comes from a script module (.psm1), which
+  # the execution policy Restricted (Windows' own) keeps from loading — the line needs no -ExecutionPolicy Bypass then
+  $sha = [Security.Cryptography.SHA256]::Create()
+  $in = [IO.File]::OpenRead($file)
+  try { $got = -join ($sha.ComputeHash($in) | ForEach-Object { $_.ToString('x2') }) } finally { $in.Dispose(); $sha.Dispose() }
   if (-not $want -or $want -ne $got) { throw (T 'The download is damaged (checksum mismatch) - try again.' 'Stažený soubor je poškozený (kontrolní součet nesedí) – zkusit to znovu.' 'Die Datei ist beschädigt (Prüfsumme stimmt nicht) – erneut versuchen.') }
 }
 # Text files as UTF-8 without a BOM (Windows PowerShell 5.1 would add one).

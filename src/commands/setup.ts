@@ -298,6 +298,8 @@ function diagnose(ctx: Context): Check[] {
   if (shortcut) add("shortcut", "ok", t("ui.doc.yes"));
   // an isolated installation puts nothing on the desktop (found on Mac: "none → strom doctor --fix")
   else if (isolated(ctx.env)) add("shortcut", "ok", t("ui.doc.shortcut.isolated"));
+  // the person said no to it: not missing (the setup run again asks)
+  else if (ctx.settings.config.shortcut === "no") add("shortcut", "ok", t("ui.doc.shortcut.no"));
   else add("shortcut", "warn", t("ui.doc.none"), FIX, "shortcut");
   const app = stromAppState(ctx.settings);
   // (an isolated installation uses none on purpose: the app is the person's own strom's)

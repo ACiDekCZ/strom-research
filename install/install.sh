@@ -8,10 +8,14 @@
 # PATH for new terminals) and starts strom — its setup wizard takes over.
 # No admin rights; nothing downloaded is a program of ours: strom's code is
 # plain JavaScript anyone can read.
-# STROM_FROM_APP: the mark of a family tree of the Strom app (the line the app
-# shows carries it) — strom set up, that tree becomes a research of its own;
-# STROM_APP_URL beside it: another copy of the app (its beta) the line came from — strom keeps it (strom.app.url);
-# STROM_FROM_APP_NAME: that tree's name in the app — the research's suggested name;
+# STROM_FROM='1|<mark>|<browser>|<file>|<app>|<name>': a family tree of the Strom app (the line the app shows
+# carries it) — strom set up, that tree becomes a research of its own. Every field but the mark may be empty: the
+# browser the app runs in (chrome, edge, firefox, safari…) — strom opens the app there; the 8 characters of the file
+# the app saved the tree in (strom-prenos-<…>.json: Safari, which the app cannot reach strom from) — it moves to a
+# browser that can, on the person's word; another copy of the app (beta, or its address) — strom keeps it
+# (strom.app.url); the tree's name in the app — the research's suggested name.
+# The line of an older app, read the same when STROM_FROM is not set: STROM_FROM_APP, STROM_FROM_BROWSER,
+# STROM_FROM_FILE, STROM_APP_URL, STROM_FROM_APP_NAME;
 # STROM_DOWNLOAD_BASE, STROM_NODE_BASE: other places to download from;
 # STROM_INSTALL_DIR: another folder for the command; STROM_PROGRAM_DIR: another
 # folder for Node and strom.

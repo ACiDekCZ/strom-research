@@ -20,7 +20,7 @@ import { noticeStromApp } from "../core/stromapp.ts";
 import { isNewer } from "../core/update.ts";
 import { installation } from "../core/self.ts";
 import { refreshGlobal } from "../agents/global.ts";
-import { refreshLinks } from "../core/links.ts";
+import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishAsked } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
 import { checkArgs, GroupOnly, parseOptions, resolveCommand, splitPassthrough } from "./execute.ts";
@@ -105,6 +105,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
   const json = argv.includes("--json");
   const debug = argv.includes("--debug");
   resetCache(undefined, "command");
+  // the app's install line in its one variable (STROM_FROM): read as the five of an older line
+  expandFromLine(env);
   // what ran, for the reminder of the session's time
   let ran: Context | undefined;
   let command: string | undefined;

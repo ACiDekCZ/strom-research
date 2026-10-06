@@ -158,8 +158,7 @@ register({
     const typed = (await ctx.ask(ui(lang, "ui.remove.type", { name }))).trim();
     if (!typed || foldText(typed) !== foldText(name)) return { text: ui(lang, "ui.remove.cancelled"), data: { removed: false, ...(backup ? { backup } : {}) } };
     if (atWork(root, { bridge: false })) throw new UsageError(ui(lang, "ui.remove.busy", { name }), { hint: "strom" });
-    const followed = stopLive(root, "the family tree is taken off this computer") !== "none";
-    moveToTrash(root, ctx.env, path.basename(root));
+    const { followed, next } = forgetTree(ctx, root, "the family tree is taken off this computer");
     let moved = 0;
     if (images) {
       // the images together, one folder in the trash named after the tree
@@ -173,17 +172,6 @@ register({
       moveToTrash(folder, ctx.env, ui(lang, "ui.remove.images.folder", { name }));
     }
     const cfg = ctx.settings.config;
-    if (cfg.extraTrees) cfg.extraTrees = cfg.extraTrees.filter((r) => path.resolve(r) !== path.resolve(root));
-    // the tree worked on went: the next one known is worked on now, never a menu with none chosen
-    let next: string | undefined;
-    if (cfg.currentTree && path.resolve(cfg.currentTree) === path.resolve(root)) {
-      const left = ctx.knownTrees().filter((k) => path.resolve(k.root) !== path.resolve(root));
-      if (left.length) {
-        cfg.currentTree = left[0]!.root;
-        next = left[0]!.name;
-      } else delete cfg.currentTree;
-    }
-    ctx.settings.save();
     const text = lines(
       ui(lang, "ui.remove.done", { name }),
       followed ? ui(lang, "ui.remove.live") : undefined,
@@ -382,3 +370,24 @@ register({
     return { text: `${langName(lang)} (${lang})`, data: { lang, name: langName(lang) } };
   },
 });
+
+/**
+ * A family tree's folder into the system's trash (its bridge stopped first), and the settings no longer pointing at
+ * it: the tree worked on gone, the next one known is worked on now — never a menu with none chosen.
+ */
+export function forgetTree(ctx: Context, root: string, why: string): { followed: boolean; next?: string } {
+  const followed = stopLive(root, why) !== "none";
+  moveToTrash(root, ctx.env, path.basename(root));
+  const cfg = ctx.settings.config;
+  if (cfg.extraTrees) cfg.extraTrees = cfg.extraTrees.filter((r) => path.resolve(r) !== path.resolve(root));
+  let next: string | undefined;
+  if (cfg.currentTree && path.resolve(cfg.currentTree) === path.resolve(root)) {
+    const left = ctx.knownTrees().filter((k) => path.resolve(k.root) !== path.resolve(root));
+    if (left.length) {
+      cfg.currentTree = left[0]!.root;
+      next = left[0]!.name;
+    } else delete cfg.currentTree;
+  }
+  ctx.settings.save();
+  return { followed, ...(next ? { next } : {}) };
+}

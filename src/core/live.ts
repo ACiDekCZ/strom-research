@@ -25,6 +25,10 @@
 //                          X-Strom-Batch, -Path (and -Zip: 1, a ZIP unpacked here): one file of a batch
 //   POST <token>/batch/<id>/done   the batch is whole ({name, files, person, note}): its files become sorting tasks
 //                          (a batch nobody closes is closed a day after its last file)
+//   GET <token>/adopt      a new research waits for a tree of the app: its mark, name, until when; transfer: true when
+//                          the tree comes from a browser the app cannot reach strom from; existing: true when it goes
+//                          into a research made before, its tree never came (POST /adopt hands it over)
+//   GET <token>/transfer   that tree's file as it came (strom-prenos-….json), only while the research waits for it
 //
 // Only pages of the Strom app may read it (CORS: https://stromapp.info, its beta, and a
 // local copy on localhost for its development), and a browser asks first
@@ -53,7 +57,7 @@ import { ancestorGenerations, displayName } from "./people.ts";
 import { phrase } from "./phrases.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { excerptSettings, planExcerpts } from "./excerpt.ts";
-import { adoptedAt, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
+import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
@@ -445,7 +449,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty"] as const;
 
 export function history(root: string, tree: Tree, range: string[] = [`-n${LOG_MAX}`]): { head: string; at: string; what: string[]; text: string[]; kinds: ChangeKind[]; task?: string; research?: string }[] {
   const r = runGit(root, ["log", ...range, "--format=%x1e%H%x1f%cI%x1f%s%x1f%b%x1f", "--name-only"]);
@@ -913,17 +917,34 @@ export function serveLive(root: string, env: Env): Promise<void> {
     try {
       if (what === "adopt") {
         // the new research started from the app's link: which tree of the app it waits for (its mark), its name
-        const mark = pendingAdoption(root);
+        // until when it waits (the app says so in its window), and whether the tree comes from another browser
+        // (transfer: the app takes it from GET /transfer first)
+        const wait = adoptionWait(root);
+        const mark = wait?.token;
+        // the app got here: a terminal still waiting says no more that it may be kept from it (D7)
+        if (wait) noteAdoptAsked(root);
         const tree = Tree.open(root, env);
         // handed over already (its link opened again): said so — gone, not a tree the research never waited for
         const taken = mark ? undefined : adoptedAt(root, 0);
-        const body = mark
-          ? { token: mark, name: tree.config.name, tree: tree.config.id }
+        const body = wait
+          ? { token: wait.token, name: tree.config.name, tree: tree.config.id, until: wait.until, ...(wait.transfer ? { transfer: true } : {}), ...(wait.existing ? { existing: true } : {}) }
           : taken
             ? { adopted: true, name: tree.config.name, tree: tree.config.id, error: "the tree was handed over to this research already" }
             : { error: "this research waits for no tree" };
         const text = JSON.stringify(body);
         res.writeHead(mark ? 200 : taken ? 410 : 404, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(text);
+      } else if (what === "transfer") {
+        // the app's tree from a browser the app cannot reach strom from, as it came — only while the research waits
+        // for it (the app in the browser it moved to checks its mark, then hands it over as POST /adopt)
+        const file = adoptionWait(root)?.transfer;
+        if (!file) {
+          res.writeHead(404, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ error: "this research waits for no tree moving here" }));
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Content-Length": String(fs.statSync(file).size) });
+        fs.createReadStream(file)
+          .on("error", () => res.destroy())
+          .pipe(res);
       } else if (what === "media") {
         // what the research has of this content: said — or, asked for, the file itself
         const sha = (sub ?? "").toLowerCase();
@@ -1128,9 +1149,23 @@ export function serveLive(root: string, env: Env): Promise<void> {
    */
   let adopting = false;
   const ADOPT_ANSWER_MS = Number(env.STROM_ADOPT_ANSWER_MS ?? 90_000);
-  const adopt = (file: string, reply: (code: number, body: Record<string, unknown>) => void, lang: string) => {
-    adopting = true;
+  const adopt = (file: string, reply: (code: number, body: Record<string, unknown>) => void, lang: string, app: string | undefined) => {
     const tree = Tree.open(root, env).config.id;
+    // no people yet (C1: installed from the app's start screen): handed over with nothing to take in — the research
+    // stays empty, linked to the app, and the people the app adds later come by its sends (adopt.empty)
+    if (adoptedEmpty(fs.readFileSync(file, "utf8"))) {
+      try {
+        markAdopted(root, undefined, app);
+      } catch (e) {
+        noteLive(root, `the app's tree was not taken in: ${errorText(e)}`);
+        reply(500, { ...said(lang, "ui.sync.bridge.adopt"), reason: errorText(e) });
+        return;
+      }
+      noteLive(root, "the app's tree taken in: no people in it yet");
+      reply(200, { tree, head: head(root) ?? "", empty: true, ids: { persons: {}, sources: {} } });
+      return;
+    }
+    adopting = true;
     const { command, args } = stromLauncher();
     const child = spawn(command, [...args, "sync", file, "--apply", "--force", "--json"], {
       cwd: root,
@@ -1170,7 +1205,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       }
       if (code !== 0) return failed(data.message ?? err.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? `exit ${code}`);
       try {
-        markAdopted(root, data.input ?? undefined);
+        markAdopted(root, data.input ?? undefined, app);
       } catch (e) {
         return failed(errorText(e));
       }
@@ -1276,7 +1311,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
             reply(409, said(lang(), "ui.sync.bridge.adopting"));
             return;
           }
-          adopt(receiveAdopted(root, text, origin), reply, lang());
+          adopt(receiveAdopted(root, text, origin), reply, lang(), appVersionOf(req, new Settings(env, {})));
           return;
         }
         take(text, reply);

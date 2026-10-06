@@ -92,7 +92,7 @@ test("installed from the Strom app, the research kept as an archive (no AI): no 
   w.cleanup();
 });
 
-test("the setup wizard of an isolated installation (trying a version) offers no Strom app and no links: they are the person's own strom's", { skip: !hasGit || process.platform === "win32" }, async () => {
+test("the setup wizard of an isolated installation (trying a version) offers no Strom app, no links and no shortcut: they are the person's own strom's", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
   const own = await w.ok(["setup"], { answers: ["cs", "", "", "", "n"] });
@@ -102,6 +102,8 @@ test("the setup wizard of an isolated installation (trying a version) offers no 
   v.env.STROM_ISOLATED = "1";
   const r = await v.ok(["setup"], { answers: ["cs", "", "", "", "n", "", "", ""] });
   assert.doesNotMatch(r.out, /Používat ji\?|Dovolit aplikaci Strom spouštět výzkum/);
+  // nothing on the desktop, nothing asked of it (found on Windows: asked, while doctor said none on purpose)
+  assert.doesNotMatch(r.out, /zástupce/);
   assert.equal(readJsonFile(path.join(v.env.STROM_CONFIG_DIR!, "config.json")).stromApp, undefined);
   // doctor says so too: the app not used on purpose — nothing to put right
   const app = (await v.run(["doctor", "--json"])).json.checks.find((c: { name: string }) => c.name === "app");

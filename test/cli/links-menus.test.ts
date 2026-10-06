@@ -126,15 +126,18 @@ test("what the research knows of a person, for an app that shows it: its conflic
 
 test("a tree of the app becomes a new research: named, the app hands it to the bridge (GET/POST /adopt), taken in as leads; the status tells the queue and the month's spend", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
-  // no agent of this computer: nothing is offered that would start one
-  w.env.PATH = [path.dirname(process.execPath), "/usr/bin", "/bin"].join(path.delimiter);
+  // an agent here (a research, not an archive — none: N9), one that never starts: no conversation is wanted
+  const bin = path.join(w.dir, "bin");
+  fs.mkdirSync(bin, { recursive: true });
+  fs.writeFileSync(path.join(bin, "codex"), "#!/bin/sh\necho codex-cli 0.155.0\n", { mode: 0o755 });
+  w.env.PATH = [bin, path.dirname(process.execPath), "/usr/bin", "/bin"].join(path.delimiter);
   w.env.STROM_ADOPT_WAIT_MS = "60000";
   await w.ok(["setup", "--yes"]);
   await w.ok(["config", "set", "strom.app.url", "https://beta.stromapp.info/run/"]);
   const token = "Qm9sZC1kZW1vLXRva2VuLWZvci1zdHJvbS1hcHAtMDEy".slice(0, 43);
   const origin = { Origin: "https://beta.stromapp.info" };
   const root = w.treeDir("Dvořákovi");
-  const flow = w.run(["link", "open", `strom-research://new?app=${token}`], { tty: true, answers: ["Dvořákovi", "", "n", ""] });
+  const flow = w.run(["link", "open", `strom-research://new?app=${token}`], { tty: true, answers: ["Dvořákovi", "", "", "n", ""] });
   // the app: the bridge of the new research, which tree it waits for, the tree handed over
   let url = "";
   for (let i = 0; i < 100 && !url; i++) {
@@ -156,7 +159,8 @@ test("a tree of the app becomes a new research: named, the app hands it to the b
     assert.equal((await fetch(`${url}/cancel`, { method: "POST", body: JSON.stringify({ reason: "no-tree" }), headers: { Origin: "https://stromapp.info", "Content-Type": "text/plain" } })).status, 200);
     await new Promise((r) => setTimeout(r, 700));
     assert.equal((await fetch(`${url}/adopt`, { method: "POST", body: ged })).status, 403, "only the app's pages");
-    const handed = await fetch(`${url}/adopt`, { method: "POST", body: ged, headers: { ...origin, "Content-Type": "text/plain; charset=utf-8" } });
+    // the app 3.9.1 hands it over (it loads the research's version itself after: nothing opened a second time, N12)
+    const handed = await fetch(`${url}/adopt`, { method: "POST", body: ged, headers: { ...origin, "Content-Type": "text/plain; charset=utf-8", "X-Strom-App-Version": "3.9.1" } });
     const got = (await handed.json()) as { tree: string; head: string };
     assert.equal(handed.status, 200);
     assert.equal(got.tree, asked.tree);
@@ -170,7 +174,8 @@ test("a tree of the app becomes a new research: named, the app hands it to the b
     const r = await flow;
     assert.match(r.out, /Aplikace Strom chce začít výzkum s jedním svým rodokmenem\./);
     assert.match(r.out, /Tahle kopie aplikace Strom ten strom nezná/);
-    assert.match(r.out, /✓ Rodokmen je ve výzkumu „Dvořákovi“: osob 2, rodin 1, pramenů 0 – jako vodítka; co doloží záznamy, najde agent\./);
+    assert.match(r.out, /✓ Rodokmen je ve výzkumu „Dvořákovi“: osob 2, rodin 1, pramenů 0 – jako vodítka; co doloží záznamy, najde agent\.\nAplikace Strom teď strom ukazuje jako strom výzkumu\.\n/);
+    assert.doesNotMatch(r.out, /import-url|tree-strom\.ged/, "the app is not opened a second time");
     const people = (await w.ok(["person", "list", "--json"], { cwd: root })).json;
     assert.equal(JSON.stringify(people).includes("Dvořák"), true);
     // the status: the queue, the month's spend (no sessions yet), no sending of the app yet
@@ -294,17 +299,19 @@ test("installed from the Strom app where strom was set up long ago (its settings
   w.cleanup();
 });
 
-test("a tree of the app refused (no people in it): the new research in the terminal is told and stops waiting", { skip: !hasGit || process.platform === "win32" }, async () => {
+test("a tree of the app with no people in it yet is handed over all the same (C1): the research linked, nothing failed", { skip: !hasGit || process.platform === "win32" }, async () => {
   const { w } = await world();
-  const { adoptFailedSince, awaitAdoption } = await import("../../src/core/sync.ts");
+  const { adoptFailedSince, adoptedAt, awaitAdoption } = await import("../../src/core/sync.ts");
   const since = Date.now();
   awaitAdoption(w.cwd, "B".repeat(43));
   const info = (await w.ok(["live", "start", "--json"])).json;
   try {
     const empty = ["0 HEAD", "1 GEDC", "2 VERS 5.5.1", "0 TRLR", ""].join("\n");
     const r = await fetch(`${info.url}/adopt`, { method: "POST", body: empty, headers: { Origin: "https://stromapp.info" } });
-    assert.equal(r.status, 400);
-    assert.equal(adoptFailedSince(w.cwd, since)?.why, "empty");
+    assert.equal(r.status, 200);
+    assert.equal(((await r.json()) as { empty?: boolean }).empty, true);
+    assert.equal(adoptFailedSince(w.cwd, since), undefined);
+    assert.ok(adoptedAt(w.cwd, since), "adopted: the link opened again gets 410");
   } finally {
     await w.ok(["live", "stop"]);
   }

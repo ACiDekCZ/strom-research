@@ -166,16 +166,10 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
   cfg.agentPermissions = level;
   s.save();
 
-  // 7. A shortcut on the desktop (asked once; refreshed quietly after).
-  if (!shortcutExists(ctx, lang)) {
-    if (await ctx.confirm(ui(lang, "ui.setup.shortcut"), true)) {
-      try {
-        for (const f of createShortcut(shortcutName(lang), ctx.env)) out(ui(lang, "ui.setup.shortcut.done", { file: ctx.display(f) }));
-      } catch {
-        // no desktop folder we may write to: the menu is still one command away
-      }
-    }
-  } else createShortcut(shortcutName(lang), ctx.env);
+  // 7. A shortcut on the desktop (asked here, a no suggested again; refreshed quietly after) — none for an isolated
+  // installation (found on Windows: asked, while doctor said "none, on purpose")
+  if (!shortcutExists(ctx, lang)) await offerShortcut(ctx, lang, out, { again: true });
+  else if (!isolated(ctx.env)) createShortcut(shortcutName(lang), ctx.env);
 
   // Quietly: the installed agents learn about strom — none for an archive (nothing of an agent: Milan's decision,
   // 2026-10-03; found on Mac: five agents taught after "an archive (no AI)"), switching research on teaches them
@@ -227,13 +221,7 @@ export async function settleInstall(ctx: Context, lang: string): Promise<void> {
     s.save();
     out(ui(lang, "ui.setup.agent.ok", { name: wayName(lang, way) }));
   }
-  if (!shortcutExists(ctx, lang) && (await ctx.confirm(ui(lang, "ui.setup.shortcut"), true))) {
-    try {
-      for (const f of createShortcut(shortcutName(lang), ctx.env)) out(ui(lang, "ui.setup.shortcut.done", { file: ctx.display(f) }));
-    } catch {
-      // no desktop folder we may write to
-    }
-  }
+  await offerShortcut(ctx, lang, out);
   if (isolated(ctx.env) || stromAppState(s) === "no" || !appOpensLinks(s) || linkHandlerState(ctx.env) === "ours") return;
   if (s.config.links === "yes") {
     let done = false;
@@ -261,14 +249,31 @@ export async function settleFromApp(ctx: Context, lang: string, opts: { shortcut
   if (copy === null) delete cfg.stromAppUrl;
   else if (copy) cfg.stromAppUrl = copy;
   s.save();
-  if (opts.shortcut && !shortcutExists(ctx, lang) && (await ctx.confirm(ui(lang, "ui.setup.shortcut"), true))) {
-    try {
-      for (const f of createShortcut(shortcutName(lang), ctx.env)) ctx.io.stdout(ui(lang, "ui.setup.shortcut.done", { file: ctx.display(f) }) + "\n");
-    } catch {
-      // no desktop folder we may write to
-    }
+  if (opts.shortcut) await offerShortcut(ctx, lang, (line) => ctx.io.stdout(line + "\n"));
+  // the setup asks (its own run); another line from the app: a no is not asked again
+  if (appOpensLinks(s)) await offerLinks(ctx, lang, opts.shortcut ? { ask: false } : {});
+}
+
+/**
+ * The shortcut on the desktop while there is none, on the person's yes (an isolated installation: never). A no is kept (`shortcut: "no"`, found on a Mac:
+ * asked again by every line from the Strom app): not asked again unasked — the setup run again (`again`) asks, suggesting
+ * no; a yes forgets it.
+ */
+export async function offerShortcut(ctx: Context, lang: string, out: (line: string) => void, opts: { again?: boolean } = {}): Promise<void> {
+  // an isolated installation puts nothing on the desktop (doctor: none, on purpose)
+  if (isolated(ctx.env) || shortcutExists(ctx, lang)) return;
+  const said = ctx.settings.config.shortcut;
+  if (said === "no" && !opts.again) return;
+  const yes = await ctx.confirm(ui(lang, "ui.setup.shortcut"), said !== "no");
+  if (yes) delete ctx.settings.config.shortcut;
+  else ctx.settings.config.shortcut = "no";
+  ctx.settings.save();
+  if (!yes) return;
+  try {
+    for (const f of createShortcut(shortcutName(lang), ctx.env)) out(ui(lang, "ui.setup.shortcut.done", { file: ctx.display(f) }));
+  } catch {
+    // no desktop folder we may write to: the menu is still one command away
   }
-  if (appOpensLinks(s)) await offerLinks(ctx, lang);
 }
 
 /**

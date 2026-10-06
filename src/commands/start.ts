@@ -25,7 +25,10 @@ import { appOpensLinks, appOpensResearch, importAppUrl, installedStromApp, liveA
 import { forgetLive, liveRunning, serveLive, startLive, stopLive } from "../core/live.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut, openInNewTerminal } from "../core/shortcut.ts";
-import { chromiumBrowser, openFileWith, openInBrowser, openWebApp, revealFile } from "../core/chromium.ts";
+import { browserKind, openFileWith, revealFile } from "../core/chromium.ts";
+import { fromWords } from "../cli/move.ts";
+import { finishMovedByFile, movedByFile } from "../core/transfer.ts";
+import { appWindow, openAppIn, replaceGone } from "../core/appbrowser.ts";
 import { endProcess, ownProcesses, uninstallPlan, type Removal } from "../core/uninstall.ts";
 import { Tree } from "../core/tree.ts";
 import type { Research } from "../core/model.ts";
@@ -223,13 +226,15 @@ register(
                 r.unclipped.length ? ui(lang, "ui.app.images.unclipped", { n: String(r.unclipped.length) }) : undefined,
               )
             : undefined;
-        // B, D: the app reaches strom on this computer — installed from a Chromium browser (its own window: first
-        // choice), else in a Chromium browser's tab; never whatever is the default (Safari cannot).
-        // The copy of the app strom opens (strom.app.url: its beta, its development) — installed, that one only.
+        // B, D: the app reaches strom on this computer — in the browser its tree came from (app.browser), else the
+        // default one when the app reaches strom from it, else installed from a browser, else such a browser's tab;
+        // never one it cannot (Safari). The copy of the app strom opens (strom.app.url: its beta, its development).
         const installed = installedStromApp(ctx.env, process.platform, stromAppUrl(ctx.settings));
-        const webApp = installed?.appId && installed.browser ? { browser: installed.browser, appId: installed.appId, ...(installed.profile ? { profile: installed.profile } : {}) } : undefined;
-        const browser = chromiumBrowser(ctx.env);
-        if (webApp || browser) {
+        const win = appWindow(ctx.settings, ctx.env);
+        // the browser kept for the app is no longer here: said, the one it opens in now kept instead
+        const replaced = replaceGone(ctx.settings, win);
+        const goneText = replaced && ui(lang, replaced.now ? "ui.app.browser.gone" : "ui.app.browser.gone.none", { gone: replaced.gone, now: replaced.now ?? "" });
+        if (win.webApp || win.browser) {
           // The first time a person opens the research in an app that opens links: may it start the research here? (once)
           if (ctx.interactive && !isAgent(ctx.env) && appOpensLinks(ctx.settings, ctx.settings.stromVersion(tree.config)) && ctx.settings.config.links === undefined)
             await offerLinks(ctx, lang, { ask: false });
@@ -237,11 +242,23 @@ register(
           const info = startLive(root, ctx.env, { current: true });
           if (!info) throw new StromError("the bridge did not start", { hint: "strom live serve shows why" });
           const url = follow ? liveAppUrl(info.url, ctx.settings) : importAppUrl(`${info.url}/tree.ged`, ctx.settings);
-          const inApp = webApp ? openWebApp(webApp, url, ctx.env) : false;
-          const opened = inApp || (browser ? openInBrowser(browser, url, ctx.env) : false);
-          const where = inApp ? ui(lang, "ui.app.where.installed") : (browser?.name ?? "");
-          const text = lines(opened ? ui(lang, follow ? "ui.app.following" : "ui.app.research", { name, where }) : ui(lang, "ui.app.url", { url }), withImages);
-          return { text, data: { opened, via: inApp ? "app" : "browser", ...(browser ? { browser: browser.name } : {}), url, bridge: info.url, follow } };
+          const { opened, via } = openAppIn(win, url, ctx.env);
+          const browser = win.browser ?? (win.webApp ? { name: win.webApp.browser } : undefined);
+          const where = via === "app" ? ui(lang, "ui.app.where.installed") : (browser?.name ?? "");
+          // a research made from the file of a move (no browser then): the move finished in this one (opened, or its address
+          // said), kept for the app (D10)
+          const moved = win.browser ? movedByFile(root) : undefined;
+          let movedText: string | undefined;
+          if (moved && win.browser) {
+            finishMovedByFile(root);
+            if (!ctx.settings.config.appBrowser) {
+              ctx.settings.config.appBrowser = win.browser.kind;
+              ctx.settings.save();
+            }
+            movedText = ui(lang, "ui.app.moved", { browser: win.browser.name, from: fromWords((k) => ui(lang, k), browserKind(moved.from) ?? "other"), file: ctx.display(moved.file) });
+          }
+          const text = lines(goneText, movedText, opened ? ui(lang, follow ? "ui.app.following" : "ui.app.research", { name, where }) : ui(lang, "ui.app.url", { url }), withImages);
+          return { text, data: { opened, via: via ?? "browser", ...(browser ? { browser: browser.name } : {}), url, bridge: info.url, follow } };
         }
         // A: no such browser to hand it over, but the Strom app installed from one takes the file itself (its file handler).
         if (!follow && installed && /Chrome|Edge|Brave|Chromium|Vivaldi/.test(installed.kind) && openFileWith(installed.path, file, ctx.env))
@@ -250,7 +267,7 @@ register(
         openForUser(installed?.path ?? stromAppUrl(ctx.settings), ctx.env);
         const shown = revealFile(file, ctx.env);
         return {
-          text: lines(follow ? ui(lang, "ui.app.nolive") : undefined, ui(lang, "ui.app.drag", { file: ctx.display(file), shown: shown ? ui(lang, "ui.app.drag.shown") : "" }), withImages),
+          text: lines(goneText, follow ? ui(lang, "ui.app.nolive") : undefined, ui(lang, "ui.app.drag", { file: ctx.display(file), shown: shown ? ui(lang, "ui.app.drag.shown") : "" }), withImages),
           data: { opened: shown, via: "drag", file, follow },
         };
       }
