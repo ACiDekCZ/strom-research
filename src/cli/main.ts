@@ -27,7 +27,7 @@ import { clockLine, FINISH_LINE, finishAsked } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
 import { checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, splitPassthrough } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
-import { catalog, localized } from "../core/phrases.ts";
+import { catalog, localized, sayCommandAs } from "../core/phrases.ts";
 import "../commands/index.ts";
 
 export { splitCommand } from "./execute.ts";
@@ -128,6 +128,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
   const json = argv.includes("--json");
   const own = ownCommand(env);
   if (own) io = asOwnCommand(io, own, json, argv);
+  // {strom} in a text: also in a window of the system or a file, which the output above does not pass
+  sayCommandAs(own ?? "strom");
   const debug = argv.includes("--debug");
   resetCache(undefined, "command");
   // the app's install line in its one variable (STROM_FROM): read as the five of an older line

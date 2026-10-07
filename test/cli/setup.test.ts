@@ -92,6 +92,25 @@ test("installed from the Strom app, the research kept as an archive (no AI): no 
   w.cleanup();
 });
 
+test("installed from the Strom app on the beta channel (B1): the app's beta is what it opens anyway — no setting kept; stromapp.info's line keeps stromapp.info", { skip: !hasGit || process.platform === "win32" }, async () => {
+  for (const [line, kept] of [["https://beta.stromapp.info/run/", undefined], [undefined, "https://stromapp.info/run/"]] as const) {
+    const w = new World();
+    w.env.PATH = pathWith(w, ["claude"]);
+    w.env.STROM_CHANNEL = "beta";
+    w.env.STROM_FROM_APP = "SW5zdGFsbGVkLWZyb20tdGhlLWFwcC1tYXJrLTAwMDM";
+    if (line) w.env.STROM_APP_URL = line;
+    await w.ok(["setup"], { answers: ["cs", "", "1", "n", "n", "n"] });
+    assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).stromAppUrl, kept, `the line of ${line ?? "stromapp.info"}`);
+    delete w.env.STROM_FROM_APP;
+    delete w.env.STROM_APP_URL;
+    assert.equal((await w.ok(["app", "--json"])).json.url, line ?? "https://stromapp.info/run/");
+    // back on the releases: the line of the app's beta leaves the default, stromapp.info's
+    delete w.env.STROM_CHANNEL;
+    assert.equal((await w.ok(["app", "--json"])).json.url, "https://stromapp.info/run/");
+    w.cleanup();
+  }
+});
+
 test("the setup wizard of an isolated installation (trying a version) offers no Strom app, no links and no shortcut: they are the person's own strom's", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);

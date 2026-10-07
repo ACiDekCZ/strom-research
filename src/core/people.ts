@@ -51,6 +51,15 @@ export function noName(given: string): boolean {
   return !words || NO_NAME_SET.has(words);
 }
 
+/**
+ * The Strom app's way of writing a person of no name and no surname: "? /Unknown/" (2 GIVN ?, no SURN) — no surname,
+ * not the surname Unknown. Only a file of the Strom app says so (its HEAD: 1 SOUR STROM; T08b); a surname Unknown the
+ * user typed there comes with its SURN.
+ */
+export function appNoSurname(given: string, surname: string, surn: string | undefined): boolean {
+  return noName(given) && surname === "Unknown" && !surn?.trim();
+}
+
 /** Words that describe a person instead of naming them (folded): stillborn, unbaptised, N.N. */
 const DESCRIPTIONS = new Set([
   "nn", "n n", "nomen nescio", "unnamed", "unknown", "stillborn", "still born", "infant", "child", "son", "daughter",
@@ -92,6 +101,69 @@ export function formatName(n: Name): string {
 export function gedcomName(n: Name): string {
   const part = (s: string) => s.replace(/\//g, "|");
   return `${part(n.given)} /${part(n.surname)}/`.trim();
+}
+
+/** A title as it is kept: one line, single spaces, NFC; empty: none. */
+export function cleanTitle(t: unknown): string | undefined {
+  const s = (typeof t === "string" ? t : "").normalize("NFC").replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/gu, " ").trim();
+  return s || undefined;
+}
+
+/** The name with its titles, as a person reads it: "Ing. Jan Novák ml." (the name alone where it has none). */
+export function titledName(n: Name): string {
+  return [n.prefix, formatName(n), n.suffix].filter(Boolean).join(" ");
+}
+
+/**
+ * The NAME line of a name with its titles ("Ing. Jan /Novák/ ml."): a program that reads no NPFX / NSFX shows them
+ * still. The Strom app (3.10) and strom read the titles from NPFX / NSFX and take them off the line (withoutTitles).
+ */
+export function gedcomTitledName(n: Name): string {
+  return [n.prefix, gedcomName(n), n.suffix].filter(Boolean).join(" ");
+}
+
+/** A title written as GEDCOM lists them ("Prof., Dr.") and as a line says it ("Prof. Dr."). */
+const titleForms = (t: string) => [...new Set([t, t.replace(/\s*,\s*/g, " ")])];
+
+/**
+ * The NAME line without the titles its NPFX / NSFX give: the title before at its start, the title after at its end,
+ * each a whole word — as the Strom app reads it (its gedcom-names.ts stripTitles). A line without NPFX / NSFX is never
+ * searched for titles: "Dr." told by a list of words would be a guess that damages a name which only looks like one.
+ */
+export function withoutTitles(line: string, before: string | undefined, after: string | undefined): string {
+  return foundTitles(line, { before, after }).line;
+}
+
+/**
+ * Titles known to be a person's (NPFX / NSFX, or the research's own) found in a NAME line: taken off its start and its
+ * end — also from inside the closing slash, where an app that reads no NPFX / NSFX puts the title after ("Ing. Jan
+ * /Novák ml./": the Strom app before 3.10 reads "Novák ml." as the surname). What was found, and the line without it.
+ */
+export function foundTitles(line: string, titles: { before?: string | undefined; after?: string | undefined }): { line: string; before?: string; after?: string } {
+  let s = line.normalize("NFC").trim().replace(/\s+/g, " ");
+  const found: { before?: string; after?: string } = {};
+  if (titles.before)
+    for (const t of titleForms(titles.before.normalize("NFC")))
+      if (s.startsWith(t) && (s.length === t.length || /[\s/]/u.test(s[t.length]!))) {
+        s = s.slice(t.length).trim();
+        found.before = titles.before;
+        break;
+      }
+  if (titles.after) {
+    const slash = s.endsWith("/") && s.indexOf("/") < s.length - 1 ? "/" : "";
+    let core = slash ? s.slice(0, -1).trimEnd() : s;
+    for (const t of titleForms(titles.after.normalize("NFC"))) {
+      const at = core.length - t.length;
+      if (at >= 0 && core.endsWith(t) && (at === 0 || /[\s/,]/u.test(core[at - 1]!))) {
+        // "Novák, Ph.D.": the comma before a title after the name goes with it
+        core = core.slice(0, at).trim().replace(/,$/, "").trim();
+        found.after = titles.after;
+        break;
+      }
+    }
+    if (found.after) s = slash ? `${core}/` : core;
+  }
+  return { line: s, ...found };
 }
 
 /** Why a name cannot be kept as it is, or undefined: a slash inside it ("/⟨K/Č⟩emenská/", "Jan /Novák"). */

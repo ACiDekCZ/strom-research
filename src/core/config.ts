@@ -14,7 +14,7 @@ import { DEFAULT_AGENT, PROFILES, TIERS, type Tier } from "../agents/profiles.ts
 import { EXCERPT_QUALITIES, EXCERPT_SCOPES, EXCERPTS_MAX_MB, STRATEGIES, type ExcerptQuality, type ExcerptScope, type Strategy, type TreeConfig } from "./model.ts";
 import { downloadsDir } from "./browser.ts";
 import { acquireLock } from "./lock.ts";
-import { isStromAppOrigin } from "./stromapp.ts";
+import { isAppVersion, isStromAppOrigin } from "./stromapp.ts";
 import type { BackupRecord } from "./backup.ts";
 
 export interface UserConfig {
@@ -297,7 +297,8 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       return v;
     }
     case "version":
-      if (!/^\d+(\.\d+){0,2}$/.test(v)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: "a version like 1.4.0" });
+      // as the app says it to the bridge (its header): its betas too
+      if (!isAppVersion(v)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: "a version like 3.9.0 or 3.10.0-beta.6" });
       return v;
     case "number": {
       const n = Number(v);

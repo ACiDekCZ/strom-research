@@ -23,7 +23,7 @@ import { appWindow } from "../core/appbrowser.ts";
 import { moveTree, type Move } from "./move.ts";
 import { changeLines } from "../core/changelog.ts";
 import { startLive } from "../core/live.ts";
-import { adoptAppUrl, appTreeNameFromInstall } from "../core/stromapp.ts";
+import { adoptAppUrl, appTreeNameFromInstall, defaultAppUrl } from "../core/stromapp.ts";
 import { stromReadsTags } from "../gedcom/export.ts";
 import { appMarkFromInstall } from "../core/links.ts";
 import { settleFromApp } from "./wizard.ts";
@@ -262,7 +262,8 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
   // characters) — kept as the line's STROM_APP_URL is
   if (move?.mark.app && !ctx.env.STROM_APP_URL?.trim()) {
     ctx.settings.reload();
-    ctx.settings.config.stromAppUrl = move.mark.app;
+    if (move.mark.app === defaultAppUrl(ctx.env)) delete ctx.settings.config.stromAppUrl;
+    else ctx.settings.config.stromAppUrl = move.mark.app;
     ctx.settings.save();
   }
   let lang = ctx.uiLang();

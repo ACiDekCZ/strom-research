@@ -67,13 +67,14 @@ export function shellArg(arg: string): string {
 
 /**
  * The commands a text names, as a second installation is started (strom-beta doctor, not strom doctor): `strom`
- * before one of strom's own commands (`words`) — never the word in a sentence ("Tento strom ho…"), never a path.
+ * before one of strom's own commands (`words`) — never the word in a sentence ("Tento strom ho…"), never a path or a
+ * file (strom doctor.txt); at the end of a sentence too (strom chat.).
  */
 export function asCommand(text: string, name: string, words: readonly string[]): string {
   if (!words.length) return text;
   const alt = [...new Set(words)].map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   // (after an opening quote of any language too: „strom person xyz“, «strom …»)
-  return text.replace(new RegExp(`(^|[\\s"'\`(\\[→:=„“«»‚‘])strom(?= (?:${alt})(?![\\p{L}\\p{M}\\p{N}_./\\\\-]))`, "gu"), `$1${name}`);
+  return text.replace(new RegExp(`(^|[\\s"'\`(\\[→:=„“«»‚‘])strom(?= (?:${alt})(?![\\p{L}\\p{M}\\p{N}_/\\\\-]|\\.[\\p{L}\\p{M}\\p{N}_]))`, "gu"), `$1${name}`);
 }
 
 /** asCommand over a JSON answer: the command lines in it (a value that is one: "strom …") and the hints. */

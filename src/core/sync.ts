@@ -41,7 +41,7 @@ import { StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
 import { isArchive } from "./mode.ts";
-import { noName, parseName, primaryName } from "./people.ts";
+import { cleanTitle, formatName, foundTitles, noName, parseName, primaryName, titledName, withoutTitles } from "./people.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
 
@@ -115,6 +115,17 @@ export interface SPerson {
   cites?: SCite[];
   /** A husband (HUSB) in a family of the file: the sex the Strom app gives someone of none (male, else female). */
   husb?: true;
+  /**
+   * The titles of the name they are shown by (NPFX / NSFX, the app's titleBefore / titleAfter): never part of
+   * `names[0]`, which is the name without them.
+   */
+  titles?: Titles;
+}
+
+/** The titles of a name: before it ("Ing.") and after it ("ml."). */
+export interface Titles {
+  before?: string;
+  after?: string;
 }
 
 export interface SFamily {
@@ -207,6 +218,78 @@ const kindOf = (k: string) => (k === "CHR" ? "BAPM" : k);
 export const factKey = (f: SFact) => [kindOf(f.kind), f.date ?? "", exact(f.place), exact(f.value), f.date || f.place ? "" : fold(f.label)].join("|");
 /** A name for a comparison: "? /Novák/", "Jan //" and "Jan /?/" are the names the research has. */
 const nameKey = (n: string) => exact(n.replace(/[/?]/g, " "));
+
+/** Titles as a snapshot keeps them: none when neither is said. */
+function titlesFrom(before: unknown, after: unknown): Titles | undefined {
+  const [b, a] = [cleanTitle(before), cleanTitle(after)];
+  return b || a ? { ...(b ? { before: b } : {}), ...(a ? { after: a } : {}) } : undefined;
+}
+
+/** The titles a NAME of a file spells out (2 NPFX, 2 NSFX). */
+const titlesOf = (n: GedNode): Titles | undefined => titlesFrom(val(n, "NPFX"), val(n, "NSFX"));
+
+/**
+ * A person of the file whose name says no titles (no NPFX / NSFX, no titleBefore / titleAfter) where the research's
+ * name has them: an app that reads no titles (the Strom app before 3.10) keeps them in the name — the research gives
+ * them in the NAME line ("Ing. Jan /Novák/ ml." comes back "Ing. Jan /Novák ml./"). Found there, they are the person's
+ * titles still, taken off the name: never a new name, never a title taken away. Where the name has them no more, the
+ * user took them off (an app of titles or not: what it shows them as).
+ */
+function titlesInName(p: SPerson, known: (Titles | undefined)[]): void {
+  if (p.titles || !p.names[0]) return;
+  let line = p.names[0];
+  const got: Titles = {};
+  for (const t of known) {
+    if (!t) continue;
+    const found = foundTitles(line, { before: got.before ? undefined : t.before, after: got.after ? undefined : t.after });
+    if (!found.before && !found.after) continue;
+    line = found.line;
+    if (found.before) got.before = found.before;
+    if (found.after) got.after = found.after;
+  }
+  if (!got.before && !got.after) return;
+  p.names[0] = line;
+  p.titles = got;
+}
+
+/** The conflict tag of a title: GEDCOM's own (NPFX before the name, NSFX after it). */
+const titleTag = (part: "before" | "after") => (part === "before" ? "NPFX" : "NSFX");
+
+/** A conflict of a title the user edited in the Strom app, open with this word of theirs ("" none): asked already. */
+function openTitleConflict(tree: Tree, id: string, part: "before" | "after", theirs: string): boolean {
+  return tree
+    .list<Conflict>("conflict")
+    .some((x) => x.state === "open" && x.fact === titleTag(part) && x.subject[0] === id && x.claims[1]?.note === "the user's edit" && exact(x.claims[1].value) === exact(theirs));
+}
+
+/**
+ * A title of the name a person is shown by set ("" taken off) — the name citing where it came from (once) — and what
+ * an undo needs: the title before, the citation it added.
+ */
+export function setTitle(tree: Tree, owner: string, part: "before" | "after", value: string, citation: Citation | undefined, reason: string): Applied {
+  const key = part === "before" ? "prefix" : "suffix";
+  const shown = primaryName(tree.get<Person>(owner)!);
+  const was = shown[key] ?? "";
+  const cites = !!citation && !(shown.citations ?? []).some((c) => c.source === citation.source && c.locator === citation.locator);
+  update<Person>(
+    tree,
+    owner,
+    "person",
+    (x) => {
+      const at = x.names.indexOf(primaryName(x));
+      return { ...x, names: x.names.map((n, i) => (i !== at ? n : titled({ ...n, ...(cites ? { citations: [...(n.citations ?? []), citation!] } : {}) }, key, value))) };
+    },
+    { op: "person.edit", summary: `${owner} title ${part} the name ${value ? `"${value}"` : "taken off"}${was ? ` (was "${was}")` : ""}`, reason },
+  );
+  return { do: "name.title", id: owner, before: JSON.stringify({ part, was, ...(cites ? { cited: citation } : {}) }) };
+}
+
+/** A name with this title set ("" none). */
+function titled(n: Name, key: "prefix" | "suffix", value: string): Name {
+  const { [key]: _gone, ...rest } = n;
+  const v = cleanTitle(value);
+  return v ? { ...rest, [key]: v } : rest;
+}
 
 /** A place's name as the Strom app keys its coordinates (placeKey of its places.ts): no accents, case, stops or commas. */
 export const placeKey = (s: string) => foldText(s.replace(/[.,;]/g, " ")).replace(/\s+/g, " ").trim();
@@ -452,6 +535,8 @@ function knownNote(text: string, said: Set<string>): boolean {
 export function readGedcom(text: string): Snapshot {
   const { records, problems } = parseGedcomText(text);
   const head = records.find((r) => r.tag === "HEAD");
+  /** A file of the Strom app (its HEAD: 1 SOUR STROM): its own ways of writing are read as it means them. */
+  const fromApp = val(head, "SOUR")?.trim() === "STROM";
   const notes = new Map(records.filter((r) => r.tag === "NOTE" && r.xref).map((r) => [r.xref!, r.value]));
   const noteText = (n: GedNode) => (/^@[^@]+@$/.test(n.value.trim()) ? (notes.get(n.value.trim()) ?? "") : n.value);
   // the sources: ours by their REFN, the file's own by their xref
@@ -509,7 +594,17 @@ export function readGedcom(text: string): Snapshot {
     const key = ours && !persons.has(ours) ? ours : `x:${r.xref!.replace(/@/g, "")}`;
     keys.set(r.xref!, key);
     const sex = val(r, "SEX");
-    const written = children(r, "NAME").map((n) => n.value.trim()).filter((n) => n.replace(/[/?\s]/g, ""));
+    // a person of no name and no surname the Strom app writes "? /Unknown/" (its stand-in for an unknown parent: "//",
+    // nobody) — and "? //" from its 3.10: a person, of no surname (T08b)
+    const nameless = (n: GedNode) => fromApp && /^\?\s*\/\s*(?:Unknown\s*)?\/$/u.test(n.value.trim()) && !val(n, "SURN")?.trim();
+    const named = children(r, "NAME").filter((n) => nameless(n) || n.value.trim().replace(/[/?\s]/g, ""));
+    // the titles of the name they are shown by (NPFX / NSFX) apart from it: the line says them too, taken off it (the
+    // other names are kept as their lines say them, titles and all — the Strom app keeps them so)
+    const titles = named[0] ? titlesOf(named[0]) : undefined;
+    // (the research's own person: no name at all, as the research writes it — never another name, never a rename)
+    const written = named
+      .filter((n) => !(ours && nameless(n)))
+      .map((n, i) => (nameless(n) ? "? //" : i === 0 && titles ? withoutTitles(n.value, titles.before, titles.after) : n.value.trim()));
     // a placeholder of the Strom app (an unknown parent drawn in the tree): nobody
     if (!ours && !written.length) continue;
     // what stands for no name ("N/A /Chrpa/", "N.N.") is the research's "?" (T08)
@@ -534,6 +629,7 @@ export function readGedcom(text: string): Snapshot {
       notes: children(r, "NOTE").map(noteText).map((t) => t.trim()).filter(Boolean),
       said: allNotes(r, noteText),
       ...(cites.length ? { cites } : {}),
+      ...(titles ? { titles } : {}),
     });
   }
   // how a child belongs to a family (the child's FAMC + PEDI: adopted, foster, step): none said is birth
@@ -668,6 +764,9 @@ interface AppPerson {
   deathSourceIds?: string[];
   /** The sources of the person themselves. */
   sourceIds?: string[];
+  /** The titles of the name (the app's 3.10): "Ing.", "ml.". */
+  titleBefore?: string;
+  titleAfter?: string;
   events?: { type: string; customLabel?: string; date?: string; place?: string; note?: string; cause?: string; age?: string; address?: string; sourceIds?: string[]; participants?: AppParticipant[] }[];
 }
 /** Someone at an event of the Strom app: a person of its tree, or a name as the register writes it. */
@@ -803,8 +902,10 @@ export function readStromJson(data: unknown): Snapshot {
       continue;
     }
     const cites = citesOf(p.sourceIds);
+    const titles = titlesFrom(p.titleBefore, p.titleAfter);
     persons.set(key, {
       key,
+      ...(titles ? { titles } : {}),
       names: [name, ...(p.nameVariants ?? [])].filter((n) => n.replace(/[/?\s]/g, "")),
       ...(d.research?.sexU === true && p.sexUnknown ? {} : p.gender === "male" ? { sex: "M" } : p.gender === "female" ? { sex: "F" } : {}),
       facts: cleanFacts(facts),
@@ -986,7 +1087,7 @@ const tieOf = (f: SFamily, child: string, parent: string) => f.relationsBy?.[chi
 
 /** Our records as the app is given them: the export for it, read like any file — with the facts' IDs. */
 export function snapshotOfTree(tree: Tree): Snapshot {
-  return readGedcom(exportGedcom(tree, { for: "strom", ids: true }).text);
+  return readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true }).text);
 }
 
 /** The folders of data/ the export for the app reads. */
@@ -1814,6 +1915,7 @@ export type ChangeKind =
   | "fact.detail"
   | "name.new"
   | "name.changed"
+  | "name.title"
   | "sex.changed"
   | "note.new"
   | "family.new"
@@ -1859,6 +1961,8 @@ export interface Change {
   was?: SFact;
   /** name.changed: the name the person is shown by in the research (the file's new one is `text`). */
   wasName?: string;
+  /** name.title: which title of the name the person is shown by, and the research's (the file's is `text`, "" none). */
+  title?: { part: "before" | "after"; was: string };
   text?: string;
   /** A source: its key in the file, and the research's source it is (a change of one the research has). */
   source?: string;
@@ -1965,6 +2069,10 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const since = !sentAgain ? sinceBase(tree, incoming) : undefined;
   const after = incoming.head && !sentAgain && !since ? afterSends(tree, incoming) : undefined;
   const base = sentAgain && incoming.head ? snapshotAt(tree, incoming.head) : (since ?? after?.base);
+  // the titles an app that reads none keeps in the name (the research gives them in the NAME line): found there, the
+  // person's titles still — in a copy of the app it stands on too (a send it kept: _STROM_SINCE)
+  for (const [key, b] of base?.persons ?? []) if (!key.startsWith("x:")) titlesInName(b, [ours.persons.get(resolve(tree, key)?.id ?? key)?.titles]);
+  for (const [key, p] of incoming.persons) if (!key.startsWith("x:")) titlesInName(p, [base?.persons.get(key)?.titles, ours.persons.get(resolve(tree, key)?.id ?? key)?.titles]);
   // what later sends of this tree of the app wrote, which this copy may never have had: set back in it, a conflict
   const sentSince = after?.sentSince;
   // what earlier sends of it wrote that later ones changed, the copy has as the earlier ones left it
@@ -2214,6 +2322,25 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       push({ kind: "name.changed", action: renamed && !nameBacked(tree, shown) ? "correct" : edits === "user" ? "user" : "conflict", person: id, name, text: now, wasName: mine });
     }
     for (const n of p.names) if (!((renamed || both) && n === now) && !ourNames.has(nameKey(n)) && !baseNames.has(nameKey(n))) push({ kind: "name.new", action: "add", person: id, name, text: n });
+    // the titles of the name they are shown by (T07), each apart and never as a change of the name itself: the user's
+    // edit where the file's differs from what the app was given — one the name lacks added, a lead's corrected, a
+    // record's name the user's to decide (or their word: sync.edits user, an archive); the research's changed since
+    // too: the user's to decide. Without the state it was given only a title the name lacks is taken, another one
+    // waits to be picked; a title the file lacks takes nothing away. Asked once: a conflict open with the user's word.
+    for (const part of ["before", "after"] as const) {
+      const [theirs, mine, given] = [p.titles?.[part] ?? "", o.titles?.[part] ?? "", b?.titles?.[part] ?? ""];
+      if (exact(theirs) === exact(mine) || openTitleConflict(tree, id, part, theirs)) continue;
+      let action: ChangeAction;
+      if (b) {
+        if (exact(theirs) === exact(given)) continue;
+        const since = exact(mine) !== exact(given);
+        action = !mine && !since ? "add" : since || nameBacked(tree, primaryName(tree.get<Person>(id)!)) ? (edits === "user" ? "user" : "conflict") : "correct";
+      } else {
+        if (!theirs) continue;
+        action = mine ? "pick" : "add";
+      }
+      push({ kind: "name.title", action, person: id, name, text: theirs, title: { part, was: mine } });
+    }
     // the sex the user set: written where no record gives the person's facts, the user's to decide where one does
     // (found on Mac: only said, the app told "written", the app and the research apart); the research's unknown (U, which
     // the app cannot keep: it guesses one) counts — the user's edit of a sex given known, the research's U since, is the
@@ -2964,6 +3091,7 @@ export interface Applied {
     | "conflict.edit"
     | "name.add"
     | "name.edit"
+    | "name.title"
     | "name.primary"
     | "name.drop"
     | "note.add"
@@ -3194,7 +3322,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
     const person = create<Person>(
       tree,
       "person",
-      { names: [{ ...nameOf(primary), citations: [cite(`name`)] }], sex: (p.sex as Person["sex"]) ?? "U", events: [], notes: [] } as never,
+      { names: [{ ...nameOf(primary), ...(p.titles?.before ? { prefix: p.titles.before } : {}), ...(p.titles?.after ? { suffix: p.titles.after } : {}), citations: [cite(`name`)] }], sex: (p.sex as Person["sex"]) ?? "U", events: [], notes: [] } as never,
       (id) => `+${id} person "${primary.replace(/\//g, "").trim()}" (from ${source.id})`,
     );
     ids.set(c.person!, person.id);
@@ -3499,6 +3627,23 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           }
           break;
         }
+        case "name.title": {
+          if (!owner || !c.title) break;
+          const shown = primaryName(tree.get<Person>(owner)!);
+          const now = c.text ?? "";
+          if (c.action === "conflict" || (c.action === "pick" && nameBacked(tree, shown))) {
+            // a record gives the name: the user decides (strom conflict resolve --take user|research)
+            const said = (v: string) => v || "—";
+            const what = ui(tree.lang, c.title.part === "before" ? "ui.conflict.titleBefore" : "ui.conflict.titleAfter");
+            conflictOfEdit(tree, applied, owner, titleTag(c.title.part), editTitle(formatName(shown), what, said(c.title.was), said(now)), [
+              { ...(shown.citations?.[0] ? { source: shown.citations[0].source } : {}), value: c.title.was, note: "the research: the title of the name the person is shown by", text: said(c.title.was) },
+              { source: source.id, value: now, note: "the user's edit", text: said(now) },
+            ]);
+            break;
+          }
+          applied.push(setTitle(tree, owner, c.title.part, now, cite("title"), `${c.action === "user" ? "the user's edit wins" : "corrected in"}: ${reason}`));
+          break;
+        }
         case "note.new": {
           if (!owner || !c.text) break;
           const n = addNote(tree, owner, c.text);
@@ -3784,6 +3929,16 @@ export function takeSide(tree: Tree, x: Conflict, side: "user" | "research", rea
     return `${child} a child of ${to.id} (${partners.join(" & ")}), no longer of ${from}${done.retracted ? ` — ${from} retracted, nothing left in it` : ""}`;
   }
   if (side === "research") return undefined;
+  // a title of the name the user gave in the Strom app ("" taken off): on the name the person is shown by
+  if (!x.edit && (x.fact === "NPFX" || x.fact === "NSFX")) {
+    const user = x.claims.find((c) => c.note === "the user's edit");
+    const p = x.subject[0] ? tree.get<Person>(x.subject[0]) : undefined;
+    if (!p || p.retracted || !user) throw new UsageError(`the person of ${x.id} is no longer in the research`, { hint: `strom conflict show ${x.id}` });
+    const part = x.fact === "NPFX" ? "before" : "after";
+    const from = user.source && tree.get(user.source)?.type === "source" ? { source: user.source, locator: "title" } : undefined;
+    setTitle(tree, p.id, part, user.value, from, `the user's edit (${x.id}): ${reason}`);
+    return `${p.id}: ${titledName(primaryName(tree.get<Person>(p.id)!))}`;
+  }
   // a name or a sex the user gave in the Strom app (found on Mac: --take refused for them, only for facts and parents)
   if (!x.edit && (x.fact === "NAME" || x.fact === "SEX")) {
     const owner = x.subject[0];
@@ -3933,6 +4088,30 @@ export function undoSync(tree: Tree, input: SyncInput): number {
             summary: `${a.id} name ${b.name.given} /${b.name.surname}/ again: ${reason}`,
             reason,
           });
+        break;
+      }
+      case "name.title": {
+        // the title as it was, and the citation of the sync it added taken off
+        const b = JSON.parse(String(a.before ?? "{}")) as { part?: "before" | "after"; was?: string; cited?: Citation };
+        const p = tree.get<Person>(a.id);
+        if (!p || (b.part !== "before" && b.part !== "after")) break;
+        const key = b.part === "before" ? "prefix" : "suffix";
+        update<Person>(
+          tree,
+          a.id,
+          "person",
+          (x) => {
+            const at = x.names.indexOf(primaryName(x));
+            const drop = (n: Name): Name => {
+              if (!b.cited) return n;
+              const left = (n.citations ?? []).filter((c) => !(c.source === b.cited!.source && c.locator === b.cited!.locator));
+              const { citations: _c, ...rest } = n;
+              return left.length ? { ...rest, citations: left } : rest;
+            };
+            return { ...x, names: x.names.map((n, i) => (i !== at ? n : titled(drop(n), key, b.was ?? ""))) };
+          },
+          { op: "person.edit", summary: `${a.id} title ${b.part} the name ${b.was ? `"${b.was}"` : "taken off"} again: ${reason}`, reason },
+        );
         break;
       }
       case "name.primary": {

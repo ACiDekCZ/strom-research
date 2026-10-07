@@ -142,6 +142,7 @@ function checkPerson(p: Partial<Person>, out: Problem[]): void {
       if (typeof n.given !== "string") out.push({ path: `names[${i}].given`, message: "must be a string" });
       if (typeof n.surname !== "string") out.push({ path: `names[${i}].surname`, message: "must be a string" });
       if (!n.given && !n.surname) out.push({ path: `names[${i}]`, message: "needs a given name or a surname" });
+      for (const t of ["prefix", "suffix"] as const) if (n[t] !== undefined && (typeof n[t] !== "string" || !n[t].trim())) out.push({ path: `names[${i}].${t}`, message: "must be a title (a string, not empty)" });
       if (n.kind !== undefined && !NAME_KINDS.includes(n.kind)) out.push({ path: `names[${i}].kind`, message: `must be one of ${NAME_KINDS.join(", ")}` });
       checkCitations(n.citations, `names[${i}].citations`, out);
     });

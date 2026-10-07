@@ -25,7 +25,11 @@ without --dry-run. `#name` labels what a line creates, `@name` uses it later.
   and what the record adds to it: `event edit E… --age husband:27 --age wife:17
   --house 21 --with "witness:…" --with "officiant:…"` (filling in needs no reason).
 - The names a record gives go on the person: `name add` (a maiden name completes
-  "Marie" to "Marie /Svobodová/"; a married name is `--kind married`).
+  "Marie" to "Marie /Svobodová/"; a married name is `--kind married`). A title
+  written with the name ("Ing.", "MUDr.", "ml.", "jun.") is the name's `--prefix`
+  or `--suffix` (`person add`, `name add`, `person edit`), never part of the
+  given name or the surname; a rank or office the record states is a fact
+  (`TITL`, `OCCU`).
 - A record that names someone's parents (a grandchild's baptism naming the
   grandparents) cites the family itself (`family add … --cite`, `cite F…`) and
   the new people's names (`person add … --cite`) — with `--information

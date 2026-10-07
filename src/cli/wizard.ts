@@ -16,7 +16,7 @@ import { chooseWay, wayName } from "./ways.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
-import { appCopyOfInstall, appOpensLinks, noticeStromApp, researchUrl, stromAppState, stromAppUrl } from "../core/stromapp.ts";
+import { appCopyOfInstall, appOpensLinks, defaultAppUrl, noticeStromApp, researchUrl, STROM_APP_URL, stromAppState, stromAppUrl } from "../core/stromapp.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut } from "../core/shortcut.ts";
 import { appMarkFromInstall, linkFiles, linkHandlerState, linkOwner, registerLinks, type Sys } from "../core/links.ts";
@@ -260,9 +260,11 @@ export async function settleFromApp(ctx: Context, lang: string, opts: { shortcut
   s.reload();
   const cfg = s.config;
   cfg.stromApp = "yes";
+  // kept only where it is another than the copy this strom opens by itself (the beta channel: the app's beta)
   const copy = appCopyOfInstall(ctx.env);
-  if (copy === null) delete cfg.stromAppUrl;
-  else if (copy) cfg.stromAppUrl = copy;
+  const url = copy === null ? STROM_APP_URL : copy;
+  if (url === defaultAppUrl(ctx.env)) delete cfg.stromAppUrl;
+  else if (url) cfg.stromAppUrl = url;
   s.save();
   if (opts.shortcut) await offerShortcut(ctx, lang, (line) => ctx.io.stdout(line + "\n"));
   // the setup asks (its own run); another line from the app: a no is not asked again

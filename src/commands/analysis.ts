@@ -385,7 +385,7 @@ register(
       const take = opts.take === undefined ? undefined : String(opts.take).toLowerCase();
       if (take !== undefined && take !== "user" && take !== "research") throw new UsageError(`--take is user or research, not "${opts.take}"`, { code: "conflict.take", params: { take: String(opts.take) } });
       // a conflict of the user's edit in the Strom app: a fact's, a child's parents, a name's or a sex's
-      const ofEdit = Boolean(c0.edit || c0.parents || ((c0.fact === "NAME" || c0.fact === "SEX") && c0.claims.some((c) => c.note === "the user's edit")));
+      const ofEdit = Boolean(c0.edit || c0.parents || (["NAME", "SEX", "NPFX", "NSFX"].includes(c0.fact ?? "") && c0.claims.some((c) => c.note === "the user's edit")));
       if (take && !ofEdit) throw new UsageError(`${id} is no conflict of an edit in the Strom app: write what you conclude with the commands that change facts, then resolve it with --resolution`, { hint: `strom conflict show ${id}`, code: "conflict.no-edit", params: { id } });
       // the conclusion naming one side's value exactly: that side taken (found on Mac: "tesař" resolved, the fact left
       // "kovář", the app then showing kovář in silence)

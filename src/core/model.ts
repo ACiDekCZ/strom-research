@@ -94,6 +94,13 @@ export const NAME_KINDS = ["birth", "married", "religious", "alias"] as const;
 export interface Name {
   given: string;
   surname: string;
+  /**
+   * The title before the name ("Ing.", "MUDr.", "hrabě") and the title or epithet after it ("ml.", "Ph.D."): GEDCOM
+   * NAME > NPFX / NSFX, the Strom app's titleBefore / titleAfter (of the name the person is shown by). Never part of
+   * the name itself — not searched, matched or compared with it.
+   */
+  prefix?: string;
+  suffix?: string;
   kind?: (typeof NAME_KINDS)[number];
   /** The records that give the person this name (in this form). */
   citations?: Citation[];

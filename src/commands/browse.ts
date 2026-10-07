@@ -152,7 +152,7 @@ register(
       const tree = ctx.tree();
       const lang = ctx.uiLang();
       const c = personCard(tree, resolvePerson(tree, args[0]!));
-      const out: (string | undefined)[] = [whoText(c.person)];
+      const out: (string | undefined)[] = [whoText(c.titled ? { ...c.person, name: c.titled } : c.person)];
       if (c.otherNames.length) out.push(`  ${ui(lang, "ui.card.also", { names: c.otherNames.join(", ") })}`);
       out.push(c.facts.length ? factRows(c.facts, lang, "  ", ctx.archiveHere()) : `  ${ui(lang, "ui.card.nofacts")}`, "");
       out.push(c.parents.length ? ui(lang, "ui.card.parents", { names: c.parents.map(whoText).join(", ") }) : ui(lang, "ui.card.noparents"));

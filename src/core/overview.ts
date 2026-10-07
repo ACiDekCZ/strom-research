@@ -4,7 +4,7 @@
 // commands in commands/browse.ts show them in the research language.
 
 import type { Event, Family, Media, Person, Place, Session, Source, Status, Task } from "./model.ts";
-import { ancestorGenerations, birthEvent, displayName, familiesAsPartner, formatName, lifespan, parentsOf, primaryName, sameName } from "./people.ts";
+import { ancestorGenerations, birthEvent, displayName, familiesAsPartner, formatName, lifespan, parentsOf, primaryName, sameName, titledName } from "./people.ts";
 import { dateYears } from "./gdate.ts";
 import { informationOf } from "./evidence.ts";
 import type { Tree } from "./tree.ts";
@@ -174,6 +174,8 @@ export interface CardFact {
 
 export interface Card {
   person: Who;
+  /** The name with its titles ("Ing. Jan Novák ml."), where it has any. */
+  titled?: string;
   sex: string;
   otherNames: string[];
   facts: CardFact[];
@@ -240,6 +242,7 @@ export function personCard(tree: Tree, p: Person): Card {
   });
   return {
     person: who(p),
+    ...(main.prefix || main.suffix ? { titled: titledName(main) } : {}),
     sex: p.sex,
     otherNames: [...new Set(p.names.filter((n) => !sameName(n, main)).map(formatName))],
     facts: [...facts(p.events)].sort(byDate).map((e) => cardFact(tree, e)),

@@ -31,7 +31,7 @@ import { configDir, defaultHome, desktopDir, isolated, noLinks, ownCommand } fro
 import { backupBefore, backupSaid, lastBackupLine } from "../cli/backups.ts";
 import { BACKUP_SAID_DAYS, lastBackup, type BackupRecord } from "../core/backup.ts";
 import { planMove, sameFolder } from "../core/relocate.ts";
-import { appOpensLinks, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
+import { appOpensLinks, defaultAppUrl, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
 import { isInstalled } from "../agents/global.ts";
 import { offerLinks, shortcutName } from "../cli/wizard.ts";
 import { linkHandlerState, linkScheme } from "../core/links.ts";
@@ -607,6 +607,7 @@ function effective(ctx: Context, def: SettingDef): { value: string | number | un
   if (def.key === "brief.budget") return { value: DEFAULT_BUDGET, source: "default" };
   if (def.key === "run.minutes") return { value: DEFAULT_RUN_MINUTES, source: "default" };
   if (def.key === "connectors.consent") return { value: "off", source: "default" };
+  if (def.key === "strom.app.url") return { value: defaultAppUrl(ctx.env), source: "default" };
   if (def.key === "browser.downloads") return { value: downloadsDir(ctx.env), source: "detected" };
   if (def.key === "agent.permissions") return { value: ctx.settings.agentPermissions(), source: ctx.settings.config.agentPermissions ? "config" : "default" };
   return { value: undefined, source: "unset" };

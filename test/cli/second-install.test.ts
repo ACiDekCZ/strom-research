@@ -18,6 +18,8 @@ import { exportGedcom } from "../../src/gedcom/export.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { asCommand } from "../../src/cli/format.ts";
+import { ui } from "../../src/cli/ui.ts";
+import { sayCommandAs } from "../../src/core/phrases.ts";
 
 const unix = { skip: process.platform === "win32" };
 const ID = "0f8c2d4e-1b2a-4c3d-9e8f-7a6b5c4d3e2f";
@@ -354,5 +356,37 @@ test("a second installation's errors of the command line name its own command �
   assert.match((await w.run(["nonexistent-cmd"])).err, /"strom nonexistent-cmd"|„strom nonexistent-cmd“/);
   // a sentence's strom stays, quoted or not
   assert.equal(asCommand("„strom je velký“ – strom-beta? „strom doctor“", "strom-beta", ["doctor"]), "„strom je velký“ – strom-beta? „strom-beta doctor“");
+  w.cleanup?.();
+});
+
+test("D3b: a second installation names its own command after unpack, at the menu's goodbye and where a text names the program alone — „Dál: strom-beta (nabídka) nebo strom-beta chat.“; a command at the end of a sentence too, never a file", { skip: !hasGit }, async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Novákovi"]);
+  w.cwd = w.treeDir("Novákovi");
+  await w.ok(["person", "add", "Jan /Novák/", "--born", "1805"]);
+  const zip = path.join(w.dir, "balík.zip");
+  await w.ok(["pack", "--out", zip]);
+  const env = { STROM_CONFIG_DIR: path.join(w.dir, "config-beta"), STROM_ISOLATED: "1", STROM_COMMAND: "strom-beta", STROM_LANG: "cs", STROM_HOME: path.join(w.dir, "beta-home") };
+  await w.ok(["setup", "--yes"], { env, cwd: w.dir });
+  const u = await w.ok(["unpack", zip], { env, cwd: w.dir, answers: ["a"] });
+  assert.match(u.out, /Dál: strom-beta \(nabídka\) nebo strom-beta chat\./, u.out);
+  assert.doesNotMatch(u.out, /(^|[\s:„(])strom (\(|chat|unpack)/m, u.out);
+  const bye = await w.ok([], { env, cwd: w.dir, tty: true, answers: ["0"] });
+  assert.match(bye.out, /Příště stačí spustit: strom-beta\n/);
+  // the person's own strom: as it was
+  assert.match((await w.ok([], { cwd: w.dir, tty: true, answers: ["0"], env: { STROM_LANG: "cs" } })).out, /Příště stačí spustit: strom\n/);
+  // a command at the end of a sentence; a file named so stays
+  assert.equal(asCommand("Dál: strom chat. Kdykoli strom unpack.", "strom-beta", ["chat", "unpack"]), "Dál: strom-beta chat. Kdykoli strom-beta unpack.");
+  assert.equal(asCommand("strom chat.txt, strom unpack.zip", "strom-beta", ["chat", "unpack"]), "strom chat.txt, strom unpack.zip");
+  // {strom} — the program alone — in what no output passes (a window of the system, a file: the backup's README)
+  sayCommandAs("strom-beta");
+  try {
+    assert.match(ui("en", "ui.backup.readme", { from: "1", to: "2", date: "x" }), /then run strom-beta: strom checks it \(strom-beta check\)\./);
+    assert.equal(ui("cs", "ui.link.noterminal.new"), "strom nemohl otevřít okno terminálu. Spustit strom-beta a pak to zkusit z aplikace Strom znovu.");
+  } finally {
+    sayCommandAs("strom");
+  }
+  assert.equal(ui("en", "ui.menu.bye"), "Until next time. Start again with: strom");
   w.cleanup?.();
 });

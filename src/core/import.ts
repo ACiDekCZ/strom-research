@@ -11,7 +11,7 @@ import { foldText } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { validateRecord } from "./validate.ts";
 import { normalizeDate } from "./gdate.ts";
-import { noName, notAName, parseName, sameName } from "./people.ts";
+import { appNoSurname, cleanTitle, noName, notAName, parseName, sameName, withoutTitles } from "./people.ts";
 import { now, type Tree } from "./tree.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
 
@@ -138,6 +138,8 @@ function nameKind(type: string | undefined): Name["kind"] | undefined {
 
 export function importGedcom(tree: Tree, text: string, opts: { input: string; name: string; sha: string }): ImportResult {
   const { records, problems } = parseGedcomText(text);
+  /** A file of the Strom app (its HEAD: 1 SOUR STROM): its own ways of writing are read as it means them. */
+  const fromApp = val(records.find((r) => r.tag === "HEAD"), "SOUR")?.trim() === "STROM";
   const system = `gedcom:${opts.sha.slice(0, 12)}`;
   const result: ImportResult = { source: "", persons: 0, families: 0, matched: 0, events: 0, extended: [], problems };
   const notes = new Map(records.filter((r) => r.tag === "NOTE" && r.xref).map((r) => [r.xref!, r.value]));
@@ -281,7 +283,10 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
     const namesOf = (r: GedNode): Name[] =>
       children(r, "NAME")
         .map((n) => {
-          const parsed = parseName(n.value.replace(/\s+/g, " "));
+          // the titles (NPFX, NSFX) apart from the name: the line says them too ("Ing. Jan /Novák/ ml."), taken off it
+          const prefix = cleanTitle(val(n, "NPFX"));
+          const suffix = cleanTitle(val(n, "NSFX"));
+          const parsed = parseName(withoutTitles(n.value.replace(/\s+/g, " "), prefix, suffix));
           // the name's own parts (GIVN, SURN) first — the line is only how a program wrote them; a list of surnames
           // (GEDCOM's commas) or a prefix of the surname (SPFX: van, de) keeps the line's
           const givn = val(n, "GIVN")?.replace(/\s*,\s*/g, " ").trim();
@@ -291,10 +296,14 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
             given: noName(givn || parsed.given) ? "?" : givn || parsed.given,
             surname: surn ? (lineHasSurname && (surn.includes(",") || val(n, "SPFX")) ? parsed.surname : surn) : lineHasSurname || !givn ? parsed.surname : "",
           };
+          // the Strom app's "? /Unknown/": a person of no name and no surname (T08b)
+          if (fromApp && appNoSurname(givn || parsed.given, found.surname, surn)) found.surname = "";
           // a word that describes the person in place of a name (stillborn, son): the name is "?", the word goes to a note
           if (notAName(found.given)) found.given = "?";
           // a slash inside a name ("/⟨K/Č⟩emenská/") is kept as "|": the name stays one GEDCOM can write
           const name: Name = { ...found, given: found.given.replace(/\//g, "|"), surname: found.surname.replace(/\//g, "|") };
+          if (prefix) name.prefix = prefix;
+          if (suffix) name.suffix = suffix;
           const kind = nameKind(val(n, "TYPE"));
           return kind ? { ...name, kind } : name;
         })
@@ -347,7 +356,7 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
       const personNotes = factNotes(r, personEvents);
       // what a file wrote in place of a name, kept as it said it ("Mrtvě narozený")
       for (const n of children(r, "NAME")) {
-        const g = val(n, "GIVN") ?? parseName(n.value.replace(/\s+/g, " ")).given;
+        const g = val(n, "GIVN") ?? parseName(withoutTitles(n.value.replace(/\s+/g, " "), cleanTitle(val(n, "NPFX")), cleanTitle(val(n, "NSFX")))).given;
         if (notAName(g) && !personNotes.includes(g.trim())) personNotes.push(g.trim());
       }
       const p: Person = {
@@ -458,6 +467,9 @@ interface StromPerson {
   notes?: string;
   refn?: string;
   nameVariants?: string[];
+  /** The titles of the name (the app's 3.10): "Ing.", "ml.". */
+  titleBefore?: string;
+  titleAfter?: string;
 }
 interface StromPartnership {
   id: string;
@@ -524,7 +536,15 @@ export function importStromJson(
       const p: Person = {
         id: tree.allocate("P"),
         type: "person",
-        names: [{ given: sp.firstName?.trim() || (sp.lastName ? "" : "?"), surname: sp.lastName?.trim() ?? "" }, ...(sp.nameVariants ?? []).map((v) => parseName(v))],
+        names: [
+          {
+            given: sp.firstName?.trim() || (sp.lastName ? "" : "?"),
+            surname: sp.lastName?.trim() ?? "",
+            ...(cleanTitle(sp.titleBefore) ? { prefix: cleanTitle(sp.titleBefore)! } : {}),
+            ...(cleanTitle(sp.titleAfter) ? { suffix: cleanTitle(sp.titleAfter)! } : {}),
+          },
+          ...(sp.nameVariants ?? []).map((v) => parseName(v)),
+        ],
         sex: sp.gender === "male" ? "M" : sp.gender === "female" ? "F" : "U",
         events,
         notes: sp.notes?.trim() ? [note(tree, sp.notes)] : [],

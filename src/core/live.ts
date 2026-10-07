@@ -78,7 +78,7 @@ import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion, updateChannel } from "./update.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
-import { appKnowsArchive, appKnowsNoCouple, appOpensLinks, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, isStromAppOrigin } from "./stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
 import { Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
@@ -452,7 +452,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles"] as const;
 
 export function history(root: string, tree: Tree, range: string[] = [`-n${LOG_MAX}`]): { head: string; at: string; what: string[]; text: string[]; kinds: ChangeKind[]; task?: string; research?: string }[] {
   const r = runGit(root, ["log", ...range, "--format=%x1e%H%x1f%cI%x1f%s%x1f%b%x1f", "--name-only"]);
@@ -727,9 +727,6 @@ function accepts(tree: Tree, settings: Settings, env: Env): Record<string, unkno
   };
 }
 
-/** A version of the Strom app as it says it (3.9.0, 3.9.0-beta.10): nothing else. */
-const APP_VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,40})?$/;
-
 /**
  * The version of the Strom app that asks (the app's spec docs/ZADANI_VYZKUM_app-vstup-dat.md, "Verze aplikace pro
  * most"): its header X-Strom-App-Version, else ?app=<version> (an EventSource sends no header of its own) — so what the
@@ -740,7 +737,7 @@ export function appVersionOf(req: { url?: string | undefined; headers: http.Inco
   const header = req.headers["x-strom-app-version"];
   const query = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("app");
   const said = (Array.isArray(header) ? header[0] : header)?.trim() || query?.trim();
-  return said && APP_VERSION.test(said) ? said : settings.stromVersion();
+  return said && isAppVersion(said) ? said : settings.stromVersion();
 }
 
 /** What the app shows beside the tree. */
@@ -1028,12 +1025,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
           const archive = appKnowsArchive(new Settings(env, {}), version);
           const turnsExcerpts = appTurnsExcerpts(new Settings(env, {}), version);
           const noCouple = appKnowsNoCouple(new Settings(env, {}), version);
+          const titles = appReadsTitles(new Settings(env, {}), version);
           const offered = opens ? links(env) : [];
           ged = {
             head: h,
             links: offered.join(" "),
             version: version ?? "",
-            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
+            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
           };
         }
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);

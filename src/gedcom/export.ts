@@ -28,7 +28,7 @@
 import { GedWriter } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
-import { birthEvent, claimText, conflictTitle, displayName, formatName, gedcomName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
+import { birthEvent, claimText, conflictTitle, displayName, formatName, gedcomTitledName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
@@ -104,6 +104,11 @@ export interface ExportOptions {
    * them beside it (2 _DRAFT under _STORY): the approved one stays the story until they decide.
    */
   storyDrafts?: boolean;
+  /**
+   * For a Strom app that reads titles (APP_READS_TITLES): a name with a title spells its parts out under its NAME line
+   * (NPFX, GIVN, SURN, NSFX). The line says the title for every reader; the standard file always spells them out.
+   */
+  titles?: boolean;
   /** For a Strom app that keeps a couple's events (APP_SHOWS_COUPLE_EVENTS): their residence as RESI under FAM. */
   coupleResi?: boolean;
   /** For a Strom app that shows who read a source (APP_SHOWS_SOURCE_READS): _STROM_READ, and _STROM_VERIFIED on the app's. */
@@ -260,7 +265,17 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const primary = primaryName(p);
     const nameQuotes: string[] = [];
     for (const n of [primary, ...p.names.filter((n) => n !== primary)]) {
-      w.line(1, "NAME", gedcomName(n));
+      // a name with a title says it in the line (any program shows it) and spells its parts out below: NPFX, GIVN, SURN,
+      // NSFX — for any program (GEDCOM 5.5.1's own tags), for the Strom app from its 3.10 (titles; an older one reads
+      // the line). A part holding a comma gets no GIVN / SURN (GEDCOM reads commas there as a list); the line has it.
+      w.line(1, "NAME", gedcomTitledName(n));
+      if ((n.prefix || n.suffix) && (strict || opts.titles)) {
+        const part = (v: string) => v.replace(/\//g, "|").trim();
+        if (n.prefix) w.line(2, "NPFX", n.prefix);
+        if (part(n.given) && !n.given.includes(",")) w.line(2, "GIVN", part(n.given));
+        if (part(n.surname) && !n.surname.includes(",")) w.line(2, "SURN", part(n.surname));
+        if (n.suffix) w.line(2, "NSFX", n.suffix);
+      }
       // "birth" says something only next to another name
       if (n.kind && (n.kind !== "birth" || p.names.length > 1)) w.line(2, "TYPE", NAME_TYPE[n.kind]);
       for (const c of n.citations ?? []) {

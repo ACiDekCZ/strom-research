@@ -11,8 +11,28 @@ import type { Env } from "./paths.ts";
 import { desktopDir, userHome } from "./paths.ts";
 import type { Settings } from "./config.ts";
 import { foldText } from "./text.ts";
+import { updateChannel } from "./update.ts";
 
 export const STROM_APP_URL = "https://stromapp.info/run/";
+/** The Strom app's beta: the copy a strom of the beta channel opens unless strom.app.url says another. */
+export const STROM_APP_BETA_URL = "https://beta.stromapp.info/run/";
+
+/**
+ * The copy of the Strom app strom opens when strom.app.url says none: its beta for a strom of the beta channel (the
+ * beta of the research goes with the app's beta), else stromapp.info. Back on the releases: stromapp.info again.
+ */
+export function defaultAppUrl(env: Env): string {
+  return updateChannel(env) === "beta" ? STROM_APP_BETA_URL : STROM_APP_URL;
+}
+
+/**
+ * A version of the Strom app as it says it — 3.9.0, its beta 3.10.0-beta.6, a build 3.10.0+a1b2: nothing else (3.9
+ * is none). The same from its header to the bridge and from the setting strom.version (STROM_APP_VERSION); a gate
+ * takes a pre-release as its version (3.10.0-beta.6 reads what 3.10.0 does: the app's betas get it at once).
+ */
+export function isAppVersion(v: string): boolean {
+  return /^\d{1,4}\.\d{1,4}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,40})?(?:\+[0-9A-Za-z.-]{1,40})?$/.test(v);
+}
 
 /** The pages of the Strom app — on the web, its beta, a copy on this computer (its development): the only ones strom opens with a research, and the only ones its bridge lets in. */
 export function isStromAppOrigin(origin: string): boolean {
@@ -70,7 +90,7 @@ export function appTreeNameFromInstall(env: { STROM_FROM_APP?: string | undefine
 /** The Strom app's address: the setting strom.app.url (STROM_APP_URL) points strom at another copy of it (its beta, its development). */
 export function stromAppUrl(settings: Settings): string {
   const url = settings.resolve("strom.app.url")?.value;
-  return typeof url === "string" && url ? url : STROM_APP_URL;
+  return typeof url === "string" && url ? url : defaultAppUrl(settings.env);
 }
 
 /**
@@ -149,6 +169,25 @@ export function appShowsCoupleEvents(settings: Settings, version?: string): bool
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(APP_SHOWS_COUPLE_EVENTS)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
+/**
+ * The Strom app reads the titles of a name (the tester's T07; the app's 3.10.0): a name with a title spells its parts
+ * out under its NAME line — 2 NPFX, GIVN, SURN, NSFX — and the app keeps the titles apart from the name (titleBefore,
+ * titleAfter). The line says the title for every app ("Ing. Jan /Novák/ ml."), so an older one shows it as part of the
+ * name and loses nothing; it lists the tags it skips. Another copy of the app (its beta, its development) is taken as
+ * current. An app of unknown version: today's (an older one only skips the tags).
+ */
+export const APP_READS_TITLES: string | undefined = "3.10.0";
+
+export function appReadsTitles(settings: Settings, version?: string): boolean {
+  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (!APP_READS_TITLES) return false;
+  if (!version) return true;
+  const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const [a, b] = [n(version), n(APP_READS_TITLES)];
   for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
   return true;
 }

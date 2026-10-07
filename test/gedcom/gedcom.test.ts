@@ -312,3 +312,36 @@ test("Strom's own export comes back: ages in words, cause and address from its n
   assert.deepEqual(fam.notes, [], "the ages were the whole note");
   w.cleanup();
 });
+
+test("the Strom app 3.10.0 reads the titles of a name: NPFX/GIVN/SURN/NSFX from it (its betas at once, an unknown version too); the NAME line says them for every app", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Jan /Novák/", "--sex", "M", "--prefix", "Ing.", "--suffix", "ml."]);
+  await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"]);
+  const m = await import("../../src/core/stromapp.ts");
+  const { Settings } = await import("../../src/core/config.ts");
+  const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
+  const beta = new Settings({ ...w.env, STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
+  assert.equal(m.APP_READS_TITLES, "3.10.0");
+  assert.equal(m.appReadsTitles(prod, "3.9.0"), false, "an older app: the line only");
+  assert.equal(m.appReadsTitles(prod, "3.10.0-beta.6"), true);
+  assert.equal(m.appReadsTitles(prod, "3.10.0"), true);
+  assert.equal(m.appReadsTitles(prod), true, "an app of unknown version: today's (an older one only skips the tags)");
+  assert.equal(m.appReadsTitles(beta, "3.9.0"), true, "the beta: at once");
+  const { BRIDGE_FEATURES } = await import("../../src/core/live.ts");
+  assert.ok((BRIDGE_FEATURES as readonly string[]).includes("person.titles"), "the bridge says it");
+  const out = path.join(w.dir, "s.ged");
+  for (const [version, spelled] of [["3.9.0", false], ["3.10.0", true]] as const) {
+    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", out], { env: { STROM_APP_VERSION: version } });
+    const t = fs.readFileSync(out, "utf8");
+    assert.match(t, /\n1 NAME Ing\. Jan \/Novák\/ ml\.\r?\n/, version);
+    assert.equal(/\n2 NPFX Ing\.\r?\n2 GIVN Jan\r?\n2 SURN Novák\r?\n2 NSFX ml\.\r?\n/.test(t), spelled, version);
+    assert.match(t, /\n1 NAME Marie \/Nováková\/\r?\n1 SEX F/, "a name without a title: one line, as ever");
+    assert.deepEqual(validateGedcom(t).filter((f) => f.level === "error"), []);
+  }
+  await w.ok(["export", "gedcom", "--for", "standard", "--out", out]);
+  const std = fs.readFileSync(out, "utf8");
+  assert.match(std, /\n1 NAME Ing\. Jan \/Novák\/ ml\.\r?\n2 NPFX Ing\.\r?\n2 GIVN Jan\r?\n2 SURN Novák\r?\n2 NSFX ml\.\r?\n/, "any program: GEDCOM 5.5.1's own tags");
+  assert.deepEqual(validateGedcom(std, { strict: true }).filter((f) => f.level === "error"), []);
+  w.cleanup();
+});
