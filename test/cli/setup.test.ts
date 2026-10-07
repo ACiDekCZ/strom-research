@@ -422,3 +422,78 @@ test("installed from the Strom app with an agent here: the research with it is s
   assert.equal(config(b).mode, "archive");
   b.cleanup();
 });
+
+test("the channel of the versions: --channel of strom update is never shown (help, strom commands, a hint); a beta channel asks GitHub's list and keeps its look apart; doctor says beta only on it", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = new World();
+  await w.withTree();
+  assert.doesNotMatch((await w.ok(["help", "update"])).out, /channel|beta/i);
+  const listed = (await w.ok(["commands", "setup", "--json"])).json;
+  assert.doesNotMatch(JSON.stringify(listed), /channel|beta/i);
+  const typo = await w.run(["update", "--chanel", "beta"]);
+  assert.notEqual(typo.code, 0);
+  assert.doesNotMatch(typo.err, /--channel/, "no hint of it");
+  const bad = await w.run(["update", "--channel", "nightly"]);
+  assert.notEqual(bad.code, 0);
+  assert.match(bad.err, /--channel takes beta or stable/);
+  // the releases: nothing of a beta anywhere
+  const release = path.join(w.dir, "release");
+  fs.mkdirSync(release);
+  fs.writeFileSync(path.join(release, "VERSION"), "99.0.0\n");
+  w.env.STROM_DOWNLOAD_BASE = `file://${release}`;
+  w.env.STROM_UPDATES = "check";
+  assert.doesNotMatch((await w.run(["doctor"])).out, /beta/i);
+  assert.equal((await w.ok(["update", "--check", "--json"])).json.latest, "99.0.0");
+  // the beta channel: GitHub's list (a file here), its newest by semver; its look kept apart from the releases'
+  delete w.env.STROM_DOWNLOAD_BASE;
+  const api = path.join(w.dir, "releases.json");
+  fs.writeFileSync(api, JSON.stringify([{ tag_name: "v99.0.0-beta.2", draft: false }, { tag_name: "v99.0.0-beta.10", draft: false }, { tag_name: "v100.0.0", draft: true }]));
+  Object.assign(w.env, { STROM_CHANNEL: "beta", STROM_RELEASES_API: api });
+  assert.equal((await w.ok(["--json"])).json.update, "99.0.0-beta.10", "the releases' look is no beta's: asked again");
+  const cfg = readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
+  assert.deepEqual([cfg.updateCheck.latest, cfg.updateCheck.channel], ["99.0.0-beta.10", "beta"]);
+  assert.equal((await w.ok(["update", "--check", "--json"])).json.latest, "99.0.0-beta.10");
+  assert.match((await w.run(["doctor"])).out, /beta verze/);
+  // back on the releases: the beta's look is none for them
+  w.env.STROM_CHANNEL = "stable";
+  w.env.STROM_DOWNLOAD_BASE = `file://${release}`;
+  assert.equal((await w.ok(["--json"])).json.update, "99.0.0");
+  w.cleanup();
+});
+
+test("strom setup --yes says what it set up in the research's language, also when an agent or a script runs it (found on Windows: STROM_LANG=cs, \"Strom is set up.\")", async () => {
+  const w = new World();
+  const cs = await w.ok(["setup", "--yes"], { env: { STROM_LANG: "cs" } });
+  assert.match(cs.out, /^Strom je nastavený\./);
+  assert.match(cs.out, /\n {2}jazyk\s+čeština \(cs\)\n/);
+  assert.match(cs.out, /\ndál\s+strom init "<název, např\. příjmení rodu>"/);
+  assert.doesNotMatch(cs.out, /set up|language|next/);
+  const en = await w.ok(["setup", "--yes", "--lang", "en"]);
+  assert.match(en.out, /^Strom is set up\.\n {2}home/);
+  assert.match(en.out, /\nnext\s+strom init "<tree name, e\.g\. the family surname>"/);
+  w.cleanup();
+});
+
+test("a research a newer strom wrote keeps the settings of this computer readable: config get, config set, doctor say what they say there, the research untouched (found on Windows: config get home said nothing)", { skip: !hasGit }, async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Zkouška"]);
+  const root = w.treeDir("Zkouška");
+  const file = path.join(root, "strom.json");
+  fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, "utf8")), schema: 99, migratedWith: "9.9.9" }, null, 2) + "\n");
+  const before = fs.readFileSync(file, "utf8");
+  for (const cwd of [root, w.dir]) {
+    const home = await w.ok(["config", "get", "home", "--json"], { cwd });
+    assert.equal(home.json.value, w.home);
+    assert.equal((await w.ok(["config", "get", "lang", "--json"], { cwd })).json.value, "cs");
+  }
+  await w.ok(["config", "set", "run.minutes", "30"], { cwd: root });
+  assert.equal((await w.ok(["config", "get", "run.minutes", "--json"], { cwd: root })).json.value, 30);
+  const doctor = await w.run(["doctor", "--json"], { cwd: root });
+  const line = doctor.json.checks.find((c: { name: string }) => c.name === "tree");
+  assert.equal(line.status, "fail");
+  assert.match(line.detail, /9\.9\.9/);
+  assert.equal(line.fix, "strom update");
+  assert.equal((await w.run(["config", "set", "run.minutes", "40", "--for-tree"], { cwd: root })).code, 1, "the research's own settings: never written");
+  assert.equal(fs.readFileSync(file, "utf8"), before);
+  w.cleanup();
+});

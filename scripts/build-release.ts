@@ -17,12 +17,17 @@
 // A candidate to try before a release (another computer, Windows): `--version 1.12.0-rc.1` names it so in what
 // is built (VERSION, the code's own version, its package.json) without touching the sources, `--out <folder>`
 // builds it there instead of release/ — the installers take it with STROM_DOWNLOAD_BASE=file://<folder>.
+//
+// A beta (`--version X.Y.Z-beta.N`) also gets its npm tarball, <out>/strom-research-X.Y.Z-beta.N.tgz (what npm pack
+// would publish, the version stamped, `publishConfig.tag` beta), and the line that publishes it under the tag beta.
+// A candidate (`-rc.N`) gets none: it stays local. Any other prerelease is refused.
 
 import fs from "node:fs";
 import zlib from "node:zlib";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { releaseKind, packForNpm, publishLine } from "./npm-channel.ts";
 
 /** The Node line strom runs on (an LTS line, tested): installers and strom update take its newest release from nodejs.org. */
 export const NODE_LINE = "24";
@@ -90,7 +95,8 @@ async function nodeMirror(): Promise<void> {
 async function main(): Promise<void> {
   const released = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version as string;
   const version = opt("--version") ?? released;
-  if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) throw new Error(`--version ${version}: not a version`);
+  const kind = releaseKind(version);
+  if (typeof kind === "object") throw new Error(`--version ${kind.refused}`);
   console.log("· building dist/");
   fs.rmSync(path.join(ROOT, "dist"), { recursive: true, force: true });
   run("npx", ["tsc", "-p", "tsconfig.build.json"]);
@@ -118,8 +124,11 @@ async function main(): Promise<void> {
   run("tar", ["-czf", packed, "app"], { cwd: OUT });
   // …and none came in (macOS's own tar hides them when it lists the archive: its headers read here)
   if (tarNames(packed).some((n) => /(^|\/)\._/.test(n))) throw new Error(`${packed}: AppleDouble files (._*) in it`);
-  fs.rmSync(stage, { recursive: true, force: true });
   console.log(`  ${shown(packed)} (${(fs.statSync(packed).size / 1e6).toFixed(1)} MB)`);
+  // a beta: npm's tarball of the same code (published by hand, under the tag beta)
+  const npmTarball = kind === "beta" ? packForNpm(stage, OUT) : undefined;
+  if (npmTarball) console.log(`  ${shown(npmTarball)} (${(fs.statSync(npmTarball).size / 1e6).toFixed(1)} MB)`);
+  fs.rmSync(stage, { recursive: true, force: true });
 
   // The installers check what they download against this list.
   fs.writeFileSync(path.join(OUT, "SHASUMS256.txt"), `${sha256(packed)}  strom-app.tar.gz\n`);
@@ -129,6 +138,7 @@ async function main(): Promise<void> {
   fs.writeFileSync(path.join(OUT, "NODE_VERSION"), `${NODE_LINE}\n`);
   if (process.argv.includes("--node-mirror")) await nodeMirror();
   console.log(`done — ${shown(OUT)}/ (${version})`);
+  if (npmTarball) console.log(`npm (by hand, in a terminal of your own): ${publishLine(shown(npmTarball))}`);
 }
 
 main().catch((e) => {

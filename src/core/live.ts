@@ -19,6 +19,7 @@
 //   POST <token>/cancel    …or says it sends nothing ({"reason": "unchanged" | "cancelled" | "no-tree"})
 //   GET <token>/media/<sha256>   whether the research has a file of that content (an original the app would send);
 //                          ?file=1: the file itself (the original, for the app's viewer)
+//   GET <token>/material   the family's files the research keeps (core/material.ts), ?person=P… / ?batch=<id>
 //   PUT <token>/media/<sha256>   an original from the app, unchanged (the body; X-Strom-Name, -Person, -Source,
 //                          -Region, -Note): streamed to disk, its hash checked, kept outside git
 //                          (strom media original) — of a source an image, else material of people with an intake task;
@@ -50,7 +51,8 @@ import crypto from "node:crypto";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import type { Env } from "./paths.ts";
 import { withoutAgentMarks } from "./which.ts";
-import { Tree, VERSION, type Op } from "./tree.ts";
+import { newerTree, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
+import { readJsonIfExists } from "./json.ts";
 import { changeLines, type ChangeKind } from "./changelog.ts";
 import { directionOf, scopes, type Scope } from "./directions.ts";
 import { ancestorGenerations, displayName } from "./people.ts";
@@ -63,6 +65,7 @@ import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
 import { EXIT, StromError } from "./errors.ts";
 import { acquireLock } from "./lock.ts";
+import { material } from "./material.ts";
 import { checkOriginalMeta, freeBytes, knownOriginal, materialWaiting, originalMax, ORIGINAL_RESERVE, ORIGINAL_TYPES, parseRegion } from "./originals.ts";
 import { BATCH_ID, batchEstimate, batchFull, batchLimits, batchPath, batchStatus, idleBatches, noteBatch, openBatch, readBatch } from "./batches.ts";
 
@@ -72,15 +75,15 @@ import { liveWorkers, type Paused } from "./workers.ts";
 import { monthSpend, openSessions } from "./session.ts";
 import { rankTasks } from "./queue.ts";
 import { humanTask } from "../cli/human.ts";
-import { knownNewerVersion } from "./update.ts";
+import { knownNewerVersion, updateChannel } from "./update.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { appKnowsArchive, appKnowsNoCouple, appOpensLinks, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, isStromAppOrigin } from "./stromapp.ts";
 import { Settings } from "./config.ts";
-import { linkActions, linkHandlerState, linkHandlerStateLater } from "./links.ts";
+import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
 import { diskVersion, stromLauncher } from "./self.ts";
-import type { Family, Input, Person, Session, Source, Task } from "./model.ts";
+import type { Family, Input, Person, Session, Source, Task, TreeConfig } from "./model.ts";
 import { foldText } from "./text.ts";
 import { storiesToApprove } from "./stories.ts";
 
@@ -449,7 +452,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list"] as const;
 
 export function history(root: string, tree: Tree, range: string[] = [`-n${LOG_MAX}`]): { head: string; at: string; what: string[]; text: string[]; kinds: ChangeKind[]; task?: string; research?: string }[] {
   const r = runGit(root, ["log", ...range, "--format=%x1e%H%x1f%cI%x1f%s%x1f%b%x1f", "--name-only"]);
@@ -654,6 +657,20 @@ function links(env: Env): string[] {
   return linksSeen.actions;
 }
 
+/**
+ * A second installation's own scheme (strom-research-beta), for the app to build its links with — said whenever it is
+ * not the person's strom-research (whether they lead here says `links`).
+ */
+function linkSchemeOf(env: Env): { linkScheme?: string } {
+  const scheme = linkScheme(env);
+  return scheme !== LINK_SCHEME ? { linkScheme: scheme } : {};
+}
+
+/** The beta channel this bridge's strom runs on, for the app to say so; the releases: nothing said. */
+function channelOf(env: Env): { channel?: "beta" } {
+  return updateChannel(env) === "beta" ? { channel: "beta" } : {};
+}
+
 /** At most so many tasks of the queue the app is told (the rest counted): what comes next, then what was put aside. */
 const QUEUE_NEXT = 14;
 const QUEUE_PARKED = 6;
@@ -728,6 +745,21 @@ export function appVersionOf(req: { url?: string | undefined; headers: http.Inco
 
 /** What the app shows beside the tree. */
 function status(root: string, env: Env, version?: string): Record<string, unknown> {
+  // a research a newer strom wrote (a beta's, this strom back on the releases): said, never opened
+  const refused = newerTree(root, env);
+  if (refused) {
+    const config = readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE));
+    return {
+      strom: VERSION,
+      features: BRIDGE_FEATURES,
+      ...channelOf(env),
+      tree: { id: config?.id, name: config?.name, lang: config?.lang },
+      path: root,
+      locked: { code: refused.code, reason: refused.message, way: refused.hint, ...(refused.params ?? {}) },
+      links: links(env),
+      ...linkSchemeOf(env),
+    };
+  }
   const tree = Tree.open(root, env);
   const settings = new Settings(env, {});
   // an archive asks the person nothing: none waits (put aside at its next write, settleArchive)
@@ -748,6 +780,7 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
     // what this bridge does, for an app to go by rather than the version (a bridge run from the sources says the
     // candidate it is, found on Mac: an app took 1.11.0 for an old research)
     features: BRIDGE_FEATURES,
+    ...channelOf(env),
     ...(disk && disk.version !== (env.STROM_LIVE_RENEWED ?? VERSION) ? { installed: disk.version } : {}),
     tree: { id: tree.config.id, name: tree.config.name, lang: tree.lang },
     path: root,
@@ -766,6 +799,7 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
       ...(appShowsStoryDrafts(settings, version) ? storiesWaiting(tree) : []),
     ],
     links: links(env),
+    ...linkSchemeOf(env),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
     ...(isArchive(tree) ? { queue: [], queueMore: 0 } : queue(tree, next, all)),
     ...(newer ? { update: { version: newer } } : {}),
@@ -959,6 +993,14 @@ export function serveLive(root: string, env: Env): Promise<void> {
           res.writeHead(200, { "Content-Type": known.mime, "Content-Length": String(size), "Cache-Control": "no-store", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(known.name ?? path.basename(known.file))}` });
           fs.createReadStream(known.file).on("error", (e) => failed(req, res, e)).pipe(res);
         }
+      } else if (what === "material") {
+        // the family's files the research keeps — an archive's too, which nobody sorts: the app shows them again
+        const q = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+        const person = (q.get("person") ?? "").toUpperCase();
+        const batch = q.get("batch") ?? "";
+        const json = (code: number, body: unknown) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+        if ((q.has("person") && !/^P\d{1,9}$/.test(person)) || (q.has("batch") && !BATCH_ID.test(batch))) json(400, { error: "?person=P… (a person of the research), ?batch=<the batch's mark>" });
+        else json(200, material(Tree.open(root, env), new Settings(env, {}).shared()?.value, { ...(person ? { person } : {}), ...(batch ? { batch } : {}) }));
       } else if (what === "status") {
         // what is answered is made first: a read that fails can still answer 500
         const text = JSON.stringify(status(root, env, version));
@@ -991,7 +1033,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
             head: h,
             links: offered.join(" "),
             version: version ?? "",
-            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(offered.length ? { links: offered } : {}) }).text,
+            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
           };
         }
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);

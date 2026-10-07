@@ -10,19 +10,45 @@ import { UI, ui, type UIKey } from "../cli/ui.ts";
 
 /**
  * Parse "Jan /Novák/", "Jan Novák" (last word = surname) or "/Novák/". The
- * surname runs from the first slash to the last: "/⟨K/Č⟩emenská/" keeps its
- * inner slash for the caller to refuse (actions) or replace (import).
+ * surname is the last pair of slashes, opened at the start or after a space:
+ * "N/A /Chrpa/" is "?" Chrpa. A slash inside a word does not open it —
+ * "/⟨K/Č⟩emenská/" keeps its inner slash for the caller to refuse (actions)
+ * or replace (import). What stands for no name (N/A, N.N.) stays for the
+ * caller: an action refuses it (notAName), a file read makes it "?" (noName).
  */
 export function parseName(input: string): Name {
   const s = input.trim().replace(/\s+/g, " ");
-  const m = /^([^/]*?)\s*\/(.*)\/\s*([^/]*)$/.exec(s);
-  if (m) {
-    const given = [m[1], m[3]].filter(Boolean).join(" ").trim();
-    return { given, surname: (m[2] ?? "").trim() };
+  const close = s.lastIndexOf("/");
+  let open = -1;
+  for (let i = close - 1; i >= 0; i--) if (s[i] === "/" && (i === 0 || s[i - 1] === " ")) { open = i; break; }
+  if (open < 0 && close > 0) open = s.indexOf("/");
+  if (open >= 0 && open < close) {
+    const given = [s.slice(0, open), s.slice(close + 1)].map((x) => x.trim()).filter(Boolean).join(" ");
+    return { given, surname: s.slice(open + 1, close).trim() };
   }
   const parts = s.split(" ");
   if (parts.length === 1) return { given: s, surname: "" };
   return { given: parts.slice(0, -1).join(" "), surname: parts[parts.length - 1]! };
+}
+
+/**
+ * What a record or another program writes where it has no name (folded): the person's name is "?". The Strom app
+ * reads the same list (the tester's T08); words that describe the person (stillborn, son) are DESCRIPTIONS below.
+ */
+export const NO_NAME = [
+  "n a", "nn", "n n", "nomen nescio", "unknown", "unnamed", "no name", "noname",
+  "neznamy", "neznama", "nezname", "nezjisteno", "bez jmena", "bezejmenny", "bezejmenna",
+  "unbekannt", "namenlos", "ohne namen", "nieznany", "nieznana", "nieznane", "bez imienia",
+  "inconnu", "inconnue", "sans nom",
+];
+const NO_NAME_SET = new Set(NO_NAME);
+
+/** Whether a given name only says there is none ("N/A", "N.N.", "?", "—"); an empty one is no name either way. */
+export function noName(given: string): boolean {
+  const g = given.trim();
+  if (!g) return false;
+  const words = foldText(g).replace(/[^\p{L}\p{M}\p{N}]+/gu, " ").trim();
+  return !words || NO_NAME_SET.has(words);
 }
 
 /** Words that describe a person instead of naming them (folded): stillborn, unbaptised, N.N. */
@@ -45,7 +71,7 @@ export function notAName(given: string): string | undefined {
   if (!g) return undefined;
   if (/^[(\[{].*[)\]}]$/su.test(g)) return `"${g}" is a description in brackets, not a name`;
   const words = foldText(g).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-  if (DESCRIPTIONS.has(words)) return `"${g}" describes the person, it is not a name`;
+  if (DESCRIPTIONS.has(words) || NO_NAME_SET.has(words)) return `"${g}" describes the person, it is not a name`;
   return undefined;
 }
 

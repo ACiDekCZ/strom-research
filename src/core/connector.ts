@@ -385,6 +385,11 @@ const DIRECT: { re: RegExp; what: string; in: Lang[] }[] = [
 /** Libraries inside the folder: strom cannot check what they do. */
 const LIBRARIES = ["node_modules", ".venv", "venv", "site-packages"];
 
+/**
+ * What the code seems to do past strom — for a person to read (connector show, test, the consent's warning). A
+ * report, never the boundary: words found or not decide nothing about whether a program runs without a consent;
+ * sandboxedRun does (a check of words is passed by words it does not know).
+ */
 export function directNetwork(c: Pick<Connector, "dir"> & { manifest?: Pick<ConnectorManifest, "run"> }): string[] {
   const found: string[] = [];
   for (const lib of LIBRARIES) if (fs.existsSync(path.join(c.dir, lib))) found.push(`${lib}/ — libraries strom cannot check`);
@@ -403,12 +408,49 @@ export function directNetwork(c: Pick<Connector, "dir"> & { manifest?: Pick<Conn
   return found;
 }
 
+/**
+ * The one command strom runs in Node's permission model: "node" and files of the connector's own folder — no switch
+ * of Node's, no path outside it (no "..", none absolute, none through a link), each file there. Anything else (another
+ * program, node.exe, a node by its path, `--allow-child-process`, `-e`) is a program strom cannot fence in: it runs
+ * only with the person's yes to its code exactly as it is.
+ */
+export function sandboxedRun(c: Pick<Connector, "dir"> & { manifest: Pick<ConnectorManifest, "run"> }): boolean {
+  const [cmd, ...files] = c.manifest.run;
+  if (cmd !== "node" || !files.length) return false;
+  let dir: string;
+  try {
+    dir = fs.realpathSync(c.dir);
+  } catch {
+    return false;
+  }
+  return files.every((f) => {
+    if (typeof f !== "string" || !f || f.startsWith("-") || path.isAbsolute(f) || path.win32.isAbsolute(f) || f.split(/[\\/]/).includes("..")) return false;
+    try {
+      const real = fs.realpathSync(path.resolve(dir, f));
+      const rel = path.relative(dir, real);
+      return !!rel && !rel.startsWith("..") && !path.isAbsolute(rel) && fs.statSync(real).isFile();
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** Does Node's permission model of this Node keep a fenced connector off the network too? (From Node 25: no --allow-net, no network.) */
+export function fenceKeepsNetOff(nodeVersion: string): boolean {
+  return (Number(nodeVersion.replace(/^v/, "").split(".")[0]) || 0) >= 25;
+}
+
+/** Code strom cannot fence in or that seems to go round it: it runs only as the person allowed it, file by file. */
+export function lockedCode(c: Connector): boolean {
+  return !sandboxedRun(c) || directNetwork(c).length > 0;
+}
+
 // ── consents (the user's, on a terminal — never an agent's) ──────────────────
 
 export interface ConnectorConsent {
   /** The folder the user allowed. */
   dir: string;
-  /** The code as it was then — binding only for code that reaches the network itself. */
+  /** The code as it was then — binding for code strom cannot fence in or that seems to go round it (lockedCode). */
   hash: string;
   hosts: string[];
   at: string;
@@ -443,20 +485,21 @@ export function consentRequired(env: Env): boolean {
 /**
  * What is still missing before this connector may run. With consents on: the
  * user's yes to its folder, and to each of its hosts. The folder is allowed as
- * a whole — the user's agent may go on improving it — as long as its code
- * reaches the network only through strom. Code that goes round strom needs a
- * yes exactly as it is, consents on or off, so every change of it needs a new one.
+ * a whole — the user's agent may go on improving it — as long as it runs in
+ * Node's permission model (sandboxedRun) and its code seems to reach the network
+ * only through strom. Any other code (lockedCode) needs a yes exactly as it is,
+ * consents on or off, so every change of it needs a new one.
  */
 export function missingConsents(env: Env, c: Connector): { code?: "new" | "changed"; hosts: string[] } {
   const all = loadConsents(env);
   const given = all.connectors[c.name];
   const known = !!given && path.resolve(given.dir) === path.resolve(c.dir);
-  const direct = directNetwork(c).length > 0;
+  const locked = lockedCode(c);
   if (!consentRequired(env)) {
-    const code = !direct ? undefined : !known ? "new" : given.hash !== connectorHash(c.dir) ? "changed" : undefined;
+    const code = !locked ? undefined : !known ? "new" : given.hash !== connectorHash(c.dir) ? "changed" : undefined;
     return { ...(code ? { code } : {}), hosts: [] };
   }
-  const code = !known ? "new" : direct && given.hash !== connectorHash(c.dir) ? "changed" : undefined;
+  const code = !known ? "new" : locked && given.hash !== connectorHash(c.dir) ? "changed" : undefined;
   return { ...(code ? { code } : {}), hosts: c.manifest.hosts.map(bareHost).filter((h) => !all.hosts[h]) };
 }
 
@@ -505,11 +548,16 @@ export function codeWarning(c: Connector, source: string, direct: string[]): str
     `Connector ${c.name}${m.version ? ` ${m.version}` : ""} — ${m.title}`,
     `  from:      ${source}`,
     `  runs:      ${m.run.join(" ")}  (a program on this computer, in ${c.dir})`,
+    !sandboxedRun(c)
+      ? `  ⚠ not in Node's permission model — it may read and change any file of this user and start other programs;\n    the only shape strom fences in: "node" and files of its folder, nothing else\n    asked again after every change of it`
+      : undefined,
     `  contacts:  ${m.hosts.join(", ")} — only through strom's limiter`,
     `  can:       ${m.can.join(", ")}`,
     direct.length
       ? `  ⚠ its code reaches the network or other programs directly — strom cannot pace or stop that:\n${direct.slice(0, 8).map((d) => `      ${d}`).join("\n")}\n    asked again after every change of it`
-      : "  its code uses no network of its own (checked); the agent may go on improving it without asking again",
+      : sandboxedRun(c)
+        ? "  its code seems to use no network of its own (a check of its words, not a guarantee); it runs in Node's permission model, so the agent may go on improving it without asking again"
+        : undefined,
     m.policy.automation === "manual" ? "  ⚠ its own reading of the portal's terms: automation is not allowed — it only helps download by hand" : undefined,
   ]
     .filter(Boolean)
@@ -714,8 +762,10 @@ function connectorEnv(env: Env, workDir: string): NodeJS.ProcessEnv {
  * The command line. A Node connector runs in the Node that runs strom (new
  * enough for TypeScript), under Node's permission model: it reads its own
  * folder and the work folder, writes only into the work folder, starts no
- * other programs — and from Node 25 on, reaches no network at all. It runs on
- * the Node strom runs on.
+ * other programs — and from Node 25 on, reaches no network at all. Only the
+ * shape sandboxedRun names keeps to that; a "node" with switches of its own
+ * (they add to strom's) and any other program run only with the person's yes
+ * to their code (missingConsents).
  */
 function commandLine(c: Connector, dir: string, workDir: string, env: Env): [string, string[]] {
   const [cmd, ...args] = c.manifest.run;
@@ -746,6 +796,8 @@ const METHODS = new Set(["GET", "POST", "HEAD"]);
 
 export async function runConnector(c: Connector, request: ConnectorRequest, opts: RunOptions): Promise<RunReport> {
   if (!c.manifest.can.includes(request.cmd)) throw new UsageError(`connector ${c.name} cannot ${request.cmd}`, { hint: `it can: ${c.manifest.can.join(", ")}` });
+  // never a program strom cannot fence in without the person's yes to it as it is now, whoever calls this
+  if (lockedCode(c) && missingConsents(opts.env, c).code) throw new UsageError(`connector ${c.name} needs the user's consent to its code as it is now`, { hint: `the user, in their terminal: strom allow connector ${c.name}` });
   fs.mkdirSync(opts.workDir, { recursive: true });
   // real paths: the permission model compares the paths the program uses with these
   const dir = fs.realpathSync(c.dir);

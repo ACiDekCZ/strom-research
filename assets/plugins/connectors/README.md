@@ -56,6 +56,10 @@ starts with `.` or `_` are ignored (`_old-version/`).
 - `title`: the archive or portal, as people call it.
 - `run`: the program and its arguments, started in the connector's folder.
   `"node"` is the Node that runs strom (it runs TypeScript as it is).
+  `"node"` followed only by files of the connector's folder (no switches, no
+  `..`, no absolute paths) runs in Node's permission model. Any other program,
+  or a switch of Node's, runs only with the user's consent to the code exactly
+  as it is, asked again after every change of it.
 - `hosts`: every host it contacts. `"example.org"` includes its subdomains.
   strom refuses requests anywhere else, and each host needs the user's consent.
 - `can`: what it does: any of `find`, `list`, `fetch`, `part`, `locate`.
@@ -384,8 +388,9 @@ with the text round it.
 A connector runs as soon as it is in the folder. Two things need the user's
 consent, given in their own terminal (`strom allow connector <name>`, or when
 they run a test or a fetch themselves, where strom asks right away):
-- code that reaches the network itself, past strom: always, and again after
-  every change of it;
+- a `run` other than `"node"` and files of its folder, or code that seems to
+  reach the network itself, past strom: always, and again after every change
+  of it;
 - every connector and each of its hosts, when the user asked to be asked first
   (`strom config set connectors.consent on`).
 

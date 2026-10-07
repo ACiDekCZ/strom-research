@@ -153,7 +153,7 @@ test("records are stored composed; file paths as they are", opts, async () => {
 
 test("a description is not a name: a stillborn child keeps an empty given name, the record's words go to the facts", opts, async () => {
   const w = await world();
-  for (const name of ["(mrtvě narozený) /Víšek/", "(mrtvě narozený) /Víšek/".normalize("NFD"), "N.N. /Víšek/", "Totgeboren /Víšek/", "[syn] /Víšek/"]) {
+  for (const name of ["(mrtvě narozený) /Víšek/", "(mrtvě narozený) /Víšek/".normalize("NFD"), "N.N. /Víšek/", "N/A /Víšek/", "Totgeboren /Víšek/", "[syn] /Víšek/"]) {
     const r = await w.run(["person", "add", name, "--sex", "M"]);
     assert.equal(r.code, 2, name);
     assert.match(r.err, /not a name/);

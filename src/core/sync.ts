@@ -41,7 +41,7 @@ import { StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
 import { isArchive } from "./mode.ts";
-import { primaryName } from "./people.ts";
+import { noName, parseName, primaryName } from "./people.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
 
@@ -509,9 +509,14 @@ export function readGedcom(text: string): Snapshot {
     const key = ours && !persons.has(ours) ? ours : `x:${r.xref!.replace(/@/g, "")}`;
     keys.set(r.xref!, key);
     const sex = val(r, "SEX");
-    const names = children(r, "NAME").map((n) => n.value.trim()).filter((n) => n.replace(/[/?\s]/g, ""));
+    const written = children(r, "NAME").map((n) => n.value.trim()).filter((n) => n.replace(/[/?\s]/g, ""));
     // a placeholder of the Strom app (an unknown parent drawn in the tree): nobody
-    if (!ours && !names.length) continue;
+    if (!ours && !written.length) continue;
+    // what stands for no name ("N/A /Chrpa/", "N.N.") is the research's "?" (T08)
+    const names = written.map((n) => {
+      const p = parseName(n);
+      return noName(p.given) && p.given !== "?" ? `? /${p.surname}/` : n;
+    });
     const facts = gedFacts(r, undefined, read);
     // a godparent other programs give the person (1 ASSO): theirs at the baptism, else the birth
     const host = facts.find((f) => kindOf(f.kind) === "BAPM") ?? facts.find((f) => f.kind === "BIRT");

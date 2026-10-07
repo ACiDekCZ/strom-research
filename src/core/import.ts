@@ -11,7 +11,7 @@ import { foldText } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { validateRecord } from "./validate.ts";
 import { normalizeDate } from "./gdate.ts";
-import { parseName, sameName } from "./people.ts";
+import { noName, notAName, parseName, sameName } from "./people.ts";
 import { now, type Tree } from "./tree.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
 
@@ -282,7 +282,17 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
       children(r, "NAME")
         .map((n) => {
           const parsed = parseName(n.value.replace(/\s+/g, " "));
-          const found: Name = !/\//.test(n.value) && (val(n, "SURN") || val(n, "GIVN")) ? { given: val(n, "GIVN") ?? "", surname: val(n, "SURN") ?? "" } : parsed;
+          // the name's own parts (GIVN, SURN) first — the line is only how a program wrote them; a list of surnames
+          // (GEDCOM's commas) or a prefix of the surname (SPFX: van, de) keeps the line's
+          const givn = val(n, "GIVN")?.replace(/\s*,\s*/g, " ").trim();
+          const surn = val(n, "SURN")?.trim();
+          const lineHasSurname = /\/.*\//.test(n.value);
+          const found: Name = {
+            given: noName(givn || parsed.given) ? "?" : givn || parsed.given,
+            surname: surn ? (lineHasSurname && (surn.includes(",") || val(n, "SPFX")) ? parsed.surname : surn) : lineHasSurname || !givn ? parsed.surname : "",
+          };
+          // a word that describes the person in place of a name (stillborn, son): the name is "?", the word goes to a note
+          if (notAName(found.given)) found.given = "?";
           // a slash inside a name ("/⟨K/Č⟩emenská/") is kept as "|": the name stays one GEDCOM can write
           const name: Name = { ...found, given: found.given.replace(/\//g, "|"), surname: found.surname.replace(/\//g, "|") };
           const kind = nameKind(val(n, "TYPE"));
@@ -335,6 +345,11 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
       // "Úmrtí: Věk: 61 let", "Narození: Adresa: čp. 13" — back to the fact.
       const personEvents = events(r, r.xref!, false);
       const personNotes = factNotes(r, personEvents);
+      // what a file wrote in place of a name, kept as it said it ("Mrtvě narozený")
+      for (const n of children(r, "NAME")) {
+        const g = val(n, "GIVN") ?? parseName(n.value.replace(/\s+/g, " ")).given;
+        if (notAName(g) && !personNotes.includes(g.trim())) personNotes.push(g.trim());
+      }
       const p: Person = {
         id: xrefToId.get(r.xref!)!,
         type: "person",

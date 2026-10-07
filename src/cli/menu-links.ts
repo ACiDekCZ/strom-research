@@ -391,7 +391,7 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
   const blockedAfter = Number(ctx.env.STROM_ADOPT_HINT_MS ?? 2 * 60_000);
   let toldBlocked = false;
   // named as the browser the app opened in names it (Edge 154: Apps on device, not Local network — F5)
-  const opensIn = appWindow(ctx.settings, ctx.env).browser;
+  const opensIn = appWindow(ctx.settings, ctx.env, process.platform, { holdsTree: true }).browser;
   const blocked =
     opensIn?.kind === "brave" ? t("ui.link.new.blocked.brave")
     : opensIn?.kind === "firefox" ? t("ui.link.new.blocked.firefox")

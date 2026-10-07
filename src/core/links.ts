@@ -17,17 +17,32 @@
 // terminal, and an unknown action, research or excerpt is only said.
 // The app learns that links work from strom itself (the bridge's /status,
 // the GEDCOM it serves): only while the scheme here leads to this strom.
+// A second strom beside the person's own (isolated, with a command of its own:
+// strom-beta) has a scheme of its own, strom-research-beta://, registered and
+// taken off the same way — never the person's strom-research://.
 
 import fs from "node:fs";
 import path from "node:path";
 import { execFile, spawnSync } from "node:child_process";
 import type { Env } from "./paths.ts";
-import { isolated, userHome } from "./paths.ts";
+import { noLinks, ownSuffix, userHome } from "./paths.ts";
 import { stromLauncher } from "./self.ts";
 import { ICON } from "./shortcut.ts";
 import { browserKind, type BrowserKind } from "./chromium.ts";
 
 export const LINK_SCHEME = "strom-research";
+
+/** The scheme of this strom's links: strom-research; a second installation's with a command of its own strom-research-<suffix>. */
+export function linkScheme(env: Env): string {
+  const suffix = ownSuffix(env);
+  return suffix ? `${LINK_SCHEME}-${suffix}` : LINK_SCHEME;
+}
+
+/** The name the system shows for the links' handler: Strom Research, a second installation's "Strom Research (beta)". */
+function handlerName(env: Env): string {
+  const suffix = ownSuffix(env);
+  return suffix ? `Strom Research (${suffix})` : "Strom Research";
+}
 /**
  * What the links strom understands do: send the edited tree back, open an excerpt in full, send the research
  * as it is now into the app's window, open the research's menu, a conversation with the agent (of one person),
@@ -157,7 +172,7 @@ function idOf(q: URLSearchParams, name: string, shape: RegExp, needed: boolean):
 }
 
 /** A link, checked part by part; anything else is a LinkError. No link at all (the applet opened by itself): the menu. */
-export function parseLink(text: string | undefined): Link {
+export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME): Link {
   if (!text?.trim()) return { action: "menu" };
   const raw = text.trim();
   if (raw.length > 2048) throw new LinkError("too long");
@@ -167,7 +182,7 @@ export function parseLink(text: string | undefined): Link {
   } catch {
     throw new LinkError("not a link");
   }
-  if (url.protocol !== `${LINK_SCHEME}:`) throw new LinkError(`not a ${LINK_SCHEME} link`);
+  if (url.protocol !== `${scheme}:`) throw new LinkError(`not a ${scheme} link`);
   // strom-research://send?… — and the forms systems make of it: …//send/?…, strom-research:send?…
   const action = (url.host || url.pathname).replace(/^\/+|\/+$/g, "").toLowerCase();
   const q = url.searchParams;
@@ -243,10 +258,10 @@ export function parseLink(text: string | undefined): Link {
 }
 
 /** A link written again from what was checked in it: only its known parts, in one form (handed to a new terminal). */
-export function linkText(link: Exclude<Link, { action: "menu" }>): string {
+export function linkText(link: Exclude<Link, { action: "menu" }>, scheme: string = LINK_SCHEME): string {
   const { action, ...parts } = link;
   const q = new URLSearchParams(Object.entries(parts).filter((e): e is [string, string] => typeof e[1] === "string"));
-  return `${LINK_SCHEME}://${action}?${q}`;
+  return `${scheme}://${action}?${q}`;
 }
 
 // ── the handler, per system ──
@@ -264,19 +279,27 @@ function handlerArgv(env: Env = {}, platform: NodeJS.Platform = process.platform
   return [...own, command, ...args, "link", "open"];
 }
 
-/** macOS: the applet strom makes. */
+/** macOS: the applet strom makes (a second installation's: "Strom Research (beta).app"). */
 export function macApp(env: Env): string {
-  return path.join(userHome(env), "Applications", "Strom Research.app");
+  return path.join(userHome(env), "Applications", `${handlerName(env)}.app`);
 }
 
 /** Linux: the entry that takes the links (the shortcut's own is strom-research.desktop). */
 export const LINUX_ENTRY = "strom-research-link.desktop";
 
-function linuxEntry(env: Env): string {
-  return path.join(env.XDG_DATA_HOME ?? path.join(userHome(env), ".local", "share"), "applications", LINUX_ENTRY);
+/** Linux: the entry's name for this strom's scheme (a second installation's: strom-research-beta-link.desktop). */
+export function linuxEntryName(env: Env): string {
+  return `${linkScheme(env)}-link.desktop`;
 }
 
-const WIN_KEY = `HKCU\\Software\\Classes\\${LINK_SCHEME}`;
+function linuxEntry(env: Env): string {
+  return path.join(env.XDG_DATA_HOME ?? path.join(userHome(env), ".local", "share"), "applications", linuxEntryName(env));
+}
+
+/** Windows: the key of this strom's scheme, for this user. */
+function winKey(env: Env): string {
+  return `HKCU\\Software\\Classes\\${linkScheme(env)}`;
+}
 
 /** AppleScript string literal. */
 function appleString(s: string): string {
@@ -317,16 +340,16 @@ function desktopWord(s: string): string {
   return quoted.replace(/\\/g, "\\\\").replace(/%/g, "%%");
 }
 
-export function linuxDesktopEntry(argv: string[]): string {
+export function linuxDesktopEntry(argv: string[], scheme: string = LINK_SCHEME, name = "Strom Research"): string {
   return [
     "[Desktop Entry]",
     "Type=Application",
-    "Name=Strom Research",
+    `Name=${name}`,
     "NoDisplay=true",
     `Exec=${argv.map(desktopWord).join(" ")} %u`,
     `Icon=${ICON.png}`,
     "Terminal=false",
-    `MimeType=x-scheme-handler/${LINK_SCHEME};`,
+    `MimeType=x-scheme-handler/${scheme};`,
     "",
   ].join("\n");
 }
@@ -340,9 +363,9 @@ const sys: Sys = (cmd, args) => {
 
 const LSREGISTER = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 
-/** The app the system opens a strom-research link with (macOS), or "". */
-function macHandlerPath(run: Sys): string {
-  const js = `ObjC.import("AppKit");var u=$.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL($.NSURL.URLWithString("${LINK_SCHEME}://status"));u.isNil()?"":u.path.js`;
+/** The app the system opens a link of this scheme with (macOS), or "". */
+function macHandlerPath(run: Sys, scheme: string): string {
+  const js = `ObjC.import("AppKit");var u=$.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL($.NSURL.URLWithString("${scheme}://status"));u.isNil()?"":u.path.js`;
   const r = run("osascript", ["-l", "JavaScript", "-e", js]);
   return r.status === 0 ? r.stdout.trim() : "";
 }
@@ -376,7 +399,7 @@ export function linkHandlerState(env: Env, platform: NodeJS.Platform = process.p
   if (env.STROM_NO_INSTALL === "1" && run === sys) return "none";
   const argv = handlerArgv(env, platform);
   if (platform === "darwin") {
-    const at = macHandlerPath(run);
+    const at = macHandlerPath(run, linkScheme(env));
     if (!at) return "none";
     const app = macApp(env);
     if (path.resolve(at) !== path.resolve(app)) return "other";
@@ -387,17 +410,17 @@ export function linkHandlerState(env: Env, platform: NodeJS.Platform = process.p
     }
   }
   if (platform === "win32") {
-    const r = run("reg.exe", ["query", `${WIN_KEY}\\shell\\open\\command`, "/ve"]);
+    const r = run("reg.exe", ["query", `${winKey(env)}\\shell\\open\\command`, "/ve"]);
     if (r.status !== 0) return "none";
     const value = /REG_(?:EXPAND_)?SZ\s+(.*)$/m.exec(r.stdout)?.[1]?.trim();
     return value === windowsCommand(argv) ? "ours" : value ? "other" : "none";
   }
-  const r = run("xdg-mime", ["query", "default", `x-scheme-handler/${LINK_SCHEME}`]);
+  const r = run("xdg-mime", ["query", "default", `x-scheme-handler/${linkScheme(env)}`]);
   const entry = r.status === 0 ? r.stdout.trim() : "";
   if (!entry) return "none";
-  if (entry !== LINUX_ENTRY) return "other";
+  if (entry !== linuxEntryName(env)) return "other";
   try {
-    return fs.readFileSync(linuxEntry(env), "utf8") === linuxDesktopEntry(argv) ? "ours" : "other";
+    return fs.readFileSync(linuxEntry(env), "utf8") === linuxDesktopEntry(argv, linkScheme(env), handlerName(env)) ? "ours" : "other";
   } catch {
     return "other";
   }
@@ -411,9 +434,12 @@ export function linkActions(state: HandlerState): string[] {
 /** Register the scheme for this user (or register it again: this strom moved, was updated); true when it leads to this strom now. */
 export function registerLinks(env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): boolean {
   if (env.STROM_NO_INSTALL === "1" && run === sys) return false;
-  // an isolated installation: the links stay the person's own strom's
-  if (isolated(env)) return false;
+  // an isolated installation without a command of its own: the links stay the person's own strom's
+  if (noLinks(env)) return false;
   const argv = handlerArgv(env, platform);
+  const scheme = linkScheme(env);
+  const name = handlerName(env);
+  const suffix = ownSuffix(env);
   if (platform === "darwin") {
     const app = macApp(env);
     fs.mkdirSync(path.dirname(app), { recursive: true });
@@ -424,10 +450,10 @@ export function registerLinks(env: Env, platform: NodeJS.Platform = process.plat
     fs.rmSync(script, { force: true });
     if (made.status !== 0) return false;
     const plist = path.join(app, "Contents", "Info.plist");
-    run("plutil", ["-replace", "CFBundleIdentifier", "-string", "info.stromapp.research.link", plist]);
-    run("plutil", ["-replace", "CFBundleName", "-string", "Strom Research", plist]);
+    run("plutil", ["-replace", "CFBundleIdentifier", "-string", `info.stromapp.research.link${suffix ? `.${suffix}` : ""}`, plist]);
+    run("plutil", ["-replace", "CFBundleName", "-string", name, plist]);
     run("plutil", ["-replace", "LSUIElement", "-bool", "true", plist]);
-    run("plutil", ["-replace", "CFBundleURLTypes", "-json", JSON.stringify([{ CFBundleURLName: "Strom Research", CFBundleURLSchemes: [LINK_SCHEME] }]), plist]);
+    run("plutil", ["-replace", "CFBundleURLTypes", "-json", JSON.stringify([{ CFBundleURLName: name, CFBundleURLSchemes: [scheme] }]), plist]);
     // its icon: Strom Research's own
     if (fs.existsSync(ICON.png)) run("sips", ["-s", "format", "icns", ICON.png, "--out", path.join(app, "Contents", "Resources", "applet.icns")]);
     fs.writeFileSync(macMark(app), JSON.stringify({ argv }, null, 2));
@@ -438,17 +464,18 @@ export function registerLinks(env: Env, platform: NodeJS.Platform = process.plat
   }
   if (platform === "win32") {
     const add = (key: string, args: string[]) => run("reg.exe", ["add", key, ...args, "/f"]).status === 0;
+    const key = winKey(env);
     const ok =
-      add(WIN_KEY, ["/ve", "/d", "URL:Strom Research"]) &&
-      add(WIN_KEY, ["/v", "URL Protocol", "/d", ""]) &&
-      add(`${WIN_KEY}\\DefaultIcon`, ["/ve", "/d", ICON.ico]) &&
-      add(`${WIN_KEY}\\shell\\open\\command`, ["/ve", "/d", windowsCommand(argv)]);
+      add(key, ["/ve", "/d", `URL:${name}`]) &&
+      add(key, ["/v", "URL Protocol", "/d", ""]) &&
+      add(`${key}\\DefaultIcon`, ["/ve", "/d", ICON.ico]) &&
+      add(`${key}\\shell\\open\\command`, ["/ve", "/d", windowsCommand(argv)]);
     return ok && linkHandlerState(env, platform, run) === "ours";
   }
   const file = linuxEntry(env);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, linuxDesktopEntry(argv));
-  run("xdg-mime", ["default", LINUX_ENTRY, `x-scheme-handler/${LINK_SCHEME}`]);
+  fs.writeFileSync(file, linuxDesktopEntry(argv, scheme, name));
+  run("xdg-mime", ["default", linuxEntryName(env), `x-scheme-handler/${scheme}`]);
   run("update-desktop-database", [path.dirname(file)]);
   return linkHandlerState(env, platform, run) === "ours";
 }
@@ -458,7 +485,7 @@ export function registerLinks(env: Env, platform: NodeJS.Platform = process.plat
  * the user config's `links`); another installation's (one key for all on Windows) is never taken quietly.
  */
 export function refreshLinks(said: string | undefined, env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): boolean {
-  if (said !== "yes" || isolated(env) || !linkFiles(env, platform, run).length || linkHandlerState(env, platform, run) === "ours") return false;
+  if (said !== "yes" || noLinks(env) || !linkFiles(env, platform, run).length || linkHandlerState(env, platform, run) === "ours") return false;
   return registerLinks(env, platform, run);
 }
 
@@ -467,8 +494,8 @@ export function linkFiles(env: Env, platform: NodeJS.Platform = process.platform
   if (platform === "darwin") return fs.existsSync(macApp(env)) && fs.existsSync(macMark(macApp(env))) ? [macApp(env)] : [];
   if (platform === "win32") {
     if (env.STROM_NO_INSTALL === "1" && run === sys) return [];
-    const r = run("reg.exe", ["query", `${WIN_KEY}\\shell\\open\\command`, "/ve"]);
-    return r.status === 0 && /link"? "?open/.test(r.stdout) ? [WIN_KEY] : [];
+    const r = run("reg.exe", ["query", `${winKey(env)}\\shell\\open\\command`, "/ve"]);
+    return r.status === 0 && /link"? "?open/.test(r.stdout) ? [winKey(env)] : [];
   }
   return fs.existsSync(linuxEntry(env)) ? [linuxEntry(env)] : [];
 }
@@ -497,18 +524,18 @@ export function linkOwner(env: Env, platform: NodeJS.Platform = process.platform
     return whose(words, JSON.stringify(words) === JSON.stringify(argv));
   }
   if (platform === "win32") {
-    const value = /REG_(?:EXPAND_)?SZ\s+(.*)$/m.exec(run("reg.exe", ["query", `${WIN_KEY}\\shell\\open\\command`, "/ve"]).stdout)?.[1]?.trim() ?? "";
+    const value = /REG_(?:EXPAND_)?SZ\s+(.*)$/m.exec(run("reg.exe", ["query", `${winKey(env)}\\shell\\open\\command`, "/ve"]).stdout)?.[1]?.trim() ?? "";
     return whose([...value.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]!), value === windowsCommand(argv));
   }
   const text = fs.readFileSync(linuxEntry(env), "utf8");
   const exec = /^Exec=(.*)$/m.exec(text)?.[1] ?? "";
   const words = [...exec.matchAll(/"((?:[^"\\]|\\.)*)"|(\S+)/g)].map((m) => (m[1] ?? m[2]!).replace(/\\(.)/g, "$1"));
-  return whose(words, text === linuxDesktopEntry(argv));
+  return whose(words, text === linuxDesktopEntry(argv, linkScheme(env), handlerName(env)));
 }
 
 /** Take the scheme off again (strom link off, strom uninstall); true when nothing of strom's is left for it. */
 export function unregisterLinks(env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): boolean {
-  if (isolated(env)) return true;
+  if (noLinks(env)) return true;
   // another installation's stays (found on Windows: a test installation's uninstall took the main one's key)
   if (linkOwner(env, platform, run).owner === "other") return true;
   if (platform === "darwin") {
@@ -521,7 +548,7 @@ export function unregisterLinks(env: Env, platform: NodeJS.Platform = process.pl
   }
   if (platform === "win32") {
     if (!linkFiles(env, platform, run).length) return true;
-    return run("reg.exe", ["delete", WIN_KEY, "/f"]).status === 0;
+    return run("reg.exe", ["delete", winKey(env), "/f"]).status === 0;
   }
   const file = linuxEntry(env);
   fs.rmSync(file, { force: true });
@@ -529,7 +556,7 @@ export function unregisterLinks(env: Env, platform: NodeJS.Platform = process.pl
   const list = path.join(env.XDG_CONFIG_HOME ?? path.join(userHome(env), ".config"), "mimeapps.list");
   try {
     const text = fs.readFileSync(list, "utf8");
-    const kept = text.split("\n").filter((l) => !(l.startsWith(`x-scheme-handler/${LINK_SCHEME}=`) && l.includes(LINUX_ENTRY)));
+    const kept = text.split("\n").filter((l) => !(l.startsWith(`x-scheme-handler/${linkScheme(env)}=`) && l.includes(linuxEntryName(env))));
     if (kept.length !== text.split("\n").length) fs.writeFileSync(list, kept.join("\n"));
   } catch {
     // no list

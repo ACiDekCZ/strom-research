@@ -16,6 +16,40 @@ export function isolated(env: Env): boolean {
   return env.STROM_ISOLATED === "1";
 }
 
+/**
+ * The tar that unpacks strom's downloads (.tar.gz, and .zip on Windows): on Windows the system's own bsdtar
+ * (%SystemRoot%\System32\tar.exe, Windows 10 and later) — with Git's usr\bin first on PATH (strom started from Git
+ * Bash, as agents often are) "tar" is GNU tar, which reads C:\… as a remote host and fails (found on Windows); PATH's
+ * only where the system has none.
+ */
+export function tarProgram(env: Env, platform: NodeJS.Platform = process.platform, exists: (file: string) => boolean = fs.existsSync): string {
+  if (platform !== "win32") return "tar";
+  const own = path.win32.join(env.SystemRoot ?? env.SYSTEMROOT ?? env.windir ?? "C:\\Windows", "System32", "tar.exe");
+  return exists(own) ? own : "tar";
+}
+
+/** The name of a second installation's own command: strom-<letters and digits>, never strom itself. */
+export const COMMAND_NAME = /^strom-[a-z0-9]{1,20}$/;
+
+/**
+ * A second strom's own command (STROM_COMMAND, the installer keeps it in install.json: strom-beta): only an isolated
+ * installation has one. It has its own links (strom-research-<suffix>://) and its own folder of researches.
+ */
+export function ownCommand(env: Env): string | undefined {
+  const c = env.STROM_COMMAND;
+  return isolated(env) && c && COMMAND_NAME.test(c) ? c : undefined;
+}
+
+/** What tells a second installation with a command of its own apart: "beta" of strom-beta. */
+export function ownSuffix(env: Env): string | undefined {
+  return ownCommand(env)?.slice("strom-".length);
+}
+
+/** An isolated installation without a command of its own: no links at all (they stay the person's own strom's). */
+export function noLinks(env: Env): boolean {
+  return isolated(env) && !ownCommand(env);
+}
+
 export function userHome(env: Env): string {
   return env.HOME || env.USERPROFILE || os.homedir();
 }
@@ -72,10 +106,22 @@ export function desktopDir(env: Env, platform: NodeJS.Platform = process.platfor
   return path.join(home, "Desktop");
 }
 
-/** Suggested Strom home: <Documents>/Strom. */
+/**
+ * Suggested Strom home: <Documents>/Strom. A second installation never the person's own: with a command of its own
+ * <Documents>/Strom <suffix> ("Strom beta"), else a folder inside its own settings folder (STROM_CONFIG_DIR) —
+ * never inside the program's folder, which strom uninstall takes away (found 2026-10-07: the research and its
+ * backups went with it); the settings folder stays, and so does the research in it. Named "Strom research".
+ * (Isolated installations set up before keep the home their settings name: nothing is moved.)
+ */
 export function defaultHome(env: Env, platform: NodeJS.Platform = process.platform): string {
-  return path.join(documentsDir(env, platform), "Strom");
+  if (!isolated(env)) return path.join(documentsDir(env, platform), "Strom");
+  const suffix = ownSuffix(env);
+  if (suffix) return path.join(documentsDir(env, platform), `Strom ${suffix}`);
+  return path.join(configDir(env, platform), ISOLATED_HOME);
 }
+
+/** The research folder of an isolated installation without a command of its own, inside its settings folder. */
+export const ISOLATED_HOME = "Strom research";
 
 /** Expand a leading "~" so users and agents can pass "~/Documents/Strom". */
 export function expandHome(p: string, env: Env): string {

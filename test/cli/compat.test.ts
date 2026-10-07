@@ -89,14 +89,15 @@ test("a tree of an older schema is brought forward — step by step, logged, sea
   assert.throws(() => migrate(tree, [], target), /a migration is missing/);
   assert.deepEqual(migrate(tree, steps, target), [`schema ${target}: names in upper case`]);
   assert.equal(readJsonFile(path.join(root, "strom.json")).schema, target);
+  assert.equal(readJsonFile(path.join(root, "strom.json")).migratedWith, VERSION, "the strom that raised the schema, for an older one to name");
   assert.equal(verifyFast(tree).findings.filter((f) => f.level === "error").length, 0, "logged and sealed: nothing unexplained");
   const log = spawnSync("git", ["log", "-1", "--format=%s"], { cwd: root, encoding: "utf8" }).stdout;
   assert.match(log, new RegExp(`Data brought to schema ${target}: names in upper case`));
   assert.deepEqual(migrate(tree, steps, target), [], "once");
-  // This strom is the older one for that tree now: it refuses, and says what to do.
+  // This strom is the older one for that tree now: it refuses, and says who wrote it and what to do.
   const r = await w.run(["person", "list"]);
   assert.equal(r.code, 1);
-  assert.match(r.err, /tree was written by a newer Strom \(schema \d+\)\n→ update strom/);
+  assert.match(r.err, new RegExp(`Tento rodokmen zapsal strom ${VERSION.replace(/\./g, "\\.")}, novější než tento strom`));
   w.cleanup();
 });
 
@@ -117,7 +118,7 @@ test("a connector built for a newer contract: what this strom does not know is l
   w.cleanup();
 });
 
-test("the first run of a newer strom: what it taught the agents outside the trees gets this version's text", { skip: !hasGit }, async () => {
+test("the first run of another strom — a newer one, or an older one back from a beta: what it taught the agents outside the trees gets this version's text, its channel kept", { skip: !hasGit }, async () => {
   const w = new World();
   await w.ok(["setup", "--yes"]);
   await w.ok(["agents", "install", "--all"]);
@@ -130,9 +131,16 @@ test("the first run of a newer strom: what it taught the agents outside the tree
   await w.ok(["config", "where"]);
   assert.equal(fs.readFileSync(skill, "utf8"), now);
   assert.equal(readJsonFile(cfg).lastVersion, VERSION);
-  // Not the same version again, not an older one: the text stays as the user may have it.
+  assert.equal(readJsonFile(cfg).lastChannel, "stable");
+  // Not the same version again: the text stays as the user may have it.
   fs.writeFileSync(skill, "mine\n");
   await w.ok(["config", "where"]);
   assert.equal(fs.readFileSync(skill, "utf8"), "mine\n");
+  // An older version than the one that ran last (back from a beta): this version's text again, its channel said.
+  fs.writeFileSync(cfg, JSON.stringify({ ...readJsonFile(cfg), lastVersion: "99.0.0-beta.1", lastChannel: "beta" }));
+  await w.ok(["config", "where"]);
+  assert.equal(fs.readFileSync(skill, "utf8"), now);
+  assert.equal(readJsonFile(cfg).lastVersion, VERSION);
+  assert.equal(readJsonFile(cfg).lastChannel, "stable");
   w.cleanup();
 });

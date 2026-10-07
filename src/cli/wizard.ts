@@ -20,9 +20,10 @@ import { appCopyOfInstall, appOpensLinks, noticeStromApp, researchUrl, stromAppS
 import { openForUser } from "../core/open.ts";
 import { createShortcut } from "../core/shortcut.ts";
 import { appMarkFromInstall, linkFiles, linkHandlerState, linkOwner, registerLinks, type Sys } from "../core/links.ts";
-import { desktopDir, isolated } from "../core/paths.ts";
+import { configDir, desktopDir, isolated, noLinks } from "../core/paths.ts";
 import { ensureShared } from "../commands/setup.ts";
 import { moveHome, planMove, repointSettings, sameFolder } from "../core/relocate.ts";
+import type { StromError } from "../core/errors.ts";
 
 export interface WizardResult {
   home: string;
@@ -63,9 +64,23 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
   const keep = first ? {} : { back: ui(lang, "ui.keep") };
   // 2. Where the research lives.
   const was = s.home()?.value;
-  const typed = (await ctx.ask(ui(lang, first ? "ui.setup.home" : "ui.setup.home.again"), ctx.display(was ?? s.suggestedHome()))).trim();
-  // Run again: 0 (or nothing) keeps the folder, like every other answer here.
-  let home = was && (typed === "0" || !typed) ? was : ctx.resolvePath(typed || ctx.display(s.suggestedHome()));
+  let home: string;
+  for (;;) {
+    // (the suggestion never inside strom's program folder: settings lying in its node/ suggest a folder beside it)
+    const typed = (await ctx.ask(ui(lang, first ? "ui.setup.home" : "ui.setup.home.again"), ctx.display(was ?? ctx.homeSuggestion()))).trim();
+    // Run again: 0 (or nothing) keeps the folder, like every other answer here.
+    home = was && (typed === "0" || !typed) ? was : ctx.resolvePath(typed || ctx.display(ctx.homeSuggestion()));
+    // never inside strom's program folder (an update replaces it); the folder kept goes on (doctor says to move it)
+    if (was && sameFolder(home, was)) break;
+    try {
+      ctx.refuseProgramFolder("home", home);
+      break;
+    } catch (e) {
+      const p = (e as StromError).params ?? {};
+      out(ui(lang, "ui.error.folder.in-program", p));
+      out(`→ ${ui(lang, "ui.error.folder.in-program.hint", p)}`);
+    }
+  }
   // Another folder while the research is in the old one: it moves along (trees, the shared folder) — or stays where it is.
   if (was && !sameFolder(home, was)) home = await moveResearch(ctx, lang, was, home);
   cfg.lang = lang;
@@ -222,7 +237,7 @@ export async function settleInstall(ctx: Context, lang: string): Promise<void> {
     out(ui(lang, "ui.setup.agent.ok", { name: wayName(lang, way) }));
   }
   await offerShortcut(ctx, lang, out);
-  if (isolated(ctx.env) || stromAppState(s) === "no" || !appOpensLinks(s) || linkHandlerState(ctx.env) === "ours") return;
+  if (noLinks(ctx.env) || stromAppState(s) === "no" || !appOpensLinks(s) || linkHandlerState(ctx.env) === "ours") return;
   if (s.config.links === "yes") {
     let done = false;
     try {
@@ -284,8 +299,8 @@ export async function offerShortcut(ctx: Context, lang: string, out: (line: stri
 export async function offerLinks(ctx: Context, lang: string, opts: { ask?: boolean; platform?: NodeJS.Platform; run?: Sys } = {}): Promise<void> {
   // the system's own tools (faked in a test); undefined: the real ones
   const sys = [ctx.env, opts.platform ?? process.platform, opts.run] as const;
-  // an isolated installation registers none: not asked
-  if (isolated(ctx.env) || linkHandlerState(...sys) === "ours") return;
+  // an isolated installation registers none: not asked (one with a command of its own: its own scheme)
+  if (noLinks(ctx.env) || linkHandlerState(...sys) === "ours") return;
   const said = ctx.settings.config.links;
   // set up before on this person's yes: set up again quietly (after an update). Set up by another strom (another
   // installation, its own settings — found on Windows: one key for all) is not this one's to take: asked
@@ -348,8 +363,8 @@ async function moveResearch(ctx: Context, lang: string, from: string, to: string
     out(ui(lang, "ui.home.env", { from: ctx.display(from) }));
     return from;
   }
-  const plan = planMove(from, to, ctx.knownTrees().map((k) => k.root));
-  if (!plan.content) return to;
+  const plan = planMove(from, to, ctx.knownTrees().map((k) => k.root), { settings: configDir(ctx.env) });
+  if (!plan.content && !plan.problem) return to;
   const where = { from: ctx.display(from), to: ctx.display(plan.to) };
   if (plan.problem) {
     out(ui(lang, `ui.home.${plan.problem}`, { ...where, trees: plan.busy.join(", ") }));

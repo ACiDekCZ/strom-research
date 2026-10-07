@@ -10,12 +10,14 @@ import { readEntry, readZip, unzipTo, ZipWriter } from "../../src/core/zip.ts";
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { spawnSync } from "node:child_process";
 import type { AddressInfo } from "node:net";
 import { World, hasGit, fakeConnector, pluginDir, readJsonFile } from "../helpers.ts";
 import { testHooks, DEFAULT_PACE } from "../../src/core/net.ts";
+import { fenceKeepsNetOff, sandboxedRun } from "../../src/core/connector.ts";
 import { encodeJpeg } from "../../src/image/jpeg-encode.ts";
 import { decodeJpeg } from "../../src/image/jpeg-decode.ts";
 import { blank } from "../../src/image/image.ts";
@@ -107,7 +109,7 @@ test("copying a folder in is installing it; the user who asked to be asked allow
   // the user, in their terminal: the warning, the question, and on it goes
   const r = await w.run(["connector", "test", "kopie", "--find", "Týnec"], { tty: true, answers: ["y", "y"] });
   assert.equal(r.code, 0, r.err);
-  assert.match(r.out, /Connector kopie [\d.]+ — Testovací archiv[\s\S]*its code uses no network of its own \(checked\); the agent may go on improving it/);
+  assert.match(r.out, /Connector kopie [\d.]+ — Testovací archiv[\s\S]*its code seems to use no network of its own \(a check of its words, not a guarantee\); it runs in Node.s permission model, so the agent may go on improving it/);
   assert.match(r.out, /Automated access to 127\.0\.0\.1[\s\S]*gets this computer.s address blocked/);
   assert.match(r.out, /Týnec N 1784–1820/);
   assert.match((await w.ok(["connector", "list"])).out, /kopie\s+Testovací archiv\s+find,list,fetch\s+automation allowed\s+allowed\n/);
@@ -187,6 +189,149 @@ test("consents off (the default): a connector runs at once — code that goes ro
   assert.equal((await w.ok(["config", "get", "connectors.consent"])).out.trim(), "on");
   assert.equal((await w.run(["config", "set", "connectors.consent", "off"], { tty: true })).code, 0, "the user, in their terminal");
   assert.equal((await w.ok(["config", "get", "connectors.consent"])).out.trim(), "off");
+  w.cleanup();
+  agent.cleanup();
+  await a.close();
+});
+
+/** Change what the manifest runs (the rest stays). */
+function runs(dir: string, run: string[]): void {
+  const f = path.join(dir, "connector.json");
+  fs.writeFileSync(f, JSON.stringify({ ...readJsonFile(f), run }, null, 2));
+}
+
+test("sandboxedRun: only node and files of the connector's own folder run fenced in", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-sandbox-"));
+  fs.writeFileSync(path.join(dir, "connector.ts"), "");
+  fs.mkdirSync(path.join(dir, "lib"));
+  fs.writeFileSync(path.join(dir, "lib", "část.ts"), "");
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "strom-outside-"));
+  fs.writeFileSync(path.join(outside, "x.ts"), "");
+  fs.symlinkSync(path.join(outside, "x.ts"), path.join(dir, "link.ts"));
+  const fenced = (run: string[]) => sandboxedRun({ dir, manifest: { run } });
+  assert.equal(fenced(["node", "connector.ts"]), true);
+  assert.equal(fenced(["node", "lib/část.ts".normalize("NFD")]) || fenced(["node", "lib/část.ts"]), true, "a file of a folder in it");
+  for (const run of [
+    ["node"],
+    ["node", "--allow-child-process", "connector.ts"],
+    ["node", "connector.ts", "--allow-fs-read=/"],
+    ["node", "-e", "1"],
+    ["node", "--eval=1"],
+    ["node", "missing.ts"],
+    ["node", "../connector.ts"],
+    ["node", "lib/../connector.ts"],
+    ["node", path.join(dir, "connector.ts")],
+    ["node", "C:\\x\\connector.ts"],
+    ["node", "link.ts"],
+    ["node", "lib"],
+    ["node.exe", "connector.ts"],
+    [process.execPath, "connector.ts"],
+    ["/bin/sh", "-c", "whoami"],
+    ["cmd", "/c", "whoami"],
+    ["python3", "main.py"],
+    ["env", "node", "connector.ts"],
+  ])
+    assert.equal(fenced(run), false, run.join(" "));
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.rmSync(outside, { recursive: true, force: true });
+});
+
+test("a program strom does not fence in runs only with the person's yes to its code as it is — consents off or on, whatever the check of its words finds", opts, async () => {
+  const { w, a, dir } = await world();
+  const ran = path.join(dir, ".test", "ran.txt");
+  const shell = process.platform === "win32" ? ["cmd", "/c", "echo ran> .test\\ran.txt"] : ["/bin/sh", "-c", "echo ran > .test/ran.txt"];
+  // a fenced connector: no window, run in Node's permission model, no switch of the manifest's in it
+  const code = fs.readFileSync(path.join(dir, "connector.ts"), "utf8").replace("const req = await request();", 'log("argv " + JSON.stringify(process.execArgv));\nconst req = await request();');
+  program(dir, code);
+  const clean = await w.ok(["connector", "test", "zkusebni", "--find", "Týnec"]);
+  assert.match(clean.out, /Týnec N 1784–1820/);
+  assert.match(clean.out, /argv \[[^\n]*"--permission"/);
+  assert.doesNotMatch(clean.out, /allow-child-process/);
+  // another program, a shell: refused without the person, whatever its words
+  runs(dir, shell);
+  const sh = await w.run(["connector", "test", "zkusebni", "--find", "Týnec", "--json"]);
+  assert.equal(sh.code, 4);
+  assert.match(sh.out, /runs a program strom does not fence in/);
+  assert.equal(fs.existsSync(ran), false, "nothing ran");
+  assert.match((await w.ok(["connector", "list"])).out, /zkusebni\s.*needs a consent\n/);
+  assert.equal((await w.run(["allow", "connector", "zkusebni"])).code, 4, "consents off: still the person's yes");
+  const yes = await w.run(["allow", "connector", "zkusebni"], { tty: true, answers: ["y"] });
+  assert.equal(yes.code, 0, yes.err);
+  assert.match(yes.out, /not in Node's permission model/);
+  assert.doesNotMatch(yes.out, /no network of its own/);
+  await w.run(["connector", "test", "zkusebni", "--find", "Týnec"]); // it ends without a word of the contract: only that it ran counts
+  assert.equal(fs.existsSync(ran), true, "the person allowed it");
+  fs.appendFileSync(path.join(dir, "connector.ts"), "\n// one more line\n");
+  const changed = await w.run(["connector", "test", "zkusebni", "--find", "Týnec", "--json"]);
+  assert.equal(changed.code, 4, "every change: asked again");
+  assert.match(changed.out, /its code changed since it was allowed/);
+  // Python naming a function the check of words does not know: not fenced in, so asked all the same
+  fs.writeFileSync(path.join(dir, "main.py"), 'from os import system\nsystem("whoami")\n');
+  runs(dir, ["python3", "main.py"]);
+  assert.equal((await w.run(["connector", "test", "zkusebni", "--find", "Týnec"])).code, 4);
+  fs.rmSync(path.join(dir, "main.py"));
+  // node opening its own fence: asked; with the yes it runs as the person saw it
+  runs(dir, ["node", "--allow-child-process", "connector.ts"]);
+  assert.equal((await w.run(["connector", "test", "zkusebni", "--find", "Týnec"])).code, 4);
+  assert.equal((await w.run(["allow", "connector", "zkusebni"], { tty: true, answers: ["y"] })).code, 0);
+  assert.match((await w.ok(["connector", "test", "zkusebni", "--find", "Týnec"])).out, /argv [^\n]*allow-child-process/);
+  // back to the fenced shape: no window again
+  runs(dir, ["node", "connector.ts"]);
+  assert.match((await w.ok(["connector", "test", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/);
+  // consents on: the folder allowed once — a fenced connector improved goes on, a shell put in its place does not
+  await w.ok(["config", "set", "connectors.consent", "on"]);
+  assert.equal((await w.run(["allow", "connector", "zkusebni"], { tty: true, answers: ["y", "y"] })).code, 0);
+  fs.appendFileSync(path.join(dir, "connector.ts"), "\n// improved\n");
+  assert.match((await w.ok(["connector", "test", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/);
+  fs.rmSync(ran, { force: true });
+  runs(dir, shell);
+  const on = await w.run(["connector", "test", "zkusebni", "--find", "Týnec", "--json"]);
+  assert.equal(on.code, 4, "consents on: the code compared all the same");
+  assert.match(on.out, /changed since it was allowed/);
+  assert.equal(fs.existsSync(ran), false);
+  w.cleanup();
+  await a.close();
+});
+
+test("the fence keeps a connector off the network from Node 25 on; doctor says so where the Node is the person's own", opts, async () => {
+  for (const [v, off] of [["v24.21.0", false], ["v22.18.0", false], ["v25.0.0", true], ["v26.9.0", true], ["26.1.0", true]] as const) assert.equal(fenceKeepsNetOff(v), off, v);
+  const { w, a } = await world();
+  const doc = await w.run(["doctor", "--json"]);
+  const fence = (doc.json?.checks ?? []).find((c: { name: string }) => c.name === "fence");
+  if (fenceKeepsNetOff(process.version)) assert.equal(fence, undefined, "a Node that fences the network: nothing to say");
+  else assert.match(fence?.detail ?? "", /only Node 25 or newer also keeps them off the network/);
+  w.cleanup();
+  await a.close();
+});
+
+test("an agent outside the research's folder: reading goes on, a connector and the agent working alone only with the person's yes", opts, async () => {
+  const { w, a, dir } = await world();
+  const agent = new World();
+  Object.assign(agent.env, w.env, { CLAUDECODE: "1" });
+  const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "strom jiný repozitář ž-"));
+  agent.cwd = elsewhere;
+  assert.equal((await agent.run(["person", "list"])).code, 0, "reading: as before");
+  const t = await agent.run(["connector", "test", "zkusebni", "--find", "Týnec", "--json"]);
+  assert.equal(t.code, 4);
+  assert.match(t.out, /asked by an agent outside the research's folder\? \(an agent cannot answer this\)/);
+  const f = await agent.run(["fetch", "zkusebni", "5359", "--images", "1", "--json"]);
+  assert.equal(f.code, 4);
+  assert.match(f.out, /Run connector zkusebni \(Testovací archiv\) — asked by an agent outside/);
+  const run = await agent.run(["run", "--agent", "script", "--json"]);
+  assert.equal(run.code, 4);
+  assert.match(run.out, /Start the agent working alone on this research/);
+  // in the research's folder, in strom's own shared folder (where its connectors are built), or started by strom: no window
+  agent.cwd = w.cwd;
+  assert.match((await agent.ok(["connector", "test", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/);
+  agent.cwd = dir;
+  assert.match((await agent.ok(["connector", "test", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/);
+  agent.cwd = elsewhere;
+  agent.env.STROM_WORKER = "w-test";
+  assert.match((await agent.ok(["connector", "test", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/);
+  // the person in their own terminal anywhere: as before
+  w.cwd = elsewhere;
+  assert.match((await w.ok(["connector", "test", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/);
+  fs.rmSync(elsewhere, { recursive: true, force: true });
   w.cleanup();
   agent.cleanup();
   await a.close();

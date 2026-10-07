@@ -8,7 +8,7 @@ import { canonicalize, stringifyCanonical, writeJson, readJson } from "../../src
 import { detectLang, normalizeLang } from "../../src/core/lang.ts";
 import { Settings } from "../../src/core/config.ts";
 import { configDir, defaultHome, displayPath, expandHome } from "../../src/core/paths.ts";
-import { conflictTitle, gedcomName, parseName, slashInName } from "../../src/core/people.ts";
+import { conflictTitle, gedcomName, noName, parseName, slashInName } from "../../src/core/people.ts";
 import { foldText, safeFolderName } from "../../src/core/text.ts";
 import { acquireLock } from "../../src/core/lock.ts";
 import { LockedError } from "../../src/core/errors.ts";
@@ -142,6 +142,19 @@ test("names: GEDCOM slashes, plain names, folding", () => {
   assert.equal(slashInName(parseName("Jan /Novák")) !== undefined, true);
   assert.equal(slashInName(parseName("Jan /Novák/")), undefined);
   assert.equal(gedcomName({ given: "Anna", surname: "⟨K/Č⟩emenská" }), "Anna /⟨K|Č⟩emenská/");
+  // T08: the surname is the last pair of slashes; what stands for no name is the caller's (a file read: "?")
+  assert.deepEqual(parseName("N/A /Chrpa/"), { given: "N/A", surname: "Chrpa" });
+  assert.deepEqual(parseName("N.N. /Chrpa/"), { given: "N.N.", surname: "Chrpa" });
+  assert.equal(noName(parseName("Nezna\u0301ma\u0301 /Kova\u0301r\u030cova\u0301/").given), true);
+  assert.equal(noName("Neznámý"), true);
+  assert.deepEqual(parseName("N/A"), { given: "N/A", surname: "" });
+  assert.deepEqual(parseName("? /Иванов/"), { given: "?", surname: "Иванов" });
+  assert.deepEqual(parseName("Иван /Иванов/"), { given: "Иван", surname: "Иванов" });
+  assert.deepEqual(parseName("Jan/Petr /Novák/"), { given: "Jan/Petr", surname: "Novák" });
+  assert.equal(noName("N/A"), true);
+  assert.equal(noName("—"), true);
+  assert.equal(noName("Nana"), false);
+  assert.equal(noName(""), false);
   assert.equal(foldText("Víšek  Antonín"), "visek antonin");
   assert.equal(foldText("Weiß Łukasz"), "weiss lukasz");
   assert.equal(safeFolderName('Novák: "rod"'), "Novák rod");

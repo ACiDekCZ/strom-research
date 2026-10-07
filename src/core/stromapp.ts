@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Env } from "./paths.ts";
-import { userHome } from "./paths.ts";
+import { desktopDir, userHome } from "./paths.ts";
 import type { Settings } from "./config.ts";
 import { foldText } from "./text.ts";
 
@@ -316,15 +316,86 @@ function read(file: string, encoding: BufferEncoding = "utf8"): string {
 
 /** The id and profile a shortcut starts the app with (a .lnk keeps its arguments in UTF-16, a .desktop entry in its Exec line). */
 function launchOf(text: string): { appId?: string; profile?: string } {
-  const id = APP_ID.exec(text)?.[1];
-  const p = PROFILE.exec(text);
+  // the arguments first; else the icon Chrome keeps for it on Windows (User Data\<profile>\Web Applications\_crx_<id>\…)
+  const id = APP_ID.exec(text)?.[1] ?? ICON_ID.exec(text)?.[1];
+  const p = PROFILE.exec(text) ?? ICON_PROFILE.exec(text);
   return { ...(id ? { appId: id } : {}), ...(p ? { profile: p[1] ?? p[2] } : {}) };
+}
+
+const ICON_ID = /Web Applications[\\/]_crx_([a-p]{32})/;
+const ICON_PROFILE = /User Data[\\/]([^\\/]+)[\\/]Web Applications/;
+
+/**
+ * What a Windows shortcut (.lnk, MS-SHLLINK) says: the program it starts, its arguments and its icon — read by its
+ * structure (the strings lie wherever the parts before them end, at an odd byte as often as not: a file read as
+ * UTF-16 from its start garbles them then), and the text at both alignments besides, for a shortcut read wrong.
+ */
+export function lnkText(buf: Buffer): string {
+  const said: string[] = [];
+  try {
+    if (buf.length >= 76 && buf.readUInt32LE(0) === 0x4c) {
+      const flags = buf.readUInt32LE(20);
+      const unicode = (flags & 0x80) !== 0;
+      let at = 76;
+      if (flags & 0x01) at += 2 + buf.readUInt16LE(at);
+      if (flags & 0x02) {
+        const size = buf.readUInt32LE(at);
+        const header = buf.readUInt32LE(at + 4);
+        const local = buf.readUInt32LE(at + 16);
+        const localW = header >= 0x24 ? buf.readUInt32LE(at + 28) : 0;
+        if (localW) said.push(cString(buf, at + localW, true));
+        else if (local) said.push(cString(buf, at + local, false));
+        at += size;
+      }
+      // NAME, RELATIVE_PATH, WORKING_DIR, ARGUMENTS, ICON_LOCATION — each when its flag is set
+      for (const bit of [0x04, 0x08, 0x10, 0x20, 0x40]) {
+        if (!(flags & bit)) continue;
+        const n = buf.readUInt16LE(at);
+        const len = unicode ? n * 2 : n;
+        said.push(buf.subarray(at + 2, at + 2 + len).toString(unicode ? "utf16le" : "latin1"));
+        at += 2 + len;
+      }
+    }
+  } catch {
+    // cut short: what the text says below
+  }
+  return [...said, buf.toString("utf16le"), buf.subarray(1).toString("utf16le"), buf.toString("latin1")].join("\n");
+}
+
+function cString(buf: Buffer, at: number, wide: boolean): string {
+  if (!wide) {
+    const end = buf.indexOf(0, at);
+    return buf.subarray(at, end < 0 ? undefined : end).toString("latin1");
+  }
+  let end = at;
+  while (end + 1 < buf.length && (buf[end] !== 0 || buf[end + 1] !== 0)) end += 2;
+  return buf.subarray(at, end).toString("utf16le");
+}
+
+/** The browser a shortcut starts (its program, or its icon in the browser's folder): chrome_proxy.exe, msedge_proxy.exe… */
+function browserOfLnk(text: string): string | undefined {
+  const t = text.toLowerCase();
+  if (/microsoft[\\/]edge|msedge/.test(t)) return "Microsoft Edge";
+  if (/bravesoftware|brave(_proxy)?\.exe/.test(t)) return "Brave";
+  if (/vivaldi/.test(t)) return "Vivaldi";
+  if (/[\\/]chromium[\\/]/.test(t)) return "Chromium";
+  if (/google[\\/]chrome|chrome(_proxy)?\.exe/.test(t)) return "Google Chrome";
+  return undefined;
+}
+
+function readBuf(file: string): Buffer {
+  try {
+    return fs.readFileSync(file);
+  } catch {
+    return Buffer.alloc(0);
+  }
 }
 
 /** "Strom", "Strom - Family Tree" — not this tool ("Strom Research"). */
 export function isStromName(name: string): boolean {
   const n = foldText(name).trim();
-  return /^strom(\s*[-–:|]\s*.*)?$/u.test(n) && !/research|vyzkum/u.test(n);
+  // (Windows: a shortcut of another profile's copy may carry the profile's name in brackets — "Strom (Work)")
+  return /^strom(\s*[-–:|]\s*.*)?(\s*\(.*\))?$/u.test(n) && !/research|vyzkum/u.test(n);
 }
 
 function entries(dir: string): string[] {
@@ -348,10 +419,19 @@ function originOf(url: string): string {
  * (default: stromapp.info; its beta installed beside it is another app). A
  * shortcut that says its address (macOS: the app's Info.plist; Linux: --app=)
  * is matched by it; one that does not (Windows, Safari) is taken by its name,
- * and only for stromapp.info itself.
+ * and only for stromapp.info itself. `prefer`: the browser whose app is
+ * taken first when it was installed from several.
  */
-export function installedStromApp(env: Env, platform: NodeJS.Platform = process.platform, url: string = STROM_APP_URL): InstalledApp | undefined {
+export function installedStromApp(env: Env, platform: NodeJS.Platform = process.platform, url: string = STROM_APP_URL, prefer?: string): InstalledApp | undefined {
+  const all = installedStromApps(env, platform, url);
+  // the one installed from that browser (its own window), else the first that says the app's id, else the first
+  return (prefer ? all.find((a) => a.appId && a.browser === prefer) : undefined) ?? all.find((a) => a.appId) ?? all[0];
+}
+
+/** Every copy of the Strom app at `url` installed here (installedStromApp), in the order strom looks for them. */
+export function installedStromApps(env: Env, platform: NodeJS.Platform = process.platform, url: string = STROM_APP_URL): InstalledApp[] {
   const home = userHome(env);
+  const found: InstalledApp[] = [];
   const want = originOf(url);
   const byName = want === originOf(STROM_APP_URL);
   /** Is it that copy: its address when the shortcut gives one, else its name. */
@@ -375,26 +455,34 @@ export function installedStromApp(env: Env, platform: NodeJS.Platform = process.
         if (!isIt(f.slice(0, -4), address)) continue;
         const id = /<key>CrAppModeShortcutID<\/key>\s*<string>([a-p]{32})<\/string>/.exec(plist)?.[1];
         const browser = BROWSER_OF[dir.replace(/ Apps(\.localized)?$/, "")];
-        return { path: at, kind, ...(id && browser ? { browser, appId: id } : {}) };
+        found.push({ path: at, kind, ...(id && browser ? { browser, appId: id } : {}) });
       }
     // Safari: File → Add to Dock puts the web app straight into ~/Applications.
-    if (byName) for (const f of entries(apps)) if (f.endsWith(".app") && isStromName(f.slice(0, -4))) return { path: path.join(apps, f), kind: "Safari web app" };
-    return undefined;
+    if (byName) for (const f of entries(apps)) if (f.endsWith(".app") && isStromName(f.slice(0, -4))) found.push({ path: path.join(apps, f), kind: "Safari web app" });
+    return found;
   }
   if (platform === "win32") {
-    if (!byName) return undefined;
+    if (!byName) return found;
+    // The Start menu (Chrome: its folder Chrome Apps; Edge and others: the Programs folder itself), then the desktop
+    // (a shortcut the person kept there only). The first that says the app's id wins; else the first by its name.
     const programs = path.join(env.APPDATA ?? path.join(home, "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs");
-    for (const dir of ["Chrome Apps", "Edge Apps", ""]) {
-      const d = path.join(programs, dir);
-      for (const f of entries(d))
-        if (f.toLowerCase().endsWith(".lnk") && isStromName(f.slice(0, -4))) {
-          const at = path.join(d, f);
-          const launch = launchOf(read(at, "utf16le"));
-          const browser = BROWSER_OF[dir.replace(/ Apps$/, "")] ?? (dir ? undefined : "Google Chrome");
-          return { path: at, kind: dir ? dir.replace(/s$/, "") : "app", ...(launch.appId && browser ? { browser, ...launch } : {}) };
-        }
-    }
-    return undefined;
+    const places: [string, string | undefined][] = [
+      [path.join(programs, "Chrome Apps"), "Google Chrome"],
+      [path.join(programs, "Edge Apps"), "Microsoft Edge"],
+      [programs, undefined],
+      ...[...new Set([desktopDir(env, "win32"), path.join(home, "Desktop")])].map((d): [string, undefined] => [d, undefined]),
+    ];
+    for (const [d, folderBrowser] of places)
+      for (const f of entries(d)) {
+        if (!f.toLowerCase().endsWith(".lnk") || !isStromName(f.slice(0, -4))) continue;
+        const at = path.join(d, f);
+        const text = lnkText(readBuf(at));
+        const launch = launchOf(text);
+        const browser = browserOfLnk(text) ?? folderBrowser ?? (d === programs ? "Google Chrome" : undefined);
+        const short = Object.entries(BROWSER_OF).find(([, b]) => b === browser)?.[0]?.replace(/ Browser$/, "");
+        found.push({ path: at, kind: short ? `${short} App` : "app", ...(launch.appId && browser ? { browser, ...launch } : {}) });
+      }
+    return found;
   }
   const dir = path.join(env.XDG_DATA_HOME ?? path.join(home, ".local", "share"), "applications");
   for (const f of entries(dir)) {
@@ -410,10 +498,10 @@ export function installedStromApp(env: Env, platform: NodeJS.Platform = process.
     if (name && /--app-id=|--app=/.test(text) && isIt(name, /--app=(?:"([^"]+)"|(\S+))/.exec(exec)?.slice(1).find(Boolean))) {
       const browser = /edge/.test(exec) ? "Microsoft Edge" : /brave/.test(exec) ? "Brave" : /vivaldi/.test(exec) ? "Vivaldi" : /chromium/.test(exec) ? "Chromium" : /chrome/.test(exec) ? "Google Chrome" : undefined;
       const launch = launchOf(exec);
-      return { path: path.join(dir, f), kind: "browser app", ...(launch.appId && browser ? { browser, ...launch } : {}) };
+      found.push({ path: path.join(dir, f), kind: "browser app", ...(launch.appId && browser ? { browser, ...launch } : {}) });
     }
   }
-  return undefined;
+  return found;
 }
 
 export type StromAppState = "yes" | "no" | "seen" | "unknown";

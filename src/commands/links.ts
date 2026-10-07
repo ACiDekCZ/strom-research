@@ -12,7 +12,7 @@ import { ui, type UIKey } from "../cli/ui.ts";
 import { readJsonIfExists } from "../core/json.ts";
 import type { Conflict, Person, Research, Source, TreeConfig } from "../core/model.ts";
 import { Tree } from "../core/tree.ts";
-import { LinkError, linkHandlerState, linkText, parseLink, registerLinks, unregisterLinks, type Link } from "../core/links.ts";
+import { LinkError, linkHandlerState, linkScheme, linkText, parseLink, registerLinks, unregisterLinks, type Link } from "../core/links.ts";
 import { displayName, lifespan } from "../core/people.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { whereToTalk } from "../core/apps.ts";
@@ -23,7 +23,8 @@ import { knownOriginal } from "../core/originals.ts";
 import { openForUser } from "../core/open.ts";
 import { openInNewTerminal } from "../core/shortcut.ts";
 import { systemNotice } from "../core/dialog.ts";
-import { configDir, isolated } from "../core/paths.ts";
+import { configDir, noLinks } from "../core/paths.ts";
+import { startLive } from "../core/live.ts";
 
 /** The researches here with this id — a copy of a research folder has its id too; the current one first. */
 function researchesWithId(ctx: Context, id: string): { name: string; root: string }[] {
@@ -140,6 +141,15 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     case "open":
     case "app":
     case "live":
+      // the research opened from the Strom app: its bridge up, whatever ended it (idle, stopped, a crash) — at its last
+      // address, so the app that asked goes on by itself ("Research is not running" with the menu open, T25)
+      if (link.action === "open") {
+        try {
+          startLive(root, ctx.env, { current: true, why: "the research opened from the Strom app (strom-research://open)" });
+        } catch {
+          // the menu goes on; strom live start says why
+        }
+      }
       return { text: "", data: { done: (await run(link.action === "open" ? [] : link.action === "live" ? ["app", "--live"] : ["app"])) === 0, action: link.action, tree: root } };
     case "update":
     case "setup":
@@ -326,7 +336,7 @@ register(
     async run(ctx, { args }) {
       let link: Link;
       try {
-        link = parseLink(args[0]);
+        link = parseLink(args[0], linkScheme(ctx.env));
       } catch (e) {
         if (!(e instanceof LinkError)) throw e;
         return say(ctx, "ui.link.bad", { why: e.message });
@@ -342,13 +352,13 @@ register(
         if (ctx.io.tty) {
           const { newFromApp } = await import("../cli/menu-links.ts");
           const { openAppAt } = await import("./sync.ts");
-          const done = await newFromApp(ctx, runnerOf(ctx), link.app, (url) => openAppAt(ctx, url), () => bringForward(ctx.env), { ...(link.browser ? { browser: link.browser } : {}), ...(link.file ? { file: link.file } : {}) });
+          const done = await newFromApp(ctx, runnerOf(ctx), link.app, (url) => openAppAt(ctx, url, { holdsTree: true }), () => bringForward(ctx.env), { ...(link.browser ? { browser: link.browser } : {}), ...(link.file ? { file: link.file } : {}) });
           if (!done) await pause(ctx, ctx.uiLang(), "ui.enter.close");
           return { text: "", data: { done, action: "new" } };
         }
         const where = ctx.settings.home()?.value ?? configDir(ctx.env);
         fs.mkdirSync(where, { recursive: true });
-        if (openInNewTerminal(["link", "open", linkText(link)], where, ctx.env) === false) return say(ctx, "ui.link.noterminal.new");
+        if (openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], where, ctx.env) === false) return say(ctx, "ui.link.noterminal.new");
         return { text: "", data: { done: true, action: "new" } };
       }
       if (link.action === "media") {
@@ -372,7 +382,7 @@ register(
         if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
         const quiet = await withoutTerminal(ctx, link, copies[0]!.root);
         if (quiet) return quiet;
-        const opened = openInNewTerminal(["link", "open", linkText(link)], copies[0]!.root, ctx.env);
+        const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], copies[0]!.root, ctx.env);
         if (opened === false)
           return link.action === "send"
             ? say(ctx, "ui.link.noterminal", { item: `${ui(ctx.uiLang(), "ui.more.title")} → ${ui(ctx.uiLang(), "ui.more.sync")}` })
@@ -402,7 +412,7 @@ register(
     run(ctx) {
       const lang = ctx.uiLang();
       if (linkHandlerState(ctx.env) === "ours") return { text: ui(lang, "ui.link.on.done"), data: { on: true } };
-      if (isolated(ctx.env)) return { text: ui(lang, "ui.link.isolated"), data: { on: false, isolated: true }, exitCode: 1 };
+      if (noLinks(ctx.env)) return { text: ui(lang, "ui.link.isolated"), data: { on: false, isolated: true }, exitCode: 1 };
       ctx.requireHuman("Let the Strom app start strom on this computer (strom-research:// links)?", "strom link on", "links", ui(lang, "ui.setup.links"));
       const on = registerLinks(ctx.env);
       if (on) keepAnswer(ctx, "yes");
@@ -426,7 +436,7 @@ register(
     run(ctx) {
       const state = linkHandlerState(ctx.env);
       const lang = ctx.uiLang();
-      return { text: lines(`${ui(lang, "ui.doc.links")}: ${ui(lang, `ui.doc.links.${state}` as UIKey)}`, state === "ours" ? undefined : "→ strom link on"), data: { state } };
+      return { text: lines(`${ui(lang, "ui.doc.links")}: ${ui(lang, `ui.doc.links.${state}` as UIKey)}`, state === "ours" ? undefined : "→ strom link on"), data: { state, scheme: linkScheme(ctx.env) } };
     },
   },
 );

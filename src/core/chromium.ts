@@ -1,8 +1,8 @@
 // The browsers the Strom app reaches strom from. The app is a web page (https://stromapp.info); it takes a research
 // from strom's bridge on 127.0.0.1. Chrome, Edge, Opera and the other Chromium browsers allow that, and Firefox
-// (it takes http://127.0.0.1 as a secure origin); Safari does not. strom opens the app in the browser its tree came
-// from (app.browser), else the default one when the app reaches strom from it, else the app installed from a
-// browser, else the first such browser here — never one it cannot reach strom from (core/appbrowser.ts).
+// (it takes http://127.0.0.1 as a secure origin); Safari does not. strom opens the Strom app installed from a browser
+// here first, else a tab of the browser its tree came from (app.browser), else of the default one when the app
+// reaches strom from it, else of the first such browser here — never one it cannot reach strom from (core/appbrowser.ts).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -89,7 +89,8 @@ export function browsersHere(env: Env, platform: NodeJS.Platform = process.platf
     let hit: string | undefined;
     if (platform === "darwin") hit = (own ?? ["/Applications", path.join(userHome(env), "Applications")]).map((d) => path.join(d, b.mac)).find((f) => fs.existsSync(f));
     else if (platform === "win32") {
-      const roots = own ?? [env.LOCALAPPDATA, env.ProgramFiles, env["ProgramFiles(x86)"]].filter((r): r is string => Boolean(r));
+      // per user, then the machine's (64-bit — x64 and arm64 alike —, the 64-bit one as a 32-bit process sees it, 32-bit)
+      const roots = own ?? [...new Set([env.LOCALAPPDATA, env.ProgramFiles, env.ProgramW6432, env["ProgramFiles(x86)"]].filter((r): r is string => Boolean(r)))];
       hit = roots.flatMap((root) => b.win.map((rel) => (own ? path.join(root, path.win32.basename(rel)) : path.join(root, rel)))).find((f) => fs.existsSync(f));
     } else
       hit = b.linux

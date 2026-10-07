@@ -159,3 +159,73 @@ test("a batch in an archive: kept, its sorting tasks put aside — nothing is so
   assert.equal(listed[0].state, "closed");
   w.cleanup();
 });
+
+test("the material an archive keeps, for the app to show again: every file of a batch and of a person, by person and by batch, the file itself", opts, async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Archiv", "--mode", "archive"]);
+  w.cwd = w.treeDir("Archiv");
+  await w.ok(["person", "add", "Žofie /Dvořáková/", "--sex", "F"]); // P1
+  await w.ok(["person", "add", "Иван /Петров/", "--sex", "M"]); // P2
+  w.env.STROM_LIVE_POLL_MS = "100";
+  const info = (await w.ok(["live", "start", "--json"])).json;
+  try {
+    const status = json(await request("GET", `${info.url}/status`));
+    assert.ok(status.features.includes("material.list"));
+    assert.deepEqual(json(await request("GET", `${info.url}/material`)), { files: [], batches: [] });
+
+    const batch = "9e8d7c6b-5a4f-3e2d";
+    const put = (b: Buffer, p: string, more: Record<string, string> = {}) =>
+      request("PUT", `${info.url}/media/${sha(b)}`, b, { ...app, "X-Strom-Name": encodeURIComponent(path.basename(p)), ...more });
+    const inBatch = (b: Buffer, p: string) => put(b, p, { "X-Strom-Batch": batch, "X-Strom-Path": encodeURIComponent(p) });
+    const a = json(await inBatch(read("s0001.jpg"), "Babička/Dopisy/1946.jpg"));
+    const b = json(await inBatch(read("png-bw.png"), "Babička/foto.png"));
+    const done = await request("POST", `${info.url}/batch/${batch}/done`, Buffer.from(JSON.stringify({ name: "Krabice od babičky", person: "P0001", note: "Půda, 1980" })), { ...app, "Content-Type": "application/json" });
+    assert.equal(done.status, 200, done.body.toString());
+    // one file of a person, outside any batch (NFD name: kept as it came, said in NFC)
+    const c = json(await put(read("png-rgba.png"), "Ivan na vojně.png".normalize("NFD"), { "X-Strom-Person": "P0002", "X-Strom-Note": encodeURIComponent("Фото из армии") }));
+
+    const all = json(await request("GET", `${info.url}/material`));
+    assert.deepEqual(all.files.map((f: { id: string }) => f.id), [a.input, b.input, c.input], "oldest first");
+    const [fa, , fc] = all.files;
+    assert.equal(fa.path, "Babička/Dopisy/1946.jpg");
+    assert.equal(fa.batch, batch);
+    assert.equal(fa.sha, sha(read("s0001.jpg")));
+    assert.equal(fa.mime, "image/jpeg");
+    assert.equal(fa.state, "new", "an archive sorts nothing");
+    assert.equal(fa.here, true);
+    assert.equal(fc.name, "Ivan na vojně.png");
+    assert.deepEqual(fc.persons, ["P0002"]);
+    assert.deepEqual(fc.notes.map((n: { by: string; text: string }) => [n.by, n.text]), [["user", "Фото из армии"]]);
+    assert.equal(fc.batch, undefined);
+    assert.deepEqual(all.batches, [{ id: batch, name: "Krabice od babičky", at: all.batches[0].at, done: all.batches[0].done, files: 2, persons: ["P0001"], note: "Půda, 1980" }]);
+
+    // by person: the batch said to be hers, and only that
+    const hers = json(await request("GET", `${info.url}/material?person=p0001`));
+    assert.deepEqual(hers.files.map((f: { id: string }) => f.id), [a.input, b.input]);
+    const his = json(await request("GET", `${info.url}/material?person=P0002`));
+    assert.deepEqual(his.files.map((f: { id: string }) => f.id), [c.input]);
+    assert.deepEqual(his.batches, []);
+    const one = json(await request("GET", `${info.url}/material?batch=${batch}`));
+    assert.equal(one.files.length, 2);
+    assert.equal((await request("GET", `${info.url}/material?person=${encodeURIComponent("Žofie")}`)).status, 400, "not a person: said, never everything");
+    assert.deepEqual(json(await request("GET", `${info.url}/material?person=P0099`)), { files: [], batches: [] });
+
+    // the file itself, as the app opens it
+    const file = await request("GET", `${info.url}/media/${fc.sha}?file=1`, undefined, app);
+    assert.equal(file.status, 200);
+    assert.ok(file.body.equals(read("png-rgba.png")));
+    // the file gone from this computer: said, the rest kept
+    const shared = path.join(w.home, "shared");
+    const stored = fs.readdirSync(path.join(shared, "media"), { recursive: true }).map(String).find((n) => n.includes(fc.sha));
+    assert.ok(stored);
+    fs.rmSync(path.join(shared, "media", stored!));
+    const after = json(await request("GET", `${info.url}/material?person=P0002`));
+    assert.equal(after.files[0].here, false);
+    // nothing but the bridge's token reads it
+    assert.equal((await request("GET", info.url.replace(/[^/]+$/, "x".repeat(20)) + "/material")).status, 404);
+  } finally {
+    await w.ok(["live", "stop"]);
+  }
+  w.cleanup();
+});

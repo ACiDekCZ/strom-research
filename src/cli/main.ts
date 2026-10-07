@@ -2,14 +2,15 @@
 // and commit what a writing command changed. Returns the exit code.
 
 import { Cancelled, EXIT, StromError, UsageError } from "../core/errors.ts";
-import type { Env } from "../core/paths.ts";
+import { ownCommand, type Env } from "../core/paths.ts";
 import { Context, type IO } from "./context.ts";
-import type { Result } from "./registry.ts";
+import { commands, type Result } from "./registry.ts";
+import { asCommand, asCommandJson } from "./format.ts";
 import { groupHelpAs, helpAs } from "./help.ts";
 import { autoCommit } from "./commit.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { resetCache } from "../core/git.ts";
-import { Tree, VERSION } from "../core/tree.ts";
+import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { settleArchive } from "../core/mode.ts";
 import { liveRunning, reviveLive, startLive } from "../core/live.ts";
 import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
@@ -17,18 +18,25 @@ import { prependPath } from "../runners/runner.ts";
 import { shimDir } from "../commands/session.ts";
 import { isAgent } from "../core/which.ts";
 import { noticeStromApp } from "../core/stromapp.ts";
-import { isNewer } from "../core/update.ts";
+import { lastChannelOf, pendingTransition, updateChannel } from "../core/update.ts";
+import { backupBefore, backupSaid } from "./backups.ts";
 import { installation } from "../core/self.ts";
 import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishAsked } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
-import { checkArgs, GroupOnly, parseOptions, resolveCommand, splitPassthrough } from "./execute.ts";
+import { checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, splitPassthrough } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
 import { catalog, localized } from "../core/phrases.ts";
 import "../commands/index.ts";
 
 export { splitCommand } from "./execute.ts";
+
+/**
+ * Besides the writing ones, the commands that start work or write into a research or beside it: none runs while the
+ * backup before another channel or an older version could not be made.
+ */
+const STARTS_WORK = new Set(["menu", "run", "chat", "app", "live start", "init", "unpack", "trees remove", "compact", "repair", "seal adopt", "sync discard", "agents sync", "session finish", "link open"]);
 
 /** Compact JSON: indentation costs an agent tokens and adds nothing for a parser. */
 function toJson(value: unknown): string {
@@ -70,11 +78,12 @@ function inLanguage(e: StromError, lang: string | undefined): { message: string;
   const fits = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].every((m) => e.params?.[m[1]!] !== undefined);
   const message = own(key);
   if (!message || !fits(message)) return { message: e.message, ...(e.hint ? { hint: e.hint } : {}) };
-  const hint = e.hint && own(`${key}.hint`);
+  const hintKey = `ui.error.${e.hintCode ?? e.code}.hint`;
+  const hint = e.hint && own(hintKey);
   // the word before it too, where the message is the person's language (never "chyba:" before English words), and
   // the placeholders of the commands it names (<input> → <podklad>)
   const say = (text: string) => placeholders(lang!, text);
-  return { message: say(localized(lang!, key, message, e.params)), ...(e.hint ? { hint: say(hint ? localized(lang!, `${key}.hint`, hint, e.params) : e.hint) } : {}), prefix: ui(lang!, "ui.error.prefix") };
+  return { message: say(localized(lang!, key, message, e.params)), ...(e.hint ? { hint: say(hint ? localized(lang!, hintKey, hint, e.params) : e.hint) } : {}), prefix: ui(lang!, "ui.error.prefix") };
 }
 
 function printError(io: IO, json: boolean, err: unknown, debug: boolean, lang?: string): number {
@@ -101,8 +110,24 @@ function printError(io: IO, json: boolean, err: unknown, debug: boolean, lang?: 
   return EXIT.error;
 }
 
+/**
+ * A second installation's own command (strom-beta): every command strom names to run next — doctor, errors, the
+ * orientation, the menu, help — is said as that one is started (found on Windows: strom-beta doctor said strom …).
+ */
+function asOwnCommand(io: IO, name: string, json: boolean, argv: string[]): IO {
+  const known = commands().map((c) => c.path[0]!).filter(Boolean);
+  // a command strom does not know, as it was typed: its error names it as this one is started ("strom-beta xyz")
+  const first = firstWord(argv[0] && !argv[0].startsWith("-") ? [...argv[0].trim().split(/\s+/), ...argv.slice(1)] : argv);
+  const typed = first && !known.includes(first) ? first : undefined;
+  const words = [...new Set(["help", "<command>", ...known, ...(typed ? [typed] : [])])];
+  const text = (s: string) => asCommand(s, name, words);
+  return { ...io, stdout: (s) => io.stdout(json ? asCommandJson(s, name, words) : text(s)), stderr: (s) => io.stderr(text(s)) };
+}
+
 export async function main(argv: string[], io: IO, env: Env, cwd: string): Promise<number> {
   const json = argv.includes("--json");
+  const own = ownCommand(env);
+  if (own) io = asOwnCommand(io, own, json, argv);
   const debug = argv.includes("--debug");
   resetCache(undefined, "command");
   // the app's install line in its one variable (STROM_FROM): read as the five of an older line
@@ -132,7 +157,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     }
     const { def } = resolved;
     const { rest, passthrough } = def.passthrough ? splitPassthrough(resolved.rest) : { rest: resolved.rest, passthrough: [] };
-    const parsed = parseOptions(def, rest);
+    const parsed = parseOptions(def, rest, own);
     const v = parsed.values;
     if (v.help) {
       // the agent's help, whoever asks (Milan, 2026-10-04: "výchozí je pro agenta"); a person at a terminal is told in a
@@ -163,15 +188,38 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     };
     // Started by the Strom app: remembered quietly (it is where the results go).
     if (env.STROM_APP) noticeStromApp(ctx.settings, env);
-    // The first run of a newer strom: what it taught the agents outside the trees gets this version's text.
+    // The first run of another strom — a newer one, or an older one (back from a beta): what it taught the agents
+    // outside the trees gets this version's text, the links lead to it.
     const last = ctx.settings.config.lastVersion;
     // never in a strom that strom started itself (a bridge, a send it writes): those would start bridges that start
     // bridges (found on Mac: an update started one hundreds of times over) — and claimed first, once. Never from the
     // sources against the person's own settings either (only with settings of its own, STROM_CONFIG_DIR: a test, a
     // live test): a candidate being made is no update (found 2026-10-04: the test suite claimed one in the developer's)
     const fromSources = installation().kind === "source" && !env.STROM_CONFIG_DIR;
-    if (ctx.settings.home() && (!last || isNewer(VERSION, last)) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources) {
+    // Another channel than last time, or an older version than the last one (back from a beta): every research and the
+    // settings are backed up first — before this strom opens any of them, before any migration (Milan, 2026-10-07:
+    // "přechod beta ↔ produkce nikdy nepřijde o data"). Made once (strom update made it already, or another strom of
+    // this version a moment ago); in any strom of this version, a bridge too (it may write what the app sends).
+    const channelNow = updateChannel(env);
+    const pending = fromSources ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
+    if (pending && ctx.settings.home()) {
+      try {
+        const made = backupBefore(ctx, pending);
+        if (made) io.stderr(`${backupSaid(ctx, made)}\n`);
+      } catch (e) {
+        if (!(e instanceof StromError)) throw e;
+        // nothing switches: no research opened for writing, none migrated, no work started — reading, help, doctor and
+        // update go on (strom update --channel <the one before> goes back); tried again at the next run
+        ctx.backupFailed = e;
+      }
+    }
+    if (ctx.backupFailed && (def.writes || STARTS_WORK.has(def.path.join(" ")))) throw ctx.backupFailed;
+    const lastChannel = lastChannelOf(ctx.settings.config);
+    const otherChannel = !!lastChannel && lastChannel !== channelNow;
+    if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources) {
       ctx.settings.config.lastVersion = VERSION;
+      // …and its channel: another one than last time is a change of channel
+      ctx.settings.config.lastChannel = updateChannel(env);
       ctx.settings.save();
       refreshGlobal(env);
       // …and the links from the Strom app lead to this strom again (where strom made them on this person's yes —
@@ -183,6 +231,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       }
       // …and the researches catch up with what this version keeps (an archive's tasks that wait put aside, logged)
       for (const k of ctx.knownTrees()) {
+        // a research a newer strom wrote: kept as it is — nothing settled, no bridge started for it
+        if (newerTree(k.root, env)) continue;
         try {
           settleArchive(Tree.open(k.root, env));
         } catch {

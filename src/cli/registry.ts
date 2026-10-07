@@ -14,6 +14,8 @@ export interface OptionDef {
   multiple?: boolean;
   /** Placeholder shown in help, e.g. "<date>". */
   value?: string;
+  /** Taken, but never shown: not in help, strom commands, the guide or a hint of the options. */
+  hidden?: boolean;
 }
 
 export interface ArgDef {
@@ -137,7 +139,7 @@ export function usageLine(def: CommandDef): string {
     const name = a.variadic ? `${a.name}...` : a.name;
     return a.required ? `<${name}>` : `[${name}]`;
   });
-  return ["strom", ...def.path, ...args, (def.options?.length || def.writes) ? "[options]" : ""].filter(Boolean).join(" ");
+  return ["strom", ...def.path, ...args, (def.options?.some((o) => !o.hidden) || def.writes) ? "[options]" : ""].filter(Boolean).join(" ");
 }
 
 /** Catalog entry for `strom commands --json`: only what is there (empty fields are left out). */
@@ -147,7 +149,7 @@ export function describe(def: CommandDef): Record<string, unknown> {
   if (def.writes) out.writes = true;
   if (def.tree) out.needsTree = true;
   if (def.args?.length) out.args = def.args;
-  const opts = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])];
+  const opts = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !o.hidden);
   if (opts.length)
     out.options = opts.map((o) => ({
       name: `--${o.name}`,

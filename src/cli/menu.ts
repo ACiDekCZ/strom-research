@@ -12,7 +12,9 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
-import { Tree, VERSION } from "../core/tree.ts";
+import { newerTree, Tree, VERSION } from "../core/tree.ts";
+import { BACKUP_SAID_DAYS, lastBackup } from "../core/backup.ts";
+import { lastBackupLine } from "./backups.ts";
 import { diskVersion } from "../core/self.ts";
 import { liveHolder } from "../core/lock.ts";
 import { reviveLive } from "../core/live.ts";
@@ -47,7 +49,7 @@ import { forStory, storiesToApprove } from "../core/stories.ts";
 import { receivedPending } from "../core/sync.ts";
 import { isArchive } from "../core/mode.ts";
 import { switchTo } from "./menu-mode.ts";
-import { appMarkFromInstall } from "../core/links.ts";
+import { appMarkFromInstall, linkScheme } from "../core/links.ts";
 
 
 /** Create a family tree and say so in the user's words (init itself talks to agents). */
@@ -79,7 +81,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
   const mark = appMarkFromInstall(ctx.env);
   if (mark && !fromAppDone.has(mark)) {
     fromAppDone.add(mark);
-    await run(["link", "open", `strom-research://new?app=${mark}`]);
+    await run(["link", "open", `${linkScheme(ctx.env)}://new?app=${mark}`]);
     reload();
   }
   // First time on this computer: the wizard. Installed again over settings kept from before (the installer started
@@ -134,7 +136,17 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
     let other: Item | undefined;
     out();
     out(t("ui.menu.title", { version: VERSION }));
+    // where the backup before another channel or an older version is, for a month
+    const backup = lastBackup(ctx.env, BACKUP_SAID_DAYS);
+    if (backup) out(lastBackupLine(lang, backup));
     const newer = await newerVersion(ctx.settings, ctx.env);
+    // a research a newer strom wrote (a beta's): never opened here — why and the way on, then the menu without it
+    const locked = root ? newerTree(root, ctx.env) : undefined;
+    if (locked) {
+      out(t(`ui.error.${locked.code}` as UIKey, locked.params ?? {}));
+      for (const line of t(`ui.error.${locked.code}.hint` as UIKey, locked.params ?? {}).split("\n")) out(`→ ${line}`);
+      root = undefined;
+    }
     if (root) {
       const tree = Tree.open(root, ctx.env);
       // the bridge the Strom app follows, ended without a word (killed, the computer gone down): back with the menu —
@@ -476,7 +488,12 @@ async function pickTree(ctx: Context, run: Run, lang: string): Promise<void> {
     here = undefined;
   }
   const at = known.findIndex((k) => k.root === here);
-  const options = [...known.map((k) => ({ label: `${k.name}  (${ctx.display(k.root)})` })), { label: ui(lang, "ui.trees.new") }];
+  // a research a newer strom wrote: listed, said to be locked (by whom)
+  const lockedBy = (root: string) => {
+    const by = newerTree(root, ctx.env)?.params?.by;
+    return by ? `  – ${ui(lang, "ui.trees.locked", { by })}` : "";
+  };
+  const options = [...known.map((k) => ({ label: `${k.name}  (${ctx.display(k.root)})${lockedBy(k.root)}` })), { label: ui(lang, "ui.trees.new") }];
   // handing a research over: this one packed, one someone sent unpacked
   const packAt = at >= 0 ? options.push({ label: ui(lang, "ui.trees.pack", { name: known[at]!.name }) }) - 1 : -1;
   const unpackAt = options.push({ label: ui(lang, "ui.trees.unpack") }) - 1;

@@ -15,6 +15,7 @@ import { EXCERPT_QUALITIES, EXCERPT_SCOPES, EXCERPTS_MAX_MB, STRATEGIES, type Ex
 import { downloadsDir } from "./browser.ts";
 import { acquireLock } from "./lock.ts";
 import { isStromAppOrigin } from "./stromapp.ts";
+import type { BackupRecord } from "./backup.ts";
 
 export interface UserConfig {
   /** Strom home: default parent of trees and shared data. */
@@ -83,11 +84,15 @@ export interface UserConfig {
   /** The main person of a tree (P…): first in the GEDCOM files, where the Strom app opens. */
   mainPerson?: string;
   /** The last look for a new version: when, and the newest one then. */
-  updateCheck?: { at: string; latest: string };
+  updateCheck?: { at: string; latest: string; channel?: "beta" };
   /** When and how strom noticed the Strom app (it started strom, or it is installed from the browser). */
   stromAppSeen?: { via: string; at: string; version?: string };
   /** The version of strom that last ran here: a newer one brings what it put outside the trees up to date. */
   lastVersion?: string;
+  /** The channel of that strom (beta, stable): another one than last time is a change of channel. */
+  lastChannel?: "beta" | "stable";
+  /** The backups made before another channel or an older version (core/backup.ts), the newest last. */
+  backups?: BackupRecord[];
   /** What an agent in a conversation was told to tell the user once — the stories, the Strom app, asking about the tree — and when. */
   told?: Record<string, string>;
   /** The last answer to "watch the work live in the Strom app?" when the agent was set to work alone from the menu. */
@@ -190,7 +195,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it) or archive (the data come from the Strom app, no agent; the setup wizard sets it when no agent is here) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
-  { key: "app.browser", env: "STROM_APP_BROWSER", tree: false, kind: "choice", choices: ["chrome", "edge", "brave", "opera", "firefox", "chromium"], description: "the browser strom opens the Strom app in — the one its tree came from (strom keeps it), or yours: chrome, edge, brave, opera, firefox, chromium (another Chromium: Vivaldi, Arc) — unset: the default browser when the app reaches strom from it, else the app installed from a browser, else the first such browser here" },
+  { key: "app.browser", env: "STROM_APP_BROWSER", tree: false, kind: "choice", choices: ["chrome", "edge", "brave", "opera", "firefox", "chromium"], description: "the browser strom opens the Strom app in — the one its tree came from (strom keeps it), or yours: chrome, edge, brave, opera, firefox, chromium (another Chromium: Vivaldi, Arc). The Strom app installed from a browser always comes first (from this one when it is installed from several); without one, a tab of this browser — unset: of the default browser when the app reaches strom from it, else of the first such browser here" },
   { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of https://stromapp.info/run/ — its beta (https://beta.stromapp.info/run/), its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
 ];
 

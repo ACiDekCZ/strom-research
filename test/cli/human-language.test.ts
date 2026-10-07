@@ -144,3 +144,15 @@ for (const lang of ["cs", "de"] as const) {
     w.cleanup();
   });
 }
+
+test("an unknown option of strom itself (strom --bogus) is said in the research language, with the help to read — English for the agent's --json as ever", opts, async () => {
+  const w = new World();
+  for (const [lang, said] of [["cs", /^chyba: neznámá volba --bogus u strom\n→ strom help\n$/], ["de", /^Fehler: unbekannte Option --bogus für strom\n→ strom help\n$/], ["en", /^error: unknown option --bogus for strom\n→ strom help\n$/]] as const) {
+    const r = await w.run(["--bogus"], { env: { STROM_LANG: lang } });
+    assert.equal(r.code, 2);
+    assert.match(r.err, said, `${lang}: ${r.err}`);
+  }
+  const j = await w.run(["--bogus", "--json"], { env: { STROM_LANG: "cs" } });
+  assert.equal(j.json.code, "option.unknown.none");
+  assert.equal(j.json.message, "unknown option --bogus for strom");
+});

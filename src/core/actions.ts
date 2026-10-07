@@ -187,7 +187,8 @@ export interface PersonInput {
 
 /** A name the record gives — never a description of the person in its place, and one GEDCOM can hold. */
 function checkGiven(name: Name): void {
-  const slash = slashInName(name);
+  // "N/A" says there is no name before its slash says anything
+  const slash = notAName(name.given) ? undefined : slashInName(name);
   if (slash)
     throw new UsageError(slash, {
       hint: 'a letter not read for sure: "Anna /[?]emenská/", and each reading as an alias — strom name add P… "Anna /Kemenská/" --kind alias',

@@ -301,7 +301,7 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   // an agent sets strom up: the way said, the other one named for the person to decide
   delete w.env.STROM_INSTALLER;
   const yes = await w.ok(["setup", "--yes", "--agent", "codex"]);
-  assert.match(yes.out, /talk +in the ChatGPT \(Codex\) desktop app — both are here; the user decides: strom setup --where terminal/);
+  assert.match(yes.out, /rozhovor +v aplikaci ChatGPT \(Codex\) – obojí je tu; rozhoduje uživatel: strom setup --where terminal/);
   await w.ok(["setup", "--yes", "--where", "terminal"]);
   assert.equal(cfg().agentWhere, "terminal");
   w.cleanup();

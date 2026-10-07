@@ -564,6 +564,8 @@ export interface TreeConfig {
   lang: string;
   created: string;
   createdWith: string;
+  /** The strom that last brought the data to a newer schema (core/migrate.ts): an older strom names it when it refuses the tree. */
+  migratedWith?: string;
   /** Agent for this tree (overrides the user's default). */
   agent?: string;
   /** Model per tier, per agent, for this tree. */

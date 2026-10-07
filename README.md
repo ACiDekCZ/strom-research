@@ -152,6 +152,35 @@ npm run release                       # release/: strom-app.tar.gz, SHASUMS256.t
 
 Zero runtime dependencies: TypeScript on Node's built-ins, and git.
 
+## A second strom beside the first
+
+For testers and developers: another version of strom, e.g. to try one, next to
+the one you use — with its own command, program folder, settings and research
+folder, so the two never share data.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ACiDekCZ/strom-research/main/install/install.sh | \
+  STROM_ISOLATED=1 STROM_INSTALL_DIR="$HOME/strom-try" STROM_CONFIG_DIR="$HOME/.config/strom-try" \
+  STROM_COMMAND=strom-try sh
+```
+
+Windows (PowerShell):
+`$env:STROM_ISOLATED='1'; $env:STROM_INSTALL_DIR="$env:LOCALAPPDATA\Programs\Strom-try"; $env:STROM_CONFIG_DIR="$env:APPDATA\strom-try"; $env:STROM_COMMAND='strom-try'; irm https://raw.githubusercontent.com/ACiDekCZ/strom-research/main/install/install.ps1 | iex`
+
+- `STROM_ISOLATED=1` with `STROM_INSTALL_DIR` and `STROM_CONFIG_DIR`: the
+  program and its settings live in those folders only; it teaches no agent,
+  puts no shortcut on the desktop and leaves your `strom` alone.
+- `STROM_COMMAND=strom-<letters and digits>` (optional): the command it starts
+  with, next to `strom` (macOS, Linux: `~/.local/bin`; Windows: a `bin` folder
+  of its own on your PATH). It never overwrites a command it did not write. Its
+  research folder is suggested as `Documents/Strom <name>` (`Strom try`), and
+  links from the Strom app can reach it as `strom-research-<name>://` (on your
+  yes, as with the first). Without a command it is started by its full path and
+  takes no links.
+- To remove it: `strom-try uninstall` — its command, its links, its PATH entry
+  and its program folder go; its settings and research stay (delete them by
+  hand when not needed), and so does the first strom with everything of it.
+
 ## License
 
 Copyright © 2026 Milan Víšek.

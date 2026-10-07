@@ -215,7 +215,8 @@ OUTPUT AND ERRORS
 - Every error ends with "→ <what to run next>".
 - Exit codes: 0 ok · 1 error · 2 usage/ambiguous · 3 needs input (ask the
   user, then run the given command) · 4 needs consent (the USER must run the
-  given command in their terminal) · 5 locked by another session.
+  given command in their terminal) · 5 locked by another session · 6 the
+  backup before another version could not be made (tell the user why).
 - Settings and how to override them: strom config where.
 
 MORE

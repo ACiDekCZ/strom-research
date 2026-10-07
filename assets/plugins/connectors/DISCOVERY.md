@@ -148,6 +148,11 @@ as well: see step 2.
 - strom shows each image's size (width × height). It should be the right page
   and full size, not a thumbnail. Check that the number of images of a book
   matches the portal.
+- Keep `run` in connector.json as `["node", "connector.ts"]`: then it runs
+  fenced in (Node's permission model) and you may change the code without
+  asking. Split it into more files of this folder if you like, imported from
+  connector.ts. Another program, or a switch of Node's in `run`, needs the
+  user's consent after every change.
 - If strom answers with exit code 4 (consent required), stop and tell the
   user: they give it in their own terminal after reading the warning
   (`strom allow connector __NAME__`). You never do that.

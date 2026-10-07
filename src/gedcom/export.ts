@@ -85,6 +85,8 @@ export interface ExportOptions {
   clips?: boolean;
   /** …and the links this computer takes (1 _STROM_LINKS send excerpt) — only in the GEDCOM the bridge serves, never in a file. */
   links?: string[];
+  /** …and their scheme when it is not strom-research (a second installation's: 2 _SCHEME strom-research-beta). */
+  linkScheme?: string;
   /**
    * The Strom profile, for an app that shows what the research knows of a person (appOpensLinks): its open and
    * decided conflicts, open hypotheses, what was searched for them (_STROM_CONFLICT, _STROM_HYPO, _STROM_SEARCHED)
@@ -229,7 +231,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     // …and of which state of it: a tree coming back is compared with what it was given (strom sync)
     const head = opts.head ?? git.head(tree.root);
     if (head) w.line(1, "_STROM_HEAD", head);
-    if (opts.links?.length) w.line(1, "_STROM_LINKS", opts.links.join(" "));
+    if (opts.links?.length) {
+      w.line(1, "_STROM_LINKS", opts.links.join(" "));
+      if (opts.linkScheme) w.line(2, "_SCHEME", opts.linkScheme);
+    }
     if (opts.research) w.line(1, "_STROM_ASOF", new Date().toISOString().slice(0, 10));
     // an archive (no agent; the app's data written as they come): for an app that knows it (APP_KNOWS_ARCHIVE)
     if (opts.archive && tree.config.mode === "archive") w.line(1, "_STROM_MODE", "archive");

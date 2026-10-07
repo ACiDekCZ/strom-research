@@ -117,12 +117,20 @@ test("the first run of a newer strom brings back a bridge that was killed once â
   fs.writeFileSync(config, JSON.stringify({ ...JSON.parse(fs.readFileSync(config, "utf8")), lastVersion: "1.0.0" }));
   try {
     await w.ok(["status"]);
-    await new Promise((r) => setTimeout(r, 4000));
-    const log = fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8");
-    const started = log.split("\n").filter((l) => /\] started: /.test(l)).length;
-    assert.equal(started, 2, `the first bridge and the one brought back, no more:\n${log}`);
-    const now = JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "live.json"), "utf8")) as { pid: number };
-    assert.ok(alive(now.pid));
+    const liveLog = () => fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8");
+    const starts = () => liveLog().split("\n").filter((l) => /\] started: /.test(l)).length;
+    const live = () => JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "live.json"), "utf8")) as { pid: number };
+    // waits for the bridge brought back (a fixed wait failed on a busy machine), then a while for any more to show
+    await until("the bridge brought back", () => {
+      try {
+        return starts() >= 2 && live().pid !== info.pid && alive(live().pid);
+      } catch {
+        return false; // live.json or live.log not written yet
+      }
+    });
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal(starts(), 2, `the first bridge and the one brought back, no more:\n${liveLog()}`);
+    assert.ok(alive(live().pid));
     // claimed once: the next strom brings back nothing more
     await w.ok(["status"]);
     await new Promise((r) => setTimeout(r, 1000));

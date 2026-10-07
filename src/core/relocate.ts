@@ -14,8 +14,9 @@ import { liveHolder } from "./lock.ts";
 import { liveRunning } from "./live.ts";
 import type { Env } from "./paths.ts";
 import { liveWorkers, runsAtWork } from "./workers.ts";
+import { insideProgram } from "./self.ts";
 
-export type MoveProblem = "inside" | "notEmpty" | "busy";
+export type MoveProblem = "inside" | "notEmpty" | "busy" | "program";
 
 export interface MovePlan {
   from: string;
@@ -60,8 +61,11 @@ export function atWork(root: string, opts: { bridge?: boolean } = {}): boolean {
   return liveWorkers(root).length > 0 || runsAtWork(root).length > 0 || Boolean(liveHolder(path.join(root, ".strom", "tree.lock"))) || (opts.bridge !== false && Boolean(liveRunning(root)));
 }
 
-/** `trees`: the folders of the trees strom knows (those inside `from` move along). */
-export function planMove(from: string, to: string, trees: string[]): MovePlan {
+/**
+ * `trees`: the folders of the trees strom knows (those inside `from` move along). Never into strom's program folder
+ * (an update replaces it, an uninstall takes it away; `settings`: the settings folder, which may lie in it).
+ */
+export function planMove(from: string, to: string, trees: string[], opts: { settings?: string } = {}): MovePlan {
   const names = entries(from);
   const inside = trees.filter((t) => within(t, from));
   const busy = inside.filter((t) => atWork(t)).map((t) => path.basename(t));
@@ -69,7 +73,8 @@ export function planMove(from: string, to: string, trees: string[]): MovePlan {
   const there = entries(to);
   const target = there.length && there.every((n) => DISK.has(n)) ? path.join(to, path.basename(from) || "Strom") : to;
   const plan: MovePlan = { from, to: target, content: names.length > 0, trees: inside.map((t) => path.basename(t)), busy };
-  if (!plan.content) return plan;
+  if (insideProgram(target, opts)) plan.problem = "program";
+  if (!plan.content || plan.problem) return plan;
   if (within(target, from) || within(from, target)) plan.problem = "inside";
   else if (entries(target).length) plan.problem = "notEmpty";
   else if (busy.length) plan.problem = "busy";

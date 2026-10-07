@@ -10,7 +10,7 @@
 
 import { SCHEMA_VERSION } from "./model.ts";
 import { assertIntact } from "./integrity.ts";
-import type { Tree } from "./tree.ts";
+import { VERSION, type Tree } from "./tree.ts";
 
 export interface Migration {
   /** The schema the step brings the data to (the one before is to - 1). */
@@ -46,7 +46,10 @@ export function migrate(tree: Tree, migrations: Migration[] = MIGRATIONS, target
   for (const m of steps)
     tree.withTreeLock(() => {
       m.run(tree);
-      tree.updateConfig((c) => void (c.schema = m.to), { op: "tree.migrate", summary: `schema ${m.to}: ${m.what}` });
+      tree.updateConfig((c) => {
+        c.schema = m.to;
+        c.migratedWith = VERSION;
+      }, { op: "tree.migrate", summary: `schema ${m.to}: ${m.what}` });
       tree.commit(`Data brought to schema ${m.to}: ${m.what}`);
       done.push(`schema ${m.to}: ${m.what}`);
     });

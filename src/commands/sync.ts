@@ -176,9 +176,12 @@ function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang
   );
 }
 
-/** The Strom app at this address, where it opens (core/appbrowser.ts: the browser its tree came from first; never Safari: it cannot reach the bridge). */
-export function openAppAt(ctx: Context, url: string): boolean {
-  const win = appWindow(ctx.settings, ctx.env);
+/**
+ * The Strom app at this address, where it opens (core/appbrowser.ts: the installed app first; never Safari: it cannot
+ * reach the bridge). `holdsTree`: a tree handed over, in the browser it came from only.
+ */
+export function openAppAt(ctx: Context, url: string, opts: { holdsTree?: boolean } = {}): boolean {
+  const win = appWindow(ctx.settings, ctx.env, process.platform, opts);
   // the browser kept for the app is no longer here: said, the one it opens in now kept instead
   const replaced = replaceGone(ctx.settings, win);
   if (replaced) ctx.io.stdout(ui(ctx.uiLang(), replaced.now ? "ui.app.browser.gone" : "ui.app.browser.gone.none", { gone: replaced.gone, now: replaced.now ?? "" }) + "\n");

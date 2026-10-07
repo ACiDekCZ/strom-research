@@ -621,6 +621,12 @@ register({
   examples: ["strom run", "strom run --max 3 --until 23:00", "strom run --loop", "strom run --task T0003,T0007", "strom run --interactive", "strom run --agent codex", "strom run --minutes 30 -- --add-dir ~/Scans"],
   run: async (ctx: Context, { opts, extra }) => {
     refuseInArchive(ctx.tree(), "strom run");
+    ctx.confirmElsewhere(
+      "Start the agent working alone on this research — asked by an agent outside the research's folder?",
+      "strom run",
+      "elsewhere:run",
+      ui(ctx.uiLang(), "ui.consent.elsewhere.run", { tree: ctx.tree().config.name, cwd: ctx.display(ctx.cwd) }),
+    );
     const root = ctx.tree().root;
     const treeCfg = ctx.tree().config;
     const runnerId = ctx.settings.agent(treeCfg).value;

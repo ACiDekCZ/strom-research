@@ -70,11 +70,13 @@ import {
   INTERFACE,
   listConnectors,
   loadConsents,
+  lockedCode,
   MANIFEST,
   missingConsents,
   NAME_RE,
   readManifest,
   routeOf,
+  sandboxedRun,
   treeBrowserConnectors,
   routesOf,
   ROUTES,
@@ -143,7 +145,9 @@ function consentWindow(ctx: Context, c: Connector): string {
   const miss = missingConsents(ctx.env, c);
   return [
     ui(lang, "ui.consent.connector", { name: c.manifest.title }),
-    ui(lang, "ui.consent.connector.hosts", { hosts: c.manifest.hosts.map(bareHost).join(", ") }),
+    sandboxedRun(c)
+      ? ui(lang, "ui.consent.connector.hosts", { hosts: c.manifest.hosts.map(bareHost).join(", ") })
+      : ui(lang, "ui.consent.connector.unfenced", { run: c.manifest.run.join(" ") }),
     ...(miss.code === "changed" ? [ui(lang, "ui.consent.connector.changed")] : []),
     ...(directNetwork(c).length ? [ui(lang, "ui.consent.connector.direct")] : []),
     ...(c.manifest.policy.terms ? [ui(lang, "ui.consent.connector.terms", { terms: c.manifest.policy.terms })] : []),
@@ -181,13 +185,19 @@ async function askConnector(ctx: Context, c: Connector, source: string, byWindow
  * right here; anyone else (an agent, a script) gets exit 4 and the command for the user.
  */
 async function ensureAllowed(ctx: Context, c: Connector): Promise<boolean> {
+  ctx.confirmElsewhere(
+    `Run connector ${c.name} (${c.manifest.title}) — asked by an agent outside the research's folder?`,
+    `strom connector test ${c.name}`,
+    `elsewhere:connector:${c.name}`,
+    ui(ctx.uiLang(), "ui.consent.elsewhere.connector", { name: c.manifest.title, cwd: ctx.display(ctx.cwd) }),
+  );
   const miss = missingConsents(ctx.env, c);
   if (!miss.code && !miss.hosts.length) return true;
   const changed = miss.code === "changed";
   const how = ctx.requireHuman(
     consentRequired(ctx.env)
       ? `${changed ? "The code of" : "Run"} connector ${c.name} (${c.manifest.title})${changed ? " changed since it was allowed — allow it again" : ""}${miss.hosts.length ? `, with automated access to ${miss.hosts.join(", ")}` : ""}?`
-      : `Connector ${c.name} (${c.manifest.title}) reaches the network itself, past strom's limiter${changed ? ", and its code changed since it was allowed" : ""} — run it?`,
+      : `Connector ${c.name} (${c.manifest.title}) ${sandboxedRun(c) ? "reaches the network itself, past strom's limiter" : `runs a program strom does not fence in (${c.manifest.run.join(" ")})`}${changed ? ", and its code changed since it was allowed" : ""} — run it?`,
     `strom allow connector ${c.name}`,
     `connector:${c.name}`,
     consentWindow(ctx, c),
@@ -825,7 +835,7 @@ register(
       const name = args[0]!;
       if (!opts.revoke && !consentRequired(ctx.env)) {
         const c = findConnector(shared(ctx), name);
-        if (!directNetwork(c).length)
+        if (!lockedCode(c))
           return {
             text: `consents are off: connector ${name} runs without asking — paced by strom, only to ${c.manifest.hosts.join(", ")}\nto be asked first: strom config set connectors.consent on`,
             data: { name, allowed: true, consents: "off" },

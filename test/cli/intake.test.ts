@@ -205,3 +205,25 @@ test("intake --research: the intake tasks go to the research named, not only to 
   assert.match((await w.run(["intake", "--text", "x", "--research", "G9"])).err, /G0009/);
   w.cleanup();
 });
+
+test("T08: a family tree's names — the name's own parts first, what stands for no name is \"?\", a description goes to a note", { skip: !hasGit }, async () => {
+  const w = new World();
+  await w.withTree();
+  const ged = [
+    "0 HEAD", "1 GEDC", "2 VERS 5.5.1", "1 CHAR UTF-8",
+    "0 @I1@ INDI", "1 NAME N/A /Chrpa/", "1 SEX M",
+    "0 @I2@ INDI", "1 NAME Marie /Chrpová/", "2 GIVN N.N.", "2 SURN Chrpová", "1 SEX F",
+    "0 @I3@ INDI", "1 NAME Jan Petr Novák", "2 GIVN Jan, Petr", "2 SURN Novák", "1 SEX M",
+    "0 @I4@ INDI", "1 NAME Mrtvě narozený /Chrpa/", "1 SEX M",
+    "0 @I5@ INDI", "1 NAME Неизвестный /Иванов/", "2 GIVN Иван", "2 SURN Иванов", "1 SEX M",
+    "0 @I6@ INDI", "1 NAME Willem /van Berg/", "2 GIVN Willem", "2 SPFX van", "2 SURN Berg", "1 SEX M",
+    "0 TRLR",
+  ].join("\n");
+  fs.writeFileSync(path.join(w.dir, "rodokmen.ged"), ged + "\n");
+  await w.ok(["intake", path.join(w.dir, "rodokmen.ged")]);
+  const people = fs.readdirSync(path.join(w.cwd, "data", "persons")).sort().map((f) => readJsonFile(path.join(w.cwd, "data", "persons", f)));
+  const names = people.map((p) => `${p.names[0].given} | ${p.names[0].surname}`);
+  assert.deepEqual(names, ["? | Chrpa", "? | Chrpová", "Jan Petr | Novák", "? | Chrpa", "Иван | Иванов", "Willem | van Berg"]);
+  assert.ok(people[3].notes.some((n: { text: string }) => n.text.normalize("NFC") === "Mrtvě narozený"), "the description is kept in a note");
+  w.cleanup();
+});

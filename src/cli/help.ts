@@ -53,7 +53,7 @@ export function commandHelp(def: CommandDef, archive = false): string {
   const examples = (def.examples ?? []).filter((e) => !(archive && AI_WORDS.test(e)));
   if (examples.length) out.push("", "Examples:", ...examples.map((e) => `  ${e}`));
   if (def.args?.length) out.push("", "Arguments:", table(def.args.map((a) => [`  ${a.name}`, a.description])));
-  const own = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !(archive && AI_WORDS.test(o.description)));
+  const own = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !o.hidden && !(archive && AI_WORDS.test(o.description)));
   if (own.length) out.push("", "Options:", table(optionRows(own).map(([a, b]) => [`  ${a}`, b ?? ""])));
   out.push("", "Global options: --tree --json --limit --page --lang --yes --debug   (all: strom help)");
   return out.join("\n");
