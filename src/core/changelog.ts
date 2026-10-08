@@ -60,6 +60,7 @@ const SAID: Record<string, PhraseKey> = {
   "story.approve": "log.story.approve",
   "story.discard": "log.story.discard",
   "note.add": "log.note.add",
+  "note.edit": "log.note.edit",
   "input.add": "log.input.add",
   "input.sync": "log.input.sync",
   "input.done": "log.input.done",

@@ -187,6 +187,7 @@ export const PHRASES = {
   "log.repository.retract": "Archive withdrawn: {name}",
   "log.name.remove": "Name taken off: {name} – {who}",
   "log.note.remove": "Note taken off: \"{note}\" – {name}",
+  "log.note.edit": "Note corrected: {name}",
   "log.event.status": "How sure a fact is, changed: {who} – {fact}",
   "log.event.restore": "A fact back again: {who} – {fact}",
   "log.input.sync.undo": "Family tree taken back: {name}",

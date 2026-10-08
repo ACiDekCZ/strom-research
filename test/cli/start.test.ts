@@ -426,13 +426,88 @@ test("agents learn about strom in any folder, and forget it again; the user's ow
   await w.ok(["agents", "uninstall"]);
   assert.equal(fs.readFileSync(path.join(grokDir, "config.toml"), "utf8"), userToml, "the user's file as it was");
   assert.ok(!fs.existsSync(path.join(grokDir, "skills", "strom")));
-  assert.deepEqual(readJsonFile(path.join(ocDir, "opencode.json")), { theme: "tokyonight", permission: { bash: { "*": "ask" } }, instructions: ["~/rules.md"] });
+  assert.equal(fs.readFileSync(path.join(ocDir, "opencode.json"), "utf8"), JSON.stringify({ theme: "tokyonight", permission: { bash: "ask" }, instructions: ["~/rules.md"] }), "the user's file as it was, its plain bash rule too");
   assert.ok(!fs.existsSync(ocOwn));
   assert.deepEqual(readJsonFile(agySettings), { theme: "dark", permissions: { allow: ["command(git)"] } });
   assert.equal(fs.readFileSync(codex, "utf8"), "# My rules\n\nAlways answer briefly.\n");
   assert.ok(!fs.existsSync(path.join(w.env.HOME!, ".claude", "skills", "strom")));
   assert.deepEqual(readJsonFile(claudeSettings), { model: "opus", permissions: { allow: ["Bash(git status:*)", "Bash(stromboli:*)"], deny: ["Read(.env)"] } });
   assert.ok(!fs.existsSync(path.join(w.env.HOME!, ".gemini", "GEMINI.md")), "nothing else was in it");
+  w.cleanup();
+});
+
+test("an agent's TOML config: the person's text after strom's block stays where it is, and the block goes out exactly", async () => {
+  const w = new World();
+  const toml = path.join(w.env.HOME!, ".grok", "config.toml");
+  fs.mkdirSync(path.dirname(toml), { recursive: true });
+  const mine = '# Moje nastavení — 設定, настройки\n[cli]\ninstaller = "internal"\n';
+  fs.writeFileSync(toml, mine);
+  await w.ok(["agents", "install", "--all"]);
+  // the person writes their own text after strom's block
+  const after = '\n[ui]\ntheme = "dark" # tmavé, тёмная\n';
+  fs.appendFileSync(toml, after);
+  const written = fs.readFileSync(toml, "utf8");
+  // installed again: nothing moved, no second block — it is there as it is
+  const again = await w.ok(["agents", "install", "--all", "--json"]);
+  assert.equal(JSON.parse(again.out).agents.find((r: { file: string }) => r.file === toml).written, false);
+  assert.equal(fs.readFileSync(toml, "utf8"), written);
+  const r = await w.ok(["agents", "uninstall", "--json"]);
+  assert.ok(JSON.parse(r.out).agents.some((x: { file: string }) => x.file === toml), "the config is in what uninstall took strom out of");
+  assert.equal(fs.readFileSync(toml, "utf8"), mine + after, "the person's text before and after, byte for byte");
+  // a file strom created, the person's text after its block: that text stays alone
+  fs.rmSync(toml);
+  await w.ok(["agents", "install", "--all"]);
+  fs.appendFileSync(toml, after);
+  await w.ok(["agents", "uninstall"]);
+  assert.equal(fs.readFileSync(toml, "utf8"), after.slice(1));
+  // the person's own line breaks (CRLF) and no line break at the end: back as they were
+  const crlf = '[cli]\r\ninstaller = "internal" # Příliš žluťoučký kůň';
+  fs.writeFileSync(toml, crlf);
+  await w.ok(["agents", "install", "--all"]);
+  assert.doesNotMatch(fs.readFileSync(toml, "utf8").replace(/\r\n/g, ""), /\n/, "strom's lines end as the person's do");
+  await w.ok(["agents", "uninstall"]);
+  assert.equal(fs.readFileSync(toml, "utf8"), crlf);
+  w.cleanup();
+});
+
+test("the agents' settings files of the person's come back from an install and an uninstall as they were: their layout, their empty objects", async () => {
+  const w = new World();
+  const at = (...p: string[]) => path.join(w.env.HOME!, ...p);
+  const claude = at(".claude", "settings.json");
+  const agy = at(".gemini", "antigravity-cli", "settings.json");
+  const oc = at(".config", "opencode", "opencode.json");
+  const rounds: [string, string][][] = [
+    [
+      // compact, no line break at the end
+      [claude, '{"model":"opus","permissions":{"allow":["Bash(ls:*)"]},"env":{"POZDRAV":"Dobrý den — こんにちは","ESC":"\\u00e9\\t"}}'],
+      // tabs, an empty permissions object of the person's
+      [agy, '{\n\t"theme": "tmavá",\n\t"permissions": {}\n}\n'],
+      // four spaces, a plain bash rule, an empty list of instructions
+      [oc, '{\n    "theme": "тёмная",\n    "permission": {\n        "bash": "ask"\n    },\n    "instructions": []\n}\n'],
+    ],
+    [
+      // an empty allow list of the person's, CRLF line breaks
+      [claude, '{\r\n  "permissions": {\r\n    "allow": [],\r\n    "deny": ["Read(./tajné.env)"]\r\n  }\r\n}\r\n'],
+      // {} with no line break at the end; a blank file
+      [agy, "{}"],
+      [oc, "\n"],
+    ],
+    [[claude, "  {}\n\n"], [agy, '{"permissions":{"allow":[]}}'], [oc, '{"permission":"ask"}']],
+  ];
+  for (const files of rounds) {
+    for (const [f, text] of files) {
+      fs.mkdirSync(path.dirname(f), { recursive: true });
+      fs.writeFileSync(f, text);
+    }
+    await w.ok(["agents", "install", "--all"]);
+    for (const [f] of files) assert.match(fs.readFileSync(f, "utf8"), /strom/, `${f}: strom allowed`);
+    await w.ok(["agents", "uninstall"]);
+    for (const [f, text] of files) assert.equal(fs.readFileSync(f, "utf8"), text, `${f}: byte for byte as it was`);
+  }
+  // strom's lines are written in the person's way
+  fs.writeFileSync(agy, '{\n\t"theme": "tmavá"\n}');
+  await w.ok(["agents", "install", "--all"]);
+  assert.equal(fs.readFileSync(agy, "utf8"), '{\n\t"theme": "tmavá",\n\t"permissions": {\n\t\t"allow": [\n\t\t\t"command(strom)"\n\t\t]\n\t}\n}');
   w.cleanup();
 });
 

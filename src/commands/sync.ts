@@ -107,8 +107,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
     now: c.kind === "fact.detail" ? detailText(c.fact, lang, short) : factText(c.fact, lang, short),
     when: [humanDate(c.fact?.date, lang), humanPlace(c.fact?.place, undefined, lang)].filter(Boolean).join(", "),
     text: truncate(c.text ?? "", 120),
-    old: c.title ? truncate(c.title.was, 80) || "—" : shownName(c.wasName),
-    new: c.title ? truncate(c.text ?? "", 80) || "—" : shownName(c.text),
+    old: c.note ? truncate(c.note.was, 80) : c.title ? truncate(c.title.was, 80) || "—" : shownName(c.wasName),
+    new: c.note ? truncate(c.text ?? "", 80) : c.title ? truncate(c.text ?? "", 80) || "—" : shownName(c.text),
     title: c.title ? ui(lang, c.title.part === "before" ? "ui.conflict.titleBefore" : "ui.conflict.titleAfter") : "",
     child: name(c.child),
     // a child's tie to each parent: one word for both, else each parent's
@@ -146,6 +146,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
       ? "ui.sync.do.name.user"
       : c.kind === "name.title" && (c.action === "add" || c.action === "user")
       ? `ui.sync.do.title${c.action === "user" ? ".user" : ""}`
+      : c.kind === "note.changed" && c.action !== "pick"
+      ? "ui.sync.do.note.changed"
       : c.kind === "family.union" && c.action !== "report"
       ? "ui.sync.do.family.union"
       : c.kind === "fact.detail" && c.action === "add"

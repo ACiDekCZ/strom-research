@@ -22,7 +22,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CHILD_RELATIONS, UNIONS, eventKind, type ChildLink, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Name, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Source, type Task, type Union } from "./model.ts";
+import { CHILD_RELATIONS, UNIONS, eventKind, type ChildLink, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Name, type Note, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Source, type Task, type Union } from "./model.ts";
 import { isWeak } from "./evidence.ts";
 import { phrase } from "./phrases.ts";
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, retractEvent, retractPerson } from "./actions.ts";
@@ -528,6 +528,42 @@ function knownNote(text: string, said: Set<string>): boolean {
   const unknown = [...w].filter((x) => !said.has(x));
   // a word or two of the app's own ("Birth:", "Address:") around what the research said — never a short note all new
   return unknown.length <= w.size * 0.2 || (unknown.length < 3 && unknown.length * 2 <= w.size);
+}
+
+/** A line of a note as compared: NFC, its spaces one (the app joins what GEDCOM splits). */
+const noteLine = (t: string) => t.normalize("NFC").replace(/\s+/g, " ").trim();
+
+/** The words of a line as the user wrote them (lower case, accents kept, a letter alone too): what an edit changes. */
+const lineWords = (t: string) => new Set(t.normalize("NFC").toLowerCase().match(/[\p{L}\p{M}\p{N}]+/gu) ?? []);
+
+/**
+ * Of the research's lines, the one this line is an edit of: at least `share` of the words of the longer of the two in
+ * both (a year changed, a name corrected, a word added or taken away), the most of them.
+ */
+function closest<T extends { line: string }>(ours: T[], line: string, share: number): T | undefined {
+  const w = lineWords(line);
+  let best: T | undefined;
+  let most = 0;
+  for (const x of ours) {
+    const v = lineWords(x.line);
+    const both = [...w].filter((y) => v.has(y)).length;
+    if (both && both >= share * Math.max(w.size, v.size) && both > most) [best, most] = [x, both];
+  }
+  return best;
+}
+
+/** A note with one of its lines (as compared) another: the first such line, the others as they are. */
+function swapLine(text: string, was: string, now: string): string {
+  const lines = text.split("\n");
+  const i = lines.findIndex((l) => noteLine(l) === was);
+  if (i >= 0) lines[i] = now;
+  return lines.join("\n");
+}
+
+/** The line only adds words around the research's ("Address: čp. 35" of "čp. 35"): the app's own shape, no line of its own. */
+function onlyAdds(ours: string, line: string): boolean {
+  const w = lineWords(line);
+  return [...lineWords(ours)].every((y) => w.has(y));
 }
 
 /**
@@ -1948,6 +1984,7 @@ export type ChangeKind =
   | "name.title"
   | "sex.changed"
   | "note.new"
+  | "note.changed"
   | "family.new"
   | "child.new"
   | "child.gone"
@@ -1994,6 +2031,8 @@ export interface Change {
   /** name.title: which title of the name the person is shown by, and the research's (the file's is `text`, "" none). */
   title?: { part: "before" | "after"; was: string };
   text?: string;
+  /** note.changed: the research's note (its time) and its line the user edited (the file's line is `text`). */
+  note?: { at: string; was: string };
   /** A source: its key in the file, and the research's source it is (a change of one the research has). */
   source?: string;
   sourceId?: string;
@@ -2309,12 +2348,49 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     if (fresh.length) push({ kind: owner.family || owner.partners ? "family.cite" : "person.cite", action: "add", ...owner, cites: fresh, ...(fresh.some((c) => reads(c.source)) ? { reads: true } : {}) });
   };
 
-  /** A note coming back holds the research's too (the app joins them): only its lines the research has not said. */
-  const notesDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, inc: string[] | undefined, said: string[], facts: SFact[]) => {
+  /**
+   * A note coming back holds the research's too (the app joins them): only its lines the research has not said. A line
+   * of the research's own note the user edited in the app (a year, a name: hardly a word else — N38, found with the
+   * app's 3.10.0-beta.13: "nothing new taken", the edit lost) is no line the research has said: the user's own note
+   * (typed by the user, or the app's) corrected, a session's kept and the user's line beside it (sync.edits user, an
+   * archive: corrected too); a line like one the note still has, a line of its own. A line as the app was given it
+   * (the base) is no edit: the research's since stays.
+   */
+  const notesDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, inc: string[] | undefined, said: string[], facts: SFact[], mine: Note[] | undefined) => {
     const words = new Set(wordsOf([...said, ...facts.map((f) => [f.place, f.value, f.label].join(" "))].join("\n")));
+    // what the research says, and what the app was given (the base: a copy older than the research's edit is no edit)
+    const exactly = new Set(said.flatMap((t) => t.split(/\n+/)).map(noteLine).filter(Boolean));
+    const sent = new Set((inc ?? []).flatMap((t) => t.split(/\n+/)).map(noteLine).filter(Boolean));
+    const ours = (mine ?? []).flatMap((n) => n.text.split(/\n+/).map(noteLine).filter(Boolean).map((line) => ({ note: n, line })));
+    const used = new Set<(typeof ours)[number]>();
     for (const t of inc ?? []) {
-      const fresh = t.split(/\n+/).filter((line) => line.trim() && !knownNote(line, words));
-      if (fresh.length && !knownNote(fresh.join("\n"), words)) push({ kind: "note.new", action: "add", ...owner, text: fresh.join("\n") });
+      const lines = t.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+      const own = new Set<string>();
+      const fresh = lines.filter((line) => {
+        const l = noteLine(line);
+        if (exactly.has(l)) return false;
+        // an edit of a line the note no longer has; a line beside one it still has, like it but for a word or two
+        const edit = closest(ours.filter((x) => !used.has(x) && !sent.has(x.line)), l, 0.5);
+        const like = !edit && closest(ours.filter((x) => sent.has(x.line) && !onlyAdds(x.line, l)), l, 0.6);
+        if (edit) {
+          used.add(edit);
+          // a file that names no commit it stands on (an older export, another program's): which is newer nobody can
+          // tell — only shown, taken with --only (N39: an older copy set the user's correction back)
+          if (!base) {
+            push({ kind: "note.changed", action: "pick", ...owner, text: line.normalize("NFC"), note: { at: edit.note.at, was: edit.line } });
+            return false;
+          }
+          if (edit.note.by === "user" || edits === "user") {
+            push({ kind: "note.changed", action: "correct", ...owner, text: line.normalize("NFC"), note: { at: edit.note.at, was: edit.line } });
+            return false;
+          }
+        }
+        if (edit || like) own.add(line);
+        return !edit && !like && !knownNote(line, words);
+      });
+      const take = fresh.length > 0 && !knownNote(fresh.join("\n"), words);
+      const out = lines.filter((line) => own.has(line) || (take && fresh.includes(line)));
+      if (out.length) push({ kind: "note.new", action: "add", ...owner, text: out.join("\n") });
     }
   };
 
@@ -2393,7 +2469,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       const overGuess = mySex === "U" && guessed !== undefined && !incoming.sexU;
       push({ kind: "sex.changed", action: b ? (edits === "user" ? "user" : backed || since || overGuess ? "conflict" : "correct") : "report", person: id, name, text: p.sex });
     }
-    notesDiff({ person: id, name }, p.notes, [o.said, b?.said ?? "", ...o.names], o.facts);
+    notesDiff({ person: id, name }, p.notes, [o.said, b?.said ?? "", ...o.names], o.facts, tree.get<Person>(id)?.notes);
   }
   if (base && !partial)
     for (const [key, b] of base.persons)
@@ -2555,7 +2631,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     const both = [...new Set([...o.partners, ...partners])];
     factsDiff({ family: fam.id, partners: both }, f.facts, o.facts, b?.facts, true);
     citesDiff({ family: fam.id, partners: both }, f.cites, fam, b?.cites);
-    notesDiff({ family: fam.id, partners: both }, f.notes, [o.said ?? "", b?.said ?? "", ...both.map((k) => ours.persons.get(k)?.names.join(" ") ?? "")], o.facts);
+    notesDiff({ family: fam.id, partners: both }, f.notes, [o.said ?? "", b?.said ?? "", ...both.map((k) => ours.persons.get(k)?.names.join(" ") ?? "")], o.facts, fam.notes);
     // how the couple is bound (no record proves it): the user's word where it changed since given, or where the research
     // has none; another word with nothing to stand on only said; none in the file takes nothing away (an older app)
     // (the one partner's married or divorced is the couple's facts' to say once the unknown one is named)
@@ -3129,6 +3205,7 @@ export interface Applied {
     | "name.primary"
     | "name.drop"
     | "note.add"
+    | "note.edit"
     | "person.add"
     | "family.add"
     | "family.union"
@@ -3157,7 +3234,7 @@ export interface Applied {
    * its status; event.cite: its status and the sources it was given (JSON); sex.edit: the sex before; family.sides: the
    * partner the family kept as HUSB before a sex of its partners changed ("" none); partner.remove: the partner, their
    * place and the partner kept as HUSB (JSON); note.add: the
-   * note's time; child.add: the child; place.edit: its position before (JSON); source.edit: its words, page and the
+   * note's time; note.edit: the note's time, its line as the file has it and as it was (JSON); child.add: the child; place.edit: its position before (JSON); source.edit: its words, page and the
    * app's mark before (JSON); event.parts: its participants before (JSON); name.cite, family.cite: the sources it was
    * given (JSON); name.edit: the name the person was shown by and the corrected one's spelling (JSON); name.primary:
    * the name added in front and the one shown before (JSON); name.drop: the user's name an edit of theirs replaced, and
@@ -3687,6 +3764,21 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           applied.push({ do: "note.add", id: owner, before: n.at });
           break;
         }
+        case "note.changed": {
+          // the user's edit of a line of the research's note: that line of it corrected, the rest of the note as it was
+          if (!owner || !c.text || !c.note) break;
+          const { at, was } = c.note;
+          const edited = noteLine(c.text);
+          const rec = tree.get<Person | Family>(owner);
+          if (!rec?.notes.some((n) => n.at === at && n.text.split("\n").some((l) => noteLine(l) === was))) break;
+          update<Person | Family>(tree, owner, typeOfId(owner) === "family" ? "family" : "person", (o) => ({ ...o, notes: o.notes.map((n) => (n.at === at ? { ...n, text: swapLine(n.text, was, edited) } : n)) }), {
+            op: "note.edit",
+            summary: `${owner} note "${truncateText(was, 50)}" → "${truncateText(edited, 50)}": the user's edit (${reason})`,
+            reason,
+          });
+          applied.push({ do: "note.edit", id: owner, before: JSON.stringify({ at, now: edited, was }) });
+          break;
+        }
         case "sex.changed": {
           if (!owner || !c.text) break;
           const p = tree.get<Person>(owner)!;
@@ -4179,6 +4271,18 @@ export function undoSync(tree: Tree, input: SyncInput): number {
             ? { op: "name.remove", summary: `${a.id} name ${gedcomName(gone)} removed, shown by its name before again: ${reason}`, reason }
             : { op: "person.edit", summary: `${a.id} shown by its name before again: ${reason}`, reason },
         );
+        break;
+      }
+      case "note.edit": {
+        // the line as it was, back in its note (the note as it is now otherwise)
+        const b = JSON.parse(String(a.before ?? "{}")) as { at?: string; now?: string; was?: string };
+        const rec = tree.get<Person | Family>(a.id);
+        if (!b.at || !b.now || !b.was || !rec?.notes.some((n) => n.at === b.at && n.text.split("\n").some((l) => noteLine(l) === b.now))) break;
+        update<Person | Family>(tree, a.id, typeOfId(a.id) === "family" ? "family" : "person", (o) => ({ ...o, notes: o.notes.map((n) => (n.at === b.at ? { ...n, text: swapLine(n.text, b.now!, b.was!) } : n)) }), {
+          op: "note.edit",
+          summary: `${a.id} note "${truncateText(b.now, 50)}" → "${truncateText(b.was, 50)}" again: ${reason}`,
+          reason,
+        });
         break;
       }
       case "note.add":

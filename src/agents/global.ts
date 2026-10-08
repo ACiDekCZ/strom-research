@@ -110,32 +110,92 @@ function allowRules(agent: string): string[] {
 const TOML_BEGIN = "# strom: begin (strom agents install; removed by strom agents uninstall)";
 const TOML_END = "# strom: end";
 
+const isTomlTable = (l: string): boolean => /^\s*\[/.test(l);
+const isPermissionHeader = (l: string): boolean => /^\s*\[permission\]\s*(#.*)?$/.test(l);
+const hasOwnAllow = (lines: string[]): boolean => lines.some((l) => /^\s*allow\s*=/.test(l));
+
+/** A line of strom's own in config.toml: its [permission] header, or an allow list of nothing but strom's rules. */
+function isGrokStromLine(l: string): boolean {
+  if (isPermissionHeader(l)) return true;
+  const m = /^\s*allow\s*=\s*\[(.*)\]\s*$/.exec(l);
+  const rules = m ? [...m[1]!.matchAll(/"([^"]*)"/g)].map((r) => r[1]!) : [];
+  return rules.length > 0 && rules.every((r) => isStromRule("grok", r));
+}
+
+/** Strom's block among the lines of config.toml (split at \n): the lines of its begin and its end, or undefined. */
+function grokBlock(lines: string[]): [number, number] | undefined {
+  const b = lines.findIndex((l) => l.trim() === TOML_BEGIN);
+  if (b < 0) return undefined;
+  const e = lines.findIndex((l, i) => i > b && l.trim() === TOML_END);
+  if (e > b) return [b, e];
+  // its end line lost: strom's own lines after its begin, never the person's that follow
+  let last = b;
+  while (last + 1 < lines.length && isGrokStromLine(lines[last + 1]!)) last++;
+  return [b, last];
+}
+
+/**
+ * Strom's block taken out, the person's text before and after it kept as it is — only the blank line an install puts
+ * between the person's text and the block it appends goes with it.
+ */
 function grokWithout(text: string): string {
-  const lines = text.split("\n");
-  const out: string[] = [];
-  let inside = false;
-  for (const l of lines) {
-    if (l.trim() === TOML_BEGIN) inside = true;
-    else if (l.trim() === TOML_END) inside = false;
-    else if (!inside) out.push(l);
+  let lines = text.split("\n");
+  const blank = (i: number) => i >= 0 && i < lines.length && lines[i]!.trim() === "";
+  for (let at = grokBlock(lines); at; at = grokBlock(lines)) {
+    const [b, e] = at;
+    let from = b;
+    let to = e + 1;
+    // a blank line before it, and the end of the file or another blank line after it: the one before was strom's
+    if (blank(b - 1) && (e + 1 >= lines.length || blank(e + 1))) from = b - 1;
+    // first in the file, then a blank line and the person's text: that blank line was strom's
+    else if (b === 0 && blank(e + 1) && e + 1 < lines.length - 1) to = e + 2;
+    // taken to the end of a file with no line break at its end: the CR of the break before it went with it
+    const tail = to >= lines.length && from > 0 ? [lines[from - 1]!.replace(/\r$/, "")] : lines.slice(from - 1, from);
+    lines = [...lines.slice(0, Math.max(0, from - 1)), ...tail, ...lines.slice(to)];
   }
-  return out.join("\n");
+  return lines.join("\n");
 }
 
 function grokWith(text: string): string | undefined {
-  const rest = grokWithout(text);
   const allow = `allow = [${allowRules("grok").map((r) => JSON.stringify(r)).join(", ")}]`;
-  const lines = rest.split("\n");
-  const header = lines.findIndex((l) => /^\s*\[permission\]\s*(#.*)?$/.test(l));
+  const nl = text.includes("\r\n") ? "\r\n" : "\n";
+  const cr = nl === "\r\n" ? "\r" : "";
+  const lines = text.split("\n");
+  const at = grokBlock(lines);
+  if (at) {
+    // strom's block there already: brought to this version where it is, the person's text around it untouched
+    const [b, e] = at;
+    const header = lines.findIndex((l, i) => (i < b || i > e) && isPermissionHeader(l));
+    let inner: string[] | undefined;
+    if (header < 0) inner = ["[permission]", allow];
+    else if (header < b && !lines.slice(header + 1, b).some(isTomlTable)) {
+      // in the person's own table: up to the next table
+      let end = lines.findIndex((l, i) => i > e && isTomlTable(l));
+      if (end < 0) end = lines.length;
+      if (hasOwnAllow([...lines.slice(header + 1, b), ...lines.slice(e + 1, end)])) return undefined;
+      inner = [allow];
+    }
+    if (inner) {
+      const last = e === lines.length - 1; // the file ends with strom's end line: no line break after it
+      const block = [TOML_BEGIN, ...inner, TOML_END].map((l, i, all) => (last && i === all.length - 1 ? l : l + cr));
+      return [...lines.slice(0, b), ...block, ...lines.slice(e + 1)].join("\n");
+    }
+    // a table of strom's beside the person's own [permission] table (two would break the file): into theirs
+  }
+  const rest = at ? grokWithout(text) : text;
+  const rl = rest.split("\n");
+  const header = rl.findIndex(isPermissionHeader);
   if (header < 0) {
-    const body = rest.replace(/\s+$/, "");
-    return `${body ? `${body}\n\n` : ""}${TOML_BEGIN}\n[permission]\n${allow}\n${TOML_END}\n`;
+    // appended after a blank line, the person's last line ending as it did (grokWithout takes exactly this away)
+    const block = [TOML_BEGIN, "[permission]", allow, TOML_END].join(nl);
+    if (!rest) return block + nl;
+    return rest.endsWith("\n") ? `${rest}${nl}${block}${nl}` : `${rest}${nl}${nl}${block}`;
   }
   // the user's table: up to the next table
-  let end = lines.findIndex((l, i) => i > header && /^\s*\[/.test(l));
-  if (end < 0) end = lines.length;
-  if (lines.slice(header + 1, end).some((l) => /^\s*allow\s*=/.test(l))) return undefined;
-  return [...lines.slice(0, header + 1), TOML_BEGIN, allow, TOML_END, ...lines.slice(header + 1)].join("\n");
+  let end = rl.findIndex((l, i) => i > header && isTomlTable(l));
+  if (end < 0) end = rl.length;
+  if (hasOwnAllow(rl.slice(header + 1, end))) return undefined;
+  return [...rl.slice(0, header + 1), ...[TOML_BEGIN, allow, TOML_END].map((l) => l + cr), ...rl.slice(header + 1)].join("\n");
 }
 
 /** A rule of strom's in Claude Code's or Antigravity's settings, whichever installation wrote it. */
@@ -241,46 +301,152 @@ function hasAllow(t: GlobalTarget, s: Record<string, unknown>): boolean {
   return isObject(bash) && bash[OPENCODE_STROM] === "allow" && Array.isArray(s.instructions) && s.instructions.includes(own);
 }
 
-function addAllow(t: GlobalTarget, s: Record<string, unknown>): void {
+/**
+ * What strom made in a settings file (JSON) of the person's: the objects and lists it added — taken away again only
+ * they, when empty, so an empty one the person had stays —, the plain values it turned into an object (OpenCode's
+ * "ask": turned back), and the whitespace a blank file held (written again when nothing is left).
+ */
+interface JsonMade {
+  made?: string[];
+  plain?: string[];
+  blank?: string;
+}
+
+/** Strom allowed in the settings; what it made there to do it. */
+function addAllow(t: GlobalTarget, s: Record<string, unknown>): JsonMade {
+  const made: string[] = [];
+  const plain: string[] = [];
   if (t.agent !== "opencode") {
+    if (!isObject(s.permissions)) made.push("permissions");
+    const perms = isObject(s.permissions) ? s.permissions : {};
+    if (!Array.isArray(perms.allow)) made.push("permissions.allow");
     const have = allowList(s);
-    s.permissions = { ...((s.permissions as object | undefined) ?? {}), allow: [...have, ...allowRules(t.agent).filter((r) => !have.includes(r))] };
-    return;
+    s.permissions = { ...perms, allow: [...have, ...allowRules(t.agent).filter((r) => !have.includes(r))] };
+    return { made };
   }
+  if (!isObject(s.permission)) (typeof s.permission === "string" ? plain : made).push("permission");
   const perm = isObject(s.permission) ? s.permission : typeof s.permission === "string" ? { "*": s.permission } : {};
   // A plain value for bash ("ask") becomes the general rule; strom's comes after it (the last match counts).
+  if (!isObject(perm.bash)) (typeof perm.bash === "string" ? plain : made).push("permission.bash");
   const bash = isObject(perm.bash) ? perm.bash : typeof perm.bash === "string" ? { "*": perm.bash } : {};
   s.permission = { ...perm, bash: { ...bash, [OPENCODE_STROM]: "allow" } };
   const own = path.join(path.dirname(t.file), "strom.md");
+  if (!Array.isArray(s.instructions)) made.push("instructions");
   const list = Array.isArray(s.instructions) ? (s.instructions as unknown[]) : [];
   if (!list.includes(own)) s.instructions = [...list, own];
+  return { made, plain };
 }
 
-function removeAllow(t: GlobalTarget, s: Record<string, unknown>): void {
+/**
+ * Strom's rules out of the settings. What strom made there (rec) goes when empty, and nothing else; a value it turned
+ * into an object becomes plain again. Nothing recorded (an installation before the record): every container left
+ * empty goes, as before.
+ */
+function removeAllow(t: GlobalTarget, s: Record<string, unknown>, rec: JsonMade | undefined): void {
+  const goes = (p: string) => (rec ? (rec.made ?? []).includes(p) : true);
+  const wasPlain = (p: string, v: Record<string, unknown>) => (rec?.plain ?? []).includes(p) && Object.keys(v).length === 1 && "*" in v;
   if (t.agent !== "opencode") {
+    if (!isObject(s.permissions)) return;
     const rest = allowList(s).filter((r) => !isStromRule(t.agent, r));
-    const perms = { ...(s.permissions as object) } as Record<string, unknown>;
-    if (rest.length) perms.allow = rest;
+    const perms = { ...s.permissions };
+    if (rest.length || !goes("permissions.allow")) perms.allow = rest;
     else delete perms.allow;
-    if (Object.keys(perms).length) s.permissions = perms;
+    if (Object.keys(perms).length || !goes("permissions")) s.permissions = perms;
     else delete s.permissions;
     return;
   }
   const own = path.join(path.dirname(t.file), "strom.md");
   if (Array.isArray(s.instructions)) {
     const rest = s.instructions.filter((i) => i !== own);
-    if (rest.length) s.instructions = rest;
+    if (rest.length || !goes("instructions")) s.instructions = rest;
     else delete s.instructions;
   }
   if (isObject(s.permission) && isObject(s.permission.bash)) {
     const bash = { ...s.permission.bash };
     delete bash[OPENCODE_STROM];
     const perm = { ...s.permission } as Record<string, unknown>;
-    if (Object.keys(bash).length) perm.bash = bash;
+    if (wasPlain("permission.bash", bash)) perm.bash = bash["*"];
+    else if (Object.keys(bash).length || !goes("permission.bash")) perm.bash = bash;
     else delete perm.bash;
-    if (Object.keys(perm).length) s.permission = perm;
+    if (wasPlain("permission", perm)) s.permission = perm["*"];
+    else if (Object.keys(perm).length || !goes("permission")) s.permission = perm;
     else delete s.permission;
   }
+}
+
+/** Where a value stands in the text of a JSON file: its start and end, and those of its members. */
+interface JsonSpan {
+  start: number;
+  end: number;
+  keys?: Map<string, JsonSpan>;
+  items?: JsonSpan[];
+}
+
+/** The spans of the JSON value at i of a text JSON.parse read (so nothing here needs to check it). */
+function jsonSpan(text: string, i: number): JsonSpan {
+  const ws = (k: number) => {
+    while (k < text.length && /\s/.test(text[k]!)) k++;
+    return k;
+  };
+  const strEnd = (k: number) => {
+    for (k++; text[k] !== '"'; k++) if (text[k] === "\\") k++;
+    return k + 1;
+  };
+  const start = ws(i);
+  const c = text[start];
+  if (c === '"') return { start, end: strEnd(start) };
+  if (c === "{" || c === "[") {
+    const keys = new Map<string, JsonSpan>();
+    const items: JsonSpan[] = [];
+    let k = ws(start + 1);
+    while (text[k] !== (c === "{" ? "}" : "]")) {
+      if (c === "{") {
+        const keyEnd = strEnd(k);
+        const key = JSON.parse(text.slice(k, keyEnd)) as string;
+        const v = jsonSpan(text, ws(keyEnd) + 1); // after the colon
+        keys.set(key, v);
+        k = ws(v.end);
+      } else {
+        const v = jsonSpan(text, k);
+        items.push(v);
+        k = ws(v.end);
+      }
+      if (text[k] === ",") k = ws(k + 1);
+    }
+    return c === "{" ? { start, end: k + 1, keys } : { start, end: k + 1, items };
+  }
+  let end = start;
+  while (end < text.length && !/[\s,\]}]/.test(text[end]!)) end++;
+  return { start, end };
+}
+
+/**
+ * The settings written as the person's file is: what did not change exactly as its text has it, what did in its
+ * indentation (or compact, as the file is), its line breaks, the whitespace around it. A blank file or none: strom's
+ * way, two spaces and a line break at the end.
+ */
+function formatJson(s: Record<string, unknown>, text: string | undefined): string {
+  if (text === undefined || !text.trim()) return JSON.stringify(s, null, 2) + "\n";
+  const body = text.trim();
+  const nl = body.includes("\r\n") ? "\r\n" : "\n";
+  // the first indented line is one level in; all on one line: compact (an empty {} says nothing: strom's way)
+  const indent = /\n([ \t]+)\S/.exec(body)?.[1] ?? (body.includes("\n") || /^\{\s*\}$/.test(body) ? "  " : "");
+  const same = (v: unknown, at: JsonSpan) => JSON.stringify(v) === JSON.stringify(JSON.parse(text.slice(at.start, at.end)));
+  const write = (v: unknown, at: JsonSpan | undefined, depth: number): string => {
+    if (at && same(v, at)) return text.slice(at.start, at.end);
+    if (v === null || typeof v !== "object") return JSON.stringify(v) ?? "null";
+    const entries: [string | undefined, unknown, JsonSpan | undefined][] = Array.isArray(v)
+      ? v.map((x, i) => [undefined, x, at?.items?.[i]])
+      : Object.entries(v).map(([k, x]) => [k, x, at?.keys?.get(k)]);
+    const [open, close] = Array.isArray(v) ? ["[", "]"] : ["{", "}"];
+    if (!entries.length) return open + close;
+    const parts = entries.map(([k, x, sub]) => (k === undefined ? "" : JSON.stringify(k) + (indent ? ": " : ":")) + write(x, sub, depth + 1));
+    if (!indent) return open + parts.join(",") + close;
+    const pad = (d: number) => indent.repeat(d);
+    return open + nl + parts.map((p) => pad(depth + 1) + p).join("," + nl) + nl + pad(depth) + close;
+  };
+  const lead = text.slice(0, text.length - text.trimStart().length);
+  return lead + write(s, jsonSpan(text, 0), 0) + text.slice(text.trimEnd().length);
 }
 
 /**
@@ -291,6 +457,8 @@ function removeAllow(t: GlobalTarget, s: Record<string, unknown>): void {
 interface Made {
   files?: Record<string, "created" | "existed">;
   dirs?: string[];
+  /** In each settings file (JSON) strom wrote: what it made there (an installation before 1.13.0-beta.7 recorded none). */
+  json?: Record<string, JsonMade>;
 }
 
 function readMade(file: string): Made {
@@ -306,8 +474,9 @@ function writeMade(file: string, m: Made): void {
   try {
     const files = m.files && Object.keys(m.files).length ? m.files : undefined;
     const dirs = m.dirs?.length ? [...new Set(m.dirs)].sort() : undefined;
-    if (!files && !dirs) fs.rmSync(file, { force: true });
-    else writeFileAtomic(file, JSON.stringify({ ...(files ? { files } : {}), ...(dirs ? { dirs } : {}) }, null, 2) + "\n");
+    const json = m.json && Object.keys(m.json).length ? m.json : undefined;
+    if (!files && !dirs && !json) fs.rmSync(file, { force: true });
+    else writeFileAtomic(file, JSON.stringify({ ...(files ? { files } : {}), ...(dirs ? { dirs } : {}), ...(json ? { json } : {}) }, null, 2) + "\n");
   } catch {
     // the user config not writable: the files stay as an uninstall without the record leaves them
   }
@@ -325,20 +494,32 @@ function hasStrom(t: GlobalTarget, text: string): boolean {
   return (Array.isArray(s.instructions) && s.instructions.includes(own)) || (isObject(s.permission) && isObject(s.permission.bash) && OPENCODE_STROM in s.permission.bash);
 }
 
-/** Recorded after a write: the file created now, or the person's (one without strom's part); the folders made for it. */
-function noteWritten(t: GlobalTarget, before: string | undefined, firstDir: string | undefined): void {
+/**
+ * Recorded after a write: the file created now, or the person's (one without strom's part); the folders made for it;
+ * in a settings file, what strom made in it (json).
+ */
+function noteWritten(t: GlobalTarget, before: string | undefined, firstDir: string | undefined, json?: JsonMade): void {
   const m = readMade(t.made);
   const files = { ...(m.files ?? {}) };
   const dirs = [...(m.dirs ?? [])];
+  const jsons = { ...(m.json ?? {}) };
+  const fresh = before === undefined || !hasStrom(t, before);
   if (before === undefined) files[t.file] = "created";
   // there without strom's part: the person's — also one recorded created, deleted since and made again by the person
-  else if (!hasStrom(t, before)) files[t.file] = "existed";
+  else if (fresh) files[t.file] = "existed";
   // strom's part already there: what is recorded stands; nothing recorded, an older installation's file — whose, nobody can tell
+  const prev = jsons[t.file];
+  const both = (a: string[] | undefined, b: string[] | undefined) => [...new Set([...(a ?? []), ...(b ?? [])])];
+  const kept = (j: JsonMade): JsonMade => ({ ...(j.made?.length ? { made: j.made } : {}), ...(j.plain?.length ? { plain: j.plain } : {}), ...(j.blank !== undefined ? { blank: j.blank } : {}) });
+  if (json && fresh) jsons[t.file] = kept(json);
+  else if (json && prev) jsons[t.file] = kept({ ...prev, made: both(prev.made, json.made), plain: both(prev.plain, json.plain) });
+  // strom's part there and nothing recorded of it: an older installation's, taken away as it was before the record
   if (firstDir) for (let d = path.dirname(t.file); ; d = path.dirname(d)) {
     dirs.push(d);
     if (d === firstDir || path.dirname(d) === d) break;
   }
-  if (JSON.stringify(files) !== JSON.stringify(m.files ?? {}) || dirs.length !== (m.dirs ?? []).length) writeMade(t.made, { files, dirs });
+  if (JSON.stringify(files) !== JSON.stringify(m.files ?? {}) || dirs.length !== (m.dirs ?? []).length || JSON.stringify(jsons) !== JSON.stringify(m.json ?? {}))
+    writeMade(t.made, { files, dirs, json: jsons });
 }
 
 /** Its part taken away: the file is the person's again (or gone); the folders strom made for it go when empty. */
@@ -346,6 +527,8 @@ function noteRemoved(t: GlobalTarget): void {
   const m = readMade(t.made);
   const files = { ...(m.files ?? {}) };
   delete files[t.file];
+  const json = { ...(m.json ?? {}) };
+  delete json[t.file];
   const here = path.dirname(t.file);
   const within = (d: string) => here === d || here.startsWith(d.endsWith(path.sep) ? d : d + path.sep);
   // deepest first: a folder strom made in another it made
@@ -359,13 +542,14 @@ function noteRemoved(t: GlobalTarget): void {
     }
     return false;
   });
-  writeMade(t.made, { files, dirs });
+  writeMade(t.made, { files, dirs, json });
 }
 
 /** Write it for one agent; false when it was already there as it is. */
 export function installGlobal(t: GlobalTarget): boolean {
   const cur = read(t.file);
   let next: string;
+  let json: JsonMade | undefined;
   if (t.kind === "allow" && t.agent === "grok") {
     const with_ = grokWith(cur ?? "");
     if (with_ === undefined) return false;
@@ -373,8 +557,10 @@ export function installGlobal(t: GlobalTarget): boolean {
   } else if (t.kind === "allow") {
     const s = settingsOf(cur);
     if (!s || hasAllow(t, s)) return false;
-    addAllow(t, s);
-    next = JSON.stringify(s, null, 2) + "\n";
+    json = addAllow(t, s);
+    if (cur !== undefined && !cur.trim()) json.blank = cur;
+    // written as the person's file is: its indentation, its line breaks, a line break at its end or none
+    next = formatJson(s, cur);
   } else if (t.kind === "own") next = t.agent === "claude" || t.agent === "grok" ? skill(t.app) : globalText(t.app);
   else {
     const rest = cur ? withoutBlock(cur).replace(/\s+$/, "") : "";
@@ -383,13 +569,14 @@ export function installGlobal(t: GlobalTarget): boolean {
   if (cur === next) return false;
   const firstDir = fs.mkdirSync(path.dirname(t.file), { recursive: true });
   writeFileAtomic(t.file, next);
-  noteWritten(t, cur, firstDir);
+  noteWritten(t, cur, firstDir, json);
   return true;
 }
 
 /** Take it away again; false when there was nothing of strom's. */
 export function uninstallGlobal(t: GlobalTarget): boolean {
-  const removed = takeAway(t, readMade(t.made).files?.[t.file]);
+  const m = readMade(t.made);
+  const removed = takeAway(t, m.files?.[t.file], m.json?.[t.file]);
   if (removed) noteRemoved(t);
   return removed;
 }
@@ -399,14 +586,14 @@ export function uninstallGlobal(t: GlobalTarget): boolean {
  * an installation that recorded nothing stays as it did before the record — a settings file kept as {}, a text file
  * with nothing but strom's part gone.
  */
-function takeAway(t: GlobalTarget, made: "created" | "existed" | undefined): boolean {
+function takeAway(t: GlobalTarget, made: "created" | "existed" | undefined, rec: JsonMade | undefined): boolean {
   const cur = read(t.file);
   if (cur === undefined) return false;
   if (t.kind === "allow" && t.agent === "grok") {
-    if (!cur.includes(TOML_BEGIN)) return false;
+    if (!grokBlock(cur.split("\n"))) return false;
+    // the person's text before and after strom's block as it was
     const rest = grokWithout(cur);
-    if (rest.trim()) writeFileAtomic(t.file, rest.replace(/\n{3,}/g, "\n\n").replace(/\s*$/, "\n"));
-    else if (made === "existed") writeFileAtomic(t.file, "");
+    if (rest.trim() || made === "existed") writeFileAtomic(t.file, rest);
     else fs.rmSync(t.file);
     return true;
   }
@@ -415,9 +602,12 @@ function takeAway(t: GlobalTarget, made: "created" | "existed" | undefined): boo
     // Any of strom's rules, also those another installation of strom wrote.
     const any = t.agent === "opencode" ? s && hasAllow(t, s) : s && allowList(s).some((r) => isStromRule(t.agent, r));
     if (!s || !any) return false;
-    removeAllow(t, s);
+    removeAllow(t, s, rec);
     if (!Object.keys(s).length && made === "created") fs.rmSync(t.file);
-    else writeFileAtomic(t.file, JSON.stringify(s, null, 2) + "\n");
+    // the person's blank file: blank again
+    else if (!Object.keys(s).length && rec?.blank !== undefined) writeFileAtomic(t.file, rec.blank);
+    // written as the person's file is
+    else writeFileAtomic(t.file, formatJson(s, cur));
     return true;
   }
   if (t.kind === "own") {
@@ -443,7 +633,8 @@ export function refreshGlobal(env: Env): string[] {
 export function isInstalled(t: GlobalTarget): boolean {
   const cur = read(t.file);
   if (cur === undefined) return false;
-  if (t.kind === "allow" && t.agent === "grok") return cur.includes(TOML_BEGIN) && grokWith(cur) === cur;
+  // strom's block there, wherever the person's text puts it (an install brings it to this version where it is)
+  if (t.kind === "allow" && t.agent === "grok") return grokBlock(cur.split("\n")) !== undefined;
   if (t.kind === "allow") return hasAllow(t, settingsOf(cur) ?? {});
   return t.kind === "own" || cur.includes(BEGIN);
 }
