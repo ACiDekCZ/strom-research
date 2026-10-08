@@ -32,13 +32,16 @@
     "cli"
   ],
   "author": "Milan Víšek",
+  "contributors": [
+    "Claude (Anthropic)"
+  ],
   "homepage": "https://github.com/ACiDekCZ/strom-research#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ACiDekCZ/strom-research.git"
   },
   "bugs": "https://github.com/ACiDekCZ/strom-research/issues",
-  "license": "MPL-2.0",
+  "license": "AGPL-3.0-or-later AND MIT",
   "devDependencies": {
     "@types/node": "^22.20.4",
     "typescript": "^7.0.2"

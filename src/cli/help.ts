@@ -160,12 +160,16 @@ function humanOf(name: string, as: HelpAs): string | undefined {
   return ui(as.lang, own as UIKey);
 }
 
+/** Where strom's source code is: the last line of a person's help (GNU AGPL 3.0 or later, its section 13). */
+export const SOURCE_URL = "https://github.com/ACiDekCZ/strom-research";
+
 function humanOverview(as: HelpAs): string {
   const rows = HUMAN_COMMANDS.flatMap((name) => {
     const said = humanOf(name, as);
     return said ? [[`  strom ${name}`, said]] : [];
   });
-  return [ui(as.lang, "ui.help.title"), "", table(rows), "", ui(as.lang, as.archive ? "ui.help.more.archive" : "ui.help.more")].join("\n");
+  const more = ui(as.lang, as.archive ? "ui.help.more.archive" : "ui.help.more");
+  return [ui(as.lang, "ui.help.title"), "", table(rows), "", more, ui(as.lang, "ui.help.source", { url: SOURCE_URL })].join("\n");
 }
 
 function humanCommand(def: CommandDef, as: HelpAs): string {

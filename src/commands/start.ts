@@ -427,9 +427,10 @@ register(
       const rows = globalTargets(ctx.env)
         .filter((t) => (opts.all || installed.includes(t.agent)) && !seen.has(`${t.kind}:${t.file}`) && seen.add(`${t.kind}:${t.file}`))
         .map((t) => ({ agent: t.agent, file: t.file, written: installGlobal(t) }));
+      const lang = ctx.uiLang();
       const text = rows.length
-        ? lines(...rows.map((r) => `${PROFILES[r.agent]!.name}: ${ctx.display(r.file)}${r.written ? "" : " (already there)"}`))
-        : "no AI agent installed — strom setup offers one";
+        ? lines(...rows.map((r) => (r.written ? `${PROFILES[r.agent]!.name}: ${ctx.display(r.file)}` : ui(lang, "ui.agents.already", { agent: PROFILES[r.agent]!.name, file: ctx.display(r.file) }))))
+        : ui(lang, "ui.agents.none");
       return { text, data: { agents: rows } };
     },
   },
@@ -442,7 +443,9 @@ register(
         .filter((t) => isInstalled(t))
         .map((t) => ({ agent: t.agent, file: t.file, removed: uninstallGlobal(t) }))
         .filter((r) => r.removed);
-      return { text: rows.length ? lines(...rows.map((r) => `${PROFILES[r.agent]!.name}: removed from ${ctx.display(r.file)}`)) : "nothing to remove", data: { agents: rows } };
+      const lang = ctx.uiLang();
+      const text = rows.length ? lines(...rows.map((r) => ui(lang, "ui.agents.removed", { agent: PROFILES[r.agent]!.name, file: ctx.display(r.file) }))) : ui(lang, "ui.agents.nothing");
+      return { text, data: { agents: rows } };
     },
   },
   {

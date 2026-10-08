@@ -65,6 +65,7 @@ test("an archive says nothing of an agent or AI anywhere a person or the app loo
     assert.doesNotMatch(catalog, new RegExp(`(?:^ {2}|^ {4}|: | · )${cmd}\\b`, "m"), cmd);
   }
   assert.match(help, /^ {2}strom sync undo +Vrátit, co poslání přineslo do výzkumu$/m, help);
+  assert.match(help, /\nZdrojový kód \(GNU AGPL 3\.0 nebo pozdější\): https:\/\/github\.com\/ACiDekCZ\/strom-research\n?$/, "an archive's help says where the source code is too");
   assert.match(catalog, /\bsync undo\b/);
   assert.match(said.find(([label]) => label === "strom help sync --human")![1], /^Načíst úpravy z aplikace Strom/m);
   // the orientation speaks of the archive, not to an agent (found on Windows: "mluv s uživatelem", "nabídni uživateli")

@@ -37,6 +37,10 @@ test("connector new: in the plugins folder, next to the contract, kept out of ev
   assert.equal(m.policy.automation, "unknown", "nobody knows yet what the portal allows");
   assert.match(fs.readFileSync(path.join(dir, "DISCOVERY.md"), "utf8"), /Building the connector for Státní archiv Čížkov[\s\S]*`\.\.\/README\.md`[\s\S]*Terms of use[\s\S]*strom connector test statni-archiv/);
   assert.match(r.out, /finds out what the portal allows — before any code/);
+  // the SDK and the template a connector is built from are MIT, their whole notice in each copy: a connector is its author's to license
+  const mit = /^\/\/ SPDX-License-Identifier: MIT\n\/\/ Copyright \(c\) 2026 Milan Víšek\n\/\/\n\/\/ Permission is hereby granted, free of charge, [\s\S]*\/\/ The above copyright notice and this permission notice shall be included in\n\/\/ all copies or substantial portions of the Software\.\n[\s\S]*\/\/ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n\/\/ SOFTWARE\.\n\n\/\/ /;
+  for (const file of [path.join(dir, "sdk.ts"), path.join(dir, "connector.ts"), path.join(w.home, "shared", "plugins", "connectors", "sdk.ts")]) assert.match(fs.readFileSync(file, "utf8"), mit, file);
+  assert.match(fs.readFileSync(path.join(dir, "connector.ts"), "utf8"), /SOFTWARE\.\n\n\/\/ A strom connector for Státní archiv Čížkov \(https:\/\/digi\.example\.org\)/, "the template filled in below its notice");
   assert.doesNotMatch(r.out, /consent/, "it runs once it is written");
   // the plugins folder explains itself, and carries the contract
   const plugins = path.join(w.home, "shared", "plugins");

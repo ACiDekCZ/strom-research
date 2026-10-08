@@ -11,11 +11,15 @@
 // OpenCode reads when it has none) and `strom *` allowed there. Grok Build
 // gets a skill of its own, like Claude Code, and strom allowed in its
 // config.toml (a marked block; the user's own text around it is kept).
+// What strom created to teach them — a file, a folder — it records in the user
+// config (agents-taught.json): taking its part away again, a file strom created
+// goes when nothing else is left in it, and so does a folder strom created that
+// is empty; a file the person had stays, also when it is empty then.
 
 import fs from "node:fs";
 import path from "node:path";
 import type { Env } from "../core/paths.ts";
-import { isolated, userHome } from "../core/paths.ts";
+import { configDir, isolated, userHome } from "../core/paths.ts";
 import { writeFileAtomic } from "../core/json.ts";
 import { installation } from "../core/self.ts";
 import { agentAppUrl, appSite } from "../core/stromapp.ts";
@@ -80,6 +84,8 @@ export interface GlobalTarget {
   kind: "own" | "block" | "allow";
   /** The Strom app's address its text names: the one `strom app` opens (the beta its beta, strom.app.url where it says another). */
   app: string;
+  /** Where strom records what it created to teach the agents (agents-taught.json in the user config). */
+  made: string;
 }
 
 /**
@@ -166,7 +172,7 @@ export function globalTargets(env: Env): GlobalTarget[] {
   const home = userHome(env);
   // the app's address as strom app opens it now: a run of another channel (its first) writes the texts again
   const app = agentAppUrl(env);
-  const targets: Omit<GlobalTarget, "app">[] = [
+  const targets: Omit<GlobalTarget, "app" | "made">[] = [
     { agent: "claude", file: path.join(env.CLAUDE_CONFIG_DIR ?? path.join(home, ".claude"), "skills", "strom", "SKILL.md"), kind: "own" },
     { agent: "claude", file: path.join(env.CLAUDE_CONFIG_DIR ?? path.join(home, ".claude"), "settings.json"), kind: "allow" },
     { agent: "codex", file: path.join(env.CODEX_HOME ?? path.join(home, ".codex"), "AGENTS.md"), kind: "block" },
@@ -178,7 +184,8 @@ export function globalTargets(env: Env): GlobalTarget[] {
     { agent: "grok", file: path.join(grokDir(env), "skills", "strom", "SKILL.md"), kind: "own" },
     { agent: "grok", file: path.join(grokDir(env), "config.toml"), kind: "allow" },
   ];
-  return targets.map((t) => ({ ...t, app }));
+  const made = path.join(configDir(env), "agents-taught.json");
+  return targets.map((t) => ({ ...t, app, made }));
 }
 
 const skill = (app: string): string => `---
@@ -276,6 +283,85 @@ function removeAllow(t: GlobalTarget, s: Record<string, unknown>): void {
   }
 }
 
+/**
+ * What strom created to teach the agents: each file it wrote — created, or the person's that existed before — and the
+ * folders it made for them. An installation before this record (1.12.1, the betas before 1.13.0-beta.6) left none: its
+ * files are neither (strom cannot tell whose they are) and stay as an uninstall left them before.
+ */
+interface Made {
+  files?: Record<string, "created" | "existed">;
+  dirs?: string[];
+}
+
+function readMade(file: string): Made {
+  try {
+    const v = JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
+    return isObject(v) ? (v as Made) : {};
+  } catch {
+    return {}; // none yet, or not readable: nothing known
+  }
+}
+
+function writeMade(file: string, m: Made): void {
+  try {
+    const files = m.files && Object.keys(m.files).length ? m.files : undefined;
+    const dirs = m.dirs?.length ? [...new Set(m.dirs)].sort() : undefined;
+    if (!files && !dirs) fs.rmSync(file, { force: true });
+    else writeFileAtomic(file, JSON.stringify({ ...(files ? { files } : {}), ...(dirs ? { dirs } : {}) }, null, 2) + "\n");
+  } catch {
+    // the user config not writable: the files stay as an uninstall without the record leaves them
+  }
+}
+
+/** Is any of strom's part in this text of the agent's file? */
+function hasStrom(t: GlobalTarget, text: string): boolean {
+  if (t.kind === "own") return true;
+  if (t.kind === "allow" && t.agent === "grok") return text.includes(TOML_BEGIN);
+  if (t.kind === "block") return text.includes(BEGIN);
+  const s = settingsOf(text);
+  if (!s) return false;
+  if (t.agent !== "opencode") return allowList(s).some((r) => isStromRule(t.agent, r));
+  const own = path.join(path.dirname(t.file), "strom.md");
+  return (Array.isArray(s.instructions) && s.instructions.includes(own)) || (isObject(s.permission) && isObject(s.permission.bash) && OPENCODE_STROM in s.permission.bash);
+}
+
+/** Recorded after a write: the file created now, or the person's (one without strom's part); the folders made for it. */
+function noteWritten(t: GlobalTarget, before: string | undefined, firstDir: string | undefined): void {
+  const m = readMade(t.made);
+  const files = { ...(m.files ?? {}) };
+  const dirs = [...(m.dirs ?? [])];
+  if (before === undefined) files[t.file] = "created";
+  // there without strom's part: the person's — also one recorded created, deleted since and made again by the person
+  else if (!hasStrom(t, before)) files[t.file] = "existed";
+  // strom's part already there: what is recorded stands; nothing recorded, an older installation's file — whose, nobody can tell
+  if (firstDir) for (let d = path.dirname(t.file); ; d = path.dirname(d)) {
+    dirs.push(d);
+    if (d === firstDir || path.dirname(d) === d) break;
+  }
+  if (JSON.stringify(files) !== JSON.stringify(m.files ?? {}) || dirs.length !== (m.dirs ?? []).length) writeMade(t.made, { files, dirs });
+}
+
+/** Its part taken away: the file is the person's again (or gone); the folders strom made for it go when empty. */
+function noteRemoved(t: GlobalTarget): void {
+  const m = readMade(t.made);
+  const files = { ...(m.files ?? {}) };
+  delete files[t.file];
+  const here = path.dirname(t.file);
+  const within = (d: string) => here === d || here.startsWith(d.endsWith(path.sep) ? d : d + path.sep);
+  // deepest first: a folder strom made in another it made
+  const dirs = [...(m.dirs ?? [])].sort((x, y) => y.length - x.length).filter((d) => {
+    if (!within(d)) return true;
+    try {
+      if (fs.readdirSync(d).length) return true; // something else in it: it stays, and so does the record
+      fs.rmdirSync(d);
+    } catch {
+      // gone already
+    }
+    return false;
+  });
+  writeMade(t.made, { files, dirs });
+}
+
 /** Write it for one agent; false when it was already there as it is. */
 export function installGlobal(t: GlobalTarget): boolean {
   const cur = read(t.file);
@@ -295,19 +381,32 @@ export function installGlobal(t: GlobalTarget): boolean {
     next = `${rest ? `${rest}\n\n` : ""}${BEGIN}\n${globalText(t.app)}${END}\n`;
   }
   if (cur === next) return false;
-  fs.mkdirSync(path.dirname(t.file), { recursive: true });
+  const firstDir = fs.mkdirSync(path.dirname(t.file), { recursive: true });
   writeFileAtomic(t.file, next);
+  noteWritten(t, cur, firstDir);
   return true;
 }
 
 /** Take it away again; false when there was nothing of strom's. */
 export function uninstallGlobal(t: GlobalTarget): boolean {
+  const removed = takeAway(t, readMade(t.made).files?.[t.file]);
+  if (removed) noteRemoved(t);
+  return removed;
+}
+
+/**
+ * Strom's part out of the file. Nothing else left in it: a file strom created goes, the person's stays (empty); one of
+ * an installation that recorded nothing stays as it did before the record — a settings file kept as {}, a text file
+ * with nothing but strom's part gone.
+ */
+function takeAway(t: GlobalTarget, made: "created" | "existed" | undefined): boolean {
   const cur = read(t.file);
   if (cur === undefined) return false;
   if (t.kind === "allow" && t.agent === "grok") {
     if (!cur.includes(TOML_BEGIN)) return false;
     const rest = grokWithout(cur);
     if (rest.trim()) writeFileAtomic(t.file, rest.replace(/\n{3,}/g, "\n\n").replace(/\s*$/, "\n"));
+    else if (made === "existed") writeFileAtomic(t.file, "");
     else fs.rmSync(t.file);
     return true;
   }
@@ -317,7 +416,8 @@ export function uninstallGlobal(t: GlobalTarget): boolean {
     const any = t.agent === "opencode" ? s && hasAllow(t, s) : s && allowList(s).some((r) => isStromRule(t.agent, r));
     if (!s || !any) return false;
     removeAllow(t, s);
-    writeFileAtomic(t.file, JSON.stringify(s, null, 2) + "\n");
+    if (!Object.keys(s).length && made === "created") fs.rmSync(t.file);
+    else writeFileAtomic(t.file, JSON.stringify(s, null, 2) + "\n");
     return true;
   }
   if (t.kind === "own") {
@@ -328,7 +428,7 @@ export function uninstallGlobal(t: GlobalTarget): boolean {
   }
   if (!cur.includes(BEGIN)) return false;
   const rest = withoutBlock(cur);
-  if (rest.trim()) writeFileAtomic(t.file, rest);
+  if (rest.trim() || made === "existed") writeFileAtomic(t.file, rest);
   else fs.rmSync(t.file);
   return true;
 }

@@ -185,9 +185,26 @@ Windows (PowerShell):
 
 Copyright © 2026 Milan Víšek.
 
-This Source Code Form is subject to the terms of the Mozilla Public License,
-v. 2.0. If a copy of the MPL was not distributed with this file, You can
-obtain one at https://mozilla.org/MPL/2.0/. See [LICENSE](LICENSE).
+Authors: Milan Víšek and Claude (Anthropic)
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details.
+
+You should have received a copy of the GNU Affero General Public License along
+with this program (see [LICENSE](LICENSE)). If not, see
+<https://www.gnu.org/licenses/>.
+
+The connector SDK and template that `strom connector new` copies into a user's
+connector (`assets/plugins/connectors/sdk.ts`, `template.ts`) are under the MIT
+license, as stated in their headers, so a connector may be licensed as its
+author wishes; the rest of strom is under the GNU AGPL 3.0 or later.
 
 "Strom" is the name of the original project ([stromapp.info](https://stromapp.info));
 please give a modified version a name of its own.

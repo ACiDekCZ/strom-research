@@ -436,6 +436,102 @@ test("agents learn about strom in any folder, and forget it again; the user's ow
   w.cleanup();
 });
 
+test("agents forget strom: what the install created goes when nothing else is in it, folders too; the person's files stay, also empty", async () => {
+  const w = new World();
+  const home = w.env.HOME!;
+  const at = (...p: string[]) => path.join(home, ...p);
+  const agentDirs = [".claude", ".codex", ".gemini", ".grok", path.join(".config", "opencode")];
+  for (const d of agentDirs) assert.ok(!fs.existsSync(at(d)));
+  // nothing of the agents here: everything strom writes is its own
+  await w.ok(["agents", "install", "--all"]);
+  assert.ok(fs.existsSync(at(".claude", "settings.json")));
+  await w.ok(["agents", "uninstall"]);
+  for (const f of [[".claude", "settings.json"], [".gemini", "antigravity-cli", "settings.json"], [".config", "opencode", "opencode.json"], [".grok", "config.toml"], [".codex", "AGENTS.md"], [".gemini", "GEMINI.md"]])
+    assert.ok(!fs.existsSync(at(...f)), `${f.join("/")}: strom's alone, gone (found: {} left behind)`);
+  for (const d of [...agentDirs, ".config"]) assert.ok(!fs.existsSync(at(d)), `${d}: a folder strom made, empty, gone`);
+  // the person's files, empty or with nothing but what strom then adds: they stay, and their folders
+  const mine: [string[], string][] = [
+    [[".claude", "settings.json"], "{}\n"],
+    [[".gemini", "antigravity-cli", "settings.json"], ""],
+    [[".config", "opencode", "opencode.json"], "{}"],
+    [[".grok", "config.toml"], ""],
+    [[".codex", "AGENTS.md"], ""],
+    [[".gemini", "GEMINI.md"], "\n"],
+  ];
+  for (const [f, text] of mine) {
+    fs.mkdirSync(path.dirname(at(...f)), { recursive: true });
+    fs.writeFileSync(at(...f), text);
+  }
+  await w.ok(["agents", "install", "--all"]);
+  assert.match(fs.readFileSync(at(".codex", "AGENTS.md"), "utf8"), /strom: begin/);
+  await w.ok(["agents", "uninstall"]);
+  for (const [f] of mine) assert.ok(fs.existsSync(at(...f)), `${f.join("/")}: the person's, kept`);
+  assert.deepEqual(readJsonFile(at(".claude", "settings.json")), {});
+  assert.deepEqual(readJsonFile(at(".config", "opencode", "opencode.json")), {});
+  assert.equal(fs.readFileSync(at(".grok", "config.toml"), "utf8"), "");
+  assert.equal(fs.readFileSync(at(".codex", "AGENTS.md"), "utf8"), "");
+  // the skills strom made in a folder of the person's: the skill and the skills folder go, the person's folder stays
+  assert.ok(!fs.existsSync(at(".claude", "skills")) && !fs.existsSync(at(".grok", "skills")));
+  w.cleanup();
+});
+
+test("agents install and uninstall speak the person's language (cs, de), never to the person; English as before", async () => {
+  const w = new World();
+  w.env.STROM_LANG = "cs";
+  const none = await w.ok(["agents", "install"], { env: { ...w.env, PATH: "" } });
+  assert.match(none.out, /žádný agent AI tu není nainstalovaný — strom setup ho nabídne/);
+  await w.ok(["agents", "install", "--all"]);
+  const again = await w.ok(["agents", "install", "--all"]);
+  assert.match(again.out, /Claude Code: .*settings\.json \(už tam je\)/);
+  const r = await w.ok(["agents", "uninstall"]);
+  assert.match(r.out, /Claude Code: odebráno z .*settings\.json/);
+  assert.doesNotMatch(r.out, /removed from/);
+  assert.match((await w.ok(["agents", "uninstall"])).out, /není co odebrat/);
+  await w.ok(["agents", "install", "--all"]);
+  assert.match((await w.ok(["agents", "uninstall"], { env: { ...w.env, STROM_LANG: "de" } })).out, /Grok Build: entfernt aus .*config\.toml/);
+  await w.ok(["agents", "install", "--all"]);
+  assert.match((await w.ok(["agents", "uninstall"], { env: { ...w.env, STROM_LANG: "en" } })).out, /OpenAI Codex CLI: removed from .*AGENTS\.md/);
+  w.cleanup();
+});
+
+test("agents forget strom after an installation that recorded nothing it created (1.12.1, the betas before): its files stay as that uninstall left them", async () => {
+  const w = new World();
+  const home = w.env.HOME!;
+  await w.ok(["agents", "install", "--all"]);
+  // an older strom kept no record; a newer one refreshing what it taught does not take the files for the person's
+  const record = path.join(w.env.STROM_CONFIG_DIR!, "agents-taught.json");
+  assert.ok(fs.existsSync(record), "this strom records what it created");
+  fs.rmSync(record);
+  await w.ok(["agents", "install", "--all"]);
+  await w.ok(["agents", "uninstall"]);
+  // whose the settings are nobody can tell: kept, as {}; a text file with nothing but strom's part went before too
+  assert.deepEqual(readJsonFile(path.join(home, ".claude", "settings.json")), {});
+  assert.deepEqual(readJsonFile(path.join(home, ".gemini", "antigravity-cli", "settings.json")), {});
+  assert.deepEqual(readJsonFile(path.join(home, ".config", "opencode", "opencode.json")), {});
+  assert.ok(!fs.existsSync(path.join(home, ".codex", "AGENTS.md")));
+  assert.ok(!fs.existsSync(path.join(home, ".claude", "skills", "strom")));
+  // an empty {} such an uninstall left: not strom's to take, whatever comes later
+  await w.ok(["agents", "uninstall"]);
+  assert.ok(fs.existsSync(path.join(home, ".claude", "settings.json")));
+  w.cleanup();
+});
+
+test("a file strom created that the person deleted and made again is the person's: an install and uninstall later keep it", async () => {
+  const w = new World();
+  const home = w.env.HOME!;
+  const settings = path.join(home, ".claude", "settings.json");
+  const agents = path.join(home, ".codex", "AGENTS.md");
+  await w.ok(["agents", "install", "--all"]);
+  // the person deletes strom's files and makes their own
+  fs.writeFileSync(settings, "{}\n");
+  fs.writeFileSync(agents, "");
+  await w.ok(["agents", "install", "--all"]);
+  await w.ok(["agents", "uninstall"]);
+  assert.equal(fs.readFileSync(settings, "utf8"), "{}\n", "the person's {} stays");
+  assert.equal(fs.readFileSync(agents, "utf8"), "", "the person's empty AGENTS.md stays");
+  w.cleanup();
+});
+
 test("the Strom app: noticed quietly — started by it, or installed from the browser", async () => {
   assert.ok(isStromName("Strom"));
   assert.ok(isStromName("Strom - Family Tree"));

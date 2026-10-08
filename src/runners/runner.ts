@@ -117,6 +117,17 @@ export function spawnAgent(command: string, args: string[], opts: SpawnOptions &
 }
 
 /**
+ * The prompt on a headless child's stdin. A child that ends before it read it all (an agent that fails at once, a
+ * script that reads nothing) closes the pipe: the rest of the write fails with EPIPE, an error on the stream that
+ * nobody handled would end strom itself (found 2026-10-07 in npm test: write EPIPE). How the child ended says the rest.
+ */
+export function feedStdin(child: ChildProcess, input: string): void {
+  if (!child.stdin) return;
+  child.stdin.on("error", () => undefined);
+  child.stdin.end(input);
+}
+
+/**
  * A headless agent in a process group of its own (not on Windows, whose console sends Ctrl-C to every process of
  * it): Ctrl-C in the terminal reaches strom alone, which asks the session to finish first (strom run).
  */
