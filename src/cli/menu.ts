@@ -26,7 +26,7 @@ import { lacksImages } from "../core/queue.ts";
 import { othersAtWork } from "../core/session.ts";
 import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
 import { truncate } from "./format.ts";
-import { installedStromApp, noticeStromApp, stromAppState, stromAppUrl } from "../core/stromapp.ts";
+import { appUrlSetting, installedStromApp, noticeStromApp, stromAppState } from "../core/stromapp.ts";
 import { appBrowsers } from "../core/chromium.ts";
 import { liveWorkers, runsAtWork } from "../core/workers.ts";
 import { askStromApp, settleInstall, shortcutName } from "./wizard.ts";
@@ -327,7 +327,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       const app = stromAppState(ctx.settings);
       if (app !== "no") {
         const atWork = liveWorkers(root).length > 0 || runsAtWork(root).length > 0;
-        const hasApp = app !== "unknown" || Boolean(installedStromApp(ctx.env, process.platform, stromAppUrl(ctx.settings)));
+        const hasApp = app !== "unknown" || Boolean(installedStromApp(ctx.env, process.platform, appUrlSetting(ctx.settings).url));
         appItem = {
           key: "7",
           label: t(!hasApp ? "ui.menu.app.new" : atWork ? "ui.menu.app.watch" : "ui.menu.app"),
@@ -471,7 +471,7 @@ async function openStromApp(ctx: Context, run: Run, lang: string, said: boolean)
     if (answer === "install" && (await ctx.confirm(t("ui.app.open.now"), true))) await run(["app"]);
     return;
   }
-  if (!installedStromApp(ctx.env, process.platform, stromAppUrl(ctx.settings)) && (await ctx.confirm(t("ui.app.notinstalled"), true))) {
+  if (!installedStromApp(ctx.env, process.platform, appUrlSetting(ctx.settings).url) && (await ctx.confirm(t("ui.app.notinstalled"), true))) {
     await run(["app", "install"]);
     return;
   }

@@ -16,7 +16,7 @@ import { chooseWay, wayName } from "./ways.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
-import { appCopyOfInstall, appOpensLinks, defaultAppUrl, noticeStromApp, researchUrl, STROM_APP_URL, stromAppState, stromAppUrl } from "../core/stromapp.ts";
+import { appCopyOfInstall, appOpensLinks, defaultAppUrl, noticeStromApp, researchUrl, STROM_APP_URL, stromAppState, appUrlSetting } from "../core/stromapp.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut } from "../core/shortcut.ts";
 import { appMarkFromInstall, linkFiles, linkHandlerState, linkOwner, registerLinks, type Sys } from "../core/links.ts";
@@ -347,8 +347,10 @@ export async function askStromApp(ctx: Context, lang: string, back: string | und
   ctx.settings.config.stromApp = answer === "no" ? "no" : "yes";
   ctx.settings.save();
   if (answer === "install") {
-    const url = stromAppUrl(ctx.settings);
-    ctx.io.stdout(ui(lang, openForUser(url, ctx.env) ? "ui.app.install" : "ui.app.url", { url }) + "\n");
+    // a strom.app.url that is no address of the app: nothing opened, said how it stands (strom doctor says how to put it right)
+    const said = appUrlSetting(ctx.settings);
+    if (said.invalid) ctx.io.stdout(ui(lang, said.invalid.source === "env" ? "ui.doc.appurl.env" : "ui.doc.appurl.config", { value: said.invalid.value }) + "\n");
+    else ctx.io.stdout(ui(lang, openForUser(said.url, ctx.env) ? "ui.app.install" : "ui.app.url", { url: said.url }) + "\n");
   }
   return answer;
 }

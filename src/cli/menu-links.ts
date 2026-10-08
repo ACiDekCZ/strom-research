@@ -23,7 +23,7 @@ import { appWindow } from "../core/appbrowser.ts";
 import { moveTree, type Move } from "./move.ts";
 import { changeLines } from "../core/changelog.ts";
 import { startLive } from "../core/live.ts";
-import { adoptAppUrl, appTreeNameFromInstall, defaultAppUrl } from "../core/stromapp.ts";
+import { adoptAppUrl, appTreeNameFromInstall, defaultAppUrl, stromAppUrl } from "../core/stromapp.ts";
 import { stromReadsTags } from "../gedcom/export.ts";
 import { appMarkFromInstall } from "../core/links.ts";
 import { settleFromApp } from "./wizard.ts";
@@ -266,6 +266,9 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
     else ctx.settings.config.stromAppUrl = move.mark.app;
     ctx.settings.save();
   }
+  // a strom.app.url that is no address of the app: refused before anything is asked or made — the tree's way back
+  // would be an address built on it with the bridge's secret (B1-c)
+  stromAppUrl(ctx.settings);
   let lang = ctx.uiLang();
   let t = translator(lang);
   out(ctx, t("ui.link.new.title"));

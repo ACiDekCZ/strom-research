@@ -58,7 +58,7 @@ test("a strom on the releases: help, the catalog of commands, the guide, doctor 
   await w.ok(["init", "Rodina"]);
   w.cwd = w.treeDir("Rodina");
   const said: [string, string][] = [];
-  for (const args of [[], ["help"], ["help", "--human"], ["help", "update"], ["help", "update", "--human"], ["update", "--help"], ["commands", "--json"], ["guide"], ["doctor"], ["status"]]) {
+  for (const args of [[], ["help"], ["help", "--human"], ["help", "update"], ["help", "update", "--human"], ["update", "--help"], ["commands", "--json"], ["guide"], ["doctor"], ["status"], ["config", "where", "--json"]]) {
     const r = await w.run(args, args[0] === "help" || args.includes("--help") ? { tty: true } : {});
     said.push([`strom ${args.join(" ")}`, r.out + r.err]);
   }
@@ -67,4 +67,37 @@ test("a strom on the releases: help, the catalog of commands, the guide, doctor 
   // a beta install says it (the look above would see it)
   const beta = await w.run(["doctor"], { env: { STROM_CHANNEL: "beta" } });
   assert.match(beta.out + beta.err, BETA);
+});
+
+test("an address that is no Strom app's: the releases name stromapp.info and a copy on this computer, never a beta — the beta channel its beta too (en, cs, de; typed, in STROM_APP_URL, written by hand) (B1-d)", async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  const file = path.join(w.env.STROM_CONFIG_DIR!, "config.json");
+  const cases: [string[], Record<string, string>, boolean][] = [
+    [["config", "set", "strom.app.url", "https://evil.example/run/"], {}, false],
+    [["app"], { STROM_APP_URL: "not a url" }, false],
+    [["app"], {}, true],
+  ];
+  const said = async (channel: Record<string, string>) => {
+    const out: [string, string][] = [];
+    for (const lang of ["en", "cs", "de"])
+      for (const [args, env, byHand] of cases)
+        for (const json of [false, true]) {
+          if (byHand) fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, "utf8")), stromAppUrl: "https://evil.example/run/" }));
+          const r = await w.run([...args, "--lang", lang, ...(json ? ["--json"] : [])], { env: { ...env, ...channel } });
+          if (byHand) await w.ok(["config", "unset", "strom.app.url"], { env: channel });
+          assert.equal(r.code, 2, `${args.join(" ")} ${lang}: ${r.out}${r.err}`);
+          // the backup line of a switch of the channel (said once, before the error) is not the error's
+          const text = (r.out + r.err).split("\n").filter((l) => !/^(Backup|Záloha|Sicherung) /.test(l)).join("\n");
+          assert.match(text, /https:\/\/stromapp\.info\/run\//, text);
+          assert.match(text, /http:\/\/127\.0\.0\.1:<port>\//, text);
+          if (!json && lang !== "en") assert.doesNotMatch(text, /invalid strom/, `${lang}: in the person's language`);
+          out.push([`${args.join(" ")} ${lang}${json ? " --json" : ""}`, text]);
+        }
+    return out;
+  };
+  // the releases first (a beta run before would leave its backup said on the way back)
+  for (const [label, text] of await said({})) assert.deepEqual(text.split("\n").filter((l) => BETA.test(l)), [], `${label}:\n${text}`);
+  for (const [label, text] of await said({ STROM_CHANNEL: "beta" })) assert.match(text, /https:\/\/beta\.stromapp\.info\/run\//, label);
+  w.cleanup();
 });

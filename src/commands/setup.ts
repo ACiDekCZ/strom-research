@@ -4,7 +4,7 @@ import { gitSize, lastCompacted } from "../core/history.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { register } from "../cli/registry.ts";
+import { APP_URL_INVALID_SETTING, register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
 import { checkValue, configFile, DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, OTHER_ENV, SETTINGS, settingDef, writeStored, type SettingDef } from "../core/config.ts";
@@ -31,7 +31,7 @@ import { configDir, defaultHome, desktopDir, isolated, noLinks, ownCommand } fro
 import { backupBefore, backupSaid, lastBackupLine } from "../cli/backups.ts";
 import { BACKUP_SAID_DAYS, lastBackup, type BackupRecord } from "../core/backup.ts";
 import { planMove, sameFolder } from "../core/relocate.ts";
-import { appOpensLinks, defaultAppUrl, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
+import { appOpensLinks, appUrlSetting, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
 import { isInstalled } from "../agents/global.ts";
 import { offerLinks, shortcutName } from "../cli/wizard.ts";
 import { linkHandlerState, linkScheme } from "../core/links.ts";
@@ -353,6 +353,16 @@ function diagnose(ctx: Context): Check[] {
   // (an isolated installation uses none on purpose: the app is the person's own strom's)
   if (isolated(ctx.env)) add("app", "ok", t("ui.doc.app.isolated"));
   else add("app", "ok", t(`ui.doc.app.${app}` as UIKey), app === "unknown" ? FIX : undefined, app === "unknown" ? "app" : undefined);
+  // the copy of the app strom opens: a setting that says no address of it (STROM_APP_URL, or written by hand into the
+  // settings) is a problem said with its way out — doctor never fails on it (strom app refuses to open it)
+  const appUrl = appUrlSetting(ctx.settings).invalid;
+  if (appUrl)
+    add(
+      "appurl",
+      "fail",
+      t(appUrl.source === "env" ? "ui.doc.appurl.env" : "ui.doc.appurl.config", { value: appUrl.value }),
+      appUrl.source === "env" ? undefined : placeholders(lang, "strom config set strom.app.url <address> · strom config unset strom.app.url"),
+    );
   // …and whether it may start the research here (strom-research:// links): only while the app is wanted
   if (app !== "no" && appOpensLinks(ctx.settings)) {
     const links = linkHandlerState(ctx.env);
@@ -392,7 +402,8 @@ async function repair(ctx: Context, checks: Check[], out: (line: string) => void
     for (const f of createShortcut(shortcutName(lang), ctx.env)) out(ui(lang, "ui.setup.shortcut.done", { file: ctx.display(f) }));
   }
   if (todo.has("links") && person) await offerLinks(ctx, lang);
-  if (todo.has("app") && person && (await ctx.confirm(ui(lang, "ui.fix.app"), false))) {
+  // (never into the address of an invalid strom.app.url: its check says how to put it right)
+  if (todo.has("app") && person && !appUrlSetting(ctx.settings).invalid && (await ctx.confirm(ui(lang, "ui.fix.app"), false))) {
     openForUser(stromAppUrl(ctx.settings), ctx.env);
     out(ui(lang, "ui.app.install"));
   }
@@ -590,8 +601,16 @@ function treeSettings(ctx: Context): TreeConfig | undefined {
 }
 
 /** Effective value of a setting, with the default filled in. */
-function effective(ctx: Context, def: SettingDef): { value: string | number | undefined; source: string } {
+function effective(ctx: Context, def: SettingDef): { value: string | number | undefined; source: string; invalid?: true } {
   const s = ctx.settings;
+  // the address of the Strom app: read as everything reads it (appUrlSetting) — never failing; one that is no address of
+  // the app is shown as found, marked invalid (B1-e)
+  if (def.key === "strom.app.url") {
+    const said = appUrlSetting(s);
+    if (said.invalid) return { value: said.invalid.value, source: said.invalid.source, invalid: true };
+    const r = s.resolve(def.key);
+    return r ?? { value: said.url, source: "default" };
+  }
   const tree = treeSettings(ctx);
   if (def.key === "home") return s.home() ?? { value: undefined, source: "unset" };
   if (def.key === "shared") return s.shared() ?? { value: undefined, source: "unset" };
@@ -607,7 +626,6 @@ function effective(ctx: Context, def: SettingDef): { value: string | number | un
   if (def.key === "brief.budget") return { value: DEFAULT_BUDGET, source: "default" };
   if (def.key === "run.minutes") return { value: DEFAULT_RUN_MINUTES, source: "default" };
   if (def.key === "connectors.consent") return { value: "off", source: "default" };
-  if (def.key === "strom.app.url") return { value: defaultAppUrl(ctx.env), source: "default" };
   if (def.key === "browser.downloads") return { value: downloadsDir(ctx.env), source: "detected" };
   if (def.key === "agent.permissions") return { value: ctx.settings.agentPermissions(), source: ctx.settings.config.agentPermissions ? "config" : "default" };
   return { value: undefined, source: "unset" };
@@ -735,17 +753,19 @@ register(
     run(ctx) {
       const rows = SETTINGS.map((def) => {
         const r = effective(ctx, def);
-        return { key: def.key, value: r.value, source: r.source, env: def.env, tree: def.tree, description: def.description };
+        return { key: def.key, value: r.value, source: r.source, env: def.env, tree: def.tree, description: def.description, ...(r.invalid ? { invalid: true } : {}) };
       });
+      const invalid = rows.filter((r) => r.invalid).map((r) => r.key);
       const text = lines(
-        table(rows.map((r) => [r.key, display(ctx, settingDef(r.key), r.value), r.source, r.env])),
+        table(rows.map((r) => [r.key, `${display(ctx, settingDef(r.key), r.value)}${r.invalid ? "  (invalid)" : ""}`, r.source, r.env])),
         "",
+        ...(invalid.length ? [APP_URL_INVALID_SETTING, ""] : []),
         "order: flag > env > tree (strom.json) > config > default",
         `change: strom config set <key> <value> [--for-tree]  ·  strom config unset <key> [--for-tree]`,
         `other env: ${OTHER_ENV.map((e) => e.env).join(" ")}  (strom help config where)`,
         `config file: ${ctx.display(configFile(ctx.env))}`,
       );
-      return { text, data: { settings: rows, otherEnv: OTHER_ENV, file: configFile(ctx.env) } };
+      return { text, data: { settings: rows, otherEnv: OTHER_ENV, file: configFile(ctx.env), ...(invalid.length ? { invalid } : {}) } };
     },
     description:
       "Settings a tree can carry (lang, agent, model.*, brief.budget, run.minutes) are set per tree with --for-tree.\n" +
@@ -759,7 +779,10 @@ register(
     run(ctx, { args }) {
       const def = settingDef(args[0]!);
       const r = effective(ctx, def);
-      return { text: r.value === undefined ? "" : display(ctx, def, r.value), data: { key: def.key, value: r.value, source: r.source } };
+      const shown = r.value === undefined ? "" : display(ctx, def, r.value);
+      // a strom.app.url that is no address of the app: as found, and said so (B1-e)
+      if (r.invalid) return { text: lines(`${shown}  (invalid)`, APP_URL_INVALID_SETTING), data: { key: def.key, value: r.value, source: r.source, invalid: [def.key] } };
+      return { text: shown, data: { key: def.key, value: r.value, source: r.source } };
     },
   },
   {
@@ -774,7 +797,7 @@ register(
     examples: ["strom config set lang cs", 'strom config set shared "/Volumes/Big/strom-shared"', "strom config set model.vision opus --for-tree", "strom config set run.minutes 45"],
     run: async (ctx, { args, opts }) => {
       const def = settingDef(args[0]!);
-      const value = checkValue(def, args[1]!, (p) => ctx.resolvePath(p));
+      const value = checkValue(def, args[1]!, (p) => ctx.resolvePath(p), ctx.env);
       // In their own terminal the user reads what full means and says yes once more.
       if (def.key === "agent.permissions" && value === "full" && ctx.settings.agentPermissions() !== "full" && !opts["for-tree"] && ctx.interactive && !isAgent(ctx.env)) {
         const lang = ctx.uiLang();

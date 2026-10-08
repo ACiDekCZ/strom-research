@@ -22,7 +22,7 @@ import { isArchive } from "../core/mode.ts";
 import { applySync, discardReceived, nothingSince, withoutImages, planSync, readTreeFile, receivedAll, receivedPending, receivedSince, receivedOf, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput } from "../core/sync.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { startLive } from "../core/live.ts";
-import { appSendsChanges, sendAppUrl } from "../core/stromapp.ts";
+import { appSendsChanges, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
 import { appWindow, openAppIn, replaceGone } from "../core/appbrowser.ts";
 import { isAgent } from "../core/which.ts";
 
@@ -198,6 +198,8 @@ export function openAppAt(ctx: Context, url: string, opts: { holdsTree?: boolean
 async function fromApp(ctx: Context, tree: Tree, lang: string): Promise<{ file?: string; text: string; settled?: boolean; written?: Record<string, unknown> }> {
   const root = tree.root;
   if (!appSendsChanges(ctx.settings)) return { text: ui(lang, "ui.sync.nosend") };
+  // a strom.app.url that is no address of the app: refused before the bridge starts — no address built on it (B1-c)
+  stromAppUrl(ctx.settings);
   // what the app sends the bridge writes at once (unless the user reviews each send): what came of it is said, not shown to write
   const atOnce = isArchive(tree) || !ctx.settings.syncReview(tree.config);
   const info = startLive(root, ctx.env, { current: true });

@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Env } from "./paths.ts";
 import { desktopDir, userHome } from "./paths.ts";
-import { checkValue, settingDef, type Settings } from "./config.ts";
+import { appUrlInvalid, checkValue, settingDef, type Settings } from "./config.ts";
 import { UsageError } from "./errors.ts";
 import { foldText } from "./text.ts";
 import { compareVersions, updateChannel } from "./update.ts";
@@ -105,10 +105,48 @@ export function appTreeNameFromInstall(env: { STROM_FROM_APP?: string | undefine
   return name || undefined;
 }
 
-/** The Strom app's address: the setting strom.app.url (STROM_APP_URL) points strom at another copy of it (its beta, its development). */
+/** strom.app.url as it is said here (appUrlSetting): `invalid` when it says no address of the Strom app. */
+export interface AppUrlSetting {
+  /** The copy of the app strom names: the setting's, or the channel's default where the setting says none or no address of the app. */
+  url: string;
+  /** The setting says no address of the app (not one, or one the bridge does not let in): its value and where it was said. */
+  invalid?: { value: string; source: "env" | "config" };
+}
+
+/**
+ * The setting strom.app.url (STROM_APP_URL) read and checked as strom config set checks it — from the variable, and
+ * from the config file however it got there (written by hand) — never failing: an invalid one is said as `invalid`
+ * beside the channel's default, which is what is named then (help, doctor) — never what is opened (stromAppUrl).
+ */
+export function appUrlSetting(settings: Settings): AppUrlSetting {
+  const fallback = defaultAppUrl(settings.env);
+  let said;
+  try {
+    said = settings.resolve("strom.app.url");
+  } catch (err) {
+    if (!(err instanceof UsageError)) throw err;
+    return { url: fallback, invalid: { value: String(settings.env.STROM_APP_URL ?? ""), source: "env" } };
+  }
+  if (said === undefined || said.value === "") return { url: fallback };
+  if (said.source === "env") return { url: String(said.value) };
+  try {
+    return { url: String(checkValue(settingDef("strom.app.url"), String(said.value), (p) => p, settings.env)) };
+  } catch (err) {
+    if (!(err instanceof UsageError)) throw err;
+    return { url: fallback, invalid: { value: String(said.value), source: "config" } };
+  }
+}
+
+/**
+ * The Strom app's address strom opens and builds its addresses on (?live=, ?import-url=, ?send=, ?adopt= carry the
+ * bridge's secret address): the setting strom.app.url (STROM_APP_URL) points strom at another copy of it (its beta, its
+ * development). One that says no address of the app — from the variable, or written by hand into the settings — is
+ * refused with how to put it right: nothing is opened, no address built on it (B1-c).
+ */
 export function stromAppUrl(settings: Settings): string {
-  const url = settings.resolve("strom.app.url")?.value;
-  return typeof url === "string" && url ? url : defaultAppUrl(settings.env);
+  const said = appUrlSetting(settings);
+  if (said.invalid) throw appUrlInvalid(said.invalid.value, said.invalid.source, settings.env);
+  return said.url;
 }
 
 /** The copy of the Strom app a help names (appUrlShown): `invalid` when strom.app.url says no address of it. */
@@ -123,14 +161,13 @@ export interface ShownAppUrl {
  * default with `invalid`: the help never fails on a setting (B1-b); `strom app` itself refuses it.
  */
 export function appUrlShown(settings: Settings): ShownAppUrl {
-  try {
-    const url = stromAppUrl(settings);
-    checkValue(settingDef("strom.app.url"), url, (p) => p);
-    return { url };
-  } catch (err) {
-    if (!(err instanceof UsageError)) throw err;
-    return { url: defaultAppUrl(settings.env), invalid: true };
-  }
+  const said = appUrlSetting(settings);
+  return said.invalid ? { url: said.url, invalid: true } : { url: said.url };
+}
+
+/** Is the copy of the app another than stromapp.info (its beta, its development)? Never failing on the setting: an invalid one is none. */
+function anotherCopy(settings: Settings): boolean {
+  return appUrlSetting(settings).url !== STROM_APP_URL;
 }
 
 /**
@@ -144,7 +181,7 @@ export function appUrlShown(settings: Settings): ShownAppUrl {
 export const APP_OPENS_RESEARCH = true;
 
 export function appOpensResearch(settings: Settings): boolean {
-  return APP_OPENS_RESEARCH || stromAppUrl(settings) !== STROM_APP_URL;
+  return APP_OPENS_RESEARCH || anotherCopy(settings);
 }
 
 /**
@@ -155,7 +192,7 @@ export function appOpensResearch(settings: Settings): boolean {
 export const APP_SENDS_CHANGES: string | undefined = "3.3.0";
 
 export function appSendsChanges(settings: Settings): boolean {
-  return APP_SENDS_CHANGES !== undefined || stromAppUrl(settings) !== STROM_APP_URL;
+  return APP_SENDS_CHANGES !== undefined || anotherCopy(settings);
 }
 
 /**
@@ -167,7 +204,7 @@ export function appSendsChanges(settings: Settings): boolean {
 export const APP_OPENS_LINKS: string | undefined = "3.4.0";
 
 export function appOpensLinks(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_OPENS_LINKS) return false;
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
@@ -186,7 +223,7 @@ export function appOpensLinks(settings: Settings, version?: string): boolean {
 export const APP_SHOWS_EDGES: string | undefined = "3.6.0";
 
 export function appShowsEdges(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_SHOWS_EDGES) return false;
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
@@ -204,7 +241,7 @@ export function appShowsEdges(settings: Settings, version?: string): boolean {
 export const APP_SHOWS_COUPLE_EVENTS: string | undefined = "3.8.0";
 
 export function appShowsCoupleEvents(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_SHOWS_COUPLE_EVENTS) return false;
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
@@ -223,7 +260,7 @@ export function appShowsCoupleEvents(settings: Settings, version?: string): bool
 export const APP_READS_TITLES: string | undefined = "3.10.0";
 
 export function appReadsTitles(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_READS_TITLES) return false;
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
@@ -241,7 +278,7 @@ export function appReadsTitles(settings: Settings, version?: string): boolean {
 export const APP_KNOWS_ARCHIVE: string | undefined = "3.9.0";
 
 export function appKnowsArchive(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_KNOWS_ARCHIVE || !version) return false;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(APP_KNOWS_ARCHIVE)];
@@ -259,7 +296,7 @@ export function appKnowsArchive(settings: Settings, version?: string): boolean {
 export const APP_SHOWS_SOURCE_READS: string | undefined = "3.9.0";
 
 export function appShowsSourceReads(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_SHOWS_SOURCE_READS || !version) return false;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(APP_SHOWS_SOURCE_READS)];
@@ -278,7 +315,7 @@ export function appShowsSourceReads(settings: Settings, version?: string): boole
 export const APP_KNOWS_NO_COUPLE: string | undefined = "3.9.0";
 
 export function appKnowsNoCouple(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_KNOWS_NO_COUPLE) return false;
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
@@ -297,7 +334,7 @@ export function appKnowsNoCouple(settings: Settings, version?: string): boolean 
 export const APP_SHOWS_FACT_STATUS: string | undefined = "3.9.0";
 
 export function appShowsFactStatus(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_SHOWS_FACT_STATUS || !version) return false;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(APP_SHOWS_FACT_STATUS)];
@@ -314,7 +351,7 @@ export function appShowsFactStatus(settings: Settings, version?: string): boolea
 export const APP_TURNS_EXCERPTS: string | undefined = "3.9.0";
 
 export function appTurnsExcerpts(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_TURNS_EXCERPTS || !version) return false;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(APP_TURNS_EXCERPTS)];
@@ -331,7 +368,7 @@ export function appTurnsExcerpts(settings: Settings, version?: string): boolean 
 export const APP_SHOWS_STORY_DRAFTS: string | undefined = "3.7.0";
 
 export function appShowsStoryDrafts(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_SHOWS_STORY_DRAFTS) return false;
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
@@ -348,6 +385,11 @@ export function sendAppUrl(bridge: string, settings: Settings): string {
 /** The address that opens the Strom app to hand one of its trees to a new research (strom-research://new). */
 export function adoptAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?adopt=${encodeURIComponent(bridge)}`;
+}
+
+/** The address that opens the Strom app following a research through its bridge — said, never failing: none where strom.app.url says no address of the app. */
+export function liveAppUrlShown(bridge: string, settings: Settings): string | undefined {
+  return appUrlSetting(settings).invalid ? undefined : liveAppUrl(bridge, settings);
 }
 
 /** The address that opens the Strom app following a research through its bridge. */
@@ -609,7 +651,8 @@ export function noticeStromApp(settings: Settings, env: Env, opts: { look?: bool
     }
   }
   if (!opts.look) return undefined;
-  const app = installedStromApp(env, process.platform, stromAppUrl(settings));
+  // only a look: an invalid strom.app.url (strom app refuses it) looks for the default copy
+  const app = installedStromApp(env, process.platform, appUrlSetting(settings).url);
   if (app && !settings.config.stromAppSeen) {
     settings.config.stromAppSeen = { via: app.kind, at };
     settings.save();

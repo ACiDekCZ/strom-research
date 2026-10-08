@@ -159,6 +159,11 @@ export const APP_URL_INVALID =
   "Note: the setting strom.app.url (or STROM_APP_URL) is no address of the Strom app, so the address above is the default.\n" +
   "Set it right (strom config set strom.app.url <address>) or remove it (strom config unset strom.app.url).";
 
+/** What strom config where / config get say under a strom.app.url that is no address of the Strom app (B1-e). */
+export const APP_URL_INVALID_SETTING =
+  "Note: the setting strom.app.url (or STROM_APP_URL) is no address of the Strom app: strom app refuses it, and where only an address is named, the default is.\n" +
+  "Set it right (strom config set strom.app.url <address>) or remove it (strom config unset strom.app.url).";
+
 /** Catalog entry for `strom commands --json`: only what is there (empty fields are left out). */
 export function describe(def: CommandDef, appUrl: ShownAppUrl): Record<string, unknown> {
   const out: Record<string, unknown> = { command: def.path.join(" "), usage: usageLine(def), summary: def.summary, group: def.group };

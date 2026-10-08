@@ -21,7 +21,7 @@ import { assertIntact } from "../core/integrity.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { offerLinks } from "../cli/wizard.ts";
-import { appOpensLinks, appOpensResearch, importAppUrl, installedStromApp, liveAppUrl, noticeStromApp, stromAppUrl } from "../core/stromapp.ts";
+import { appOpensLinks, appOpensResearch, appUrlSetting, importAppUrl, installedStromApp, liveAppUrl, liveAppUrlShown, noticeStromApp, stromAppUrl } from "../core/stromapp.ts";
 import { forgetLive, liveRunning, serveLive, startLive, stopLive } from "../core/live.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut, openInNewTerminal } from "../core/shortcut.ts";
@@ -79,6 +79,22 @@ function bridgeTree(ctx: Context): { root: string; lang: string } {
   if (root && newerTree(root, ctx.env)) return { root, lang: readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE))?.lang ?? ctx.uiLang() };
   const tree = ctx.tree();
   return { root: tree.root, lang: tree.lang };
+}
+
+/**
+ * What strom live and live start say of the app that follows the bridge: its address — or, where strom.app.url says no
+ * address of the app, how that stands, and no address built on it with the bridge's secret (the bridge runs all the same).
+ */
+function liveAppLine(ctx: Context, lang: string, bridge: string): string {
+  const url = liveAppUrlShown(bridge, ctx.settings);
+  if (url) return ui(lang, "ui.live.app", { url });
+  const bad = appUrlSetting(ctx.settings).invalid!;
+  return ui(lang, bad.source === "env" ? "ui.doc.appurl.env" : "ui.doc.appurl.config", { value: bad.value });
+}
+
+function liveAppData(ctx: Context, bridge: string): { app?: string } {
+  const url = liveAppUrlShown(bridge, ctx.settings);
+  return url ? { app: url } : {};
 }
 
 register({
@@ -219,6 +235,9 @@ register(
     examples: ["strom app", "strom app --live", "strom app install"],
     async run(ctx, { opts }) {
       const lang = ctx.uiLang();
+      // a strom.app.url that is no address of the app (the variable, or written by hand into the settings): refused
+      // before anything starts — nothing opened, no address built on it with the bridge's secret (B1-c)
+      stromAppUrl(ctx.settings);
       const root = appOpensResearch(ctx.settings) ? ctx.locateTree() : undefined;
       if (root) {
         const tree = Tree.open(root, ctx.env);
@@ -317,7 +336,7 @@ register(
       const lang = tree.lang;
       const info = liveRunning(tree.root);
       return info
-        ? { text: lines(ui(lang, "ui.live.runs", { url: info.url }), ui(lang, "ui.live.app", { url: liveAppUrl(info.url, ctx.settings) }), ui(lang, "ui.live.stophow")), data: { running: true, ...info, app: liveAppUrl(info.url, ctx.settings) } }
+        ? { text: lines(ui(lang, "ui.live.runs", { url: info.url }), liveAppLine(ctx, lang, info.url), ui(lang, "ui.live.stophow")), data: { running: true, ...info, ...liveAppData(ctx, info.url) } }
         : { text: ui(lang, "ui.live.none"), data: { running: false } };
     },
   },
@@ -333,8 +352,8 @@ register(
       const info = startLive(tree.root, ctx.env, { current: !!opts.current });
       if (!info) throw new StromError("the bridge did not start", { hint: "strom live serve shows why", code: "live.not-started" });
       return {
-        text: lines(ui(lang, "ui.live.runs", { url: info.url }), ui(lang, "ui.live.app", { url: liveAppUrl(info.url, ctx.settings) }), info.moved ? ui(lang, "ui.live.moved") : undefined),
-        data: { ...info, app: liveAppUrl(info.url, ctx.settings) },
+        text: lines(ui(lang, "ui.live.runs", { url: info.url }), liveAppLine(ctx, lang, info.url), info.moved ? ui(lang, "ui.live.moved") : undefined),
+        data: { ...info, ...liveAppData(ctx, info.url) },
       };
     },
   },

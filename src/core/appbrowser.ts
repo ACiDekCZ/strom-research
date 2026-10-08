@@ -9,7 +9,7 @@
 import type { Env } from "./paths.ts";
 import type { Settings } from "./config.ts";
 import { appBrowsers, browserKind, browserName, defaultBrowser, openInBrowser, openWebApp, type Browser, type BrowserKind } from "./chromium.ts";
-import { installedStromApps, stromAppUrl } from "./stromapp.ts";
+import { appUrlSetting, installedStromApps } from "./stromapp.ts";
 
 export interface AppWindow {
   /** The browser the app opens in (a tab, or the app installed from it). */
@@ -27,7 +27,7 @@ export interface AppWindow {
 export function appWindow(settings: Settings, env: Env, platform: NodeJS.Platform = process.platform, opts: { holdsTree?: boolean } = {}): AppWindow {
   const reach = appBrowsers(env, platform);
   // the copies of the app (strom.app.url) installed from a browser that is here
-  const apps = installedStromApps(env, platform, stromAppUrl(settings)).filter((a) => a.appId && a.browser && reach.some((b) => b.name === a.browser));
+  const apps = installedStromApps(env, platform, appUrlSetting(settings).url).filter((a) => a.appId && a.browser && reach.some((b) => b.name === a.browser));
   const appOf = (b: Browser | undefined): AppWindow["webApp"] => {
     const a = b && apps.find((x) => x.browser === b.name);
     return a?.appId && a.browser ? { browser: a.browser, appId: a.appId, ...(a.profile ? { profile: a.profile } : {}) } : undefined;

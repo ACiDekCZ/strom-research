@@ -483,7 +483,7 @@ test("the Strom app: noticed quietly — started by it, or installed from the br
   // The copy strom opens is the user's setting.
   await w.ok(["config", "set", "strom.app.url", "https://beta.stromapp.info/run/"]);
   assert.equal(cfg().stromAppUrl, "https://beta.stromapp.info/run/");
-  assert.match((await w.run(["config", "set", "strom.app.url", "https://example.org/"])).err, /invalid strom\.app\.url/);
+  assert.match((await w.run(["config", "set", "strom.app.url", "https://example.org/"])).err, /neplatné strom\.app\.url „https:\/\/example\.org\/“/);
   await w.ok(["config", "unset", "strom.app.url"]);
   assert.equal(cfg().stromAppUrl, undefined);
   // The profile that holds it (folder names only).

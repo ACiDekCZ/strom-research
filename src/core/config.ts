@@ -14,7 +14,8 @@ import { DEFAULT_AGENT, PROFILES, TIERS, type Tier } from "../agents/profiles.ts
 import { EXCERPT_QUALITIES, EXCERPT_SCOPES, EXCERPTS_MAX_MB, STRATEGIES, type ExcerptQuality, type ExcerptScope, type Strategy, type TreeConfig } from "./model.ts";
 import { downloadsDir } from "./browser.ts";
 import { acquireLock } from "./lock.ts";
-import { isAppVersion, isStromAppOrigin } from "./stromapp.ts";
+import { isAppVersion, isStromAppOrigin, STROM_APP_BETA_URL, STROM_APP_URL } from "./stromapp.ts";
+import { updateChannel } from "./update.ts";
 import type { BackupRecord } from "./backup.ts";
 
 export interface UserConfig {
@@ -196,7 +197,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
   { key: "app.browser", env: "STROM_APP_BROWSER", tree: false, kind: "choice", choices: ["chrome", "edge", "brave", "opera", "firefox", "chromium"], description: "the browser strom opens the Strom app in — the one its tree came from (strom keeps it), or yours: chrome, edge, brave, opera, firefox, chromium (another Chromium: Vivaldi, Arc). The Strom app installed from a browser always comes first (from this one when it is installed from several); without one, a tab of this browser — unset: of the default browser when the app reaches strom from it, else of the first such browser here" },
-  { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of https://stromapp.info/run/ — its beta (https://beta.stromapp.info/run/), its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
+  { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of https://stromapp.info/run/ — e.g. its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
 ];
 
 /** Fields of the stored settings whose key is not the field name. */
@@ -253,8 +254,32 @@ function asPath(value: string, env: Env): string {
   return path.resolve(expandHome(value, env));
 }
 
+/** An address of a copy of the Strom app the bridge lets in (strom.app.url): its pages on the web, its beta, a copy on this computer. */
+function isAppAddress(v: string): boolean {
+  try {
+    return isStromAppOrigin(new URL(v).origin);
+  } catch {
+    return false; // not an address
+  }
+}
+
+/**
+ * strom.app.url that says no address of the Strom app — typed (`set`: strom config set), in the variable STROM_APP_URL
+ * (`env`), or in the settings however it got there (`config`: written by hand): refused, with what is an address of it
+ * and how to put it right — in the person's language (ui.error.config.app-url…). The app's pages on the web it names go
+ * by the channel: the releases name stromapp.info only (production says nothing of a beta, B1-d), the beta its beta too;
+ * a copy on this computer (its development) both.
+ */
+export function appUrlInvalid(raw: string, how: "set" | "env" | "config", env: Env): UsageError {
+  const web = updateChannel(env) === "beta" ? `${STROM_APP_BETA_URL} · ${STROM_APP_URL}` : STROM_APP_URL;
+  const allowed = `the Strom app: ${web}, or a copy on this computer http://127.0.0.1:<port>/`;
+  const fix = how === "config" ? "\nset it right: strom config set strom.app.url <address> — or remove it: strom config unset strom.app.url" : how === "env" ? "\nthe variable STROM_APP_URL set right, or removed" : "";
+  const code = "config.app-url";
+  return new UsageError(`invalid strom.app.url "${raw}": no address of the Strom app`, { hint: allowed + fix, code, params: { value: raw, web }, hintCode: how === "set" ? code : `${code}.${how}` });
+}
+
 /** Check and normalise a value for a setting; throws a UsageError with the allowed values. */
-export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string) => string): string | number {
+export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string) => string, env: Env = {}): string | number {
   const v = raw.trim();
   switch (def.kind) {
     case "path":
@@ -284,18 +309,10 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
     case "person":
       if (!/^[Pp]\d{4,}$/.test(v)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: "a person's ID, e.g. P0009 (strom find <name>)" });
       return v.toUpperCase();
-    case "url": {
+    case "url":
       // A copy of the Strom app the bridge lets in (core/live.ts) — the bridge's address goes to it.
-      let origin = "";
-      try {
-        origin = new URL(v).origin;
-      } catch {
-        // not an address
-      }
-      if (!isStromAppOrigin(origin))
-        throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: "the Strom app: https://stromapp.info/run/, its beta https://beta.stromapp.info/run/, or a copy on this computer http://127.0.0.1:<port>/" });
+      if (!isAppAddress(v)) throw appUrlInvalid(raw, "set", env);
       return v;
-    }
     case "version":
       // as the app says it to the bridge (its header): its betas too
       if (!isAppVersion(v)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: "a version like 3.9.0 or 3.10.0-beta.6" });
@@ -377,7 +394,7 @@ export class Settings {
     const def = settingDef(key);
     if (key === "agent") return this.agent(tree);
     const who = agent ?? (def.kind === "model" ? this.agent(tree).value : "");
-    const check = (raw: string) => checkValue(def, raw, (p) => asPath(p, this.env));
+    const check = (raw: string) => checkValue(def, raw, (p) => asPath(p, this.env), this.env);
     const flag = this.flagOf(key);
     if (flag) return { value: check(flag), source: "flag" };
     const env = def.env ? this.env[def.env] : undefined;
