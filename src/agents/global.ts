@@ -136,19 +136,25 @@ function grokBlock(lines: string[]): [number, number] | undefined {
 
 /**
  * Strom's block taken out, the person's text before and after it kept as it is — only the blank line an install puts
- * between the person's text and the block it appends goes with it.
+ * between the person's text and the block it appends goes with it. gap: whether the install that wrote the block put
+ * one there (recorded in agents-taught.json); false: no blank line around the block is strom's. Unknown (an
+ * installation that recorded nothing, a file strom created): the blank line before the block was strom's, or, the block
+ * first in the file, the one after it.
  */
-function grokWithout(text: string): string {
+function grokWithout(text: string, gap?: boolean): string {
   let lines = text.split("\n");
   const blank = (i: number) => i >= 0 && i < lines.length && lines[i]!.trim() === "";
   for (let at = grokBlock(lines); at; at = grokBlock(lines)) {
     const [b, e] = at;
     let from = b;
     let to = e + 1;
-    // a blank line before it, and the end of the file or another blank line after it: the one before was strom's
-    if (blank(b - 1) && (e + 1 >= lines.length || blank(e + 1))) from = b - 1;
-    // first in the file, then a blank line and the person's text: that blank line was strom's
-    else if (b === 0 && blank(e + 1) && e + 1 < lines.length - 1) to = e + 2;
+    if (gap !== false) {
+      // a blank line before it, whatever follows (the end of the file, a blank line, the person's text right after its
+      // end): that one was strom's
+      if (blank(b - 1)) from = b - 1;
+      // first in the file, then a blank line and the person's text: that blank line was strom's
+      else if (b === 0 && blank(e + 1) && e + 1 < lines.length - 1) to = e + 2;
+    }
     // taken to the end of a file with no line break at its end: the CR of the break before it went with it
     const tail = to >= lines.length && from > 0 ? [lines[from - 1]!.replace(/\r$/, "")] : lines.slice(from - 1, from);
     lines = [...lines.slice(0, Math.max(0, from - 1)), ...tail, ...lines.slice(to)];
@@ -156,7 +162,8 @@ function grokWithout(text: string): string {
   return lines.join("\n");
 }
 
-function grokWith(text: string): string | undefined {
+/** config.toml with strom's block; gap: whether a new block was put after a blank line (undefined: none put now). */
+function grokWith(text: string, rec?: boolean): { text: string; gap?: boolean } | undefined {
   const allow = `allow = [${allowRules("grok").map((r) => JSON.stringify(r)).join(", ")}]`;
   const nl = text.includes("\r\n") ? "\r\n" : "\n";
   const cr = nl === "\r\n" ? "\r" : "";
@@ -178,24 +185,24 @@ function grokWith(text: string): string | undefined {
     if (inner) {
       const last = e === lines.length - 1; // the file ends with strom's end line: no line break after it
       const block = [TOML_BEGIN, ...inner, TOML_END].map((l, i, all) => (last && i === all.length - 1 ? l : l + cr));
-      return [...lines.slice(0, b), ...block, ...lines.slice(e + 1)].join("\n");
+      return { text: [...lines.slice(0, b), ...block, ...lines.slice(e + 1)].join("\n") };
     }
     // a table of strom's beside the person's own [permission] table (two would break the file): into theirs
   }
-  const rest = at ? grokWithout(text) : text;
+  const rest = at ? grokWithout(text, rec) : text;
   const rl = rest.split("\n");
   const header = rl.findIndex(isPermissionHeader);
   if (header < 0) {
     // appended after a blank line, the person's last line ending as it did (grokWithout takes exactly this away)
     const block = [TOML_BEGIN, "[permission]", allow, TOML_END].join(nl);
-    if (!rest) return block + nl;
-    return rest.endsWith("\n") ? `${rest}${nl}${block}${nl}` : `${rest}${nl}${nl}${block}`;
+    if (!rest) return { text: block + nl, gap: false };
+    return { text: rest.endsWith("\n") ? `${rest}${nl}${block}${nl}` : `${rest}${nl}${nl}${block}`, gap: true };
   }
   // the user's table: up to the next table
   let end = rl.findIndex((l, i) => i > header && isTomlTable(l));
   if (end < 0) end = rl.length;
   if (hasOwnAllow(rl.slice(header + 1, end))) return undefined;
-  return [...rl.slice(0, header + 1), ...[TOML_BEGIN, allow, TOML_END].map((l) => l + cr), ...rl.slice(header + 1)].join("\n");
+  return { text: [...rl.slice(0, header + 1), ...[TOML_BEGIN, allow, TOML_END].map((l) => l + cr), ...rl.slice(header + 1)].join("\n"), gap: false };
 }
 
 /** A rule of strom's in Claude Code's or Antigravity's settings, whichever installation wrote it. */
@@ -420,17 +427,57 @@ function jsonSpan(text: string, i: number): JsonSpan {
   return { start, end };
 }
 
+/** The spaces of a JSON file on one line: around its colons and commas, inside its braces and brackets. */
+interface OneLine {
+  colon: string;
+  comma: string;
+  obj: [string, string];
+  arr: [string, string];
+}
+
+/** How a JSON text on one line spaces it: what each place holds the first time it comes (outside strings), else nothing. */
+function oneLineSpacing(body: string): OneLine {
+  const seen = new Map<string, string>();
+  const note = (k: string, v: string) => {
+    if (!seen.has(k)) seen.set(k, v);
+  };
+  const wsAfter = (i: number) => /^[ \t]*/.exec(body.slice(i + 1))![0];
+  const wsBefore = (i: number) => /[ \t]*$/.exec(body.slice(0, i))![0];
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i]!;
+    if (c === '"') {
+      for (i++; i < body.length && body[i] !== '"'; i++) if (body[i] === "\\") i++;
+      continue;
+    }
+    if (c === ":" || c === ",") {
+      note(`${c}<`, wsBefore(i));
+      note(`${c}>`, wsAfter(i));
+    } else if (c === "{" || c === "[") {
+      const after = wsAfter(i);
+      if (body[i + 1 + after.length] !== (c === "{" ? "}" : "]")) note(`${c}>`, after);
+    } else if (c === "}" || c === "]") {
+      const before = wsBefore(i);
+      if (body[i - 1 - before.length] !== (c === "}" ? "{" : "[")) note(`${c}<`, before);
+    }
+  }
+  const at = (k: string, or = "") => seen.get(k) ?? or;
+  // no comma yet (one member): spaced after as its colon is
+  return { colon: `${at(":<")}:${at(":>")}`, comma: `${at(",<")},${at(",>", at(":>"))}`, obj: [at("{>"), at("}<")], arr: [at("[>"), at("]<")] };
+}
+
 /**
  * The settings written as the person's file is: what did not change exactly as its text has it, what did in its
- * indentation (or compact, as the file is), its line breaks, the whitespace around it. A blank file or none: strom's
- * way, two spaces and a line break at the end.
+ * indentation (or on one line as the file is, with its spaces), its line breaks, the whitespace around it. A blank file
+ * or none: strom's way, two spaces and a line break at the end.
  */
 function formatJson(s: Record<string, unknown>, text: string | undefined): string {
   if (text === undefined || !text.trim()) return JSON.stringify(s, null, 2) + "\n";
   const body = text.trim();
   const nl = body.includes("\r\n") ? "\r\n" : "\n";
-  // the first indented line is one level in; all on one line: compact (an empty {} says nothing: strom's way)
+  // the first indented line is one level in; all on one line: none, its own spaces below (an empty {} says nothing: strom's way)
   const indent = /\n([ \t]+)\S/.exec(body)?.[1] ?? (body.includes("\n") || /^\{\s*\}$/.test(body) ? "  " : "");
+  // on one line: the person's spaces (none: compact)
+  const one = indent ? undefined : oneLineSpacing(body);
   const same = (v: unknown, at: JsonSpan) => JSON.stringify(v) === JSON.stringify(JSON.parse(text.slice(at.start, at.end)));
   const write = (v: unknown, at: JsonSpan | undefined, depth: number): string => {
     if (at && same(v, at)) return text.slice(at.start, at.end);
@@ -440,8 +487,11 @@ function formatJson(s: Record<string, unknown>, text: string | undefined): strin
       : Object.entries(v).map(([k, x]) => [k, x, at?.keys?.get(k)]);
     const [open, close] = Array.isArray(v) ? ["[", "]"] : ["{", "}"];
     if (!entries.length) return open + close;
-    const parts = entries.map(([k, x, sub]) => (k === undefined ? "" : JSON.stringify(k) + (indent ? ": " : ":")) + write(x, sub, depth + 1));
-    if (!indent) return open + parts.join(",") + close;
+    const parts = entries.map(([k, x, sub]) => (k === undefined ? "" : JSON.stringify(k) + (one ? one.colon : ": ")) + write(x, sub, depth + 1));
+    if (one) {
+      const [inOpen, inClose] = Array.isArray(v) ? one.arr : one.obj;
+      return open + inOpen + parts.join(one.comma) + inClose + close;
+    }
     const pad = (d: number) => indent.repeat(d);
     return open + nl + parts.map((p) => pad(depth + 1) + p).join("," + nl) + nl + pad(depth) + close;
   };
@@ -459,6 +509,11 @@ interface Made {
   dirs?: string[];
   /** In each settings file (JSON) strom wrote: what it made there (an installation before 1.13.0-beta.7 recorded none). */
   json?: Record<string, JsonMade>;
+  /**
+   * In each config.toml strom wrote its block into: whether it put a blank line before the block (gap), so that an
+   * uninstall takes away that one and no blank line of the person's (an installation before 1.13.0-beta.7 recorded none).
+   */
+  toml?: Record<string, { gap: boolean }>;
 }
 
 function readMade(file: string): Made {
@@ -475,8 +530,9 @@ function writeMade(file: string, m: Made): void {
     const files = m.files && Object.keys(m.files).length ? m.files : undefined;
     const dirs = m.dirs?.length ? [...new Set(m.dirs)].sort() : undefined;
     const json = m.json && Object.keys(m.json).length ? m.json : undefined;
-    if (!files && !dirs && !json) fs.rmSync(file, { force: true });
-    else writeFileAtomic(file, JSON.stringify({ ...(files ? { files } : {}), ...(dirs ? { dirs } : {}), ...(json ? { json } : {}) }, null, 2) + "\n");
+    const toml = m.toml && Object.keys(m.toml).length ? m.toml : undefined;
+    if (!files && !dirs && !json && !toml) fs.rmSync(file, { force: true });
+    else writeFileAtomic(file, JSON.stringify({ ...(files ? { files } : {}), ...(dirs ? { dirs } : {}), ...(json ? { json } : {}), ...(toml ? { toml } : {}) }, null, 2) + "\n");
   } catch {
     // the user config not writable: the files stay as an uninstall without the record leaves them
   }
@@ -496,13 +552,16 @@ function hasStrom(t: GlobalTarget, text: string): boolean {
 
 /**
  * Recorded after a write: the file created now, or the person's (one without strom's part); the folders made for it;
- * in a settings file, what strom made in it (json).
+ * in a settings file, what strom made in it (json); in config.toml, whether a new block went after a blank line (gap).
  */
-function noteWritten(t: GlobalTarget, before: string | undefined, firstDir: string | undefined, json?: JsonMade): void {
+function noteWritten(t: GlobalTarget, before: string | undefined, firstDir: string | undefined, json?: JsonMade, gap?: boolean): void {
   const m = readMade(t.made);
   const files = { ...(m.files ?? {}) };
   const dirs = [...(m.dirs ?? [])];
   const jsons = { ...(m.json ?? {}) };
+  const tomls = { ...(m.toml ?? {}) };
+  // a new block put now (one there already, brought to this version where it is, keeps what is recorded)
+  if (gap !== undefined) tomls[t.file] = { gap };
   const fresh = before === undefined || !hasStrom(t, before);
   if (before === undefined) files[t.file] = "created";
   // there without strom's part: the person's — also one recorded created, deleted since and made again by the person
@@ -518,8 +577,9 @@ function noteWritten(t: GlobalTarget, before: string | undefined, firstDir: stri
     dirs.push(d);
     if (d === firstDir || path.dirname(d) === d) break;
   }
-  if (JSON.stringify(files) !== JSON.stringify(m.files ?? {}) || dirs.length !== (m.dirs ?? []).length || JSON.stringify(jsons) !== JSON.stringify(m.json ?? {}))
-    writeMade(t.made, { files, dirs, json: jsons });
+  const changed = (a: unknown, b: unknown) => JSON.stringify(a) !== JSON.stringify(b ?? {});
+  if (changed(files, m.files) || dirs.length !== (m.dirs ?? []).length || changed(jsons, m.json) || changed(tomls, m.toml))
+    writeMade(t.made, { files, dirs, json: jsons, toml: tomls });
 }
 
 /** Its part taken away: the file is the person's again (or gone); the folders strom made for it go when empty. */
@@ -529,6 +589,8 @@ function noteRemoved(t: GlobalTarget): void {
   delete files[t.file];
   const json = { ...(m.json ?? {}) };
   delete json[t.file];
+  const toml = { ...(m.toml ?? {}) };
+  delete toml[t.file];
   const here = path.dirname(t.file);
   const within = (d: string) => here === d || here.startsWith(d.endsWith(path.sep) ? d : d + path.sep);
   // deepest first: a folder strom made in another it made
@@ -542,7 +604,15 @@ function noteRemoved(t: GlobalTarget): void {
     }
     return false;
   });
-  writeMade(t.made, { files, dirs, json });
+  writeMade(t.made, { files, dirs, json, toml });
+}
+
+/**
+ * Whether strom put a blank line before its block in this config.toml, as recorded; unknown for an installation that
+ * recorded nothing, and for a file strom created (what the person adds to it after its block stands alone again).
+ */
+function tomlGap(t: GlobalTarget, m: Made): boolean | undefined {
+  return m.files?.[t.file] === "created" ? undefined : m.toml?.[t.file]?.gap;
 }
 
 /** Write it for one agent; false when it was already there as it is. */
@@ -550,10 +620,12 @@ export function installGlobal(t: GlobalTarget): boolean {
   const cur = read(t.file);
   let next: string;
   let json: JsonMade | undefined;
+  let gap: boolean | undefined;
   if (t.kind === "allow" && t.agent === "grok") {
-    const with_ = grokWith(cur ?? "");
+    const with_ = grokWith(cur ?? "", tomlGap(t, readMade(t.made)));
     if (with_ === undefined) return false;
-    next = with_;
+    next = with_.text;
+    gap = with_.gap;
   } else if (t.kind === "allow") {
     const s = settingsOf(cur);
     if (!s || hasAllow(t, s)) return false;
@@ -569,14 +641,14 @@ export function installGlobal(t: GlobalTarget): boolean {
   if (cur === next) return false;
   const firstDir = fs.mkdirSync(path.dirname(t.file), { recursive: true });
   writeFileAtomic(t.file, next);
-  noteWritten(t, cur, firstDir, json);
+  noteWritten(t, cur, firstDir, json, gap);
   return true;
 }
 
 /** Take it away again; false when there was nothing of strom's. */
 export function uninstallGlobal(t: GlobalTarget): boolean {
   const m = readMade(t.made);
-  const removed = takeAway(t, m.files?.[t.file], m.json?.[t.file]);
+  const removed = takeAway(t, m.files?.[t.file], m.json?.[t.file], tomlGap(t, m));
   if (removed) noteRemoved(t);
   return removed;
 }
@@ -586,13 +658,13 @@ export function uninstallGlobal(t: GlobalTarget): boolean {
  * an installation that recorded nothing stays as it did before the record — a settings file kept as {}, a text file
  * with nothing but strom's part gone.
  */
-function takeAway(t: GlobalTarget, made: "created" | "existed" | undefined, rec: JsonMade | undefined): boolean {
+function takeAway(t: GlobalTarget, made: "created" | "existed" | undefined, rec: JsonMade | undefined, gap: boolean | undefined): boolean {
   const cur = read(t.file);
   if (cur === undefined) return false;
   if (t.kind === "allow" && t.agent === "grok") {
     if (!grokBlock(cur.split("\n"))) return false;
     // the person's text before and after strom's block as it was
-    const rest = grokWithout(cur);
+    const rest = grokWithout(cur, gap);
     if (rest.trim() || made === "existed") writeFileAtomic(t.file, rest);
     else fs.rmSync(t.file);
     return true;

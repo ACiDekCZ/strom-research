@@ -104,7 +104,12 @@ test("a batch from the app: its files kept without tasks, a ZIP unpacked by the 
     // …and on each of its files, as the user's
     const noted = (await w.ok(["input", "show", a.input, "--json"])).json.input;
     assert.deepEqual(noted.notes.map((n: { text: string; by: string }) => [n.text, n.by]), [["Dopisy z války, hledat razítka pošty", "user"]]);
-    assert.equal((await put(read("s0003.jpg"), "Babička/pozdě.jpg")).status, 409, "a closed batch takes nothing more");
+    const refusedLate = await put(read("s0003.jpg"), "Babička/pozdě.jpg");
+    assert.equal(refusedLate.status, 409, "a closed batch takes nothing more");
+    assert.deepEqual([json(refusedLate).code, json(refusedLate).params], ["batch.closed", { batch }]);
+    const none = await request("POST", `${info.url}/batch/0000-no-such-batch/done`, Buffer.from("{}"), { ...app, "Content-Type": "application/json" });
+    assert.equal(none.status, 404);
+    assert.deepEqual([json(none).code, json(none).params], ["batch.none", { batch: "0000-no-such-batch" }]);
 
     // sorted: a photo of Josef, a text of nobody here
     await w.ok(["input", "sort", b.input, "--as", "photo", "--person", "P0001"]);

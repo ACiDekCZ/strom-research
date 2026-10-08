@@ -95,10 +95,13 @@ export function originalType(file: string, name: string): (typeof ORIGINAL_TYPES
   return named;
 }
 
-/** Why a file of that type is not whole (a JPEG or PNG cut short, a PDF without its end), or undefined. */
-export function originalProblem(file: string, mime: string): string | undefined {
+/**
+ * Why a file of that type is not whole (a JPEG or PNG cut short, a PDF without its end), or undefined — the English
+ * words and, for the app to say it in its own language, its code (media.too-small {bytes}, media.cut-short {kind}).
+ */
+export function originalProblem(file: string, mime: string): { text: string; code: string; params: Record<string, string> } | undefined {
   const size = fs.statSync(file).size;
-  if (size < 16) return `${size} bytes — too small`;
+  if (size < 16) return { text: `${size} bytes — too small`, code: "media.too-small", params: { bytes: String(size) } };
   const tail = Buffer.alloc(Math.min(2048, size));
   const fd = fs.openSync(file, "r");
   try {
@@ -106,9 +109,10 @@ export function originalProblem(file: string, mime: string): string | undefined 
   } finally {
     fs.closeSync(fd);
   }
-  if (mime === "image/jpeg" && !tail.includes(Buffer.from([0xff, 0xd9]))) return "a JPEG cut short (no end marker)";
-  if (mime === "image/png" && !tail.includes(Buffer.from("IEND"))) return "a PNG cut short (no end)";
-  if (mime === "application/pdf" && !tail.includes(Buffer.from("%%EOF"))) return "a PDF cut short (no end)";
+  const short = (kind: string, text: string) => ({ text, code: "media.cut-short", params: { kind } });
+  if (mime === "image/jpeg" && !tail.includes(Buffer.from([0xff, 0xd9]))) return short("JPEG", "a JPEG cut short (no end marker)");
+  if (mime === "image/png" && !tail.includes(Buffer.from("IEND"))) return short("PNG", "a PNG cut short (no end)");
+  if (mime === "application/pdf" && !tail.includes(Buffer.from("%%EOF"))) return short("PDF", "a PDF cut short (no end)");
   return undefined;
 }
 
@@ -128,7 +132,7 @@ export function parseRegion(text: string | undefined): Region | undefined {
   const n = text.split(",").map((x) => Number(x.trim()));
   const [x, y, w, h] = n;
   if (n.length !== 4 || n.some((v) => !Number.isFinite(v)) || x! < 0 || y! < 0 || w! <= 0 || h! <= 0 || x! + w! > 1.001 || y! + h! > 1.001)
-    throw new UsageError(`not a part of an image: "${text.slice(0, 60)}"`, { hint: "x,y,w,h as fractions of the image (0–1) from its top left corner" });
+    throw new UsageError(`not a part of an image: "${text.slice(0, 60)}"`, { hint: "x,y,w,h as fractions of the image (0–1) from its top left corner", code: "media.bad-region", params: { region: text.slice(0, 60) } });
   return { x: x!, y: y!, w: Math.min(w!, 1 - x!), h: Math.min(h!, 1 - y!) };
 }
 
@@ -171,14 +175,14 @@ export interface TakenOriginal {
 function personOf(tree: Tree, id: string): Person {
   let p = tree.get<Person>(id);
   for (let hops = 0; p?.mergedInto && hops < 10; hops++) p = tree.get<Person>(p.mergedInto);
-  if (!p || p.type !== "person" || p.retracted) throw new UsageError(`no person ${id} in this research`, { hint: "the person's REFN in the Strom app" });
+  if (!p || p.type !== "person" || p.retracted) throw new UsageError(`no person ${id} in this research`, { hint: "the person's REFN in the Strom app", code: "media.no-person", params: { person: id } });
   return p;
 }
 
 function sourceOf(tree: Tree, id: string): Source {
   let s = tree.get<Source>(id);
   for (let hops = 0; s?.mergedInto && hops < 10; hops++) s = tree.get<Source>(s.mergedInto);
-  if (!s || s.type !== "source" || s.retracted) throw new UsageError(`no source ${id} in this research`, { hint: "the source's REFN in the Strom app" });
+  if (!s || s.type !== "source" || s.retracted) throw new UsageError(`no source ${id} in this research`, { hint: "the source's REFN in the Strom app", code: "media.no-source", params: { source: id } });
   return s;
 }
 
@@ -200,9 +204,9 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
   const meta = { ...metaIn, ...checkOriginalMeta(tree, metaIn) };
   const name = path.basename(metaIn.name.normalize("NFC").replace(/[\\/]+/g, "/")).replace(/[\u0000-\u001f]/g, "").slice(0, 200) || `${sha.slice(0, 12)}`;
   const type = originalType(file, name);
-  if (!type) throw new UsageError(`${name}: not a kind of file the research takes`, { hint: `images (JPEG, PNG, TIFF, HEIC, WebP), PDF, texts and documents, sound — ${ORIGINAL_TYPES.map((t) => t.ext[0]).join(" ")}` });
+  if (!type) throw new UsageError(`${name}: not a kind of file the research takes`, { hint: `images (JPEG, PNG, TIFF, HEIC, WebP), PDF, texts and documents, sound — ${ORIGINAL_TYPES.map((t) => t.ext[0]).join(" ")}`, code: "media.type", params: { name } });
   const problem = originalProblem(file, type.mime);
-  if (problem) throw new UsageError(`${name}: ${problem} — not taken; send it again`);
+  if (problem) throw new UsageError(`${name}: ${problem.text} — not taken; send it again`, { code: problem.code, params: { name, ...problem.params } });
   const lang = tree.lang;
   const known = knownOriginal(tree, shared, sha);
   const s = meta.source && !meta.batch ? tree.get<Source>(meta.source)! : undefined;

@@ -470,6 +470,61 @@ test("an agent's TOML config: the person's text after strom's block stays where 
   w.cleanup();
 });
 
+test("an agent's TOML config: the person's text right after strom's block, or in a file that was empty, comes back byte for byte", async () => {
+  const w = new World();
+  const toml = path.join(w.env.HOME!, ".grok", "config.toml");
+  fs.mkdirSync(path.dirname(toml), { recursive: true });
+  const round = async (mine: string, edit: (written: string) => string, expected: string, what: string) => {
+    fs.writeFileSync(toml, mine);
+    await w.ok(["agents", "install", "--all"]);
+    fs.writeFileSync(toml, edit(fs.readFileSync(toml, "utf8")));
+    await w.ok(["agents", "uninstall"]);
+    assert.equal(fs.readFileSync(toml, "utf8"), expected, what);
+  };
+  const mine = 'model = "grok-4" # Příliš žluťoučký kůň\n';
+  const ui = '[ui]\ntheme = "dark" # tmavé, тёмная\n';
+  // the person's text right after strom's end line, no blank line between: the blank line strom put before its block goes too
+  await round(mine, (t) => t + ui, mine + ui, "text right after the end line");
+  await round('[cli]\r\na = 1\r\n', (t) => t + '[ui]\r\nb = "設定"\r\n', '[cli]\r\na = 1\r\n[ui]\r\nb = "設定"\r\n', "CRLF, text right after the end line");
+  // the end line deleted, the person's own table right after strom's last line
+  const tools = '[tools]\nallow = ["Bash(ls:*)"]\n';
+  await round(mine, (t) => t.replace("# strom: end\n", "") + tools, mine + tools, "the end line gone, text right after the block");
+  // an empty file: strom's block first, the person's blank line and table after it stay theirs
+  await round("", (t) => t + "\n" + ui, "\n" + ui, "an empty file, then the person's blank line and table");
+  await round("", (t) => t + ui, ui, "an empty file, then the person's table");
+  w.cleanup();
+});
+
+test("the agents' settings files of the person's on one line, with their own spaces, come back as they were; strom's entries are spaced the same way", async () => {
+  const w = new World();
+  const at = (...p: string[]) => path.join(w.env.HOME!, ...p);
+  const claude = at(".claude", "settings.json");
+  const agy = at(".gemini", "antigravity-cli", "settings.json");
+  const oc = at(".config", "opencode", "opencode.json");
+  const files: [string, string][] = [
+    [claude, '{"model": "opus", "env": {"A": "1", "POZDRAV": "Dobrý den — こんにちは"}}'],
+    [agy, '{ "theme": "dark" }'],
+    [oc, '{ "theme": "тёмная", "instructions": [ "~/a.md" ] }\n'],
+  ];
+  for (const [f, text] of files) {
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, text);
+  }
+  await w.ok(["agents", "install", "--all"]);
+  assert.equal(fs.readFileSync(agy, "utf8"), '{ "theme": "dark", "permissions": { "allow": ["command(strom)"] } }', "strom's entries in the person's spacing");
+  assert.match(fs.readFileSync(claude, "utf8"), /^\{"model": "opus", "env": \{"A": "1", "POZDRAV": "Dobrý den — こんにちは"\}, "permissions": \{"allow": \["Bash\(strom:\*\)", /);
+  assert.match(fs.readFileSync(oc, "utf8"), /^\{ "theme": "тёмная", "instructions": \[ "~\/a\.md", "[^"]+strom\.md" \], "permission": \{ "bash": \{ "strom \*": "allow" \} \} \}\n$/);
+  await w.ok(["agents", "uninstall"]);
+  for (const [f, text] of files) assert.equal(fs.readFileSync(f, "utf8"), text, `${f}: byte for byte as it was`);
+  // compact stays compact
+  fs.writeFileSync(agy, '{"theme":"dark"}');
+  await w.ok(["agents", "install", "--all"]);
+  assert.equal(fs.readFileSync(agy, "utf8"), '{"theme":"dark","permissions":{"allow":["command(strom)"]}}');
+  await w.ok(["agents", "uninstall"]);
+  assert.equal(fs.readFileSync(agy, "utf8"), '{"theme":"dark"}');
+  w.cleanup();
+});
+
 test("the agents' settings files of the person's come back from an install and an uninstall as they were: their layout, their empty objects", async () => {
   const w = new World();
   const at = (...p: string[]) => path.join(w.env.HOME!, ...p);

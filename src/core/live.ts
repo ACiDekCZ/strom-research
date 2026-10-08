@@ -80,7 +80,7 @@ import { EXIT, StromError } from "./errors.ts";
 import { acquireLock } from "./lock.ts";
 import { material } from "./material.ts";
 import { checkOriginalMeta, freeBytes, knownOriginal, materialWaiting, originalMax, ORIGINAL_RESERVE, ORIGINAL_TYPES, parseRegion } from "./originals.ts";
-import { BATCH_ID, batchEstimate, batchFull, batchLimits, batchPath, batchStatus, idleBatches, noteBatch, openBatch, readBatch } from "./batches.ts";
+import { BATCH_ID, batchEstimate, batchLimits, batchRoom, batchPath, batchStatus, idleBatches, noteBatch, openBatch, readBatch } from "./batches.ts";
 
 /** New images for the app, made for at most so long when the tree changed (the rest the next time). */
 const LIVE_IMAGES_MS = 20_000;
@@ -140,6 +140,39 @@ const REFUSED: Record<string, keyof typeof CODES> = {
 };
 function said(lang: string, key: keyof typeof CODES, params: Record<string, string> = {}): { error: string; code: string; text: string; params?: Record<string, string> } {
   return { error: ui(lang, key, params), code: CODES[key], text: ui("en", key, params), ...(Object.keys(params).length ? { params } : {}) };
+}
+
+/**
+ * An upload of the app refused (PUT /media/<sha256>, a batch's file, POST /batch/<id>/done, GET /media/<sha256>): the
+ * English sentence (`error`, `text`) and its stable `code` with `params` for the app to say it in the person's
+ * language (feature `media.codes`). Each code, its answer and its params:
+ * - `app.only` 403 — not from the Strom app's pages
+ * - `media.bad-sha` 400 — the address names no SHA-256
+ * - `media.bad-header` 400 {header} — a header that is not what it should be (X-Strom-Person, -Source, -Batch, -Zip,
+ *   -Path, -Name, -Note)
+ * - `media.bad-region` 400 {region} — X-Strom-Region is no part of an image
+ * - `media.no-person` 404 {person} — no such person in the research; `media.no-source` 404 {source} — no such source
+ * - `media.no-shared` 500 — the research has no shared folder for files (strom setup)
+ * - `media.large` 413 {mb} (and `max`) — larger than the research takes; `media.full` 507 (and `free`) — no room
+ *   (these two: `error` in the research's language, `text` English — said() above)
+ * - `media.sha-differs` 409 {sha} — the file is not the one its address names
+ * - `media.type` 415 {name} — not a kind of file the research takes
+ * - `media.cut-short` 422 {name, kind: JPEG|PNG|PDF}; `media.too-small` 422 {name, bytes} — the file is not whole
+ * - `media.refused` 400 — refused for another reason (the English sentence says why); `media.failed` 500 — went wrong
+ * - `media.gone` 410 {known} — GET …?file=1: the research knows it, its file is not on this computer
+ * - `research.busy` 503 (and Retry-After, `retry`) — another strom holds the research: send it again in a while
+ * - `batch.bad-id` 400 {batch}; `batch.zip-alone` 400 — a ZIP outside a batch; `batch.zip-unreadable` 400 {name}
+ * - `batch.closed` 409 {batch} — the batch is closed already: send the rest as a new batch
+ * - `batch.full-files` 413 {batch, files}; `batch.full-bytes` 413 {batch, gb} — the most a batch takes
+ * - `batch.none` 404 {batch} — POST /batch/<id>/done: no such batch here; `batch.bad-body` 400 — its body no JSON
+ */
+function refusal(error: string, code: string, params: Record<string, string> = {}): { error: string; code: string; text: string; params?: Record<string, string> } {
+  return { error, code, text: error, ...(Object.keys(params).length ? { params } : {}) };
+}
+/** What a strom of its own said as it failed (its --json: message, code, params): the code it gave, else `fallback`. */
+function refusalOf(why: string, data: { code?: unknown; params?: unknown }, fallback: string): ReturnType<typeof refusal> {
+  const params = data.params && typeof data.params === "object" ? Object.fromEntries(Object.entries(data.params as Record<string, unknown>).map(([k, v]) => [k, String(v)])) : {};
+  return refusal(why, typeof data.code === "string" && data.code ? data.code : fallback, params);
 }
 
 /**
@@ -509,7 +542,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes"] as const;
 
 export function history(root: string, tree: Tree, range: string[] = [`-n${LOG_MAX}`]): { head: string; at: string; what: string[]; text: string[]; kinds: ChangeKind[]; task?: string; research?: string }[] {
   const r = runGit(root, ["log", ...range, "--format=%x1e%H%x1f%cI%x1f%s%x1f%b%x1f", "--name-only"]);
@@ -1079,7 +1112,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         const json = (code: number, body: Record<string, unknown>) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
         if (!known) json(404, { known: null });
         else if (!/[?&]file=1(?:&|$)/.test(req.url ?? "")) json(200, { known: known.id, kind: known.kind, mime: known.mime, bytes: known.bytes, ...(known.name ? { name: known.name } : {}), here: !!known.file && fs.existsSync(known.file) });
-        else if (!known.file || !fs.existsSync(known.file)) json(410, { known: known.id, error: "its file is not on this computer" });
+        else if (!known.file || !fs.existsSync(known.file)) json(410, { known: known.id, ...refusal("its file is not on this computer", "media.gone", { known: known.id }) });
         else {
           const size = fs.statSync(known.file).size;
           res.writeHead(200, { "Content-Type": known.mime, "Content-Length": String(size), "Cache-Control": "no-store", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(known.name ?? path.basename(known.file))}` });
@@ -1480,9 +1513,9 @@ export function serveLive(root: string, env: Env): Promise<void> {
       reply(code, body);
       req.resume();
     };
-    if (!origin) return refuse(403, { error: "only the Strom app may send a file here" });
+    if (!origin) return refuse(403, refusal("only the Strom app may send a file here", "app.only"));
     const sha = rawSha.toLowerCase();
-    if (!/^[0-9a-f]{64}$/.test(sha)) return refuse(400, { error: "the address names no SHA-256" });
+    if (!/^[0-9a-f]{64}$/.test(sha)) return refuse(400, refusal("the address names no SHA-256", "media.bad-sha"));
     const header = (n: string) => {
       const v = req.headers[n];
       return typeof v === "string" ? v : undefined;
@@ -1495,27 +1528,39 @@ export function serveLive(root: string, env: Env): Promise<void> {
     let where: string | undefined;
     const zip = header("x-strom-zip") === "1";
     const tree = Tree.open(root, env);
+    // the header read when it failed (its value not URI-encoded too): said by its name
+    let at = "X-Strom-Batch";
     try {
       batch = header("x-strom-batch")?.trim();
       if (batch !== undefined && !BATCH_ID.test(batch)) throw new Error("X-Strom-Batch: the batch's mark (letters, digits, -)");
+      at = "X-Strom-Zip";
       if (zip && !batch) throw new Error("X-Strom-Zip: a ZIP comes in a batch (X-Strom-Batch)");
+      at = "X-Strom-Path";
       where = header("x-strom-path") ? batchPath(decodeURIComponent(header("x-strom-path")!)) : undefined;
+      at = "X-Strom-Name";
       name = decodeURIComponent(header("x-strom-name") ?? "") || sha.slice(0, 12);
+      at = "X-Strom-Note";
       note = header("x-strom-note") ? decodeURIComponent(header("x-strom-note")!).slice(0, 500) : undefined;
+      at = "X-Strom-Person";
       const persons = (header("x-strom-person") ?? "").split(",").map((p) => p.trim().toUpperCase()).filter(Boolean);
       if (persons.some((p) => !/^P\d{1,9}$/.test(p))) throw new Error("X-Strom-Person: IDs of the research's people (P…), with commas");
+      at = "X-Strom-Source";
       const source = header("x-strom-source")?.trim().toUpperCase();
       if (source && !/^S\d{1,9}$/.test(source)) throw new Error("X-Strom-Source: the ID of a source of the research (S…)");
+      at = "X-Strom-Region";
       region = header("x-strom-region")?.trim();
       parseRegion(region);
       meta = checkOriginalMeta(tree, { persons, source });
     } catch (e) {
-      return refuse(/^no (person|source)/.test((e as Error).message) ? 404 : 400, { error: (e as Error).message });
+      // a person or a source the research has not got: 404, its JSON body telling it from an address that is no bridge's
+      const m = (e as Error).message;
+      const coded = e instanceof StromError && e.code ? refusal(m, e.code, e.params ?? {}) : refusal(m, "media.bad-header", { header: at });
+      return refuse(/^no (person|source)/.test(m) ? 404 : 400, coded);
     }
     const settings = new Settings(env, {});
     const shared = settings.shared()?.value;
     // not set up (no shared folder): sending again does not help — /status says accepts.media null
-    if (!shared) return refuse(500, { error: "the research has no shared folder for files (strom setup)" });
+    if (!shared) return refuse(500, refusal("the research has no shared folder for files (strom setup)", "media.no-shared"));
     // a batch: open, with room for it
     let open: ReturnType<typeof openBatch> | undefined;
     const length = Number(header("content-length") ?? NaN);
@@ -1523,10 +1568,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
       try {
         open = openBatch(root, batch);
       } catch (e) {
-        return refuse(409, { error: (e as Error).message, batch });
+        return refuse(409, { ...refusalOf((e as Error).message, e instanceof StromError ? e : {}, "batch.closed"), batch });
       }
-      const full = batchFull(open, Number.isFinite(length) ? length : 0, env);
-      if (full) return refuse(413, { error: full, batch });
+      const full = batchRoom(open, Number.isFinite(length) ? length : 0, env);
+      if (full) return refuse(413, { ...refusal(full.text, full.code, full.params), batch });
     }
     // the same content: only said (an image of another source given again is taken as one more of that source)
     const known = zip ? undefined : knownOriginal(tree, shared, sha);
@@ -1559,7 +1604,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
           // said by the exit code
         }
         if (code !== 0) noteLive(root, `what came again for ${known.id} was not added (exit ${code})`);
-        if (code === EXIT.locked) return reply(503, { error: "the research is busy — send it again in a while", retry: 30 });
+        if (code === EXIT.locked) return reply(503, { ...refusal("the research is busy — send it again in a while", "research.busy"), retry: 30 });
         reply(200, { known: known.id, kind: known.kind, ...(code === 0 && data.added ? { added: data.added } : {}), ...(code === 0 && data.task ? { task: data.task } : {}), ...(code === 0 ? { head: head(root) } : {}) });
       });
       return;
@@ -1616,7 +1661,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       out.end(() => safely(req, res, () => {
         if (hash.digest("hex") !== sha) {
           drop();
-          reply(409, { error: "the file is not the one its address names (its SHA-256 differs) — send it again" });
+          reply(409, refusal("the file is not the one its address names (its SHA-256 differs) — send it again", "media.sha-differs", { sha }));
           return;
         }
         // taken by a strom of its own: its lock, its log and its commit
@@ -1641,7 +1686,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         child.stderr.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
         child.on("error", (e) => {
           drop();
-          reply(500, { error: errorText(e) });
+          reply(500, refusal(errorText(e), "media.failed"));
         });
         child.on("close", (code) => {
           let data: Record<string, unknown> = {};
@@ -1658,8 +1703,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
           const why = String((data as { message?: unknown }).message ?? stderr.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? "the file was not taken");
           noteLive(root, `an original was not taken (exit ${code}): ${why}`);
           // the research busy (another strom holding it longer than a writer waits): the app sends it again later
-          if (code === EXIT.locked) return reply(503, { error: why, retry: 30 });
-          reply(/not a kind of file/.test(why) ? 415 : /cut short|too small/.test(why) ? 422 : /the most one takes/.test(why) ? 413 : /closed already/.test(why) ? 409 : 400, { error: why });
+          if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 30 });
+          reply(/not a kind of file/.test(why) ? 415 : /cut short|too small/.test(why) ? 422 : /the most one takes/.test(why) ? 413 : /closed already/.test(why) ? 409 : 400, refusalOf(why, data, "media.refused"));
         });
       }));
     });
@@ -1684,7 +1729,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
     child.stderr.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
     child.on("error", (e) => {
       closing.delete(id);
-      reply(500, { error: errorText(e) });
+      reply(500, { ...refusal(errorText(e), "media.failed"), batch: id });
     });
     child.on("close", (code) => {
       closing.delete(id);
@@ -1697,8 +1742,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
       if (code === 0) return reply(200, { ...data, head: head(root) });
       const why = String(data.message ?? stderr.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? "the batch was not closed");
       noteLive(root, `the batch ${id} was not closed (exit ${code}): ${why}`);
-      if (code === EXIT.locked) return reply(503, { error: why, retry: 30, batch: id });
-      reply(/no batch/.test(why) ? 404 : 400, { error: why, batch: id });
+      if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 30, batch: id });
+      reply(/no batch/.test(why) ? 404 : 400, { ...refusalOf(why, data, /no batch/.test(why) ? "batch.none" : "media.refused"), batch: id });
     });
   };
 
@@ -1707,10 +1752,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
     const reply = (code: number, body: Record<string, unknown>) => {
       if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": "30" } : {}) }).end(JSON.stringify(body));
     };
-    if (!origin) return reply(403, { error: "only the Strom app may close a batch" });
+    if (!origin) return reply(403, refusal("only the Strom app may close a batch", "app.only"));
     if (!BATCH_ID.test(id) || !readBatch(root, id)) {
       req.resume();
-      return reply(404, { error: `no batch ${id.slice(0, 64)} here`, batch: id });
+      return reply(404, { ...refusal(`no batch ${id.slice(0, 64)} here`, "batch.none", { batch: id.slice(0, 64) }), batch: id });
     }
     let body = "";
     req.on("data", (c: Buffer) => {
@@ -1721,7 +1766,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       try {
         said = body.trim() ? (JSON.parse(body) as typeof said) : {};
       } catch {
-        return reply(400, { error: "the body: JSON {name, files, person}" });
+        return reply(400, { ...refusal("the body: JSON {name, files, person}", "batch.bad-body"), batch: id });
       }
       const persons = (Array.isArray(said.person) ? said.person : said.person ? [said.person] : []).map((p) => String(p).trim().toUpperCase()).filter((p) => /^P\d{1,9}$/.test(p));
       const extra = [
