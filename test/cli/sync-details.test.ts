@@ -612,3 +612,50 @@ test("a copy of the family tree that names no commit (an older export, another p
   assert.deepEqual(notes("P0001"), ["Pokřtěna v Týnci roku 1875, kmotr Jan Malý."]);
   w.cleanup();
 });
+
+test("a short note the user adds in the app comes in though it names the person or repeats a word the research has (B-2); the app's own shape of what the research said still does not", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["lang", "cs"]);
+  await w.ok(["person", "add", "Vojtěch /Novák/", "--sex", "M"]); // P1
+  await w.ok(["person", "add", "Kim /Nováková/", "--sex", "F"]); // P2
+  await w.ok(["event", "add", "P2", "CHR", "--date", "1932", "--place", "Týnec"]);
+  await w.ok(["note", "add", "P2", "Kim, zapsána 1932."]);
+  await w.ok(["person", "add", "Иван /Петров/", "--sex", "M"]); // P3
+  await w.ok(["person", "add", "Marie /Malá/", "--sex", "F"]); // P4
+  await w.ok(["family", "add", "--partner", "P3", "--partner", "P4"]); // F1
+  const ged = path.join(w.dir, "strom.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", ged]);
+  const given = fs.readFileSync(ged, "utf8");
+  // in the app: a note naming the person (sent decomposed), a line beside the research's note with the app's own
+  // shape of its place, a note in another script, a couple's note naming both partners
+  const app = given
+    .replace(/(1 REFN P0001\r?\n2 TYPE strom-research\r?\n)/, `$11 NOTE ${"Vojtěch CLI".normalize("NFD")}\n`)
+    .replace("1 NOTE Kim, zapsána 1932.", "1 NOTE Kim, zapsána 1932.\n2 CONT Kim z matriky\n2 CONT Narození: Týnec")
+    .replace(/(1 REFN P0003\r?\n2 TYPE strom-research\r?\n)/, "$11 NOTE Иван звонил\n")
+    .replace(/(0 @[^@]+@ FAM\r?\n)/, "$11 NOTE Иван a Marie 1900\n");
+  assert.notEqual(app, given);
+  const file = path.join(w.dir, "z-aplikace.ged");
+  fs.writeFileSync(file, app);
+  const r = (await w.ok(["sync", file, "--apply", "--json"])).json;
+  assert.deepEqual(
+    r.changes.map((c: { kind: string; person?: string; family?: string; text: string }) => [c.kind, c.person ?? c.family, c.text.normalize("NFC")]),
+    [
+      ["note.new", "P0001", "Vojtěch CLI"],
+      ["note.new", "P0002", "Kim z matriky"],
+      ["note.new", "P0003", "Иван звонил"],
+      ["note.new", "F0001", "Иван a Marie 1900"],
+    ],
+    JSON.stringify(r.changes),
+  );
+  const tree = Tree.open(w.cwd, w.env);
+  assert.deepEqual(tree.get<Person>("P0001")!.notes.map((n) => n.text), ["Vojtěch CLI"]);
+  assert.deepEqual(tree.get<Person>("P0002")!.notes.map((n) => n.text), ["Kim, zapsána 1932.", "Kim z matriky"]);
+  assert.deepEqual(tree.get<Family>("F0001")!.notes.map((n) => n.text), ["Иван a Marie 1900"]);
+  // sent again, and the copy as the app was given it: nothing
+  fs.writeFileSync(path.join(w.dir, "znovu.ged"), app);
+  assert.deepEqual((await w.ok(["sync", path.join(w.dir, "znovu.ged"), "--json"])).json.changes, []);
+  fs.writeFileSync(path.join(w.dir, "puvodni.ged"), given);
+  assert.deepEqual((await w.ok(["sync", path.join(w.dir, "puvodni.ged"), "--json"])).json.changes, []);
+  w.cleanup();
+});

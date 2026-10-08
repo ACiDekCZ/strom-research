@@ -38,7 +38,7 @@ import { linkHandlerState, linkScheme } from "../core/links.ts";
 import type { UIKey } from "../cli/ui.ts";
 
 import { globalTargets, installGlobal } from "../agents/global.ts";
-import { placeholders, ui } from "../cli/ui.ts";
+import { placeholders, ui, UI } from "../cli/ui.ts";
 import { PERMISSION_LEVELS, type AgentPermissions } from "../core/config.ts";
 import { PROFILES, type Tier } from "../agents/profiles.ts";
 import { NeedsInputError, StromError, UsageError } from "../core/errors.ts";
@@ -471,7 +471,8 @@ register({
     const to = said as Channel | undefined;
     const channel = to ?? updateChannel(ctx.env);
     const latest = await latestRelease(ctx.env, { channel, timeoutMs: 8000 });
-    if (!latest) throw new StromError(t("ui.update.unknown"), { hint: "check the network — or run the installer again" });
+    // the person's words in their language (the → line too); a program reads the English and the code (--json)
+    if (!latest) throw new StromError(UI["ui.error.update.unknown"], { hint: UI["ui.error.update.unknown.hint"], code: "update.unknown" });
     const newest = latest.version;
     ctx.settings.config.updateCheck = checked(newest, channel);
     ctx.settings.save();

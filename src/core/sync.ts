@@ -519,6 +519,9 @@ function allNotes(n: GedNode, noteText: (n: GedNode) => string): string {
 /** Words of a text, folded; numbers too (house numbers, years). */
 const wordsOf = (t: string) => foldText(t).match(/[\p{L}\p{M}\p{N}]{2,}/gu) ?? [];
 
+/** The words of a text's labels — what stands before a colon on a line ("Birth:", "Address: "): the app's own in its shapes. */
+const labelWords = (t: string) => new Set(t.split("\n").flatMap((l) => l.split(":").slice(0, -1).flatMap(wordsOf)));
+
 /**
  * A note the research has said already, folded into another shape by the app ("Birth: Address: čp. 35 …" of a
  * fact's notes): hardly a word of it that the research has not.
@@ -526,8 +529,11 @@ const wordsOf = (t: string) => foldText(t).match(/[\p{L}\p{M}\p{N}]{2,}/gu) ?? [
 function knownNote(text: string, said: Set<string>): boolean {
   const w = new Set(wordsOf(text));
   const unknown = [...w].filter((x) => !said.has(x));
-  // a word or two of the app's own ("Birth:", "Address:") around what the research said — never a short note all new
-  return unknown.length <= w.size * 0.2 || (unknown.length < 3 && unknown.length * 2 <= w.size);
+  if (unknown.length <= w.size * 0.2) return true;
+  // a word or two of the app's own labels ("Birth:", "Address:") in front of what the research said — never a short
+  // note all new, nor the user's word beside one the research has (B-2: "Kim z matriky", the name and a word)
+  const labels = labelWords(text);
+  return unknown.length < 3 && unknown.length * 2 <= w.size && unknown.every((x) => labels.has(x));
 }
 
 /** A line of a note as compared: NFC, its spaces one (the app joins what GEDCOM splits). */
@@ -2354,7 +2360,8 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
    * app's 3.10.0-beta.13: "nothing new taken", the edit lost) is no line the research has said: the user's own note
    * (typed by the user, or the app's) corrected, a session's kept and the user's line beside it (sync.edits user, an
    * archive: corrected too); a line like one the note still has, a line of its own. A line as the app was given it
-   * (the base) is no edit: the research's since stays.
+   * (the base) is no edit: the research's since stays. The person's names (the partners') are no words the research
+   * said in a note: a short note naming them is the user's (B-2: "Kim test" not taken).
    */
   const notesDiff = (owner: { person?: string; family?: string; partners?: string[]; name?: string }, inc: string[] | undefined, said: string[], facts: SFact[], mine: Note[] | undefined) => {
     const words = new Set(wordsOf([...said, ...facts.map((f) => [f.place, f.value, f.label].join(" "))].join("\n")));
@@ -2469,7 +2476,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       const overGuess = mySex === "U" && guessed !== undefined && !incoming.sexU;
       push({ kind: "sex.changed", action: b ? (edits === "user" ? "user" : backed || since || overGuess ? "conflict" : "correct") : "report", person: id, name, text: p.sex });
     }
-    notesDiff({ person: id, name }, p.notes, [o.said, b?.said ?? "", ...o.names], o.facts, tree.get<Person>(id)?.notes);
+    notesDiff({ person: id, name }, p.notes, [o.said, b?.said ?? ""], o.facts, tree.get<Person>(id)?.notes);
   }
   if (base && !partial)
     for (const [key, b] of base.persons)
@@ -2631,7 +2638,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     const both = [...new Set([...o.partners, ...partners])];
     factsDiff({ family: fam.id, partners: both }, f.facts, o.facts, b?.facts, true);
     citesDiff({ family: fam.id, partners: both }, f.cites, fam, b?.cites);
-    notesDiff({ family: fam.id, partners: both }, f.notes, [o.said ?? "", b?.said ?? "", ...both.map((k) => ours.persons.get(k)?.names.join(" ") ?? "")], o.facts, fam.notes);
+    notesDiff({ family: fam.id, partners: both }, f.notes, [o.said ?? "", b?.said ?? ""], o.facts, fam.notes);
     // how the couple is bound (no record proves it): the user's word where it changed since given, or where the research
     // has none; another word with nothing to stand on only said; none in the file takes nothing away (an older app)
     // (the one partner's married or divorced is the couple's facts' to say once the unknown one is named)

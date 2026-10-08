@@ -413,6 +413,23 @@ test("a new version: seen at most once a day, said by strom, the menu and doctor
   w.cleanup();
 });
 
+test("strom update with no release list to reach says what to do in the person's language — never an English hint under a Czech sentence; a program reads the English and the code (B-4)", { skip: !hasGit }, async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  w.env.STROM_DOWNLOAD_BASE = `file://${path.join(w.dir, "no release here")}`;
+  const cs = await w.run(["update"]);
+  assert.notEqual(cs.code, 0);
+  assert.equal(cs.err, "chyba: nepodařilo se zjistit nejnovější verzi stromu\n→ zkontrolovat připojení k síti – nebo spustit instalátor znovu\n");
+  const de = await w.run(["update"], { env: { STROM_LANG: "de" } });
+  assert.match(de.err, /→ die Netzwerkverbindung prüfen – oder das Installationsprogramm erneut ausführen\n$/);
+  assert.doesNotMatch(de.err, /network|installer/);
+  const en = await w.run(["update"], { env: { STROM_LANG: "en" } });
+  assert.match(en.err, /: the newest version of strom could not be learned\n→ check the network — or run the installer again\n$/);
+  const json = (await w.run(["update", "--json"])).json;
+  assert.deepEqual([json.code, json.message, json.hint], ["update.unknown", "the newest version of strom could not be learned", "check the network — or run the installer again"]);
+  w.cleanup();
+});
+
 test("installed from the Strom app with an agent here: the research with it is suggested (Enter), an archive the other choice; no agent: an archive, nothing asked", { skip: !hasGit || process.platform === "win32" }, async () => {
   const mark = "SW5zdGFsbGVkLWZyb20tdGhlLWFwcC1tYXJrLTAwMDE";
   const config = (w: World) => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
