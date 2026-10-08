@@ -4,12 +4,12 @@ import { gitSize, lastCompacted } from "../core/history.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { register } from "../cli/registry.ts";
+import { APP_URL_INVALID_SETTING, register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
-import { checkValue, configFile, DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, OTHER_ENV, SETTINGS, settingDef, writeStored, type SettingDef } from "../core/config.ts";
+import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, OTHER_ENV, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
-import type { Input, Media } from "../core/model.ts";
+import type { Input, Media, TreeConfig } from "../core/model.ts";
 import { gitVersion } from "../core/git.ts";
 import { linuxGitCommand } from "../core/deps.ts";
 import { fixGit, offerAgent } from "../cli/fixes.ts";
@@ -19,24 +19,26 @@ import { isValidLang, langName } from "../core/lang.ts";
 import { detectAgent, isAgent } from "../core/which.ts";
 import { agentsHere, DESKTOP_APPS, inDesktopApp, whereToTalk } from "../core/apps.ts";
 import { setupWizard } from "../cli/wizard.ts";
-import { installation, stromLauncher } from "../core/self.ts";
+import { holdsPath, insideProgram, installation, replacedHolding, stromLauncher } from "../core/self.ts";
 import { liveRunning } from "../core/live.ts";
 import { mb, sharedMedia, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 
 /** So many bytes of the shared store no research here names: worth a warning. */
 const MEDIA_UNNAMED_SAID = 500 * 1024 * 1024;
 import { Tree, VERSION } from "../core/tree.ts";
-import { installUpdate, isNewer, knownNewerVersion, latestVersion, newerNode, newerVersion, type Updated } from "../core/update.ts";
-import { desktopDir, isolated } from "../core/paths.ts";
-import { planMove } from "../core/relocate.ts";
-import { appOpensLinks, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
+import { checked, installUpdate, isNewer, knownNewerVersion, lastChannelOf, latestRelease, newerNode, newerVersion, setInstallChannel, updateChannel, type Channel, type Updated } from "../core/update.ts";
+import { configDir, defaultHome, desktopDir, isolated, noLinks, ownCommand } from "../core/paths.ts";
+import { backupBefore, backupSaid, lastBackupLine } from "../cli/backups.ts";
+import { BACKUP_SAID_DAYS, lastBackup, type BackupRecord } from "../core/backup.ts";
+import { planMove, sameFolder } from "../core/relocate.ts";
+import { appOpensLinks, appUrlSetting, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
 import { isInstalled } from "../agents/global.ts";
 import { offerLinks, shortcutName } from "../cli/wizard.ts";
-import { linkHandlerState } from "../core/links.ts";
+import { linkHandlerState, linkScheme } from "../core/links.ts";
 import type { UIKey } from "../cli/ui.ts";
 
 import { globalTargets, installGlobal } from "../agents/global.ts";
-import { ui } from "../cli/ui.ts";
+import { placeholders, ui, UI } from "../cli/ui.ts";
 import { PERMISSION_LEVELS, type AgentPermissions } from "../core/config.ts";
 import { PROFILES, type Tier } from "../agents/profiles.ts";
 import { NeedsInputError, StromError, UsageError } from "../core/errors.ts";
@@ -46,7 +48,7 @@ import { ensurePluginsDir } from "../core/connector.ts";
 import { ensureGatesDir, loadGate } from "../core/gate.ts";
 import { ensureHooksDir } from "../core/hooks.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL, downloadsDir } from "../core/browser.ts";
-import { browserConnectors } from "../core/connector.ts";
+import { browserConnectors, fenceKeepsNetOff, listConnectors } from "../core/connector.ts";
 
 export const SHARED_DIRS = ["media", "catalog", "tools", "cache", "inbox"];
 
@@ -77,7 +79,7 @@ register({
     }
     const cfg = s.config;
     const flags = s.flags;
-    const suggestedHome = s.home()?.value ?? s.suggestedHome();
+    const suggestedHome = s.home()?.value ?? ctx.homeSuggestion();
 
     if (!flags.home && !ctx.yes && !ctx.interactive && !cfg.home)
       throw new NeedsInputError([
@@ -91,6 +93,10 @@ register({
         },
       ]);
 
+    // never inside strom's program folder (a folder set before goes on: doctor says it)
+    for (const key of ["home", "shared", "trees"] as const) if (flags[key]) refuseInProgram(ctx, key, flags[key]);
+    // none named: the default — refused where it lies inside it (settings in node/), the way on said (--home)
+    if (!flags.home && !s.home() && !ctx.interactive) ctx.refuseProgramFolder("home", s.suggestedHome(), { asDefault: true });
     if (cfg.home && flags.home) guardResearchFolder(ctx, "home", flags.home);
     if (flags.shared) guardResearchFolder(ctx, "shared", flags.shared);
     if (flags.trees) guardResearchFolder(ctx, "trees", flags.trees);
@@ -106,9 +112,14 @@ register({
     let agent = (flags.agent ?? cfg.agent ?? (running && PROFILES[running] ? running : undefined) ?? installed[0] ?? "claude").toLowerCase();
 
     if (ctx.interactive) {
-      if (!flags.home) home = ctx.resolvePath(await ctx.ask("Where should Strom keep the research?", ctx.display(home)));
-      if (!flags.shared && !flags.trees && (await ctx.confirm("Keep scans and the archive catalog in a separate folder (e.g. a bigger disk)?", false)))
+      if (!flags.home) {
+        home = ctx.resolvePath(await ctx.ask("Where should Strom keep the research?", ctx.display(home)));
+        refuseInProgram(ctx, "home", home);
+      }
+      if (!flags.shared && !flags.trees && (await ctx.confirm("Keep scans and the archive catalog in a separate folder (e.g. a bigger disk)?", false))) {
         shared = ctx.resolvePath(await ctx.ask("Folder for shared data:", ctx.display(path.join(home, "shared"))));
+        refuseInProgram(ctx, "shared", shared);
+      }
       if (!flags.lang) lang = (await ctx.ask(`Research language (the agent talks with the user in it):`, lang)).toLowerCase();
       if (!flags.agent) agent = (await ctx.ask(`Which AI agent does the research? (${Object.keys(PROFILES).join(", ")})`, agent)).toLowerCase();
     }
@@ -135,24 +146,26 @@ register({
     // Where the user talks with it: said, and the other way when both are here (the user's choice, never guessed)
     const has = agentsHere(ctx.env).find((a) => a.id === agent);
     const where = has ? whereToTalk(agent, s.agentWhere(), ctx.env) : undefined;
+    // in the research's language, also when an agent or a script runs it (found on Windows: English to STROM_LANG=cs)
+    const t = (k: UIKey, v: Record<string, string> = {}) => ui(lang, k, v);
     const talk = !where
       ? undefined
-      : `${where === "app" ? `in the ${DESKTOP_APPS[agent]!.name} desktop app` : "in the terminal (its CLI)"}${has!.app && has!.cli ? ` — both are here; the user decides: strom setup --where ${where === "app" ? "terminal" : "app"}` : ""}`;
+      : `${where === "app" ? t("ui.setup.summary.app", { app: DESKTOP_APPS[agent]!.name }) : t("ui.setup.summary.terminal")}${has!.app && has!.cli ? t("ui.setup.summary.both", { where: where === "app" ? "terminal" : "app" }) : ""}`;
 
     const text = lines(
-      "Strom is set up.",
+      t("ui.setup.summary"),
       table([
-        ["  home", ctx.display(home)],
-        ["  trees", ctx.display(treesDir)],
-        ["  shared", ctx.display(sharedDir)],
-        ["  language", `${langName(lang)} (${lang})${langDetected ? " — detected from the system; the user speaks another? strom config set lang <code>" : ""}`],
-        ["  agent", `${PROFILES[agent]!.name}${installed.includes(agent) ? "" : " — not installed yet"}`],
-        ...(talk ? [["  talk", talk]] : []),
-        ...taught.map((a) => ["  knows strom", `${PROFILES[a]!.name}, in any folder`]),
-        ["  config", ctx.display(configFile(ctx.env))],
+        [`  ${t("ui.setup.summary.home")}`, ctx.display(home)],
+        [`  ${t("ui.setup.summary.trees")}`, ctx.display(treesDir)],
+        [`  ${t("ui.setup.summary.shared")}`, ctx.display(sharedDir)],
+        [`  ${t("ui.setup.summary.lang")}`, `${langName(lang, lang)} (${lang})${langDetected ? t("ui.setup.summary.detected") : ""}`],
+        [`  ${t("ui.setup.summary.agent")}`, `${PROFILES[agent]!.name}${installed.includes(agent) ? "" : t("ui.setup.summary.missing")}`],
+        ...(talk ? [[`  ${t("ui.setup.summary.talk")}`, talk]] : []),
+        ...taught.map((a) => [`  ${t("ui.setup.summary.knows")}`, t("ui.setup.summary.anywhere", { agent: PROFILES[a]!.name })]),
+        [`  ${t("ui.setup.summary.config")}`, ctx.display(configFile(ctx.env))],
       ]),
       "",
-      'next   strom init "<tree name, e.g. the family surname>"',
+      t("ui.init.next", { command: placeholders(lang, 'strom init "<family tree name>"') }),
     );
     return { text, data: { home, trees: treesDir, shared: sharedDir, lang, agent, ...(where ? { where } : {}), config: configFile(ctx.env) } };
   },
@@ -178,7 +191,15 @@ const FIX = "strom doctor --fix";
 
 /** Everything strom needs and has on this computer, in the user's language. */
 /** The checks of the agents: what they are, know, may do, where the person talks with them, their model and browser. */
-const AGENT_CHECKS = new Set(["agent", "knows", "where", "level", "model", "browser", "remote"]);
+const AGENT_CHECKS = new Set(["agent", "knows", "where", "level", "model", "browser", "remote", "fence"]);
+
+/** What doctor says of an isolated installation: its folder — a second one with a command of its own: the command and its links too. */
+function secondLine(ctx: Context, t: (key: UIKey, values?: Record<string, string | number>) => string): string {
+  if (!isolated(ctx.env)) return "";
+  const folder = ctx.display(installation().root ?? configDir(ctx.env));
+  const command = ownCommand(ctx.env);
+  return ` · ${command ? t("ui.doc.second", { command, folder, scheme: linkScheme(ctx.env) }) : t("ui.doc.isolated", { folder })}`;
+}
 
 function diagnose(ctx: Context): Check[] {
   const lang = ctx.uiLang();
@@ -188,10 +209,23 @@ function diagnose(ctx: Context): Check[] {
     checks.push({ name, label: t(`ui.doc.${name}` as UIKey), status, detail, ...(fix ? { fix } : {}), ...(repair ? { repair } : {}) });
 
   // The program itself: the installer's (its own Node), or npm's or the sources' on the Node of the computer.
+  // the channel said only when it is beta (the releases are what strom is: nothing said)
+  const beta = updateChannel(ctx.env) === "beta" ? ` · ${t("ui.doc.beta")}` : "";
   if (installation().kind === "installed")
-    add("program", "ok", `${t("ui.doc.installed", { version: VERSION, node: process.version })}${isolated(ctx.env) ? ` · ${t("ui.doc.isolated", { folder: ctx.display(installation().root ?? "") })}` : ""}`);
-  else if (nodeOk(process.version)) add("program", "ok", t("ui.doc.innode", { version: VERSION, node: process.version }));
+    add("program", "ok", `${t("ui.doc.installed", { version: VERSION, node: process.version })}${beta}${secondLine(ctx, t)}`);
+  // run from the sources or npm as a second strom (STROM_ISOLATED with STROM_COMMAND): said all the same
+  else if (ownCommand(ctx.env) && nodeOk(process.version)) add("program", "ok", `${t("ui.doc.innode", { version: VERSION, node: process.version })}${beta}${secondLine(ctx, t)}`);
+  else if (nodeOk(process.version)) add("program", "ok", `${t("ui.doc.innode", { version: VERSION, node: process.version })}${beta}`);
   else add("program", "fail", t("ui.doc.oldnode", { node: process.version }), "https://nodejs.org");
+  // The backup before another channel or an older version: one that could not be made (nothing switches until it is),
+  // else where the last one is, for a month
+  const backup = lastBackup(ctx.env, BACKUP_SAID_DAYS);
+  if (ctx.backupFailed) add("backup", "fail", t("ui.error.backup.failed", ctx.backupFailed.params ?? {}), t("ui.error.backup.failed.hint", ctx.backupFailed.params ?? {}));
+  else if (backup) add("backup", "ok", lastBackupLine(lang, backup));
+  // A connector runs fenced in on the Node strom runs on; only from Node 25 does the fence keep it off the network too.
+  // The installer's Node comes with strom update; npm's and the sources' are the person's own.
+  if (installation().kind !== "installed" && !fenceKeepsNetOff(process.version) && listConnectors(ctx.settings.shared()?.value).length)
+    add("fence", "warn", t("ui.doc.fence.net", { node: process.version }), "https://nodejs.org");
   const newer = knownNewerVersion(ctx.settings, ctx.env);
   if (newer) add("update", "warn", t("ui.doc.update.new", { version: newer }), "strom update");
 
@@ -203,12 +237,26 @@ function diagnose(ctx: Context): Check[] {
   if (!home) add("home", "fail", t("ui.doc.notsetup"), "strom setup");
   else {
     const exists = fs.existsSync(home.value);
-    add("home", exists ? "ok" : "fail", ctx.display(home.value), exists ? undefined : "strom setup");
+    // a second installation in the regular strom's folder: two installations on one research (its own: Strom <suffix>)
+    const { STROM_ISOLATED: _iso, STROM_COMMAND: _cmd, ...regular } = ctx.env;
+    // set up before inside strom's program folder (an isolated installation's research lay there): it goes on, said —
+    // on the line of the folder that lies there, with its own path (found on a Mac: the home's said for the trees')
+    const inProgram = (p: string | undefined) => !!p && !!insideProgram(p, { settings: configDir(ctx.env) });
+    const program = (p: string) => `${ctx.display(p)} · ${t("ui.doc.home.program")}`;
+    const homeIn = inProgram(home.value);
+    if (homeIn) add("home", "warn", program(home.value), "strom setup");
+    else if (isolated(ctx.env) && path.resolve(home.value) === path.resolve(defaultHome(regular))) add("home", "warn", `${ctx.display(home.value)} · ${t("ui.doc.home.regular")}`, "strom setup");
+    else add("home", exists ? "ok" : "fail", ctx.display(home.value), exists ? undefined : "strom setup");
     const shared = ctx.settings.shared()!;
     const sharedOk = SHARED_DIRS.every((d) => fs.existsSync(path.join(shared.value, d)));
-    add("shared", sharedOk ? "ok" : "warn", ctx.display(shared.value), sharedOk ? undefined : "strom setup --yes");
+    if (inProgram(shared.value)) add("shared", "warn", program(shared.value), "strom setup");
+    else add("shared", sharedOk ? "ok" : "warn", ctx.display(shared.value), sharedOk ? undefined : "strom setup --yes");
     const trees = ctx.knownTrees();
-    add("trees", "ok", trees.length ? trees.map((k) => k.name).join(", ") : t("ui.doc.none"));
+    // the trees' folder and the trees known elsewhere that lie there — what the home's line said already left out
+    const treeFolders = [...new Set([ctx.settings.trees()?.value, ...trees.map((k) => k.root)].filter((p): p is string => inProgram(p)))];
+    const treesIn = treeFolders.filter((p) => !(homeIn && holdsPath(home.value, p)) && !treeFolders.some((o) => o !== p && holdsPath(o, p)));
+    if (treesIn.length) add("trees", "warn", treesIn.map(program).join(" · "), "strom setup");
+    else add("trees", "ok", trees.length ? trees.map((k) => k.name).join(", ") : t("ui.doc.none"));
     // the disk: what strom keeps beside each research (strom tidy frees it), the shared scans (only said)
     const named = new Set<string>();
     let beside = 0;
@@ -250,7 +298,7 @@ function diagnose(ctx: Context): Check[] {
   // Agents: their CLI or their desktop app — found, never started here.
   const here = agentsHere(ctx.env);
   const found = here.map((a) => a.id);
-  const tree = ctx.hasTree() ? ctx.tree().config : undefined;
+  const tree = treeSettings(ctx);
   const chosen = ctx.settings.agent(tree).value;
   // None strom knows, and no person at a terminal: another agent or program runs strom (a bot on its own
   // server, found live: Grok Bot) — it does the research through strom, nothing is missing for it.
@@ -305,15 +353,29 @@ function diagnose(ctx: Context): Check[] {
   // (an isolated installation uses none on purpose: the app is the person's own strom's)
   if (isolated(ctx.env)) add("app", "ok", t("ui.doc.app.isolated"));
   else add("app", "ok", t(`ui.doc.app.${app}` as UIKey), app === "unknown" ? FIX : undefined, app === "unknown" ? "app" : undefined);
+  // the copy of the app strom opens: a setting that says no address of it (STROM_APP_URL, or written by hand into the
+  // settings) is a problem said with its way out — doctor never fails on it (strom app refuses to open it)
+  const appUrl = appUrlSetting(ctx.settings).invalid;
+  if (appUrl)
+    add(
+      "appurl",
+      "fail",
+      t(appUrl.source === "env" ? "ui.doc.appurl.env" : "ui.doc.appurl.config", { value: appUrl.value }),
+      appUrl.source === "env"
+        ? t("ui.doc.appurl.env.fix", { web: appWebPages(ctx.env) })
+        : placeholders(lang, "strom config set strom.app.url <address> · strom config unset strom.app.url"),
+    );
   // …and whether it may start the research here (strom-research:// links): only while the app is wanted
   if (app !== "no" && appOpensLinks(ctx.settings)) {
     const links = linkHandlerState(ctx.env);
-    if (isolated(ctx.env)) add("links", "ok", t("ui.doc.links.isolated"));
+    if (noLinks(ctx.env)) add("links", "ok", t("ui.doc.links.isolated"));
     else if (links === "ours") add("links", "ok", t("ui.doc.links.ours"));
     else add("links", "warn", t(`ui.doc.links.${links}` as UIKey), FIX, "links");
   }
 
-  if (ctx.hasTree()) {
+  const locked = lockedTree(ctx);
+  if (locked) add("tree", "fail", t("ui.error.tree.newer", locked.params ?? {}), (locked.details as { way?: string } | undefined)?.way);
+  else if (ctx.hasTree()) {
     const tr = ctx.tree();
     const errs = check(tr).filter((f) => f.level === "error").length + verifyFull(tr).findings.filter((f) => f.level === "error").length;
     if (errs === 0) add("tree", "ok", t("ui.doc.tree.ok", { name: tr.config.name }));
@@ -342,7 +404,8 @@ async function repair(ctx: Context, checks: Check[], out: (line: string) => void
     for (const f of createShortcut(shortcutName(lang), ctx.env)) out(ui(lang, "ui.setup.shortcut.done", { file: ctx.display(f) }));
   }
   if (todo.has("links") && person) await offerLinks(ctx, lang);
-  if (todo.has("app") && person && (await ctx.confirm(ui(lang, "ui.fix.app"), false))) {
+  // (never into the address of an invalid strom.app.url: its check says how to put it right)
+  if (todo.has("app") && person && !appUrlSetting(ctx.settings).invalid && (await ctx.confirm(ui(lang, "ui.fix.app"), false))) {
     openForUser(stromAppUrl(ctx.settings), ctx.env);
     out(ui(lang, "ui.app.install"));
   }
@@ -394,34 +457,74 @@ register({
     "strom looks for a new version at most once a day and says so (the menu, strom, strom doctor); the setting updates off\n" +
     "stops it. A person at their terminal is asked there (--yes: no question); asked by an agent, strom asks in a window of the\n" +
     "system. Installed with npm: npm install -g strom-research@latest.",
-  options: [{ name: "check", type: "boolean", description: "only say whether there is a new version" }],
+  options: [
+    { name: "check", type: "boolean", description: "only say whether there is a new version" },
+    // which versions the installation takes from now on: the newest of that channel installed, an older one too
+    { name: "channel", type: "string", value: "<beta|stable>", description: "the versions to take from now on", hidden: true },
+  ],
   examples: ["strom update --check", "strom update"],
   async run(ctx, { opts }) {
     const lang = ctx.uiLang();
     const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
-    const newest = await latestVersion(ctx.env, 8000);
-    if (!newest) throw new StromError(t("ui.update.unknown"), { hint: "check the network — or run the installer again" });
-    ctx.settings.config.updateCheck = { at: new Date().toISOString(), latest: newest };
+    const said = opts.channel as string | undefined;
+    if (said !== undefined && said !== "beta" && said !== "stable") throw new UsageError(`--channel takes beta or stable, not "${said}"`, { hint: "strom update --channel stable" });
+    const to = said as Channel | undefined;
+    const channel = to ?? updateChannel(ctx.env);
+    const latest = await latestRelease(ctx.env, { channel, timeoutMs: 8000 });
+    // the person's words in their language (the → line too); a program reads the English and the code (--json)
+    if (!latest) throw new StromError(UI["ui.error.update.unknown"], { hint: UI["ui.error.update.unknown.hint"], code: "update.unknown" });
+    const newest = latest.version;
+    ctx.settings.config.updateCheck = checked(newest, channel);
     ctx.settings.save();
     const inst = installation();
+    // npm's strom is npm's to update: its tag of the channel
+    if (to && inst.kind === "npm") return { text: t("ui.update.npm.channel", { tag: to === "beta" ? "beta" : "latest" }), data: { current: VERSION, latest: newest, channel: to, npm: true } };
+    // another channel: its newest version, an older one too (back from a beta); the installer's only
+    const switching = !!to && inst.kind === "installed";
     // The installer's Node: the newest release of its line (security fixes) is taken along.
-    const node = inst.kind === "installed" ? await newerNode(ctx.env, inst.node).catch(() => undefined) : undefined;
-    const newer = isNewer(newest, VERSION);
-    if (!newer && !node) return { text: t("ui.update.current", { version: VERSION }), data: { current: VERSION, latest: newest, newer: false } };
+    const node = inst.kind === "installed" ? await newerNode(ctx.env, inst.node, latest.base).catch(() => undefined) : undefined;
+    const newer = switching ? newest !== VERSION : isNewer(newest, VERSION);
+    const extra = to ? { channel: to } : {};
+    if (!newer && !node) {
+      // the same version on the other channel: only what the installation takes from now on changes
+      if (switching && !opts.check && to !== (inst.channel ?? "stable")) {
+        refuseResearchInProgram(ctx, inst.root!);
+        // the research backed up first: the next run is of another channel
+        const backup = backupForUpdate(ctx, newest, to!);
+        setInstallChannel(inst.root!, to!);
+        return {
+          text: lines(backup ? backupSaid(ctx, backup) : undefined, t("ui.update.current", { version: VERSION }), t(`ui.update.channel.${to!}.now` as UIKey)),
+          data: { current: VERSION, latest: newest, newer: false, ...extra, ...(backup ? { backup: { path: backup.path, bytes: backup.bytes } } : {}) },
+        };
+      }
+      return { text: t("ui.update.current", { version: VERSION }), data: { current: VERSION, latest: newest, newer: false, ...extra } };
+    }
     const nodeLine = node ? t("ui.update.node.available", { from: inst.node ?? "?", to: node.version }) : undefined;
     if (opts.check)
-      return { text: lines(newer ? t("ui.update.available", { version: newest, current: VERSION }) : undefined, nodeLine), data: { current: VERSION, latest: newest, newer, ...(node ? { node: node.version } : {}) } };
-    if (inst.kind !== "installed") return { text: t(inst.kind === "npm" ? "ui.update.npm" : "ui.update.source", { version: newest }), data: { current: VERSION, latest: newest, newer: true, npm: inst.kind === "npm" } };
-    const question = newer ? t("ui.update.sure", { version: newest, current: VERSION }) : t("ui.update.node.sure", { from: inst.node ?? "?", to: node!.version });
+      return { text: lines(newer ? t("ui.update.available", { version: newest, current: VERSION }) : undefined, nodeLine), data: { current: VERSION, latest: newest, newer, ...(node ? { node: node.version } : {}), ...extra } };
+    if (inst.kind !== "installed")
+      return { text: inst.kind === "npm" ? t("ui.update.npm", { version: newest, tag: channel === "beta" ? "beta" : "latest" }) : t("ui.update.source", { version: newest }), data: { current: VERSION, latest: newest, newer: true, npm: inst.kind === "npm" } };
+    // the research where the update replaces the program: nothing asked, backed up or installed
+    refuseResearchInProgram(ctx, inst.root!);
+    const older = newer && isNewer(VERSION, newest);
+    const question = switching
+      ? `${t(`ui.update.channel.${to!}.sure` as UIKey, { version: newest, current: VERSION })} ${older ? t("ui.update.older", { version: newest, current: VERSION }) : t("ui.update.stays")}`
+      : newer
+        ? t("ui.update.sure", { version: newest, current: VERSION })
+        : t("ui.update.node.sure", { from: inst.node ?? "?", to: node!.version });
     if (isAgent(ctx.env) || !ctx.yes) {
       if (!isAgent(ctx.env) && ctx.interactive) {
-        if (!(await ctx.confirm(question, true))) return { text: t("ui.update.later"), data: { current: VERSION, latest: newest, updated: false } };
-      } else ctx.requireHuman(`update strom to ${newest}`, "strom update", "update", question);
+        if (!(await ctx.confirm(question, true))) return { text: t("ui.update.later"), data: { current: VERSION, latest: newest, updated: false, ...extra } };
+      } else ctx.requireHuman(`update strom to ${newest}${to ? ` (--channel ${to})` : ""}`, to ? `strom update --channel ${to}` : "strom update", "update", question);
     }
+    // Another channel, or an older version: every research and the settings backed up before anything is installed —
+    // none made, nothing installed (Milan, 2026-10-07: "přechod beta ↔ produkce nikdy nepřijde o data")
+    const backup = backupForUpdate(ctx, newest, to ?? channel);
+    if (backup) ctx.io.stderr(`${backupSaid(ctx, backup)}\n`);
     if (ctx.interactive) ctx.io.stdout(`${t("ui.update.downloading", { version: newest })}\n`);
     let done: Updated;
     try {
-      done = await installUpdate(ctx.env, inst.root!);
+      done = await installUpdate(ctx.env, inst.root!, process.platform, { release: latest, keep: ctx.researchFolders(), ...(switching ? { channel: to! } : {}) });
     } catch (e) {
       throw new StromError(t("ui.update.failed", { detail: (e as Error).message }), { hint: "strom update — or run the installer again" });
     }
@@ -437,20 +540,81 @@ register({
     }
     return {
       text: lines(newer ? t("ui.update.done", { version: done.version, previous: VERSION }) : undefined, done.node ? t("ui.update.node.done", done.node) : undefined, bridges ? t("ui.update.bridges", { n: bridges }) : undefined),
-      data: { previous: VERSION, version: done.version, updated: true, ...(done.node ? { node: done.node } : {}), bridges },
+      data: { previous: VERSION, version: done.version, updated: true, ...(done.node ? { node: done.node } : {}), bridges, ...extra, ...(backup ? { backup: { path: backup.path, bytes: backup.bytes } } : {}) },
     };
   },
 });
+
+/**
+ * strom update replaces app/ and node/ of the installer's folder (app.old/ goes): a research, its backups, the settings
+ * inside them would go with it (found 2026-10-07: a home set inside app/ went with the update, and the backup made
+ * just before it). Then nothing is asked, backed up or installed — said why and how to move the research.
+ */
+function refuseResearchInProgram(ctx: Context, root: string): void {
+  const at = replacedHolding(root, ctx.researchFolders())[0];
+  if (!at) return;
+  const { folder: hit, entry } = at;
+  throw new StromError(`${ctx.display(hit)} lies inside ${ctx.display(entry)}, which strom update replaces — the research would go with it; nothing was installed`, {
+    hint: "move the research out of strom's program folder first: the user runs strom setup in their own terminal (its folder question moves the research along), then strom update again",
+    code: "update.in-program",
+    params: { folder: ctx.display(hit), entry: ctx.display(entry) },
+    details: { folder: hit, entry },
+  });
+}
+
+/**
+ * Before strom update installs another channel or an older version: the backup the next run of that version would
+ * otherwise make (the same change: from what ran here last, its channel, to the version and channel installed). Made
+ * by this strom, before anything is installed; throws when it cannot (nothing installed). None needed: undefined.
+ */
+function backupForUpdate(ctx: Context, newest: string, target: Channel): BackupRecord | undefined {
+  const current = updateChannel(ctx.env);
+  if (target === current && !isNewer(VERSION, newest)) return undefined;
+  // the channel that ran here last kept (a config from before channels: stable, a strom before them was a release;
+  // none recorded at all: this strom's), so the next run knows the change
+  ctx.settings.config.lastChannel ??= lastChannelOf(ctx.settings.config) ?? current;
+  const made = backupBefore(ctx, { from: ctx.settings.config.lastVersion ?? VERSION, to: newest, fromChannel: ctx.settings.config.lastChannel, toChannel: target }, { update: { channel: target } });
+  ctx.settings.save();
+  return made;
+}
 
 function display(ctx: Context, def: SettingDef, value: string | number | undefined): string {
   if (value === undefined) return "(unset)";
   return def.kind === "path" ? ctx.display(String(value)) : String(value);
 }
 
+/**
+ * The research here, when a newer strom wrote it (never opened: tree.newer), else none. Its own settings are not read
+ * then: the settings of this computer go on — config get, doctor (found on Windows: config get home said nothing).
+ */
+function lockedTree(ctx: Context): StromError | undefined {
+  if (!ctx.hasTree()) return undefined;
+  try {
+    ctx.tree();
+    return undefined;
+  } catch (e) {
+    if (e instanceof StromError && (e.details as { locked?: boolean } | undefined)?.locked) return e;
+    throw e;
+  }
+}
+
+/** The settings of the research here (strom.json), none where there is none or a newer strom wrote it. */
+function treeSettings(ctx: Context): TreeConfig | undefined {
+  return ctx.hasTree() && !lockedTree(ctx) ? ctx.tree().config : undefined;
+}
+
 /** Effective value of a setting, with the default filled in. */
-function effective(ctx: Context, def: SettingDef): { value: string | number | undefined; source: string } {
+function effective(ctx: Context, def: SettingDef): { value: string | number | undefined; source: string; invalid?: true } {
   const s = ctx.settings;
-  const tree = ctx.hasTree() ? ctx.tree().config : undefined;
+  // the address of the Strom app: read as everything reads it (appUrlSetting) — never failing; one that is no address of
+  // the app is shown as found, marked invalid (B1-e)
+  if (def.key === "strom.app.url") {
+    const said = appUrlSetting(s);
+    if (said.invalid) return { value: said.invalid.value, source: said.invalid.source, invalid: true };
+    const r = s.resolve(def.key);
+    return r ?? { value: said.url, source: "default" };
+  }
+  const tree = treeSettings(ctx);
   if (def.key === "home") return s.home() ?? { value: undefined, source: "unset" };
   if (def.key === "shared") return s.shared() ?? { value: undefined, source: "unset" };
   if (def.key === "trees") return s.trees() ?? { value: undefined, source: "unset" };
@@ -476,7 +640,7 @@ function effective(ctx: Context, def: SettingDef): { value: string | number | un
  */
 /** What only the user decides about what the Strom app sends: their edits winning over records, sends written unasked. */
 function syncDecisions(ctx: Context, key: string, value: string | number | undefined): void {
-  const tree = ctx.hasTree() ? ctx.tree().config : undefined;
+  const tree = treeSettings(ctx);
   if (key === "sync.edits" && value === "user" && ctx.settings.syncEdits(tree) !== "user")
     ctx.requireHuman("Let your edits in the Strom app win over what a record says (the record's fact withdrawn with the reason)?", "strom config set sync.edits user", "sync.edits", ui(ctx.uiLang(), "ui.consent.edits.user"));
   if (key === "sync.review" && value !== "on" && ctx.settings.syncReview(tree))
@@ -524,9 +688,29 @@ function guardResearchFolder(ctx: Context, key: string, next: string | undefined
   });
 }
 
+/** The folder of the research as the settings of this computer keep it (a flag of this command aside). */
+function storedFolder(ctx: Context, key: "home" | "trees" | "shared"): string | undefined {
+  const cfg = ctx.settings.config;
+  const p = key === "home" ? cfg.home : key === "trees" ? (cfg.trees ?? cfg.home) : (cfg.shared ?? (cfg.home ? path.join(cfg.home, "shared") : undefined));
+  return p ? ctx.resolvePath(p) : undefined;
+}
+
+/**
+ * A folder of the research set anew (strom setup, config set) never inside strom's program folder: an update replaces
+ * what is there, an uninstall takes it away. The one the settings name already goes on (an isolated installation set
+ * up before kept its research in its program's folder; doctor says to move it).
+ */
+export function refuseInProgram(ctx: Context, key: "home" | "trees" | "shared", value: string): void {
+  const target = ctx.resolvePath(value);
+  const now = storedFolder(ctx, key);
+  if (now && sameFolder(target, now)) return;
+  ctx.refuseProgramFolder(key, target);
+}
+
 function setUserSetting(ctx: Context, key: string, value: string | number | undefined): void {
   const s = ctx.settings;
   syncDecisions(ctx, key, value);
+  if ((key === "home" || key === "trees" || key === "shared") && value !== undefined) refuseInProgram(ctx, key, String(value));
   guardResearchFolder(ctx, key, value === undefined ? undefined : String(value));
   // Loosening the agent's permissions is the user's decision alone.
   if (key === "agent.permissions" && raises(s.agentPermissions(), value))
@@ -537,7 +721,7 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
       ui(ctx.uiLang(), value === "full" ? "ui.consent.level.full" : "ui.consent.level.auto"),
     );
   // The browser in every session: the user's decision alone.
-  if (key === "agent.browser" && value === "always" && s.resolve("agent.browser", ctx.hasTree() ? ctx.tree().config : undefined)?.value !== "always")
+  if (key === "agent.browser" && value === "always" && s.resolve("agent.browser", treeSettings(ctx))?.value !== "always")
     ctx.requireHuman("Give the agent browser tools (Claude in Chrome) in every research session?", "strom config set agent.browser always", "agent.browser", ui(ctx.uiLang(), "ui.consent.browser"));
   // Sessions steered from elsewhere (Remote Control): the user's decision alone.
   if (key === "agent.remote" && value === "on" && !s.agentRemote())
@@ -559,7 +743,7 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
     ensureGatesDir(sh);
     loadGate(sh, value);
   }
-  writeStored(s.config, key, s.agent(ctx.hasTree() ? ctx.tree().config : undefined).value, value);
+  writeStored(s.config, key, s.agent(treeSettings(ctx)).value, value);
   s.save();
   if (key === "shared" && typeof value === "string") ensureShared(value);
 }
@@ -572,17 +756,19 @@ register(
     run(ctx) {
       const rows = SETTINGS.map((def) => {
         const r = effective(ctx, def);
-        return { key: def.key, value: r.value, source: r.source, env: def.env, tree: def.tree, description: def.description };
+        return { key: def.key, value: r.value, source: r.source, env: def.env, tree: def.tree, description: settingDescription(def, ctx.env), ...(r.invalid ? { invalid: true } : {}) };
       });
+      const invalid = rows.filter((r) => r.invalid).map((r) => r.key);
       const text = lines(
-        table(rows.map((r) => [r.key, display(ctx, settingDef(r.key), r.value), r.source, r.env])),
+        table(rows.map((r) => [r.key, `${display(ctx, settingDef(r.key), r.value)}${r.invalid ? "  (invalid)" : ""}`, r.source, r.env])),
         "",
+        ...(invalid.length ? [APP_URL_INVALID_SETTING, ""] : []),
         "order: flag > env > tree (strom.json) > config > default",
         `change: strom config set <key> <value> [--for-tree]  ·  strom config unset <key> [--for-tree]`,
         `other env: ${OTHER_ENV.map((e) => e.env).join(" ")}  (strom help config where)`,
         `config file: ${ctx.display(configFile(ctx.env))}`,
       );
-      return { text, data: { settings: rows, otherEnv: OTHER_ENV, file: configFile(ctx.env) } };
+      return { text, data: { settings: rows, otherEnv: OTHER_ENV, file: configFile(ctx.env), ...(invalid.length ? { invalid } : {}) } };
     },
     description:
       "Settings a tree can carry (lang, agent, model.*, brief.budget, run.minutes) are set per tree with --for-tree.\n" +
@@ -596,7 +782,10 @@ register(
     run(ctx, { args }) {
       const def = settingDef(args[0]!);
       const r = effective(ctx, def);
-      return { text: r.value === undefined ? "" : display(ctx, def, r.value), data: { key: def.key, value: r.value, source: r.source } };
+      const shown = r.value === undefined ? "" : display(ctx, def, r.value);
+      // a strom.app.url that is no address of the app: as found, and said so (B1-e)
+      if (r.invalid) return { text: lines(`${shown}  (invalid)`, APP_URL_INVALID_SETTING), data: { key: def.key, value: r.value, source: r.source, invalid: [def.key] } };
+      return { text: shown, data: { key: def.key, value: r.value, source: r.source } };
     },
   },
   {
@@ -611,7 +800,7 @@ register(
     examples: ["strom config set lang cs", 'strom config set shared "/Volumes/Big/strom-shared"', "strom config set model.vision opus --for-tree", "strom config set run.minutes 45"],
     run: async (ctx, { args, opts }) => {
       const def = settingDef(args[0]!);
-      const value = checkValue(def, args[1]!, (p) => ctx.resolvePath(p));
+      const value = checkValue(def, args[1]!, (p) => ctx.resolvePath(p), ctx.env);
       // In their own terminal the user reads what full means and says yes once more.
       if (def.key === "agent.permissions" && value === "full" && ctx.settings.agentPermissions() !== "full" && !opts["for-tree"] && ctx.interactive && !isAgent(ctx.env)) {
         const lang = ctx.uiLang();

@@ -92,6 +92,25 @@ test("installed from the Strom app, the research kept as an archive (no AI): no 
   w.cleanup();
 });
 
+test("installed from the Strom app on the beta channel (B1): the app's beta is what it opens anyway — no setting kept; stromapp.info's line keeps stromapp.info", { skip: !hasGit || process.platform === "win32" }, async () => {
+  for (const [line, kept] of [["https://beta.stromapp.info/run/", undefined], [undefined, "https://stromapp.info/run/"]] as const) {
+    const w = new World();
+    w.env.PATH = pathWith(w, ["claude"]);
+    w.env.STROM_CHANNEL = "beta";
+    w.env.STROM_FROM_APP = "SW5zdGFsbGVkLWZyb20tdGhlLWFwcC1tYXJrLTAwMDM";
+    if (line) w.env.STROM_APP_URL = line;
+    await w.ok(["setup"], { answers: ["cs", "", "1", "n", "n", "n"] });
+    assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).stromAppUrl, kept, `the line of ${line ?? "stromapp.info"}`);
+    delete w.env.STROM_FROM_APP;
+    delete w.env.STROM_APP_URL;
+    assert.equal((await w.ok(["app", "--json"])).json.url, line ?? "https://stromapp.info/run/");
+    // back on the releases: the line of the app's beta leaves the default, stromapp.info's
+    delete w.env.STROM_CHANNEL;
+    assert.equal((await w.ok(["app", "--json"])).json.url, "https://stromapp.info/run/");
+    w.cleanup();
+  }
+});
+
 test("the setup wizard of an isolated installation (trying a version) offers no Strom app, no links and no shortcut: they are the person's own strom's", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
@@ -394,6 +413,23 @@ test("a new version: seen at most once a day, said by strom, the menu and doctor
   w.cleanup();
 });
 
+test("strom update with no release list to reach says what to do in the person's language — never an English hint under a Czech sentence; a program reads the English and the code (B-4)", { skip: !hasGit }, async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  w.env.STROM_DOWNLOAD_BASE = `file://${path.join(w.dir, "no release here")}`;
+  const cs = await w.run(["update"]);
+  assert.notEqual(cs.code, 0);
+  assert.equal(cs.err, "chyba: nepodařilo se zjistit nejnovější verzi stromu\n→ zkontrolovat připojení k síti – nebo spustit instalátor znovu\n");
+  const de = await w.run(["update"], { env: { STROM_LANG: "de" } });
+  assert.match(de.err, /→ die Netzwerkverbindung prüfen – oder das Installationsprogramm erneut ausführen\n$/);
+  assert.doesNotMatch(de.err, /network|installer/);
+  const en = await w.run(["update"], { env: { STROM_LANG: "en" } });
+  assert.match(en.err, /: the newest version of strom could not be learned\n→ check the network — or run the installer again\n$/);
+  const json = (await w.run(["update", "--json"])).json;
+  assert.deepEqual([json.code, json.message, json.hint], ["update.unknown", "the newest version of strom could not be learned", "check the network — or run the installer again"]);
+  w.cleanup();
+});
+
 test("installed from the Strom app with an agent here: the research with it is suggested (Enter), an archive the other choice; no agent: an archive, nothing asked", { skip: !hasGit || process.platform === "win32" }, async () => {
   const mark = "SW5zdGFsbGVkLWZyb20tdGhlLWFwcC1tYXJrLTAwMDE";
   const config = (w: World) => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
@@ -421,4 +457,120 @@ test("installed from the Strom app with an agent here: the research with it is s
   assert.match(again.out, /Vybrat \[1\]/);
   assert.equal(config(b).mode, "archive");
   b.cleanup();
+});
+
+test("the channel of the versions: --channel of strom update is never shown (help, strom commands, a hint); a beta channel asks GitHub's list and keeps its look apart; doctor says beta only on it", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = new World();
+  await w.withTree();
+  assert.doesNotMatch((await w.ok(["help", "update"])).out, /channel|beta/i);
+  const listed = (await w.ok(["commands", "setup", "--json"])).json;
+  assert.doesNotMatch(JSON.stringify(listed), /channel|beta/i);
+  const typo = await w.run(["update", "--chanel", "beta"]);
+  assert.notEqual(typo.code, 0);
+  assert.doesNotMatch(typo.err, /--channel/, "no hint of it");
+  const bad = await w.run(["update", "--channel", "nightly"]);
+  assert.notEqual(bad.code, 0);
+  assert.match(bad.err, /--channel takes beta or stable/);
+  // the releases: nothing of a beta anywhere
+  const release = path.join(w.dir, "release");
+  fs.mkdirSync(release);
+  fs.writeFileSync(path.join(release, "VERSION"), "99.0.0\n");
+  w.env.STROM_DOWNLOAD_BASE = `file://${release}`;
+  w.env.STROM_UPDATES = "check";
+  assert.doesNotMatch((await w.run(["doctor"])).out, /beta/i);
+  assert.equal((await w.ok(["update", "--check", "--json"])).json.latest, "99.0.0");
+  // the beta channel: GitHub's list (a file here), its newest by semver; its look kept apart from the releases'
+  delete w.env.STROM_DOWNLOAD_BASE;
+  const api = path.join(w.dir, "releases.json");
+  fs.writeFileSync(api, JSON.stringify([{ tag_name: "v99.0.0-beta.2", draft: false }, { tag_name: "v99.0.0-beta.10", draft: false }, { tag_name: "v100.0.0", draft: true }]));
+  Object.assign(w.env, { STROM_CHANNEL: "beta", STROM_RELEASES_API: api });
+  assert.equal((await w.ok(["--json"])).json.update, "99.0.0-beta.10", "the releases' look is no beta's: asked again");
+  const cfg = readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
+  assert.deepEqual([cfg.updateCheck.latest, cfg.updateCheck.channel], ["99.0.0-beta.10", "beta"]);
+  assert.equal((await w.ok(["update", "--check", "--json"])).json.latest, "99.0.0-beta.10");
+  assert.match((await w.run(["doctor"])).out, /beta verze/);
+  // back on the releases: the beta's look is none for them
+  w.env.STROM_CHANNEL = "stable";
+  w.env.STROM_DOWNLOAD_BASE = `file://${release}`;
+  assert.equal((await w.ok(["--json"])).json.update, "99.0.0");
+  w.cleanup();
+});
+
+test("strom setup --yes says what it set up in the research's language, also when an agent or a script runs it (found on Windows: STROM_LANG=cs, \"Strom is set up.\")", async () => {
+  const w = new World();
+  const cs = await w.ok(["setup", "--yes"], { env: { STROM_LANG: "cs" } });
+  assert.match(cs.out, /^Strom je nastavený\./);
+  assert.match(cs.out, /\n {2}jazyk\s+čeština \(cs\)\n/);
+  assert.match(cs.out, /\ndál\s+strom init "<název, např\. příjmení rodu>"/);
+  assert.doesNotMatch(cs.out, /set up|language|next/);
+  const en = await w.ok(["setup", "--yes", "--lang", "en"]);
+  assert.match(en.out, /^Strom is set up\.\n {2}home/);
+  assert.match(en.out, /\nnext\s+strom init "<tree name, e\.g\. the family surname>"/);
+  w.cleanup();
+});
+
+test("a research a newer strom wrote keeps the settings of this computer readable: config get, config set, doctor say what they say there, the research untouched (found on Windows: config get home said nothing)", { skip: !hasGit }, async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Zkouška"]);
+  const root = w.treeDir("Zkouška");
+  const file = path.join(root, "strom.json");
+  fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, "utf8")), schema: 99, migratedWith: "9.9.9" }, null, 2) + "\n");
+  const before = fs.readFileSync(file, "utf8");
+  for (const cwd of [root, w.dir]) {
+    const home = await w.ok(["config", "get", "home", "--json"], { cwd });
+    assert.equal(home.json.value, w.home);
+    assert.equal((await w.ok(["config", "get", "lang", "--json"], { cwd })).json.value, "cs");
+  }
+  await w.ok(["config", "set", "run.minutes", "30"], { cwd: root });
+  assert.equal((await w.ok(["config", "get", "run.minutes", "--json"], { cwd: root })).json.value, 30);
+  const doctor = await w.run(["doctor", "--json"], { cwd: root });
+  const line = doctor.json.checks.find((c: { name: string }) => c.name === "tree");
+  assert.equal(line.status, "fail");
+  assert.match(line.detail, /9\.9\.9/);
+  assert.equal(line.fix, "strom update");
+  assert.equal((await w.run(["config", "set", "run.minutes", "40", "--for-tree"], { cwd: root })).code, 1, "the research's own settings: never written");
+  assert.equal(fs.readFileSync(file, "utf8"), before);
+  w.cleanup();
+});
+
+test("a question in a window is said to wait there only when a window is shown: with dialogs off (or no desktop) strom update and the other askers answer at once as without a terminal (exit 4), saying nothing of a window", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const { VERSION } = await import("../../src/core/tree.ts");
+  const { canShowDialog } = await import("../../src/core/dialog.ts");
+  assert.equal(canShowDialog({ STROM_NO_DIALOG: "1" }, "darwin"), false);
+  assert.equal(canShowDialog({}, "darwin"), true);
+  assert.equal(canShowDialog({ PATH: "" }, "linux"), false, "no desktop");
+  assert.equal(canShowDialog({ DISPLAY: ":0", PATH: "" }, "linux"), false, "no dialog tool");
+  const w = new World();
+  const tree = await w.withTree();
+  const window = /okně systému|window of the system|Fenster des Systems/;
+  // strom update of an installation (built from the sources), a newer release out
+  const root = path.join(w.dir, "inst");
+  const app = path.join(root, "app");
+  const repo = path.resolve(import.meta.dirname, "..", "..");
+  const built = spawnSync(process.execPath, [path.join(repo, "node_modules", "typescript", "bin", "tsc"), "-p", path.join(repo, "tsconfig.build.json"), "--outDir", path.join(app, "dist")], { encoding: "utf8" });
+  assert.equal(built.status, 0, built.stdout + built.stderr);
+  fs.symlinkSync(path.join(repo, "assets"), path.join(app, "assets"));
+  fs.writeFileSync(path.join(app, "package.json"), JSON.stringify({ name: "strom-research", version: VERSION, type: "module" }));
+  fs.writeFileSync(path.join(root, "install.json"), JSON.stringify({ launchers: [], node: "26.9.0", version: VERSION }));
+  const release = path.join(w.dir, "release");
+  fs.mkdirSync(release);
+  fs.writeFileSync(path.join(release, "VERSION"), "99.0.0\n");
+  fs.writeFileSync(path.join(release, "NODE_VERSION"), "26.9.0\n");
+  const env = { ...w.env, STROM_DOWNLOAD_BASE: `file://${release}`, STROM_NODE_BASE: `file://${path.join(w.dir, "no-node")}`, STROM_UPDATES: "check" };
+  for (const lang of ["cs", "en", "de"]) {
+    const r = spawnSync(process.execPath, [path.join(app, "dist", "cli.js"), "update", "--json", "--lang", lang], { cwd: tree, env: env as NodeJS.ProcessEnv, encoding: "utf8" });
+    assert.equal(r.status, 4, r.stdout + r.stderr);
+    assert.equal(JSON.parse(r.stdout).status, "needs-consent");
+    assert.doesNotMatch(r.stdout + r.stderr, window, `${lang}: no window shown, none said`);
+  }
+  assert.equal(fs.readFileSync(path.join(root, "install.json"), "utf8").includes("99.0.0"), false, "nothing installed");
+  // the same asking of an agent (strom uninstall): no window here — none said; with one, said before it waits
+  w.env.CLAUDECODE = "1";
+  const none = await w.run(["uninstall", "--json"]);
+  assert.equal(none.code, 4, none.out + none.err);
+  assert.doesNotMatch(none.out + none.err, window);
+  const shown = await w.run(["uninstall"], { dialog: false });
+  assert.match(shown.err, window);
+  w.cleanup();
 });

@@ -1,6 +1,6 @@
 {
   "name": "strom-research",
-  "version": "1.12.1",
+  "version": "1.13.0",
   "description": "Genealogical research toolkit for AI coding agents",
   "type": "module",
   "bin": {
@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "tsc -p tsconfig.build.json",
     "prepack": "npm run build",
+    "prepublishOnly": "node scripts/npm-channel.ts",
     "release": "node scripts/build-release.ts"
   },
   "keywords": [
@@ -31,13 +32,16 @@
     "cli"
   ],
   "author": "Milan Víšek",
+  "contributors": [
+    "Claude (Anthropic)"
+  ],
   "homepage": "https://github.com/ACiDekCZ/strom-research#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ACiDekCZ/strom-research.git"
   },
   "bugs": "https://github.com/ACiDekCZ/strom-research/issues",
-  "license": "MPL-2.0",
+  "license": "AGPL-3.0-or-later AND MIT",
   "devDependencies": {
     "@types/node": "^22.20.4",
     "typescript": "^7.0.2"

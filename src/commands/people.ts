@@ -18,8 +18,10 @@ import {
   formatName,
   label,
   lifespan,
+  primaryName,
   relationTo,
   resolvePerson,
+  titledName,
 } from "../core/people.ts";
 import { resolveResearch } from "./research.ts";
 import { DEATH_AFTER_YEARS, unprovenPeople, type UnprovenKind } from "../core/review.ts";
@@ -119,7 +121,7 @@ function citesOf(citations: Citation[] | undefined, w: Words = ENGLISH): string 
 
 function nameLine(n: Name, w: Words = ENGLISH): string {
   const cites = citesOf(n.citations, w);
-  return `${formatName(n)}${n.kind ? ` (${w.word("name", n.kind)})` : ""}${cites ? `  ← ${cites}` : ""}`;
+  return `${titledName(n)}${n.kind ? ` (${w.word("name", n.kind)})` : ""}${cites ? `  ← ${cites}` : ""}`;
 }
 
 function eventLine(e: Event, w: Words = ENGLISH): string {
@@ -144,6 +146,12 @@ function eventLine(e: Event, w: Words = ENGLISH): string {
     .join("  ");
 }
 
+/** The titles of a name: GEDCOM's NPFX / NSFX, never part of the name itself (not searched or matched by them). */
+const TITLE_OPTIONS = [
+  { name: "prefix", type: "string" as const, value: "<title>", description: 'title before the name as the record gives it ("Ing.", "Dr.", "Graf")' },
+  { name: "suffix", type: "string" as const, value: "<title>", description: 'title or epithet after the name ("ml.", "st.", "Ph.D.")' },
+];
+
 register(
   {
     path: ["person", "add"],
@@ -160,10 +168,12 @@ register(
       { name: "died", type: "string", value: "<date>", description: "death date (lead)" },
       { name: "died-place", type: "string", value: "<place>", description: "death place (lead)" },
       { name: "note", type: "string", value: "<text>", description: "short note" },
+      ...TITLE_OPTIONS,
       ...CITE_OPTIONS,
     ],
     examples: [
       'strom person add "Josef /Novák/" --sex M --born "ABT 1870" --note "Father of Jan, miller (family memory)"',
+      'strom person add "Jan /Novák/" --sex M --prefix "Ing." --suffix "ml."',
       'strom person add "Jan /Novák/" --sex M --born "24 JUN 1885" --born-place "Kamenice nad Lipou" --cite S0001 --locator "fol. 12, č. 3"',
       'strom person add "Šimon /Ševčík/" --sex M --cite S0002 --locator "fol. 45, č. 12" --information secondary',
     ],
@@ -182,6 +192,8 @@ register(
         note: opts.note as string | undefined,
         citation: citationOf(opts),
         status: opts.status as string | undefined,
+        prefix: opts.prefix as string | undefined,
+        suffix: opts.suffix as string | undefined,
       });
       const similar = findPersons(tree, formatName(p.names[0]!)).filter((x) => x.id !== p.id);
       const warn = similar.length ? `note: similar name already in the tree: ${similar.slice(0, 3).map(label).join(" · ")}` : undefined;
@@ -255,7 +267,7 @@ register(
       const w = wordsFor(ctx, tree);
       const unknown = w.say("ui.show.unknown", "(unknown)");
       const out: (string | undefined)[] = [
-        `${p.id} ${displayName(p)}${lifespan(p) ? ` (${lifespan(p)})` : ""}  ${w.lang ? w.word("sex", p.sex) : `sex ${p.sex}`}`,
+        `${p.id} ${titledName(primaryName(p))}${lifespan(p) ? ` (${lifespan(p)})` : ""}  ${w.lang ? w.word("sex", p.sex) : `sex ${p.sex}`}`,
         ...(p.names.length > 1 || p.names.some((n) => n.citations?.length) ? ["", w.say("ui.show.names", "names"), ...p.names.map((n) => `  ${nameLine(n, w)}`)] : []),
         "",
         w.say("ui.show.facts", "facts"),
@@ -294,7 +306,7 @@ register(
   },
   {
     path: ["person", "edit"],
-    summary: "Correct a person: sex, the spelling of the name they are shown by",
+    summary: "Correct a person: sex, the spelling of the name they are shown by, its titles",
     group: "people",
     tree: true,
     writes: true,
@@ -303,11 +315,21 @@ register(
     options: [
       { name: "sex", type: "string", value: "M|F|U", description: "sex" },
       { name: "name", type: "string", value: "<name>", description: 'the corrected name, surname in slashes: "Jan /Novák/"' },
+      ...TITLE_OPTIONS.map((o) => ({ ...o, description: `${o.description}; "" takes it off` })),
     ],
-    examples: ["strom person edit P0004 --sex M", 'strom person edit P0001 --name "Antonín /Víšek/" --reason "misread: the register has Víšek"'],
+    examples: [
+      "strom person edit P0004 --sex M",
+      'strom person edit P0001 --name "Antonín /Víšek/" --reason "misread: the register has Víšek"',
+      'strom person edit P0003 --prefix "MUDr."',
+    ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const p = editPerson(tree, resolvePerson(tree, args[0]!).id, { sex: opts.sex as string | undefined, name: opts.name as string | undefined }, opts.reason as string | undefined);
+      const p = editPerson(
+        tree,
+        resolvePerson(tree, args[0]!).id,
+        { sex: opts.sex as string | undefined, name: opts.name as string | undefined, prefix: opts.prefix as string | undefined, suffix: opts.suffix as string | undefined },
+        opts.reason as string | undefined,
+      );
       return { text: written(tree), data: { person: p } };
     },
   },
@@ -367,6 +389,7 @@ register(
     options: [
       { name: "kind", type: "string", value: "<kind>", description: `${NAME_KINDS.join(", ")} (default: plain)` },
       { name: "primary", type: "boolean", description: "show the person by this name" },
+      ...TITLE_OPTIONS,
       ...CITE_OPTIONS.filter((o) => o.name !== "status"),
     ],
     examples: [
@@ -376,7 +399,7 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const p = resolvePerson(tree, args[0]!);
-      const r = addName(tree, p.id, { name: args[1]!, kind: opts.kind as string | undefined, citation: citationOf(opts), primary: Boolean(opts.primary) });
+      const r = addName(tree, p.id, { name: args[1]!, kind: opts.kind as string | undefined, citation: citationOf(opts), primary: Boolean(opts.primary), prefix: opts.prefix as string | undefined, suffix: opts.suffix as string | undefined });
       return { text: written(tree), data: { person: r.person, name: r.name } };
     },
   },

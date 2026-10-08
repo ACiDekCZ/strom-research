@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
-import type { Env } from "./paths.ts";
+import { tarProgram, type Env } from "./paths.ts";
 import { gitProgram, ownGitDir, resetCache } from "./git.ts";
 
 /** The MinGit strom installs (from git-for-windows' releases on GitHub). */
@@ -58,8 +58,8 @@ export async function installOwnGit(env: Env, say: (line: string) => void): Prom
     fs.writeFileSync(zip, data);
     fs.rmSync(part, { recursive: true, force: true });
     fs.mkdirSync(part, { recursive: true });
-    // Windows 10 and later have tar, which unpacks a zip.
-    const r = spawnSync("tar", ["-xf", zip, "-C", part], { stdio: "ignore", windowsHide: true });
+    // Windows 10 and later have tar, which unpacks a zip (the system's: Git's GNU tar cannot).
+    const r = spawnSync(tarProgram(env, "win32"), ["-xf", zip, "-C", part], { stdio: "ignore", windowsHide: true });
     if (r.status !== 0) throw new Error("could not unpack it");
     fs.rmSync(dir, { recursive: true, force: true });
     fs.renameSync(part, dir);

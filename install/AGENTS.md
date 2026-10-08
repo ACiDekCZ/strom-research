@@ -53,4 +53,4 @@ their language.
    the commands a person uses, in their language: `strom help --human`.
    To remove strom again: `strom uninstall` (the research stays).
 
-Source code and license (MPL-2.0): https://github.com/ACiDekCZ/strom-research
+Source code and license (AGPL-3.0-or-later): https://github.com/ACiDekCZ/strom-research

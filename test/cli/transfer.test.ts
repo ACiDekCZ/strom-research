@@ -1,5 +1,6 @@
 // A tree of the Strom app and the browser it lives in (the app's ZADANI_VYZKUM_prenos-prohlizece.md): strom opens the
-// app in the browser the tree came from, else the default one the app reaches strom from; a tree from Safari moves
+// app installed from a browser first, else the browser the tree came from, else the default one the app reaches strom
+// from; a tree from Safari moves
 // to a browser that can — always asked (the tree, how many people, the browser), no is nothing set up; with no such
 // browser: the research from the tree's file. The bridge gives the moving tree to the app (GET /transfer).
 
@@ -73,6 +74,52 @@ test("the browser the Strom app opens in: the one its tree came from (app.browse
   // the app on a phone or tablet (its 3.9.1): no browser of this computer — it moves
   assert.deepEqual(parseLink(`strom-research://new?app=${TOKEN}&browser=mobile`), { action: "new", app: TOKEN, browser: "mobile" });
   assert.equal(kindReaches("mobile"), false);
+  w.cleanup();
+});
+
+test("T25: the Strom app installed from a browser opens first, whatever the default browser (macOS: Safari, Firefox, Edge; Linux: Firefox) — the tree's browser's own app when several, a handed-over tree only in its browser", () => {
+  const w = new World();
+  const dirs = browsers(w, "Google Chrome.app", "Microsoft Edge.app", "Firefox.app", "Safari.app");
+  const ID = "gggninmgbfdjkafhnhdnaaaopeicjmjo";
+  const EDGE_ID = "aaaninmgbfdjkafhnhdnaaaopeicjmjo";
+  const macApp = (dir: string, id: string) => {
+    const at = path.join(w.env.HOME!, "Applications", dir, "Strom.app", "Contents");
+    fs.mkdirSync(at, { recursive: true });
+    fs.writeFileSync(path.join(at, "Info.plist"), `<plist><dict>\n\t<key>CrAppModeShortcutID</key>\n\t<string>${id}</string>\n\t<key>CrAppModeShortcutURL</key>\n\t<string>https://stromapp.info/</string>\n</dict></plist>`);
+  };
+  const at = (env: Record<string, string>, config: Record<string, unknown> = {}, holdsTree = false) => {
+    const e = { ...w.env, STROM_APP_DIRS: dirs, ...env };
+    const win = appWindow(new Settings(e, {}, config), e, "darwin", { holdsTree });
+    return `${win.browser?.name}${win.webApp ? ` app ${win.webApp.appId === ID ? "chrome" : "edge"}` : ""}`;
+  };
+  macApp("Chrome Apps.localized", ID);
+  for (const def of ["safari", "firefox", "edge", "chrome"]) assert.equal(at({ STROM_DEFAULT_BROWSER: def }), "Google Chrome app chrome", `default ${def}: the app installed from Chrome`);
+  assert.equal(at({ STROM_DEFAULT_BROWSER: "firefox" }, { appBrowser: "edge" }), "Google Chrome app chrome", "the tree's browser has no app: the installed app still first");
+  assert.equal(at({ STROM_DEFAULT_BROWSER: "firefox" }, { appBrowser: "edge" }, true), "Microsoft Edge", "a tree handed over waits in Edge's storage: its tab");
+  assert.equal(at({ STROM_DEFAULT_BROWSER: "firefox" }, { appBrowser: "chrome" }, true), "Google Chrome app chrome");
+  macApp("Edge Apps.localized", EDGE_ID);
+  assert.equal(at({ STROM_DEFAULT_BROWSER: "edge" }), "Microsoft Edge app edge", "installed from both: the default browser's");
+  assert.equal(at({ STROM_DEFAULT_BROWSER: "safari" }), "Google Chrome app chrome", "the default one has none: the first");
+  assert.equal(at({ STROM_DEFAULT_BROWSER: "edge" }, { appBrowser: "chrome" }), "Google Chrome app chrome", "the tree's browser's own app before the default one's");
+  // another copy of the app (strom.app.url: its beta) is not this one: as before, the default browser's tab
+  assert.equal(at({ STROM_DEFAULT_BROWSER: "firefox", STROM_APP_URL: "https://beta.stromapp.info/" }), "Firefox");
+  // installed from a browser no longer here: as if none
+  const noChrome = path.join(w.dir, "only Firefox");
+  fs.mkdirSync(path.join(noChrome, "Firefox.app"), { recursive: true });
+  const gone = appWindow(new Settings({ ...w.env, STROM_APP_DIRS: noChrome }, {}), { ...w.env, STROM_APP_DIRS: noChrome, STROM_DEFAULT_BROWSER: "firefox" }, "darwin");
+  assert.equal(gone.webApp, undefined);
+
+  // Linux: the app's .desktop entry of Chrome, the default browser Firefox
+  const bin = path.join(w.dir, "bin");
+  fs.mkdirSync(bin, { recursive: true });
+  for (const f of ["google-chrome", "firefox"]) fs.writeFileSync(path.join(bin, f), "");
+  const apps = path.join(w.dir, "xdg", "applications");
+  fs.mkdirSync(apps, { recursive: true });
+  fs.writeFileSync(path.join(apps, `chrome-${ID}-Default.desktop`), `[Desktop Entry]\nName=Strom\nExec=/opt/google/chrome/google-chrome --profile-directory=Default --app-id=${ID}\n`);
+  const lin = { ...w.env, STROM_APP_DIRS: bin, XDG_DATA_HOME: path.join(w.dir, "xdg"), STROM_DEFAULT_BROWSER: "firefox" };
+  const lw = appWindow(new Settings(lin, {}), lin, "linux");
+  assert.equal(lw.browser?.name, "Google Chrome");
+  assert.deepEqual(lw.webApp, { browser: "Google Chrome", appId: ID, profile: "Default" });
   w.cleanup();
 });
 

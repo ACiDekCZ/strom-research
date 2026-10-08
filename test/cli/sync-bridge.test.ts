@@ -182,14 +182,16 @@ test("?poll=1 keeps no bridge running: the app asking now and then lets it end w
   }
 });
 
-test("one bridge, one lasting address: started again it takes its secret; strom live stop --forget gives the next one a new one", { skip: !hasGit || process.platform === "win32" }, async () => {
+test("strom live stop ends the bridge for good: the next one gets a new secret at its port; --forget a new port too", { skip: !hasGit || process.platform === "win32" }, async () => {
   const { w } = await world();
   try {
     const first = (await w.ok(["live", "start", "--json"])).json;
-    await w.ok(["live", "stop"]);
+    const stopped = await w.ok(["live", "stop", "--json"]);
+    assert.equal(stopped.json.newSecret, true);
     const again = (await w.ok(["live", "start", "--json"])).json;
     const log = () => fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8");
-    assert.equal(again.token, first.token, `the same secret: the app goes on by itself\n${log()}`);
+    assert.notEqual(again.token, first.token, `a new secret: the address that may have got out is dead\n${log()}`);
+    assert.equal(again.port, first.port, "its port kept");
     assert.match((await w.ok(["live", "stop", "--forget"])).out, /jeho adresa je zapomenutá: další most dostane novou/);
     const fresh = (await w.ok(["live", "start", "--json"])).json;
     assert.notEqual(fresh.token, first.token);

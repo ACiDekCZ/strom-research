@@ -19,18 +19,19 @@ import { acquireLock, withLock } from "./lock.ts";
 /** How long a writer waits for the tree while another one works (a long intake, a batch). */
 const LOCK_WAIT_MS = 120_000;
 import { RECORD_TYPES, ALL_PREFIXES, SCHEMA_VERSION, type AnyRecord, type RecordType, type TreeConfig } from "./model.ts";
-import { validateRecord } from "./validate.ts";
+import { settledRecord, validateRecord } from "./validate.ts";
 import { NeedsConsentError, StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { opsLogs } from "./opslog.ts";
 import { commitSeal, createKey, fingerprint, loadKey, sha256, signOp, type SealedFile } from "./seal.ts";
 import { stringifyCanonical } from "./json.ts";
 import type { Env } from "./paths.ts";
+import { lastBackup } from "./backup.ts";
 
 export const TREE_FILE = "strom.json";
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
-export const VERSION = "1.12.1";
+export const VERSION = "1.13.0";
 
 export interface Op {
   at: string;
@@ -96,6 +97,32 @@ export function typeOfPrefix(prefix: string): RecordType | undefined {
   return undefined;
 }
 
+/**
+ * A research a newer strom wrote (its data schema above this one's — a beta, then back on the releases): never opened,
+ * nothing of it written. Why, for the person (ui.error.tree.newer…) and the agent: which strom wrote it, that this one
+ * keeps it untouched, the way on (a beta's: back to the beta, or wait for its release; else strom update), the backup
+ * made before the switch.
+ */
+export function newerTreeError(config: Pick<TreeConfig, "schema" | "createdWith" | "migratedWith">, env: Env): StromError {
+  const by = config.migratedWith ?? config.createdWith ?? "?";
+  const beta = /^v?\d+\.\d+\.\d+-/.test(by);
+  const release = by.replace(/^v/, "").replace(/-.*$/s, "");
+  const backup = lastBackup(env)?.path;
+  const way = beta ? `go back to the beta: strom update --channel beta — or wait for the release of ${release}` : "strom update";
+  return new StromError(`this family tree was written by strom ${by} (data schema ${config.schema}), newer than this strom ${VERSION}: this strom keeps it untouched`, {
+    hint: `${way}${backup ? `\nthe backup made before the switch: ${backup}` : ""}`,
+    code: `tree.newer${beta ? ".beta" : ""}${backup ? ".backup" : ""}`,
+    params: { by, version: VERSION, schema: String(config.schema), release, ...(backup ? { backup } : {}) },
+    details: { locked: true, by, schema: config.schema, way: beta ? "strom update --channel beta" : "strom update", ...(backup ? { backup } : {}) },
+  });
+}
+
+/** The refusal of a research a newer strom wrote, without opening it (the menu's list, the bridge); none: it opens. */
+export function newerTree(root: string, env: Env): StromError | undefined {
+  const config = readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE));
+  return config && config.schema > SCHEMA_VERSION ? newerTreeError(config, env) : undefined;
+}
+
 export class Tree {
   readonly root: string;
   readonly config: TreeConfig;
@@ -137,8 +164,7 @@ export class Tree {
     const config = readJson<TreeConfig>(file);
     if (!config.id) throw new StromError(`tree config has no id: ${file}`);
     git.resetCache(root); // other processes (an agent) may have committed since
-    if (config.schema > SCHEMA_VERSION)
-      throw new StromError(`tree was written by a newer Strom (schema ${config.schema})`, { hint: "update strom" });
+    if (config.schema > SCHEMA_VERSION) throw newerTreeError(config, env);
     return new Tree(root, config, env);
   }
 
@@ -300,7 +326,7 @@ export class Tree {
           if (!f.endsWith(".json")) continue;
           let rec: AnyRecord;
           try {
-            rec = readJson<AnyRecord>(path.join(dir, f));
+            rec = settledRecord(readJson<AnyRecord>(path.join(dir, f)));
           } catch {
             continue; // unreadable record: reported by `strom check`
           }
@@ -323,7 +349,7 @@ export class Tree {
     let one = this.single.get(id);
     if (one === undefined) {
       try {
-        one = readJson<AnyRecord>(this.recordPath(type, id));
+        one = settledRecord(readJson<AnyRecord>(this.recordPath(type, id)));
       } catch {
         one = null;
       }
@@ -508,7 +534,8 @@ export class Tree {
 
   /** Validate and write a record, then log the sealed operation. Call inside withTreeLock. */
   put(input: AnyRecord, op: { op: string; targets: string[]; summary: string; reason?: string }): void {
-    const record = composed(input) as AnyRecord;
+    // a family's husb that names none of its two partners is dropped, never written (B5-a)
+    const record = settledRecord(composed(input) as AnyRecord);
     const problems = validateRecord(record);
     if (problems.length > 0) {
       throw new UsageError(`invalid ${record.type} ${record.id}: ${problems.map((p) => `${p.path} ${p.message}`).join("; ")}`, {

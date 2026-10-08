@@ -103,9 +103,9 @@ export function batchPath(raw: string | undefined): string | undefined {
 
 /** A batch to add to: made at its first file; one closed takes nothing more. */
 export function openBatch(root: string, id: string): Batch {
-  if (!BATCH_ID.test(id)) throw new UsageError(`not a batch: "${id.slice(0, 64)}"`);
+  if (!BATCH_ID.test(id)) throw new UsageError(`not a batch: "${id.slice(0, 64)}"`, { code: "batch.bad-id", params: { batch: id.slice(0, 64) } });
   const b = readBatch(root, id);
-  if (b?.done) throw new UsageError(`the batch ${id} is closed already`, { hint: "send the rest as a new batch" });
+  if (b?.done) throw new UsageError(`the batch ${id} is closed already`, { hint: "send the rest as a new batch", code: "batch.closed", params: { batch: id } });
   const t = new Date().toISOString();
   return b ?? { id, created: t, updated: t, inputs: [], known: [], bytes: 0, refused: [], nested: [] };
 }
@@ -127,9 +127,15 @@ export function noteBatch(root: string, b: Batch, add: { input?: string; known?:
 
 /** Whether a batch has room for one more file of this size; why not, else undefined. */
 export function batchFull(b: Batch, bytes: number, env: Env): string | undefined {
+  return batchRoom(b, bytes, env)?.text;
+}
+
+/** Why a batch has no room for one more file of this size — the English words and, for the app, its code — else undefined. */
+export function batchRoom(b: Batch, bytes: number, env: Env): { text: string; code: string; params: Record<string, string> } | undefined {
   const lim = batchLimits(env);
-  if (b.inputs.length + b.known.length >= lim.files) return `the batch has ${lim.files} files already (the most one takes)`;
-  if (b.bytes + bytes > lim.bytes) return `the batch would be larger than ${Math.round(lim.bytes / 1024 ** 3)} GB (the most one takes)`;
+  if (b.inputs.length + b.known.length >= lim.files) return { text: `the batch has ${lim.files} files already (the most one takes)`, code: "batch.full-files", params: { batch: b.id, files: String(lim.files) } };
+  const gb = String(Math.round(lim.bytes / 1024 ** 3));
+  if (b.bytes + bytes > lim.bytes) return { text: `the batch would be larger than ${gb} GB (the most one takes)`, code: "batch.full-bytes", params: { batch: b.id, gb } };
   return undefined;
 }
 
@@ -149,7 +155,7 @@ const IMAGE = /^image\//;
  */
 export function closeBatch(tree: Tree, id: string, opts: { name?: string | undefined; persons?: string[]; expected?: number | undefined; note?: string | undefined; why: "app" | "idle" }): Batch & { tasks: string[] } {
   const b = readBatch(tree.root, id);
-  if (!b) throw new UsageError(`no batch ${id} here`, { hint: "strom input batch" });
+  if (!b) throw new UsageError(`no batch ${id} here`, { hint: "strom input batch", code: "batch.none", params: { batch: id } });
   if (b.done) return { ...b, tasks: b.tasks ?? [] };
   const lang = tree.lang;
   const name = opts.name?.trim().slice(0, 120) || b.name || phrase(lang, "batch.unnamed");

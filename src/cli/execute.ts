@@ -8,6 +8,12 @@ import { GLOBAL_OPTIONS, commands, match, optionsOf, subcommandsOf, type Command
 
 const VALUE_GLOBALS = new Set(GLOBAL_OPTIONS.filter((o) => o.type === "string").map((o) => `--${o.name}`));
 
+/** The first word of a command line as typed — a command strom knows or not; the values of global options (--lang cs) are none. */
+export function firstWord(argv: string[]): string | undefined {
+  const { words, rest } = splitCommand(argv);
+  return words[0] ?? rest.find((r, i) => !r.startsWith("-") && !VALUE_GLOBALS.has(rest[i - 1] ?? "") && !rest.slice(0, i).includes("--"));
+}
+
 /** Split argv into the command words and the remaining arguments. */
 export function splitCommand(argv: string[]): { words: string[]; rest: string[] } {
   const words: string[] = [];
@@ -112,7 +118,7 @@ function unknownCommand(words: string[]): UsageError {
 }
 
 /** Parse options strictly; Node's messages are replaced by short ones with suggestions. */
-export function parseOptions(def: CommandDef, rest: string[]): { values: Input["opts"]; positionals: string[] } {
+export function parseOptions(def: CommandDef, rest: string[], program = "strom"): { values: Input["opts"]; positionals: string[] } {
   const defs: OptionDef[] = optionsOf(def);
   const options: Record<string, { type: "string" | "boolean"; short?: string; multiple?: boolean }> = {};
   for (const o of defs) {
@@ -120,22 +126,25 @@ export function parseOptions(def: CommandDef, rest: string[]): { values: Input["
     if (o.short) options[o.name]!.short = o.short;
     if (o.multiple) options[o.name]!.multiple = true;
   }
-  const cmd = `strom ${def.path.join(" ")}`.trim();
+  // (a second installation's own command: strom-beta — "for strom" alone names no command the output could tell)
+  const cmd = `${program} ${def.path.join(" ")}`.trim();
   try {
     const r = parseArgs({ args: rest, options, allowPositionals: true, strict: true });
     return { values: r.values as Input["opts"], positionals: r.positionals };
   } catch (err) {
     const e = err as Error & { code?: string };
     const opt = /'(-{1,2}[^' =]+)/.exec(e.message)?.[1] ?? "";
-    const own = [...(def.options ?? []), ...(def.writes ? optionsOf(def).filter((o) => o.name === "dry-run" || o.name === "reason") : [])].map((o) => `--${o.name}`);
+    const own = [...(def.options ?? []), ...(def.writes ? optionsOf(def).filter((o) => o.name === "dry-run" || o.name === "reason") : [])].filter((o) => !o.hidden).map((o) => `--${o.name}`);
     if (e.code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
       // "strom brief --task T0003": the task is an argument there, not an option
       const arg = def.args?.find((a) => `--${a.name}` === opt);
       if (arg) throw new UsageError(`${opt.slice(2)} is an argument of ${cmd}, not an option`, { hint: `strom ${def.path.join(" ")} <${arg.name}>`, code: "option.is-arg", params: { opt, cmd, arg: arg.name } });
-      const near = suggest(opt, optionsOf(def).map((o) => `--${o.name}`));
+      const near = suggest(opt, optionsOf(def).filter((o) => !o.hidden).map((o) => `--${o.name}`));
+      const help = `strom help${def.path.length ? ` ${def.path.join(" ")}` : ""}`;
       throw new UsageError(`unknown option ${opt} for ${cmd}`, {
-        hint: near.length ? `similar option: ${near.join(" · ")}` : `${own.length ? `options: ${own.join(" ")} · ` : ""}strom help ${def.path.join(" ")}`,
-        ...(near.length ? { code: "option.near", params: { opt, cmd, near: near.join(" · ") } } : own.length ? { code: "option.unknown", params: { opt, cmd, options: own.join(" "), path: def.path.join(" ") } } : {}),
+        hint: near.length ? `similar option: ${near.join(" · ")}` : `${own.length ? `options: ${own.join(" ")} · ` : ""}${help}`,
+        // (none of its own — strom itself, "strom --bogus": in the person's language too)
+        ...(near.length ? { code: "option.near", params: { opt, cmd, near: near.join(" · ") } } : own.length ? { code: "option.unknown", params: { opt, cmd, options: own.join(" "), path: def.path.join(" ") } } : { code: "option.unknown.none", params: { opt, cmd, help } }),
       });
     }
     if (e.code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {

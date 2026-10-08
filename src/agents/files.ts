@@ -14,6 +14,7 @@ import type { Tree } from "../core/tree.ts";
 import { PROFILES, SELF_READING } from "./profiles.ts";
 import { isArchive } from "../core/mode.ts";
 import { Settings } from "../core/config.ts";
+import { agentAppUrl, appSite } from "../core/stromapp.ts";
 import { configDir } from "../core/paths.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
@@ -22,6 +23,8 @@ export const MARKER = "<!-- strom: generated above this line (strom agents sync)
 
 function agentsMd(tree: Tree): string {
   const lang = langName(tree.config.lang);
+  // the Strom app's address as strom app opens it now (the beta its beta, strom.app.url where it says another)
+  const app = agentAppUrl(tree.env);
   return `# Family research: ${tree.config.name}
 
 This folder is a family tree researched with **strom**, a command-line tool
@@ -103,12 +106,12 @@ they ask.
 - **What waits for them** (\`strom\` shows it): tell them plainly what to do
   and where, one thing at a time.
 - **Results and the Strom app**: \`output/tree-strom.ged\` is the family tree
-  for the Strom app (https://stromapp.info) — strom's companion: a free family
+  for the Strom app (${appSite(app)}) — strom's companion: a free family
   tree app, no account, their data stay on their computer; it shows the tree,
   the sources, a map, a family book. When they want to see the results, or
   when \`strom\` says to offer it (it does once, not in every conversation),
   suggest it gently, in a sentence or two: best installed as an app from the browser, from
-  https://stromapp.info/run/ — \`strom app install\` opens it there and says
+  ${app} — \`strom app install\` opens it there and says
   where to click; it works offline then; \`strom app\` opens it, with this
   research when the app can take it — run by you, the app then follows the
   research live, what you record shows there by itself (else in the app:

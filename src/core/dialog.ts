@@ -43,6 +43,17 @@ function psString(s: string): string {
  * Ask in a window: true (yes), false (no, closed or no answer in time), or
  * undefined when this computer cannot show one (no desktop, no dialog tool).
  */
+/**
+ * Can this computer show a window of the system to ask in? Not with dialogs off (STROM_NO_DIALOG: a test run, a user who
+ * wants their consents in a terminal only), nor on Linux without a desktop or a dialog tool — then nothing is said to
+ * wait in one (found: strom update --json said a question waited in a window with none shown).
+ */
+export function canShowDialog(env: Env, platform: NodeJS.Platform = process.platform): boolean {
+  if (env.STROM_NO_DIALOG === "1") return false;
+  if (platform === "darwin" || platform === "win32") return true;
+  return Boolean((env.DISPLAY || env.WAYLAND_DISPLAY) && (which("zenity", env) || which("kdialog", env)));
+}
+
 export function systemDialog(text: DialogText, env: Env, platform: NodeJS.Platform = process.platform): boolean | undefined {
   // A test run, or a user who wants their consents in a terminal only.
   if (env.STROM_NO_DIALOG === "1") return undefined;

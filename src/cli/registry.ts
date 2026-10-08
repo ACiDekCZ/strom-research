@@ -3,6 +3,7 @@
 // derived from these declarations.
 
 import type { Context } from "./context.ts";
+import type { ShownAppUrl } from "../core/stromapp.ts";
 
 export type OptionType = "string" | "boolean";
 
@@ -14,6 +15,8 @@ export interface OptionDef {
   multiple?: boolean;
   /** Placeholder shown in help, e.g. "<date>". */
   value?: string;
+  /** Taken, but never shown: not in help, strom commands, the guide or a hint of the options. */
+  hidden?: boolean;
 }
 
 export interface ArgDef {
@@ -137,17 +140,39 @@ export function usageLine(def: CommandDef): string {
     const name = a.variadic ? `${a.name}...` : a.name;
     return a.required ? `<${name}>` : `[${name}]`;
   });
-  return ["strom", ...def.path, ...args, (def.options?.length || def.writes) ? "[options]" : ""].filter(Boolean).join(" ");
+  return ["strom", ...def.path, ...args, (def.options?.some((o) => !o.hidden) || def.writes) ? "[options]" : ""].filter(Boolean).join(" ");
 }
 
+/**
+ * A command's description as it is said here: {appUrl} the copy of the Strom app `strom app` opens (stromAppUrl — the
+ * beta for a strom of the beta channel, strom.app.url where it says another; found: help app named stromapp.info on the
+ * beta).
+ */
+export function descriptionOf(def: CommandDef, appUrl: ShownAppUrl): string | undefined {
+  const said = def.description?.replace(/\{appUrl\}/g, appUrl.url);
+  // an address of no Strom app in the setting: the help names the default and says so (B1-b)
+  return said && appUrl.invalid && def.description!.includes("{appUrl}") ? `${said}\n${APP_URL_INVALID}` : said;
+}
+
+/** What a help says under the address of the Strom app when strom.app.url says no address of it (B1-b). */
+export const APP_URL_INVALID =
+  "Note: the setting strom.app.url (or STROM_APP_URL) is no address of the Strom app, so the address above is the default.\n" +
+  "Set it right (strom config set strom.app.url <address>) or remove it (strom config unset strom.app.url).";
+
+/** What strom config where / config get say under a strom.app.url that is no address of the Strom app (B1-e). */
+export const APP_URL_INVALID_SETTING =
+  "Note: the setting strom.app.url (or STROM_APP_URL) is no address of the Strom app: strom app refuses it, and where only an address is named, the default is.\n" +
+  "Set it right (strom config set strom.app.url <address>) or remove it (strom config unset strom.app.url).";
+
 /** Catalog entry for `strom commands --json`: only what is there (empty fields are left out). */
-export function describe(def: CommandDef): Record<string, unknown> {
+export function describe(def: CommandDef, appUrl: ShownAppUrl): Record<string, unknown> {
   const out: Record<string, unknown> = { command: def.path.join(" "), usage: usageLine(def), summary: def.summary, group: def.group };
-  if (def.description) out.description = def.description;
+  const description = descriptionOf(def, appUrl);
+  if (description) out.description = description;
   if (def.writes) out.writes = true;
   if (def.tree) out.needsTree = true;
   if (def.args?.length) out.args = def.args;
-  const opts = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])];
+  const opts = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !o.hidden);
   if (opts.length)
     out.options = opts.map((o) => ({
       name: `--${o.name}`,

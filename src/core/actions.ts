@@ -33,7 +33,7 @@ import {
   type StoryDraft,
   type Union,
 } from "./model.ts";
-import { displayName, familiesAsChild, familiesAsPartner, gedcomName, isBirthFamily, notAName, parseName, primaryName, sameName, slashInName } from "./people.ts";
+import { cleanTitle, displayName, familiesAsChild, familiesAsPartner, gedcomName, gedcomTitledName, isBirthFamily, keepSides, notAName, parseName, primaryName, sameName, slashInName } from "./people.ts";
 import { foldText } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
@@ -183,11 +183,40 @@ export interface PersonInput {
   /** Record the birth/death facts cite (the record the person comes from). */
   citation?: Citation | undefined;
   status?: string | undefined;
+  /** The titles of the name: before it ("Ing.") and after it ("ml."). */
+  prefix?: string | undefined;
+  suffix?: string | undefined;
+}
+
+/**
+ * A title of a name as given (an empty one: none) — one line, no slash: the NAME line says it beside the surname's
+ * slashes ("Ing. Jan /Novák/ ml."), and a slash there would be taken for one of them.
+ */
+function titleOf(t: string | undefined, what: string): string | undefined {
+  if (t === undefined) return undefined;
+  const v = cleanTitle(t);
+  if (v?.includes("/")) throw new UsageError(`${what} "${v}": a slash cannot stand in a title`, { hint: 'a title as the record writes it, without slashes: --prefix "Ing." --suffix "ml."' });
+  return v;
+}
+
+/** The name with these titles (given ones only: undefined keeps the name's, "" takes it off). */
+function withTitles(n: Name, prefix: string | undefined, suffix: string | undefined): Name {
+  const out: Name = { ...n };
+  const set = (key: "prefix" | "suffix", v: string | undefined) => {
+    if (v === undefined) return;
+    const t = titleOf(v, key === "prefix" ? "--prefix" : "--suffix");
+    if (t) out[key] = t;
+    else delete out[key];
+  };
+  set("prefix", prefix);
+  set("suffix", suffix);
+  return out;
 }
 
 /** A name the record gives — never a description of the person in its place, and one GEDCOM can hold. */
 function checkGiven(name: Name): void {
-  const slash = slashInName(name);
+  // "N/A" says there is no name before its slash says anything
+  const slash = notAName(name.given) ? undefined : slashInName(name);
   if (slash)
     throw new UsageError(slash, {
       hint: 'a letter not read for sure: "Anna /[?]emenská/", and each reading as an alias — strom name add P… "Anna /Kemenská/" --kind alias',
@@ -200,7 +229,7 @@ function checkGiven(name: Name): void {
 }
 
 export function addPerson(tree: Tree, input: PersonInput): Person {
-  const name: Name = parseName(input.name);
+  const name: Name = withTitles(parseName(input.name), input.prefix || undefined, input.suffix || undefined);
   if (!name.given && !name.surname) throw new UsageError("the person needs a name");
   checkGiven(name);
   const sex = parseSex(input.sex);
@@ -232,7 +261,7 @@ export function addPerson(tree: Tree, input: PersonInput): Person {
     tree.put(person, {
       op: "person.add",
       targets: [person.id],
-      summary: [`+${person.id} ${gedcomName(name)}${name.citations ? ` ← ${name.citations[0]!.source}` : ""}`, ...events.map(eventSummary)].join(" · "),
+      summary: [`+${person.id} ${gedcomTitledName(name)}${name.citations ? ` ← ${name.citations[0]!.source}` : ""}`, ...events.map(eventSummary)].join(" · "),
     });
     return person;
   });
@@ -402,6 +431,7 @@ export function editFamily(tree: Tree, familyId: string, edit: FamilyEdit, reaso
       const was = next.partners.includes(edit.remove) || next.children.some((c) => c.person === edit.remove);
       if (!was) throw new UsageError(`${edit.remove} is not in ${familyId}`);
       next.partners = next.partners.filter((p) => p !== edit.remove);
+      delete next.husb;
       next.children = next.children.filter((c) => c.person !== edit.remove);
       for (const c of next.children)
         if (c.relations?.[edit.remove]) {
@@ -566,6 +596,9 @@ export interface NameInput {
   primary?: boolean | undefined;
   /** Another form beside the name the person is shown by, never in its place (a name a sync adds). */
   other?: boolean | undefined;
+  /** The titles of the name: before it ("Ing.") and after it ("ml."); "" takes one off. */
+  prefix?: string | undefined;
+  suffix?: string | undefined;
 }
 
 /**
@@ -593,12 +626,15 @@ export function addName(tree: Tree, id: string, input: NameInput): { person: Per
       // The same words: one name — the record adds its citation, --kind says what kind of name it is.
       const cur = p.names[i]!;
       const rekind = name.kind !== undefined && name.kind !== cur.kind;
-      if (!input.citation && !input.primary && !rekind) throw new UsageError(`${id} already has the name ${gedcomName(name)}`, { hint: `cite it: strom name add ${id} "${gedcomName(name)}" --cite S…` });
-      added = { ...cur, ...(rekind ? { kind: name.kind } : {}), ...(input.citation ? { citations: withCitation(cur.citations, input.citation, `${id} ${gedcomName(name)}`) } : {}) };
+      const retitled = withTitles(cur, input.prefix, input.suffix);
+      const titles = retitled.prefix !== cur.prefix || retitled.suffix !== cur.suffix;
+      if (!input.citation && !input.primary && !rekind && !titles) throw new UsageError(`${id} already has the name ${gedcomName(name)}`, { hint: `cite it: strom name add ${id} "${gedcomName(name)}" --cite S…` });
+      added = { ...retitled, ...(rekind ? { kind: name.kind } : {}), ...(input.citation ? { citations: withCitation(cur.citations, input.citation, `${id} ${gedcomName(name)}`) } : {}) };
       names = p.names.map((n, j) => (j === i ? added : n));
       if (input.primary) names = [added, ...names.filter((n) => n !== added)];
     } else {
-      added = input.citation ? { ...name, citations: [input.citation] } : name;
+      const titled = withTitles(name, input.prefix || undefined, input.suffix || undefined);
+      added = input.citation ? { ...titled, citations: [input.citation] } : titled;
       const primary = primaryName(p);
       const plain = !name.kind || name.kind === "birth";
       // "Markéta" of the family memory is "Markéta /Růžičková/" of the register: one name, now complete.
@@ -610,7 +646,7 @@ export function addName(tree: Tree, id: string, input: NameInput): { person: Per
     tree.put(updated, {
       op: "person.name",
       targets: [id],
-      summary: `${id} name ${gedcomName(added)}${added.kind ? ` (${added.kind})` : ""}${input.citation ? ` ← ${input.citation.source}` : ""}`,
+      summary: `${id} name ${gedcomTitledName(added)}${added.kind ? ` (${added.kind})` : ""}${input.citation ? ` ← ${input.citation.source}` : ""}`,
       ...(completes ? { reason: `the name without a surname is completed: ${gedcomName(added)}` } : {}),
     });
     return { person: updated, name: added };
@@ -621,6 +657,9 @@ export interface PersonEdit {
   sex?: string | undefined;
   /** Corrected spelling of the name the person is shown by. */
   name?: string | undefined;
+  /** The titles of the name the person is shown by: before it ("Ing."), after it ("ml."); "" takes one off. */
+  prefix?: string | undefined;
+  suffix?: string | undefined;
 }
 
 /** Change a person's sex or correct the spelling of their name — with a reason, unless an unknown sex is filled in. */
@@ -629,17 +668,31 @@ export function editPerson(tree: Tree, id: string, edit: PersonEdit, reason?: st
   const name = edit.name === undefined ? undefined : parseName(edit.name);
   if (name && !name.given && !name.surname) throw new UsageError("the name is empty");
   if (name) checkGiven(name);
-  if (sex === undefined && !name) throw new UsageError("nothing to change", { hint: `strom person edit ${id} --sex M|F · --name "<Given /Surname/>"` });
+  const titles = edit.prefix !== undefined || edit.suffix !== undefined;
+  if (titles) withTitles({ given: "", surname: "" }, edit.prefix, edit.suffix);
+  if (sex === undefined && !name && !titles) throw new UsageError("nothing to change", { hint: `strom person edit ${id} --sex M|F · --name "<Given /Surname/>" · --prefix "<title>" · --suffix "<title>"` });
   return tree.withTreeLock(() => {
     const p = requirePerson(tree, id);
     const primary = primaryName(p);
+    const retitled = withTitles(primary, edit.prefix, edit.suffix);
+    // a title the name had, changed or taken off (one it lacked, added, is no change)
+    const titleChanged = (["prefix", "suffix"] as const).some((k) => primary[k] !== undefined && primary[k] !== retitled[k]);
     // Filling in an unknown sex is no change; another sex or another name is.
-    const overwrites = (sex !== undefined && p.sex !== "U" && p.sex !== sex) || name;
-    if (overwrites && !reason?.trim()) throw new UsageError("changing a name or a known sex needs --reason", { hint: 'e.g. --reason "misread: the register has Novák, not Nowak"', code: "person.needs-reason" });
-    const names = name ? p.names.map((n) => (n === primary ? { ...n, given: name.given, surname: name.surname } : n)) : p.names;
+    const overwrites = (sex !== undefined && p.sex !== "U" && p.sex !== sex) || name || titleChanged;
+    if (overwrites && !reason?.trim()) throw new UsageError("changing a name, its title or a known sex needs --reason", { hint: 'e.g. --reason "misread: the register has Novák, not Nowak"', code: "person.needs-reason" });
+    const names = p.names.map((n) => (n !== primary ? n : name ? { ...retitled, given: name.given, surname: name.surname } : retitled));
     const updated: Person = { ...p, ...(sex !== undefined ? { sex } : {}), names, updated: now() };
-    const what = [sex !== undefined ? `sex ${sex}` : "", name ? `name ${gedcomName(name)}` : ""].filter(Boolean).join(", ");
+    const what = [
+      sex !== undefined ? `sex ${sex}` : "",
+      name ? `name ${gedcomName(name)}` : "",
+      edit.prefix !== undefined ? `title before the name ${retitled.prefix ? `"${retitled.prefix}"` : "taken off"}` : "",
+      edit.suffix !== undefined ? `title after the name ${retitled.suffix ? `"${retitled.suffix}"` : "taken off"}` : "",
+    ].filter(Boolean).join(", ");
+    // its couples keep the sides their files wrote (U01-e): written before the person, read with the sex as it was
+    const sides = sex !== undefined && sex !== p.sex ? keepSides(tree, p, updated) : [];
     tree.put(updated, { op: "person.edit", targets: [id], summary: `${id} ${what}`, ...(reason ? { reason } : {}) });
+    for (const { next } of sides)
+      tree.put({ ...next, updated: now() }, { op: "family.edit", targets: [next.id], summary: next.husb ? `${next.id} ${next.husb} kept as HUSB (the sex of ${id} changed)` : `${next.id} sides by sex again`, ...(reason ? { reason } : {}) });
     return updated;
   });
 }

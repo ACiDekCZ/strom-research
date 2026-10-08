@@ -8,11 +8,66 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Env } from "./paths.ts";
-import { userHome } from "./paths.ts";
-import type { Settings } from "./config.ts";
+import { desktopDir, userHome } from "./paths.ts";
+import { appUrlInvalid, checkValue, settingDef, Settings } from "./config.ts";
+import { UsageError } from "./errors.ts";
 import { foldText } from "./text.ts";
+import { compareVersions, updateChannel } from "./update.ts";
 
 export const STROM_APP_URL = "https://stromapp.info/run/";
+/** The Strom app's beta: the copy a strom of the beta channel opens unless strom.app.url says another. */
+export const STROM_APP_BETA_URL = "https://beta.stromapp.info/run/";
+
+/**
+ * The copy of the Strom app strom opens when strom.app.url says none: its beta for a strom of the beta channel (the
+ * beta of the research goes with the app's beta), else stromapp.info. Back on the releases: stromapp.info again.
+ */
+export function defaultAppUrl(env: Env): string {
+  return updateChannel(env) === "beta" ? STROM_APP_BETA_URL : STROM_APP_URL;
+}
+
+/**
+ * A version of the Strom app as it says it — 3.9.0, its beta 3.10.0-beta.6, a build 3.10.0+a1b2: nothing else (3.9
+ * is none). The same from its header to the bridge and from the setting strom.version (STROM_APP_VERSION); a gate
+ * takes a pre-release as its version (3.10.0-beta.6 reads what 3.10.0 does: the app's betas get it at once).
+ */
+export function isAppVersion(v: string): boolean {
+  return /^\d{1,4}\.\d{1,4}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,40})?(?:\+[0-9A-Za-z.-]{1,40})?$/.test(v);
+}
+
+/**
+ * The first Strom app that writes a person of no name and no surname "? //" — before it "? /Unknown/" (its N13; the
+ * research's T08b). A real pre-release, not a gate: its own betas before it wrote the old way.
+ */
+export const APP_WRITES_NO_SURNAME_EMPTY = "3.10.0-beta.7";
+
+/**
+ * Does a file of the Strom app mean "? /Unknown/" as a person of no surname? Yes from an app before 3.10.0-beta.7, or
+ * one whose version the file does not say (its HEAD's 2 VERS under 1 SOUR STROM missing, or no version of the app —
+ * the app writes "1.0" there); from 3.10.0-beta.7 on it is the surname Unknown the user typed. Semver precedence:
+ * 3.10.0-beta.6 < 3.10.0-beta.7 < 3.10.0-beta.10 < 3.10.0-rc.1 < 3.10.0.
+ */
+export function appUnknownIsNoSurname(version: string | undefined): boolean {
+  const v = version?.trim();
+  return !v || !isAppVersion(v) || compareVersions(v, APP_WRITES_NO_SURNAME_EMPTY) < 0;
+}
+
+/**
+ * The first Strom app whose sex "unknown" is a sex of its own (its data version 12): it writes SEX U where the sex is
+ * unknown in its tree, never a guess — before it, it read SEX U as a husband male and anyone else female and wrote
+ * that guess back. A real pre-release, not a gate: its own betas before it guessed. Its file says so also by the
+ * header's 1 _STROM_SEX_U Y, but only in a tree linked to a research (U01).
+ */
+export const APP_WRITES_SEX_UNKNOWN = "3.10.0-beta.11";
+
+/** The data version of the Strom app's JSON from which its gender "unknown" is a sex of its own (its 3.10.0-beta.11, U01). */
+export const APP_DATA_SEX_UNKNOWN = 12;
+
+/** Is SEX U in a file of the Strom app of this version (its HEAD's 2 VERS) the sex the user left unknown? From 3.10.0-beta.11 on; no version said: no. */
+export function appWritesSexUnknown(version: string | undefined): boolean {
+  const v = version?.trim();
+  return !!v && isAppVersion(v) && compareVersions(v, APP_WRITES_SEX_UNKNOWN) >= 0;
+}
 
 /** The pages of the Strom app — on the web, its beta, a copy on this computer (its development): the only ones strom opens with a research, and the only ones its bridge lets in. */
 export function isStromAppOrigin(origin: string): boolean {
@@ -67,10 +122,87 @@ export function appTreeNameFromInstall(env: { STROM_FROM_APP?: string | undefine
   return name || undefined;
 }
 
-/** The Strom app's address: the setting strom.app.url (STROM_APP_URL) points strom at another copy of it (its beta, its development). */
+/** strom.app.url as it is said here (appUrlSetting): `invalid` when it says no address of the Strom app. */
+export interface AppUrlSetting {
+  /** The copy of the app strom names: the setting's, or the channel's default where the setting says none or no address of the app. */
+  url: string;
+  /** The setting says no address of the app (not one, or one the bridge does not let in): its value and where it was said. */
+  invalid?: { value: string; source: "env" | "config" };
+}
+
+/**
+ * The setting strom.app.url (STROM_APP_URL) read and checked as strom config set checks it — from the variable, and
+ * from the config file however it got there (written by hand) — never failing: an invalid one is said as `invalid`
+ * beside the channel's default, which is what is named then (help, doctor) — never what is opened (stromAppUrl).
+ */
+export function appUrlSetting(settings: Settings): AppUrlSetting {
+  const fallback = defaultAppUrl(settings.env);
+  let said;
+  try {
+    said = settings.resolve("strom.app.url");
+  } catch (err) {
+    if (!(err instanceof UsageError)) throw err;
+    return { url: fallback, invalid: { value: String(settings.env.STROM_APP_URL ?? ""), source: "env" } };
+  }
+  if (said === undefined || said.value === "") return { url: fallback };
+  if (said.source === "env") return { url: String(said.value) };
+  try {
+    return { url: String(checkValue(settingDef("strom.app.url"), String(said.value), (p) => p, settings.env)) };
+  } catch (err) {
+    if (!(err instanceof UsageError)) throw err;
+    return { url: fallback, invalid: { value: String(said.value), source: "config" } };
+  }
+}
+
+/**
+ * The Strom app's address strom opens and builds its addresses on (?live=, ?import-url=, ?send=, ?adopt= carry the
+ * bridge's secret address): the setting strom.app.url (STROM_APP_URL) points strom at another copy of it (its beta, its
+ * development). One that says no address of the app — from the variable, or written by hand into the settings — is
+ * refused with how to put it right: nothing is opened, no address built on it (B1-c).
+ */
 export function stromAppUrl(settings: Settings): string {
-  const url = settings.resolve("strom.app.url")?.value;
-  return typeof url === "string" && url ? url : STROM_APP_URL;
+  const said = appUrlSetting(settings);
+  if (said.invalid) throw appUrlInvalid(said.invalid.value, said.invalid.source, settings.env);
+  return said.url;
+}
+
+/** The copy of the Strom app a help names (appUrlShown): `invalid` when strom.app.url says no address of it. */
+export interface ShownAppUrl {
+  url: string;
+  invalid?: true;
+}
+
+/**
+ * The copy of the Strom app a help names (help app, app --help, commands --json): the one `strom app` opens — and where
+ * strom.app.url (STROM_APP_URL) says no address of the app (not one, or one the bridge does not let in), the channel's
+ * default with `invalid`: the help never fails on a setting (B1-b); `strom app` itself refuses it.
+ */
+export function appUrlShown(settings: Settings): ShownAppUrl {
+  const said = appUrlSetting(settings);
+  return said.invalid ? { url: said.url, invalid: true } : { url: said.url };
+}
+
+/**
+ * The Strom app's address the texts for an agent name — the guide, a tree's AGENTS.md, what strom agents install
+ * teaches the agents: the one `strom app` opens (appUrlShown: strom.app.url, else the channel's default — the beta its
+ * beta, the releases stromapp.info), read when the text is written (B1-i).
+ */
+export function agentAppUrl(env: Env): string {
+  return appUrlShown(new Settings(env, {})).url;
+}
+
+/** The Strom app's site beside its address in a text for an agent: https://stromapp.info, its beta's, a copy's (its origin). */
+export function appSite(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
+  }
+}
+
+/** Is the copy of the app another than stromapp.info (its beta, its development)? Never failing on the setting: an invalid one is none. */
+function anotherCopy(settings: Settings): boolean {
+  return appUrlSetting(settings).url !== STROM_APP_URL;
 }
 
 /**
@@ -84,7 +216,7 @@ export function stromAppUrl(settings: Settings): string {
 export const APP_OPENS_RESEARCH = true;
 
 export function appOpensResearch(settings: Settings): boolean {
-  return APP_OPENS_RESEARCH || stromAppUrl(settings) !== STROM_APP_URL;
+  return APP_OPENS_RESEARCH || anotherCopy(settings);
 }
 
 /**
@@ -95,7 +227,7 @@ export function appOpensResearch(settings: Settings): boolean {
 export const APP_SENDS_CHANGES: string | undefined = "3.3.0";
 
 export function appSendsChanges(settings: Settings): boolean {
-  return APP_SENDS_CHANGES !== undefined || stromAppUrl(settings) !== STROM_APP_URL;
+  return APP_SENDS_CHANGES !== undefined || anotherCopy(settings);
 }
 
 /**
@@ -107,7 +239,7 @@ export function appSendsChanges(settings: Settings): boolean {
 export const APP_OPENS_LINKS: string | undefined = "3.4.0";
 
 export function appOpensLinks(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_OPENS_LINKS) return false;
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
@@ -126,7 +258,7 @@ export function appOpensLinks(settings: Settings, version?: string): boolean {
 export const APP_SHOWS_EDGES: string | undefined = "3.6.0";
 
 export function appShowsEdges(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_SHOWS_EDGES) return false;
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
@@ -144,11 +276,30 @@ export function appShowsEdges(settings: Settings, version?: string): boolean {
 export const APP_SHOWS_COUPLE_EVENTS: string | undefined = "3.8.0";
 
 export function appShowsCoupleEvents(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_SHOWS_COUPLE_EVENTS) return false;
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(APP_SHOWS_COUPLE_EVENTS)];
+  for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+  return true;
+}
+
+/**
+ * The Strom app reads the titles of a name (the tester's T07; the app's 3.10.0): a name with a title spells its parts
+ * out under its NAME line — 2 NPFX, GIVN, SURN, NSFX — and the app keeps the titles apart from the name (titleBefore,
+ * titleAfter). The line says the title for every app ("Ing. Jan /Novák/ ml."), so an older one shows it as part of the
+ * name and loses nothing; it lists the tags it skips. Another copy of the app (its beta, its development) is taken as
+ * current. An app of unknown version: today's (an older one only skips the tags).
+ */
+export const APP_READS_TITLES: string | undefined = "3.10.0";
+
+export function appReadsTitles(settings: Settings, version?: string): boolean {
+  if (anotherCopy(settings)) return true;
+  if (!APP_READS_TITLES) return false;
+  if (!version) return true;
+  const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const [a, b] = [n(version), n(APP_READS_TITLES)];
   for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
   return true;
 }
@@ -162,7 +313,7 @@ export function appShowsCoupleEvents(settings: Settings, version?: string): bool
 export const APP_KNOWS_ARCHIVE: string | undefined = "3.9.0";
 
 export function appKnowsArchive(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_KNOWS_ARCHIVE || !version) return false;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(APP_KNOWS_ARCHIVE)];
@@ -180,7 +331,7 @@ export function appKnowsArchive(settings: Settings, version?: string): boolean {
 export const APP_SHOWS_SOURCE_READS: string | undefined = "3.9.0";
 
 export function appShowsSourceReads(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_SHOWS_SOURCE_READS || !version) return false;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(APP_SHOWS_SOURCE_READS)];
@@ -199,7 +350,7 @@ export function appShowsSourceReads(settings: Settings, version?: string): boole
 export const APP_KNOWS_NO_COUPLE: string | undefined = "3.9.0";
 
 export function appKnowsNoCouple(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_KNOWS_NO_COUPLE) return false;
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
@@ -218,7 +369,7 @@ export function appKnowsNoCouple(settings: Settings, version?: string): boolean 
 export const APP_SHOWS_FACT_STATUS: string | undefined = "3.9.0";
 
 export function appShowsFactStatus(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_SHOWS_FACT_STATUS || !version) return false;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(APP_SHOWS_FACT_STATUS)];
@@ -235,7 +386,7 @@ export function appShowsFactStatus(settings: Settings, version?: string): boolea
 export const APP_TURNS_EXCERPTS: string | undefined = "3.9.0";
 
 export function appTurnsExcerpts(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_TURNS_EXCERPTS || !version) return false;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
   const [a, b] = [n(version), n(APP_TURNS_EXCERPTS)];
@@ -252,7 +403,7 @@ export function appTurnsExcerpts(settings: Settings, version?: string): boolean 
 export const APP_SHOWS_STORY_DRAFTS: string | undefined = "3.7.0";
 
 export function appShowsStoryDrafts(settings: Settings, version?: string): boolean {
-  if (stromAppUrl(settings) !== STROM_APP_URL) return true;
+  if (anotherCopy(settings)) return true;
   if (!APP_SHOWS_STORY_DRAFTS) return false;
   if (!version) return true;
   const n = (v: string) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
@@ -269,6 +420,11 @@ export function sendAppUrl(bridge: string, settings: Settings): string {
 /** The address that opens the Strom app to hand one of its trees to a new research (strom-research://new). */
 export function adoptAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?adopt=${encodeURIComponent(bridge)}`;
+}
+
+/** The address that opens the Strom app following a research through its bridge — said, never failing: none where strom.app.url says no address of the app. */
+export function liveAppUrlShown(bridge: string, settings: Settings): string | undefined {
+  return appUrlSetting(settings).invalid ? undefined : liveAppUrl(bridge, settings);
 }
 
 /** The address that opens the Strom app following a research through its bridge. */
@@ -316,15 +472,86 @@ function read(file: string, encoding: BufferEncoding = "utf8"): string {
 
 /** The id and profile a shortcut starts the app with (a .lnk keeps its arguments in UTF-16, a .desktop entry in its Exec line). */
 function launchOf(text: string): { appId?: string; profile?: string } {
-  const id = APP_ID.exec(text)?.[1];
-  const p = PROFILE.exec(text);
+  // the arguments first; else the icon Chrome keeps for it on Windows (User Data\<profile>\Web Applications\_crx_<id>\…)
+  const id = APP_ID.exec(text)?.[1] ?? ICON_ID.exec(text)?.[1];
+  const p = PROFILE.exec(text) ?? ICON_PROFILE.exec(text);
   return { ...(id ? { appId: id } : {}), ...(p ? { profile: p[1] ?? p[2] } : {}) };
+}
+
+const ICON_ID = /Web Applications[\\/]_crx_([a-p]{32})/;
+const ICON_PROFILE = /User Data[\\/]([^\\/]+)[\\/]Web Applications/;
+
+/**
+ * What a Windows shortcut (.lnk, MS-SHLLINK) says: the program it starts, its arguments and its icon — read by its
+ * structure (the strings lie wherever the parts before them end, at an odd byte as often as not: a file read as
+ * UTF-16 from its start garbles them then), and the text at both alignments besides, for a shortcut read wrong.
+ */
+export function lnkText(buf: Buffer): string {
+  const said: string[] = [];
+  try {
+    if (buf.length >= 76 && buf.readUInt32LE(0) === 0x4c) {
+      const flags = buf.readUInt32LE(20);
+      const unicode = (flags & 0x80) !== 0;
+      let at = 76;
+      if (flags & 0x01) at += 2 + buf.readUInt16LE(at);
+      if (flags & 0x02) {
+        const size = buf.readUInt32LE(at);
+        const header = buf.readUInt32LE(at + 4);
+        const local = buf.readUInt32LE(at + 16);
+        const localW = header >= 0x24 ? buf.readUInt32LE(at + 28) : 0;
+        if (localW) said.push(cString(buf, at + localW, true));
+        else if (local) said.push(cString(buf, at + local, false));
+        at += size;
+      }
+      // NAME, RELATIVE_PATH, WORKING_DIR, ARGUMENTS, ICON_LOCATION — each when its flag is set
+      for (const bit of [0x04, 0x08, 0x10, 0x20, 0x40]) {
+        if (!(flags & bit)) continue;
+        const n = buf.readUInt16LE(at);
+        const len = unicode ? n * 2 : n;
+        said.push(buf.subarray(at + 2, at + 2 + len).toString(unicode ? "utf16le" : "latin1"));
+        at += 2 + len;
+      }
+    }
+  } catch {
+    // cut short: what the text says below
+  }
+  return [...said, buf.toString("utf16le"), buf.subarray(1).toString("utf16le"), buf.toString("latin1")].join("\n");
+}
+
+function cString(buf: Buffer, at: number, wide: boolean): string {
+  if (!wide) {
+    const end = buf.indexOf(0, at);
+    return buf.subarray(at, end < 0 ? undefined : end).toString("latin1");
+  }
+  let end = at;
+  while (end + 1 < buf.length && (buf[end] !== 0 || buf[end + 1] !== 0)) end += 2;
+  return buf.subarray(at, end).toString("utf16le");
+}
+
+/** The browser a shortcut starts (its program, or its icon in the browser's folder): chrome_proxy.exe, msedge_proxy.exe… */
+function browserOfLnk(text: string): string | undefined {
+  const t = text.toLowerCase();
+  if (/microsoft[\\/]edge|msedge/.test(t)) return "Microsoft Edge";
+  if (/bravesoftware|brave(_proxy)?\.exe/.test(t)) return "Brave";
+  if (/vivaldi/.test(t)) return "Vivaldi";
+  if (/[\\/]chromium[\\/]/.test(t)) return "Chromium";
+  if (/google[\\/]chrome|chrome(_proxy)?\.exe/.test(t)) return "Google Chrome";
+  return undefined;
+}
+
+function readBuf(file: string): Buffer {
+  try {
+    return fs.readFileSync(file);
+  } catch {
+    return Buffer.alloc(0);
+  }
 }
 
 /** "Strom", "Strom - Family Tree" — not this tool ("Strom Research"). */
 export function isStromName(name: string): boolean {
   const n = foldText(name).trim();
-  return /^strom(\s*[-–:|]\s*.*)?$/u.test(n) && !/research|vyzkum/u.test(n);
+  // (Windows: a shortcut of another profile's copy may carry the profile's name in brackets — "Strom (Work)")
+  return /^strom(\s*[-–:|]\s*.*)?(\s*\(.*\))?$/u.test(n) && !/research|vyzkum/u.test(n);
 }
 
 function entries(dir: string): string[] {
@@ -348,10 +575,19 @@ function originOf(url: string): string {
  * (default: stromapp.info; its beta installed beside it is another app). A
  * shortcut that says its address (macOS: the app's Info.plist; Linux: --app=)
  * is matched by it; one that does not (Windows, Safari) is taken by its name,
- * and only for stromapp.info itself.
+ * and only for stromapp.info itself. `prefer`: the browser whose app is
+ * taken first when it was installed from several.
  */
-export function installedStromApp(env: Env, platform: NodeJS.Platform = process.platform, url: string = STROM_APP_URL): InstalledApp | undefined {
+export function installedStromApp(env: Env, platform: NodeJS.Platform = process.platform, url: string = STROM_APP_URL, prefer?: string): InstalledApp | undefined {
+  const all = installedStromApps(env, platform, url);
+  // the one installed from that browser (its own window), else the first that says the app's id, else the first
+  return (prefer ? all.find((a) => a.appId && a.browser === prefer) : undefined) ?? all.find((a) => a.appId) ?? all[0];
+}
+
+/** Every copy of the Strom app at `url` installed here (installedStromApp), in the order strom looks for them. */
+export function installedStromApps(env: Env, platform: NodeJS.Platform = process.platform, url: string = STROM_APP_URL): InstalledApp[] {
   const home = userHome(env);
+  const found: InstalledApp[] = [];
   const want = originOf(url);
   const byName = want === originOf(STROM_APP_URL);
   /** Is it that copy: its address when the shortcut gives one, else its name. */
@@ -375,26 +611,34 @@ export function installedStromApp(env: Env, platform: NodeJS.Platform = process.
         if (!isIt(f.slice(0, -4), address)) continue;
         const id = /<key>CrAppModeShortcutID<\/key>\s*<string>([a-p]{32})<\/string>/.exec(plist)?.[1];
         const browser = BROWSER_OF[dir.replace(/ Apps(\.localized)?$/, "")];
-        return { path: at, kind, ...(id && browser ? { browser, appId: id } : {}) };
+        found.push({ path: at, kind, ...(id && browser ? { browser, appId: id } : {}) });
       }
     // Safari: File → Add to Dock puts the web app straight into ~/Applications.
-    if (byName) for (const f of entries(apps)) if (f.endsWith(".app") && isStromName(f.slice(0, -4))) return { path: path.join(apps, f), kind: "Safari web app" };
-    return undefined;
+    if (byName) for (const f of entries(apps)) if (f.endsWith(".app") && isStromName(f.slice(0, -4))) found.push({ path: path.join(apps, f), kind: "Safari web app" });
+    return found;
   }
   if (platform === "win32") {
-    if (!byName) return undefined;
+    if (!byName) return found;
+    // The Start menu (Chrome: its folder Chrome Apps; Edge and others: the Programs folder itself), then the desktop
+    // (a shortcut the person kept there only). The first that says the app's id wins; else the first by its name.
     const programs = path.join(env.APPDATA ?? path.join(home, "AppData", "Roaming"), "Microsoft", "Windows", "Start Menu", "Programs");
-    for (const dir of ["Chrome Apps", "Edge Apps", ""]) {
-      const d = path.join(programs, dir);
-      for (const f of entries(d))
-        if (f.toLowerCase().endsWith(".lnk") && isStromName(f.slice(0, -4))) {
-          const at = path.join(d, f);
-          const launch = launchOf(read(at, "utf16le"));
-          const browser = BROWSER_OF[dir.replace(/ Apps$/, "")] ?? (dir ? undefined : "Google Chrome");
-          return { path: at, kind: dir ? dir.replace(/s$/, "") : "app", ...(launch.appId && browser ? { browser, ...launch } : {}) };
-        }
-    }
-    return undefined;
+    const places: [string, string | undefined][] = [
+      [path.join(programs, "Chrome Apps"), "Google Chrome"],
+      [path.join(programs, "Edge Apps"), "Microsoft Edge"],
+      [programs, undefined],
+      ...[...new Set([desktopDir(env, "win32"), path.join(home, "Desktop")])].map((d): [string, undefined] => [d, undefined]),
+    ];
+    for (const [d, folderBrowser] of places)
+      for (const f of entries(d)) {
+        if (!f.toLowerCase().endsWith(".lnk") || !isStromName(f.slice(0, -4))) continue;
+        const at = path.join(d, f);
+        const text = lnkText(readBuf(at));
+        const launch = launchOf(text);
+        const browser = browserOfLnk(text) ?? folderBrowser ?? (d === programs ? "Google Chrome" : undefined);
+        const short = Object.entries(BROWSER_OF).find(([, b]) => b === browser)?.[0]?.replace(/ Browser$/, "");
+        found.push({ path: at, kind: short ? `${short} App` : "app", ...(launch.appId && browser ? { browser, ...launch } : {}) });
+      }
+    return found;
   }
   const dir = path.join(env.XDG_DATA_HOME ?? path.join(home, ".local", "share"), "applications");
   for (const f of entries(dir)) {
@@ -410,10 +654,10 @@ export function installedStromApp(env: Env, platform: NodeJS.Platform = process.
     if (name && /--app-id=|--app=/.test(text) && isIt(name, /--app=(?:"([^"]+)"|(\S+))/.exec(exec)?.slice(1).find(Boolean))) {
       const browser = /edge/.test(exec) ? "Microsoft Edge" : /brave/.test(exec) ? "Brave" : /vivaldi/.test(exec) ? "Vivaldi" : /chromium/.test(exec) ? "Chromium" : /chrome/.test(exec) ? "Google Chrome" : undefined;
       const launch = launchOf(exec);
-      return { path: path.join(dir, f), kind: "browser app", ...(launch.appId && browser ? { browser, ...launch } : {}) };
+      found.push({ path: path.join(dir, f), kind: "browser app", ...(launch.appId && browser ? { browser, ...launch } : {}) });
     }
   }
-  return undefined;
+  return found;
 }
 
 export type StromAppState = "yes" | "no" | "seen" | "unknown";
@@ -442,7 +686,8 @@ export function noticeStromApp(settings: Settings, env: Env, opts: { look?: bool
     }
   }
   if (!opts.look) return undefined;
-  const app = installedStromApp(env, process.platform, stromAppUrl(settings));
+  // only a look: an invalid strom.app.url (strom app refuses it) looks for the default copy
+  const app = installedStromApp(env, process.platform, appUrlSetting(settings).url);
   if (app && !settings.config.stromAppSeen) {
     settings.config.stromAppSeen = { via: app.kind, at };
     settings.save();

@@ -21,16 +21,18 @@ import { assertIntact } from "../core/integrity.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { offerLinks } from "../cli/wizard.ts";
-import { appOpensLinks, appOpensResearch, importAppUrl, installedStromApp, liveAppUrl, noticeStromApp, STROM_APP_URL, stromAppUrl } from "../core/stromapp.ts";
-import { forgetLive, liveRunning, serveLive, startLive, stopLive } from "../core/live.ts";
+import { appOpensLinks, appOpensResearch, appUrlSetting, importAppUrl, installedStromApp, liveAppUrl, liveAppUrlShown, noticeStromApp, stromAppUrl } from "../core/stromapp.ts";
+import { dropLiveSecret, forgetLive, liveRunning, serveLive, startLive, stopLive } from "../core/live.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut, openInNewTerminal } from "../core/shortcut.ts";
 import { browserKind, openFileWith, revealFile } from "../core/chromium.ts";
 import { fromWords } from "../cli/move.ts";
 import { finishMovedByFile, movedByFile } from "../core/transfer.ts";
 import { appWindow, openAppIn, replaceGone } from "../core/appbrowser.ts";
-import { endProcess, ownProcesses, uninstallPlan, type Removal } from "../core/uninstall.ts";
-import { Tree } from "../core/tree.ts";
+import { endProcess, notOurs, ownProcesses, uninstallPlan, type Removal } from "../core/uninstall.ts";
+import { newerTree, Tree, TREE_FILE } from "../core/tree.ts";
+import { readJsonIfExists } from "../core/json.ts";
+import type { TreeConfig } from "../core/model.ts";
 import type { Research } from "../core/model.ts";
 import { commitNow, shimDir } from "./session.ts";
 import { abandonedSessions, closeSession, openSessions } from "../core/session.ts";
@@ -64,6 +66,35 @@ function waitFor(child: ReturnType<typeof spawnAgent>): Promise<number> {
     child.on("error", () => resolve(127));
     child.on("close", (code) => resolve(code ?? 1));
   });
+}
+
+
+/**
+ * The tree a bridge command is for. A research a newer strom wrote (a beta's, this strom back on the releases) is never
+ * opened, but its bridge still starts, stops and serves — /status says it is locked, so the app says why (found
+ * 2026-10-07: strom update back to the stable could not start its bridges again, nor strom live stop end the beta's).
+ */
+function bridgeTree(ctx: Context): { root: string; lang: string } {
+  const root = ctx.locateTree();
+  if (root && newerTree(root, ctx.env)) return { root, lang: readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE))?.lang ?? ctx.uiLang() };
+  const tree = ctx.tree();
+  return { root: tree.root, lang: tree.lang };
+}
+
+/**
+ * What strom live and live start say of the app that follows the bridge: its address — or, where strom.app.url says no
+ * address of the app, how that stands, and no address built on it with the bridge's secret (the bridge runs all the same).
+ */
+function liveAppLine(ctx: Context, lang: string, bridge: string): string {
+  const url = liveAppUrlShown(bridge, ctx.settings);
+  if (url) return ui(lang, "ui.live.app", { url });
+  const bad = appUrlSetting(ctx.settings).invalid!;
+  return ui(lang, bad.source === "env" ? "ui.doc.appurl.env" : "ui.doc.appurl.config", { value: bad.value });
+}
+
+function liveAppData(ctx: Context, bridge: string): { app?: string } {
+  const url = liveAppUrlShown(bridge, ctx.settings);
+  return url ? { app: url } : {};
 }
 
 register({
@@ -196,7 +227,7 @@ register(
       "In a tree, with an app that can take it (from its version 3.0.0), the app opens this research itself — the first time as\n" +
       "a new tree, after that the same tree updated — and follows it while somebody is at work on it (the live bridge).\n" +
       `Otherwise the results are ready for it in output/tree-strom.ged (in the app: Import). Each entry comes with its image,\n` +
-      `cut out of its scan (the settings excerpts.*; excerpts.for none: without). Web: ${STROM_APP_URL}`,
+      `cut out of its scan (the settings excerpts.*; excerpts.for none: without). Web: {appUrl}`,
     options: [
       { name: "live", type: "boolean", description: "the app follows this research while it goes on (the live bridge)" },
       { name: "images", type: "boolean", description: "each entry with its image (the default; kept for older scripts)" },
@@ -204,6 +235,9 @@ register(
     examples: ["strom app", "strom app --live", "strom app install"],
     async run(ctx, { opts }) {
       const lang = ctx.uiLang();
+      // a strom.app.url that is no address of the app (the variable, or written by hand into the settings): refused
+      // before anything starts — nothing opened, no address built on it with the bridge's secret (B1-c)
+      stromAppUrl(ctx.settings);
       const root = appOpensResearch(ctx.settings) ? ctx.locateTree() : undefined;
       if (root) {
         const tree = Tree.open(root, ctx.env);
@@ -226,9 +260,9 @@ register(
                 r.unclipped.length ? ui(lang, "ui.app.images.unclipped", { n: String(r.unclipped.length) }) : undefined,
               )
             : undefined;
-        // B, D: the app reaches strom on this computer — in the browser its tree came from (app.browser), else the
-        // default one when the app reaches strom from it, else installed from a browser, else such a browser's tab;
-        // never one it cannot (Safari). The copy of the app strom opens (strom.app.url: its beta, its development).
+        // B, D: the app reaches strom on this computer — the app installed from a browser first (that of the browser
+        // its tree came from, app.browser, when several), else a tab of that browser, else of the default one when the
+        // app reaches strom from it, else of the first such browser; never one it cannot (Safari). The copy of the app strom opens (strom.app.url: its beta, its development).
         const installed = installedStromApp(ctx.env, process.platform, stromAppUrl(ctx.settings));
         const win = appWindow(ctx.settings, ctx.env);
         // the browser kept for the app is no longer here: said, the one it opens in now kept instead
@@ -294,15 +328,16 @@ register(
       "strom app --live, takes the tree from it and hears what changes — who is at work on what, what was recorded, what\n" +
       "waits for the user. It ends by itself when nobody asks it anything for two hours, or with strom live stop.\n" +
       "One error does not end it (a read that fails is tried again); what it did and what went wrong is in .strom/live.log.\n" +
-      "Started again it takes the address it had (its port while free), so the app following it goes on by itself;\n" +
-      "one that ended without a word is started again when a session starts.",
+      "Started again by itself (strom updated, one that ended without a word or when idle) it takes the address it had\n" +
+      "(its port while free), so the app following it goes on by itself; one that ended without a word is started again\n" +
+      "when a session starts. Stopped with strom live stop, the next one gets a new secret address.",
     examples: ["strom live", "strom live start", "strom live stop"],
     run(ctx) {
-      const tree = ctx.tree();
+      const tree = bridgeTree(ctx);
       const lang = tree.lang;
       const info = liveRunning(tree.root);
       return info
-        ? { text: lines(ui(lang, "ui.live.runs", { url: info.url }), ui(lang, "ui.live.app", { url: liveAppUrl(info.url, ctx.settings) }), ui(lang, "ui.live.stophow")), data: { running: true, ...info, app: liveAppUrl(info.url, ctx.settings) } }
+        ? { text: lines(ui(lang, "ui.live.runs", { url: info.url }), liveAppLine(ctx, lang, info.url), ui(lang, "ui.live.stophow")), data: { running: true, ...info, ...liveAppData(ctx, info.url) } }
         : { text: ui(lang, "ui.live.none"), data: { running: false } };
     },
   },
@@ -313,13 +348,13 @@ register(
     tree: true,
     options: [{ name: "current", type: "boolean", description: "a bridge of this strom's version: one of another version running is ended and started again, at its address (strom update does so)" }],
     run(ctx, { opts }) {
-      const tree = ctx.tree();
+      const tree = bridgeTree(ctx);
       const lang = tree.lang;
       const info = startLive(tree.root, ctx.env, { current: !!opts.current });
       if (!info) throw new StromError("the bridge did not start", { hint: "strom live serve shows why", code: "live.not-started" });
       return {
-        text: lines(ui(lang, "ui.live.runs", { url: info.url }), ui(lang, "ui.live.app", { url: liveAppUrl(info.url, ctx.settings) }), info.moved ? ui(lang, "ui.live.moved") : undefined),
-        data: { ...info, app: liveAppUrl(info.url, ctx.settings) },
+        text: lines(ui(lang, "ui.live.runs", { url: info.url }), liveAppLine(ctx, lang, info.url), info.moved ? ui(lang, "ui.live.moved") : undefined),
+        data: { ...info, ...liveAppData(ctx, info.url) },
       };
     },
   },
@@ -329,18 +364,21 @@ register(
     group: "output",
     tree: true,
     description:
-      "Started again, the bridge takes its last address (its port while free, its secret), so the Strom app that kept it\n" +
-      "goes on by itself. --forget: the next bridge gets a new secret — the address the app kept no longer works (the\n" +
-      "app gets the new one when the research is opened in it again: strom app).",
-    options: [{ name: "forget", type: "boolean", description: "the next bridge gets a new secret address" }],
+      "Ended for good: the next bridge gets a new secret (its port while free) — the address the Strom app kept no longer\n" +
+      "works, and the app gets the new one when the research is opened in it again (strom app). --forget: its port too.\n" +
+      "(A bridge started again by itself — strom updated, one that ended when idle — keeps its address.)",
+    options: [{ name: "forget", type: "boolean", description: "the next bridge gets a new port too, not only a new secret" }],
     examples: ["strom live stop", "strom live stop --forget"],
     run(ctx, { opts }) {
-      const { root, lang } = ctx.tree();
+      const { root, lang } = bridgeTree(ctx);
       const how = stopLive(root);
       if (how === "alive") throw new StromError("the bridge could not be ended", { hint: `its process: see .strom/live.json — end it in the system's task manager`, code: "live.alive" });
+      // ended for good: its secret dropped (the address that may have got out dies with it)
+      const dropped = dropLiveSecret(root, "strom live stop");
       if (opts.forget) forgetLive(root);
       const said = ui(lang, how === "none" ? "ui.live.noneran" : how === "killed" ? "ui.live.killed" : "ui.live.stopped");
-      return { text: lines(said, opts.forget ? ui(lang, "ui.live.forgotten") : undefined), data: { stopped: how !== "none", how, ...(opts.forget ? { forgotten: true } : {}) } };
+      const next = opts.forget ? ui(lang, "ui.live.forgotten") : dropped ? ui(lang, "ui.live.newsecret") : undefined;
+      return { text: lines(said, next), data: { stopped: how !== "none", how, ...(dropped ? { newSecret: true } : {}), ...(opts.forget ? { forgotten: true } : {}) } };
     },
   },
   {
@@ -349,7 +387,7 @@ register(
     group: "output",
     tree: true,
     async run(ctx) {
-      const tree = ctx.tree();
+      const tree = bridgeTree(ctx);
       await serveLive(tree.root, ctx.env);
       // a bridge that ended is gone as a process, whatever still holds it (found on Mac: bridges of folders long removed
       // still running, nobody to follow them)
@@ -389,9 +427,10 @@ register(
       const rows = globalTargets(ctx.env)
         .filter((t) => (opts.all || installed.includes(t.agent)) && !seen.has(`${t.kind}:${t.file}`) && seen.add(`${t.kind}:${t.file}`))
         .map((t) => ({ agent: t.agent, file: t.file, written: installGlobal(t) }));
+      const lang = ctx.uiLang();
       const text = rows.length
-        ? lines(...rows.map((r) => `${PROFILES[r.agent]!.name}: ${ctx.display(r.file)}${r.written ? "" : " (already there)"}`))
-        : "no AI agent installed — strom setup offers one";
+        ? lines(...rows.map((r) => (r.written ? `${PROFILES[r.agent]!.name}: ${ctx.display(r.file)}` : ui(lang, "ui.agents.already", { agent: PROFILES[r.agent]!.name, file: ctx.display(r.file) }))))
+        : ui(lang, "ui.agents.none");
       return { text, data: { agents: rows } };
     },
   },
@@ -404,7 +443,9 @@ register(
         .filter((t) => isInstalled(t))
         .map((t) => ({ agent: t.agent, file: t.file, removed: uninstallGlobal(t) }))
         .filter((r) => r.removed);
-      return { text: rows.length ? lines(...rows.map((r) => `${PROFILES[r.agent]!.name}: removed from ${ctx.display(r.file)}`)) : "nothing to remove", data: { agents: rows } };
+      const lang = ctx.uiLang();
+      const text = rows.length ? lines(...rows.map((r) => ui(lang, "ui.agents.removed", { agent: PROFILES[r.agent]!.name, file: ctx.display(r.file) }))) : ui(lang, "ui.agents.nothing");
+      return { text, data: { agents: rows } };
     },
   },
   {
@@ -417,9 +458,12 @@ register(
     examples: ["strom uninstall"],
     async run(ctx) {
       const lang = ctx.uiLang();
-      const plan = uninstallPlan(ctx.env, ["en", "cs", "de"].map(shortcutName));
-      const label = (r: Removal) => ui(lang, `ui.uninstall.${r.kind}`, { agent: r.agent ?? "" });
       const home = ctx.settings.home()?.value;
+      // never taken, nor a folder that holds it: the research and what is the person's (found 2026-10-07: an isolated
+      // installation's research and its backups lay in its folder, which went whole)
+      const keep = ctx.researchFolders();
+      const plan = uninstallPlan(ctx.env, ["en", "cs", "de"].map(shortcutName), { keep });
+      const label = (r: Removal) => ui(lang, `ui.uninstall.${r.kind}`, { agent: r.agent ?? "" });
       const keeps = ui(lang, "ui.uninstall.keeps", { home: home ? ctx.display(home) : "—", config: ctx.display(configDir(ctx.env)) });
       if (!plan.remove.length)
         return { text: lines(ui(lang, "ui.uninstall.nothing"), plan.npm ? ui(lang, "ui.uninstall.npm") : undefined, keeps), data: { removed: [], npm: plan.npm } };
@@ -443,7 +487,8 @@ register(
       // the bridges of the research (the Strom app following it) end first: they run this installation's Node
       for (const k of ctx.knownTrees()) {
         try {
-          stopLive(k.root, "strom uninstall");
+          // ended for good: its secret too (installed again, the app gets the new address through strom app)
+          if (stopLive(k.root, "strom uninstall") !== "alive") dropLiveSecret(k.root, "strom uninstall");
         } catch {
           // its tree unreadable: its bridge, if any, is found below
         }
@@ -460,6 +505,11 @@ register(
         }
       });
       const failed = plan.remove.filter((r) => !removed.includes(r) && !later.includes(r));
+      // the program's folder with what strom did not put there (a research, backups, a file of the person's): it stays
+      const left = plan.program && fs.existsSync(plan.program) ? notOurs(plan.program, plan.launchers, keep) : [];
+      const folderKept = left.length ? ui(lang, "ui.uninstall.folderKept", { folder: ctx.display(plan.program!), what: left.join(", ") }) : undefined;
+      // what install.json names as a launcher but is none (another name, or it lies in the research): left, said
+      const skipped = (plan.skipped ?? []).map((p) => ui(lang, "ui.uninstall.skipped", { path: ctx.display(p) }));
       return {
         text: lines(
           ...removed.map((r) => `✓ ${label(r)}: ${ctx.display(r.path)}`),
@@ -467,10 +517,12 @@ register(
           ...failed.map((r) => `✗ ${label(r)}: ${ctx.display(r.path)}`),
           "",
           plan.npm ? ui(lang, "ui.uninstall.npm") : undefined,
+          folderKept,
+          ...skipped,
           keeps,
           failed.length ? undefined : ui(lang, "ui.uninstall.done"),
         ),
-        data: { removed: removed.map((r) => ({ kind: r.kind, path: r.path })), later: later.map((r) => ({ kind: r.kind, path: r.path })), failed: failed.map((r) => ({ kind: r.kind, path: r.path })), npm: plan.npm },
+        data: { removed: removed.map((r) => ({ kind: r.kind, path: r.path })), later: later.map((r) => ({ kind: r.kind, path: r.path })), failed: failed.map((r) => ({ kind: r.kind, path: r.path })), npm: plan.npm, ...(left.length ? { kept: { folder: plan.program, entries: left } } : {}), ...(plan.skipped?.length ? { skipped: plan.skipped.map((p) => ({ kind: "launcher", path: p })) } : {}) },
       };
     },
   },

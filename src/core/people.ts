@@ -10,19 +10,67 @@ import { UI, ui, type UIKey } from "../cli/ui.ts";
 
 /**
  * Parse "Jan /Novák/", "Jan Novák" (last word = surname) or "/Novák/". The
- * surname runs from the first slash to the last: "/⟨K/Č⟩emenská/" keeps its
- * inner slash for the caller to refuse (actions) or replace (import).
+ * surname is the last pair of slashes, opened at the start or after a space:
+ * "N/A /Chrpa/" is "?" Chrpa. A slash inside a word does not open it —
+ * "/⟨K/Č⟩emenská/" keeps its inner slash for the caller to refuse (actions)
+ * or replace (import). What stands for no name (N/A, N.N.) stays for the
+ * caller: an action refuses it (notAName), a file read makes it "?" (noName).
  */
 export function parseName(input: string): Name {
   const s = input.trim().replace(/\s+/g, " ");
-  const m = /^([^/]*?)\s*\/(.*)\/\s*([^/]*)$/.exec(s);
-  if (m) {
-    const given = [m[1], m[3]].filter(Boolean).join(" ").trim();
-    return { given, surname: (m[2] ?? "").trim() };
+  const close = s.lastIndexOf("/");
+  let open = -1;
+  for (let i = close - 1; i >= 0; i--) if (s[i] === "/" && (i === 0 || s[i - 1] === " ")) { open = i; break; }
+  if (open < 0 && close > 0) open = s.indexOf("/");
+  if (open >= 0 && open < close) {
+    const given = [s.slice(0, open), s.slice(close + 1)].map((x) => x.trim()).filter(Boolean).join(" ");
+    return { given, surname: s.slice(open + 1, close).trim() };
   }
   const parts = s.split(" ");
   if (parts.length === 1) return { given: s, surname: "" };
   return { given: parts.slice(0, -1).join(" "), surname: parts[parts.length - 1]! };
+}
+
+/**
+ * What a record or another program writes where it has no name (folded): the person's name is "?". The Strom app
+ * reads the same list (the tester's T08); words that describe the person (stillborn, son) are DESCRIPTIONS below.
+ */
+export const NO_NAME = [
+  "n a", "nn", "n n", "nomen nescio", "unknown", "unnamed", "no name", "noname",
+  "neznamy", "neznama", "nezname", "nezjisteno", "bez jmena", "bezejmenny", "bezejmenna",
+  "unbekannt", "namenlos", "ohne namen", "nieznany", "nieznana", "nieznane", "bez imienia",
+  "inconnu", "inconnue", "sans nom",
+];
+const NO_NAME_SET = new Set(NO_NAME);
+
+/** Whether a given name only says there is none ("N/A", "N.N.", "?", "—"); an empty one is no name either way. */
+export function noName(given: string): boolean {
+  const g = given.trim();
+  if (!g) return false;
+  const words = foldText(g).replace(/[^\p{L}\p{M}\p{N}]+/gu, " ").trim();
+  return !words || NO_NAME_SET.has(words);
+}
+
+/**
+ * The Strom app's way of writing a person of no name and no surname: "? /Unknown/" (2 GIVN ?, no SURN) — no surname,
+ * not the surname Unknown. Only a file of the Strom app says so (its HEAD: 1 SOUR STROM; T08b); a surname Unknown the
+ * user typed there comes with its SURN.
+ */
+export function appNoSurname(given: string, surname: string, surn: string | undefined): boolean {
+  return noName(given) && surname === "Unknown" && !surn?.trim();
+}
+
+/**
+ * The surname of a NAME line without slashes that has a GIVN and no SURN ("Petr Novotný" + GIVN Petr; N11): the rest
+ * of the line after the given name — after its first word where the line does not start with the GIVN ('' when
+ * nothing is left). The Strom app reads it so (its 3.10.0-beta.7). The given name's words compared through foldText
+ * (any accent, NFD), its commas read as spaces; the surname comes back in NFC, stray slashes left out.
+ */
+export function surnameAfterGiven(line: string, givn: string): string {
+  const words = (s: string) => s.normalize("NFC").split(/\s+/u).filter(Boolean);
+  const [said, given] = [words(line.replace(/,/g, " ")), words(givn.replace(/,/g, " "))];
+  const starts = given.length > 0 && given.length <= said.length && given.every((w, i) => foldText(w) === foldText(said[i]!));
+  return (starts ? said.slice(given.length) : words(line).slice(1)).join(" ").replace(/\//g, "").trim();
 }
 
 /** Words that describe a person instead of naming them (folded): stillborn, unbaptised, N.N. */
@@ -45,7 +93,7 @@ export function notAName(given: string): string | undefined {
   if (!g) return undefined;
   if (/^[(\[{].*[)\]}]$/su.test(g)) return `"${g}" is a description in brackets, not a name`;
   const words = foldText(g).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
-  if (DESCRIPTIONS.has(words)) return `"${g}" describes the person, it is not a name`;
+  if (DESCRIPTIONS.has(words) || NO_NAME_SET.has(words)) return `"${g}" describes the person, it is not a name`;
   return undefined;
 }
 
@@ -66,6 +114,69 @@ export function formatName(n: Name): string {
 export function gedcomName(n: Name): string {
   const part = (s: string) => s.replace(/\//g, "|");
   return `${part(n.given)} /${part(n.surname)}/`.trim();
+}
+
+/** A title as it is kept: one line, single spaces, NFC; empty: none. */
+export function cleanTitle(t: unknown): string | undefined {
+  const s = (typeof t === "string" ? t : "").normalize("NFC").replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/gu, " ").trim();
+  return s || undefined;
+}
+
+/** The name with its titles, as a person reads it: "Ing. Jan Novák ml." (the name alone where it has none). */
+export function titledName(n: Name): string {
+  return [n.prefix, formatName(n), n.suffix].filter(Boolean).join(" ");
+}
+
+/**
+ * The NAME line of a name with its titles ("Ing. Jan /Novák/ ml."): a program that reads no NPFX / NSFX shows them
+ * still. The Strom app (3.10) and strom read the titles from NPFX / NSFX and take them off the line (withoutTitles).
+ */
+export function gedcomTitledName(n: Name): string {
+  return [n.prefix, gedcomName(n), n.suffix].filter(Boolean).join(" ");
+}
+
+/** A title written as GEDCOM lists them ("Prof., Dr.") and as a line says it ("Prof. Dr."). */
+const titleForms = (t: string) => [...new Set([t, t.replace(/\s*,\s*/g, " ")])];
+
+/**
+ * The NAME line without the titles its NPFX / NSFX give: the title before at its start, the title after at its end,
+ * each a whole word — as the Strom app reads it (its gedcom-names.ts stripTitles). A line without NPFX / NSFX is never
+ * searched for titles: "Dr." told by a list of words would be a guess that damages a name which only looks like one.
+ */
+export function withoutTitles(line: string, before: string | undefined, after: string | undefined): string {
+  return foundTitles(line, { before, after }).line;
+}
+
+/**
+ * Titles known to be a person's (NPFX / NSFX, or the research's own) found in a NAME line: taken off its start and its
+ * end — also from inside the closing slash, where an app that reads no NPFX / NSFX puts the title after ("Ing. Jan
+ * /Novák ml./": the Strom app before 3.10 reads "Novák ml." as the surname). What was found, and the line without it.
+ */
+export function foundTitles(line: string, titles: { before?: string | undefined; after?: string | undefined }): { line: string; before?: string; after?: string } {
+  let s = line.normalize("NFC").trim().replace(/\s+/g, " ");
+  const found: { before?: string; after?: string } = {};
+  if (titles.before)
+    for (const t of titleForms(titles.before.normalize("NFC")))
+      if (s.startsWith(t) && (s.length === t.length || /[\s/]/u.test(s[t.length]!))) {
+        s = s.slice(t.length).trim();
+        found.before = titles.before;
+        break;
+      }
+  if (titles.after) {
+    const slash = s.endsWith("/") && s.indexOf("/") < s.length - 1 ? "/" : "";
+    let core = slash ? s.slice(0, -1).trimEnd() : s;
+    for (const t of titleForms(titles.after.normalize("NFC"))) {
+      const at = core.length - t.length;
+      if (at >= 0 && core.endsWith(t) && (at === 0 || /[\s/,]/u.test(core[at - 1]!))) {
+        // "Novák, Ph.D.": the comma before a title after the name goes with it
+        core = core.slice(0, at).trim().replace(/,$/, "").trim();
+        found.after = titles.after;
+        break;
+      }
+    }
+    if (found.after) s = slash ? `${core}/` : core;
+  }
+  return { line: s, ...found };
 }
 
 /** Why a name cannot be kept as it is, or undefined: a slash inside it ("/⟨K/Č⟩emenská/", "Jan /Novák"). */
@@ -178,6 +289,59 @@ export function familiesAsChild(tree: Tree, id: string): Family[] {
 
 export function familiesAsPartner(tree: Tree, id: string): Family[] {
   return relIndex(tree).asPartner.get(id) ?? [];
+}
+
+/**
+ * The two sides of a couple, HUSB and WIFE, as the Strom app sides them (its coupleSides): a man HUSB, a woman WIFE,
+ * one of unknown sex the side the other one leaves free; two of one sex, or two unknown, in the order given. One
+ * partner alone: HUSB unless a woman. Never one of them left out.
+ */
+export function coupleSides<T extends { sex: string }>(a: T | undefined, b: T | undefined): [T | undefined, T | undefined] {
+  if (!a || !b) {
+    const one = a ?? b;
+    return one?.sex === "F" ? [undefined, one] : [one, undefined];
+  }
+  if (a.sex === "M" && b.sex !== "M") return [a, b];
+  if (b.sex === "M" && a.sex !== "M") return [b, a];
+  if (b.sex === "F" && a.sex !== "F") return [a, b];
+  if (a.sex === "F" && b.sex !== "F") return [b, a];
+  return [a, b];
+}
+
+/**
+ * A family's sides as its files write them: the ones kept when a sex of the partners changed (Family.husb, U01-e) —
+ * unless that puts a woman HUSB beside a man —, else coupleSides. An app that knows no unknown sex (the Strom app
+ * before 3.10.0-beta.11) guesses one by the side: a side kept is no change of the guess.
+ */
+export function familySides<T extends { id: string; sex: string }>(f: { husb?: string | undefined }, a: T | undefined, b: T | undefined): [T | undefined, T | undefined] {
+  if (a && b && (f.husb === a.id || f.husb === b.id)) {
+    const [h, w] = f.husb === a.id ? [a, b] : [b, a];
+    if (!(h.sex === "F" && w.sex === "M")) return [h, w];
+  }
+  return coupleSides(a, b);
+}
+
+/**
+ * A person's sex about to change (editPerson): each couple of theirs keeps the sides its files wrote — set on the family
+ * where coupleSides would now swap them, taken off where it no longer would (U01-e).
+ */
+export function keepSides(tree: Tree, before: Person, after: Person): { family: Family; next: Family }[] {
+  const out: { family: Family; next: Family }[] = [];
+  for (const f of familiesAsPartner(tree, before.id)) {
+    if (f.partners.length !== 2) continue;
+    const of = (p: Person) => f.partners.map((id) => (id === before.id ? p : tree.get<Person>(id))).filter((x): x is Person => !!x);
+    const [a, b] = of(before);
+    const [x, y] = of(after);
+    if (!a || !b || !x || !y) continue;
+    const was = familySides(f, a, b)[0]?.id;
+    const kept = familySides({ husb: was }, x, y)[0]?.id;
+    const plain = coupleSides(x, y)[0]?.id;
+    const husb = kept === plain ? undefined : kept;
+    if (husb === f.husb) continue;
+    const { husb: _old, ...rest } = f;
+    out.push({ family: f, next: { ...rest, ...(husb ? { husb } : {}) } as Family });
+  }
+  return out;
 }
 
 export function parentsOf(tree: Tree, id: string): Person[] {

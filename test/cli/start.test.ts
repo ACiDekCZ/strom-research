@@ -301,7 +301,7 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   // an agent sets strom up: the way said, the other one named for the person to decide
   delete w.env.STROM_INSTALLER;
   const yes = await w.ok(["setup", "--yes", "--agent", "codex"]);
-  assert.match(yes.out, /talk +in the ChatGPT \(Codex\) desktop app — both are here; the user decides: strom setup --where terminal/);
+  assert.match(yes.out, /rozhovor +v aplikaci ChatGPT \(Codex\) – obojí je tu; rozhoduje uživatel: strom setup --where terminal/);
   await w.ok(["setup", "--yes", "--where", "terminal"]);
   assert.equal(cfg().agentWhere, "terminal");
   w.cleanup();
@@ -426,13 +426,239 @@ test("agents learn about strom in any folder, and forget it again; the user's ow
   await w.ok(["agents", "uninstall"]);
   assert.equal(fs.readFileSync(path.join(grokDir, "config.toml"), "utf8"), userToml, "the user's file as it was");
   assert.ok(!fs.existsSync(path.join(grokDir, "skills", "strom")));
-  assert.deepEqual(readJsonFile(path.join(ocDir, "opencode.json")), { theme: "tokyonight", permission: { bash: { "*": "ask" } }, instructions: ["~/rules.md"] });
+  assert.equal(fs.readFileSync(path.join(ocDir, "opencode.json"), "utf8"), JSON.stringify({ theme: "tokyonight", permission: { bash: "ask" }, instructions: ["~/rules.md"] }), "the user's file as it was, its plain bash rule too");
   assert.ok(!fs.existsSync(ocOwn));
   assert.deepEqual(readJsonFile(agySettings), { theme: "dark", permissions: { allow: ["command(git)"] } });
   assert.equal(fs.readFileSync(codex, "utf8"), "# My rules\n\nAlways answer briefly.\n");
   assert.ok(!fs.existsSync(path.join(w.env.HOME!, ".claude", "skills", "strom")));
   assert.deepEqual(readJsonFile(claudeSettings), { model: "opus", permissions: { allow: ["Bash(git status:*)", "Bash(stromboli:*)"], deny: ["Read(.env)"] } });
   assert.ok(!fs.existsSync(path.join(w.env.HOME!, ".gemini", "GEMINI.md")), "nothing else was in it");
+  w.cleanup();
+});
+
+test("an agent's TOML config: the person's text after strom's block stays where it is, and the block goes out exactly", async () => {
+  const w = new World();
+  const toml = path.join(w.env.HOME!, ".grok", "config.toml");
+  fs.mkdirSync(path.dirname(toml), { recursive: true });
+  const mine = '# Moje nastavení — 設定, настройки\n[cli]\ninstaller = "internal"\n';
+  fs.writeFileSync(toml, mine);
+  await w.ok(["agents", "install", "--all"]);
+  // the person writes their own text after strom's block
+  const after = '\n[ui]\ntheme = "dark" # tmavé, тёмная\n';
+  fs.appendFileSync(toml, after);
+  const written = fs.readFileSync(toml, "utf8");
+  // installed again: nothing moved, no second block — it is there as it is
+  const again = await w.ok(["agents", "install", "--all", "--json"]);
+  assert.equal(JSON.parse(again.out).agents.find((r: { file: string }) => r.file === toml).written, false);
+  assert.equal(fs.readFileSync(toml, "utf8"), written);
+  const r = await w.ok(["agents", "uninstall", "--json"]);
+  assert.ok(JSON.parse(r.out).agents.some((x: { file: string }) => x.file === toml), "the config is in what uninstall took strom out of");
+  assert.equal(fs.readFileSync(toml, "utf8"), mine + after, "the person's text before and after, byte for byte");
+  // a file strom created, the person's text after its block: that text stays alone
+  fs.rmSync(toml);
+  await w.ok(["agents", "install", "--all"]);
+  fs.appendFileSync(toml, after);
+  await w.ok(["agents", "uninstall"]);
+  assert.equal(fs.readFileSync(toml, "utf8"), after.slice(1));
+  // the person's own line breaks (CRLF) and no line break at the end: back as they were
+  const crlf = '[cli]\r\ninstaller = "internal" # Příliš žluťoučký kůň';
+  fs.writeFileSync(toml, crlf);
+  await w.ok(["agents", "install", "--all"]);
+  assert.doesNotMatch(fs.readFileSync(toml, "utf8").replace(/\r\n/g, ""), /\n/, "strom's lines end as the person's do");
+  await w.ok(["agents", "uninstall"]);
+  assert.equal(fs.readFileSync(toml, "utf8"), crlf);
+  w.cleanup();
+});
+
+test("an agent's TOML config: the person's text right after strom's block, or in a file that was empty, comes back byte for byte", async () => {
+  const w = new World();
+  const toml = path.join(w.env.HOME!, ".grok", "config.toml");
+  fs.mkdirSync(path.dirname(toml), { recursive: true });
+  const round = async (mine: string, edit: (written: string) => string, expected: string, what: string) => {
+    fs.writeFileSync(toml, mine);
+    await w.ok(["agents", "install", "--all"]);
+    fs.writeFileSync(toml, edit(fs.readFileSync(toml, "utf8")));
+    await w.ok(["agents", "uninstall"]);
+    assert.equal(fs.readFileSync(toml, "utf8"), expected, what);
+  };
+  const mine = 'model = "grok-4" # Příliš žluťoučký kůň\n';
+  const ui = '[ui]\ntheme = "dark" # tmavé, тёмная\n';
+  // the person's text right after strom's end line, no blank line between: the blank line strom put before its block goes too
+  await round(mine, (t) => t + ui, mine + ui, "text right after the end line");
+  await round('[cli]\r\na = 1\r\n', (t) => t + '[ui]\r\nb = "設定"\r\n', '[cli]\r\na = 1\r\n[ui]\r\nb = "設定"\r\n', "CRLF, text right after the end line");
+  // the end line deleted, the person's own table right after strom's last line
+  const tools = '[tools]\nallow = ["Bash(ls:*)"]\n';
+  await round(mine, (t) => t.replace("# strom: end\n", "") + tools, mine + tools, "the end line gone, text right after the block");
+  // an empty file: strom's block first, the person's blank line and table after it stay theirs
+  await round("", (t) => t + "\n" + ui, "\n" + ui, "an empty file, then the person's blank line and table");
+  await round("", (t) => t + ui, ui, "an empty file, then the person's table");
+  w.cleanup();
+});
+
+test("the agents' settings files of the person's on one line, with their own spaces, come back as they were; strom's entries are spaced the same way", async () => {
+  const w = new World();
+  const at = (...p: string[]) => path.join(w.env.HOME!, ...p);
+  const claude = at(".claude", "settings.json");
+  const agy = at(".gemini", "antigravity-cli", "settings.json");
+  const oc = at(".config", "opencode", "opencode.json");
+  const files: [string, string][] = [
+    [claude, '{"model": "opus", "env": {"A": "1", "POZDRAV": "Dobrý den — こんにちは"}}'],
+    [agy, '{ "theme": "dark" }'],
+    [oc, '{ "theme": "тёмная", "instructions": [ "~/a.md" ] }\n'],
+  ];
+  for (const [f, text] of files) {
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, text);
+  }
+  await w.ok(["agents", "install", "--all"]);
+  assert.equal(fs.readFileSync(agy, "utf8"), '{ "theme": "dark", "permissions": { "allow": ["command(strom)"] } }', "strom's entries in the person's spacing");
+  assert.match(fs.readFileSync(claude, "utf8"), /^\{"model": "opus", "env": \{"A": "1", "POZDRAV": "Dobrý den — こんにちは"\}, "permissions": \{"allow": \["Bash\(strom:\*\)", /);
+  assert.match(fs.readFileSync(oc, "utf8"), /^\{ "theme": "тёмная", "instructions": \[ "~\/a\.md", "[^"]+strom\.md" \], "permission": \{ "bash": \{ "strom \*": "allow" \} \} \}\n$/);
+  await w.ok(["agents", "uninstall"]);
+  for (const [f, text] of files) assert.equal(fs.readFileSync(f, "utf8"), text, `${f}: byte for byte as it was`);
+  // compact stays compact
+  fs.writeFileSync(agy, '{"theme":"dark"}');
+  await w.ok(["agents", "install", "--all"]);
+  assert.equal(fs.readFileSync(agy, "utf8"), '{"theme":"dark","permissions":{"allow":["command(strom)"]}}');
+  await w.ok(["agents", "uninstall"]);
+  assert.equal(fs.readFileSync(agy, "utf8"), '{"theme":"dark"}');
+  w.cleanup();
+});
+
+test("the agents' settings files of the person's come back from an install and an uninstall as they were: their layout, their empty objects", async () => {
+  const w = new World();
+  const at = (...p: string[]) => path.join(w.env.HOME!, ...p);
+  const claude = at(".claude", "settings.json");
+  const agy = at(".gemini", "antigravity-cli", "settings.json");
+  const oc = at(".config", "opencode", "opencode.json");
+  const rounds: [string, string][][] = [
+    [
+      // compact, no line break at the end
+      [claude, '{"model":"opus","permissions":{"allow":["Bash(ls:*)"]},"env":{"POZDRAV":"Dobrý den — こんにちは","ESC":"\\u00e9\\t"}}'],
+      // tabs, an empty permissions object of the person's
+      [agy, '{\n\t"theme": "tmavá",\n\t"permissions": {}\n}\n'],
+      // four spaces, a plain bash rule, an empty list of instructions
+      [oc, '{\n    "theme": "тёмная",\n    "permission": {\n        "bash": "ask"\n    },\n    "instructions": []\n}\n'],
+    ],
+    [
+      // an empty allow list of the person's, CRLF line breaks
+      [claude, '{\r\n  "permissions": {\r\n    "allow": [],\r\n    "deny": ["Read(./tajné.env)"]\r\n  }\r\n}\r\n'],
+      // {} with no line break at the end; a blank file
+      [agy, "{}"],
+      [oc, "\n"],
+    ],
+    [[claude, "  {}\n\n"], [agy, '{"permissions":{"allow":[]}}'], [oc, '{"permission":"ask"}']],
+  ];
+  for (const files of rounds) {
+    for (const [f, text] of files) {
+      fs.mkdirSync(path.dirname(f), { recursive: true });
+      fs.writeFileSync(f, text);
+    }
+    await w.ok(["agents", "install", "--all"]);
+    for (const [f] of files) assert.match(fs.readFileSync(f, "utf8"), /strom/, `${f}: strom allowed`);
+    await w.ok(["agents", "uninstall"]);
+    for (const [f, text] of files) assert.equal(fs.readFileSync(f, "utf8"), text, `${f}: byte for byte as it was`);
+  }
+  // strom's lines are written in the person's way
+  fs.writeFileSync(agy, '{\n\t"theme": "tmavá"\n}');
+  await w.ok(["agents", "install", "--all"]);
+  assert.equal(fs.readFileSync(agy, "utf8"), '{\n\t"theme": "tmavá",\n\t"permissions": {\n\t\t"allow": [\n\t\t\t"command(strom)"\n\t\t]\n\t}\n}');
+  w.cleanup();
+});
+
+test("agents forget strom: what the install created goes when nothing else is in it, folders too; the person's files stay, also empty", async () => {
+  const w = new World();
+  const home = w.env.HOME!;
+  const at = (...p: string[]) => path.join(home, ...p);
+  const agentDirs = [".claude", ".codex", ".gemini", ".grok", path.join(".config", "opencode")];
+  for (const d of agentDirs) assert.ok(!fs.existsSync(at(d)));
+  // nothing of the agents here: everything strom writes is its own
+  await w.ok(["agents", "install", "--all"]);
+  assert.ok(fs.existsSync(at(".claude", "settings.json")));
+  await w.ok(["agents", "uninstall"]);
+  for (const f of [[".claude", "settings.json"], [".gemini", "antigravity-cli", "settings.json"], [".config", "opencode", "opencode.json"], [".grok", "config.toml"], [".codex", "AGENTS.md"], [".gemini", "GEMINI.md"]])
+    assert.ok(!fs.existsSync(at(...f)), `${f.join("/")}: strom's alone, gone (found: {} left behind)`);
+  for (const d of [...agentDirs, ".config"]) assert.ok(!fs.existsSync(at(d)), `${d}: a folder strom made, empty, gone`);
+  // the person's files, empty or with nothing but what strom then adds: they stay, and their folders
+  const mine: [string[], string][] = [
+    [[".claude", "settings.json"], "{}\n"],
+    [[".gemini", "antigravity-cli", "settings.json"], ""],
+    [[".config", "opencode", "opencode.json"], "{}"],
+    [[".grok", "config.toml"], ""],
+    [[".codex", "AGENTS.md"], ""],
+    [[".gemini", "GEMINI.md"], "\n"],
+  ];
+  for (const [f, text] of mine) {
+    fs.mkdirSync(path.dirname(at(...f)), { recursive: true });
+    fs.writeFileSync(at(...f), text);
+  }
+  await w.ok(["agents", "install", "--all"]);
+  assert.match(fs.readFileSync(at(".codex", "AGENTS.md"), "utf8"), /strom: begin/);
+  await w.ok(["agents", "uninstall"]);
+  for (const [f] of mine) assert.ok(fs.existsSync(at(...f)), `${f.join("/")}: the person's, kept`);
+  assert.deepEqual(readJsonFile(at(".claude", "settings.json")), {});
+  assert.deepEqual(readJsonFile(at(".config", "opencode", "opencode.json")), {});
+  assert.equal(fs.readFileSync(at(".grok", "config.toml"), "utf8"), "");
+  assert.equal(fs.readFileSync(at(".codex", "AGENTS.md"), "utf8"), "");
+  // the skills strom made in a folder of the person's: the skill and the skills folder go, the person's folder stays
+  assert.ok(!fs.existsSync(at(".claude", "skills")) && !fs.existsSync(at(".grok", "skills")));
+  w.cleanup();
+});
+
+test("agents install and uninstall speak the person's language (cs, de), never to the person; English as before", async () => {
+  const w = new World();
+  w.env.STROM_LANG = "cs";
+  const none = await w.ok(["agents", "install"], { env: { ...w.env, PATH: "" } });
+  assert.match(none.out, /žádný agent AI tu není nainstalovaný — strom setup ho nabídne/);
+  await w.ok(["agents", "install", "--all"]);
+  const again = await w.ok(["agents", "install", "--all"]);
+  assert.match(again.out, /Claude Code: .*settings\.json \(už tam je\)/);
+  const r = await w.ok(["agents", "uninstall"]);
+  assert.match(r.out, /Claude Code: odebráno z .*settings\.json/);
+  assert.doesNotMatch(r.out, /removed from/);
+  assert.match((await w.ok(["agents", "uninstall"])).out, /není co odebrat/);
+  await w.ok(["agents", "install", "--all"]);
+  assert.match((await w.ok(["agents", "uninstall"], { env: { ...w.env, STROM_LANG: "de" } })).out, /Grok Build: entfernt aus .*config\.toml/);
+  await w.ok(["agents", "install", "--all"]);
+  assert.match((await w.ok(["agents", "uninstall"], { env: { ...w.env, STROM_LANG: "en" } })).out, /OpenAI Codex CLI: removed from .*AGENTS\.md/);
+  w.cleanup();
+});
+
+test("agents forget strom after an installation that recorded nothing it created (1.12.1, the betas before): its files stay as that uninstall left them", async () => {
+  const w = new World();
+  const home = w.env.HOME!;
+  await w.ok(["agents", "install", "--all"]);
+  // an older strom kept no record; a newer one refreshing what it taught does not take the files for the person's
+  const record = path.join(w.env.STROM_CONFIG_DIR!, "agents-taught.json");
+  assert.ok(fs.existsSync(record), "this strom records what it created");
+  fs.rmSync(record);
+  await w.ok(["agents", "install", "--all"]);
+  await w.ok(["agents", "uninstall"]);
+  // whose the settings are nobody can tell: kept, as {}; a text file with nothing but strom's part went before too
+  assert.deepEqual(readJsonFile(path.join(home, ".claude", "settings.json")), {});
+  assert.deepEqual(readJsonFile(path.join(home, ".gemini", "antigravity-cli", "settings.json")), {});
+  assert.deepEqual(readJsonFile(path.join(home, ".config", "opencode", "opencode.json")), {});
+  assert.ok(!fs.existsSync(path.join(home, ".codex", "AGENTS.md")));
+  assert.ok(!fs.existsSync(path.join(home, ".claude", "skills", "strom")));
+  // an empty {} such an uninstall left: not strom's to take, whatever comes later
+  await w.ok(["agents", "uninstall"]);
+  assert.ok(fs.existsSync(path.join(home, ".claude", "settings.json")));
+  w.cleanup();
+});
+
+test("a file strom created that the person deleted and made again is the person's: an install and uninstall later keep it", async () => {
+  const w = new World();
+  const home = w.env.HOME!;
+  const settings = path.join(home, ".claude", "settings.json");
+  const agents = path.join(home, ".codex", "AGENTS.md");
+  await w.ok(["agents", "install", "--all"]);
+  // the person deletes strom's files and makes their own
+  fs.writeFileSync(settings, "{}\n");
+  fs.writeFileSync(agents, "");
+  await w.ok(["agents", "install", "--all"]);
+  await w.ok(["agents", "uninstall"]);
+  assert.equal(fs.readFileSync(settings, "utf8"), "{}\n", "the person's {} stays");
+  assert.equal(fs.readFileSync(agents, "utf8"), "", "the person's empty AGENTS.md stays");
   w.cleanup();
 });
 
@@ -483,7 +709,7 @@ test("the Strom app: noticed quietly — started by it, or installed from the br
   // The copy strom opens is the user's setting.
   await w.ok(["config", "set", "strom.app.url", "https://beta.stromapp.info/run/"]);
   assert.equal(cfg().stromAppUrl, "https://beta.stromapp.info/run/");
-  assert.match((await w.run(["config", "set", "strom.app.url", "https://example.org/"])).err, /invalid strom\.app\.url/);
+  assert.match((await w.run(["config", "set", "strom.app.url", "https://example.org/"])).err, /neplatné strom\.app\.url „https:\/\/example\.org\/“/);
   await w.ok(["config", "unset", "strom.app.url"]);
   assert.equal(cfg().stromAppUrl, undefined);
   // The profile that holds it (folder names only).
@@ -605,7 +831,6 @@ test("the live bridge: the Strom app reads the tree and hears what changes — t
     // Only the app's pages may read it; a browser asks first whether a public page may talk to this computer.
     assert.equal((await ask(`${info.url}/status`, { headers: { Origin: "https://stromapp.info" } })).headers["access-control-allow-origin"], "https://stromapp.info");
     assert.equal((await ask(`${info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" } })).headers["access-control-allow-origin"], "https://beta.stromapp.info", "its beta too");
-    assert.equal((await ask(`${info.url}/status`, { headers: { Origin: "https://evil.example" } })).headers["access-control-allow-origin"], undefined);
     const pre = await ask(`${info.url}/status`, { method: "OPTIONS", headers: { Origin: "https://stromapp.info", "Access-Control-Request-Method": "GET", "Access-Control-Request-Private-Network": "true" } });
     assert.equal(pre.status, 204);
     assert.equal(pre.headers["access-control-allow-private-network"], "true");
@@ -637,6 +862,11 @@ test("the live bridge: the Strom app reads the tree and hears what changes — t
     assert.equal(change.entries[0]!.head, change.head);
     assert.equal(change.entries[0]!.at, change.at);
     assert.match(change.entries.flatMap((e) => e.what).join("\n"), /Karel/);
+    // a page of another site: nothing for it — and its secret replaced (the address got out)
+    const evil = await ask(`${info.url}/status`, { headers: { Origin: "https://evil.example" } });
+    assert.equal(evil.headers["access-control-allow-origin"], undefined);
+    assert.equal(evil.status, 404);
+    assert.equal((await ask(`${info.url}/status`)).status, 404, "the old secret no longer works");
   } finally {
     await w.ok(["live", "stop"]);
   }
@@ -674,13 +904,15 @@ test("the live bridge does not end because of one error, says what happened in i
     assert.match(said, /works again \(\d+× failed\)/);
     assert.match(said, /GET \/…\/status failed/, "the secret is not written");
     assert.doesNotMatch(said, new RegExp(first.token));
-    // Stopped and started again: the same address, so the app goes on by itself.
+    // Stopped (for good) and started again: its port, a new secret — the app needs the new address.
     // live stop waits until the bridge has ended
     await w.ok(["live", "stop"]);
-    assert.match(fs.readFileSync(log, "utf8"), /stop asked: strom live stop\n.*ended: SIGTERM/);
+    assert.match(fs.readFileSync(log, "utf8"), /stop asked: strom live stop\n.*ended: SIGTERM\n.*its secret dropped \(strom live stop\)/);
     const again = (await w.ok(["live", "start", "--json"])).json;
-    assert.equal(again.url, first.url);
-    assert.match(fs.readFileSync(log, "utf8"), /the address of the last bridge/);
+    assert.equal(again.port, first.port);
+    assert.notEqual(again.token, first.token);
+    assert.equal(again.moved, true, "the app needs the new address: said");
+    assert.match(fs.readFileSync(log, "utf8"), /the port of the last bridge, a new secret/);
     // Ended without a word (killed): the next session brings it back, on its address; one stopped stays stopped.
     process.kill(again.pid, "SIGKILL");
     // gone (its parent, this test, has heard it ended: no process of that number left)
@@ -696,7 +928,7 @@ test("the live bridge does not end because of one error, says what happened in i
     await w.ok(["session", "start"]);
     const back = (await w.ok(["live", "--json"])).json;
     assert.equal(back.running, true);
-    assert.equal(back.url, first.url);
+    assert.equal(back.url, again.url, "brought back by itself: its address kept");
     assert.notEqual(back.pid, again.pid);
     assert.match(fs.readFileSync(log, "utf8"), new RegExp(`the bridge ${again.pid} ended without a word: started again`));
     // A bridge of another version (strom updated under it): kept by live start, replaced by live start --current — at its
@@ -706,7 +938,7 @@ test("the live bridge does not end because of one error, says what happened in i
     assert.equal((await w.ok(["live", "start", "--json"])).json.pid, back.pid);
     const current = (await w.ok(["live", "start", "--current", "--json"])).json;
     assert.notEqual(current.pid, back.pid);
-    assert.equal(current.url, first.url);
+    assert.equal(current.url, again.url, "started again for a newer strom: its address kept");
     assert.equal(current.version, VERSION);
     await w.ok(["live", "stop"]);
     await w.ok(["session", "close", "--continue", "--summary", "nothing yet", "--next", "the same again"]);
@@ -723,10 +955,11 @@ test("the live bridge does not end because of one error, says what happened in i
     } finally {
       blocker.close();
     }
+    // (the address of a bridge that ran: a stuck one below pretends to be it)
+    const last = readJsonFile(path.join(w.cwd, ".strom", "live-last.json"));
     await w.ok(["live", "stop"]);
     // A bridge stuck on something (it does not end when asked) still holding its port: live stop ends it for good,
     // and the next bridge takes its port again — the app following it goes on
-    const last = readJsonFile(path.join(w.cwd, ".strom", "live-last.json"));
     const stuckCode = `process.on("SIGTERM",()=>{});const s=require("http").createServer(()=>{});s.listen(${last.port},"127.0.0.1");setInterval(()=>{},1000)`;
     // up: it holds the port (its SIGTERM handler set before)
     const holding = async () => {

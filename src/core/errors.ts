@@ -8,6 +8,8 @@ export const EXIT = {
   needsInput: 3,
   needsConsent: 4,
   locked: 5,
+  /** A backup before another channel or an older version could not be made: nothing is switched (core/backup.ts). */
+  noBackup: 6,
   cancelled: 130,
 } as const;
 
@@ -28,12 +30,15 @@ export class StromError extends Error {
   readonly details: unknown;
   readonly code: string | undefined;
   readonly params: Record<string, string> | undefined;
+  /** The person's hint of another case of the same code (ui.error.<hintCode>.hint); the code a program reads stays. */
+  readonly hintCode: string | undefined;
 
-  constructor(message: string, opts: { exitCode?: ExitCode; hint?: string; details?: unknown } & Partial<ErrorCode> = {}) {
+  constructor(message: string, opts: { exitCode?: ExitCode; hint?: string; details?: unknown; hintCode?: string } & Partial<ErrorCode> = {}) {
     super(message);
     this.name = "StromError";
     this.exitCode = opts.exitCode ?? EXIT.error;
     this.hint = opts.hint;
+    this.hintCode = opts.hintCode;
     this.details = opts.details;
     this.code = opts.code;
     this.params = opts.params;
@@ -51,7 +56,7 @@ export class StromError extends Error {
 
 /** Invalid arguments or an ambiguous reference. */
 export class UsageError extends StromError {
-  constructor(message: string, opts: { hint?: string; details?: unknown } & Partial<ErrorCode> = {}) {
+  constructor(message: string, opts: { hint?: string; details?: unknown; hintCode?: string } & Partial<ErrorCode> = {}) {
     super(message, { ...opts, exitCode: EXIT.usage });
     this.name = "UsageError";
   }

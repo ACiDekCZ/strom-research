@@ -28,7 +28,7 @@
 import { GedWriter } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
-import { birthEvent, claimText, conflictTitle, displayName, formatName, gedcomName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
+import { birthEvent, claimText, conflictTitle, coupleSides, displayName, familySides, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
@@ -85,6 +85,8 @@ export interface ExportOptions {
   clips?: boolean;
   /** …and the links this computer takes (1 _STROM_LINKS send excerpt) — only in the GEDCOM the bridge serves, never in a file. */
   links?: string[];
+  /** …and their scheme when it is not strom-research (a second installation's: 2 _SCHEME strom-research-beta). */
+  linkScheme?: string;
   /**
    * The Strom profile, for an app that shows what the research knows of a person (appOpensLinks): its open and
    * decided conflicts, open hypotheses, what was searched for them (_STROM_CONFLICT, _STROM_HYPO, _STROM_SEARCHED)
@@ -102,6 +104,11 @@ export interface ExportOptions {
    * them beside it (2 _DRAFT under _STORY): the approved one stays the story until they decide.
    */
   storyDrafts?: boolean;
+  /**
+   * For a Strom app that reads titles (APP_READS_TITLES): a name with a title spells its parts out under its NAME line
+   * (NPFX, GIVN, SURN, NSFX). The line says the title for every reader; the standard file always spells them out.
+   */
+  titles?: boolean;
   /** For a Strom app that keeps a couple's events (APP_SHOWS_COUPLE_EVENTS): their residence as RESI under FAM. */
   coupleResi?: boolean;
   /** For a Strom app that shows who read a source (APP_SHOWS_SOURCE_READS): _STROM_READ, and _STROM_VERIFIED on the app's. */
@@ -145,6 +152,12 @@ const Y_TAGS = new Set(["BIRT", "CHR", "DEAT", "BURI", "CREM", "ADOP", "BAPM", "
 
 /** _FREL/_MREL values (Legacy, RootsMagic, FTM). */
 const FREL: Record<ChildRelation, string> = { birth: "Natural", adopted: "Adopted", step: "Step", foster: "Foster", unknown: "Unknown" };
+
+/**
+ * A name of no given name with the surname Unknown, any case ("? /Unknown/"): the Strom app's old way of writing a person
+ * of no name and no surname looks the same — the file says its parts (GIVN, SURN), so the surname is read as one.
+ */
+const unknownSurname = (n: Name) => noName(n.given) && foldText(n.surname) === "unknown";
 
 /** GEDCOM NAME TYPE for our kinds of name ("religious" is a user-defined type). */
 const NAME_TYPE: Record<NonNullable<Name["kind"]>, string> = { birth: "birth", married: "married", alias: "aka", religious: "religious" };
@@ -229,7 +242,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     // …and of which state of it: a tree coming back is compared with what it was given (strom sync)
     const head = opts.head ?? git.head(tree.root);
     if (head) w.line(1, "_STROM_HEAD", head);
-    if (opts.links?.length) w.line(1, "_STROM_LINKS", opts.links.join(" "));
+    if (opts.links?.length) {
+      w.line(1, "_STROM_LINKS", opts.links.join(" "));
+      if (opts.linkScheme) w.line(2, "_SCHEME", opts.linkScheme);
+    }
     if (opts.research) w.line(1, "_STROM_ASOF", new Date().toISOString().slice(0, 10));
     // an archive (no agent; the app's data written as they come): for an app that knows it (APP_KNOWS_ARCHIVE)
     if (opts.archive && tree.config.mode === "archive") w.line(1, "_STROM_MODE", "archive");
@@ -255,7 +271,20 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     const primary = primaryName(p);
     const nameQuotes: string[] = [];
     for (const n of [primary, ...p.names.filter((n) => n !== primary)]) {
-      w.line(1, "NAME", gedcomName(n));
+      // a name with a title says it in the line (any program shows it) and spells its parts out below: NPFX, GIVN, SURN,
+      // NSFX — for any program (GEDCOM 5.5.1's own tags), for the Strom app from its 3.10 (titles; an older one reads
+      // the line). A part holding a comma gets no GIVN / SURN (GEDCOM reads commas there as a list); the line has it.
+      w.line(1, "NAME", gedcomTitledName(n));
+      // "?" with the surname Unknown ("? /Unknown/"): spelled out in every file, titles or not — the Strom app from
+      // 3.10.0-beta.7 reads "? /Unknown/" without its SURN as a person of no surname (its old way of writing one; T08b-a)
+      const titled = (n.prefix || n.suffix) && (strict || opts.titles);
+      if (titled || unknownSurname(n)) {
+        const part = (v: string) => v.replace(/\//g, "|").trim();
+        if (titled && n.prefix) w.line(2, "NPFX", n.prefix);
+        if (part(n.given) && !n.given.includes(",")) w.line(2, "GIVN", part(n.given));
+        if (part(n.surname) && !n.surname.includes(",")) w.line(2, "SURN", part(n.surname));
+        if (titled && n.suffix) w.line(2, "NSFX", n.suffix);
+      }
       // "birth" says something only next to another name
       if (n.kind && (n.kind !== "birth" || p.names.length > 1)) w.line(2, "TYPE", NAME_TYPE[n.kind]);
       for (const c of n.citations ?? []) {
@@ -297,9 +326,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     stats.families++;
     w.record(x(f.id), "FAM");
     const [a, b] = f.partners.map((id) => persons.find((p) => p.id === id)!);
-    // HUSB/WIFE by sex; an unknown sex keeps the order given.
-    const husb = [a, b].find((p) => p?.sex === "M") ?? (a?.sex !== "F" ? a : undefined);
-    const wife = [a, b].find((p) => p && p !== husb);
+    // HUSB/WIFE by sex as the Strom app sides a couple (its coupleSides): a man HUSB, a woman WIFE, an unknown sex the
+    // side the other leaves free; two of one sex, or two unknown, keep the order given — never a partner left out
+    // (found: two women, or a woman and one of unknown sex, written with the WIFE alone). One alone: a woman WIFE.
+    // The sides kept when a sex of theirs changed (Family.husb): an app that guesses an unknown sex by the side sees
+    // no change (familySides) — only in the Strom file: every version of the app keeps a couple's partners in the order
+    // of HUSB and WIFE and counts another order as a changed couple, and draws and exports them by sex itself. The
+    // standard file by coupleSides alone (B5-c): another program reads HUSB as the man, WIFE as the woman — never a man
+    // WIFE or a woman HUSB beside one of unknown sex there (found: a man of the app written WIFE beside one unknown)
+    const [husb, wife] = strict ? coupleSides(a, b) : familySides(f, a, b);
     if (husb) w.line(1, "HUSB", x(husb.id));
     if (wife) w.line(1, "WIFE", x(wife.id));
     // Children by birth, the unknown ones last, in the order they were added.

@@ -46,6 +46,11 @@ register({
     if (!name) throw new UsageError("the tree needs a name");
     const mode = opts.mode === undefined ? (ctx.settings.config.mode ?? "research") : String(opts.mode);
     if (!(MODES as readonly string[]).includes(mode)) throw new UsageError(`--mode is research or archive, not "${mode}"`);
+    // a tree's own folder never inside strom's program folder (an update replaces it): refused before anything is written
+    if (opts.dir) {
+      const trees = ctx.settings.trees()?.value ?? ctx.settings.suggestedHome();
+      ctx.refuseProgramFolder("trees", ctx.resolvePath(opts.dir as string), { suggested: path.join(trees, safeFolderName(name)) });
+    }
     await ctx.requireHome();
     const treesDir = ctx.settings.trees()!.value;
     const root = opts.dir ? ctx.resolvePath(opts.dir as string) : path.join(treesDir, safeFolderName(name));

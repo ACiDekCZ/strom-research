@@ -22,7 +22,7 @@ import { isArchive } from "../core/mode.ts";
 import { applySync, discardReceived, nothingSince, withoutImages, planSync, readTreeFile, receivedAll, receivedPending, receivedSince, receivedOf, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput } from "../core/sync.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { startLive } from "../core/live.ts";
-import { appSendsChanges, sendAppUrl } from "../core/stromapp.ts";
+import { appSendsChanges, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
 import { appWindow, openAppIn, replaceGone } from "../core/appbrowser.ts";
 import { isAgent } from "../core/which.ts";
 
@@ -107,8 +107,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
     now: c.kind === "fact.detail" ? detailText(c.fact, lang, short) : factText(c.fact, lang, short),
     when: [humanDate(c.fact?.date, lang), humanPlace(c.fact?.place, undefined, lang)].filter(Boolean).join(", "),
     text: truncate(c.text ?? "", 120),
-    old: shownName(c.wasName),
-    new: shownName(c.text),
+    old: c.note ? truncate(c.note.was, 80) : c.title ? truncate(c.title.was, 80) || "—" : shownName(c.wasName),
+    new: c.note ? truncate(c.text ?? "", 80) : c.title ? truncate(c.text ?? "", 80) || "—" : shownName(c.text),
+    title: c.title ? ui(lang, c.title.part === "before" ? "ui.conflict.titleBefore" : "ui.conflict.titleAfter") : "",
     child: name(c.child),
     // a child's tie to each parent: one word for both, else each parent's
     ties: c.kind !== "child.relation" ? "" : tiesText(c.child ? c.ties?.[c.child] : undefined, c.text, lang, name),
@@ -143,6 +144,10 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
       ? "ui.sync.do.parents"
       : c.kind === "name.changed" && c.action === "user"
       ? "ui.sync.do.name.user"
+      : c.kind === "name.title" && (c.action === "add" || c.action === "user")
+      ? `ui.sync.do.title${c.action === "user" ? ".user" : ""}`
+      : c.kind === "note.changed" && c.action !== "pick"
+      ? "ui.sync.do.note.changed"
       : c.kind === "family.union" && c.action !== "report"
       ? "ui.sync.do.family.union"
       : c.kind === "fact.detail" && c.action === "add"
@@ -176,9 +181,12 @@ function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang
   );
 }
 
-/** The Strom app at this address, where it opens (core/appbrowser.ts: the browser its tree came from first; never Safari: it cannot reach the bridge). */
-export function openAppAt(ctx: Context, url: string): boolean {
-  const win = appWindow(ctx.settings, ctx.env);
+/**
+ * The Strom app at this address, where it opens (core/appbrowser.ts: the installed app first; never Safari: it cannot
+ * reach the bridge). `holdsTree`: a tree handed over, in the browser it came from only.
+ */
+export function openAppAt(ctx: Context, url: string, opts: { holdsTree?: boolean } = {}): boolean {
+  const win = appWindow(ctx.settings, ctx.env, process.platform, opts);
   // the browser kept for the app is no longer here: said, the one it opens in now kept instead
   const replaced = replaceGone(ctx.settings, win);
   if (replaced) ctx.io.stdout(ui(ctx.uiLang(), replaced.now ? "ui.app.browser.gone" : "ui.app.browser.gone.none", { gone: replaced.gone, now: replaced.now ?? "" }) + "\n");
@@ -192,6 +200,8 @@ export function openAppAt(ctx: Context, url: string): boolean {
 async function fromApp(ctx: Context, tree: Tree, lang: string): Promise<{ file?: string; text: string; settled?: boolean; written?: Record<string, unknown> }> {
   const root = tree.root;
   if (!appSendsChanges(ctx.settings)) return { text: ui(lang, "ui.sync.nosend") };
+  // a strom.app.url that is no address of the app: refused before the bridge starts — no address built on it (B1-c)
+  stromAppUrl(ctx.settings);
   // what the app sends the bridge writes at once (unless the user reviews each send): what came of it is said, not shown to write
   const atOnce = isArchive(tree) || !ctx.settings.syncReview(tree.config);
   const info = startLive(root, ctx.env, { current: true });

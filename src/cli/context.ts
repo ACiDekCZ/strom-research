@@ -6,16 +6,18 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { Writable } from "node:stream";
 import { Settings, type Flags } from "../core/config.ts";
-import { displayPath, expandHome, type Env } from "../core/paths.ts";
+import { configDir, displayPath, expandHome, ISOLATED_HOME, type Env } from "../core/paths.ts";
+import { backupsDir } from "../core/backup.ts";
+import { insideProgram } from "../core/self.ts";
 import { Cancelled, NeedsConsentError, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
 import { migrate } from "../core/migrate.ts";
 import { Tree, findTreeUpwards, isTreeDir } from "../core/tree.ts";
-import type { TreeConfig } from "../core/model.ts";
+import { SCHEMA_VERSION, type TreeConfig } from "../core/model.ts";
 import { readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
 import { currentSession } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
-import { systemDialog, WAIT_SECONDS, type DialogText } from "../core/dialog.ts";
+import { canShowDialog, systemDialog, WAIT_SECONDS, type DialogText } from "../core/dialog.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 
 export interface IO {
@@ -50,6 +52,11 @@ export class Context {
   readonly page: number;
   dryRun = false;
   private opened: Tree | undefined;
+  /**
+   * The backup before another channel or an older version could not be made (cli/backups.ts): no research is brought
+   * to this strom's schema meanwhile — reading one that needs it says why, as writing does.
+   */
+  backupFailed: StromError | undefined;
 
   constructor(opts: {
     env: Env;
@@ -199,7 +206,8 @@ export class Context {
   requireHuman(question: string, set: string, key: string, says?: string, opts: { window?: boolean } = {}): "terminal" | "window" {
     const agent = isAgent(this.env);
     if (this.interactive && !agent) return "terminal";
-    if (this.env.STROM_NONINTERACTIVE !== "1" && opts.window !== false) {
+    // a window only where one can be shown (the test's own answer stands for one): else nothing said to wait in it
+    if (this.env.STROM_NONINTERACTIVE !== "1" && opts.window !== false && (this.io.dialog || canShowDialog(this.env))) {
       const lang = this.uiLang();
       const text: DialogText = { title: ui(lang, "ui.dialog.title"), question: says ?? question, yes: ui(lang, "ui.dialog.yes"), no: ui(lang, "ui.dialog.no") };
       // said first where it runs: a window can be behind others, and the command waits for it without a word
@@ -210,6 +218,34 @@ export class Context {
     }
     // a person (a script, no terminal) reads it in their language; an agent the English it goes by
     throw new NeedsConsentError([{ key, kind: "consent", question: `${question}${agent ? " (an agent cannot answer this)" : ""}`, set }], agent ? undefined : says);
+  }
+
+  /**
+   * An agent strom did not start, working outside the research's folder and strom's shared one (a session in
+   * another repository, where the agents' global rule lets it run strom without asking): what runs a connector's
+   * code or starts paid work is asked in a window there — reading the research is not.
+   */
+  agentElsewhere(): boolean {
+    if (!isAgent(this.env) || this.env.STROM_WORKER || this.env.STROM_SESSION) return false;
+    if (findTreeUpwards(this.cwd)) return false;
+    const shared = this.settings.shared()?.value;
+    const inside = (dir: string, p: string) => {
+      const rel = path.relative(dir, p);
+      return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+    };
+    const real = (p: string) => {
+      try {
+        return fs.realpathSync(p);
+      } catch {
+        return path.resolve(p);
+      }
+    };
+    return !(shared && inside(real(shared), real(this.cwd)));
+  }
+
+  /** What an agent elsewhere (agentElsewhere) may do only with the person's yes, in a window: `says` in their language. */
+  confirmElsewhere(question: string, set: string, key: string, says: string): void {
+    if (this.agentElsewhere()) this.requireHuman(question, set, key, says);
   }
 
   /**
@@ -260,8 +296,12 @@ export class Context {
   async requireHome(): Promise<string> {
     const home = this.settings.home();
     if (home) return home.value;
-    const suggested = this.settings.suggestedHome();
-    if (this.yes) return this.saveHome(suggested);
+    // the default inside strom's program folder (settings lying in node/): refused with --yes, never offered
+    const suggested = this.homeSuggestion();
+    if (this.yes) {
+      this.refuseProgramFolder("home", this.settings.suggestedHome(), { asDefault: true });
+      return this.saveHome(suggested);
+    }
     if (!this.interactive)
       throw new NeedsInputError([
         {
@@ -278,9 +318,53 @@ export class Context {
   }
 
   private saveHome(dir: string): string {
+    this.refuseProgramFolder("home", dir);
     this.settings.config.home = dir;
     this.settings.save();
     return dir;
+  }
+
+  /**
+   * What is the research's and the person's on this computer: the home, its backups, the folder of the trees, the
+   * shared folder, every tree known, the settings — what strom update and strom uninstall never take away.
+   */
+  researchFolders(): string[] {
+    const home = this.settings.home()?.value;
+    return [
+      ...(home ? [home, backupsDir(home)] : []),
+      ...[this.settings.trees()?.value, this.settings.shared()?.value].filter((p): p is string => !!p),
+      ...this.knownTrees().map((k) => k.root),
+      configDir(this.env),
+    ];
+  }
+
+  /**
+   * A folder for the research (home, trees, shared) never inside strom's program folder: an update replaces what is
+   * there and an uninstall takes it away (found 2026-10-07: a research inside app/ went with the next update, and the
+   * backup made just before it). Refused with what to do; nothing is written.
+   */
+  refuseProgramFolder(key: "home" | "trees" | "shared", folder: string, opts: { suggested?: string; asDefault?: boolean } = {}): void {
+    const program = insideProgram(folder, { settings: configDir(this.env) });
+    if (!program) return;
+    const home = this.homeSuggestion();
+    const suggested = this.display(opts.suggested ?? (key === "shared" ? path.join(home, "shared") : home));
+    // the folder strom would take by itself (none named, --yes): the way on is naming one
+    throw new UsageError(`${this.display(folder)} is inside strom's program folder ${this.display(program)} — strom update replaces what is there and strom uninstall takes it away, the research with it; nothing was changed`, {
+      hint: opts.asDefault ? `pass --home with a folder outside it: strom setup --home "${suggested}" --yes` : `a folder outside it, e.g. ${suggested}`,
+      ...(opts.asDefault ? { hintCode: "folder.in-program.default" } : {}),
+      code: "folder.in-program",
+      params: { folder: this.display(folder), program: this.display(program), key, suggested },
+    });
+  }
+
+  /**
+   * The folder suggested for the research: the usual one (defaultHome) — unless it lies inside strom's program folder
+   * (an isolated installation's settings in its node/ or app/: found on a Mac), then one beside that folder.
+   */
+  homeSuggestion(): string {
+    const home = this.settings.suggestedHome();
+    const program = insideProgram(home, { settings: configDir(this.env) });
+    return program ? path.join(path.dirname(program), ISOLATED_HOME) : home;
   }
 
   treesDir(): string | undefined {
@@ -335,7 +419,9 @@ export class Context {
       const names = known.map((t) => `"${t.name}"`).join(", ");
       throw new UsageError("which tree? there are several", { hint: `pass --tree <name>: ${names}`, code: "tree.which", params: { names } });
     }
-    this.opened = Tree.open(root, this.env);
+    const opened = Tree.open(root, this.env);
+    if (this.backupFailed && (opened.config.schema ?? 1) < SCHEMA_VERSION) throw this.backupFailed;
+    this.opened = opened;
     // Data an older strom wrote under an older schema: brought forward first (a dry run too — it is not the command's change).
     // said in the person's language: each step by its own sentence (the commit keeps the English one)
     for (const step of migrate(this.opened)) {

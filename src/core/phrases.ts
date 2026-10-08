@@ -187,6 +187,7 @@ export const PHRASES = {
   "log.repository.retract": "Archive withdrawn: {name}",
   "log.name.remove": "Name taken off: {name} – {who}",
   "log.note.remove": "Note taken off: \"{note}\" – {name}",
+  "log.note.edit": "Note corrected: {name}",
   "log.event.status": "How sure a fact is, changed: {who} – {fact}",
   "log.event.restore": "A fact back again: {who} – {fact}",
   "log.input.sync.undo": "Family tree taken back: {name}",
@@ -223,9 +224,19 @@ export function catalog(lang: string): Record<string, string> {
   return catalogs.get(lang)!;
 }
 
-/** A template with its {values} filled in (an unknown {name} stays as it is). */
+/** The command this strom is started with (a second installation's own: strom-beta): what {strom} in a text says. */
+let commandName = "strom";
+export function sayCommandAs(name: string): void {
+  commandName = name;
+}
+
+/**
+ * A template with its {values} filled in (an unknown {name} stays as it is). {strom}, unless given: the command this
+ * strom is started with — the program to start where a text names it alone ("Start again with: {strom}"), also in a
+ * window of the system or a file, which no output of a command passes.
+ */
 export function fill(template: string, values: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (m, name: string) => (name in values ? String(values[name]) : m));
+  return template.replace(/\{(\w+)\}/g, (m, name: string) => (name in values ? String(values[name]) : name === "strom" ? commandName : m));
 }
 
 /** A text of a language's catalog, or the English one where the catalog has none. */

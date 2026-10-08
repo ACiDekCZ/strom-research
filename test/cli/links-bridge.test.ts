@@ -210,3 +210,33 @@ test("the app's menus through links, in the research's terminal: a task answered
   assert.match((await w.run(["link", "open", `strom-research://open?tree=${id}`])).out, /strom nemohl otevřít okno terminálu\. Spustit strom \(výzkum Novákovi\)/);
   w.cleanup();
 });
+
+test("the research opened from the Strom app (open link) brings its bridge up at its last port — after it was stopped (a new secret then), in an archive too", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = new World();
+  await w.withTree();
+  const id = readJsonFile(path.join(w.cwd, "strom.json")).id;
+  const status = async () => (await w.ok(["live", "--json"])).json;
+  try {
+    const first = (await w.ok(["live", "start", "--json"])).json;
+    // ended as it should (idle, stopped): the plain menu leaves it so …
+    await w.ok(["live", "stop"]);
+    await w.ok([], { tty: true, answers: ["0"] });
+    assert.equal((await status()).running, false, "the menu brings back only a bridge that ended without a word");
+    // … the app's "Start research" brings it up, at its port — with a new secret: stopped for good, the old one is dead
+    await w.ok(["link", "open", `strom-research://open?tree=${id}`], { tty: true, answers: ["0", ""] });
+    const back = await status();
+    assert.equal(back.running, true);
+    assert.equal(back.port, first.port);
+    assert.notEqual(back.token, first.token);
+    assert.match(fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8"), /the research opened from the Strom app/);
+    // an archive: no sessions, but the app follows its bridge too
+    await w.ok(["mode", "archive"], { tty: true });
+    await w.ok(["live", "stop"]);
+    await w.ok(["link", "open", `strom-research://open?tree=${id}`], { tty: true, answers: ["0", ""] });
+    assert.equal((await status()).running, true);
+    assert.equal((await status()).port, first.port);
+  } finally {
+    await w.run(["live", "stop"]);
+  }
+  w.cleanup();
+});

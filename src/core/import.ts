@@ -11,8 +11,9 @@ import { foldText } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { validateRecord } from "./validate.ts";
 import { normalizeDate } from "./gdate.ts";
-import { parseName, sameName } from "./people.ts";
+import { appNoSurname, cleanTitle, noName, notAName, parseName, sameName, surnameAfterGiven, withoutTitles } from "./people.ts";
 import { now, type Tree } from "./tree.ts";
+import { appUnknownIsNoSurname, appWritesSexUnknown } from "./stromapp.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
 
 export interface ImportResult {
@@ -136,8 +137,82 @@ function nameKind(type: string | undefined): Name["kind"] | undefined {
   return undefined;
 }
 
+/** How a file means what it writes (stromAppFile): read the same way by strom intake and strom sync. */
+export interface GedFile {
+  /** a file of the Strom app (its HEAD: 1 SOUR STROM) */
+  app: boolean;
+  /** its "? /Unknown/" is a person of no surname (T08b) */
+  unknownIsNoSurname: boolean;
+  /** its SEX U is the sex the user left unknown, never an app's guess (U01) */
+  sexUnknown: boolean;
+}
+
+/**
+ * A file of the Strom app (its HEAD: 1 SOUR STROM), and whether its "? /Unknown/" is a person of no surname — an app
+ * before 3.10.0-beta.7 or one whose version the HEAD's 2 VERS does not say (T08b); from it on the surname Unknown.
+ * Its SEX U is a sex left unknown (U01) where the header says so (1 _STROM_SEX_U Y: the app's tree linked to a
+ * research) or the app is 3.10.0-beta.11 or newer (its HEAD's 2 VERS; the bridge stamps the version the app said);
+ * else the app guessed there (a husband male, anyone else female).
+ */
+export function stromAppFile(head: GedNode | undefined): GedFile {
+  const sour = head ? children(head, "SOUR")[0] : undefined;
+  const app = sour?.value.trim() === "STROM";
+  const marked = val(head, "_STROM_SEX_U")?.trim().toUpperCase() === "Y";
+  return { app, unknownIsNoSurname: app && appUnknownIsNoSurname(val(sour, "VERS")), sexUnknown: marked || (app && appWritesSexUnknown(val(sour, "VERS"))) };
+}
+
+/**
+ * The sex of a person of a file, read the same way by strom intake and strom sync: M and F as it says; SEX U the sex
+ * left unknown — "U", a value like the others — where the file means it so (stromAppFile: sexUnknown, U01), else
+ * nothing the file says (an app's guess). No SEX line, or another value, says nothing of it in any file (B5-d: the app
+ * writes SEX for everyone; found: a file of its 3.10.0-beta.11 without SEX lines read as every sex set unknown).
+ */
+export function readGedSex(r: GedNode, file: GedFile): "M" | "F" | "U" | undefined {
+  const sex = val(r, "SEX")?.trim().toUpperCase();
+  return sex === "M" || sex === "F" ? sex : sex === "U" && file.sexUnknown ? "U" : undefined;
+}
+
+/** A NAME of a GEDCOM file as the research reads it (readGedName). */
+export interface GedName {
+  /** given, surname — "?" for what stands for no name —, the titles (prefix, suffix) and the kind of name */
+  name: Name;
+  /** a person of no name and no surname as the Strom app writes them ("? //"; "? /Unknown/" before its 3.10.0-beta.7) */
+  nameless: boolean;
+}
+
+/**
+ * One NAME of a file, read the same way by strom intake and strom sync: the titles (NPFX, NSFX) apart from it — the
+ * line says them too ("Ing. Jan /Novák/ ml."), taken off it —; the name's own parts (GIVN, SURN) first, the line only
+ * how a program wrote them (a list of surnames — GEDCOM's commas — or a prefix of the surname, SPFX: the line's); a
+ * line without slashes with a GIVN and no SURN ("Petr Novotný" + GIVN Petr): the rest of it is the surname (N11); what
+ * stands for no name (N/A, N.N.) is "?"; the Strom app's "? /Unknown/" before its 3.10.0-beta.7 (or a file of it that
+ * says no version): no surname (T08b). A slash inside a part stays for the caller.
+ */
+export function readGedName(n: GedNode, file: { app: boolean; unknownIsNoSurname: boolean }): GedName {
+  const prefix = cleanTitle(val(n, "NPFX"));
+  const suffix = cleanTitle(val(n, "NSFX"));
+  const line = withoutTitles(n.value.replace(/\s+/g, " "), prefix, suffix);
+  const parsed = parseName(line);
+  const givn = val(n, "GIVN")?.replace(/\s*,\s*/g, " ").trim();
+  const surn = val(n, "SURN")?.trim();
+  const lineHasSurname = /\/.*\//.test(n.value);
+  const name: Name = {
+    given: noName(givn || parsed.given) ? "?" : givn || parsed.given,
+    surname: surn ? (lineHasSurname && (surn.includes(",") || val(n, "SPFX")) ? parsed.surname : surn) : lineHasSurname || !givn ? parsed.surname : surnameAfterGiven(line, givn),
+  };
+  if (file.unknownIsNoSurname && appNoSurname(givn || parsed.given, name.surname, surn)) name.surname = "";
+  if (prefix) name.prefix = prefix;
+  if (suffix) name.suffix = suffix;
+  const kind = nameKind(val(n, "TYPE"));
+  if (kind) name.kind = kind;
+  const nameless = file.app && !surn && (file.unknownIsNoSurname ? /^\?\s*\/\s*(?:Unknown\s*)?\/$/u : /^\?\s*\/\s*\/$/u).test(n.value.trim());
+  return { name, nameless };
+}
+
 export function importGedcom(tree: Tree, text: string, opts: { input: string; name: string; sha: string }): ImportResult {
   const { records, problems } = parseGedcomText(text);
+  /** A file of the Strom app (its HEAD: 1 SOUR STROM): its own ways of writing are read as it means them. */
+  const fromApp = stromAppFile(records.find((r) => r.tag === "HEAD"));
   const system = `gedcom:${opts.sha.slice(0, 12)}`;
   const result: ImportResult = { source: "", persons: 0, families: 0, matched: 0, events: 0, extended: [], problems };
   const notes = new Map(records.filter((r) => r.tag === "NOTE" && r.xref).map((r) => [r.xref!, r.value]));
@@ -281,12 +356,11 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
     const namesOf = (r: GedNode): Name[] =>
       children(r, "NAME")
         .map((n) => {
-          const parsed = parseName(n.value.replace(/\s+/g, " "));
-          const found: Name = !/\//.test(n.value) && (val(n, "SURN") || val(n, "GIVN")) ? { given: val(n, "GIVN") ?? "", surname: val(n, "SURN") ?? "" } : parsed;
+          const found = readGedName(n, fromApp).name;
+          // a word that describes the person in place of a name (stillborn, son): the name is "?", the word goes to a note
+          if (notAName(found.given)) found.given = "?";
           // a slash inside a name ("/⟨K/Č⟩emenská/") is kept as "|": the name stays one GEDCOM can write
-          const name: Name = { ...found, given: found.given.replace(/\//g, "|"), surname: found.surname.replace(/\//g, "|") };
-          const kind = nameKind(val(n, "TYPE"));
-          return kind ? { ...name, kind } : name;
+          return { ...found, given: found.given.replace(/\//g, "|"), surname: found.surname.replace(/\//g, "|") };
         })
         .map((n) => (n.given || n.surname ? n : { ...n, given: "?", surname: "" }));
 
@@ -327,7 +401,7 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
       const names = namesOf(r);
       // The birth name leads: a married name is a variant.
       names.sort((a, b) => (a.kind === "married" || a.kind === "alias" ? 1 : 0) - (b.kind === "married" || b.kind === "alias" ? 1 : 0));
-      const sex = val(r, "SEX")?.toUpperCase();
+      const sex = readGedSex(r, fromApp) ?? "U";
       const refs: ExternalRef[] = [{ system, id: r.xref! }];
       if (refn) refs.push({ system: "refn", id: refn });
       const t = now();
@@ -335,11 +409,16 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
       // "Úmrtí: Věk: 61 let", "Narození: Adresa: čp. 13" — back to the fact.
       const personEvents = events(r, r.xref!, false);
       const personNotes = factNotes(r, personEvents);
+      // what a file wrote in place of a name, kept as it said it ("Mrtvě narozený")
+      for (const n of children(r, "NAME")) {
+        const g = val(n, "GIVN") ?? parseName(withoutTitles(n.value.replace(/\s+/g, " "), cleanTitle(val(n, "NPFX")), cleanTitle(val(n, "NSFX")))).given;
+        if (notAName(g) && !personNotes.includes(g.trim())) personNotes.push(g.trim());
+      }
       const p: Person = {
         id: xrefToId.get(r.xref!)!,
         type: "person",
         names: names.length ? names : [{ given: "?", surname: "" }],
-        sex: sex === "M" || sex === "F" ? sex : "U",
+        sex,
         events: personEvents,
         notes: personNotes.filter((x) => x.trim()).map((x) => note(tree, x)),
         refs,
@@ -443,6 +522,9 @@ interface StromPerson {
   notes?: string;
   refn?: string;
   nameVariants?: string[];
+  /** The titles of the name (the app's 3.10): "Ing.", "ml.". */
+  titleBefore?: string;
+  titleAfter?: string;
 }
 interface StromPartnership {
   id: string;
@@ -509,7 +591,15 @@ export function importStromJson(
       const p: Person = {
         id: tree.allocate("P"),
         type: "person",
-        names: [{ given: sp.firstName?.trim() || (sp.lastName ? "" : "?"), surname: sp.lastName?.trim() ?? "" }, ...(sp.nameVariants ?? []).map((v) => parseName(v))],
+        names: [
+          {
+            given: sp.firstName?.trim() || (sp.lastName ? "" : "?"),
+            surname: sp.lastName?.trim() ?? "",
+            ...(cleanTitle(sp.titleBefore) ? { prefix: cleanTitle(sp.titleBefore)! } : {}),
+            ...(cleanTitle(sp.titleAfter) ? { suffix: cleanTitle(sp.titleAfter)! } : {}),
+          },
+          ...(sp.nameVariants ?? []).map((v) => parseName(v)),
+        ],
         sex: sp.gender === "male" ? "M" : sp.gender === "female" ? "F" : "U",
         events,
         notes: sp.notes?.trim() ? [note(tree, sp.notes)] : [],

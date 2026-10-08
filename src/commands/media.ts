@@ -20,7 +20,7 @@ import { describeView, makeView, partRegion, viewRegion, VIEW_MAX, type ViewSpec
 import { listConnectors, missingConsents } from "../core/connector.ts";
 import { now, type Tree } from "../core/tree.ts";
 import { originalMax, parseRegion, takeOriginal } from "../core/originals.ts";
-import { batchFull, batchPath, noteBatch, openBatch, type Batch } from "../core/batches.ts";
+import { batchFull, batchPath, batchRoom, noteBatch, openBatch, type Batch } from "../core/batches.ts";
 import { readEntry, readZip, type ZipEntry } from "../core/zip.ts";
 
 const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".tif", ".tiff", ".gif", ".webp", ".heic", ".jp2", ".bmp"]);
@@ -548,12 +548,12 @@ register({
     const file = ctx.resolvePath(args[0]!);
     if (!fs.existsSync(file)) throw new UsageError(`no such file: ${args[0]}`);
     const sha = typeof opts.sha === "string" ? opts.sha.toLowerCase() : fileSha256(file);
-    if (!/^[0-9a-f]{64}$/.test(sha) || fileSha256(file) !== sha) throw new UsageError("the file is not the one named: its SHA-256 differs", { hint: "send it again" });
+    if (!/^[0-9a-f]{64}$/.test(sha) || fileSha256(file) !== sha) throw new UsageError("the file is not the one named: its SHA-256 differs", { hint: "send it again", code: "media.sha-differs", params: { sha: sha.slice(0, 64) } });
     const persons = (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).flatMap((p) => String(p).split(",")).map((p) => p.trim().toUpperCase()).filter(Boolean);
     const name = typeof opts.name === "string" ? opts.name : path.basename(file);
     const batch = typeof opts.batch === "string" ? opts.batch : undefined;
     const where = batchPath(typeof opts.path === "string" ? opts.path : undefined) ?? batchPath(name) ?? name;
-    if (opts.zip && !batch) throw new UsageError("a ZIP comes in a batch", { hint: "--batch <id>" });
+    if (opts.zip && !batch) throw new UsageError("a ZIP comes in a batch", { hint: "--batch <id>", code: "batch.zip-alone" });
     const got = tree.withTreeLock(() => {
       if (!batch)
         return takeOriginal(tree, shared, file, sha, {
@@ -567,8 +567,8 @@ register({
       if (!b.persons?.length && persons.length) b = { ...b, persons };
       if (!opts.zip) {
         const size = fs.statSync(file).size;
-        const full = batchFull(b, size, ctx.env);
-        if (full) throw new UsageError(full);
+        const full = batchRoom(b, size, ctx.env);
+        if (full) throw new UsageError(full.text, { code: full.code, params: full.params });
         try {
           const one = takeOriginal(tree, shared, file, sha, { name: path.basename(where), persons, batch, path: where, note: typeof opts.note === "string" ? opts.note : undefined });
           noteBatch(tree.root, b, one.known ? { known: one.known } : { input: one.input!, bytes: size });
@@ -592,7 +592,7 @@ function takeZip(ctx: Context, tree: Tree, shared: string, file: string, zipPath
     entries = readZip(file);
   } catch (e) {
     fs.rmSync(file, { force: true });
-    throw new UsageError(`${path.basename(zipPath)}: ${(e as Error).message}`, { hint: "unpack it in the system and send the folder" });
+    throw new UsageError(`${path.basename(zipPath)}: ${(e as Error).message}`, { hint: "unpack it in the system and send the folder", code: "batch.zip-unreadable", params: { name: path.basename(zipPath) } });
   }
   const max = originalMax(ctx.env);
   let b = start;

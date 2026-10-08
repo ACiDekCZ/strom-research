@@ -64,3 +64,33 @@ export function runs(nums: number[]): string {
 export function shellArg(arg: string): string {
   return /^[\p{L}\p{M}\p{N}._\/:@+-]+$/u.test(arg) ? arg : `"${arg.replace(/["\\$`]/g, "\\$&")}"`;
 }
+
+/**
+ * The commands a text names, as a second installation is started (strom-beta doctor, not strom doctor): `strom`
+ * before one of strom's own commands (`words`) — never the word in a sentence ("Tento strom ho…"), never a path or a
+ * file (strom doctor.txt); at the end of a sentence too (strom chat.).
+ */
+export function asCommand(text: string, name: string, words: readonly string[]): string {
+  if (!words.length) return text;
+  const alt = [...new Set(words)].map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  // (after an opening quote of any language too: „strom person xyz“, «strom …»)
+  return text.replace(new RegExp(`(^|[\\s"'\`(\\[→:=„“«»‚‘])strom(?= (?:${alt})(?![\\p{L}\\p{M}\\p{N}_/\\\\-]|\\.[\\p{L}\\p{M}\\p{N}_]))`, "gu"), `$1${name}`);
+}
+
+/** asCommand over a JSON answer: the command lines in it (a value that is one: "strom …") and the hints. */
+export function asCommandJson(json: string, name: string, words: readonly string[]): string {
+  let value: unknown;
+  try {
+    value = JSON.parse(json);
+  } catch {
+    return asCommand(json, name, words);
+  }
+  const said = new Set(["hint", "message", "text", "why", "next"]);
+  const walk = (v: unknown, key?: string): unknown => {
+    if (typeof v === "string") return /^strom /.test(v) || (key !== undefined && said.has(key)) ? asCommand(v, name, words) : v;
+    if (Array.isArray(v)) return v.map((x) => walk(x, key));
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, k)]));
+    return v;
+  };
+  return JSON.stringify(walk(value)) + (json.endsWith("\n") ? "\n" : "");
+}

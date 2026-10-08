@@ -94,6 +94,13 @@ export const NAME_KINDS = ["birth", "married", "religious", "alias"] as const;
 export interface Name {
   given: string;
   surname: string;
+  /**
+   * The title before the name ("Ing.", "MUDr.", "hrabě") and the title or epithet after it ("ml.", "Ph.D."): GEDCOM
+   * NAME > NPFX / NSFX, the Strom app's titleBefore / titleAfter (of the name the person is shown by). Never part of
+   * the name itself — not searched, matched or compared with it.
+   */
+  prefix?: string;
+  suffix?: string;
   kind?: (typeof NAME_KINDS)[number];
   /** The records that give the person this name (in this form). */
   citations?: Citation[];
@@ -193,6 +200,11 @@ export interface Family extends BaseRecord {
    * DIV or _STAT); none: the one parent's children, no couple.
    */
   union?: Union;
+  /**
+   * The partner the files write as HUSB, kept when a sex of the partners changed and the sides would otherwise swap
+   * (U01-e): an app that guesses an unknown sex by the side sees no change. Never a woman HUSB beside a man.
+   */
+  husb?: string;
 }
 
 export const UNIONS = ["married", "divorced", "partners", "separated"] as const;
@@ -564,6 +576,8 @@ export interface TreeConfig {
   lang: string;
   created: string;
   createdWith: string;
+  /** The strom that last brought the data to a newer schema (core/migrate.ts): an older strom names it when it refuses the tree. */
+  migratedWith?: string;
   /** Agent for this tree (overrides the user's default). */
   agent?: string;
   /** Model per tier, per agent, for this tree. */
