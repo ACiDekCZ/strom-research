@@ -59,7 +59,7 @@ import { ancestorGenerations, displayName } from "./people.ts";
 import { phrase } from "./phrases.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { excerptSettings, planExcerpts } from "./excerpt.ts";
-import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
+import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
@@ -734,10 +734,15 @@ function accepts(tree: Tree, settings: Settings, env: Env): Record<string, unkno
  * strom was given (STROM_APP_VERSION, strom.version), else unknown.
  */
 export function appVersionOf(req: { url?: string | undefined; headers: http.IncomingHttpHeaders }, settings: Settings): string | undefined {
+  return saidAppVersion(req) ?? settings.stromVersion();
+}
+
+/** The version the request itself says the app is (X-Strom-App-Version, else ?app=), only a version of the app; else none. */
+export function saidAppVersion(req: { url?: string | undefined; headers: http.IncomingHttpHeaders }): string | undefined {
   const header = req.headers["x-strom-app-version"];
   const query = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("app");
   const said = (Array.isArray(header) ? header[0] : header)?.trim() || query?.trim();
-  return said && isAppVersion(said) ? said : settings.stromVersion();
+  return said && isAppVersion(said) ? said : undefined;
 }
 
 /** What the app shows beside the tree. */
@@ -1345,7 +1350,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
         return;
       }
       try {
-        const text = Buffer.concat(chunks).toString("utf8");
+        // the version the app says with it (its file writes none of its own): the tree is read as that app means it
+        const text = stampAppVersion(Buffer.concat(chunks).toString("utf8"), saidAppVersion(req));
         if (as === "adopt") {
           if (adopting) {
             reply(409, said(lang(), "ui.sync.bridge.adopting"));

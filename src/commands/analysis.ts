@@ -637,6 +637,8 @@ function haystack(r: AnyRecord): string {
     else if (v && typeof v === "object") Object.values(v).forEach(add);
   };
   const { id: _i, type: _t, created: _c, updated: _u, ...rest } = r as unknown as Record<string, unknown>;
+  // a person's titles ("Ing.", "ml.") are never searched as their name — the Strom app finds nobody by them either
+  if (r.type === "person") rest.names = r.names.map(({ prefix: _p, suffix: _s, ...n }) => n);
   add(rest);
   return parts.join(" \u0001 ");
 }

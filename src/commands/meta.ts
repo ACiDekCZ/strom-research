@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { newerVersion } from "../core/update.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
-import { appOpensResearch, installedStromApp, stromAppUrl } from "../core/stromapp.ts";
+import { appOpensResearch, appUrlShown, installedStromApp, stromAppUrl } from "../core/stromapp.ts";
 import { register, commands, describe, GROUPS } from "../cli/registry.ts";
 import { UsageError } from "../core/errors.ts";
 import type { Context } from "../cli/context.ts";
@@ -259,7 +259,7 @@ register(
     group: "start",
     args: [{ name: "filter", description: "only commands starting with these words, or of this group", variadic: true }],
     examples: ["strom commands", "strom commands source --json", "strom commands analysis"],
-    run(_ctx, { args }) {
+    run(ctx, { args }) {
       const words = args.flatMap((a) => a.split(/\s+/)).filter(Boolean);
       const prefix = words.join(" ");
       const defs = commands().filter(
@@ -273,7 +273,8 @@ register(
         })
         .filter(Boolean)
         .join("\n\n");
-      return { text, data: { version: VERSION, commands: defs.map(describe) } };
+      const appUrl = appUrlShown(ctx.settings);
+      return { text, data: { version: VERSION, commands: defs.map((d) => describe(d, appUrl)), ...(appUrl.invalid ? { invalid: ["strom.app.url"] } : {}) } };
     },
   },
   {
@@ -290,7 +291,7 @@ register(
       // the agent's help, whoever asks — a person's only with --human (Milan, 2026-10-04); a person at a terminal is told
       // how in a line of their language
       const human = Boolean(input.opts.human) && !input.opts.agent;
-      const text = helpAs(input.args, { archive: ctx.archiveHere(), human, lang: ctx.uiLang(), pointer: !human && ctx.io.tty && !isAgent(ctx.env) });
+      const text = helpAs(input.args, { archive: ctx.archiveHere(), human, lang: ctx.uiLang(), appUrl: appUrlShown(ctx.settings), pointer: !human && ctx.io.tty && !isAgent(ctx.env) });
       return { text, data: { help: text } };
     },
   },

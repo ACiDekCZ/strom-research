@@ -390,3 +390,20 @@ test("D3b: a second installation names its own command after unpack, at the menu
   assert.equal(ui("en", "ui.menu.bye"), "Until next time. Start again with: strom");
   w.cleanup?.();
 });
+
+test("D3b-a: a person's help in any language begins with the installation's own command — „strom-beta <příkaz>“, „strom-beta <Befehl>“ (found: cs and de said strom), a group's too; the person's own strom as it was", async () => {
+  const w = new World();
+  const beta = { STROM_CONFIG_DIR: path.join(w.dir, "config-beta"), STROM_ISOLATED: "1", STROM_COMMAND: "strom-beta" };
+  await w.ok(["setup", "--yes"], { env: beta });
+  await w.ok(["setup", "--yes"]);
+  for (const [lang, word] of [["en", "<command>"], ["cs", "<příkaz>"], ["de", "<Befehl>"]] as const) {
+    const own = (await w.ok(["help", "--human"], { env: { ...beta, STROM_LANG: lang } })).out;
+    assert.ok(own.startsWith(`strom-beta ${word} `), `${lang}: ${own.split("\n")[0]}`);
+    assert.doesNotMatch(own, /^ *strom |(^|\s)strom </mu, `${lang}: never strom as the command`);
+    assert.ok((await w.ok(["help", "research", "--human"], { env: { ...beta, STROM_LANG: lang } })).out.startsWith(`strom-beta research ${word}`), lang);
+    const plain = (await w.ok(["help", "--human"], { env: { STROM_LANG: lang } })).out;
+    assert.ok(plain.startsWith(`strom ${word} `), `${lang}: ${plain.split("\n")[0]}`);
+    assert.doesNotMatch(plain, /strom-beta/);
+  }
+  w.cleanup?.();
+});

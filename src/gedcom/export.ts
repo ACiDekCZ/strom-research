@@ -28,7 +28,7 @@
 import { GedWriter } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
-import { birthEvent, claimText, conflictTitle, displayName, formatName, gedcomTitledName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
+import { birthEvent, claimText, conflictTitle, displayName, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
@@ -153,6 +153,12 @@ const Y_TAGS = new Set(["BIRT", "CHR", "DEAT", "BURI", "CREM", "ADOP", "BAPM", "
 /** _FREL/_MREL values (Legacy, RootsMagic, FTM). */
 const FREL: Record<ChildRelation, string> = { birth: "Natural", adopted: "Adopted", step: "Step", foster: "Foster", unknown: "Unknown" };
 
+/**
+ * A name of no given name with the surname Unknown, any case ("? /Unknown/"): the Strom app's old way of writing a person
+ * of no name and no surname looks the same — the file says its parts (GIVN, SURN), so the surname is read as one.
+ */
+const unknownSurname = (n: Name) => noName(n.given) && foldText(n.surname) === "unknown";
+
 /** GEDCOM NAME TYPE for our kinds of name ("religious" is a user-defined type). */
 const NAME_TYPE: Record<NonNullable<Name["kind"]>, string> = { birth: "birth", married: "married", alias: "aka", religious: "religious" };
 
@@ -269,12 +275,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       // NSFX — for any program (GEDCOM 5.5.1's own tags), for the Strom app from its 3.10 (titles; an older one reads
       // the line). A part holding a comma gets no GIVN / SURN (GEDCOM reads commas there as a list); the line has it.
       w.line(1, "NAME", gedcomTitledName(n));
-      if ((n.prefix || n.suffix) && (strict || opts.titles)) {
+      // "?" with the surname Unknown ("? /Unknown/"): spelled out in every file, titles or not — the Strom app from
+      // 3.10.0-beta.7 reads "? /Unknown/" without its SURN as a person of no surname (its old way of writing one; T08b-a)
+      const titled = (n.prefix || n.suffix) && (strict || opts.titles);
+      if (titled || unknownSurname(n)) {
         const part = (v: string) => v.replace(/\//g, "|").trim();
-        if (n.prefix) w.line(2, "NPFX", n.prefix);
+        if (titled && n.prefix) w.line(2, "NPFX", n.prefix);
         if (part(n.given) && !n.given.includes(",")) w.line(2, "GIVN", part(n.given));
         if (part(n.surname) && !n.surname.includes(",")) w.line(2, "SURN", part(n.surname));
-        if (n.suffix) w.line(2, "NSFX", n.suffix);
+        if (titled && n.suffix) w.line(2, "NSFX", n.suffix);
       }
       // "birth" says something only next to another name
       if (n.kind && (n.kind !== "birth" || p.names.length > 1)) w.line(2, "TYPE", NAME_TYPE[n.kind]);

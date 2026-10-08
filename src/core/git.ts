@@ -4,6 +4,7 @@
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { StromError } from "./errors.ts";
 import type { Env } from "./paths.ts";
@@ -25,20 +26,56 @@ const GIT_ENV = {
 
 const PROFILE = process.env.STROM_PROFILE === "1";
 
-export function runGit(cwd: string, args: string[], input?: string): GitResult {
-  const t0 = PROFILE ? performance.now() : 0;
-  const r = spawnSync(gitProgram() ?? "git", args, {
-    cwd,
-    input,
-    encoding: "utf8",
-    env: { ...process.env, ...GIT_ENV },
-    maxBuffer: 256 * 1024 * 1024,
-    windowsHide: true,
+/** How long a git that reads what strom gives it (commit-tree, cat-file --batch) may take: it never holds the tree's lock for good. */
+export const GIT_INPUT_TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * What git reads on its stdin, given to it as a file — never written through a pipe: on macOS a spawnSync writing its
+ * input into git's stdin (a socket) now and then left git waiting for it for good, the tree's lock held (npm test hung
+ * an hour in a git commit-tree; reproduced: about 1 in 800 long messages). Without input git's stdin is nothing.
+ */
+function withStdin<T>(input: string | undefined, run: (stdin: number | "ignore") => T): T {
+  if (input === undefined) return run("ignore");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-git-"));
+  try {
+    const file = path.join(dir, "stdin");
+    fs.writeFileSync(file, input, { mode: 0o600 });
+    const fd = fs.openSync(file, "r");
+    try {
+      return run(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** A git that did not finish in time: stopped (SIGKILL by spawnSync), said. */
+function gitTimedOut(args: string[], error: Error | undefined): StromError | undefined {
+  if ((error as NodeJS.ErrnoException | undefined)?.code !== "ETIMEDOUT") return undefined;
+  return new StromError(`git ${args[0]} did not finish within ${GIT_INPUT_TIMEOUT_MS / 60_000} minutes and was stopped`, {
+    hint: "strom doctor checks git; run the command again",
   });
+}
+
+export function runGit(cwd: string, args: string[], input?: string, extraEnv: Record<string, string> = {}): GitResult {
+  const t0 = PROFILE ? performance.now() : 0;
+  const r = withStdin(input, (stdin) =>
+    spawnSync(gitProgram() ?? "git", args, {
+      cwd,
+      stdio: [stdin, "pipe", "pipe"],
+      encoding: "utf8",
+      env: { ...process.env, ...GIT_ENV, ...extraEnv },
+      maxBuffer: 256 * 1024 * 1024,
+      windowsHide: true,
+      ...(input !== undefined ? { timeout: GIT_INPUT_TIMEOUT_MS, killSignal: "SIGKILL" as const } : {}),
+    }),
+  );
   if (r.error) {
     const code = (r.error as NodeJS.ErrnoException).code;
     if (code === "ENOENT") throw gitMissingError();
-    throw r.error;
+    throw gitTimedOut(args, r.error) ?? r.error;
   }
   if (PROFILE) process.stderr.write(`[git ${(performance.now() - t0).toFixed(0)}ms] ${args.slice(0, 3).join(" ")}\n`);
   return { status: r.status ?? 1, stdout: r.stdout, stderr: r.stderr };
@@ -218,14 +255,7 @@ function commitTree(dir: string, tree: string, parent: string | undefined, messa
   const r = runGit(dir, args, message);
   if (r.status === 0 || !/identity|tell me who you are|user\.email/i.test(r.stderr)) return r;
   // No git identity at all (non-technical users): commit as "Strom".
-  const retry = spawnSync(gitProgram() ?? "git", args, {
-    cwd: dir,
-    input: message,
-    encoding: "utf8",
-    env: { ...process.env, ...GIT_ENV, ...FALLBACK_IDENTITY },
-    windowsHide: true,
-  });
-  return { status: retry.status ?? 1, stdout: retry.stdout, stderr: retry.stderr };
+  return runGit(dir, args, message, FALLBACK_IDENTITY);
 }
 
 /**
@@ -284,14 +314,19 @@ function tidy(dir: string): void {
 export function showFiles(dir: string, rev: string, files: string[]): Map<string, string | undefined> {
   const out = new Map<string, string | undefined>();
   if (files.length === 0) return out;
-  const r = spawnSync(gitProgram() ?? "git", ["cat-file", "--batch"], {
-    cwd: dir,
-    input: files.map((f) => `${rev}:${f.replace(/\\/g, "/")}`).join("\n") + "\n",
-    env: { ...process.env, ...GIT_ENV },
-    maxBuffer: 1024 * 1024 * 1024,
-    windowsHide: true,
-  });
-  if (r.error) throw r.error;
+  const args = ["cat-file", "--batch"];
+  const r = withStdin(files.map((f) => `${rev}:${f.replace(/\\/g, "/")}`).join("\n") + "\n", (stdin) =>
+    spawnSync(gitProgram() ?? "git", args, {
+      cwd: dir,
+      stdio: [stdin, "pipe", "pipe"],
+      env: { ...process.env, ...GIT_ENV },
+      maxBuffer: 1024 * 1024 * 1024,
+      windowsHide: true,
+      timeout: GIT_INPUT_TIMEOUT_MS,
+      killSignal: "SIGKILL",
+    }),
+  );
+  if (r.error) throw gitTimedOut(args, r.error) ?? r.error;
   const buf = r.stdout as Buffer;
   let pos = 0;
   for (const file of files) {

@@ -9,9 +9,10 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Env } from "./paths.ts";
 import { desktopDir, userHome } from "./paths.ts";
-import type { Settings } from "./config.ts";
+import { checkValue, settingDef, type Settings } from "./config.ts";
+import { UsageError } from "./errors.ts";
 import { foldText } from "./text.ts";
-import { updateChannel } from "./update.ts";
+import { compareVersions, updateChannel } from "./update.ts";
 
 export const STROM_APP_URL = "https://stromapp.info/run/";
 /** The Strom app's beta: the copy a strom of the beta channel opens unless strom.app.url says another. */
@@ -32,6 +33,23 @@ export function defaultAppUrl(env: Env): string {
  */
 export function isAppVersion(v: string): boolean {
   return /^\d{1,4}\.\d{1,4}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,40})?(?:\+[0-9A-Za-z.-]{1,40})?$/.test(v);
+}
+
+/**
+ * The first Strom app that writes a person of no name and no surname "? //" — before it "? /Unknown/" (its N13; the
+ * research's T08b). A real pre-release, not a gate: its own betas before it wrote the old way.
+ */
+export const APP_WRITES_NO_SURNAME_EMPTY = "3.10.0-beta.7";
+
+/**
+ * Does a file of the Strom app mean "? /Unknown/" as a person of no surname? Yes from an app before 3.10.0-beta.7, or
+ * one whose version the file does not say (its HEAD's 2 VERS under 1 SOUR STROM missing, or no version of the app —
+ * the app writes "1.0" there); from 3.10.0-beta.7 on it is the surname Unknown the user typed. Semver precedence:
+ * 3.10.0-beta.6 < 3.10.0-beta.7 < 3.10.0-beta.10 < 3.10.0-rc.1 < 3.10.0.
+ */
+export function appUnknownIsNoSurname(version: string | undefined): boolean {
+  const v = version?.trim();
+  return !v || !isAppVersion(v) || compareVersions(v, APP_WRITES_NO_SURNAME_EMPTY) < 0;
 }
 
 /** The pages of the Strom app — on the web, its beta, a copy on this computer (its development): the only ones strom opens with a research, and the only ones its bridge lets in. */
@@ -91,6 +109,28 @@ export function appTreeNameFromInstall(env: { STROM_FROM_APP?: string | undefine
 export function stromAppUrl(settings: Settings): string {
   const url = settings.resolve("strom.app.url")?.value;
   return typeof url === "string" && url ? url : defaultAppUrl(settings.env);
+}
+
+/** The copy of the Strom app a help names (appUrlShown): `invalid` when strom.app.url says no address of it. */
+export interface ShownAppUrl {
+  url: string;
+  invalid?: true;
+}
+
+/**
+ * The copy of the Strom app a help names (help app, app --help, commands --json): the one `strom app` opens — and where
+ * strom.app.url (STROM_APP_URL) says no address of the app (not one, or one the bridge does not let in), the channel's
+ * default with `invalid`: the help never fails on a setting (B1-b); `strom app` itself refuses it.
+ */
+export function appUrlShown(settings: Settings): ShownAppUrl {
+  try {
+    const url = stromAppUrl(settings);
+    checkValue(settingDef("strom.app.url"), url, (p) => p);
+    return { url };
+  } catch (err) {
+    if (!(err instanceof UsageError)) throw err;
+    return { url: defaultAppUrl(settings.env), invalid: true };
+  }
 }
 
 /**

@@ -3,6 +3,7 @@
 // derived from these declarations.
 
 import type { Context } from "./context.ts";
+import type { ShownAppUrl } from "../core/stromapp.ts";
 
 export type OptionType = "string" | "boolean";
 
@@ -142,10 +143,27 @@ export function usageLine(def: CommandDef): string {
   return ["strom", ...def.path, ...args, (def.options?.some((o) => !o.hidden) || def.writes) ? "[options]" : ""].filter(Boolean).join(" ");
 }
 
+/**
+ * A command's description as it is said here: {appUrl} the copy of the Strom app `strom app` opens (stromAppUrl — the
+ * beta for a strom of the beta channel, strom.app.url where it says another; found: help app named stromapp.info on the
+ * beta).
+ */
+export function descriptionOf(def: CommandDef, appUrl: ShownAppUrl): string | undefined {
+  const said = def.description?.replace(/\{appUrl\}/g, appUrl.url);
+  // an address of no Strom app in the setting: the help names the default and says so (B1-b)
+  return said && appUrl.invalid && def.description!.includes("{appUrl}") ? `${said}\n${APP_URL_INVALID}` : said;
+}
+
+/** What a help says under the address of the Strom app when strom.app.url says no address of it (B1-b). */
+export const APP_URL_INVALID =
+  "Note: the setting strom.app.url (or STROM_APP_URL) is no address of the Strom app, so the address above is the default.\n" +
+  "Set it right (strom config set strom.app.url <address>) or remove it (strom config unset strom.app.url).";
+
 /** Catalog entry for `strom commands --json`: only what is there (empty fields are left out). */
-export function describe(def: CommandDef): Record<string, unknown> {
+export function describe(def: CommandDef, appUrl: ShownAppUrl): Record<string, unknown> {
   const out: Record<string, unknown> = { command: def.path.join(" "), usage: usageLine(def), summary: def.summary, group: def.group };
-  if (def.description) out.description = def.description;
+  const description = descriptionOf(def, appUrl);
+  if (description) out.description = description;
   if (def.writes) out.writes = true;
   if (def.tree) out.needsTree = true;
   if (def.args?.length) out.args = def.args;

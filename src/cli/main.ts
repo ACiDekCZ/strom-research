@@ -17,7 +17,7 @@ import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
 import { prependPath } from "../runners/runner.ts";
 import { shimDir } from "../commands/session.ts";
 import { isAgent } from "../core/which.ts";
-import { noticeStromApp } from "../core/stromapp.ts";
+import { appUrlShown, noticeStromApp } from "../core/stromapp.ts";
 import { lastChannelOf, pendingTransition, updateChannel } from "../core/update.ts";
 import { backupBefore, backupSaid } from "./backups.ts";
 import { installation } from "../core/self.ts";
@@ -152,7 +152,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     } catch (err) {
       if (err instanceof GroupOnly) {
         const c = Context.fromOptions({ env, cwd, io, json, values: {} });
-        io.stdout(groupHelpAs(err.group, { archive: c.archiveHere(), human: false, lang: c.uiLang(), pointer: io.tty && !isAgent(env) }) + "\n");
+        io.stdout(groupHelpAs(err.group, { archive: c.archiveHere(), human: false, lang: c.uiLang(), appUrl: appUrlShown(c.settings), pointer: io.tty && !isAgent(env) }) + "\n");
         return EXIT.ok;
       }
       throw err;
@@ -165,7 +165,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       // the agent's help, whoever asks (Milan, 2026-10-04: "výchozí je pro agenta"); a person at a terminal is told in a
       // line of their language how to get theirs (strom help <command> --human)
       const c = Context.fromOptions({ env, cwd, io, json, values: v });
-      io.stdout(helpAs(def.path, { archive: c.archiveHere(), human: false, lang: c.uiLang(), pointer: io.tty && !isAgent(env) }) + "\n");
+      io.stdout(helpAs(def.path, { archive: c.archiveHere(), human: false, lang: c.uiLang(), appUrl: appUrlShown(c.settings), pointer: io.tty && !isAgent(env) }) + "\n");
       return EXIT.ok;
     }
     if (v.version) {

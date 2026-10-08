@@ -60,6 +60,19 @@ export function appNoSurname(given: string, surname: string, surn: string | unde
   return noName(given) && surname === "Unknown" && !surn?.trim();
 }
 
+/**
+ * The surname of a NAME line without slashes that has a GIVN and no SURN ("Petr Novotný" + GIVN Petr; N11): the rest
+ * of the line after the given name — after its first word where the line does not start with the GIVN ('' when
+ * nothing is left). The Strom app reads it so (its 3.10.0-beta.7). The given name's words compared through foldText
+ * (any accent, NFD), its commas read as spaces; the surname comes back in NFC, stray slashes left out.
+ */
+export function surnameAfterGiven(line: string, givn: string): string {
+  const words = (s: string) => s.normalize("NFC").split(/\s+/u).filter(Boolean);
+  const [said, given] = [words(line.replace(/,/g, " ")), words(givn.replace(/,/g, " "))];
+  const starts = given.length > 0 && given.length <= said.length && given.every((w, i) => foldText(w) === foldText(said[i]!));
+  return (starts ? said.slice(given.length) : words(line).slice(1)).join(" ").replace(/\//g, "").trim();
+}
+
 /** Words that describe a person instead of naming them (folded): stillborn, unbaptised, N.N. */
 const DESCRIPTIONS = new Set([
   "nn", "n n", "nomen nescio", "unnamed", "unknown", "stillborn", "still born", "infant", "child", "son", "daughter",

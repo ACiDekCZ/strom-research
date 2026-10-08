@@ -1,8 +1,9 @@
 // Help text generated from the registry. Short by design: examples first,
 // then arguments and options.
 
-import { GROUPS, GLOBAL_OPTIONS, WRITE_OPTIONS, commands, match, subcommandsOf, usageLine, type CommandDef, type OptionDef } from "./registry.ts";
+import { GROUPS, GLOBAL_OPTIONS, WRITE_OPTIONS, commands, descriptionOf, match, subcommandsOf, usageLine, type CommandDef, type OptionDef } from "./registry.ts";
 import { table } from "./format.ts";
+import type { ShownAppUrl } from "../core/stromapp.ts";
 import { suggest } from "./execute.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 
@@ -45,11 +46,12 @@ function inArchive(def: CommandDef): string | undefined {
   return AI_WORDS.test(def.summary) ? undefined : def.summary;
 }
 
-export function commandHelp(def: CommandDef, archive = false): string {
+export function commandHelp(def: CommandDef, archive: boolean, appUrl: ShownAppUrl): string {
   const summary = archive ? inArchive(def) : def.summary;
   if (summary === undefined) return `strom ${def.path.join(" ")}: not in an archive (research is switched on by the user: strom mode research)`;
   const out: string[] = [usageLine(def), "", summary];
-  if (def.description && !(archive && AI_WORDS.test(def.description))) out.push("", def.description);
+  const description = descriptionOf(def, appUrl);
+  if (description && !(archive && AI_WORDS.test(description))) out.push("", description);
   const examples = (def.examples ?? []).filter((e) => !(archive && AI_WORDS.test(e)));
   if (examples.length) out.push("", "Examples:", ...examples.map((e) => `  ${e}`));
   if (def.args?.length) out.push("", "Arguments:", table(def.args.map((a) => [`  ${a.name}`, a.description])));
@@ -112,12 +114,12 @@ export function overview(archive = false): string {
   return out.join("\n");
 }
 
-export function helpFor(input: string[], archive = false): string {
+export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl): string {
   // "strom help 'research new'" — one quoted argument with several words.
   const words = input.flatMap((w) => w.trim().split(/\s+/)).filter(Boolean);
   if (words.length === 0) return overview(archive);
   const found = match(words);
-  if (found && found.used === words.length) return commandHelp(found.def, archive);
+  if (found && found.used === words.length) return commandHelp(found.def, archive, appUrl);
   if (subcommandsOf(words).length > 0) return groupHelp(words, archive);
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
   const near = suggest(words.join(" "), all.filter((c) => c.split(" ").length === words.length));
@@ -145,6 +147,8 @@ export interface HelpAs {
   /** A person's help in `lang` (strom help --human); else the catalog an agent reads — the default, whoever asks. */
   human: boolean;
   lang: string;
+  /** The copy of the Strom app `strom app` opens here (appUrlShown): what a command's help names as its address. */
+  appUrl: ShownAppUrl;
   /** A person at a terminal reads the agent's help: one line at its end, in their language, says how to get theirs. */
   pointer?: boolean;
 }
@@ -196,7 +200,7 @@ function pointer(words: string[], as: HelpAs): string {
  */
 export function helpAs(input: string[], as: HelpAs): string {
   const words = input.flatMap((w) => w.trim().split(/\s+/)).filter(Boolean);
-  if (!as.human) return helpFor(words, as.archive) + pointer(words, as);
+  if (!as.human) return helpFor(words, as.archive, as.appUrl) + pointer(words, as);
   if (words.length === 0) return humanOverview(as);
   const found = match(words);
   if (found && found.used === words.length) return humanCommand(found.def, as);

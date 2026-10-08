@@ -28,7 +28,7 @@ import { phrase } from "./phrases.ts";
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, retractEvent, retractPerson } from "./actions.ts";
 import { exportGedcom, REFN_TYPE } from "../gedcom/export.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
-import { fromFlexDate, houseOf, importDate } from "./import.ts";
+import { fromFlexDate, houseOf, importDate, readGedName, stromAppFile } from "./import.ts";
 import { humanAge, normalizeAge } from "./age.ts";
 import { dateYears } from "./gdate.ts";
 import { create, update } from "./records.ts";
@@ -41,7 +41,8 @@ import { StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
 import { isArchive } from "./mode.ts";
-import { cleanTitle, formatName, foundTitles, noName, parseName, primaryName, titledName, withoutTitles } from "./people.ts";
+import { isAppVersion } from "./stromapp.ts";
+import { cleanTitle, formatName, foundTitles, gedcomTitledName, primaryName, titledName } from "./people.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
 
@@ -224,9 +225,6 @@ function titlesFrom(before: unknown, after: unknown): Titles | undefined {
   const [b, a] = [cleanTitle(before), cleanTitle(after)];
   return b || a ? { ...(b ? { before: b } : {}), ...(a ? { after: a } : {}) } : undefined;
 }
-
-/** The titles a NAME of a file spells out (2 NPFX, 2 NSFX). */
-const titlesOf = (n: GedNode): Titles | undefined => titlesFrom(val(n, "NPFX"), val(n, "NSFX"));
 
 /**
  * A person of the file whose name says no titles (no NPFX / NSFX, no titleBefore / titleAfter) where the research's
@@ -531,12 +529,37 @@ function knownNote(text: string, said: Set<string>): boolean {
   return unknown.length <= w.size * 0.2 || (unknown.length < 3 && unknown.length * 2 <= w.size);
 }
 
+/**
+ * A tree the Strom app sent the bridge, with the version the app said with it (X-Strom-App-Version, ?app=) as its HEAD's
+ * 2 VERS under 1 SOUR STROM, where the file names no version of the app (the app writes "1.0" there): the file is read
+ * as the app that wrote it means it ("? /Unknown/" before 3.10.0-beta.7: no surname; T08b). A version of the app the
+ * file says, another program's file, or no version said: as it came.
+ */
+export function stampAppVersion(text: string, version: string | undefined): string {
+  if (!version || !isAppVersion(version)) return text;
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = text.split(/\r?\n/);
+  const next = lines.findIndex((l, i) => i > 0 && /^\s*0\s/.test(l));
+  const end = next < 0 ? lines.length : next;
+  const sour = lines.findIndex((l, i) => i < end && /^\s*1\s+SOUR\s+STROM\s*$/.test(l));
+  if (sour < 0) return text;
+  for (let i = sour + 1; i < end && /^\s*(?:[2-9]|\d{2,})\s/.test(lines[i]!); i++) {
+    const vers = /^\s*2\s+VERS(?:\s+(.*))?$/.exec(lines[i]!);
+    if (!vers) continue;
+    if (isAppVersion((vers[1] ?? "").trim())) return text;
+    lines[i] = `2 VERS ${version}`;
+    return lines.join(eol);
+  }
+  lines.splice(sour + 1, 0, `2 VERS ${version}`);
+  return lines.join(eol);
+}
+
 /** A GEDCOM file (or one of ours, in memory) as a snapshot; an unreadable one throws. */
 export function readGedcom(text: string): Snapshot {
   const { records, problems } = parseGedcomText(text);
   const head = records.find((r) => r.tag === "HEAD");
   /** A file of the Strom app (its HEAD: 1 SOUR STROM): its own ways of writing are read as it means them. */
-  const fromApp = val(head, "SOUR")?.trim() === "STROM";
+  const fromApp = stromAppFile(head);
   const notes = new Map(records.filter((r) => r.tag === "NOTE" && r.xref).map((r) => [r.xref!, r.value]));
   const noteText = (n: GedNode) => (/^@[^@]+@$/.test(n.value.trim()) ? (notes.get(n.value.trim()) ?? "") : n.value);
   // the sources: ours by their REFN, the file's own by their xref
@@ -594,24 +617,23 @@ export function readGedcom(text: string): Snapshot {
     const key = ours && !persons.has(ours) ? ours : `x:${r.xref!.replace(/@/g, "")}`;
     keys.set(r.xref!, key);
     const sex = val(r, "SEX");
-    // a person of no name and no surname the Strom app writes "? /Unknown/" (its stand-in for an unknown parent: "//",
-    // nobody) — and "? //" from its 3.10: a person, of no surname (T08b)
-    const nameless = (n: GedNode) => fromApp && /^\?\s*\/\s*(?:Unknown\s*)?\/$/u.test(n.value.trim()) && !val(n, "SURN")?.trim();
-    const named = children(r, "NAME").filter((n) => nameless(n) || n.value.trim().replace(/[/?\s]/g, ""));
+    // each NAME read as strom intake reads it (readGedName): its parts (GIVN, SURN) first, the line's surname after the
+    // given name where it has no slashes (N11), the titles apart; a person of no name and no surname the Strom app
+    // writes "? //" (its stand-in for an unknown parent: "//", nobody) — and "? /Unknown/" before its 3.10.0-beta.7 (or
+    // a file that says no version of it): a person, of no surname; from it on "? /Unknown/" is the surname Unknown (T08b)
+    const named = children(r, "NAME")
+      .map((n) => ({ n, ...readGedName(n, fromApp) }))
+      .filter(({ n, nameless }) => nameless || [n.value, val(n, "GIVN") ?? "", val(n, "SURN") ?? ""].join("").replace(/[/?\s]/g, ""));
     // the titles of the name they are shown by (NPFX / NSFX) apart from it: the line says them too, taken off it (the
-    // other names are kept as their lines say them, titles and all — the Strom app keeps them so)
-    const titles = named[0] ? titlesOf(named[0]) : undefined;
-    // (the research's own person: no name at all, as the research writes it — never another name, never a rename)
-    const written = named
-      .filter((n) => !(ours && nameless(n)))
-      .map((n, i) => (nameless(n) ? "? //" : i === 0 && titles ? withoutTitles(n.value, titles.before, titles.after) : n.value.trim()));
-    // a placeholder of the Strom app (an unknown parent drawn in the tree): nobody
-    if (!ours && !written.length) continue;
+    // other names keep theirs in the line, as the Strom app keeps them)
+    const titles = named[0] ? titlesFrom(named[0].name.prefix, named[0].name.suffix) : undefined;
+    // (the research's own person: no name at all, as the research writes it — never another name, never a rename);
     // what stands for no name ("N/A /Chrpa/", "N.N.") is the research's "?" (T08)
-    const names = written.map((n) => {
-      const p = parseName(n);
-      return noName(p.given) && p.given !== "?" ? `? /${p.surname}/` : n;
-    });
+    const names = named
+      .filter(({ nameless }) => !(ours && nameless))
+      .map(({ name, nameless }, i) => (nameless ? "? //" : gedcomTitledName(i === 0 && titles ? { given: name.given, surname: name.surname } : name)));
+    // a placeholder of the Strom app (an unknown parent drawn in the tree): nobody
+    if (!ours && !names.length) continue;
     const facts = gedFacts(r, undefined, read);
     // a godparent other programs give the person (1 ASSO): theirs at the baptism, else the birth
     const host = facts.find((f) => kindOf(f.kind) === "BAPM") ?? facts.find((f) => f.kind === "BIRT");

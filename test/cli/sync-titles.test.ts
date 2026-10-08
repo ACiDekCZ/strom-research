@@ -164,6 +164,32 @@ test("the agent sets the titles: person add / name add / person edit --prefix --
   w.cleanup();
 });
 
+test("a title changed without a reason says so in every language: the title named, not only the name (T07-a)", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Marie /Dvořáková/", "--sex", "F", "--prefix", "MUDr."]);
+  for (const [lang, said] of [["en", /changing a name, its title or a known sex needs --reason/], ["cs", /změna jména, jeho titulu nebo známého pohlaví potřebuje --reason/], ["de", /ein Name, sein Titel oder ein bekanntes Geschlecht ändert sich nur mit --reason/]] as const) {
+    await w.ok(["lang", lang]);
+    const r = await w.run(["person", "edit", "P0001", "--prefix", "PhDr."]);
+    assert.equal(r.code, 2);
+    assert.match(r.err, said, lang);
+  }
+  w.cleanup();
+});
+
+test("strom find never finds a person by their title — only by their name, any accent and NFD (T07-b)", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F", "--prefix", "Ing.", "--suffix", "ml."]);
+  const found = async (q: string) => ((await w.ok(["find", q, "--json"])).json.hits as { id: string }[]).map((h) => h.id);
+  for (const q of ["Ing", "Ing.", "ml", "ml."]) assert.deepEqual(await found(q), [], q);
+  for (const q of ["Nováková", "Marie", "novakova", "Nováková", "Marie Nováková"]) assert.deepEqual(await found(q), ["P0001"], q);
+  assert.deepEqual(await found("Ing. Marie"), [], "a title with the name: still not the name");
+  const hit = (await w.ok(["find", "Marie", "--json"])).json.hits[0] as { snippet: string };
+  assert.doesNotMatch(hit.snippet, /Ing\.|ml\./);
+  w.cleanup();
+});
+
 // The Strom app's own parser and exporter (../strom: the app released, ../strom-beta: the one coming), each as its
 // version reads the file it is given: the titled person back with no change; a title or a name edited in it, that edit.
 for (const dir of ["strom", "strom-beta"]) {

@@ -21,7 +21,7 @@ import { assertIntact } from "../core/integrity.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { offerLinks } from "../cli/wizard.ts";
-import { appOpensLinks, appOpensResearch, importAppUrl, installedStromApp, liveAppUrl, noticeStromApp, STROM_APP_URL, stromAppUrl } from "../core/stromapp.ts";
+import { appOpensLinks, appOpensResearch, importAppUrl, installedStromApp, liveAppUrl, noticeStromApp, stromAppUrl } from "../core/stromapp.ts";
 import { forgetLive, liveRunning, serveLive, startLive, stopLive } from "../core/live.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut, openInNewTerminal } from "../core/shortcut.ts";
@@ -211,7 +211,7 @@ register(
       "In a tree, with an app that can take it (from its version 3.0.0), the app opens this research itself — the first time as\n" +
       "a new tree, after that the same tree updated — and follows it while somebody is at work on it (the live bridge).\n" +
       `Otherwise the results are ready for it in output/tree-strom.ged (in the app: Import). Each entry comes with its image,\n` +
-      `cut out of its scan (the settings excerpts.*; excerpts.for none: without). Web: ${STROM_APP_URL}`,
+      `cut out of its scan (the settings excerpts.*; excerpts.for none: without). Web: {appUrl}`,
     options: [
       { name: "live", type: "boolean", description: "the app follows this research while it goes on (the live bridge)" },
       { name: "images", type: "boolean", description: "each entry with its image (the default; kept for older scripts)" },

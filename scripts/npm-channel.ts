@@ -29,7 +29,7 @@ export function publishRefusal(version: string, tag: string | undefined): string
   if (typeof kind === "object") return `${kind.refused}. Nothing is published.`;
   if (kind === "rc") return `${version} is a local candidate: it is not published to npm. A beta: npm run release -- --version X.Y.Z-beta.N --out release-beta`;
   if (kind === "beta" && as !== "beta")
-    return `${version} is a beta: it goes out under the tag beta only, never "${as}". Run: npm publish release-beta/${tarballName(version)} --tag beta`;
+    return `${version} is a beta: it goes out under the tag beta only, never "${as}". Run: ${publishLine(`release-beta/${tarballName(version)}`)}`;
   if (kind === "release" && as === "beta") return `${version} is a release: it goes out under latest. Run: npm publish (without --tag beta)`;
   return undefined;
 }
@@ -37,8 +37,14 @@ export function publishRefusal(version: string, tag: string | undefined): string
 /** The file npm pack names for this version. */
 export const tarballName = (version: string) => `strom-research-${version}.tgz`;
 
-/** The line that publishes a beta's tarball (Milan's, in his own terminal). */
-export const publishLine = (file: string) => `npm publish ${file} --tag beta`;
+/**
+ * The line that publishes a beta's tarball (Milan's, in his own terminal): its path always a path to npm — "./" before
+ * a relative one (npm took "release-beta/strom-research-….tgz" for a GitHub repository, user/repo), quoted with a space.
+ */
+export const publishLine = (file: string) => {
+  const local = path.isAbsolute(file) || /^\.\.?[\\/]/.test(file) ? file : `./${file.replace(/\\/g, "/")}`;
+  return `npm publish ${/\s/.test(local) ? `"${local}"` : local} --tag beta`;
+};
 
 /**
  * The npm tarball of a staged package (its package.json, dist/, assets/, LICENSE, README.md), as `npm publish` would

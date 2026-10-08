@@ -345,3 +345,33 @@ test("the Strom app 3.10.0 reads the titles of a name: NPFX/GIVN/SURN/NSFX from 
   assert.deepEqual(validateGedcom(std, { strict: true }).filter((f) => f.level === "error"), []);
   w.cleanup();
 });
+
+test("N11: a NAME line without slashes, with a GIVN and no SURN, keeps its surname — the rest of the line after the given name (the Strom app's 3.10.0-beta.7 reads it so)", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  const nfd = (s: string) => s.normalize("NFD");
+  const people: [string, string[], { given: string; surname: string }][] = [
+    ["1 NAME Petr Novotný", ["2 GIVN Petr"], { given: "Petr", surname: "Novotný" }],
+    ["1 NAME Jan Karel Dvořák", ["2 GIVN Jan Karel"], { given: "Jan Karel", surname: "Dvořák" }],
+    [nfd("1 NAME Šimon Kovář"), [nfd("2 GIVN Šimon")], { given: "Šimon", surname: "Kovář" }],
+    [nfd("1 NAME Šimon Kovář"), ["2 GIVN Šimon"], { given: "Šimon", surname: "Kovář" }],
+    ["1 NAME Пётр Иванов", ["2 GIVN Пётр"], { given: "Пётр", surname: "Иванов" }],
+    ["1 NAME Matěj", ["2 GIVN Matěj"], { given: "Matěj", surname: "" }],
+    ["1 NAME Hans Weber", ["2 GIVN Johann"], { given: "Johann", surname: "Weber" }],
+    ["1 NAME Josef /Malý/", ["2 GIVN Josef"], { given: "Josef", surname: "Malý" }],
+    ["1 NAME Tomáš /Veselý/", [], { given: "Tomáš", surname: "Veselý" }],
+  ];
+  const ged = ["0 HEAD", "1 SOUR OTHER_PROGRAM", "1 GEDC", "2 VERS 5.5.1", "1 CHAR UTF-8"];
+  people.forEach(([name, parts], i) => ged.push(`0 @I${i + 1}@ INDI`, name, ...parts, "1 SEX M", "1 BIRT", `2 DATE ${1850 + i}`));
+  ged.push("0 TRLR");
+  fs.writeFileSync(path.join(w.dir, "names.ged"), ged.join("\n") + "\n");
+  await w.ok(["intake", path.join(w.dir, "names.ged")]);
+  const read = fs
+    .readdirSync(path.join(w.cwd, "data", "persons"))
+    .map((f) => readJsonFile(path.join(w.cwd, "data", "persons", f)))
+    .sort((a: any, b: any) => String(a.events.find((e: any) => e.kind === "BIRT").date).localeCompare(String(b.events.find((e: any) => e.kind === "BIRT").date)))
+    .map((p: any) => ({ given: p.names[0].given, surname: p.names[0].surname }));
+  assert.deepEqual(read, people.map(([, , name]) => name));
+  for (const n of read) assert.equal(n.surname, n.surname.normalize("NFC"), "kept in NFC");
+  w.cleanup();
+});

@@ -25,7 +25,7 @@ test("what a version is: a release, a beta.N, an rc.N; any other prerelease refu
 
 test("prepublishOnly: a beta only under the tag beta, a release never under it, a candidate never", () => {
   assert.equal(publishRefusal("1.13.0-beta.2", "beta"), undefined);
-  assert.match(publishRefusal("1.13.0-beta.2", undefined)!, /under the tag beta only, never "latest".*npm publish release-beta\/strom-research-1\.13\.0-beta\.2\.tgz --tag beta/);
+  assert.match(publishRefusal("1.13.0-beta.2", undefined)!, /under the tag beta only, never "latest".*npm publish \.\/release-beta\/strom-research-1\.13\.0-beta\.2\.tgz --tag beta/);
   assert.match(publishRefusal("1.13.0-beta.2", "latest")!, /never "latest"/);
   assert.match(publishRefusal("1.13.0-beta.2", "next")!, /never "next"/);
   assert.equal(publishRefusal("1.13.0", undefined), undefined, "a release: npm's default tag, latest");
@@ -100,5 +100,16 @@ test("a beta's npm tarball: what npm pack publishes, the version as staged, publ
     at += 512 + Math.ceil(parseInt(tar.subarray(at + 124, at + 136).toString().replace(/\0.*$/s, "").trim() || "0", 8) / 512) * 512;
   }
   assert.deepEqual(names.sort(), ["package/LICENSE", "package/README.md", "package/assets/a.json", "package/dist/cli.js", "package/package.json"]);
-  assert.equal(publishLine("release-beta/" + path.basename(file)), "npm publish release-beta/strom-research-1.13.0-beta.3.tgz --tag beta");
+  assert.equal(publishLine("release-beta/" + path.basename(file)), "npm publish ./release-beta/strom-research-1.13.0-beta.3.tgz --tag beta");
+});
+
+test("the publish line names the tarball as a path, never what npm takes for a GitHub repository (release-beta/x.tgz = user/repo)", () => {
+  assert.equal(publishLine("release-beta/strom-research-1.13.0-beta.3.tgz"), "npm publish ./release-beta/strom-research-1.13.0-beta.3.tgz --tag beta");
+  assert.equal(publishLine("strom-research-1.13.0-beta.3.tgz"), "npm publish ./strom-research-1.13.0-beta.3.tgz --tag beta");
+  assert.equal(publishLine("./out/x.tgz"), "npm publish ./out/x.tgz --tag beta");
+  assert.equal(publishLine("../out/x.tgz"), "npm publish ../out/x.tgz --tag beta");
+  assert.equal(publishLine("release-beta\\x.tgz"), "npm publish ./release-beta/x.tgz --tag beta");
+  const abs = path.resolve("/tmp", "out", "x.tgz");
+  assert.equal(publishLine(abs), `npm publish ${abs} --tag beta`);
+  assert.equal(publishLine("my out/x.tgz"), 'npm publish "./my out/x.tgz" --tag beta');
 });
