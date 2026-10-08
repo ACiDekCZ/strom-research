@@ -12,6 +12,7 @@ import { commands, match, optionsOf } from "../../src/cli/registry.ts";
 import { splitCommand } from "../../src/cli/main.ts";
 import { parseBatch } from "../../src/commands/batch.ts";
 import { guideText } from "../../src/commands/guide.ts";
+import { STROM_APP_URL } from "../../src/core/stromapp.ts";
 
 const opts = { skip: !hasGit };
 
@@ -155,7 +156,7 @@ test("every command in the guide, the agent files and the method pack exists, wi
   await de.withTree();
   await de.ok(["agents", "sync"]);
   const texts: Record<string, string> = {
-    guide: guideText("cs"),
+    guide: guideText("cs", STROM_APP_URL),
     "AGENTS.md": fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8"),
     "CLAUDE.md": fs.readFileSync(path.join(w.cwd, "CLAUDE.md"), "utf8"),
     "AGENTS.md (de)": fs.readFileSync(path.join(de.cwd, "AGENTS.md"), "utf8"),

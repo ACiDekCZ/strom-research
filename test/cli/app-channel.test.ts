@@ -118,7 +118,13 @@ test("doctor never fails on strom.app.url: an invalid one (STROM_APP_URL, or wri
       assert.equal(said.status, "fail");
       assert.ok(said.detail.includes(bad), said.detail);
       if (how === "config") assert.match(said.fix, /strom config set strom\.app\.url <\S+> · strom config unset strom\.app\.url/);
-      else assert.match(said.detail, /STROM_APP_URL/);
+      else {
+        assert.match(said.detail, /STROM_APP_URL/);
+        // what to do, as for the settings: the variable named, set right or removed — the releases' pages only (B1-f)
+        assert.match(said.fix, /STROM_APP_URL .*https:\/\/stromapp\.info\/run\/.*127\.0\.0\.1/);
+        assert.doesNotMatch(said.fix, /beta/i);
+        assert.match((await w.run(["doctor", "--lang", "en"], { env })).out, /→ the variable STROM_APP_URL set to an address of the Strom app \(https:\/\/stromapp\.info\/run\/, or a copy on this computer http:\/\/127\.0\.0\.1:<port>\/\), or removed/);
+      }
       const text = await w.run(["doctor"], { env });
       assert.equal(text.code, 1, text.err);
       assert.ok(text.out.includes(bad), text.out);
@@ -131,6 +137,9 @@ test("doctor never fails on strom.app.url: an invalid one (STROM_APP_URL, or wri
       }
     }
   }
+  // the beta channel names its beta among the pages (last: a switch of the channel is said by the next run)
+  const beta = (await w.run(["doctor", "--json"], { env: { STROM_APP_URL: "not a url", STROM_CHANNEL: "beta" } })).json.checks.find((c: { name: string }) => c.name === "appurl");
+  assert.match(beta.fix, /https:\/\/beta\.stromapp\.info\/run\//);
   w.cleanup();
 });
 
@@ -242,5 +251,84 @@ test("strom config where and config get never fail on strom.app.url: an invalid 
   assert.equal(where.json.settings.find((s: { key: string }) => s.key === "strom.app.url").invalid, undefined);
   assert.deepEqual((await w.ok(["config", "get", "strom.app.url", "--json"])).json, { key: "strom.app.url", value: "https://stromapp.info/run/", source: "default" });
   assert.equal((await w.ok(["config", "get", "strom.app.url"], { env: { STROM_CHANNEL: "beta" } })).out.trim().split("\n").pop(), "https://beta.stromapp.info/run/");
+  w.cleanup();
+});
+
+test("the description of strom.app.url names the channel's default copy of the app: the beta its beta, the releases stromapp.info and nothing of a beta (B1-g)", async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  const described = async (env?: Record<string, string>) => ((await w.ok(["config", "where", "--json"], env ? { env } : {})).json.settings as { key: string; description: string }[]).find((s) => s.key === "strom.app.url")!.description;
+  const stable = await described();
+  assert.match(stable, /instead of https:\/\/stromapp\.info\/run\//);
+  assert.doesNotMatch(stable, /beta|\{appUrl\}/i);
+  const beta = await described({ STROM_CHANNEL: "beta" });
+  assert.match(beta, /instead of https:\/\/beta\.stromapp\.info\/run\//);
+  assert.doesNotMatch(beta, /\{appUrl\}/);
+  w.cleanup();
+});
+
+test("where strom.app.url is said invalid, the note goes with the language of what is around it: doctor (a person's) in the research language, both its lines; config where and config get (the agent's English) in English (B1-h)", async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  const file = path.join(w.env.STROM_CONFIG_DIR!, "config.json");
+  const english = /\b(the|is no|address of|set to|or removed|remove it)\b/;
+  for (const how of ["env", "config"] as const) {
+    const env: Record<string, string> = how === "env" ? { STROM_APP_URL: "not a url" } : {};
+    if (how === "config") fs.writeFileSync(file, JSON.stringify({ ...readJsonFile(file), stromAppUrl: "not a url" }, null, 2));
+    for (const lang of ["cs", "de"]) {
+      const said = (await w.run(["doctor", "--json", "--lang", lang], { env })).json.checks.find((c: { name: string }) => c.name === "appurl");
+      assert.doesNotMatch(`${said.label} ${said.detail} ${said.fix}`, english, `${how} ${lang}: ${JSON.stringify(said)}`);
+      for (const asked of [["config", "get", "strom.app.url"], ["config", "where"]]) {
+        const out = (await w.ok([...asked, "--lang", lang], { env })).out;
+        assert.match(out, /Note: the setting strom\.app\.url \(or STROM_APP_URL\) is no address of the Strom app/, `${asked.join(" ")} ${lang}`);
+      }
+    }
+    if (how === "config") await w.ok(["config", "unset", "strom.app.url"]);
+  }
+  // what is around them: English in config where (the agent's), the research language in doctor
+  assert.match((await w.ok(["config", "where", "--lang", "cs"])).out, /^order: flag > env/m);
+  w.cleanup();
+});
+
+test("the texts for an agent name the Strom app strom app opens: the guide, a tree's AGENTS.md and what the agents are taught — the beta channel its beta, a valid strom.app.url its copy, the releases stromapp.info and nothing of a beta (B1-i)", { skip: !hasGit }, async () => {
+  const w = new World();
+  await w.withTree();
+  const home = w.env.HOME!;
+  const taught = [
+    path.join(home, ".claude", "skills", "strom", "SKILL.md"),
+    path.join(home, ".codex", "AGENTS.md"),
+    path.join(home, ".gemini", "GEMINI.md"),
+    path.join(home, ".config", "opencode", "strom.md"),
+    path.join(home, ".grok", "skills", "strom", "SKILL.md"),
+  ];
+  const texts = async (env: Record<string, string>): Promise<[string, string][]> => {
+    const guide = (await w.ok(["guide"], { env })).out;
+    await w.ok(["agents", "sync"], { env });
+    await w.ok(["agents", "install", "--all"], { env });
+    return [["guide", guide], ["AGENTS.md", fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8")], ...taught.map((f): [string, string] => [f, fs.readFileSync(f, "utf8")])];
+  };
+  // the releases: stromapp.info, nothing of a beta
+  for (const [label, text] of await texts({})) {
+    assert.match(text, /the Strom app \(https:\/\/stromapp\.info\)/i, label);
+    assert.ok(text.includes("https://stromapp.info/run/"), label);
+    assert.doesNotMatch(text, /beta/i, `${label}: the releases say nothing of a beta`);
+  }
+  // the beta channel: its beta, never the releases' address
+  for (const [label, text] of await texts({ STROM_CHANNEL: "beta" })) {
+    assert.match(text, /the Strom app \(https:\/\/beta\.stromapp\.info\)/i, label);
+    assert.ok(text.includes("https://beta.stromapp.info/run/"), label);
+    assert.doesNotMatch(text, /https:\/\/stromapp\.info/, label);
+  }
+  // a valid strom.app.url: its copy, on either channel
+  await w.ok(["config", "set", "strom.app.url", "http://127.0.0.1:5173/"]);
+  for (const env of [{}, { STROM_CHANNEL: "beta" }] as Record<string, string>[])
+    for (const [label, text] of await texts(env)) {
+      assert.match(text, /the Strom app \(http:\/\/127\.0\.0\.1:5173\)/i, label);
+      assert.ok(text.includes("http://127.0.0.1:5173/"), label);
+      assert.doesNotMatch(text, /stromapp\.info/, label);
+    }
+  // back on the releases with the setting gone: written again, nothing of a beta or the copy left
+  await w.ok(["config", "unset", "strom.app.url"]);
+  for (const [label, text] of await texts({})) assert.doesNotMatch(text, /beta|127\.0\.0\.1/i, label);
   w.cleanup();
 });

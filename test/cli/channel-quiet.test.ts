@@ -62,6 +62,11 @@ test("a strom on the releases: help, the catalog of commands, the guide, doctor 
     const r = await w.run(args, args[0] === "help" || args.includes("--help") ? { tty: true } : {});
     said.push([`strom ${args.join(" ")}`, r.out + r.err]);
   }
+  // what the agents read: the tree's own files and what strom agents install teaches them (B1-i)
+  await w.ok(["agents", "sync"]);
+  await w.ok(["agents", "install", "--all"]);
+  for (const f of [path.join(w.cwd, "AGENTS.md"), path.join(w.env.HOME!, ".claude", "skills", "strom", "SKILL.md"), path.join(w.env.HOME!, ".codex", "AGENTS.md")])
+    said.push([f, fs.readFileSync(f, "utf8")]);
   for (const [label, text] of said) assert.ok(text.trim().length > 40, `${label}: said something`);
   for (const [label, text] of said) assert.deepEqual(text.split("\n").filter((l) => BETA.test(l)), [], `${label}:\n${text}`);
   // a beta install says it (the look above would see it)

@@ -14,7 +14,7 @@ import { DEFAULT_AGENT, PROFILES, TIERS, type Tier } from "../agents/profiles.ts
 import { EXCERPT_QUALITIES, EXCERPT_SCOPES, EXCERPTS_MAX_MB, STRATEGIES, type ExcerptQuality, type ExcerptScope, type Strategy, type TreeConfig } from "./model.ts";
 import { downloadsDir } from "./browser.ts";
 import { acquireLock } from "./lock.ts";
-import { isAppVersion, isStromAppOrigin, STROM_APP_BETA_URL, STROM_APP_URL } from "./stromapp.ts";
+import { defaultAppUrl, isAppVersion, isStromAppOrigin, STROM_APP_BETA_URL, STROM_APP_URL } from "./stromapp.ts";
 import { updateChannel } from "./update.ts";
 import type { BackupRecord } from "./backup.ts";
 
@@ -197,7 +197,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
   { key: "app.browser", env: "STROM_APP_BROWSER", tree: false, kind: "choice", choices: ["chrome", "edge", "brave", "opera", "firefox", "chromium"], description: "the browser strom opens the Strom app in — the one its tree came from (strom keeps it), or yours: chrome, edge, brave, opera, firefox, chromium (another Chromium: Vivaldi, Arc). The Strom app installed from a browser always comes first (from this one when it is installed from several); without one, a tab of this browser — unset: of the default browser when the app reaches strom from it, else of the first such browser here" },
-  { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of https://stromapp.info/run/ — e.g. its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
+  { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of {appUrl} — e.g. its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
 ];
 
 /** Fields of the stored settings whose key is not the field name. */
@@ -232,6 +232,14 @@ export const OTHER_ENV: { env: string; description: string }[] = [
   { env: "STROM_APP", description: "set by the Strom app when it starts strom (or an agent for it): strom then knows the app is there" },
 ];
 
+/**
+ * A setting's description as it is said here: {appUrl} the copy of the Strom app strom opens when strom.app.url says
+ * none — the channel's (defaultAppUrl: the beta its beta, the releases stromapp.info) (B1-g).
+ */
+export function settingDescription(def: SettingDef, env: Env): string {
+  return def.description.replace(/\{appUrl\}/g, defaultAppUrl(env));
+}
+
 export function settingDef(key: string): SettingDef {
   const def = SETTINGS.find((s) => s.key === key);
   if (!def) throw new UsageError(`unknown setting "${key}"`, { hint: `settings: ${SETTINGS.map((s) => s.key).join(", ")}` });
@@ -263,6 +271,11 @@ function isAppAddress(v: string): boolean {
   }
 }
 
+/** The Strom app's pages on the web strom names as its addresses: the releases stromapp.info only (production says nothing of a beta), the beta its beta too. */
+export function appWebPages(env: Env): string {
+  return updateChannel(env) === "beta" ? `${STROM_APP_BETA_URL} · ${STROM_APP_URL}` : STROM_APP_URL;
+}
+
 /**
  * strom.app.url that says no address of the Strom app — typed (`set`: strom config set), in the variable STROM_APP_URL
  * (`env`), or in the settings however it got there (`config`: written by hand): refused, with what is an address of it
@@ -271,7 +284,7 @@ function isAppAddress(v: string): boolean {
  * a copy on this computer (its development) both.
  */
 export function appUrlInvalid(raw: string, how: "set" | "env" | "config", env: Env): UsageError {
-  const web = updateChannel(env) === "beta" ? `${STROM_APP_BETA_URL} · ${STROM_APP_URL}` : STROM_APP_URL;
+  const web = appWebPages(env);
   const allowed = `the Strom app: ${web}, or a copy on this computer http://127.0.0.1:<port>/`;
   const fix = how === "config" ? "\nset it right: strom config set strom.app.url <address> — or remove it: strom config unset strom.app.url" : how === "env" ? "\nthe variable STROM_APP_URL set right, or removed" : "";
   const code = "config.app-url";

@@ -249,7 +249,7 @@ register(
         const said = ui(ctx.tree().lang, "ui.guide.archive");
         return { text: said, data: { guide: said, lang, archive: true } };
       }
-      const text = guideText(lang);
+      const text = guideText(lang, appUrlShown(ctx.settings).url);
       return { text, data: { guide: text, lang } };
     },
   },

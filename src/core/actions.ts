@@ -33,7 +33,7 @@ import {
   type StoryDraft,
   type Union,
 } from "./model.ts";
-import { cleanTitle, displayName, familiesAsChild, familiesAsPartner, gedcomName, gedcomTitledName, isBirthFamily, notAName, parseName, primaryName, sameName, slashInName } from "./people.ts";
+import { cleanTitle, displayName, familiesAsChild, familiesAsPartner, gedcomName, gedcomTitledName, isBirthFamily, keepSides, notAName, parseName, primaryName, sameName, slashInName } from "./people.ts";
 import { foldText } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
@@ -431,6 +431,7 @@ export function editFamily(tree: Tree, familyId: string, edit: FamilyEdit, reaso
       const was = next.partners.includes(edit.remove) || next.children.some((c) => c.person === edit.remove);
       if (!was) throw new UsageError(`${edit.remove} is not in ${familyId}`);
       next.partners = next.partners.filter((p) => p !== edit.remove);
+      delete next.husb;
       next.children = next.children.filter((c) => c.person !== edit.remove);
       for (const c of next.children)
         if (c.relations?.[edit.remove]) {
@@ -687,7 +688,11 @@ export function editPerson(tree: Tree, id: string, edit: PersonEdit, reason?: st
       edit.prefix !== undefined ? `title before the name ${retitled.prefix ? `"${retitled.prefix}"` : "taken off"}` : "",
       edit.suffix !== undefined ? `title after the name ${retitled.suffix ? `"${retitled.suffix}"` : "taken off"}` : "",
     ].filter(Boolean).join(", ");
+    // its couples keep the sides their files wrote (U01-e): written before the person, read with the sex as it was
+    const sides = sex !== undefined && sex !== p.sex ? keepSides(tree, p, updated) : [];
     tree.put(updated, { op: "person.edit", targets: [id], summary: `${id} ${what}`, ...(reason ? { reason } : {}) });
+    for (const { next } of sides)
+      tree.put({ ...next, updated: now() }, { op: "family.edit", targets: [next.id], summary: next.husb ? `${next.id} ${next.husb} kept as HUSB (the sex of ${id} changed)` : `${next.id} sides by sex again`, ...(reason ? { reason } : {}) });
     return updated;
   });
 }

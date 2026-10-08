@@ -22,7 +22,7 @@ import { agentBrowser } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { offerLinks } from "../cli/wizard.ts";
 import { appOpensLinks, appOpensResearch, appUrlSetting, importAppUrl, installedStromApp, liveAppUrl, liveAppUrlShown, noticeStromApp, stromAppUrl } from "../core/stromapp.ts";
-import { forgetLive, liveRunning, serveLive, startLive, stopLive } from "../core/live.ts";
+import { dropLiveSecret, forgetLive, liveRunning, serveLive, startLive, stopLive } from "../core/live.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut, openInNewTerminal } from "../core/shortcut.ts";
 import { browserKind, openFileWith, revealFile } from "../core/chromium.ts";
@@ -328,8 +328,9 @@ register(
       "strom app --live, takes the tree from it and hears what changes — who is at work on what, what was recorded, what\n" +
       "waits for the user. It ends by itself when nobody asks it anything for two hours, or with strom live stop.\n" +
       "One error does not end it (a read that fails is tried again); what it did and what went wrong is in .strom/live.log.\n" +
-      "Started again it takes the address it had (its port while free), so the app following it goes on by itself;\n" +
-      "one that ended without a word is started again when a session starts.",
+      "Started again by itself (strom updated, one that ended without a word or when idle) it takes the address it had\n" +
+      "(its port while free), so the app following it goes on by itself; one that ended without a word is started again\n" +
+      "when a session starts. Stopped with strom live stop, the next one gets a new secret address.",
     examples: ["strom live", "strom live start", "strom live stop"],
     run(ctx) {
       const tree = bridgeTree(ctx);
@@ -363,18 +364,21 @@ register(
     group: "output",
     tree: true,
     description:
-      "Started again, the bridge takes its last address (its port while free, its secret), so the Strom app that kept it\n" +
-      "goes on by itself. --forget: the next bridge gets a new secret — the address the app kept no longer works (the\n" +
-      "app gets the new one when the research is opened in it again: strom app).",
-    options: [{ name: "forget", type: "boolean", description: "the next bridge gets a new secret address" }],
+      "Ended for good: the next bridge gets a new secret (its port while free) — the address the Strom app kept no longer\n" +
+      "works, and the app gets the new one when the research is opened in it again (strom app). --forget: its port too.\n" +
+      "(A bridge started again by itself — strom updated, one that ended when idle — keeps its address.)",
+    options: [{ name: "forget", type: "boolean", description: "the next bridge gets a new port too, not only a new secret" }],
     examples: ["strom live stop", "strom live stop --forget"],
     run(ctx, { opts }) {
       const { root, lang } = bridgeTree(ctx);
       const how = stopLive(root);
       if (how === "alive") throw new StromError("the bridge could not be ended", { hint: `its process: see .strom/live.json — end it in the system's task manager`, code: "live.alive" });
+      // ended for good: its secret dropped (the address that may have got out dies with it)
+      const dropped = dropLiveSecret(root, "strom live stop");
       if (opts.forget) forgetLive(root);
       const said = ui(lang, how === "none" ? "ui.live.noneran" : how === "killed" ? "ui.live.killed" : "ui.live.stopped");
-      return { text: lines(said, opts.forget ? ui(lang, "ui.live.forgotten") : undefined), data: { stopped: how !== "none", how, ...(opts.forget ? { forgotten: true } : {}) } };
+      const next = opts.forget ? ui(lang, "ui.live.forgotten") : dropped ? ui(lang, "ui.live.newsecret") : undefined;
+      return { text: lines(said, next), data: { stopped: how !== "none", how, ...(dropped ? { newSecret: true } : {}), ...(opts.forget ? { forgotten: true } : {}) } };
     },
   },
   {
@@ -480,7 +484,8 @@ register(
       // the bridges of the research (the Strom app following it) end first: they run this installation's Node
       for (const k of ctx.knownTrees()) {
         try {
-          stopLive(k.root, "strom uninstall");
+          // ended for good: its secret too (installed again, the app gets the new address through strom app)
+          if (stopLive(k.root, "strom uninstall") !== "alive") dropLiveSecret(k.root, "strom uninstall");
         } catch {
           // its tree unreadable: its bridge, if any, is found below
         }

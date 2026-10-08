@@ -38,10 +38,23 @@
 // It never ends because of one error: a read that fails while another strom
 // writes is tried again at the next tick, a request that fails answers 500.
 // What it did and what went wrong is in .strom/live.log (start, end and why,
-// errors with their stack). Started again, it takes the address it had
-// (.strom/live-last.json: its port while free, its token), so the app following
-// it goes on by itself; a bridge that ended without a word is started again
-// when a session starts (reviveLive).
+// errors with their stack).
+//
+// The secret: started again by itself — a newer strom on disk (live start
+// --current), one that ended without a word (reviveLive), the first run of a
+// newer strom bringing its bridges back, a start after it ended when idle — it
+// takes the address it had (.strom/live-last.json: its port while free, its
+// token), so the app following it goes on by itself. Ended for good (strom live
+// stop, strom uninstall) its secret is dropped: the next bridge gets a new one
+// (its port kept), the address the app kept no longer works, and the app gets
+// the new one when the research is opened in it again (strom app, ?live=). A
+// request with the secret from a page that is no Strom app (an Origin the
+// bridge does not let in; never "null", none at all, or a copy of the app on
+// this computer) means the address got out: the secret is replaced at once,
+// written where the next strom app reads it, the app's open event streams
+// ended, and that request answered as one without the secret. What is being
+// written then (a send, an original) is finished; only new requests need the
+// new secret. Nothing is replaced on a timer.
 
 import { opsLogsOf } from "./opslog.ts";
 import fs from "node:fs";
@@ -78,7 +91,7 @@ import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion, updateChannel } from "./update.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
-import { appKnowsArchive, appKnowsNoCouple, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
 import { Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
@@ -96,7 +109,7 @@ export interface LiveInfo {
   started: string;
   /** The strom version that serves it (a bridge of an older strom has none). */
   version?: string;
-  /** Started now on another address than the bridge before had (its port was taken): the app needs the new one. */
+  /** Started now on another address than the bridge before had (its port was taken, or its secret dropped by strom live stop): the app needs the new one. */
   moved?: boolean;
 }
 
@@ -153,7 +166,8 @@ const LIVE_LOG_BYTES = 200 * 1024;
 /** The last bridge of a tree, kept after it ended: its address to take again, whether it ended as it should. */
 interface LiveLast {
   port: number;
-  token: string;
+  /** None once the bridge was ended for good (strom live stop): the next one gets a new secret, at this port. */
+  token?: string;
   pid: number;
   started: string;
   /** How it ended (idle, stopped, a signal); none while it runs — or when it ended without a word. */
@@ -167,7 +181,7 @@ function lastFile(root: string): string {
 function readLast(root: string): LiveLast | undefined {
   try {
     const last = JSON.parse(fs.readFileSync(lastFile(root), "utf8")) as LiveLast;
-    return Number.isInteger(last.port) && /^[0-9a-f]{32}$/.test(last.token) ? last : undefined;
+    return Number.isInteger(last.port) && (last.token === undefined || /^[0-9a-f]{32}$/.test(last.token)) ? last : undefined;
   } catch {
     return undefined;
   }
@@ -298,6 +312,20 @@ function spawnBridge(root: string, env: Env, extra: Record<string, string> = {})
   return child;
 }
 
+/**
+ * The bridge ended for good (strom live stop, strom uninstall): its secret dropped, its port kept — the next bridge gets a
+ * new secret, the address the app kept is dead (the app gets the new one when the research is opened in it again). Whether
+ * there was one to drop.
+ */
+export function dropLiveSecret(root: string, why: string): boolean {
+  const last = readLast(root);
+  if (!last?.token) return false;
+  const { token: _dropped, ...rest } = last;
+  writeLast(root, { ...rest, ended: last.ended ?? { at: new Date().toISOString(), reason: why } });
+  noteLive(root, `its secret dropped (${why}): the next bridge gets a new one, at port ${last.port} while free — the Strom app gets it when the research is opened in it again (strom app)`);
+  return true;
+}
+
 /** The bridge's last address forgotten: the next one gets a new secret (and port) — the address the app kept is dead. */
 export function forgetLive(root: string): void {
   fs.rmSync(lastFile(root), { force: true });
@@ -382,6 +410,35 @@ export function reviveLive(root: string, env: Env): LiveInfo | undefined {
 /** The pages that may read the bridge: the Strom app, and a local copy of it for its development. */
 function allowedOrigin(origin: string | undefined): string | undefined {
   return origin && isStromAppOrigin(origin) ? origin : undefined;
+}
+
+/**
+ * A request with the secret from a page that is no Strom app: the address got out. Not one without an Origin (curl, a
+ * process of this computer, the app's EventSource), "null" (the app opened as a file), a page the bridge lets in, nor the
+ * copy of the app the person set (strom.app.url).
+ */
+function foreignOrigin(origin: string | undefined, env: Env): boolean {
+  if (origin === undefined || origin === "null" || allowedOrigin(origin)) return false;
+  try {
+    const said = appUrlSetting(new Settings(env, {}));
+    if (!said.invalid && new URL(said.url).origin === origin) return false;
+  } catch {
+    // no setting to read: the pages the bridge lets in are what there is
+  }
+  return true;
+}
+
+/** An address as the log says it: never its secret (one replaced meanwhile neither). */
+function masked(url: string | undefined): string {
+  return String(url ?? "").replace(/\/[0-9a-f]{32}(?=[/?]|$)/, "/…");
+}
+
+/** live.json written whole: a strom reading it meanwhile never takes a half for no bridge. */
+function writeLive(root: string, info: LiveInfo): void {
+  const file = liveFile(root);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(`${file}.${process.pid}`, JSON.stringify(info, null, 2));
+  fs.renameSync(`${file}.${process.pid}`, file);
 }
 
 function head(root: string): string {
@@ -829,9 +886,12 @@ export function serveLive(root: string, env: Env): Promise<void> {
   } catch (e) {
     noteLive(root, `an archive's tasks not put aside now: ${errorText(e)}`);
   }
-  // the address of the last bridge, so the app that followed it finds this one
+  // the address of the last bridge, so the app that followed it finds this one (its secret: none once it was ended for
+  // good — a new one); replaced while it runs when a page that is no Strom app comes with it (leaked)
   const last = readLast(root);
-  const token = last?.token ?? crypto.randomBytes(16).toString("hex");
+  let token = last?.token ?? crypto.randomBytes(16).toString("hex");
+  // what this bridge says of itself (live.json), once it listens
+  let live: LiveInfo | undefined;
   const idleMs = Number(env.STROM_LIVE_IDLE_MS ?? 2 * 60 * 60_000);
   const pollMs = Number(env.STROM_LIVE_POLL_MS ?? 2000);
   const streams = new Set<http.ServerResponse>();
@@ -841,7 +901,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
 
   /** A request that failed: said to the app, written into the log — the bridge goes on. */
   const failed = (req: http.IncomingMessage, res: http.ServerResponse, e: unknown) => {
-    noteLive(root, `${req.method} ${String(req.url ?? "").replace(token, "…")} failed: ${errorText(e)}`);
+    noteLive(root, `${req.method} ${masked(req.url)} failed: ${errorText(e)}`);
     try {
       // an answer begun (the events) is only ended
       if (res.headersSent) res.end();
@@ -885,7 +945,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       if (Array.isArray(said.conflicts) && said.conflicts.length) marks.push(`conflicts ${said.conflicts.length}`);
       if (Array.isArray(said.skipped) && said.skipped.length) marks.push(`skipped ${said.skipped.length}`);
       const why = res.statusCode >= 400 ? String(said.text ?? said.reason ?? said.error ?? "").replace(/\s+/g, " ").slice(0, 300) : "";
-      const route = String(req.url ?? "").replace(token, "…").replace(/\?.*$/, "");
+      const route = masked(req.url).replace(/\?.*$/, "");
       noteLive(root, `${req.method} ${route} → ${res.statusCode}${marks.length ? ` · ${marks.join(", ")}` : ""}${why ? ` · ${why}` : ""} (${Date.now() - started} ms)`);
     });
   };
@@ -901,10 +961,40 @@ export function serveLive(root: string, env: Env): Promise<void> {
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 66_000;
 
+  /**
+   * The secret came from a page that is no Strom app: replaced at once — written where strom app reads it (live.json,
+   * live-last.json), the event streams on the old one ended (the app notices), said in the log. What is being written
+   * meanwhile finishes; every new request needs the new secret.
+   */
+  const leaked = (req: http.IncomingMessage, from: string, what: string | undefined) => {
+    token = crypto.randomBytes(16).toString("hex");
+    for (const s of streams) s.end();
+    streams.clear();
+    if (live) {
+      live = { ...live, token, url: `http://127.0.0.1:${live.port}/${token}` };
+      try {
+        const now = liveRunning(root);
+        if (!now || now.pid === process.pid) writeLive(root, live);
+        const was = readLast(root);
+        if (!was || was.pid === process.pid) writeLast(root, { port: live.port, token, pid: process.pid, started: live.started });
+      } catch (e) {
+        noteLive(root, `the new secret not written: ${errorText(e)}`);
+      }
+    }
+    const page = from.replace(/[\u0000-\u001f\u007f]/g, "?").slice(0, 200);
+    noteLive(root, `${req.method} /…/${String(what ?? "").slice(0, 40)} came with the secret from ${page}, a page that is no Strom app: the address got out — a new secret, the old one no longer works (the Strom app gets the new one when the research is opened in it again: strom app)`);
+  };
+
   const answer = (req: http.IncomingMessage, res: http.ServerResponse) => {
     const [, t, what, sub, act] = (req.url ?? "").split("?")[0]!.split("/");
     // the app asking now and then (?poll=1) keeps no bridge running; anything else does
     if (!(req.method === "GET" && what === "status" && /[?&]poll=1(?:&|$)/.test(req.url ?? ""))) lastAsked = Date.now();
+    // the secret from a page that is no Strom app: replaced, this request answered as one without it (no data, no CORS)
+    if (t === token && foreignOrigin(req.headers.origin, env)) {
+      leaked(req, String(req.headers.origin), what);
+      res.writeHead(404).end();
+      return;
+    }
     const origin = allowedOrigin(req.headers.origin);
     const version = appVersionOf(req, new Settings(env, {}));
     if (origin) {
@@ -1700,11 +1790,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
     server.once("listening", () => {
       up = true;
       const port = (server.address() as { port: number }).port;
-      const info: LiveInfo = { port, token, pid: process.pid, url: `http://127.0.0.1:${port}/${token}`, started: new Date().toISOString(), version: VERSION };
-      fs.mkdirSync(path.dirname(liveFile(root)), { recursive: true });
-      fs.writeFileSync(liveFile(root), JSON.stringify(info, null, 2));
-      writeLast(root, { port, token, pid: process.pid, started: info.started });
-      noteLive(root, `started: strom ${VERSION}, port ${port}, ${last && last.port === port ? "the address of the last bridge" : last ? "the token of the last bridge, another port" : "a new address"}`);
+      live = { port, token, pid: process.pid, url: `http://127.0.0.1:${port}/${token}`, started: new Date().toISOString(), version: VERSION };
+      writeLive(root, live);
+      writeLast(root, { port, token, pid: process.pid, started: live.started });
+      const how = !last ? "a new address" : last.port === port ? (last.token ? "the address of the last bridge" : "the port of the last bridge, a new secret (it was ended for good)") : last.token ? "the token of the last bridge, another port" : "a new address";
+      noteLive(root, `started: strom ${VERSION}, port ${port}, ${how}`);
 
       // A read that fails (another strom writing that moment) is tried again at the next tick; written down once.
       let trouble: { text: string; times: number } | undefined;
@@ -1772,8 +1862,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
           server.listen(port, "127.0.0.1", () => {
             renewing = false;
             try {
-              fs.writeFileSync(liveFile(root), JSON.stringify(info, null, 2));
-              writeLast(root, { port, token, pid: process.pid, started: info.started });
+              if (live) writeLive(root, live);
+              writeLast(root, { port, token, pid: process.pid, started: live?.started ?? new Date().toISOString() });
             } catch {
               // its research gone meanwhile: the next tick ends it
             }

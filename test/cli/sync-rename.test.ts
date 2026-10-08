@@ -337,7 +337,7 @@ test("a sex the research does not know, guessed by the app and set otherwise the
   w.cleanup();
 });
 
-test("a file that writes SEX U where the research's unknown stands (_STROM_SEX_U Y; the app's JSON research.sexU): U no change, a sex there the user's edit — a conflict, whatever the app would have guessed (the app's beta.61: it keeps the sex of its own tree, it guesses no more)", opts, async () => {
+test("a file that writes SEX U where the research's unknown stands (_STROM_SEX_U Y; the app's JSON research.sexU): U no change, a sex there the user's edit, whatever the app would have guessed — corrected where no record gives the person's facts (U01-d) (the app's beta.61: it keeps the sex of its own tree, it guesses no more)", opts, async () => {
   const w = new World();
   await w.withTree("Dvořákovi");
   const lines = (petr: string, eva: string) => [
@@ -360,7 +360,7 @@ test("a file that writes SEX U where the research's unknown stands (_STROM_SEX_U
   };
   assert.deepEqual(sexes((await w.ok(["sync", send("U", "U"), "--json"])).json), [], "the unknown as it stands");
   // Petr set male: an older app's own guess for a husband, here the user's edit
-  assert.deepEqual(sexes((await w.ok(["sync", send("M", "U"), "--json"])).json), [["conflict", "P0001"]]);
+  assert.deepEqual(sexes((await w.ok(["sync", send("M", "U"), "--json"])).json), [["correct", "P0001"]]);
   // the app's JSON the same way: research.sexU, the person's sexUnknown beside the app's stand-in gender
   const json = (petr: { gender: string; sexUnknown?: boolean }, eva: { gender: string; sexUnknown?: boolean }) => {
     const out = path.join(w.dir, `send-${++n}.json`);
@@ -377,6 +377,6 @@ test("a file that writes SEX U where the research's unknown stands (_STROM_SEX_U
     return out;
   };
   assert.deepEqual(sexes((await w.ok(["sync", json({ gender: "male", sexUnknown: true }, { gender: "female", sexUnknown: true }), "--json"])).json), []);
-  assert.deepEqual(sexes((await w.ok(["sync", json({ gender: "male", sexUnknown: true }, { gender: "female" }), "--json"])).json), [["conflict", "P0003"]]);
+  assert.deepEqual(sexes((await w.ok(["sync", json({ gender: "male", sexUnknown: true }, { gender: "female" }), "--json"])).json), [["correct", "P0003"]]);
   w.cleanup();
 });

@@ -28,7 +28,7 @@ import { phrase } from "./phrases.ts";
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, retractEvent, retractPerson } from "./actions.ts";
 import { exportGedcom, REFN_TYPE } from "../gedcom/export.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
-import { fromFlexDate, houseOf, importDate, readGedName, stromAppFile } from "./import.ts";
+import { fromFlexDate, houseOf, importDate, readGedName, readGedSex, stromAppFile } from "./import.ts";
 import { humanAge, normalizeAge } from "./age.ts";
 import { dateYears } from "./gdate.ts";
 import { create, update } from "./records.ts";
@@ -41,8 +41,8 @@ import { StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
 import { isArchive } from "./mode.ts";
-import { isAppVersion } from "./stromapp.ts";
-import { cleanTitle, formatName, foundTitles, gedcomTitledName, primaryName, titledName } from "./people.ts";
+import { APP_DATA_SEX_UNKNOWN, isAppVersion } from "./stromapp.ts";
+import { cleanTitle, familiesAsPartner, formatName, foundTitles, gedcomTitledName, primaryName, titledName } from "./people.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
 
@@ -107,6 +107,7 @@ export interface SPerson {
   /** Our ID (REFN) — or "x:<xref>" for someone the file brought. */
   key: string;
   names: string[];
+  /** M, F — or U where the file means the sex left unknown (Snapshot.sexU, U01); none: the file says nothing of it. */
   sex?: string;
   facts: SFact[];
   notes: string[];
@@ -616,7 +617,7 @@ export function readGedcom(text: string): Snapshot {
     const ours = refn && OUR_ID.test(refn.value.trim()) && (!type || type === REFN_TYPE) ? refn.value.trim() : undefined;
     const key = ours && !persons.has(ours) ? ours : `x:${r.xref!.replace(/@/g, "")}`;
     keys.set(r.xref!, key);
-    const sex = val(r, "SEX");
+    const sex = readGedSex(r, fromApp);
     // each NAME read as strom intake reads it (readGedName): its parts (GIVN, SURN) first, the line's surname after the
     // given name where it has no slashes (N11), the titles apart; a person of no name and no surname the Strom app
     // writes "? //" (its stand-in for an unknown parent: "//", nobody) — and "? /Unknown/" before its 3.10.0-beta.7 (or
@@ -646,7 +647,7 @@ export function readGedcom(text: string): Snapshot {
     persons.set(key, {
       key,
       names,
-      ...(sex === "M" || sex === "F" ? { sex } : {}),
+      ...(sex ? { sex } : {}),
       facts,
       notes: children(r, "NOTE").map(noteText).map((t) => t.trim()).filter(Boolean),
       said: allNotes(r, noteText),
@@ -708,7 +709,8 @@ export function readGedcom(text: string): Snapshot {
   const treeId = val(head, "_STROM_TREE");
   const at = val(head, "_STROM_HEAD");
   const transcripts = val(head, "_STROM_TRANSCRIPTS")?.trim().toLowerCase() === "evidence" ? "evidence" : "lead";
-  const sexU = val(head, "_STROM_SEX_U")?.trim().toUpperCase() === "Y";
+  // SEX U where the sex is unknown in the app (its header's mark, an app from 3.10.0-beta.11): no guess of it (U01)
+  const sexU = fromApp.sexUnknown;
   const appTree = val(head, "_STROM_APP_TREE")?.trim();
   const since = val(head, "_STROM_SINCE")?.trim();
   const again = val(head, "_STROM_AGAIN")?.trim();
@@ -836,8 +838,11 @@ interface AppPartnership {
 
 /** A tree of the Strom app (its JSON) as a snapshot. */
 export function readStromJson(data: unknown): Snapshot {
-  const d = data as { persons?: Record<string, AppPerson>; partnerships?: Record<string, AppPartnership>; places?: Record<string, { lat?: unknown; lon?: unknown }>; sources?: Record<string, AppSource>; research?: { id?: string; head?: string; transcripts?: string; sexU?: unknown } };
+  const d = data as { version?: unknown; persons?: Record<string, AppPerson>; partnerships?: Record<string, AppPartnership>; places?: Record<string, { lat?: unknown; lon?: unknown }>; sources?: Record<string, AppSource>; research?: { id?: string; head?: string; transcripts?: string; sexU?: unknown } };
   if (!d || typeof d !== "object" || !d.persons || typeof d.persons !== "object") throw new UsageError("not a family tree of the Strom app: no persons in it", { code: "tree.unreadable" });
+  // the sex "unknown" is the user's (U01): a sex of its own from the app's data version 12 (its 3.10.0-beta.11), never
+  // a guess of it; before it, only where the research's unknown stood beside the app's stand-in (research.sexU)
+  const sexU = (typeof d.version === "number" && d.version >= APP_DATA_SEX_UNKNOWN) || d.research?.sexU === true;
   // the sources: ours by their REFN, the app's own by its ID; a citation takes the entry's page, date and quality
   const sources = new Map<string, SSource>();
   const sourceKeys = new Map<string, string>();
@@ -929,7 +934,10 @@ export function readStromJson(data: unknown): Snapshot {
       key,
       ...(titles ? { titles } : {}),
       names: [name, ...(p.nameVariants ?? [])].filter((n) => n.replace(/[/?\s]/g, "")),
-      ...(d.research?.sexU === true && p.sexUnknown ? {} : p.gender === "male" ? { sex: "M" } : p.gender === "female" ? { sex: "F" } : {}),
+      // the sex left unknown a value like the others (U01): the app's gender unknown from its data version 12, the
+      // research's unknown standing beside its stand-in (research.sexU) before it; else male and female only — a gender
+      // missing says nothing of it (B5-d)
+      ...(d.research?.sexU === true && p.sexUnknown ? { sex: "U" } : p.gender === "male" ? { sex: "M" } : p.gender === "female" ? { sex: "F" } : sexU && p.gender === "unknown" ? { sex: "U" } : {}),
       facts: cleanFacts(facts),
       notes: p.notes?.trim() ? [p.notes.trim()] : [],
       said: p.notes ?? "",
@@ -1052,7 +1060,7 @@ export function readStromJson(data: unknown): Snapshot {
   }
   const r = d.research;
   const transcripts = r?.transcripts === "evidence" ? "evidence" : "lead";
-  return { format: "strom-json", ...(r?.id ? { treeId: r.id } : {}), ...(r?.head ? { head: r.head } : {}), persons, families, places, sources, transcripts, ...(r?.sexU === true ? { sexU: true as const } : {}), problems: [] };
+  return { format: "strom-json", ...(r?.id ? { treeId: r.id } : {}), ...(r?.head ? { head: r.head } : {}), persons, families, places, sources, transcripts, ...(sexU ? { sexU: true as const } : {}), problems: [] };
 }
 
 /** A file coming back: GEDCOM or the Strom app's JSON; empty or unreadable throws. */
@@ -2370,15 +2378,19 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     // given unknown the app only guessed: nothing to tell from it — but a file that writes U where the unknown stands
     // (_STROM_SEX_U, the app's beta.61) gives a sex there only as the user's edit, and an older app's guess is known (a
     // husband male, anyone else female: its reading of SEX U), so another sex is the user's edit (found on Mac: Petr U,
-    // guessed male, set female in the app, "changes 0" and the edit lost)
+    // guessed male, set female in the app, "changes 0" and the edit lost); the unknown such a file gives is a sex like
+    // the others (U01): a known sex set unknown there is the user's edit too — a lead's corrected, a record's the
+    // user's to decide (found with the app's 3.10.0-beta.11: M → U dropped in silence)
     const [mySex, givenSex] = [o.sex ?? "U", b ? (b.sex ?? "U") : undefined];
     const guessed = givenSex === "U" ? (incoming.sexU ? "U" : b!.husb ? "M" : "F") : undefined;
     if (p.sex && p.sex !== mySex && givenSex !== p.sex && (mySex !== "U" || (givenSex !== undefined && givenSex !== "U") || (guessed !== undefined && p.sex !== guessed))) {
       const backed = (tree.get<Person>(id)?.events ?? []).some((e) => !e.retracted && recordBacked(tree, e));
       const since = givenSex !== undefined && mySex !== givenSex;
       // set otherwise than the app guessed for the research's unknown: the user's to decide, record or none (Milan,
-      // 2026-10-04: never lost in silence, a conflict; the app keeps "unknown" only after its 3.9)
-      const overGuess = mySex === "U" && guessed !== undefined;
+      // 2026-10-04: never lost in silence, a conflict; the app keeps "unknown" only after its 3.9) — but a file whose
+      // unknown is exact guessed nothing (U01-d): a sex set there for the research's unknown is an edit like M → U, a
+      // correction where no record gives the person's facts, the user's to decide where one does
+      const overGuess = mySex === "U" && guessed !== undefined && !incoming.sexU;
       push({ kind: "sex.changed", action: b ? (edits === "user" ? "user" : backed || since || overGuess ? "conflict" : "correct") : "report", person: id, name, text: p.sex });
     }
     notesDiff({ person: id, name }, p.notes, [o.said, b?.said ?? "", ...o.names], o.facts);
@@ -3127,6 +3139,7 @@ export interface Applied {
     | "partner.remove"
     | "event.uncite"
     | "sex.edit"
+    | "family.sides"
     | "place.add"
     | "place.edit"
     | "source.add"
@@ -3141,7 +3154,9 @@ export interface Applied {
   id: string;
   /**
    * event.edit: the fact before; event.detail: its cause, age and house before (JSON); event.retract, event.status:
-   * its status; event.cite: its status and the sources it was given (JSON); sex.edit: the sex before; note.add: the
+   * its status; event.cite: its status and the sources it was given (JSON); sex.edit: the sex before; family.sides: the
+   * partner the family kept as HUSB before a sex of its partners changed ("" none); partner.remove: the partner, their
+   * place and the partner kept as HUSB (JSON); note.add: the
    * note's time; child.add: the child; place.edit: its position before (JSON); source.edit: its words, page and the
    * app's mark before (JSON); event.parts: its participants before (JSON); name.cite, family.cite: the sources it was
    * given (JSON); name.edit: the name the person was shown by and the corrected one's spelling (JSON); name.primary:
@@ -3683,8 +3698,14 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
             ]);
             break;
           }
+          // the sides its couples kept before (Family.husb) — where the edit changes them, put back by an undo after the
+          // sexes, so the files after it are those before the sync (B5-b): recorded once per family, ahead of its sexes
+          const at = applied.length;
+          const sides = familiesAsPartner(tree, owner).map((f) => [f.id, f.husb ?? ""] as const);
           editPerson(tree, owner, { sex: c.text }, `the user's edit: ${reason}`);
           applied.push({ do: "sex.edit", id: owner, before: p.sex });
+          const moved = sides.filter(([id, was]) => (tree.get<Family>(id)?.husb ?? "") !== was && !applied.some((a) => a.do === "family.sides" && a.id === id));
+          applied.splice(at, 0, ...moved.map(([id, was]) => ({ do: "family.sides" as const, id, before: was })));
           break;
         }
         case "family.new": {
@@ -3768,7 +3789,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
             summary: `${fam.id} partner ${partner} removed: ${phrase(tree.lang, "archive.removed")}`,
             reason: `${phrase(tree.lang, "archive.removed")}: ${reason}`,
           });
-          applied.push({ do: "partner.remove", id: fam.id, before: JSON.stringify({ partner, at: fam.partners.indexOf(partner) }) });
+          applied.push({ do: "partner.remove", id: fam.id, before: JSON.stringify({ partner, at: fam.partners.indexOf(partner), ...(fam.husb ? { husb: fam.husb } : {}) }) });
           break;
         }
         case "child.parents": {
@@ -4271,6 +4292,18 @@ export function undoSync(tree: Tree, input: SyncInput): number {
       case "sex.edit":
         editPerson(tree, a.id, { sex: String(a.before ?? "U") }, reason);
         break;
+      case "family.sides": {
+        // the side the couple kept before the sync, after its sexes are back (B5-b)
+        const was = String(a.before ?? "");
+        const f = tree.get<Family>(a.id);
+        if (f && (f.husb ?? "") !== was)
+          update<Family>(tree, a.id, "family", ({ husb: _h, ...x }) => ({ ...x, ...(was ? { husb: was } : {}) }) as Family, {
+            op: "family.edit",
+            summary: was ? `${a.id} ${was} kept as HUSB again: ${reason}` : `${a.id} sides by sex again: ${reason}`,
+            reason,
+          });
+        break;
+      }
       case "child.add":
         update<Family>(tree, a.id, "family", (f) => ({ ...f, children: f.children.filter((c) => c.person !== a.before) }), { op: "family.edit", summary: `${a.id} child ${String(a.before)} removed: ${reason}`, reason });
         break;
@@ -4291,9 +4324,10 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         update<Family>(tree, a.id, "family", ({ noCouple: _n, ...f }) => ({ ...f, partners: f.partners.filter((p) => p !== a.before) }), { op: "family.edit", summary: `${a.id} partner ${String(a.before)} removed: ${reason}`, reason });
         break;
       case "partner.remove": {
-        const b = JSON.parse(String(a.before ?? "{}")) as { partner?: string; at?: number };
+        const b = JSON.parse(String(a.before ?? "{}")) as { partner?: string; at?: number; husb?: string };
+        // the partner back, and the side the couple kept with them (B5-b)
         if (b.partner)
-          update<Family>(tree, a.id, "family", (f) => (f.partners.includes(b.partner!) || f.partners.length >= 2 ? f : { ...f, partners: f.partners.toSpliced(b.at ?? f.partners.length, 0, b.partner!) }), { op: "family.edit", summary: `${a.id} partner ${b.partner} back: ${reason}`, reason });
+          update<Family>(tree, a.id, "family", (f) => (f.partners.includes(b.partner!) || f.partners.length >= 2 ? f : { ...f, partners: f.partners.toSpliced(b.at ?? f.partners.length, 0, b.partner!), ...(b.husb ? { husb: b.husb } : {}) }), { op: "family.edit", summary: `${a.id} partner ${b.partner} back: ${reason}`, reason });
         break;
       }
       case "family.add":

@@ -4,8 +4,10 @@
 // (test/cli/examples.test.ts checks them against the registry).
 
 import { langName } from "../core/lang.ts";
+import { appSite } from "../core/stromapp.ts";
 
-export function guideText(lang: string | undefined): string {
+/** The guide; appUrl: the Strom app's address it names — the one `strom app` opens (appUrlShown). */
+export function guideText(lang: string | undefined, appUrl: string): string {
   const language = lang
     ? `The research language of this tree is ${langName(lang)} (${lang}): talk to the user in ${langName(lang)} and write notes, tasks and stories in ${langName(lang)}. Keep transcripts of records in their original language.`
     : "Talk to the user in their language. Set it as the research language: strom setup --lang <code> (cs, en, de, pl, …).";
@@ -183,11 +185,11 @@ output/tree-strom.ged (for the Strom app) — both from the same evidence, also 
 Changes are committed automatically; you never run git yourself.
 
 THE STROM APP — where the user sees the result
-  The Strom app (https://stromapp.info) is strom's companion: a free family tree app, no account,
+  The Strom app (${appSite(appUrl)}) is strom's companion: a free family tree app, no account,
   the family's data stay on their computer; it shows the tree, the sources, a map, a family book.
   When the user wants to see the results, or when strom says to offer it (once, not in every
   conversation), suggest it gently, in a sentence or two — best installed as an app from the browser, then it works offline:
-  https://stromapp.info/run/   the app itself: opened in the browser, installed from there (the
+  ${appUrl}   the app itself: opened in the browser, installed from there (the
                         install icon at the end of the address bar; Safari: File → Add to Dock)
   strom app install     opens it there and says where to click
   strom app             opens it — with this research when the app can take it (strom says so), and

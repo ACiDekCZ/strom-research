@@ -605,7 +605,6 @@ test("the live bridge: the Strom app reads the tree and hears what changes — t
     // Only the app's pages may read it; a browser asks first whether a public page may talk to this computer.
     assert.equal((await ask(`${info.url}/status`, { headers: { Origin: "https://stromapp.info" } })).headers["access-control-allow-origin"], "https://stromapp.info");
     assert.equal((await ask(`${info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" } })).headers["access-control-allow-origin"], "https://beta.stromapp.info", "its beta too");
-    assert.equal((await ask(`${info.url}/status`, { headers: { Origin: "https://evil.example" } })).headers["access-control-allow-origin"], undefined);
     const pre = await ask(`${info.url}/status`, { method: "OPTIONS", headers: { Origin: "https://stromapp.info", "Access-Control-Request-Method": "GET", "Access-Control-Request-Private-Network": "true" } });
     assert.equal(pre.status, 204);
     assert.equal(pre.headers["access-control-allow-private-network"], "true");
@@ -637,6 +636,11 @@ test("the live bridge: the Strom app reads the tree and hears what changes — t
     assert.equal(change.entries[0]!.head, change.head);
     assert.equal(change.entries[0]!.at, change.at);
     assert.match(change.entries.flatMap((e) => e.what).join("\n"), /Karel/);
+    // a page of another site: nothing for it — and its secret replaced (the address got out)
+    const evil = await ask(`${info.url}/status`, { headers: { Origin: "https://evil.example" } });
+    assert.equal(evil.headers["access-control-allow-origin"], undefined);
+    assert.equal(evil.status, 404);
+    assert.equal((await ask(`${info.url}/status`)).status, 404, "the old secret no longer works");
   } finally {
     await w.ok(["live", "stop"]);
   }
@@ -674,13 +678,15 @@ test("the live bridge does not end because of one error, says what happened in i
     assert.match(said, /works again \(\d+× failed\)/);
     assert.match(said, /GET \/…\/status failed/, "the secret is not written");
     assert.doesNotMatch(said, new RegExp(first.token));
-    // Stopped and started again: the same address, so the app goes on by itself.
+    // Stopped (for good) and started again: its port, a new secret — the app needs the new address.
     // live stop waits until the bridge has ended
     await w.ok(["live", "stop"]);
-    assert.match(fs.readFileSync(log, "utf8"), /stop asked: strom live stop\n.*ended: SIGTERM/);
+    assert.match(fs.readFileSync(log, "utf8"), /stop asked: strom live stop\n.*ended: SIGTERM\n.*its secret dropped \(strom live stop\)/);
     const again = (await w.ok(["live", "start", "--json"])).json;
-    assert.equal(again.url, first.url);
-    assert.match(fs.readFileSync(log, "utf8"), /the address of the last bridge/);
+    assert.equal(again.port, first.port);
+    assert.notEqual(again.token, first.token);
+    assert.equal(again.moved, true, "the app needs the new address: said");
+    assert.match(fs.readFileSync(log, "utf8"), /the port of the last bridge, a new secret/);
     // Ended without a word (killed): the next session brings it back, on its address; one stopped stays stopped.
     process.kill(again.pid, "SIGKILL");
     // gone (its parent, this test, has heard it ended: no process of that number left)
@@ -696,7 +702,7 @@ test("the live bridge does not end because of one error, says what happened in i
     await w.ok(["session", "start"]);
     const back = (await w.ok(["live", "--json"])).json;
     assert.equal(back.running, true);
-    assert.equal(back.url, first.url);
+    assert.equal(back.url, again.url, "brought back by itself: its address kept");
     assert.notEqual(back.pid, again.pid);
     assert.match(fs.readFileSync(log, "utf8"), new RegExp(`the bridge ${again.pid} ended without a word: started again`));
     // A bridge of another version (strom updated under it): kept by live start, replaced by live start --current — at its
@@ -706,7 +712,7 @@ test("the live bridge does not end because of one error, says what happened in i
     assert.equal((await w.ok(["live", "start", "--json"])).json.pid, back.pid);
     const current = (await w.ok(["live", "start", "--current", "--json"])).json;
     assert.notEqual(current.pid, back.pid);
-    assert.equal(current.url, first.url);
+    assert.equal(current.url, again.url, "started again for a newer strom: its address kept");
     assert.equal(current.version, VERSION);
     await w.ok(["live", "stop"]);
     await w.ok(["session", "close", "--continue", "--summary", "nothing yet", "--next", "the same again"]);
@@ -723,10 +729,11 @@ test("the live bridge does not end because of one error, says what happened in i
     } finally {
       blocker.close();
     }
+    // (the address of a bridge that ran: a stuck one below pretends to be it)
+    const last = readJsonFile(path.join(w.cwd, ".strom", "live-last.json"));
     await w.ok(["live", "stop"]);
     // A bridge stuck on something (it does not end when asked) still holding its port: live stop ends it for good,
     // and the next bridge takes its port again — the app following it goes on
-    const last = readJsonFile(path.join(w.cwd, ".strom", "live-last.json"));
     const stuckCode = `process.on("SIGTERM",()=>{});const s=require("http").createServer(()=>{});s.listen(${last.port},"127.0.0.1");setInterval(()=>{},1000)`;
     // up: it holds the port (its SIGTERM handler set before)
     const holding = async () => {

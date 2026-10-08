@@ -218,6 +218,19 @@ export function validateRecord(value: unknown): Problem[] {
   return out;
 }
 
+/**
+ * A record as strom reads, writes and checks it: a family's husb (the side its files keep, U01-e) only while it names
+ * one of its two partners — else it is dropped, never an error (B5-a: a partner taken away by a sync, by an archive's
+ * send, or by an older strom that keeps the field without knowing it). The same object when nothing is dropped.
+ */
+export function settledRecord<T>(value: T): T {
+  if (!isObj(value) || value.type !== "family" || !("husb" in value)) return value;
+  const f = value as unknown as Partial<Family>;
+  if (typeof f.husb === "string" && Array.isArray(f.partners) && f.partners.length === 2 && f.partners.includes(f.husb)) return value;
+  const { husb: _stale, ...rest } = f;
+  return rest as T;
+}
+
 /** Every reference a record makes to another record (for dangling-reference checks). */
 export function recordRefs(value: AnyRecord): RefUse[] {
   const refs: RefUse[] = [];

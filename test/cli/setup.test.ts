@@ -516,3 +516,44 @@ test("a research a newer strom wrote keeps the settings of this computer readabl
   assert.equal(fs.readFileSync(file, "utf8"), before);
   w.cleanup();
 });
+
+test("a question in a window is said to wait there only when a window is shown: with dialogs off (or no desktop) strom update and the other askers answer at once as without a terminal (exit 4), saying nothing of a window", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const { VERSION } = await import("../../src/core/tree.ts");
+  const { canShowDialog } = await import("../../src/core/dialog.ts");
+  assert.equal(canShowDialog({ STROM_NO_DIALOG: "1" }, "darwin"), false);
+  assert.equal(canShowDialog({}, "darwin"), true);
+  assert.equal(canShowDialog({ PATH: "" }, "linux"), false, "no desktop");
+  assert.equal(canShowDialog({ DISPLAY: ":0", PATH: "" }, "linux"), false, "no dialog tool");
+  const w = new World();
+  const tree = await w.withTree();
+  const window = /okně systému|window of the system|Fenster des Systems/;
+  // strom update of an installation (built from the sources), a newer release out
+  const root = path.join(w.dir, "inst");
+  const app = path.join(root, "app");
+  const repo = path.resolve(import.meta.dirname, "..", "..");
+  const built = spawnSync(process.execPath, [path.join(repo, "node_modules", "typescript", "bin", "tsc"), "-p", path.join(repo, "tsconfig.build.json"), "--outDir", path.join(app, "dist")], { encoding: "utf8" });
+  assert.equal(built.status, 0, built.stdout + built.stderr);
+  fs.symlinkSync(path.join(repo, "assets"), path.join(app, "assets"));
+  fs.writeFileSync(path.join(app, "package.json"), JSON.stringify({ name: "strom-research", version: VERSION, type: "module" }));
+  fs.writeFileSync(path.join(root, "install.json"), JSON.stringify({ launchers: [], node: "26.9.0", version: VERSION }));
+  const release = path.join(w.dir, "release");
+  fs.mkdirSync(release);
+  fs.writeFileSync(path.join(release, "VERSION"), "99.0.0\n");
+  fs.writeFileSync(path.join(release, "NODE_VERSION"), "26.9.0\n");
+  const env = { ...w.env, STROM_DOWNLOAD_BASE: `file://${release}`, STROM_NODE_BASE: `file://${path.join(w.dir, "no-node")}`, STROM_UPDATES: "check" };
+  for (const lang of ["cs", "en", "de"]) {
+    const r = spawnSync(process.execPath, [path.join(app, "dist", "cli.js"), "update", "--json", "--lang", lang], { cwd: tree, env: env as NodeJS.ProcessEnv, encoding: "utf8" });
+    assert.equal(r.status, 4, r.stdout + r.stderr);
+    assert.equal(JSON.parse(r.stdout).status, "needs-consent");
+    assert.doesNotMatch(r.stdout + r.stderr, window, `${lang}: no window shown, none said`);
+  }
+  assert.equal(fs.readFileSync(path.join(root, "install.json"), "utf8").includes("99.0.0"), false, "nothing installed");
+  // the same asking of an agent (strom uninstall): no window here — none said; with one, said before it waits
+  w.env.CLAUDECODE = "1";
+  const none = await w.run(["uninstall", "--json"]);
+  assert.equal(none.code, 4, none.out + none.err);
+  assert.doesNotMatch(none.out + none.err, window);
+  const shown = await w.run(["uninstall"], { dialog: false });
+  assert.match(shown.err, window);
+  w.cleanup();
+});

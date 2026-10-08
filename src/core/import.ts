@@ -13,7 +13,7 @@ import { validateRecord } from "./validate.ts";
 import { normalizeDate } from "./gdate.ts";
 import { appNoSurname, cleanTitle, noName, notAName, parseName, sameName, surnameAfterGiven, withoutTitles } from "./people.ts";
 import { now, type Tree } from "./tree.ts";
-import { appUnknownIsNoSurname } from "./stromapp.ts";
+import { appUnknownIsNoSurname, appWritesSexUnknown } from "./stromapp.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
 
 export interface ImportResult {
@@ -137,14 +137,39 @@ function nameKind(type: string | undefined): Name["kind"] | undefined {
   return undefined;
 }
 
+/** How a file means what it writes (stromAppFile): read the same way by strom intake and strom sync. */
+export interface GedFile {
+  /** a file of the Strom app (its HEAD: 1 SOUR STROM) */
+  app: boolean;
+  /** its "? /Unknown/" is a person of no surname (T08b) */
+  unknownIsNoSurname: boolean;
+  /** its SEX U is the sex the user left unknown, never an app's guess (U01) */
+  sexUnknown: boolean;
+}
+
 /**
  * A file of the Strom app (its HEAD: 1 SOUR STROM), and whether its "? /Unknown/" is a person of no surname — an app
  * before 3.10.0-beta.7 or one whose version the HEAD's 2 VERS does not say (T08b); from it on the surname Unknown.
+ * Its SEX U is a sex left unknown (U01) where the header says so (1 _STROM_SEX_U Y: the app's tree linked to a
+ * research) or the app is 3.10.0-beta.11 or newer (its HEAD's 2 VERS; the bridge stamps the version the app said);
+ * else the app guessed there (a husband male, anyone else female).
  */
-export function stromAppFile(head: GedNode | undefined): { app: boolean; unknownIsNoSurname: boolean } {
+export function stromAppFile(head: GedNode | undefined): GedFile {
   const sour = head ? children(head, "SOUR")[0] : undefined;
   const app = sour?.value.trim() === "STROM";
-  return { app, unknownIsNoSurname: app && appUnknownIsNoSurname(val(sour, "VERS")) };
+  const marked = val(head, "_STROM_SEX_U")?.trim().toUpperCase() === "Y";
+  return { app, unknownIsNoSurname: app && appUnknownIsNoSurname(val(sour, "VERS")), sexUnknown: marked || (app && appWritesSexUnknown(val(sour, "VERS"))) };
+}
+
+/**
+ * The sex of a person of a file, read the same way by strom intake and strom sync: M and F as it says; SEX U the sex
+ * left unknown — "U", a value like the others — where the file means it so (stromAppFile: sexUnknown, U01), else
+ * nothing the file says (an app's guess). No SEX line, or another value, says nothing of it in any file (B5-d: the app
+ * writes SEX for everyone; found: a file of its 3.10.0-beta.11 without SEX lines read as every sex set unknown).
+ */
+export function readGedSex(r: GedNode, file: GedFile): "M" | "F" | "U" | undefined {
+  const sex = val(r, "SEX")?.trim().toUpperCase();
+  return sex === "M" || sex === "F" ? sex : sex === "U" && file.sexUnknown ? "U" : undefined;
 }
 
 /** A NAME of a GEDCOM file as the research reads it (readGedName). */
@@ -376,7 +401,7 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
       const names = namesOf(r);
       // The birth name leads: a married name is a variant.
       names.sort((a, b) => (a.kind === "married" || a.kind === "alias" ? 1 : 0) - (b.kind === "married" || b.kind === "alias" ? 1 : 0));
-      const sex = val(r, "SEX")?.toUpperCase();
+      const sex = readGedSex(r, fromApp) ?? "U";
       const refs: ExternalRef[] = [{ system, id: r.xref! }];
       if (refn) refs.push({ system: "refn", id: refn });
       const t = now();
@@ -393,7 +418,7 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         id: xrefToId.get(r.xref!)!,
         type: "person",
         names: names.length ? names : [{ given: "?", surname: "" }],
-        sex: sex === "M" || sex === "F" ? sex : "U",
+        sex,
         events: personEvents,
         notes: personNotes.filter((x) => x.trim()).map((x) => note(tree, x)),
         refs,

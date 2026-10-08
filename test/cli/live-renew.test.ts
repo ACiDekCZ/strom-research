@@ -31,8 +31,8 @@ async function bridge(version: Record<string, unknown>) {
   const disk = path.join(w.dir, "package.json");
   fs.writeFileSync(disk, JSON.stringify({ version: "1.0.0" }));
   Object.assign(w.env, { STROM_LIVE_DISK_VERSION: disk, STROM_LIVE_RENEW_MS: "200", STROM_LIVE_POLL_MS: "100", STROM_LIVE_RENEWED: "1.0.0" });
-  const info = (await w.ok(["live", "start", "--json"])).json as { pid: number; port: number; url: string };
-  const live = () => JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "live.json"), "utf8")) as { pid: number; port: number };
+  const info = (await w.ok(["live", "start", "--json"])).json as { pid: number; port: number; token: string; url: string };
+  const live = () => JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "live.json"), "utf8")) as { pid: number; port: number; token: string };
   const log = () => fs.readFileSync(path.join(w.cwd, ".strom", "live.log"), "utf8");
   const status = () => fetch(`${info.url}/status`, { headers: { Origin: "https://beta.stromapp.info" } }).then((r) => r.json() as Promise<Record<string, unknown>>);
   const update = () => fs.writeFileSync(disk, JSON.stringify(version));
@@ -45,6 +45,7 @@ test("a newer strom on disk: the bridge starts again with it at its port and tok
     b.update();
     await until("the new bridge", () => b.live().pid !== b.info.pid && /handed over/.test(b.log()));
     assert.equal(b.live().port, b.info.port);
+    assert.equal(b.live().token, b.info.token, "its secret kept: the app goes on by itself");
     const s = await b.status();
     assert.equal(s.installed, undefined, "it runs what is on disk");
     assert.match(b.log(), /strom 9\.9\.9 on disk: the bridge starts again with it[\s\S]*handed over to the bridge of strom 9\.9\.9/);

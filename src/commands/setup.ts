@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { APP_URL_INVALID_SETTING, register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
-import { checkValue, configFile, DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, OTHER_ENV, SETTINGS, settingDef, writeStored, type SettingDef } from "../core/config.ts";
+import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, OTHER_ENV, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import type { Input, Media, TreeConfig } from "../core/model.ts";
 import { gitVersion } from "../core/git.ts";
@@ -361,7 +361,9 @@ function diagnose(ctx: Context): Check[] {
       "appurl",
       "fail",
       t(appUrl.source === "env" ? "ui.doc.appurl.env" : "ui.doc.appurl.config", { value: appUrl.value }),
-      appUrl.source === "env" ? undefined : placeholders(lang, "strom config set strom.app.url <address> · strom config unset strom.app.url"),
+      appUrl.source === "env"
+        ? t("ui.doc.appurl.env.fix", { web: appWebPages(ctx.env) })
+        : placeholders(lang, "strom config set strom.app.url <address> · strom config unset strom.app.url"),
     );
   // …and whether it may start the research here (strom-research:// links): only while the app is wanted
   if (app !== "no" && appOpensLinks(ctx.settings)) {
@@ -753,7 +755,7 @@ register(
     run(ctx) {
       const rows = SETTINGS.map((def) => {
         const r = effective(ctx, def);
-        return { key: def.key, value: r.value, source: r.source, env: def.env, tree: def.tree, description: def.description, ...(r.invalid ? { invalid: true } : {}) };
+        return { key: def.key, value: r.value, source: r.source, env: def.env, tree: def.tree, description: settingDescription(def, ctx.env), ...(r.invalid ? { invalid: true } : {}) };
       });
       const invalid = rows.filter((r) => r.invalid).map((r) => r.key);
       const text = lines(

@@ -291,6 +291,59 @@ export function familiesAsPartner(tree: Tree, id: string): Family[] {
   return relIndex(tree).asPartner.get(id) ?? [];
 }
 
+/**
+ * The two sides of a couple, HUSB and WIFE, as the Strom app sides them (its coupleSides): a man HUSB, a woman WIFE,
+ * one of unknown sex the side the other one leaves free; two of one sex, or two unknown, in the order given. One
+ * partner alone: HUSB unless a woman. Never one of them left out.
+ */
+export function coupleSides<T extends { sex: string }>(a: T | undefined, b: T | undefined): [T | undefined, T | undefined] {
+  if (!a || !b) {
+    const one = a ?? b;
+    return one?.sex === "F" ? [undefined, one] : [one, undefined];
+  }
+  if (a.sex === "M" && b.sex !== "M") return [a, b];
+  if (b.sex === "M" && a.sex !== "M") return [b, a];
+  if (b.sex === "F" && a.sex !== "F") return [a, b];
+  if (a.sex === "F" && b.sex !== "F") return [b, a];
+  return [a, b];
+}
+
+/**
+ * A family's sides as its files write them: the ones kept when a sex of the partners changed (Family.husb, U01-e) —
+ * unless that puts a woman HUSB beside a man —, else coupleSides. An app that knows no unknown sex (the Strom app
+ * before 3.10.0-beta.11) guesses one by the side: a side kept is no change of the guess.
+ */
+export function familySides<T extends { id: string; sex: string }>(f: { husb?: string | undefined }, a: T | undefined, b: T | undefined): [T | undefined, T | undefined] {
+  if (a && b && (f.husb === a.id || f.husb === b.id)) {
+    const [h, w] = f.husb === a.id ? [a, b] : [b, a];
+    if (!(h.sex === "F" && w.sex === "M")) return [h, w];
+  }
+  return coupleSides(a, b);
+}
+
+/**
+ * A person's sex about to change (editPerson): each couple of theirs keeps the sides its files wrote — set on the family
+ * where coupleSides would now swap them, taken off where it no longer would (U01-e).
+ */
+export function keepSides(tree: Tree, before: Person, after: Person): { family: Family; next: Family }[] {
+  const out: { family: Family; next: Family }[] = [];
+  for (const f of familiesAsPartner(tree, before.id)) {
+    if (f.partners.length !== 2) continue;
+    const of = (p: Person) => f.partners.map((id) => (id === before.id ? p : tree.get<Person>(id))).filter((x): x is Person => !!x);
+    const [a, b] = of(before);
+    const [x, y] = of(after);
+    if (!a || !b || !x || !y) continue;
+    const was = familySides(f, a, b)[0]?.id;
+    const kept = familySides({ husb: was }, x, y)[0]?.id;
+    const plain = coupleSides(x, y)[0]?.id;
+    const husb = kept === plain ? undefined : kept;
+    if (husb === f.husb) continue;
+    const { husb: _old, ...rest } = f;
+    out.push({ family: f, next: { ...rest, ...(husb ? { husb } : {}) } as Family });
+  }
+  return out;
+}
+
 export function parentsOf(tree: Tree, id: string): Person[] {
   const out: Person[] = [];
   for (const f of familiesAsChild(tree, id)) {

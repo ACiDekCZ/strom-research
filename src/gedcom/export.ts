@@ -28,7 +28,7 @@
 import { GedWriter } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
-import { birthEvent, claimText, conflictTitle, displayName, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
+import { birthEvent, claimText, conflictTitle, coupleSides, displayName, familySides, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
@@ -326,9 +326,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     stats.families++;
     w.record(x(f.id), "FAM");
     const [a, b] = f.partners.map((id) => persons.find((p) => p.id === id)!);
-    // HUSB/WIFE by sex; an unknown sex keeps the order given.
-    const husb = [a, b].find((p) => p?.sex === "M") ?? (a?.sex !== "F" ? a : undefined);
-    const wife = [a, b].find((p) => p && p !== husb);
+    // HUSB/WIFE by sex as the Strom app sides a couple (its coupleSides): a man HUSB, a woman WIFE, an unknown sex the
+    // side the other leaves free; two of one sex, or two unknown, keep the order given — never a partner left out
+    // (found: two women, or a woman and one of unknown sex, written with the WIFE alone). One alone: a woman WIFE.
+    // The sides kept when a sex of theirs changed (Family.husb): an app that guesses an unknown sex by the side sees
+    // no change (familySides) — only in the Strom file: every version of the app keeps a couple's partners in the order
+    // of HUSB and WIFE and counts another order as a changed couple, and draws and exports them by sex itself. The
+    // standard file by coupleSides alone (B5-c): another program reads HUSB as the man, WIFE as the woman — never a man
+    // WIFE or a woman HUSB beside one of unknown sex there (found: a man of the app written WIFE beside one unknown)
+    const [husb, wife] = strict ? coupleSides(a, b) : familySides(f, a, b);
     if (husb) w.line(1, "HUSB", x(husb.id));
     if (wife) w.line(1, "WIFE", x(wife.id));
     // Children by birth, the unknown ones last, in the order they were added.

@@ -200,6 +200,11 @@ export interface Family extends BaseRecord {
    * DIV or _STAT); none: the one parent's children, no couple.
    */
   union?: Union;
+  /**
+   * The partner the files write as HUSB, kept when a sex of the partners changed and the sides would otherwise swap
+   * (U01-e): an app that guesses an unknown sex by the side sees no change. Never a woman HUSB beside a man.
+   */
+  husb?: string;
 }
 
 export const UNIONS = ["married", "divorced", "partners", "separated"] as const;

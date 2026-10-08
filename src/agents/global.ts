@@ -18,11 +18,13 @@ import type { Env } from "../core/paths.ts";
 import { isolated, userHome } from "../core/paths.ts";
 import { writeFileAtomic } from "../core/json.ts";
 import { installation } from "../core/self.ts";
+import { agentAppUrl, appSite } from "../core/stromapp.ts";
 
 const BEGIN = "<!-- strom: begin (strom agents install; removed by strom agents uninstall) -->";
 const END = "<!-- strom: end -->";
 
-export const GLOBAL_TEXT = `# strom — family history research
+/** What the agents are taught; app: the Strom app's address it names — the one `strom app` opens when it is written (agentAppUrl). */
+export const globalText = (app: string): string => `# strom — family history research
 
 strom (the \`strom\` command) is installed on this computer: a tool for
 researching a family's history with you as the researcher — people, parish
@@ -61,11 +63,11 @@ mentions strom, a family tree or the Strom app.
 8. Scans come through strom. An archive the research needs has no
    downloader (connector) yet: build one yourself, unasked
    (\`strom connector new\`), and tell the user in a sentence.
-9. The Strom app (https://stromapp.info) is strom's companion: a free family
+9. The Strom app (${appSite(app)}) is strom's companion: a free family
    tree app, no account, the data stay on the user's computer. The research's
    result (\`output/tree-strom.ged\`) opens in it. When the user wants to see
    the tree (or \`strom\` says to offer it — once), suggest it gently — best installed as an app from the browser,
-   from https://stromapp.info/run/ (\`strom app install\` opens it there; it
+   from ${app} (\`strom app install\` opens it there; it
    then works offline); \`strom app\` opens it — with the research, followed
    live while you work, when the app can take it. Without it, the user can ask
    you about anyone in the tree: answer from \`strom person show\` and the like.
@@ -76,6 +78,8 @@ export interface GlobalTarget {
   file: string;
   /** A file of its own (Claude Code skill, OpenCode instructions), a block in the user's file, or a rule allowing strom in its settings. */
   kind: "own" | "block" | "allow";
+  /** The Strom app's address its text names: the one `strom app` opens (the beta its beta, strom.app.url where it says another). */
+  app: string;
 }
 
 /**
@@ -160,7 +164,9 @@ export function globalTargets(env: Env): GlobalTarget[] {
   // an isolated installation teaches the agents nothing: they are the person's, and know the person's own strom
   if (isolated(env)) return [];
   const home = userHome(env);
-  return [
+  // the app's address as strom app opens it now: a run of another channel (its first) writes the texts again
+  const app = agentAppUrl(env);
+  const targets: Omit<GlobalTarget, "app">[] = [
     { agent: "claude", file: path.join(env.CLAUDE_CONFIG_DIR ?? path.join(home, ".claude"), "skills", "strom", "SKILL.md"), kind: "own" },
     { agent: "claude", file: path.join(env.CLAUDE_CONFIG_DIR ?? path.join(home, ".claude"), "settings.json"), kind: "allow" },
     { agent: "codex", file: path.join(env.CODEX_HOME ?? path.join(home, ".codex"), "AGENTS.md"), kind: "block" },
@@ -172,14 +178,15 @@ export function globalTargets(env: Env): GlobalTarget[] {
     { agent: "grok", file: path.join(grokDir(env), "skills", "strom", "SKILL.md"), kind: "own" },
     { agent: "grok", file: path.join(grokDir(env), "config.toml"), kind: "allow" },
   ];
+  return targets.map((t) => ({ ...t, app }));
 }
 
-const SKILL = `---
+const skill = (app: string): string => `---
 name: strom
 description: Family history and genealogy research with the strom command — ancestors, family trees, parish registers and archives, evidence, GEDCOM and the Strom app. Use when the user wants to research their family or mentions strom or the Strom app.
 ---
 
-${GLOBAL_TEXT}`;
+${globalText(app)}`;
 
 function read(file: string): string | undefined {
   try {
@@ -282,10 +289,10 @@ export function installGlobal(t: GlobalTarget): boolean {
     if (!s || hasAllow(t, s)) return false;
     addAllow(t, s);
     next = JSON.stringify(s, null, 2) + "\n";
-  } else if (t.kind === "own") next = t.agent === "claude" || t.agent === "grok" ? SKILL : GLOBAL_TEXT;
+  } else if (t.kind === "own") next = t.agent === "claude" || t.agent === "grok" ? skill(t.app) : globalText(t.app);
   else {
     const rest = cur ? withoutBlock(cur).replace(/\s+$/, "") : "";
-    next = `${rest ? `${rest}\n\n` : ""}${BEGIN}\n${GLOBAL_TEXT}${END}\n`;
+    next = `${rest ? `${rest}\n\n` : ""}${BEGIN}\n${globalText(t.app)}${END}\n`;
   }
   if (cur === next) return false;
   fs.mkdirSync(path.dirname(t.file), { recursive: true });

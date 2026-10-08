@@ -19,7 +19,7 @@ import { acquireLock, withLock } from "./lock.ts";
 /** How long a writer waits for the tree while another one works (a long intake, a batch). */
 const LOCK_WAIT_MS = 120_000;
 import { RECORD_TYPES, ALL_PREFIXES, SCHEMA_VERSION, type AnyRecord, type RecordType, type TreeConfig } from "./model.ts";
-import { validateRecord } from "./validate.ts";
+import { settledRecord, validateRecord } from "./validate.ts";
 import { NeedsConsentError, StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { opsLogs } from "./opslog.ts";
@@ -326,7 +326,7 @@ export class Tree {
           if (!f.endsWith(".json")) continue;
           let rec: AnyRecord;
           try {
-            rec = readJson<AnyRecord>(path.join(dir, f));
+            rec = settledRecord(readJson<AnyRecord>(path.join(dir, f)));
           } catch {
             continue; // unreadable record: reported by `strom check`
           }
@@ -349,7 +349,7 @@ export class Tree {
     let one = this.single.get(id);
     if (one === undefined) {
       try {
-        one = readJson<AnyRecord>(this.recordPath(type, id));
+        one = settledRecord(readJson<AnyRecord>(this.recordPath(type, id)));
       } catch {
         one = null;
       }
@@ -534,7 +534,8 @@ export class Tree {
 
   /** Validate and write a record, then log the sealed operation. Call inside withTreeLock. */
   put(input: AnyRecord, op: { op: string; targets: string[]; summary: string; reason?: string }): void {
-    const record = composed(input) as AnyRecord;
+    // a family's husb that names none of its two partners is dropped, never written (B5-a)
+    const record = settledRecord(composed(input) as AnyRecord);
     const problems = validateRecord(record);
     if (problems.length > 0) {
       throw new UsageError(`invalid ${record.type} ${record.id}: ${problems.map((p) => `${p.path} ${p.message}`).join("; ")}`, {

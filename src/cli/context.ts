@@ -17,7 +17,7 @@ import { readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
 import { currentSession } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
-import { systemDialog, WAIT_SECONDS, type DialogText } from "../core/dialog.ts";
+import { canShowDialog, systemDialog, WAIT_SECONDS, type DialogText } from "../core/dialog.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 
 export interface IO {
@@ -206,7 +206,8 @@ export class Context {
   requireHuman(question: string, set: string, key: string, says?: string, opts: { window?: boolean } = {}): "terminal" | "window" {
     const agent = isAgent(this.env);
     if (this.interactive && !agent) return "terminal";
-    if (this.env.STROM_NONINTERACTIVE !== "1" && opts.window !== false) {
+    // a window only where one can be shown (the test's own answer stands for one): else nothing said to wait in it
+    if (this.env.STROM_NONINTERACTIVE !== "1" && opts.window !== false && (this.io.dialog || canShowDialog(this.env))) {
       const lang = this.uiLang();
       const text: DialogText = { title: ui(lang, "ui.dialog.title"), question: says ?? question, yes: ui(lang, "ui.dialog.yes"), no: ui(lang, "ui.dialog.no") };
       // said first where it runs: a window can be behind others, and the command waits for it without a word

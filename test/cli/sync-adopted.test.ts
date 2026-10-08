@@ -151,7 +151,7 @@ test("a copy of the app linked to the research but without its IDs, its people w
     assert.match(log, /POST \/…\/sync → 400 · code tree\.no-ids, keptAs kept\/refused-strom-app-\S+\.ged · this copy of the tree does not carry the research's people/, log);
     assert.doesNotMatch(log, new RegExp(info.url.split("/").pop()), "never its secret");
   } finally {
-    assert.equal((await w.ok(["live", "stop"])).out.trim(), "most se zastavil");
+    assert.equal((await w.ok(["live", "stop"])).out.trim().split("\n")[0], "most se zastavil");
   }
   assert.equal((await w.ok(["live"])).out.trim(), "most neběží – strom live start (nebo strom app --live)");
   assert.equal((await w.ok(["person", "list", "--json"])).json.total, 3, "nothing written");

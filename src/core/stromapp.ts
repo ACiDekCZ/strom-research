@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Env } from "./paths.ts";
 import { desktopDir, userHome } from "./paths.ts";
-import { appUrlInvalid, checkValue, settingDef, type Settings } from "./config.ts";
+import { appUrlInvalid, checkValue, settingDef, Settings } from "./config.ts";
 import { UsageError } from "./errors.ts";
 import { foldText } from "./text.ts";
 import { compareVersions, updateChannel } from "./update.ts";
@@ -50,6 +50,23 @@ export const APP_WRITES_NO_SURNAME_EMPTY = "3.10.0-beta.7";
 export function appUnknownIsNoSurname(version: string | undefined): boolean {
   const v = version?.trim();
   return !v || !isAppVersion(v) || compareVersions(v, APP_WRITES_NO_SURNAME_EMPTY) < 0;
+}
+
+/**
+ * The first Strom app whose sex "unknown" is a sex of its own (its data version 12): it writes SEX U where the sex is
+ * unknown in its tree, never a guess — before it, it read SEX U as a husband male and anyone else female and wrote
+ * that guess back. A real pre-release, not a gate: its own betas before it guessed. Its file says so also by the
+ * header's 1 _STROM_SEX_U Y, but only in a tree linked to a research (U01).
+ */
+export const APP_WRITES_SEX_UNKNOWN = "3.10.0-beta.11";
+
+/** The data version of the Strom app's JSON from which its gender "unknown" is a sex of its own (its 3.10.0-beta.11, U01). */
+export const APP_DATA_SEX_UNKNOWN = 12;
+
+/** Is SEX U in a file of the Strom app of this version (its HEAD's 2 VERS) the sex the user left unknown? From 3.10.0-beta.11 on; no version said: no. */
+export function appWritesSexUnknown(version: string | undefined): boolean {
+  const v = version?.trim();
+  return !!v && isAppVersion(v) && compareVersions(v, APP_WRITES_SEX_UNKNOWN) >= 0;
 }
 
 /** The pages of the Strom app — on the web, its beta, a copy on this computer (its development): the only ones strom opens with a research, and the only ones its bridge lets in. */
@@ -163,6 +180,24 @@ export interface ShownAppUrl {
 export function appUrlShown(settings: Settings): ShownAppUrl {
   const said = appUrlSetting(settings);
   return said.invalid ? { url: said.url, invalid: true } : { url: said.url };
+}
+
+/**
+ * The Strom app's address the texts for an agent name — the guide, a tree's AGENTS.md, what strom agents install
+ * teaches the agents: the one `strom app` opens (appUrlShown: strom.app.url, else the channel's default — the beta its
+ * beta, the releases stromapp.info), read when the text is written (B1-i).
+ */
+export function agentAppUrl(env: Env): string {
+  return appUrlShown(new Settings(env, {})).url;
+}
+
+/** The Strom app's site beside its address in a text for an agent: https://stromapp.info, its beta's, a copy's (its origin). */
+export function appSite(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
+  }
 }
 
 /** Is the copy of the app another than stromapp.info (its beta, its development)? Never failing on the setting: an invalid one is none. */
