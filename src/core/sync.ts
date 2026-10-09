@@ -803,6 +803,9 @@ const APP_COUPLE_EVENTS: Record<string, string> = {
 /** Facts whose value is what they are (the GEDCOM tag's value). */
 const VALUE_KINDS = new Set(["OCCU", "RELI", "TITL", "NATI"]);
 
+/** A fact that is its value (an occupation, a religion) without one: no fact — its value taken off in the app (B-1). */
+const bare = (f: { kind: string; value?: string | undefined }) => VALUE_KINDS.has(kindOf(f.kind)) && !f.value?.trim();
+
 interface AppPerson {
   id: string;
   /** The person's parents (both of a couple's child; one where the other is not known — the app's beta.39 sends it). */
@@ -2072,6 +2075,8 @@ export interface Change {
   asked?: "setBack" | "cited";
   /** A change only said or left to pick: the file's sources it gave the fact that the research's fact does not cite — not written with it. */
   uncited?: string[];
+  /** fact.changed: what of the research's fact the user took off in the app, the fact kept (B-1). */
+  off?: ("date" | "place" | "value")[];
 }
 
 export interface Plan {
@@ -2261,8 +2266,19 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       }
       const less = our.find((o) => knowsMore(o, f));
       if (less) {
-        // the file knows less of it (the date lost on the way)
+        // the file knows less of it (the date lost on the way) — or, against what the app was given, the user took a
+        // part of it off, the fact itself kept (B-1, found with the app's 3.11.0-beta.2: a proven death's date taken off,
+        // "not written 1", no conflict): its date, place or value as given, the research's still. A record's fact: the
+        // user's to decide (empty where nothing is left); a lead corrected. Without a base nothing is taken off (an
+        // older copy, another program: what it lacks it may never have had)
         partsDiff(f, less);
+        const given = less.id && !used.has(factKey(less)) ? was?.find((b) => factKey(b) === factKey(less) && (!b.id || b.id === less.id)) : undefined;
+        const off = given ? (["date", "place", "value"] as const).filter((k) => !!exact(given[k]) && !exact(f[k])) : [];
+        if (off.length) {
+          used.add(factKey(less));
+          const action = recordBacked(tree, eventById(tree, less.id)) ? edits : "correct";
+          if (action !== "conflict" || !openConflict(tree, owner.person ?? owner.family, f)) push({ kind: "fact.changed", action, ...owner, fact: f, was: less, off });
+        }
         continue;
       }
       if (was && baseKeys.has(k)) {
@@ -3106,7 +3122,7 @@ function addsTo(ours: SFact, file: SFact): boolean {
 
 /** An open conflict whose claims hold this value for the person or family already. */
 function openConflict(tree: Tree, owner: string | undefined, f: SFact): boolean {
-  return openClaim(tree, owner, describe(f));
+  return openClaim(tree, owner, claimValue(f));
 }
 
 function openClaim(tree: Tree, owner: string | undefined, value: string): boolean {
@@ -3494,7 +3510,13 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
             }
             toVerify(owner, given);
           } else if (c.action === "correct" || (c.kind === "fact.differs" && c.action === "pick" && !recordBacked(tree, mine))) {
-            editEvent(tree, mine.id, { date: c.fact.date ?? "", place: c.fact.place ?? "", ...(c.fact.value !== undefined ? { value: c.fact.value } : {}) }, `corrected in ${reason}`);
+            // a value the user took off goes (B-1); a fact that is its value (an occupation) goes with it
+            if (bare(c.fact)) {
+              retractEvent(tree, mine.id, `corrected in ${reason}`);
+              applied.push({ do: "event.retract", id: mine.id, before: mine.status });
+              break;
+            }
+            editEvent(tree, mine.id, { date: c.fact.date ?? "", place: c.fact.place ?? "", ...(c.fact.value !== undefined ? { value: c.fact.value } : c.off?.includes("value") ? { value: "" } : {}) }, `corrected in ${reason}`);
             // cited: the sources the user gave it in the app, else the sync — a family tree that gave the old value (a file
             // taken in, an earlier send) says it no more: its citation goes, kept for an undo (found on Mac: "S0001:
             // kovář" in a conflict, the file saying mlynář)
@@ -3510,6 +3532,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           } else if (c.action === "user") {
             retractEvent(tree, mine.id, `the user's edit wins: ${reason}`);
             applied.push({ do: "event.retract", id: mine.id, before: mine.status });
+            if (bare(c.fact)) break;
             // the user's word: no record makes it probable — unless it is their reading of one, which counts
             const citations = theirs.length ? theirs : [cite(c.fact.kind)];
             const { event } = addEvent(tree, owner, { ...fields(c.fact), status: citations.some((x) => reading(x.source)) ? "probable" : "possible", citations });
@@ -3519,7 +3542,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
             const title = editTitle(c.name ?? owner, eventName(c.fact.kind, tree.lang, c.fact.label), factWords(tree, incoming, mine), factWords(tree, incoming, c.fact));
             conflictOfEdit(tree, applied, owner, c.fact.kind, title, [
               { ...(mine.citations[0] ? { source: mine.citations[0].source } : {}), value: describe(mine), note: `the research: ${mine.id}`, text: factWords(tree, incoming, mine) },
-              { source: source.id, value: describe(c.fact), note: "the user's edit", text: factWords(tree, incoming, c.fact) },
+              { source: source.id, value: claimValue(c.fact), note: "the user's edit", text: factWords(tree, incoming, c.fact) },
             ], { event: mine.id, ...(c.fact.date ? { date: c.fact.date } : {}), ...(c.fact.place ? { place: c.fact.place } : {}), ...(c.fact.value ? { value: c.fact.value } : {}), ...(theirs.length ? { cites: theirs } : {}) });
           }
           break;
@@ -4029,6 +4052,12 @@ function describe(f: { date?: string | undefined; place?: string | undefined; va
   return [f.value, f.date, f.place, f.house && `house ${f.house}`, f.age && `aged ${f.age}`, ...ages, f.cause && `cause ${f.cause}`].filter(Boolean).join(", ") || "—";
 }
 
+/** A fact as a claim of a conflict of the user's edit holds it: nothing left of it (B-1: its date and place taken off) empty. */
+function claimValue(f: Parameters<typeof describe>[0]): string {
+  const said = describe(f);
+  return said === "—" ? "" : said;
+}
+
 /**
  * The title of a conflict of the user's edit, in the research's language — the Strom app shows it in what the research
  * knows (found on Mac: "Petr Svoboda: SEX — U × F" in a Czech research): "Petr Svoboda: Pohlaví — neznámé × žena".
@@ -4113,6 +4142,11 @@ export function takeSide(tree: Tree, x: Conflict, side: "user" | "research", rea
   const user = x.claims.find((c) => c.note === "the user's edit");
   // where the user's value came from: the sources they gave it in the app (where in them), and their edits' source
   const cited = [...(x.edit.cites ?? []), ...(user?.source && tree.get(user.source)?.type === "source" ? [{ source: user.source, locator: mine.kind }] : [])].filter((c, i, all) => !!tree.get<Source>(c.source) && all.findIndex((y) => y.source === c.source) === i);
+  // a fact that is its value (an occupation) with the value taken off is no fact: withdrawn, nothing in its place (B-1)
+  if (bare({ kind: mine.kind, ...(x.edit.value ? { value: x.edit.value } : {}) })) {
+    retractEvent(tree, mine.id, `the user's edit wins (${x.id}): ${reason}`);
+    return `${mine.id} withdrawn`;
+  }
   if (recordBacked(tree, mine)) {
     retractEvent(tree, mine.id, `the user's edit wins (${x.id}): ${reason}`);
     const { event } = addEvent(tree, owner, { kind: mine.kind, ...(x.edit.date ? { date: x.edit.date } : {}), ...(x.edit.place ? { place: x.edit.place } : {}), ...(x.edit.value ? { value: x.edit.value } : {}), ...(mine.label ? { label: mine.label } : {}), status: "possible", citations: cited });
