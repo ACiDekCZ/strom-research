@@ -4,7 +4,7 @@
 // several reach them (the ancestors of a grandmother before those of her
 // grandson). The queue, the menu and the Strom app go by the same answer.
 
-import type { Family, Hypothesis, Person, Research, Task } from "./model.ts";
+import type { Family, Hypothesis, HypothesisVariant, Person, Research, Task, VariantLink } from "./model.ts";
 import { researchPeople } from "./frontier.ts";
 import { subjectPeople } from "./records.ts";
 import { typeOfId, type Tree } from "./tree.ts";
@@ -33,18 +33,41 @@ export function namesId(text: string, id: string): boolean {
 const PERSON_ID = /(?<![\p{L}\p{M}\p{N}])P\d{4,}(?![\p{L}\p{M}\p{N}])/gu;
 
 /**
- * The people a hypothesis is about: those of its subject, and the people of the tree its question and its variants'
- * claims name by ID ("the son of P0012 and P0013") — a variant that names a family nothing links to the tree would
- * join it, though the subject names only the person of the tree. What each variant cites for or against it is
- * evidence, not who it is about.
+ * The people a hypothesis is about: those of its subject, and the people its variants' links would connect (strom
+ * hypothesis link). A hypothesis no variant of which says what it would connect yet: the people of the tree its
+ * question and its variants' claims name by ID instead ("the son of P0012 and P0013") — a variant that names a family
+ * nothing links to the tree would join it, though the subject names only the person of the tree. Once links say it,
+ * an ID in a claim is context (a wife, a witness), not who it is about. What each variant cites for or against it is
+ * evidence, never who it is about.
  */
 export function hypothesisPeople(tree: Tree, h: Hypothesis): string[] {
-  const named = [h.question, ...h.variants.map((v) => v.claim)].flatMap((text) => text.match(PERSON_ID) ?? []);
+  const linked = h.variants.some((v) => v.links?.length);
+  const named = linked
+    ? h.variants.flatMap((v) => (v.links ?? []).flatMap((l) => linkPeople(tree, l)))
+    : [h.question, ...h.variants.map((v) => v.claim)].flatMap((text) => text.match(PERSON_ID) ?? []);
   const people = named.filter((id) => {
     const p = tree.get<Person>(id);
     return p && !p.retracted;
   });
   return [...new Set([...aboutPeople(tree, h.subject), ...people])];
+}
+
+/** The people one variant names: those its links would connect and those its claim names by ID. */
+export function variantPeople(tree: Tree, v: HypothesisVariant): string[] {
+  return [...new Set([...(v.links ?? []).flatMap((l) => linkPeople(tree, l)), ...(v.claim.match(PERSON_ID) ?? [])])];
+}
+
+/** The variants that would join these people (any of them): by their links, or their claim naming them by ID. */
+export function joiningVariants(tree: Tree, h: Hypothesis, people: Iterable<string>): string[] {
+  const set = new Set(people);
+  return h.variants.filter((v) => variantPeople(tree, v).some((x) => set.has(x))).map((v) => v.label);
+}
+
+/** The people a variant's link would connect: the child and its parents (the partners of its family), or its persons. */
+export function linkPeople(tree: Tree, l: VariantLink): string[] {
+  if (l.kind !== "child") return l.persons;
+  const family = l.family ? tree.get<Family>(l.family) : undefined;
+  return [l.person, ...(l.parents ?? []), ...(family && !family.retracted ? family.partners : [])];
 }
 
 /** The direction a task belongs to: its own, else the narrowest one its people are in; none for a task about nobody. */

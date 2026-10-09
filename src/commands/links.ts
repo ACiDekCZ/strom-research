@@ -171,7 +171,7 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     case "conflict": {
       if (link.do === "decide") {
         const { decideConflict } = await import("../cli/menu-links.ts");
-        return end(await decideConflict(ctx, run, treeLang, root, link.id));
+        return end(await decideConflict(ctx, run, treeLang, root, link.id, link.take));
       }
       // left to the agent: it costs — said and asked first, then the conversation about it
       const say = aboutConflict(root, ctx, link.id);
@@ -317,7 +317,8 @@ register(
       "strom-research://review?tree=<id>&person=P0012&scope=person|family|line — the person reviewed (strom review).\n" +
       "strom-research://research?tree=<id>&person=P0012&direction=ancestors|descendants — a new direction (research new).\n" +
       "strom-research://task?…&task=T0007&do=park|drop|wake — the task put aside, given up, back in the queue (the reason asked).\n" +
-      "strom-research://conflict?tree=<id>&id=X0007&do=decide|agent — decided by the user (which claim, why) or left to the agent.\n" +
+      "strom-research://conflict?tree=<id>&id=X0007&do=decide|agent — decided by the user (which claim, why) or left to the agent;\n" +
+      "  &take=user|research — the side picked in the app: only confirmed, and why.\n" +
       "strom-research://story?tree=<id>&person=P0012[&partner=P0013]&do=final|keep — the story approved (strom story approve), of a couple with partner=.\n" +
       "strom-research://sync-undo?tree=<id>&intake=I0042 — a sending from the app taken back (strom sync undo).\n" +
       "strom-research://sync?tree=<id>&do=show[&intake=R…] — a tree the app sent that waits: shown, then written or thrown away.\n" +

@@ -68,6 +68,8 @@ export const LINK_DIRECTION_DOS = ["pause", "done", "resume"] as const;
 export const LINK_SYNC_DOS = ["show"] as const;
 /** What a link does with a conflict: the user decides it, or leaves it to the agent. */
 export const LINK_CONFLICT_DOS = ["decide", "agent"] as const;
+/** The side a conflict of the user's edit is decided for, picked in the app: the terminal asks only to confirm and why. */
+export const LINK_CONFLICT_TAKES = ["user", "research"] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SOURCE = /^S\d{1,9}$/;
@@ -144,7 +146,7 @@ export type Link =
   | { action: "task"; tree: string; task: string; do?: (typeof LINK_TASK_DOS)[number] }
   | { action: "review"; tree: string; person: string; scope: (typeof LINK_SCOPES)[number] }
   | { action: "research"; tree: string; person: string; direction: (typeof LINK_DIRECTIONS)[number] }
-  | { action: "conflict"; tree: string; id: string; do: (typeof LINK_CONFLICT_DOS)[number] }
+  | { action: "conflict"; tree: string; id: string; do: (typeof LINK_CONFLICT_DOS)[number]; take?: (typeof LINK_CONFLICT_TAKES)[number] }
   | { action: "story"; tree: string; person: string; partner?: string; do: (typeof LINK_STORY_DOS)[number] }
   | { action: "sync-undo"; tree: string; intake: string }
   | { action: "sync"; tree: string; do: (typeof LINK_SYNC_DOS)[number]; intake?: string }
@@ -239,8 +241,12 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
       const partner = idOf(q, "partner", PERSON, false);
       return { action, tree: id, person, ...(partner ? { partner } : {}), do: oneOf(q, "do", LINK_STORY_DOS) };
     }
-    case "conflict":
-      return { action, tree: id, id: idOf(q, "id", CONFLICT, true)!, do: oneOf(q, "do", LINK_CONFLICT_DOS, "decide") };
+    case "conflict": {
+      const how = oneOf(q, "do", LINK_CONFLICT_DOS, "decide");
+      // the side, only of a decision, only one of its fixed values
+      const take = how === "decide" && q.has("take") ? oneOf(q, "take", LINK_CONFLICT_TAKES) : undefined;
+      return { action, tree: id, id: idOf(q, "id", CONFLICT, true)!, do: how, ...(take ? { take } : {}) };
+    }
     case "sync-undo":
       return { action, tree: id, intake: idOf(q, "intake", INPUT, true)! };
     case "sync": {

@@ -89,6 +89,9 @@ async function seeded(): Promise<World> {
   await w.ok(["story", "approve", "P0001"]);
   await w.ok(["story", "set", "P0001", "--text", "Jan byl mlynář v Týnci nad Labem."]);
   await w.ok(["search", "add", "Křty Novák 1903–1907", "--recordset", "B0001", "--years", "1903-1907", "--method", "page-by-page", "--result", "negative"]); // Q0001
+  // a hypothesis about whose son Josef Víšek was, one variant saying what it would connect (hypothesis link --remove)
+  await w.ok(["hypothesis", "add", "Čí syn byl Josef?", "--about", "P0006", "--variant", "A: sourozenec Antonína", "--variant", "B: syn Josefa a Marie"]); // H0001
+  await w.ok(["hypothesis", "link", "H0001", "A", "--siblings", "P0004", "P0006"]);
   return w;
 }
 

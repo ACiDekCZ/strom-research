@@ -219,7 +219,9 @@ test("edge: a hypothesis joins the family its variant names, though its subject 
   assert.deepEqual(hyp.island, { people: 2, held: 0 });
   assert.deepEqual(hyp.tests, ["T0001"]);
   const island = (await w.ok(["edge", "P4", "--json"])).json.edges[0].island;
-  assert.deepEqual(island, { people: 2, hypotheses: [{ id: "H0001", joins: ["P0002"] }], held: 0 });
+  // …and which variant would make the join: B names them
+  assert.deepEqual(island, { people: 2, hypotheses: [{ id: "H0001", joins: ["P0002"], variants: ["B"] }], held: 0 });
+  assert.deepEqual(hyp.variants, ["B"]);
   // a task about the family off the tree is told what would join it
   const added = await w.ok(["task", "add", "Rodiče Řehoře", "--level", "locate", "--where", "katalog", "--why", "rodiče", "--done-when", "kniha", "--about", "P3"]);
   assert.match(added.out, /test first what would join them: H0001/);

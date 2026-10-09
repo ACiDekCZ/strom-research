@@ -31,6 +31,7 @@ import { isValidLang } from "../core/lang.ts";
 import { agentsHere, suggestedWay, waysHere, type Where } from "../core/apps.ts";
 import { chooseWay } from "./ways.ts";
 import { claimText } from "../core/people.ts";
+import { sideOf, sideText, sidesOf } from "../core/conflicts.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
 import { StromError } from "../core/errors.ts";
@@ -128,13 +129,29 @@ export function sessionsView(ctx: Context, lang: string, root: string): void {
   if (all.length > shown.length) out(ctx, `  ${t("ui.link.sessions.more", { n: all.length - shown.length })}`);
 }
 
-/** A conflict the person decides: which claim holds (or their own words), and why. */
-export async function decideConflict(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<boolean> {
+/**
+ * A conflict the person decides: which claim holds (or their own words), and why. The side picked in the Strom app
+ * already (take): only confirmed, and why — that side taken (a conflict not decided by side: the claims offered).
+ */
+export async function decideConflict(ctx: Context, run: Run, lang: string, root: string, id: string, take?: "user" | "research"): Promise<boolean> {
   const t = translator(lang);
   const tree = Tree.open(root, ctx.env);
   const c = tree.get<Conflict>(id);
   if (!c || c.type !== "conflict") return stop(ctx, t("ui.link.conflict.none", { id }));
   if (c.state === "resolved") return stop(ctx, t("ui.link.conflict.decided", { resolution: c.resolution ?? "" }));
+  const sides = take ? sidesOf(c) : undefined;
+  if (take && sides) {
+    const value = sideText(tree, c, sides[take]) || t("ui.link.conflict.empty");
+    if (!(await asks(ctx, lang, root, t(take === "user" ? "ui.link.what.conflict.user" : "ui.link.what.conflict.research", { title: c.title, value })))) return false;
+    let why = "";
+    while (!why) {
+      why = (await ctx.ask(t("ui.link.conflict.why"))).trim();
+      if (why === "0" || outOfAnswers(ctx)) return false;
+    }
+    if ((await run(["conflict", "resolve", id, `--take=${take}`, `--reasoning=${t("ui.link.conflict.by", { why })}`], true)) !== 0) return false;
+    out(ctx, t("ui.link.conflict.done"));
+    return true;
+  }
   if (!(await asks(ctx, lang, root, t("ui.link.what.conflict.decide", { title: c.title })))) return false;
   const claim = (x: Conflict["claims"][number]) => `${claimText(tree, c, x)}${x.source ? ` — ${tree.get<Source>(x.source)?.title ?? x.source}` : ""}`;
   const i = await ctx.choose(t("ui.link.conflict.pick"), [...c.claims.map((x) => ({ label: claim(x) })), { label: t("ui.link.conflict.other") }], 0, { back: t("ui.browse.back") });
@@ -149,7 +166,10 @@ export async function decideConflict(ctx: Context, run: Run, lang: string, root:
     why = (await ctx.ask(t("ui.link.conflict.why"))).trim();
     if (why === "0" || outOfAnswers(ctx)) return false;
   }
-  if ((await run(["conflict", "resolve", id, `--resolution=${resolution}`, `--reasoning=${t("ui.link.conflict.by", { why })}`], true)) !== 0) return false;
+  // a side of a conflict of the user's edit picked: that side taken — the user's value written into the fact (found: the
+  // value with its source named neither side, the conflict closed and nothing written)
+  const side = i < c.claims.length ? sideOf(c, c.claims[i]!) : undefined;
+  if ((await run(["conflict", "resolve", id, `--resolution=${resolution}`, ...(side ? [`--take=${side}`] : []), `--reasoning=${t("ui.link.conflict.by", { why })}`], true)) !== 0) return false;
   out(ctx, t("ui.link.conflict.done"));
   return true;
 }

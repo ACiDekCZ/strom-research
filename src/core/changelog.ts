@@ -47,6 +47,8 @@ const SAID: Record<string, PhraseKey> = {
   "lesson.add": "log.lesson.add",
   "hypothesis.add": "log.hypothesis.add",
   "hypothesis.argue": "log.hypothesis.argue",
+  "hypothesis.link": "log.hypothesis.link",
+  "hypothesis.variant": "log.hypothesis.variant",
   "hypothesis.decide": "log.hypothesis.decide",
   "conflict.add": "log.conflict.add",
   "conflict.resolve": "log.conflict.resolve",

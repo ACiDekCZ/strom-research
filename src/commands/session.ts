@@ -392,6 +392,7 @@ function edgeNext(e: Edge): string {
   const hyp = e.hypotheses.find((h) => h.joins.length);
   const join = hyp ? ` · ${hyp.id} ${hyp.island ? `joins ${hyp.joins.join(" ")} (${hyp.island.people} people off the tree)` : `would join through ${hyp.joins.join(" ")}`}` : "";
   if (t) return `${t.id}${t.position ? ` #${t.position}` : ""}${t.held ? ` (${t.held})` : ""}${e.tasks.length > 1 ? ` +${e.tasks.length - 1}` : ""}${join}`;
+  if (e.next === "decide" && e.end === "named") return `${e.hypotheses.filter((h) => !h.tests.length).map((h) => h.id).join(" ")} names the parents, no task tests it — the user decides${join}`;
   if (e.next === "decide") return `tried ${e.tried.join(" ")} — ask the user${join}`;
   return join.replace(/^ · /, "");
 }
@@ -413,6 +414,7 @@ const SCOPE_WORDS: Record<Edge["scope"], string> = {
 };
 const END_WORDS: Record<Edge["end"], string> = {
   unnamed: "the baptism names no father (born out of wedlock)",
+  named: "a variant of an open hypothesis names the parents — not linked until it is decided",
   lost: "the records of those years are lost",
   "before-records": "born before the known birth records of the place begin",
   gap: "the known records have a gap in those years",
@@ -447,12 +449,12 @@ function edgeLines(tree: Tree, e: Edge, who: (id: string) => string): string[] {
     e.books.length ? `  books: ${e.books.map((b) => `${b.id}${b.years ? ` (${b.years})` : ""}${b.access.startsWith("online") ? "" : ` ${b.access}`}`).join(", ")}` : undefined,
     e.covered.length ? `  searched in vain: ${e.covered.map(y).join(", ")}` : undefined,
     e.noRecords.length ? `  no records known: ${e.noRecords.map(y).join(", ")}` : undefined,
-    `  next: ${NEXT_WORDS[e.next]}`,
+    `  next: ${e.next === "decide" && e.end === "named" ? "the hypothesis that names the parents waits for a decision — the user decides (or a task tests it)" : NEXT_WORDS[e.next]}`,
     ...e.tasks.map((t) => `    ${t.id} ${t.level} ${t.state}${t.position ? ` #${t.position}` : ""}${t.held ? ` (waits: ${t.held}${t.until ? ` until ${t.until}` : ""})` : ""}${t.on ? ` — ${truncate(t.on, 60)}` : ""}: ${truncate(t.what, 90)}`),
     e.tried.length ? `  tried: ${e.tried.join(" ")}` : undefined,
     ...e.hypotheses.map(
       (h) =>
-        `  ${h.id} ${truncate(h.question, 90)}${!h.joins.length ? "" : h.island ? ` — would join ${h.joins.map(who).join(", ")} of a family off the tree (${h.island.people} people, ${h.island.held} tasks wait for it)` : ` — would join them to the tree through ${h.joins.map(who).join(", ")}`}${h.tests.length ? `; tested by ${h.tests.join(" ")}` : "; no task tests it"}`,
+        `  ${h.id} ${truncate(h.question, 90)}${h.variants?.length ? ` (variant ${h.variants.join(", ")})` : ""}${!h.joins.length ? "" : h.island ? ` — would join ${h.joins.map(who).join(", ")} of a family off the tree (${h.island.people} people, ${h.island.held} tasks wait for it)` : ` — would join them to the tree through ${h.joins.map(who).join(", ")}`}${h.tests.length ? `; tested by ${h.tests.join(" ")}` : "; no task tests it"}`,
     ),
     e.conflicts.length ? `  open conflicts: ${e.conflicts.join(" ")}` : undefined,
     e.searches || e.sessions ? `  work so far: ${e.searches} search${e.searches === 1 ? "" : "es"}, ${e.sessions} session${e.sessions === 1 ? "" : "s"}${e.cost !== undefined ? `, $${e.cost.toFixed(2)}${e.costPartial ? "+" : ""}` : ""}${e.last ? `; last ${e.last}` : ""}` : undefined,

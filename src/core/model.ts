@@ -425,16 +425,54 @@ export interface Conflict extends BaseRecord {
   state: "open" | "resolved";
   resolution?: string;
   reasoning?: string;
+  /**
+   * Who decided it: the user (in the Strom app, or at a terminal — a link, the menu) or an agent (a session, or one
+   * outside a session). A user's decision stands: an agent decides it again only on a source it did not weigh, with a
+   * reason. None: decided by an older strom.
+   */
+  decidedBy?: "user" | "agent";
+  /** The user decided it in the Strom app (through the bridge). */
+  decidedIn?: "app";
+  decidedAt?: string;
+  /** A conflict of the user's edit decided for a side: whose value the fact keeps. */
+  taken?: "user" | "research";
   notes: Note[];
+}
+
+/**
+ * What a variant of a hypothesis would connect, were it true (strom hypothesis link): whose child a person is — a
+ * family of the tree, or one or two parents who have no family together —, two records of one person, a couple, or
+ * siblings whose parents are unknown. Nothing of it is a link of the tree: the variant's claim, said so a program can
+ * show it (the Strom app: _VAR / _LINK under _STROM_HYPO).
+ */
+export const VARIANT_LINK_KINDS = ["child", "same", "partners", "siblings"] as const;
+export type VariantLink =
+  | { kind: "child"; person: string; family?: string; parents?: string[] }
+  | { kind: "same" | "partners" | "siblings"; persons: string[] };
+
+export interface HypothesisVariant {
+  label: string;
+  claim: string;
+  support: string[];
+  against: string[];
+  /** What it would connect (optional: an older strom keeps the field as it is). */
+  links?: VariantLink[];
+  /**
+   * Every person and family its links have named, kept when they are taken off: the label stays that claim's (the
+   * Strom app remembers "H0022, variant B"), so links naming other people are a new variant, never this one again.
+   */
+  linked?: string[];
 }
 
 export interface Hypothesis extends BaseRecord {
   type: "hypothesis";
   question: string;
   subject: string[];
-  variants: { label: string; claim: string; support: string[]; against: string[] }[];
+  variants: HypothesisVariant[];
   state: "open" | "decided" | "abandoned";
   decision?: string;
+  /** Decided for this variant (its label; strom hypothesis decide --variant). */
+  chosen?: string;
   notes: Note[];
 }
 

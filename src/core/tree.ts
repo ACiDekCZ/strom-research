@@ -31,7 +31,7 @@ import { lastBackup } from "./backup.ts";
 export const TREE_FILE = "strom.json";
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
-export const VERSION = "1.13.0";
+export const VERSION = "1.13.1";
 
 export interface Op {
   at: string;

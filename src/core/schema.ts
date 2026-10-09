@@ -13,6 +13,7 @@ import {
   SOURCE_KINDS,
   TASK_LEVELS,
   TASK_STATES,
+  VARIANT_LINK_KINDS,
   type RecordType,
 } from "./model.ts";
 import { normalizeDate } from "./gdate.ts";
@@ -128,10 +129,15 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     title: S({ req: true, max: 200 }),
     fact: S({ max: 8 }),
     subject: RS(ANY_SUBJECT, 1),
-    claims: { t: "array", req: true, min: 2, of: { source: R("source"), value: S({ req: true, max: 500 }), note: S({ max: 500 }), text: S({ max: 500 }) } },
+    // a value may be empty: the user's edit took a title off (decided by side, the title goes)
+    claims: { t: "array", req: true, min: 2, of: { source: R("source"), value: S({ max: 500 }), note: S({ max: 500 }), text: S({ max: 500 }) } },
     state: S({ req: true, enum: ["open", "resolved"] }),
     resolution: S({ max: 500 }),
     reasoning: S({ max: 2000 }),
+    decidedBy: S({ enum: ["user", "agent"] }),
+    decidedIn: S({ enum: ["app"] }),
+    decidedAt: S(),
+    taken: S({ enum: ["user", "research"] }),
   },
   hypothesis: {
     question: S({ req: true, max: 300 }),
@@ -140,10 +146,28 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
       t: "array",
       req: true,
       min: 2,
-      of: { label: S({ req: true, max: 20 }), claim: S({ req: true, max: 500 }), support: { t: "strings", req: true }, against: { t: "strings", req: true } },
+      of: {
+        label: S({ req: true, max: 20 }),
+        claim: S({ req: true, max: 500 }),
+        support: { t: "strings", req: true },
+        against: { t: "strings", req: true },
+        // what the variant would connect (strom hypothesis link): the records it names are references `check` follows
+        links: {
+          t: "array",
+          of: {
+            kind: S({ req: true, enum: VARIANT_LINK_KINDS }),
+            person: R("person"),
+            family: R("family"),
+            parents: { t: "refs", to: "person" },
+            persons: { t: "refs", to: "person" },
+          },
+        },
+        linked: { t: "refs", to: ["person", "family"] },
+      },
     },
     state: S({ req: true, enum: ["open", "decided", "abandoned"] }),
     decision: S({ max: 1000 }),
+    chosen: S({ max: 20 }),
   },
   lesson: {
     scope: S({ req: true, enum: LESSON_SCOPES }),

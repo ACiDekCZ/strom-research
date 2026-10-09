@@ -26,6 +26,8 @@
 //                          X-Strom-Batch, -Path (and -Zip: 1, a ZIP unpacked here): one file of a batch
 //   POST <token>/batch/<id>/done   the batch is whole ({name, files, person, note}): its files become sorting tasks
 //                          (a batch nobody closes is closed a day after its last file)
+//   POST <token>/conflict/<X…>   the person decides a conflict of their edit in the app by side ({"do": "decide",
+//                          "take": "user" | "research", "note"?}): strom conflict resolve --take, written as the user's
 //   GET <token>/adopt      a new research waits for a tree of the app: its mark, name, until when; transfer: true when
 //                          the tree comes from a browser the app cannot reach strom from; existing: true when it goes
 //                          into a research made before, its tree never came (POST /adopt hands it over)
@@ -64,7 +66,7 @@ import crypto from "node:crypto";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import type { Env } from "./paths.ts";
 import { withoutAgentMarks } from "./which.ts";
-import { newerTree, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
+import { newerTree, Tree, TREE_FILE, typeOfId, VERSION, type Op } from "./tree.ts";
 import { readJsonIfExists } from "./json.ts";
 import { changeLines, type ChangeKind } from "./changelog.ts";
 import { directionOf, scopes, type Scope } from "./directions.ts";
@@ -91,12 +93,14 @@ import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion, updateChannel } from "./update.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
-import { appKnowsArchive, appKnowsNoCouple, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
 import { Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
 import { diskVersion, stromLauncher } from "./self.ts";
-import type { Family, Input, Person, Session, Source, Task, TreeConfig } from "./model.ts";
+import type { AnyRecord, Conflict, Family, Input, Person, Session, Source, Task, TreeConfig } from "./model.ts";
+import { sidesOf } from "./conflicts.ts";
+import { normId } from "./records.ts";
 import { foldText } from "./text.ts";
 import { storiesToApprove } from "./stories.ts";
 
@@ -165,6 +169,15 @@ function said(lang: string, key: keyof typeof CODES, params: Record<string, stri
  * - `batch.closed` 409 {batch} — the batch is closed already: send the rest as a new batch
  * - `batch.full-files` 413 {batch, files}; `batch.full-bytes` 413 {batch, gb} — the most a batch takes
  * - `batch.none` 404 {batch} — POST /batch/<id>/done: no such batch here; `batch.bad-body` 400 — its body no JSON
+ *
+ * A decision of the person (POST /conflict/<X…>): 200 {decided, take, head, written, person?, family?}, else
+ * - `app.only` 403; `decide.bad-body` 400 — no JSON {"do": "decide", …}; `conflict.bad-take` 400 — take not user|research
+ * - `conflict.none` 404 {id} — no such conflict; `conflict.no-edit` 422 {id} — not one the app decides by side
+ * - `conflict.decided` 409 {id} (and resolution, take, at, by, in) — decided already (a terminal, an agent, the app)
+ * - `research.busy` 503 (and Retry-After, `retry`) — a send or an adoption is being written, another decision, another
+ *   strom holding the research: ask again in a moment
+ * - `locked` 423 (and reasonCode, reasonParams) — a newer strom wrote the research: this one never writes it
+ * - `decide.failed` 500 — went wrong (the English sentence says why)
  */
 function refusal(error: string, code: string, params: Record<string, string> = {}): { error: string; code: string; text: string; params?: Record<string, string> } {
   return { error, code, text: error, ...(Object.keys(params).length ? { params } : {}) };
@@ -617,7 +630,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "conflict.decide"] as const;
 
 export function history(root: string, tree: Tree, range: string[] = [`-n${LOG_MAX}`]): { head: string; at: string; what: string[]; text: string[]; kinds: ChangeKind[]; task?: string; research?: string }[] {
   const r = runGit(root, ["log", ...range, "--format=%x1e%H%x1f%cI%x1f%s%x1f%b%x1f", "--name-only"]);
@@ -1086,7 +1099,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       } catch {
         // not JSON: the status alone
       }
-      const marks = ["code", "reasonCode", "intake", "input", "changes", "applied", "pending", "keptAs", "known", "batch", "sha"]
+      const marks = ["code", "reasonCode", "decided", "take", "intake", "input", "changes", "applied", "pending", "keptAs", "known", "batch", "sha"]
         .filter((k) => said[k] !== undefined && said[k] !== null && typeof said[k] !== "object")
         .map((k) => `${k} ${String(said[k]).slice(0, 80)}`);
       if (Array.isArray(said.conflicts) && said.conflicts.length) marks.push(`conflicts ${said.conflicts.length}`);
@@ -1183,6 +1196,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
       batchDone(req, res, origin, decodeURIComponent(sub ?? ""));
       return;
     }
+    if (req.method === "POST" && t === token && what === "conflict" && sub && !act) {
+      decideFor(req, res, origin, "conflict", decodeURIComponent(sub), conflictDecision);
+      return;
+    }
     if (req.method !== "GET" || t !== token) {
       res.writeHead(404).end();
       return;
@@ -1268,12 +1285,14 @@ export function serveLive(root: string, env: Env): Promise<void> {
           const turnsExcerpts = appTurnsExcerpts(new Settings(env, {}), version);
           const noCouple = appKnowsNoCouple(new Settings(env, {}), version);
           const titles = appReadsTitles(new Settings(env, {}), version);
+          const hypothesisLinks = appShowsHypothesisLinks(new Settings(env, {}), version);
+          const conflictSides = appDecidesConflicts(new Settings(env, {}), version);
           const offered = opens ? links(env) : [];
           ged = {
             head: h,
             links: offered.join(" "),
             version: version ?? "",
-            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
+            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
           };
         }
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);
@@ -1891,6 +1910,140 @@ export function serveLive(root: string, env: Env): Promise<void> {
       ];
       closeBatchNow(id, extra, reply);
     }));
+  };
+
+  /**
+   * A decision of the person in the app (POST /conflict/<X…>; one route of each kind — a hypothesis's later shares
+   * this): checked here, then written by a strom of its own as the user's (forApp: the command the terminal runs, its
+   * lock, its log and commit), one at a time and never while a send or an adoption is written — then busy (503 +
+   * Retry-After, research.busy: what the bridge says of an original or a batch the research cannot take now). Every
+   * kind answers alike: 200 {decided, head, written, …}; its refusals by their codes (`<kind>.none` 404, `<kind>.decided`
+   * 409, …), the research a newer strom wrote 423 `locked`, not from the app's pages 403 `app.only`.
+   */
+  let deciding: string | undefined;
+  const DECIDE_RETRY_S = 5;
+  interface Decision {
+    /** What the body asks, checked against the record as it is now: the command to run, else the refusal. */
+    ask(tree: Tree, rec: AnyRecord, body: Record<string, unknown>): { args: string[] } | { code: number; body: Record<string, unknown> };
+    /** The answer once written (the command's --json data, the research's head after it). */
+    done(tree: Tree, id: string, data: Record<string, unknown>, head: string): Record<string, unknown>;
+    /** The command's refusal (its --json code) as the app is told it; none: 500 decide.failed. */
+    refused(tree: Tree, id: string, code: string, why: string): { code: number; body: Record<string, unknown> } | undefined;
+  }
+  const decideFor = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, kind: "conflict", raw: string, how: Decision) => {
+    const reply = (code: number, body: Record<string, unknown>) => {
+      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": String(body.retry ?? DECIDE_RETRY_S) } : {}) }).end(JSON.stringify(body));
+    };
+    if (!origin) {
+      req.resume();
+      return reply(403, refusal("only the Strom app may decide here", "app.only"));
+    }
+    let text = "";
+    let over = false;
+    req.on("data", (c: Buffer) => {
+      if (text.length + c.length > 8192) over = true;
+      else text += c.toString("utf8");
+    });
+    req.on("end", () => safely(req, res, () => {
+      // a research a newer strom wrote: never opened, never written (as /status says it: locked)
+      const newer = newerTree(root, env);
+      if (newer) return reply(423, { ...refusal(newer.message, "locked"), reasonCode: newer.code, ...(newer.params ? { reasonParams: newer.params } : {}) });
+      let body: Record<string, unknown> = {};
+      try {
+        const parsed: unknown = text.trim() ? JSON.parse(text) : {};
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+        body = parsed as Record<string, unknown>;
+      } catch {
+        over = true;
+      }
+      if (over || body.do !== "decide") return reply(400, refusal(`the body: JSON {"do": "decide", …}`, "decide.bad-body"));
+      const id = /^[A-Za-z]\d{1,9}$/.test(raw) ? normId(raw) : "";
+      const tree = Tree.open(root, env);
+      const rec = id && typeOfId(id) === kind ? tree.get<AnyRecord>(id) : undefined;
+      if (!rec || rec.type !== kind) return reply(404, refusal(`no ${kind} ${raw.slice(0, 32)} in this research`, `${kind}.none`, { id: raw.slice(0, 32) }));
+      const asked = how.ask(tree, rec, body);
+      if ("code" in asked) return reply(asked.code, asked.body);
+      // a send or an adoption being written, another decision: asked again in a moment
+      if (writing || adopting || deciding) return reply(503, { ...refusal("the research is busy — ask again in a moment", "research.busy"), retry: DECIDE_RETRY_S });
+      deciding = id;
+      const { command, args } = stromLauncher();
+      const child = spawn(command, [...args, ...asked.args, "--json"], { cwd: root, env: forApp(env, root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+      track(child);
+      let out = "";
+      let err = "";
+      child.stdout.on("data", (d: Buffer) => (out += d.toString("utf8")));
+      child.stderr.on("data", (d: Buffer) => (err += d.toString("utf8")));
+      child.on("error", (e) => {
+        deciding = undefined;
+        reply(500, refusal(errorText(e), "decide.failed"));
+      });
+      child.on("close", (code) => {
+        deciding = undefined;
+        if (code === null) return;
+        let data: Record<string, unknown> = {};
+        try {
+          data = JSON.parse(out) as Record<string, unknown>;
+        } catch {
+          // said by the exit code
+        }
+        const now = Tree.open(root, env);
+        if (code === 0) return reply(200, how.done(now, id, data, head(root)));
+        const why = String(data.message ?? err.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? `exit ${code}`);
+        noteLive(root, `${id} was not decided (exit ${code}): ${why}`);
+        // the research busy (another strom holding it longer than a writer waits)
+        if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: DECIDE_RETRY_S });
+        const known = typeof data.code === "string" ? how.refused(now, id, data.code, why) : undefined;
+        reply(known?.code ?? 500, known?.body ?? { ...refusal(why, "decide.failed"), ...(typeof data.code === "string" ? { reasonCode: data.code } : {}) });
+      });
+    }));
+  };
+
+  /** Whose a conflict is, as the app finds it: its person (a couple's: its first partner) and its family. */
+  const conflictOwners = (tree: Tree, c: Conflict): { person?: string; family?: string } => {
+    const person = c.subject.find((s) => s.startsWith("P"));
+    const family = c.subject.find((s) => s.startsWith("F"));
+    const partner = person ?? (family ? tree.get<Family>(family)?.partners[0] : undefined);
+    return { ...(partner ? { person: partner } : {}), ...(family ? { family } : {}) };
+  };
+  /** A conflict decided already: what was decided, which side, when and by whom. */
+  const decidedAnswer = (c: Conflict) => ({
+    ...refusal(`${c.id} is decided already: ${c.resolution ?? ""}`, "conflict.decided", { id: c.id }),
+    resolution: c.resolution ?? "",
+    ...(c.taken ? { take: c.taken } : {}),
+    ...(c.decidedAt ? { at: c.decidedAt } : {}),
+    ...(c.decidedBy ? { by: c.decidedBy } : {}),
+    ...(c.decidedIn ? { in: c.decidedIn } : {}),
+  });
+  /** POST /conflict/<X…> {"do": "decide", "take": "user" | "research", "note"?}: strom conflict resolve --take, the user's. */
+  const conflictDecision: Decision = {
+    ask(tree, rec, body) {
+      const c = rec as Conflict;
+      if (c.state !== "open") return { code: 409, body: decidedAnswer(c) };
+      if (!sidesOf(c)) return { code: 422, body: refusal(`${c.id} is no conflict of an edit in the Strom app the app decides by side`, "conflict.no-edit", { id: c.id }) };
+      if (body.take !== "user" && body.take !== "research") return { code: 400, body: refusal(`"take" is "user" or "research"`, "conflict.bad-take") };
+      if (body.note !== undefined && typeof body.note !== "string") return { code: 400, body: refusal(`"note" is text`, "decide.bad-body") };
+      // the person's note: one line of text, 200 characters at most (the rest cut)
+      const note = [...String(body.note ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim()].slice(0, 200).join("").trim();
+      const decided = phrase(tree.lang, "conflict.app.decided");
+      const reasoning = note ? phrase(tree.lang, "conflict.app.noted", { decided, note }) : decided;
+      return { args: ["conflict", "resolve", c.id, `--take=${body.take}`, `--reasoning=${reasoning}`] };
+    },
+    done(tree, id, data) {
+      const c = tree.get<Conflict>(id)!;
+      return {
+        decided: id,
+        take: c.taken ?? data.taken,
+        head: head(root),
+        written: typeof data.written === "string" ? data.written : `${id} decided: the research's value kept`,
+        ...conflictOwners(tree, c),
+      };
+    },
+    refused(tree, id, code, why) {
+      const c = tree.get<Conflict>(id);
+      if (c && ["conflict.decided", "conflict.taken", "conflict.user-decided"].includes(code)) return { code: 409, body: decidedAnswer(c) };
+      if (code === "conflict.no-edit") return { code: 422, body: refusal(why, "conflict.no-edit", { id }) };
+      return undefined;
+    },
   };
 
   /** The app sends nothing (unchanged, the user said no, no tree of this research): strom sync --app stops waiting. */

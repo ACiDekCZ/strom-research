@@ -23,6 +23,9 @@ import {
   type Search,
   type Source,
   type Task,
+  type HypothesisVariant,
+  type VariantLink,
+  VARIANT_LINK_KINDS,
 } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
 import { ancestorGenerations, birthEvent, claimText, conflictTitle, deathEvent, displayName, familiesAsPartner, lifespan, parentsOf, primaryName, resolvePerson } from "../core/people.ts";
@@ -31,6 +34,7 @@ import { isAgent } from "../core/which.ts";
 import { foldText } from "../core/text.ts";
 import { makeNote } from "../core/actions.ts";
 import { takeSide } from "../core/sync.ts";
+import { againAllowed, claimOf, isEditConflict, weighedSources } from "../core/conflicts.ts";
 import { currentSession } from "../core/session.ts";
 import { typeOfId, type Tree } from "../core/tree.ts";
 import { resolveResearch } from "./research.ts";
@@ -99,6 +103,119 @@ function sourcesNotOnPeople(tree: Tree, h: Hypothesis): { person: string; source
 function stillOpen(tree: Tree, id: string): string | undefined {
   const open = tasksAbout(tree, id).filter((t) => !["done", "dropped"].includes(t.state));
   return open.length ? ui(tree.lang, "ui.conflict.tasks-open", { id, tasks: open.map((t) => t.id).join(", "), first: open[0]!.id }) : undefined;
+}
+
+// ── what a variant would connect (strom hypothesis link) ───────────────────
+
+/** The next letter of a hypothesis's variants: after the last one used (A, B → C), never one before it. */
+function nextLabel(labels: string[]): string {
+  const letters = labels.filter((l) => /^[A-Z]$/.test(l)).map((l) => l.charCodeAt(0));
+  const next = letters.length ? Math.max(...letters) + 1 : 65;
+  if (next <= 90) return String.fromCharCode(next);
+  for (let n = labels.length + 1; ; n++) if (!labels.includes(String(n))) return String(n);
+}
+
+/** IDs given to a link: repeated, or several in one value (commas or spaces). */
+function idsOpt(v: unknown): string[] {
+  return listOpt(v).flatMap((x) => x.split(/[\s,]+/)).filter(Boolean);
+}
+
+/** A person a link may name: there, not retracted, not merged. */
+function linkPerson(tree: Tree, ref: string): string {
+  const id = normId(ref, "person");
+  if (typeOfId(id) !== "person") throw new UsageError(`"${ref}" is not a person ID: a link names people by ID (P0001)`, { hint: "strom person list" });
+  const p = tree.get<Person>(id);
+  if (!p) throw new UsageError(`no person ${id}`, { hint: "strom person list", code: "record.none", params: { kind: "person", id } });
+  if (p.mergedInto) throw new UsageError(`${id} was merged into ${p.mergedInto}`, { hint: `use ${p.mergedInto}`, code: "record.merged", params: { id, into: p.mergedInto } });
+  if (p.retracted) throw new UsageError(`${id} is retracted`, { hint: `strom person show ${id}` });
+  return id;
+}
+
+function distinct(ids: string[], what: string): string[] {
+  const set = [...new Set(ids)];
+  if (set.length !== ids.length) throw new UsageError(`${what}: the same person twice (${ids.join(" ")})`);
+  return set;
+}
+
+/** The family whose partners are exactly these people. */
+function familyOf(tree: Tree, partners: string[]): Family | undefined {
+  return tree.list<Family>("family").find((f) => !f.retracted && f.partners.length === partners.length && partners.every((p) => f.partners.includes(p)));
+}
+
+/** The link the options name (undefined: none — --remove alone), checked against the tree. */
+function variantLink(tree: Tree, opts: Record<string, unknown>, extra: string[]): VariantLink | undefined {
+  const more = extra.flatMap((x) => x.split(/[\s,]+/)).filter(Boolean);
+  const kinds = VARIANT_LINK_KINDS.filter((k) => opts[k] !== undefined);
+  const how = "--child P… --of F… | --child P… --parents P… [P…] | --same P… P… | --partners P… P… | --siblings P… P… [P…]";
+  if (kinds.length > 1) throw new UsageError(`one link at a time: ${kinds.map((k) => `--${k}`).join(", ")} given`, { hint: how });
+  const kind = kinds[0];
+  if (!kind) {
+    if (!opts.remove) throw new UsageError("say what the variant would connect", { hint: how });
+    if (more.length || opts.of !== undefined || opts.parents !== undefined) throw new UsageError("--of and --parents go with --child", { hint: how });
+    return undefined;
+  }
+  if (kind === "child") {
+    const children = idsOpt(opts.child);
+    if (children.length !== 1) throw new UsageError("--child takes one person: the child", { hint: how });
+    const child = linkPerson(tree, children[0]!);
+    const parents = [...idsOpt(opts.parents), ...more];
+    if (opts.of !== undefined && parents.length) throw new UsageError("a family (--of) or parents (--parents), not both", { hint: how });
+    if (opts.of !== undefined) {
+      const famId = normId(String(opts.of), "family");
+      if (typeOfId(famId) !== "family") throw new UsageError(`"${String(opts.of)}" is not a family ID (F0001)`, { hint: "strom family list" });
+      const f = tree.get<Family>(famId);
+      if (!f) throw new UsageError(`no family ${famId}`, { hint: "strom family list", code: "record.none", params: { kind: "family", id: famId } });
+      if (f.mergedInto) throw new UsageError(`${famId} was merged into ${f.mergedInto}`, { hint: `use ${f.mergedInto}`, code: "record.merged", params: { id: famId, into: f.mergedInto } });
+      if (f.retracted) throw new UsageError(`${famId} is retracted`);
+      if (f.children.some((c) => c.person === child)) throw new UsageError(`${child} is a child of ${famId} already: nothing uncertain to show`, { hint: "decide the hypothesis: strom hypothesis decide H… --decision \"…\"" });
+      if (f.partners.includes(child)) throw new UsageError(`${child} is a partner of ${famId}`);
+      return { kind, person: child, family: famId };
+    }
+    if (!parents.length) throw new UsageError("whose child: --of F… (a family of the tree) or --parents P… [P…]", { hint: how });
+    if (parents.length > 2) throw new UsageError("one or two parents", { hint: how });
+    const ps = distinct(parents.map((p) => linkPerson(tree, p)), "--parents");
+    if (ps.includes(child)) throw new UsageError(`${child} cannot be their own parent`);
+    const fam = familyOf(tree, ps);
+    if (fam?.children.some((c) => c.person === child)) throw new UsageError(`${child} is a child of ${fam.id} already: nothing uncertain to show`);
+    if (fam) throw new UsageError(`${ps.join(" and ")} are a family of the tree: ${fam.id}`, { hint: `strom hypothesis link H… <variant> --child ${child} --of ${fam.id}` });
+    return { kind, person: child, parents: ps };
+  }
+  if (opts.of !== undefined || opts.parents !== undefined) throw new UsageError("--of and --parents go with --child", { hint: how });
+  const persons = distinct([...idsOpt(opts[kind]), ...more].map((p) => linkPerson(tree, p)), `--${kind}`);
+  if (kind === "siblings" ? persons.length < 2 : persons.length !== 2)
+    throw new UsageError(kind === "siblings" ? "--siblings takes two or more people" : `--${kind} takes two people`, { hint: `--${kind} P… P…${kind === "siblings" ? " [P…]" : ""}` });
+  const together = kind === "partners" ? familyOf(tree, persons) : undefined;
+  if (together) throw new UsageError(`${persons.join(" and ")} are partners of ${together.id} already: nothing uncertain to show`);
+  return { kind, persons };
+}
+
+/** One link as a key: the same link given again is the same, whatever the order of its people. */
+function linkKey(l: VariantLink): string {
+  return l.kind === "child" ? `child ${l.person} ${l.family ?? [...(l.parents ?? [])].sort().join("+")}` : `${l.kind} ${[...l.persons].sort().join("+")}`;
+}
+
+/** One link in a few words: "child P0006 of F0001", "same P0005 = P0003". */
+export function linkText(l: VariantLink): string {
+  if (l.kind === "child") return `child ${l.person} of ${l.family ?? (l.parents ?? []).join(" + ")}`;
+  return `${l.kind} ${l.persons.join(l.kind === "same" ? " = " : l.kind === "partners" ? " + " : ", ")}`;
+}
+
+/**
+ * What a new link would say that the variant did not (its letter is one claim's: the Strom app remembers "H0022,
+ * variant B"): links again after all were taken off, naming anyone they did not; a child it named, given other
+ * parents. Adding to what it says is fine.
+ */
+function otherPeople(v: HypothesisVariant, l: VariantLink): string[] {
+  const before = new Set(v.linked ?? []);
+  if (!before.size) return [];
+  const ids = linkIds(l);
+  if (!v.links?.length) return ids.filter((x) => !before.has(x));
+  if (l.kind === "child" && before.has(l.person)) return ids.filter((x) => x !== l.person && !before.has(x));
+  return [];
+}
+
+function linkIds(l: VariantLink): string[] {
+  return l.kind === "child" ? [l.person, ...(l.family ? [l.family] : []), ...(l.parents ?? [])] : l.persons;
 }
 
 // ── searches ───────────────────────────────────────────────────────────────
@@ -362,6 +479,21 @@ register(
       if (!subject.length) throw new UsageError("--about is required");
       const fact = typeof opts.fact === "string" ? opts.fact.trim().toUpperCase() : undefined;
       if (fact !== undefined && !/^(?:[A-Z]{3,4}|_[A-Z]{2,6})$/.test(fact)) throw new UsageError(`--fact is a GEDCOM tag (BIRT, DEAT, NAME, SEX…), not "${opts.fact}"`);
+      // the user decided this fact (in the Strom app, at a terminal): an agent opens it again only on a source that
+      // decision did not weigh, with a reason — never because it reads the same record again
+      if (fact && tree.actor !== "user") {
+        const reason = typeof opts.reason === "string" && opts.reason.trim() ? opts.reason.trim() : undefined;
+        for (const d of tree.list<Conflict>("conflict").filter((c) => c.state === "resolved" && c.decidedBy === "user" && c.fact === fact && c.subject.some((s) => subject.includes(s)))) {
+          const weighed = weighedSources(tree, d);
+          const fresh = claims.map((c) => c.source).filter((s): s is string => !!s && !weighed.has(s));
+          if (!fresh.length || !reason)
+            throw new UsageError(`the user decided ${fact} of ${d.subject.join(", ")} in ${d.id}: "${truncate(d.resolution ?? "", 80)}" — an agent opens it again only on a source that decision did not weigh, with --reason`, {
+              hint: `strom conflict show ${d.id}; a new record: strom conflict add … --claim "S…: …" --reason "<what it shows>" — or ask the user`,
+              code: "conflict.user-decided",
+              params: { id: d.id, resolution: d.resolution ?? "" },
+            });
+        }
+      }
       const x = create<Conflict>(tree, "conflict", { title: args[0]!.trim(), ...(fact ? { fact } : {}), subject, claims, state: "open", note: opts.note as string | undefined }, (id) => `+${id} conflict "${truncate(args[0]!, 60)}"`, subject);
       return { text: written(tree), data: { conflict: x } };
     },
@@ -372,11 +504,16 @@ register(
     group: "analysis",
     tree: true,
     writes: true,
+    description:
+      "A decided conflict is decided again only with --reason (the earlier decision is kept in a note). One the user decided " +
+      "(in the Strom app, or at a terminal) stands: an agent decides it again only on a source the decision did not weigh " +
+      "(--source S…) and with --reason; a side once taken is not taken again — change the facts with the fact commands.",
     args: [{ name: "conflict", description: "conflict ID (X0001)", required: true }],
     options: [
       { name: "resolution", type: "string", value: "<text>", description: "the conclusion (with --take: the value taken, by default)" },
       { name: "reasoning", type: "string", value: "<text>", description: "why — which evidence outweighs which" },
       { name: "take", type: "string", value: "<user|research>", description: "a conflict of the user's edit in the Strom app: whose value the fact keeps — the user's is written into it" },
+      { name: "source", type: "string", multiple: true, value: "<S…>", description: "deciding again what the user decided: the new source it rests on (one none of its claims names)" },
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
@@ -385,13 +522,15 @@ register(
       const take = opts.take === undefined ? undefined : String(opts.take).toLowerCase();
       if (take !== undefined && take !== "user" && take !== "research") throw new UsageError(`--take is user or research, not "${opts.take}"`, { code: "conflict.take", params: { take: String(opts.take) } });
       // a conflict of the user's edit in the Strom app: a fact's, a child's parents, a name's or a sex's
-      const ofEdit = Boolean(c0.edit || c0.parents || (["NAME", "SEX", "NPFX", "NSFX"].includes(c0.fact ?? "") && c0.claims.some((c) => c.note === "the user's edit")));
+      const ofEdit = isEditConflict(c0);
       if (take && !ofEdit) throw new UsageError(`${id} is no conflict of an edit in the Strom app: write what you conclude with the commands that change facts, then resolve it with --resolution`, { hint: `strom conflict show ${id}`, code: "conflict.no-edit", params: { id } });
       // the conclusion naming one side's value exactly: that side taken (found on Mac: "tesař" resolved, the fact left
       // "kovář", the app then showing kovář in silence)
-      const user = c0.claims.find((c) => c.note === "the user's edit");
-      const research = c0.claims.find((c) => c.note?.startsWith("the research"));
-      const said = opts.resolution ? foldText(String(opts.resolution)).trim() : undefined;
+      const user = claimOf(c0, "user");
+      const research = claimOf(c0, "research");
+      // …with the source it rests on after it, as the decide link of the Strom app writes it: "4 MAR 1885 (S0004)"
+      // (found: the user's value picked there closed the conflict and wrote nothing)
+      const said = opts.resolution ? foldText(String(opts.resolution).replace(/\s*\((?:[Ss]\d+(?:\s*,\s*[Ss]\d+)*)\)\s*$/u, "")).trim() : undefined;
       // (as strom compares it, or in words as the person reads it)
       const names = (c: typeof user) => (c ? [c.value, claimText(tree, c0, c)].map((v) => foldText(v).trim()) : []);
       const side = (take as "user" | "research" | undefined) ?? (ofEdit && said ? (names(user).includes(said) ? "user" : names(research).includes(said) ? "research" : undefined) : undefined);
@@ -402,13 +541,37 @@ register(
         throw new UsageError("--resolution and --reasoning are required", ofEdit ? { hint: `or take a side: strom conflict resolve ${id} --take user|research --reasoning "<why>"`, code: "conflict.needs-side", params: { id } } : { code: "conflict.needs" });
       if (!opts.reasoning) throw new UsageError("--reasoning is required", { hint: `strom conflict resolve ${id} … --reasoning "<why>"`, code: "conflict.needs-reasoning", params: { id } });
       if (!resolution) throw new UsageError("--resolution is required", { ...(ofEdit ? { hint: `or take a side: strom conflict resolve ${id} --take user|research` } : {}), code: "conflict.needs-resolution", params: { id } });
+      const reason = typeof opts.reason === "string" && opts.reason.trim() ? opts.reason.trim() : undefined;
+      const sources = listOpt(opts.source).map((s) => requireRecord(tree, s, "source").id);
+      // who decides: the user (in the Strom app through the bridge, or at a terminal), else an agent
+      const by: "user" | "agent" = tree.actor === "user" ? "user" : "agent";
+      const inApp = ctx.env.STROM_FOR_APP === "1";
       let did: string | undefined;
+      let again: Conflict | undefined;
       const x = tree.withTreeLock(() => {
-        if (side) did = takeSide(tree, tree.get<Conflict>(id)!, side, String(opts.reasoning));
-        return update<Conflict>(tree, id, "conflict", (c) => ({ ...c, state: "resolved", resolution, reasoning: String(opts.reasoning) }), {
-          op: "conflict.resolve",
-          summary: `${id} resolved${side ? ` — the ${side === "user" ? "user's edit" : "research's"} taken` : ""}`,
-        });
+        // read afresh under the lock: decided meanwhile (another strom, the app) — never decided over in silence
+        const now = tree.get<Conflict>(id)!;
+        if (now.state === "resolved") {
+          againAllowed(tree, now, { reason, sources, by, side });
+          again = now;
+        }
+        if (side) did = takeSide(tree, now, side, String(opts.reasoning));
+        const earlier = again ? [makeNote(tree, truncate(`earlier decided${again.decidedBy ? ` by the ${again.decidedBy}` : ""}${again.taken ? ` (the ${again.taken === "user" ? "user's" : "research's"} value)` : ""}: ${again.resolution ?? ""} — ${again.reasoning ?? ""}`, 480))] : [];
+        const newer = again && sources.length ? [makeNote(tree, truncate(`decided again on ${sources.join(", ")}: ${reason}`, 480))] : [];
+        return update<Conflict>(
+          tree,
+          id,
+          "conflict",
+          (c) => {
+            const { taken: _t, decidedIn: _i, ...rest } = c;
+            return { ...rest, state: "resolved", resolution, reasoning: String(opts.reasoning), decidedBy: by, ...(inApp ? { decidedIn: "app" as const } : {}), decidedAt: new Date().toISOString(), ...(side ? { taken: side } : {}), notes: [...c.notes, ...earlier, ...newer] };
+          },
+          {
+            op: "conflict.resolve",
+            summary: `${id} ${again ? "decided again" : "resolved"}${side ? ` — the ${side === "user" ? "user's edit" : "research's"} taken` : ""}${inApp ? " in the Strom app" : ""}`,
+            ...(reason ? { reason } : {}),
+          },
+        );
       });
       // what was saved, in the research's language — the user's decision, whoever typed it (found on Mac: "X0001
       // resolved — the user's edit taken" in a Czech research, through an agent); a conclusion of neither side leaves
@@ -510,6 +673,122 @@ register(
     },
   },
   {
+    path: ["hypothesis", "variant"],
+    summary: "Add a variant to an open hypothesis — a new letter, never one used before",
+    group: "analysis",
+    tree: true,
+    writes: true,
+    description: "A variant's letter stays one claim's (the Strom app remembers it): a claim that changes whom it would connect is a new variant.",
+    args: [
+      { name: "hypothesis", description: "hypothesis ID (H0001)", required: true },
+      { name: "claim", description: 'the claim, e.g. "the son of Josef from No. 12" (or "C: …" with its letter)', required: true },
+    ],
+    examples: ['strom hypothesis variant H0001 "syn Josefa z čp. 12"'],
+    run(ctx, { args }) {
+      const tree = ctx.tree();
+      const id = normId(args[0]!, "hypothesis");
+      const m = /^([\p{L}\p{N}]{1,3})\s*:\s*(.+)$/u.exec(args[1]!.trim());
+      const claim = (m ? m[2]! : args[1]!).trim();
+      if (!claim) throw new UsageError("the claim is empty");
+      // (a writing command holds the tree's lock from its first read: the letter picked here is the one written)
+      const now = requireRecord<Hypothesis>(tree, id, "hypothesis");
+      if (now.state !== "open") throw new UsageError(`${id} is ${now.state}: a variant is added to an open hypothesis`, { hint: `strom hypothesis show ${id}` });
+      if (m && now.variants.some((v) => foldText(v.label) === foldText(m[1]!)))
+        throw new UsageError(`${id} has a variant ${m[1]} already: a letter is never used twice`, { hint: "leave the letter out: strom picks the next one" });
+      const label = m ? m[1]! : nextLabel(now.variants.map((v) => v.label));
+      const h = update<Hypothesis>(tree, id, "hypothesis", (h) => ({ ...h, variants: [...h.variants, { label, claim, support: [], against: [] }] }), {
+        op: "hypothesis.variant",
+        summary: `${id} +${label}: ${truncate(claim, 60)}`,
+      });
+      return { text: written(tree), data: { hypothesis: h, variant: label } };
+    },
+  },
+  {
+    path: ["hypothesis", "link"],
+    summary: "Say what a variant would connect — whose child, the same person, a couple, siblings — never a link of the tree",
+    group: "analysis",
+    tree: true,
+    writes: true,
+    description: [
+      "A variant about a connection names its people by ID: the Strom app shows what it would connect (drawn apart, only",
+      "for a look) and where the tree ends, the parents named but not linked. Nothing is linked in the tree until the",
+      "hypothesis is decided and the link recorded (family add / family child). One link per call; a variant may have several.",
+      "  --child P… --of F…           the child of a family of the tree",
+      "  --child P… --parents P… [P…]  the child of one or two parents who have no family together",
+      "  --same P… P…                 two records of one person",
+      "  --partners P… P…             a couple",
+      "  --siblings P… P… [P…]        siblings, their parents unknown",
+      "--remove takes that link off again; --remove alone, every link of the variant.",
+      "A variant's letter stays its claim's (the Strom app remembers it): links may be added to it, never links naming",
+      "other people once it had some — that is a new variant (strom hypothesis variant). Deciding: decide --variant <label>.",
+    ].join("\n"),
+    args: [
+      { name: "hypothesis", description: "hypothesis ID (H0001)", required: true },
+      { name: "variant", description: "variant label, e.g. B", required: true },
+      { name: "people", description: "the second (and further) person of --same, --partners, --siblings or --parents", variadic: true },
+    ],
+    options: [
+      { name: "child", type: "string", value: "<P…>", description: "the child whose parents the variant names" },
+      { name: "of", type: "string", value: "<F…>", description: "…the family of the tree it would be a child of" },
+      { name: "parents", type: "string", multiple: true, value: "<P…>", description: "…or its one or two parents (no family of theirs)" },
+      { name: "same", type: "string", multiple: true, value: "<P…>", description: "two records of one person" },
+      { name: "partners", type: "string", multiple: true, value: "<P…>", description: "a couple" },
+      { name: "siblings", type: "string", multiple: true, value: "<P…>", description: "two or more siblings" },
+      { name: "remove", type: "boolean", description: "take the link off (alone: every link of the variant)" },
+    ],
+    examples: [
+      "strom hypothesis link H0001 B --child P0006 --of F0001",
+      "strom hypothesis link H0001 B --child P0006 --parents P0002 P0003",
+      "strom hypothesis link H0001 B --same P0005 P0003",
+      "strom hypothesis link H0001 A --remove",
+    ],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const id = normId(args[0]!, "hypothesis");
+      const link = variantLink(tree, opts, args.slice(2));
+      const said = link ? linkText(link) : "every link";
+      const h = update<Hypothesis>(
+        tree,
+        id,
+        "hypothesis",
+        (h) => {
+          if (h.state !== "open") throw new UsageError(`${id} is ${h.state}: what a variant would connect is for an open hypothesis`, { hint: `strom hypothesis show ${id}` });
+          const v = h.variants.find((x) => foldText(x.label) === foldText(args[1]!));
+          if (!v) throw new UsageError(`no variant ${args[1]} in ${id}`, { hint: h.variants.map((x) => x.label).join(", ") });
+          const had = v.links ?? [];
+          const at = link ? had.findIndex((l) => linkKey(l) === linkKey(link)) : -1;
+          if (opts.remove) {
+            if (!had.length) throw new UsageError(`${id} ${v.label} has no links`, { hint: `strom hypothesis show ${id}` });
+            if (link && at < 0) throw new UsageError(`${id} ${v.label} has no link ${linkText(link)}`, { hint: had.map(linkText).join(" · ") });
+            const rest = link ? had.filter((_, i) => i !== at) : [];
+            if (rest.length) v.links = rest;
+            else delete v.links;
+          } else {
+            if (at >= 0) throw new UsageError(`${id} ${v.label} has that link already: ${linkText(link!)}`, { hint: `strom hypothesis show ${id}` });
+            const other = otherPeople(v, link!);
+            if (other.length)
+              throw new UsageError(`${id} ${v.label} said other people before (${(v.linked ?? []).join(" ")}): a variant's letter stays one claim's — ${other.join(" ")} is a new variant`, {
+                hint: `strom hypothesis variant ${id} "<the claim>", then strom hypothesis link ${id} <its letter> …`,
+              });
+            v.links = [...had, link!];
+            v.linked = [...new Set([...(v.linked ?? []), ...linkIds(link!)])];
+          }
+          return h;
+        },
+        {
+          op: "hypothesis.link",
+          summary: `${id} ${args[1]}: ${opts.remove ? `${said} taken off` : said}`,
+          targets: link ? linkIds(link) : [],
+        },
+      );
+      const v = h.variants.find((x) => foldText(x.label) === foldText(args[1]!))!;
+      return {
+        text: lines(written(tree), ...(v.links ?? []).map((l) => `  ${v.label} ⇢ ${linkText(l)}`)),
+        data: { hypothesis: h, variant: v.label, links: v.links ?? [] },
+      };
+    },
+  },
+  {
     path: ["hypothesis", "decide"],
     summary: "Decide a hypothesis (or abandon it) — again, with a reason, when a new record overturns the decision",
     group: "analysis",
@@ -519,6 +798,7 @@ register(
     args: [{ name: "hypothesis", description: "hypothesis ID", required: true }],
     options: [
       { name: "decision", type: "string", value: "<text>", description: "which variant and why" },
+      { name: "variant", type: "string", value: "<label>", description: "the variant it is decided for (always when its variants have links)" },
       { name: "abandon", type: "boolean", description: "none of the variants can be decided" },
     ],
     run(ctx, { args, opts }) {
@@ -526,6 +806,7 @@ register(
       if (!opts.decision) throw new UsageError("--decision is required");
       const id = normId(args[0]!, "hypothesis");
       const reason = typeof opts.reason === "string" && opts.reason.trim() ? opts.reason.trim() : undefined;
+      if (opts.variant !== undefined && opts.abandon) throw new UsageError("--variant names the variant it is decided for: not with --abandon");
       const h = update<Hypothesis>(
         tree,
         id,
@@ -535,9 +816,12 @@ register(
           const earlier = h.state !== "open" && h.decision ? h.decision : undefined;
           if (earlier && !reason) throw new UsageError(`${id} is already ${h.state}: "${truncate(earlier, 80)}"`, { hint: 'deciding again needs --reason (e.g. "the marriage entry of 1839 overturns it")' });
           const notes = earlier ? [...h.notes, makeNote(tree, truncate(`earlier ${h.state}: ${earlier}`, 480))] : h.notes;
-          return { ...h, state: opts.abandon ? "abandoned" : "decided", decision: String(opts.decision), notes };
+          const chosen = opts.variant === undefined ? undefined : h.variants.find((x) => foldText(x.label) === foldText(String(opts.variant)));
+          if (opts.variant !== undefined && !chosen) throw new UsageError(`no variant ${String(opts.variant)} in ${id}`, { hint: h.variants.map((x) => x.label).join(", ") });
+          const { chosen: _was, ...rest } = h;
+          return { ...rest, state: opts.abandon ? "abandoned" : "decided", decision: String(opts.decision), ...(chosen ? { chosen: chosen.label } : {}), notes };
         },
-        { op: "hypothesis.decide", summary: `${id} ${opts.abandon ? "abandoned" : "decided"}${reason ? " again" : ""}`, reason },
+        { op: "hypothesis.decide", summary: `${id} ${opts.abandon ? "abandoned" : "decided"}${opts.variant !== undefined ? ` for ${String(opts.variant)}` : ""}${reason ? " again" : ""}`, reason },
       );
       // decided: the sources it names that its people's facts do not cite yet — what they say goes on the people now
       const unrecorded = opts.abandon ? [] : sourcesNotOnPeople(tree, h);
@@ -550,11 +834,24 @@ register(
     summary: "Open hypotheses",
     group: "analysis",
     tree: true,
-    options: [{ name: "all", type: "boolean", description: "include decided and abandoned" }],
+    options: [
+      { name: "all", type: "boolean", description: "include decided and abandoned" },
+      { name: "unlinked", type: "boolean", description: "only those no variant of which says what it would connect (strom hypothesis link)" },
+    ],
+    examples: ["strom hypothesis list", "strom hypothesis list --unlinked"],
     run(ctx, { opts }) {
-      const all = ctx.tree().list<Hypothesis>("hypothesis").filter((h) => opts.all || h.state === "open");
+      const linked = (h: Hypothesis) => h.variants.some((v) => v.links?.length);
+      const all = ctx
+        .tree()
+        .list<Hypothesis>("hypothesis")
+        .filter((h) => (opts.all || h.state === "open") && !(opts.unlinked && linked(h)));
+      const links = (h: Hypothesis) => h.variants.reduce((n, v) => n + (v.links?.length ?? 0), 0);
       return {
-        text: all.length ? table(all.map((h) => [h.id, h.state, truncate(h.question, 60), h.variants.map((v) => v.label).join("/")])) : "no open hypotheses",
+        text: all.length
+          ? table(all.map((h) => [h.id, h.state, truncate(h.question, 60), h.variants.map((v) => v.label).join("/"), links(h) ? `${links(h)} link${links(h) === 1 ? "" : "s"}` : ""]))
+          : opts.unlinked
+            ? "no open hypothesis without links"
+            : "no open hypotheses",
         data: { hypotheses: all },
       };
     },
@@ -573,8 +870,8 @@ register(
           `${h.id} ${h.question}  [${h.state}]`,
           `about  ${h.subject.join(" ")}`,
           taskLines(tree, h.id),
-          ...h.variants.flatMap((v) => [`\n${v.label}: ${v.claim}`, ...v.support.map((s) => `  + ${s}`), ...v.against.map((s) => `  − ${s}`)]),
-          h.decision ? `\ndecision  ${h.decision}` : undefined,
+          ...h.variants.flatMap((v) => [`\n${v.label}: ${v.claim}`, ...v.support.map((s) => `  + ${s}`), ...v.against.map((s) => `  − ${s}`), ...(v.links ?? []).map((l) => `  ⇢ ${linkText(l)}`)]),
+          h.decision ? `\ndecision${h.chosen ? ` (for ${h.chosen})` : ""}  ${h.decision}` : undefined,
         ),
         data: { hypothesis: h },
       };

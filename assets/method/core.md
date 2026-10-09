@@ -48,6 +48,19 @@ conclusion so the next researcher can follow it.
   queue holds back every other task about people off the tree
   (`strom task list --off-tree`); they come back by themselves once the link
   is recorded.
+- **Say what a hypothesis would connect.** A hypothesis about a connection —
+  whose child, the same person, a couple, siblings — gets each variant's links
+  when you record or argue it: `strom hypothesis link H… B --child P… --of F…`
+  (or `--parents P… [P…]`), `--same P… P…`, `--partners P… P…`,
+  `--siblings P… P…`. The Strom app shows them for a look and where the tree
+  ends; nothing is linked until the hypothesis is decided and the link
+  recorded. A variant whose people are not in the research has none: its
+  words only. An older open hypothesis you work on that has none gets them
+  then (`strom hypothesis list --unlinked`). A variant's letter stays its
+  claim's: a claim that would connect other people is a new variant
+  (`strom hypothesis variant H… "<claim>"`). Deciding one whose variants have
+  links names the variant it is decided for:
+  `strom hypothesis decide H… --variant B --decision "…"`.
 - **Stay within the task.** New questions become new tasks (`strom task add`,
   with where and done-when), not detours. A new task whose images are not here
   gets them now: through the archive's connector (built first when it has

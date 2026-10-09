@@ -41,6 +41,7 @@ import { StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
 import { isArchive } from "./mode.ts";
+import { appSides } from "./conflicts.ts";
 import { APP_DATA_SEX_UNKNOWN, isAppVersion } from "./stromapp.ts";
 import { cleanTitle, familiesAsPartner, formatName, foundTitles, gedcomTitledName, primaryName, titledName } from "./people.ts";
 
@@ -1472,6 +1473,13 @@ export interface SyncConflict {
   person?: string;
   family?: string;
   fact?: string;
+  /**
+   * One the app decides by side (POST /conflict/<X…>, conflict.decide): both sides' values in the research's language
+   * (an empty one empty: a title taken off), a sex also as M, F or U.
+   */
+  take?: true;
+  sides?: { user: string; research: string };
+  raw?: { user: string; research: string };
 }
 
 /** The conflicts the sync of this input opened that still wait for the user's decision. */
@@ -1486,7 +1494,7 @@ export function syncConflicts(tree: Tree, input: string): SyncConflict[] {
     const person = x.subject.find((s) => s.startsWith("P"));
     const family = x.subject.find((s) => s.startsWith("F"));
     const partner = person ?? (family ? tree.list<Family>("family").find((f) => f.id === family)?.partners[0] : undefined);
-    out.push({ id: x.id, ...(partner ? { person: partner } : {}), ...(family ? { family } : {}), ...(x.fact ? { fact: x.fact } : {}) });
+    out.push({ id: x.id, ...(partner ? { person: partner } : {}), ...(family ? { family } : {}), ...(x.fact ? { fact: x.fact } : {}), ...appSides(tree, x) });
   }
   return out;
 }

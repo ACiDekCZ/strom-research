@@ -12,6 +12,7 @@ import {
   type AnyRecord,
   type Event,
   type Family,
+  type Hypothesis,
   type Note,
   type Person,
   type Story,
@@ -213,9 +214,38 @@ export function validateRecord(value: unknown): Problem[] {
   else {
     const spec = SCHEMAS[rec.type];
     if (spec) checkFields(value, spec, ALL_PREFIXES, "", out, []);
+    if (rec.type === "hypothesis") checkVariantLinks(rec, out);
     checkNotes((value as { notes?: unknown }).notes, "notes", out);
   }
   return out;
+}
+
+/**
+ * What a variant would connect, by its kind: a child with a family or one or two parents; two records of one person,
+ * a couple, siblings — the people of each. How many is the command's to check (strom hypothesis link): a merge
+ * repoints every reference, and the two records of one person become one.
+ */
+function checkVariantLinks(h: Partial<Hypothesis>, out: Problem[]): void {
+  if (!Array.isArray(h.variants)) return;
+  h.variants.forEach((v, i) => {
+    if (!isObj(v) || v.links === undefined || !Array.isArray(v.links)) return;
+    v.links.forEach((l, j) => {
+      const p = `variants[${i}].links[${j}]`;
+      if (!isObj(l)) return;
+      const link = l as Partial<{ kind: string; person: string; family: string; parents: string[]; persons: string[] }>;
+      if (link.kind === "child") {
+        if (!str(link.person)) out.push({ path: `${p}.person`, message: "is required (the child)" });
+        const parents = Array.isArray(link.parents) ? link.parents.length : 0;
+        if (link.family !== undefined && link.parents !== undefined) out.push({ path: p, message: "a family or parents, not both" });
+        else if (link.family === undefined && (parents < 1 || parents > 2)) out.push({ path: `${p}.parents`, message: "a family, or one or two parents" });
+        if (link.persons !== undefined) out.push({ path: `${p}.persons`, message: "is not for a child link" });
+      } else if (link.kind === "same" || link.kind === "partners" || link.kind === "siblings") {
+        const n = Array.isArray(link.persons) ? link.persons.length : 0;
+        if (n < 1 || (link.kind !== "siblings" && n > 2)) out.push({ path: `${p}.persons`, message: link.kind === "siblings" ? "needs the siblings" : "needs the two persons" });
+        if (link.person !== undefined || link.family !== undefined || link.parents !== undefined) out.push({ path: p, message: `a ${link.kind} link has persons only` });
+      }
+    });
+  });
 }
 
 /**

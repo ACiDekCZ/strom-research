@@ -14,6 +14,7 @@ import { birthEstimate, RECORD_KINDS, recordsetsCovering, researchPeople } from 
 import { birthEvent, displayName, familiesAsPartner, lifespan } from "./people.ts";
 import { phrase, type PhraseKey } from "./phrases.ts";
 import { foldText } from "./text.ts";
+import { weighedSources } from "./conflicts.ts";
 import type { Tree } from "./tree.ts";
 
 export type ReviewProposal = Omit<Task, "id" | "type" | "created" | "updated" | "notes" | "state">;
@@ -72,6 +73,11 @@ function citedFor(tree: Tree, p: Person): Set<string> {
     for (const e of other.events) if (e.participants?.some((x) => x.person === p.id)) for (const c of e.citations) out.add(c.source);
   for (const f of tree.list<Family>("family"))
     for (const e of f.events) if (e.participants?.some((x) => x.person === p.id)) for (const c of e.citations) out.add(c.source);
+  // a record the user decided against (a conflict of their edit, their value taken: the record's fact withdrawn) was
+  // weighed: never a "mention" to read again, nor a new conflict to open on it
+  const families = new Set(familiesAsPartner(tree, p.id).map((f) => f.id));
+  for (const c of tree.list<Conflict>("conflict"))
+    if (c.state === "resolved" && c.decidedBy === "user" && c.subject.some((s) => s === p.id || families.has(s))) for (const s of weighedSources(tree, c)) out.add(s);
   return out;
 }
 
