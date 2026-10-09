@@ -36,6 +36,7 @@ import { quay } from "../core/evidence.ts";
 import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, turned, type Excerpt } from "../core/excerpt.ts";
 import { mainPerson } from "../core/kin.ts";
+import { hypothesisPeople } from "../core/directions.ts";
 import * as git from "../core/git.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
 import { readersOf } from "../core/review.ts";
@@ -214,7 +215,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   // What the research knows beyond the facts (the Strom profile, opts.research): read once.
   const research = {
     conflicts: opts.research ? tree.list<Conflict>("conflict") : [],
-    hypotheses: opts.research ? tree.list<Hypothesis>("hypothesis").filter((h) => h.state === "open") : [],
+    // with the people each is about: its subject's, and those its variants name (core/directions.ts hypothesisPeople)
+    hypotheses: opts.research
+      ? tree
+          .list<Hypothesis>("hypothesis")
+          .filter((h) => h.state === "open")
+          .map((h) => ({ h, people: hypothesisPeople(tree, h) }))
+      : [],
     // a search is of the people of the task it served
     searched: opts.research
       ? tree
@@ -565,7 +572,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       }
       if (c.state === "resolved" && c.resolution) w.text(2, "DECI", c.resolution);
     }
-    for (const h of research.hypotheses.filter((x) => about(x.subject))) {
+    for (const { h } of research.hypotheses.filter((x) => x.people.includes(p.id))) {
       w.line(1, "_STROM_HYPO", h.id);
       w.text(2, "TITL", h.question);
       w.text(2, "NOTE", h.variants.map((v) => `${v.label}: ${v.claim}`).join("\n"));

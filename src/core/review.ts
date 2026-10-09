@@ -9,6 +9,7 @@
 
 import type { Conflict, Event, Family, Hypothesis, Lesson, Person, RecordSet, Research, Search, Session, Source, Task } from "./model.ts";
 import { dateYears } from "./gdate.ts";
+import { hypothesisPeople } from "./directions.ts";
 import { birthEstimate, RECORD_KINDS, recordsetsCovering, researchPeople } from "./frontier.ts";
 import { birthEvent, displayName, familiesAsPartner, lifespan } from "./people.ts";
 import { phrase, type PhraseKey } from "./phrases.ts";
@@ -208,7 +209,7 @@ function openConflicts(tree: Tree, p: Person): string[] {
   const about = (subject: string[]) => subject.includes(p.id) || subject.some((s) => families.has(s));
   return [
     ...tree.list<Conflict>("conflict").filter((c) => c.state === "open" && about(c.subject)),
-    ...tree.list<Hypothesis>("hypothesis").filter((h) => h.state === "open" && about(h.subject)),
+    ...tree.list<Hypothesis>("hypothesis").filter((h) => h.state === "open" && hypothesisPeople(tree, h).includes(p.id)),
   ].map((x) => x.id);
 }
 

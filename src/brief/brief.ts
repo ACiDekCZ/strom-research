@@ -20,6 +20,7 @@ import { readyConnectors } from "../core/connector.ts";
 import { runs, shellArg } from "../cli/format.ts";
 import { foldText } from "../core/text.ts";
 import { subjectPeople } from "../core/records.ts";
+import { hypothesisPeople } from "../core/directions.ts";
 import type { Tree } from "../core/tree.ts";
 
 export { DEFAULT_BUDGET } from "../core/config.ts";
@@ -280,7 +281,7 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   // the task's own conflicts and hypotheses come first, whatever their state
   const own = (id: string) => subjects.has(id);
   const conflicts = tree.list<Conflict>("conflict").filter((c) => own(c.id) || (c.state === "open" && c.subject.some((s) => ids.has(s))));
-  const hyps = tree.list<Hypothesis>("hypothesis").filter((h) => own(h.id) || (h.state === "open" && h.subject.some((s) => ids.has(s))));
+  const hyps = tree.list<Hypothesis>("hypothesis").filter((h) => own(h.id) || (h.state === "open" && hypothesisPeople(tree, h).some((s) => ids.has(s))));
   const first = <T extends { id: string }>(list: T[]) => [...list.filter((x) => own(x.id)), ...list.filter((x) => !own(x.id))];
   const mark = (id: string, state: string) => `${own(id) ? "→ " : "  "}${id}${state === "open" ? "" : ` [${state}]`}`;
   if (conflicts.length || hyps.length)

@@ -5,7 +5,7 @@
 import type { Hypothesis, Person, Research, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { Settings } from "./config.ts";
-import { aboutPeople } from "./directions.ts";
+import { aboutPeople, hypothesisPeople } from "./directions.ts";
 import { ancestorGenerations, familiesAsChild, familiesAsPartner } from "./people.ts";
 
 /** How near a person is: 0 an ancestor (or the person the research is for), 1 their family, 2 linked further. Unlinked: none. */
@@ -121,5 +121,9 @@ export function joiningHypotheses(tree: Tree, people: string[]): Hypothesis[] {
   }
   return tree
     .list<Hypothesis>("hypothesis")
-    .filter((h) => h.state === "open" && h.subject.some((s) => family.has(s)) && h.subject.some((s) => kin.has(s)));
+    .filter((h) => {
+      if (h.state !== "open") return false;
+      const about = hypothesisPeople(tree, h);
+      return about.some((s) => family.has(s)) && about.some((s) => kin.has(s));
+    });
 }
