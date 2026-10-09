@@ -171,6 +171,7 @@ test("a second installation registers its own scheme — macOS, Windows, Linux (
   const reg = new Map<string, string>();
   const xdg = new Map<string, string>();
   const mac = new Map<string, string>();
+  let schemes: string[] = [];
   const calls: string[] = [];
   const run: Sys = (cmd, args) => {
     calls.push(`${cmd} ${args.join(" ")}`);
@@ -191,11 +192,9 @@ test("a second installation registers its own scheme — macOS, Windows, Linux (
       fs.mkdirSync(path.join(app, "Contents", "Resources"), { recursive: true });
       return { status: 0, stdout: "" };
     }
-    // the applet's schemes: the system opens them with it
-    if (cmd === "plutil" && args[1] === "CFBundleURLTypes") {
-      const schemes = (JSON.parse(args[3]!) as { CFBundleURLSchemes: string[] }[])[0]!.CFBundleURLSchemes;
-      for (const s of schemes) mac.set(s, path.dirname(path.dirname(args[4]!)));
-    }
+    // the applet's schemes: the system opens them with it once it is registered where it is (lsregister -f)
+    if (cmd === "plutil" && args[1] === "CFBundleURLTypes") schemes = (JSON.parse(args[3]!) as { CFBundleURLSchemes: string[] }[])[0]!.CFBundleURLSchemes;
+    if (cmd.endsWith("/lsregister") && args[0] === "-f") for (const s of schemes) mac.set(s, args[1]!);
     if (cmd === "osascript") return { status: 0, stdout: `${mac.get(/URLWithString\("([^:]+):/.exec(args[3]!)?.[1] ?? "") ?? ""}\n` };
     return { status: 0, stdout: "" };
   };
@@ -246,7 +245,8 @@ test("a second installation registers its own scheme — macOS, Windows, Linux (
   assert.equal(path.basename(macApp(env)), "Strom Research (beta).app");
   assert.equal(path.basename(macApp(person)), "Strom Research.app");
   assert.equal(registerLinks(env, "darwin", run), true);
-  assert.ok(calls.some((c) => c === `plutil -replace CFBundleIdentifier -string info.stromapp.research.link.beta ${path.join(macApp(env), "Contents", "Info.plist")}`), calls.join("\n"));
+  // (made beside, then put in its place)
+  assert.ok(calls.some((c) => c.startsWith("plutil -replace CFBundleIdentifier -string info.stromapp.research.link.beta ") && c.endsWith(path.join(path.basename(macApp(env)), "Contents", "Info.plist"))), calls.join("\n"));
   assert.ok(calls.some((c) => c.includes('"CFBundleURLSchemes":["strom-research-beta"]')), calls.join("\n"));
   assert.ok(!calls.some((c) => c.includes('["strom-research"]')));
   assert.equal(linkHandlerState(env, "darwin", run), "ours");

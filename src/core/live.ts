@@ -93,7 +93,7 @@ import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { appKnowsArchive, appKnowsNoCouple, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
 import { Settings } from "./config.ts";
-import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme } from "./links.ts";
+import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
 import { diskVersion, stromLauncher } from "./self.ts";
 import type { Family, Input, Person, Session, Source, Task, TreeConfig } from "./model.ts";
@@ -205,25 +205,93 @@ interface LiveLast {
   started: string;
   /** How it ended (idle, stopped, a signal); none while it runs — or when it ended without a word. */
   ended?: { at: string; reason: string };
+  /** The tree's folder (its real path) the bridge was of: a copy of the research with its .strom is another folder. None: an older strom's. */
+  root?: string;
+}
+
+/** The tree's folder as the system names it (its links followed: /tmp is /private/tmp on a Mac) — never normalized. */
+function realRoot(root: string): string {
+  try {
+    return fs.realpathSync(root);
+  } catch {
+    return path.resolve(root);
+  }
+}
+
+/** Whether two paths are one folder: the same name, else the same folder of the same disk; undefined when one is not there. */
+function sameFolder(a: string, b: string): boolean | undefined {
+  if (a === b) return true;
+  try {
+    const x = fs.statSync(a, { bigint: true });
+    const y = fs.statSync(b, { bigint: true });
+    return x.dev === y.dev && x.ino === y.ino;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Where a process runs (its working folder): a bridge runs in its tree's folder. Undefined where it cannot be asked
+ * (Windows; lsof missing) — then a process is taken for what its note says, as before.
+ */
+function processCwd(pid: number): string | undefined {
+  if (process.platform === "linux") {
+    try {
+      return fs.readlinkSync(`/proc/${pid}/cwd`);
+    } catch {
+      return undefined;
+    }
+  }
+  if (process.platform !== "darwin") return undefined;
+  const r = spawnSync("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], { encoding: "utf8", timeout: 10_000 });
+  if (r.error || r.status !== 0) return undefined;
+  const line = (r.stdout ?? "").split("\n").find((l) => l.startsWith("n"));
+  return line ? line.slice(1) : undefined;
+}
+
+/** A bridge running in another folder than this tree's — never ended for this tree. Its folder, else undefined. */
+function bridgeElsewhere(pid: number, root: string): string | undefined {
+  const cwd = processCwd(pid);
+  return cwd && sameFolder(cwd, realRoot(root)) === false ? cwd : undefined;
+}
+
+/**
+ * The folder a bridge's note (live.json, live-last.json) belongs to when it is not this tree's: a research copied with
+ * its .strom (by hand, Finder) carries the original's notes — its bridge never taken for the copy's own, never ended by
+ * it, its address never taken over (found on Mac: the copy's strom ended the original's bridge and served the Strom app
+ * following the original at its address). A note of an older strom names no folder: its process, while it is a bridge,
+ * is asked where it runs. A folder named that is no longer there is not another one: the research was moved.
+ */
+function foreignNote(root: string, note: { root?: unknown; pid?: unknown }): string | undefined {
+  if (typeof note.root === "string") return sameFolder(note.root, realRoot(root)) === false ? note.root : undefined;
+  if (typeof note.pid === "number" && note.pid !== process.pid && isBridge(note.pid)) return bridgeElsewhere(note.pid, root);
+  return undefined;
 }
 
 function lastFile(root: string): string {
   return path.join(root, ".strom", "live-last.json");
 }
 
-function readLast(root: string): LiveLast | undefined {
+/** The last bridge of this tree — and, when the note there is another folder's (a research copied with its .strom), that folder. */
+function readLastOf(root: string): { last?: LiveLast; foreign?: string } {
   try {
     const last = JSON.parse(fs.readFileSync(lastFile(root), "utf8")) as LiveLast;
-    return Number.isInteger(last.port) && (last.token === undefined || /^[0-9a-f]{32}$/.test(last.token)) ? last : undefined;
+    if (!Number.isInteger(last.port) || !(last.token === undefined || /^[0-9a-f]{32}$/.test(last.token))) return {};
+    const foreign = foreignNote(root, last);
+    return foreign ? { foreign } : { last };
   } catch {
-    return undefined;
+    return {};
   }
+}
+
+function readLast(root: string): LiveLast | undefined {
+  return readLastOf(root).last;
 }
 
 function writeLast(root: string, last: LiveLast): void {
   try {
     const file = lastFile(root);
-    fs.writeFileSync(`${file}.${process.pid}`, JSON.stringify(last, null, 2));
+    fs.writeFileSync(`${file}.${process.pid}`, JSON.stringify({ ...last, root: realRoot(root) }, null, 2));
     fs.renameSync(`${file}.${process.pid}`, file);
   } catch {
     // the next start takes a new address
@@ -263,11 +331,11 @@ function alive(pid: number): boolean {
   }
 }
 
-/** The bridge of this tree when it runs. */
+/** The bridge of this tree when it runs (never another folder's whose note came with a copy of the research). */
 export function liveRunning(root: string): LiveInfo | undefined {
   try {
-    const info = JSON.parse(fs.readFileSync(liveFile(root), "utf8")) as LiveInfo;
-    if (info.pid && alive(info.pid)) return info;
+    const { root: of, ...info } = JSON.parse(fs.readFileSync(liveFile(root), "utf8")) as LiveInfo & { root?: string };
+    if (info.pid && alive(info.pid) && !foreignNote(root, { root: of, pid: info.pid })) return info;
   } catch {
     // none
   }
@@ -380,8 +448,10 @@ function isBridge(pid: number): boolean {
  * End a bridge's process: asked to (SIGTERM — it closes as it should), and when it does not end within a while
  * (a bridge stuck on something) ended for good (SIGKILL). How it ended; "alive" when even that did not end it.
  */
-function endBridge(pid: number, waitMs = 3000): "stopped" | "killed" | "alive" | "gone" {
+function endBridge(pid: number, root: string, waitMs = 3000): "stopped" | "killed" | "alive" | "gone" | "elsewhere" {
   if (!isBridge(pid)) return "gone";
+  // a bridge of another folder (a note copied with the research) is never ended for this tree
+  if (bridgeElsewhere(pid, root)) return "elsewhere";
   // ended: no such process, or one that only waits for its parent to hear it ended (a zombie)
   const ended = () => {
     if (!alive(pid)) return true;
@@ -417,7 +487,12 @@ export function stopLive(root: string, why = "strom live stop"): "none" | "stopp
   noteLive(root, `stop asked: ${why}`);
   const last = readLast(root);
   if (last?.pid === info.pid) writeLast(root, { ...last, ended: { at: new Date().toISOString(), reason: why } });
-  const how = endBridge(info.pid);
+  const how = endBridge(info.pid, root);
+  if (how === "elsewhere") {
+    noteLive(root, `a bridge of another folder (${info.pid}) is named in live.json: not ended, not this tree's`);
+    fs.rmSync(liveFile(root), { force: true });
+    return "none";
+  }
   if (how === "killed") noteLive(root, `the bridge ${info.pid} did not end when asked: ended for good (SIGKILL)`);
   if (how === "alive") {
     noteLive(root, `the bridge ${info.pid} could not be ended`);
@@ -470,7 +545,7 @@ function masked(url: string | undefined): string {
 function writeLive(root: string, info: LiveInfo): void {
   const file = liveFile(root);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(`${file}.${process.pid}`, JSON.stringify(info, null, 2));
+  fs.writeFileSync(`${file}.${process.pid}`, JSON.stringify({ ...info, root: realRoot(root) }, null, 2));
   fs.renameSync(`${file}.${process.pid}`, file);
 }
 
@@ -720,31 +795,67 @@ function directions(tree: Tree, all: Scope[], queued: Task[], workingOn: (string
 
 /** How long what the system says of the links is taken as true (asking it costs a program started). */
 const LINKS_FRESH_MS = 60_000;
-let linksSeen: { at: number; actions: string[] } | undefined;
-
-let linksAsking = false;
+/** No links after links that worked: asked again so soon, and taken only when said again. */
+const LINKS_AGAIN_MS = 5_000;
 
 /**
- * The strom-research:// links this computer takes: said to the app only while the scheme leads to this strom. The
- * system is asked in the background (it starts a program, slow on a busy computer): until it answers, what it said
- * last — the bridge never waits for it.
+ * What the bridge says of the links, asked of the system now and then: the first time at once, then in the background
+ * (the bridge never waits for it) — until it answers, what it said last. The system that does not answer (a failed or
+ * slow query: unknown) changes nothing. No links after links that worked are taken only when the system says so twice
+ * in a row: an applet being made again, a moment of LaunchServices — and the Strom app forgot the links (found on Mac).
  */
+export function linksWatch(
+  read: { now: () => HandlerState; later: () => Promise<HandlerState> },
+  opts: { freshMs?: number; againMs?: number; clock?: () => number } = {},
+): () => string[] {
+  const freshMs = opts.freshMs ?? LINKS_FRESH_MS;
+  const againMs = opts.againMs ?? LINKS_AGAIN_MS;
+  const clock = opts.clock ?? Date.now;
+  let seen: { at: number; actions: string[] } | undefined;
+  let asking = false;
+  // none said once after links that worked: not taken yet
+  let doubt = false;
+  // asked again in a few seconds rather than in a minute
+  const soon = () => clock() - freshMs + againMs;
+  return () => {
+    if (!seen) {
+      const state = read.now();
+      seen = { at: state === "unknown" ? soon() : clock(), actions: linkActions(state) };
+    } else if (clock() - seen.at > freshMs && !asking) {
+      asking = true;
+      read.later().then(
+        (state) => {
+          asking = false;
+          const was = seen?.actions ?? [];
+          if (state === "unknown") {
+            seen = { at: was.length ? clock() : soon(), actions: was };
+            return;
+          }
+          const actions = linkActions(state);
+          if (!actions.length && was.length && !doubt) {
+            doubt = true;
+            seen = { at: soon(), actions: was };
+            return;
+          }
+          doubt = false;
+          seen = { at: clock(), actions };
+        },
+        () => {
+          asking = false;
+          seen = { at: clock(), actions: seen?.actions ?? [] };
+        },
+      );
+    }
+    return seen.actions;
+  };
+}
+
+let linksOf: (() => string[]) | undefined;
+
+/** The strom-research:// links this computer takes: said to the app only while the scheme leads to this strom. */
 function links(env: Env): string[] {
-  if (!linksSeen) linksSeen = { at: Date.now(), actions: linkActions(linkHandlerState(env)) };
-  else if (Date.now() - linksSeen.at > LINKS_FRESH_MS && !linksAsking) {
-    linksAsking = true;
-    linkHandlerStateLater(env).then(
-      (state) => {
-        linksSeen = { at: Date.now(), actions: linkActions(state) };
-        linksAsking = false;
-      },
-      () => {
-        linksSeen = { at: Date.now(), actions: linksSeen?.actions ?? [] };
-        linksAsking = false;
-      },
-    );
-  }
-  return linksSeen.actions;
+  linksOf ??= linksWatch({ now: () => linkHandlerState(env), later: () => linkHandlerStateLater(env) });
+  return linksOf();
 }
 
 /**
@@ -921,7 +1032,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
   }
   // the address of the last bridge, so the app that followed it finds this one (its secret: none once it was ended for
   // good — a new one); replaced while it runs when a page that is no Strom app comes with it (leaked)
-  const last = readLast(root);
+  const { last, foreign } = readLastOf(root);
+  // the notes of another folder's bridge (the research copied with its .strom): a new address of its own — a port the
+  // system picks and a new secret, so the app following the original never comes here
+  if (foreign) noteLive(root, `the bridge's notes came from another folder (${foreign}): a new address`);
   let token = last?.token ?? crypto.randomBytes(16).toString("hex");
   // what this bridge says of itself (live.json), once it listens
   let live: LiveInfo | undefined;
@@ -1815,7 +1929,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
         // the bridge before this one still holds it (stuck, or ending just now): ended, its port taken again — the
         // app following the address goes on; a port another program holds: another one (the app needs ?live= again)
         const before = last && last.pid !== process.pid ? last.pid : undefined;
-        if (before && tries === 0 && endBridge(before) !== "gone") {
+        const ended = before && tries === 0 ? endBridge(before, root) : "gone";
+        if (ended === "elsewhere") {
+          // a bridge of another folder (its note copied with the research): never ended, never its address — a new one
+          noteLive(root, `a bridge of another folder (${before}) holds port ${wanted}: not ended`);
+          token = crypto.randomBytes(16).toString("hex");
+          tries = 20;
+        } else if (ended !== "gone") {
           noteLive(root, `the bridge before (${before}) still held port ${wanted}: ended`);
           tries = 1;
         }
