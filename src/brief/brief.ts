@@ -5,11 +5,11 @@
 // The brief has a hard token budget; sections come in priority order and
 // what does not fit is cut to a pointer: the command that shows the rest.
 
-import type { Citation, Conflict, Hypothesis, Input, Lesson, Media, Person, Place, RecordSet, Repository, Research, Search, Session, Task } from "../core/model.ts";
+import type { Citation, Conflict, Family, Hypothesis, Input, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Task } from "../core/model.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { inboxFolders, inputPath } from "../core/media.ts";
-import { displayName, familiesAsChild, familiesAsPartner, formatName, label, lifespan, likelyDuplicates, parentsOf, sameFamilyName, surnameForms } from "../core/people.ts";
+import { displayName, familiesAsChild, familiesAsPartner, formatName, label, lifespan, likelyDuplicates, parentsOf, primaryName, sameFamilyName, surnameForms } from "../core/people.ts";
 import { parseYears } from "../core/years.ts";
 import { langName } from "../core/lang.ts";
 import { dateYears } from "../core/gdate.ts";
@@ -91,7 +91,8 @@ function personBlock(tree: Tree, p: Person, depth: number): string[] {
   return out;
 }
 
-const VITAL = new Set(["BIRT", "CHR", "BAPM", "DEAT", "BURI", "CREM"]);
+const VITAL_ORDER = ["BIRT", "CHR", "BAPM", "DEAT", "BURI", "CREM"];
+const VITAL = new Set(VITAL_ORDER);
 const NOTE_SHOWN = 300;
 
 /** Where a person lived and what they did, the years with each: what tells namesakes apart. */
@@ -118,9 +119,50 @@ function identifying(p: Person, vitalToo: boolean): { houses: string[]; work: st
   return { houses, work, more };
 }
 
-/** A parent of the task's person: the vital facts (sources by ID), where they lived and what they did, the parents, the last notes cut short. */
+/** The other forms of a person's name (a spelling, a woman's form, a married name): what the records may call them — an accent of its own is another form. */
+function otherNames(p: Person): Name[] {
+  const shown = new Set([displayName(p).normalize("NFC")]);
+  return p.names.filter((n) => {
+    const f = formatName(n).normalize("NFC");
+    if (shown.has(f)) return false;
+    shown.add(f);
+    return true;
+  });
+}
+
+const MONTH = /(?:^|\s)(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(?:\s|$)/u;
+
+/** The vital facts that say more than the years of the label — the day, the place, the house: two namesakes told apart. */
+function vitalShort(p: Person): string[] {
+  const out: string[] = [];
+  let before = "";
+  // in the order of a life: birth, baptism, death, burial
+  const rank = (k: string) => VITAL_ORDER.indexOf(k);
+  for (const e of p.events.filter((x) => !x.retracted && VITAL.has(x.kind)).sort((a, b) => rank(a.kind) - rank(b.kind))) {
+    const where = [e.place, e.house].filter(Boolean).join(" ");
+    const day = !!e.date && MONTH.test(e.date);
+    if (!day && !where) continue;
+    // the place said once: a baptism where the birth was
+    const place = where && !before.startsWith(where) ? where : "";
+    const text = [e.kind, e.date, place].filter(Boolean).join(" ");
+    if (!out.includes(text)) out.push(text);
+    if (where) before = where;
+  }
+  return out;
+}
+
+/** The start of a note, cut where it is long. */
+function noteStart(text: string, max: number): string {
+  const chars = [...text.replace(/\s+/gu, " ").trim()];
+  return chars.length > max ? `${chars.slice(0, max).join("")}…` : chars.join("");
+}
+
+/** A parent of the task's person: the vital facts (sources by ID), the other forms of the name, where they lived and what they did, the parents, the last notes cut short. */
 function relativeBlock(tree: Tree, p: Person, role: string): string[] {
   const out = [`  ${label(p)} ${p.sex} — ${role}`];
+  const others = otherNames(p);
+  if (others.length)
+    out.push(`    names: ${[primaryName(p), ...others].map((n) => `${formatName(n)}${n.kind ? ` (${n.kind})` : ""}${n.citations?.length ? ` ← ${[...new Set(n.citations.map((c) => c.source))].join(", ")}` : ""}`).join("; ")}`);
   for (const e of p.events.filter((x) => !x.retracted && VITAL.has(x.kind)))
     out.push(`    ${e.id} ${e.kind}${e.date ? ` ${e.date}` : ""}${e.place ? ` ${e.place}` : ""}${e.house ? `, house ${e.house}` : ""} [${e.status}]${e.citations?.length ? ` ← ${[...new Set(e.citations.map((c) => c.source))].join(", ")}` : ""}`);
   const { houses, work, more } = identifying(p, false);
@@ -133,11 +175,37 @@ function relativeBlock(tree: Tree, p: Person, role: string): string[] {
   return out;
 }
 
-/** Anyone else concerned, in one line: who they are to the task's people, where they lived, what they did, their parents. */
+const NOTE_LINE = 100;
+
+/**
+ * Anyone else concerned, in one line: who they are to the task's people, their birth, baptism and death with the day and
+ * the place, the other forms of the name, where they lived, what they did, their parents, the start of the last note —
+ * what tells two namesakes apart (K5).
+ */
 function relativeLine(tree: Tree, p: Person, role: string, withParents: boolean): string {
-  const { houses, work } = identifying(p, true);
+  const { houses, work } = identifying(p, false);
   const parents = withParents ? parentsOf(tree, p.id) : [];
-  return `  · ${label(p)} ${p.sex} — ${[role, houses.length ? `lived: ${houses.join("; ")}` : "", work.length ? `occupation: ${work.join("; ")}` : "", parents.length ? `parents: ${parents.map((x) => x.id).join(" & ")}` : ""].filter(Boolean).join(" · ")}`;
+  const others = otherNames(p);
+  const note = p.notes.at(-1);
+  return `  · ${label(p)} ${p.sex} — ${[
+    role,
+    ...vitalShort(p),
+    others.length ? `also: ${others.map((n) => `${formatName(n)}${n.kind ? ` (${n.kind})` : ""}`).join("; ")}` : "",
+    houses.length ? `lived: ${houses.join("; ")}` : "",
+    work.length ? `occupation: ${work.join("; ")}` : "",
+    parents.length ? `parents: ${parents.map((x) => x.id).join(" & ")}` : "",
+    note ? `note: ${noteStart(note.text, NOTE_LINE)}` : "",
+  ].filter(Boolean).join(" · ")}`;
+}
+
+/** A family the task is about: its partners, its own facts, the records that show it, its notes. */
+function familyBlock(tree: Tree, f: Family): string[] {
+  const partners = f.partners.map((x) => tree.get<Person>(x)).filter((x): x is Person => !!x).map(label);
+  const out = [`  ${f.id} family of ${partners.join(" & ") || "?"}${f.union ? ` [${f.union}]` : ""}${f.children.length ? ` · ${f.children.length} child${f.children.length > 1 ? "ren" : ""}` : ""}`];
+  for (const e of f.events.filter((x) => !x.retracted)) out.push(eventLine(e));
+  if (f.citations?.length) out.push(`    sources: ${citesOf(f.citations)}`);
+  for (const n of f.notes.slice(-3)) out.push(`    note: ${noteStart(n.text, NOTE_SHOWN)}`);
+  return out;
 }
 
 /** A small text file of an input, as strom input show gives it; unreadable: nothing. */
@@ -348,8 +416,10 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   // 3. premise: what was already searched there, and lessons for those places
   const located = task ? taskRecordsets(tree, task) : { sets: [], guessed: false };
   const where = new Set([...(task?.where ?? []), ...located.sets.map((b) => b.id)]);
-  // A task about a conflict or a hypothesis is about its people too.
-  const subjects = new Set([...(task?.subject ?? []), ...subjectPeople(tree, task?.subject ?? [])]);
+  // A task about a conflict or a hypothesis is about its people too; one about a family, about its partners (its
+  // children come a line each below).
+  const families = (task?.subject ?? []).map((id) => (/^F\d{4,}$/u.test(id) ? tree.get<Family>(id) : undefined)).filter((f): f is Family => !!f && f.type === "family");
+  const subjects = new Set([...(task?.subject ?? []), ...subjectPeople(tree, task?.subject ?? []), ...families.flatMap((f) => f.partners)]);
   const persons = [...subjects].map((id) => tree.get<Person>(id)).filter((p): p is Person => !!p && p.type === "person");
   const theirs = persons.flatMap((p) => p.names.map((n) => n.surname).filter(Boolean));
   const surnames = new Set(theirs.map((n) => foldText(n)));
@@ -358,9 +428,18 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   const bookPlaces = new Set([...where].flatMap((w) => tree.get<RecordSet>(w)?.places ?? []).map((x) => foldText(x)));
   // Where and when the task is: its books' places and years, its people's places and years (±30) — a search of their
   // surname in other places and other times is only counted (K11).
-  const placeKey = (x: string) => foldText(x.split(",")[0]!.trim());
-  const taskPlaces = new Set([...bookPlaces].map(placeKey));
-  for (const p of persons) for (const e of p.events) if (!e.retracted && e.place) taskPlaces.add(placeKey(e.place));
+  // A place a record set names by its ID (L…) is its names; a place of the task is its parish too: a search in the same
+  // parish is kept whatever its years (K11).
+  const placeKeys = (x: string): string[] => {
+    const pl = /^L\d{4,}$/u.test(x.trim()) ? tree.get<Place>(x.trim()) : undefined;
+    return pl?.type === "place" ? pl.names.map((n) => foldText(n.name.split(",")[0]!.trim())) : [foldText(x.split(",")[0]!.trim())];
+  };
+  const taskPlaces = new Set([...where].flatMap((w) => tree.get<RecordSet>(w)?.places ?? []).flatMap(placeKeys));
+  for (const p of persons) for (const e of p.events) if (!e.retracted && e.place) for (const k of placeKeys(e.place)) taskPlaces.add(k);
+  const ownPlaces = new Set(taskPlaces);
+  for (const pl of tree.list<Place>("place"))
+    if (pl.names.some((n) => ownPlaces.has(foldText(n.name.split(",")[0]!.trim()))))
+      for (const j of pl.jurisdictions) if (j.kind === "parish") taskPlaces.add(foldText(j.name.split(",")[0]!.trim()));
   const taskYears = [
     ...[...where].flatMap((w) => { const y = parseYears(tree.get<RecordSet>(w)?.years); return y ? [y.from, y.to] : []; }),
     ...persons.flatMap((p) => p.events.filter((e) => !e.retracted).flatMap((e) => dateYears(e.date ?? ""))),
@@ -369,7 +448,7 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   const nearby = (s: Search): boolean => {
     const books = s.recordsets.map((b) => tree.get<RecordSet>(b)).filter((b): b is RecordSet => !!b);
     const spans = [s.scope.years, ...(s.scope.years ? [] : books.map((b) => b.years))].map((y) => parseYears(y)).filter((y) => !!y);
-    const places = [...(s.scope.places ?? []), ...books.flatMap((b) => b.places)].map(placeKey);
+    const places = [...(s.scope.places ?? []), ...books.flatMap((b) => b.places)].flatMap(placeKeys);
     if (places.some((x) => taskPlaces.has(x))) return true;
     if (span && spans.length) return spans.some((y) => y.from <= span.to && span.from <= y.to);
     // nothing to tell it by: kept
@@ -425,6 +504,7 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   // no person named: the research's focus, to know whose tree it is
   const about = personSubjects.length ? personSubjects : research ? [research.focus] : [];
   for (const id of about) people.set(id, { how: "full", role: "" });
+  for (const f of families) for (const c of f.children) if (!people.has(c.person)) people.set(c.person, { how: "line", role: `child of ${f.id}` });
   for (const id of about) {
     for (const p of parentsOf(tree, id)) {
       if (!people.has(p.id)) people.set(p.id, { how: personSubjects.length ? "parent" : "line", role: `${p.sex === "F" ? "mother" : p.sex === "M" ? "father" : "parent"} of ${id}` });
@@ -432,18 +512,18 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
     }
     for (const f of familiesAsChild(tree, id)) for (const s of f.children) if (!people.has(s.person) && s.person !== id) people.set(s.person, { how: "line", role: `sibling of ${id}` });
   }
-  if (people.size) {
-    const blocks = [...people.entries()].flatMap(([id, { how, role }]) => {
+  if (people.size || families.length) {
+    const blocks = [...families.map((f) => familyBlock(tree, f).join("\n")), ...[...people.entries()].flatMap(([id, { how, role }]) => {
       const p = tree.get<Person>(id);
       if (!p) return [];
       if (how === "full") return [personBlock(tree, p, 1).join("\n")];
       if (how === "parent") return [relativeBlock(tree, p, role).join("\n")];
-      return [relativeLine(tree, p, role, !role.startsWith("sibling"))];
-    });
+      return [relativeLine(tree, p, role, !role.startsWith("sibling") && !role.startsWith("child of"))];
+    })];
     const short = [...people.values()].some((x) => x.how !== "full");
     sections.push({
       name: "people",
-      pointer: `strom person show ${[...people.keys()][0]}`,
+      pointer: `strom person show ${[...people.keys()][0] ?? "P…"}`,
       text: [
         "## People concerned",
         ...blocks,

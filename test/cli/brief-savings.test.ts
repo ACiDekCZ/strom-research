@@ -85,6 +85,59 @@ test("brief: a search of the surname elsewhere and long before is counted, not l
   w.cleanup();
 });
 
+test("brief: a relative's other names, the day of a birth and a baptism, the start of the last note — namesakes told apart (K5)", opts, async () => {
+  const w = await family();
+  // the mother's other forms: a spelling with an accent of its own, decomposed, and her married name
+  await w.ok(["name", "add", "P3", "Marie /Swobodová/".normalize("NFD")]);
+  await w.ok(["name", "add", "P3", "Marie /Nováková/", "--kind", "married"]);
+  // the grandfather in one line: another script, the day of his birth and his place
+  await w.ok(["name", "add", "P4", "Вацлав /Новак/"]);
+  await w.ok(["event", "add", "P4", "BIRT", "--date", "3 MAR 1850", "--place", "Lhota", "--house", "3"]);
+  // two sisters of one name: only the day tells them apart, and a short note (the first died young)
+  await w.ok(["event", "add", "P5", "BIRT", "--date", "2 FEB 1900", "--place", "Lhota"]);
+  await w.ok(["event", "add", "P5", "CHR", "--date", "4 FEB 1900", "--place", "Lhota"]);
+  await w.ok(["person", "add", "Anna /Nováková/", "--sex", "F"]); // P8
+  await w.ok(["family", "child", "F1", "P8"]);
+  await w.ok(["event", "add", "P8", "BIRT", "--date", "9 SEP 1902", "--place", "Lhota"]);
+  await w.ok(["note", "add", "P8", `námořník; ${"druhá Anna, ta první zemřela malá. ".repeat(6)}`]);
+  const people = section((await w.ok(["brief", "T1"])).out, "## People concerned");
+  assert.match(people, /P0003 Marie Svobodová F — mother of P0001\n {4}names: Marie Svobodová; Marie Swobodová; Marie Nováková \(married\)\n/u);
+  assert.match(people, /· P0004 Václav Novák \(\*1850\) M — father of P0002 · BIRT 3 MAR 1850 Lhota 3 · also: Вацлав Новак · lived: Lhota 3 · occupation: sedlák\n/u);
+  assert.match(people, /· P0005 Anna Nováková \(\*1900\) F — sibling of P0001 · BIRT 2 FEB 1900 Lhota · CHR 4 FEB 1900\n/u, "the baptism's place said once");
+  assert.match(people, /· P0008 Anna Nováková \(\*1902\) F — sibling of P0001 · BIRT 9 SEP 1902 Lhota · note: námořník; druhá Anna[^\n]{60,100}…\n/u);
+  w.cleanup();
+});
+
+test("brief: a task about a family has its partners whole, its children a line each and the records that show it", opts, async () => {
+  const w = await family();
+  await w.ok(["source", "add", "Oddací zápis Josefa a Marie", "--kind", "marriage"]); // S1
+  await w.ok(["cite", "F1", "S1", "--locator", "fol. 7"]);
+  await w.ok(["event", "add", "F1", "MARR", "--date", "5 MAY 1899", "--place", "Lhota", "--cite", "S1"]);
+  await w.ok(["event", "add", "P1", "CHR", "--date", "1 JAN 1905", "--place", "Lhota"]);
+  await w.ok(["task", "add", "Další děti Josefa a Marie", "--level", "enrich", "--where", "B1", "--why", "sourozenci", "--done-when", "kniha prošlá", "--about", "F1"]); // T2
+  const people = section((await w.ok(["brief", "T2"])).out, "## People concerned");
+  assert.match(people, /\n {2}F0001 family of P0002 Josef Novák & P0003 Marie Svobodová · 2 children\n {4}E\d+ MARR 5 MAY 1899 Lhota \[\w+\] ← S0001\n {4}sources: S0001 fol\. 7\n/u);
+  assert.match(people, /\n {2}P0002 Josef Novák M\n {4}E\d+ RESI/u, "a partner whole");
+  assert.match(people, /\n {2}P0003 Marie Svobodová F\n/u);
+  assert.match(people, /· P0001 Jan Novák \(\*1905\) M — child of F0001 · CHR 1 JAN 1905 Lhota\n/u);
+  assert.match(people, /· P0005 Anna Nováková F — child of F0001\n/u);
+  assert.match(people, /P0004 Václav Novák M — father of P0002/u, "the partners' parents as for any person");
+  w.cleanup();
+});
+
+test("brief: a search of the surname in the task's parish is kept whatever its years (K11)", opts, async () => {
+  const w = await family();
+  await w.ok(["place", "add", "Lhota", "--kind", "village", "--unlocated", "test"]); // L1
+  await w.ok(["place", "jurisdiction", "L1", "--kind", "parish", "--name", "Ves"]);
+  await w.ok(["search", "add", "Pohřby Nováků ve Vsi", "--surname", "Novák", "--place", "Ves", "--years", "1690-1700", "--method", "index", "--result", "partial"]);
+  await w.ok(["search", "add", "Pohřby Nováků v Brně", "--surname", "Novák", "--place", "Brno", "--years", "1690-1700", "--method", "index", "--result", "negative"]);
+  const known = section((await w.ok(["brief", "T1"])).out, "## Already known");
+  assert.match(known, /Q0001 \[partial\] Pohřby Nováků ve Vsi/u);
+  assert.doesNotMatch(known, /Pohřby Nováků v Brně/u);
+  assert.match(known, /\+1 search of Novák in other places and years/u);
+  w.cleanup();
+});
+
 test("brief: the commands of the task's level, every option and limit from the registry (K2/P5)", opts, async () => {
   const w = await family();
   const brief = (await w.ok(["brief", "T1"])).out;
