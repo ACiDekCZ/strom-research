@@ -6,6 +6,7 @@ import { ui, type UIKey } from "../cli/ui.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import {
+  LESSON_DETAIL_MAX,
   LESSON_MAX,
   LESSON_SCOPES,
   RECORD_TYPES,
@@ -28,16 +29,18 @@ import {
   VARIANT_LINK_KINDS,
 } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
-import { ancestorGenerations, birthEvent, claimText, conflictTitle, deathEvent, displayName, familiesAsPartner, lifespan, parentsOf, primaryName, resolvePerson } from "../core/people.ts";
+import { ancestorGenerations, birthEvent, claimText, conflictTitle, deathEvent, displayName, familiesAsPartner, lifespan, parentsOf, primaryName, resolvePerson, sameFamilyName } from "../core/people.ts";
 import { changeLines } from "../core/changelog.ts";
 import { isAgent } from "../core/which.ts";
-import { foldText } from "../core/text.ts";
-import { makeNote } from "../core/actions.ts";
+import { foldText, unfoldIndex } from "../core/text.ts";
+import { makeNote, makeNotes, splitText } from "../core/actions.ts";
 import { takeSide } from "../core/sync.ts";
 import { againAllowed, claimOf, isEditConflict, weighedSources } from "../core/conflicts.ts";
 import { currentSession } from "../core/session.ts";
 import { typeOfId, type Tree } from "../core/tree.ts";
 import { resolveResearch } from "./research.ts";
+import { childLink, LINK_HOW, linkHints, linkText, personsLink, writeVariantLink } from "../core/hypolinks.ts";
+import { yearsOption, yearsOverlap } from "../core/years.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -52,7 +55,9 @@ function anyRefs(tree: Tree, refs: string[]): string[] {
   return refs.map((r) => {
     const id = normId(r);
     if (typeOfId(id)) {
-      if (!tree.get(id)) throw new UsageError(`no record ${id}`);
+      const rec = tree.get(id);
+      if (!rec) throw new UsageError(`no record ${id}`);
+      if (rec.mergedInto) throw new UsageError(`${id} was merged into ${rec.mergedInto}`, { hint: `use ${rec.mergedInto}`, code: "record.merged", params: { id, into: rec.mergedInto } });
       return id;
     }
     return resolvePerson(tree, r).id;
@@ -120,117 +125,27 @@ function idsOpt(v: unknown): string[] {
   return listOpt(v).flatMap((x) => x.split(/[\s,]+/)).filter(Boolean);
 }
 
-/** A person a link may name: there, not retracted, not merged. */
-function linkPerson(tree: Tree, ref: string): string {
-  const id = normId(ref, "person");
-  if (typeOfId(id) !== "person") throw new UsageError(`"${ref}" is not a person ID: a link names people by ID (P0001)`, { hint: "strom person list" });
-  const p = tree.get<Person>(id);
-  if (!p) throw new UsageError(`no person ${id}`, { hint: "strom person list", code: "record.none", params: { kind: "person", id } });
-  if (p.mergedInto) throw new UsageError(`${id} was merged into ${p.mergedInto}`, { hint: `use ${p.mergedInto}`, code: "record.merged", params: { id, into: p.mergedInto } });
-  if (p.retracted) throw new UsageError(`${id} is retracted`, { hint: `strom person show ${id}` });
-  return id;
-}
-
-function distinct(ids: string[], what: string): string[] {
-  const set = [...new Set(ids)];
-  if (set.length !== ids.length) throw new UsageError(`${what}: the same person twice (${ids.join(" ")})`);
-  return set;
-}
-
-/** The family whose partners are exactly these people. */
-function familyOf(tree: Tree, partners: string[]): Family | undefined {
-  return tree.list<Family>("family").find((f) => !f.retracted && f.partners.length === partners.length && partners.every((p) => f.partners.includes(p)));
-}
-
 /** The link the options name (undefined: none — --remove alone), checked against the tree. */
 function variantLink(tree: Tree, opts: Record<string, unknown>, extra: string[]): VariantLink | undefined {
   const more = extra.flatMap((x) => x.split(/[\s,]+/)).filter(Boolean);
   const kinds = VARIANT_LINK_KINDS.filter((k) => opts[k] !== undefined);
-  const how = "--child P… --of F… | --child P… --parents P… [P…] | --same P… P… | --partners P… P… | --siblings P… P… [P…]";
-  if (kinds.length > 1) throw new UsageError(`one link at a time: ${kinds.map((k) => `--${k}`).join(", ")} given`, { hint: how });
+  if (kinds.length > 1) throw new UsageError(`one link at a time: ${kinds.map((k) => `--${k}`).join(", ")} given`, { hint: LINK_HOW });
   const kind = kinds[0];
   if (!kind) {
-    if (!opts.remove) throw new UsageError("say what the variant would connect", { hint: how });
-    if (more.length || opts.of !== undefined || opts.parents !== undefined) throw new UsageError("--of and --parents go with --child", { hint: how });
+    if (!opts.remove) throw new UsageError("say what the variant would connect", { hint: LINK_HOW });
+    if (more.length || opts.of !== undefined || opts.parents !== undefined) throw new UsageError("--of and --parents go with --child", { hint: LINK_HOW });
     return undefined;
   }
   if (kind === "child") {
     const children = idsOpt(opts.child);
-    if (children.length !== 1) throw new UsageError("--child takes one person: the child", { hint: how });
-    const child = linkPerson(tree, children[0]!);
-    const parents = [...idsOpt(opts.parents), ...more];
-    if (opts.of !== undefined && parents.length) throw new UsageError("a family (--of) or parents (--parents), not both", { hint: how });
-    if (opts.of !== undefined) {
-      const famId = normId(String(opts.of), "family");
-      if (typeOfId(famId) !== "family") throw new UsageError(`"${String(opts.of)}" is not a family ID (F0001)`, { hint: "strom family list" });
-      const f = tree.get<Family>(famId);
-      if (!f) throw new UsageError(`no family ${famId}`, { hint: "strom family list", code: "record.none", params: { kind: "family", id: famId } });
-      if (f.mergedInto) throw new UsageError(`${famId} was merged into ${f.mergedInto}`, { hint: `use ${f.mergedInto}`, code: "record.merged", params: { id: famId, into: f.mergedInto } });
-      if (f.retracted) throw new UsageError(`${famId} is retracted`);
-      if (f.children.some((c) => c.person === child)) throw new UsageError(`${child} is a child of ${famId} already: nothing uncertain to show`, { hint: "decide the hypothesis: strom hypothesis decide H… --decision \"…\"" });
-      if (f.partners.includes(child)) throw new UsageError(`${child} is a partner of ${famId}`);
-      return { kind, person: child, family: famId };
-    }
-    if (!parents.length) throw new UsageError("whose child: --of F… (a family of the tree) or --parents P… [P…]", { hint: how });
-    if (parents.length > 2) throw new UsageError("one or two parents", { hint: how });
-    const ps = distinct(parents.map((p) => linkPerson(tree, p)), "--parents");
-    if (ps.includes(child)) throw new UsageError(`${child} cannot be their own parent`);
-    const fam = familyOf(tree, ps);
-    if (fam?.children.some((c) => c.person === child)) throw new UsageError(`${child} is a child of ${fam.id} already: nothing uncertain to show`);
-    if (fam) throw new UsageError(`${ps.join(" and ")} are a family of the tree: ${fam.id}`, { hint: `strom hypothesis link H… <variant> --child ${child} --of ${fam.id}` });
-    return { kind, person: child, parents: ps };
+    if (children.length !== 1) throw new UsageError("--child takes one person: the child", { hint: LINK_HOW });
+    return childLink(tree, children[0]!, opts.of === undefined ? undefined : String(opts.of), [...idsOpt(opts.parents), ...more]);
   }
-  if (opts.of !== undefined || opts.parents !== undefined) throw new UsageError("--of and --parents go with --child", { hint: how });
-  const persons = distinct([...idsOpt(opts[kind]), ...more].map((p) => linkPerson(tree, p)), `--${kind}`);
-  if (kind === "siblings" ? persons.length < 2 : persons.length !== 2)
-    throw new UsageError(kind === "siblings" ? "--siblings takes two or more people" : `--${kind} takes two people`, { hint: `--${kind} P… P…${kind === "siblings" ? " [P…]" : ""}` });
-  const together = kind === "partners" ? familyOf(tree, persons) : undefined;
-  if (together) throw new UsageError(`${persons.join(" and ")} are partners of ${together.id} already: nothing uncertain to show`);
-  return { kind, persons };
-}
-
-/** One link as a key: the same link given again is the same, whatever the order of its people. */
-function linkKey(l: VariantLink): string {
-  return l.kind === "child" ? `child ${l.person} ${l.family ?? [...(l.parents ?? [])].sort().join("+")}` : `${l.kind} ${[...l.persons].sort().join("+")}`;
-}
-
-/** One link in a few words: "child P0006 of F0001", "same P0005 = P0003". */
-export function linkText(l: VariantLink): string {
-  if (l.kind === "child") return `child ${l.person} of ${l.family ?? (l.parents ?? []).join(" + ")}`;
-  return `${l.kind} ${l.persons.join(l.kind === "same" ? " = " : l.kind === "partners" ? " + " : ", ")}`;
-}
-
-/**
- * What a new link would say that the variant did not (its letter is one claim's: the Strom app remembers "H0022,
- * variant B"): links again after all were taken off, naming anyone they did not; a child it named, given other
- * parents. Adding to what it says is fine.
- */
-function otherPeople(v: HypothesisVariant, l: VariantLink): string[] {
-  const before = new Set(v.linked ?? []);
-  if (!before.size) return [];
-  const ids = linkIds(l);
-  if (!v.links?.length) return ids.filter((x) => !before.has(x));
-  if (l.kind === "child" && before.has(l.person)) return ids.filter((x) => x !== l.person && !before.has(x));
-  return [];
-}
-
-function linkIds(l: VariantLink): string[] {
-  return l.kind === "child" ? [l.person, ...(l.family ? [l.family] : []), ...(l.parents ?? [])] : l.persons;
+  if (opts.of !== undefined || opts.parents !== undefined) throw new UsageError("--of and --parents go with --child", { hint: LINK_HOW });
+  return personsLink(tree, kind, [...idsOpt(opts[kind]), ...more]);
 }
 
 // ── searches ───────────────────────────────────────────────────────────────
-
-function yearsRange(y?: string): [number, number] | undefined {
-  const m = y ? /^(\d{3,4})(?:-(\d{3,4}))?$/.exec(y) : null;
-  return m ? [Number(m[1]), Number(m[2] ?? m[1])] : undefined;
-}
-
-function overlaps(a?: string, b?: string): boolean {
-  const x = yearsRange(a);
-  const y = yearsRange(b);
-  if (!x || !y) return true;
-  return x[0] <= y[1] && y[0] <= x[1];
-}
 
 function searchLine(s: Search): string[] {
   return [s.id, s.result, s.method, truncate(s.question, 60), s.scope.years ?? "", (s.scope.surnames ?? []).join(","), s.recordsets.join(" "), s.by === "main" ? "" : `by ${s.by}`];
@@ -245,14 +160,14 @@ register(
     writes: true,
     args: [{ name: "question", description: 'what was looked for: "Baptisms Novák 1903–1907"', required: true }],
     options: [
-      { name: "recordset", type: "string", multiple: true, value: "<B…>", description: "where (repeatable)" },
+      { name: "recordset", type: "string", multiple: true, value: "<B…>", description: "where (repeatable)", aliases: ["where"] },
       { name: "years", type: "string", value: "<from-to>", description: "years covered" },
-      { name: "surname", type: "string", multiple: true, value: "<name>", description: "surnames looked for (repeatable)" },
+      { name: "surname", type: "string", multiple: true, value: "<name>", description: "surnames looked for (repeatable)", aliases: ["surnames"] },
       { name: "place", type: "string", multiple: true, value: "<name>", description: "places covered (repeatable)" },
       { name: "pages", type: "string", value: "<range>", description: "images/pages covered, e.g. 95-100" },
       { name: "method", type: "string", value: "<m>", description: SEARCH_METHODS.join(", ") },
       { name: "result", type: "string", value: "<r>", description: SEARCH_RESULTS.join(", ") },
-      { name: "found", type: "string", multiple: true, value: "<S…>", description: "sources found (repeatable)" },
+      { name: "found", type: "string", multiple: true, value: "<S…>", description: "sources found (repeatable; required with --result found)" },
       { name: "task", type: "string", value: "<T…>", description: "task this search served (default: the task of the open session)" },
       { name: "by", type: "string", value: "<who>", description: "main (default), reader, user" },
       { name: "note", type: "string", value: "<text>", description: "what was illegible, what is left" },
@@ -261,13 +176,13 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const recordsets = csvOpt(opts.recordset).map((b) => requireRecord<RecordSet>(tree, b, "recordset").id);
-      const years = opts.years ? String(opts.years) : undefined;
-      if (years && !yearsRange(years)) throw new UsageError(`invalid --years "${years}"`, { hint: "1903 or 1903-1907" });
+      const said: string[] = [];
+      const years = yearsOption(opts.years, said);
       const findings = csvOpt(opts.found).map((s) => requireRecord(tree, s, "source").id);
       const result = oneOf(opts.result, SEARCH_RESULTS, "result");
       if (result === "found" && findings.length === 0) throw new UsageError("result found needs --found <S…>", { hint: "create the source first: strom source add …" });
       // A search made in a session served that session's task, unless it says otherwise.
-      const task = opts.task ? requireRecord(tree, String(opts.task), "task").id : currentSession(tree, ctx.env)?.task;
+      const task = opts.task ? requireRecord(tree, String(opts.task), "task").id : currentSession(tree, ctx.env, ctx.refs)?.task;
       const s = create<Search>(
         tree,
         "search",
@@ -290,7 +205,7 @@ register(
         (id) => `+${id} search [${result}] "${truncate(args[0]!, 50)}"`,
         [...recordsets, ...findings],
       );
-      return { text: written(tree), data: { search: s } };
+      return { text: lines(written(tree), ...said), data: { search: s } };
     },
   },
   {
@@ -342,10 +257,10 @@ register(
     args: [{ name: "search", description: "search ID (Q0001)", required: true }],
     options: [
       { name: "question", type: "string", value: "<text>", description: "what was looked for" },
-      { name: "recordset", type: "string", multiple: true, value: "<B…>", description: "where (repeatable; replaces)" },
+      { name: "recordset", type: "string", multiple: true, value: "<B…>", description: "where (repeatable; replaces)", aliases: ["where"] },
       { name: "no-recordset", type: "boolean", description: "it was not in a record set (a catalog, the web): take them off" },
       { name: "years", type: "string", value: "<from-to>", description: "years covered" },
-      { name: "surname", type: "string", multiple: true, value: "<name>", description: "surnames looked for (repeatable; replaces)" },
+      { name: "surname", type: "string", multiple: true, value: "<name>", description: "surnames looked for (repeatable; replaces)", aliases: ["surnames"] },
       { name: "place", type: "string", multiple: true, value: "<name>", description: "places covered (repeatable; replaces)" },
       { name: "pages", type: "string", value: "<range>", description: "images/pages covered" },
       { name: "method", type: "string", value: "<m>", description: SEARCH_METHODS.join(", ") },
@@ -359,8 +274,8 @@ register(
       const tree = ctx.tree();
       const id = requireRecord<Search>(tree, args[0]!, "search").id;
       if (opts["no-recordset"] && csvOpt(opts.recordset).length) throw new UsageError("--recordset or --no-recordset, not both");
-      const years = opts.years === undefined ? undefined : String(opts.years);
-      if (years !== undefined && !yearsRange(years)) throw new UsageError(`invalid --years "${years}"`, { hint: "1903 or 1903-1907" });
+      const said: string[] = [];
+      const years = yearsOption(opts.years, said);
       const scope: Search["scope"] = {
         ...(years ? { years } : {}),
         ...(csvOpt(opts.surname).length ? { surnames: csvOpt(opts.surname) } : {}),
@@ -376,7 +291,7 @@ register(
         ...(csvOpt(opts.found).length ? { findings: csvOpt(opts.found).map((s) => requireRecord(tree, s, "source").id) } : {}),
         ...(opts.task ? { task: requireRecord(tree, String(opts.task), "task").id } : {}),
       };
-      const note = typeof opts.note === "string" && opts.note.trim() ? makeNote(tree, opts.note) : undefined;
+      const note = typeof opts.note === "string" && opts.note.trim() ? makeNotes(tree, opts.note) : undefined;
       const fields = [...Object.keys(change), ...Object.keys(scope), ...(note ? ["note"] : [])];
       if (!fields.length) throw new UsageError("nothing to change", { hint: `strom help search edit` });
       const reason = typeof opts.reason === "string" && opts.reason.trim() ? opts.reason.trim() : undefined;
@@ -395,13 +310,13 @@ register(
           });
           if (overwritten.length && !reason)
             throw new UsageError(`changing ${overwritten.join(", ")} of ${id} needs --reason`, { hint: 'a search is evidence: e.g. --reason "the index belongs to the other volume"' });
-          const next: Search = { ...cur, ...change, scope: { ...cur.scope, ...scope }, ...(note ? { notes: [...cur.notes, note] } : {}) };
+          const next: Search = { ...cur, ...change, scope: { ...cur.scope, ...scope }, ...(note ? { notes: [...cur.notes, ...note] } : {}) };
           if (next.result === "found" && next.findings.length === 0) throw new UsageError("result found needs --found <S…>", { hint: "create the source first: strom source add …" });
           return next;
         },
         { op: "search.edit", summary: `${id} ${fields.join(", ")}`, reason, targets: [...(change.recordsets ?? []), ...(change.findings ?? [])] },
       );
-      return { text: written(tree), data: { search: s } };
+      return { text: lines(written(tree), ...said), data: { search: s } };
     },
   },
   {
@@ -425,13 +340,13 @@ register(
       }
       else if (typeOfId(id) === "person") {
         const p = resolvePerson(tree, id);
-        const sur = foldText(primaryName(p).surname);
+        const surs = p.names.map((n) => n.surname).filter(Boolean);
         what = `${p.id} ${displayName(p)}`;
-        match = (s) => (s.scope.surnames ?? []).some((x) => foldText(x) === sur) || (!!s.task && tree.get<{ subject?: string[] } & AnyRecord>(s.task) !== undefined && ((tree.get(s.task) as { subject?: string[] }).subject ?? []).includes(p.id));
+        match = (s) => (s.scope.surnames ?? []).some((x) => surs.some((y) => sameFamilyName(x, y))) || (!!s.task && tree.get<{ subject?: string[] } & AnyRecord>(s.task) !== undefined && ((tree.get(s.task) as { subject?: string[] }).subject ?? []).includes(p.id));
       } else {
         const key = foldText(q);
         match = (s) =>
-          (s.scope.surnames ?? []).some((x) => foldText(x) === key) ||
+          (s.scope.surnames ?? []).some((x) => foldText(x) === key || sameFamilyName(x, q)) ||
           (s.scope.places ?? []).some((x) => foldText(x).includes(key)) ||
           foldText(s.question).includes(key) ||
           s.recordsets.some((b) => {
@@ -439,18 +354,22 @@ register(
             return !!r && (foldText(r.title).includes(key) || r.places.some((pl) => foldText(pl).includes(key)));
           });
       }
-      const years = opts.years ? String(opts.years) : undefined;
-      const hits = tree.list<Search>("search").filter((s) => match(s) && overlaps(s.scope.years, years));
+      const said: string[] = [];
+      const years = yearsOption(opts.years, said);
+      const hits = tree.list<Search>("search").filter((s) => match(s) && yearsOverlap(s.scope.years, years));
       const negative = hits.filter((s) => s.result === "negative").length;
       const text = hits.length
         ? lines(`${hits.length} search(es) for ${what}${years ? ` in ${years}` : ""} — ${negative} negative, ${hits.length - negative} with results`, table(hits.map(searchLine)))
         : `nothing searched yet for ${what}${years ? ` in ${years}` : ""}`;
-      return { text, data: { searches: hits } };
+      return { text: lines(text, ...said), data: { searches: hits } };
     },
   },
 );
 
 // ── conflicts and hypotheses ───────────────────────────────────────────────
+
+/** "A: claim", "B : claim", "3: claim" — one letter or a number before the colon; "Jan: …" is a claim, not a letter. */
+const VARIANT_LABEL = /^(\p{L}|\p{N}{1,2})\s*:\s*(.+)$/su;
 
 register(
   {
@@ -633,15 +552,23 @@ register(
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const variants = listOpt(opts.variant).map((v, i) => {
-        const m = /^([\p{L}\p{N}]{1,3})\s*:\s*(.+)$/u.exec(v);
-        return { label: m ? m[1]! : String.fromCharCode(65 + i), claim: (m ? m[2]! : v).trim(), support: [], against: [] };
+      // the letters given first; a variant without one gets the next free letter — never one twice
+      const given = listOpt(opts.variant).map((v) => ({ m: VARIANT_LABEL.exec(v.trim()), v }));
+      const used = given.flatMap(({ m }) => (m ? [m[1]!.toUpperCase()] : []));
+      const twice = used.find((l, i) => used.indexOf(l) !== i);
+      if (twice) throw new UsageError(`variant ${twice} given twice: a letter is one variant's`, { hint: 'leave the letters out and strom gives them: --variant "<claim>" --variant "<claim>"' });
+      const variants = given.map(({ m, v }) => {
+        const label = m ? m[1]!.toUpperCase() : nextLabel(used);
+        if (!m) used.push(label);
+        return { label, claim: (m ? m[2]! : v).trim(), support: [], against: [] };
       });
       if (variants.length < 2) throw new UsageError("a hypothesis needs at least two --variant");
       const subject = anyRefs(tree, listOpt(opts.about));
       if (!subject.length) throw new UsageError("--about is required");
       const h = create<Hypothesis>(tree, "hypothesis", { question: args[0]!.trim(), subject, variants, state: "open", note: opts.note as string | undefined }, (id) => `+${id} hypothesis "${truncate(args[0]!, 60)}"`, subject);
-      return { text: written(tree), data: { hypothesis: h } };
+      // a variant that names people by ID: what it would connect, said so the Strom app shows it
+      const hints = linkHints(tree, h, h.variants.map((v) => v.label));
+      return { text: lines(written(tree), ...hints), data: { hypothesis: h, ...(hints.length ? { linkHints: hints } : {}) } };
     },
   },
   {
@@ -687,7 +614,7 @@ register(
     run(ctx, { args }) {
       const tree = ctx.tree();
       const id = normId(args[0]!, "hypothesis");
-      const m = /^([\p{L}\p{N}]{1,3})\s*:\s*(.+)$/u.exec(args[1]!.trim());
+      const m = VARIANT_LABEL.exec(args[1]!.trim());
       const claim = (m ? m[2]! : args[1]!).trim();
       if (!claim) throw new UsageError("the claim is empty");
       // (a writing command holds the tree's lock from its first read: the letter picked here is the one written)
@@ -695,12 +622,13 @@ register(
       if (now.state !== "open") throw new UsageError(`${id} is ${now.state}: a variant is added to an open hypothesis`, { hint: `strom hypothesis show ${id}` });
       if (m && now.variants.some((v) => foldText(v.label) === foldText(m[1]!)))
         throw new UsageError(`${id} has a variant ${m[1]} already: a letter is never used twice`, { hint: "leave the letter out: strom picks the next one" });
-      const label = m ? m[1]! : nextLabel(now.variants.map((v) => v.label));
+      const label = m ? m[1]!.toUpperCase() : nextLabel(now.variants.map((v) => v.label));
       const h = update<Hypothesis>(tree, id, "hypothesis", (h) => ({ ...h, variants: [...h.variants, { label, claim, support: [], against: [] }] }), {
         op: "hypothesis.variant",
         summary: `${id} +${label}: ${truncate(claim, 60)}`,
       });
-      return { text: written(tree), data: { hypothesis: h, variant: label } };
+      const hints = linkHints(tree, h, [label]);
+      return { text: lines(written(tree), ...hints), data: { hypothesis: h, variant: label, ...(hints.length ? { linkHints: hints } : {}) } };
     },
   },
   {
@@ -746,41 +674,7 @@ register(
       const tree = ctx.tree();
       const id = normId(args[0]!, "hypothesis");
       const link = variantLink(tree, opts, args.slice(2));
-      const said = link ? linkText(link) : "every link";
-      const h = update<Hypothesis>(
-        tree,
-        id,
-        "hypothesis",
-        (h) => {
-          if (h.state !== "open") throw new UsageError(`${id} is ${h.state}: what a variant would connect is for an open hypothesis`, { hint: `strom hypothesis show ${id}` });
-          const v = h.variants.find((x) => foldText(x.label) === foldText(args[1]!));
-          if (!v) throw new UsageError(`no variant ${args[1]} in ${id}`, { hint: h.variants.map((x) => x.label).join(", ") });
-          const had = v.links ?? [];
-          const at = link ? had.findIndex((l) => linkKey(l) === linkKey(link)) : -1;
-          if (opts.remove) {
-            if (!had.length) throw new UsageError(`${id} ${v.label} has no links`, { hint: `strom hypothesis show ${id}` });
-            if (link && at < 0) throw new UsageError(`${id} ${v.label} has no link ${linkText(link)}`, { hint: had.map(linkText).join(" · ") });
-            const rest = link ? had.filter((_, i) => i !== at) : [];
-            if (rest.length) v.links = rest;
-            else delete v.links;
-          } else {
-            if (at >= 0) throw new UsageError(`${id} ${v.label} has that link already: ${linkText(link!)}`, { hint: `strom hypothesis show ${id}` });
-            const other = otherPeople(v, link!);
-            if (other.length)
-              throw new UsageError(`${id} ${v.label} said other people before (${(v.linked ?? []).join(" ")}): a variant's letter stays one claim's — ${other.join(" ")} is a new variant`, {
-                hint: `strom hypothesis variant ${id} "<the claim>", then strom hypothesis link ${id} <its letter> …`,
-              });
-            v.links = [...had, link!];
-            v.linked = [...new Set([...(v.linked ?? []), ...linkIds(link!)])];
-          }
-          return h;
-        },
-        {
-          op: "hypothesis.link",
-          summary: `${id} ${args[1]}: ${opts.remove ? `${said} taken off` : said}`,
-          targets: link ? linkIds(link) : [],
-        },
-      );
+      const h = writeVariantLink(tree, id, args[1]!, link, { remove: !!opts.remove });
       const v = h.variants.find((x) => foldText(x.label) === foldText(args[1]!))!;
       return {
         text: lines(written(tree), ...(v.links ?? []).map((l) => `  ${v.label} ⇢ ${linkText(l)}`)),
@@ -888,24 +782,34 @@ register(
     group: "analysis",
     tree: true,
     writes: true,
-    description: `A lesson on a record set, archive or place is shown to whoever works with it next.\nRule: one sentence, max ${LESSON_MAX} characters; details in --detail.`,
+    description: `A lesson on a record set, archive or place is shown to whoever works with it next.\nRule: one sentence, max ${LESSON_MAX} characters (a longer one: its start is the rule, the rest goes into its detail); details in --detail.`,
     args: [{ name: "rule", description: "the lesson as one rule", required: true }],
     options: [
       { name: "scope", type: "string", value: "<scope>", description: `${LESSON_SCOPES.join(", ")} (default: from --on, else project)` },
       { name: "on", type: "string", value: "<B…|R…|L…>", description: "what it is about" },
-      { name: "detail", type: "string", value: "<text>", description: "the longer story" },
+      { name: "detail", type: "string", value: "<text>", description: "the longer story", max: LESSON_DETAIL_MAX },
     ],
     examples: ['strom lesson add "Folio = 2 × image + 1, checked at six anchors" --on B0001'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const rule = args[0]!.trim();
-      if ([...rule].length > LESSON_MAX) throw new UsageError(`the rule is ${[...rule].length} characters (max ${LESSON_MAX})`, { hint: "one sentence as the rule, the story in --detail" });
+      let rule = args[0]!.trim();
+      let detail = typeof opts.detail === "string" && opts.detail.trim() ? opts.detail.trim() : undefined;
+      // a rule longer than one: its first sentence is the rule, the rest goes before its detail — said, never an
+      // error the agent answers by cutting the lesson short (K3)
+      if ([...rule].length > LESSON_MAX) {
+        const was = [...rule].length;
+        const { head, rest } = splitText(rule, LESSON_MAX - 2);
+        rule = `${head} …`;
+        detail = [`… ${rest}`, detail].filter(Boolean).join("\n");
+        tree.notices.push(`note: the rule was ${was} characters (a rule holds ${LESSON_MAX}): its start is the rule, the rest went into its detail (strom show <K…>)`);
+      }
+      if (detail && [...detail].length > LESSON_DETAIL_MAX) throw new UsageError(`the rule's detail is ${[...detail].length} characters (max ${LESSON_DETAIL_MAX})`, { hint: "the lesson in short; a long story of a record set belongs in its notes: strom recordset edit B… --note \"…\"" });
       const target = opts.on ? normId(String(opts.on)) : undefined;
       const type = target ? typeOfId(target) : undefined;
       if (target && (!type || !["repository", "recordset", "place"].includes(type) || !tree.get(target)))
         throw new UsageError(`--on must be an existing record set, repository or place`);
       const scope = opts.scope ? oneOf(opts.scope, LESSON_SCOPES, "scope") : ((type as Lesson["scope"] | undefined) ?? "project");
-      const l = create<Lesson>(tree, "lesson", { scope, target, rule, detail: opts.detail as string | undefined }, (id) => `+${id} lesson "${truncate(rule, 60)}"`, target ? [target] : []);
+      const l = create<Lesson>(tree, "lesson", { scope, target, rule, detail }, (id) => `+${id} lesson "${truncate(rule, 60)}"`, target ? [target] : []);
       return { text: written(tree), data: { lesson: l } };
     },
   },
@@ -914,10 +818,14 @@ register(
     summary: "Lessons (optionally only those about one record set, archive or place)",
     group: "analysis",
     tree: true,
-    options: [{ name: "on", type: "string", value: "<B…|R…|L…>", description: "only lessons about this" }],
+    options: [
+      { name: "on", type: "string", value: "<B…|R…|L…>", description: "only lessons about this" },
+      { name: "scope", type: "string", value: "<scope>", description: `only lessons of this scope: ${LESSON_SCOPES.join(", ")}` },
+    ],
     run(ctx, { opts }) {
       const target = opts.on ? normId(String(opts.on)) : undefined;
-      const all = ctx.tree().list<Lesson>("lesson").filter((l) => !target || l.target === target);
+      const scope = opts.scope === undefined ? undefined : oneOf(opts.scope, LESSON_SCOPES, "scope");
+      const all = ctx.tree().list<Lesson>("lesson").filter((l) => !l.retracted && (!target || l.target === target) && (!scope || l.scope === scope));
       return { text: all.length ? table(all.map((l) => [l.id, l.scope, l.target ?? "", l.rule])) : "no lessons", data: { lessons: all } };
     },
   },
@@ -982,7 +890,7 @@ register(
     tree: true,
     description: "Words in one argument must all be there. Several arguments are several searches in one go (e.g. old codes\nof a converted research) — each answered on its own.",
     args: [{ name: "text", description: "words to find (diacritics optional); several arguments = several searches", required: true, variadic: true }],
-    options: [{ name: "type", type: "string", value: "<type>", description: `only one record type: ${Object.keys(RECORD_TYPES).join(", ")}` }],
+    options: [{ name: "type", type: "string", value: "<type>", description: `only one record type: ${Object.keys(RECORD_TYPES).join(", ")}`, aliases: ["kind"] }],
     examples: ['strom find "čp. 12"', "strom find mlynar --type source", "strom find \"č. 12\" \"č. 15\" mlynar"],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
@@ -996,16 +904,22 @@ register(
       const missing: string[] = [];
       for (const q of queries) {
         const words = foldText(q).split(" ").filter(Boolean);
+        const mine: { hit: Hit; rank: number }[] = [];
         let n = 0;
         for (const { r, hay, folded } of records) {
           if (!words.every((w) => folded.includes(w))) continue;
-          const at = folded.indexOf(words[0]!);
+          // the place in the text itself, not in its folded form (accents, spaces and "ß" change its length)
+          const at = unfoldIndex(hay, folded.indexOf(words[0]!));
           let start = Math.max(0, at - 30);
           while (start > 0 && start < at && hay[start - 1] !== " ") start++; // begin at a word
           const snippet = hay.slice(start, at + 70).replace(/\u0001/g, "·");
-          hits.push({ ...(queries.length > 1 ? { query: q } : {}), id: r.id, type: r.type, label: truncate(label(tree, r), 50), snippet: truncate(snippet, 100) });
+          const named = label(tree, r);
+          // the record itself first (its ID), then those named so (title, name), then a word in their text (K14)
+          const rank = r.id === normId(q) ? 0 : words.every((w) => foldText(named).includes(w)) ? 1 : 2;
+          mine.push({ hit: { ...(queries.length > 1 ? { query: q } : {}), id: r.id, type: r.type, label: truncate(named, 50), snippet: truncate(snippet, 100) }, rank });
           n++;
         }
+        hits.push(...mine.sort((a, b) => a.rank - b.rank).map((m) => m.hit));
         if (!n) missing.push(q);
       }
       const page = paginate(hits, ctx.limit, ctx.page);

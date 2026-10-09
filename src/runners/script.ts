@@ -4,7 +4,7 @@
 // prompt both on stdin (like a headless agent) and in STROM_PROMPT.
 
 import { spawn } from "node:child_process";
-import { appendLog, feedStdin, looksLikeLimit, OWN_GROUP, stopTree, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, OWN_GROUP, stopTree, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 
 export const scriptRunner: Runner = {
   id: "script",
@@ -55,10 +55,17 @@ function once(opts: RunOptions, prompt: string, timeoutMs: number | undefined, w
         exitCode: code ?? 1,
         outcome: opts.signal?.aborted ? "stopped" : timedOut ? "timeout" : limit.limit ? "limit" : code === 0 ? "ok" : "error",
         text: out.trim().split("\n").slice(-5).join("\n"),
-        metrics: { turns: 1, ...(denied.length ? { denied: denied.length } : {}) },
+        // a script says what it cost as an agent would: a line "cost: <usd>"
+        metrics: { turns: 1, ...(denied.length ? { denied: denied.length } : {}), ...costOf(out) },
         ...(limit.resumeAt ? { resumeAt: limit.resumeAt } : {}),
         ...(denied.length ? { denied } : {}),
+        ...(code !== 0 && !timedOut && !limit.limit && !opts.signal?.aborted && looksLikeModelRejected(out) ? { modelRejected: true as const } : {}),
       });
     });
   });
+}
+
+function costOf(out: string): { costUsd?: number } {
+  const m = /^cost: (\d+(?:\.\d+)?)$/m.exec(out);
+  return m ? { costUsd: Number(m[1]) } : {};
 }

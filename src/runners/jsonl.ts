@@ -7,7 +7,7 @@
 
 import type { SessionMetrics } from "../core/model.ts";
 import type { Env } from "../core/paths.ts";
-import { appendLog, feedStdin, looksLikeLimit, OWN_GROUP, spawnAgent, stopTree, type RunOptions, type RunResult } from "./runner.ts";
+import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, OWN_GROUP, spawnAgent, stopTree, type RunOptions, type RunResult } from "./runner.ts";
 
 /** What a runner learns from its agent's events. */
 export interface Heard {
@@ -69,6 +69,7 @@ export async function runJsonLines(
     metrics: heard.metrics,
     ...(limit.resumeAt ? { resumeAt: limit.resumeAt } : {}),
     ...(heard.denied.length ? { denied: heard.denied } : {}),
+    ...(outcome === "error" && looksLikeModelRejected(all) ? { modelRejected: true as const } : {}),
   };
 }
 

@@ -20,7 +20,9 @@ conclusion so the next researcher can follow it.
 - **Negative results are results.** Every search is recorded (`strom search add
   … --result negative`), with exactly what was covered. The most expensive
   mistake is to search the same book twice.
-- **Check the premise first.** Before opening anything: `strom searched <where>`.
+- **Check the premise first.** Before opening anything, read the brief's
+  *Already known* — the searches of the task's books, people and surnames;
+  `strom searched <where>` only for a book, place or years it does not list.
 - **Extract everything the first time** you open a record: names, ages, house
   numbers, occupations, godparents, witnesses, midwife, remarks in the margin.
   Opening the same page again later costs more than writing it down now.

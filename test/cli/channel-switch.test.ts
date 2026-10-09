@@ -196,6 +196,12 @@ test("stable → beta → stable on an isolated installation: each switch backed
   inst.ok(["init", "Novákovi"]);
   const tree = path.join(inst.config().home, "Novákovi");
   const at = { cwd: tree };
+  // the model chosen for an agent — this computer's and a tree's own — goes on with every version
+  inst.ok(["config", "set", "model.lead", "gemini-3.1-pro-high", "--agent", "antigravity"]);
+  inst.ok(["config", "set", "model.lead", "gpt-6-sol", "--agent", "codex", "--for-tree"], at);
+  const models = () => [inst.config().models, JSON.parse(fs.readFileSync(path.join(tree, "strom.json"), "utf8")).models];
+  const chosen = [{ antigravity: { lead: "gemini-3.1-pro-high" } }, { codex: { lead: "gpt-6-sol" } }];
+  assert.deepEqual(models(), chosen);
   inst.ok(["person", "add", "Jiří /Dvořák/", "--sex", "M", "--born", "1890"], at);
   // Cyrillic, decomposed (NFD) as a keyboard of another system may send it
   inst.ok(["person", "add", "Анна /Иванова/".normalize("NFD"), "--sex", "F"], at);
@@ -226,6 +232,7 @@ test("stable → beta → stable on an isolated installation: each switch backed
   inst.ok(["check"], at);
   assert.equal(inst.config().lastVersion, BETA);
   assert.deepEqual(snapshot(inst, tree), a, "the beta changed nothing of the research");
+  assert.deepEqual(models(), chosen, "the models kept on the beta");
   inst.ok(["person", "add", "Marie /Nováková/", "--sex", "F"], at);
   const b = snapshot(inst, tree);
 
@@ -244,6 +251,7 @@ test("stable → beta → stable on an isolated installation: each switch backed
   const c = snapshot(inst, tree);
   assert.deepEqual(c, b, "the stable sees the research as the beta left it");
   nothingMissing(a, c);
+  assert.deepEqual(models(), chosen, "the models kept back on the stable");
   assert.ok((c.persons as any).persons.some((p: any) => p.name === "Marie Nováková"));
 
   // there and back again: each trip its own backup (the research written on in between)

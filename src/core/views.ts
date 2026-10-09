@@ -18,9 +18,13 @@ import { now, type Tree } from "./tree.ts";
 import { crop, grid, resize, rotate, stretch, toGrey, type RawImage } from "../image/image.ts";
 import { decodeImage, encodeImage, ImageFormatError, imageSize } from "../image/index.ts";
 import type { Media, Region } from "./model.ts";
+import { IMAGE_MAX } from "../agents/images.ts";
 
-/** Longest side of a view by default: what vision models take in without shrinking it again. */
-export const VIEW_MAX = 1568;
+/**
+ * Longest side of a view by default: what every vision model takes in without shrinking it again. A view made for
+ * an agent goes by what its model takes (agents/images.ts imageMax: 2000 for the newer ones).
+ */
+export const VIEW_MAX = IMAGE_MAX;
 /** Small crops are enlarged at least to this long side (script gets bigger, not sharper). */
 const VIEW_MIN = 800;
 
@@ -96,6 +100,41 @@ export function tiles(region: { x: number; y: number; w: number; h: number }, ma
   return out;
 }
 
+/**
+ * Each half of a double page reaches this far past the middle (a share of the width): what stands at the gutter
+ * is whole in one of the halves, also when the scan is not centred on it.
+ */
+export const SPREAD_OVERLAP = 0.04;
+/**
+ * A reader gets an image in halves only when they show it at least this much sharper than one view of it (a spread
+ * of two pages side by side; a near-square one gains less than the second view costs).
+ */
+export const SPREAD_GAIN = 1.25;
+
+/** The left and right half of a W×H image in its pixels, overlapping at the middle by SPREAD_OVERLAP on each side. */
+export function halves(W: number, H: number, overlap = SPREAD_OVERLAP): { left: Box; right: Box } {
+  const w = Math.min(W, Math.round(W * (0.5 + overlap)));
+  return { left: { x: 0, y: 0, w, h: H }, right: { x: W - w, y: 0, w, h: H } };
+}
+
+/**
+ * Whether an image is read sharper as its two halves than whole: a double page wider than tall, which one view
+ * of at most `max` px would shrink (a single page is taller than wide and stays whole; so does a scan small enough
+ * to be seen whole at its own resolution, and a near-square spread, whose halves would be no sharper).
+ */
+export function readInHalves(W: number, H: number, max = VIEW_MAX): boolean {
+  const whole = Math.min(1, max / Math.max(W, H));
+  const half = Math.min(1, max / Math.max(halves(W, H).left.w, H));
+  return half / whole >= SPREAD_GAIN;
+}
+
+/** "x,y,w,h" in pixels for --crop. */
+export function cropOf(b: Box): string {
+  return `${b.x},${b.y},${b.w},${b.h}`;
+}
+
+type Box = { x: number; y: number; w: number; h: number };
+
 /** Make (or reuse) a view of an image file. `key` names it (M0012, I0003). */
 export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec): View {
   if (!fs.existsSync(source)) {
@@ -161,21 +200,33 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
   return { file, ...dims, scale, original: { width: W, height: H }, region, cached };
 }
 
+/** What a view shows: "1000×1568 px · part 0,0 1200×2000 px of 2400×2000 · 78 %". */
+export function viewLine(v: View): string {
+  const part = v.region.w === v.original.width && v.region.h === v.original.height ? "whole image" : `part ${v.region.x},${v.region.y} ${v.region.w}×${v.region.h} px`;
+  return `${v.width}×${v.height} px · ${part} of ${v.original.width}×${v.original.height} · ${Math.round(v.scale * 100)} %`;
+}
+
+/** A view smaller than the part of the scan it shows (crop to read it), or bigger (no more detail than the scan has). */
+export function viewSize(v: View): "reduced" | "enlarged" | undefined {
+  return v.scale < 0.75 ? "reduced" : v.scale > 1.25 ? "enlarged" : undefined;
+}
+
+export const REDUCED_HINT = "crop the part you need to read it at full size (--crop x,y,w,h, --half left|right, --grid to find it)";
+export const ENLARGED_HINT = "What you cannot read for sure is marked [?] in the transcript and stays out of the fields";
+export const SHARPER_SCAN = 'a sharper scan: ask the user (strom task wait … --images B…:<n> --on "…": zoomed in on the entry, or the full-resolution scan)';
+
 /** One line telling the reader what it sees and how to see more. */
 export function describeView(v: View, display: (p: string) => string, fetchPart?: string): string {
-  const pct = Math.round(v.scale * 100);
-  const part = v.region.w === v.original.width && v.region.h === v.original.height ? "whole image" : `part ${v.region.x},${v.region.y} ${v.region.w}×${v.region.h} px`;
+  const size = viewSize(v);
   const hint =
-    v.scale < 0.75
-      ? " — reduced: crop the part you need to read it at full size (--crop x,y,w,h, --half left|right, --grid to find it)"
-      : v.scale > 1.25
-        ? `\nenlarged from ${v.region.w}×${v.region.h} px of the scan: it has no more detail than that. What you cannot read for sure is marked [?] in the transcript and stays out of the fields; ${
-            fetchPart
-              ? `this part sharper from the archive (one request): ${fetchPart}`
-              : 'a sharper scan: ask the user (strom task wait … --images B…:<n> --on "…": zoomed in on the entry, or the full-resolution scan)'
+    size === "reduced"
+      ? ` — reduced: ${REDUCED_HINT}`
+      : size === "enlarged"
+        ? `\nenlarged from ${v.region.w}×${v.region.h} px of the scan: it has no more detail than that. ${ENLARGED_HINT}; ${
+            fetchPart ? `this part sharper from the archive (one request): ${fetchPart}` : SHARPER_SCAN
           }`
         : "";
-  return `${display(v.file)}\n${v.width}×${v.height} px · ${part} of ${v.original.width}×${v.original.height} · ${pct} %${hint}`;
+  return `${display(v.file)}\n${viewLine(v)}${hint}`;
 }
 
 /** A part of an image from --half / --crop (fractions, or pixels of the registered whole image). */

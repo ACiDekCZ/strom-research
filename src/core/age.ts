@@ -64,8 +64,10 @@ export function normalizeAge(input: string): string | undefined {
     pendingUnit = undefined;
     if (unit === "w") parts.d += Math.round(n * 7);
     else if (unit === "y" && !Number.isInteger(n)) {
-      parts.y += Math.floor(n);
-      parts.m += Math.round((n % 1) * 12);
+      // 27.99 years is 28 years, never "27y 12m"
+      const months = Math.round((n % 1) * 12);
+      parts.y += Math.floor(n) + (months === 12 ? 1 : 0);
+      parts.m += months === 12 ? 0 : months;
     } else parts[unit] += Math.round(n);
     seen = true;
   }

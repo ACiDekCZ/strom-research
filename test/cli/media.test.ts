@@ -341,3 +341,154 @@ test("strom read: batches of at most ten, reports in notes/readings, the finds a
   assert.equal((await w.run(["read", "B1", "--images", "1-3", "--agent", "script"])).code, 2, "the question is required");
   w.cleanup();
 });
+
+test("strom read: a double page in halves only where reading closely matters (blind, verify, unclear before), each page sharper; otherwise whole", opts, async () => {
+  const { w } = await world();
+  // synthetic scans: lines of "script" on paper (no real scan in the repository)
+  const scan = (width: number, height: number) => {
+    const data = new Uint8Array(width * height * 3);
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) data.fill(y % 23 < 3 && x % 41 < 30 ? 40 : 235, (y * width + x) * 3, (y * width + x) * 3 + 3);
+    return encodeImage({ width, height, channels: 3, data }, "jpeg");
+  };
+  const dir = path.join(w.dir, "spreads");
+  fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(dir, "s0001.jpg"), scan(1200, 800)); // a double page (3:2: each page 1.5× sharper in its half)
+  fs.writeFileSync(path.join(dir, "s0002.jpg"), scan(600, 900)); // a single page: taller than wide
+  fs.writeFileSync(path.join(dir, "s0003.jpg"), scan(500, 350)); // a double page small enough to be seen whole at its own pixels
+  fs.writeFileSync(path.join(dir, "s0004.jpg"), scan(1100, 900)); // a near-square spread: its halves 1.2× sharper — not worth two views
+  await w.ok(["media", "add", dir, "--recordset", "B1"]);
+  w.env.STROM_RUNNER_SCRIPT = path.join(import.meta.dirname, "..", "fixtures", "agent.ts");
+  const prompts = path.join(w.dir, "prompts.txt");
+  w.env.READER_PROMPT_OUT = prompts;
+  const read = async (...more: string[]) => {
+    fs.writeFileSync(prompts, "");
+    // --max 600 stands in for the model's limit: the spread in one view would be 600×400, 300 px a page
+    const r = await w.run(["read", "B1", "--images", "1-4", "--question", "Křty Nováků", "--max", "600", "--batch", "4", "--agent", "script", "--json", ...more]);
+    assert.equal(r.code, 0, r.out + r.err);
+    return { r, prompt: fs.readFileSync(prompts, "utf8") };
+  };
+  // the first reading of a range: every image whole, one view each
+  const first = await read();
+  assert.doesNotMatch(first.prompt, /double page/);
+  for (const n of [1, 2, 3, 4]) assert.match(first.prompt, new RegExp(`^- M000${n} · image ${n}: .+\\.jpg$`, "m"));
+  assert.equal(first.r.json.reports.length, 1);
+  assert.equal(first.r.json.halves, undefined);
+
+  // a blind reading (verification): the spread in halves, the others whole
+  const blind = await read("--blind");
+  assert.match(blind.prompt, /^A double page comes as its two halves.*\nrun across both pages: read the two halves of an image together/m);
+  const halves = /^- M0001 · image 1 — a double page in two halves:\n {4}left half: (.+)\n {4}right half: (.+)$/m.exec(blind.prompt);
+  assert.ok(halves, blind.prompt);
+  assert.match(blind.prompt, /^- M0002 · image 2: .+\.jpg$/m, "a single page whole");
+  assert.match(blind.prompt, /^- M0003 · image 3: .+\.jpg$/m, "a small scan whole: halves would be no sharper");
+  assert.match(blind.prompt, /^- M0004 · image 4: .+\.jpg$/m, "a near-square spread whole: its halves gain less than 1.25×");
+  assert.match(blind.prompt, /^## Image <image number> · <M… id>$/m, "one block per image, as before");
+  // each half within the limit, and the pages sharper: more pixels of the scan in each view
+  const size = (f: string) => decodeImage(new Uint8Array(fs.readFileSync(f)));
+  const [left, right] = [size(halves[1]!), size(halves[2]!)];
+  assert.deepEqual([left.width, left.height], [486, 600]);
+  assert.deepEqual([right.width, right.height], [486, 600]);
+  const whole = (await w.ok(["media", "view", "B1:1", "--max", "600", "--json"])).json;
+  assert.deepEqual([whole.width, whole.height], [600, 400]);
+  const page = (v: { width: number; height: number }, share: number) => v.width * share * v.height;
+  assert.ok(page(left, 0.5 / 0.54) > 2 * page(whole, 0.5), "a page in its half has more than twice the pixels it has in the whole spread");
+  // the halves overlap at the gutter: 4 % of the width past the middle on each side
+  const views = fs.readFileSync(path.join(w.cwd, ".strom", "views", "views.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((v) => v.key === "M0001" && v.region.x + v.region.w <= 1200 && v.region.w < 1200);
+  assert.deepEqual(views.slice(0, 2).map((v) => v.region), [{ x: 0, y: 0, w: 648, h: 800 }, { x: 552, y: 0, w: 648, h: 800 }]);
+  // a reader takes views, not images: the halves are two of its four
+  assert.equal(blind.r.json.reports.length, 2, "spread + two images, then the last one");
+  assert.equal(blind.r.json.halves, 1);
+  assert.deepEqual(blind.r.json.found.map((f: { image: number }) => f.image), [1, 4], "image numbers as before");
+  assert.match((await w.run(["read", "B1", "--images", "1-3", "--question", "x", "--max", "600", "--blind", "--agent", "script"])).out, /^read 3 images \(1 double pages as their halves: blind reading\) in 1 batch\(es\)/m);
+  // --whole: one view of each image, also blind
+  assert.match((await read("--blind", "--whole")).prompt, /^- M0001 · image 1: .+\.jpg$/m);
+
+  // an image a reader found unclear before comes in halves when it is read again; the others stay whole
+  fs.writeFileSync(path.join(w.cwd, "notes", "readings", "2000-01-01-B1-1-4-1.md"), "# Reading B1-1-4 · batch 1 of 1\nQuestion: x\n\n## Image 1 · M0001\nresult: unclear\nentries: snad Novák\n\n## Image 4 · M0004\nresult: unclear\n\n");
+  const again = await read();
+  assert.match(again.prompt, /^- M0001 · image 1 — a double page in two halves:/m);
+  assert.match(again.prompt, /^- M0004 · image 4: .+\.jpg$/m, "unclear, but a near-square spread: whole");
+  assert.match((await w.run(["read", "B1", "--images", "1-2", "--question", "x", "--max", "600", "--agent", "script"])).out, /^read 2 images \(1 double pages as their halves: unclear before\)/m);
+  fs.rmSync(path.join(w.cwd, "notes", "readings", "2000-01-01-B1-1-4-1.md"));
+
+  // --half both: halves anyway; --half left|right: that page, with the strip past the gutter
+  assert.match((await read("--half", "both")).prompt, /^- M0001 · image 1 — a double page in two halves:/m);
+  fs.writeFileSync(prompts, "");
+  await w.ok(["read", "B1:1", "--question", "x", "--half", "right", "--max", "600", "--agent", "script"]);
+  const rightOnly = /^- M0001 · image 1: (.+\.jpg)$/m.exec(fs.readFileSync(prompts, "utf8"))!;
+  assert.deepEqual([size(rightOnly[1]!).width, size(rightOnly[1]!).height], [486, 600]);
+  assert.equal((await w.run(["read", "B1:1", "--question", "x", "--half", "left", "--whole", "--agent", "script"])).code, 2);
+  assert.equal((await w.run(["read", "B1:1", "--question", "x", "--half", "middle", "--agent", "script"])).code, 2);
+
+  // a reading in a verify task: the spread in halves
+  await w.ok(["task", "add", "Ověřit křest", "--level", "verify", "--where", "B1", "--why", "jedno čtení", "--done-when", "přečteno znovu"]);
+  await w.ok(["session", "start", "T0001"]);
+  const verify = await read();
+  assert.match(verify.prompt, /^- M0001 · image 1 — a double page in two halves:/m);
+  assert.equal(verify.r.json.halves, 1);
+  w.cleanup();
+});
+
+test("media view: as big as the model of the agent that opens it takes an image in whole — 2000 px for the newer ones, else 1568", opts, async () => {
+  const { w } = await world();
+  const dir = path.join(w.dir, "big");
+  fs.mkdirSync(dir);
+  const data = new Uint8Array(3000 * 2000 * 3).fill(220);
+  fs.writeFileSync(path.join(dir, "s0001.jpg"), encodeImage({ width: 3000, height: 2000, channels: 3, data }, "jpeg"));
+  await w.ok(["media", "add", dir, "--recordset", "B1"]);
+  const width = async (env: Record<string, string> = {}, ...more: string[]) => {
+    Object.assign(w.env, env);
+    try {
+      return (await w.ok(["media", "view", "B1:1", "--json", ...more])).json.width as number;
+    } finally {
+      for (const k of Object.keys(env)) delete w.env[k];
+    }
+  };
+  // Claude Code with its own model (the current line), or a model of it named
+  assert.equal(await width(), 2000);
+  assert.equal(await width({ CLAUDECODE: "1", STROM_MODEL: "claude-opus-5-5" }), 2000);
+  assert.equal(await width({ CLAUDECODE: "1", STROM_MODEL: "claude-sonnet-4-6" }), 1568, "an older model: what it takes");
+  // the agent in whose shell strom runs, else the research's
+  assert.equal(await width({ GROK_AGENT: "1" }), 1568);
+  assert.equal(await width({ STROM_AGENT: "antigravity" }), 1568);
+  assert.equal(await width({ STROM_AGENT: "codex" }), 2000);
+  assert.equal(await width({ OPENCODE: "1", STROM_AGENT: "grok" }), 2000, "OpenCode's shell, though the research's agent is another");
+  // --max and --scale as before
+  assert.equal(await width({}, "--max", "800"), 800);
+  assert.equal(await width({ STROM_AGENT: "grok" }, "--scale", "1"), 3000);
+  w.cleanup();
+});
+
+test("strom read: what the readers wrote comes back compact, and images read before are said before they are read again", opts, async () => {
+  const { w, scans } = await world();
+  await w.ok(["media", "add", scans, "--recordset", "B1"]);
+  w.env.STROM_RUNNER_SCRIPT = path.join(import.meta.dirname, "..", "fixtures", "agent.ts");
+  w.env.AGENT_MODE = "reader-rich";
+  const r = await w.run(["read", "B1", "--images", "1-3", "--question", "Úmrtí Dvořák 1850–1855", "--context", "dům č. 12", "--agent", "script"]);
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.doesNotMatch(r.out, /already read/, "nothing read before");
+  assert.match(r.out, /found on: 1\n {2}1 \[found\] M0001\n {4}Franz · 18\. Oktober · Haus 13\n/);
+  // a possible match the reader hid in a block with nothing found, and the gap of the book
+  assert.match(r.out, /^ {2}2 \[nothing\] illegible: 3\. zápis: muž, 58 let, příjmení nečitelné, dům sedí — rodina snad na 50 %$/m);
+  assert.doesNotMatch(r.out, /^ {2}3 \[nothing\]/m, "a block with nothing found and nothing illegible is left out");
+  assert.match(r.out, /gaps in the book \(by image\): 2: strany 11–20 chybí: po 10 následuje 21/);
+  assert.match(r.out, /--by reader --result found --note "strany 11–20 chybí: po 10 následuje 21"\n/);
+  assert.match(r.out, /strom readings \d{4}-\d\d-\d\d-B0001-1-3 \(this again\), strom readings B0001 --image <n>/);
+  const [report] = fs.readdirSync(path.join(w.cwd, "notes", "readings"));
+  assert.match(fs.readFileSync(path.join(w.cwd, "notes", "readings", report!), "utf8"), /^# Reading B0001-1-3 · batch 1 of 1\nQuestion: Úmrtí Dvořák 1850–1855\nContext: dům č\. 12\n\n## Image 1/);
+  // the same images again: said first (never refused), with the reading to look at
+  const again = await w.run(["read", "B1", "--images", "2-3", "--question", "Křty Dvořák", "--agent", "script", "--json"]);
+  assert.equal(again.code, 0, again.out + again.err);
+  assert.match(again.err, /^already read: images 2–3 on \d{4}-\d\d-\d\d \("Úmrtí Dvořák 1850–1855"\) — see it: strom readings \d{4}-\d\d-\d\d-B0001-1-3$/m);
+  assert.deepEqual(again.json.earlier.readings[0].images, [2, 3]);
+  assert.equal(again.json.blocks.find((b: { image: number }) => b.image === 3).illegible[0], "3. zápis: muž, 58 let, příjmení nečitelné, dům sedí — rodina snad na 50 %");
+  // a search recorded by readers over the same pages is said too; other images are not
+  await w.ok(["search", "add", "Úmrtí Dvořák", "--recordset", "B1", "--pages", "1-2", "--method", "page-by-page", "--by", "reader", "--result", "negative"]);
+  const third = await w.run(["read", "B1:3", "--question", "x", "--agent", "script"]);
+  assert.match(third.out, /^already read: images 3 on /m);
+  assert.doesNotMatch(third.out, /already recorded/, "the search covered images 1–2 only");
+  const first = await w.run(["read", "B1:1", "--question", "x", "--agent", "script"]);
+  assert.match(first.out, /^already recorded: Q0001 \[negative\] "Úmrtí Dvořák" pages 1-2 by reader$/m);
+  w.cleanup();
+});

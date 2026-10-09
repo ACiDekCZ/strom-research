@@ -18,25 +18,33 @@ export function codexWritable(root: string, shared: string | undefined): string[
   return ["-c", `sandbox_workspace_write.writable_roots=${JSON.stringify([path.join(root, ".git"), ...(shared ? [shared] : [])])}`];
 }
 
+/**
+ * Working alone without the user's add-ons (agent.addons off): Codex's plugins (and the MCP servers they bring), its
+ * apps, the user's hooks and memories off for this run — the user's own config, model and login kept (never
+ * --ignore-user-config: it drops the model and effort too). An MCP server of the user's own config stays: Codex has no
+ * switch for all of them.
+ */
+export const CODEX_CLEAN = ["-c", "features.plugins=false", "-c", "features.apps=false", "-c", "features.hooks=false", "-c", "features.memories=false"] as const;
+
 /** Command-line arguments of a headless run (exported for tests). */
-export function codexArgs(opts: Pick<RunOptions, "model" | "extraArgs" | "permissions" | "shared" | "cwd">): string[] {
+export function codexArgs(opts: Pick<RunOptions, "model" | "extraArgs" | "permissions" | "shared" | "cwd" | "clean">): string[] {
   const sandbox =
     opts.permissions === "full"
       ? ["--dangerously-bypass-approvals-and-sandbox"]
       : ["--sandbox", "workspace-write", "-c", "sandbox_workspace_write.network_access=true", ...codexWritable(opts.cwd, opts.shared)];
-  return ["exec", "--json", "--skip-git-repo-check", ...sandbox, ...(opts.model ? ["--model", opts.model] : []), ...(opts.extraArgs ?? []), "-"];
+  return ["exec", "--json", "--skip-git-repo-check", ...sandbox, ...(opts.clean ? CODEX_CLEAN : []), ...(opts.model ? ["--model", opts.model] : []), ...(opts.extraArgs ?? []), "-"];
 }
 
 /**
  * Arguments that resume a headless session with a message on stdin (exported for tests). `exec resume` has no
  * --sandbox or --add-dir: the same sandbox is set through its configuration.
  */
-export function codexResumeArgs(id: string, opts: Pick<RunOptions, "model" | "permissions" | "shared" | "cwd">): string[] {
+export function codexResumeArgs(id: string, opts: Pick<RunOptions, "model" | "permissions" | "shared" | "cwd" | "clean">): string[] {
   const sandbox =
     opts.permissions === "full"
       ? ["--dangerously-bypass-approvals-and-sandbox"]
       : ["-c", 'sandbox_mode="workspace-write"', "-c", "sandbox_workspace_write.network_access=true", ...codexWritable(opts.cwd, opts.shared)];
-  return ["exec", "resume", "--json", "--skip-git-repo-check", ...sandbox, ...(opts.model ? ["--model", opts.model] : []), id, "-"];
+  return ["exec", "resume", "--json", "--skip-git-repo-check", ...sandbox, ...(opts.clean ? CODEX_CLEAN : []), ...(opts.model ? ["--model", opts.model] : []), id, "-"];
 }
 
 export const codexRunner: Runner = {

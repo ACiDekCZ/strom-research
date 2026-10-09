@@ -17,6 +17,8 @@ import { livingBorn } from "./review.ts";
 import { effectiveState, rankTasks } from "./queue.ts";
 import { subjectPeople } from "./records.ts";
 import { foldText } from "./text.ts";
+import { parseYears } from "./years.ts";
+import { costPartial, sessionCost } from "./session.ts";
 
 /** What is missing above the person: both parents, one of them, or a record that proves the parents recorded. */
 export const EDGE_MISSING = ["parents", "father", "mother", "proof"] as const;
@@ -124,11 +126,8 @@ const EDGE_FACTS = new Set(["BIRT", "CHR", "BAPM", "FAMC"]);
 type Years = { from: number; to: number };
 
 function yearsOf(text: string | undefined): Years | undefined {
-  const m = /^\s*(\d{3,4})(?:\s*[-–]\s*(\d{3,4}))?\s*$/.exec(text ?? "");
-  if (!m) return undefined;
-  const a = Number(m[1]);
-  const b = m[2] ? Number(m[2]) : a;
-  return { from: Math.min(a, b), to: Math.max(a, b) };
+  const span = parseYears(text);
+  return span && { from: span.from, to: span.to };
 }
 
 /** Single years as ranges ([1780, 1781, 1782, 1790] → 1780–1782, 1790). */
@@ -386,8 +385,9 @@ export function treeEdges(tree: Tree, opts: { named?: boolean } = {}): { edges: 
       .filter((c) => subjectPeople(tree, c.subject).includes(p.id) && (!c.fact || EDGE_FACTS.has(c.fact)))
       .map((c) => c.id);
     const spent = sessions.filter((s) => s.task && mineIds.has(s.task));
-    const cost = spent.reduce((n, s) => n + (s.metrics?.costUsd ?? 0), 0);
-    const partial = spent.some((s) => s.state !== "open" && (s.metrics?.costPartial || s.metrics?.costUsd === undefined));
+    // what the sessions cost, the readers they started included
+    const cost = spent.reduce((n, s) => n + (sessionCost(s.metrics) ?? 0), 0);
+    const partial = spent.some((s) => s.state !== "open" && (costPartial(s.metrics) || s.metrics?.costUsd === undefined));
     const last = [...spent.map((s) => s.ended ?? s.started), ...sought.map((q) => q.created)].sort().pop()?.slice(0, 10);
 
     const known = scope === "in" || scope === "limit" || scope === "paused" || scope === "done" || edgeTasks.length || tried.length || edgeHyps.length || sought.length || edgeConflicts.length;

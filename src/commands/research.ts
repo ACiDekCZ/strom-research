@@ -18,6 +18,7 @@ import { now, type Tree } from "../core/tree.ts";
 import { directionOf, scopes } from "../core/directions.ts";
 import { update } from "../core/records.ts";
 import { isAgent } from "../core/which.ts";
+import { costPartial, sessionCost } from "../core/session.ts";
 
 function int(v: unknown, name: string): number | undefined {
   if (v === undefined) return undefined;
@@ -165,10 +166,14 @@ register(
     summary: "One research: goal, focus person, known ancestors, what is missing",
     group: "research",
     tree: true,
-    args: [{ name: "research", description: "ID (G0001) or part of the name", required: true }],
+    args: [{ name: "research", description: "ID (G0001) or part of the name (default: the one active research)" }],
     run(ctx, { args }) {
       const tree = ctx.tree();
-      const r = resolveResearch(tree, args[0]!);
+      // none named: the one active research, as other commands take it (K15)
+      const active = tree.list<Research>("research").filter((x) => x.state === "active");
+      if (!args[0] && active.length !== 1)
+        throw new UsageError(active.length ? `${active.length} researches are active: name one` : "no active research", { hint: active.length ? `strom research show ${active[0]!.id} — all: strom research list` : "strom research list" });
+      const r = args[0] ? resolveResearch(tree, args[0]) : active[0]!;
       const focus = tree.get<Person>(r.focus);
       const gens = ancestorGenerations(tree, r.focus, r.limits?.generations ?? 50);
       const byGen = new Map<number, Person[]>();
@@ -323,8 +328,8 @@ register({
     // what a session costs here, from those so far: the user decides with the price in view
     const costs = tree
       .list<Session>("session")
-      .filter((s) => !s.metrics?.costPartial) // stopped before it said: more than it shows
-      .map((s) => s.metrics?.costUsd)
+      .filter((s) => !costPartial(s.metrics)) // stopped before it said: more than it shows
+      .map((s) => sessionCost(s.metrics))
       .filter((c): c is number => typeof c === "number");
     const avg = costs.length ? costs.reduce((a, b) => a + b, 0) / costs.length : undefined;
     // A person at a terminal (the menu) reads the tasks and what comes next, not the operations and commands.

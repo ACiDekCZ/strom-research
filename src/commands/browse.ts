@@ -114,6 +114,7 @@ register(
         out.push(
           ui(lang, "ui.stats.sessions", { n: s.sessions.count, last: humanDay(s.sessions.last!, lang) }) +
             (s.sessions.costUsd ? ui(lang, "ui.stats.cost", { cost: humanCost(s.sessions.costUsd, lang) }) : "") +
+            (s.sessions.readersUsd ? ui(lang, "ui.stats.cost.readers", { cost: humanCost(s.sessions.readersUsd, lang) }) : "") +
             (s.sessions.costUsd && s.sessions.costPartial ? ui(lang, "ui.stats.cost.partial", { n: s.sessions.costPartial }) : ""),
         );
       if (s.stories.written) out.push(ui(lang, "ui.stats.stories", { n: s.stories.written }));
@@ -244,7 +245,7 @@ register(
         out.push(
           "",
           ui(lang, "ui.recent.sessions"),
-          ...r.sessions.slice(0, RECENT_ROWS).map((s) => `  ${humanDay(s.at, lang)} – ${[s.task, s.summary ? truncate(s.summary, 220) : undefined].filter(Boolean).join(": ")}`),
+          ...r.sessions.slice(0, RECENT_ROWS).map((s) => `  ${humanDay(s.at, lang)} – ${[s.task, s.summary ? truncate(s.summary, 220) : undefined].filter(Boolean).join(": ")}${s.costUsd !== undefined ? ` · ${humanCost(s.costUsd, lang)}${s.costPartial ? "+" : ""}${s.readersUsd ? ui(lang, "ui.stats.cost.readers", { cost: humanCost(s.readersUsd, lang) }) : ""}` : ""}`),
           more(r.sessions.length - RECENT_ROWS, lang),
         );
       return { text: lines(...out), data: { days, ...r } };

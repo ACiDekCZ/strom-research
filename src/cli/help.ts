@@ -8,7 +8,13 @@ import { suggest } from "./execute.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 
 function optionRows(opts: OptionDef[]): string[][] {
-  return opts.map((o) => [`--${o.name}${o.value ? ` ${o.value}` : ""}${o.multiple ? " (repeatable)" : ""}`, o.description]);
+  return opts.map((o) => [`--${o.name}${o.value ? ` ${o.value}` : ""}${o.multiple ? " (repeatable)" : ""}`, `${o.description}${o.max ? ` (≤${o.max} characters)` : ""}`]);
+}
+
+/** Other names a command and its options are taken by: one line, never commands of their own. */
+function aliasLine(def: CommandDef, own: OptionDef[]): string | undefined {
+  const names = [...(def.aliases ?? []).map((a) => `strom ${a.join(" ")}`), ...own.flatMap((o) => (o.aliases ?? []).map((a) => `--${a} (= --${o.name})`))];
+  return names.length ? `Also: ${names.join(" · ")}` : undefined;
 }
 
 /**
@@ -57,6 +63,8 @@ export function commandHelp(def: CommandDef, archive: boolean, appUrl: ShownAppU
   if (def.args?.length) out.push("", "Arguments:", table(def.args.map((a) => [`  ${a.name}`, a.description])));
   const own = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !o.hidden && !(archive && AI_WORDS.test(o.description)));
   if (own.length) out.push("", "Options:", table(optionRows(own).map(([a, b]) => [`  ${a}`, b ?? ""])));
+  const also = aliasLine(def, own);
+  if (also) out.push("", also);
   out.push("", "Global options: --tree --json --limit --page --lang --yes --debug   (all: strom help)");
   return out.join("\n");
 }

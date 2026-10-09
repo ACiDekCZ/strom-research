@@ -134,7 +134,7 @@ function orientation(ctx: Context): Orientation {
   }
   // The session this agent works in; else one nobody is working in any more.
   const busy = (s: Session) => (s.worker && workers.some((w) => w.id === s.worker)) || (s.runner && workers.some((w) => w.id === "run"));
-  const open = currentSession(tree, ctx.env) ?? sessions.find((s) => !busy(s) && !(s.worker && s.worker !== ctx.env.STROM_WORKER && !human));
+  const open = currentSession(tree, ctx.env, ctx.refs) ?? sessions.find((s) => !busy(s) && !(s.worker && s.worker !== ctx.env.STROM_WORKER && !human));
   const queued = taskQueue(tree).length;
   // An agent outside the tree that strom did not start (it set strom up from the web page, or was
   // opened in some folder): the research goes on in its own conversation, where the tree lives — when

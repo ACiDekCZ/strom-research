@@ -15,7 +15,7 @@ import type { Context } from "../cli/context.ts";
 import { lines, table, truncate } from "../cli/format.ts";
 import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
 import type { Person, Research, Session, Task } from "../core/model.ts";
-import { closeSession, currentSession, openSessions, othersAtWork, sessionNote, startSession } from "../core/session.ts";
+import { closeSession, costPartial, currentSession, openSessions, othersAtWork, sessionCost, sessionNote, startSession, whichSession, withReaders } from "../core/session.ts";
 import { reviveLive } from "../core/live.ts";
 import { buildBrief } from "../brief/brief.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
@@ -26,7 +26,7 @@ import { label, parentsOf, resolvePerson } from "../core/people.ts";
 import { storyProposals } from "../core/stories.ts";
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
 import { create, csvOpt, requireRecord, update } from "../core/records.ts";
-import { offTreeLine, taskQueue, waitingLines } from "./tasks.ts";
+import { finishTask, offTreeLine, taskQueue, waitingLines } from "./tasks.ts";
 import { resolveResearch } from "./research.ts";
 import { writeGedcoms } from "./output.ts";
 import { syncAgentFiles } from "../agents/files.ts";
@@ -133,9 +133,12 @@ register(
     tree: true,
     writes: true,
     args: [{ name: "text", description: "the note", required: true }],
+    options: [{ name: "session", type: "string", value: "<N…>", description: "the session (when you hold one in each of several researches)" }],
     run(ctx, { args }) {
       const tree = ctx.tree();
-      const s = currentSession(tree, ctx.env);
+      const which = whichSession(tree, ctx.env, ctx.refs);
+      if (which) throw new UsageError(`you hold ${which.length} sessions: ${which.map((x) => `${x.id}${x.task ? ` on ${x.task}` : ""}${x.research ? ` (${x.research})` : ""}`).join(", ")}`, { hint: `name yours: strom session note "…" --session ${which[0]!.id}` });
+      const s = currentSession(tree, ctx.env, ctx.refs);
       if (!s) throw new UsageError("no open session", { hint: "strom session start" });
       sessionNote(tree, s, args[0]!);
       return { text: written(tree) };
@@ -170,41 +173,67 @@ register(
     group: "research",
     tree: true,
     writes: true,
-    description: "The task must be done, parked or waiting — or --continue returns it to the queue for the next session.",
+    description:
+      "The task must be done, parked or waiting — or --continue returns it to the queue for the next session.\n" +
+      "--done \"<result>\" closes the session's task with its result first (strom task done in the same call); its result\n" +
+      "is the summary unless --summary says more.",
     args: [{ name: "session", description: "session ID (default: the open one)" }],
     options: [
-      { name: "summary", type: "string", value: "<text>", description: "what was proven, what was searched in vain" },
-      { name: "next", type: "string", value: "<text>", description: "the next cheapest step" },
+      { name: "done", type: "string", value: "<result>", description: "the session's task is done: its result (a complete negative search is a result)" },
+      { name: "produced", type: "string", multiple: true, value: "<ID>", description: "with --done: records created (sources, events, searches…)" },
+      { name: "summary", type: "string", value: "<text>", description: "what was proven, what was searched in vain (with --done: its result when not given)", max: 2000 },
+      { name: "next", type: "string", value: "<text>", description: "the next cheapest step", max: 1000 },
       { name: "continue", type: "boolean", description: "the task is not finished: back to the queue with --next as handover" },
       { name: "interrupted", type: "boolean", description: "close a session whose agent died (no summary needed)" },
     ],
-    examples: ['strom session close --summary "baptism of Jan found, parents Josef and Marie" --next "marriage of Josef ~1898, B0002"'],
+    examples: [
+      'strom session close --summary "baptism of Jan found, parents Josef and Marie" --next "marriage of Josef ~1898, B0002"',
+      'strom session close --done "baptism found: parents Josef and Marie" --next "marriage of Josef ~1898, B0002"',
+    ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const s = args[0] ? requireRecord<Session>(tree, args[0], "session") : currentSession(tree, ctx.env);
+      const which = args[0] ? undefined : whichSession(tree, ctx.env, ctx.refs);
+      if (which) throw new UsageError(`you hold ${which.length} sessions: ${which.map((x) => `${x.id}${x.task ? ` on ${x.task}` : ""}${x.research ? ` (${x.research})` : ""}`).join(", ")}`, { hint: `close yours by its ID: strom session close ${which[0]!.id} --summary "…" --next "…"` });
+      const s = args[0] ? requireRecord<Session>(tree, args[0], "session") : currentSession(tree, ctx.env, ctx.refs);
       if (!s || s.state !== "open") throw new UsageError("no open session", { hint: "strom session list" });
+      // the task and the session closed in one call (K13: the two commands came one after the other in most sessions)
+      const done = typeof opts.done === "string" && opts.done.trim() ? opts.done.trim() : undefined;
+      if (opts.done !== undefined && !done) throw new UsageError("--done needs the task's result", { hint: 'e.g. --done "baptism found: parents Josef and Marie" — or not found, where it was searched completely' });
+      if (done && (opts.continue || opts.interrupted)) throw new UsageError("--done closes the task: not with --continue or --interrupted");
+      if (!done && csvOpt(opts.produced).length) throw new UsageError("--produced goes with --done", { hint: `strom task done ${s.task ?? "T…"} --result "…" --produced S…` });
+      let finished: { task: Task; said: string[] } | undefined;
+      if (done) {
+        if (!s.task) throw new UsageError(`${s.id} has no task to close`, { hint: 'strom session close --summary "…" --next "…"' });
+        // checked before anything is written: a close that needs more fails whole
+        if (!String(opts.next ?? "").trim()) throw new UsageError("closing needs --next", { hint: 'e.g. --next "marriage of Josef ~1898 in B0002"' });
+        const t = requireRecord<Task>(tree, s.task, "task");
+        if (t.state !== "done") finished = finishTask(tree, t.id, done, csvOpt(opts.produced));
+      }
       const closed = closeSession(tree, s, {
-        summary: String(opts.summary ?? ""),
+        summary: String(opts.summary ?? (done ? (finished?.task.result ?? done) : "")),
         next: String(opts.next ?? ""),
         continueTask: Boolean(opts.continue),
         interrupted: Boolean(opts.interrupted),
       });
       const research = s.research ? tree.get<Research>(s.research) : undefined;
       const newTasks = research ? applyFrontier(tree, research) : [];
-      const geds = tree.dryRun ? [] : writeGedcoms(ctx, tree);
+      // a session of strom run whose run is at work: the run exports once the agent ends (with what it adds) — not twice
+      const byRun = !!s.runner && runAlive(tree.root, s);
+      const geds = tree.dryRun || byRun ? [] : writeGedcoms(ctx, tree);
       const ged = geds[0];
       // what strom keeps beside the research, in order (a tree tidied once)
       autoTidy(tree);
       return {
         text: lines(
           written(tree),
-          ged ? `GEDCOM ${geds.map((g) => ctx.display(g.file)).join(" · ")}: ${ged.stats.persons} persons, ${ged.stats.families} families` : undefined,
+          ...(finished?.said ?? []),
+          ged ? `GEDCOM ${geds.map((g) => ctx.display(g.file)).join(" · ")}: ${ged.stats.persons} persons, ${ged.stats.families} families` : byRun ? "GEDCOM: exported by strom run when the session ends" : undefined,
           newTasks.length ? `${newTasks.length} new task(s) from the research frontier` : undefined,
           offMap(tree),
           // In a conversation, the next task is best begun in a fresh context: all of this one is in strom.
           !s.runner && ctx.env.STROM_NONINTERACTIVE !== "1" ? freshContext(ctx, tree, s) : undefined,
         ),
-        data: { session: closed, newTasks, ged: ged?.file, geds: geds.map((g) => g.file) },
+        data: { session: closed, ...(finished ? { task: finished.task } : {}), newTasks, ged: ged?.file, geds: geds.map((g) => g.file) },
       };
     },
   },
@@ -224,13 +253,14 @@ register(
   },
   {
     path: ["session", "show"],
+    aliases: [["session", "status"]],
     summary: "One session: task, summary, handover, metrics, diary",
     group: "research",
     tree: true,
     args: [{ name: "session", description: "session ID (default: the open one or the last)", required: false }],
     run(ctx, { args }) {
       const tree = ctx.tree();
-      const s = args[0] ? requireRecord<Session>(tree, args[0], "session") : (currentSession(tree, ctx.env) ?? tree.list<Session>("session").at(-1));
+      const s = args[0] ? requireRecord<Session>(tree, args[0], "session") : (currentSession(tree, ctx.env, ctx.refs) ?? tree.list<Session>("session").at(-1));
       if (!s) throw new UsageError("no sessions yet");
       const m = s.metrics ?? {};
       return {
@@ -269,8 +299,9 @@ register(
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const s = currentSession(tree, ctx.env);
-      const task = args[0] ? requireRecord<Task>(tree, args[0], "task") : s?.task ? tree.get<Task>(s.task) : taskQueue(tree, { strategy: ctx.settings.strategy(tree.config) })[0];
+      const s = currentSession(tree, ctx.env, ctx.refs);
+      const others = othersAtWork(tree).tasks;
+      const task = args[0] ? requireRecord<Task>(tree, args[0], "task") : s?.task ? tree.get<Task>(s.task) : taskQueue(tree, { strategy: ctx.settings.strategy(tree.config) }).find((t) => !others.has(t.id));
       const b = buildBrief(tree, { ...(task ? { task } : {}), ...(s ? { session: s, deadline: deadlineOf(ctx.env) } : {}), budget: ctx.settings.number("brief.budget", tree.config, DEFAULT_BUDGET), shared: ctx.settings.shared()?.value });
       if (opts.stats)
         return {
@@ -655,14 +686,14 @@ register({
     let stopAwake = keepAwake(ctx.env);
     // Progress goes to stderr when stdout carries JSON.
     const out = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
-    const report: { session: string; task?: string; outcome: string; summary?: string; costUsd?: number }[] = [];
+    const report: { session: string; task?: string; outcome: string; summary?: string; costUsd?: number; agentUsd?: number; readersUsd?: number }[] = [];
     // What the gate answered, for the record of the run.
     const gates: { at: string; verdict: string; reason?: string; anyway?: boolean }[] = [];
     // The Strom app opened to follow the run (--follow): once, when its first session starts.
     let followed = false;
     // Why the run stopped: a code for the exit status and for data, words for the user (their language).
     const lang = Tree.open(root, runEnv).lang;
-    type Stop = "done" | "user" | "time" | "empty" | "problems" | "denied" | "limit" | "auth" | "failed" | "gate" | "gate.error" | "gate.declined";
+    type Stop = "done" | "user" | "time" | "empty" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined";
     let stopCode: Stop = "done";
     let stopValues: Record<string, string> = {};
     // The first Ctrl-C while a session works: it is asked to finish (the agent writes down what it found and closes
@@ -821,6 +852,9 @@ register({
           STROM_SESSION: session.id,
           STROM_DEADLINE: new Date(deadline).toISOString(),
           STROM_MINUTES: String(minutes),
+          // the model it works with, for what strom does inside the session (readers, the size of views) — as a
+          // conversation gives it; also one given to this run only (--model)
+          ...(models.lead ? { STROM_MODEL: models.lead } : {}),
           ...(opts.interactive ? {} : { STROM_NONINTERACTIVE: "1" }),
         };
         atWorkOn = session.id;
@@ -846,6 +880,8 @@ register({
           ...(opts.interactive ? { interactive: true } : {}),
           // the level for every agent (each maps it to its own switches); the browser and Remote Control are Claude Code's
           permissions,
+          // working alone without the user's own add-ons (skills, plugins, MCP servers) unless they said otherwise
+          ...(!opts.interactive && !ctx.settings.agentAddons(tree.config) ? { clean: true } : {}),
           ...(runnerId === "claude" ? { chrome: Boolean(web?.on), remote: ctx.settings.agentRemote() } : {}),
           ...(extra?.length ? { extraArgs: extra } : {}),
           onProgress: (l) => out(`  · ${l}`),
@@ -864,10 +900,10 @@ register({
             summary: result.outcome === "stopped" ? phrase(after.lang, "session.user") : phrase(after.lang, "session.agent", { outcome: result.outcome }),
             next: "",
             interrupted: true,
-            metrics: result.metrics,
+            metrics: withReaders(result.metrics, s.metrics),
             endedBy: result.outcome === "stopped" ? "user" : "agent",
           });
-        else update<Session>(after, s.id, "session", (x) => ({ ...x, metrics: result.metrics }), { op: "session.metrics", summary: `${s.id} metrics` });
+        else update<Session>(after, s.id, "session", (x) => ({ ...x, metrics: withReaders(result.metrics, x.metrics) }), { op: "session.metrics", summary: `${s.id} metrics` });
         // the model it really ran on, as the agent said (an alias such as "opus" names no version)
         if (result.metrics.model && s.model !== result.metrics.model)
           s = update<Session>(after, s.id, "session", (x) => ({ ...x, model: result.metrics.model }), { op: "session.metrics", summary: `${s.id} model ${result.metrics.model}` });
@@ -888,8 +924,11 @@ register({
         const geds = writeGedcoms(ctx, after);
         const committed = commitNow(after, `${s.id} ${s.state}: ${truncate(s.summary ?? "", 60)} · ${geds.map((g) => after.relative(g.file)).join(", ")}`);
         autoTidy(after);
-        report.push({ session: s.id, task: task.id, outcome: result.outcome, ...(s.summary ? { summary: s.summary } : {}), ...(result.metrics.costUsd !== undefined ? { costUsd: result.metrics.costUsd } : {}) });
-        out(`■ ${s.id} ${s.state} · ${result.outcome}${costText(result.metrics) ? ` · ${costText(result.metrics)}` : ""}${s.summary ? ` · ${truncate(s.summary, 80)}` : ""}`);
+        // what it cost: the agent's own and its readers', both apart too
+        const m = after.get<Session>(s.id)?.metrics ?? withReaders(result.metrics, s.metrics);
+        const total = sessionCost(m);
+        report.push({ session: s.id, task: task.id, outcome: result.outcome, ...(s.summary ? { summary: s.summary } : {}), ...(total !== undefined ? { costUsd: total } : {}), ...(m.readersUsd !== undefined ? { agentUsd: m.costUsd ?? 0, readersUsd: m.readersUsd } : {}) });
+        out(`■ ${s.id} ${s.state} · ${result.outcome}${costText(m) ? ` · ${costText(m)}` : ""}${s.summary ? ` · ${truncate(s.summary, 80)}` : ""}`);
         if (result.denied?.length) out(ui(lang, "ui.run.denied", { n: result.denied.length, what: result.denied.slice(0, 3).join(" · ") }));
         if (!committed) {
           stopCode = "problems";
@@ -916,6 +955,12 @@ register({
           stopValues = { command: runner.command };
           break;
         }
+        // the agent does not take its model: said with what to do, never only its raw error
+        if (result.outcome === "error" && result.modelRejected) {
+          stopCode = "model";
+          stopValues = { model: models.lead ?? "—", agent: runnerId };
+          break;
+        }
         if (result.outcome === "error") {
           stopCode = "failed";
           stopValues = { detail: truncate(result.text, 120) };
@@ -933,7 +978,7 @@ register({
     return {
       text: lines(ui(lang, "ui.run.summary", { n: report.length, reason }), waiting ? `\n${waiting}` : undefined),
       data: { sessions: report, stopped: reason, stop: stopCode, ...(gate ? { gate: { name: gate.name, answers: gates } } : {}) },
-      exitCode: ["failed", "problems", "auth", "denied", "gate.error"].includes(stopCode) ? 1 : 0,
+      exitCode: ["failed", "problems", "auth", "model", "denied", "gate.error"].includes(stopCode) ? 1 : 0,
     };
   },
 });
@@ -995,10 +1040,17 @@ function pause(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** What a session cost: "$1.20"; "$0.30+" or "cost unknown" when the agent was stopped before it said. */
+/**
+ * What a session cost: "$1.20"; "$0.30+" or "cost unknown" when the agent was stopped before it said; with readers
+ * "$24.20 (agent $2.20 + readers $22.00)".
+ */
 function costText(m: Session["metrics"]): string {
-  if (m?.costPartial) return m.costUsd ? `$${m.costUsd.toFixed(2)}+` : "cost unknown";
-  return m?.costUsd !== undefined ? `$${m.costUsd.toFixed(2)}` : "";
+  const total = sessionCost(m);
+  const partial = costPartial(m);
+  if (total === undefined) return m?.costPartial ? "cost unknown" : "";
+  const said = `$${total.toFixed(2)}${partial ? "+" : ""}`;
+  if (m?.readersUsd === undefined) return m?.costPartial && !m.costUsd ? "cost unknown" : said;
+  return `${said} (agent $${(m.costUsd ?? 0).toFixed(2)}${m.costPartial ? "+" : ""} + ${m.readers ?? 0} reader(s) $${m.readersUsd.toFixed(2)}${m.readersPartial ? "+" : ""})`;
 }
 
 /** How the user clears the agent's context, in the agent's own words. */

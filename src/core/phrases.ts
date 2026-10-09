@@ -70,6 +70,9 @@ export const PHRASES = {
   "review.conflicts.what": "Decide what is left open about {name}: {list}{more}",
   "review.conflicts.why": "conflicts between records and competing hypotheses wait for a decision ({research})",
   "review.conflicts.done": "each resolved or decided with its reasoning (strom conflict resolve, strom hypothesis decide) — or a task says what would decide it",
+  "hypothesis.links.what": "Say what the variants of {list} would connect",
+  "hypothesis.links.why": "these hypotheses name their people only in the words of their variants; the Strom app shows what a variant would connect — and where the tree ends — only from its links",
+  "hypothesis.links.done": "each variant read (strom hypothesis show {first} …) and what it would connect said: strom hypothesis link H… <letter> --child P… --of F… (or --parents P… [P…], --same, --partners, --siblings); a variant that connects nothing clear stays without links",
 
   "review.marriage.what": "Marriage of {name} and {partner}{at} (before their first child, {year})",
   "review.marriage.why": "their children are recorded, their marriage is not; the entry gives both parents, ages and houses ({research})",

@@ -17,6 +17,35 @@ export function foldText(s: string): string {
     .trim();
 }
 
+/**
+ * Where in `text` the character `at` of foldText(text) comes from: folding makes a text shorter (whitespace, marks of
+ * a decomposed letter) or longer ("ß" → "ss"), so an index found in the folded text is not one of the text itself.
+ */
+export function unfoldIndex(text: string, at: number): number {
+  let len = 0;
+  let i = 0;
+  let started = false;
+  let space = -1; // where a run of whitespace (one space when folded) began
+  for (const ch of text) {
+    if (/\s/u.test(ch)) {
+      if (started && space < 0) space = i;
+      i += ch.length;
+      continue;
+    }
+    if (space >= 0) {
+      if (len === at) return space;
+      len++;
+      space = -1;
+    }
+    const f = foldText(ch).length;
+    if (at < len + f) return i;
+    len += f;
+    started = true;
+    i += ch.length;
+  }
+  return text.length;
+}
+
 /** Words of a folded text — in any script: "Шевчук Іван" has words too. */
 export function tokens(s: string): string[] {
   return foldText(s)

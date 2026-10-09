@@ -3,8 +3,9 @@
 An input is material the user gave you: scans, photos, documents, notes, a
 family tree. Your job is to turn it into evidence without inventing anything.
 
-1. `strom input show I…` — read the file (images and PDFs directly, text is
-   shown). Identify who it is about and what kind of document it is.
+1. The brief's *The material* says what each input is, where its file is, and
+   shows its text: read the file (images and PDFs directly). Identify who it
+   is about and what kind of document it is.
 2. **What is it?** An original civil or church document (birth, marriage or
    death certificate, extract from a register, military papers) is a **source**
    and can prove facts: `strom source add … --input I… --form original
@@ -14,7 +15,7 @@ family tree. Your job is to turn it into evidence without inventing anything.
    `strom source add "<what it is>" --kind family-memory --form authored
    --information secondary --input I…`; a family tree is `--kind family-tree`.
    Many facts from one input: one `strom batch --file notes/<input>.txt`
-   (try it with `--dry-run` first).
+   (all or nothing: it says every failing line at once, nothing written).
 3. Record every person and every fact it states, with a citation to the source
    (`--cite S… --locator "…"`). Use the words of the record in `--quote`.
 4. Put names and places as they are written; normalise only dates.
@@ -26,8 +27,9 @@ family tree. Your job is to turn it into evidence without inventing anything.
    the tree says differently stays a lead or becomes a conflict, never a fact.
 6. Create the next tasks: where would the records that prove these leads be?
    (`locate` if the archive or book is unknown, `link` if it is known.)
-7. Close the task with what came out of it (`strom task done T… --result "…"`;
-   its input is marked processed with it).
+7. Close the task with what came out of it (`strom session close --done "…"
+   --next "…"`: the task and the session in one call; its input is marked
+   processed with it).
 
 ## A batch from the Strom app (many files at once)
 
@@ -36,9 +38,10 @@ lists about 25 of its files, with the path each had there
 (`Babička/Dopisy/1946.jpg` — the folders say much). They are kept unchanged
 outside the tree's history: what you do not record of them stays private.
 
-1. **Look over all of them first, cheaply**: `strom input show I…` for each —
-   the name, the path, the type; images in a small view (`strom media view
-   I… --grid`), not read whole. Sort each at once: `strom input sort I… [I…]
+1. **Look over all of them first, cheaply**: the brief lists each — the
+   name, the path, the type; images in a small view (`strom media view
+   I… I… I… --grid`: several in one call, opened together), not read
+   whole. Sort each at once: `strom input sort I… [I…]
    --as source|document|photo|unrelated --person P…`. Read in depth only what
    belongs to the people of the research.
 2. **Not of the family** (a tax form, a holiday photo of strangers, the same

@@ -58,8 +58,10 @@ conversation opened anywhere, a bot on its own server)
   strom session start                  the next task of the queue (or: strom session start T0003, the one
                                        the user chose): its brief — the task, what is known, the method
   … work on that task only; record every finding at once …
-  strom task done T0001 --result "…"   a complete negative search is a result
-  strom session close --summary "…" --next "…"    (not finished: --continue) — it proposes the next tasks
+  strom session close --done "<result>" --next "…"   the task done and the session closed in one call
+                                       (a complete negative search is a result) — it proposes the next tasks
+  not finished: strom session close --continue --summary "…" --next "…"; put aside: strom task park|wait T…,
+  then strom session close --summary "…" --next "…"
   then tell the user what was found (strom person card …) and what comes next (strom plan), and ask
   before the next session. The next step is strom's queue: what the user wants instead becomes a
   task first (strom task add …, or strom research new …) — never search outside a session and its task.
@@ -218,7 +220,8 @@ OUTPUT AND ERRORS
 - Exit codes: 0 ok · 1 error · 2 usage/ambiguous · 3 needs input (ask the
   user, then run the given command) · 4 needs consent (the USER must run the
   given command in their terminal) · 5 locked by another session · 6 the
-  backup before another version could not be made (tell the user why).
+  backup before another version could not be made (tell the user why) · 7 an
+  archive's limit is used up (other work; run it again at the time it says).
 - Settings and how to override them: strom config where.
 
 MORE

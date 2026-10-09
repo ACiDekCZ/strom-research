@@ -66,6 +66,8 @@ export interface UserConfig {
   /** Claude Code sessions strom starts with Remote Control: on, off (default). */
   agentRemote?: string;
   agentBrowser?: string;
+  /** The agent's personal add-ons in the sessions it works alone: off (default — the research's tools only) or on. */
+  agentAddons?: string;
   /** The Strom app on this computer: the user said so ("yes") or does not want to hear of it ("no"). */
   stromApp?: string;
   /** strom-research:// links from the Strom app: the person said yes (set up) or no (never asked again; strom link on changes it). */
@@ -137,7 +139,12 @@ export interface Flags {
   minutes?: string | undefined;
 }
 
-export const DEFAULT_BUDGET = 25_000;
+/**
+ * The brief's room in real tokens (`tokens()` of brief.ts). It was 25 000 when a token was counted as 3.5 characters,
+ * i.e. about 87 500 characters; a brief in a language with diacritics takes 1.6–1.9 characters a token, so the same
+ * room is about 55 000 — what is saved comes from a smaller brief, never from cutting one that used to fit (P3).
+ */
+export const DEFAULT_BUDGET = 55_000;
 export const DEFAULT_RUN_MINUTES = 60;
 
 /** One setting: where it can live and how it is checked. */
@@ -193,6 +200,8 @@ export const SETTINGS: SettingDef[] = [
   { key: "agent.where", env: "STROM_AGENT_WHERE", tree: false, kind: "choice", choices: ["app", "terminal"], description: "where you talk with the agent: app (its desktop app — the easiest), terminal (its CLI) — unset: the app when it is installed" },
   { key: "agent.browser", env: "", tree: true, kind: "choice", choices: ["archives", "always"], description: "browser tools (Claude in Chrome) for the Claude Code sessions strom starts: archives (default) — only in a research whose connectors fetch through the browser, for their sites; always — in every session, for the sites of the research's archives (a conversation asks about others) — only you turn it on" },
   { key: "agent.remote", env: "", tree: false, kind: "choice", choices: ["on", "off"], description: "the Claude Code sessions strom starts (strom run, strom chat in the terminal) with Remote Control: on — follow and steer them from claude.ai or the Claude app on your phone; off (default) — only you turn it on" },
+  // Read from the config files only (the user's or the tree's) — no variable: turning them on is the user's decision.
+  { key: "agent.addons", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the agent's personal add-ons (its skills, plugins, MCP servers, memory) when it works alone (strom run, the readers of strom read): off (default — it loads the research's tools only; the Strom app's connection and the browser work on) or on (as in a conversation, which loads them always) — Claude Code and Codex; only you turn it on" },
   { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it) or archive (the data come from the Strom app, no agent; the setup wizard sets it when no agent is here) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
@@ -213,6 +222,7 @@ const FIELDS: Record<string, string> = {
   "agent.where": "agentWhere",
   "agent.remote": "agentRemote",
   "agent.browser": "agentBrowser",
+  "agent.addons": "agentAddons",
   "strom.app": "stromApp",
   "strom.app.url": "stromAppUrl",
   "app.browser": "appBrowser",
@@ -475,6 +485,9 @@ export class Settings {
       const r = this.resolve(`model.${t}`, tree, agent);
       if (r) out[t] = String(r.value);
     }
+    // Handwriting never with a weaker model than the research's: an agent with no reader of its own (all but Claude
+    // Code) reads with the model chosen for the research — never its own default (Antigravity's is a Flash one).
+    if (out.vision === undefined && out.lead !== undefined) out.vision = out.lead;
     return out;
   }
 
@@ -507,6 +520,14 @@ export class Settings {
   /** Claude Code sessions strom starts with Remote Control (agent.remote: on). */
   agentRemote(): boolean {
     return this.resolve("agent.remote")?.value === "on";
+  }
+
+  /**
+   * The agent working alone (strom run, readers) with its personal add-ons — skills, plugins, MCP servers, memory —
+   * as in a conversation (agent.addons on); off by default: the research's tools only.
+   */
+  agentAddons(tree?: TreeConfig): boolean {
+    return this.resolve("agent.addons", tree)?.value === "on";
   }
 
   /** The browser the Strom app is opened in, if the person (or the tree's coming from the app) said. */

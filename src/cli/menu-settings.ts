@@ -16,10 +16,12 @@ import { askGate, ensureGatesDir, listGates, loadGate } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
 import { listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL } from "../core/browser.ts";
-import { PROFILES } from "../agents/profiles.ts";
+import { ADDON_SWITCHES, PROFILES } from "../agents/profiles.ts";
 import { loadLogins } from "../core/logins.ts";
 import { claudeRemoteAtStartup } from "../agents/global.ts";
 import { chooseMode } from "./menu-mode.ts";
+import { chooseModel } from "./model-choice.ts";
+import { agentsHere } from "../core/apps.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
@@ -63,6 +65,24 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
         label: t("ui.settings.mode", { state: t(tree?.mode === "archive" ? "ui.mode.archive" : "ui.mode.research") }),
         act: async () => chooseMode(ctx, run, lang, root),
       });
+    // the model the agent does the research with (every agent: its strong ones offered) — not in an archive, nor
+    // while the research's agent is not on this computer (nothing of an agent the person does not use)
+    const agent = ctx.settings.agent(tree).value;
+    if (!archive && PROFILES[agent] && agentsHere(ctx.env).some((a) => a.id === agent)) {
+      const kept = ctx.settings.resolve("model.lead", tree, agent);
+      items.push({
+        key: "model",
+        label: t("ui.settings.model", { agent: PROFILES[agent]!.name, model: kept ? String(kept.value) : t("ui.settings.model.own") }),
+        act: async () => {
+          const now = kept ? String(kept.value) : undefined;
+          const pick = await chooseModel(ctx, lang, agent, now, { first: false, back: t("ui.browse.back") });
+          if (!pick.picked || pick.value === now) return;
+          // where it is kept now: this family tree's own, else this computer's (for this agent)
+          const scope = ["--agent", agent, ...(kept?.source === "tree" ? ["--for-tree"] : [])];
+          await run(pick.value ? ["config", "set", "model.lead", pick.value, ...scope] : ["config", "unset", "model.lead", ...scope], true);
+        },
+      });
+    }
     if (!archive && claudeHere(ctx, tree)) {
       // Claude Code may do it for its conversations itself (its own setting): what holds is said as it is.
       const own = claudeRemoteAtStartup(ctx.env);
@@ -194,6 +214,23 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
           if (spec !== set) await run(["config", "set", "run.gate", spec], true);
         },
       });
+    // Without the person's own add-ons (skills, plugins, MCP servers) — only for an agent that has the switches (nearly
+    // always here: before the test of a gate, which shows only with one set); a tree with a value of its own: the
+    // change is for it, else it would not show. Enter keeps what is.
+    const agent = ctx.settings.agent(tree).value;
+    if (ADDON_SWITCHES.includes(agent)) {
+      const clean = !ctx.settings.agentAddons(tree);
+      items.push({
+        key: "4",
+        label: t("ui.alone.addons", { state: t(clean ? "ui.settings.on" : "ui.settings.off") }),
+        act: async () => {
+          out(t("ui.alone.addons.about"));
+          if (!(await ctx.confirm(t(clean ? "ui.alone.addons.off" : "ui.alone.addons.on"), false))) return;
+          const own = root ? ctx.settings.resolve("agent.addons", tree)?.source === "tree" : false;
+          await run(["config", "set", "agent.addons", clean ? "on" : "off", ...(own ? ["--for-tree"] : [])], true);
+        },
+      });
+    }
     if (set && shared)
       items.push({
         key: "3",

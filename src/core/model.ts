@@ -478,6 +478,7 @@ export interface Hypothesis extends BaseRecord {
 
 export const LESSON_SCOPES = ["method", "repository", "recordset", "place", "project"] as const;
 export const LESSON_MAX = 200;
+export const LESSON_DETAIL_MAX = 2000;
 
 /** Something learned, attached to what it is about, so it shows up only there. */
 export interface Lesson extends BaseRecord {
@@ -564,6 +565,12 @@ export interface SessionMetrics {
   costUsd?: number;
   /** Stopped before it said what it cost: more was spent than costUsd (if any) says. */
   costPartial?: boolean;
+  /** What the readers it started cost (strom read, clips, transcripts) — apart from costUsd, the agent's own. */
+  readersUsd?: number;
+  /** How many readers it started. */
+  readers?: number;
+  /** A reader stopped before it said what it cost: more was spent than readersUsd says. */
+  readersPartial?: boolean;
   turns?: number;
   durationMs?: number;
   /** Tool calls the agent's permissions refused. */
@@ -638,6 +645,8 @@ export interface TreeConfig {
   excerptsQuality?: string;
   excerptsFor?: string;
   excerptsMb?: number;
+  /** What a newer strom did once in this research (core/hypolinks.ts: "hypothesis-links"); an older one keeps it. */
+  settled?: string[];
 }
 
 /** How sharp the entries cut out for the Strom app are, and whose they are (core/excerpt.ts). */

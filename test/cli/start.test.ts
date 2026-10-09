@@ -118,7 +118,7 @@ test("setup run again: every choice can be left as it is (0)", unix, async () =>
   w.env.PATH = pathWith(w, ["claude"]);
   await w.ok(["setup", "--yes"]);
   const before = readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  const r = await w.ok(["setup"], { tty: true, answers: ["", "", "0", "0", "0", "n", "0"] });
+  const r = await w.ok(["setup"], { tty: true, answers: ["", "", "0", "0", "0", "0", "n", "0"] });
   assert.match(r.out, /\n {3}0 {2}Nechat, jak je\n/);
   const after = readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   for (const k of ["agent", "models", "stromApp"]) assert.deepEqual(after[k], before[k], k);
@@ -235,7 +235,7 @@ test("the agent's desktop app: found, chosen once, opened in the tree folder wit
   w.env.PATH = pathWith(w, ["claude"]);
   w.env.STROM_APP_DIRS = appsWith(w, ["Claude.app", "ChatGPT.app"]);
   // language, folder, the agent and where (Enter = Claude's app), model, stories, level, no shortcut
-  const r = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "n"] });
+  const r = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "n"] });
   assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {3}1 {2}Claude – aplikace \(nejjednodušší\)\n {3}2 {2}Claude Code – v terminálu \(pro zkušenější\)\n {3}3 {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\nVybrat \[1\]/);
   assert.match(r.out, /✓ AI agent: Claude – aplikace/);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
@@ -269,8 +269,10 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   const w = new World();
   w.env.PATH = pathWith(w, ["codex"]);
   w.env.STROM_APP_DIRS = appsWith(w, ["Claude.app", "Codex.app"]);
-  // language, folder, Codex in the terminal, stories, level, no shortcut
-  const r = await w.ok(["setup"], { answers: ["cs", "", "3", "", "", "n"] });
+  // language, folder, Codex in the terminal, its model, stories, level, no shortcut
+  const r = await w.ok(["setup"], { answers: ["cs", "", "3", "", "", "", "", "n"] });
+  // (its list of models asked for: the CLI started for that alone)
+  fs.rmSync(path.join(w.dir, "codex.calls"), { force: true });
   assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {3}1 {2}Claude – aplikace \(nejjednodušší\)\n {3}2 {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n {3}3 {2}OpenAI Codex CLI – v terminálu \(pro zkušenější\)\nVybrat \[1\]/);
   assert.match(r.out, /✓ AI agent: OpenAI Codex CLI – v terminálu/);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
@@ -310,7 +312,7 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   const a = new World();
   a.env.PATH = pathWith(a, []);
   a.env.STROM_APP_DIRS = appsWith(a, ["Claude.app", "Codex.app"]);
-  const o = await a.ok(["setup"], { answers: ["cs", "", "", "", "", "", "n"] });
+  const o = await a.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "n"] });
   assert.match(o.out, /\n {3}1 {2}Claude – aplikace \(nejjednodušší\)\n {3}2 {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\nVybrat \[1\]/);
   assert.doesNotMatch(/mluvit\?\n([^]*?)Vybrat/.exec(o.out)![1]!, /Claude Code|Codex CLI|terminál/, "no CLI here: none named");
   a.cleanup();
@@ -733,11 +735,11 @@ test("the Strom app offered gently: the wizard asks once, the menu says what it 
   w.env.PATH = pathWith(w, ["claude"]);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   // language, folder, model, stories, level, no shortcut — then the Strom app: not now
-  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "n", "2"] });
+  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "n", "2"] });
   assert.match(s.out, /Aplikace Strom \(zdarma, v prohlížeči\) ukáže výzkum jako rodokmen[\s\S]*1 {2}Ano – nainstalovat ji teď/);
   assert.equal(cfg().stromApp, "yes");
   // Again: the answer pre-filled; no — never mentioned after.
-  await w.ok(["setup"], { answers: ["", "", "", "", "", "n", "3"] });
+  await w.ok(["setup"], { answers: ["", "", "", "", "", "", "n", "3"] });
   assert.equal(cfg().stromApp, "no");
   await w.ok(["init", "Novákovi"]);
   const none = await w.ok([], { tty: true, answers: ["0"] });
@@ -888,7 +890,9 @@ test("the live bridge does not end because of one error, says what happened in i
     await new Promise((r) => events.on("response", (res) => res.once("data", r)));
     const config = path.join(w.cwd, "strom.json");
     const good = fs.readFileSync(config, "utf8");
+    // somebody comes to work meanwhile: the tick reads the tree for who it is (it reads it only when that changes)
     fs.writeFileSync(config, good.slice(0, 20));
+    const leave = enterWorker(w.cwd, "chat-1", "Codex conversation");
     await new Promise((r) => setTimeout(r, 500));
     const broken = await ask(`${first.url}/status`);
     assert.equal(broken.status, 500);
@@ -897,6 +901,7 @@ test("the live bridge does not end because of one error, says what happened in i
     await new Promise((r) => setTimeout(r, 300));
     assert.equal((await ask(`${first.url}/status`)).status, 200, "it goes on");
     events.destroy();
+    leave();
     const said = fs.readFileSync(log, "utf8");
     assert.match(said, /started: strom .*a new address/);
     assert.match(said, /a tick failed \(tried again\): .*\n\s+at /, "the error with its stack");
@@ -1096,19 +1101,29 @@ test("strom run with Codex, Antigravity and OpenCode: headless, their events rea
   assert.equal(r.json.sessions[0].outcome, "ok");
   assert.match(r.err, /\$ strom brief/, "progress from its events");
   const args = fs.readFileSync(path.join(w.dir, "codex.args"), "utf8");
-  assert.match(args, /^exec --json --skip-git-repo-check --sandbox workspace-write -c sandbox_workspace_write\.network_access=true -c sandbox_workspace_write\.writable_roots=\[".*Novákovi\/\.git",".*shared"\] -$/m);
+  assert.match(args, /^exec --json --skip-git-repo-check --sandbox workspace-write -c sandbox_workspace_write\.network_access=true -c sandbox_workspace_write\.writable_roots=\[".*Novákovi\/\.git",".*shared"\] -c features\.plugins=false -c features\.apps=false -c features\.hooks=false -c features\.memories=false -$/m, "working alone without the user's add-ons");
   assert.match(fs.readFileSync(path.join(w.dir, "codex.brief"), "utf8"), /Křest Jana/, "the brief on stdin");
   const s = (await w.ok(["session", "show", "N0001", "--json"])).json.session;
   assert.equal(s.metrics.inputTokens, 1200);
-  // Antigravity: the brief it reads itself (strom brief), the result event read.
+  // Antigravity: it reads no stdin beside --print and keeps only the end of a long output — the brief in a file it is
+  // told to read whole; its steps and result read, its thinking already in its output tokens, a refusal said.
   fakeHeadless(w, "agy", [
-    { event: "tool_call", tool_call: { name: "run_command", input: { command: "strom brief" } } },
-    { event: "result", result: { status: "SUCCESS", response: "Hotovo.", num_turns: 3, duration_seconds: 12, usage: { input_tokens: 700, output_tokens: 30, thinking_tokens: 10, cache_read_tokens: 50 } } },
+    { event: "step_update", step_update: { step_index: 1, state: "ACTIVE", step_type: "tool", tool_name: "view_file", tool_info: { name: "view_file", parameters: { AbsolutePath: "N0002.prompt.md" } } } },
+    { event: "step_update", step_update: { step_index: 2, state: "ACTIVE", step_type: "tool", tool_name: "run_command", tool_info: { name: "run_command", parameters: { CommandLine: "git log" } } } },
+    { event: "step_update", step_update: { step_index: 2, state: "ERROR", step_type: "tool", tool_name: "run_command", tool_info: { name: "run_command", parameters: { CommandLine: "git log" }, error: { message: "permission check failed for unsandboxed \"git log\": user denied permission to run command" } } } },
+    { event: "result", result: { status: "SUCCESS", response: "Hotovo.", num_turns: 1, duration_seconds: 12, usage: { input_tokens: 700, output_tokens: 30, thinking_tokens: 10, cache_read_tokens: 50, total_tokens: 730 }, denied_actions: [{ action: "command", display_name: "RunCommand" }] } },
   ]);
   const a = await w.ok(["run", "--agent", "antigravity", "--json"]);
   assert.equal(a.json.sessions[0].outcome, "ok");
-  assert.match(fs.readFileSync(path.join(w.dir, "agy.args"), "utf8"), /^--print You are the researcher in strom session N0002\. Run `strom brief`.* --output-format stream-json --add-dir /);
-  assert.equal((await w.ok(["session", "show", "N0002", "--json"])).json.session.metrics.outputTokens, 40);
+  const aargs = fs.readFileSync(path.join(w.dir, "agy.args"), "utf8");
+  assert.match(aargs, /^--print Your brief for this strom session is the file \/.*\.strom\/runs\/N0002\.prompt\.md\. Read that whole file first.* --output-format stream-json --add-dir /);
+  assert.doesNotMatch(aargs, /Křest/, "the brief never in argv");
+  assert.match(fs.readFileSync(path.join(w.cwd!, ".strom", "runs", "N0002.prompt.md"), "utf8"), /^You are the researcher in strom session N0002\.[^]*Křest/);
+  assert.equal(fs.readFileSync(path.join(w.dir, "agy.brief"), "utf8"), "", "nothing on stdin");
+  assert.match(a.err, /refused by permissions: \$ git log/);
+  assert.match(a.err, / 1×: Bash: git log/, "the run says what was refused");
+  const as = (await w.ok(["session", "show", "N0002", "--json"])).json.session;
+  assert.deepEqual([as.metrics.outputTokens, as.metrics.denied], [30, 1]);
   // OpenCode: the brief on stdin, its steps summed up, a refusal noticed.
   fakeHeadless(w, "opencode", [
     { type: "step_start", part: { type: "step-start" } },

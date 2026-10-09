@@ -15,7 +15,8 @@ import { ui } from "../cli/ui.ts";
 import { register, type Result } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, runs, shellArg, table } from "../cli/format.ts";
-import { StromError, UsageError } from "../core/errors.ts";
+import { EXIT, StromError, UsageError } from "../core/errors.ts";
+import { deadlineOf, REMIND_MS } from "../core/clock.ts";
 import { isAgent } from "../core/which.ts";
 import type { Media, RecordSet, Region, Repository } from "../core/model.ts";
 import { requireRecord } from "../core/records.ts";
@@ -28,7 +29,7 @@ import { runGit } from "../core/git.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { Tree } from "../core/tree.ts";
 import { syncAgentFiles } from "../agents/files.ts";
-import { clearBlock, CookieJar, DEFAULT_PACE, hostAllowed, hostPace, hostState, knownHosts, MIN_INTERVAL_MS, NetError, paceText, politeRequest, refusedBy, reserveSlots, setOwnPace, type Pace } from "../core/net.ts";
+import { clearBlock, clock, CookieJar, DEFAULT_PACE, hostAllowed, hostPace, hostState, knownHosts, MIN_INTERVAL_MS, NetError, paceText, politeRequest, refusedBy, reserveSlots, setOwnPace, type Pace } from "../core/net.ts";
 import {
   botCheck,
   fileBase,
@@ -223,6 +224,32 @@ function describeRun(r: RunReport, what: string): string {
     `${what}: ${r.requests} request(s)${r.pages ? ` + ${r.pages} page(s) your browser got` : ""}${r.stopped ? ` · stopped: ${r.stopped}` : ""}`,
     ...r.logs.slice(-10).map((l) => `  · ${l}`),
   );
+}
+
+/**
+ * How long strom fetch waits by itself for an archive's limit used up (its hourly cap, a limit it says is used up),
+ * instead of the agent sleeping and asking again: up to FETCH_WAIT_MS, never into the last minutes of a session of
+ * strom run (what was found is written then) — said before it waits. Longer: it ends, saying when to try again.
+ */
+export const FETCH_WAIT_MS = 30 * 60_000;
+
+function limitWait(ctx: Context): { waitMs: number; onWait: (w: { host: string; until: number; ms: number; why: "cap" | "limit" }) => void } {
+  const deadline = deadlineOf(ctx.env);
+  const left = deadline !== undefined ? deadline - Date.now() - REMIND_MS : Infinity;
+  const waitMs = Math.max(0, Math.min(FETCH_WAIT_MS, left));
+  return {
+    waitMs,
+    onWait: (w) =>
+      ctx.io.stderr(
+        `  · ${w.host}: ${w.why === "cap" ? "its hourly cap is used up" : "it says its limit is used up"} — strom waits until ${clock(w.until)} (${Math.max(1, Math.ceil(w.ms / 60_000))} min), then goes on by itself (it waits at most ${Math.round(waitMs / 60_000)} min); do not stop it\n`,
+      ),
+  };
+}
+
+/** A run that ended at a limit used up: when to try again, and the exit code that says "later". */
+function later(r: RunReport, again: string): { line?: string; exitCode?: (typeof EXIT)["later"] } {
+  if (r.later === undefined) return {};
+  return { line: `→ the archive's limit is used up: try again at ${clock(r.later)} (${again}); meanwhile other work — no sleeping and asking sooner`, exitCode: EXIT.later };
 }
 
 /** Up to this many books, each comes with the command to register it; more, one line each. */
@@ -762,7 +789,9 @@ register(
     lock: "sections",
     description:
       "Every request goes through strom's limiter: one at a time, paced, capped per hour; a refusal (401/403)\n" +
-      "stops the run and leaves the archive alone for a day. With --recordset the images are registered at once;\n" +
+      "stops the run and leaves the archive alone for a day. An archive's hourly cap used up: strom waits for it by\n" +
+      "itself (up to 30 min, never into a session's last 10) and says until when — no need to sleep and ask again;\n" +
+      "longer, it ends with exit 7 and the time to try again. With --recordset the images are registered at once;\n" +
       "without it they go into the inbox, a folder for the book.\n" +
       "--crop or --half fetches a part of one image, as sharp as the portal gives it (a connector that can: part),\n" +
       "registered with the image; a view of the image then shows that place from it by itself. The book is\n" +
@@ -1044,7 +1073,7 @@ async function testWith(ctx: Context, c: Connector, request: ConnectorRequest, m
   fs.mkdirSync(workDir, { recursive: true });
   for (const e of fs.readdirSync(workDir)) if (e !== "probe") fs.rmSync(path.join(workDir, e), { recursive: true, force: true }); // what probes saved stays
   const pages = pagesOf(ctx, c);
-  const r = await runConnector(c, request, { env: ctx.env, workDir, netDir: netDir(ctx), maxRequests: max, onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...(pages ? { pages } : {}) });
+  const r = await runConnector(c, request, { env: ctx.env, workDir, netDir: netDir(ctx), maxRequests: max, onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...(pages ? { pages } : {}) });
   if (r.needs) return planPages(ctx, c, r.needs, { cmd: "test", request: { ...request }, max }, `strom connector test ${c.name} (${request.cmd})`, describeRun(r, `test ${request.cmd}`));
   const direct = directNetwork(c);
   return {
@@ -1058,7 +1087,7 @@ async function testWith(ctx: Context, c: Connector, request: ConnectorRequest, m
       c.manifest.policy.automation === "unknown" ? "⚠ policy.automation is unknown — find out what the portal's terms say (DISCOVERY.md, step 1)" : undefined,
     ),
     data: { ...r, direct },
-    ...(r.stopped && !r.books.length && !r.images.length && !r.located.length ? { exitCode: 1 } : {}),
+    ...(later(r, "the same command").exitCode ? { exitCode: EXIT.later } : r.stopped && !r.books.length && !r.images.length && !r.located.length ? { exitCode: 1 } : {}),
   };
 }
 
@@ -1269,7 +1298,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   const workDir = path.join(tree.root, ".strom", "fetch", `${c.name}-${Date.now()}`);
   const t0 = Date.now();
   const pages = pagesOf(ctx, c);
-  const r = await runConnector(c, request, { env: ctx.env, workDir, netDir: netDir(ctx), onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...(pages ? { pages } : {}) });
+  const r = await runConnector(c, request, { env: ctx.env, workDir, netDir: netDir(ctx), onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...(pages ? { pages } : {}) });
   if (r.needs) {
     fs.rmSync(workDir, { recursive: true, force: true });
     return planPages(ctx, c, r.needs, { cmd: "fetch", request: { ...request }, ...(recordset ? { recordset } : {}) }, `strom fetch ${c.name} (${request.cmd})`, describeRun(r, request.cmd));
@@ -1277,10 +1306,11 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   const took = `${Math.round((Date.now() - t0) / 1000)} s`;
   if (request.cmd === "find" || request.cmd === "list") {
     fs.rmSync(workDir, { recursive: true, force: true });
+    const wait = later(r, "the same command");
     return {
-      text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`)].join("\n") : "no books found"),
+      text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`)].join("\n") : "no books found", wait.line),
       data: r,
-      ...(r.stopped && !r.books.length ? { exitCode: 1 } : {}),
+      ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.books.length ? { exitCode: 1 } : {}),
     };
   }
   const from = (f: string) => `connector ${c.name} · ${path.basename(f)}`;
@@ -1335,7 +1365,9 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     fs.rmSync(workDir, { recursive: true, force: true });
     text = "no images fetched";
   }
-  return { text: lines(describeRun(r, request.cmd), text), data, ...(r.stopped && !r.images.length ? { exitCode: 1 } : {}) };
+  // the images it got are registered; the rest when the archive takes requests again
+  const wait = later(r, request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${runs(request.images)}${recordset ? ` --recordset ${recordset}` : ""} — what is here already is not fetched again` : "the same command");
+  return { text: lines(describeRun(r, request.cmd), text, wait.line), data, ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.images.length ? { exitCode: 1 } : {}) };
 }
 
 async function planBrowser(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" | "part" }>, recordset: string | undefined): Promise<Result> {
@@ -1349,7 +1381,7 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
   const batch = asked.slice(0, Math.max(1, Math.floor(SCRIPT_MS / pace.minIntervalMs)));
   const workDir = path.join(tree.root, ".strom", "fetch", `${c.name}-${Date.now()}`);
   const pages = pagesOf(ctx, c);
-  const r = await runConnector(c, { cmd: "locate", book: request.book, images: batch, ...(part ? { region: request.region } : {}) }, { env: ctx.env, workDir, netDir: netDir(ctx), onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...(pages ? { pages } : {}) });
+  const r = await runConnector(c, { cmd: "locate", book: request.book, images: batch, ...(part ? { region: request.region } : {}) }, { env: ctx.env, workDir, netDir: netDir(ctx), onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...(pages ? { pages } : {}) });
   fs.rmSync(workDir, { recursive: true, force: true });
   if (r.needs) return planPages(ctx, c, r.needs, { cmd: "fetch", request: { ...request }, ...(recordset ? { recordset } : {}) }, `strom fetch ${c.name} (${request.cmd} of book ${request.book})`, describeRun(r, "locate"));
   if (!r.located.length) return { text: lines(describeRun(r, "locate"), "no image located — nothing planned"), data: r, exitCode: 1 };
@@ -1362,7 +1394,7 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
     times = reserveSlots(netDir(ctx), first.hostname, c.manifest.policy.pace, here.length + 1);
   } catch (err) {
     if (!(err instanceof NetError)) throw err;
-    return { text: lines(describeRun(r, "locate"), `nothing planned: ${err.message}`), data: r, exitCode: 1 };
+    return { text: lines(describeRun(r, "locate"), `nothing planned: ${err.message}`), data: r, exitCode: err.failure === "cap" && err.until !== undefined ? EXIT.later : 1 };
   }
   const items: PlanItem[] = here
     .slice(0, times.length - 1)

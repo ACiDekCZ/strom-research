@@ -13,7 +13,8 @@ import { gitVersion } from "../core/git.ts";
 import { fixGit, offerAgent } from "./fixes.ts";
 import { agentsHere, suggestedWay, waysHere, whereToTalk } from "../core/apps.ts";
 import { chooseWay, wayName } from "./ways.ts";
-import { PROFILES } from "../agents/profiles.ts";
+import { chooseModel } from "./model-choice.ts";
+import { ADDON_SWITCHES, PROFILES } from "../agents/profiles.ts";
 import { writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
 import { appCopyOfInstall, appOpensLinks, defaultAppUrl, noticeStromApp, researchUrl, STROM_APP_URL, stromAppState, appUrlSetting } from "../core/stromapp.ts";
@@ -146,19 +147,14 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
     out(ui(lang, archiveFirst && installed.length ? "ui.setup.archive.chosen" : "ui.setup.archive"));
   } else if (cfg.mode === "archive" && (fromApp || (await ctx.confirm(ui(lang, "ui.setup.archive.off"), true)))) delete cfg.mode;
 
-  // 5. The model (Claude Code: the one choice that matters for reading old hands).
-  if (agent === "claude") {
-    const models = ["opus", "sonnet", undefined];
-    const current = cfg.models?.claude?.lead;
-    const suggested = current === undefined ? (first ? 0 : 2) : Math.max(0, models.indexOf(current));
-    const i = await ctx.choose(
-      ui(lang, "ui.setup.model"),
-      [{ label: ui(lang, "ui.setup.model.opus") }, { label: ui(lang, "ui.setup.model.sonnet") }, { label: ui(lang, "ui.setup.model.own") }],
-      suggested,
-      keep,
-    );
-    writeStored(cfg, "model.lead", "claude", models[i ?? suggested]);
-  } else if (agent) out(ui(lang, "ui.setup.model.strong", { agent: PROFILES[agent]!.name }));
+  // 5. The model — the one choice that matters for reading old hands — for every agent: Claude Code's Opus or Sonnet,
+  // the strong ones of another agent's own list; kept for that agent (model.lead), used by every run, reader and
+  // conversation of it.
+  if (agent) {
+    const { value } = await chooseModel(ctx, lang, agent, cfg.models?.[agent]?.lead, { first, ...keep });
+    writeStored(cfg, "model.lead", agent, value);
+    if (agent !== "claude" && value === undefined) out(ui(lang, "ui.setup.model.strong", { agent: PROFILES[agent]!.name }));
+  }
 
   // 5b. Stories of the ancestors for the family book: on unless the person says no (an agent writes them).
   if (agent) {
@@ -179,6 +175,15 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
     }
   }
   cfg.agentPermissions = level;
+
+  // 6b. The agent working alone without the person's own add-ons (skills, plugins, MCP servers): on by default; a
+  // conversation loads them always. Only for an agent that has the switches.
+  if (agent && ADDON_SWITCHES.includes(agent)) {
+    const was = cfg.agentAddons === "on" ? 1 : 0;
+    const ai = await ctx.choose(`${ui(lang, "ui.setup.addons")}\n${ui(lang, "ui.alone.addons.about")}`, [{ label: ui(lang, "ui.setup.addons.yes") }, { label: ui(lang, "ui.setup.addons.no") }], was, keep);
+    if ((ai ?? was) === 1) cfg.agentAddons = "on";
+    else delete cfg.agentAddons;
+  }
   s.save();
 
   // 7. A shortcut on the desktop (asked here, a no suggested again; refreshed quietly after) — none for an isolated

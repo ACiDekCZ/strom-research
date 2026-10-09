@@ -2,7 +2,7 @@
 // under the tree lock, validated and sealed by Tree.put.
 
 import { UsageError } from "./errors.ts";
-import { normalizeDate } from "./gdate.ts";
+import { normalizeDate, reversedRange } from "./gdate.ts";
 import { normalizeAge } from "./age.ts";
 import { checkStatus, defaultStatus } from "./evidence.ts";
 import {
@@ -33,7 +33,7 @@ import {
   type StoryDraft,
   type Union,
 } from "./model.ts";
-import { cleanTitle, displayName, familiesAsChild, familiesAsPartner, gedcomName, gedcomTitledName, isBirthFamily, keepSides, notAName, parseName, primaryName, sameName, slashInName } from "./people.ts";
+import { cleanTitle, displayName, familiesAsChild, familiesAsPartner, gedcomName, gedcomTitledName, closesCircle, isAncestorOf, isBirthFamily, keepSides, notAName, parseName, primaryName, sameName, slashInName } from "./people.ts";
 import { foldText } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
@@ -51,6 +51,55 @@ export function makeNote(tree: Tree, text: string): Note {
   return { text: t, at: now(), by: tree.actor };
 }
 
+/** Where a text of at most `max` characters (UTF-16, as the limits count) is best cut: after a sentence, else a word. */
+function cutAt(text: string, max: number): number {
+  if (text.length <= max) return text.length;
+  const head = text.slice(0, max + 1);
+  const at = (re: RegExp) => {
+    let best = -1;
+    for (const m of head.matchAll(re)) if (m.index! + m[0].length <= max && m.index! + m[0].length > max / 2) best = m.index! + m[0].length;
+    return best;
+  };
+  // a sentence's end (any script: . ! ? … and the full-width ones), then a space, then anything
+  let cut = at(/[.!?…;。！？](?=\s)/gu);
+  if (cut < 0) cut = at(/\s/gu);
+  if (cut < 0) cut = max;
+  // never between the two halves of one character
+  if (/[\uD800-\uDBFF]/u.test(text[cut - 1] ?? "")) cut--;
+  return cut;
+}
+
+/**
+ * A text over a limit split where it reads best: the head (at most `max`) and what is left (K3 — the whole text kept,
+ * never an error the agent answers by cutting it short).
+ */
+export function splitText(text: string, max: number): { head: string; rest: string } {
+  const t = text.trim();
+  const cut = cutAt(t, max);
+  return { head: t.slice(0, cut).trim(), rest: t.slice(cut).trim() };
+}
+
+/**
+ * A note as long as it is: over the limit of one note (NOTE_MAX), kept whole as several, each marked "(1/3)" — said
+ * under the command's output (K3: a note cut short loses what was searched in vain).
+ */
+export function makeNotes(tree: Tree, text: string): Note[] {
+  const t = text.trim();
+  if (t.length <= NOTE_MAX) return [makeNote(tree, t)];
+  const parts: string[] = [];
+  let rest = t;
+  // room for the mark in front of each part: "(12/12) "
+  const room = NOTE_MAX - 8;
+  while (rest.length > room) {
+    const { head, rest: more } = splitText(rest, room);
+    parts.push(head);
+    rest = more;
+  }
+  if (rest) parts.push(rest);
+  tree.notices.push(`note: the note was ${t.length} characters (one note holds ${NOTE_MAX}): kept whole as ${parts.length} notes`);
+  return parts.map((p, i) => makeNote(tree, `(${i + 1}/${parts.length}) ${p}`));
+}
+
 export function parseStatus(v: string | undefined, fallback: Status): Status {
   if (v === undefined) return fallback;
   if (!(STATUSES as readonly string[]).includes(v) || v === "retracted")
@@ -63,8 +112,12 @@ export function parseDate(v: string | undefined, what = "date"): string | undefi
   const d = normalizeDate(v);
   if (!d)
     throw new UsageError(`invalid ${what} "${v}"`, {
-      hint: 'use GEDCOM form: "24 JUN 1783", "JUN 1783", "1783", "ABT 1783", "BEF 1850", "BET 1811 AND 1812" (or ISO 1783-06-24)',
+      hint: /\d\/\d|@#D/.test(v)
+        ? 'double dates (1731/32) and calendar escapes (@#DJULIAN@) are not supported: give the year of the new style ("11 FEB 1732") and quote the record\'s own wording in the citation or a note'
+        : 'use GEDCOM form: "24 JUN 1783", "JUN 1783", "1783", "ABT 1783", "BEF 1850", "BET 1811 AND 1812" (or ISO 1783-06-24)',
     });
+  const ordered = reversedRange(d);
+  if (ordered) throw new UsageError(`${what} "${v}" ends before it begins`, { hint: `the earlier date first: "${ordered}"` });
   return d;
 }
 
@@ -254,7 +307,7 @@ export function addPerson(tree: Tree, input: PersonInput): Person {
       names: [name],
       sex,
       events,
-      notes: input.note ? [makeNote(tree, input.note)] : [],
+      notes: input.note ? makeNotes(tree, input.note) : [],
       created: t,
       updated: t,
     };
@@ -307,6 +360,10 @@ export function addFamily(tree: Tree, input: FamilyInput): Family {
       const fam = familiesAsChild(tree, c).find((f) => isBirthFamily(f, c));
       if (fam) throw new UsageError(`${c} already has birth parents in ${fam.id}`, { hint: `strom family show ${fam.id} — or, if these are other parents: --relation adopted|step|foster`, code: "child.parents-exist", params: { person: c, family: fam.id } });
     }
+  for (const c of input.children) {
+    const circle = closesCircle(tree, input.partners, c);
+    if (circle) throw new UsageError(`${circle} is a descendant of ${c}: as a parent of ${c} they would be their own ancestor`, { hint: `strom pedigree ${c}`, code: "family.own-ancestor" });
+  }
   parseDate(input.married, "marriage date");
   const married = Boolean(input.married || input.marriedPlace);
   if (input.citation && !married) checkCitation(tree, input.citation);
@@ -325,7 +382,7 @@ export function addFamily(tree: Tree, input: FamilyInput): Family {
       events,
       // Without a marriage the record is evidence of the family itself (a child's parents).
       ...(input.citation && !married ? { citations: [input.citation] } : {}),
-      notes: input.note ? [makeNote(tree, input.note)] : [],
+      notes: input.note ? makeNotes(tree, input.note) : [],
       ...(input.noCouple && input.partners.length === 2 ? { noCouple: true as const } : {}),
       ...(input.union ? { union: input.union } : {}),
       created: t,
@@ -358,6 +415,8 @@ export function addChild(tree: Tree, familyId: string, child: string, relationIn
       const other = familiesAsChild(tree, child).find((f) => isBirthFamily(f, child));
       if (other) throw new UsageError(`${child} already has birth parents in ${other.id}`, { code: "child.parents-exist", params: { person: child, family: other.id } });
     }
+    const circle = closesCircle(tree, fam.partners, child);
+    if (circle) throw new UsageError(`${circle} is a descendant of ${child}: as a parent of ${child} they would be their own ancestor`, { hint: `strom family show ${familyId}`, code: "family.own-ancestor" });
     // One entry names the parents and each child: the family may cite it already.
     const cited = citation && (fam.citations ?? []).some((x) => x.source === citation.source && x.locator === citation.locator);
     const updated: Family = {
@@ -404,6 +463,8 @@ export function editFamily(tree: Tree, familyId: string, edit: FamilyEdit, reaso
       requirePerson(tree, edit.partner);
       if (next.partners.includes(edit.partner) || next.children.some((c) => c.person === edit.partner)) throw new UsageError(`${edit.partner} is already in ${familyId}`);
       if (next.partners.length >= 2) throw new UsageError(`${familyId} has two partners`, { hint: "another couple is another family: strom family add …" });
+      const child = next.children.find((c) => closesCircle(tree, [edit.partner!], c.person));
+      if (child) throw new UsageError(`${edit.partner} is a descendant of ${child.person}: as a parent of ${child.person} they would be their own ancestor`, { hint: `strom family show ${familyId}`, code: "family.own-ancestor" });
       next.partners.push(edit.partner);
       what.push(`+partner ${edit.partner}`);
     }
@@ -476,14 +537,16 @@ export function addEvent(tree: Tree, ownerId: string, input: EventInput): { owne
   });
 }
 
-export function addNote(tree: Tree, id: string, text: string): Note {
+export function addNote(tree: Tree, id: string, text: string, opts: { whole?: boolean } = {}): Note {
   const type = typeOfId(id);
   if (!type) throw new UsageError(`unknown ID ${id}`);
-  const note = makeNote(tree, text);
+  // whole: a long note kept as several (strom note add); the app's notes stay one each (they go back to it so)
+  const notes = opts.whole ? makeNotes(tree, text) : [makeNote(tree, text)];
+  const note = notes[0]!;
   tree.withTreeLock(() => {
     const rec = tree.get<Person | Family | Research>(id);
     if (!rec) throw new UsageError(`no record ${id}`);
-    const updated = { ...rec, notes: [...rec.notes, note], updated: now() } as Person | Family | Research;
+    const updated = { ...rec, notes: [...rec.notes, ...notes], updated: now() } as Person | Family | Research;
     tree.put(updated, { op: "note.add", targets: [id], summary: `${id} +note` });
   });
   return note;
@@ -516,7 +579,7 @@ export function addResearch(tree: Tree, input: ResearchInput): Research {
       direction,
       state: "active",
       priority: input.priority ?? 3,
-      notes: input.note ? [makeNote(tree, input.note)] : [],
+      notes: input.note ? makeNotes(tree, input.note) : [],
       created: t,
       updated: t,
     };
@@ -551,8 +614,19 @@ function replaceEvent(tree: Tree, eventId: string, change: (e: Event) => Event, 
   });
 }
 
+/**
+ * A fact taken back (or one of a person or family taken back) is shown nowhere: citing or editing it would write what
+ * nobody sees, with a status that says otherwise. The agent adds the fact again instead.
+ */
+export function notRetracted(tree: Tree, eventId: string, what: "cite" | "edit"): void {
+  const { owner, event } = findEventOwner(tree, eventId);
+  const gone = event.retracted ? `${event.id} is retracted: ${event.retracted.reason}` : owner.retracted ? `${event.id} belongs to ${owner.id}, which is ${owner.mergedInto ? `merged into ${owner.mergedInto}` : "retracted"}` : undefined;
+  if (gone) throw new UsageError(gone, { hint: `nothing to ${what} there: add the fact anew where it belongs (strom event add <who> <KIND> …) and cite that`, code: "event.retracted" });
+}
+
 /** Attach a citation to a fact; optionally raise its status. */
 export function citeEvent(tree: Tree, eventId: string, citation: Citation, status?: string): Event {
+  notRetracted(tree, eventId, "cite");
   const src = tree.get(citation.source);
   if (!src || src.type !== "source") throw new UsageError(`no source ${citation.source}`, { hint: 'strom source add "<title>" …', code: "record.none", params: { kind: "source", id: citation.source } });
   const newStatus = status === undefined ? undefined : parseStatus(status, "lead");
@@ -572,6 +646,9 @@ export function citeRecord(tree: Tree, id: string, citation: Citation): Person |
   checkCitation(tree, citation);
   return tree.withTreeLock(() => {
     const rec = tree.get<Person | Family>(id);
+    // a merged or retracted record is history: a citation on it would be seen nowhere
+    if (rec?.mergedInto) throw new UsageError(`${id} was merged into ${rec.mergedInto}`, { hint: `strom cite ${rec.mergedInto} ${citation.source}`, code: "record.merged", params: { id, into: rec.mergedInto } });
+    if (rec?.retracted && (rec.type === "person" || rec.type === "family")) throw new UsageError(`${id} is retracted: ${rec.retracted.reason}`, { code: "record.retracted" });
     if (rec?.type === "person") {
       const primary = primaryName(rec);
       const names = rec.names.map((n) => (n === primary ? { ...n, citations: withCitation(n.citations, citation, `${id} ${gedcomName(n)}`) } : n));
@@ -822,7 +899,13 @@ function replaceId(value: unknown, from: string, to: string): unknown {
     const out = value.map((v) => replaceId(v, from, to));
     return value.includes(from) ? [...new Set(out)] : out;
   }
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, replaceId(v, from, to)]));
+  if (value && typeof value === "object") {
+    // a map keyed by the ID (an event's ages, a child's relations to each partner): the key follows; one the record
+    // already has under the other ID stays
+    const entries = Object.entries(value);
+    const keyed = entries.some(([k]) => k === to);
+    return Object.fromEntries(entries.filter(([k]) => !(k === from && keyed)).map(([k, v]) => [k === from ? to : k, replaceId(v, from, to)]));
+  }
   return value;
 }
 
@@ -863,6 +946,13 @@ export function mergePersons(tree: Tree, keepId: string, otherId: string, reason
     if (keep.sex !== "U" && other.sex !== "U" && keep.sex !== other.sex) throw new UsageError(`${keepId} is ${keep.sex}, ${otherId} is ${other.sex}`, { hint: "correct the wrong one first: strom person edit … --sex … --reason …" });
     const together = familiesAsPartner(tree, keepId).find((f) => f.partners.includes(otherId));
     if (together) throw new UsageError(`${keepId} and ${otherId} are the partners of ${together.id}`);
+    // one person would be their own parent or ancestor
+    for (const [anc, of] of [[keepId, otherId], [otherId, keepId]] as const)
+      if (isAncestorOf(tree, anc, of))
+        throw new UsageError(`${anc} is a parent or ancestor of ${of}: as one person they would be their own ancestor`, {
+          hint: `they are not one person; a family link made by mistake goes first: strom family edit <F…> --remove <who> --reason "…"`,
+          code: "merge.own-ancestor",
+        });
     const birth = (id: string) => familiesAsChild(tree, id).find((f) => isBirthFamily(f, id));
     const kb = birth(keepId);
     const ob = birth(otherId);
@@ -918,6 +1008,13 @@ export function mergeFamilies(tree: Tree, keepId: string, otherId: string, reaso
     if (partners.length > 2)
       throw new UsageError(`${keepId} and ${otherId} are different couples (${partners.join(", ")})`, { hint: "if a partner is recorded twice, merge those persons first: strom person merge …" });
     const children = [...keep.children, ...other.children.filter((c) => !keep.children.some((k) => k.person === c.person))];
+    // a partner of one the child of the other, or a parent link that closes a circle: no longer one person's family
+    for (const c of children) {
+      const own = (keep.children.some((k) => k.person === c.person) ? keep : other).partners;
+      const circle = closesCircle(tree, partners.filter((p) => !own.includes(p)), c.person);
+      if (circle)
+        throw new UsageError(`merged, ${circle} would be a parent of ${c.person} and their own ancestor`, { hint: `these are not one family: strom family show ${keepId} · strom family show ${otherId}`, code: "merge.own-ancestor" });
+    }
     const citations = [...(keep.citations ?? []), ...(other.citations ?? []).filter((c) => !(keep.citations ?? []).some((x) => x.source === c.source && x.locator === c.locator))];
     const refs = [...(keep.refs ?? []), ...(other.refs ?? []).filter((r) => !(keep.refs ?? []).some((k) => k.system === r.system && k.id === r.id))];
     const why = reason.trim();

@@ -10,12 +10,15 @@ import type { Context } from "../cli/context.ts";
 import { StromError, UsageError } from "../core/errors.ts";
 import { readerSettings } from "../core/reader.ts";
 import { RUNNERS } from "../runners/index.ts";
-import { which } from "../core/which.ts";
+import { which, withoutAgentMarks } from "../core/which.ts";
 import { permissionPath } from "../agents/files.ts";
+import { imageMax } from "../agents/images.ts";
 import type { Tree } from "../core/tree.ts";
 
 export interface Readers {
   model: string | undefined;
+  /** The longest side of a view the readers' model takes in whole. */
+  viewMax: number;
   parallel: number;
   /** The name of this run's reports: notes/readings/<stem>-<reader>.md. */
   stem: string;
@@ -23,6 +26,9 @@ export interface Readers {
   /** One reader: it looks at these views and writes its report; the report's text comes back. */
   read: (name: string, views: string[], title: string, prompt: (report: string) => string) => Promise<{ report: string; text: string; outcome: string }>;
   cost: () => number;
+  /** How many readers ran, and whether one stopped before it said what it cost. */
+  runs: () => number;
+  partial: () => boolean;
   failed: string[];
   progress: (s: string) => void;
 }
@@ -44,6 +50,8 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
   const work = path.join(shared, "cache", "readers");
   const progress = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
   let cost = 0;
+  let runs = 0;
+  let partial = false;
   const failed: string[] = [];
   const read = async (name: string, views: string[], title: string, prompt: (report: string) => string) => {
     const report = path.join(reportsDir, `${stem}-${name}.md`);
@@ -58,17 +66,23 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
       cwd,
       prompt: text,
       kickoff: text,
-      env: { ...env, STROM_NONINTERACTIVE: "1", STROM_READER: "1" },
+      // (not the marks of the agent that ran strom read: the reader is an agent of its own)
+      env: { ...withoutAgentMarks(env), STROM_NONINTERACTIVE: "1", STROM_READER: "1" },
       settingsFile,
+      reader: true,
+      // without the user's own add-ons (skills, plugins, MCP servers) unless they said otherwise
+      ...(ctx.settings.agentAddons(tree.config) ? {} : { clean: true }),
       timeoutMs: minutes * 60_000,
       logFile: path.join(tree.root, ".strom", "runs", `${kind}-${stem}-${name}.log`),
       ...(model ? { model } : {}),
     });
     cost += r.metrics.costUsd ?? 0;
+    runs++;
+    if (r.metrics.costUsd === undefined || r.metrics.costPartial) partial = true;
     if (r.outcome !== "ok") failed.push(`${name} (${r.outcome})`);
     const written = fs.readFileSync(report, "utf8");
     if (!/^##\s/m.test(written) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
     return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome };
   };
-  return { model, parallel, stem, reportsDir, read, cost: () => cost, failed, progress };
+  return { model, viewMax: imageMax(agentId, model), parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
 }

@@ -4,7 +4,7 @@
 import { UsageError } from "./errors.ts";
 import { RECORD_TYPES, type AnyRecord, type Conflict, type Hypothesis, type RecordType } from "./model.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
-import { makeNote } from "./actions.ts";
+import { makeNote, makeNotes } from "./actions.ts";
 import { heldInArchive } from "./mode.ts";
 
 type Fields<T> = Omit<T, "id" | "type" | "created" | "updated" | "notes"> & { note?: string | undefined };
@@ -20,7 +20,7 @@ export function create<T extends AnyRecord>(tree: Tree, type: RecordType, fields
       id: tree.allocate(RECORD_TYPES[type].prefix),
       type,
       ...stripUndefined(fieldsNow),
-      notes: note ? [makeNote(tree, note)] : [],
+      notes: note ? makeNotes(tree, note) : [],
       created: t,
       updated: t,
     } as unknown as T;

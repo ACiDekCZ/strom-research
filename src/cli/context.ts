@@ -51,6 +51,8 @@ export class Context {
   readonly limit: number;
   readonly page: number;
   dryRun = false;
+  /** The record IDs the command names (T…, N…, G…): which of an agent's sessions in several researches is its. */
+  refs: string[] = [];
   private opened: Tree | undefined;
   /**
    * The backup before another channel or an older version could not be made (cli/backups.ts): no research is brought
@@ -437,7 +439,7 @@ export class Context {
     // Inside an open session every write is logged under the session's ID;
     // an agent writing outside a session is logged as "agent", never as the user.
     // What the bridge writes for the Strom app (STROM_FOR_APP) is the person's in the app: the user's.
-    const session = this.env.STROM_FOR_APP === "1" ? undefined : currentSession(this.opened, this.env);
+    const session = this.env.STROM_FOR_APP === "1" ? undefined : currentSession(this.opened, this.env, this.refs);
     if (session) this.opened.actor = session.id;
     else if (isAgent(this.env) && this.env.STROM_FOR_APP !== "1") this.opened.actor = "agent";
     return this.opened;

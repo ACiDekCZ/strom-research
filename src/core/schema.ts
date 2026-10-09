@@ -6,6 +6,7 @@ import {
   AUTOMATION,
   INPUT_KINDS,
   JURISDICTIONS,
+  LESSON_DETAIL_MAX,
   LESSON_MAX,
   LESSON_SCOPES,
   SEARCH_METHODS,
@@ -173,7 +174,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     scope: S({ req: true, enum: LESSON_SCOPES }),
     target: R(["repository", "recordset", "place"]),
     rule: S({ req: true, max: LESSON_MAX }),
-    detail: S({ max: 2000 }),
+    detail: S({ max: LESSON_DETAIL_MAX }),
   },
   session: {
     task: R("task"),

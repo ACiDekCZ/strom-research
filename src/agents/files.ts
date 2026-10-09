@@ -34,9 +34,10 @@ the researcher; \`strom\` is your only way to read and change the research.
 1. Start with \`strom\` — it says where things stand and what to do next.
    \`strom guide\` explains the work; \`strom help <command>\` any command.
 2. Work in sessions: \`strom session start\` gives you the brief for the next
-   task; finish with \`strom session close --summary "…" --next "…"\`. The
-   next step is strom's queue (\`strom\` names it, \`strom plan\` lists it):
-   what the user wants instead becomes a task first — never search outside a
+   task; finish with \`strom session close --done "<result>" --next "…"\`
+   (the task and the session in one call). The next step is strom's queue
+   (\`strom\` names it, \`strom plan\` lists it): what the user wants
+   instead becomes a task first — never search outside a
    session and its task.
 3. Never create, edit or delete anything in \`data/\`, \`strom.json\` or \`.git\`,
    never read the files in \`data/\` (strom shows them better and shorter), and
@@ -49,7 +50,8 @@ the researcher; \`strom\` is your only way to read and change the research.
    terminal — never do it yourself.
 6. You may read \`inputs/\`, \`output/\`, \`notes/\` and \`.strom/views/\`, and write
    your own working notes in \`notes/\`. Scans are looked at through views:
-   \`strom media view B0001:57 --half left\` writes one to \`.strom/views/\`.
+   \`strom media view B0001:57 --half left\` writes one to \`.strom/views/\`;
+   the views of a scan or a batch come in one call (\`B0001:57-60 --half both\`).
 7. Run strom commands on their own — no pipes (\`| head\`, \`| grep\`): output is
    already short, listings take \`--limit\` and \`--page\`, and piped commands may
    be refused by your permissions.

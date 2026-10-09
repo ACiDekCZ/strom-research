@@ -4,7 +4,7 @@
 import { Cancelled, EXIT, StromError, UsageError } from "../core/errors.ts";
 import { ownCommand, type Env } from "../core/paths.ts";
 import { Context, type IO } from "./context.ts";
-import { commands, type Result } from "./registry.ts";
+import { commands, type CommandDef, type Result } from "./registry.ts";
 import { asCommand, asCommandJson } from "./format.ts";
 import { groupHelpAs, helpAs } from "./help.ts";
 import { autoCommit } from "./commit.ts";
@@ -12,6 +12,7 @@ import { assertIntact } from "../core/integrity.ts";
 import { resetCache } from "../core/git.ts";
 import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { settleArchive } from "../core/mode.ts";
+import { settleHypothesisLinks } from "../core/hypolinks.ts";
 import { liveRunning, reviveLive, startLive } from "../core/live.ts";
 import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
 import { prependPath } from "../runners/runner.ts";
@@ -25,7 +26,7 @@ import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishAsked } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
-import { checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, splitPassthrough } from "./execute.ts";
+import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, splitPassthrough, usageOf } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
 import { catalog, localized, sayCommandAs } from "../core/phrases.ts";
 import "../commands/index.ts";
@@ -97,6 +98,7 @@ function printError(io: IO, json: boolean, err: unknown, debug: boolean, lang?: 
       const cands = (e.details as { candidates?: { label: string }[] } | undefined)?.candidates;
       if (cands) for (const c of cands) io.stderr(`  ${c.label}\n`);
       if (said.hint) for (const h of said.hint.split("\n")) io.stderr(`→ ${h}\n`);
+      if (e.usage) io.stderr(`${e.usage}\n`);
       if (debug && (err as Error).stack) io.stderr((err as Error).stack + "\n");
     }
     return e.exitCode;
@@ -137,6 +139,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
   // what ran, for the reminder of the session's time
   let ran: Context | undefined;
   let command: string | undefined;
+  let called: CommandDef | undefined;
   try {
     // "strom 'person list'" (one quoted word) means the same as strom person list.
     if (argv[0] && !argv[0].startsWith("-") && /\s/.test(argv[0].trim())) argv = [...argv[0].trim().split(/\s+/), ...argv.slice(1)];
@@ -158,6 +161,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       throw err;
     }
     const { def } = resolved;
+    called = def;
     const { rest, passthrough } = def.passthrough ? splitPassthrough(resolved.rest) : { rest: resolved.rest, passthrough: [] };
     const parsed = parseOptions(def, rest, own);
     const v = parsed.values;
@@ -174,6 +178,11 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     }
 
     const ctx = Context.fromOptions({ env, cwd, io, json, values: v });
+    // the IDs it names tell which session is the command's when its agent holds one in each of several researches
+    ctx.refs = [...parsed.positionals, ...Object.values(v).flatMap((x) => (typeof x === "string" ? [x] : Array.isArray(x) ? x : []))]
+      .flatMap((x) => String(x).split(",").map((y) => y.trim()))
+      .filter((x) => /^[TNG]\d+$/i.test(x))
+      .map((x) => `${x[0]!.toUpperCase()}${x.slice(1).padStart(4, "0")}`);
     ran = ctx;
     command = def.path.join(" ");
     // What is saved into a research, the user's hooks are told of (in the background).
@@ -240,6 +249,12 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         } catch {
           // another computer's seal, a tree at work: its next bridge or switch settles it
         }
+        // …and older hypotheses get the links of their variants their claims say beyond doubt, the rest a task (once)
+        try {
+          settleHypothesisLinks(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start settles it
+        }
         // the bridges the Strom app follows go on with this version at their addresses: one of an older strom started
         // again, one the installer ended to replace the program (Windows: its files are held while it runs) back
         try {
@@ -266,6 +281,12 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         const t = def.writes ? ctx.current() : undefined;
         if (t) t.withTreeLock(() => t.rollback());
         throw err;
+      }
+      // what it did otherwise than asked (a long note kept as several): said under its output
+      const notices = ctx.current()?.notices ?? [];
+      if (notices.length) {
+        result.text = result.text ? `${result.text.replace(/\n+$/, "")}\n${notices.join("\n")}` : notices.join("\n");
+        if (result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), notices: [...notices] };
       }
       if (def.writes) {
         const blocked = autoCommit(ctx, def);
@@ -304,6 +325,10 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     const said = err instanceof UsageError && err.code === "command.unknown" && io.tty && !isAgent(env)
       ? new UsageError(err.message, { hint: "strom help --human — or just strom: the menu", code: "command.unknown.person", params: err.params })
       : err;
+    // a mistake in calling it (an option it needs, a value it does not take): its usage under it, no strom help needed
+    if (said instanceof UsageError && !said.usage && called?.path.length && callMistake(said, called)) said.usage = usageOf(called, own);
+    // the usage is the agent's (or a program's): a person reads the error and its hint in their language, no English
+    if (said instanceof StromError && said.usage && !json && !isAgent(env)) said.usage = undefined;
     const code = printError(io, json, said, debug, lang);
     remind(io, ran, command);
     return code;
@@ -332,7 +357,7 @@ function remind(io: IO, ctx: Context | undefined, command: string | undefined): 
   if (!line) return;
   try {
     // closed already: nothing to remind of
-    if (ctx!.hasTree() && !currentSession(ctx!.tree(), ctx!.env)) return;
+    if (ctx!.hasTree() && !currentSession(ctx!.tree(), ctx!.env, ctx!.refs)) return;
   } catch {
     return;
   }

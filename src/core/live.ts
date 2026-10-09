@@ -12,6 +12,8 @@
 //   GET <token>/images.ged the same (the address an older strom gave)
 //   GET <token>/log        what the research saved, newest first (each commit: when, what, for which task;
 //                          text: its lines as the user reads them, kinds: what each is about)
+//   GET <token>/recent     what the research added in the last hours (?hours=1…168, 24 when not given): the people and
+//                          sources added, the commits — the same as /status recent (core/recent.ts)
 //   GET <token>/events     server-sent events: hello, change, working
 //   POST <token>/sync      the Strom app sends the user's edited tree back (?send=, or on its own): kept in the
 //                          inbox to be shown and written on the user's word (strom sync) — nothing of the
@@ -76,6 +78,7 @@ import { exportGedcom } from "../gedcom/export.ts";
 import { excerptSettings, planExcerpts } from "./excerpt.ts";
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
+import { settleHypothesisLinks } from "./hypolinks.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
 import { EXIT, StromError } from "./errors.ts";
@@ -93,6 +96,7 @@ import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion, updateChannel } from "./update.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
+import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
 import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
 import { Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, type HandlerState } from "./links.ts";
@@ -630,37 +634,126 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "conflict.decide"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "conflict.decide", "status.recent", "spend.readers"] as const;
 
-export function history(root: string, tree: Tree, range: string[] = [`-n${LOG_MAX}`]): { head: string; at: string; what: string[]; text: string[]; kinds: ChangeKind[]; task?: string; research?: string }[] {
+/** /status recent, when it is ready. */
+function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
+  const recent = head ? recentNow(root, env, head) : undefined;
+  return recent ? { recent } : {};
+}
+
+/** What git says of one commit (its time, message, files and the operations it logged): never changes for its hash. */
+interface RawCommit {
+  head: string;
+  at: string;
+  subject: string;
+  body: string;
+  files: string;
+  ops: Op[];
+}
+
+function rawCommits(root: string, range: string[]): RawCommit[] {
   const r = runGit(root, ["log", ...range, "--format=%x1e%H%x1f%cI%x1f%s%x1f%b%x1f", "--name-only"]);
   if (r.status !== 0) return [];
   const ops = opsByCommit(root, range);
+  return r.stdout
+    .split("\x1e")
+    .slice(1)
+    .map((c) => {
+      const [head = "", at = "", subject = "", body = "", files = ""] = c.split("\x1f");
+      return { head, at, subject, body, files, ops: ops.get(head) ?? [] };
+    });
+}
+
+/** The commits as the app reads them — what depends on the research now (names, tasks, directions) worked out afresh. */
+function rendered(tree: Tree, raws: RawCommit[]): HistoryEntry[] {
   const sessions = new Map(tree.list<Session>("session").map((s) => [s.id, s]));
-  const all = scopes(tree);
+  let all: Scope[] | undefined;
   const now = Date.now();
   const taskOf = (s: Session | undefined): { task?: string } => {
     if (!s?.task) return {};
     const task = tree.get<Task>(s.task);
     return { task: task ? `${task.id} ${task.what}` : s.task };
   };
-  return r.stdout
-    .split("\x1e")
-    .slice(1)
-    .map((c) => {
-      const [head = "", at = "", subject = "", body = "", files = ""] = c.split("\x1f");
-      const named = new Set<string>();
-      for (const f of files.split("\n")) {
-        const m = /^data\/(?:ops\/(?:[^/]+\/)*(N\d+)(?:\.[^/]*)?\.jsonl|sessions\/(N\d+)\.json)$/.exec(f.trim());
-        if (m) named.add((m[1] ?? m[2])!);
-      }
-      const when = Date.parse(at);
-      const open = named.size ? [] : [...sessions.values()].filter((s) => Date.parse(s.started) <= when && when <= (s.ended ? Date.parse(s.ended) : now));
-      const s = named.size === 1 ? sessions.get([...named][0]!) : open.length === 1 ? open[0] : undefined;
-      const lines = changeLines(tree, ops.get(head) ?? [], subject.trim(), tree.lang);
-      const research = s ? sessionResearch(tree, s, all) : undefined;
-      return { head, at, what: saved(subject.trim(), body), text: lines.map((l) => l.text), kinds: lines.map((l) => l.kind), ...taskOf(s), ...(research ? { research } : {}) };
-    });
+  return raws.map(({ head, at, subject, body, files, ops }) => {
+    const named = new Set<string>();
+    for (const f of files.split("\n")) {
+      const m = /^data\/(?:ops\/(?:[^/]+\/)*(N\d+)(?:\.[^/]*)?\.jsonl|sessions\/(N\d+)\.json)$/.exec(f.trim());
+      if (m) named.add((m[1] ?? m[2])!);
+    }
+    const when = Date.parse(at);
+    const open = named.size ? [] : [...sessions.values()].filter((s) => Date.parse(s.started) <= when && when <= (s.ended ? Date.parse(s.ended) : now));
+    const s = named.size === 1 ? sessions.get([...named][0]!) : open.length === 1 ? open[0] : undefined;
+    const lines = changeLines(tree, ops, subject.trim(), tree.lang);
+    // the directions only when a session needs them (they cost)
+    const research = s ? sessionResearch(tree, s, s.research ? [] : (all ??= scopes(tree))) : undefined;
+    return { head, at, what: saved(subject.trim(), body), text: lines.map((l) => l.text), kinds: lines.map((l) => l.kind), ...taskOf(s), ...(research ? { research } : {}) };
+  });
+}
+
+export interface HistoryEntry {
+  head: string;
+  at: string;
+  what: string[];
+  text: string[];
+  kinds: ChangeKind[];
+  task?: string;
+  research?: string;
+}
+
+export function history(root: string, tree: Tree, range: string[] = [`-n${LOG_MAX}`]): HistoryEntry[] {
+  return rendered(tree, rawCommits(root, range));
+}
+
+/**
+ * The history a bridge gives again and again (/log, each change): what git says of a commit is kept by its hash, so
+ * after a new commit git is asked about the new ones only — the same entries, in the same order, as history() gives.
+ */
+export class HistoryCache {
+  private known = new Map<string, RawCommit>();
+  /** How many commits the last log() asked git about (the new ones only, once it knows the rest). */
+  read = 0;
+  private readonly root: string;
+  constructor(root: string) {
+    this.root = root;
+  }
+
+  /** The last LOG_MAX commits up to `h`, newest first (as history(root, tree) at h). */
+  log(tree: Tree, h: string): HistoryEntry[] {
+    if (!h) return [];
+    const listed = runGit(this.root, ["rev-list", `-n${LOG_MAX}`, h]);
+    if (listed.status !== 0) return history(this.root, tree, [`-n${LOG_MAX}`, h]);
+    const order = listed.stdout.split("\n").filter(Boolean);
+    // the newest ones it has not seen; anything else unknown (a history written anew): all of it again
+    let k = 0;
+    while (k < order.length && !this.known.has(order[k]!)) k++;
+    if (order.slice(k).some((x) => !this.known.has(x))) k = order.length;
+    const fresh = k ? rawCommits(this.root, [`-n${k}`, h]) : [];
+    this.read = k;
+    if (fresh.length !== k || fresh.some((c, i) => c.head !== order[i])) {
+      this.read = order.length;
+      return this.keep(tree, rawCommits(this.root, [`-n${LOG_MAX}`, h]));
+    }
+    return this.keep(tree, order.map((x, i) => (i < k ? fresh[i]! : this.known.get(x)!)));
+  }
+
+  /** The commits after `from` up to `to` (a change the app hears), newest first; kept for the next /log. */
+  since(tree: Tree, range: string[]): HistoryEntry[] {
+    const raws = rawCommits(this.root, range);
+    for (const c of raws) this.known.set(c.head, c);
+    // never more than a few hundred kept: the oldest go first (a /log after it asks git about them again)
+    for (const old of this.known.keys()) {
+      if (this.known.size <= 2 * LOG_MAX) break;
+      this.known.delete(old);
+    }
+    return rendered(tree, raws);
+  }
+
+  private keep(tree: Tree, raws: RawCommit[]): HistoryEntry[] {
+    // oldest first, as since() adds the newer ones after them
+    this.known = new Map([...raws].reverse().map((c) => [c.head, c]));
+    return rendered(tree, raws);
+  }
 }
 
 /** The direction a task belongs to, for the app's names of directions on tasks and its filter. */
@@ -1003,6 +1096,9 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
     ...(agent && PROFILES[agent] ? { agent: { id: agent, name: PROFILES[agent]!.name, ...(where === "app" || where === "terminal" ? { where } : {}) } } : {}),
     head: last.head,
     ...(last.at ? { headAt: last.at } : {}),
+    // what the last 24 hours added (the app's "last 24 h"; /log gives only the last 500 commits): worked out in the
+    // background, its own head said — none until it is ready
+    ...recentOf(root, env, last.head),
     persons: tree.countLive("person"),
     families: tree.count("family"),
     researches: directions(tree, all, next, atWork.filter((w) => !w.paused).map((w) => w.research)),
@@ -1043,6 +1139,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
   } catch (e) {
     noteLive(root, `an archive's tasks not put aside now: ${errorText(e)}`);
   }
+  // older hypotheses: the links of their variants their claims say beyond doubt, the rest a task for the agent (once)
+  try {
+    const done = settleHypothesisLinks(Tree.open(root, env));
+    if (done) noteLive(root, `hypotheses: ${done.linked.length} variant link(s) filled in from their claims, ${done.tasks.length} task(s) for the rest`);
+  } catch (e) {
+    noteLive(root, `the links of the hypotheses' variants not filled in now: ${errorText(e)}`);
+  }
   // the address of the last bridge, so the app that followed it finds this one (its secret: none once it was ended for
   // good — a new one); replaced while it runs when a page that is no Strom app comes with it (leaked)
   const { last, foreign } = readLastOf(root);
@@ -1058,6 +1161,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
   let lastAsked = Date.now();
   let ged: { head: string; links: string; version: string; text: string } | undefined;
   let log: { head: string; text: string } | undefined;
+  // what git said of each commit, kept: a new commit costs only itself (/log, the changes heard)
+  const histories = new HistoryCache(root);
 
   /** A request that failed: said to the app, written into the log — the bridge goes on. */
   const failed = (req: http.IncomingMessage, res: http.ServerResponse, e: unknown) => {
@@ -1143,6 +1248,61 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     const page = from.replace(/[\u0000-\u001f\u007f]/g, "?").slice(0, 200);
     noteLive(root, `${req.method} /…/${String(what ?? "").slice(0, 40)} came with the secret from ${page}, a page that is no Strom app: the address got out — a new secret, the old one no longer works (the Strom app gets the new one when the research is opened in it again: strom app)`);
+  };
+
+  /** The tree for the app as it is now (at its head; made again for another head, version of the app or links). */
+  const giveGed = (res: http.ServerResponse, version: string | undefined) => {
+    const h = head(root);
+    // made again for another version of the app (two windows, two versions: each gets what it reads)
+    if (!ged || ged.head !== h || ged.version !== (version ?? "") || ged.links !== (appOpensLinks(new Settings(env, {}), version) ? links(env).join(" ") : "")) {
+      const tree = Tree.open(root, env);
+      // the images from the cache; new ones made for a while at most (the rest the next time the tree changes)
+      const set = excerptSettings(tree);
+      const images = set ? planExcerpts(tree, set.shared, { quality: set.quality, for: set.for, maxBytes: set.mb * 1024 * 1024, budgetMs: LIVE_IMAGES_MS }) : undefined;
+      // an app that opens strom-research:// links: each excerpt's mark, and the links this computer takes
+      const opens = appOpensLinks(new Settings(env, {}), version);
+      // …and where the tree ends, for an app that shows it
+      const edges = appShowsEdges(new Settings(env, {}), version);
+      const storyDrafts = appShowsStoryDrafts(new Settings(env, {}), version);
+      const coupleResi = appShowsCoupleEvents(new Settings(env, {}), version);
+      const sourceReads = appShowsSourceReads(new Settings(env, {}), version);
+      const factStatus = appShowsFactStatus(new Settings(env, {}), version);
+      const archive = appKnowsArchive(new Settings(env, {}), version);
+      const turnsExcerpts = appTurnsExcerpts(new Settings(env, {}), version);
+      const noCouple = appKnowsNoCouple(new Settings(env, {}), version);
+      const titles = appReadsTitles(new Settings(env, {}), version);
+      const hypothesisLinks = appShowsHypothesisLinks(new Settings(env, {}), version);
+      const conflictSides = appDecidesConflicts(new Settings(env, {}), version);
+      const offered = opens ? links(env) : [];
+      ged = {
+        head: h,
+        links: offered.join(" "),
+        version: version ?? "",
+        text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
+      };
+    }
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);
+  };
+
+  // A commit a moment ago: another may follow at once — the tree is made once none came for quietMs (at most
+  // quietMaxMs after it was asked for), and then from the newest; a tree already made for the head now: at once.
+  const quietMs = Number(env.STROM_LIVE_QUIET_MS ?? 2000);
+  const quietMaxMs = Number(env.STROM_LIVE_QUIET_MAX_MS ?? 6000);
+  const afterQuiet = (fn: () => void) => {
+    const asked = Date.now();
+    const look = () => {
+      let since = Infinity;
+      try {
+        const { head: h, at } = tip(root);
+        if (!ged || ged.head !== h) since = at ? Date.now() - Date.parse(at) : Infinity;
+      } catch {
+        // git not answering: the tree is made now (it says why)
+      }
+      const left = asked + quietMaxMs - Date.now();
+      if (!(since < quietMs) || left <= 0) return fn();
+      setTimeout(look, Math.max(100, Math.min(quietMs - since, left)));
+    };
+    look();
   };
 
   const answer = (req: http.IncomingMessage, res: http.ServerResponse) => {
@@ -1261,41 +1421,24 @@ export function serveLive(root: string, env: Env): Promise<void> {
         // what is answered is made first: a read that fails can still answer 500
         const text = JSON.stringify(status(root, env, version));
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(text);
+      } else if (what === "recent") {
+        // what another window of hours added (the same as /status recent); worked out now, the bridge answers others meanwhile
+        const said = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("hours");
+        const hours = said === null ? RECENT_HOURS : /^\d{1,3}$/.test(said) ? Number(said) : NaN;
+        const json = (code: number, body: unknown) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+        if (!(hours >= 1 && hours <= 168)) json(400, { error: "?hours=1…168 (24 when not given)" });
+        else
+          recentChanges(root, env, hours).then(
+            (r) => (r ? json(200, r) : json(404, { error: "the research has no commit yet" })),
+            (e) => failed(req, res, e),
+          );
       } else if (what === "log") {
         const h = head(root);
-        if (!log || log.head !== h) log = { head: h, text: JSON.stringify({ entries: history(root, Tree.open(root, env)) }) };
+        if (!log || log.head !== h) log = { head: h, text: JSON.stringify({ entries: histories.log(Tree.open(root, env), h) }) };
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(log.text);
       } else if (what === "tree.ged" || what === "images.ged") {
-        const h = head(root);
-        // made again for another version of the app (two windows, two versions: each gets what it reads)
-        if (!ged || ged.head !== h || ged.version !== (version ?? "") || ged.links !== (appOpensLinks(new Settings(env, {}), version) ? links(env).join(" ") : "")) {
-          const tree = Tree.open(root, env);
-          // the images from the cache; new ones made for a while at most (the rest the next time the tree changes)
-          const set = excerptSettings(tree);
-          const images = set ? planExcerpts(tree, set.shared, { quality: set.quality, for: set.for, maxBytes: set.mb * 1024 * 1024, budgetMs: LIVE_IMAGES_MS }) : undefined;
-          // an app that opens strom-research:// links: each excerpt's mark, and the links this computer takes
-          const opens = appOpensLinks(new Settings(env, {}), version);
-          // …and where the tree ends, for an app that shows it
-          const edges = appShowsEdges(new Settings(env, {}), version);
-          const storyDrafts = appShowsStoryDrafts(new Settings(env, {}), version);
-          const coupleResi = appShowsCoupleEvents(new Settings(env, {}), version);
-          const sourceReads = appShowsSourceReads(new Settings(env, {}), version);
-          const factStatus = appShowsFactStatus(new Settings(env, {}), version);
-          const archive = appKnowsArchive(new Settings(env, {}), version);
-          const turnsExcerpts = appTurnsExcerpts(new Settings(env, {}), version);
-          const noCouple = appKnowsNoCouple(new Settings(env, {}), version);
-          const titles = appReadsTitles(new Settings(env, {}), version);
-          const hypothesisLinks = appShowsHypothesisLinks(new Settings(env, {}), version);
-          const conflictSides = appDecidesConflicts(new Settings(env, {}), version);
-          const offered = opens ? links(env) : [];
-          ged = {
-            head: h,
-            links: offered.join(" "),
-            version: version ?? "",
-            text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
-          };
-        }
-        res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);
+        // made when the commits stop coming (an agent's commands one after another): once for them all
+        afterQuiet(() => safely(req, res, () => giveGed(res, version)));
       } else if (what === "events") {
         const hello = JSON.stringify(status(root, env, version));
         res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store", Connection: "keep-alive" });
@@ -2135,11 +2278,26 @@ export function serveLive(root: string, env: Env): Promise<void> {
 
       // What changed: strom commits every change, so a new commit is news.
       let seen = safe("the start", () => head(root)) ?? "";
-      const atWork = () => {
-        const tree = Tree.open(root, env);
-        return working(root, tree, scopes(tree));
+      // what the last 24 hours added, worked out before the app asks (/status never waits for it)
+      if (seen) recentNow(root, env, seen);
+      // who is at work changes only with the workers present (.strom/workers: who, since, paused, alive) or a commit:
+      // worked out again only then — nobody at work, nothing to read
+      let atWorkKey: string | undefined;
+      let atWorkNow: ReturnType<typeof working> = [];
+      const atWork = (h: string) => {
+        const present = liveWorkers(root);
+        const key = `${h}\n${JSON.stringify(present)}`;
+        if (key !== atWorkKey) {
+          if (!present.length) atWorkNow = [];
+          else {
+            const tree = Tree.open(root, env);
+            atWorkNow = working(root, tree, scopes(tree));
+          }
+          atWorkKey = key;
+        }
+        return atWorkNow;
       };
-      let workers = safe("the start", () => JSON.stringify(atWork())) ?? "";
+      let workers = safe("the start", () => JSON.stringify(atWork(seen))) ?? "";
       const send = (event: string, data: unknown) => {
         for (const s of streams) s.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       };
@@ -2262,11 +2420,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
           const { head: h, at } = tip(root);
           if (h && h !== seen) {
             // when the commit was made: the same as in /log, so the app knows it has it; each new commit as /log gives it (its task)
-            const entries = history(root, Tree.open(root, env), seen ? [`-n${LOG_MAX}`, `${seen}..${h}`] : ["-1", h]);
+            const entries = histories.since(Tree.open(root, env), seen ? [`-n${LOG_MAX}`, `${seen}..${h}`] : ["-1", h]);
             send("change", { head: h, what: subjects(root, seen, h), at: at ?? new Date().toISOString(), entries });
             seen = h;
           }
-          const now = atWork();
+          const now = atWork(h);
           const w = JSON.stringify(now);
           if (w !== workers) {
             workers = w;

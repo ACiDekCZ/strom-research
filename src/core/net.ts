@@ -40,8 +40,8 @@ export interface ServicePace extends Partial<Pace> {
 }
 /** How long a host that refused us (401/403) is left alone. */
 export const REFUSED_MS = 24 * 3600_000;
-/** The longest strom waits by itself (an hourly cap, a Retry-After) before it gives up for now. */
-const MAX_WAIT_MS = 2 * 60_000;
+/** The longest strom waits by itself (an hourly cap, a Retry-After) before it gives up for now — unless its caller waits longer (waitMs). */
+export const MAX_WAIT_MS = 2 * 60_000;
 /** An hour off after a host kept asking us to slow down, or stopped answering. */
 export const COOL_OFF_MS = 3600_000;
 const TIMEOUT_MS = 60_000;
@@ -56,14 +56,39 @@ export class NetError extends StromError {
   readonly failure: NetFailure;
   readonly host: string;
   readonly status: number | undefined;
+  /** A limit used up: when the host takes requests again (ms). */
+  readonly until: number | undefined;
 
-  constructor(failure: NetFailure, host: string, message: string, hint?: string, status?: number) {
+  constructor(failure: NetFailure, host: string, message: string, hint?: string, status?: number, until?: number) {
     super(message, hint ? { hint } : {});
     this.name = "NetError";
     this.failure = failure;
     this.host = host;
     this.status = status;
+    this.until = until;
   }
+}
+
+/** A limit used up for longer than a pause: waited for with the host's lock let go (thrown inside, caught by politeRequest). */
+class WaitOutside {
+  readonly until: number;
+  readonly why: "cap" | "limit";
+  constructor(until: number, why: "cap" | "limit") {
+    this.until = until;
+    this.why = why;
+  }
+}
+
+/** When the host takes a request again: its hourly cap used up (the oldest request that keeps it full is an hour old). */
+function capFree(recent: number[], perHour: number): number {
+  const sorted = [...recent].sort((a, b) => a - b);
+  return sorted[sorted.length - perHour]! + 3600_000;
+}
+
+/** A limit used up: try again then. */
+function capError(host: string, why: "cap" | "limit", until: number, perHour: number): NetError {
+  const what = why === "cap" ? `${perHour} requests to ${host} in the last hour — its hourly cap` : `${host} says its limit is used up`;
+  return new NetError("cap", host, `${what}; try again at ${clock(until)}`, `go on with other work; run it again at ${clock(until)} — not sooner: strom sends nothing to ${host} before then`, undefined, until);
 }
 
 interface HostState {
@@ -106,6 +131,13 @@ export interface NetOptions {
   private?: { headers: string[]; body: boolean };
   /** Cookies of one run: kept from answers, sent back to the hosts that set them. */
   cookies?: CookieJar;
+  /**
+   * How long the caller waits for a limit used up (an hourly cap, the host's "limit used up") — strom fetch, for the
+   * agent that would only sleep and ask again: longer than strom's own MAX_WAIT_MS, never past it — and told first.
+   */
+  waitMs?: number;
+  /** Told before a wait for a limit: the host, until when, and why. */
+  onWait?: (w: { host: string; until: number; ms: number; why: "cap" | "limit" }) => void;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   fetchImpl?: typeof fetch;
@@ -182,7 +214,7 @@ export class CookieJar {
 }
 
 /** For tests running strom in-process: record the pauses instead of sleeping (no env or flag reaches this). */
-export const testHooks: { sleep?: (ms: number) => Promise<void> } = {};
+export const testHooks: { sleep?: (ms: number) => Promise<void>; now?: () => number } = {};
 
 /** The pace a connector gives for its service, on a host the user set nothing for. */
 export function paceOf(asked?: ServicePace): Pace {
@@ -284,10 +316,19 @@ function retryAfterMs(value: string | null, now: number): number | undefined {
 }
 
 const when = (ms: number) => new Date(ms).toISOString().slice(0, 16).replace("T", " ");
+/** A time as the clock on the wall shows it here ("14:32"), with the day when it is not today. */
+export function clock(ms: number, today = Date.now()): string {
+  const d = new Date(ms);
+  const two = (n: number) => String(n).padStart(2, "0");
+  const day = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+  const t = new Date(today);
+  const sameDay = d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate();
+  return `${sameDay ? "" : `${day} `}${two(d.getHours())}:${two(d.getMinutes())}`;
+}
 
 /** One request, politely. Throws NetError when the host is not allowed, refused us, went silent, or is capped. */
 export async function politeRequest(url: string, opts: NetOptions, redirects = 0): Promise<NetResponse> {
-  const now = opts.now ?? Date.now;
+  const now = opts.now ?? testHooks.now ?? Date.now;
   const sleep = opts.sleep ?? testHooks.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const doFetch = opts.fetchImpl ?? fetch;
   const doFetchH2 = opts.fetchH2 ?? fetchH2;
@@ -319,6 +360,9 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
   const tries = { busy: 0, slowDown: 0, silent: 0 };
   let upgraded = false;
   let pace = hostPace(hostState(opts.stateDir, host), opts.pace);
+  // how long this request may wait for a limit used up, all waits together
+  const waitBy = now() + Math.max(MAX_WAIT_MS, opts.waitMs ?? MAX_WAIT_MS);
+  let waitedOutside = 0;
 
   for (;;) {
     // One request at a time per host, across processes: the lock is held from the pause to the answer.
@@ -328,6 +372,7 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
     let slowed = false;
     let viaH2 = false;
     let took = 0;
+    let outside: WaitOutside | undefined;
     try {
       let s = hostState(opts.stateDir, host);
       pace = hostPace(s, opts.pace);
@@ -337,12 +382,15 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
         throw new NetError("blocked", host, `${host}: ${s.reason ?? "refused us"} — left alone until ${when(s.blockedUntil)}`, "do not retry: go on with other work; the user can lift it early with strom allow host <host> --unblock");
       s.recent = s.recent.filter((x) => x > t - 3600_000);
       if (s.recent.length >= pace.perHour) {
-        const free = s.recent[0]! + 3600_000;
-        if (free - t > MAX_WAIT_MS) throw new NetError("cap", host, `${pace.perHour} requests to ${host} in the last hour — its hourly cap; resumes at ${when(free)}`, "go on with other work and come back later");
+        const free = capFree(s.recent, pace.perHour);
+        if (free > waitBy) throw capError(host, "cap", free, pace.perHour);
+        // a pause: here, holding the host; longer: with the host let go, said first
+        if (free - t > MAX_WAIT_MS) throw new WaitOutside(free, "cap");
         await sleep(free - t);
       }
       if (s.waitUntil && s.waitUntil > now()) {
-        if (s.waitUntil - now() > MAX_WAIT_MS) throw new NetError("cap", host, `${host} says its limit is used up — resumes at ${when(s.waitUntil)}`, "go on with other work and come back later");
+        if (s.waitUntil > waitBy) throw capError(host, "limit", s.waitUntil, pace.perHour);
+        if (s.waitUntil - now() > MAX_WAIT_MS) throw new WaitOutside(s.waitUntil, "limit");
         await sleep(s.waitUntil - now());
       }
       const gap = (s.last ?? 0) + gapOf(s, pace) - now();
@@ -371,8 +419,18 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
       if (res && (res.status === 401 || res.status === 403)) cool(REFUSED_MS, `it refused us (HTTP ${res.status} at ${when(now())})`);
       else if (res?.status === 429 && tries.slowDown + 1 >= ATTEMPTS.slowDown) cool(COOL_OFF_MS, `it asked us to slow down twice (HTTP 429 at ${when(now())})`);
       else if (!res && tries.silent + 1 >= ATTEMPTS.silent) cool(COOL_OFF_MS, `no answer at ${when(now())} — the server is down, or it blocks this IP`);
+    } catch (err) {
+      if (!(err instanceof WaitOutside)) throw err;
+      outside = err;
     } finally {
       release();
+    }
+    if (outside) {
+      // a slot freed may go to another strom first: waited again, a few times at most, then said when to try again
+      if (++waitedOutside > 3) throw capError(host, outside.why, outside.until, pace.perHour);
+      opts.onWait?.({ host, until: outside.until, ms: Math.max(0, outside.until - now()), why: outside.why });
+      await sleep(Math.max(0, outside.until - now()));
+      continue;
     }
 
     // 426 "Upgrade Required": the server speaks HTTP/2 only (Node's fetch speaks HTTP/1.1).
@@ -458,10 +516,10 @@ export function reserveSlots(stateDir: string, host: string, asked: ServicePace 
     const t = now();
     if (s.blockedUntil && s.blockedUntil > t)
       throw new NetError("blocked", host, `${host}: ${s.reason ?? "refused us"} — left alone until ${when(s.blockedUntil)}`, "do not retry: go on with other work; the user can lift it early with strom allow host <host> --unblock");
-    if (s.waitUntil && s.waitUntil - t > MAX_WAIT_MS) throw new NetError("cap", host, `${host} says its limit is used up — resumes at ${when(s.waitUntil)}`, "go on with other work and come back later");
+    if (s.waitUntil && s.waitUntil - t > MAX_WAIT_MS) throw capError(host, "limit", s.waitUntil, pace.perHour);
     s.recent = s.recent.filter((x) => x > t - 3600_000);
     const free = Math.min(count, pace.perHour - s.recent.length);
-    if (free <= 0) throw new NetError("cap", host, `${pace.perHour} requests to ${host} in the last hour — its hourly cap; resumes at ${when(s.recent[0]! + 3600_000)}`, "go on with other work and come back later");
+    if (free <= 0) throw capError(host, "cap", capFree(s.recent, pace.perHour), pace.perHour);
     const gap = gapOf(s, pace);
     const first = Math.max(t + (opts.leadMs ?? 0), (s.last ?? 0) + gap, s.waitUntil ?? 0);
     const times = Array.from({ length: free }, (_, i) => first + i * gap);

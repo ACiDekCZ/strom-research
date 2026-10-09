@@ -7,12 +7,20 @@ search depends on** (a surname, a birthplace, a parish) is read again on a
 crop at full resolution before it is recorded; what stays unsure is recorded
 as unsure and said so.
 
-An image you open stays in your context and is paid for again on every turn.
-Look at as few pixels as the question needs, and write down what you saw at once.
+Every image you open stays in your context to the end of the session: look at
+as few pixels as the question needs, write down what you saw at once, and after
+about 80 views write down what you found before you open more.
 
 - **Look only through views**: `strom media view B0001:57` (record set and
   image number) makes a file in `.strom/views/` — open that file. Whole images
   come reduced: good for "is our surname on this page?", not for reading.
+- **The views of a scan, or of a batch, in one call**, then open all the files
+  it lists together — not one call and one look per view:
+  `strom media view B0001:57-60 --half both` (the two pages of each double
+  page, where they are sharper than one view of it), `--crop … --crop …`
+  (several entries of one image), `--split 2x2` (a page in overlapping parts),
+  `strom media view B0001 --page 112 113`. Each file comes with its image, page
+  and `--clip`. At most 12 images and 24 views in one call.
 - **Find, then crop.** `--grid` overlays tenths with labels; read off where the
   entry is and ask for exactly that part: `--crop 0.05,0.40,0.45,0.18` (x, y,
   width, height as fractions) or `--half left|right` for one page of a spread.
@@ -24,8 +32,15 @@ Look at as few pixels as the question needs, and write down what you saw at once
   …` (one request). Then view the same crop again: it comes from the sharper
   part by itself.
 - **Browsing a book is a reader's job**: `strom read B0001 --images 40-69
-  --question "…"` — readers in batches of ten, each with the full question;
-  their reports stay in notes/readings/ for the next session, you get the finds.
+  --question "…"` — readers in batches of ten, each with the full question.
+  Their reports stay in notes/readings/; `strom read` ends with what they
+  found, compact: the found and unclear entries whole, what was illegible
+  where nothing was found (a possible match often hides there — look at it),
+  and the gaps in the book. Later, or in the next session: `strom readings`
+  (`--match <surname>` across all readings, `--list`); one image's whole
+  block: `strom readings B0001 --image 57`. Do not open the reports whole —
+  they are many times longer. Images read before are said before they are
+  read again: another question or a blind check is fine, the same one is not.
   It waits for its readers (often ten minutes or more): run it in the
   foreground and let it finish — your session ends with your turn, and
   whatever is left running in the background ends with it.
@@ -42,7 +57,10 @@ Look at as few pixels as the question needs, and write down what you saw at once
 - **Cite the image, and where the entry is on it**: `strom source add …
   --clip B0001:57@0.05,0.40,0.45,0.18 --locator "pag. 112, 2nd entry"` — the
   crop you read it in, as its view prints it; a searched range goes in
-  `strom search add … --pages 40-69`.
+  `strom search add … --pages 40-69`. Pages missing from the book (the
+  numbering jumps) were not searched: say so in `--note` (strom read puts the
+  gaps its readers saw there), or leave them out of the range
+  (`--pages 40-52,55-69`).
 - Page ↔ image: `strom recordset calibrate B0001 --point 57=112` (measured on
   the image, never guessed); then `strom media view B0001 --page 112` works.
 - **No images here yet:** a connector for that archive

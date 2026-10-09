@@ -732,6 +732,8 @@ export interface RunReport {
   logs: string[];
   /** Why the run ended early, if it did. */
   stopped?: string;
+  /** It ended at a limit used up (an hourly cap): when the host takes requests again (ms). */
+  later?: number;
 }
 
 export interface RunOptions {
@@ -747,6 +749,10 @@ export interface RunOptions {
   pages?: (r: PageRequest) => PageAnswer | undefined;
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
+  /** How long a request may wait for a limit used up (net.ts NetOptions.waitMs), and who is told first. */
+  waitMs?: number;
+  onWait?: (w: { host: string; until: number; ms: number; why: "cap" | "limit" }) => void;
 }
 
 /** A minimal environment: the connector gets no secrets of the shell that runs strom. */
@@ -984,6 +990,9 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
           cookies,
           ...(opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {}),
           ...(opts.sleep ? { sleep: opts.sleep } : {}),
+          ...(opts.now ? { now: opts.now } : {}),
+          ...(opts.waitMs !== undefined ? { waitMs: opts.waitMs } : {}),
+          ...(opts.onWait ? { onWait: opts.onWait } : {}),
         });
         const check = botCheck(res.body, res.headers);
         if (check)
@@ -999,6 +1008,7 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
         } else send({ ...answer, text: clean(res.body.toString("utf8")) });
       } catch (err) {
         if (!(err instanceof NetError)) throw err;
+        if (err.failure === "cap" && err.until !== undefined) report.later = err.until;
         // every refusal ends the run: nothing more goes to an archive that said no, or went silent
         refuse(err.failure, clean(err.message));
       }

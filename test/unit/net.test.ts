@@ -136,7 +136,7 @@ test("net: the hourly cap; hosts outside the list; redirects are checked one by 
   const capped = opts(dir, waits, { pace: { perHour: 2 } });
   await politeGet(`${srv.base}/ok`, capped);
   await politeGet(`${srv.base}/ok`, capped);
-  await assert.rejects(politeGet(`${srv.base}/ok`, capped), (e: NetError) => e.failure === "cap" && /resumes at/.test(e.message));
+  await assert.rejects(politeGet(`${srv.base}/ok`, capped), (e: NetError) => e.failure === "cap" && /try again at \d\d:\d\d/.test(e.message) && e.until !== undefined);
   const dir2 = tmp();
   await assert.rejects(politeGet("http://elsewhere.example/x", opts(dir2, waits)), (e: NetError) => e.failure === "host");
   await assert.rejects(politeGet("file:///etc/passwd", opts(dir2, waits, { hosts: [""] })), (e: NetError) => e.failure === "host");

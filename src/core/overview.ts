@@ -3,11 +3,13 @@
 // in lately (recent). Read only, from the records and the operation logs; the
 // commands in commands/browse.ts show them in the research language.
 
-import type { Event, Family, Media, Person, Place, Session, Source, Status, Task } from "./model.ts";
+import type { Event, Family, Person, Place, Session, Source, Status, Task } from "./model.ts";
 import { ancestorGenerations, birthEvent, displayName, familiesAsPartner, formatName, lifespan, parentsOf, primaryName, sameName, titledName } from "./people.ts";
 import { dateYears } from "./gdate.ts";
 import { informationOf } from "./evidence.ts";
 import type { Tree } from "./tree.ts";
+import { imagesIndex } from "./mediaindex.ts";
+import { costPartial, sessionCost } from "./session.ts";
 
 /** A person in a line: who, and when they lived. */
 export interface Who {
@@ -58,7 +60,7 @@ export interface Stats {
   oldest?: Who;
   tasks: { queued: number; waiting: number; done: number };
   /** costPartial: sessions stopped before they said what they cost (more was spent than costUsd shows). */
-  sessions: { count: number; last?: string; costUsd?: number; costPartial?: number };
+  sessions: { count: number; last?: string; costUsd?: number; costPartial?: number; readersUsd?: number };
   stories: { written: number; final: number };
 }
 
@@ -71,7 +73,7 @@ export function treeStats(tree: Tree, from?: string): Stats {
     persons: persons.length,
     families: families.length,
     sources: alive(tree.list<Source>("source")).length,
-    images: alive(tree.list<Media>("media")).length,
+    images: imagesIndex(tree).alive,
     places: alive(tree.list<Place>("place")).length,
     facts: count,
     generations: [],
@@ -102,14 +104,18 @@ export function treeStats(tree: Tree, from?: string): Stats {
     else if (t.state === "done") stats.tasks.done++;
   }
   let cost = 0;
+  let readers = 0;
   for (const s of tree.list<Session>("session")) {
     stats.sessions.count++;
     const at = s.ended ?? s.started;
     if (!stats.sessions.last || at > stats.sessions.last) stats.sessions.last = at;
-    cost += s.metrics?.costUsd ?? 0;
-    if (s.metrics?.costPartial) stats.sessions.costPartial = (stats.sessions.costPartial ?? 0) + 1;
+    // the readers it started included (and their part apart)
+    cost += sessionCost(s.metrics) ?? 0;
+    readers += s.metrics?.readersUsd ?? 0;
+    if (costPartial(s.metrics)) stats.sessions.costPartial = (stats.sessions.costPartial ?? 0) + 1;
   }
   if (cost > 0) stats.sessions.costUsd = Math.round(cost * 100) / 100;
+  if (readers > 0) stats.sessions.readersUsd = Math.round(readers * 100) / 100;
   for (const r of [...persons, ...families])
     if (r.story) {
       stats.stories.written++;
@@ -261,7 +267,8 @@ export interface Recent {
   sources: { id: string; title: string }[];
   stories: Who[];
   tasksDone: number;
-  sessions: { id: string; at: string; task?: string; summary?: string }[];
+  /** costUsd: the session's in all, the readers it started included (readersUsd their part). */
+  sessions: { id: string; at: string; task?: string; summary?: string; costUsd?: number; readersUsd?: number; costPartial?: boolean }[];
 }
 
 /** What the research added and refined since a time (ISO): the operation logs say what, the records how it is now. */
@@ -317,6 +324,9 @@ export function recent(tree: Tree, since: string): Recent {
       at: s.ended ?? s.started,
       ...(s.task && tree.get<Task>(s.task) ? { task: tree.get<Task>(s.task)!.what } : {}),
       ...(s.summary ? { summary: s.summary } : {}),
+      ...(sessionCost(s.metrics) !== undefined ? { costUsd: sessionCost(s.metrics)! } : {}),
+      ...(s.metrics?.readersUsd !== undefined ? { readersUsd: s.metrics.readersUsd } : {}),
+      ...(costPartial(s.metrics) ? { costPartial: true } : {}),
     }));
   return {
     since,

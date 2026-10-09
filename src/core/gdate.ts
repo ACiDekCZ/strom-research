@@ -51,6 +51,30 @@ export function normalizeDate(input: string): string | undefined {
   return validSimple(s) ? s : undefined;
 }
 
+/** A simple date as [year, month, day] (0 = not given), for putting two in order. */
+function simpleKey(s: string): [number, number, number] | undefined {
+  const m = SIMPLE.exec(s);
+  if (!m) return undefined;
+  return [Number(m[3]), m[2] ? MONTHS.indexOf(m[2] as (typeof MONTHS)[number]) + 1 : 0, m[1] ? Number(m[1]) : 0];
+}
+
+/**
+ * A normalized "BET a AND b" / "FROM a TO b" written later end first: the same date with its ends in order, else
+ * undefined. Only where both ends say enough to tell (1850 and MAR 1850 have no order).
+ */
+export function reversedRange(date: string): string | undefined {
+  const m = /^(BET|FROM) (.+) (AND|TO) (.+)$/.exec(date);
+  if (!m) return undefined;
+  const a = simpleKey(m[2]!);
+  const b = simpleKey(m[4]!);
+  if (!a || !b) return undefined;
+  for (let i = 0; i < 3; i++) {
+    if (!a[i] || !b[i]) return undefined;
+    if (a[i] !== b[i]) return a[i]! > b[i]! ? `${m[1]} ${m[4]} ${m[3]} ${m[2]}` : undefined;
+  }
+  return undefined;
+}
+
 /** All years mentioned in a GEDCOM date. */
 export function dateYears(date: string): number[] {
   return [...date.matchAll(/\b(\d{3,4})\b/g)].map((m) => Number(m[1])).filter((y) => y >= 100);
@@ -61,6 +85,8 @@ export function yearLabel(date: string | undefined): string {
   if (!date) return "?";
   const years = dateYears(date);
   if (years.length === 0) return "?";
+  if (date.startsWith("FROM") && !date.includes(" TO ")) return `${years[0]}–`;
+  if (date.startsWith("TO ")) return `–${years[0]}`;
   if (date.startsWith("BET") || date.startsWith("FROM")) return years.join("/");
   if (/^(ABT|CAL|EST) /.test(date)) return `~${years[0]}`;
   if (date.startsWith("BEF")) return `<${years[0]}`;

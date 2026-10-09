@@ -4,7 +4,7 @@
 
 import { parseArgs } from "node:util";
 import { UsageError } from "../core/errors.ts";
-import { GLOBAL_OPTIONS, commands, match, optionsOf, subcommandsOf, type CommandDef, type Input, type OptionDef } from "./registry.ts";
+import { GLOBAL_OPTIONS, aliasExtends, commands, match, optionsOf, subcommandsOf, usageLine, WRITE_OPTIONS, type CommandDef, type Input, type OptionDef } from "./registry.ts";
 
 const VALUE_GLOBALS = new Set(GLOBAL_OPTIONS.filter((o) => o.type === "string").map((o) => `--${o.name}`));
 
@@ -32,7 +32,7 @@ export function splitCommand(argv: string[]): { words: string[]; rest: string[] 
     }
     if (collecting) {
       const candidate = [...words, tok];
-      const extends_ = match(candidate)?.used === candidate.length || subcommandsOf(candidate).length > 0;
+      const extends_ = match(candidate)?.used === candidate.length || subcommandsOf(candidate).length > 0 || aliasExtends(candidate);
       if (extends_) {
         words.push(tok);
         continue;
@@ -117,9 +117,52 @@ function unknownCommand(words: string[]): UsageError {
   });
 }
 
+/** One option as the usage under a mistake says it: --name <value>, "…" when repeatable, its limit. */
+function optionWord(o: OptionDef): string {
+  const value = o.type === "boolean" ? "" : ` ${o.value ?? "<value>"}`;
+  return `--${o.name}${value}${o.multiple ? "…" : ""}${o.max ? ` (≤${o.max})` : ""}`;
+}
+
+/**
+ * The command's synopsis and its own options, compact — said under a mistake in calling it, so the agent tries again
+ * without strom help (K2: a help after most such errors).
+ */
+export function usageOf(def: CommandDef, program = "strom"): string {
+  const own = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !o.hidden);
+  const synopsis = usageLine(def).replace(/^strom/, program);
+  const args = (def.args ?? []).filter((a) => a.max).map((a) => `<${a.name}> ≤${a.max} characters`);
+  const out = [`usage: ${synopsis}${args.length ? `   (${args.join(", ")})` : ""}`];
+  let line = " ";
+  for (const w of own.map(optionWord)) {
+    if (line.length + w.length + 1 > 110 && line.trim()) {
+      out.push(line);
+      line = " ";
+    }
+    line += ` ${w}`;
+  }
+  if (line.trim()) out.push(line);
+  return out.join("\n");
+}
+
+/** Other names of options (--surnames for --surname) as their own: "--surnames=x" too. */
+function withOptionAliases(defs: OptionDef[], rest: string[]): string[] {
+  const alias = new Map<string, string>(defs.flatMap((o) => (o.aliases ?? []).map((a): [string, string] => [`--${a}`, `--${o.name}`])));
+  if (!alias.size) return rest;
+  const end = rest.indexOf("--");
+  return rest.map((t, i) => {
+    if (end >= 0 && i > end) return t;
+    const eq = t.indexOf("=");
+    const name = eq > 0 ? t.slice(0, eq) : t;
+    const own = alias.get(name);
+    return own ? `${own}${eq > 0 ? t.slice(eq) : ""}` : t;
+  });
+}
+
 /** Parse options strictly; Node's messages are replaced by short ones with suggestions. */
 export function parseOptions(def: CommandDef, rest: string[], program = "strom"): { values: Input["opts"]; positionals: string[] } {
   const defs: OptionDef[] = optionsOf(def);
+  rest = withOptionAliases(defs, rest);
+  const usage = usageOf(def, program);
   const options: Record<string, { type: "string" | "boolean"; short?: string; multiple?: boolean }> = {};
   for (const o of defs) {
     options[o.name] = { type: o.type };
@@ -138,13 +181,14 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
     if (e.code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
       // "strom brief --task T0003": the task is an argument there, not an option
       const arg = def.args?.find((a) => `--${a.name}` === opt);
-      if (arg) throw new UsageError(`${opt.slice(2)} is an argument of ${cmd}, not an option`, { hint: `strom ${def.path.join(" ")} <${arg.name}>`, code: "option.is-arg", params: { opt, cmd, arg: arg.name } });
+      if (arg) throw new UsageError(`${opt.slice(2)} is an argument of ${cmd}, not an option`, { hint: `strom ${def.path.join(" ")} <${arg.name}>`, code: "option.is-arg", params: { opt, cmd, arg: arg.name }, usage });
       const near = suggest(opt, optionsOf(def).filter((o) => !o.hidden).map((o) => `--${o.name}`));
       const help = `strom help${def.path.length ? ` ${def.path.join(" ")}` : ""}`;
       throw new UsageError(`unknown option ${opt} for ${cmd}`, {
         hint: near.length ? `similar option: ${near.join(" · ")}` : `${own.length ? `options: ${own.join(" ")} · ` : ""}${help}`,
         // (none of its own — strom itself, "strom --bogus": in the person's language too)
         ...(near.length ? { code: "option.near", params: { opt, cmd, near: near.join(" · ") } } : own.length ? { code: "option.unknown", params: { opt, cmd, options: own.join(" "), path: def.path.join(" ") } } : { code: "option.unknown.none", params: { opt, cmd, help } }),
+        ...(own.length ? { usage } : {}),
       });
     }
     if (e.code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
@@ -152,9 +196,10 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
       throw new UsageError(o?.type === "boolean" ? `${opt} takes no value` : `${opt} needs a value${o?.value ? ` ${o.value}` : ""}`, {
         hint: `strom help ${def.path.join(" ")}`,
         ...(o?.type === "boolean" ? { code: "option.no-value", params: { opt } } : o?.value ? { code: "option.needs-value", params: { opt, value: o.value, path: def.path.join(" ") } } : {}),
+        usage,
       });
     }
-    throw new UsageError(e.message.split("\n")[0] ?? "invalid arguments", { hint: `strom help ${def.path.join(" ")}` });
+    throw new UsageError(e.message.split("\n")[0] ?? "invalid arguments", { hint: `strom help ${def.path.join(" ")}`, usage });
   }
 }
 
@@ -164,14 +209,21 @@ export function checkArgs(def: CommandDef, args: string[]): void {
   const required = declared.filter((a) => a.required);
   if (args.length < required.length) {
     const missing = required[args.length]!;
-    throw new UsageError(`missing <${missing.name}>: ${missing.description}`, { hint: `strom help ${def.path.join(" ")}`, code: "arg.missing", params: { arg: missing.name, cmd: def.path.join(" ") } });
+    throw new UsageError(`missing <${missing.name}>: ${missing.description}`, { hint: `strom help ${def.path.join(" ")}`, code: "arg.missing", params: { arg: missing.name, cmd: def.path.join(" ") }, usage: usageOf(def) });
   }
   if (!declared.some((a) => a.variadic) && args.length > declared.length)
-    throw new UsageError(`unexpected argument "${args[declared.length]}"`, { hint: `strom help ${def.path.join(" ")} — quote values with spaces`, code: "arg.extra", params: { arg: args[declared.length]!, cmd: def.path.join(" ") } });
+    throw new UsageError(`unexpected argument "${args[declared.length]}"`, { hint: `strom help ${def.path.join(" ")} — quote values with spaces`, code: "arg.extra", params: { arg: args[declared.length]!, cmd: def.path.join(" ") }, usage: usageOf(def) });
 }
 
 /** Split off everything after a bare "--" (passed through to another program). */
 export function splitPassthrough(rest: string[]): { rest: string[]; passthrough: string[] } {
   const i = rest.indexOf("--");
   return i < 0 ? { rest, passthrough: [] } : { rest: rest.slice(0, i), passthrough: rest.slice(i + 1) };
+}
+
+/** A usage error of a command that is about how it was called: one of its options named, or its help as the hint. */
+export function callMistake(e: UsageError, def: CommandDef): boolean {
+  if (e.hint?.startsWith(`strom help ${def.path.join(" ")}`)) return true;
+  const named = [...e.message.matchAll(/--([\p{L}\p{N}-]+)/gu)].map((m) => m[1]!);
+  return named.some((n) => n !== "reason" && optionsOf(def).some((o) => o.name === n && !o.hidden));
 }

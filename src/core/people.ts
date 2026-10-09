@@ -344,6 +344,69 @@ export function keepSides(tree: Tree, before: Person, after: Person): { family: 
   return out;
 }
 
+/** Every parent link counts here — birth, adoption, step, foster: nobody is their own parent in any of them. */
+function linkedParents(tree: Tree, id: string): string[] {
+  return familiesAsChild(tree, id).flatMap((f) => f.partners);
+}
+
+/** Is `anc` an ancestor of `id` by any parent link? */
+export function isAncestorOf(tree: Tree, anc: string, id: string): boolean {
+  const seen = new Set<string>([id]);
+  let frontier = [id];
+  while (frontier.length) {
+    const next: string[] = [];
+    for (const x of frontier)
+      for (const p of linkedParents(tree, x)) {
+        if (p === anc) return true;
+        if (!seen.has(p)) {
+          seen.add(p);
+          next.push(p);
+        }
+      }
+    frontier = next;
+  }
+  return false;
+}
+
+/** The one of `parents` that, linked as a parent of `child`, would make someone their own ancestor. */
+export function closesCircle(tree: Tree, parents: string[], child: string): string | undefined {
+  return parents.find((p) => p === child || isAncestorOf(tree, child, p));
+}
+
+/** People who are their own ancestors by the family links (each circle once, by its lowest ID). */
+export function ownAncestors(tree: Tree): string[][] {
+  const circles = new Map<string, string[]>();
+  const state = new Map<string, 1 | 2>(); // 1 on the path, 2 done
+  for (const start of tree.list<Person>("person").map((p) => p.id)) {
+    if (state.has(start)) continue;
+    // iterative depth-first walk up the parent links
+    const path: string[] = [];
+    const stack: { id: string; parents: string[]; i: number }[] = [{ id: start, parents: linkedParents(tree, start), i: 0 }];
+    state.set(start, 1);
+    path.push(start);
+    while (stack.length) {
+      const top = stack.at(-1)!;
+      if (top.i >= top.parents.length) {
+        state.set(top.id, 2);
+        stack.pop();
+        path.pop();
+        continue;
+      }
+      const p = top.parents[top.i++]!;
+      if (state.get(p) === 1) {
+        const circle = path.slice(path.indexOf(p));
+        const key = [...circle].sort()[0]!;
+        if (!circles.has(key)) circles.set(key, circle);
+      } else if (!state.has(p)) {
+        state.set(p, 1);
+        path.push(p);
+        stack.push({ id: p, parents: linkedParents(tree, p), i: 0 });
+      }
+    }
+  }
+  return [...circles.values()];
+}
+
 export function parentsOf(tree: Tree, id: string): Person[] {
   const out: Person[] = [];
   for (const f of familiesAsChild(tree, id)) {
@@ -417,8 +480,52 @@ export function sameSurname(a: string, b: string): boolean {
   const fa = foldText(a);
   const fb = foldText(b);
   if (!fa || !fb || fa === fb) return true;
-  const stem = (x: string) => x.replace(/(ova|owa|ovna|owna|ina)$/, "").replace(/([a-z])(a|y|i)$/, "$1");
+  const stem = (x: string) => x.replace(/(ova|owa|ovna|owna|ina)$/u, "").replace(/(\p{L})(a|y|i)$/u, "$1");
   return stem(fa) === stem(fb);
+}
+
+const VOWELS = "aeiouy";
+
+/**
+ * A surname and the forms of it a record or a search may give instead (folded): the man's of a woman's — Czech and
+ * Slovak "Nováková"/"Víšková"/"Svobodová" → Novák, Víšek, Svoboda; "Novotná" → Novotný; Polish "Nowakowa",
+ * "Nowakówna" → Nowak, "Kowalska" → Kowalski; Russian/Bulgarian "Иванова" → Иванов, "Толстая" → Толстой/Толстый.
+ * Only forms a feminine ending gives — no stem of anything else, so a different family name stays different.
+ */
+export function surnameForms(surname: string): Set<string> {
+  const n = surname.normalize("NFC").trim().toLowerCase();
+  const f = foldText(n);
+  const out = new Set<string>(f ? [f] : []);
+  if (!f) return out;
+  const add = (x: string) => x.length > 1 && out.add(foldText(x));
+  // a woman's -ová / -owa / -ówna: the man's form is the stem, a stem with its vowel, or its fleeting e (Víšk-ová → Víšek)
+  const fem = /^(.+?)(?:ova|owa|ovna|owna)$/u.exec(f)?.[1];
+  if (fem && fem.length > 1) {
+    add(fem);
+    add(`${fem}a`);
+    add(`${fem}o`);
+    const [y, x] = [fem.at(-2)!, fem.at(-1)!];
+    if (!VOWELS.includes(x) && !VOWELS.includes(y) && /\p{L}/u.test(y)) add(`${fem.slice(0, -1)}e${x}`);
+  }
+  // a transliterated Russian/Bulgarian -ova/-eva/-ina: the man's ends without the a
+  if (/(?:ova|eva|ina|yna)$/u.test(f)) add(f.slice(0, -1));
+  // adjectival: Czech/Slovak -á ↔ -ý, Polish -ska/-cka/-dzka ↔ -ski/-cki/-dzki
+  if (n.endsWith("á") && !/ová$/u.test(n)) add(`${n.slice(0, -1)}ý`);
+  if (/(?:sk|ck|dzk)a$/u.test(f)) add(`${f.slice(0, -1)}i`);
+  // Cyrillic
+  if (/(?:ов|ев|ёв|ин|ын)а$/u.test(n)) add(n.slice(0, -1));
+  if (/(?:ск|цк)ая$/u.test(n)) add(`${n.slice(0, -2)}ий`);
+  else if (n.endsWith("ая")) {
+    add(`${n.slice(0, -2)}ой`);
+    add(`${n.slice(0, -2)}ый`);
+  }
+  return out;
+}
+
+/** Two surnames that are one family's name in its forms for a man and a woman ("Novák"/"Nováková"); empty fits none. */
+export function sameFamilyName(a: string, b: string): boolean {
+  const fb = surnameForms(b);
+  return [...surnameForms(a)].some((x) => fb.has(x));
 }
 
 /**

@@ -24,6 +24,7 @@ import { verifyFast } from "../core/integrity.ts";
 import { pool } from "./read.ts";
 import { readers } from "./readers.ts";
 import { namesIn } from "./clips.ts";
+import { addReaders } from "../core/session.ts";
 
 /** Entries per reader. */
 const PER_READER = 8;
@@ -156,6 +157,8 @@ register({
       if (v.verdict === "ok") passed.set(v.source, first.transcript!);
       else if (v.verdict === "fixed") passed.set(v.source, v.transcript!);
     }
+    // what the readers cost goes to the session that started them (apart from the agent's own)
+    addReaders(tree, ctx.env, ctx.refs, { usd: r0.cost(), runs: r0.runs(), partial: r0.partial() });
     const day = new Date().toISOString().slice(0, 10);
     const how = phrase(tree.lang, "transcript.read", { model: r0.model ?? "?", date: day });
     for (const [id, transcript] of passed)

@@ -1,8 +1,9 @@
 # Method: recording an entry
 
-Record a found entry in one batch: write the lines to a file in notes/, run
-`strom batch --file notes/<file> --dry-run`, fix what it reports, then run it
-without --dry-run. `#name` labels what a line creates, `@name` uses it later.
+Record a found entry in one batch: write the lines to a file in notes/ and run
+`strom batch --file notes/<file>` — all or nothing: when a line fails nothing is
+written and every failing line is said at once; fix them, run it again.
+`#name` labels what a line creates, `@name` uses it later.
 
     source add "Baptism of Jan Novák 1885" --kind baptism --recordset B0001 --clip B0001:57@0.05,0.40,0.45,0.18 --locator "pag. 112, entry 2" --language la --information primary --transcript @notes/entry.txt #s
     event add P0001 CHR --date "25 JUN 1885" --place "Týnec" --house 13 --cite @s --quote "baptizatus est" --with "godparent:Marie Dvořáková" --with "midwife:Anna Nová" --with "officiant:P. Josef Kříž" --status proven

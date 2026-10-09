@@ -123,6 +123,15 @@ export function newerTree(root: string, env: Env): StromError | undefined {
   return config && config.schema > SCHEMA_VERSION ? newerTreeError(config, env) : undefined;
 }
 
+/** Where a step of a command began (Tree.savepoint): what the tree had then. */
+export interface Savepoint {
+  written: number;
+  counters: Record<string, number> | undefined;
+  opsNow: Map<string, string>;
+  cache?: Map<RecordType, Map<string, AnyRecord>>;
+  single?: Map<string, AnyRecord | null>;
+}
+
 export class Tree {
   readonly root: string;
   readonly config: TreeConfig;
@@ -142,6 +151,8 @@ export class Tree {
   private undo = new Map<string, Buffer | null>();
   /** Ops written during this process (for the automatic commit message). */
   readonly written: Op[] = [];
+  /** What a command did otherwise than asked and says under its output (a long note kept as several: K3). */
+  readonly notices: string[] = [];
   /** Of `written`, how many were told to onCommit already. */
   private told = 0;
   /** Told of each commit with the operations it saved (the CLI tells the user's hooks: core/hooks.ts). */
@@ -272,6 +283,14 @@ export class Tree {
 
   /** Record a file's current content before this command changes it. */
   remember(file: string): void {
+    // the content before the line of a batch at work (savepoint): what its failure puts back
+    if (this.lineUndo && !this.lineUndo.has(file)) {
+      try {
+        this.lineUndo.set(file, fs.readFileSync(file));
+      } catch {
+        this.lineUndo.set(file, null);
+      }
+    }
     if (this.undo.has(file)) return;
     try {
       this.undo.set(file, fs.readFileSync(file));
@@ -280,15 +299,67 @@ export class Tree {
     }
   }
 
+  /** What changed since the savepoint at work: the content of each file before it. */
+  private lineUndo: Map<string, Buffer | null> | undefined;
+
+  /**
+   * A point to go back to when one step of a command fails while the steps before it stay (a line of strom batch: the
+   * batch goes on to say what else is wrong). One at a time; release() or restore() ends it.
+   */
+  savepoint(): Savepoint {
+    this.lineUndo = new Map();
+    return {
+      written: this.written.length,
+      counters: this.counters ? { ...this.counters } : undefined,
+      opsNow: new Map(this.opsNow),
+      // a dry run keeps its changes in memory only: what it had then is what it goes back to
+      ...(this.dryRun ? { cache: new Map([...this.cache].map(([t, m]) => [t, new Map(m)])), single: new Map(this.single) } : {}),
+    };
+  }
+
+  /** The savepoint's step went well: what it changed stays (undone only with the whole command). */
+  release(): void {
+    this.lineUndo = undefined;
+  }
+
+  /** Undo what changed since the savepoint; what came before it stays. */
+  restore(sp: Savepoint): void {
+    for (const [file, content] of this.lineUndo ?? []) {
+      if (content === null) fs.rmSync(file, { force: true });
+      else fs.writeFileSync(file, content);
+    }
+    this.lineUndo = undefined;
+    if (sp.cache && sp.single) {
+      this.cache = sp.cache;
+      this.single = sp.single;
+    } else {
+      // the files are as they were: read again from them
+      this.cache.clear();
+      this.single.clear();
+    }
+    this.lastSigs.clear();
+    this.opsNow = sp.opsNow;
+    this.counters = sp.counters ? { ...sp.counters } : undefined;
+    this.written.length = sp.written;
+    this.told = Math.min(this.told, sp.written);
+    this.version++;
+  }
+
   /** Undo every change this command made — a failed command leaves nothing behind. */
   rollback(): string[] {
     const restored: string[] = [];
     for (const [file, content] of this.undo) {
       if (content === null) fs.rmSync(file, { force: true });
-      else fs.writeFileSync(file, content);
+      // renamed into place like every write: a folder's stamp (core/mediaindex.ts) sees the change
+      else {
+        const tmp = `${file}.${process.pid}.undo.tmp`;
+        fs.writeFileSync(tmp, content);
+        fs.renameSync(tmp, file);
+      }
       restored.push(this.relative(file));
     }
     this.undo.clear();
+    this.lineUndo = undefined;
     this.cache.clear();
     this.single.clear();
     this.lastSigs.clear();
@@ -299,6 +370,22 @@ export class Tree {
     this.told = 0;
     this.version++;
     return restored;
+  }
+
+  /**
+   * Write under the lock as one whole, for what strom writes unasked outside a command (a settle at a bridge's start or
+   * the first run of a newer strom — no command's rollback around it): a failure puts back everything it wrote, the ID
+   * counters too, and goes on to the caller.
+   */
+  atomically<T>(fn: () => T): T {
+    return this.withTreeLock(() => {
+      try {
+        return fn();
+      } catch (e) {
+        this.rollback();
+        throw e;
+      }
+    });
   }
 
   /** Forget the undo log once the changes are committed. */
@@ -338,6 +425,11 @@ export class Tree {
       this.cache.set(type, map);
     }
     return [...map.values()] as T[];
+  }
+
+  /** Whether this process holds every record of a type in memory already. */
+  loaded(type: RecordType): boolean {
+    return this.cache.has(type);
   }
 
   /** One record. Reads just its file unless the whole type is already loaded. */
@@ -558,16 +650,7 @@ export class Tree {
 
   readOps(): Op[] {
     const out: Op[] = [];
-    for (const f of opsLogs(this.dataDir)) {
-      for (const line of fs.readFileSync(f, "utf8").split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          out.push(JSON.parse(line) as Op);
-        } catch {
-          // a damaged line is reported by `strom verify`
-        }
-      }
-    }
+    for (const f of opsLogs(this.dataDir)) for (const op of opsOfFile(f)) out.push(op);
     return out;
   }
 
@@ -590,6 +673,41 @@ export class Tree {
       writeFileAtomic(file, content);
     });
   }
+}
+
+/**
+ * The operations of one log, kept while the file stays as it was (its size and modification time): a log is never
+ * written again once committed, so a process that reads the history again and again (the bridge, after every commit)
+ * reads only the logs that are new or grew.
+ */
+const opsRead = new Map<string, { size: number; mtimeNs: bigint; ops: Op[] }>();
+
+function opsOfFile(file: string): Op[] {
+  let st: fs.BigIntStats;
+  try {
+    st = fs.statSync(file, { bigint: true });
+  } catch {
+    return [];
+  }
+  const held = opsRead.get(file);
+  if (held && held.size === Number(st.size) && held.mtimeNs === st.mtimeNs) return held.ops;
+  const ops: Op[] = [];
+  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      ops.push(JSON.parse(line) as Op);
+    } catch {
+      // a damaged line is reported by `strom verify`
+    }
+  }
+  // a file read whole only when it did not change while it was read
+  try {
+    const after = fs.statSync(file, { bigint: true });
+    if (after.size === st.size && after.mtimeNs === st.mtimeNs) opsRead.set(file, { size: Number(st.size), mtimeNs: st.mtimeNs, ops });
+  } catch {
+    // gone meanwhile
+  }
+  return ops;
 }
 
 /**

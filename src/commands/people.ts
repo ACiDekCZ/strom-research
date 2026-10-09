@@ -3,7 +3,7 @@
 import { register, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
-import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, mergeFamilies, mergePersons, parseParticipant, retractEvent, retractPerson } from "../core/actions.ts";
+import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, mergeFamilies, notRetracted, mergePersons, parseParticipant, retractEvent, retractPerson } from "../core/actions.ts";
 import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
@@ -124,7 +124,7 @@ function nameLine(n: Name, w: Words = ENGLISH): string {
   return `${titledName(n)}${n.kind ? ` (${w.word("name", n.kind)})` : ""}${cites ? `  ← ${cites}` : ""}`;
 }
 
-function eventLine(e: Event, w: Words = ENGLISH): string {
+export function eventLine(e: Event, w: Words = ENGLISH): string {
   const cites = citesOf(e.citations, w);
   const who = (e.participants ?? []).map((p) => `${w.word("role", p.role)} ${p.person ?? p.name}`).join(", ");
   const ages = e.ages ? Object.entries(e.ages).map(([p, a]) => `${w.word("who", p)} ${a}`).join(", ") : "";
@@ -628,13 +628,13 @@ register(
     writes: true,
     args: [
       { name: "id", description: "record ID (P0001, F0001, G0001) or person name", required: true },
-      { name: "text", description: "the note (max 500 characters)", required: true },
+      { name: "text", description: "the note (over 500 characters: kept whole as several notes)", required: true },
     ],
     run(ctx, { args }) {
       const tree = ctx.tree();
       const ref = args[0]!;
       const id = /^[A-Z]\d+$/i.test(ref) ? normId(ref) : resolvePerson(tree, ref).id;
-      const note = addNote(tree, id, args[1]!);
+      const note = addNote(tree, id, args[1]!, { whole: true });
       return { text: written(tree), data: { id, note } };
     },
   },
@@ -708,6 +708,7 @@ register(
       const tree = ctx.tree();
       const id = normId(args[0]!);
       const { owner } = findEventOwner(tree, id);
+      notRetracted(tree, id, "edit");
       const ages = listOpt(opts.age);
       let age: string | undefined;
       let partnerAge: Record<string, string> | undefined;

@@ -12,14 +12,14 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, runs, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
-import { TASK_LEVELS, type Input, type Lesson, type RecordSet, type Research, type Search, type Session, type Source, type Strategy, type Task } from "../core/model.ts";
+import { TASK_LEVELS, type Input, type Lesson, type Note, type RecordSet, type Research, type Search, type Session, type Source, type Strategy, type Task } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
 import { directionOf, ofResearch, scopes } from "../core/directions.ts";
 import { resolvePerson } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { now, typeOfId, type Tree } from "../core/tree.ts";
 import { resolveResearch } from "./research.ts";
-import { makeNote } from "../core/actions.ts";
+import { makeNote, makeNotes, splitText } from "../core/actions.ts";
 import { phrase } from "../core/phrases.ts";
 import { readJsonLines } from "../core/json.ts";
 import { lacksImages, rankTasks, type Ranked } from "../core/queue.ts";
@@ -29,6 +29,7 @@ import { storiesToApprove } from "../core/stories.ts";
 import { receivedPending } from "../core/sync.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
 import { isArchive } from "../core/mode.ts";
+import { othersAtWork } from "../core/session.ts";
 
 
 function written(tree: Tree): string {
@@ -40,7 +41,9 @@ function subjects(tree: Tree, refs: string[]): string[] {
   return refs.map((r) => {
     const id = normId(r);
     if (typeOfId(id)) {
-      if (!tree.get(id)) throw new UsageError(`no record ${id}`);
+      const rec = tree.get(id);
+      if (!rec) throw new UsageError(`no record ${id}`);
+      if (rec.mergedInto) throw new UsageError(`${id} was merged into ${rec.mergedInto}`, { hint: `use ${rec.mergedInto}`, code: "record.merged", params: { id, into: rec.mergedInto } });
       return id;
     }
     return resolvePerson(tree, r).id;
@@ -155,7 +158,7 @@ function taskDetail(tree: Tree, t: Task): string {
     return b ? `${b.id} ${b.title}${b.url ? ` · ${b.url}` : ""}` : w;
   });
   const searches = tree.list<Search>("search").filter((s) => s.task === t.id || s.recordsets.some((b) => t.where.includes(b)));
-  const lessons = tree.list<Lesson>("lesson").filter((l) => l.target && t.where.includes(l.target));
+  const lessons = tree.list<Lesson>("lesson").filter((l) => !l.retracted && l.target && t.where.includes(l.target));
   return lines(
     `${t.id} ${t.what}`,
     `level ${t.level} · priority ${t.priority} · ${t.state}${t.research ? ` · research ${t.research}` : ""}${t.parkedUntil ? ` · parked until ${t.parkedUntil}` : ""}${t.waitingOn ? ` · waiting on ${t.waitingOn}` : ""}`,
@@ -171,11 +174,59 @@ function taskDetail(tree: Tree, t: Task): string {
   );
 }
 
-function stateChange(tree: Tree, ref: string, state: Task["state"], fields: Partial<Task>, reason: string | undefined, verb: string): Task {
+/**
+ * A task's result as long as it is: over what a result holds (RESULT_MAX), its start is the result and the rest is kept
+ * in the task's notes — said, never an error the agent answers by cutting the result short (K3).
+ */
+export function longResult(tree: Tree, text: string): { result: string; more: Note[] } {
+  const t = text.trim();
+  if (t.length <= RESULT_MAX) return { result: t, more: [] };
+  const { head, rest } = splitText(t, RESULT_MAX - 2);
+  tree.notices.push(`note: the result was ${t.length} characters (a result holds ${RESULT_MAX}): its start is the result, the rest went into the task's notes`);
+  return { result: `${head} …`, more: makeNotes(tree, `… ${rest}`) };
+}
+
+/**
+ * Close a task with its result (strom task done, strom session close --done): the inputs of an intake task processed,
+ * and what the agent should hear of it (no search recorded, link tasks to point at the books found, entries unclipped).
+ */
+export function finishTask(tree: Tree, ref: string, text: string, produced: string[]): { task: Task; said: string[] } {
+  const { result, more } = longResult(tree, text);
+  const t = stateChange(tree, ref, "done", { result, produced: produced.map((x) => normId(x)) }, undefined, "done", more);
+  // A search that is not recorded will be done again: nudge when a search task records none.
+  const noSearch =
+    ["locate", "link", "verify", "enrich"].includes(t.level) && !tree.list<Search>("search").some((s) => s.task === t.id)
+      ? `note: no search is recorded for ${t.id} — record what you looked at, found or not: strom search add "<what>" --task ${t.id} --method web|catalog|index|page-by-page --result found|negative`
+      : undefined;
+  // A locate task hands over: the link tasks that name no record set yet should now name one.
+  const unpointed =
+    t.level === "locate"
+      ? tree.list<Task>("task").filter((x) => x.level === "link" && ["open", "doing", "parked"].includes(x.state) && !x.where.some((w) => /^B\d{4,}$/.test(w)))
+      : [];
+  const handover = unpointed.length
+    ? `note: ${unpointed.map((x) => x.id).join(", ")} name no record set yet — point them at the books found: strom task edit ${unpointed[0]!.id} --where B…`
+    : undefined;
+  // Finishing an intake task finishes its input: nothing is left dangling as "new".
+  if (t.level === "intake")
+    for (const id of new Set([...t.subject, ...t.where]))
+      if (typeOfId(id) === "input" && tree.get<Input>(id)?.state === "new")
+        update<Input>(tree, id, "input", (i) => ({ ...i, state: "processed" }), { op: "input.done", summary: `${id} processed (${t.id} done)` });
+  // The entries it recorded from scans: each with where it is on its image.
+  const recorded = (t.produced ?? []).filter((id) => typeOfId(id) === "source").flatMap((id) => tree.get<Source>(id) ?? []);
+  const unclipped = recorded.flatMap((s) => [clipNote(tree, s), transcriptNote(tree, s)].filter((n): n is string => !!n));
+  return { task: t, said: [noSearch, handover, ...unclipped].filter((x): x is string => !!x) };
+}
+
+/** What a task's result holds (schema task.result). */
+const RESULT_MAX = 1000;
+/** What a task's what holds (schema task.what): one line. */
+const WHAT_MAX = 200;
+
+function stateChange(tree: Tree, ref: string, state: Task["state"], fields: Partial<Task>, reason: string | undefined, verb: string, notes: Note[] = []): Task {
   const id = normId(ref, "task");
   return update<Task>(tree, id, "task", (t) => {
     if (t.state === "done" && state !== "open") throw new UsageError(`${id} is already done`);
-    const next: Task = { ...t, state, ...fields };
+    const next: Task = { ...t, state, ...fields, ...(notes.length ? { notes: [...t.notes, ...notes] } : {}) };
     if (state !== "parked") {
       delete next.parkedUntil;
       delete next.parkedReason;
@@ -218,8 +269,8 @@ register(
     options: [
       { name: "level", type: "string", value: "<level>", description: TASK_LEVELS.join(", ") },
       { name: "where", type: "string", multiple: true, value: "<B…|text>", description: "record set ID or a precise description (repeatable)" },
-      { name: "why", type: "string", value: "<text>", description: "why it matters for the research" },
-      { name: "done-when", type: "string", value: "<text>", description: "what counts as done (found, or searched completely)" },
+      { name: "why", type: "string", value: "<text>", description: "why it matters for the research", max: 1000 },
+      { name: "done-when", type: "string", value: "<text>", description: "what counts as done (found, or searched completely)", aliases: ["done"], max: 500 },
       { name: "priority", type: "string", value: "1-5", description: "default 3" },
       { name: "about", type: "string", multiple: true, value: "<who>", description: "person/record the task is about, also a conflict X… or hypothesis H… it decides (repeatable)" },
       { name: "research", type: "string", value: "<G…>", description: "research it belongs to (default: the only active one)" },
@@ -240,6 +291,16 @@ register(
       const where = listOpt(opts.where).map((w) => (/^[Bb]\d+$/.test(w) ? requireRecord<RecordSet>(tree, w, "recordset").id : w));
       const subject = subjects(tree, listOpt(opts.about));
       const research = defaultResearch(tree, opts.research, subject);
+      // a "what" longer than one line holds: its start is the what, the rest the task's first note (K3)
+      let what = args[0]!.trim();
+      let whatMore: string | undefined;
+      if (what.length > WHAT_MAX) {
+        const was = what.length;
+        const { head, rest } = splitText(what, WHAT_MAX - 2);
+        what = `${head} …`;
+        whatMore = `… ${rest}`;
+        tree.notices.push(`note: the what was ${was} characters (a task's what holds ${WHAT_MAX}): its start is the what, the rest went into the task's notes`);
+      }
       // The same work again: an open task of the same person and level that reads the same (or nearly, in the same
       // books) — not added; what is new goes into that one.
       if (!opts.anyway) {
@@ -247,7 +308,7 @@ register(
         const same = tree
           .list<Task>("task")
           .filter((x) => OPEN_STATES.includes(x.state) && x.level === opts.level && x.research === research && x.subject.some((s) => subject.includes(s)))
-          .map((x) => ({ x, alike: alikeness(x.what, args[0]!), books: x.where.some((w) => books.has(w)) }))
+          .map((x) => ({ x, alike: alikeness(x.what, what), books: x.where.some((w) => books.has(w)) }))
           .filter((m) => m.alike >= SAME_TEXT || (m.books && m.alike >= SAME_TEXT_IN_BOOK))
           .sort((a, b) => b.alike - a.alike)[0];
         if (same)
@@ -262,7 +323,7 @@ register(
         {
           level: opts.level as Task["level"],
           priority,
-          what: args[0]!.trim(),
+          what,
           where,
           why: String(opts.why).trim(),
           doneWhen: String(opts["done-when"]).trim(),
@@ -270,9 +331,9 @@ register(
           research,
           state: "open",
           origin: tree.actor,
-          note: opts.note as string | undefined,
+          note: [whatMore, typeof opts.note === "string" ? opts.note : undefined].filter(Boolean).join("\n") || undefined,
         },
-        (id) => `+${id} task "${truncate(args[0]!, 60)}"`,
+        (id) => `+${id} task "${truncate(what, 60)}"`,
       );
       // the same person, the same kind of work, the same books: most likely the same task
       const books = new Set(where.filter((w) => /^B\d+$/.test(w)));
@@ -307,7 +368,9 @@ register(
       const tree = ctx.tree();
       const research = typeof opts.research === "string" ? resolveResearch(tree, opts.research).id : undefined;
       const strategy = ctx.settings.strategy(tree.config);
-      const queue = rankedQueue(tree, { ...(research ? { research } : {}), ...(opts.level ? { level: String(opts.level) } : {}), strategy });
+      // never a task another agent works on now (other conversations, runs in this tree)
+      const held = othersAtWork(tree, ctx.env).tasks;
+      const queue = rankedQueue(tree, { ...(research ? { research } : {}), ...(opts.level ? { level: String(opts.level) } : {}), strategy }).filter((r) => !held.has(r.task.id));
       const first = queue[0];
       if (!first) {
         const held = tree.list<Task>("task").filter(offTree(tree)).filter((t) => t.state === "open").length;
@@ -397,7 +460,7 @@ register(
       { name: "what", type: "string", value: "<text>", description: "what to find" },
       { name: "where", type: "string", multiple: true, value: "<B…|text>", description: "record set ID or a precise description (repeatable; replaces)" },
       { name: "why", type: "string", value: "<text>", description: "why it matters" },
-      { name: "done-when", type: "string", value: "<text>", description: "what counts as done" },
+      { name: "done-when", type: "string", value: "<text>", description: "what counts as done", aliases: ["done"] },
       { name: "priority", type: "string", value: "1-5", description: "priority" },
       { name: "about", type: "string", multiple: true, value: "<who>", description: "person/record the task is about, also a conflict X… or hypothesis H… it decides (repeatable; replaces)" },
       { name: "note", type: "string", value: "<text>", description: "add a short note (what a later finding means for this task)" },
@@ -417,10 +480,10 @@ register(
         change.priority = priority;
       }
       if (listOpt(opts.about).length) change.subject = subjects(tree, listOpt(opts.about));
-      const note = typeof opts.note === "string" ? makeNote(tree, opts.note) : undefined;
+      const note = typeof opts.note === "string" ? makeNotes(tree, opts.note) : undefined;
       const fields = [...Object.keys(change), ...(note ? ["note"] : [])];
       if (!fields.length) throw new UsageError("nothing to change", { hint: `e.g. strom task edit ${id} --where B0001` });
-      const t = update<Task>(tree, id, "task", (t) => ({ ...t, ...change, ...(note ? { notes: [...t.notes, note] } : {}) }), {
+      const t = update<Task>(tree, id, "task", (t) => ({ ...t, ...change, ...(note ? { notes: [...t.notes, ...note] } : {}) }), {
         op: "task.edit",
         summary: `${id} ${fields.map((f) => (f === "doneWhen" ? "done-when" : f === "subject" ? "about" : f)).join(", ")}${change.where ? ` → ${truncate(change.where.join("; "), 50)}` : ""}`,
         reason: opts.reason as string | undefined,
@@ -437,6 +500,9 @@ register(
     args: [{ name: "task", description: "task ID", required: true }],
     run(ctx, { args }) {
       const tree = ctx.tree();
+      const taken = othersAtWork(tree, ctx.env).sessions.find((x) => x.task === normId(args[0]!, "task"));
+      if (taken)
+        throw new UsageError(`${taken.task} is being worked on in session ${taken.id}${taken.agent ? ` (${taken.agent})` : ""}`, { hint: "take another task: strom task next", code: "task.held" });
       const t = stateChange(tree, args[0]!, "doing", {}, undefined, "start");
       return { text: lines(written(tree), `details: strom task show ${t.id}`), data: { task: t } };
     },
@@ -455,29 +521,8 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (!opts.result) throw new UsageError("--result is required", { hint: "say what was found — or where it was searched without success" });
-      const t = stateChange(tree, args[0]!, "done", { result: String(opts.result).trim(), produced: csvOpt(opts.produced).map((x) => normId(x)) }, undefined, "done");
-      // A search that is not recorded will be done again: nudge when a search task records none.
-      const noSearch =
-        ["locate", "link", "verify", "enrich"].includes(t.level) && !tree.list<Search>("search").some((s) => s.task === t.id)
-          ? `note: no search is recorded for ${t.id} — record what you looked at, found or not: strom search add "<what>" --task ${t.id} --method web|catalog|index|page-by-page --result found|negative`
-          : undefined;
-      // A locate task hands over: the link tasks that name no record set yet should now name one.
-      const unpointed =
-        t.level === "locate"
-          ? tree.list<Task>("task").filter((x) => x.level === "link" && ["open", "doing", "parked"].includes(x.state) && !x.where.some((w) => /^B\d{4,}$/.test(w)))
-          : [];
-      const handover = unpointed.length
-        ? `note: ${unpointed.map((x) => x.id).join(", ")} name no record set yet — point them at the books found: strom task edit ${unpointed[0]!.id} --where B…`
-        : undefined;
-      // Finishing an intake task finishes its input: nothing is left dangling as "new".
-      if (t.level === "intake")
-        for (const id of new Set([...t.subject, ...t.where]))
-          if (typeOfId(id) === "input" && tree.get<Input>(id)?.state === "new")
-            update<Input>(tree, id, "input", (i) => ({ ...i, state: "processed" }), { op: "input.done", summary: `${id} processed (${t.id} done)` });
-      // The entries it recorded from scans: each with where it is on its image.
-      const recorded = (t.produced ?? []).filter((id) => typeOfId(id) === "source").flatMap((id) => tree.get<Source>(id) ?? []);
-      const unclipped = recorded.flatMap((s) => [clipNote(tree, s), transcriptNote(tree, s)].filter((n): n is string => !!n));
-      return { text: lines(written(tree), noSearch, handover, ...unclipped), data: { task: t } };
+      const { task, said } = finishTask(tree, args[0]!, String(opts.result), csvOpt(opts.produced));
+      return { text: lines(written(tree), ...said), data: { task } };
     },
   },
   {
@@ -513,6 +558,10 @@ register(
       const answer = typeof opts.answer === "string" && opts.answer.trim() ? opts.answer.trim() : undefined;
       const t = tree.withTreeLock(() => {
         const before = requireRecord<Task>(tree, id, "task");
+        // only what was put aside comes back: a task at work stays its session's, a task done stays done
+        if (before.state === "doing")
+          throw new UsageError(`${id} is being worked on — it comes back to the queue when its session closes`, { hint: `strom session close --continue --summary "…" --next "…"`, code: "task.wake-doing" });
+        if (before.state === "done") throw new UsageError(`${id} is done (${truncate(before.result ?? "", 80)}) — what is left is a new task`, { hint: `strom task add "…" --about …`, code: "task.wake-done" });
         // an answer is to what the task waits for: one that waits no more (done, dropped, taken up) is left as it is
         if (answer && before.state !== "waiting")
           throw new UsageError(`${id} does not wait for the user (it is ${before.state}) — the answer is not needed there`, { hint: `strom task show ${id}` });

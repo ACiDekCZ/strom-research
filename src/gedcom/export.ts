@@ -42,6 +42,7 @@ import { treeEdges, type Edge, type Island } from "../core/edge.ts";
 import { readersOf } from "../core/review.ts";
 import { sexRaw, sideText, sidesOf } from "../core/conflicts.ts";
 import { humanTask } from "../cli/human.ts";
+import { parseYears } from "../core/years.ts";
 
 export const GED_PROFILES = ["standard", "strom"] as const;
 export type GedProfile = (typeof GED_PROFILES)[number];
@@ -612,8 +613,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const q of research.searched.filter((x) => x.people.includes(p.id)).map((x) => x.search)) {
       w.line(1, "_STROM_SEARCHED");
       w.text(2, "TITL", q.question);
-      const years = /^(\d{3,4})(?:\s*[-–]\s*(\d{3,4}))?$/.exec(q.scope.years ?? "");
-      if (years) w.line(2, "DATE", years[2] && years[2] !== years[1] ? `FROM ${years[1]} TO ${years[2]}` : years[1]!);
+      const years = parseYears(q.scope.years);
+      if (years) w.line(2, "DATE", years.to !== years.from ? `FROM ${years.from} TO ${years.to}` : String(years.from));
       w.line(2, "RESN", q.result === "found" ? "found" : "none");
       w.line(2, "_AT", q.created.slice(0, 10));
     }
@@ -680,8 +681,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const b of e.books) {
       w.line(2, "_BOOK", b.id);
       w.text(3, "TITL", b.title);
-      const y = /^(\d{3,4})(?:\s*[-–]\s*(\d{3,4}))?$/.exec(b.years ?? "");
-      if (y) w.line(3, "DATE", years({ from: Number(y[1]), to: Number(y[2] ?? y[1]) }));
+      const y = parseYears(b.years);
+      if (y) w.line(3, "DATE", years({ from: y.from, to: y.to }));
       w.line(3, "_ACCESS", b.access);
     }
     for (const r of e.covered) w.line(2, "_COVERED", years(r));

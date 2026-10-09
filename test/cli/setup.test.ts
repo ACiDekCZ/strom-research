@@ -54,7 +54,7 @@ test("the setup wizard: the user's language, Enter takes the suggestion, agents 
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
   // language, folder (Enter), model (Enter = Opus), what the agent may do (Enter = on its own), no shortcut
-  const r = await w.ok(["setup"], { answers: ["cs", "", "", "", "n"] });
+  const r = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "n"] });
   assert.match(r.out, /Strom výzkum – úvodní nastavení/);
   assert.match(r.out, /✓ AI agent: Claude Code/);
   assert.match(r.out, /Opus – nejlépe čte staré rukopisy/);
@@ -68,7 +68,7 @@ test("the setup wizard: the user's language, Enter takes the suggestion, agents 
   const skill = fs.readFileSync(path.join(w.env.HOME!, ".claude", "skills", "strom", "SKILL.md"), "utf8");
   assert.match(skill, /^---\nname: strom\ndescription: /);
   // Again: every answer pre-filled with the current value; Enter keeps it.
-  const again = await w.ok(["setup"], { answers: ["", "", "", "", "n"] });
+  const again = await w.ok(["setup"], { answers: ["", "", "", "", "", "", "n"] });
   assert.match(again.out, /Nastavení – Enter ponechá současnou hodnotu/);
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).models.claude.lead, "opus");
   w.cleanup();
@@ -114,7 +114,7 @@ test("installed from the Strom app on the beta channel (B1): the app's beta is w
 test("the setup wizard of an isolated installation (trying a version) offers no Strom app, no links and no shortcut: they are the person's own strom's", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
-  const own = await w.ok(["setup"], { answers: ["cs", "", "", "", "n"] });
+  const own = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "n"] });
   assert.match(own.out, /Používat ji\?/, "the person's own strom asks");
   const v = new World();
   v.env.PATH = pathWith(v, ["claude"]);
@@ -154,9 +154,10 @@ test("installed again over settings kept from before (strom uninstall keeps them
 test("the setup wizard: several agents — the user picks; full needs a second yes", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   w.env.PATH = pathWith(w, ["claude", "codex"]);
-  // language, folder, agent 2 (Codex in the terminal: no model question, a word on the model), no stories, level 3
-  // (full) — then "no" to the warning, no shortcut
-  const r = await w.ok(["setup"], { answers: ["en", "", "2", "2", "3", "n", "n"] });
+  // language, folder, agent 2 (Codex in the terminal), its model: 3 the agent's own (a word on the model), no stories,
+  // level 3 (full) — then "no" to the warning, no shortcut
+  const r = await w.ok(["setup"], { answers: ["en", "", "2", "3", "2", "3", "n", "", "n"] });
+  assert.match(r.out, /Which model should do the research in OpenAI Codex CLI\?/);
   assert.match(r.out, /Which AI agent, and where to talk with it\?\n {3}1 {2}Claude Code — in the terminal \(for experienced users\)\n {3}2 {2}OpenAI Codex CLI — in the terminal/);
   assert.match(r.out, /The research needs a strong model .* in OpenAI Codex CLI, choose its best model/);
   assert.match(r.out, /Should the agent also write stories of the ancestors/);
@@ -357,7 +358,7 @@ test("each agent gets delegation rules for its kind; models per tier are configu
   const claude = fs.readFileSync(path.join(w.cwd, "CLAUDE.md"), "utf8");
   assert.match(claude, /Use the Agent tool for subagents/);
   assert.match(claude, /handwriting.*`opus` — never cheaper/);
-  assert.match(claude, /About ten images per delegate/);
+  assert.match(claude, /About ten scans \(images B…:n\) per delegate, never more than twelve/);
   // AGENTS.md is read by every agent — the same whichever is the default, since several may work
   // here side by side: nothing Claude-specific, reading rules for those without subagents.
   let agents = fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8");
@@ -405,7 +406,7 @@ test("a new version: seen at most once a day, said by strom, the menu and doctor
   // The menu offers it.
   const said = /Vyšla nová verze stromu: 9\.9\.10 – aktualizovat ji jde v Nastavení \(volba (\d)\)\./.exec((await w.ok([], { tty: true, answers: ["0"] })).out);
   assert.ok(said, "said above the menu, with where");
-  assert.match((await w.ok([], { tty: true, answers: [said[1]!, "0", "0"] })).out, /Nastavení \(na tomto počítači\)\n[\s\S]* {3}\d {2}Aktualizovat strom na 9\.9\.10\n {3}\d {2}Nápověda: příkazy pro člověka\n {3}0 {2}Zpět/);
+  assert.match((await w.ok([], { tty: true, answers: [said[1]!, "0", "0"] })).out, /Nastavení \(na tomto počítači\)\n[\s\S]* {2,3}\d+ {2}Aktualizovat strom na 9\.9\.10\n {2,3}\d+ {2}Nápověda: příkazy pro člověka\n {3}0 {2}Zpět/);
   // Off: never asked, never said.
   await w.ok(["config", "set", "updates", "off"]);
   delete w.env.STROM_UPDATES;
@@ -438,7 +439,7 @@ test("installed from the Strom app with an agent here: the research with it is s
   a.env.PATH = pathWith(a, ["claude"]);
   a.env.STROM_FROM_APP = mark;
   // language, folder, how to keep it (Enter), model, stories, what the agent may do, no shortcut, no links
-  const r = await a.ok(["setup"], { answers: ["cs", "", "", "", "", "", "n", "n"] });
+  const r = await a.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "n", "n"] });
   assert.match(r.out, /Jak má výzkum tento rodokmen vést\?\n {3}1 {2}Jako archiv[^\n]*\n {3}2 {2}Jako výzkum s agentem Claude Code[^\n]*\(doporučeno\)\nVybrat \[2\]/);
   assert.doesNotMatch(r.out, /Bez agenta je nový výzkum archiv/);
   assert.equal(config(a).mode, undefined);

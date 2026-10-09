@@ -235,7 +235,7 @@ test("settings: one set/get/unset with tree scope; config where shows every sour
   await w.ok(["config", "set", "run.minutes", "45"]);
   const where = (await w.ok(["config", "where"])).out;
   assert.match(where, /run\.minutes\s+45\s+config\s+STROM_RUN_MINUTES/);
-  assert.match(where, /brief\.budget\s+25000\s+default/);
+  assert.match(where, /brief\.budget\s+55000\s+default/);
   assert.match(where, /STROM_TREE/);
   assert.equal((await w.run(["config", "set", "home", "/x", "--for-tree"])).code, 2, "home is not a tree setting");
   assert.equal((await w.run(["config", "set", "run.minutes", "-3"])).code, 2);

@@ -23,12 +23,13 @@ import {
   type Source,
 } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, textOpt, update } from "../core/records.ts";
-import { makeNote, parseDate } from "../core/actions.ts";
+import { makeNote, makeNotes, parseDate } from "../core/actions.ts";
 import { calibrationLine, fitCalibration } from "../core/calibration.ts";
 import { foldText } from "../core/text.ts";
 import { clipNote, clipText, imageOfRef, MAX_CLIPS, transcriptNote } from "../core/media.ts";
 import { partRegion } from "../core/views.ts";
 import { formatName } from "../core/people.ts";
+import { yearsOption, yearsOverlap } from "../core/years.ts";
 import type { Tree } from "../core/tree.ts";
 
 function written(tree: Tree): string {
@@ -124,7 +125,7 @@ function editFields<T extends Source | Repository | RecordSet | Place>(
       const overwritten = keys.filter((k) => k in evidence && old[k] !== undefined && old[k] !== evidence[k] && JSON.stringify(old[k]) !== JSON.stringify(changes[k]));
       if (overwritten.length && !reason)
         throw new UsageError(`changing ${overwritten.join(", ")} of ${id} needs --reason`, { hint: 'what a record says is evidence: e.g. --reason "re-read at full resolution"', code: "record.needs-reason", params: { id, fields: overwritten.map((k) => `--${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`).join(", ") } });
-      return { ...cur, ...changes, ...(note ? { notes: [...cur.notes, makeNote(tree, note)] } : {}) };
+      return { ...cur, ...changes, ...(note ? { notes: [...cur.notes, ...makeNotes(tree, note)] } : {}) };
     },
     { op: `${type}.edit`, summary: `${id} ${[...given.map(([k]) => k), ...(note ? ["note"] : [])].join(", ") || "edited"}`, reason },
   );
@@ -408,8 +409,8 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
-      const years = str(opts.years);
-      if (years && !/^\d{3,4}(-\d{3,4})?$/.test(years)) throw new UsageError(`invalid --years "${years}"`, { hint: "use 1784 or 1784-1820" });
+      const said: string[] = [];
+      const years = yearsOption(str(opts.years), said, "1784-1820");
       const images = opts.images === undefined ? undefined : Number(opts.images);
       if (images !== undefined && (!Number.isInteger(images) || images < 1)) throw new UsageError("--images must be a positive number");
       const b = create<RecordSet>(
@@ -431,7 +432,7 @@ register(
         },
         (id) => `+${id} record set "${truncate(args[0]!, 60)}"`,
       );
-      return { text: written(tree), data: { recordset: b } };
+      return { text: lines(written(tree), ...said), data: { recordset: b } };
     },
   },
   {
@@ -440,11 +441,26 @@ register(
     group: "sources",
     tree: true,
     args: [{ name: "filter", description: "text in title, place or call number" }],
-    options: [{ name: "full", type: "boolean", description: "--json: whole records instead of one row each" }],
+    options: [
+      { name: "place", type: "string", value: "<name>", description: "only the books of this place (diacritics optional)" },
+      { name: "kind", type: "string", value: "<kind>", description: "only the books holding this kind of record (baptism, marriage, burial…)" },
+      { name: "years", type: "string", value: "<from-to>", description: "only the books whose years reach into these" },
+      { name: "repo", type: "string", value: "<R…>", description: "only the books of this archive" },
+      { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
+    ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       let all = tree.list<RecordSet>("recordset");
       if (args[0]) all = all.filter((b) => matches(b.title, args[0]!) || b.places.some((p) => matches(p, args[0]!)) || matches(b.callNumber, args[0]!));
+      // the filters agents look for (K14): a place, a kind of record, years, an archive
+      if (typeof opts.place === "string") all = all.filter((b) => b.places.some((p) => matches(p, String(opts.place))));
+      if (typeof opts.kind === "string") all = all.filter((b) => b.kinds.some((k) => matches(k, String(opts.kind))));
+      const years = yearsOption(opts.years, []);
+      if (years) all = all.filter((b) => yearsOverlap(b.years, years));
+      if (typeof opts.repo === "string") {
+        const repo = requireRecord(tree, String(opts.repo), "repository").id;
+        all = all.filter((b) => b.repository === repo);
+      }
       return {
         text: all.length ? table(all.map((b) => [b.id, truncate(b.title, 60), b.years ?? "", b.access, b.calibration.length ? "calibrated" : ""])) : "no record sets match",
         data: { recordsets: opts.full ? all : all.map((b) => ({ id: b.id, title: b.title, years: b.years, access: b.access, places: b.places, calibrated: b.calibration.length > 0 })) },
@@ -638,8 +654,15 @@ register(
       const tree = ctx.tree();
       if (!opts.kind || !opts.name) throw new UsageError("--kind and --name are required");
       const kind = oneOf(opts.kind, JURISDICTIONS, "kind", "other");
-      const from = opts.from === undefined ? undefined : Number(opts.from);
-      const to = opts.to === undefined ? undefined : Number(opts.to);
+      const year = (name: "from" | "to") => {
+        if (opts[name] === undefined) return undefined;
+        const y = Number(opts[name]);
+        if (!/^\s*\d{3,4}\s*$/.test(String(opts[name]))) throw new UsageError(`invalid --${name} "${String(opts[name])}"`, { hint: `a year: --${name} 1784` });
+        return y;
+      };
+      const from = year("from");
+      const to = year("to");
+      if (from !== undefined && to !== undefined && from > to) throw new UsageError(`--from ${from} is after --to ${to}`, { hint: `--from ${to} --to ${from}` });
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
       const recordsets = csvOpt(opts.recordset).map((b) => requireRecord<RecordSet>(tree, b, "recordset").id);
       const id = normId(args[0]!, "place");
@@ -772,8 +795,8 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
-      const years = str(opts.years);
-      if (years && !/^\d{3,4}(-\d{3,4})?$/.test(years)) throw new UsageError(`invalid --years "${years}"`, { hint: "use 1784 or 1784-1820" });
+      const said: string[] = [];
+      const years = yearsOption(str(opts.years), said, "1784-1820");
       const images = opts.images === undefined ? undefined : Number(opts.images);
       if (images !== undefined && (!Number.isInteger(images) || images < 1)) throw new UsageError("--images must be a positive number");
       const b = editFields<RecordSet>(
@@ -795,7 +818,7 @@ register(
         {},
         opts,
       );
-      return { text: written(tree), data: { recordset: b } };
+      return { text: lines(written(tree), ...said), data: { recordset: b } };
     },
   },
   {

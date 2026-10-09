@@ -151,8 +151,10 @@ register({
       const opened = openForUser(link, ctx.env);
       const say = [opened ? ui(lang, "ui.chat.app.open", { app: app.name }) : ui(lang, "ui.chat.app.closed", { app: app.name, dir: ctx.display(tree.root), message: kickoff })];
       if (agent === "claude" && level !== "ask") say.push(ui(lang, level === "full" ? "ui.chat.app.full" : "ui.chat.app.auto"));
-      // Claude's app takes the model from the tree's settings; the others' the person picks there.
-      if (agent !== "claude") say.push(ui(lang, "ui.chat.app.model", { app: app.name }));
+      // Claude's app takes the model from the tree's settings, OpenCode's from the tree's opencode.json; the others' the
+      // person picks there — the one chosen in strom named
+      const chosen = ctx.settings.models(agent, tree.config).lead;
+      if (agent !== "claude" && !(agent === "opencode" && chosen)) say.push(chosen ? ui(lang, "ui.chat.app.model.chosen", { app: app.name, model: chosen }) : ui(lang, "ui.chat.app.model", { app: app.name }));
       if (agentHere && opened) say.push(ui(lang, "ui.chat.handover.end"));
       return { text: say.join("\n"), data: { agent, app: app.name, link, opened, ...(agentHere ? { handover: "app" } : {}) } };
     }

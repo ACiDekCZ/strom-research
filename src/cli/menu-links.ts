@@ -14,7 +14,7 @@ import { lines, truncate } from "./format.ts";
 import { isArchive } from "../core/mode.ts";
 import { Tree } from "../core/tree.ts";
 import type { Conflict, Family, Person, Research, Session, Source, Task } from "../core/model.ts";
-import { monthSpend } from "../core/session.ts";
+import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
 import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, SYNC_INBOX, undoSync, withoutImages, type SyncInput } from "../core/sync.ts";
 import { moveToTrash } from "../core/trash.ts";
 import { noteMovedByFile } from "../core/transfer.ts";
@@ -123,7 +123,8 @@ export function sessionsView(ctx: Context, lang: string, root: string): void {
     const task = s.task ? tree.get<Task>(s.task) : undefined;
     const agent = PROFILES[s.agent ?? ""]?.name ?? s.agent ?? "";
     const what = truncate(humanTask(tree, task?.what ?? s.summary ?? "", lang), 80);
-    const cost = s.metrics?.costUsd !== undefined ? `${humanCost(s.metrics.costUsd, lang)}${s.metrics.costPartial ? "+" : ""}` : "";
+    const spent = sessionCost(s.metrics);
+    const cost = spent !== undefined ? `${humanCost(spent, lang)}${costPartial(s.metrics) ? "+" : ""}` : "";
     out(ctx, `  ${humanDay(s.started, lang)}  ${[agent, what, cost].filter(Boolean).join(" · ")}`);
   }
   if (all.length > shown.length) out(ctx, `  ${t("ui.link.sessions.more", { n: all.length - shown.length })}`);

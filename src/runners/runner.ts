@@ -42,6 +42,14 @@ export interface RunOptions {
   chrome?: boolean;
   /** Claude Code's Remote Control: the session followed and steered from claude.ai or a phone (agent.remote). */
   remote?: boolean;
+  /**
+   * Without the user's personal add-ons — skills, plugins, MCP servers, memory: a session nobody watches (strom run,
+   * a reader) while agent.addons is off (the default). Only where the agent has switches for it (Claude Code, Codex);
+   * a conversation (interactive) keeps them always.
+   */
+  clean?: boolean;
+  /** A reader (strom read, clips, transcripts): it opens the views it is given and writes its report — nothing else. */
+  reader?: boolean;
   /** What the agent may do without asking (the user's setting agent.permissions). */
   permissions?: AgentPermissions;
   /** The shared folder (inbox, plugins): a workspace folder of the agent besides the tree. */
@@ -63,6 +71,8 @@ export interface RunResult {
   resumeAt?: string;
   /** Tool calls the permissions refused, e.g. "Bash: strom input show I0001". */
   denied?: string[];
+  /** The agent refused the model it was started with (one it does not know, or no longer serves). */
+  modelRejected?: true;
 }
 
 export interface Runner {
@@ -77,6 +87,15 @@ export function looksLikeLimit(text: string): { limit: boolean; resumeAt?: strin
   if (!/(usage|rate|session|weekly|5-hour|daily)\s+limit|limit (reached|exceeded)|quota|too many requests|out of (credits|usage)/i.test(text)) return { limit: false };
   const at = /resets?\s+(?:at\s+)?([^.\n]+)/i.exec(text)?.[1]?.trim();
   return at ? { limit: true, resumeAt: at } : { limit: true };
+}
+
+/**
+ * Whether an agent that failed said it does not take its model (Codex: HTTP 400 "the model is not supported", OpenCode:
+ * 410 "model … no longer available", "unknown model", model_not_found) — any agent's words, never a guess on a failure
+ * that names no model.
+ */
+export function looksLikeModelRejected(text: string): boolean {
+  return /\bmodels?\b[^\n]{0,80}?\b(?:not supported|unsupported|not available|no longer (?:available|supported|served)|not found|does not exist|doesn't exist|not valid|invalid|deprecated|retired|gone)\b|\b(?:unsupported|unknown|invalid) model\b|model_not_found|model[_ ]not[_ ]supported/i.test(text);
 }
 
 export function appendLog(file: string, chunk: string): void {

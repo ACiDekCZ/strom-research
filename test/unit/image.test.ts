@@ -97,6 +97,44 @@ test("a region too big for one look is read in overlapping parts at full resolut
   assert.match(prompt, /- M0021 · image 27 — 4 overlapping parts at full resolution, read them together:\n    part 1 of 4 \(top left\): \/v1\.jpg/);
 });
 
+test("a double page is read in two overlapping halves only where they show it at least 1.25× sharper", async () => {
+  const { halves, readInHalves, SPREAD_GAIN, VIEW_MAX } = await import("../../src/core/views.ts");
+  assert.equal(SPREAD_GAIN, 1.25);
+  // halves overlap by 4 % of the width past the middle: an off-centre gutter stays whole in one of them
+  assert.deepEqual(halves(6000, 4500), { left: { x: 0, y: 0, w: 3240, h: 4500 }, right: { x: 2760, y: 0, w: 3240, h: 4500 } });
+  // a spread of a register (4:3): each page 1.33× sharper at the same long side — pixels per page: 784×1176 → 1045×1568
+  assert.ok(readInHalves(6000, 4500));
+  assert.ok(readInHalves(6000, 4500, 2000), "the same at a larger limit");
+  const whole = VIEW_MAX / 6000;
+  const half = VIEW_MAX / 4500;
+  assert.ok(half / whole > 1.3 && Math.round(3240 * half) <= VIEW_MAX);
+  assert.ok(readInHalves(5798, 4453, 2000), "1.30×");
+  assert.ok(!readInHalves(5503, 4453, 2000), "1.24×: two views for too little");
+  assert.ok(readInHalves(7400, 3000), "a spread of wide pages");
+  assert.ok(!readInHalves(2343, 3300), "a single page: taller than wide");
+  assert.ok(!readInHalves(3205, 3200), "a near-square spread: its halves are no sharper at the same long side");
+  assert.ok(!readInHalves(1508, 1189), "a scan smaller than one view: already at its own pixels");
+  assert.ok(readInHalves(1508, 1189, 800), "unless the views are smaller");
+});
+
+test("a view as big as the agent's model takes it in whole: 2000 px for the newer models, else 1568", async () => {
+  const { imageMax, claudeModel } = await import("../../src/agents/images.ts");
+  // Claude Code: Opus 4.7+, Sonnet 5+, Fable, Mythos — by name, alias, or the agent's own default
+  for (const m of [undefined, "", "default", "opus", "opus[1m]", "sonnet", "fable", "claude-opus-4-7", "claude-opus-4-8", "claude-opus-5-5", "claude-opus-5-5[1m]", "claude-sonnet-5", "claude-sonnet-5-5", "claude-fable-1", "us.anthropic.claude-opus-4-7-v1:0", "anthropic/claude-sonnet-5-5"])
+    assert.equal(imageMax("claude", m), 2000, String(m));
+  for (const m of ["claude-opus-4-6", "claude-opus-4-1-20250805", "claude-opus-4-20250514", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "haiku", "claude-haiku-4-5", "claude-haiku-5-5", "some-other-model"])
+    assert.equal(imageMax("claude", m), 1568, m);
+  assert.deepEqual(claudeModel("claude-opus-4-20250514"), { family: "opus", version: 4 }, "a date is no minor version");
+  assert.deepEqual(claudeModel("claude-3-5-sonnet-20241022"), { family: "sonnet", version: 3.5 });
+  assert.equal(claudeModel("gpt-5"), undefined);
+  // Codex and OpenCode pass 2000 px on; Grok, Antigravity and any other agent: 1568
+  for (const m of [undefined, "gpt-5.5", "anthropic/claude-sonnet-4-6"]) {
+    assert.equal(imageMax("codex", m), 2000);
+    assert.equal(imageMax("opencode", m), 2000);
+  }
+  for (const a of ["grok", "antigravity", "script", "cursor", undefined]) assert.equal(imageMax(a, "opus"), 1568, String(a));
+});
+
 test("the size of an image file, whatever metadata comes before its frame (found in an archive of scans)", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "strom velikost "));
   const jpeg = fs.readFileSync(path.join(dir, "s0001.jpg"));

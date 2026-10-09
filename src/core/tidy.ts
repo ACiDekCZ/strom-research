@@ -252,6 +252,18 @@ export function tidyPlan(tree: Tree, at = Date.now()): TidyPlan {
     if (!alive && !(id && open.has(id))) items.push({ kind: "pointers", path: e.rel, bytes: e.bytes, do: "remove", why: "an agent's pointer to a session that ended" });
   }
 
+  // the pointer of an agent's session in one research, left when it ended without closing it
+  for (const e of entries(root, "sessions")) {
+    if (!/~.+\.json$/.test(path.basename(e.rel)) || !quiet(e)) continue;
+    let id: string | undefined;
+    try {
+      id = (JSON.parse(fs.readFileSync(e.abs, "utf8")) as { id?: string }).id;
+    } catch {
+      // unreadable: nobody's
+    }
+    if (!(id && open.has(id))) items.push({ kind: "pointers", path: e.rel, bytes: e.bytes, do: "remove", why: "an agent's pointer to a session that ended" });
+  }
+
   const frees = items.reduce((n, i) => n + (i.do === "remove" ? i.bytes : i.kind === "logs" ? Math.round(i.bytes * 0.9) : i.bytes), 0);
   return {
     items,

@@ -629,6 +629,7 @@ function effective(ctx: Context, def: SettingDef): { value: string | number | un
   if (def.key === "brief.budget") return { value: DEFAULT_BUDGET, source: "default" };
   if (def.key === "run.minutes") return { value: DEFAULT_RUN_MINUTES, source: "default" };
   if (def.key === "connectors.consent") return { value: "off", source: "default" };
+  if (def.key === "agent.addons") return { value: "off", source: "default" };
   if (def.key === "browser.downloads") return { value: downloadsDir(ctx.env), source: "detected" };
   if (def.key === "agent.permissions") return { value: ctx.settings.agentPermissions(), source: ctx.settings.config.agentPermissions ? "config" : "default" };
   return { value: undefined, source: "unset" };
@@ -647,8 +648,18 @@ function syncDecisions(ctx: Context, key: string, value: string | number | undef
     ctx.requireHuman("Write what the Strom app sends at once, without your word for each send?", "strom config set sync.review off", "sync.review", ui(ctx.uiLang(), "ui.consent.review.off"));
 }
 
+/**
+ * The agent working alone with the user's own add-ons (agent.addons on): an unwatched session then has the person's
+ * MCP servers (mail, documents), plugins and skills at hand — the user's decision alone; turning them off is anyone's.
+ */
+function addonsDecision(ctx: Context, key: string, value: string | number | undefined): void {
+  if (key === "agent.addons" && value === "on" && !ctx.settings.agentAddons(treeSettings(ctx)))
+    ctx.requireHuman("Let the agent working alone load your own add-ons (skills, plugins, MCP servers), as in a conversation?", "strom config set agent.addons on", "agent.addons", ui(ctx.uiLang(), "ui.consent.addons"));
+}
+
 export function setTreeSetting(ctx: Context, key: string, value: string | number | undefined): Tree {
   syncDecisions(ctx, key, value);
+  addonsDecision(ctx, key, value);
   const def = settingDef(key);
   if (!def.tree) throw new UsageError(`${key} is a setting of this computer, not of a tree`, { hint: `strom config set ${key} <value>` });
   const tree = ctx.tree();
@@ -710,6 +721,7 @@ export function refuseInProgram(ctx: Context, key: "home" | "trees" | "shared", 
 function setUserSetting(ctx: Context, key: string, value: string | number | undefined): void {
   const s = ctx.settings;
   syncDecisions(ctx, key, value);
+  addonsDecision(ctx, key, value);
   if ((key === "home" || key === "trees" || key === "shared") && value !== undefined) refuseInProgram(ctx, key, String(value));
   guardResearchFolder(ctx, key, value === undefined ? undefined : String(value));
   // Loosening the agent's permissions is the user's decision alone.
@@ -808,12 +820,15 @@ register(
         const now = ctx.settings.agentPermissions();
         if (!(await ctx.confirm(ui(lang, "ui.full.ask"), false))) return { text: ui(lang, "ui.full.unchanged", { level: now }), data: { key: def.key, value: now, scope: "user" }, exitCode: 1 };
       }
+      // a model is kept for one agent (the research's, or --agent): said which
+      const forAgent = def.kind === "model" ? ctx.settings.agent(treeSettings(ctx)).value : undefined;
+      const who = forAgent ? ` (agent ${forAgent})` : "";
       if (opts["for-tree"]) {
         const tree = setTreeSetting(ctx, def.key, value);
-        return { text: `${def.key} = ${display(ctx, def, value)} for tree "${tree.config.name}"`, data: { key: def.key, value, scope: "tree" } };
+        return { text: `${def.key} = ${display(ctx, def, value)}${who} for tree "${tree.config.name}"`, data: { key: def.key, value, scope: "tree", ...(forAgent ? { agent: forAgent } : {}) } };
       }
       setUserSetting(ctx, def.key, value);
-      return { text: `${def.key} = ${display(ctx, def, value)}`, data: { key: def.key, value, scope: "user" } };
+      return { text: `${def.key} = ${display(ctx, def, value)}${who}`, data: { key: def.key, value, scope: "user", ...(forAgent ? { agent: forAgent } : {}) } };
     },
   },
   {

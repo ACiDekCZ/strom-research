@@ -15,6 +15,7 @@ import { isArchive } from "./mode.ts";
 import { UsageError } from "./errors.ts";
 import type { Env } from "./paths.ts";
 import type { Tree } from "./tree.ts";
+import { costPartial, sessionCost } from "./session.ts";
 
 /** A batch's mark, as the app makes it (a UUID, or letters, digits and "-"). */
 export const BATCH_ID = /^[A-Za-z0-9-]{8,64}$/;
@@ -255,8 +256,8 @@ export function batchEstimate(tree: Tree): Record<string, unknown> | null {
   const tasks = new Map(tree.list<Task>("task").map((t) => [t.id, t]));
   const costs = tree
     .list<Session>("session")
-    .filter((s) => s.task && tasks.get(s.task)?.level === "intake" && !s.metrics?.costPartial && typeof s.metrics?.costUsd === "number")
-    .map((s) => s.metrics!.costUsd!);
+    .filter((s) => s.task && tasks.get(s.task)?.level === "intake" && !costPartial(s.metrics) && typeof s.metrics?.costUsd === "number")
+    .map((s) => sessionCost(s.metrics)!);
   const past = costs.length >= 3;
   const perTask = past ? costs.reduce((a, b) => a + b, 0) / costs.length : 1;
   return { filesPerTask: BATCH_TASK_FILES, perTask: Math.round(perTask * 100) / 100, currency: "USD", basis: past ? "past" : "typical" };

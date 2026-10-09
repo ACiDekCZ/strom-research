@@ -11,7 +11,7 @@
 // hypothesis joins them (core/kin.ts offTree). Strategies (setting queue.strategy): balanced (the default), depth
 // (stay on the line of the last sessions), priority (strict priority).
 
-import type { Media, Research, Session, Strategy, Task } from "./model.ts";
+import type { Research, Session, Strategy, Task } from "./model.ts";
 import { parentsOf } from "./people.ts";
 import { taskRecordsets } from "./frontier.ts";
 import { now, type Tree } from "./tree.ts";
@@ -19,6 +19,7 @@ import { subjectPeople } from "./records.ts";
 import { directionOf, scopes } from "./directions.ts";
 import { offTree } from "./kin.ts";
 import { forStory } from "./stories.ts";
+import { setsWithImages } from "./mediaindex.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
 
@@ -41,7 +42,7 @@ export interface Ranked {
 }
 
 /** A task that needs images none of its record sets has yet. */
-export function lacksImages(tree: Tree, t: Task, withImages = new Set(tree.list<Media>("media").map((m) => m.recordset))): boolean {
+export function lacksImages(tree: Tree, t: Task, withImages: Set<string | undefined> = setsWithImages(tree)): boolean {
   return NEEDS_IMAGES.has(t.level) && !taskRecordsets(tree, t).sets.some((b) => withImages.has(b.id));
 }
 
@@ -82,7 +83,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   const off = offTree(tree);
   const waits = (t: Task) => t.state !== "doing" && ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? "")) || off(t));
   const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)) && !waits(t));
-  const withImages = new Set(tree.list<Media>("media").map((m) => m.recordset));
+  const withImages = setsWithImages(tree);
   const lines = new Map<string, Map<string, { gen: number; line: string }>>();
   const linesOf = (researchId: string | undefined) => {
     const r = researches.find((x) => x.id === researchId) ?? (researches.length === 1 ? researches[0] : undefined);

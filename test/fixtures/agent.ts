@@ -47,9 +47,23 @@ if (process.env.STROM_READER === "1") {
       );
     process.exit(0);
   }
+  // the prompt kept for the test to read
+  if (process.env.READER_PROMPT_OUT) appendFileSync(process.env.READER_PROMPT_OUT, prompt + "\n=====\n");
   const images = [...prompt.matchAll(/^- (M\d{4}) · image (\d+)/gm)].map((m) => ({ id: m[1]!, n: m[2]! }));
   if (process.env.AGENT_MODE === "reader-silent") {
     console.log(`## Image ${images[0]!.n} · ${images[0]!.id}\nresult: nothing`);
+    process.exit(0);
+  }
+  // a richer report: a possible match only in what was illegible, a gap in the page numbering
+  if (process.env.AGENT_MODE === "reader-rich") {
+    images.forEach((img, i) =>
+      appendFileSync(
+        report!,
+        i === 1
+          ? `## Image ${img.n} · ${img.id}\nresult: nothing\nentries: —\nillegible: 3. zápis: muž, 58 let, příjmení nečitelné, dům sedí — rodina snad na 50 %\npages: 21–22\ngaps: strany 11–20 chybí: po 10 následuje 21\n\n`
+          : `## Image ${img.n} · ${img.id}\nresult: ${i === 0 ? "found" : "nothing"}\nentries: ${i === 0 ? "Franz · 18. Oktober · Haus 13" : "—"}\nillegible: —\n\n`,
+      ),
+    );
     process.exit(0);
   }
   images.forEach((img, i) => {

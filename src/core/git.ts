@@ -2,7 +2,7 @@
 // `strom` initialises repositories, sets a local identity when none exists
 // and commits on its own.
 
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -79,6 +79,21 @@ export function runGit(cwd: string, args: string[], input?: string, extraEnv: Re
   }
   if (PROFILE) process.stderr.write(`[git ${(performance.now() - t0).toFixed(0)}ms] ${args.slice(0, 3).join(" ")}\n`);
   return { status: r.status ?? 1, stdout: r.stdout, stderr: r.stderr };
+}
+
+/**
+ * runGit without waiting: for what a server works out in the background (the bridge answers meanwhile). A git that is
+ * missing or fails to start: status 1, its reason as stderr.
+ */
+export function runGitLater(cwd: string, args: string[], timeoutMs = 60_000): Promise<GitResult> {
+  return new Promise((resolve) => {
+    execFile(
+      gitProgram() ?? "git",
+      args,
+      { cwd, encoding: "utf8", env: { ...process.env, ...GIT_ENV }, maxBuffer: 64 * 1024 * 1024, timeout: timeoutMs, killSignal: "SIGKILL", windowsHide: true },
+      (err, stdout, stderr) => resolve({ status: err ? (typeof err.code === "number" ? err.code : 1) : 0, stdout: stdout ?? "", stderr: stderr || (err ? err.message : "") }),
+    );
+  });
 }
 
 function git(cwd: string, args: string[], input?: string): string {
