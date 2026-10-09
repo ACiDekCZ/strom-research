@@ -54,12 +54,14 @@ export function missingTools(asked: string[], loaded: string[]): string[] {
 }
 
 /** Command-line arguments for a run (exported for tests). */
-export function claudeArgs(opts: Pick<RunOptions, "interactive" | "kickoff" | "name" | "model" | "extraArgs" | "settingsFile" | "chrome" | "permissions" | "remote" | "clean" | "reader">): string[] {
+export function claudeArgs(opts: Pick<RunOptions, "interactive" | "kickoff" | "name" | "model" | "extraArgs" | "settingsFile" | "agentsFile" | "chrome" | "permissions" | "remote" | "clean" | "reader">): string[] {
   const level = opts.permissions ?? "auto";
   const mode = level === "full" ? "bypassPermissions" : !opts.interactive ? "dontAsk" : level === "auto" ? "auto" : undefined;
   const args = opts.interactive ? [opts.kickoff] : ["-p", "--output-format", "stream-json", "--verbose"];
   if (mode) args.push("--permission-mode", mode);
   if (opts.settingsFile) args.push("--settings", opts.settingsFile);
+  // the tree's scan reader (a file: with --print, --agents takes its path — no JSON through a Windows command line)
+  if (opts.agentsFile && !opts.interactive && !opts.reader) args.push("--agents", opts.agentsFile);
   if (opts.name) args.push("--name", opts.name);
   if (opts.model) args.push("--model", opts.model);
   if (opts.chrome !== undefined) args.push(opts.chrome ? "--chrome" : "--no-chrome");

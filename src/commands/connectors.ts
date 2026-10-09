@@ -284,14 +284,27 @@ function bookLines(r: RunReport, c: Connector, listOne: string): string[] {
 
 function parseImages(v: unknown, max = 1000): number[] | undefined {
   if (v === undefined) return undefined;
-  const m = /^(\d+)(?:-(\d+))?$/.exec(String(v).trim());
-  if (!m) throw new UsageError(`--images must be n or from-to, not "${v}"`);
-  const a = Number(m[1]);
-  const z = Number(m[2] ?? m[1]);
-  if (a < 1) throw new UsageError("--images: images are counted from 1");
-  if (z < a) throw new UsageError("--images: from before to");
-  if (z - a >= max) throw new UsageError(`--images: at most ${max} at a time`, { hint: "the rest in the next run (an archive's hourly cap: in the next hour)" });
-  return Array.from({ length: z - a + 1 }, (_, i) => a + i);
+  // n, from-to, or a list of them (20,50,80 — a book sampled; 40-69,75): what strom says back is taken too (40–69, 75)
+  const parts = String(v).split(/[,;\s]+/u).filter(Boolean);
+  if (!parts.length) throw new UsageError(`--images must be n, from-to or a list (20,50,80), not "${v}"`);
+  const out = new Set<number>();
+  for (const part of parts) {
+    const m = /^(\d+)(?:[-–](\d+))?$/u.exec(part);
+    if (!m) throw new UsageError(`--images must be n, from-to or a list (20,50,80), not "${v}"`);
+    const a = Number(m[1]);
+    const z = Number(m[2] ?? m[1]);
+    if (a < 1) throw new UsageError("--images: images are counted from 1");
+    if (z < a) throw new UsageError("--images: from before to");
+    if (z - a >= max) throw new UsageError(`--images: at most ${max} at a time`, { hint: "the rest in the next run (an archive's hourly cap: in the next hour)" });
+    for (let n = a; n <= z; n++) out.add(n);
+  }
+  if (out.size > max) throw new UsageError(`--images: at most ${max} at a time`, { hint: "the rest in the next run (an archive's hourly cap: in the next hour)" });
+  return [...out].sort((x, y) => x - y);
+}
+
+/** Image numbers as --images takes them again: 20,40-69 (no spaces, no en dash). */
+function imagesArg(ns: number[]): string {
+  return runs(ns).replace(/–/g, "-").replace(/,\s*/g, ",");
 }
 
 /** An archive the tree says must not be automated (forbidden, or browser only). */
@@ -806,7 +819,7 @@ register(
       { name: "book", description: "the book, as the connector knows it (its ID on the portal)" },
     ],
     options: [
-      { name: "images", type: "string", value: "<from-to>", description: "which images of the book" },
+      { name: "images", type: "string", value: "<n|from-to|list>", description: "which images of the book: n, from-to or a list (20,50,80)" },
       { name: "recordset", type: "string", value: "<B…>", description: "register them as images of this record set" },
       { name: "crop", type: "string", value: "<x,y,w,h>", description: "a part of one image: fractions of it (0.5,0.2,0.5,0.3), or pixels of the registered image" },
       { name: "half", type: "string", value: "<side>", description: "a half of one image: left, right, top or bottom (with --crop: within it)" },
@@ -1344,7 +1357,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     const res = registerImages(tree, shared(ctx), r.images.map((i) => ({ file: i.file, image: i.n, url: i.url, from: from(i.file), fetched })), recordset);
     const nums = res.added.map((m) => m.image).filter((n): n is number => n !== undefined);
     text = lines(
-      res.added.length || !res.restored.length ? `${res.added.length} image(s) of ${recordset}${nums.length ? ` (images ${Math.min(...nums)}–${Math.max(...nums)})` : ""} fetched and registered · ${took}` : undefined,
+      res.added.length || !res.restored.length ? `${res.added.length} image(s) of ${recordset}${nums.length ? ` (images ${runs(nums)})` : ""} fetched and registered · ${took}` : undefined,
       res.restored.length ? `${res.restored.length} image(s) of ${recordset} fetched again and put back (their file was not here; the same scan): ${res.restored.slice(0, 5).join(" ")}${res.restored.length > 5 ? " …" : ""} · ${took}` : undefined,
       res.again.length ? `${res.again.length} already registered` : undefined,
       ...res.clashes.slice(0, 10).map((x) => `⚠ ${x}`),
@@ -1366,7 +1379,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     text = "no images fetched";
   }
   // the images it got are registered; the rest when the archive takes requests again
-  const wait = later(r, request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${runs(request.images)}${recordset ? ` --recordset ${recordset}` : ""} — what is here already is not fetched again` : "the same command");
+  const wait = later(r, request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)}${recordset ? ` --recordset ${recordset}` : ""} — what is here already is not fetched again` : "the same command");
   return { text: lines(describeRun(r, request.cmd), text, wait.line), data, ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.images.length ? { exitCode: 1 } : {}) };
 }
 

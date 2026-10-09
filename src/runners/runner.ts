@@ -38,6 +38,11 @@ export interface RunOptions {
    * user has trusted the folder interactively — a new tree never is.
    */
   settingsFile?: string;
+  /**
+   * The tree's own subagents for a headless run (Claude Code: --agents <file>, its scan reader) — given on the command
+   * line as the settings are, whatever the agent makes of the folder's own files.
+   */
+  agentsFile?: string;
   /** Browser tools (Claude in Chrome): on for connectors that fetch through the user's browser, off otherwise. */
   chrome?: boolean;
   /** Claude Code's Remote Control: the session followed and steered from claude.ai or a phone (agent.remote). */

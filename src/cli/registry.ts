@@ -75,6 +75,8 @@ export interface CommandDef {
   args?: ArgDef[];
   options?: OptionDef[];
   examples?: string[];
+  /** What the brief's command sheet says after it — a mistake agents make with it, in a few words. */
+  sheet?: string;
   /** Writes to the tree: gets --dry-run, is committed automatically. */
   writes?: boolean;
   /**

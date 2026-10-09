@@ -37,6 +37,9 @@ function headLine(head: string, key: string): string | undefined {
   return new RegExp(`^${key}:\\s*(.+)$`, "m").exec(head)?.[1]?.trim() || undefined;
 }
 
+/** Reports of the readers of strom clips and transcripts (readers.ts: <day>-clips-…, <day>-transcripts-…). */
+const OTHER_READERS = /^\d{4}-\d{2}-\d{2}-(?:clips|transcripts)(?:-run\d+)?-/u;
+
 /** The reports strom read wrote ("# Reading …"), by reading — the newest first. Those of strom clips and transcripts are not readings. */
 export function loadReadings(tree: Tree): Reading[] {
   const dir = path.join(tree.root, "notes", "readings");
@@ -51,8 +54,11 @@ export function loadReadings(tree: Tree): Reading[] {
     } catch {
       continue;
     }
-    if (!text.startsWith("# Reading")) continue;
     const name = file.slice(0, -3);
+    // a reader may write its report whole, its head in the research language ("# Čtení …", found live): a report of
+    // image blocks under the name strom read gave it is a reading all the same — those of strom clips and transcripts
+    // are not
+    if (!text.startsWith("# Reading") && (OTHER_READERS.test(name) || !parseReport(text).length)) continue;
     const stem = /^(.*)-\d+$/.exec(name)?.[1] ?? name;
     const head = text.split(/^##\s/m)[0] ?? "";
     const book = /^# Reading ([Bb]\d+)-/.exec(head)?.[1]?.toUpperCase();
@@ -236,7 +242,10 @@ register({
       if (report) all = [{ ...report, reports: [name], blocks: report.blocks.filter((b) => b.report === name) }];
       else {
         all = all.filter((r) => r.stem === name || r.stem.startsWith(name));
-        if (all.length === 0) throw new UsageError(`no reading "${which}"`, { hint: "strom readings --list" });
+        if (all.length === 0) {
+          const near = loadReadings(tree).slice(0, 3).map((r) => `strom readings ${r.stem}`);
+          throw new UsageError(`no reading "${which}"`, { hint: near.length ? `the newest: ${near.join(" · ")} — all: strom readings --list` : "strom readings --list" });
+        }
       }
     }
     const ranges = typeof opts.images === "string" ? parseRanges(opts.images) : undefined;

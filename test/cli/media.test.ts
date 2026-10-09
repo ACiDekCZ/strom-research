@@ -338,6 +338,16 @@ test("strom read: batches of at most ten, reports in notes/readings, the finds a
   w.env.AGENT_MODE = "reader-silent";
   const silent = (await w.run(["read", "B1", "--images", "1-2", "--question", "x", "--agent", "script"])).out;
   assert.match(silent, /NOT reported: 2 — read these again/);
+  // a reader that wrote its report whole, its own head in the research language: strom's head back on top, and the
+  // reading found again by the command strom read names
+  w.env.AGENT_MODE = "reader-own-head";
+  const own = await w.run(["read", "B1:5", "--question", "celý přepis", "--agent", "script", "--json"]);
+  const ownText = fs.readFileSync(own.json.reports[0], "utf8");
+  assert.match(ownText, /^# Reading M0005 · batch 1 of 1\nQuestion: celý přepis\n/);
+  assert.match(ownText, /# Čtení M0005[\s\S]*## Image 5 · M0005\nresult: found/);
+  const stem = path.basename(own.json.reports[0], ".md").replace(/-1$/, "");
+  assert.match((await w.ok(["readings", stem])).out, new RegExp(`^${stem} · 1 report\\(s\\) · B0001 · images 5 · found 5`));
+  delete w.env.AGENT_MODE;
   assert.equal((await w.run(["read", "B1", "--images", "1-3", "--agent", "script"])).code, 2, "the question is required");
   w.cleanup();
 });
@@ -430,7 +440,7 @@ test("strom read: a double page in halves only where reading closely matters (bl
   w.cleanup();
 });
 
-test("media view: as big as the model of the agent that opens it takes an image in whole — 2000 px for the newer ones, else 1568", opts, async () => {
+test("media view: a whole image at 1400 px to find the entry; a half, a crop, a grid's part as big as the model of the agent that opens it takes — 2000 px for the newer ones, else 1568", opts, async () => {
   const { w } = await world();
   const dir = path.join(w.dir, "big");
   fs.mkdirSync(dir);
@@ -440,23 +450,53 @@ test("media view: as big as the model of the agent that opens it takes an image 
   const width = async (env: Record<string, string> = {}, ...more: string[]) => {
     Object.assign(w.env, env);
     try {
-      return (await w.ok(["media", "view", "B1:1", "--json", ...more])).json.width as number;
+      const j = (await w.ok(["media", "view", "B1:1", "--json", ...more])).json;
+      return Math.max(...(j.views ?? [j]).map((v: { width: number; height: number }) => Math.max(v.width, v.height))) as number;
     } finally {
       for (const k of Object.keys(env)) delete w.env[k];
     }
   };
-  // Claude Code with its own model (the current line), or a model of it named
-  assert.equal(await width(), 2000);
-  assert.equal(await width({ CLAUDECODE: "1", STROM_MODEL: "claude-opus-5-5" }), 2000);
-  assert.equal(await width({ CLAUDECODE: "1", STROM_MODEL: "claude-sonnet-4-6" }), 1568, "an older model: what it takes");
+  // a whole image: 1400 px for every agent and model (it is for finding the entry), --grid too
+  assert.equal(await width(), 1400);
+  assert.equal(await width({ CLAUDECODE: "1", STROM_MODEL: "claude-opus-5-5" }), 1400);
+  assert.equal(await width({}, "--grid"), 1400);
+  assert.equal(await width({ CLAUDECODE: "1", STROM_MODEL: "claude-sonnet-4-6" }), 1400);
+  assert.equal(await width({ STROM_AGENT: "grok" }), 1400);
+  assert.match((await w.ok(["media", "view", "B1:1"])).out, /1400×933 px · whole image of 3000×2000 · 47 % — reduced: crop the part you need .*; a whole view is for finding the entry; unclear, or the entry not where expected: --half both before calling it not found$/m);
+  // a part of it: what the model takes in whole — Claude Code with its own model (the current line), or a model of it named
+  assert.equal(await width({}, "--half", "left"), 2000, "a page of 1500×2000 px at full size");
+  assert.equal(await width({ STROM_AGENT: "grok" }, "--half", "left"), 1568);
+  assert.equal(await width({}, "--crop", "0,0,0.9,0.9"), 2000);
+  assert.equal(await width({ CLAUDECODE: "1", STROM_MODEL: "claude-opus-5-5" }, "--crop", "0,0,0.9,0.9"), 2000);
+  assert.equal(await width({ CLAUDECODE: "1", STROM_MODEL: "claude-sonnet-4-6" }, "--crop", "0,0,0.9,0.9"), 1568, "an older model: what it takes");
+  assert.equal(await width({}, "--split", "1x2"), 2000, "the parts of --split");
+  assert.doesNotMatch((await w.ok(["media", "view", "B1:1", "--crop", "0,0,0.9,0.9"])).out, /a whole view is for finding/);
   // the agent in whose shell strom runs, else the research's
-  assert.equal(await width({ GROK_AGENT: "1" }), 1568);
-  assert.equal(await width({ STROM_AGENT: "antigravity" }), 1568);
-  assert.equal(await width({ STROM_AGENT: "codex" }), 2000);
-  assert.equal(await width({ OPENCODE: "1", STROM_AGENT: "grok" }), 2000, "OpenCode's shell, though the research's agent is another");
-  // --max and --scale as before
+  assert.equal(await width({ GROK_AGENT: "1" }, "--crop", "0,0,0.9,0.9"), 1568);
+  assert.equal(await width({ STROM_AGENT: "antigravity" }, "--crop", "0,0,0.9,0.9"), 1568);
+  assert.equal(await width({ STROM_AGENT: "codex" }, "--crop", "0,0,0.9,0.9"), 2000);
+  assert.equal(await width({ OPENCODE: "1", STROM_AGENT: "grok" }, "--crop", "0,0,0.9,0.9"), 2000, "OpenCode's shell, though the research's agent is another");
+  // --max and --scale as before, for a whole image too
   assert.equal(await width({}, "--max", "800"), 800);
+  assert.equal(await width({}, "--max", "2000"), 2000);
   assert.equal(await width({ STROM_AGENT: "grok" }, "--scale", "1"), 3000);
+  w.cleanup();
+});
+
+test("strom read --crop: the parts of a crop as big as the readers' model takes them, not smaller", opts, async () => {
+  const { w } = await world();
+  const dir = path.join(w.dir, "big");
+  fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(dir, "s0001.jpg"), encodeImage({ width: 3000, height: 2000, channels: 3, data: new Uint8Array(3000 * 2000 * 3).fill(210) }, "jpeg"));
+  await w.ok(["media", "add", dir, "--recordset", "B1"]);
+  w.env.STROM_RUNNER_SCRIPT = path.join(import.meta.dirname, "..", "fixtures", "agent.ts");
+  // --max 2000 stands in for a model that takes 2000 px: a crop of 2700×1800 px read in two overlapping parts of 2000
+  const r = await w.run(["read", "B1:1", "--crop", "0,0,0.9,0.9", "--max", "2000", "--question", "x", "--agent", "script"]);
+  assert.equal(r.code, 0, r.out + r.err);
+  const views = fs.readFileSync(path.join(w.cwd, ".strom", "views", "views.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  const parts = views.filter((v) => v.region.w === 2000 && v.region.h === 1800);
+  assert.equal(parts.length, 2, JSON.stringify(views.map((v) => v.region)));
+  for (const v of parts) assert.equal(v.scale, 1, "at full resolution, within what the model takes");
   w.cleanup();
 });
 

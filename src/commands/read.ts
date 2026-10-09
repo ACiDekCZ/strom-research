@@ -144,7 +144,7 @@ register({
       const contrast = Boolean(opts.contrast);
       if (typeof opts.crop === "string" && m.width && m.height) {
         // a crop is read at full resolution — in overlapping parts when it is bigger than one look
-        const parts = tiles(parseCrop(opts.crop, m.width, m.height), max).map((t) => ({ label: t.label, view: makeView(tree, file, m.id, { crop: t.crop, contrast }).file }));
+        const parts = tiles(parseCrop(opts.crop, m.width, m.height), max).map((t) => ({ label: t.label, view: makeView(tree, file, m.id, { crop: t.crop, max, contrast }).file }));
         return { id: m.id, image: m.image, page, view: parts[0]!.view, ...(parts.length > 1 ? { parts } : {}) };
       }
       const size = !opts.whole && fs.existsSync(file) ? (m.width && m.height ? { width: m.width, height: m.height } : imageSize(new Uint8Array(fs.readFileSync(file)))) : undefined;
@@ -186,7 +186,8 @@ register({
       const settingsFile = path.join(cwd, "reader-settings.json");
       fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(group.flatMap((g) => [g.view, ...(g.parts ?? []).map((p) => p.view)]), report, permissionPath), null, 2));
       const context = typeof opts.context === "string" && opts.context.trim() ? `Context: ${opts.context.trim().replace(/\s*\n\s*/g, " ")}\n` : "";
-      fs.writeFileSync(report, `# Reading ${label} · batch ${k + 1} of ${groups.length}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}\n`);
+      const head = `# Reading ${label} · batch ${k + 1} of ${groups.length}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}\n`;
+      fs.writeFileSync(report, head);
       const prompt = readerPrompt({ question, images: group, report, lang: tree.lang, context: opts.context as string | undefined, blind: Boolean(opts.blind) });
       const views = group.reduce((n, g) => n + viewCount(g), 0);
       progress(`▶ reader ${k + 1}/${groups.length}: ${group.length} images (${runs(group.map((g) => g.image ?? 0))})${views > group.length ? ` · ${views} views` : ""}`);
@@ -205,8 +206,11 @@ register({
         logFile: path.join(tree.root, ".strom", "runs", `read-${stem}-${k + 1}.log`),
         ...(model ? { model } : {}),
       });
+      // A reader that wrote its report whole, without strom's head (in the research language, found live): the head
+      // back on top — strom readings finds a reading by it.
+      let text = fs.readFileSync(report, "utf8");
+      if (!text.startsWith("# Reading")) fs.writeFileSync(report, (text = `${head}${text}`));
       // A reader that answered but did not write: keep its answer as the report.
-      const text = fs.readFileSync(report, "utf8");
       if (!/^##\s/m.test(text) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
       const findings = parseReport(fs.readFileSync(report, "utf8"));
       progress(`■ reader ${k + 1}: ${r.outcome}${r.metrics.costUsd !== undefined ? ` · $${r.metrics.costUsd.toFixed(2)}` : ""} · ${findings.filter((f) => f.result === "found").length} with finds`);

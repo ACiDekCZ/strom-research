@@ -18,6 +18,7 @@ import { agentAppUrl, appSite } from "../core/stromapp.ts";
 import { configDir } from "../core/paths.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
+import { claudeScanReader, opencodeScanReader, SCAN_READER } from "./scanreader.ts";
 
 export const MARKER = "<!-- strom: generated above this line (strom agents sync); your own notes below are kept -->";
 
@@ -333,6 +334,8 @@ export function opencodeConfig(tree: Tree): Record<string, unknown> {
         description: "strom run: the agent working alone, nobody to ask — what the rules do not allow is refused",
         permission: refused(permission),
       },
+      // reading scans: the shell for strom and the file reader, nothing else
+      [SCAN_READER]: opencodeScanReader(tree, permission, refused),
     },
   };
 }
@@ -365,6 +368,7 @@ function dropAgentFiles(tree: Tree): string[] {
     ["AGENTS.md", agentsMd(tree)],
     ["CLAUDE.md", claudeMd(tree)],
     [path.join(".claude", "settings.json"), JSON.stringify(claudeSettings(tree), null, 2) + "\n"],
+    [CLAUDE_SCAN_READER, claudeScanReader(tree)],
     ["opencode.json", JSON.stringify(opencodeConfig(tree), null, 2) + "\n"],
     [path.join(".grok", "config.toml"), grokConfig(tree)],
     [path.join(".grok", "rules", "strom.md"), GROK_RULES],
@@ -390,7 +394,10 @@ function dropAgentFiles(tree: Tree): string[] {
   return gone;
 }
 
-export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md")];
+/** Claude Code's subagent for reading scans, in the tree. */
+export const CLAUDE_SCAN_READER = path.join(".claude", "agents", `${SCAN_READER}.md`);
+
+export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md")];
 
 export function syncAgentFiles(tree: Tree): string[] {
   // an archive: no agent works on it, and nothing of one shows in its folder (Milan's decision, 2026-10-03) — strom's own
@@ -413,6 +420,7 @@ export function syncAgentFiles(tree: Tree): string[] {
   write("AGENTS.md", agentsMd(tree));
   write("CLAUDE.md", claudeMd(tree));
   write(path.join(".claude", "settings.json"), JSON.stringify(claudeSettings(tree), null, 2) + "\n");
+  write(CLAUDE_SCAN_READER, claudeScanReader(tree));
   write("opencode.json", JSON.stringify(opencodeConfig(tree), null, 2) + "\n");
   write(path.join(".grok", "config.toml"), grokConfig(tree));
   write(path.join(".grok", "rules", "strom.md"), GROK_RULES);

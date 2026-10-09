@@ -212,15 +212,17 @@ export function viewSize(v: View): "reduced" | "enlarged" | undefined {
 }
 
 export const REDUCED_HINT = "crop the part you need to read it at full size (--crop x,y,w,h, --half left|right, --grid to find it)";
+/** Said of a whole image shown reduced: what it is for. */
+export const OVERVIEW_HINT = "a whole view is for finding the entry; unclear, or the entry not where expected: --half both before calling it not found";
 export const ENLARGED_HINT = "What you cannot read for sure is marked [?] in the transcript and stays out of the fields";
 export const SHARPER_SCAN = 'a sharper scan: ask the user (strom task wait … --images B…:<n> --on "…": zoomed in on the entry, or the full-resolution scan)';
 
 /** One line telling the reader what it sees and how to see more. */
-export function describeView(v: View, display: (p: string) => string, fetchPart?: string): string {
+export function describeView(v: View, display: (p: string) => string, fetchPart?: string, overview?: boolean): string {
   const size = viewSize(v);
   const hint =
     size === "reduced"
-      ? ` — reduced: ${REDUCED_HINT}`
+      ? ` — reduced: ${REDUCED_HINT}${overview ? `; ${OVERVIEW_HINT}` : ""}`
       : size === "enlarged"
         ? `\nenlarged from ${v.region.w}×${v.region.h} px of the scan: it has no more detail than that. ${ENLARGED_HINT}; ${
             fetchPart ? `this part sharper from the archive (one request): ${fetchPart}` : SHARPER_SCAN

@@ -341,6 +341,21 @@ test("an agent outside the research's folder: reading goes on, a connector and t
   await a.close();
 });
 
+test("fetch --images takes a list (a book sampled): only those images asked for and registered", opts, async () => {
+  const { w, a } = await world();
+  await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`]); // B0001
+  const dry = await w.ok(["fetch", "zkusebni", "5359", "--images", "3,1", "--recordset", "B1", "--dry-run"]);
+  assert.match(dry.out, /would fetch images 1, 3 of book 5359/);
+  const r = await w.ok(["fetch", "zkusebni", "5359", "--images", "1,3", "--recordset", "B1"]);
+  assert.match(r.out, /2 image\(s\) of B0001 \(images 1, 3\) fetched and registered/);
+  assert.deepEqual(a.hits.filter((h) => h.includes("/img/")).sort(), ["/img/5359/1.jpg", "/img/5359/3.jpg"]);
+  // what strom says back is taken as it is said (an en dash, a space after the comma); nothing new here
+  assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1–1, 3", "--recordset", "B1"])).out, /registered already — nothing fetched/);
+  assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "1,x"])).code, 2);
+  w.cleanup();
+  await a.close();
+});
+
 test("connector test: a few requests, the books found, what to register them with — files in its .test folder", opts, async () => {
   const { w, a, dir } = await world();
   const r = await w.ok(["connector", "test", "zkusebni", "--find", "Týnec nad Labem", "--years", "1780-1850"]);
@@ -373,7 +388,8 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   await w.ok(["research", "new", "X", "--new-person", "Jan /Novák/"]);
   await w.ok(["task", "add", "Křest", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
   // the brief knows the book's archive has a connector the user allowed
-  assert.match((await w.ok(["brief", "T1"])).out, /no images here yet — connector zkusebni fetches the ones you need: strom fetch zkusebni <book> --images <from-to> --recordset B0001/);
+  // (its book unknown yet: how to find it)
+  assert.match((await w.ok(["brief", "T1"])).out, /no images here yet — the connector fetches the ones you need\n {4}fetch: zkusebni <book: its ID on the portal — strom fetch zkusebni --find "<place>" lists them> — strom fetch zkusebni <book> --images <from-to> --recordset B0001\n/);
   await w.ok(["task", "wait", "T1", "--on", "images 1–3 of B0001"]);
   const dry = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1", "--dry-run"]);
   assert.match(dry.out, /dry run: would fetch images 1–3 of book 5359 as images of B0001 through zkusebni — nothing was fetched/);
@@ -392,6 +408,17 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   assert.equal(m.image, 2);
   assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
   assert.deepEqual(fs.readdirSync(path.join(w.cwd, ".strom", "fetch")), [], "the work folder is gone");
+  // the brief: the book known from its images, in the form fetch takes it; another book of the archive by its address
+  assert.match((await w.ok(["brief", "T1"])).out, /\n {4}images registered \(3\): 1–3 · [^\n]*\n {4}fetch: zkusebni 5359 — strom fetch zkusebni 5359 --images <from-to> --recordset B0001\n/);
+  await w.ok(["recordset", "add", "Týnec Z 1784–1820", "--kinds", "burial", "--url", `${a.base}/book/6012`]); // B0002
+  await w.ok(["recordset", "add", "Týnec, katalog", "--kinds", "index", "--url", `${a.base}/catalog?place=T%C3%BDnec`]); // B0003
+  await w.ok(["task", "add", "Pohřeb", "--level", "link", "--where", "B2", "--where", "B3", "--why", "a", "--done-when", "b"]); // T2
+  const t2 = (await w.ok(["brief", "T2"])).out;
+  assert.match(t2, /\n {4}no images here yet — the connector fetches the ones you need\n {4}fetch: zkusebni 6012 — strom fetch zkusebni 6012 --images <from-to> --recordset B0002\n/);
+  // an address of another shape: no book guessed — and the whole command said once
+  assert.match(t2, /\n {4}fetch: zkusebni <book: its ID on the portal — strom fetch zkusebni --find "<place>" lists them>\n/);
+  // the sheet names the connector of the task's books
+  assert.match(t2, /\n {2}connectors of these places: zkusebni — books of a place: strom fetch <connector> --find "<place>" --years <from-to>\n/);
   // again: nothing new
   const hits = a.hits.length;
   assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1"])).out, /images 1–3 of B0001 are registered already — nothing fetched/);

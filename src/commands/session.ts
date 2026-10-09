@@ -25,11 +25,12 @@ import { treeEdges, type Edge, type Island } from "../core/edge.ts";
 import { label, parentsOf, resolvePerson } from "../core/people.ts";
 import { storyProposals } from "../core/stories.ts";
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
-import { create, csvOpt, requireRecord, update } from "../core/records.ts";
+import { create, csvOpt, normId, requireRecord, update } from "../core/records.ts";
 import { finishTask, offTreeLine, taskQueue, waitingLines } from "./tasks.ts";
 import { resolveResearch } from "./research.ts";
 import { writeGedcoms } from "./output.ts";
 import { syncAgentFiles } from "../agents/files.ts";
+import { claudeAgentsFile } from "../agents/scanreader.ts";
 import { setTreeSetting } from "./setup.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { PROFILES } from "../agents/profiles.ts";
@@ -176,11 +177,13 @@ register(
     description:
       "The task must be done, parked or waiting — or --continue returns it to the queue for the next session.\n" +
       "--done \"<result>\" closes the session's task with its result first (strom task done in the same call); its result\n" +
-      "is the summary unless --summary says more.",
+      "is the summary unless --summary says more. --also-done T…: another open task this session's work fulfilled as well\n" +
+      "(the same baptism, the same parents) — closed with the result too, so it is not done again.",
     args: [{ name: "session", description: "session ID (default: the open one)" }],
     options: [
       { name: "done", type: "string", value: "<result>", description: "the session's task is done: its result (a complete negative search is a result)" },
       { name: "produced", type: "string", multiple: true, value: "<ID>", description: "with --done: records created (sources, events, searches…)" },
+      { name: "also-done", type: "string", multiple: true, value: "<T…>", description: "another open task this session fulfilled as well: closed with the result (repeatable)" },
       { name: "summary", type: "string", value: "<text>", description: "what was proven, what was searched in vain (with --done: its result when not given)", max: 2000 },
       { name: "next", type: "string", value: "<text>", description: "the next cheapest step", max: 1000 },
       { name: "continue", type: "boolean", description: "the task is not finished: back to the queue with --next as handover" },
@@ -201,6 +204,20 @@ register(
       if (opts.done !== undefined && !done) throw new UsageError("--done needs the task's result", { hint: 'e.g. --done "baptism found: parents Josef and Marie" — or not found, where it was searched completely' });
       if (done && (opts.continue || opts.interrupted)) throw new UsageError("--done closes the task: not with --continue or --interrupted");
       if (!done && csvOpt(opts.produced).length) throw new UsageError("--produced goes with --done", { hint: `strom task done ${s.task ?? "T…"} --result "…" --produced S…` });
+      // other tasks the session's work fulfilled as well (N0185: a task offered again after another session did it)
+      const also = csvOpt(opts["also-done"]).map((x) => normId(x, "task"));
+      const alsoResult = done ?? String(opts.summary ?? "").trim();
+      if (also.length) {
+        if (opts.interrupted) throw new UsageError("--also-done goes with --done or --summary, not --interrupted");
+        if (!alsoResult) throw new UsageError("--also-done needs the result", { hint: `strom session close --done "…" --next "…" --also-done ${also[0]}` });
+        const held = othersAtWork(tree).tasks;
+        for (const id of also) {
+          if (id === s.task) throw new UsageError(`${id} is this session's own task`, { hint: '--done "<result>" closes it' });
+          const t = requireRecord<Task>(tree, id, "task");
+          if (held.has(id)) throw new UsageError(`${id} is being worked on in another session`, { hint: "only tasks nobody holds: strom task list" });
+          if (t.state === "done" || t.state === "dropped") throw new UsageError(`${id} is ${t.state} already`, { hint: "leave it out of --also-done" });
+        }
+      }
       let finished: { task: Task; said: string[] } | undefined;
       if (done) {
         if (!s.task) throw new UsageError(`${s.id} has no task to close`, { hint: 'strom session close --summary "…" --next "…"' });
@@ -209,6 +226,7 @@ register(
         const t = requireRecord<Task>(tree, s.task, "task");
         if (t.state !== "done") finished = finishTask(tree, t.id, done, csvOpt(opts.produced));
       }
+      const alsoDone = also.map((id) => finishTask(tree, id, `fulfilled in ${s.id}${s.task ? ` (${s.task})` : ""}: ${alsoResult}`, csvOpt(opts.produced)));
       const closed = closeSession(tree, s, {
         summary: String(opts.summary ?? (done ? (finished?.task.result ?? done) : "")),
         next: String(opts.next ?? ""),
@@ -227,13 +245,14 @@ register(
         text: lines(
           written(tree),
           ...(finished?.said ?? []),
+          ...alsoDone.flatMap((a) => a.said),
           ged ? `GEDCOM ${geds.map((g) => ctx.display(g.file)).join(" · ")}: ${ged.stats.persons} persons, ${ged.stats.families} families` : byRun ? "GEDCOM: exported by strom run when the session ends" : undefined,
           newTasks.length ? `${newTasks.length} new task(s) from the research frontier` : undefined,
           offMap(tree),
           // In a conversation, the next task is best begun in a fresh context: all of this one is in strom.
           !s.runner && ctx.env.STROM_NONINTERACTIVE !== "1" ? freshContext(ctx, tree, s) : undefined,
         ),
-        data: { session: closed, ...(finished ? { task: finished.task } : {}), newTasks, ged: ged?.file, geds: geds.map((g) => g.file) },
+        data: { session: closed, ...(finished ? { task: finished.task } : {}), ...(alsoDone.length ? { alsoDone: alsoDone.map((a) => a.task) } : {}), newTasks, ged: ged?.file, geds: geds.map((g) => g.file) },
       };
     },
   },
@@ -247,7 +266,7 @@ register(
       const cost = (s: Session) => costText(s.metrics);
       return {
         text: all.length ? table(all.map((s) => [s.id, s.state, s.task ?? "", s.started.slice(0, 16).replace("T", " "), cost(s), truncate(s.summary ?? "", 70)])) : "no sessions yet → strom session start",
-        data: { sessions: all },
+        data: { sessions: all.map(withTotal) },
       };
     },
   },
@@ -283,7 +302,7 @@ register(
             : undefined,
           ...s.notes.map((n) => `  ${n.at.slice(11, 16)} ${n.text}`),
         ),
-        data: { session: s },
+        data: { session: withTotal(s) },
       };
     },
   },
@@ -875,6 +894,8 @@ register({
               `then \`strom session close --continue --summary "…" --next "exactly where you stopped"\` (or finish the task, if it is done).`,
           },
           settingsFile: path.join(root, ".claude", "settings.json"),
+          // the tree's scan reader, a subagent with the shell and the file reader only
+          ...(runnerId === "claude" && !opts.interactive ? { agentsFile: claudeAgentsFile(tree) } : {}),
           shared: ctx.settings.shared()?.value,
           ...(models.lead ? { model: models.lead } : {}),
           ...(opts.interactive ? { interactive: true } : {}),
@@ -1042,15 +1063,24 @@ function pause(ms: number, signal: AbortSignal): Promise<void> {
 
 /**
  * What a session cost: "$1.20"; "$0.30+" or "cost unknown" when the agent was stopped before it said; with readers
- * "$24.20 (agent $2.20 + readers $22.00)".
+ * "$24.20 (agent $2.20 + readers $22.00)". A conversation's agent never says what it cost: only its readers are known
+ * ("$0.80+ (agent unknown + 2 reader(s) $0.80)").
  */
 function costText(m: Session["metrics"]): string {
   const total = sessionCost(m);
-  const partial = costPartial(m);
+  const unknown = m?.readersUsd !== undefined && m.costUsd === undefined;
+  const partial = costPartial(m) || unknown;
   if (total === undefined) return m?.costPartial ? "cost unknown" : "";
   const said = `$${total.toFixed(2)}${partial ? "+" : ""}`;
   if (m?.readersUsd === undefined) return m?.costPartial && !m.costUsd ? "cost unknown" : said;
-  return `${said} (agent $${(m.costUsd ?? 0).toFixed(2)}${m.costPartial ? "+" : ""} + ${m.readers ?? 0} reader(s) $${m.readersUsd.toFixed(2)}${m.readersPartial ? "+" : ""})`;
+  const agent = unknown ? "agent unknown" : `agent $${(m.costUsd ?? 0).toFixed(2)}${m.costPartial ? "+" : ""}`;
+  return `${said} (${agent} + ${m.readers ?? 0} reader(s) $${m.readersUsd.toFixed(2)}${m.readersPartial ? "+" : ""})`;
+}
+
+/** A session in --json with what it cost in all (totalUsd: the agent's own and its readers'; the stored costUsd is the agent's alone). */
+function withTotal(s: Session): Session & { totalUsd?: number } {
+  const total = sessionCost(s.metrics);
+  return total === undefined ? s : { ...s, totalUsd: total };
 }
 
 /** How the user clears the agent's context, in the agent's own words. */

@@ -16,8 +16,8 @@ import { clipText, collectFiles, fileSha256, findImage, imageNumbers, imageOfRef
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { imageOf, pageOf } from "../core/calibration.ts";
-import { cropOf, describeView, ENLARGED_HINT, halves, makeView, parseCrop, partRegion, readInHalves, REDUCED_HINT, SHARPER_SCAN, viewLine, viewRegion, viewSize, type View, type ViewSpec } from "../core/views.ts";
-import { IMAGE_MAX, IMAGE_MAX_LARGE, imageMax } from "../agents/images.ts";
+import { cropOf, describeView, ENLARGED_HINT, halves, makeView, OVERVIEW_HINT, parseCrop, partRegion, readInHalves, REDUCED_HINT, SHARPER_SCAN, viewLine, viewRegion, viewSize, type View, type ViewSpec } from "../core/views.ts";
+import { IMAGE_MAX, IMAGE_MAX_LARGE, imageMax, OVERVIEW_MAX } from "../agents/images.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { detectAgent } from "../core/which.ts";
 import { listConnectors, missingConsents } from "../core/connector.ts";
@@ -221,6 +221,11 @@ interface ViewPart {
   both?: boolean;
   split?: [number, number];
   label?: string;
+}
+
+/** A whole image, shown to find an entry on it (no half, crop or grid of parts): smaller than a view to read by. */
+function isOverview(p: ViewPart): boolean {
+  return !p.half && !p.both && !p.crop && !p.split;
 }
 
 function listOf(v: unknown): string[] {
@@ -715,12 +720,14 @@ register(
     path: ["media", "view"],
     summary: "Make views of images to look at: a crop, a half page, enlarged, more contrast, a grid — several in one call",
     group: "sources",
+    sheet: `at most ${VIEW_MAX_IMAGES} images a call; a whole view finds, a crop is read — never transcribe from a whole view; a book read through: strom read`,
     tree: true,
     description:
-      `Writes the views to .strom/views/ and prints their paths: open those files with your image reader. Views are at\n` +
-      `most what your model takes in whole on the long side (${IMAGE_MAX_LARGE} px for the newer models, else ${IMAGE_MAX}) unless --scale\n` +
-      "or --max says otherwise. Browse whole images reduced; read an entry by cropping it — use --grid first to see\n" +
-      "where it is (the labels are tenths of the image).\n" +
+      `Writes the views to .strom/views/ and prints their paths: open those files with your image reader. A whole image\n` +
+      `is at most ${OVERVIEW_MAX} px on the long side, enough to find an entry; a half, a crop and the parts of --split at most\n` +
+      `what your model takes in whole (${IMAGE_MAX_LARGE} px for the newer models, else ${IMAGE_MAX}) — unless --scale or --max says\n` +
+      "otherwise. Browse whole images; read an entry by cropping it — use --grid first to see where it is (the labels\n" +
+      "are tenths of the image).\n" +
       "Several views in one call, then open all the files it lists together: several images (B0001:57 B0001:58, a range\n" +
       "B0001:57-60, B0001 --page 112 113), several parts of each (--half left --half right; --half both = the two pages\n" +
       "of a double page overlapping at the gutter, where they are sharper than one view of it, else the image whole;\n" +
@@ -732,7 +739,7 @@ register(
       { name: "half", type: "string", multiple: true, value: "<side>", description: "left or right page of a double page (top, bottom); both = the two pages, overlapping at the gutter" },
       { name: "split", type: "string", value: "<c>x<r>", description: "the image (or each half or crop) as a grid of overlapping parts, e.g. 2x3" },
       { name: "scale", type: "string", value: "<f>", description: "size of the result: 2 = twice the original pixels" },
-      { name: "max", type: "string", value: "<px>", description: `longest side when not scaled (default: what your model takes, ${IMAGE_MAX} or ${IMAGE_MAX_LARGE})` },
+      { name: "max", type: "string", value: "<px>", description: `longest side when not scaled (default: a whole image ${OVERVIEW_MAX}, a part what your model takes, ${IMAGE_MAX} or ${IMAGE_MAX_LARGE})` },
       { name: "contrast", type: "boolean", description: "stretch faded ink (on the part shown)" },
       { name: "grey", type: "boolean", description: "greyscale" },
       { name: "grid", type: "boolean", description: "overlay a grid of tenths with labels, to point at a place" },
@@ -757,14 +764,16 @@ register(
       const parts = viewParts(opts);
       const { targets, missing } = resolveTargets(tree, shared, all, args, opts, parts);
       const spec = viewSpec({ ...opts, half: undefined, crop: undefined });
-      if (spec.max === undefined) spec.max = agentViewMax(ctx, tree);
+      // a whole image to find the entry on; a part of it (a half, a crop, a grid's part) as big as the model takes it
+      const cap = spec.max ?? agentViewMax(ctx, tree);
+      const maxOf = (p: ViewPart) => (spec.max === undefined && isOverview(p) ? Math.min(OVERVIEW_MAX, cap) : cap);
       // the old call: one image, one view — said as it always was
       if (targets.length === 1 && !missing.length && parts.length === 1 && !parts[0]!.both && !parts[0]!.split) {
         const t = targets[0]!;
-        const r = oneView(ctx, tree, shared, all, t, { ...spec, half: parts[0]!.half, crop: parts[0]!.crop });
+        const r = oneView(ctx, tree, shared, all, t, { ...spec, max: maxOf(parts[0]!), half: parts[0]!.half, crop: parts[0]!.crop });
         return {
           text: lines(
-            describeView(r.v, (p) => ctx.display(p), r.fetchPart),
+            describeView(r.v, (p) => ctx.display(p), r.fetchPart, isOverview(parts[0]!)),
             r.clip ? `the source of an entry read here: --clip ${r.clip}` : undefined,
             r.sharper ? sharperLine(r.sharper, t) : undefined,
             r.page ? `page ${r.page}` : undefined,
@@ -772,14 +781,14 @@ register(
           data: viewData(t, r),
         };
       }
-      const made: { t: Target; label?: string; note?: string; r: OneView }[] = [];
+      const made: { t: Target; label?: string; note?: string; overview: boolean; r: OneView }[] = [];
       // an image that cannot be shown (its file missing) is said; the others are made
       const failed: { ref: string; error: string; hint?: string }[] = [];
       let first: unknown;
       for (const t of targets)
         try {
           for (const p of parts)
-            for (const s of partSpecs(t, p, spec.max ?? IMAGE_MAX)) made.push({ t, label: s.label, note: s.note, r: oneView(ctx, tree, shared, all, t, { ...spec, half: s.half, crop: s.crop }) });
+            for (const s of partSpecs(t, p, cap)) made.push({ t, label: s.label, note: s.note, overview: isOverview(p), r: oneView(ctx, tree, shared, all, t, { ...spec, max: maxOf(p), half: s.half, crop: s.crop }) });
         } catch (e) {
           if (!(e instanceof UsageError)) throw e;
           first ??= e;
@@ -797,7 +806,7 @@ register(
         ]),
         missing.length ? `not registered: ${missing.join(", ")} — strom media list --recordset ${missing[0]!.split(":")[0]}` : undefined,
         ...failed.map((f) => `no view of ${f.ref}: ${f.error}${f.hint ? ` → ${f.hint}` : ""}`),
-        sizes.has("reduced") ? `reduced: ${REDUCED_HINT}` : undefined,
+        sizes.has("reduced") ? `reduced: ${REDUCED_HINT}${made.some((m) => m.overview && viewSize(m.r.v) === "reduced") ? `; ${OVERVIEW_HINT}` : ""}` : undefined,
         sizes.has("enlarged") ? `enlarged: the scan has no more detail there. ${ENLARGED_HINT}; ${SHARPER_SCAN}` : undefined,
       );
       return {

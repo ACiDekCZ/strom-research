@@ -25,11 +25,55 @@ export function readAsset(...parts: string[]): string | undefined {
   }
 }
 
-/** Method text for a task level: the core plus the level's own page (+ reading for work in books). */
-export function methodFor(level: string | undefined): string {
-  const parts = [readAsset("method", "core.md")];
-  if (level) parts.push(readAsset("method", `${level}.md`));
-  if (level && ["link", "verify", "enrich"].includes(level)) parts.push(readAsset("method", "recording.md"));
-  if (level && ["link", "verify", "enrich", "intake"].includes(level)) parts.push(readAsset("method", "reading.md"));
-  return parts.filter(Boolean).join("\n");
+/** The pages of the method each level is given, besides the core and its own page. */
+export const METHOD_PAGES: Record<string, string[]> = {
+  link: ["recording.md", "reading.md"],
+  verify: ["recording.md", "reading.md"],
+  enrich: ["recording.md", "reading.md"],
+  intake: ["reading.md"],
+};
+
+/**
+ * What a part of the method may be given for besides the level: a record set of the brief comes through a connector
+ * (`connector`), one that fetches a part of an image sharper (`part`), one of them has none (`no-connector`: build one),
+ * or the user saves one's images by hand (`by-hand`: the archive allows no automation, or its connector only finds
+ * books) — a brief that names no record set has them all.
+ */
+export const METHOD_CONDITIONS = ["connector", "part", "no-connector", "by-hand"] as const;
+export type MethodCondition = (typeof METHOD_CONDITIONS)[number];
+
+const MARK = /^<!-- for ([^>]*?) -->$/u;
+const END = "<!-- end -->";
+
+/**
+ * The parts of one page of the method a level is given. A part a level does not use is marked on its page —
+ * `<!-- for link verify … -->` … `<!-- end -->` — with the levels it is for and, besides, the conditions it needs
+ * (any one of them). Unmarked text is everyone's; marks do not nest. With no level, the whole page.
+ */
+export function methodPage(text: string, level: string | undefined, conditions: readonly string[] = []): string {
+  const out: string[] = [];
+  let keep = true;
+  for (const line of text.split("\n")) {
+    const mark = MARK.exec(line);
+    if (mark) {
+      const words = mark[1]!.trim().split(/\s+/u);
+      const levels = words.filter((w) => !(METHOD_CONDITIONS as readonly string[]).includes(w));
+      const when = words.filter((w) => (METHOD_CONDITIONS as readonly string[]).includes(w));
+      // no level (a brief with no task): the whole page
+      keep = !level || ((!levels.length || levels.includes(level)) && (!when.length || when.some((w) => conditions.includes(w))));
+      continue;
+    }
+    if (line === END) {
+      keep = true;
+      continue;
+    }
+    if (keep) out.push(line);
+  }
+  return out.join("\n");
+}
+
+/** Method text for a task level: the core plus the level's own page and the pages it works by, each with the parts the level uses. */
+export function methodFor(level: string | undefined, conditions: readonly string[] = []): string {
+  const pages = ["core.md", ...(level ? [`${level}.md`, ...(METHOD_PAGES[level] ?? [])] : [])];
+  return pages.map((p) => readAsset("method", p)).filter((t): t is string => !!t).map((t) => methodPage(t, level, conditions)).join("\n");
 }

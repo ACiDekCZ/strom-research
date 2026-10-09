@@ -55,6 +55,10 @@ was), then open the next. Every image and view stays in your context to the end:
 views, write down what you found and go on. A name or place the next search depends on:
 read it again on a crop at full resolution (\`strom media view … --crop\`)
 before you record it.
+OpenCode: this tree's subagent strom-scan-reader (strom and the file reader
+only) reads on your model, or on the one the user set for handwriting: hand
+it a batch with the whole question, and record what it returns at once (a
+negative result as a search by reader).
 `;
 
 /**
@@ -84,6 +88,9 @@ comes back to you. Choose the model by the kind of work:
 | print and type: documents of the 20th century, catalogues, web pages, big text files | \`${m.text ?? "sonnet"}\` |
 | mechanical: downloads, renaming, counting, a plain grep | \`${m.cheap ?? "haiku"}\` |
 | judgement: identity, conflicts, which task next, writing to strom | nobody — you |
+
+Scans are read by this tree's subagent type \`strom-scan-reader\` (strom and the
+file reader only, so it starts small); the model above still holds.
 
 ${DELEGATION_RULES}
 - Send independent batches in ONE message so they run in parallel.

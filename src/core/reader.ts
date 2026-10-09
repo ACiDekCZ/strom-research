@@ -97,7 +97,8 @@ ${o.images.some((i) => i.halves) ? "A double page comes as its two halves, each 
   .join("\n")}
 
 THE REPORT
-Write your report to ${o.report} AS YOU GO — after every image, not at the end.
+Write your report to ${o.report} AS YOU GO — after every image, not at the end. Its first lines are
+strom's: keep them as they are and write below them.
 For every image, this block (in ${o.lang === "en" ? "English" : `the research language (${o.lang})`}; transcriptions in the language of the record;
 the words "Image", "result", "found", "nothing", "unclear", "entries", "illegible", "hand", "certainty", "pages",
 "gaps", "section" and "done" stay in English — strom reads them):

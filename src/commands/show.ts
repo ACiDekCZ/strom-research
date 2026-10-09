@@ -3,6 +3,7 @@
 // (strom find): an old code of a converted research, a word.
 
 import { register, match, type Result } from "../cli/registry.ts";
+import { SHOW_OF } from "../cli/execute.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
 import { StromError, UsageError } from "../core/errors.ts";
@@ -11,24 +12,6 @@ import { findEventOwner } from "../core/actions.ts";
 import { normId, requireRecord } from "../core/records.ts";
 import { typeOfId } from "../core/tree.ts";
 import { eventLine } from "./people.ts";
-
-/** The show command of each kind of record (by its ID's letter); lessons and events are shown here. */
-const SHOW_OF: Record<string, string[]> = {
-  G: ["research", "show"],
-  P: ["person", "show"],
-  F: ["family", "show"],
-  S: ["source", "show"],
-  R: ["repo", "show"],
-  B: ["recordset", "show"],
-  L: ["place", "show"],
-  Q: ["search", "show"],
-  T: ["task", "show"],
-  X: ["conflict", "show"],
-  H: ["hypothesis", "show"],
-  I: ["input", "show"],
-  N: ["session", "show"],
-  M: ["media", "show"],
-};
 
 function showLesson(ctx: Context, id: string): Result {
   const l = requireRecord<Lesson>(ctx.tree(), id, "lesson");

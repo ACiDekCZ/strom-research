@@ -142,7 +142,7 @@ register({
           media: l.media,
           title: s.title,
           words: s.transcript ? truncate(s.transcript.replace(/\s+/g, " "), 400) : undefined,
-          view: makeView(tree, path.join(shared, m.file), m.id, { crop: regionText(withMargin(l.region)) }).file,
+          view: makeView(tree, path.join(shared, m.file), m.id, { crop: regionText(withMargin(l.region)), max: viewMax }).file,
         };
       });
       const checkGroups = batches(checks, size);

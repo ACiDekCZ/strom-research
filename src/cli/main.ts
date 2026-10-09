@@ -4,7 +4,7 @@
 import { Cancelled, EXIT, StromError, UsageError } from "../core/errors.ts";
 import { ownCommand, type Env } from "../core/paths.ts";
 import { Context, type IO } from "./context.ts";
-import { commands, type CommandDef, type Result } from "./registry.ts";
+import { commands, match, type CommandDef, type Result } from "./registry.ts";
 import { asCommand, asCommandJson } from "./format.ts";
 import { groupHelpAs, helpAs } from "./help.ts";
 import { autoCommit } from "./commit.ts";
@@ -26,7 +26,7 @@ import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishAsked } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
-import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, splitPassthrough, usageOf } from "./execute.ts";
+import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, severalRecords, splitPassthrough, usageOf } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
 import { catalog, localized, sayCommandAs } from "../core/phrases.ts";
 import "../commands/index.ts";
@@ -267,7 +267,9 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       }
     }
     const args = parsed.positionals;
-    checkArgs(def, args);
+    // several IDs to a show command of one record (person show P0001 P0002): each shown in turn, as strom show does
+    const shows = severalRecords(def, args) ? match(["show"])?.def : undefined;
+    if (!shows) checkArgs(def, args, parsed.fix, own);
 
     if (def.writes && v["dry-run"]) ctx.dryRun = true;
     const work = async (): Promise<Result> => {
@@ -275,7 +277,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       if (def.writes && def.tree) assertIntact(ctx.tree());
       let result: Result;
       try {
-        result = await def.run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}) });
+        result = await (shows ?? def).run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}) });
       } catch (err) {
         // A writing command is a transaction: on failure nothing it wrote remains.
         const t = def.writes ? ctx.current() : undefined;

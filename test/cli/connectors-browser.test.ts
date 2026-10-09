@@ -185,7 +185,7 @@ test("through the browser: the connector says where the images are, strom plans 
 
   // back to direct: strom fetches it itself
   await w.ok(["connector", "use", "zkusebni", "--via", "direct"]);
-  assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "3", "--recordset", "B1"])).out, /1 image\(s\) of B0001 \(images 3–3\) fetched and registered/);
+  assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "3", "--recordset", "B1"])).out, /1 image\(s\) of B0001 \(images 3\) fetched and registered/);
   w.cleanup();
   await a.close();
 });

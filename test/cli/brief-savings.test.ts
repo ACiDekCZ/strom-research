@@ -6,9 +6,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { World, hasGit } from "../helpers.ts";
+import { World, hasGit, fakeConnector, readJsonFile } from "../helpers.ts";
 import "../../src/commands/index.ts";
-import { commands } from "../../src/cli/registry.ts";
+import { commands, WRITE_OPTIONS } from "../../src/cli/registry.ts";
+import { commandSheet } from "../../src/brief/sheet.ts";
 import { PROFILES, SELF_READING } from "../../src/agents/profiles.ts";
 
 const opts = { skip: !hasGit };
@@ -85,6 +86,79 @@ test("brief: a search of the surname elsewhere and long before is counted, not l
   w.cleanup();
 });
 
+test("brief: a lesson of a family goes with a task that names its names, a look-alike of its person's surname, its book or the material it takes in", opts, async () => {
+  const w = await family();
+  await w.ok(["person", "add", "Josef /Hrabálek/", "--sex", "M"]); // P8
+  await w.ok(["person", "add", "Anna /Hrabánková/".normalize("NFD"), "--sex", "F"]); // P9, decomposed
+  await w.ok(["person", "add", "Петро /Кравчук/", "--sex", "M"]); // P10
+  await w.ok(["lesson", "add", "Hrabálek a Kraválek se v knize pletou"]);
+  await w.ok(["lesson", "add", "Rod Hrabálek z Hájku je jiný než ten z mlýna"]);
+  await w.ok(["lesson", "add", "Кравчук пишеться також Krawczuk", "--detail", "Видно в B0001, знімок 4."]);
+  await w.ok(["lesson", "add", "Кравчук у книгах буває Кровчук"]);
+  await w.ok(["task", "add", "Svědek Kraválek, nebo Novák?", "--level", "verify", "--where", "B1", "--why", "a", "--done-when", "b", "--about", "P1"]); // T2
+  await w.ok(["task", "add", "Křest Anny", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b", "--about", "P9"]); // T3
+  await w.ok(["task", "add", "Свідок Кровчук чи Кравчик?", "--level", "verify", "--where", "метричні книги", "--why", "a", "--done-when", "b", "--about", "P7"]); // T4
+  const known = async (t: string) => section((await w.ok(["brief", t])).out, "## Already known");
+  // a name of the lesson the task's own text gives — the family itself not named there
+  const t2 = await known("T2");
+  assert.match(t2, /Hrabálek a Kraválek se v knize pletou/u);
+  assert.doesNotMatch(t2, /Rod Hrabálek z Hájku/u);
+  // a look-alike of the surname of the task's person, written decomposed: the same name read otherwise
+  const t3 = await known("T3");
+  assert.match(t3, /Rod Hrabálek z Hájku/u);
+  assert.doesNotMatch(t3, /Kraválek/u, "a name two letters off a short one is another family");
+  // the lesson's detail names the task's book
+  assert.match(t2, /Кравчук пишеться також Krawczuk/u);
+  // another script: the name in the task's text
+  const t4 = await known("T4");
+  assert.match(t4, /Кравчук у книгах буває Кровчук/u);
+  assert.doesNotMatch(t4, /Hrabálek/u);
+  // none of it for a task that names none of it
+  const t1 = await known("T1");
+  assert.doesNotMatch(t1, /Hrabálek|Кравчук у книгах/u);
+  // the material an intake task takes in names the family
+  const file = path.join(w.home, "pameti.txt");
+  fs.writeFileSync(file, "Paměti: rod Hrabálek z Hájku, mlynáři.\n".normalize("NFD"));
+  await w.ok(["intake", file]);
+  const intake = (await w.ok(["task", "list", "--json"])).json.tasks.find((t: any) => t.level === "intake");
+  assert.match(await known(intake.id), /Rod Hrabálek z Hájku/u);
+  w.cleanup();
+});
+
+test("brief: a connector of the book's archive that only finds books, keeps to the archive's terms or goes through the browser is said as it is — never as none to build", opts, async () => {
+  const w = await family();
+  const dir = await fakeConnector(w, "hledac");
+  const manifest = path.join(dir, "connector.json");
+  const m = readJsonFile(manifest);
+  const set = (x: Record<string, unknown>) => fs.writeFileSync(manifest, JSON.stringify({ ...m, ...x }, null, 2));
+  await w.ok(["recordset", "add", "Hájek N 1780-1800", "--places", "Hájek", "--url", "https://archive.example.org/book/77", "--access", "online-free"]); // B2
+  await w.ok(["recordset", "add", "Ves N 1780-1800", "--places", "Ves", "--url", "https://other.example.net/b/1", "--access", "online-free"]); // B3
+  await w.ok(["task", "add", "Křest v Hájku", "--level", "link", "--where", "B2", "--why", "a", "--done-when", "b", "--about", "P1"]); // T2
+  await w.ok(["task", "add", "Křest ve Vsi", "--level", "link", "--where", "B3", "--why", "a", "--done-when", "b", "--about", "P1"]); // T3
+  // it only finds books: the images come by hand
+  set({ can: ["find", "list"] });
+  let brief = (await w.ok(["brief", "T2"])).out;
+  assert.match(section(brief, "## Record sets"), /no images here yet — its connector hledac only finds books and fetches no images — the user saves the images by hand: strom task wait <T…> --images B0002:<numbers>/u);
+  assert.doesNotMatch(brief, /no connector for this archive|build one — now, you/u);
+  assert.match(brief, /where its connector only finds books[\s\S]*Write `--on` for the user/u);
+  // the archive's terms allow no automation
+  set({ policy: { automation: "manual" } });
+  brief = (await w.ok(["brief", "T2"])).out;
+  assert.match(brief, /the archive's terms allow no automation: its connector hledac finds books and gives their links — the user saves the images by hand: strom task wait/u);
+  assert.doesNotMatch(brief, /no connector for this archive|build one — now, you/u);
+  // through the user's browser: strom fetch plans it, by hand without browser tools
+  set({ can: ["find", "list", "locate"], routes: ["browser"] });
+  brief = (await w.ok(["brief", "T2"])).out;
+  assert.match(section(brief, "## Record sets"), /\n {4}fetch: hledac <book[^\n]*\n {4}through the user's browser: strom plans the requests, an agent's browser tools get the images \(without them the user saves them by hand: strom task wait <T…> --images B0002:<numbers> --on "…"\)/u);
+  assert.match(brief, /\*\*No images here yet:\*\* the book's connector fetches them/u);
+  assert.doesNotMatch(brief, /no connector for this archive|build one — now, you/u);
+  // an archive with none: build one
+  const none = (await w.ok(["brief", "T3"])).out;
+  assert.match(none, /no images here yet, and no connector for this archive — build one now/u);
+  assert.match(none, /The archive has no connector yet: build one — now, you\./u);
+  w.cleanup();
+});
+
 test("brief: a relative's other names, the day of a birth and a baptism, the start of the last note — namesakes told apart (K5)", opts, async () => {
   const w = await family();
   // the mother's other forms: a spelling with an accent of its own, decomposed, and her married name
@@ -146,18 +220,27 @@ test("brief: the commands of the task's level, every option and limit from the r
   assert.match(sheet, /strom task add <what ≤200> --level intake\|locate\|link\|[^\n]*--done-when <text ≤500>/);
   assert.match(sheet, /strom lesson add <rule ≤200>/);
   assert.match(sheet, /strom note add <id> <text ≤500>/);
+  // the mistakes that cost a turn most, said once; a command's own, after it
+  assert.match(sheet, /^ {2}values with spaces in quotes \(--note "two words"\); a repeatable option once per value \(--found S0001 --found S0002\); a batch file in notes\/: change it with your file-editing tool, not sed$/m);
+  // a status: a fact's only, proven only with primary information (N0190, N0191)
+  assert.match(sheet, /^ {2}--status is a fact's \(E…\) only, never a name's or a family's; proven only with a record of the time read directly \(--information primary\), else probable$/m);
+  assert.match(sheet, /--note <text ≤500> — found: the source first \(in a batch source add … #s, then --found @s\)$/m);
   // every line names a command and only its options
-  for (const line of sheet.split("\n").slice(1).filter((l) => l.trim())) {
+  for (const line of sheet.split("\n").slice(1).filter((l) => l.trim().startsWith("strom "))) {
     const words = line.trim().split(" ");
     const def = commands().find((c) => c.path.every((p, i) => words[i + 1] === p) && words[c.path.length + 1] !== undefined && !/^[a-z]+$/u.test(words[c.path.length + 1]!));
     assert.ok(def, `no command: ${line}`);
-    for (const o of line.matchAll(/ --([\p{L}-]+)/gu)) {
+    // (what an edit shares with its add is said in brackets, as the add's)
+    for (const o of line.replace(/\[[^\]]*'s options[^\]]*\]/u, "").matchAll(/ --([\p{L}-]+)/gu)) {
       if (/^\(with$/u.test(line.slice(0, o.index).split(" ").at(-1) ?? "")) continue;
-      assert.ok(def.options?.some((x) => x.name === o[1]), `${def.path.join(" ")} has no --${o[1]}`);
+      assert.ok([...(def.options ?? []), ...WRITE_OPTIONS].some((x) => x.name === o[1]), `${def.path.join(" ")} has no --${o[1]}`);
     }
   }
   // a story task gets its own command, a link task not
   assert.doesNotMatch(sheet, /story set/);
+  // a task that writes no facts from records is not told of their status
+  assert.doesNotMatch(commandSheet("narrate"), /--status is/);
+  assert.match(commandSheet("verify"), /--status is a fact's/);
   w.cleanup();
 });
 

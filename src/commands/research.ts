@@ -16,7 +16,7 @@ import { ancestorGenerations, displayName, label, lifespan, parentsOf, resolvePe
 import { foldText } from "../core/text.ts";
 import { now, type Tree } from "../core/tree.ts";
 import { directionOf, scopes } from "../core/directions.ts";
-import { update } from "../core/records.ts";
+import { otherKind, otherKindHint, update } from "../core/records.ts";
 import { isAgent } from "../core/which.ts";
 import { costPartial, sessionCost } from "../core/session.ts";
 
@@ -34,7 +34,10 @@ export function resolveResearch(tree: Tree, ref: string): Research {
   if (byId) return byId;
   const hits = all.filter((r) => foldText(r.name).includes(foldText(ref)));
   if (hits.length === 1) return hits[0]!;
-  if (hits.length === 0) throw new UsageError(`no research "${ref}"`, { hint: "strom research list" });
+  if (hits.length === 0) {
+    const other = otherKind(ref, "research");
+    throw new UsageError(`no research "${ref}"`, { hint: other ? otherKindHint(other) : "strom research list" });
+  }
   throw new UsageError(`"${ref}" matches ${hits.length} researches`, { hint: hits.map((r) => `${r.id} ${r.name}`).join(" · ") });
 }
 

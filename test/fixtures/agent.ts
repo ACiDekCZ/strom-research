@@ -13,7 +13,7 @@ const prompt = process.env.STROM_PROMPT ?? "";
 
 // A reader (strom read): opens nothing, writes a report — a find on the first image of the batch.
 if (process.env.STROM_READER === "1") {
-  const { appendFileSync } = await import("node:fs");
+  const { appendFileSync, writeFileSync } = await import("node:fs");
   const report = /Write your report to (.+?) AS YOU GO/.exec(prompt)?.[1];
   // strom clips: where each entry is (every entry found at the same place), then the check (a title with "cizí" is the wrong entry, "úzký" cut off once)
   if (prompt.includes("find that entry on it")) {
@@ -52,6 +52,11 @@ if (process.env.STROM_READER === "1") {
   const images = [...prompt.matchAll(/^- (M\d{4}) · image (\d+)/gm)].map((m) => ({ id: m[1]!, n: m[2]! }));
   if (process.env.AGENT_MODE === "reader-silent") {
     console.log(`## Image ${images[0]!.n} · ${images[0]!.id}\nresult: nothing`);
+    process.exit(0);
+  }
+  // a reader that writes its report whole, its own head in the research language (strom's head gone)
+  if (process.env.AGENT_MODE === "reader-own-head") {
+    writeFileSync(report!, `# Čtení ${images[0]!.id} · snímek ${images[0]!.n}\n\nOtázka: celý přepis\n\n## Image ${images[0]!.n} · ${images[0]!.id}\nresult: found\nentries: Franz · 18. Oktober · Haus 13\n\n`);
     process.exit(0);
   }
   // a richer report: a possible match only in what was illegible, a gap in the page numbering

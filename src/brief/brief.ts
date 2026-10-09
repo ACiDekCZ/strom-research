@@ -19,7 +19,8 @@ import { briefClock } from "../core/clock.ts";
 import { calibrationLine } from "../core/calibration.ts";
 import { taskRecordsets } from "../core/frontier.ts";
 import { reviewItems } from "../core/review.ts";
-import { readyConnectors } from "../core/connector.ts";
+import { listConnectors, missingConsents, readyConnectors, routeOf, type Connector } from "../core/connector.ts";
+import { hostAllowed } from "../core/net.ts";
 import { runs, shellArg } from "../cli/format.ts";
 import { commandSheet } from "./sheet.ts";
 import { foldText } from "../core/text.ts";
@@ -228,13 +229,88 @@ function stem(name: string): string | undefined {
   return [...s].length >= 4 ? s : undefined;
 }
 
+/** A word that may be a name: written with a capital, or in a script without capitals. */
+const NAME_START = /^[\p{Lu}\p{Lt}\p{Lo}]/u;
+
+/**
+ * The names a text gives, folded: its words written with a capital (or in a script without capitals) — with
+ * `inner`, not those that start a sentence ("Stará kniha…" names nothing).
+ */
+function textNames(text: string, inner = false): string[] {
+  const out: string[] = [];
+  const t = text.normalize("NFC");
+  for (const m of t.matchAll(/[\p{L}\p{M}\p{N}]+/gu)) {
+    if (!NAME_START.test(m[0])) continue;
+    if (inner) {
+      // what stands before it, past spaces, quotes and brackets: nothing or the end of a sentence
+      const before = t.slice(Math.max(0, m.index - 12), m.index).replace(/[\s\p{Pi}\p{Pf}\p{Ps}"'„“”‚‘’«»]+$/u, "");
+      if (!before || /[.!?:;\n]$/u.test(before)) continue;
+    }
+    out.push(foldText(m[0]));
+  }
+  return out;
+}
+
+/** Two folded names that may be one read otherwise: at most one letter apart (six letters and more), two (eight). */
+function lookAlike(a: string, b: string): boolean {
+  if (a === b) return true;
+  const x = [...a];
+  const y = [...b];
+  const max = Math.min(x.length, y.length) >= 8 ? 2 : Math.min(x.length, y.length) >= 6 ? 1 : 0;
+  if (!max || Math.abs(x.length - y.length) > max) return false;
+  let prev = Array.from({ length: y.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= x.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= y.length; j++) row[j] = Math.min(prev[j]! + 1, row[j - 1]! + 1, prev[j - 1]! + (x[i - 1] === y[j - 1] ? 0 : 1));
+    if (Math.min(...row) > max) return false;
+    prev = row;
+  }
+  return prev[y.length]! <= max;
+}
+
+/** What the material of an intake task says, for the lessons it needs: its words, or unknown (an image, a document). */
+interface MaterialText {
+  texts: string[];
+  /** Some of it strom cannot read: every lesson of the project goes with it. */
+  unknown: boolean;
+}
+
+/** The largest file of the material read for its names alone (not shown). */
+const MATERIAL_READ = 5_000_000;
+
+function materialText(tree: Tree, inputs: Input[]): MaterialText {
+  const texts: string[] = [];
+  let unknown = false;
+  for (const i of inputs) {
+    texts.push(i.name, ...i.notes.map((n) => n.text));
+    for (const id of i.persons ?? []) {
+      const p = tree.get<Person>(id);
+      if (p?.type === "person") texts.push(...p.names.map((n) => n.surname ?? ""));
+    }
+    if (i.text) {
+      texts.push(i.text);
+      continue;
+    }
+    const file = inputPath(tree, i);
+    const readable = (i.kind === "text" || i.kind === "tree") && file && (i.size ?? 0) <= MATERIAL_READ;
+    const text = readable ? readSmall(file) : undefined;
+    if (text !== undefined) texts.push(text);
+    else unknown = true;
+  }
+  return { texts, unknown };
+}
+
 /**
  * Which lessons of the whole project (no record set, archive or place of their own) go with a task: one naming a
  * family or a place of this tree goes with a task of that family or place (its text, its people, their facts, its
- * books); one naming none of them is general and goes with every task. A name told in a lesson's own words
- * ("Dvořákovi", "u Lhoty") is known by its stem; one not recognised keeps the lesson in — never a lesson lost.
+ * books, the material it takes in); one naming none of them is general and goes with every task. A name told in a
+ * lesson's own words ("Dvořákovi", "u Lhoty") is known by its stem; one not recognised keeps the lesson in — never a
+ * lesson lost. A lesson that names a family goes with a task besides when its rule or detail names — beyond the first
+ * word of a sentence — a name the task's text gives, a look-alike of a task's person's surname (one or two letters
+ * apart: a reading of the same name), or one of the task's books ("Lhota 03", B0001).
  */
-function projectLessonFit(tree: Tree, task: Task | undefined, persons: Person[], where: string[]): (l: Lesson) => boolean {
+function projectLessonFit(tree: Tree, task: Task | undefined, persons: Person[], where: string[], material?: MaterialText): (l: Lesson) => boolean {
+  if (material?.unknown) return () => true;
   const known = new Set<string>();
   const add = (n: string | undefined) => {
     if (!n) return;
@@ -247,38 +323,186 @@ function projectLessonFit(tree: Tree, task: Task | undefined, persons: Person[],
   for (const p of tree.list<Person>("person")) if (!p.retracted) for (const n of p.names) add(n.surname);
   for (const pl of tree.list<Place>("place")) for (const n of pl.names) add(n.name);
   for (const b of tree.list<RecordSet>("recordset")) for (const n of b.places ?? []) add(n);
+  // given names say no family: "Anna" in a task and in a lesson is no reason to join them
+  const given = new Set(tree.list<Person>("person").flatMap((p) => p.names.flatMap((n) => foldedWords(n.given ?? ""))));
   const books = where.map((w) => tree.get<RecordSet>(w)).filter((b): b is RecordSet => !!b && b.type === "recordset");
-  const context = new Set(foldedWords([
-    task ? [task.what, task.why, task.doneWhen, ...task.where, ...task.notes.map((n) => n.text)].join(" ") : "",
+  const taskTexts = task ? [task.what, task.why, task.doneWhen, ...task.where, ...task.notes.map((n) => n.text)] : [];
+  const context = [...new Set(foldedWords([
+    ...taskTexts,
+    ...(material?.texts ?? []),
     ...books.flatMap((b) => [b.title, ...(b.places ?? [])]),
     ...persons.flatMap((p) => [...p.names.map((n) => `${n.given} ${n.surname}`), ...p.events.map((e) => e.place ?? "")]),
     ...persons.flatMap((p) => parentsOf(tree, p.id).flatMap((x) => x.names.map((n) => n.surname))),
-  ].join(" ")));
+  ].join(" ")))];
+  const knownList = [...known];
+  // the names the task gives in its own words, and the surnames of its people in their forms
+  const names = new Set([...taskTexts, ...(material?.texts ?? [])].flatMap((t) => textNames(t, true)).filter((w) => [...w].length >= 4 && !given.has(w)));
+  const surnames = [...new Set(persons.flatMap((p) => p.names.flatMap((n) => (n.surname ? [...surnameForms(n.surname)] : []))))];
+  // a book as a lesson names it: the start of its title ("Lhota 03, N 1700–1750" → "lhota 03"), or its ID
+  const bookNames = books.flatMap((b) => {
+    const head = foldedWords(b.title.split(",")[0] ?? "").join(" ");
+    return [b.id.toLowerCase(), ...(head.includes(" ") || /\p{N}/u.test(head) ? [head] : [])];
+  });
   return (l) => {
     // the names it gives: words written with a capital that are a family or a place of this tree
-    const names = l.rule.normalize("NFC").split(/[^\p{L}\p{M}\p{N}]+/u).filter((w) => /^\p{Lu}/u.test(w)).map((w) => foldText(w));
-    const its = [...known].filter((k) => names.some((w) => w.startsWith(k)));
-    return its.length === 0 || its.some((k) => [...context].some((w) => w.startsWith(k)));
+    const rule = textNames(l.rule);
+    if (!knownList.some((k) => rule.some((w) => w.startsWith(k)))) return true;
+    // and those of its detail, past the first word of a sentence ("Stará kniha…")
+    const text = [l.rule, l.detail ?? ""].join("\n");
+    const inner = textNames(text, true).filter((w) => !given.has(w));
+    const all = [...rule, ...inner];
+    if (knownList.some((k) => all.some((w) => w.startsWith(k)) && context.some((w) => w.startsWith(k)))) return true;
+    if (inner.some((w) => names.has(w) || surnames.some((s) => lookAlike(w, s)))) return true;
+    const words = ` ${foldedWords(text).join(" ")} `;
+    return bookNames.some((b) => words.includes(` ${b} `));
   };
 }
 
-/** How many images of a record set are registered, and how to look at them. */
-function imagesLine(tree: Tree, b: RecordSet, shared: string | undefined): string {
+/** The connectors of an address: those that get its images now, or every one installed for it. */
+type Ready = (url: string | undefined) => Connector[];
+
+/** Its images come through the user's browser: strom plans the requests from where the connector says they are. */
+function viaBrowser(tree: Tree, c: Connector): boolean {
+  return routeOf(tree.env, c).via === "browser" && c.manifest.can.includes("locate");
+}
+
+/**
+ * The connectors that get an address's images now — fetched by strom, or planned through the user's browser — asked
+ * once per host in a brief.
+ */
+function readyFor(tree: Tree, shared: string | undefined, installed: Ready): Ready {
+  const byHost = new Map<string, Connector[]>();
+  return (url) => {
+    const host = url && URL.canParse(url) ? new URL(url).hostname : undefined;
+    if (!host) return [];
+    if (!byHost.has(host)) {
+      const direct = readyConnectors(tree.env, shared, url!);
+      const browser = installed(url).filter((c) => !direct.some((d) => d.name === c.name) && viaBrowser(tree, c) && c.manifest.policy.automation !== "manual" && !missingConsents(tree.env, c).code && !missingConsents(tree.env, c).hosts.length);
+      byHost.set(host, [...direct, ...browser]);
+    }
+    return byHost.get(host)!;
+  };
+}
+
+/** Every connector installed for an address's host, whatever it can — those that fetch first. */
+function installedFor(shared: string | undefined): Ready {
+  let all: Connector[] | undefined;
+  return (url) => {
+    const host = url && URL.canParse(url) ? new URL(url).hostname : undefined;
+    if (!host) return [];
+    all ??= listConnectors(shared);
+    const mine = all.filter((c) => hostAllowed(host, c.manifest.hosts));
+    return [...mine.filter((c) => c.manifest.can.includes("fetch")), ...mine.filter((c) => !c.manifest.can.includes("fetch"))];
+  };
+}
+
+/**
+ * The connector of a record set's archive that gets none of its images now — said as what it is, never as none (an
+ * agent told "no connector" builds a second one): it only finds books (`search`), the archive's terms allow no
+ * automation (`manual`), or it gets them once the user allows it (`consent`: strom fetch asks them).
+ */
+interface Finder {
+  connector: string;
+  why: "search" | "manual" | "consent";
+}
+
+function bookFinder(tree: Tree, b: RecordSet, installed: Ready): Finder | undefined {
+  const all = installed(b.url);
+  const c = all.find((x) => x.manifest.can.includes("fetch") || viaBrowser(tree, x)) ?? all[0];
+  if (!c) return undefined;
+  const why = c.manifest.policy.automation === "manual" ? "manual" : c.manifest.can.includes("fetch") || viaBrowser(tree, c) ? "consent" : "search";
+  return { connector: c.name, why };
+}
+
+/** The user saves a record set's images by hand: the command that asks them (the whole of it once in a brief). */
+function byHandAsk(b: RecordSet, whole: boolean): string {
+  return `strom task wait <T…> --images ${b.id}:<numbers> --on "${whole ? "<for the user, in their language: the book, its link, which images as its viewer counts them>" : "…"}"`;
+}
+
+/** What a finder of a record set means for its images. */
+function finderText(f: Finder, b: RecordSet): string {
+  if (f.why === "consent") return `its connector ${f.connector} fetches them once the user allows it — strom fetch ${f.connector} <book> --images <from-to> --recordset ${b.id} asks them`;
+  const what = f.why === "manual" ? `the archive's terms allow no automation: its connector ${f.connector} finds books and gives their links` : `its connector ${f.connector} only finds books and fetches no images`;
+  return `${what} — the user saves the images by hand`;
+}
+
+/** A record set's images come through a connector: which one, and its ID of the book where the research knows it. */
+interface BookRoute {
+  connector: string;
+  book?: string;
+  /** It fetches a part of an image sharper. */
+  part: boolean;
+  /** Through the user's browser: strom plans it, an agent's browser tools get them. */
+  browser: boolean;
+}
+
+/**
+ * The connector of a record set (none where its archive allows no automation), and the book as the connector knows it:
+ * from the images it fetched for the record set before, else from the record set's address — where the books the
+ * research fetched through it stand in their own record sets' addresses: the same site, the same path before it
+ * ("/d/<book>/…"); never guessed from an address of another shape.
+ */
+function bookRoute(tree: Tree, b: RecordSet, ready: Ready): BookRoute | undefined {
+  const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
+  if (repo?.automation === "forbidden" || repo?.automation === "manual") return undefined;
+  const c = ready(b.url)[0];
+  if (!c) return undefined;
+  const part = c.manifest.can.includes("part");
+  const browser = routeOf(tree.env, c).via === "browser";
+  const media = tree.list<Media>("media").filter((m) => m.fetched?.connector === c.name && m.recordset);
+  const own = media.find((m) => m.recordset === b.id)?.fetched?.book;
+  if (own) return { connector: c.name, book: own, part, browser };
+  const parts = (url: string | undefined) => (url && URL.canParse(url) ? { host: new URL(url).host, path: new URL(url).pathname.split("/").filter(Boolean).map((x) => decodeURIComponent(x)) } : undefined);
+  const mine = parts(b.url);
+  const found = new Set<string>();
+  const seen = new Set<string>();
+  for (const m of media) {
+    if (seen.has(m.recordset!) || !mine) continue;
+    seen.add(m.recordset!);
+    const its = parts(tree.get<RecordSet>(m.recordset!)?.url);
+    if (!its || its.host !== mine.host) continue;
+    const at = its.path.indexOf(m.fetched!.book);
+    // the book is one part of its address, after the same path as this one's
+    if (at < 0 || its.path.lastIndexOf(m.fetched!.book) !== at || mine.path.length <= at) continue;
+    if (its.path.slice(0, at).join("/") === mine.path.slice(0, at).join("/")) found.add(mine.path[at]!);
+  }
+  return { connector: c.name, ...(found.size === 1 ? { book: [...found][0]! } : {}), part, browser };
+}
+
+/** How many images of a record set are registered, how to look at them, and how the others come. */
+function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, shape: boolean, finder?: Finder): string[] {
   // each image once: its parts and other copies are the same image
   const nums = imagesIndex(tree).sets.get(b.id)?.images ?? [];
+  const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
+  const byHand = repo?.automation === "forbidden" || repo?.automation === "manual";
+  // the connector and its book, in the form strom fetch takes them; the whole command once in a brief
+  const fetch = route
+    ? `    fetch: ${route.connector} ${route.book ?? `<book: its ID on the portal — strom fetch ${route.connector} --find "<place>" lists them>`}${shape ? ` — strom fetch ${route.connector} ${route.book ?? "<book>"} --images <from-to> --recordset ${b.id}` : ""}${
+        route.browser ? `\n    through the user's browser: strom plans the requests, an agent's browser tools get the images (without them the user saves them by hand: ${byHandAsk(b, false)})` : ""
+      }`
+    : undefined;
   if (nums.length === 0) {
-    const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
-    const c = b.url && repo?.automation !== "forbidden" && repo?.automation !== "manual" ? readyConnectors(tree.env, shared, b.url)[0] : undefined;
-    if (c)
-      return `    no images here yet — connector ${c.name} fetches the ones you need: strom fetch ${c.name} <book> --images <from-to> --recordset ${b.id} (<book>: its ID on the portal — strom fetch ${c.name} --find "<place>" finds it)`;
-    if (b.url && repo?.automation !== "forbidden" && repo?.automation !== "manual")
-      return `    no images here yet, and no connector for this archive — build one now (strom connector new <name> --url <portal>, then its DISCOVERY.md; tell the user in a sentence), then strom fetch; the user saves them by hand only where the archive does not allow automation`;
-    return `    no images here yet — the user saves them by hand (never scrape an archive): strom task wait <T…> --images ${b.id}:<numbers> --on "<for the user, in their language: the book, its link, which images as its viewer counts them>", then take the next task`;
+    if (route) return [`    no images here yet — the connector fetches the ones you need`, fetch!];
+    if (finder && !byHand) return [`    no images here yet — ${finderText(finder, b)}${finder.why === "consent" ? "" : `: ${byHandAsk(b, true)}, then take the next task`}`];
+    if (b.url && !byHand)
+      return [`    no images here yet, and no connector for this archive — build one now (strom connector new <name> --url <portal>, then its DISCOVERY.md; tell the user in a sentence), then strom fetch; the user saves them by hand only where the archive does not allow automation`];
+    return [`    no images here yet — the user saves them by hand (never scrape an archive): ${byHandAsk(b, true)}, then take the next task`];
   }
   // Which ones exist, when there are gaps (a few runs), or just the span.
   const list = runs(nums);
   const which = list.split(", ").length <= 12 ? list : `${nums[0]}–${nums.at(-1)} with gaps (strom media list --recordset ${b.id})`;
-  return `    images registered (${nums.length}): ${which} · strom media view ${b.id}:<image>[-<image>] [--half left|right|both] [--grid] [--crop x,y,w,h]`;
+  return [
+    `    images registered (${nums.length}): ${which} · strom media view ${b.id}:<image>[-<image>] [--half left|right|both] [--grid] [--crop x,y,w,h]`,
+    // the others: through the connector, else as the archive allows
+    fetch ??
+      (byHand
+        ? `    more: by the user's hand — ${byHandAsk(b, false)}`
+        : finder
+          ? `    more: ${finderText(finder, b)}${finder.why === "consent" ? "" : `: ${byHandAsk(b, false)}`}`
+          : b.url
+            ? "    more: no connector for this archive yet — build one (strom connector new <name> --url <portal>)"
+            : ""),
+  ].filter(Boolean);
 }
 
 /** What the user put in the shared inbox, waiting to be registered — by folder (one download each). */
@@ -309,6 +533,33 @@ function repoHint(tree: Tree): string {
   return `archives: ${shown}${repos.length > 4 ? " …" : ""} (another: strom repo add "<archive>" --url …)`;
 }
 
+/**
+ * The connectors that serve the task's places — fetching their images, or finding their books: those of its record
+ * sets, of the other record sets of those places and of the archives the places' jurisdictions name — each with its
+ * archive; the others installed by name only.
+ */
+function placeConnectors(tree: Tree, sets: RecordSet[], places: Set<string>, keys: (x: string) => string[], ready: Ready, installed: Ready, all: Connector[]): { name: string; archive?: string; serves: boolean }[] {
+  const urls: { url: string | undefined; archive?: string }[] = [];
+  const repoOf = (id: string | undefined) => (id ? tree.get<Repository>(id) : undefined);
+  const books = [...sets, ...tree.list<RecordSet>("recordset").filter((b) => !sets.includes(b) && (b.places ?? []).flatMap(keys).some((k) => places.has(k)))];
+  for (const b of books) {
+    const repo = repoOf(b.repository);
+    if (repo?.automation === "forbidden" || repo?.automation === "manual") continue;
+    urls.push({ url: b.url, ...(repo ? { archive: repo.name } : {}) }, { url: repo?.url, ...(repo ? { archive: repo.name } : {}) });
+  }
+  for (const pl of tree.list<Place>("place"))
+    if (pl.names.some((n) => keys(n.name).some((k) => places.has(k))))
+      for (const j of pl.jurisdictions) {
+        const repo = repoOf(j.repository);
+        if (repo && repo.automation !== "forbidden" && repo.automation !== "manual") urls.push({ url: repo.url, archive: repo.name });
+      }
+  const serving = new Map<string, string | undefined>();
+  for (const u of urls) for (const c of [...ready(u.url), ...installed(u.url).filter((x) => x.manifest.can.includes("find"))].slice(0, 1)) if (!serving.has(c.name) || !serving.get(c.name)) serving.set(c.name, u.archive);
+  // the others that find or fetch, by name: an archive of another place is a command away
+  const others = all.filter((c) => !serving.has(c.name) && (c.manifest.can.includes("find") || c.manifest.can.includes("fetch"))).map((c) => ({ name: c.name, serves: false }));
+  return [...[...serving].map(([name, archive]) => ({ name, ...(archive ? { archive } : {}), serves: true })), ...others];
+}
+
 export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; budget?: number; shared?: string | undefined; deadline?: number | undefined }): Brief {
   const budget = opts.budget ?? DEFAULT_BUDGET;
   const task = opts.task;
@@ -332,6 +583,11 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
       opts.deadline !== undefined ? briefClock(opts.deadline) : "",
     ].filter(Boolean).join("\n"),
   });
+
+  // the material of an intake task: shown with it, and what it names brings the lessons of its families
+  const inputs = [...new Set([...(task?.subject ?? []), ...(task?.where ?? [])])]
+    .map((id) => (/^I\d{4,}$/.test(id) ? tree.get<Input>(id) : undefined))
+    .filter((i): i is Input => !!i && i.type === "input");
 
   // 2. the task
   if (task) {
@@ -379,9 +635,6 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   }
 
   // 2b. the material of an intake task, so it needs no extra command
-  const inputs = [...new Set([...(task?.subject ?? []), ...(task?.where ?? [])])]
-    .map((id) => (/^I\d{4,}$/.test(id) ? tree.get<Input>(id) : undefined))
-    .filter((i): i is Input => !!i && i.type === "input");
   if (inputs.length)
     sections.push({
       name: "input",
@@ -466,7 +719,7 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   const all = tree.list<Lesson>("lesson").filter((l) => !l.retracted);
   // a lesson of the whole project goes with the task whose families or places it names — or names none of the tree's
   const project = all.filter((l) => l.scope === "project" && !l.target);
-  const fits = project.length ? projectLessonFit(tree, task, persons, [...where]) : () => true;
+  const fits = project.length ? projectLessonFit(tree, task, persons, [...where], inputs.length ? materialText(tree, inputs) : undefined) : () => true;
   const lessons = all.filter((l) => (l.target && (where.has(l.target) || repos.has(l.target) || ofPlace(l.target))) || (l.scope === "project" && (l.target || fits(l))));
   const otherProject = project.filter((l) => !lessons.includes(l)).length;
   const method = all.filter((l) => l.scope === "method").length;
@@ -551,8 +804,13 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
       ].join("\n"),
     });
 
-  // 7. the record sets to work in
+  // 7. the record sets to work in, each with the connector that fetches its images and its ID of the book
   const sets = located.sets;
+  const installed = installedFor(opts.shared);
+  const ready = readyFor(tree, opts.shared, installed);
+  const routes = new Map(sets.map((b) => [b.id, bookRoute(tree, b, ready)]));
+  const finders = new Map(sets.map((b) => [b.id, routes.get(b.id) ? undefined : bookFinder(tree, b, installed)]));
+  const shapeFor = sets.find((b) => routes.get(b.id))?.id;
   if (sets.length)
     sections.push({
       name: "record sets",
@@ -571,7 +829,7 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
             repo ? `    ${repo.name} · automated download: ${repo.automation}${repo.terms ? ` · terms: ${repo.terms}` : ""}` : "",
             b.layout ? `    layout: ${b.layout}` : "",
             calibrationLine(b) ? `    ${calibrationLine(b)}` : "",
-            imagesLine(tree, b, opts.shared),
+            ...imagesLines(tree, b, routes.get(b.id), b.id === shapeFor, finders.get(b.id)),
           ].filter(Boolean).join("\n");
         }),
       ].join("\n"),
@@ -595,10 +853,24 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
 
   // 8. method for this kind of task
   // (budgeted first, with the record sets and the commands: when the brief is long, the lists are cut before how to work)
-  sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(task?.level) });
+  // only the parts the level uses — of getting images, those of how this task's record sets get them (none named:
+  // every way)
+  // (a connector that fetches none of a book's images is no reason to build one: its images come by hand)
+  const repoByHand = (b: RecordSet) => ["forbidden", "manual"].includes((b.repository ? tree.get<Repository>(b.repository) : undefined)?.automation ?? "");
+  const noRoute = (b: RecordSet) => !routes.get(b.id) && finders.get(b.id)?.why !== "consent";
+  const conditions = [
+    ...(sets.some((b) => !noRoute(b)) || !sets.length ? ["connector"] : []),
+    ...(sets.some((b) => routes.get(b.id)?.part) || !sets.length ? ["part"] : []),
+    ...(sets.some((b) => noRoute(b) && !repoByHand(b) && !finders.get(b.id)) || !sets.length ? ["no-connector"] : []),
+    ...(sets.some((b) => (noRoute(b) && (repoByHand(b) || !!finders.get(b.id) || !b.url)) || routes.get(b.id)?.browser) || !sets.length ? ["by-hand"] : []),
+  ];
+  sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(task?.level, conditions) });
 
-  // 8b. the commands this kind of task uses, with every option and limit (K2): asking for them costs a turn each
-  const sheet = commandSheet(task?.level);
+  // 8b. the commands this kind of task uses, with every option and limit (K2): asking for them costs a turn each —
+  // and the connectors of the task's places, so that fetching needs no lookup
+  // (the others installed only where none serves them, or the task is to find where the records are)
+  const connectors = placeConnectors(tree, sets, taskPlaces, placeKeys, ready, installed, listConnectors(opts.shared));
+  const sheet = commandSheet(task?.level, { connectors: task?.level === "locate" || !connectors.some((c) => c.serves) ? connectors : connectors.filter((c) => c.serves) });
   if (sheet) sections.push({ name: "commands", first: true, pointer: "strom help <command>", text: sheet });
 
   // 9. how to finish

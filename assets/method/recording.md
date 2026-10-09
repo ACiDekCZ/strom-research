@@ -2,8 +2,11 @@
 
 Record a found entry in one batch: write the lines to a file in notes/ and run
 `strom batch --file notes/<file>` — all or nothing: when a line fails nothing is
-written and every failing line is said at once; fix them, run it again.
-`#name` labels what a line creates, `@name` uses it later.
+written and every failing line is said at once; fix them in the file with your
+file-editing tool, not with sed or another shell command (the tree's rules let
+the shell run strom, not edit files), run it again. `#name` labels what a line
+creates, `@name` uses it later; a found search comes after the source it found
+(`--found @s`).
 
     source add "Baptism of Jan Novák 1885" --kind baptism --recordset B0001 --clip B0001:57@0.05,0.40,0.45,0.18 --locator "pag. 112, entry 2" --language la --information primary --transcript @notes/entry.txt #s
     event add P0001 CHR --date "25 JUN 1885" --place "Týnec" --house 13 --cite @s --quote "baptizatus est" --with "godparent:Marie Dvořáková" --with "midwife:Anna Nová" --with "officiant:P. Josef Kříž" --status proven
@@ -22,7 +25,8 @@ written and every failing line is said at once; fix them, run it again.
 - `--transcript` is the entry's words as they stand in it — its own language,
   spelling and abbreviations, line by line, unread letters `[?]`; the Strom app
   shows them next to the entry's image. Every entry read gets them.
-- A fact already in the tree gets the citation (`cite E…`), not a second fact —
+- A fact already in the tree gets the citation (`cite E…`, `--status` is a
+  fact's only — a name or a family cited takes none), not a second fact —
   and what the record adds to it: `event edit E… --age husband:27 --age wife:17
   --house 21 --with "witness:…" --with "officiant:…"` (filling in needs no reason).
 - The names a record gives go on the person: `name add` (a maiden name completes

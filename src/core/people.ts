@@ -7,6 +7,7 @@ import type { ChildLink, ChildRelation, Conflict, Event, Family, Name, Person } 
 import { foldText, tokens } from "./text.ts";
 import type { Tree } from "./tree.ts";
 import { UI, ui, type UIKey } from "../cli/ui.ts";
+import { otherKind, otherKindHint } from "./records.ts";
 
 /**
  * Parse "Jan /Novák/", "Jan Novák" (last word = surname) or "/Novák/". The
@@ -468,7 +469,10 @@ export function resolvePerson(tree: Tree, ref: string): Person {
   }
   const hits = findPersons(tree, ref);
   if (hits.length === 1) return hits[0]!;
-  if (hits.length === 0) throw new UsageError(`no person matches "${ref}"`, { hint: `strom person list ${foldText(ref).split(" ").pop() ?? ""}`.trim(), code: "person.no-match", params: { ref } });
+  if (hits.length === 0) {
+    const other = otherKind(ref, "person");
+    throw new UsageError(`no person matches "${ref}"`, { hint: other ? otherKindHint(other) : `strom person list ${foldText(ref).split(" ").pop() ?? ""}`.trim(), code: "person.no-match", params: { ref } });
+  }
   // Exact full-name match wins over prefix matches.
   const exact = hits.filter((p) => p.names.some((n) => foldText(formatName(n)) === foldText(ref)));
   if (exact.length === 1) return exact[0]!;

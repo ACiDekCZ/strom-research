@@ -63,3 +63,27 @@ test("session close without --done: the task closed first, as ever", opts, async
   assert.equal(readJsonFile(path.join(w.cwd, "data", "sessions", "N0001.json")).state, "closed");
   w.cleanup();
 });
+
+test("session close --also-done: another open task the work fulfilled as well is closed with the result — never one held or done", opts, async () => {
+  const w = await world();
+  await w.ok(["task", "add", "Rodiče Šimona", "--level", "link", "--where", "matrika Týnec", "--why", "otec", "--done-when", "nalezen", "--about", "P0001"]); // T0003
+  await w.ok(["session", "start", "T0001"]);
+  // checked before anything is written: its own task, an unknown one, a task of another kind
+  assert.match((await w.run(["session", "close", "--done", "x", "--next", "y", "--also-done", "T0001"])).err, /T0001 is this session's own task/);
+  assert.match((await w.run(["session", "close", "--done", "x", "--next", "y", "--also-done", "T0099"])).err, /T0099/);
+  assert.match((await w.run(["session", "close", "--done", "x", "--next", "y", "--also-done", "Q0001"])).err, /not a task ID/);
+  assert.equal(readJsonFile(path.join(w.cwd, "data", "tasks", "T0002.json")).state, "open");
+  const before = commits(w);
+  const r = await w.ok(["session", "close", "--done", "křest nalezen: rodiče Jan a Марія", "--next", "sňatek rodičů", "--also-done", "T0003", "--json"]);
+  assert.deepEqual(r.json.alsoDone.map((t: { id: string }) => t.id), ["T0003"]);
+  const t3 = readJsonFile(path.join(w.cwd, "data", "tasks", "T0003.json"));
+  assert.equal(t3.state, "done");
+  assert.equal(t3.result, "fulfilled in N0001 (T0001): křest nalezen: rodiče Jan a Марія");
+  assert.equal(readJsonFile(path.join(w.cwd, "data", "tasks", "T0002.json")).state, "open", "only the one named");
+  assert.equal(commits(w), before + 1, "one commit for all");
+  // a task already done is said, nothing written
+  await w.ok(["session", "start", "T0002"]);
+  assert.match((await w.run(["session", "close", "--done", "x", "--next", "y", "--also-done", "T0003"])).err, /T0003 is done already/);
+  assert.equal(readJsonFile(path.join(w.cwd, "data", "tasks", "T0002.json")).state, "doing");
+  w.cleanup();
+});

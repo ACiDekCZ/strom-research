@@ -69,3 +69,24 @@ test("strom readings: finds, unclear entries, possible matches in what was illeg
   assert.deepEqual(reading.gaps, [{ image: 44, text: "strany 87–94 chybí: po straně 86 (snímek 43) následuje 95, vazba bez stop vytržení" }]);
   w.cleanup();
 });
+
+test("strom readings: a report whose head the reader wrote in the research language is a reading; an unknown one names the newest", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["recordset", "add", "Matrika oddaných 1800–1810"]); // B0001
+  const dir = path.join(w.cwd, "notes", "readings");
+  fs.mkdirSync(dir, { recursive: true });
+  // written whole by a reader: no "# Reading" head, decomposed accents
+  fs.writeFileSync(path.join(dir, "2026-01-21-M0004-1.md"), "# Čtení M0004 · snímek 5\n\nOtázka: úplný přepis\n\n## Image 5 · M0004\nresult: found\nentries: Иван · 7. Mayi · dům 19\n".normalize("NFD"));
+  // a reader of strom transcripts: no reading, whatever its blocks
+  fs.writeFileSync(path.join(dir, "2026-01-21-transcripts-read-1.md"), "# Transcripts\n\n## Image 6 · M0006\nresult: found\n");
+  const r = await w.ok(["readings", "2026-01-21-M0004"]);
+  assert.match(r.out, /^2026-01-21-M0004 · 1 report\(s\) · images 5 · found 5/);
+  assert.match(r.out.normalize("NFC"), /Иван · 7\. Mayi · dům 19/);
+  assert.doesNotMatch((await w.ok(["readings", "--list"])).out, /transcripts/);
+  // the start of a name that is none: the newest readings named, each a command to run
+  const none = await w.run(["readings", "2026-01-21-M0099"], { env: { AI_AGENT: "1" } });
+  assert.equal(none.code, 2);
+  assert.match(none.err, /the newest: strom readings 2026-01-21-M0004 — all: strom readings --list/);
+  w.cleanup();
+});

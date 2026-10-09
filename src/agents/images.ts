@@ -11,6 +11,11 @@
 export const IMAGE_MAX = 1568;
 /** What the newer models take in whole, and Claude Code, Codex and OpenCode pass on unshrunk. */
 export const IMAGE_MAX_LARGE = 2000;
+/**
+ * The long side of a whole image shown to find an entry on it (strom media view without --half, --crop or --split):
+ * the entry is found as surely as at 2000 px for half the tokens; it is read from a crop or a half at the model's size.
+ */
+export const OVERVIEW_MAX = 1400;
 
 /** A Claude model name or alias ("opus", "claude-opus-4-7", "claude-sonnet-5-5[1m]", "us.anthropic.claude-…"): its family and version. */
 export function claudeModel(model: string): { family: string; version?: number } | undefined {

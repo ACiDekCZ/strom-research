@@ -45,7 +45,7 @@ test("fetch: an hourly cap used up within its wait — said with the time, waite
     const r = await w.run(["fetch", "zkusebni", "5359", "--images", "3", "--recordset", "B1"]);
     assert.equal(r.code, 0, r.out + r.err);
     assert.match(r.err, /127\.0\.0\.1: its hourly cap is used up — strom waits until (\d{4}-\d\d-\d\d )?\d\d:\d\d \(20 min\), then goes on by itself \(it waits at most 30 min\); do not stop it/);
-    assert.match(r.out, /1 image\(s\) of B0001 \(images 3–3\) fetched and registered/);
+    assert.match(r.out, /1 image\(s\) of B0001 \(images 3\) fetched and registered/);
     assert.ok(slept.some((ms) => ms > 19 * 60_000), slept.join(","));
     // a session of strom run with 15 minutes left: no wait into its last 10 — the time to try again instead
     clock += 2 * 60_000;

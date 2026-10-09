@@ -41,10 +41,16 @@ test("media view: several images in one call — a range, several arguments, pag
   assert.equal(out[0], "3 view(s) of 3 image(s) — open them all at once:");
   // a path, then its caption: the image as asked for, its ID
   assert.match(out[1]!, /\.strom[\\/]views[\\/]M0001-[0-9a-f]{10}\.jpg$/);
-  assert.match(out[2]!, /^ {2}B0001:1 \(M0001\) · 2000×1250 px · whole image of 3200×2000 · 63 % · reduced$/);
+  assert.match(out[2]!, /^ {2}B0001:1 \(M0001\) · 1400×875 px · whole image of 3200×2000 · 44 % · reduced$/, "a whole image to find the entry on: 1400 px");
   assert.match(out[3]!, /M0002-/);
   assert.match(out[5]!, /M0003-/);
   assert.match(r.out, /^reduced: crop the part you need/m, "the hint once, not per view");
+  assert.match(r.out, /^reduced: crop the part you need.*; a whole view is for finding the entry; unclear, or the entry not where expected: --half both before calling it not found$/m, "what a whole view is for, once");
+  assert.equal(r.out.match(/a whole view is for finding/g)!.length, 1);
+  // only parts reduced (a crop larger than the model takes): no word of whole views
+  const cropped = (await w.ok(["media", "view", "B1:1", "--crop", "0,0,1,0.9", "--crop", "0,0.1,1,0.9"])).out;
+  assert.match(cropped, /^reduced: crop the part you need/m);
+  assert.doesNotMatch(cropped, /a whole view is for finding/);
   const j = (await w.ok(["media", "view", "B1:1-3", "--json"])).json;
   assert.equal(j.images, 3);
   assert.deepEqual(j.views.map((v: { image: string }) => v.image), ["M0001", "M0002", "M0003"]);

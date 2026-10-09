@@ -126,3 +126,48 @@ test("find puts the records named so before a word in a text; research show take
   assert.match((await w.run(["research", "show"])).err, /2 researches are active: name one/);
   w.cleanup();
 });
+
+test("a show command of one record given several IDs shows each in turn as strom show; an ID is never a value to quote (N0194)", opts, async () => {
+  const w = await world();
+  await w.ok(["person", "add", "Ольга /Петрова/", "--sex", "F", "--born", "1890"]);
+  // two people: both shown, one after another
+  const two = await w.ok(["person", "show", "P0001", "P2"]);
+  assert.match(two.out, /^P0001 Šimon Ševčík/);
+  assert.match(two.out, /P0002 Ольга Петрова/);
+  // --json: the records in turn, as strom show gives them
+  const j = (await w.ok(["person", "show", "P0001", "P0002", "--json"])).json;
+  assert.deepEqual(j.records.map((r: any) => [r.id, r.command]), [["P0001", "person show"], ["P0002", "person show"]]);
+  assert.equal(j.records[1].data.person.id, "P0002");
+  // IDs of other kinds: each by the show command of its kind (a lesson, a fact, a record set, an image by number)
+  const mixed = await w.ok(["task", "show", "P0002", "K0001", "E0001", "B0002"]);
+  assert.match(mixed.out, /P0002 Ольга Петрова/);
+  assert.match(mixed.out, /K0001 lesson/);
+  assert.match(mixed.out, /E0001 of P0001/);
+  assert.match(mixed.out, /Метрическая книга/);
+  // a word that is no ID after the person: the line as meant, quoted (a name in two words)
+  const name = await w.run(["person", "show", "Šimon", "Ševčík"]);
+  assert.notEqual(name.code, 0);
+  assert.match(name.err, /unexpected argument "Ševčík"/);
+  assert.match(name.err, /as meant: strom person show "Šimon Ševčík"|quote values with spaces/);
+  // IDs and a word: the IDs said as strom show takes them, never quoted
+  const both = await w.run(["person", "show", "P0001", "P0002", "navíc"]);
+  assert.notEqual(both.code, 0);
+  assert.match(both.err, /several records: strom show P0001 P0002/);
+  assert.doesNotMatch(both.err, /quote|"P0001 P0002|as meant/);
+  // a batch line: a show command is no line of a batch — said so, no quotes suggested
+  const b = await w.run(["batch", "person show P0001 P0002"]);
+  assert.notEqual(b.code, 0);
+  assert.match(b.err, /cannot run in a batch/);
+  assert.doesNotMatch(b.err, /quote|as meant/);
+  w.cleanup();
+});
+
+test("recordset add and edit: --place is --places (NALEZY 14)", opts, async () => {
+  const w = await world();
+  await w.ok(["recordset", "add", "Matrika Bělušice", "--repo", "R0001", "--kinds", "burial", "--place", "Bělušice,Lžovice", "--years", "1800-1850"]);
+  assert.deepEqual((await w.ok(["recordset", "list", "--json"])).json.recordsets.find((b: any) => b.id === "B0003").places, ["Bělušice", "Lžovice"]);
+  await w.ok(["recordset", "edit", "B0003", "--place=Lžovice"]);
+  assert.deepEqual((await w.ok(["recordset", "list", "--json"])).json.recordsets.find((b: any) => b.id === "B0003").places, ["Lžovice"]);
+  assert.match((await w.ok(["help", "recordset", "add"])).out, /--place \(= --places\)/);
+  w.cleanup();
+});

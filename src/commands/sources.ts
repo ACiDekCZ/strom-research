@@ -397,7 +397,7 @@ register(
       { name: "repo", type: "string", value: "<R…>", description: "archive holding it" },
       { name: "call-number", type: "string", value: "<sig>", description: "signature / call number" },
       { name: "kinds", type: "string", value: "<list>", description: "record kinds, comma separated: baptism,marriage,burial — with index when it is or has an index" },
-      { name: "places", type: "string", value: "<list>", description: "places covered, comma separated" },
+      { name: "places", type: "string", value: "<list>", description: "places covered, comma separated", aliases: ["place"] },
       { name: "years", type: "string", value: "<from-to>", description: "e.g. 1784-1820" },
       { name: "access", type: "string", value: "<a>", description: `${ACCESS.join(", ")} (default unknown)` },
       { name: "url", type: "string", value: "<url>", description: "link to the images or catalog" },

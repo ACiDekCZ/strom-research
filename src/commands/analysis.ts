@@ -151,11 +151,15 @@ function searchLine(s: Search): string[] {
   return [s.id, s.result, s.method, truncate(s.question, 60), s.scope.years ?? "", (s.scope.surnames ?? []).join(","), s.recordsets.join(" "), s.by === "main" ? "" : `by ${s.by}`];
 }
 
+/** What a found search needs before it: the source it found (N0181, N0187: the search written first). */
+const FOUND_FIRST = "the source first, then the search: strom source add \"…\" … — in one batch the source add line first, ending #s, then search add … --found @s";
+
 register(
   {
     path: ["search", "add"],
     summary: "Record a search — ALSO when nothing was found (negative results are results)",
     group: "analysis",
+    sheet: "found: the source first (in a batch source add … #s, then --found @s)",
     tree: true,
     writes: true,
     args: [{ name: "question", description: 'what was looked for: "Baptisms Novák 1903–1907"', required: true }],
@@ -180,7 +184,7 @@ register(
       const years = yearsOption(opts.years, said);
       const findings = csvOpt(opts.found).map((s) => requireRecord(tree, s, "source").id);
       const result = oneOf(opts.result, SEARCH_RESULTS, "result");
-      if (result === "found" && findings.length === 0) throw new UsageError("result found needs --found <S…>", { hint: "create the source first: strom source add …" });
+      if (result === "found" && findings.length === 0) throw new UsageError("result found needs --found <S…>", { hint: FOUND_FIRST });
       // A search made in a session served that session's task, unless it says otherwise.
       const task = opts.task ? requireRecord(tree, String(opts.task), "task").id : currentSession(tree, ctx.env, ctx.refs)?.task;
       const s = create<Search>(
@@ -311,7 +315,7 @@ register(
           if (overwritten.length && !reason)
             throw new UsageError(`changing ${overwritten.join(", ")} of ${id} needs --reason`, { hint: 'a search is evidence: e.g. --reason "the index belongs to the other volume"' });
           const next: Search = { ...cur, ...change, scope: { ...cur.scope, ...scope }, ...(note ? { notes: [...cur.notes, ...note] } : {}) };
-          if (next.result === "found" && next.findings.length === 0) throw new UsageError("result found needs --found <S…>", { hint: "create the source first: strom source add …" });
+          if (next.result === "found" && next.findings.length === 0) throw new UsageError("result found needs --found <S…>", { hint: FOUND_FIRST });
           return next;
         },
         { op: "search.edit", summary: `${id} ${fields.join(", ")}`, reason, targets: [...(change.recordsets ?? []), ...(change.findings ?? [])] },

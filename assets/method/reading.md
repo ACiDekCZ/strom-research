@@ -13,7 +13,11 @@ about 80 views write down what you found before you open more.
 
 - **Look only through views**: `strom media view B0001:57` (record set and
   image number) makes a file in `.strom/views/` — open that file. Whole images
-  come reduced: good for "is our surname on this page?", not for reading.
+  (and `--grid`) come reduced: for finding the entry, never for reading it.
+  **Transcribe only from a crop** at full resolution (`--crop`, or `--half`
+  where the entry fills the page). A whole view unclear, or the entry not where
+  expected: `--half both` before calling it not found — a negative search only
+  after the pages were seen at full resolution.
 - **The views of a scan, or of a batch, in one call**, then open all the files
   it lists together — not one call and one look per view:
   `strom media view B0001:57-60 --half both` (the two pages of each double
@@ -26,11 +30,13 @@ about 80 views write down what you found before you open more.
   width, height as fractions) or `--half left|right` for one page of a spread.
   A crop comes at full resolution (small ones enlarged). `--contrast` for faded
   ink, `--rotate 90` for sideways pages.
+<!-- for link verify enrich part -->
 - **Too small to read?** When a crop says it is enlarged, the scan has no more
   detail there. A connector that can fetch a part of an image sharper says so
   in that line: `strom fetch <connector> --recordset B0001 --images 57 --crop
   …` (one request). Then view the same crop again: it comes from the sharper
   part by itself.
+<!-- end -->
 - **Browsing a book is a reader's job**: `strom read B0001 --images 40-69
   --question "…"` — readers in batches of ten, each with the full question.
   Their reports stay in notes/readings/; `strom read` ends with what they
@@ -44,14 +50,14 @@ about 80 views write down what you found before you open more.
   It waits for its readers (often ten minutes or more): run it in the
   foreground and let it finish — your session ends with your turn, and
   whatever is left running in the background ends with it.
-  (Your own subagents can read too — on your own model, never a faster one — in batches of at most twelve — but what they
-  report is lost with your session unless you write it down: record each
-  report as it comes back, before you send the next readers.) Only the entries
+  (A scan-reader subagent where your agent has one, strom-scan-reader, or your
+  own subagents — on your own model, never a faster one — read too, in batches
+  of at most twelve with the whole question; what they report is lost with
+  your session unless you write it down: record each report as it comes back,
+  before you send the next readers.) Only the entries
   that will be cited need your own eyes, at full resolution.
 - Old handwriting is decoded, not copied: never a weaker model for handwriting,
   never a guess. "Illegible" is a valid and valuable answer.
-- **Extract everything the first time**: names, ages, house numbers,
-  occupations, godparents, witnesses, midwife, remarks in the margin.
 - **Report image by image, as you go**: the image and page, what was found (or
   nothing), what was illegible and where, the hand, how sure each name is.
 - **Cite the image, and where the entry is on it**: `strom source add …
@@ -61,12 +67,16 @@ about 80 views write down what you found before you open more.
   numbering jumps) were not searched: say so in `--note` (strom read puts the
   gaps its readers saw there), or leave them out of the range
   (`--pages 40-52,55-69`).
+<!-- for verify enrich intake -->
 - Page ↔ image: `strom recordset calibrate B0001 --point 57=112` (measured on
   the image, never guessed); then `strom media view B0001 --page 112` works.
-- **No images here yet:** a connector for that archive
-  (`strom connector list`) fetches them through strom:
-  `strom fetch <connector> <book> --images 40-69 --recordset B0001` — only the
-  images you need, never a whole book "just in case".
+<!-- end -->
+<!-- for link verify enrich connector -->
+- **No images here yet:** the book's connector fetches them through strom
+  (the brief's record set gives the exact `strom fetch`) — only the images you
+  need, never a whole book "just in case".
+<!-- end -->
+<!-- for link verify enrich no-connector -->
 - **The archive has no connector yet: build one — now, you.** The user does
   not know connectors exist and will not ask for one. Tell them in a sentence
   ("for this archive I am preparing a downloader; it will fetch only the images
@@ -74,10 +84,14 @@ about 80 views write down what you found before you open more.
   follow its DISCOVERY.md (the portal's terms and robots.txt first, official
   exports preferred), test it with `strom connector test`, then fetch. It is
   built once per archive and serves every later task.
+<!-- end -->
 - You never download from an archive yourself (curl, a script, your browser
-  tools) — only through a connector, paced by strom. The user saves images by
+  tools) — only through a connector, paced by strom.
+<!-- for link verify enrich no-connector by-hand -->
+  The user saves images by
   hand only where the archive does not allow automation (the connector then
-  finds books and gives links only) or where a check stops it. Ask with
+  finds books and gives links only), where its connector only finds books, or
+  where a check stops it. Ask with
   `strom task wait T… --images B0001:40-69 --on "…"`: strom makes the folder
   of the inbox they go into, shows it to the user with the book's link, and
   checks the numbers of what arrives. Write `--on` for the user, in their
@@ -88,3 +102,4 @@ about 80 views write down what you found before you open more.
   the entry and save that view too (40a.jpg); a full-resolution scan can be
   ordered from the archive. Then take the next task; when the images are
   registered the task comes back by itself.
+<!-- end -->
