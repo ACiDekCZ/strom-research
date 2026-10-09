@@ -256,6 +256,7 @@
   "ui.doc.links.ours": "ja",
   "ui.doc.links.other": "führen zu einem anderen Programm (oder dorthin, wo strom früher war)",
   "ui.doc.links.none": "keine",
+  "ui.doc.links.unknown": "das System hat nicht geantwortet (beim nächsten Mal erneut gefragt)",
   "ui.doc.app": "Strom-App",
   "ui.doc.tree": "dieser Stammbaum",
   "ui.doc.innode": "strom {version} in Node {node}",

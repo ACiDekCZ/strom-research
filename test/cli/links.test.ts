@@ -177,7 +177,7 @@ test("a no to the links registers nothing — on Windows, macOS and Linux (here 
       if (cmd === "xdg-mime" && args[0] === "query") return { status: 0, stdout: `${xdg}\n` };
       writes.push(`${cmd} ${args.join(" ")}`);
       if (cmd === "reg.exe" && args[0] === "add" && args.includes("/ve")) reg.set(args[1]!, args[args.indexOf("/d") + 1]!);
-      if (cmd === "osacompile") fs.mkdirSync(path.join(appDir, "Contents", "Resources"), { recursive: true }), (macHandler = appDir);
+      if (cmd === "osacompile") fs.mkdirSync(path.join(args[args.indexOf("-o") + 1]!, "Contents", "Resources"), { recursive: true }), (macHandler = appDir);
       if (cmd === "xdg-mime" && args[0] === "default") xdg = args[1]!;
       return { status: 0, stdout: "" };
     };

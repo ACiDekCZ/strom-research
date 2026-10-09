@@ -266,8 +266,11 @@ export function linkText(link: Exclude<Link, { action: "menu" }>, scheme: string
 
 // ── the handler, per system ──
 
-/** Where it is: whether the scheme leads to this strom, to another program (or an older place of strom), or nowhere. */
-export type HandlerState = "ours" | "other" | "none";
+/**
+ * Where it is: whether the scheme leads to this strom, to another program (or an older place of strom), or nowhere —
+ * or unknown: the system did not answer (its program failed or took too long), which says nothing of the links.
+ */
+export type HandlerState = "ours" | "other" | "none" | "unknown";
 
 /**
  * What the handler runs: this strom's Node and script, "link open", the link. A strom of its own settings folder
@@ -363,11 +366,11 @@ const sys: Sys = (cmd, args) => {
 
 const LSREGISTER = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 
-/** The app the system opens a link of this scheme with (macOS), or "". */
-function macHandlerPath(run: Sys, scheme: string): string {
+/** The app the system opens a link of this scheme with (macOS), "" for none, undefined when the system did not answer. */
+function macHandlerPath(run: Sys, scheme: string): string | undefined {
   const js = `ObjC.import("AppKit");var u=$.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL($.NSURL.URLWithString("${scheme}://status"));u.isNil()?"":u.path.js`;
   const r = run("osascript", ["-l", "JavaScript", "-e", js]);
-  return r.status === 0 ? r.stdout.trim() : "";
+  return r.status === 0 ? r.stdout.trim() : undefined;
 }
 
 /** The mark inside strom's applet: what it runs (another strom's applet, or one of an older place, is not ours). */
@@ -379,27 +382,37 @@ function macMark(app: string): string {
  * linkHandlerState without waiting: the system asked by a program in the background (the bridge answers meanwhile).
  * What it answers is read the same way.
  */
-export async function linkHandlerStateLater(env: Env, platform: NodeJS.Platform = process.platform): Promise<HandlerState> {
-  if (env.STROM_NO_INSTALL === "1") return "none";
+export type SysLater = (cmd: string, args: string[]) => Promise<{ status: number | null; stdout: string }>;
+
+const sysLater: SysLater = (cmd, args) =>
+  new Promise((resolve) => {
+    // a program that failed to start or was stopped for taking too long: no status (no answer)
+    execFile(cmd, args, { encoding: "utf8", timeout: 30_000, windowsHide: true }, (err, stdout) => resolve({ status: err ? (typeof err.code === "number" ? err.code : null) : 0, stdout: stdout ?? "" }));
+  });
+
+export async function linkHandlerStateLater(env: Env, platform: NodeJS.Platform = process.platform, exec: SysLater = sysLater): Promise<HandlerState> {
+  if (env.STROM_NO_INSTALL === "1" && exec === sysLater) return "none";
   const calls: { cmd: string; args: string[]; r: { status: number | null; stdout: string } }[] = [];
   // the commands it would run, found by a dry pass, then each asked in the background
   linkHandlerState(env, platform, (cmd, args) => {
     calls.push({ cmd, args, r: { status: null, stdout: "" } });
     return { status: null, stdout: "" };
   });
-  for (const c of calls)
-    c.r = await new Promise((resolve) => {
-      execFile(c.cmd, c.args, { encoding: "utf8", timeout: 30_000, windowsHide: true }, (err, stdout) => resolve({ status: err ? (typeof err.code === "number" ? err.code : null) : 0, stdout: stdout ?? "" }));
-    });
+  for (const c of calls) c.r = await exec(c.cmd, c.args);
   return linkHandlerState(env, platform, (cmd, args) => calls.find((c) => c.cmd === cmd && JSON.stringify(c.args) === JSON.stringify(args))?.r ?? { status: null, stdout: "" });
 }
 
-/** Does the scheme lead to this strom? No system is asked from a test (STROM_NO_INSTALL). */
+/**
+ * Does the scheme lead to this strom? No system is asked from a test (STROM_NO_INSTALL). "none" only when the system
+ * answered that nothing takes the links; a query that failed or timed out is "unknown" (found: a bridge said no links
+ * for a minute while osascript was slow, and the Strom app forgot them).
+ */
 export function linkHandlerState(env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): HandlerState {
   if (env.STROM_NO_INSTALL === "1" && run === sys) return "none";
   const argv = handlerArgv(env, platform);
   if (platform === "darwin") {
     const at = macHandlerPath(run, linkScheme(env));
+    if (at === undefined) return "unknown";
     if (!at) return "none";
     const app = macApp(env);
     if (path.resolve(at) !== path.resolve(app)) return "other";
@@ -411,11 +424,14 @@ export function linkHandlerState(env: Env, platform: NodeJS.Platform = process.p
   }
   if (platform === "win32") {
     const r = run("reg.exe", ["query", `${winKey(env)}\\shell\\open\\command`, "/ve"]);
+    // reg.exe that answered: no such key (1); one that did not run or answer: nothing known
+    if (r.status === null) return "unknown";
     if (r.status !== 0) return "none";
     const value = /REG_(?:EXPAND_)?SZ\s+(.*)$/m.exec(r.stdout)?.[1]?.trim();
     return value === windowsCommand(argv) ? "ours" : value ? "other" : "none";
   }
   const r = run("xdg-mime", ["query", "default", `x-scheme-handler/${linkScheme(env)}`]);
+  if (r.status === null) return "unknown";
   const entry = r.status === 0 ? r.stdout.trim() : "";
   if (!entry) return "none";
   if (entry !== linuxEntryName(env)) return "other";
@@ -443,26 +459,38 @@ export function registerLinks(env: Env, platform: NodeJS.Platform = process.plat
   if (platform === "darwin") {
     const app = macApp(env);
     fs.mkdirSync(path.dirname(app), { recursive: true });
-    fs.rmSync(app, { recursive: true, force: true });
-    const script = path.join(path.dirname(app), ".strom-link.applescript");
-    fs.writeFileSync(script, macScript(argv));
-    const made = run("osacompile", ["-o", app, script]);
-    fs.rmSync(script, { force: true });
-    if (made.status !== 0) return false;
-    const plist = path.join(app, "Contents", "Info.plist");
-    run("plutil", ["-replace", "CFBundleIdentifier", "-string", `info.stromapp.research.link${suffix ? `.${suffix}` : ""}`, plist]);
-    run("plutil", ["-replace", "CFBundleName", "-string", name, plist]);
-    run("plutil", ["-replace", "LSUIElement", "-bool", "true", plist]);
-    run("plutil", ["-replace", "CFBundleURLTypes", "-json", JSON.stringify([{ CFBundleURLName: name, CFBundleURLSchemes: [scheme] }]), plist]);
-    // its icon: Strom Research's own
-    if (fs.existsSync(ICON.png)) run("sips", ["-s", "format", "icns", ICON.png, "--out", path.join(app, "Contents", "Resources", "applet.icns")]);
-    fs.writeFileSync(macMark(app), JSON.stringify({ argv }, null, 2));
-    // the applet's seal covers its Info.plist: sealed again, by itself (no one's certificate)
-    run("codesign", ["--force", "--sign", "-", app]);
+    // The new applet is made beside, whole (its mark, its seal), and only then put in the old one's place: the links
+    // lead here at every moment (found on Mac: made again in place, a bridge said no links meanwhile and the Strom app
+    // forgot them). An applet that cannot be made leaves the one there as it was.
+    const work = path.join(path.dirname(app), `.strom-link-${process.pid}`);
+    fs.rmSync(work, { recursive: true, force: true });
+    fs.mkdirSync(work);
+    try {
+      const fresh = path.join(work, path.basename(app));
+      const script = path.join(work, "strom-link.applescript");
+      fs.writeFileSync(script, macScript(argv));
+      if (run("osacompile", ["-o", fresh, script]).status !== 0 || !fs.existsSync(fresh)) return false;
+      const plist = path.join(fresh, "Contents", "Info.plist");
+      run("plutil", ["-replace", "CFBundleIdentifier", "-string", `info.stromapp.research.link${suffix ? `.${suffix}` : ""}`, plist]);
+      run("plutil", ["-replace", "CFBundleName", "-string", name, plist]);
+      run("plutil", ["-replace", "LSUIElement", "-bool", "true", plist]);
+      run("plutil", ["-replace", "CFBundleURLTypes", "-json", JSON.stringify([{ CFBundleURLName: name, CFBundleURLSchemes: [scheme] }]), plist]);
+      // its icon: Strom Research's own
+      if (fs.existsSync(ICON.png)) run("sips", ["-s", "format", "icns", ICON.png, "--out", path.join(fresh, "Contents", "Resources", "applet.icns")]);
+      fs.writeFileSync(macMark(fresh), JSON.stringify({ argv }, null, 2));
+      // the applet's seal covers its Info.plist: sealed again, by itself (no one's certificate)
+      run("codesign", ["--force", "--sign", "-", fresh]);
+      // into its place: a folder is not renamed over another, so the old one aside first — a moment of two renames
+      if (fs.existsSync(app)) fs.renameSync(app, path.join(work, "old.app"));
+      fs.renameSync(fresh, app);
+    } finally {
+      fs.rmSync(work, { recursive: true, force: true });
+    }
     run(LSREGISTER, ["-f", app]);
     return linkHandlerState(env, platform, run) === "ours";
   }
   if (platform === "win32") {
+    // each value written over the one there (reg add /f): the command is never missing meanwhile
     const add = (key: string, args: string[]) => run("reg.exe", ["add", key, ...args, "/f"]).status === 0;
     const key = winKey(env);
     const ok =
@@ -474,7 +502,9 @@ export function registerLinks(env: Env, platform: NodeJS.Platform = process.plat
   }
   const file = linuxEntry(env);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, linuxDesktopEntry(argv, scheme, name));
+  // written beside, then put in its place: never read half written
+  fs.writeFileSync(`${file}.${process.pid}`, linuxDesktopEntry(argv, scheme, name));
+  fs.renameSync(`${file}.${process.pid}`, file);
   run("xdg-mime", ["default", linuxEntryName(env), `x-scheme-handler/${scheme}`]);
   run("update-desktop-database", [path.dirname(file)]);
   return linkHandlerState(env, platform, run) === "ours";

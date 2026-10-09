@@ -229,6 +229,7 @@ export const UI = {
   "ui.doc.links.ours": "yes",
   "ui.doc.links.other": "lead to another program (or where strom was before)",
   "ui.doc.links.none": "none",
+  "ui.doc.links.unknown": "the system did not answer (asked again next time)",
   "ui.doc.app": "Strom app",
   "ui.doc.tree": "this family tree",
   "ui.doc.innode": "strom {version} in Node {node}",

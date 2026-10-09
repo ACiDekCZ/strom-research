@@ -960,6 +960,7 @@ test("the live bridge does not end because of one error, says what happened in i
     await w.ok(["live", "stop"]);
     // A bridge stuck on something (it does not end when asked) still holding its port: live stop ends it for good,
     // and the next bridge takes its port again — the app following it goes on
+    // (a bridge runs in its tree's folder: one of another folder is never ended for this tree)
     const stuckCode = `process.on("SIGTERM",()=>{});const s=require("http").createServer(()=>{});s.listen(${last.port},"127.0.0.1");setInterval(()=>{},1000)`;
     // up: it holds the port (its SIGTERM handler set before)
     const holding = async () => {
@@ -973,7 +974,7 @@ test("the live bridge does not end because of one error, says what happened in i
       }
       throw new Error("the stuck bridge did not come up");
     };
-    const stuck = spawn(process.execPath, ["-e", stuckCode, "live", "serve"], { stdio: "ignore", detached: true });
+    const stuck = spawn(process.execPath, ["-e", stuckCode, "live", "serve"], { stdio: "ignore", detached: true, cwd: w.cwd });
     stuck.unref();
     await holding();
     fs.writeFileSync(path.join(w.cwd, ".strom", "live-last.json"), JSON.stringify({ ...last, pid: stuck.pid, ended: undefined }));
@@ -983,7 +984,7 @@ test("the live bridge does not end because of one error, says what happened in i
     const exited = (c: ReturnType<typeof spawn>) => new Promise((r) => (c.exitCode !== null || c.signalCode ? r(c.signalCode) : c.once("exit", (_code, sig) => r(sig))));
     assert.equal(await exited(stuck), "SIGKILL", "the process is gone");
     // …and one that still holds the port when a new bridge starts (its note gone): ended, its port taken again
-    const stuck2 = spawn(process.execPath, ["-e", stuckCode, "live", "serve"], { stdio: "ignore", detached: true });
+    const stuck2 = spawn(process.execPath, ["-e", stuckCode, "live", "serve"], { stdio: "ignore", detached: true, cwd: w.cwd });
     stuck2.unref();
     await holding();
     fs.writeFileSync(path.join(w.cwd, ".strom", "live-last.json"), JSON.stringify({ ...last, pid: stuck2.pid }));

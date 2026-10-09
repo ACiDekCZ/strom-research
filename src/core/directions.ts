@@ -4,7 +4,7 @@
 // several reach them (the ancestors of a grandmother before those of her
 // grandson). The queue, the menu and the Strom app go by the same answer.
 
-import type { Family, Research, Task } from "./model.ts";
+import type { Family, Hypothesis, Person, Research, Task } from "./model.ts";
 import { researchPeople } from "./frontier.ts";
 import { subjectPeople } from "./records.ts";
 import { typeOfId, type Tree } from "./tree.ts";
@@ -23,6 +23,28 @@ export function scopes(tree: Tree): Scope[] {
 export function aboutPeople(tree: Tree, subject: string[]): string[] {
   const partners = subject.filter((id) => typeOfId(id) === "family").flatMap((id) => tree.get<Family>(id)?.partners ?? []);
   return [...new Set([...subjectPeople(tree, subject), ...partners])];
+}
+
+/** Whether a text names a record by its ID (any script around it: never \b, which knows only ASCII letters). */
+export function namesId(text: string, id: string): boolean {
+  return new RegExp(`(?<![\\p{L}\\p{M}\\p{N}])${id}(?![\\p{L}\\p{M}\\p{N}])`, "u").test(text);
+}
+
+const PERSON_ID = /(?<![\p{L}\p{M}\p{N}])P\d{4,}(?![\p{L}\p{M}\p{N}])/gu;
+
+/**
+ * The people a hypothesis is about: those of its subject, and the people of the tree its question and its variants'
+ * claims name by ID ("the son of P0012 and P0013") — a variant that names a family nothing links to the tree would
+ * join it, though the subject names only the person of the tree. What each variant cites for or against it is
+ * evidence, not who it is about.
+ */
+export function hypothesisPeople(tree: Tree, h: Hypothesis): string[] {
+  const named = [h.question, ...h.variants.map((v) => v.claim)].flatMap((text) => text.match(PERSON_ID) ?? []);
+  const people = named.filter((id) => {
+    const p = tree.get<Person>(id);
+    return p && !p.retracted;
+  });
+  return [...new Set([...aboutPeople(tree, h.subject), ...people])];
 }
 
 /** The direction a task belongs to: its own, else the narrowest one its people are in; none for a task about nobody. */

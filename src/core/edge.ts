@@ -9,7 +9,7 @@ import type { Conflict, Hypothesis, Person, RecordSet, Research, Search, Session
 import type { Tree } from "./tree.ts";
 import { now } from "./tree.ts";
 import { Settings } from "./config.ts";
-import { aboutPeople, directionOf, scopes, type Scope } from "./directions.ts";
+import { aboutPeople, directionOf, hypothesisPeople, namesId, scopes, type Scope } from "./directions.ts";
 import { birthEstimate, birthRecordProven, birthWindow, frontier, FRONTIER_LEVELS, RECORD_KINDS, recordsetsCovering, type FrontierItem } from "./frontier.ts";
 import { kinship, offTree } from "./kin.ts";
 import { familiesAsChild, familiesAsPartner, parentsOf, primaryName } from "./people.ts";
@@ -159,7 +159,7 @@ function islands(tree: Tree, kin: Map<string, unknown>, tasks: Task[], hypothese
     const island: Island = {
       people: [...people],
       hypotheses: hypotheses
-        .map((h) => ({ h, about: aboutPeople(tree, h.subject) }))
+        .map((h) => ({ h, about: hypothesisPeople(tree, h) }))
         .filter(({ about }) => about.some((x) => people.has(x)) && about.some((x) => kin.has(x)))
         .map(({ h, about }) => ({ id: h.id, joins: about.filter((x) => kin.has(x)) })),
       held: tasks.filter((t) => LIVE.has(t.state) && off(t) && aboutPeople(tree, t.subject).some((x) => people.has(x))).length,
@@ -190,7 +190,7 @@ export function treeEdges(tree: Tree): { edges: Map<string, Edge>; islands: Map<
     if (!frontiers.has(r.id)) frontiers.set(r.id, new Map(frontier(tree, r).map((i) => [i.person.id, i])));
     return frontiers.get(r.id)!;
   };
-  const hypAbout = hypotheses.map((h) => ({ h, about: aboutPeople(tree, h.subject) }));
+  const hypAbout = hypotheses.map((h) => ({ h, about: hypothesisPeople(tree, h) }));
 
   const edges = new Map<string, Edge>();
   for (const p of tree.list<Person>("person")) {
@@ -332,7 +332,8 @@ export function treeEdges(tree: Tree): { edges: Map<string, Edge>; islands: Map<
         question: h.question,
         joins,
         ...(isle ? { island: { people: isle.people.length, held: isle.held } } : {}),
-        tests: tasks.filter((t) => LIVE.has(t.state) && t.subject.includes(h.id)).map((t) => t.id),
+        // a task about it, or one whose words name it ("the baptism … (H0007 B)")
+        tests: tasks.filter((t) => LIVE.has(t.state) && (t.subject.includes(h.id) || namesId(t.what, h.id))).map((t) => t.id),
       };
     });
     const edgeConflicts = conflicts

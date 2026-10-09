@@ -40,7 +40,8 @@ test("trees remove: a backup first, the name typed, the tree and the images only
   assert.match((await w.run(["trees", "remove", "Novákovi"], { answers: [] })).err, /na rodokmenu „Novákovi“ se právě pracuje/);
   fs.rmSync(lock);
   // the Strom app following it live is no work: its bridge stops when the tree goes
-  const bridge = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60_000)", "live", "serve"], { stdio: "ignore" });
+  // (a bridge runs in its tree's folder)
+  const bridge = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60_000)", "live", "serve"], { stdio: "ignore", cwd: root });
   fs.writeFileSync(path.join(root, ".strom", "live.json"), JSON.stringify({ port: 1, token: "t", pid: bridge.pid, url: "http://127.0.0.1:1/t", started: new Date().toISOString(), version: "1.0.0" }));
   const gone = new Promise((done) => bridge.on("exit", done));
   // a name typed wrong takes nothing off

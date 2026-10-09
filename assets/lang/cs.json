@@ -256,6 +256,7 @@
   "ui.doc.links.ours": "ano",
   "ui.doc.links.other": "vedou do jiného programu (nebo tam, kde strom býval)",
   "ui.doc.links.none": "žádné",
+  "ui.doc.links.unknown": "systém neodpověděl (zjistí se příště)",
   "ui.doc.app": "aplikace Strom",
   "ui.doc.tree": "tento rodokmen",
   "ui.doc.innode": "strom {version} v Node {node}",

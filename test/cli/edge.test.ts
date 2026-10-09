@@ -12,6 +12,9 @@ import { exportGedcom } from "../../src/gedcom/export.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
 import { appShowsCoupleEvents, APP_SHOWS_COUPLE_EVENTS, appShowsEdges, APP_SHOWS_EDGES, appShowsStoryDrafts, APP_SHOWS_STORY_DRAFTS } from "../../src/core/stromapp.ts";
 import { Settings } from "../../src/core/config.ts";
+import { hypothesisPeople, namesId } from "../../src/core/directions.ts";
+import { joiningHypotheses } from "../../src/core/kin.ts";
+import type { Hypothesis } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
 
@@ -184,4 +187,60 @@ console.log(JSON.stringify({ dropped: [...parsed.droppedTags.entries()], vaclav:
   assert.equal(out.pavel.island.size, 2);
   assert.deepEqual(out.pavel.island.hypos, [{ id: "H0001", join: "P0004" }]);
   w.cleanup();
+});
+
+test("edge: a hypothesis joins the family its variant names, though its subject is only the person of the tree", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["research", "new", "Předci Ondřeje", "--new-person", "Ondřej /Kubát/", "--sex", "M"]); // P1
+  await w.ok(["person", "add", "Tomáš /Kubát/", "--sex", "M", "--born", "1815", "--born-place", "Horní Ves"]); // P2: where the tree ends
+  await w.ok(["family", "add", "--partner", "P2", "--child", "P1"]);
+  await w.ok(["person", "add", "Řehoř /Šimek/", "--sex", "M"]); // P3, P4: a couple found in the records, nothing links them
+  await w.ok(["person", "add", "Ludmila /Šimková/", "--sex", "F"]);
+  await w.ok(["family", "add", "--partner", "P3", "--partner", "P4"]);
+  await w.ok(["person", "add", "Žofie /Kubátová/", "--sex", "F"]); // P5: named in a claim with a letter stuck to it — not the claim's person
+  await w.ok([
+    "hypothesis", "add", "Odkud pocházel Tomáš Kubát P0002?", "--about", "P2",
+    "--variant", "A: z Horní Vsi, rodiče neznámí",
+    "--variant", "B: syn Řehoře Šimka P0003 a Ludmily Šimkové (P0004), viz matriku; ne žP0005",
+  ]);
+  // the task that tests it names it only in its words, its subject the person of the tree
+  await w.ok(["task", "add", "Horní Ves: křest Tomáše, syna Řehoře Šimka a Ludmily Šimkové (H0001 B)", "--level", "locate", "--where", "katalog", "--why", "původ", "--done-when", "zápis", "--about", "P2"]);
+
+  const tree = Tree.open(w.cwd, w.env);
+  const h = tree.get<Hypothesis>("H0001")!;
+  assert.deepEqual(hypothesisPeople(tree, h).sort(), ["P0002", "P0003", "P0004"]);
+  assert.deepEqual(joiningHypotheses(tree, ["P0003"]).map((x) => x.id), ["H0001"]);
+
+  const e = await edges(w, "P2", "P3");
+  const hyp = e.P0002.hypotheses[0];
+  assert.equal(hyp.id, "H0001");
+  assert.deepEqual(hyp.joins.sort(), ["P0003", "P0004"]);
+  assert.deepEqual(hyp.island, { people: 2, held: 0 });
+  assert.deepEqual(hyp.tests, ["T0001"]);
+  const island = (await w.ok(["edge", "P4", "--json"])).json.edges[0].island;
+  assert.deepEqual(island, { people: 2, hypotheses: [{ id: "H0001", joins: ["P0002"] }], held: 0 });
+  // a task about the family off the tree is told what would join it
+  const added = await w.ok(["task", "add", "Rodiče Řehoře", "--level", "locate", "--where", "katalog", "--why", "rodiče", "--done-when", "kniha", "--about", "P3"]);
+  assert.match(added.out, /test first what would join them: H0001/);
+
+  // for the Strom app: the hypothesis joins the island at the edge, and its people know of it
+  const ged = exportGedcom(Tree.open(w.cwd, w.env), { for: "strom", research: true, edges: true }).text;
+  assert.deepEqual(validateGedcom(ged), []);
+  const block = (id: string) => ged.split(/\n(?=0 )/).find((r) => r.startsWith(`0 @${id}@ INDI`))!;
+  assert.match(block("P0002"), /\n2 _HYPO H0001\n3 _JOIN P0003\n3 _JOIN P0004\n3 _ISLAND 2\n3 _HELD 1\n3 _TEST T0001\n/);
+  assert.match(block("P0003"), /\n1 _STROM_ISLAND 2\n2 _HYPO H0001\n3 _JOIN P0002\n/);
+  for (const id of ["P0002", "P0003", "P0004"]) assert.match(block(id), /\n1 _STROM_HYPO H0001\n2 TITL Odkud pocházel Tomáš Kubát P0002\?/);
+  assert.doesNotMatch(block("P0005"), /_STROM_HYPO/);
+  w.cleanup();
+});
+
+test("edge: an ID is named in a text of any script — never a part of a longer word or number", () => {
+  assert.equal(namesId("křest Tomáše (H0007 B)", "H0007"), true);
+  assert.equal(namesId("viz H0007, varianta B", "H0007"), true);
+  assert.equal(namesId("крещение H0007", "H0007"), true);
+  assert.equal(namesId("ЖH0007", "H0007"), false);
+  assert.equal(namesId("e\u0301H0007", "H0007"), false, "a decomposed accent before it");
+  assert.equal(namesId("H00071", "H0007"), false);
+  assert.equal(namesId("H0007é", "H0007"), false);
 });
