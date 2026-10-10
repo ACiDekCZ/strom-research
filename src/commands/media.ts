@@ -12,7 +12,7 @@ import { lines, moreLine, paginate, runs, shellArg, table, truncate } from "../c
 import { UsageError } from "../core/errors.ts";
 import type { Input, Media, RecordSet, Region, Source, Task } from "../core/model.ts";
 import { makeNote } from "../core/actions.ts";
-import { clipText, collectFiles, coveringPart, fileSha256, findImage, imageNumbers, imageOfRef, inboxFolders, inputPath, isWhole, mimeOf, onlyParts, otherCopies, parseImageList, regionText, sharperPart, storeShared, wholeSizeOf } from "../core/media.ts";
+import { clipText, collectFiles, coveringPart, fileSha256, findImage, imageNumbers, imageOfRef, imageRange, inboxFolders, inputPath, isWhole, mimeOf, onlyParts, otherCopies, parseImageList, regionText, sharperPart, storeShared, wholeSizeOf } from "../core/media.ts";
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { imageOf, pageOf } from "../core/calibration.ts";
@@ -342,11 +342,45 @@ function refsText(wants: { b?: RecordSet; image?: number; page?: number; ref: st
   return out.join(" ");
 }
 
+/** A number of an image or page after a record set (B0001 --page 112 113): it belongs to the image named before it. */
+const isNumberArg = (a: string) => /^\d+(?:\s*(?:[-–]|\.\.\.?)\s*\d+)?(?:\s*,\s*\d+(?:\s*(?:[-–]|\.\.\.?)\s*\d+)?)*$/u.test(a.trim());
+
+/**
+ * Crops typed among several images (B0001:2 --crop A B0001:3 --crop B): each crop is of the image named before it —
+ * never every crop of every image (N0275: 16 views where 4 were meant). Crops all after the last image, or of one
+ * image, are of every image as always (undefined).
+ */
+function cropGroups(args: string[], opts: Record<string, unknown>, after: number[] | undefined): { args: string[]; crops: string[] }[] | undefined {
+  const crops = opts.crop === undefined ? [] : Array.isArray(opts.crop) ? opts.crop.map(String) : [String(opts.crop)];
+  if (!crops.length || !after || after.length !== crops.length) return undefined;
+  const refs = args.map((a, i) => (isNumberArg(a) ? -1 : i)).filter((i) => i >= 0);
+  if (refs.length < 2 || after.every((n) => n >= args.length)) return undefined;
+  const form = `strom media view ${args[refs[0]!]} --crop ${crops[0]} ${args[refs[1]!]} --crop …`;
+  if (after.some((n) => n === 0))
+    throw new UsageError("a --crop before any image: each --crop is of the image named before it", {
+      hint: `${form} (the same crops of every image: all of them after the last image)`,
+      code: "view.crop-first",
+    });
+  const groups = refs.map((r, k) => ({ args: args.slice(r, refs[k + 1] ?? args.length), crops: [] as string[] }));
+  crops.forEach((c, i) => {
+    // the image named last before it (a number after a record set is its page or image)
+    let k = refs.length - 1;
+    while (k > 0 && refs[k]! >= after[i]!) k--;
+    groups[k]!.crops.push(c);
+  });
+  const bare = groups.find((g) => !g.crops.length);
+  if (bare)
+    throw new UsageError(`${bare.args[0]} has no --crop of its own: each --crop is of the image named before it`, {
+      hint: `${form} (the same crops of every image: all of them after the last image)`,
+      code: "view.crop-missing",
+    });
+  return groups;
+}
+
 /** The images a call names, at most VIEW_MAX_IMAGES and `maxViews` views of them; images not registered said. */
-function resolveTargets(tree: Tree, shared: string, all: Media[], args: string[], opts: Record<string, unknown>, parts: ViewPart[], maxViews = VIEW_MAX_VIEWS): { targets: Target[]; missing: string[] } {
-  const numbers = (a: string) => /^\d+(?:\s*[-–]\s*\d+)?(?:\s*,\s*\d+(?:\s*[-–]\s*\d+)?)*$/u.test(a.trim());
-  const nums = args.filter(numbers);
-  const refs = args.filter((a) => !numbers(a)).map((a) => a.trim());
+function resolveTargets(tree: Tree, shared: string, all: Media[], args: string[], opts: Record<string, unknown>, parts: ViewPart[], maxViews = VIEW_MAX_VIEWS, several = false): { targets: Target[]; missing: string[] } {
+  const nums = args.filter(isNumberArg);
+  const refs = args.filter((a) => !isNumberArg(a)).map((a) => a.trim());
   const pages = listOf(opts.page);
   const images = listOf(opts.image);
   if (pages.length && images.length) throw new UsageError("--page or --image, not both");
@@ -356,6 +390,8 @@ function resolveTargets(tree: Tree, shared: string, all: Media[], args: string[]
   const pageList = pages.length ? [...pages, ...nums] : [];
   const imageList = pages.length ? [] : [...images, ...nums];
   const list = (s: string[], what: string): number[] => {
+    // a range from the higher number, or of hundreds of images: said as such
+    for (const p of s.join(",").split(",")) if (/^\s*\d+\s*(?:[-–]|\.\.\.?)\s*\d+\s*$/u.test(p)) imageRange(p.trim(), what === "images" ? "image" : what);
     const n = parseImageList(s.join(","));
     if (n) return n;
     // a page as it was always taken: "112", "12r"
@@ -404,7 +440,7 @@ function resolveTargets(tree: Tree, shared: string, all: Media[], args: string[]
       const parts = onlyParts(all, w.b.id, image!);
       const m = parts.length > 1 && (opts.crop !== undefined || opts.half !== undefined || opts.split !== undefined) ? findImage(all, w.b.id, image!) : imageOfRef(all, w.b.id, image!);
       if (!m) {
-        if (wants.length === 1) throw new UsageError(`image ${image} of ${w.b.id} is not registered`, { hint: `strom media list --recordset ${w.b.id} · strom media add <files> --recordset ${w.b.id}` });
+        if (wants.length === 1 && !several) throw new UsageError(`image ${image} of ${w.b.id} is not registered`, { hint: `strom media list --recordset ${w.b.id} · strom media add <files> --recordset ${w.b.id}` });
         missing.push(`${w.b.id}:${image}`);
         continue;
       }
@@ -417,7 +453,7 @@ function resolveTargets(tree: Tree, shared: string, all: Media[], args: string[]
     seen.add(t.key);
     targets.push(t);
   }
-  if (!targets.length) {
+  if (!targets.length && !several) {
     const b = missing[0]!.split(":")[0];
     throw new UsageError(`none of these images is registered: ${missing.join(", ")}`, { hint: `strom media list --recordset ${b} · strom media add <files> --recordset ${b}` });
   }
@@ -773,7 +809,7 @@ register(
     path: ["media", "view"],
     summary: "Make views of images to look at: a crop, a half page, enlarged, more contrast, a grid — several in one call",
     group: "sources",
-    sheet: `at most ${VIEW_MAX_IMAGES} images a call; several crops of an image: --crop … --crop … (no loop); a whole view finds, only a crop is read; a book read through: strom read`,
+    sheet: `at most ${VIEW_MAX_IMAGES} images a call; several crops of an image: --crop … --crop … (no loop), of each image: IMG --crop … IMG --crop …; a whole view finds, only a crop is read; a book read through: strom read`,
     tree: true,
     description:
       `Writes the views to .strom/views/ and prints their paths: open those files with your image reader. A whole image\n` +
@@ -785,11 +821,13 @@ register(
       "Several views in one call, then open all the files it lists together: several images (B0001:57 B0001:58, a range\n" +
       "B0001:57-60, B0001 --page 112 113), several parts of each (--half left --half right; --half both = the two pages\n" +
       "of a double page overlapping at the gutter, where they are sharper than one view of it, else the image whole;\n" +
-      "--crop repeated; --split 2x3 = a grid of overlapping parts), each view with its image, page and --clip. At most\n" +
+      "--crop repeated; --split 2x3 = a grid of overlapping parts), each view with its image, page and --clip. A --crop\n" +
+      "typed after an image among others is of that image alone (B0001:2 --crop … B0001:7 --crop …); crops after the last\n" +
+      "image are of every image. At most\n" +
       `${VIEW_MAX_IMAGES} images and ${VIEW_MAX_VIEWS} views in one call: every view stays in the context that opens it.`,
     args: [{ name: "image", description: "M0012, B0001:57 (record set:image), a range B0001:57-60, B0001 with --page, or an input I0002; several = several images", required: true, variadic: true }],
     options: [
-      { name: "crop", type: "string", multiple: true, value: "<x,y,w,h>", description: "part of the image: fractions (0.1,0.35,0.4,0.2) or pixels; repeated = several parts" },
+      { name: "crop", type: "string", multiple: true, value: "<x,y,w,h>", description: "part of the image: fractions (0.1,0.35,0.4,0.2) or pixels; repeated = several parts; after one image of several: of that image alone" },
       { name: "half", type: "string", multiple: true, value: "<side>", description: "left or right page of a double page (top, bottom); both = the two pages, overlapping at the gutter" },
       { name: "split", type: "string", value: "<c>x<r>", description: "the image (or each half or crop) as a grid of overlapping parts, e.g. 2x3" },
       { name: "scale", type: "string", value: "<f>", description: "size of the result: 2 = twice the original pixels" },
@@ -798,7 +836,7 @@ register(
       { name: "grey", type: "boolean", description: "greyscale" },
       { name: "grid", type: "boolean", description: "overlay a grid of tenths with labels, to point at a place" },
       { name: "rotate", type: "string", value: "<deg>", description: "90, 180 or 270" },
-      { name: "image", type: "string", multiple: true, value: "<n>", description: "image number(s) with a record set ID: 57, 57-60" },
+      { name: "image", type: "string", multiple: true, value: "<n>", description: "image number(s) with a record set ID: 57, 57-60, 57..60" },
       { name: "page", type: "string", multiple: true, value: "<n>", description: "page(s) or folio(s), with a calibrated record set ID: 112, 112 113, 112-115" },
       { name: "png", type: "boolean", description: "lossless PNG instead of JPEG" },
     ],
@@ -809,13 +847,15 @@ register(
       "strom media view B0001 --page 112",
       "strom media view B0001:1-3 --half both",
       "strom media view B0001:2 --crop 0.05,0.10,0.45,0.30 --crop 0.05,0.40,0.45,0.30",
+      "strom media view B0001:2 --crop 0.05,0.10,0.45,0.30 B0001:3 --crop 0.50,0.60,0.45,0.20",
       "strom media view B0001 --page 112 113 --split 2x2",
     ],
-    run(ctx, { args, opts }) {
+    run(ctx, { args, opts, after }) {
       const tree = ctx.tree();
       const shared = sharedDir(ctx);
       const all = tree.list<Media>("media");
       const parts = viewParts(opts);
+      const groups = cropGroups(args, opts, after?.crop);
       // a whole image to find the entry on; a part of it (a half, a crop, a grid's part) as big as the model takes it
       const own = agentViewSizes(ctx, tree);
       // what strom tuned for this agent and model (core/tune.ts) — as at the start of the session at work: the numbers
@@ -823,7 +863,31 @@ register(
       const since = currentSession(tree, ctx.env)?.started;
       const tuned: TuneState = treeTuning(tree, ctx.settings);
       const reading = readingOf(ctx.settings.config, own.key, { since, on: tuningOn(ctx.settings), root: tree.root });
-      const { targets, missing } = resolveTargets(tree, shared, all, args, opts, parts, reading.viewsPerCall);
+      // each image with its own crops (cropGroups), else every part of every image
+      const partsOf = new Map<Target, ViewPart[]>();
+      let targets: Target[] = [];
+      let missing: string[] = [];
+      if (!groups) ({ targets, missing } = resolveTargets(tree, shared, all, args, opts, parts, reading.viewsPerCall));
+      else {
+        for (const g of groups) {
+          const own = { ...opts, crop: g.crops };
+          const gp = viewParts(own);
+          const r = resolveTargets(tree, shared, all, g.args, own, gp, reading.viewsPerCall, true);
+          for (const t of r.targets) partsOf.set(t, gp);
+          targets.push(...r.targets);
+          missing.push(...r.missing);
+        }
+        if (!targets.length) {
+          const b = missing[0]!.split(":")[0];
+          throw new UsageError(`none of these images is registered: ${missing.join(", ")}`, { hint: `strom media list --recordset ${b} · strom media add <files> --recordset ${b}` });
+        }
+        const views = targets.reduce((n, t) => n + partsOf.get(t)!.reduce((m, p) => m + (p.both ? 2 : 1) * (p.split ? p.split[0] * p.split[1] : 1), 0), 0);
+        if (targets.length > VIEW_MAX_IMAGES || views > reading.viewsPerCall)
+          throw new UsageError(`${targets.length} image(s), ${views} views — at most ${VIEW_MAX_IMAGES} images and ${reading.viewsPerCall} views in one call: every view stays in the context that opens it`, {
+            hint: "fewer images now — write down what they gave before the next call",
+          });
+      }
+      const partsFor = (t: Target) => partsOf.get(t) ?? parts;
       const spec = viewSpec({ ...opts, half: undefined, crop: undefined });
       // a book read worse than the others: its views bigger (never above what the model takes)
       const sizesOf = (t: Target) => bookViewSizes(own, tuned, t.media?.recordset, since);
@@ -833,7 +897,7 @@ register(
       // where the size came from, for the record of the views (core/metrics.ts)
       const capFromOf = (t: Target): ViewMeta["capFrom"] => (spec.max !== undefined || spec.scale !== undefined ? "option" : sizesOf(t).tuned ? `tuned:${sizesOf(t).tuned}` : own.calibrated ? "calibrated" : "default");
       // the old call: one image, one view — said as it always was
-      if (targets.length === 1 && !missing.length && parts.length === 1 && !parts[0]!.both && !parts[0]!.split) {
+      if (!groups && targets.length === 1 && !missing.length && parts.length === 1 && !parts[0]!.both && !parts[0]!.split) {
         const t = targets[0]!;
         const r = oneView(ctx, tree, shared, all, t, { ...spec, max: maxOf(parts[0]!, t), half: parts[0]!.half, crop: parts[0]!.crop }, { capFrom: capFromOf(t) }, noSharperOf(t));
         return {
@@ -853,7 +917,7 @@ register(
       let first: unknown;
       for (const t of targets)
         try {
-          for (const p of parts)
+          for (const p of partsFor(t))
             for (const s of partSpecs(t, p, capOf(t), !!sizesOf(t).halves))
               made.push({
                 t,

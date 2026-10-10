@@ -134,7 +134,7 @@ test("sheet by level: the writing commands a level uses, with their usage from t
   // a text in the inputs and notes: strom grep in one call, in every sheet that reads or records (a delegate read three
   // big inputs in 110 pieces for want of it)
   for (const level of ["link", "verify", "enrich", "locate", "intake", "request"])
-    assert.equal(line(sheet(level), "grep"), "  strom grep <text>… --in <where>… --context <n> — never Read inputs/ or notes/ in pieces", level);
+    assert.equal(line(sheet(level), "grep"), "  strom grep <text>… --in <where>… --context <n> --all — never Read inputs/ or notes/ in pieces", level);
 
   // locating: places, archives and books, the task pointed at the book — no facts
   const locate = sheet("locate");
@@ -181,8 +181,8 @@ test("the sheet says --reason wherever the command asks it: source edit, input s
 test("brief size by level: the method and the commands every session of a level carries stay within their budget", () => {
   // Characters of the method (every part a level can get) and the command sheet. 1.13.1 carried only the method:
   // link 16 083, verify 15 729, enrich 16 698, locate 5 690, intake 12 263, request 4 438, narrate 5 607 — the levels
-  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding), several crops in one call; --reason on the input commands that ask it (intake +23).
-  const BUDGET: Record<string, number> = { link: 23_500, verify: 22_400, enrich: 23_600, locate: 7_600, intake: 16_650, request: 4_438, narrate: 5_607 };
+  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding), several crops in one call; --reason on the input commands that ask it (intake +23); grep --all and the crops of each image in one media view call (+20), the budget of a search beyond the registers one with the web rule (enrich).
+  const BUDGET: Record<string, number> = { link: 23_520, verify: 22_400, enrich: 23_620, locate: 7_600, intake: 16_670, request: 4_438, narrate: 5_607 };
   for (const level of TASK_LEVELS) {
     const size = methodFor(level, EVERY).length + sheet(level).length;
     assert.ok(size <= BUDGET[level]!, `${level}: ${size} > ${BUDGET[level]}`);

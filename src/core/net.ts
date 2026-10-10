@@ -113,7 +113,7 @@ export function capNear(s: HostState, pace: Pace, now: number): CapNear | undefi
 /** A limit used up: try again then. */
 function capError(host: string, why: "cap" | "limit", until: number, perHour: number): NetError {
   const what = why === "cap" ? `${perHour} requests to ${host} in the last hour — its hourly cap` : `${host} says its limit is used up`;
-  return new NetError("cap", host, `${what}; try again at ${clock(until)}`, `go on with other work; run it again at ${clock(until)} — not sooner: strom sends nothing to ${host} before then`, undefined, until);
+  return new NetError("cap", host, `${what}; try again at ${clock(until)}`, `go on with other work; run it again at ${clock(until)} — not sooner: strom sends nothing to ${host} before then${why === "limit" ? `; the person can lift it early: strom allow host ${host} --unblock` : ""}`, undefined, until);
 }
 
 export interface HostState {
@@ -321,27 +321,106 @@ function siteStateFile(dir: string, site: string): string {
   return path.join(dir, `site~${site.replace(/[^a-z0-9.-]/gi, "_")}.json`);
 }
 
-export function hostState(dir: string, host: string): HostState {
-  return readHostState(dir, host).state;
+export function hostState(dir: string, host: string, at?: number): HostState {
+  return readHostState(dir, host, at).state;
 }
+
+/** The furthest ahead strom reserves a host's requests (reserveSlots: the browser's): its slots and its last one within it. */
+export const SLOTS_AHEAD_MS = 3600_000;
+/** What a time read from a host's state may lie beyond the furthest strom writes there: the clock put right a little. */
+const STATE_MARGIN_MS = 5 * 60_000;
+/** The longest a host's answer is taken to take on average (its timeout is TIMEOUT_MS): one above is taken as this long. */
+const LATENCY_MAX_MS = 10 * TIMEOUT_MS;
 
 /**
  * A host's state as its file keeps it — `broken` when the file is there but no state can be read from it (cut short by
- * a crash, overwritten): a fresh one then, which the next write puts in its place whole (writeJson: aside, then renamed)
- * — never a host left uncounted for good because its file cannot be read.
+ * a crash, overwritten), or a part of it holds what strom never writes there: a time not a number or negative, a time
+ * of a request further ahead than strom ever reserves one (the clock set back, a hand edit: `{"last": <a year ahead>}`
+ * would hold the host for a year — put right, the next request goes at the host's pace from now, never sooner), a
+ * slowdown below 1. Those parts are left out (`timesLost` when the hour's times or the last one were among them: the
+ * caller's own journal may tell them again), the rest kept — the user's own pace, and fields of a newer strom — and the
+ * next write puts the clean state in its place whole (writeJson: aside, then renamed): never a host left uncounted for
+ * good because its file cannot be read. Nothing read here makes strom faster than the state says: a wait the host or a
+ * refusal set (waitUntil, blockedUntil) stays however far ahead it lies, and a slowdown or an answer's time beyond the
+ * most strom writes is taken as that most, never left out.
  */
-export function readHostState(dir: string, host: string): { state: HostState; broken: boolean } {
+export function readHostState(dir: string, host: string, at: number = (testHooks.now ?? Date.now)()): { state: HostState; broken: boolean; timesLost: boolean } {
   let v: unknown;
   try {
     v = readJsonIfExists<unknown>(stateFile(dir, host));
   } catch {
-    return { state: { recent: [] }, broken: true };
+    return { state: { recent: [] }, broken: true, timesLost: true };
   }
-  if (v === undefined) return { state: { recent: [] }, broken: false };
-  if (!v || typeof v !== "object" || Array.isArray(v)) return { state: { recent: [] }, broken: true };
-  const st = v as HostState;
-  // (the hour's times only: anything else in it is no time of a request)
-  return { state: { ...st, recent: Array.isArray(st.recent) ? st.recent.filter((x) => typeof x === "number" && Number.isFinite(x)) : [] }, broken: false };
+  if (v === undefined) return { state: { recent: [] }, broken: false, timesLost: false };
+  if (!v || typeof v !== "object" || Array.isArray(v)) return { state: { recent: [] }, broken: true, timesLost: true };
+  return checkHostState(v as Record<string, unknown>, at);
+}
+
+/** A time strom may have written: a number, not negative, at most `ahead` (+ the margin) after `at`. */
+export function stateTime(x: unknown, at: number, ahead: number): x is number {
+  return typeof x === "number" && Number.isFinite(x) && x >= 0 && x <= at + ahead + STATE_MARGIN_MS;
+}
+
+function checkHostState(raw: Record<string, unknown>, at: number): { state: HostState; broken: boolean; timesLost: boolean } {
+  let broken = false;
+  let timesLost = false;
+  const out: Record<string, unknown> = { ...raw };
+  const drop = (k: string, times = false) => {
+    delete out[k];
+    broken = true;
+    if (times) timesLost = true;
+  };
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(raw, k);
+  if (has("last") && !stateTime(raw.last, at, SLOTS_AHEAD_MS)) drop("last", true);
+  if (has("recent") && !Array.isArray(raw.recent)) {
+    broken = timesLost = true;
+  }
+  const recent = Array.isArray(raw.recent) ? raw.recent : [];
+  out.recent = recent.filter((x) => stateTime(x, at, SLOTS_AHEAD_MS));
+  if ((out.recent as unknown[]).length !== recent.length) broken = timesLost = true;
+  // the last request lost: the latest of the hour's that could be read, so the pace counts from it
+  if (has("last") && out.last === undefined && (out.recent as number[]).length) out.last = Math.max(...(out.recent as number[]));
+  // (beyond the most strom writes: that most — slower, never faster; below 1 or no number: none, the pace itself)
+  const most = (k: string, max: number) => {
+    out[k] = max;
+    broken = true;
+  };
+  if (has("slowdown")) {
+    const v = raw.slowdown;
+    if (typeof v === "number" && v > 16) most("slowdown", 16);
+    else if (!(typeof v === "number" && v >= 1)) drop("slowdown");
+  }
+  if (has("http2") && typeof raw.http2 !== "boolean") drop("http2");
+  // a wait a refusal or the host set is kept however long — even from a clock set back: the gentle side; the person's
+  // way out is strom allow host <host> --unblock (a refusal), else it runs out
+  const until = (x: unknown) => typeof x === "number" && Number.isFinite(x) && x >= 0;
+  if (has("blockedUntil") && !until(raw.blockedUntil)) drop("blockedUntil");
+  if (has("reason") && typeof raw.reason !== "string") drop("reason");
+  if (has("latencyMs")) {
+    const v = raw.latencyMs;
+    if (typeof v === "number" && v > LATENCY_MAX_MS) most("latencyMs", LATENCY_MAX_MS);
+    else if (!(typeof v === "number" && v >= 0)) drop("latencyMs");
+  }
+  if (has("waitUntil") && !until(raw.waitUntil)) drop("waitUntil");
+  if (has("own")) {
+    const own = raw.own;
+    if (!own || typeof own !== "object" || Array.isArray(own)) drop("own");
+    else {
+      // the user's own pace: any length they set (at least MIN_INTERVAL_MS), any whole cap (0: none)
+      const o = { ...(own as Record<string, unknown>) };
+      const part = (k: string, ok: boolean) => {
+        if (Object.prototype.hasOwnProperty.call(o, k) && !ok) {
+          delete o[k];
+          broken = true;
+        }
+      };
+      part("minIntervalMs", typeof o.minIntervalMs === "number" && Number.isFinite(o.minIntervalMs) && o.minIntervalMs >= 0);
+      part("perHour", typeof o.perHour === "number" && Number.isInteger(o.perHour) && o.perHour >= 0);
+      part("at", typeof o.at === "string");
+      out.own = o;
+    }
+  }
+  return { state: out as unknown as HostState, broken, timesLost };
 }
 
 /** The hosts the limiter has met (it keeps a state for each). */
@@ -359,6 +438,8 @@ export function clearBlock(dir: string, host: string): void {
   const s = hostState(dir, host);
   delete s.blockedUntil;
   delete s.reason;
+  // the limit a host said is used up (kept as given, a year too): the person lifts it the same way
+  delete s.waitUntil;
   s.slowdown = 1;
   writeJson(file, s);
 }
@@ -424,7 +505,7 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
   const file = stateFile(opts.stateDir, host);
   const tries = { busy: 0, slowDown: 0, silent: 0 };
   let upgraded = false;
-  let pace = hostPace(hostState(opts.stateDir, host), opts.pace);
+  let pace = hostPace(hostState(opts.stateDir, host, now()), opts.pace);
   // how long this request may wait for a limit used up, all waits together
   const waitBy = now() + Math.max(MAX_WAIT_MS, opts.waitMs ?? MAX_WAIT_MS);
   let waitedOutside = 0;
@@ -439,7 +520,7 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
     let took = 0;
     let outside: WaitOutside | undefined;
     try {
-      let s = hostState(opts.stateDir, host);
+      let s = hostState(opts.stateDir, host, now());
       pace = hostPace(s, opts.pace);
       slowed = (s.slowdown ?? 1) > 1;
       const t = now();
@@ -486,7 +567,7 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
       }
       took = now() - asked;
       const cool = (ms: number, reason: string) => {
-        s = hostState(opts.stateDir, host);
+        s = hostState(opts.stateDir, host, now());
         s.blockedUntil = now() + ms;
         s.reason = reason;
         writeJson(file, s);
@@ -513,14 +594,14 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
     // Asked once more over HTTP/2, paced like any request, and remembered for the host.
     if (res?.status === 426 && !viaH2 && !upgraded) {
       upgraded = true;
-      const cur = hostState(opts.stateDir, host);
+      const cur = hostState(opts.stateDir, host, now());
       cur.http2 = true;
       writeJson(file, cur);
       continue;
     }
     if (!res && viaH2) {
       // no HTTP/2 answer: the next request tries HTTP/1.1 again
-      const cur = hostState(opts.stateDir, host);
+      const cur = hostState(opts.stateDir, host, now());
       delete cur.http2;
       writeJson(file, cur);
     }
@@ -543,7 +624,7 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
     const kind = !res ? "silent" : res.status === 429 ? "slowDown" : res.status >= 500 ? "busy" : undefined;
     if (res && !kind) {
       // an answer without trouble: back towards the pace, how long it took, a limit the host says is used up
-      const cur = hostState(opts.stateDir, host);
+      const cur = hostState(opts.stateDir, host, now());
       if (slowed) cur.slowdown = Math.max(1, (cur.slowdown ?? 1) * 0.8);
       cur.latencyMs = Math.round(cur.latencyMs === undefined ? took : cur.latencyMs * 0.7 + took * 0.3);
       // the pause counts from the answer: a host that works long on each gets as long to rest
@@ -559,7 +640,7 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
       return { status: res.status, contentType: res.headers.get("content-type") ?? "", headers: out, body: Buffer.from(await res.arrayBuffer()), url: res.url || url };
     }
     // Busy, "slow down", or no answer: slow down, and try again — a little.
-    const cur = hostState(opts.stateDir, host);
+    const cur = hostState(opts.stateDir, host, now());
     cur.slowdown = Math.min(16, (cur.slowdown ?? 1) * 2);
     writeJson(file, cur);
     tries[kind!]++;
@@ -587,9 +668,9 @@ export function reserveSlots(stateDir: string, host: string, asked: ServicePace 
   const file = stateFile(stateDir, host);
   const release = acquireLock(`${file}.lock`, { owner: "strom net", waitMs: 10 * 60_000, staleMs: 10 * 60_000 });
   try {
-    const s = hostState(stateDir, host);
-    const pace = hostPace(s, asked);
     const t = now();
+    const s = hostState(stateDir, host, t);
+    const pace = hostPace(s, asked);
     if (s.blockedUntil && s.blockedUntil > t)
       throw new NetError("blocked", host, `${host}: ${s.reason ?? "refused us"} — left alone until ${when(s.blockedUntil)}`, "do not retry: go on with other work; the user can lift it early with strom allow host <host> --unblock");
     if (s.waitUntil && s.waitUntil - t > MAX_WAIT_MS) throw capError(host, "limit", s.waitUntil, pace.perHour);
@@ -598,7 +679,10 @@ export function reserveSlots(stateDir: string, host: string, asked: ServicePace 
     if (free <= 0) throw capError(host, "cap", capFree(s.recent, pace.perHour), pace.perHour);
     const gap = gapOf(s, pace);
     const first = Math.max(t + (opts.leadMs ?? 0), (s.last ?? 0) + gap, s.waitUntil ?? 0);
-    const times = Array.from({ length: free }, (_, i) => first + i * gap);
+    // never further ahead than SLOTS_AHEAD_MS: fewer than asked, the rest next time
+    if (first > t + SLOTS_AHEAD_MS)
+      throw new NetError("cap", host, `${host}: strom has planned its requests for the next hour already; try again at ${clock(first - SLOTS_AHEAD_MS)}`, `go on with other work; run it again at ${clock(first - SLOTS_AHEAD_MS)}`, undefined, first - SLOTS_AHEAD_MS);
+    const times = Array.from({ length: Math.min(free, Math.floor((t + SLOTS_AHEAD_MS - first) / gap) + 1) }, (_, i) => first + i * gap);
     s.last = times.at(-1)!;
     s.recent.push(...times);
     writeJson(file, s);
@@ -616,7 +700,7 @@ export function refusedBy(stateDir: string, host: string, status: number, now: (
   const file = stateFile(stateDir, host);
   const release = acquireLock(`${file}.lock`, { owner: "strom net", waitMs: 10 * 60_000, staleMs: 10 * 60_000 });
   try {
-    const s = hostState(stateDir, host);
+    const s = hostState(stateDir, host, now());
     const reason = status === 429 ? `it asked the browser to slow down (HTTP 429 at ${when(now())})` : `it refused the browser (HTTP ${status} at ${when(now())})`;
     s.blockedUntil = Math.max(s.blockedUntil ?? 0, now() + ms);
     s.reason = reason;
@@ -707,6 +791,7 @@ export async function agentRequest<T>(
     const siteFile = o.site ? siteStateFile(stateDir, o.site.key) : undefined;
     if (siteFile) releaseSite = acquireLock(`${siteFile}.lock`, { ...lockOpts, waitMs: Math.max(0, lockOpts.waitMs - (Date.now() - lockBegun)) });
     // a site's state that cannot be read: a fresh one (written below with the request's slot, or now)
+    const t = now();
     let siteBroken = false;
     let site: { last?: number } | undefined;
     if (siteFile) {
@@ -714,17 +799,23 @@ export async function agentRequest<T>(
         const v = readJsonIfExists<{ last?: number }>(siteFile);
         site = v && typeof v === "object" && !Array.isArray(v) ? v : {};
         siteBroken = v !== undefined && site !== v;
+        // its last slot as agentRequest writes it: within the call's wait, never a time strom does not write
+        if (site.last !== undefined && !stateTime(site.last, t, Math.max(o.maxWaitMs, MAX_WAIT_MS))) {
+          site = { ...site };
+          delete site.last;
+          siteBroken = true;
+        }
       } catch {
         site = {};
         siteBroken = true;
       }
     }
-    const { state: s, broken } = readHostState(stateDir, host);
-    const t = now();
-    if (broken) {
-      const known = (o.recover?.(t) ?? []).filter((x) => Number.isFinite(x) && x > t - 3600_000);
-      s.recent = known;
-      if (known.length) s.last = Math.max(...known);
+    const { state: s, broken, timesLost } = readHostState(stateDir, host, t);
+    if (timesLost) {
+      // the hour's times from what the journal tells, with those that could be read
+      const known = (o.recover?.(t) ?? []).filter((x) => Number.isFinite(x) && x > t - 3600_000 && x <= t + SLOTS_AHEAD_MS);
+      s.recent = [...new Set([...s.recent, ...known])].sort((a, b) => a - b);
+      if (s.recent.length) s.last = Math.max(s.last ?? 0, ...s.recent);
     }
     const pace = hostPace(s, asked);
     s.recent = s.recent.filter((x) => x > t - 3600_000);

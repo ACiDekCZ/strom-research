@@ -112,7 +112,7 @@ test("fetch near a host's hourly cap: the agent hears what is left and when it f
   const tree = Tree.open(w.cwd, w.env);
   const cs = changeLines(tree, capOps(), "", "cs").map((l) => l.text);
   assert.equal(cs.length, 2);
-  assert.match(cs[0]!, /^Archiv 127\.0\.0\.1 je blízko hodinového limitu: využito 8 z 10 požadavků za hodinu, další volný v \d\d:\d\d; mezitím výzkum pokračuje s tím, co už je k dispozici$/);
+  assert.match(cs[0]!, /^Archiv 127\.0\.0\.1 je blízko hodinového limitu: využito 8 z 10 požadavků za hodinu, další volný v (\d{4}-\d\d-\d\d )?\d\d:\d\d; mezitím výzkum pokračuje s tím, co už je k dispozici$/);
   assert.match(changeLines(tree, capOps().slice(1), "", "de")[0]!.text, /^Archiv 127\.0\.0\.1 nahe an seiner Grenze pro die Stunde: 9 von 10 Anfragen/);
   assert.match(changeLines(tree, capOps().slice(1), "", "en")[0]!.text, /^The archive 127\.0\.0\.1 nearly at its hourly limit: 9 of 10 requests an hour used/);
   // only said: the cap and the pace stay the archive's

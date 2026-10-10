@@ -115,8 +115,10 @@ test("the scan reader on the model strom set: a call without model, with the sam
   // no transcript: what strom started the agent with (STROM_MODEL, model.lead)
   assert.equal(await hook(w, call(w, { ...reader, model: "opus" }), { STROM_MODEL: "opus" }), undefined);
   assert.equal((await hook(w, call(w, { ...reader, model: "sonnet" }), { STROM_MODEL: "opus" }))?.permissionDecision, "deny");
-  // nothing known of the main agent's model: a model named is refused (without it the reader runs on the agent's own)
-  assert.equal((await hook(w, call(w, { ...reader, model: "opus" })))?.permissionDecision, "deny");
+  // nothing known of the main agent's model (no transcript, no model.lead, no session's): nothing to compare with — any
+  // model named goes on
+  assert.equal(await hook(w, call(w, { ...reader, model: "opus" })), undefined);
+  assert.equal(await hook(w, call(w, { ...reader, model: "sonnet" })), undefined);
 
   // the person chose a model for handwriting (model.vision): that one, whatever the main agent runs on
   await w.ok(["config", "set", "model.vision", "sonnet", "--for-tree"]);
@@ -125,6 +127,9 @@ test("the scan reader on the model strom set: a call without model, with the sam
   const other = (await hook(w, call(w, { ...reader, model: "opus" }, { transcript: opus })))!;
   assert.equal(other.permissionDecision, "deny");
   assert.match(other.permissionDecisionReason, /^strom: strom-scan-reader reads on the model strom set for it — sonnet \(model\.vision\), not opus\./);
+  // and with nothing known of the main agent's model: compared with model.vision all the same
+  assert.equal((await hook(w, call(w, { ...reader, model: "opus" })))?.permissionDecision, "deny");
+  assert.equal(await hook(w, call(w, { ...reader, model: "sonnet" })), undefined);
 
   // anything wrong lets the call go: no tree here, a broken event
   assert.equal(await hook(w, JSON.stringify({ tool_name: "Agent", cwd: w.dir, tool_input: { ...reader, model: "haiku" } }), {}), undefined);

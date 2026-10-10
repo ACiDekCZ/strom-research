@@ -778,10 +778,13 @@ register(
       // (strom connector discard) — in the research's own .strom, never in the plugin's folder
       const tree = ctx.hasTree() ? ctx.tree() : undefined;
       const session = tree ? currentSession(tree, ctx.env) : undefined;
+      // whether its agent may take it away again (strom connector discard), else it is the user's to remove
+      let discardable = false;
       if (tree) {
         const marker = madeMarker(tree.root, name);
         const folder = folderId(dir);
         if (session && folder) {
+          discardable = true;
           const made: MadeConnector = { session: session.id, tree: tree.config.id, ...(session.research ? { research: session.research } : {}), at: new Date().toISOString(), folder };
           fs.mkdirSync(path.dirname(marker), { recursive: true });
           fs.writeFileSync(marker, JSON.stringify(made) + "\n");
@@ -799,7 +802,7 @@ register(
           `     strom connector test ${name} --find "<place>"`,
           consentRequired(ctx.env) ? `  3. the first test needs your consent, in your terminal: strom allow connector ${name}` : undefined,
           ofSite
-            ? `\nnote: the connector ${ofSite} is here already for ${webDomain(url.hostname)} (its hosts: ${listConnectors(shared(ctx)).find((c) => c.name === ofSite)?.manifest.hosts.join(", ") ?? "?"}) — more pages of that site go through it (strom connector show ${ofSite}); keep this one only for another portal of the site, else take it away: strom connector discard ${name}`
+            ? `\nnote: the connector ${ofSite} is here already for ${webDomain(url.hostname)} (its hosts: ${listConnectors(shared(ctx)).find((c) => c.name === ofSite)?.manifest.hosts.join(", ") ?? "?"}) — more pages of that site go through it (strom connector show ${ofSite}); keep this one only for another portal of the site, else take it away: ${discardable ? `strom connector discard ${name}` : `the user, in their terminal: strom connector remove ${name}`}`
             : undefined,
         ),
         data: { name, dir, ...(ofSite ? { site: { domain: webDomain(url.hostname), connector: ofSite } } : {}) },
@@ -1259,7 +1262,7 @@ register(
     args: [{ name: "host", description: "e.g. digi.example.org", required: true }],
     options: [
       { name: "revoke", type: "boolean", description: "take the consent back" },
-      { name: "unblock", type: "boolean", description: "lift a refusal (401/403) early — only after the archive said it is fine" },
+      { name: "unblock", type: "boolean", description: "lift a refusal (401/403), or a limit the host said is used up, early — only after the archive said it is fine" },
       { name: "pace", type: "string", value: "<seconds|auto>", description: `your own pause between two requests to the host (at least ${MIN_INTERVAL_MS / 1000} s); auto: the service's again` },
       { name: "per-hour", type: "string", value: "<n|none|auto>", description: "your own hourly cap for the host; none: no cap; auto: the service's again (strom sets none by itself)" },
     ],
@@ -1292,7 +1295,7 @@ register(
         return { text: `${host}: ${paceText(now)}${s.own ? " — yours" : " — the service's again"}`, data: { host, pace: { minIntervalMs: now.minIntervalMs, perHour: Number.isFinite(now.perHour) ? now.perHour : null }, own: s.own ?? null } };
       }
       const how = ctx.requireHuman(
-        `${opts.revoke ? "Take back" : opts.unblock ? "Lift the refusal of" : "Allow"} automated access to ${host}?`,
+        `${opts.revoke ? "Take back" : opts.unblock ? "Lift the refusal or the used-up limit of" : "Allow"} automated access to ${host}?`,
         `strom allow host ${host}${opts.revoke ? " --revoke" : opts.unblock ? " --unblock" : ""}`,
         `host:${host}`,
         ui(lang, opts.revoke ? "ui.consent.host.revoke" : opts.unblock ? "ui.consent.host.unblock" : "ui.consent.host", { host }),
@@ -1304,9 +1307,10 @@ register(
         return { text: `${host}: consent taken back — no connector reaches it now`, data: { host, allowed: false } };
       }
       if (opts.unblock) {
-        if (how === "terminal" && !(await ctx.confirm(`${host} refused us. Lift it now (only if the archive said it is fine)?`, false))) return { text: "nothing changed" };
+        // the person's question and answer, in their language (a refusal, or a limit the host said is used up)
+        if (how === "terminal" && !(await ctx.confirm(ui(lang, "ui.consent.host.unblock", { host }), false))) return { text: ui(lang, "ui.host.unblock.kept", { host }) };
         clearBlock(netDir(ctx), host);
-        return { text: `${host}: the refusal is lifted — strom will ask it again, slowly`, data: { host, unblocked: true } };
+        return { text: ui(lang, "ui.host.unblocked", { host }), data: { host, unblocked: true } };
       }
       const c = listConnectors(ctx.settings.shared()?.value).find((x) => x.manifest.hosts.some((h) => hostAllowed(host, [h])));
       const ok = await askHost(ctx, host, c, how === "window");
@@ -1721,10 +1725,16 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     throw new UsageError(`${c.manifest.title} does not allow automated download (its terms, as the connector read them)`, {
       hint: `the user saves them by hand: strom task wait T… --images B…:${request.cmd === "part" ? request.image : runs(request.images)} --on "<the book, its link, which images>" (the link: strom fetch ${c.name} ${request.book} --list)`,
     });
+  // an archive marked manual (browser only) refuses downloads, not finding books in its catalogue and their links;
+  // one marked forbidden refuses every automated request
   const repo = forbiddenBy(ctx, c);
-  if (repo)
-    throw new UsageError(`${repo.id} ${repo.name} is marked automation ${repo.automation} in this tree — no downloads through a connector`, {
-      hint: `strom repo show ${repo.id} — change it only if the archive allows it: strom repo edit ${repo.id} --automation allowed`,
+  if (repo?.automation === "forbidden")
+    throw new UsageError(`${repo.id} ${repo.name} is marked automation forbidden in this tree — no requests through a connector`, {
+      hint: `strom repo show ${repo.id} — the user saves what the research needs by hand`,
+    });
+  if (repo && (request.cmd === "fetch" || request.cmd === "part"))
+    throw new UsageError(`${repo.id} ${repo.name} is marked automation manual in this tree — no images downloaded through a connector`, {
+      hint: `the user saves them by hand: strom task wait T… --images B…:${request.cmd === "part" ? request.image : runs(request.images)} --on "<the book, its link, which images>" (finding books and their links still works — the link: strom fetch ${c.name} ${request.book} --list)`,
     });
   if (recordset && request.cmd === "fetch") {
     // what is registered already is not asked for again (a part of an image is not the image)

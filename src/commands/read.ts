@@ -51,9 +51,11 @@ function partCovering(parts: Media[], crop: string): { part: Media; crop: string
 
 /** "40-69" → [40, 69] */
 function range(v: string): [number, number] {
-  const m = /^(\d+)(?:-(\d+))?$/.exec(v.trim());
+  const m = /^(\d+)(?:\s*(?:[-–]|\.\.\.?)\s*(\d+))?$/u.exec(v.trim());
   if (!m) throw new UsageError(`invalid --images "${v}"`, { hint: "e.g. 40-69" });
-  return [Number(m[1]), Number(m[2] ?? m[1])];
+  const [lo, hi] = [Number(m[1]), Number(m[2] ?? m[1])];
+  if (hi < lo) throw new UsageError(`--images ${v.trim()}: a range from the lower number`, { hint: `--images ${hi}-${lo}` });
+  return [lo, hi];
 }
 
 export async function pool<T, R>(items: T[], size: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
@@ -100,7 +102,7 @@ register({
     { name: "batch", type: "string", value: "<n>", description: `views per reader — a double page in halves is two (default ${BATCH}, fewer where strom tuned the reading of this agent and model: strom config get reading.batch; at most ${BATCH_MAX})` },
     { name: "parallel", type: "string", value: "<n>", description: "readers at the same time (default 3)" },
     { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision — never weaker for handwriting)" },
-    { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP },
+    { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP, mistaken: ["timeout", "time", "time-limit", "max-minutes"] },
   ],
   examples: [
     'strom read B0001 --images 40-69 --question "Every baptism of the surname Novák (Nowak, Nowack) in 1820–1824: the child, date, house, both parents and their parents"',

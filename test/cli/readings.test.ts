@@ -46,6 +46,18 @@ test("strom readings: finds, unclear entries, possible matches in what was illeg
   assert.match(one.out, /\n## Image 37 · M0037\nresult: nothing\nentries: žádný zápis Dvořák s jistotou\. Prošel jsem 9 zápisů/);
   assert.match(one.out, /\nhand: kurent, německy\ncertainty: —\npages: 73–74\n?$/);
   assert.match((await w.ok(["readings", "--image", "99"])).out, /^no reader reported image 99/);
+  // a few images' blocks: a range, as typed (35-38, 35..38)
+  for (const range of ["36-37", "36..37", "36–37"]) {
+    const few = await w.ok(["readings", "B1", "--image", range, "--json"]);
+    assert.deepEqual([...new Set(few.json.blocks.map((b: { image: number }) => b.image))], [36, 37], range);
+  }
+  // a range from the higher number or of hundreds of images: said, never guessed
+  const back = await w.run(["readings", "B1", "--image", "38..35"]);
+  assert.equal(back.code, 2);
+  assert.match(back.err, /--image 38\.\.35: a range from the lower number\n→ --image 35-38/);
+  const huge = await w.run(["readings", "B1", "--image", "1-5000"]);
+  assert.match(huge.err, /--image 1-5000: 5000 images — at most 200 in a range/);
+  assert.match((await w.run(["readings", "--image", "abc"])).err, /invalid --image "abc"/);
 
   // words in any spelling of accents, typed decomposed
   const m = await w.ok(["readings", "--match", "kolar".normalize("NFD"), "--match", "DOLNÍ VES".normalize("NFD"), "--images", "31-35,48-60"]);

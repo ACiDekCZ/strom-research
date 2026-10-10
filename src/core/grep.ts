@@ -134,17 +134,18 @@ function textFiles(targets: string[]): { files: string[]; tooBig: string[] } {
 }
 
 /**
- * The matcher of the patterns: a line matches when any of them is in it — as it reads (folded: case, accents, a
+ * The matcher of the patterns: a line matches when any of them is in it (all: every one of them) — as it reads (folded: case, accents, a
  * decomposed letter, runs of white space), or a regular expression (in any case, Unicode). It returns where the first
  * find starts in the line (NFC), or -1.
  */
-export function grepMatcher(patterns: readonly string[], regex: boolean): (line: string) => number {
+export function grepMatcher(patterns: readonly string[], regex: boolean, all = false): (line: string) => number {
   if (regex) {
     const res = patterns.map((p) => new RegExp(p.normalize("NFC"), "iu"));
     return (line) => {
       let best = -1;
       for (const re of res) {
         const m = re.exec(line);
+        if (!m && all) return -1;
         if (m && (best < 0 || m.index < best)) best = m.index;
       }
       return best;
@@ -156,6 +157,8 @@ export function grepMatcher(patterns: readonly string[], regex: boolean): (line:
     let best = -1;
     for (const q of folded) {
       const at = f.indexOf(q);
+      // all: a line with every one of them (in any order), shown from the first
+      if (at < 0 && all) return -1;
       if (at >= 0 && (best < 0 || at < best)) best = at;
     }
     return best < 0 ? -1 : unfoldIndex(line, best);

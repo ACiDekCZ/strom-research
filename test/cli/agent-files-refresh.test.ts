@@ -38,3 +38,36 @@ test("an older tree's agent files are refreshed before strom chat (the desktop a
   fresh("a run");
   w.cleanup();
 });
+
+test("the first run of another strom writes the tree's .strom/bin again for this one; strom agents sync says when it wrote it; a tree with none gets none", opts, async () => {
+  const w = await world();
+  const bin = path.join(w.cwd, ".strom", "bin");
+  const files = ["strom", "strom.cmd", "strom-hook.cmd"].map((f) => path.join(bin, f));
+  const now = files.map((f) => fs.readFileSync(f, "utf8"));
+  const lower = () => {
+    const cfg = path.join(w.env.STROM_CONFIG_DIR!, "config.json");
+    fs.writeFileSync(cfg, JSON.stringify({ ...readJsonFile(cfg), lastVersion: "1.0.0" }));
+  };
+  // an older strom's shim (its broken strom.cmd)
+  fs.writeFileSync(files[0]!, "#!/bin/sh\nexec /old/node /old/cli.js \"$@\"\n", { mode: 0o755 });
+  fs.writeFileSync(files[1]!, '@echo off\r\n"%LOCALAPPDATA%\\old\\node.exe" "%LOCALAPPDATA%\\old\\cli.js" %*\r\nexit /b\r\n');
+  lower();
+  await w.ok(["stats"]);
+  assert.deepEqual(files.map((f) => fs.readFileSync(f, "utf8")), now, "this strom's");
+  if (process.platform !== "win32") assert.equal(fs.statSync(files[0]!).mode & 0o111, 0o111, "runnable");
+  assert.deepEqual(fs.readdirSync(bin).filter((f) => f.endsWith(".tmp")), [], "no temporary file left");
+  // strom agents sync: one line when it wrote it, none when it was as it is
+  fs.writeFileSync(files[1]!, "@echo off\r\nold\r\n");
+  const synced = await w.ok(["agents", "sync", "--json"]);
+  assert.equal(synced.json.shim, true);
+  assert.match((await w.ok(["agents", "sync"])).out, /^agent files are up to date$/m);
+  assert.doesNotMatch((await w.ok(["agents", "sync"])).out, /\.strom\/bin rewritten/);
+  fs.writeFileSync(files[1]!, "@echo off\r\nold\r\n");
+  assert.match((await w.ok(["agents", "sync"])).out, /strom for the agents: \.strom\/bin rewritten/);
+  // a research with no .strom/bin: none made by another strom's first run
+  fs.rmSync(bin, { recursive: true, force: true });
+  lower();
+  await w.ok(["stats"]);
+  assert.equal(fs.existsSync(bin), false);
+  w.cleanup();
+});

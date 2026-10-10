@@ -181,8 +181,10 @@ export function unattended(env: Env): boolean {
 /** Why the host takes nothing now, for the agent. */
 function refusedText(host: string, r: HostRefusal): string {
   const at = clock(r.until);
-  if (r.why === "blocked") return `strom: ${host} is left alone until ${at}${r.reason ? ` — ${r.reason}` : ""}; nothing goes to it before then, through the web fetch tool either. Go on with other work.`;
-  if (r.why === "limit") return `strom: ${host} says its limit is used up until ${at}; nothing goes to it before then, through the web fetch tool either. Go on with other work.`;
+  // the way out is the person's (a refusal, a limit kept as the host gave it, a year too): named for them
+  const lift = `the person can lift it: strom allow host ${host} --unblock`;
+  if (r.why === "blocked") return `strom: ${host} is left alone until ${at}${r.reason ? ` — ${r.reason}` : ""}; nothing goes to it before then, through the web fetch tool either (${lift}). Go on with other work.`;
+  if (r.why === "limit") return `strom: ${host} says its limit is used up until ${at}; nothing goes to it before then, through the web fetch tool either (${lift}). Go on with other work.`;
   return `strom: ${r.perHour ?? ""} requests to ${host} in the last hour — its hourly cap; nothing more before ${at}, through the web fetch tool either. Go on with other work.`;
 }
 
@@ -259,10 +261,15 @@ export function webRuleLines(perHost: number, q: string): string {
  */
 export function connectorName(host: string): string {
   const site = webDomain(host);
+  // an address of numbers — IPv6 in its brackets, IPv4 — has no site's name: this computer's is localhost, another the
+  // address in dashes ("192.168.1.5" → "192-168-1-5", "[2001:db8::1]:8080" → "2001-db8-1")
+  const bare = site.replace(/^\[|\](:\d+)?$/g, "").replace(/%.*$/, "");
+  const ip = /^\d{1,3}(\.\d{1,3}){3}$/.test(bare) || bare.includes(":");
+  if (ip && (bare === "::1" || /^(::ffff:)?127\./.test(bare) || /^(0{1,4}:){7}0{0,3}1$/.test(bare))) return "localhost";
+  if (ip) return suggestName(bare) ?? "web-archive";
   const labels = site.split(".").filter(Boolean);
-  // an address of numbers (or of one label) has no suffix to leave out
-  const ip = /^\[|^\d{1,3}(\.\d{1,3}){3}$|:/.test(site);
-  const suffix = ip || labels.length < 2 ? 0 : PUBLIC_SECOND_LEVEL.has(labels.slice(-2).join(".")) && labels.length > 2 ? 2 : 1;
+  // a name of one label (localhost) has no suffix to leave out
+  const suffix = labels.length < 2 ? 0 : PUBLIC_SECOND_LEVEL.has(labels.slice(-2).join(".")) && labels.length > 2 ? 2 : 1;
   const base = labels.slice(0, labels.length - suffix).join("-");
   return suggestName(base) ?? "web-archive";
 }
@@ -320,7 +327,7 @@ export function wayText(host: string, way: ConnectorWay): string {
       `add its task now — ${way.task} — say so in your note, and close with what was found. ${GO_ON}`
     );
   return (
-    `Build its connector now, in this session — the gentle way, and the one to take; tell the user in a sentence: ${steps(host, way)}. ` +
+    `Build its connector now, in this session — the gentle way, and the one to take, within the task's budget; tell the user in a sentence (working alone: in your note): ${steps(host, way)}. ` +
     `Only if no time is left for it, or the server's terms or robots.txt forbid automated access: add its task — ${way.task} — and say why in your note. ${GO_ON}`
   );
 }

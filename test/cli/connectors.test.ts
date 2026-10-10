@@ -157,6 +157,26 @@ test("connector new takes over nothing in the plugins folder: a folder without a
   w.cleanup();
 });
 
+test("connector new for a site that has a connector: its note says discard only where discard takes it away, else the user's strom connector remove", opts, async () => {
+  const w = new World();
+  await w.withTree("Dvořákovi");
+  await w.ok(["research", "new", "Předci Kryštofa", "--new-person", "Kryštof /Žďárský/", "--sex", "M", "--born", "1802"]);
+  await w.ok(["task", "add", "Kde jsou matriky Žďáru", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
+  await w.ok(["connector", "new", "archiv", "--url", "https://archiv-example.org/"]);
+  // no session at work: discard would refuse — the note names the user's remove
+  const outside = (await w.ok(["connector", "new", "archiv-zrcadlo", "--url", "https://www.archiv-example.org/"])).out;
+  assert.match(outside, /note: the connector archiv is here already for archiv-example\.org .*else take it away: the user, in their terminal: strom connector remove archiv-zrcadlo/);
+  assert.doesNotMatch(outside, /connector discard/);
+  assert.equal((await w.run(["connector", "discard", "archiv-zrcadlo"])).code, 2, "discard refuses it indeed");
+  // started in the session at work: the note's discard takes it away
+  await w.ok(["session", "start", "T1"]);
+  const inside = (await w.ok(["connector", "new", "archiv-druhy", "--url", "https://data.archiv-example.org/"])).out;
+  assert.match(inside, /else take it away: strom connector discard archiv-druhy/);
+  await w.ok(["connector", "discard", "archiv-druhy"]);
+  assert.ok(!fs.existsSync(pluginDir(w, "archiv-druhy")));
+  w.cleanup();
+});
+
 test("connector discard takes away only the very folder its session made, of this research", opts, async () => {
   const w = new World();
   await w.withTree("Dvořákovi");

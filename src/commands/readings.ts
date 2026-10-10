@@ -10,6 +10,7 @@ import { lines, runs, shellArg, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import type { Media, RecordSet, Search, Session } from "../core/model.ts";
 import { requireRecord } from "../core/records.ts";
+import { imageRange } from "../core/media.ts";
 import { parseReport, type Finding } from "../core/reader.ts";
 import { foldText } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
@@ -324,7 +325,7 @@ register({
   args: [{ name: "which", description: "a record set (B…), or a reading: its report's name or the start of it (a day)" }],
   options: [
     { name: "images", type: "string", value: "<from-to>", description: "only these image numbers, e.g. 40-69 or 5-113,130-228" },
-    { name: "image", type: "string", value: "<n>", description: "that image's whole block, word for word" },
+    { name: "image", type: "string", value: "<n>", description: "that image's whole block, word for word (a few: 35-38)" },
     { name: "match", type: "string", multiple: true, value: "<words>", description: "only blocks that mention it — any spelling of accents (repeatable: variants)" },
     { name: "list", type: "boolean", description: "the readings there are, one line each" },
   ],
@@ -350,14 +351,14 @@ register({
     }
     const ranges = typeof opts.images === "string" ? parseRanges(opts.images) : undefined;
     if (typeof opts.images === "string" && !ranges) throw new UsageError(`invalid --images "${opts.images}"`, { hint: "e.g. 40-69 or 5-113,130-228" });
-    const image = opts.image === undefined ? undefined : Number(opts.image);
-    if (image !== undefined && !(Number.isInteger(image) && image >= 0)) throw new UsageError(`invalid --image "${String(opts.image)}"`, { hint: "an image number, e.g. 57" });
+    // one image, or a few (35-38, 35..38): each one's block word for word
+    const image = opts.image === undefined ? undefined : new Set(imageRange(String(opts.image)));
     const match = (Array.isArray(opts.match) ? opts.match : typeof opts.match === "string" ? [opts.match] : []).map(String).filter((m) => m.trim());
-    const pick = (r: Reading) => r.blocks.filter((b) => (!book || b.recordset === book) && (!ranges || within(b.num, ranges)) && (image === undefined || b.num === image));
+    const pick = (r: Reading) => r.blocks.filter((b) => (!book || b.recordset === book) && (!ranges || within(b.num, ranges)) && (image === undefined || (b.num !== undefined && image.has(b.num))));
     const readings = all.map((r) => ({ r, blocks: pick(r) })).filter((x) => x.blocks.length);
     // nothing asked: the newest reading only
     const shown = which || ranges || image !== undefined || match.length || opts.list ? readings : readings.slice(0, 1);
-    if (shown.length === 0) return { text: `no reader reported ${image !== undefined ? `image ${image}` : "these images"}${book ? ` of ${book}` : ""} · strom readings --list`, data: { readings: [] } };
+    if (shown.length === 0) return { text: `no reader reported ${image !== undefined ? `image ${runs([...image])}` : "these images"}${book ? ` of ${book}` : ""} · strom readings --list`, data: { readings: [] } };
 
     if (opts.list) {
       const text = lines(...shown.flatMap(({ r, blocks }) => readingHead(r, blocks)[0]!.concat(r.question ? ` · "${truncate(r.question, 60)}"` : "")));

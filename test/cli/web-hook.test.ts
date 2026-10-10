@@ -127,6 +127,14 @@ test("the connector suggested is named from the site, one name for all its hosts
   assert.equal(connectorName("matriky.příklad.cz:8080"), "priklad");
   assert.equal(connectorName("localhost"), "localhost");
   assert.equal(connectorName("192.168.1.10"), "192-168-1-10");
+  // an address of numbers: this computer's is localhost, another the address in dashes — never a part of it
+  assert.equal(connectorName("[::1]:8080"), "localhost");
+  assert.equal(connectorName("[::1]"), "localhost");
+  assert.equal(connectorName("127.0.0.1:8080"), "localhost");
+  assert.equal(connectorName("localhost:3000"), "localhost");
+  assert.equal(connectorName("192.168.1.5:8080"), "192-168-1-5");
+  assert.equal(connectorName("[2001:db8::1]:443"), "2001-db8-1");
+  assert.equal(connectorName("[fe80::1%25en0]"), "fe80-1");
 });
 
 test("the event as Claude Code and Grok send it: a web fetch with its host, a search, anything else nothing", () => {
@@ -269,6 +277,28 @@ test("a web fetch recorded in fetch.jsonl and counted in the host's hour, paced;
   assert.match((await w.ok(["net", "web"])).out, new RegExp(`^${sid} \\(closed; no session open — the last one with web requests\\): 28 web request\\(s\\) to 3 server\\(s\\), 1 search\\(es\\)`));
   assert.match((await w.ok(["net", "web", "--session", sid])).out, new RegExp(`^${sid} \\(closed\\): 28 web request`));
   w.cleanup();
+});
+
+test("a host whose limit is used up for a year, or left alone after a refusal: the deny names the person's way out, and strom allow host --unblock lets the next call go", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  fs.mkdirSync(net(w), { recursive: true });
+  const year = Date.now() + ahead + 365 * 24 * 3600_000;
+  fs.writeFileSync(path.join(net(w), "rok-example.org.json"), JSON.stringify({ recent: [], waitUntil: year }));
+  refusedBy(net(w), "zavreny2-example.org", 403);
+  for (const [host, said] of [["rok-example.org", /says its limit is used up until/], ["zavreny2-example.org", /is left alone until/]] as const) {
+    const r = await hook(w, fetchEvent(w, `https://${host}/x`, { sid: "u1" }));
+    assert.equal(r.json!.permissionDecision, "deny");
+    assert.match(r.json!.permissionDecisionReason, said);
+    assert.ok(r.json!.permissionDecisionReason.includes(`the person can lift it: strom allow host ${host} --unblock`), r.json!.permissionDecisionReason);
+    // the person's alone
+    assert.equal((await w.run(["allow", "host", host, "--unblock"])).code, 4);
+    assert.match((await w.ok(["allow", "host", host, "--unblock"], { tty: true, answers: ["y"] })).out, /: už se na něj zase smí – strom se ho bude znovu ptát, pomalu/);
+    const state = readJsonFile(path.join(net(w), `${host}.json`)) as { waitUntil?: number; blockedUntil?: number };
+    assert.equal(state.waitUntil, undefined);
+    assert.equal(state.blockedUntil, undefined);
+    assert.equal((await hook(w, fetchEvent(w, `https://${host}/y`, { sid: "u1" }))).out, "", "let go");
+  }
 });
 
 test("a host left alone (it refused) or its hourly cap full: refused in a conversation and in a run alike, nothing counted", opts, async () => {
@@ -450,7 +480,7 @@ test("past the threshold the way on is for exactly that server: its connector wh
   sessionLines("obec-example.org");
   const ten = { ...run, STROM_DEADLINE: new Date(Date.now() + 10 * 60_000).toISOString(), STROM_MINUTES: "60" };
   const main = (await hook(w, fetchEvent(w, "https://obec-example.org/13", { use: "o13" }), ten)).json!.permissionDecisionReason;
-  assert.match(main, /^strom: 12 requests to obec-example\.org through the web fetch tool in this session — the limit for one site \(web\.perHost\)\. Build its connector now, in this session — the gentle way, and the one to take; tell the user in a sentence: strom connector new obec-example --url https:\/\/obec-example\.org\/, then its DISCOVERY\.md/);
+  assert.match(main, /^strom: 12 requests to obec-example\.org through the web fetch tool in this session — the limit for one site \(web\.perHost\)\. Build its connector now, in this session — the gentle way, and the one to take, within the task's budget; tell the user in a sentence \(working alone: in your note\): strom connector new obec-example --url https:\/\/obec-example\.org\/, then its DISCOVERY\.md/);
   assert.match(main, /then strom fetch obec-example … for the rest, at the server's pace\. Only if no time is left for it, or the server's terms or robots\.txt forbid automated access: add its task — strom task add "Connector for obec-example\.org" .* — and say why in your note\. Never end the task or do without these pages because of this limit\./);
   assert.ok(main.indexOf("strom connector new") < main.indexOf("strom task add"), "the connector first, the task after it");
   // under CONNECTOR_MIN_MS left: the connector still named first, its task what to do now
@@ -552,7 +582,7 @@ test("near the threshold the agent hears it after each call: from the threshold 
     notes.push(after.out ? (JSON.parse(after.out) as { hookSpecificOutput: { hookEventName: string; additionalContext: string } }).hookSpecificOutput.additionalContext : undefined);
   }
   assert.deepEqual(notes.map((n) => !!n), [...Array(HARD - 3).fill(false), true, true, true], "from the tenth of twelve on");
-  assert.match(notes[9]!, /^strom: 10 of the 12 requests to soupis-example\.org the web fetch tool takes in this session \(web\.perHost\) used\. The rest of this server's pages: Build its connector now, in this session — the gentle way, and the one to take; tell the user in a sentence: strom connector new soupis-example --url https:\/\/soupis-example\.org\/, then its DISCOVERY\.md/);
+  assert.match(notes[9]!, /^strom: 10 of the 12 requests to soupis-example\.org the web fetch tool takes in this session \(web\.perHost\) used\. The rest of this server's pages: Build its connector now, in this session — the gentle way, and the one to take, within the task's budget; tell the user in a sentence \(working alone: in your note\): strom connector new soupis-example --url https:\/\/soupis-example\.org\/, then its DISCOVERY\.md/);
   assert.match(notes[11]!, /^strom: 12 of the 12 .* used — the next one is refused working alone, and asked of the user once in a conversation\. /);
   assert.match(notes[11]!, /Never go round it/);
   // the same lines as the refusal that comes next
@@ -629,7 +659,7 @@ test("past the soft threshold of a site (its mirrors counted together): never re
   // the notes: the advice once (after the 13th), then the count from the hard threshold − 2nd
   assert.deepEqual(notes.map((n, i) => (n ? i + 1 : 0)).filter(Boolean), [WEB_SOFT + 1, WEB_PER_HOST - 2, WEB_PER_HOST - 1, WEB_PER_HOST]);
   const advice = notes[WEB_SOFT]!;
-  assert.match(advice, /^strom: 12 pages of archiv-example\.org \(ia801408\.us\.archiv-example\.org and its other hosts and mirrors counted together\) through the web fetch tool in this session — from now one request per 6 s to it, and past 30 the web fetch tool is refused \(web\.perHost\)\. For the rest of its pages: Build its connector now, in this session — the gentle way, and the one to take; tell the user in a sentence: strom connector new archiv-example --url https:\/\/ia801408\.us\.archiv-example\.org\/, then its DISCOVERY\.md/);
+  assert.match(advice, /^strom: 12 pages of archiv-example\.org \(ia801408\.us\.archiv-example\.org and its other hosts and mirrors counted together\) through the web fetch tool in this session — from now one request per 6 s to it, and past 30 the web fetch tool is refused \(web\.perHost\)\. For the rest of its pages: Build its connector now, in this session — the gentle way, and the one to take, within the task's budget; tell the user in a sentence \(working alone: in your note\): strom connector new archiv-example --url https:\/\/ia801408\.us\.archiv-example\.org\/, then its DISCOVERY\.md/);
   assert.match(advice, /then strom fetch archiv-example … for the rest, at the server's pace\. Only if no time is left for it, or the server's terms or robots\.txt forbid automated access: add its task — strom task add "Connector for archiv-example\.org" --level locate --where "https:\/\/ia801408\.us\.archiv-example\.org\/"/);
   assert.match(notes[WEB_PER_HOST - 1]!, /^strom: 30 of the 30 requests to archiv-example\.org \(.*counted together\) the web fetch tool takes in this session \(web\.perHost\) used — the next one is refused working alone/);
   // past web.perHost: refused in a run, the site named, the connector the main way
@@ -755,14 +785,18 @@ test("a strom fetch at the same host meanwhile (its loop holding the host's lock
   const host = "fetch-example.org";
   fs.mkdirSync(net(w), { recursive: true });
   // a connector's run as politeRequest makes it: the host's lock from the pause to the answer, the next request at once
+  // — handed from one request to the next in one step (a fresh lock renamed over the last one), so that no call of the
+  // hook can find the host free between two of them by the clock's chance: whatever it waits, the host is held
   const loop = spawn(process.execPath, ["--input-type=module", "-e", `
     const fs = await import("node:fs");
+    const os = await import("node:os");
     const { acquireLock } = await import(${JSON.stringify(path.join(import.meta.dirname, "..", "..", "src", "core", "lock.ts"))});
     const file = ${JSON.stringify(path.join(net(w), `${host}.json`))};
+    const lock = file + ".lock";
     const end = Date.now() + 20000;
+    acquireLock(lock, { owner: "strom net", waitMs: 60000 });
     let said = false;
     while (Date.now() < end) {
-      const release = acquireLock(file + ".lock", { owner: "strom net", waitMs: 60000 });
       const t = Date.now();
       let s = { recent: [] };
       try { s = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
@@ -770,8 +804,11 @@ test("a strom fetch at the same host meanwhile (its loop holding the host's lock
       fs.writeFileSync(file, JSON.stringify(s));
       if (!said) { process.stdout.write("fetching"); said = true; }
       while (Date.now() - t < 300) {}
-      release();
+      // the next request's lock in place of this one's at once
+      fs.writeFileSync(lock + ".next", JSON.stringify({ pid: process.pid, host: os.hostname(), at: new Date().toISOString(), owner: "strom net" }));
+      fs.renameSync(lock + ".next", lock);
     }
+    fs.rmSync(lock, { force: true });
   `], { stdio: ["ignore", "pipe", "inherit"] });
   try {
     await new Promise<void>((resolve) => loop.stdout!.on("data", (d) => String(d).includes("fetching") && resolve()));

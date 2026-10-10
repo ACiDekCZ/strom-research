@@ -1161,7 +1161,8 @@ export function buildBrief(
       first: true,
       pointer: "strom find <place>",
       text: [
-        `## Beyond the registers: about ${ENRICH_PAGES} pages fetched or read, then record the searches and close`,
+        `## Beyond the registers: about ${ENRICH_PAGES} pages fetched or read in all (the task's whole budget, strom fetch too), then record the searches and close`,
+        `- over ${Math.min(WEB_SOFT, new Settings(tree.env, {}).webPerHost(tree.config))} pages of one site: through its connector, built right away when the task needs that site (strom connector new <site> --url https://<host>/, then strom fetch)`,
         print ? `- print: a subagent on ${print} (model.text), never handwriting` : "",
         written.length ? `- of the places, written already (reuse): ${written.join(" · ")}` : "",
       ].filter(Boolean).join("\n"),

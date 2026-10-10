@@ -9,6 +9,7 @@ import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { buildBrief } from "../../src/brief/brief.ts";
 import { ENRICH_PAGES, STORY_SOURCES_ORIGIN } from "../../src/core/stories.ts";
+import { WEB_SOFT } from "../../src/core/metrics.ts";
 import { methodFor } from "../../src/core/assets.ts";
 import type { Session, Task } from "../../src/core/model.ts";
 
@@ -35,7 +36,8 @@ test("the brief of a search beyond the registers: its budget of pages, print for
   assert.equal(
     claude,
     [
-      `## Beyond the registers: about ${ENRICH_PAGES} pages fetched or read, then record the searches and close`,
+      `## Beyond the registers: about ${ENRICH_PAGES} pages fetched or read in all (the task's whole budget, strom fetch too), then record the searches and close`,
+      `- over ${WEB_SOFT} pages of one site: through its connector, built right away when the task needs that site (strom connector new <site> --url https://<host>/, then strom fetch)`,
       "- print: a subagent on sonnet (model.text), never handwriting",
       '- of the places, written already (reuse): S0001 "Dějiny Dolní Lhoty a okolí" · lessons K0001',
     ].join("\n"),
@@ -53,6 +55,9 @@ test("the brief of a search beyond the registers: its budget of pages, print for
   // the method says how to use them
   const method = methodFor("enrich");
   assert.match(method, /\*\*Within the brief's budget of pages\*\* fetched or read; then record what\n {2}was searched and close\. Printed pages go to the user's model for print\n {2}where you can hand work to one \(the brief names it\) — never handwriting\./);
+  // one rule with the web's: the budget is the task's whole, more pages of one site through its connector built at once
+  assert.match(method, /The budget is the task's whole: pages through a connector count in it\.\n {2}More pages of one site than the web rule allows go through its connector,\n {2}built right away when the task needs that site/);
+  assert.ok(ENRICH_PAGES > WEB_SOFT, "the budget leaves room for one site's connector");
   assert.match(method, /\*\*The history of a place once in a research\*\*: what is written of it \(the\n {2}brief says\) is reused, never searched again\./);
   w.cleanup();
 });

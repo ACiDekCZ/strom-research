@@ -115,12 +115,36 @@ export function inboxFolderFor(b: { id: string; title: string }): string {
   return name.length <= 80 ? name.join("") : name.slice(0, 80).join("").replace(/[. ]+$/, "");
 }
 
+/** A number or a range of numbers: 35, 35-38, 35–38, 35..38. */
+const RANGE = /^(\d+)(?:\s*(?:[-–]|\.\.\.?)\s*(\d+))?$/u;
+
+/** The most images one range of an option names (a range of more is a mistake, never a request). */
+export const IMAGE_RANGE_MAX = 200;
+
+/**
+ * An option's image numbers as typed — a number, a range (35-38, 35..38) or a list of them (35,37-38): a range from the
+ * higher number or of more than IMAGE_RANGE_MAX images is said, never guessed.
+ */
+export function imageRange(v: string, opt = "--image"): number[] {
+  const out = new Set<number>();
+  for (const p of String(v).split(",").map((x) => x.trim())) {
+    const m = RANGE.exec(p);
+    if (!m) throw new UsageError(`invalid ${opt} "${v}"`, { hint: `an image number or a range: ${opt} 35, ${opt} 35-38` });
+    const a = Number(m[1]);
+    const z = Number(m[2] ?? m[1]);
+    if (z < a) throw new UsageError(`${opt} ${p}: a range from the lower number`, { hint: `${opt} ${z}-${a}` });
+    if (z - a + 1 > IMAGE_RANGE_MAX) throw new UsageError(`${opt} ${p}: ${z - a + 1} images — at most ${IMAGE_RANGE_MAX} in a range`, { hint: "a narrower range" });
+    for (let n = a; n <= z; n++) out.add(n);
+  }
+  return [...out].sort((x, y) => x - y);
+}
+
 /** A list of image numbers as people write it: "9", "9-12", "9–12, 15" → [9, 10, 11, 12, 15]; undefined if it is not one. */
 export function parseImageList(s: string, max = 2000): number[] | undefined {
   const parts = s.split(",").map((p) => p.trim());
   const out = new Set<number>();
   for (const p of parts) {
-    const m = /^(\d+)(?:\s*[-–]\s*(\d+))?$/.exec(p);
+    const m = RANGE.exec(p);
     if (!m) return undefined;
     const a = Number(m[1]);
     const z = Number(m[2] ?? m[1]);

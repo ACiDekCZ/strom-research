@@ -22,11 +22,12 @@ register({
     "Searches the text files of inputs/ and notes/ (output/ too with --in output or --in all) — never data/ (the\n" +
     "records: strom find), .git or anything outside the tree, never through a symbolic link; images, PDFs and other\n" +
     "binary files are left out. A text is found as it reads: in any case, with accents or without (mlynar finds\n" +
-    "Mlynář), a run of spaces as one. Several texts: a line with any of them (spellings of one name). --regex: a\n" +
+    "Mlynář), a run of spaces as one. Several texts: a line with ANY of them (spellings of one name) by default;\n" +
+    "--all: a line with EVERY one of them, in any order (a year and a name: 1803 \"Pag. 11\"). --regex: a\n" +
     "JavaScript regular expression, in any case, Unicode (\\p{L} a letter of any script). A line found is shown\n" +
     "file:line: text, a line round it (--context) file-line- text; a long line is cut round its find.\n" +
     `Listings are paged (--limit, --page); the search stops at ${GREP_MAX_HITS} lines and says so.`,
-  args: [{ name: "text", description: "what to find (accents and capitals optional); several = a line with any of them", required: true, variadic: true }],
+  args: [{ name: "text", description: "what to find (accents and capitals optional); several = a line with any of them (--all: with every one)", required: true, variadic: true }],
   options: [
     {
       name: "in",
@@ -36,12 +37,14 @@ register({
       description: `${GREP_FOLDERS.join(" | ")} | all | a file or folder inside them | an input I… (default: ${GREP_DEFAULT.join(" and ")})`,
     },
     { name: "context", type: "string", value: "<n>", description: `lines shown before and after each line found (0–${MAX_CONTEXT}, default 0)` },
+    { name: "all", type: "boolean", description: "several texts: a line with every one of them (default: with any)" },
     { name: "regex", type: "boolean", description: "the text is a regular expression (JavaScript, in any case, Unicode)" },
     { name: "files", type: "boolean", description: "only the files and how many lines each has found" },
   ],
   examples: [
     'strom grep "mlynář"',
     "strom grep Novák Nowak --in inputs --context 2",
+    'strom grep 1803 "Pag. 11" --all --in I0002',
     'strom grep "Lhota" --in inputs/rodokmen.md --context 3',
     'strom grep "Nov[aá]k(ov[aá])?" --regex --in notes',
     "strom grep Novák --in I0002 --files",
@@ -64,7 +67,7 @@ register({
     if (error) throw new UsageError(error, { hint: `strom grep ${patterns.map(shellArg).join(" ")} --in ${GREP_FOLDERS.join("|")}|all` });
     let match: (line: string) => number;
     try {
-      match = grepMatcher(patterns, regex);
+      match = grepMatcher(patterns, regex, !!opts.all);
     } catch (e) {
       throw new UsageError(`not a regular expression: ${(e as Error).message}`, { hint: "strom grep <text> — without --regex the text is found as it reads" });
     }
@@ -76,6 +79,7 @@ register({
       ...wanted.map((w) => `--in ${shellArg(w)}`),
       ...(context ? [`--context ${context}`] : []),
       ...(regex ? ["--regex"] : []),
+      ...(opts.all ? ["--all"] : []),
       ...(opts.files ? ["--files"] : []),
     ].join(" ");
     const tooBig = found.tooBig.length ? `left out, over 64 MB: ${found.tooBig.join(", ")}` : undefined;
@@ -85,7 +89,9 @@ register({
         data: { total: 0, searched: found.searched, hits: [], ...(found.tooBig.length ? { tooBig: found.tooBig } : {}) },
       };
     const total = `${found.hits.length}${found.capped ? "+" : ""}`;
-    const head = `${total} line(s) in ${found.counts.size} of ${found.searched} text file(s) of ${where}${found.capped ? ` — stopped at ${GREP_MAX_HITS}: a narrower text or --in` : ""}`;
+    // several texts: whether a line has any or every one of them, said (agents expect every one)
+    const mode = patterns.length > 1 ? (opts.all ? " with every text" : " with any of the texts (every one: --all)") : "";
+    const head = `${total} line(s)${mode} in ${found.counts.size} of ${found.searched} text file(s) of ${where}${found.capped ? ` — stopped at ${GREP_MAX_HITS}: a narrower text or --in` : ""}`;
     if (opts.files) {
       const files = [...found.counts].map(([file, n]) => ({ file, lines: n }));
       const page = paginate(files, ctx.limit, ctx.page);

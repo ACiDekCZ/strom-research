@@ -4,7 +4,8 @@
 // scan reader with its own `model: "sonnet"`). The tree's Claude Code settings run `strom agents delegate --hook` before
 // each call of its subagent tool (Task, later Agent): a call naming a strom delegate and another model is refused, with
 // the way on (the same call without `model`); a call without one, with the same model, or of a subagent strom did not
-// define is left alone. Anything wrong lets the call go — the hook is never in the way by itself.
+// define is left alone. Anything wrong lets the call go — the hook is never in the way by itself — and so does a call
+// when the model the agent runs on is not known and no model.vision is set: nothing to compare with.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -141,9 +142,11 @@ export function answerDelegateEvent(ev: DelegateEvent, o: { env: Env; cwd: strin
       transcriptModel(ev.transcript) ??
       new Settings(o.env, {}).resolve("model.lead", tree.config, "claude")?.value?.toString() ??
       currentSession(tree, o.env)?.model;
+    // the model it runs on not known (no transcript, no model.lead, no session's): nothing to compare with — the call goes
+    if (!expected) return {};
   }
   if (expected && sameModel("claude", ev.model, expected, aliases)) return {};
-  const on = set === "inherit" ? `the model you run on${expected ? ` (${expected})` : ""}` : `${set} (model.vision)`;
+  const on = set === "inherit" ? `the model you run on (${expected})` : `${set} (model.vision)`;
   return {
     decision: "deny",
     reason:

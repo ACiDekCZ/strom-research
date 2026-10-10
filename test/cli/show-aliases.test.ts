@@ -73,6 +73,14 @@ test("option aliases and list filters agents look for", opts, async () => {
   assert.deepEqual((await w.ok(["recordset", "list", "--kind", "marriage", "--json"])).json.recordsets.map((b: any) => b.id), ["B0002"]);
   assert.deepEqual((await w.ok(["recordset", "list", "--years", "1840-1885", "--json"])).json.recordsets.map((b: any) => b.id), ["B0001", "B0002"]);
   assert.deepEqual((await w.ok(["recordset", "list", "--years", "1890", "--repo", "R0001", "--json"])).json.recordsets.map((b: any) => b.id), ["B0002"]);
+  // a short list says nothing more; a long one ends with the filters not used yet
+  assert.doesNotMatch((await w.ok(["recordset", "list"])).out, /fewer:/);
+  await w.ok(["batch", ...Array.from({ length: 30 }, (_, i) => `recordset add "Matrika Dolní Ves ${i + 1}" --places "Dolní Ves" --years ${1700 + i}-${1710 + i}`)]);
+  const long = (await w.ok(["recordset", "list"])).out.trim().split("\n");
+  assert.equal(long.length, 33);
+  assert.equal(long.at(-1), "32 record sets — fewer: strom recordset list <text> --place <name> --kind <kind> --years <from-to> --repo <R…>");
+  assert.doesNotMatch((await w.ok(["recordset", "list", "--place", "dolni ves"])).out, /fewer:/, "30 lines: not long");
+  assert.equal((await w.ok(["recordset", "list", "--years", "1700-1800"])).out.trim().split("\n").at(-1), "31 record sets — fewer: strom recordset list <text> --place <name> --kind <kind> --repo <R…>");
   // media list with the record set as its argument
   const ml = await w.ok(["media", "list", "B0001"]);
   assert.match(ml.out, /no images registered/);
@@ -88,6 +96,14 @@ test("a mistake in calling a command says its usage at once — to an agent", op
   assert.match(unknown.err, /similar option: --surname/);
   assert.match(unknown.err, /usage: strom search add <question> \[options\]/);
   assert.match(unknown.err, /--recordset <B…>… /);
+  // a name agents type for another option (the shell tool's timeout for the readers' time): pointed to it, never taken
+  const timeout = await w.run(["read", "B0001", "--images", "1-2", "--timeout", "3000"], { env });
+  assert.equal(timeout.code, 2);
+  assert.match(timeout.err, /unknown option --timeout for strom read\n→ meant: --minutes <n> — time limit of one reader/);
+  assert.match((await w.run(["read", "B0001", "--images", "1-2", "--timeout=3000"], { env })).err, /meant: --minutes <n>/);
+  // a range of read from the higher number: said (and 35..38 read as 35-38)
+  assert.match((await w.run(["read", "B0001", "--images", "38..35", "--question", "x"], { env })).err, /--images 38\.\.35: a range from the lower number\n→ --images 35-38/);
+  assert.match((await w.run(["read", "B0001", "--images", "35..38", "--question", "x"], { env })).err, /no registered images 35–38 of B0001/);
   const missing = await w.run(["task", "done"], { env });
   assert.match(missing.err, /missing <task>/);
   assert.match(missing.err, /usage: strom task done <task> \[options\]\n +--result <text>/);

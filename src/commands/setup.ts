@@ -19,7 +19,7 @@ import { isValidLang, langName } from "../core/lang.ts";
 import { detectAgent, isAgent } from "../core/which.ts";
 import { agentsHere, DESKTOP_APPS, inDesktopApp, whereToTalk } from "../core/apps.ts";
 import { setupWizard } from "../cli/wizard.ts";
-import { holdsPath, insideProgram, installation, replacedHolding, stromLauncher } from "../core/self.ts";
+import { holdsPath, insideProgram, installation, replacedHolding, shimNeedsCodePage, stromLauncher } from "../core/self.ts";
 import { liveRunning } from "../core/live.ts";
 import { mb, sharedMedia, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 
@@ -201,7 +201,7 @@ const FIX = "strom doctor --fix";
 
 /** Everything strom needs and has on this computer, in the user's language. */
 /** The checks of the agents: what they are, know, may do, where the person talks with them, their model and browser. */
-const AGENT_CHECKS = new Set(["agent", "knows", "where", "level", "model", "views", "codex", "browser", "remote", "fence", "tuneworse", "web"]);
+const AGENT_CHECKS = new Set(["agent", "knows", "where", "level", "model", "views", "codex", "browser", "remote", "fence", "tuneworse", "web", "shim"]);
 
 /** What doctor says of an isolated installation: its folder — a second one with a command of its own: the command and its links too. */
 function secondLine(ctx: Context, t: (key: UIKey, values?: Record<string, string | number>) => string): string {
@@ -236,6 +236,10 @@ function diagnose(ctx: Context): Check[] {
   // The installer's Node comes with strom update; npm's and the sources' are the person's own.
   if (installation().kind !== "installed" && !fenceKeepsNetOff(process.version) && listConnectors(ctx.settings.shared()?.value).length)
     add("fence", "warn", t("ui.doc.fence.net", { node: process.version }), "https://nodejs.org");
+  // the tree's strom.cmd of an installation whose path no folder of the profile names in ASCII: it works by chcp alone
+  // (no console, no chcp: the agents' hooks and their strom through the research fail)
+  const launcher = stromLauncher();
+  if (process.platform === "win32" && shimNeedsCodePage(launcher.command, launcher.args, ctx.env)) add("shim", "warn", t("ui.doc.shim.codepage"));
   const newer = knownNewerVersion(ctx.settings, ctx.env);
   if (newer) add("update", "warn", t("ui.doc.update.new", { version: newer }), "strom update");
 

@@ -21,7 +21,7 @@ import { isAgent } from "../core/which.ts";
 import { appUrlShown, noticeStromApp } from "../core/stromapp.ts";
 import { lastChannelOf, pendingTransition, updateChannel } from "../core/update.ts";
 import { backupBefore, backupSaid } from "./backups.ts";
-import { installation } from "../core/self.ts";
+import { installation, refreshTreeShim } from "../core/self.ts";
 import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishLimitLine, finishOf } from "../core/clock.ts";
@@ -259,6 +259,9 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         } catch {
           // another computer's seal, a tree at work: its bridge's start settles it
         }
+        // …and the strom its agents' hooks and conversations start (.strom/bin) leads to this one — an older strom's, or one
+        // whose mark went with the program folder an update replaced; only where a research has one, never an archive
+        refreshTreeShim(k.root, env);
         // the bridges the Strom app follows go on with this version at their addresses: one of an older strom started
         // again, one the installer ended to replace the program (Windows: its files are held while it runs) back
         try {
@@ -281,7 +284,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       if (def.writes && def.tree) assertIntact(ctx.tree());
       let result: Result;
       try {
-        result = await (shows ?? def).run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}) });
+        result = await (shows ?? def).run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}), ...(parsed.after ? { after: parsed.after } : {}) });
       } catch (err) {
         // A writing command is a transaction: on failure nothing it wrote remains.
         const t = def.writes ? ctx.current() : undefined;

@@ -216,8 +216,17 @@ test("a refusal (403) stops the run and leaves the archive alone — until the u
   assert.match(again.out, /left alone until/);
   assert.equal(a.hits.length, 1, "not even another book");
   assert.equal((await w.run(["allow", "host", "127.0.0.1", "--unblock"])).code, 4, "only the user");
-  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--unblock"], { tty: true, answers: ["y"] })).out, /the refusal is lifted/);
+  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--unblock"], { tty: true, answers: ["y"] })).out, /127\.0\.0\.1: už se na něj zase smí – strom se ho bude znovu ptát, pomalu/);
   assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "1"])).code, 0);
+  // the person's question and answer in their language: the research's (Czech) above, English and German here
+  await w.run(["fetch", "zkusebni", "zakazana", "--images", "1"]);
+  const no = await w.ok(["allow", "host", "127.0.0.1", "--unblock"], { env: { STROM_LANG: "en" }, tty: true, answers: ["n"] });
+  assert.match(no.out, /127\.0\.0\.1 is left alone \(it refused the requests, or said its limit is used up\)\. Lift it now — only if the archive said it is fine\?/);
+  assert.match(no.out, /Nothing changed: 127\.0\.0\.1 is still left alone\./);
+  const de = await w.ok(["allow", "host", "127.0.0.1", "--unblock"], { env: { STROM_LANG: "de" }, tty: true, answers: ["j"] });
+  assert.match(de.out, /127\.0\.0\.1 wird in Ruhe gelassen/);
+  assert.match(de.out, /127\.0\.0\.1: nicht mehr in Ruhe gelassen – strom fragt wieder an, langsam/);
+  assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "2"])).code, 0);
   w.cleanup();
   await a.close();
 });
@@ -229,10 +238,23 @@ test("what the portal and the tree allow: manual stays manual, a forbidden archi
   assert.equal(m.code, 2);
   assert.match(m.err, /does not allow automated download[\s\S]*the user saves them by hand: strom task wait T… --images B…:1 --on/);
   assert.match((await w.ok(["fetch", "rucni", "--find", "Týnec"])).out, /Týnec N 1784–1820/, "finding books is fine");
-  await w.ok(["repo", "add", "Archiv Čížkov", "--url", `${a.base}/`, "--automation", "forbidden"]);
+  // an archive the tree marks manual (browser only): no images, but its catalogue may be searched and listed
+  await w.ok(["repo", "add", "Archiv Čížkov", "--url", `${a.base}/`, "--automation", "manual"]);
+  const mi = await w.run(["fetch", "zkusebni", "5359", "--images", "1"]);
+  assert.equal(mi.code, 2);
+  assert.match(mi.err, /R0001 Archiv Čížkov is marked automation manual in this tree — no images downloaded/);
+  assert.match(mi.err, /the user saves them by hand: strom task wait T… --images B…:1[\s\S]*strom fetch zkusebni 5359 --list/);
+  assert.doesNotMatch(mi.err, /--automation allowed/, "never a hint to lift the archive's own rule");
+  assert.match((await w.ok(["fetch", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/, "finding books in a manual archive is fine");
+  assert.match((await w.ok(["fetch", "zkusebni", "5359", "--list"])).out, /5359/, "so is describing one");
+  // forbidden: nothing automated at all
+  await w.ok(["repo", "edit", "R0001", "--automation", "forbidden"]);
   const f = await w.run(["fetch", "zkusebni", "5359", "--images", "1"]);
   assert.equal(f.code, 2);
   assert.match(f.err, /R0001 Archiv Čížkov is marked automation forbidden in this tree/);
+  const ff = await w.run(["fetch", "zkusebni", "--find", "Týnec"]);
+  assert.equal(ff.code, 2, "a forbidden archive is not searched either");
+  assert.match(ff.err, /automation forbidden in this tree — no requests through a connector/);
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 0);
   w.cleanup();
   await a.close();

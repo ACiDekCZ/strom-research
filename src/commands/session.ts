@@ -546,9 +546,12 @@ register(
     tree: true,
     run(ctx) {
       const tree = ctx.tree();
-      const files = syncAgentFiles(tree);
+      const said: { shim?: boolean } = {};
+      const files = syncAgentFiles(tree, said);
       if (files.length) tree.withTreeLock(() => tree.commit(`Agent instructions: ${files.join(", ")}`, files));
-      return { text: files.length ? `updated ${files.join(", ")}` : "agent files are up to date", data: { files } };
+      const shim = said.shim === true;
+      const lines = [files.length ? `updated ${files.join(", ")}` : "agent files are up to date", ...(shim ? ["strom for the agents: .strom/bin rewritten"] : [])];
+      return { text: lines.join("\n"), data: { files, shim } };
     },
   },
   {

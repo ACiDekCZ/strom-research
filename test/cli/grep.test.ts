@@ -60,6 +60,17 @@ test("strom grep: several texts, --context, --regex, --files, --in a folder, a f
   const w = await tree();
   // several texts: a line with any of them
   assert.equal((await w.ok(["grep", "Шевчук", "pohřeb", "--json"])).json.total, 2);
+  const any = await w.ok(["grep", "lhota", "mlynar"]);
+  assert.match(any.out, /^5 line\(s\) with any of the texts \(every one: --all\) in /u, "any, said");
+  // --all: a line with every one of them, in any order — folded: no accents, decomposed, capitals
+  const every = await w.ok(["grep", "LHOTA", "mlynář".normalize("NFD"), "--all"]);
+  assert.match(every.out, /^2 line\(s\) with every text in 1 of 3 text file\(s\)/u);
+  assert.match(every.out, /\ninputs\/protokol\.md:1500: 1782 křest: Jan Mlynář/u);
+  assert.match(every.out, /\ninputs\/protokol\.md:2500: 1790 pohřeb: Anna MLYNÁŘOVÁ, Lhota/u);
+  assert.equal((await w.ok(["grep", "kmotr", "mlynar", "--all", "--json"])).json.total, 1, "the NFD line of zdroje.txt");
+  assert.equal((await w.ok(["grep", "шевчук", "1801", "--all", "--json"])).json.total, 1, "another script");
+  assert.equal((await w.run(["grep", "шевчук", "pohřeb", "--all", "--json"])).json.total, 0, "no line has both");
+  assert.equal((await w.ok(["grep", "lhota", "mlyn[aá]řov", "--regex", "--all", "--json"])).json.total, 1, "--regex too");
   // the lines round a find, grep's way; stretches apart split by --
   const c = await w.ok(["grep", "lhota", "--in", "inputs/protokol.md", "--context", "1"]);
   assert.match(c.out, /\ninputs\/protokol\.md-1499- řádek 1499: nic\ninputs\/protokol\.md:1500: 1782 křest[^\n]*\ninputs\/protokol\.md-1501- řádek 1501: nic\n--\ninputs\/protokol\.md-2499- /u);

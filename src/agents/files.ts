@@ -21,12 +21,14 @@ import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
 import { claudeScanReader, opencodeScanReader, SCAN_READER, scanReaderModel, treeReading } from "./scanreader.ts";
 import { claudeWebHooks, grokWebHooks, webRuleLines } from "../core/web.ts";
 import { claudeDelegateHooks } from "../core/delegate.ts";
-import { writeShim } from "../core/self.ts";
+import { powershellUtf8Rule, putShim } from "../core/self.ts";
 
 export const MARKER = "<!-- strom: generated above this line (strom agents sync); your own notes below are kept -->";
 
-function agentsMd(tree: Tree): string {
+export function agentsMd(tree: Tree, platform: NodeJS.Platform = process.platform): string {
   const lang = langName(tree.config.lang);
+  // (Windows only: written on the computer the agent works on, as its other files)
+  const ps = powershellUtf8Rule("`", platform);
   // the Strom app's address as strom app opens it now (the beta its beta, strom.app.url where it says another)
   const app = agentAppUrl(tree.env);
   return `# Family research: ${tree.config.name}
@@ -60,7 +62,7 @@ the researcher; \`strom\` is your only way to read and change the research.
    number) — never read a big file in pieces.
 7. Run strom commands on their own — no pipes (\`| head\`, \`| grep\`): output is
    already short, listings take \`--limit\` and \`--page\`, and piped commands may
-   be refused by your permissions.
+   be refused by your permissions.${ps ? `\n   ${ps}` : ""}
 8. Other agents may work on this tree too (Claude Code, Codex, Antigravity,
    OpenCode, Grok — the user's choice). \`strom\` shows who is working now; never take a task
    another one has started.
@@ -424,7 +426,11 @@ export const CLAUDE_SCAN_READER = path.join(".claude", "agents", `${SCAN_READER}
 
 export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS];
 
-export function syncAgentFiles(tree: Tree): string[] {
+/**
+ * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the
+ * shim in .strom/bin was written now (never committed: not among the files).
+ */
+export function syncAgentFiles(tree: Tree, said: { shim?: boolean } = {}): string[] {
   // an archive: no agent works on it, and nothing of one shows in its folder (Milan's decision, 2026-10-03) — strom's own
   // files of the agents go (what a person wrote in them stays); research switched on writes them again
   if (isArchive(tree)) return dropAgentFiles(tree);
@@ -453,7 +459,7 @@ export function syncAgentFiles(tree: Tree): string[] {
   // the strom the agent hooks name (the tree's .strom/bin, never committed) — there also for a conversation strom did not start
   if (!tree.dryRun) {
     try {
-      writeShim(tree.root);
+      said.shim = putShim(tree.root).changed.length > 0;
     } catch {
       // a hook that finds no strom lets the call go
     }

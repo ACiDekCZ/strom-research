@@ -243,7 +243,7 @@ function foldSurplus(def: CommandDef, defs: OptionDef[], tokens: Token[], values
 }
 
 /** Parse options strictly; Node's messages are replaced by short ones with suggestions. */
-export function parseOptions(def: CommandDef, rest: string[], program = "strom"): { values: Input["opts"]; positionals: string[]; fix?: string } {
+export function parseOptions(def: CommandDef, rest: string[], program = "strom"): { values: Input["opts"]; positionals: string[]; fix?: string; after?: Record<string, number[]> } {
   const defs: OptionDef[] = optionsOf(def);
   rest = withOptionAliases(defs, rest);
   const usage = usageOf(def, program);
@@ -257,7 +257,16 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
   const cmd = `${program} ${def.path.join(" ")}`.trim();
   try {
     const r = parseArgs({ args: rest, options, allowPositionals: true, strict: true, tokens: true });
-    return foldSurplus(def, defs, r.tokens as Token[], r.values as Input["opts"], r.positionals);
+    const folded = foldSurplus(def, defs, r.tokens as Token[], r.values as Input["opts"], r.positionals);
+    // where the values of a repeatable option were typed among the arguments (a command of several arguments only)
+    if (!def.args?.some((a) => a.variadic)) return folded;
+    const after: Record<string, number[]> = {};
+    let seen = 0;
+    for (const t of r.tokens as Token[]) {
+      if (t.kind === "positional") seen++;
+      else if (t.kind === "option" && defs.find((d) => d.name === t.name)?.multiple) (after[t.name] ??= []).push(seen);
+    }
+    return { ...folded, after };
   } catch (err) {
     const e = err as Error & { code?: string };
     const opt = /'(-{1,2}[^' =]+)/.exec(e.message)?.[1] ?? "";
@@ -273,6 +282,12 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
           hint: `a status is a fact's (E…) only, never a name's or a family's: strom cite E… S… --status probable|proven, strom event edit E… --status …`,
           code: "option.unknown", hintCode: "option.unknown.status", params: { opt, cmd, options: own.join(" "), path: def.path.join(" ") }, usage,
         });
+      // a name agents type meaning another option (--timeout for --minutes): that one, with what it takes
+      const meant = optionsOf(def).find((o) => o.mistaken?.includes(opt.replace(/^-+/u, "")));
+      if (meant) {
+        const near = `--${meant.name}${meant.value ? ` ${meant.value}` : ""}`;
+        throw new UsageError(`unknown option ${opt} for ${cmd}`, { hint: `meant: ${near} — ${meant.description}`, code: "option.near", params: { opt, cmd, near }, usage });
+      }
       const near = suggest(opt, optionsOf(def).filter((o) => !o.hidden).map((o) => `--${o.name}`));
       const help = `strom help${def.path.length ? ` ${def.path.join(" ")}` : ""}`;
       throw new UsageError(`unknown option ${opt} for ${cmd}`, {

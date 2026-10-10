@@ -19,6 +19,11 @@ export interface OptionDef {
   hidden?: boolean;
   /** Other names it is taken by (a mistake agents make often: --surnames for --surname); said once in help. */
   aliases?: string[];
+  /**
+   * Names agents type meaning it that are not it (--timeout, a shell tool's milliseconds, for strom read --minutes):
+   * never taken as it — the unknown option points to it.
+   */
+  mistaken?: string[];
   /** At most this many characters (said in help and under a mistake). */
   max?: number;
 }
@@ -52,6 +57,11 @@ export interface Input {
   opts: Record<string, string | boolean | string[] | undefined>;
   /** Arguments after a bare "--", for commands that pass them on (strom run). */
   extra?: string[];
+  /**
+   * Where each value of a repeatable option was typed: how many arguments came before it, in the order of its values
+   * (strom media view B0001:2 --crop … B0001:3 --crop …: each crop of the image named before it).
+   */
+  after?: Record<string, number[]>;
 }
 
 export interface Result {

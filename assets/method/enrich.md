@@ -20,6 +20,10 @@ recorded, also in vain (`strom search add … --method web|catalog|full-text`).
 - **Within the brief's budget of pages** fetched or read; then record what
   was searched and close. Printed pages go to the user's model for print
   where you can hand work to one (the brief names it) — never handwriting.
+  The budget is the task's whole: pages through a connector count in it.
+  More pages of one site than the web rule allows go through its connector,
+  built right away when the task needs that site (`strom connector new
+  <site>`, then `strom fetch`).
 - **The history of a place once in a research**: what is written of it (the
   brief says) is reused, never searched again.
 - **Read the source itself** — the page, the scan. A snippet, an OCR line,

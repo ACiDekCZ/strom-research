@@ -146,6 +146,9 @@ function matches(text: string | undefined, q: string): boolean {
 
 // ── sources ────────────────────────────────────────────────────────────────
 
+/** A list longer than this ends with the filters that make it shorter. */
+const LONG_LIST = 30;
+
 register(
   {
     path: ["source", "add"],
@@ -461,8 +464,21 @@ register(
         const repo = requireRecord(tree, String(opts.repo), "repository").id;
         all = all.filter((b) => b.repository === repo);
       }
+      // a long list ends with its filters: a book is found by them, never by searching the list (N0280)
+      const filters = [
+        args[0] ? undefined : "<text>",
+        opts.place === undefined ? "--place <name>" : undefined,
+        opts.kind === undefined ? "--kind <kind>" : undefined,
+        opts.years === undefined ? "--years <from-to>" : undefined,
+        opts.repo === undefined ? "--repo <R…>" : undefined,
+      ].filter(Boolean);
       return {
-        text: all.length ? table(all.map((b) => [b.id, truncate(b.title, 60), b.years ?? "", b.access, b.calibration.length ? "calibrated" : ""])) : "no record sets match",
+        text: all.length
+          ? lines(
+              table(all.map((b) => [b.id, truncate(b.title, 60), b.years ?? "", b.access, b.calibration.length ? "calibrated" : ""])),
+              all.length > LONG_LIST && filters.length ? `${all.length} record sets — fewer: strom recordset list ${filters.join(" ")}` : undefined,
+            )
+          : "no record sets match",
         data: { recordsets: opts.full ? all : all.map((b) => ({ id: b.id, title: b.title, years: b.years, access: b.access, places: b.places, calibrated: b.calibration.length > 0 })) },
       };
     },

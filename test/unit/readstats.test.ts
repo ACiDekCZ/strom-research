@@ -107,8 +107,11 @@ test("context clears per stream: a subagent's drop is its own, a small dip is no
   assert.deepEqual(clearsOf([{ t: 1, sub: "" }]), { clears: 0 });
 });
 
+/** One moment for every unit of the tests: their times apart by their days alone, never by the clock's tick between two calls. */
+const NOW = Date.now();
+
 function unit(id: string, daysAgo: number, books: Record<string, Partial<BookCounts>>, more: Partial<Unit> = {}): Unit {
-  return { id, kind: "reader", at: new Date(Date.now() - daysAgo * DAY).toISOString(), key: "codex gpt-x", books: Object.fromEntries(Object.entries(books).map(([b, c]) => [b, { ...emptyBook(), ...c }])), hosts: {}, ...more };
+  return { id, kind: "reader", at: new Date(NOW - daysAgo * DAY).toISOString(), key: "codex gpt-x", books: Object.fromEntries(Object.entries(books).map(([b, c]) => [b, { ...emptyBook(), ...c }])), hosts: {}, ...more };
 }
 
 test("keys apart by the model the agent said; units older than the window left out; the units that said none go with the newest", () => {
@@ -117,7 +120,7 @@ test("keys apart by the model the agent said; units older than the window left o
     unit("b", 20, { B1: { scans: 1 } }, { reported: "gpt-x-1" }),
     unit("c", 10, { B1: { scans: 1 } }, { reported: "gpt-x-2" }),
     unit("d", 5, { B1: { scans: 1 } }),
-    unit("e", 5, { B1: { scans: 1 } }, { key: "claude opus" }),
+    unit("e", 6, { B1: { scans: 1 } }, { key: "claude opus" }),
   ]);
   assert.deepEqual(
     g.map((x) => [x.key, x.reported ?? null, x.units.map((u) => u.id)]),

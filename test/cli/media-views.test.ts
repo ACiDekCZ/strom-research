@@ -62,6 +62,13 @@ test("media view: several images in one call — a range, several arguments, pag
   assert.deepEqual(await ids("B1:1,3"), ["M0001", "M0003"]);
   assert.deepEqual(await ids("B1", "--image", "2", "3"), ["M0002", "M0003"]);
   assert.deepEqual(await ids("B1", "--image", "1-2"), ["M0001", "M0002"]);
+  assert.deepEqual(await ids("B1", "--image", "1..2"), ["M0001", "M0002"]);
+  assert.deepEqual(await ids("B1:2..3"), ["M0002", "M0003"]);
+  assert.deepEqual(await ids("B1", "--image", "1", "2..3"), ["M0001", "M0002", "M0003"]);
+  const back = await w.run(["media", "view", "B1", "--image", "3-1"]);
+  assert.equal(back.code, 2);
+  assert.match(back.err, /--image 3-1: a range from the lower number\n→ --image 1-3/);
+  assert.match((await w.run(["media", "view", "B1", "--image", "1..900"])).err, /--image 1\.\.900: 900 images — at most 200 in a range/);
   assert.deepEqual(await ids("M0003", "M0001", "B1:1"), ["M0003", "M0001"], "in the order asked, each image once");
   assert.match((await w.ok(["media", "view", "M0003", "M0001"])).out, /^ {2}B0001:3 \(M0003\) · /m);
   // pages of a calibrated book: "--page 10 11", a range
@@ -130,6 +137,29 @@ test("media view: several parts of each image — both pages of a spread by the 
   // several crops of one image: each with its clip
   const crops = (await w.ok(["media", "view", "B1:3", "--crop", "0.1,0.1,0.4,0.2", "--crop", "0.1,0.5,0.4,0.2", "--json"])).json;
   assert.deepEqual(crops.views.map((v: { clip: string }) => v.clip), ["M0003@0.1,0.1,0.4,0.2", "M0003@0.1,0.5,0.4,0.2"]);
+  // each image its own crops: a --crop is of the image named before it, never every crop of every image
+  const paired = (await w.ok(["media", "view", "B1:3", "--crop", "0.1,0.1,0.4,0.2", "B1:4", "--crop", "0.2,0.2,0.5,0.5", "--crop", "0.1,0.6,0.5,0.3", "--json"])).json;
+  assert.deepEqual(paired.views.map((v: { clip: string }) => v.clip), ["M0003@0.1,0.1,0.4,0.2", "M0004@0.2,0.2,0.5,0.5", "M0004@0.1,0.6,0.5,0.3"], "3 views, not 6");
+  // a range takes its crops to each of its images
+  const ranged = (await w.ok(["media", "view", "B1:1-2", "--crop", "0,0,0.5,0.5", "B1:3", "--crop", "0.1,0.1,0.4,0.2", "--json"])).json;
+  assert.deepEqual(ranged.views.map((v: { clip: string }) => v.clip), ["M0001@0,0,0.5,0.5", "M0002@0,0,0.5,0.5", "M0003@0.1,0.1,0.4,0.2"]);
+  // an image not registered among them: said, the others made
+  const gap = (await w.ok(["media", "view", "B1:3", "--crop", "0.1,0.1,0.4,0.2", "B1:9", "--crop", "0,0,0.5,0.5", "--json"])).json;
+  assert.equal(gap.views.length, 1);
+  assert.deepEqual(gap.missing, ["B0001:9"]);
+  // crops after the last image: of every image, as always
+  const every = (await w.ok(["media", "view", "B1:3", "B1:4", "--crop", "0.1,0.1,0.4,0.2", "--json"])).json;
+  assert.deepEqual(every.views.map((v: { clip: string }) => v.clip), ["M0003@0.1,0.1,0.4,0.2", "M0004@0.1,0.1,0.4,0.2"]);
+  // a crop before any image of several, an image without a crop among paired ones: said, with the form
+  const first = await w.run(["media", "view", "--crop", "0.1,0.1,0.4,0.2", "B1:3", "B1:4"]);
+  assert.equal(first.code, 2);
+  assert.match(first.err, /a --crop before any image: each --crop is of the image named before it/);
+  assert.match(first.err, /strom media view B1:3 --crop 0\.1,0\.1,0\.4,0\.2 B1:4 --crop …/);
+  const bare = await w.run(["media", "view", "B1:3", "--crop", "0.1,0.1,0.4,0.2", "B1:4", "B1:1", "--crop", "0,0,0.5,0.5"]);
+  assert.equal(bare.code, 2);
+  assert.match(bare.err, /B1:4 has no --crop of its own/);
+  // one image, the crop before it: unambiguous, as always
+  assert.equal((await w.ok(["media", "view", "--crop", "0.1,0.1,0.4,0.2", "B1:3", "--json"])).json.clip, "M0003@0.1,0.1,0.4,0.2");
   // a grid of overlapping parts: of the image, or of each page of a spread
   const grid = (await w.ok(["media", "view", "B1:3", "--split", "2x2", "--json"])).json;
   assert.equal(grid.views.length, 4);
