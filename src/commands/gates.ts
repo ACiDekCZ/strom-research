@@ -1,15 +1,17 @@
 // Gates: the user's condition on the agent working alone (core/gate.ts).
 
+import fs from "node:fs";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { ui } from "../cli/ui.ts";
 import { lines, table } from "../cli/format.ts";
 import { StromError } from "../core/errors.ts";
-import { askGate, ensureGatesDir, gatesDir, listGates, loadGate } from "../core/gate.ts";
+import { askGate, checkGateSpec, ensureGatesDir, gatesDir, listGates, loadGate } from "../core/gate.ts";
 
+/** The shared folder the setup made (a home named from outside before any setup is none): nothing made here. */
 function shared(ctx: Context): string {
   const s = ctx.settings.shared()?.value;
-  if (!s) throw new StromError("strom is not set up yet", { hint: "strom setup" });
+  if (!s || !fs.existsSync(s)) throw new StromError("strom is not set up yet", { hint: "strom setup" });
   ensureGatesDir(s);
   return s;
 }
@@ -42,8 +44,10 @@ register(
     args: [{ name: "gate", description: 'the gate and what it is given, e.g. "claude-usage 10" (default: run.gate)' }],
     examples: ["strom gate test", 'strom gate test "claude-usage 10"', 'strom gate test "claude-usage 10 --cap 95"'],
     run(ctx, { args }) {
-      const s = shared(ctx);
       const name = args[0] ?? ctx.settings.runGate();
+      // a cap that is no cap is said set up or not
+      if (name) checkGateSpec(name);
+      const s = shared(ctx);
       if (!name) throw new StromError("no gate named and none set", { hint: "strom gate list — strom gate test <name>" });
       const gate = loadGate(s, name);
       const tree = ctx.hasTree() ? ctx.tree() : undefined;

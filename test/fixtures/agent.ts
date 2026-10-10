@@ -71,6 +71,13 @@ if (process.env.STROM_READER === "1") {
     );
     process.exit(0);
   }
+  // nothing found, a possible match on the second image it could not read
+  if (process.env.AGENT_MODE === "reader-unclear") {
+    images.forEach((img, i) =>
+      appendFileSync(report!, i === 1 ? `## Image ${img.n} · ${img.id}\nresult: unclear\nentries: pravý okraj, poznámka: „…ský“, jméno nečitelné\n\n` : `## Image ${img.n} · ${img.id}\nresult: nothing\n\n`),
+    );
+    process.exit(0);
+  }
   images.forEach((img, i) => {
     appendFileSync(report!, `## Image ${img.n} · ${img.id}\nresult: ${i === 0 ? "found" : "nothing"}\nentries: ${i === 0 ? "Franz · 18. Oktober · Haus 13" : "—"}\n\n`);
   });

@@ -260,7 +260,7 @@ test(
     const full = path.join(w.dir, "plná složka");
     fs.mkdirSync(full);
     fs.writeFileSync(path.join(full, "něco.txt"), "x");
-    const r1 = await w.ok(["setup"], { tty: true, answers: ["", full, "0", "0", "0", "0", "n", "0"] });
+    const r1 = await w.ok(["setup"], { tty: true, answers: ["", full, "0", "0", "0", "0", "0", "n", "0"] });
     assert.match(r1.out, /Ve složce .*plná složka už něco je/);
     assert.match(r1.out, /Výzkum zůstává ve složce/);
     assert.equal(config().home, old);
@@ -268,11 +268,11 @@ test(
     const { enterWorker } = await import("../../src/core/workers.ts");
     const leave = enterWorker(w.treeDir("Novákovi"), "chat-1", "rozhovor");
     const target = path.join(w.dir, "Nový disk", "Strom");
-    const r2 = await w.ok(["setup"], { tty: true, answers: ["", target, "0", "0", "0", "0", "n", "0"] });
+    const r2 = await w.ok(["setup"], { tty: true, answers: ["", target, "0", "0", "0", "0", "0", "n", "0"] });
     assert.match(r2.out, /V rodokmenu Novákovi teď někdo pracuje \(agent, samostatná práce nebo živé sledování v aplikaci Strom\)/);
     leave();
     // moved, on a yes: the tree works from there, the hook is found, the old folder is gone
-    const r3 = await w.ok(["setup"], { tty: true, answers: ["", target, "", "0", "0", "0", "0", "n", "0"] });
+    const r3 = await w.ok(["setup"], { tty: true, answers: ["", target, "", "0", "0", "0", "0", "0", "n", "0"] });
     assert.match(r3.out, /Výzkum je ve složce .* \(rodokmeny: Novákovi\) i se sdílenou složkou/);
     assert.match(r3.out, /✓ Výzkum je teď ve složce .*Nový disk\/Strom\./);
     assert.equal(config().home, target);
@@ -337,14 +337,14 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   const consents = path.join(w.env.STROM_CONFIG_DIR!, "consents.json");
   fs.writeFileSync(consents, JSON.stringify({ connectors: { zkouska: { dir: path.join(old, "shared", "plugins", "connectors", "zkouska"), hash: "x", hosts: [], at: "2026-01-01" } }, hosts: {} }));
   // 0 for the folder keeps it
-  await w.ok(["setup"], { tty: true, answers: ["", "0", "0", "0", "0", "0", "n", "0"] });
+  await w.ok(["setup"], { tty: true, answers: ["", "0", "0", "0", "0", "0", "0", "n", "0"] });
   assert.equal(config().home, old);
   assert.ok(!fs.existsSync(path.join(w.cwd, "0")) && !fs.existsSync(path.join(w.dir, "0")));
   // moved from the menu's settings into a folder Finder has been in: the menu goes on, with the tree where it is now
   const target = path.join(w.dir, "Nové místo");
   fs.mkdirSync(target);
   fs.writeFileSync(path.join(target, ".DS_Store"), "");
-  const r = await w.ok([], { tty: true, answers: ["8", "1", "", target, "", "0", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["8", "1", "", target, "", "0", "0", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
   assert.match(r.out, /✓ Výzkum je teď ve složce .*Nové místo\./);
   assert.match(r.out, /Novákovi – přehled výzkumu/, "the menu goes on, the tree opened where it is now");
   assert.doesNotMatch(r.out + r.err, /not a Strom tree|error:/);
@@ -352,7 +352,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   // the top of a disk (only its own hidden folders): into a folder of its own there
   const disk = path.join(w.dir, "USB");
   fs.mkdirSync(path.join(disk, ".fseventsd"), { recursive: true });
-  const d = await w.ok(["setup"], { tty: true, answers: ["", disk, "", "0", "0", "0", "0", "n", "0"] });
+  const d = await w.ok(["setup"], { tty: true, answers: ["", disk, "", "0", "0", "0", "0", "0", "n", "0"] });
   assert.match(d.out, /✓ Výzkum je teď ve složce .*USB\/Nové místo\./);
   assert.equal(config().home, path.join(disk, "Nové místo"));
   w.cleanup();

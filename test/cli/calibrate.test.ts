@@ -176,8 +176,12 @@ test("a smaller size kept only on a clear result; the sizes used by strom media 
   assert.match(said.out, /Uloženo pro script · vlastní model agenta \(\d{4}-\d\d-\d\d\): hledání 1000 px · čtení 1400 px/);
   // a reader that finds nothing at the largest size: no clear result for finding, its default stays
   // back to the defaults: --reset, and config unset
-  const reset = await w.ok(["media", "calibrate", "--agent", "script", "--reset"]);
-  assert.match(reset.out, /Vyladění pro script · vlastní model agenta zapomenuto: platí výchozí velikosti \(hledání 1400 px · čtení 1568 px\)/);
+  // listed first, returned on the person's yes (no terminal: nobody to ask)
+  assert.equal((await w.run(["media", "calibrate", "--agent", "script", "--reset"])).code, 4);
+  assert.ok(config(w).viewSizes, "nothing returned without a yes");
+  const reset = await w.ok(["media", "calibrate", "--agent", "script", "--reset"], { tty: true, answers: ["a"] });
+  assert.match(reset.out, /kalibrované velikosti +model +find 1000 · read 1400 → find 1400 · read 1568 +kalibrace +\d{4}-\d\d-\d\d/);
+  assert.match(reset.out, /Vráceno na výchozí: 1\./);
   assert.equal((await w.ok(["config", "get", "views.size", "--agent", "script", "--json"])).json.source, "default");
   assert.equal(config(w).viewSizes, undefined);
   await w.run(["media", "calibrate", "--agent", "script", "--sizes", "1000,1400"], { tty: true, answers: ["a"] });

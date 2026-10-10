@@ -182,6 +182,47 @@ export function imageOfRef(all: Media[], recordset: string, image: number): Medi
   });
 }
 
+/** Image n of a record set registered only in parts (no whole image of it): those parts; else none. */
+export function onlyParts(all: Media[], recordset: string, image: number): Media[] {
+  const of = all.filter((m) => !m.retracted && m.recordset === recordset && m.image === image);
+  return of.length && of.every((m) => m.part) ? of : [];
+}
+
+/** How big the whole image is, as a part of it says (its pixels over the share of the image it shows). */
+export function wholeSizeOf(part: Media): { width: number; height: number } | undefined {
+  if (!part.part || !part.width || !part.height) return undefined;
+  return { width: Math.round(part.width / part.part.w), height: Math.round(part.height / part.part.h) };
+}
+
+/** A part covers a region when it shows this share of it at least (a half with its strip past the gutter). */
+const COVERS = 0.9;
+
+/**
+ * Of the parts an image is registered in (no whole image of it), the one that shows a region of the whole image
+ * (fractions of it) — of those that show nearly all of it (COVERS), the one that shows the most, then the sharpest —
+ * and where the region is in that part (cut to it). None covers it: undefined (nothing is fetched for it).
+ */
+export function coveringPart(parts: Media[], r: Region): { part: Media; crop: Region } | undefined {
+  let best: { part: Media; crop: Region; share: number; detail: number } | undefined;
+  for (const m of parts) {
+    const p = m.part;
+    if (!p || m.retracted || !(r.w > 0 && r.h > 0)) continue;
+    const x0 = Math.max(r.x, p.x);
+    const y0 = Math.max(r.y, p.y);
+    const x1 = Math.min(r.x + r.w, p.x + p.w);
+    const y1 = Math.min(r.y + r.h, p.y + p.h);
+    if (x1 <= x0 || y1 <= y0) continue;
+    // to a thousandth: a region exactly the part's is all of it
+    const share = Math.min(1, Math.round((((x1 - x0) * (y1 - y0)) / (r.w * r.h)) * 1000) / 1000);
+    if (share < COVERS) continue;
+    const detail = (m.width ?? 0) / p.w;
+    if (best && (share < best.share || (share === best.share && detail <= best.detail))) continue;
+    const crop = { x: (x0 - p.x) / p.w, y: (y0 - p.y) / p.h, w: (x1 - x0) / p.w, h: (y1 - y0) / p.h };
+    best = { part: m, share, detail, crop };
+  }
+  return best && { part: best.part, crop: best.crop };
+}
+
 /** The other copies of the same whole image, sharpest first. */
 export function otherCopies(all: Media[], m: Media): Media[] {
   if (m.part || m.recordset === undefined || m.image === undefined) return [];

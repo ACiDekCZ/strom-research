@@ -590,6 +590,8 @@ export interface Session extends BaseRecord {
   agent?: string;
   /** The model it ran on, when strom knows it (it started the agent with it, or the agent said so). */
   model?: string;
+  /** The reasoning effort it ran with, when strom knows it (it started the agent with it, or the agent's own config says it). */
+  effort?: string;
   /** The version of strom it ran with: its method and its checks. */
   strom?: string;
   /** Closed by strom, not by its agent: stopped by the user, its run or conversation gone, the agent quit. */
@@ -625,8 +627,8 @@ export interface TreeConfig {
   migratedWith?: string;
   /** Agent for this tree (overrides the user's default). */
   agent?: string;
-  /** Model per tier, per agent, for this tree. */
-  models?: Record<string, Partial<Record<"lead" | "vision" | "text" | "cheap", string>>>;
+  /** Model per tier, per agent, for this tree — and its reasoning effort (model.effort). */
+  models?: Record<string, Partial<Record<"lead" | "vision" | "text" | "cheap" | "effort", string>>>;
   /** Size of the brief in tokens. */
   briefBudget?: number;
   /** Which GEDCOM files to write: both (default), standard, strom. */

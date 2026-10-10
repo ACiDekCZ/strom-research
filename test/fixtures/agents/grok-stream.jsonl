@@ -1,0 +1,6 @@
+{"type":"text","data":"Hledám "}
+{"type":"text","data":"křest."}
+{"type":"tool_call","toolCallId":"call_1","toolName":"run_terminal_command","rawInput":{"command":"strom brief"}}
+{"type":"tool_call_update","toolCallId":"call_1","status":"completed","content":"brief"}
+{"type":"text","data":"Hotovo."}
+{"type":"end","sessionId":"00000000-0000-4000-8000-0000000000f1","stopReason":"end_turn","num_turns":3,"total_cost_usd":0.031,"usage":{"input_tokens":30500,"output_tokens":850,"reasoning_tokens":150,"cache_read_input_tokens":22000},"modelUsage":{"grok-model-z":{"input_tokens":30500}}}

@@ -42,6 +42,7 @@ import { resolveResearch } from "./research.ts";
 import { childLink, LINK_HOW, linkHints, linkText, personsLink, recordedLinks, recordedText, toLink, writeVariantLink } from "../core/hypolinks.ts";
 import { yearsOption, yearsOverlap } from "../core/years.ts";
 import { searchedAs } from "../core/evidence.ts";
+import { refuseNegativeOverUnclear } from "./readings.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -63,6 +64,34 @@ function anyRefs(tree: Tree, refs: string[]): string[] {
     }
     return resolvePerson(tree, r).id;
   });
+}
+
+/**
+ * Whether a conflict is about a record (strom conflict list --about): named in its subject, a claim's source, the
+ * user's edit (its fact, its sources) or the parents it is of — for a person also through their own facts and their
+ * families (and those families' facts), for a family through its facts; a hypothesis (no conflict names one) through
+ * the people and families it is about and those its variants would connect.
+ */
+function conflictConcerns(tree: Tree, id: string): (c: Conflict) => boolean {
+  const ids = new Set<string>();
+  const add = (ref: string) => {
+    ids.add(ref);
+    const rec = tree.get<AnyRecord>(ref);
+    const families: Family[] = rec?.type === "person" ? familiesAsPartner(tree, ref) : rec?.type === "family" ? [rec as Family] : [];
+    if (rec?.type === "person") for (const e of (rec as Person).events) ids.add(e.id);
+    for (const f of families) {
+      ids.add(f.id);
+      for (const e of f.events) ids.add(e.id);
+    }
+  };
+  add(id);
+  const h = tree.get<AnyRecord>(id);
+  if (h?.type === "hypothesis") for (const ref of [...(h as Hypothesis).subject, ...(h as Hypothesis).variants.flatMap((v) => v.linked ?? [])]) add(ref);
+  return (c) =>
+    c.subject.some((s) => ids.has(s)) ||
+    c.claims.some((cl) => cl.source !== undefined && ids.has(cl.source)) ||
+    (c.edit !== undefined && (ids.has(c.edit.event) || (c.edit.cites ?? []).some((ci) => ids.has(ci.source)))) ||
+    (c.parents !== undefined && [c.parents.child, c.parents.from, c.parents.to ?? "", ...c.parents.partners].some((s) => ids.has(s)));
 }
 
 /** The tasks that work on a conflict or hypothesis (--about X…/H…). */
@@ -187,7 +216,10 @@ register(
       const result = oneOf(opts.result, SEARCH_RESULTS, "result");
       if (result === "found" && findings.length === 0) throw new UsageError("result found needs --found <S…>", { hint: FOUND_FIRST });
       // A search made in a session served that session's task, unless it says otherwise.
-      const task = opts.task ? requireRecord(tree, String(opts.task), "task").id : currentSession(tree, ctx.env, ctx.refs)?.task;
+      const session = currentSession(tree, ctx.env, ctx.refs);
+      const task = opts.task ? requireRecord(tree, String(opts.task), "task").id : session?.task;
+      // searched in vain only once what a reader found unclear there was looked at closer
+      if (result === "negative") refuseNegativeOverUnclear(tree, { recordsets, pages: opts.pages === undefined ? undefined : String(opts.pages), task }, session);
       const s = create<Search>(
         tree,
         "search",
@@ -317,6 +349,9 @@ register(
             throw new UsageError(`changing ${overwritten.join(", ")} of ${id} needs --reason`, { hint: 'a search is evidence: e.g. --reason "the index belongs to the other volume"' });
           const next: Search = { ...cur, ...change, scope: { ...cur.scope, ...scope }, ...(note ? { notes: [...cur.notes, ...note] } : {}) };
           if (next.result === "found" && next.findings.length === 0) throw new UsageError("result found needs --found <S…>", { hint: FOUND_FIRST });
+          // made a negative, or its range changed: what a reader found unclear there is looked at closer first
+          if (next.result === "negative" && (cur.result !== "negative" || "recordsets" in change || "pages" in scope))
+            refuseNegativeOverUnclear(tree, { recordsets: next.recordsets, pages: next.scope.pages, task: next.task }, currentSession(tree, ctx.env, ctx.refs));
           return next;
         },
         { op: "search.edit", summary: `${id} ${fields.join(", ")}`, reason, targets: [...(change.recordsets ?? []), ...(change.findings ?? [])] },
@@ -512,11 +547,24 @@ register(
     summary: "Conflicts between sources",
     group: "analysis",
     tree: true,
-    options: [{ name: "all", type: "boolean", description: "include resolved" }],
+    description:
+      "--about: only the conflicts about one person, hypothesis or source (also a family F… or a fact E…) — a person's\n" +
+      "own facts and families count, a source counts where a claim or the user's edit cites it, a hypothesis through\n" +
+      "the people and families it is about or its variants would connect.",
+    options: [
+      { name: "all", type: "boolean", description: "include resolved" },
+      { name: "about", type: "string", value: "<P…|H…|S…>", description: "only the conflicts about this person, hypothesis or source (also F…, E…)" },
+    ],
+    examples: ["strom conflict list", "strom conflict list --about P0001", "strom conflict list --about S0002 --all --json"],
     run(ctx, { opts }) {
       const tree = ctx.tree();
-      const all = tree.list<Conflict>("conflict").filter((c) => opts.all || c.state === "open");
-      return { text: all.length ? table(all.map((c) => [c.id, ui(tree.lang, c.state === "resolved" ? "ui.conflict.state.resolved" : "ui.conflict.state.open"), truncate(conflictTitle(tree, c), 60), c.subject.join(" ")])) : ui(tree.lang, opts.all ? "ui.conflict.none.all" : "ui.conflict.none"), data: { conflicts: all } };
+      const about = typeof opts.about === "string" ? anyRefs(tree, [opts.about])[0]! : undefined;
+      const concerns = about ? conflictConcerns(tree, about) : undefined;
+      const all = tree.list<Conflict>("conflict").filter((c) => (opts.all || c.state === "open") && (!concerns || concerns(c)));
+      return {
+        text: all.length ? table(all.map((c) => [c.id, ui(tree.lang, c.state === "resolved" ? "ui.conflict.state.resolved" : "ui.conflict.state.open"), truncate(conflictTitle(tree, c), 60), c.subject.join(" ")])) : ui(tree.lang, opts.all ? "ui.conflict.none.all" : "ui.conflict.none"),
+        data: { ...(about ? { about } : {}), conflicts: all },
+      };
     },
   },
   {
@@ -824,6 +872,70 @@ register(
         throw new UsageError(`--on must be an existing record set, repository or place`);
       const scope = opts.scope ? oneOf(opts.scope, LESSON_SCOPES, "scope") : ((type as Lesson["scope"] | undefined) ?? "project");
       const l = create<Lesson>(tree, "lesson", { scope, target, rule, detail }, (id) => `+${id} lesson "${truncate(rule, 60)}"`, target ? [target] : []);
+      return { text: written(tree), data: { lesson: l } };
+    },
+  },
+  {
+    path: ["lesson", "edit"],
+    summary: "Correct a lesson: its rule, its detail, what it is about — a change with the reason",
+    group: "analysis",
+    tree: true,
+    writes: true,
+    description:
+      "Only the options given change; --note adds a note. Changing the rule, the scope, what it is on, or a detail it\n" +
+      `has needs --reason (a lesson found wrong or out of date); adding a detail it lacks doesn't. A rule over ${LESSON_MAX}\n` +
+      "characters: its start is the rule, the rest goes before its detail.",
+    args: [{ name: "lesson", description: "lesson ID (K0001)", required: true }],
+    options: [
+      { name: "rule", type: "string", value: "<text>", description: "the lesson as one rule, corrected" },
+      { name: "detail", type: "string", value: "<text>", description: "the longer story (replaces it)", max: LESSON_DETAIL_MAX },
+      { name: "scope", type: "string", value: "<scope>", description: LESSON_SCOPES.join(", ") },
+      { name: "on", type: "string", value: "<B…|R…|L…>", description: "what it is about (its scope from it, unless --scope)" },
+      { name: "note", type: "string", value: "<text>", description: "a note added to it" },
+    ],
+    examples: ['strom lesson edit K0001 --rule "Folio = 2 × image + 3 from image 120 on" --reason "the numbering jumps at image 120"', 'strom lesson edit K0001 --detail "Checked at images 10, 60, 118, 121, 200."'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const id = requireRecord<Lesson>(tree, args[0]!, "lesson").id;
+      const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+      let rule = text(opts.rule);
+      let detail = text(opts.detail);
+      const note = text(opts.note);
+      const reason = text(opts.reason);
+      if (rule && [...rule].length > LESSON_MAX) {
+        const was = [...rule].length;
+        const { head, rest } = splitText(rule, LESSON_MAX - 2);
+        rule = `${head} …`;
+        detail = [`… ${rest}`, detail ?? tree.get<Lesson>(id)?.detail].filter(Boolean).join("\n");
+        tree.notices.push(`note: the rule was ${was} characters (a rule holds ${LESSON_MAX}): its start is the rule, the rest went into its detail (strom show ${id})`);
+      }
+      if (detail && [...detail].length > LESSON_DETAIL_MAX) throw new UsageError(`the rule's detail is ${[...detail].length} characters (max ${LESSON_DETAIL_MAX})`, { hint: "the lesson in short; a long story of a record set belongs in its notes: strom recordset edit B… --note \"…\"" });
+      const target = opts.on ? normId(String(opts.on)) : undefined;
+      const type = target ? typeOfId(target) : undefined;
+      if (target && (!type || !["repository", "recordset", "place"].includes(type) || !tree.get(target)))
+        throw new UsageError(`--on must be an existing record set, repository or place`);
+      const scope = opts.scope !== undefined ? oneOf(opts.scope, LESSON_SCOPES, "scope") : target ? (type as Lesson["scope"]) : undefined;
+      const given: Partial<Lesson> = { ...(rule ? { rule } : {}), ...(detail ? { detail } : {}), ...(scope ? { scope } : {}), ...(target ? { target } : {}) };
+      const l = update<Lesson>(
+        tree,
+        id,
+        "lesson",
+        (cur) => {
+          if (cur.retracted) throw new UsageError(`${id} is retracted (${cur.retracted.reason}) — what holds now is a new lesson`, { hint: 'strom lesson add "…"' });
+          const keys = (Object.keys(given) as (keyof Lesson)[]).filter((k) => cur[k] !== given[k]);
+          if (!keys.length && !note) throw new UsageError("nothing to change", { hint: "strom help lesson edit" });
+          // what a lesson says is what the next session goes by: changing it needs a reason, filling in a detail doesn't
+          const changed = keys.filter((k) => cur[k] !== undefined);
+          if (changed.length && !reason)
+            throw new UsageError(`changing ${changed.map((k) => `--${k === "target" ? "on" : k}`).join(", ")} of ${id} needs --reason`, {
+              hint: 'e.g. --reason "the numbering jumps at image 120"',
+              code: "record.needs-reason",
+              params: { id, fields: changed.map((k) => `--${k === "target" ? "on" : k}`).join(", ") },
+            });
+          return { ...cur, ...given, ...(note ? { notes: [...cur.notes, ...makeNotes(tree, note)] } : {}) };
+        },
+        { op: "lesson.edit", summary: `${id} ${[...Object.keys(given).map((k) => (k === "target" ? "on" : k)), ...(note ? ["note"] : [])].join(", ")}`, reason, targets: target ? [target] : [] },
+      );
       return { text: written(tree), data: { lesson: l } };
     },
   },

@@ -17,8 +17,10 @@
 // is on: --strict-mcp-config, --tools <what strom uses>, no auto-memory.
 
 import { randomUUID } from "node:crypto";
-import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, mergeLimits, OWN_GROUP, spawnAgent, stopTree, type AgentLimit, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, mergeLimits, OWN_GROUP, usageNumber, spawnAgent, stopTree, tellUsage, type AgentLimit, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
+import { effortArgs } from "../agents/effort.ts";
 import type { SessionMetrics } from "../core/model.ts";
+import { addResponses, type Responses } from "./jsonl.ts";
 
 function describeTool(block: { name?: string; input?: Record<string, unknown> }): string {
   const input = block.input ?? {};
@@ -39,6 +41,13 @@ function describeTool(block: { name?: string; input?: Record<string, unknown> })
 export const RUN_TOOLS = ["Bash", "Read", "Edit", "Write", "WebFetch", "WebSearch", "Agent", "ToolSearch", "SendMessage"] as const;
 /** A reader's tools: it opens its views and writes its report (reader-settings.json allows nothing else). */
 export const READER_TOOLS = ["Read", "Edit", "Write"] as const;
+
+/**
+ * Never in a session nobody watches, whatever its level or add-ons: a question to the user (nobody answers it — what
+ * only the user can decide is a task that waits, strom task wait), and the browser's pairing request, which waits for a
+ * click in Chrome (several browsers connected: list_connected_browsers, then select_browser).
+ */
+export const RUN_DISALLOWED = ["AskUserQuestion", "mcp__claude-in-chrome__switch_browser"] as const;
 
 /** The tools of a clean session (--tools). */
 export function cleanTools(reader: boolean | undefined, platform: NodeJS.Platform = process.platform): string[] {
@@ -79,8 +88,37 @@ export function limitsOf(msg: Record<string, unknown>, at: Date = new Date()): A
   return out.size ? [...out.values()] : undefined;
 }
 
+/**
+ * The use of one request of the agent in Claude Code's stream: an assistant message's usage (input, output, cache read
+ * and written — for an hour, for five minutes), its model; a subagent's request names the tool call that started it
+ * (parent_tool_use_id). Undefined for any other line, or one without usage.
+ */
+export function claudeUsage(msg: Record<string, unknown>): { id?: string; sample: UsageSample } | undefined {
+  if (msg.type !== "assistant" || !msg.message || typeof msg.message !== "object") return undefined;
+  const m = msg.message as { id?: unknown; model?: unknown; usage?: Record<string, unknown> };
+  const u = m.usage;
+  if (!u || typeof u !== "object") return undefined;
+  const inp = usageNumber(u.input_tokens);
+  const cr = usageNumber(u.cache_read_input_tokens);
+  const cw = usageNumber(u.cache_creation_input_tokens);
+  const cc = (u.cache_creation ?? {}) as Record<string, unknown>;
+  const parts = [inp, cr, cw].filter((n): n is number => n !== undefined);
+  const sample: UsageSample = {
+    ...(typeof msg.parent_tool_use_id === "string" && msg.parent_tool_use_id ? { sub: msg.parent_tool_use_id } : {}),
+    ...(typeof m.model === "string" ? { model: m.model } : {}),
+    in: inp,
+    out: usageNumber(u.output_tokens),
+    cr,
+    cw,
+    cw1h: usageNumber(cc.ephemeral_1h_input_tokens),
+    cw5m: usageNumber(cc.ephemeral_5m_input_tokens),
+    ...(parts.length ? { ctx: parts.reduce((a, b) => a + b, 0) } : {}),
+  };
+  return { ...(typeof m.id === "string" ? { id: m.id } : {}), sample };
+}
+
 /** Command-line arguments for a run (exported for tests). */
-export function claudeArgs(opts: Pick<RunOptions, "interactive" | "kickoff" | "name" | "model" | "extraArgs" | "settingsFile" | "agentsFile" | "chrome" | "permissions" | "remote" | "clean" | "reader">): string[] {
+export function claudeArgs(opts: Pick<RunOptions, "interactive" | "kickoff" | "name" | "model" | "effort" | "extraArgs" | "settingsFile" | "agentsFile" | "chrome" | "permissions" | "remote" | "clean" | "reader">): string[] {
   const level = opts.permissions ?? "auto";
   const mode = level === "full" ? "bypassPermissions" : !opts.interactive ? "dontAsk" : level === "auto" ? "auto" : undefined;
   const args = opts.interactive ? [opts.kickoff] : ["-p", "--output-format", "stream-json", "--verbose"];
@@ -90,6 +128,7 @@ export function claudeArgs(opts: Pick<RunOptions, "interactive" | "kickoff" | "n
   if (opts.agentsFile && !opts.interactive && !opts.reader) args.push("--agents", opts.agentsFile);
   if (opts.name) args.push("--name", opts.name);
   if (opts.model) args.push("--model", opts.model);
+  args.push(...effortArgs("claude", opts.effort));
   // a reader never gets the browser, whatever Claude Code's own default is (its views and its report only)
   if (opts.reader && !opts.interactive) args.push("--no-chrome");
   else if (opts.chrome !== undefined) args.push(opts.chrome ? "--chrome" : "--no-chrome");
@@ -99,6 +138,8 @@ export function claudeArgs(opts: Pick<RunOptions, "interactive" | "kickoff" | "n
   // uses — and so no skills either (no Skill tool). Never --setting-sources, --bare or --safe-mode: they drop the user's
   // model, effort and login, or the tree's own instructions.
   if (opts.clean && !opts.interactive) args.push("--strict-mcp-config", "--tools", cleanTools(opts.reader).join(","));
+  // nobody watches: nothing that waits for a person (a reader has neither tool)
+  if (!opts.interactive && !opts.reader) args.push("--disallowedTools", RUN_DISALLOWED.join(","));
   args.push(...(opts.extraArgs ?? []));
   return args;
 }
@@ -135,6 +176,8 @@ interface Attempt {
   metrics: SessionMetrics;
   /** It said how it ended (the result event): its cost is known. */
   reported: boolean;
+  /** Its own requests' use as it said them one by one (its subagents' apart, as its result counts them). */
+  responses: Responses;
   text: string;
   stderr: string;
   isError: boolean;
@@ -143,7 +186,7 @@ interface Attempt {
   limits?: AgentLimit[];
 }
 
-function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: number | undefined): Promise<Attempt> {
+function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: number | undefined, sid?: string): Promise<Attempt> {
   return new Promise((resolve) => {
     const child = spawnAgent("claude", args, {
       cwd: opts.cwd,
@@ -163,8 +206,23 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
       : undefined;
     const abort = () => stopTree(child);
     opts.signal?.addEventListener("abort", abort, { once: true });
-    const a: Attempt = { code: null, timedOut: false, metrics: {}, reported: false, text: "", stderr: "", isError: false, denied: [] };
+    const a: Attempt = { code: null, timedOut: false, metrics: {}, reported: false, responses: { n: 0 }, text: "", stderr: "", isError: false, denied: [] };
     let buffer = "";
+    // One request's message comes in several lines (a line per block, the same id): its last usage is the request's.
+    // Kept per stream (the agent's own, each subagent's) until that stream's next request, then said.
+    const pending = new Map<string, { id?: string; sample: UsageSample }>();
+    const flush = (key?: string) => {
+      for (const [k, p] of [...pending]) {
+        if (key !== undefined && k !== key) continue;
+        pending.delete(k);
+        tellUsage(opts, p.sample);
+        if (!p.sample.sub) {
+          const r = a.responses;
+          r.n++;
+          for (const key of ["in", "out", "cr", "cw"] as const) if (p.sample[key] !== undefined) r[key] = (r[key] ?? 0) + p.sample[key]!;
+        }
+      }
+    };
     const handle = (line: string) => {
       if (!line.trim()) return;
       let msg: Record<string, unknown>;
@@ -174,6 +232,18 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
         return;
       }
       if (msg.type === "system" && msg.subtype === "init" && typeof msg.model === "string") a.metrics.model = msg.model;
+      if (msg.type === "system" && msg.subtype === "init" && !opts.interactive) {
+        const id = typeof msg.session_id === "string" ? msg.session_id : sid;
+        if (id) tellUsage(opts, { agentSession: id, ...(typeof msg.model === "string" ? { model: msg.model } : {}) });
+      }
+      const use = opts.interactive ? undefined : claudeUsage(msg);
+      if (use) {
+        const key = use.sample.sub ?? "";
+        const had = pending.get(key);
+        if (had && had.id !== use.id) flush(key);
+        pending.set(key, use);
+      }
+      if (msg.type === "result") flush();
       const limits = limitsOf(msg);
       if (limits) {
         a.limits = mergeLimits(a.limits, limits);
@@ -240,9 +310,21 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
     child.on("close", (code) => {
       end();
       if (buffer) handle(buffer);
+      flush();
       resolve({ ...a, code, timedOut });
     });
   });
+}
+
+/**
+ * What one start used: its result's totals; stopped before its result (the time limit), the use its requests said
+ * one by one, its cost unknown (costPartial: "$x+", never a price made up).
+ */
+function measured(a: Attempt): SessionMetrics {
+  if (a.reported) return a.metrics;
+  const m: SessionMetrics = { ...a.metrics, costPartial: true };
+  addResponses(m, a.responses);
+  return m;
 }
 
 /** Two starts as one session: the time's metrics added up. */
@@ -268,19 +350,19 @@ export const claudeRunner: Runner = {
     // A headless session has an id of strom's choosing: stopped at its limit, it is resumed to write down what it found.
     const id = opts.interactive ? undefined : randomUUID();
     const args = claudeArgs(opts);
-    let a = await attempt(opts, id ? [...args, "--session-id", id] : args, opts.prompt, opts.timeoutMs);
+    let a = await attempt(opts, id ? [...args, "--session-id", id] : args, opts.prompt, opts.timeoutMs, id);
     if (a.failed) return { exitCode: 127, outcome: "error", text: a.failed, metrics: a.metrics };
     const timedOut = a.timedOut;
-    let metrics: SessionMetrics = { ...a.metrics, ...(a.reported ? {} : { costPartial: true }) };
+    let metrics: SessionMetrics = measured(a);
     const denied = [...a.denied];
     let limits = a.limits;
     if (timedOut) {
       const min = Math.round(opts.timeoutMs! / 60000);
       if (opts.wrapUp && id && !opts.signal?.aborted) {
         opts.onProgress?.(`time limit reached (${min} min) — the agent gets ${Math.round(opts.wrapUp.ms / 60000)} min to write down what it found`);
-        const more = await attempt(opts, [...args, "--resume", id], opts.wrapUp.prompt, opts.wrapUp.ms);
+        const more = await attempt(opts, [...args, "--resume", id], opts.wrapUp.prompt, opts.wrapUp.ms, id);
         if (more.timedOut) opts.onProgress?.("the agent did not finish in time — stopped");
-        metrics = { ...together(metrics, more.metrics), costPartial: true };
+        metrics = { ...together(metrics, measured(more)), costPartial: true };
         denied.push(...more.denied);
         limits = mergeLimits(limits, more.limits);
         a = { ...more, code: more.code, stderr: a.stderr + more.stderr, text: more.text || a.text };

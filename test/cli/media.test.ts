@@ -70,6 +70,43 @@ test("media add --half / --crop: a part of an image saved on its own is register
   w.cleanup();
 });
 
+test("an image registered only in parts: a crop or a half of the whole image is shown from the part that covers it, nothing fetched; none covers it — said", opts, async () => {
+  const { w } = await world();
+  const img = decodeImage(new Uint8Array(fs.readFileSync(path.join(fixtures, "s0001.jpg"))));
+  // image 3 only as its two halves (each 200×300 of a 400×300 image), image 2 only as one part of it
+  const other = decodeImage(new Uint8Array(fs.readFileSync(path.join(fixtures, "s0002.jpg"))));
+  for (const [f, side, from] of [["s0003L.jpg", "left", img], ["s0003P.jpg", "right", other]] as const) {
+    fs.writeFileSync(path.join(w.dir, f), encodeImage(resize(from, 200, 300), "jpeg"));
+    await w.ok(["media", "add", path.join(w.dir, f), "--recordset", "B1", "--image", "3", "--half", side]); // M0001, M0002
+  }
+  fs.writeFileSync(path.join(w.dir, "detail.jpg"), encodeImage(resize(img, 400, 300), "jpeg"));
+  await w.ok(["media", "add", path.join(w.dir, "detail.jpg"), "--recordset", "B1", "--image", "2", "--crop", "0.5,0.25,0.5,0.5"]); // M0003
+  // a crop on the right page: the right half, the place in its own pixels
+  const right = (await w.ok(["media", "view", "B1:3", "--crop", "0.6,0.2,0.3,0.5", "--json"])).json;
+  assert.equal(right.image, "M0002");
+  assert.equal(right.from, "M0002");
+  assert.deepEqual(right.region, { x: 40, y: 60, w: 120, h: 150 }, "0.6–0.9 of the whole is 0.2–0.8 of the right half");
+  assert.match(right.clip, /^M0002@0\.2,0\.2,0\.6,0\.5$/);
+  const said = (await w.ok(["media", "view", "B1:3", "--crop", "0.1,0.1,0.3,0.3"])).out;
+  assert.match(said, /from M0001, the part of the image that covers it \(part 0,0,0\.5,1; the image is registered only in parts\)/);
+  // a half: the part that is that half (a half with its strip past the gutter too)
+  assert.equal((await w.ok(["media", "view", "B1:3", "--half", "right", "--json"])).json.image, "M0002");
+  const both = (await w.ok(["media", "view", "B1:3", "--half", "both", "--json"])).json;
+  assert.deepEqual(both.views.map((v: { image: string }) => v.image), ["M0001", "M0002"]);
+  // one part only: a crop of the whole image, not of the part
+  const two = (await w.ok(["media", "view", "B1:2", "--crop", "0.6,0.3,0.2,0.2", "--json"])).json;
+  assert.equal(two.image, "M0003");
+  assert.deepEqual(two.region, { x: 80, y: 30, w: 160, h: 120 }, "0.6,0.3 of the whole is 0.2,0.1 of the part 0.5,0.25,0.5,0.5");
+  // no part covers it: said with the parts there are — nothing fetched, no request to an archive
+  const across = await w.run(["media", "view", "B1:3", "--crop", "0.3,0.2,0.4,0.3"]);
+  assert.equal(across.code, 2);
+  assert.match(across.err, /image 3 of B0001 is registered only in parts, and none of them covers 0\.3,0\.2,0\.4,0\.3: M0001 \(part 0,0,0\.5,1\), M0002 \(part 0\.5,0,0\.5,1\)/);
+  assert.ok(!fs.existsSync(path.join(w.home, "shared", "net")), "no archive asked");
+  // the whole image named without a place still asks which part
+  assert.equal((await w.run(["media", "view", "B1:3"])).code, 2);
+  w.cleanup();
+});
+
 test("a sharper copy of a whole image: it is the image; a view of an older copy uses it; the brief counts each image once", opts, async () => {
   const { w, scans } = await world();
   await w.ok(["media", "add", scans, "--recordset", "B1"]); // M0001–M0003, 400×300
@@ -200,7 +237,7 @@ test("a task waiting for the images of its book comes back when they are registe
   const { w, scans } = await world();
   await w.ok(["research", "new", "X", "--new-person", "Jan /Novák/"]);
   await w.ok(["task", "add", "Křest", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
-  assert.match((await w.ok(["brief", "T1"])).out, /no images here yet — the user saves them by hand \(never scrape an archive\): strom task wait <T…> --images B0001:<numbers> --on "<for the user, in their language/);
+  assert.match((await w.ok(["brief", "T1"])).out, /no images here yet — the user saves them by hand \(never scrape an archive\): strom task wait <T…> --images B0001:<numbers> --on "<for the user, impersonal, in the research language/);
   await w.ok(["task", "wait", "T1", "--on", "images 1–3 of B0001 in the inbox"]);
   assert.equal((await w.ok(["task", "next", "--json"])).json.task, null, "a waiting task is not offered");
   // the user sees what the research waits for

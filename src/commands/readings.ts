@@ -8,7 +8,7 @@ import path from "node:path";
 import { register } from "../cli/registry.ts";
 import { lines, runs, shellArg, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
-import type { Media, RecordSet, Search } from "../core/model.ts";
+import type { Media, RecordSet, Search, Session } from "../core/model.ts";
 import { requireRecord } from "../core/records.ts";
 import { parseReport, type Finding } from "../core/reader.ts";
 import { foldText } from "../core/text.ts";
@@ -185,6 +185,106 @@ export function earlierReadings(tree: Tree, images: Media[]): { readings: { stem
     })
     .map((s) => ({ id: s.id, question: s.question, pages: s.scope.pages!, result: s.result }));
   return { readings, searches };
+}
+
+/** An image a reader of strom read reported unclear that nobody has looked at closer since. */
+export interface OpenUnclear {
+  recordset: string;
+  image: number;
+  media?: string | undefined;
+  /** The reading's report (its name), and when it was written (ms). */
+  report: string;
+  at: number;
+  /** What the reader wrote of it: the entry where it stands, else what was illegible. */
+  said: string;
+}
+
+/** The kinds of view that look at a place closer than a whole image: a page of a spread, a crop, a part of a grid. */
+const CLOSER = new Set(["half", "crop", "split"]);
+
+/** Of the views journal, when each image (book:image) was looked at closer — a half, a crop, a part: the times. */
+function closerViews(root: string): Map<string, number[]> {
+  const out = new Map<string, number[]>();
+  let text = "";
+  try {
+    text = fs.readFileSync(path.join(root, ".strom", "views", "views.jsonl"), "utf8");
+  } catch {
+    return out;
+  }
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const v = JSON.parse(line) as { at?: string; rs?: string; img?: number; kind?: string };
+      if (!v.rs || v.img === undefined || !v.kind || !CLOSER.has(v.kind) || !v.at) continue;
+      const k = `${v.rs}:${v.img}`;
+      out.set(k, [...(out.get(k) ?? []), Date.parse(v.at)]);
+    } catch {
+      // a line cut short: left out
+    }
+  }
+  return out;
+}
+
+/**
+ * The images of a searched range (its record sets, its pages where it names them) that a reader of strom read reported
+ * unclear since `since` (ms) and that are still open: nobody looked at them closer after the report (a half, a crop or
+ * a part of the image) and no later reading of them came to found or nothing. A negative search over them is not
+ * recorded until they are.
+ */
+export function openUnclear(tree: Tree, recordsets: string[], pages: string | undefined, since: number): OpenUnclear[] {
+  if (!recordsets.length) return [];
+  const ranges = pages ? parseRanges(pages) : undefined;
+  const books = new Set(recordsets);
+  const dir = path.join(tree.root, "notes", "readings");
+  const written = new Map<string, number>();
+  const at = (report: string) => {
+    if (!written.has(report))
+      try {
+        written.set(report, fs.statSync(path.join(dir, `${report}.md`)).mtimeMs);
+      } catch {
+        written.set(report, 0);
+      }
+    return written.get(report)!;
+  };
+  // every block of the range, the latest of each image last
+  const blocks = loadReadings(tree)
+    .flatMap((r) => r.blocks)
+    .filter((b) => b.recordset && books.has(b.recordset) && b.num !== undefined && (!ranges || within(b.num, ranges)))
+    .sort((a, b) => at(a.report) - at(b.report));
+  const latest = new Map<string, Block>();
+  for (const b of blocks) latest.set(`${b.recordset}:${b.num}`, b);
+  const closer = closerViews(tree.root);
+  const out: OpenUnclear[] = [];
+  for (const [key, b] of latest) {
+    if (b.result !== "unclear" || at(b.report) < since) continue;
+    if ((closer.get(key) ?? []).some((t) => t > at(b.report))) continue;
+    out.push({ recordset: b.recordset!, image: b.num!, media: b.media, report: b.report, at: at(b.report), said: truncate((b.entries ?? b.illegible ?? []).join(" · ") || b.text.split("\n").slice(1).join(" "), 160) });
+  }
+  return out.sort((a, b) => a.recordset.localeCompare(b.recordset) || a.image - b.image);
+}
+
+/**
+ * Refuses a negative search over an image a reader reported unclear and nobody looked at closer since: what to view, and
+ * how to record the range as it stands instead. Readings from the first session of the search's task (else the session
+ * at work, else the last day).
+ */
+export function refuseNegativeOverUnclear(tree: Tree, s: { recordsets: string[]; pages?: string | undefined; task?: string | undefined }, session?: { started: string } | undefined): void {
+  const sessions = s.task ? tree.list<Session>("session").filter((x) => x.task === s.task) : [];
+  const starts = [...sessions.map((x) => Date.parse(x.started)), ...(session ? [Date.parse(session.started)] : [])].filter((n) => Number.isFinite(n));
+  const since = starts.length ? Math.min(...starts) : Date.now() - 24 * 3600_000;
+  const open = openUnclear(tree, s.recordsets, s.pages, since);
+  if (!open.length) return;
+  const first = open[0]!;
+  const ref = `${first.recordset}:${first.image}`;
+  throw new UsageError(
+    `a reader found ${open.length === 1 ? `image ${first.image} of ${first.recordset}` : `images ${runs(open.map((o) => o.image))} of ${first.recordset}`} unclear (strom readings ${first.recordset} --image ${first.image}: "${first.said}") and nobody looked closer since — a negative search of the range waits for that look`,
+    {
+      hint: lines(
+        `look at that place closer: strom media view ${ref} --half both (or --grid, then --crop x,y,w,h on the entry); then record the search`,
+        `or record the range as it stands: --result inconclusive --note "image ${first.image} unclear: <what>" (or --result partial, the pages read clearly in --pages)`,
+      ),
+    },
+  );
 }
 
 /** Of these images, those an earlier reader reported unclear (strom read gives them to the next reader sharper). */

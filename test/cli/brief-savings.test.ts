@@ -82,7 +82,7 @@ test("brief: a search of the surname elsewhere and long before is counted, not l
   // the Dvořák lesson names Lhota too — the task's place: it stays; the Cyrillic family's goes
   assert.match(known, /Dvořákovi ze Vsi/);
   assert.doesNotMatch(known, /Шевчуки/);
-  assert.match(known, /lessons about other families and places: 1 — strom lesson list --scope project/);
+  assert.match(known, /lessons about other families, places, books and archives: 1 — strom lesson list --scope project/);
   w.cleanup();
 });
 
@@ -140,7 +140,7 @@ test("brief: a connector of the book's archive that only finds books, keeps to t
   let brief = (await w.ok(["brief", "T2"])).out;
   assert.match(section(brief, "## Record sets"), /no images here yet — its connector hledac only finds books and fetches no images — the user saves the images by hand: strom task wait <T…> --images B0002:<numbers>/u);
   assert.doesNotMatch(brief, /no connector for this archive|build one — now, you/u);
-  assert.match(brief, /where its connector only finds books[\s\S]*Write `--on` for the user/u);
+  assert.match(brief, /where its connector only finds books[\s\S]*Write `--on` for the\s+user, impersonal/u);
   // the archive's terms allow no automation
   set({ policy: { automation: "manual" } });
   brief = (await w.ok(["brief", "T2"])).out;

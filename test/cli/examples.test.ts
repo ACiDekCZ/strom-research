@@ -17,7 +17,7 @@ import { STROM_APP_URL } from "../../src/core/stromapp.ts";
 const opts = { skip: !hasGit };
 
 /** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
-const NOT_RUN = new Set(["setup", "init", "run", "read", "seal adopt", "unpack", "trees remove", "connector add", "connector remove", "connector probe", "allow connector", "allow host", "login", "uninstall", "update", "gate test", "hook on", "hook test"]); // uninstall, update, unpack, trees remove: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests)
+const NOT_RUN = new Set(["setup", "init", "run", "read", "seal adopt", "unpack", "trees remove", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "login", "uninstall", "update", "gate test", "hook on", "hook test"]); // uninstall, update, unpack, trees remove: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests)
 
 async function seeded(): Promise<World> {
   const w = new World();
@@ -84,6 +84,7 @@ async function seeded(): Promise<World> {
   await w.ok(["task", "add", "Kde je kniha oddaných", "--level", "locate", "--where", "archiv", "--why", "sňatek", "--done-when", "odkaz"]); // T0003
   await w.ok(["task", "wait", "T0003", "--on", "odkaz na knihu oddaných"]); // waits for the user
   await w.ok(["recordset", "add", "Týnec 18"]); // B0002
+  await w.ok(["lesson", "add", "Folio = 2 × snímek + 1", "--on", "B0001"]); // K0001, for the examples of lesson edit
   // an approved story with a new version waiting beside it, for the examples of story approve and story discard
   await w.ok(["story", "set", "P0001", "--text", "Jan byl mlynář v Týnci."]);
   await w.ok(["story", "approve", "P0001"]);

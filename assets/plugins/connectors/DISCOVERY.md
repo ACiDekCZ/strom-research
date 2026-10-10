@@ -99,7 +99,8 @@ as well: see step 2.
   script it loads (`<script src=…>`), probe that too, and search it for the
   addresses the application calls (`/api/`, `.json`, image or file addresses):
   `strom connector grep __NAME__ <text>` shows each hit with the text round it
-  (`--regex` for a pattern). Pages and scripts are often too big to read whole.
+  (`--regex` for a pattern; a backtick in it written as `.`, any character —
+  a command with a backtick is refused). Pages and scripts are often too big to read whole.
   Then probe those addresses to see what they answer. A POST works too:
   `--method POST --body '…' --header "Content-Type: application/json"`.
   Probes keep the cookies servers set, like one visit in a browser: probe the
@@ -156,6 +157,20 @@ as well: see step 2.
 - If strom answers with exit code 4 (consent required), stop and tell the
   user: they give it in their own terminal after reading the warning
   (`strom allow connector __NAME__`). You never do that.
+
+## When it gets nothing
+
+- A connector that can neither fetch nor find anything (the portal guards its
+  files with a token meant to stop scripts, a login the user has not got, a
+  viewer that gives nothing) does not stay in the plugins folder. First write
+  down what you learned where the next session reads it: a lesson on the
+  archive (`strom lesson add "<what the portal does>" --on R…`) and the
+  searches you made (`strom search add … --result negative`). Then take it
+  away in the same session: `strom connector discard __NAME__` (any other
+  connector is the user's: `strom connector remove`). Its images come by hand
+  where the archive allows it.
+- One that finds books but fetches no images stays, as what it is:
+  `"can": ["find", "list"]`, and why in `policy.termsSummary` and `README.md`.
 
 ## 5. Hand over
 

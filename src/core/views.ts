@@ -19,6 +19,7 @@ import { crop, grid, resize, rotate, stretch, toGrey, type RawImage } from "../i
 import { decodeImage, encodeImage, ImageFormatError, imageSize } from "../image/index.ts";
 import type { Media, Region } from "./model.ts";
 import { IMAGE_MAX } from "../agents/images.ts";
+import { isWorkerId } from "./workers.ts";
 
 /**
  * Longest side of a view by default: what every vision model takes in without shrinking it again. A view made for
@@ -135,8 +136,42 @@ export function cropOf(b: Box): string {
 
 type Box = { x: number; y: number; w: number; h: number };
 
+/**
+ * What the record of a view says besides what it shows (core/metrics.ts): what kind of view it is, the size it was
+ * made for and where that size came from, that it was made for a reader. Never part of the view itself (its file).
+ */
+export interface ViewMeta {
+  kind?: "whole" | "half" | "crop" | "split" | "grid";
+  /** The longest side it was made for. */
+  cap?: number;
+  /** Where that size came from: the default of the agent and model, a calibration, an option of the command, a change strom made by itself for the book (tuned:T…). */
+  capFrom?: "default" | "calibrated" | "option" | `tuned:${string}`;
+  /** Made for a reader strom starts (strom read, clips, transcripts, a calibration). */
+  reader?: boolean;
+}
+
+/** The kind of a view by its spec, unless its maker says it. */
+function kindOf(spec: ViewSpec, region: { x: number; y: number; w: number; h: number }, W: number, H: number): NonNullable<ViewMeta["kind"]> {
+  if (spec.grid) return "grid";
+  if (spec.half && !spec.crop) return "half";
+  if (spec.crop || spec.half) return "crop";
+  return region.w >= W && region.h >= H ? "whole" : "crop";
+}
+
+/** The book and image a view is of (its media record, a part's too): for what was read of what was fetched. */
+function imageOfKey(tree: Tree, key: string): { rs?: string; img?: number; part?: 1 } {
+  if (!/^M\d+$/.test(key)) return {};
+  try {
+    const m = tree.get<Media>(key);
+    if (!m) return {};
+    return { ...(m.recordset ? { rs: m.recordset } : {}), ...(m.image !== undefined ? { img: m.image } : {}), ...(m.part ? { part: 1 as const } : {}) };
+  } catch {
+    return {};
+  }
+}
+
 /** Make (or reuse) a view of an image file. `key` names it (M0012, I0003). */
-export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec): View {
+export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec, meta: ViewMeta = {}): View {
   if (!fs.existsSync(source)) {
     // a research handed over without its images: the archive gives the same scan again
     const m = /^M\d+$/.test(key) ? tree.get<Media>(key) : undefined;
@@ -195,8 +230,34 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, encodeImage(img, spec.png ? "png" : "jpeg"));
   } else if (spec.rotate === 90 || spec.rotate === 270) dims = { width: outH, height: outW };
-  // Which images were looked at, and by whom (session costs, "who read this").
-  fs.appendFileSync(path.join(dir, "views.jsonl"), JSON.stringify({ at: now(), key, by: tree.actor, view: path.basename(file), region, scale }) + "\n");
+  // Which images were looked at, and by whom (session costs, "who read this"); how big, what kind, for whom (the
+  // reading of scans measured: core/metrics.ts)
+  const cap = spec.scale === undefined ? (spec.max ?? VIEW_MAX) : undefined;
+  const worker = tree.env.STROM_WORKER;
+  const record = {
+    at: now(),
+    key,
+    by: tree.actor,
+    view: path.basename(file),
+    region,
+    scale,
+    w: dims.width,
+    h: dims.height,
+    W,
+    H,
+    kind: meta.kind ?? kindOf(spec, region, W, H),
+    ...imageOfKey(tree, key),
+    ...(cap !== undefined ? { cap } : {}),
+    ...(meta.capFrom ? { capFrom: meta.capFrom } : {}),
+    cached,
+    ...(meta.reader || tree.env.STROM_READER === "1" ? { reader: 1 } : {}),
+    ...(isWorkerId(worker) ? { worker } : {}),
+  };
+  try {
+    fs.appendFileSync(path.join(dir, "views.jsonl"), JSON.stringify(record) + "\n");
+  } catch {
+    // the record is no reason to fail the view
+  }
   return { file, ...dims, scale, original: { width: W, height: H }, region, cached };
 }
 

@@ -11,14 +11,14 @@ import path from "node:path";
 import { langName } from "../core/lang.ts";
 import { writeFileAtomic } from "../core/json.ts";
 import type { Tree } from "../core/tree.ts";
-import { PROFILES, SELF_READING } from "./profiles.ts";
+import { PROFILES, selfReading } from "./profiles.ts";
 import { isArchive } from "../core/mode.ts";
 import { Settings } from "../core/config.ts";
 import { agentAppUrl, appSite } from "../core/stromapp.ts";
 import { configDir } from "../core/paths.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
-import { claudeScanReader, opencodeScanReader, SCAN_READER } from "./scanreader.ts";
+import { claudeScanReader, opencodeScanReader, SCAN_READER, treeReading } from "./scanreader.ts";
 
 export const MARKER = "<!-- strom: generated above this line (strom agents sync); your own notes below are kept -->";
 
@@ -64,7 +64,9 @@ the researcher; \`strom\` is your only way to read and change the research.
 
 The user watches this conversation and is usually not technical. Talk in
 ${lang}, plainly: say "the baptism of Karel in 1782", not record IDs, unless
-they ask.
+they ask. (Working alone — a session of strom run — nobody watches: this
+section is a conversation's; nothing there is said to the user, and its brief
+says how it ends.)
 
 - **First conversation** (no research yet): explain in a few sentences how you
   work together — you search registers and archives, record only what a
@@ -131,7 +133,7 @@ they ask.
   behind each fact, no IDs. When \`strom\` says to (once), tell them they can
   ask like this.
 
-${SELF_READING}
+${selfReading(treeReading(tree, new Settings(tree.env, {}).agent(tree.config).value))}
 ${MARKER}
 `;
 }
@@ -144,7 +146,7 @@ Claude Code: use Bash for \`strom\` commands only; read images and documents
 with the Read tool. You can choose a model for a subagent: delegate reading as
 below, not the way "Reading scans" in AGENTS.md says for other agents.
 
-${PROFILES.claude!.instructions(models)}
+${PROFILES.claude!.instructions(models, treeReading(tree, "claude"))}
 ${MARKER}
 `;
 }

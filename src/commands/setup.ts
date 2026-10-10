@@ -41,12 +41,19 @@ import { globalTargets, installGlobal } from "../agents/global.ts";
 import { placeholders, ui, UI } from "../cli/ui.ts";
 import { PERMISSION_LEVELS, type AgentPermissions } from "../core/config.ts";
 import { PROFILES, type Tier } from "../agents/profiles.ts";
-import { calibrationLabel, calibrationOffer, forgetCalibration, sizesText, viewSizesFor } from "../core/viewsizes.ts";
+import { agentSettingsSaid, EFFORTS, hasEffort, RECOMMENDED_EFFORT } from "../agents/effort.ts";
+import { agentSettingsLine, chooseEffort } from "../cli/model-choice.ts";
+import { calibrationKey, calibrationLabel, calibrationOffer, forgetCalibration, sizesText, viewModel, viewSizesFor } from "../core/viewsizes.ts";
+import { bookTuned, bookViewSizes, forgetTuning, readingOf, selfTune, treeTuning, type KeyTuning, type Tuned } from "../core/tune.ts";
 import { NeedsInputError, StromError, UsageError } from "../core/errors.ts";
+import { worsenings, type Worsening } from "../core/tunereset.ts";
+import { resetReading } from "../cli/tunereset.ts";
+import { loadRollup, type Unit } from "../core/readstats.ts";
+import { isArchive } from "../core/mode.ts";
 import { check } from "../core/check.ts";
 import { assertIntact, verifyFull } from "../core/integrity.ts";
 import { ensurePluginsDir } from "../core/connector.ts";
-import { ensureGatesDir, loadGate } from "../core/gate.ts";
+import { checkGate, ensureGatesDir } from "../core/gate.ts";
 import { ensureHooksDir } from "../core/hooks.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL, downloadsDir } from "../core/browser.ts";
 import { browserConnectors, fenceKeepsNetOff, listConnectors } from "../core/connector.ts";
@@ -180,7 +187,7 @@ interface Check {
   detail: string;
   fix?: string;
   /** What strom doctor --fix can do about it itself. */
-  repair?: "git" | "agent" | "knows" | "shortcut" | "app" | "links";
+  repair?: "git" | "agent" | "knows" | "shortcut" | "app" | "links" | "tune";
 }
 
 function nodeOk(version: string): boolean {
@@ -192,7 +199,7 @@ const FIX = "strom doctor --fix";
 
 /** Everything strom needs and has on this computer, in the user's language. */
 /** The checks of the agents: what they are, know, may do, where the person talks with them, their model and browser. */
-const AGENT_CHECKS = new Set(["agent", "knows", "where", "level", "model", "views", "browser", "remote", "fence"]);
+const AGENT_CHECKS = new Set(["agent", "knows", "where", "level", "model", "views", "codex", "browser", "remote", "fence", "tuneworse"]);
 
 /** What doctor says of an isolated installation: its folder — a second one with a command of its own: the command and its links too. */
 function secondLine(ctx: Context, t: (key: UIKey, values?: Record<string, string | number>) => string): string {
@@ -334,6 +341,11 @@ function diagnose(ctx: Context): Check[] {
     if (offer) add("views", "warn", t("ui.views.offer", { before: calibrationLabel(offer.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(offer.now, t("ui.settings.model.own")) }), "strom media calibrate");
     else add("views", "ok", views.calibrated ? t("ui.doc.views.done", { date: views.calibrated.at, find: views.find, read: views.read }) : t("ui.doc.views.default", { find: views.find, read: views.read }));
   }
+  // Codex's model and reasoning effort as strom's sessions get them: strom's setting, else its own config.toml (read only)
+  if (found.includes("codex")) {
+    const said = agentSettingsSaid(ctx.env, "codex", { model: ctx.settings.models("codex", tree).lead, effort: ctx.settings.effort("codex", tree)?.value });
+    add("codex", "ok", agentSettingsLine(lang, said, (p) => ctx.display(p)) ?? "");
+  }
 
   // Archives through the browser: only Claude Code has browser tools, and they work through the Claude in Chrome extension.
   const shared = ctx.settings.shared()?.value;
@@ -386,8 +398,58 @@ function diagnose(ctx: Context): Check[] {
     const errs = check(tr).filter((f) => f.level === "error").length + verifyFull(tr).findings.filter((f) => f.level === "error").length;
     if (errs === 0) add("tree", "ok", t("ui.doc.tree.ok", { name: tr.config.name }));
     else add("tree", "fail", t("ui.doc.tree.bad", { name: tr.config.name, n: errs }), "strom verify ; strom check");
+    // the reading of scans looked at again (core/tune.ts): what only adds accuracy or saves requests set by itself —
+    // free, local, never failing; a session at work goes on by the values of its start
+    const tuned = selfTune(tr, { settings: ctx.settings });
+    // …and a change of strom's after which the reading got clearly worse (core/tunereset.ts): its way back said, a reset
+    // recommended only where the readings got less sure — never run here (strom doctor --fix: on the person's yes)
+    for (const w of tuneWorse(tr, ctx, tuned.rollup?.units)) add("tuneworse", w.kind === "accuracy" ? "warn" : "ok", worseText(w, lang), w.command, w.kind === "accuracy" ? "tune" : undefined);
   }
   return checks;
+}
+
+/** The changes strom made by itself for the research's agent and model after which the reading got worse (none in an archive). */
+function tuneWorse(tree: Tree, ctx: Context, units?: Unit[]): Worsening[] {
+  if (isArchive(tree) || !ctx.settings.tuneAuto()) return [];
+  try {
+    return worsenings(tree.root, ctx.settings.config, readingKey(ctx, tree.config), units ?? loadRollup(tree.root)?.units ?? []);
+  } catch {
+    return [];
+  }
+}
+
+/** A worsening as doctor says it, in the person's language. */
+function worseText(w: Worsening, lang: string): string {
+  const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
+  const nf = (n: number, digits: number) => new Intl.NumberFormat(lang, { maximumFractionDigits: digits }).format(n);
+  const shown = (v: number) => (w.metric !== "M1" ? `${nf(Math.round(v * 100), 0)} %` : w.unit === "usd" ? `$${v < 1 ? v.toFixed(3) : v.toFixed(2)}` : nf(v, 0));
+  const values = {
+    scope: w.scope === "key" ? t("ui.tune.reset.scope.key") : w.scope.replace(/^book:/u, ""),
+    at: w.at.slice(0, 10),
+    what: ui(lang, `ui.tune.what.${w.what}` as UIKey) || w.what,
+    metric: t(`ui.tune.m.${w.metric}` as UIKey),
+    before: shown(w.before),
+    after: shown(w.after),
+    nb: w.nb,
+    na: w.na,
+  };
+  return t(w.kind === "accuracy" ? "ui.doc.tuneworse.a" : "ui.doc.tuneworse.b", values);
+}
+
+/** strom doctor --fix: each change after which the reading got less sure returned to the default — on the person's yes. */
+async function fixTuneWorse(ctx: Context, out: (line: string) => void): Promise<void> {
+  if (!ctx.hasTree()) return;
+  const tree = ctx.tree();
+  for (const w of tuneWorse(tree, ctx).filter((x) => x.kind === "accuracy")) {
+    try {
+      const r = await resetReading(ctx, tree, { key: w.key, only: [w.part], ...(w.scope.startsWith("book:") ? { recordset: w.scope.slice(5) } : {}) });
+      out(r.text);
+    } catch (e) {
+      // nobody to ask here (no terminal, no window), or a no in the window: the command stays for the person
+      if (!(e instanceof StromError)) throw e;
+      out(ui(tree.lang, "ui.tune.reset.dry", { command: w.command }));
+    }
+  }
 }
 
 /**
@@ -410,6 +472,8 @@ async function repair(ctx: Context, checks: Check[], out: (line: string) => void
     for (const f of createShortcut(shortcutName(lang), ctx.env)) out(ui(lang, "ui.setup.shortcut.done", { file: ctx.display(f) }));
   }
   if (todo.has("links") && person) await offerLinks(ctx, lang);
+  // a change of strom's that made the reading less sure: returned on the person's yes (a window when an agent asks)
+  if (todo.has("tune")) await fixTuneWorse(ctx, out);
   // (never into the address of an invalid strom.app.url: its check says how to put it right)
   if (todo.has("app") && person && !appUrlSetting(ctx.settings).invalid && (await ctx.confirm(ui(lang, "ui.fix.app"), false))) {
     openForUser(stromAppUrl(ctx.settings), ctx.env);
@@ -609,8 +673,17 @@ function treeSettings(ctx: Context): TreeConfig | undefined {
   return ctx.hasTree() && !lockedTree(ctx) ? ctx.tree().config : undefined;
 }
 
-/** Effective value of a setting, with the default filled in. */
-function effective(ctx: Context, def: SettingDef): { value: string | number | undefined; source: string; invalid?: true } {
+/** "tuned (2026-10-14: B0003: unsure readings 41 % …)" — where a value strom set by itself comes from. */
+const tunedSource = (t: Pick<Tuned, "at" | "why">) => `tuned (${t.at.slice(0, 10)}: ${t.why})`;
+
+/** The agent and model key of the research here (as the views and the tuning go by it). */
+function readingKey(ctx: Context, tree: TreeConfig | undefined): string {
+  const agent = ctx.settings.agent(tree).value;
+  return calibrationKey(agent, viewModel(ctx.settings, agent, tree));
+}
+
+/** Effective value of a setting, with the default filled in (views.size of one book: `recordset`). */
+function effective(ctx: Context, def: SettingDef, recordset?: string): { value: string | number | undefined; source: string; invalid?: true } {
   const s = ctx.settings;
   // the address of the Strom app: read as everything reads it (appUrlSetting) — never failing; one that is no address of
   // the app is shown as found, marked invalid (B1-e)
@@ -629,7 +702,25 @@ function effective(ctx: Context, def: SettingDef): { value: string | number | un
   // measured per agent and model (strom media calibrate): the sizes the research's views take now, and from where
   if (def.key === "views.size") {
     const v = viewSizesFor(s, s.agent(tree).value, tree);
+    // one book: bigger where strom tuned it (a book read worse than the others), before a calibration and the defaults
+    if (recordset && tree && ctx.hasTree()) {
+      const state = treeTuning(ctx.tree(), s);
+      const b = bookViewSizes(v, state, recordset);
+      const why = bookTuned(state, v.key, recordset);
+      if (b.tuned && why.at) return { value: `${sizesText(b)}${b.halves ? " · a double page in halves" : ""}`, source: tunedSource({ at: why.at, why: why.why ?? "" }) };
+    }
     return { value: sizesText(v), source: v.calibrated ? `calibrated (${v.calibrated.at})` : "default" };
+  }
+  // what strom set by itself for the reading of the research's agent and model (core/tune.ts)
+  if (def.key === "reading.batch" || def.key === "reading.views") {
+    const key = readingKey(ctx, tree);
+    const r = readingOf(s.config, key, { on: s.tuneAuto() });
+    const kt: KeyTuning | undefined = s.tuneAuto() ? s.config.tuning?.[key] : undefined;
+    if (def.key === "reading.batch") {
+      const t = kt?.batch ?? kt?.viewsPerCall;
+      return { value: `${r.batch} scans a batch · ${r.viewsPerCall} views a call · ${r.readerBatch} views a reader of strom read`, source: t ? tunedSource(t) : "default" };
+    }
+    return { value: `${r.viewsStop} views before a reader stops`, source: kt?.viewsStop ? tunedSource(kt.viewsStop) : "default" };
   }
   const r = s.resolve(def.key, tree);
   if (r) return r;
@@ -641,6 +732,8 @@ function effective(ctx: Context, def: SettingDef): { value: string | number | un
   if (def.key === "run.minutes") return { value: DEFAULT_RUN_MINUTES, source: "default" };
   if (def.key === "connectors.consent") return { value: "off", source: "default" };
   if (def.key === "agent.addons") return { value: "off", source: "default" };
+  if (def.key === "tune.transcripts") return { value: "on", source: "default" };
+  if (def.key === "tune.auto") return { value: "on", source: "default" };
   if (def.key === "browser.downloads") return { value: downloadsDir(ctx.env), source: "detected" };
   if (def.key === "agent.permissions") return { value: ctx.settings.agentPermissions(), source: ctx.settings.config.agentPermissions ? "config" : "default" };
   return { value: undefined, source: "unset" };
@@ -740,6 +833,12 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
     forgetCalibration(s.config, viewSizesFor(s, s.agent(treeSettings(ctx)).value, treeSettings(ctx)).key);
     return s.save();
   }
+  // what strom set by itself for the reading, taken back: the default again (logged; not set again for a while)
+  if (key === "reading.batch" || key === "reading.views") {
+    const tree = treeSettings(ctx);
+    forgetTuning(s, tree ? ctx.tree().root : undefined, readingKey(ctx, tree), key === "reading.batch" ? ["batch", "viewsPerCall"] : ["viewsStop", "ctx"]);
+    return;
+  }
   // Loosening the agent's permissions is the user's decision alone.
   if (key === "agent.permissions" && raises(s.agentPermissions(), value))
     ctx.requireHuman(
@@ -757,12 +856,9 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
   // Asking before a connector runs is the user's safeguard: only they take it away.
   if (key === "connectors.consent" && value !== "on" && s.connectorsConsent())
     ctx.requireHuman("Let connectors run without asking first?", `strom config set connectors.consent ${value ?? "off"}`, "connectors.consent", ui(ctx.uiLang(), "ui.consent.connectors.off"));
-  // a gate that is not there (or not a gate), or a cap that is no cap, is said now — before anybody is asked
-  const sh = s.shared()?.value;
-  if (key === "run.gate" && typeof value === "string" && sh) {
-    ensureGatesDir(sh);
-    loadGate(sh, value);
-  }
+  // a gate that is not there (or not a gate), or a cap that is no cap, is said now — before anybody is asked, set up
+  // or not, and nothing put on the disk for it (the setup makes the gates folder, a run refreshes it)
+  if (key === "run.gate" && typeof value === "string") checkGate(s.shared()?.value, value);
   // The gate decides what working alone spends: set and taken away by the user alone.
   if (key === "run.gate" && value !== s.runGate())
     ctx.requireHuman(
@@ -807,9 +903,12 @@ register(
     summary: "Print one setting (as it applies here)",
     group: "setup",
     args: [{ name: "key", description: `one of ${SETTINGS.map((s) => s.key).join(", ")}`, required: true }],
-    run(ctx, { args }) {
+    options: [{ name: "recordset", type: "string", value: "<B…>", description: "views.size of one book: bigger where strom tuned it (a book read worse than the others)" }],
+    examples: ["strom config get lang", "strom config get views.size --recordset B0003", "strom config get reading.batch"],
+    run(ctx, { args, opts }) {
       const def = settingDef(args[0]!);
-      const r = effective(ctx, def);
+      const book = typeof opts.recordset === "string" ? opts.recordset.trim().toUpperCase().replace(/^B(\d{1,3})$/, (_m, n: string) => `B${n.padStart(4, "0")}`) : undefined;
+      const r = effective(ctx, def, book);
       const shown = r.value === undefined ? "" : display(ctx, def, r.value);
       // a strom.app.url that is no address of the app: as found, and said so (B1-e)
       if (r.invalid) return { text: lines(`${shown}  (invalid)`, APP_URL_INVALID_SETTING), data: { key: def.key, value: r.value, source: r.source, invalid: [def.key] } };
@@ -839,12 +938,41 @@ register(
       // a model is kept for one agent (the research's, or --agent): said which
       const forAgent = def.kind === "model" ? ctx.settings.agent(treeSettings(ctx)).value : undefined;
       const who = forAgent ? ` (agent ${forAgent})` : "";
+      // a reasoning effort the agent does not take: said with the levels it does
+      if (def.key === "model.effort" && forAgent) {
+        if (!hasEffort(forAgent))
+          throw new UsageError(`${PROFILES[forAgent]?.name ?? forAgent} takes no reasoning effort of its own`, { hint: forAgent === "opencode" ? "its variant goes with the model: strom config set model.lead <provider/model#high>" : "strom config unset model.effort" });
+        if (!EFFORTS[forAgent]!.includes(String(value))) throw new UsageError(`${PROFILES[forAgent]?.name ?? forAgent} takes no reasoning effort "${String(value)}"`, { hint: EFFORTS[forAgent]!.join(", ") });
+      }
+      const scopeArgs = opts["for-tree"] ? { for: "tree" as const } : { for: "user" as const };
+      let text: string;
+      let data: Record<string, unknown>;
       if (opts["for-tree"]) {
         const tree = setTreeSetting(ctx, def.key, value);
-        return { text: `${def.key} = ${display(ctx, def, value)}${who} for tree "${tree.config.name}"`, data: { key: def.key, value, scope: "tree", ...(forAgent ? { agent: forAgent } : {}) } };
+        text = `${def.key} = ${display(ctx, def, value)}${who} for tree "${tree.config.name}"`;
+        data = { key: def.key, value, scope: "tree", ...(forAgent ? { agent: forAgent } : {}) };
+      } else {
+        setUserSetting(ctx, def.key, value);
+        text = `${def.key} = ${display(ctx, def, value)}${who}`;
+        data = { key: def.key, value, scope: "user", ...(forAgent ? { agent: forAgent } : {}) };
       }
-      setUserSetting(ctx, def.key, value);
-      return { text: `${def.key} = ${display(ctx, def, value)}${who}`, data: { key: def.key, value, scope: "user", ...(forAgent ? { agent: forAgent } : {}) } };
+      // with the model of the research its reasoning effort: a person at the terminal chooses it (high recommended),
+      // anybody else is told how
+      if (def.key === "model.lead" && forAgent && hasEffort(forAgent)) {
+        const tree = treeSettings(ctx);
+        const kept = ctx.settings.resolve("model.effort", tree, forAgent);
+        if (ctx.interactive && !isAgent(ctx.env)) {
+          const lang = ctx.uiLang();
+          const e = await chooseEffort(ctx, lang, forAgent, kept ? String(kept.value) : undefined, { back: ui(lang, "ui.keep") });
+          if (e?.picked && e.value !== (kept ? String(kept.value) : undefined)) {
+            if (scopeArgs.for === "tree") setTreeSetting(ctx, "model.effort", e.value);
+            else setUserSetting(ctx, "model.effort", e.value);
+            text += `\nmodel.effort = ${e.value ?? "(unset)"}${who}`;
+            data.effort = e.value ?? null;
+          }
+        } else if (!kept) text += `\nreasoning effort: the agent's own — strom config set model.effort ${RECOMMENDED_EFFORT}${opts["for-tree"] ? " --for-tree" : ""} (recommended: old handwriting read with the best setting; a plan's limit runs out sooner)`;
+      }
+      return { text, data };
     },
   },
   {

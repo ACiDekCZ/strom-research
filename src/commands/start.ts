@@ -12,7 +12,7 @@ import { lines } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { StromError, UsageError } from "../core/errors.ts";
 import { PROFILES } from "../agents/profiles.ts";
-import { conversationArgs } from "../agents/launch.ts";
+import { conversationArgs, conversationEnv } from "../agents/launch.ts";
 import { globalTargets, installGlobal, isInstalled, uninstallGlobal } from "../agents/global.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import { AGENTS, findAgent, isAgent, withoutAgentMarks } from "../core/which.ts";
@@ -170,15 +170,22 @@ register({
       kickoff,
       level,
       model: ctx.settings.models(agent, tree.config).lead,
+      // the reasoning effort the person chose (none: the agent's own settings)
+      effort: ctx.settings.effort(agent, tree.config)?.value,
       settingsFile: path.join(tree.root, ".claude", "settings.json"),
       // Found again in Claude Code's list of sessions (/resume) and the terminal's title: the family,
       // its research when there is one, the day.
       name: ["Strom", tree.config.name, researches.length === 1 ? researches[0]!.name : undefined, new Date().toLocaleDateString(lang, { day: "numeric", month: "numeric" })].filter(Boolean).join(" · "),
       shared,
+      env: ctx.env,
       ...(agent === "claude" ? { chrome: agentBrowser(tree, shared).on, remote: ctx.settings.agentRemote() } : {}),
     };
     const args = conversationArgs(agent, base);
-    if (opts.print) return { text: [program ?? profile.command, ...args].map(shellQuote).join(" "), data: { command: program ?? profile.command, args, cwd: tree.root } };
+    const agentEnv = conversationEnv(agent, ctx.env);
+    if (opts.print) {
+      const vars = Object.entries(agentEnv).map(([k, v]) => `${k}=${shellQuote(v)}`);
+      return { text: [...(vars.length && process.platform !== "win32" ? ["env", ...vars] : []), ...[program ?? profile.command, ...args].map(shellQuote)].join(" "), data: { command: program ?? profile.command, args, cwd: tree.root, ...(vars.length ? { env: agentEnv } : {}) } };
+    }
 
     // Other agents may work in this tree too: this one gets a name of its own, is present while it
     // works, and has its own session. Sessions of conversations that ended without closing are closed.
@@ -195,7 +202,7 @@ register({
     if (browserSays) ctx.io.stdout(browserSays + "\n");
     // Claude Code asks once whether the folder is to be trusted — its own safety step, kept; the user knows what to answer.
     if (agent === "claude" && !claudeTrusts(tree.root, ctx.env)) ctx.io.stdout(ui(lang, "ui.chat.trust") + "\n");
-    const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree)), STROM_WORKER: worker, ...(base.model ? { STROM_MODEL: base.model } : {}) };
+    const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree)), ...agentEnv, STROM_WORKER: worker, ...(base.model ? { STROM_MODEL: base.model } : {}), ...(base.effort ? { STROM_MODEL_EFFORT: base.effort } : {}) };
     delete env.STROM_HANDOVER;
     let code: number;
     try {

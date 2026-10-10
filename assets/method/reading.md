@@ -5,7 +5,7 @@ reader on that same model; never a faster, cheaper or "quick" pass. A misread
 name sends the research to the wrong village. **A name or place the next
 search depends on** (a surname, a birthplace, a parish) is read again on a
 crop at full resolution before it is recorded; what stays unsure is recorded
-as unsure and said so.
+as unsure and said so. "Illegible" beats a guess.
 
 Look at as few pixels as the question needs and write down what you saw at
 once: after about 30 views write down what you found before you open more, and
@@ -17,7 +17,9 @@ never open again a view cleared from your context — your notes hold it.
   **Transcribe only from a crop** at full resolution (`--crop`, or `--half`
   where the entry fills the page). A whole view unclear, or the entry not where
   expected: `--half both` before calling it not found — a negative search only
-  after the pages were seen at full resolution.
+  after the pages were seen at full resolution, and every place a reader
+  found unclear looked at closer (else `--result inconclusive`, the place in
+  `--note`).
 - **The views of a scan, or of a batch, in one call**, then open all the files
   it lists together — not one call and one look per view:
   `strom media view B0001:57-60 --half both` (the two pages of each double
@@ -45,20 +47,17 @@ never open again a view cleared from your context — your notes hold it.
   where nothing was found (a possible match often hides there — look at it),
   and the gaps in the book. Later, or in the next session: `strom readings`
   (`--match <surname>` across all readings, `--list`); one image's whole
-  block: `strom readings B0001 --image 57`. Do not open the reports whole —
-  they are many times longer. Images read before are said before they are
-  read again: another question or a blind check is fine, the same one is not.
-  It waits for its readers (often ten minutes or more): run it in the
-  foreground and let it finish — your session ends with your turn, and
-  whatever is left running in the background ends with it.
-  (A scan-reader subagent where your agent has one, strom-scan-reader, or your
-  own subagents — on your own model, never a faster one — read too, about six scans
-  each with the whole question; what they report is lost with
-  your session unless you write it down: record each report as it comes back,
-  before you send the next readers.) Only the entries
-  that will be cited need your own eyes, at full resolution.
-- Old handwriting is decoded, not copied: never a weaker model for handwriting,
-  never a guess. "Illegible" is a valid and valuable answer.
+  block: `strom readings B0001 --image 57`. Never open the reports whole.
+  Images read before are said before they are read again: another question
+  or a blind check is fine, the same one is not. Run it in the foreground and
+  let it finish (often ten minutes or more): what is left in the background
+  ends with your turn.
+  (Subagents read too — strom-scan-reader where your agent has one, on your
+  own model, never a faster one —, about six scans each with the whole
+  question.) **A reader is told exactly what to write down** — page numbers
+  and headings only, one surname's entries, one entry whole — and transcribes
+  nothing else. Record each report as it comes back, before the next readers.
+  Only the entries that will be cited need your own eyes, at full resolution.
 - **Report image by image, as you go**: the image and page, what was found (or
   nothing), what was illegible and where, the hand, how sure each name is.
 - **Cite the image, and where the entry is on it**: `strom source add …
@@ -93,14 +92,13 @@ never open again a view cleared from your context — your notes hold it.
   hand only where the archive does not allow automation (the connector then
   finds books and gives links only), where its connector only finds books, or
   where a check stops it. Ask with
-  `strom task wait T… --images B0001:40-69 --on "…"`: strom makes the folder
-  of the inbox they go into, shows it to the user with the book's link, and
-  checks the numbers of what arrives. Write `--on` for the user, in their
-  language, so that they need nothing else: the book (title, call number),
-  its link, which images as the portal's viewer counts them (or the pages and
-  years, where you know only those), and that each is saved named by its
-  number (40.jpg). Where the portal gives only a small image, add: zoom in on
-  the entry and save that view too (40a.jpg); a full-resolution scan can be
+  `strom task wait T… --images B0001:40-69 --on "…"`: strom makes the inbox
+  folder, shows it to the user, checks what arrives. Write `--on` for the
+  user, impersonal (never "you"), in the research language, so that they need
+  nothing else: the book (title, call number), its link, which images as the
+  portal's viewer counts them (or the pages and years, where you know only
+  those), each saved named by its number (40.jpg). Where the portal gives only
+  a small image, add: the entry zoomed in, that view saved too (40a.jpg); a full-resolution scan can be
   ordered from the archive. Then take the next task; when the images are
   registered the task comes back by itself.
 <!-- end -->

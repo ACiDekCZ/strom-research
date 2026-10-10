@@ -96,7 +96,7 @@ done();
 `,
   );
   const r = await w.ok(["fetch", "zkusebni", "--find", "Dolní Lhota"]);
-  assert.match(r.out, /find \(\d+ s\): 2 request\(s\)/);
+  assert.match(r.out, /find \(\d+ s\): 3 request\(s\) \(the connector asked 2; 1 more: redirects or retries\)/, "the redirect is a request to the host too");
   assert.match(r.out, /Dolní Lhota N 1784–1820/);
   assert.deepEqual(a.hits, ["/login", "/search-page", "/search"], "the redirect followed by strom, with its cookie");
   // the next run starts without the cookie: the server wants a new session
@@ -330,6 +330,16 @@ test("connector add: from a folder, copied into the plugins folder under its nam
   await a.close();
 });
 
+// A live run's --regex with a backtick (a script's template string) made its shell command be refused under dontAsk.
+test("connector grep --regex: a backtick is written as . — the help and the discovery brief say so", async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  assert.match((await w.ok(["help", "connector", "grep"])).out, /--regex\s+the pattern is a regular expression \(JavaScript, in any case\) — a backtick in it written as \. \(any character\): a command with one is refused/);
+  await w.ok(["connector", "new", "zkouska", "--url", "https://archive.example.org"]);
+  assert.match(fs.readFileSync(path.join(pluginDir(w, "zkouska"), "DISCOVERY.md"), "utf8"), /\(`--regex` for a pattern; a backtick in it written as `\.`, any character —\s+a command with a backtick is refused\)/);
+  w.cleanup();
+});
+
 test("connector grep: the saved answers searched, each hit with the text round it — any case, any script, composed or not", opts, async () => {
   const { w, a, dir } = await world();
   const probe = path.join(dir, ".test", "probe");
@@ -375,6 +385,37 @@ test("connector grep: the saved answers searched, each hit with the text round i
   assert.deepEqual(a.hits, [], "nothing is requested");
   w.cleanup();
   await a.close();
+});
+
+// A live run read a minified script a probe saved whole and went past its read limit.
+test("connector probe: a big answer, or a minified one of one long line, is to be searched, never read whole", opts, async () => {
+  const minified = `var a={${Array.from({ length: 800 }, (_, i) => `k${i}:"/api/v1/item/${i}"`).join(",")}};`; // one line, ~20 000 characters
+  const page = Array.from({ length: 3000 }, (_, i) => `<li><a href="/kniha/${i}">Žďár — kniha ${i}</a></li>`).join("\n"); // ~150 KB of short lines
+  const server = http.createServer((req, res) => {
+    if (req.url === "/app.min.js") res.writeHead(200, { "content-type": "application/javascript" }).end(minified);
+    else if (req.url === "/seznam.html") res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(page);
+    else res.writeHead(200, { "content-type": "text/html" }).end("<p>malá stránka</p>\n");
+  });
+  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const w = new World();
+  await w.withTree();
+  await fakeConnector(w, "velky", base);
+  const js = await w.ok(["connector", "probe", "velky", `${base}/app.min.js`]);
+  assert.match(js.out, /saved: .*app\.min\.js — too big to read whole \(\d+ KB, a line of \d+ characters\): never read the file, search it: strom connector grep velky <text> --in app\.min\.js/);
+  const html = await w.ok(["connector", "probe", "velky", `${base}/seznam.html`, "--json"]);
+  assert.equal(html.json.big, true);
+  const htmlText = await w.ok(["connector", "probe", "velky", `${base}/seznam.html`]);
+  assert.match(htmlText.out, /too big to read whole \(\d+ KB\): never read the file, search it: strom connector grep velky <text> --in seznam\.html/);
+  assert.doesNotMatch(htmlText.out, /a line of/);
+  // a small one is read as before
+  const small = await w.ok(["connector", "probe", "velky", `${base}/mala`]);
+  assert.match(small.out, /saved: .*mala — search it: strom connector grep velky <text> \(an address/);
+  assert.doesNotMatch(small.out, /too big/);
+  // and the search finds what it holds
+  assert.equal((await w.ok(["connector", "grep", "velky", "/api/v1/item/799", "--in", "app.min.js", "--json"])).json.total, 1);
+  w.cleanup();
+  await new Promise((done) => server.close(done));
 });
 
 test("connector probe: one request through strom while mapping a portal, the answer saved to read", opts, async () => {

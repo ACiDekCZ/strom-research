@@ -16,7 +16,7 @@ import { normId, requireRecord, update } from "../core/records.ts";
 import { makeView } from "../core/views.ts";
 import { inputPath, regionText, sharperPart } from "../core/media.ts";
 import { SCOPE_MAX, sourceNearness, withMargin } from "../core/excerpt.ts";
-import { batches } from "../core/reader.ts";
+import { batches, READER_MINUTES_HELP } from "../core/reader.ts";
 import { checkTranscriptPrompt, parseTranscriptChecks, parseTranscribed, transcribePrompt, type TranscribeJob } from "../core/transcriber.ts";
 import { makeNote } from "../core/actions.ts";
 import { phrase } from "../core/phrases.ts";
@@ -51,7 +51,7 @@ register({
     { name: "batch", type: "string", value: "<n>", description: `entries per reader (default ${PER_READER})` },
     { name: "parallel", type: "string", value: "<n>", description: "readers at the same time (default 3)" },
     { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision — it reads the handwriting)" },
-    { name: "minutes", type: "string", value: "<n>", description: "time limit of one reader (default 15)" },
+    { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP },
   ],
   examples: ["strom transcripts --dry-run", "strom transcripts --for family --limit 20", "strom transcripts S0001 S0002"],
   run: async (ctx: Context, { args, opts }) => {
@@ -119,7 +119,7 @@ register({
       source: s.id,
       title: s.title,
       facts: facts(s),
-      views: cutsOf(s).map((c) => ({ media: c.media, view: makeView(tree, c.file, c.media, { ...(c.crop ? { crop: c.crop } : {}), max: CUT_MAX }).file })),
+      views: cutsOf(s).map((c) => ({ media: c.media, view: makeView(tree, c.file, c.media, { ...(c.crop ? { crop: c.crop } : {}), max: CUT_MAX }, { reader: true }).file })),
     });
 
     // 1. Read: the words from the cut-out.

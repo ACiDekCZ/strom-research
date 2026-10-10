@@ -184,6 +184,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     worker: S(),
     agent: S(),
     model: S(),
+    effort: S(),
     strom: S(),
     endedBy: S({ enum: ["user", "run", "chat", "agent"] }),
     started: S({ req: true }),

@@ -8,6 +8,7 @@ import "../../src/commands/index.ts";
 import { assetPath, methodFor, methodPage, METHOD_CONDITIONS, METHOD_LINKS } from "../../src/core/assets.ts";
 import { commandSheet } from "../../src/brief/sheet.ts";
 import { TASK_LEVELS } from "../../src/core/model.ts";
+import { guideText } from "../../src/commands/guide.ts";
 
 const EVERY = [...METHOD_CONDITIONS];
 const sheet = (level: string) => commandSheet(level, { connectors: [{ name: "example-archive", archive: "Example Archive", serves: true }, { name: "other-archive", serves: false }] });
@@ -43,7 +44,10 @@ test("method by level: a level gets the parts it uses, never the parts it does n
     assert.ok(has(level, /Extract everything the first time/), level);
     assert.ok(has(level, /Say what a hypothesis would connect/), level);
     // the delegation rule and the premise check stay with them
-    assert.ok(has(level, /A scan-reader subagent where your agent has one, strom-scan-reader, or your\n {2}own subagents — on your own model, never a faster one — read too, about six scans\n {2}each with the whole question/), level);
+    assert.ok(has(level, /\(Subagents read too — strom-scan-reader where your agent has one, on your\n {2}own model, never a faster one —, about six scans each with the whole\n {2}question\.\)/), level);
+    // a reader writes down only what it is told to, and a reader's "unclear" holds a negative back
+    assert.ok(has(level, /\*\*A reader is told exactly what to write down\*\* — page numbers\n {2}and headings only, one surname's entries, one entry whole — and transcribes\n {2}nothing else\./), level);
+    assert.ok(has(level, /every place a reader\n {2}found unclear looked at closer \(else `--result inconclusive`, the place in\n {2}`--note`\)/), level);
     assert.ok(has(level, /Check the premise first/), level);
     // a whole view finds, a crop is read; an entry not found on a whole view is looked at in halves first
     assert.ok(has(level, /\*\*Transcribe only from a crop\*\*[\s\S]*`--half both` before calling it not found/), level);
@@ -73,17 +77,17 @@ test("method by level: a level gets the parts it uses, never the parts it does n
 test("method by the task's books: how images come is said for the way they come", () => {
   const connector = methodFor("link", ["connector"]);
   assert.match(connector, /\*\*No images here yet:\*\* the book's connector fetches them through strom/);
-  assert.doesNotMatch(connector, /The archive has no connector yet: build one|Write `--on` for the user|Too small to read\?/);
+  assert.doesNotMatch(connector, /The archive has no connector yet: build one|Write `--on` for the\s+user|Too small to read\?/);
   // never your own download, whatever the way
   assert.match(connector, /You never download from an archive yourself \(curl, a script, your browser\n {2}tools\) — only through a connector, paced by strom\./);
   assert.match(methodFor("link", ["connector", "part"]), /Too small to read\?/);
   const none = methodFor("link", ["no-connector"]);
   assert.match(none, /The archive has no connector yet: build one — now, you\./);
-  assert.match(none, /Write `--on` for the user, in their\n {2}language/);
+  assert.match(none, /Write `--on` for the\n {2}user, impersonal \(never "you"\), in the research language/);
   assert.doesNotMatch(none, /No images here yet:|Too small to read\?/);
   // a connector that only finds books, or an archive that allows no automation: by hand, nothing to build
   const hand = methodFor("link", ["by-hand"]);
-  assert.match(hand, /Write `--on` for the user, in their\n {2}language/);
+  assert.match(hand, /Write `--on` for the\n {2}user, impersonal \(never "you"\), in the research language/);
   assert.match(hand, /where its connector only finds books/);
   assert.doesNotMatch(hand, /build one — now, you|No images here yet:/);
   // a level that fetches nothing gets none of it
@@ -147,11 +151,30 @@ test("sheet by level: the writing commands a level uses, with their usage from t
   assert.match(line(verify, "source edit"), /^ {2}strom source edit <source> \[source add's options, not --input\]/);
 });
 
+test("the sheet says --reason wherever the command asks it: source edit, input skip and sort, as the registry says", () => {
+  // found in a live run: source edit refused a change without --reason the sheet never showed
+  assert.match(line(sheet("verify"), "source edit"), /--reason <text>$/);
+  const intake = sheet("intake");
+  assert.match(line(intake, "input skip"), /--reason <text>$/);
+  assert.match(line(intake, "input sort"), /--reason <text>$/);
+  // never on a command that has no reason to give
+  for (const c of ["source add", "event add", "person add", "cite"]) assert.doesNotMatch(line(sheet("link"), c), /--reason/, c);
+  // every writing command in any sheet whose registry asks --reason shows it
+  for (const level of TASK_LEVELS)
+    for (const l of sheet(level).split("\n").filter((x) => x.startsWith("  strom ")))
+      if (/^ {2}strom (event edit|family edit|person merge|source edit|input skip|input sort) /u.test(l)) assert.match(l, /--reason <text>/u, `${level}: ${l}`);
+  // the guide's corrections and putting a task aside: with the reason they ask
+  const guide = guideText("en", "https://stromapp.info/");
+  assert.match(guide, /strom source edit S0001 --locator "…" --reason "…"/u);
+  assert.match(guide, /strom task park T… --reason "…"/u);
+  assert.doesNotMatch(guide, /task park\|wait/u);
+});
+
 test("brief size by level: the method and the commands every session of a level carries stay within their budget", () => {
   // Characters of the method (every part a level can get) and the command sheet. 1.13.1 carried only the method:
   // link 16 083, verify 15 729, enrich 16 698, locate 5 690, intake 12 263, request 4 438, narrate 5 607 — the levels
-  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding), several crops in one call.
-  const BUDGET: Record<string, number> = { link: 23_500, verify: 22_400, enrich: 23_600, locate: 7_600, intake: 16_600, request: 4_438, narrate: 5_607 };
+  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding), several crops in one call; --reason on the input commands that ask it (intake +23).
+  const BUDGET: Record<string, number> = { link: 23_500, verify: 22_400, enrich: 23_600, locate: 7_600, intake: 16_650, request: 4_438, narrate: 5_607 };
   for (const level of TASK_LEVELS) {
     const size = methodFor(level, EVERY).length + sheet(level).length;
     assert.ok(size <= BUDGET[level]!, `${level}: ${size} > ${BUDGET[level]}`);

@@ -175,3 +175,53 @@ done();
 export function pluginDir(w: World, name: string): string {
   return path.join(w.home, "shared", "plugins", "connectors", name);
 }
+
+/**
+ * The agents' own files in the person's home (relative to HOME): what strom agents install teaches a regular
+ * installation, and what an agent records of a folder it works in (Claude Code's projects, Codex's and Grok's trust of
+ * a folder). An isolated installation never writes any of them; a folder is a directory taken whole.
+ */
+export const AGENT_GLOBAL_FILES = [
+  path.join(".claude", "settings.json"),
+  path.join(".claude", "skills"),
+  ".claude.json",
+  path.join(".codex", "AGENTS.md"),
+  path.join(".codex", "config.toml"),
+  path.join(".gemini", "GEMINI.md"),
+  path.join(".gemini", "antigravity-cli", "settings.json"),
+  path.join(".grok", "config.toml"),
+  path.join(".grok", "skills"),
+  path.join(".grok", "trusted_folders.toml"),
+  path.join(".config", "opencode"),
+] as const;
+
+/** The agents' files put in a home as a person's agents have them (their own settings, nothing of strom's). */
+export function plantAgentGlobals(home: string): void {
+  for (const f of AGENT_GLOBAL_FILES) {
+    const file = path.join(home, f);
+    const dir = !path.extname(f) || f.endsWith("skills");
+    const own = dir ? path.join(file, f.endsWith("opencode") ? "opencode.json" : path.join("mine", "SKILL.md")) : file;
+    fs.mkdirSync(path.dirname(own), { recursive: true });
+    fs.writeFileSync(own, own.endsWith(".json") ? '{\n  "mine": true\n}\n' : own.endsWith(".toml") ? 'mine = "yes"\n' : "# mine\n");
+  }
+  // (a while back: a write now changes the time)
+  const then = new Date(Date.now() - 3600_000);
+  for (const [file] of agentGlobals(home)) fs.utimesSync(file, then, then);
+}
+
+/** Each of the agents' files in a home with its time and content (a folder's files each), to compare before and after. */
+export function agentGlobals(home: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const walk = (p: string) => {
+    let st: fs.Stats;
+    try {
+      st = fs.statSync(p);
+    } catch {
+      return; // not there: one made later shows
+    }
+    if (st.isDirectory()) for (const e of fs.readdirSync(p).sort()) walk(path.join(p, e));
+    else out.set(p, `${st.mtimeMs} ${fs.readFileSync(p, "utf8")}`);
+  };
+  for (const f of AGENT_GLOBAL_FILES) walk(path.join(home, f));
+  return out;
+}

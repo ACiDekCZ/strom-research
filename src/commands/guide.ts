@@ -60,11 +60,18 @@ conversation opened anywhere, a bot on its own server)
   … work on that task only; record every finding at once …
   strom session close --done "<result>" --next "…"   the task done and the session closed in one call
                                        (a complete negative search is a result) — it proposes the next tasks
-  not finished: strom session close --continue --summary "…" --next "…"; put aside: strom task park|wait T…,
-  then strom session close --summary "…" --next "…"
+  not finished: strom session close --continue --summary "…" --next "…"; put aside: strom task park T… --reason "…"
+  (or task wait T… --on "…"), then strom session close --summary "…" --next "…"
+  What a task waits for (strom task wait T… --on "…") the user reads in strom's menu and the Strom app:
+  write it in the research language, impersonal — what is needed, never addressed to them ("Images
+  40–45 of the baptisms to be saved from <link>", not "Open … and save …").
   then, in a conversation, tell the user what was found (strom person card …) and what comes next
-  (strom plan), and ask before the next session; working alone (strom run) the summary is what they
-  read (plain words of the research, never addressed to them) — nothing more after it. The next step is strom's queue: what the user wants instead becomes a
+  (strom plan), and ask before the next session; working alone (strom run) nobody reads the session
+  live and the summary is what they read (plain words of the research for the record, never addressed
+  to them) — nothing more after it, no advice to clear the context (/clear) or to start anything,
+  nothing said to the user; nobody answers a question there: what only the user can decide waits for
+  them (strom task wait T… --on "<the question, impersonal>": the menu's What waits for you, the Strom
+  app; their answer comes back on the task). The next step is strom's queue: what the user wants instead becomes a
   task first (strom task add …, or strom research new …) — never search outside a session and its task.
   The user names a research (G…) to work on: its tasks only — strom session start --research G….
   A side of the family no direction reaches (a spouse's line) is a direction of its own: strom research
@@ -91,7 +98,10 @@ strom family add --partner P0004 --child P0003 --cite S0001 --information second
 Corrections — a person, a fact, a source:
   strom person edit P0003 --sex F --name "…" --reason "…"
   strom event edit E0001 --date "…" --reason "…"
-  strom source edit S0001 --translation "…"
+  strom source edit S0001 --locator "…" --reason "…"   (filling in, e.g. --translation, needs no reason)
+Lessons — a quirk of a book, an archive or a place, for whoever works with it next (strom lesson add "…" --on B…);
+one found wrong or out of date is corrected, never added again:
+  strom lesson edit K0001 --rule "…" --reason "…"
 One person recorded twice (an imported tree and the research) — parents
 recorded twice are merged first:
   strom family merge F0002 F0005 --reason "…"
@@ -136,6 +146,9 @@ SEARCHING
   strom connector use <connector> --via browser    only when the user asks: images through their own
                                        browser (strom fetch then says what to do; --via direct: back)
   strom connector new <name> --url <portal>    an archive you need has none: build it (its DISCOVERY.md)
+  strom connector discard <name>       one you started this session that can neither fetch nor find:
+                                       what you learned into a lesson on its archive first; one that
+                                       finds books stays, as what it is
 
 FINDING YOUR WAY
   strom research show G0001 · strom person show P0001 · strom family show F0001

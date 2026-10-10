@@ -154,9 +154,9 @@ test("installed again over settings kept from before (strom uninstall keeps them
 test("the setup wizard: several agents — the user picks; full needs a second yes", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   w.env.PATH = pathWith(w, ["claude", "codex"]);
-  // language, folder, agent 2 (Codex in the terminal), its model: 3 the agent's own (a word on the model), no stories,
-  // level 3 (full) — then "no" to the warning, no shortcut
-  const r = await w.ok(["setup"], { answers: ["en", "", "2", "3", "2", "3", "n", "", "n"] });
+  // language, folder, agent 2 (Codex in the terminal), its model: 3 the agent's own (a word on the model), its effort 1
+  // (high), no stories, level 3 (full) — then "no" to the warning, no shortcut
+  const r = await w.ok(["setup"], { answers: ["en", "", "2", "3", "1", "2", "3", "n", "", "n"] });
   assert.match(r.out, /Which model should do the research in OpenAI Codex CLI\?/);
   assert.match(r.out, /Which AI agent, and where to talk with it\?\n {3}1 {2}Claude Code — in the terminal \(for experienced users\)\n {3}2 {2}OpenAI Codex CLI — in the terminal/);
   assert.match(r.out, /The research needs a strong model .* in OpenAI Codex CLI, choose its best model/);
@@ -166,6 +166,7 @@ test("the setup wizard: several agents — the user picks; full needs a second y
   assert.equal(cfg.agent, "codex");
   assert.equal(cfg.agentPermissions, "auto", "no second yes: the level stays");
   assert.equal(cfg.stories, "no");
+  assert.deepEqual(cfg.models, { codex: { effort: "high" } }, "the effort kept for Codex, its own model");
   assert.match(fs.readFileSync(path.join(w.env.HOME!, ".codex", "AGENTS.md"), "utf8"), /strom: begin/);
   w.cleanup();
 });

@@ -734,12 +734,12 @@ test("the Strom app offered gently: the wizard asks once, the menu says what it 
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  // language, folder, model, stories, level, no shortcut — then the Strom app: not now
-  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "n", "2"] });
+  // language, folder, model, its effort, stories, level, no shortcut — then the Strom app: not now
+  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "n", "2"] });
   assert.match(s.out, /Aplikace Strom \(zdarma, v prohlížeči\) ukáže výzkum jako rodokmen[\s\S]*1 {2}Ano – nainstalovat ji teď/);
   assert.equal(cfg().stromApp, "yes");
   // Again: the answer pre-filled; no — never mentioned after.
-  await w.ok(["setup"], { answers: ["", "", "", "", "", "", "n", "3"] });
+  await w.ok(["setup"], { answers: ["", "", "", "0", "", "", "", "n", "3"] });
   assert.equal(cfg().stromApp, "no");
   await w.ok(["init", "Novákovi"]);
   const none = await w.ok([], { tty: true, answers: ["0"] });
@@ -1154,7 +1154,7 @@ test("strom run with Codex, Antigravity and OpenCode: headless, their events rea
     { type: "tool_call", toolCallId: "c2", toolName: "run_terminal_command", status: "in_progress", rawInput: { command: "git log" } },
     { type: "tool_call_update", toolCallId: "c2", status: "failed", content: [{ type: "content", content: { type: "text", text: "Tool `run_terminal_command` was not executed: Denied by permission policy: deny rule on bash matching \"git\"" } }] },
     { type: "text", data: "Hotovo." },
-    { type: "end", stopReason: "end_turn", sessionId: "s-1", num_turns: 4, usage: { input_tokens: 900, cache_read_input_tokens: 4000, output_tokens: 60, reasoning_tokens: 40 }, modelUsage: { "grok-4.7": { inputTokens: 900, outputTokens: 60 } }, total_cost_usd: 0.0123 },
+    { type: "end", stopReason: "end_turn", sessionId: "s-1", num_turns: 4, usage: { input_tokens: 900, cache_read_input_tokens: 4000, output_tokens: 100, reasoning_tokens: 40 }, modelUsage: { "grok-4.7": { inputTokens: 900, outputTokens: 100 } }, total_cost_usd: 0.0123 },
   ]);
   const g = await w.ok(["run", "--agent", "grok", "--json"]);
   assert.equal(g.json.sessions[0].outcome, "ok");

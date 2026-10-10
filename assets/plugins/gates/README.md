@@ -92,6 +92,14 @@ not start now, strom tells you why and asks whether to start anyway (no is
 suggested). An agent starting them needs your yes in a window of the system;
 a script nobody can ask keeps to the gate.
 
+Every answer is recorded, so a run can be checked afterwards: one line of
+`strom run`'s output, and one line of JSON in the tree's `.strom/gate.log`
+(and at the head of the next session's log, `.strom/runs/<session>.log`) —
+when, the gate and what it was given, its exit status and verdict, its reason,
+how long it said to wait (`waitMs`, `until`), the plan's limits it was given
+and what the run did (`then`: go, wait, stop, anyway). strom keeps the record
+within limits (90 days).
+
 ## claude-usage
 
 Keeps the work to the daily ration of your Claude subscription. It asks Claude

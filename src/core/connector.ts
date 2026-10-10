@@ -767,7 +767,13 @@ export interface RunReport {
   books: FoundBook[];
   images: FetchedImage[];
   located: LocatedImage[];
+  /** The requests the connector asked strom to make. */
   requests: number;
+  /**
+   * The requests that went to the archive's hosts — each redirect followed and each retry too: what the host's hourly
+   * counter takes, and what strom says a run asked of the archive.
+   */
+  sent: number;
   /** Pages answered from what the browser got (browser.pages). */
   pages?: number;
   /** browser.pages: the request the browser has to make before the connector can go on. */
@@ -796,6 +802,9 @@ export interface RunOptions {
   /** How long a request may wait for a limit used up (net.ts NetOptions.waitMs), and who is told first. */
   waitMs?: number;
   onWait?: (w: { host: string; until: number; ms: number; why: "cap" | "limit" }) => void;
+  /** The measure of the load on the archive (core/metrics.ts): every pause and every request, as the limiter makes them. */
+  onPause?: (p: { host: string; ms: number; why: "pace" | "cap" | "limit" }) => void;
+  onRequest?: (host: string) => void;
 }
 
 /** A minimal environment: the connector gets no secrets of the shell that runs strom. */
@@ -851,7 +860,7 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
   // real paths: the permission model compares the paths the program uses with these
   const dir = fs.realpathSync(c.dir);
   const workDir = fs.realpathSync(opts.workDir);
-  const report: RunReport = { books: [], images: [], located: [], requests: 0, logs: [] };
+  const report: RunReport = { books: [], images: [], located: [], requests: 0, sent: 0, logs: [] };
   const cookies = new CookieJar(); // the cookies of this run, and of no other
   const seen = new Map<string, number | undefined>(); // the images of this run by their content
   // the user's login, put into requests by strom and taken out of every answer
@@ -1019,7 +1028,7 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
         else send({ ...answer, text: got.body.toString("utf8") });
         return;
       }
-      if (opts.maxRequests !== undefined && report.requests >= opts.maxRequests) return refuse("cap", `the run's limit of ${opts.maxRequests} requests (a test: --max <n>, at most 50)`);
+      if (opts.maxRequests !== undefined && Math.max(report.requests, report.sent) >= opts.maxRequests) return refuse("cap", `the run's limit of ${opts.maxRequests} requests (a test: --max <n>, at most 50)`);
       report.requests++;
       try {
         const res = await politeRequest(h.url, {
@@ -1036,6 +1045,12 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
           ...(opts.now ? { now: opts.now } : {}),
           ...(opts.waitMs !== undefined ? { waitMs: opts.waitMs } : {}),
           ...(opts.onWait ? { onWait: opts.onWait } : {}),
+          ...(opts.onPause ? { onPause: opts.onPause } : {}),
+          // what goes to the host, counted as its hourly counter counts it (a redirect, a retry)
+          onRequest: (host: string) => {
+            report.sent++;
+            opts.onRequest?.(host);
+          },
         });
         const check = botCheck(res.body, res.headers);
         if (check)

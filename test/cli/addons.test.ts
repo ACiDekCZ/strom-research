@@ -8,19 +8,21 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { World, fakeConnector, hasGit, readJsonFile } from "../helpers.ts";
-import { claudeArgs, cleanTools, headlessEnv, missingTools, READER_TOOLS, RUN_TOOLS } from "../../src/runners/claude.ts";
+import { claudeArgs, cleanTools, headlessEnv, missingTools, READER_TOOLS, RUN_DISALLOWED, RUN_TOOLS } from "../../src/runners/claude.ts";
 import { CODEX_CLEAN, codexArgs, codexResumeArgs } from "../../src/runners/codex.ts";
-import { grokArgs } from "../../src/runners/grok.ts";
+import { GROK_CLEAN, grokArgs, grokEnv } from "../../src/runners/grok.ts";
 import { opencodeArgs } from "../../src/runners/opencode.ts";
 import { antigravityArgs } from "../../src/runners/antigravity.ts";
-import { conversationArgs } from "../../src/agents/launch.ts";
+import { conversationArgs, conversationEnv } from "../../src/agents/launch.ts";
 
 const unix = { skip: !hasGit || process.platform === "win32" };
+/** Working alone: nothing that waits for a person (a question, the browser's pairing request). */
+const NO_WAIT = ["--disallowedTools", "AskUserQuestion,mcp__claude-in-chrome__switch_browser"];
 const fixtures = path.join(import.meta.dirname, "..", "fixtures", "images");
 
 test("Claude Code working alone: no MCP servers of the user's, the tools strom uses, no auto-memory; a conversation keeps all", () => {
   const run = claudeArgs({ kickoff: "k", clean: true, chrome: true, settingsFile: "/t/.claude/settings.json" });
-  assert.deepEqual(run.slice(-4), ["--chrome", "--strict-mcp-config", "--tools", "Bash,Read,Edit,Write,WebFetch,WebSearch,Agent,ToolSearch,SendMessage"]);
+  assert.deepEqual(run.slice(-6), ["--chrome", "--strict-mcp-config", "--tools", "Bash,Read,Edit,Write,WebFetch,WebSearch,Agent,ToolSearch,SendMessage", ...NO_WAIT]);
   // the browser's tools load through ToolSearch (else every schema would be in the prompt); subagents and asking one again
   for (const t of ["Bash", "Read", "Edit", "Write", "WebFetch", "WebSearch", "Agent", "ToolSearch", "SendMessage"]) assert.ok(RUN_TOOLS.includes(t as never), t);
   // nothing that drops the user's model, effort or login, or the tree's own instructions
@@ -31,8 +33,11 @@ test("Claude Code working alone: no MCP servers of the user's, the tools strom u
   // a reader: its views and its report
   assert.deepEqual(claudeArgs({ kickoff: "k", clean: true, reader: true }).slice(-3), ["--strict-mcp-config", "--tools", "Read,Edit,Write"]);
   assert.deepEqual(cleanTools(true, "win32"), [...READER_TOOLS]);
-  // agent.addons on: as before
-  assert.deepEqual(claudeArgs({ kickoff: "k", chrome: false }), ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "dontAsk", "--no-chrome"]);
+  // agent.addons on: as before — and still nothing that waits for a person (its add-ons may bring the question tool)
+  assert.deepEqual(claudeArgs({ kickoff: "k", chrome: false }), ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "dontAsk", "--no-chrome", ...NO_WAIT]);
+  assert.deepEqual([...RUN_DISALLOWED], ["AskUserQuestion", "mcp__claude-in-chrome__switch_browser"]);
+  // a conversation asks as it likes: the person is there
+  assert.ok(!claudeArgs({ interactive: true, kickoff: "k", chrome: true }).includes("--disallowedTools"));
   // a conversation (interactive) is never cleaned, whatever it is given
   assert.deepEqual(claudeArgs({ interactive: true, kickoff: "k", clean: true, reader: true }), ["k", "--permission-mode", "auto"]);
   for (const agent of ["claude", "codex"]) {
@@ -66,9 +71,21 @@ test("Codex working alone: its plugins, apps, hooks and memories off — the use
   assert.ok(!codexResumeArgs("abc", base).some((a) => a.startsWith("features.")));
 });
 
-test("Grok, OpenCode and Antigravity have no such switch: started as always", () => {
+test("Grok has switches for a part only — what it takes in of the other agents and its memory, never its own skills; OpenCode and Antigravity none: started as always", () => {
+  // (its environment for one process: Claude Code's and Cursor's skills, MCP servers, hooks off, its memory off)
+  const env = grokEnv({ HOME: "/h" }, 60_000, false, true)!;
+  for (const k of ["GROK_CLAUDE_SKILLS_ENABLED", "GROK_CURSOR_SKILLS_ENABLED", "GROK_CLAUDE_MCPS_ENABLED", "GROK_CURSOR_MCPS_ENABLED", "GROK_CLAUDE_HOOKS_ENABLED", "GROK_CURSOR_HOOKS_ENABLED", "GROK_MEMORY"]) assert.equal(env[k], "0", k);
+  assert.deepEqual(JSON.parse(env.GROK_CONFIG!), { toolset: { bash: { timeout_secs: 1800, max_timeout_secs: 1800, auto_background_on_timeout: false } } }, "its overlay drops a [skills] table: nothing put there");
+  const dirty = grokEnv({ HOME: "/h" }, 60_000, false, false)!;
+  assert.ok(Object.keys(GROK_CLEAN).every((k) => dirty[k] === undefined), "with the add-ons: as in a conversation");
+  // an isolated installation: never the skill another installation taught Claude Code, a conversation too
+  assert.equal(grokEnv({ HOME: "/h", STROM_ISOLATED: "1" }, 60_000, false, false)!.GROK_CLAUDE_SKILLS_ENABLED, "0");
+  assert.deepEqual(conversationEnv("grok", { HOME: "/h", STROM_ISOLATED: "1" }), { GROK_FOLDER_TRUST: "0", GROK_CLAUDE_SKILLS_ENABLED: "0" });
+  assert.deepEqual(conversationEnv("grok", { HOME: "/h" }), {});
   const o = { model: "m", kickoff: "k", shared: "/s", timeoutMs: 60_000 };
-  assert.deepEqual(grokArgs({ ...o, clean: true, reader: true } as never, ["--prompt-file", "p"], ["--session-id", "x"]), grokArgs(o, ["--prompt-file", "p"], ["--session-id", "x"]));
+  assert.deepEqual(grokArgs({ ...o, clean: true } as never, ["--prompt-file", "p"], ["--session-id", "x"]), grokArgs(o, ["--prompt-file", "p"], ["--session-id", "x"]));
+  // (a reader only without --trust: it reads no folder's files — test/cli/agent-globals.test.ts)
+  assert.deepEqual(grokArgs({ ...o, clean: true, reader: true } as never, ["--prompt-file", "p"], ["--session-id", "x"]), grokArgs(o, ["--prompt-file", "p"], ["--session-id", "x"]).filter((a) => a !== "--trust"));
   assert.deepEqual(opencodeArgs({ ...o, clean: true, reader: true } as never), opencodeArgs(o));
   assert.deepEqual(antigravityArgs({ ...o, clean: true, reader: true } as never, "k"), antigravityArgs(o, "k"));
 });
@@ -179,12 +196,12 @@ test("the menu's settings: the agent working alone — without the personal add-
 test("the setup wizard asks it for Claude Code and Codex, the suggested answer without the add-ons", unix, async () => {
   const w = await world();
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  // run again: language, folder, model, stories, level kept (Enter) · the add-ons: 2 (with them) · no shortcut
-  const r = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "", "2", "n"] });
+  // run again: language, folder, model, its effort (0), stories, level kept (Enter) · the add-ons: 2 (with them) · no shortcut
+  const r = await w.ok(["setup"], { tty: true, answers: ["", "", "", "0", "", "", "2", "n"] });
   assert.match(r.out, /Bez osobních doplňků agenta \(skilly, pluginy, MCP servery\)\?\nAgent při samostatné práci načte jen nástroje výzkumu\.[^\n]*\n {3}1 {2}Ano \(doporučeno\)\n {3}2 {2}Ne – i při samostatné práci s doplňky\n {3}0 {2}Nechat, jak je\nVybrat \[1\]/);
   assert.equal(cfg().agentAddons, "on");
   // again: what is now suggested; Enter keeps it
-  const again = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "", "", "n"] });
+  const again = await w.ok(["setup"], { tty: true, answers: ["", "", "", "0", "", "", "", "n"] });
   assert.match(again.out, /Nechat, jak je\nVybrat \[2\]/);
   assert.equal(cfg().agentAddons, "on");
   w.cleanup();
@@ -226,6 +243,49 @@ test("the browser in a run: only for a session whose task may need it — never 
   const run = await w.run(["run", "--agent", "claude", "--task", "T1,T2,T3,T4,T5,T6", "--max", "6"]);
   const flags = calls(w).map((c) => /\[--(no-)?chrome\]/.exec(c.args)?.[0]);
   assert.deepEqual(flags, ["[--chrome]", "[--no-chrome]", "[--no-chrome]", "[--chrome]", "[--chrome]", "[--no-chrome]"], run.out + run.err);
+  // the brief of a session with the browser says how it is used — its sites, without asking, gently, a browser picked
+  // without a person; one without it says nothing of a browser (no tokens for it)
+  const briefs = new Map(
+    fs.readdirSync(path.join(w.cwd, ".strom", "briefs")).map((f) => {
+      const text = fs.readFileSync(path.join(w.cwd, ".strom", "briefs", f), "utf8");
+      return [/^## Task (T\d+)/m.exec(text)![1]!, text] as const;
+    }),
+  );
+  for (const [id, on] of [["T0001", true], ["T0002", false], ["T0003", false], ["T0004", true], ["T0005", true], ["T0006", false]] as const) {
+    const text = briefs.get(id)!;
+    assert.equal(/## The browser \(Claude in Chrome\)/.test(text), on, `${id}:\n${text}`);
+    assert.equal(/AskUserQuestion|select_browser/.test(text), on, id);
+    // every run: what only the user can decide waits for them as a task, never a question in the summary
+    assert.match(text, new RegExp(`strom task wait ${id} --on "<the question, impersonal, in the research language>" — they see it in the menu and the Strom app`));
+  }
+  const browser = briefs.get("T0004")!;
+  assert.match(browser, /Its sites: archive\.example\.org — no other\./);
+  assert.match(browser, /Use it without asking where a connector \(strom fetch\), WebFetch and WebSearch lead nowhere; images only through strom fetch/);
+  assert.match(browser, /terms and robots\.txt, its pace and hourly cap .*only the pages the task needs, nothing ahead/);
+  assert.match(browser, /forbids automated access: never through the browser, never a way round/);
+  assert.match(browser, /no AskUserQuestion, no switch_browser\. Several browsers connected, none selected: list_connected_browsers, then select_browser — onThisComputer, else isLocal\.\n/);
+  // never "the first" of other computers' browsers in a run: somebody may be working there — the person is asked
+  assert.match(browser, /- Neither: those browsers are another computer's, somebody may be working there — no browser: strom task wait T0004 --on "<the question, in the research language: no browser of this computer is connected>", then close the session\./);
+  assert.doesNotMatch(browser, /else the first/);
+  assert.match(browser, /an archive the task needs without a connector — build one \(strom connector new\); anything else — strom task wait T0004 --on "<the question>"/);
+  assert.ok(!briefs.get("T0002")!.includes("archive.example.org"), "a book served directly: nothing of the browser");
+  // a conversation of Claude Code with the browser: the same rules, and another site is asked about — the person is there;
+  // another agent has no browser tools, its brief says nothing of them
+  w.env.CLAUDECODE = "1";
+  const talk = (await w.ok(["session", "start", "T2"])).out;
+  delete w.env.CLAUDECODE;
+  assert.match(talk, /## The browser \(Claude in Chrome\)\nIts sites: archive\.example\.org — no other\./);
+  assert.match(talk, /- Another site, or one that forbids automation: ask the user first\./);
+  // a conversation: the person picks the browser, the one of this computer suggested first
+  assert.match(talk, /- Several browsers connected, none selected: list_connected_browsers, ask the user which — onThisComputer, else isLocal, else the first suggested —, then select_browser\./);
+  assert.doesNotMatch(talk, /Neither: those browsers/);
+  assert.doesNotMatch(talk, /AskUserQuestion|Nobody answers|strom task wait T0002 --on "<the question/);
+  await w.ok(["session", "close", "--continue", "--summary", "s", "--next", "n"]);
+  w.env.CODEX_THREAD_ID = "x";
+  const codex = (await w.ok(["session", "start", "T2"])).out;
+  delete w.env.CODEX_THREAD_ID;
+  assert.doesNotMatch(codex, /## The browser/);
+  await w.ok(["session", "close", "--continue", "--summary", "s", "--next", "n"]);
   // agent.browser always (the person's choice): every session
   await w.ok(["config", "set", "agent.browser", "always"], { tty: true, answers: ["a"] });
   await w.run(["run", "--agent", "claude", "--task", "T2,T3", "--max", "2"]);

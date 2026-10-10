@@ -19,6 +19,7 @@ import { displayName, lifespan } from "../core/people.ts";
 const label = (p: Person) => `${displayName(p)}${lifespan(p) ? ` (${lifespan(p)})` : ""} [${p.id}]`;
 import { openForUser } from "../core/open.ts";
 import { isArchive } from "../core/mode.ts";
+import { tuneQuestions, type Question } from "../core/tuneask.ts";
 
 /** At most this many are listed to answer (the menu's nine); the rest after them. */
 const SHOWN = 9;
@@ -114,6 +115,26 @@ export async function decideStory(ctx: Context, run: Run, lang: string, root: st
   return true;
 }
 
+/**
+ * A question about the reading of scans (core/tuneask.ts): why, then the person's choice — the recommended suggested,
+ * 0 back with nothing changed — answered by the command (strom media calibrate --answer). Smaller views chosen: the
+ * paid calibration offered at once, which says its cost and asks first.
+ */
+async function decideTune(ctx: Context, run: Run, lang: string, q: Question): Promise<void> {
+  const t = translator(lang);
+  ctx.io.stdout(`\n ${q.text}\n    ${q.why}\n`);
+  const pick = await ctx.choose(
+    "",
+    q.choices.map((c) => ({ label: `${c.label}${c.id === q.recommended ? ` ${t("ui.tune.q.recommended")}` : ""}` })),
+    Math.max(0, q.choices.findIndex((c) => c.id === q.recommended)),
+    { back: t("ui.browse.back") },
+  );
+  if (pick === undefined) return;
+  const choice = q.choices[pick]!.id;
+  if ((await run(["media", "calibrate", "--answer", `${q.id}=${choice}`])) !== 0) return;
+  if (q.kind === "views.smaller" && choice === "calibrate") await run(["media", "calibrate"]);
+}
+
 export async function waitingForYou(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
   const t = translator(lang);
   await subMenu(ctx, lang, () => {
@@ -122,20 +143,25 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
     const stories = storiesToApprove(tree);
     // what the Strom app sent on its own: first, the person's own edits
     const sent = receivedPending(root);
-    if (!waiting.length && !stories.length && !sent.length) return { title: t("ui.waiting.none"), items: [] };
+    // the questions about the reading of scans only a person answers: last, after the research's own
+    const tune = isArchive(tree) ? [] : tuneQuestions(tree, ctx.settings).due;
+    if (!waiting.length && !stories.length && !sent.length && !tune.length) return { title: t("ui.waiting.none"), items: [] };
     // the trees from the app first, then the tasks, then the stories: at most the menu's nine together
     const shownSent = sent.slice(0, SHOWN);
     const shown = waiting.slice(0, SHOWN - shownSent.length);
     const shownStories = stories.slice(0, SHOWN - shownSent.length - shown.length);
+    const shownTune = tune.slice(0, SHOWN - shownSent.length - shown.length - shownStories.length);
     const k0 = shownSent.length;
-    const text: string[] = [t(sent.length && !waiting.length && !stories.length ? "ui.waiting.title.sent" : "ui.waiting.title", { n: waiting.length + stories.length + sent.length })];
+    const k1 = k0 + shown.length + shownStories.length;
+    const text: string[] = [t(sent.length && !waiting.length && !stories.length && !tune.length ? "ui.waiting.title.sent" : "ui.waiting.title", { n: waiting.length + stories.length + sent.length + tune.length })];
     for (const [k, r] of shownSent.entries()) text.push("", ` ${k + 1}. ${t("ui.waiting.sent", { day: humanDay(r.at, lang), time: r.at.slice(11, 16), n: r.changes })}`);
     for (const [k, x] of shown.entries()) {
       text.push("", ` ${k0 + k + 1}. ${x.what}`, ...whatToDo(ctx, lang, tree, x));
     }
     for (const [k, s] of shownStories.entries()) text.push("", ` ${k0 + shown.length + k + 1}. ${t("ui.waiting.story", { who: storyOf(tree, s.id) })}`);
+    for (const [k, q] of shownTune.entries()) text.push("", ` ${k1 + k + 1}. ${t("ui.waiting.tune", { text: q.text })}`);
     if (shown.some((x) => x.awaits)) text.push("", t("ui.wait.how1"), t("ui.wait.how2"));
-    const hidden = waiting.length + stories.length + sent.length - shownSent.length - shown.length - shownStories.length;
+    const hidden = waiting.length + stories.length + sent.length + tune.length - shownSent.length - shown.length - shownStories.length - shownTune.length;
     if (hidden > 0) text.push("", t("ui.waiting.more", { n: hidden }));
     const items: Item[] = [
       ...shownSent.map((r, k) => ({
@@ -152,6 +178,11 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
         key: String(k0 + shown.length + k + 1),
         label: t("ui.waiting.story.read", { k: k0 + shown.length + k + 1, who: storyOf(tree, s.id) }),
         act: async () => void (await decideStory(ctx, run, lang, root, s.id, storyOf(tree, s.id))),
+      })),
+      ...shownTune.map((q, k) => ({
+        key: String(k1 + k + 1),
+        label: t("ui.waiting.tune.read", { k: k1 + k + 1 }),
+        act: () => decideTune(ctx, run, lang, q),
       })),
     ];
     return { title: `${text.join("\n")}\n\n${t(shown.length || shownSent.length ? "ui.waiting.pick" : "ui.waiting.pick.story")}`, items };

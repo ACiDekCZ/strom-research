@@ -6,13 +6,13 @@
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines } from "../cli/format.ts";
+import { lines, truncate } from "../cli/format.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { StromError, UsageError } from "../core/errors.ts";
 import { which } from "../core/which.ts";
-import { refuseInArchive } from "../core/mode.ts";
+import { isArchive, refuseInArchive } from "../core/mode.ts";
 import { RUNNERS } from "../runners/index.ts";
-import { batches, BATCH } from "../core/reader.ts";
+import { batches, BATCH, READER_MINUTES_HELP } from "../core/reader.ts";
 import { cropOf, halves, makeView, readInHalves } from "../core/views.ts";
 import {
   calibrationPrompt,
@@ -30,7 +30,21 @@ import {
   type CalNegative,
   type SizeScore,
 } from "../core/viewsample.ts";
-import { calibrationKey, calibrationLabel, defaultViewSizes, forgetCalibration, viewModel, type ViewCalibration } from "../core/viewsizes.ts";
+import { calibrationKey, calibrationLabel, defaultViewSizes, viewModel, type ViewCalibration } from "../core/viewsizes.ts";
+import { bookId, hostName, RESET_PARTS, type ResetPart } from "../core/tunereset.ts";
+import { resetReading, type ResetRequest } from "../cli/tunereset.ts";
+import { BOOKS_SHOWN, groups, otherUnits, READING_DEFAULTS, refreshRollup, summarize, UNKNOWN_KEY, type BookSummary, type TunedItem } from "../core/readstats.ts";
+import { selfTune, tunedFor, tunedSaid, tuningOn, withTuning } from "../core/tune.ts";
+import { keepAnswer, tuneQuestions, weakNegativeTasks, type Question, type TuneAnswer } from "../core/tuneask.ts";
+import { writeStored } from "../core/config.ts";
+import { create } from "../core/records.ts";
+import { assertIntact } from "../core/integrity.ts";
+import { isAgent } from "../core/which.ts";
+import { PROFILES } from "../agents/profiles.ts";
+import { autoCommit } from "../cli/commit.ts";
+import type { CommandDef } from "../cli/registry.ts";
+import type { RecordSet, Task } from "../core/model.ts";
+import type { Tree } from "../core/tree.ts";
 import { pool } from "./read.ts";
 import { readers } from "./readers.ts";
 
@@ -86,6 +100,277 @@ function sizesOption(raw: unknown, max: number): number[] {
   return sizes;
 }
 
+/** The signals said one by one in the human report (all of them in --json). */
+const SIGNALS_SHOWN = 20;
+
+/** A number as a language writes it; a language Intl does not know: English. */
+function numberIn(lang: string, n: number, o: Intl.NumberFormatOptions): string {
+  try {
+    return new Intl.NumberFormat(lang, o).format(n);
+  } catch {
+    return new Intl.NumberFormat("en", o).format(n);
+  }
+}
+
+/**
+ * strom media calibrate --report: how the reading of scans went for this agent and model, from what strom recorded —
+ * free, no agent, no network; the summary kept in .strom/metrics/rollup.json made again, and what only adds accuracy or
+ * saves requests set by itself from it (core/tune.ts) — nothing else changed.
+ */
+function report(ctx: Context, tree: Tree, key: string, who: string): { text: string; data: unknown } {
+  const lang = tree.lang;
+  const t = (k: UIKey, values: Record<string, string | number> = {}) => ui(lang, k, values);
+  // the summary made again, and what only adds accuracy or saves requests set by itself from it (core/tune.ts)
+  const otherResearch = otherUnits(ctx.knownTrees().map((k) => k.root), tree.root);
+  const rollup = selfTune(tree, { settings: ctx.settings, others: otherResearch }).rollup;
+  const units = rollup?.units ?? [];
+  const all = groups(units);
+  const mine = all.filter((g) => g.key === key);
+  const own = t("ui.settings.model.own");
+  // what nothing said the agent and model of: said so, never under the agent and model of now
+  const label = (g: { key: string; reported?: string }) => `${g.key === UNKNOWN_KEY ? t("ui.tune.unknownKey") : calibrationLabel(g.key, own)}${g.reported ? ` (${g.reported})` : ""}`;
+  const others = all.filter((g) => g !== mine[0]).map((g) => ({ key: g.key, ...(g.reported ? { model: g.reported } : {}), units: g.units.length, scans: g.units.reduce((n, u) => n + Object.values(u.books).reduce((m, b) => m + b.scans, 0), 0) }));
+  const othersLine = others.length ? t("ui.tune.others", { list: others.map((o) => `${label(o.model ? { key: o.key, reported: o.model } : { key: o.key })} (${o.scans})`).join(", ") }) : undefined;
+  const group = mine[0];
+  // what is in force for the key, measured or not: what strom set (each with its id, where it is kept) and the
+  // person's own calibration of the sizes
+  const cal = ctx.settings.config.viewSizes?.[key];
+  const calibration = cal ? { find: cal.find, read: cal.read, at: cal.at, sample: cal.sample, source: "calibrated" as const } : undefined;
+  const inForce = (tuned: TunedItem[]) => {
+    const said = tunedSaid(tuned).map((x) => t(`ui.tune.rec.${x.action}` as UIKey, { scope: x.scope.replace(/^(book|host):/, ""), from: String(x.from), to: String(x.to) }));
+    return {
+      text: lines(said.length ? lines(t("ui.tune.tuned"), ...said) : tuningOn(ctx.settings) ? undefined : t("ui.tune.off"), cal ? t("ui.tune.calibrated", { find: cal.find, read: cal.read, at: cal.at, n: cal.sample }) : undefined) || undefined,
+      // the way back, last (core/tunereset.ts)
+      reset: said.length || cal ? t("ui.tune.reset.last") : undefined,
+    };
+  };
+  if (!group) {
+    const tuned = tunedFor(ctx.settings, tree, key);
+    const f = inForce(tuned);
+    return { text: lines(t("ui.tune.none", { agent: who }), f.text, othersLine, f.reset), data: { key, measured: false, tuned, ...(calibration ? { calibration } : {}), others, updated: rollup?.updated } };
+  }
+  const titles = new Map(tree.list<RecordSet>("recordset").map((b) => [b.id, b.title]));
+  const r = withTuning(summarize(group, { others: otherResearch, title: (id) => titles.get(id), defaults: READING_DEFAULTS }), ctx.settings, tree);
+  // what only a person decides (core/tuneask.ts): the summary is fresh already
+  const asked = tuneQuestions(tree, ctx.settings, { others: otherResearch, write: true }).due;
+  const data = { ...r, ...(calibration ? { calibration } : {}), questions: asked, others, updated: rollup?.updated, ...(rollup?.backfillLogs ? { backfillLogs: rollup.backfillLogs } : {}) };
+  const f = inForce(r.tuned);
+  if (!r.samples.scans) return { text: lines(t("ui.tune.noscans", { agent: label(group), sessions: r.samples.sessions }), f.text, othersLine, f.reset), data };
+
+  // numbers as the research language writes them (1,4 · 0,158 $ in Czech; 1.4 · $0.158 in English)
+  const nf = (n: number, digits = 1) => numberIn(lang, n, { maximumFractionDigits: digits });
+  const pct = (n: number | undefined) => (n === undefined ? "–" : `${nf(Math.round(n * 100), 0)} %`);
+  const money = (n: number | undefined) => {
+    if (n === undefined) return "–";
+    const digits = n < 1 ? 3 : 2;
+    return numberIn(lang, n, { style: "currency", currency: "USD", currencyDisplay: "narrowSymbol", minimumFractionDigits: digits, maximumFractionDigits: digits });
+  };
+  // a base of 0 (none of the other books) said as such, never "against 0 %"
+  const hasBase = (b: number | undefined) => b !== undefined && b > 0;
+  const scopeOf = (s: string) => s.replace(/^(book|host):/, "");
+  const cost =
+    r.cost.unit === "usd"
+      ? t("ui.tune.cost.usd", { scan: money(r.cost.perScan), view: money(r.cost.perView), known: pct(r.cost.known) })
+      : r.cost.unit === "tokens"
+        ? t("ui.tune.cost.tokens", { new: nf(r.cost.tokens!.new, 0), out: nf(r.cost.tokens!.out, 0), cr: nf(r.cost.tokens!.cr, 0), known: pct(r.cost.known) })
+        : t("ui.tune.cost.unknown");
+  const context = !r.context.known
+    ? t("ui.tune.context.unknown")
+    : r.context.clears
+      ? t("ui.tune.context", { clears: r.context.clears, with: r.context.withClears, of: r.context.withSeries, ctx: nf(r.context.ctxAtFirstClear ?? 0, 0), reopened: pct(r.context.reopened) })
+      : t("ui.tune.context.none", { of: r.context.withSeries });
+  // the books with a signal first, then the biggest — a few (all of them in --json)
+  const shown: BookSummary[] = [...r.books.filter((b) => b.signals.length).sort((a, b) => b.signals.length - a.signals.length || b.scans - a.scans), ...r.books.filter((b) => !b.signals.length)].slice(0, BOOKS_SHOWN);
+  const bookLines = shown.map((b) =>
+    [
+      t("ui.tune.book", { id: b.id, title: b.title ? truncate(b.title, 40) : "", scans: b.scans, vps: b.viewsPerScan === undefined ? "–" : nf(b.viewsPerScan) }),
+      b.read ? t(hasBase(b.base) ? "ui.tune.book.unsure" : "ui.tune.book.unsure.nobase", { value: pct(b.illegible), n: b.read, base: pct(b.base) }) : undefined,
+      b.marked ? t("ui.tune.book.marked", { n: b.marked, of: b.read }) : undefined,
+      b.transcripts && b.doubtful ? t("ui.tune.book.doubtful", { n: b.doubtful, of: b.transcripts }) : undefined,
+      b.views ? t("ui.tune.book.enlarged", { value: pct(b.enlarged) }) : undefined,
+      b.noSharper ? t("ui.tune.book.nosharper", { n: b.noSharper }) : undefined,
+      b.weakNegatives ? t("ui.tune.book.weak", { n: b.weakNegatives, of: b.negatives }) : undefined,
+      b.requests ? t("ui.tune.book.requests", { n: b.requests }) : undefined,
+      b.unread ? t("ui.tune.book.unread", { n: b.unread, of: b.fetched }) : undefined,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  );
+  const hostLines = r.hosts.map((h) => t("ui.tune.host", { host: h.host, sessions: h.sessions, requests: h.requests, perSession: h.requestsPerSession === undefined ? "–" : nf(h.requestsPerSession), perImage: h.requestsPerImage === undefined ? "–" : nf(h.requestsPerImage), wait: h.waitMin, later: h.later }));
+  const sigLines = r.signals.map((s) => {
+    const scope = scopeOf(s.scope);
+    const ratio = s.ratio === undefined || !Number.isFinite(s.ratio) ? "–" : nf(s.ratio);
+    switch (s.metric) {
+      case "M1":
+        return t("ui.tune.sig.M1", { scope, value: money(s.value), ratio, base: money(s.base) });
+      case "M2":
+        return t("ui.tune.sig.M2", { scope, value: nf(s.value), ratio, base: s.base === undefined ? "–" : nf(s.base) });
+      case "M3":
+        return t("ui.tune.sig.M3", { n: s.n, of: s.of ?? 0 });
+      case "M4":
+        return t("ui.tune.sig.M4", { n: s.n, of: s.of ?? 0, ctx: nf(s.extra?.ctx ?? 0, 0) });
+      case "M5":
+        return t(hasBase(s.base) ? "ui.tune.sig.M5" : "ui.tune.sig.M5.nobase", { scope, value: pct(s.value), base: pct(s.base), n: s.n });
+      case "M6":
+        return t(hasBase(s.base) ? "ui.tune.sig.M6" : "ui.tune.sig.M6.nobase", { scope, value: pct(s.value), base: pct(s.base), n: s.n });
+      case "M7":
+        return t("ui.tune.sig.M7", { scope, n: s.n });
+      case "M8":
+        return t("ui.tune.sig.M8", { scope, n: s.value, of: s.n, wait: s.extra?.waitMin ?? 0, later: s.extra?.later ?? 0 });
+      case "M9":
+        return t("ui.tune.sig.M9", { scope, value: s.value, n: s.n });
+      case "M10":
+        return t("ui.tune.sig.M10", { n: s.n, of: s.of ?? 0 });
+      case "M11":
+        return t("ui.tune.sig.M11", { scope, value: pct(s.value), n: s.n, of: s.of ?? 0 });
+    }
+  });
+  const recLines = r.recommend.map((x) => t(`ui.tune.rec.${x.id}` as UIKey, { scope: scopeOf(x.scope), from: x.from ?? 0, to: x.to ?? 0 }));
+  const text = lines(
+    t("ui.tune.title", { agent: label(group), days: r.window.days, since: r.since ?? "–" }),
+    t("ui.tune.samples", { sessions: r.samples.sessions, readers: r.samples.readers, scans: r.samples.scans, views: r.samples.views }) + (r.samples.recovered ? ` · ${t("ui.tune.recovered", { n: r.samples.recovered })}` : ""),
+    cost + (r.cost.unknownSessions ? ` · ${t("ui.tune.cost.unknownSessions", { n: r.cost.unknownSessions })}` : ""),
+    t("ui.tune.views", { perScan: r.views.perScan === undefined ? "–" : nf(r.views.perScan), whole: pct(r.views.whole), half: pct(r.views.half), crop: pct(r.views.crop), split: pct(r.views.split), enlarged: pct(r.views.enlarged) }),
+    context,
+    r.readers.n ? t("ui.tune.readers", { bad: r.readers.noResult, n: r.readers.n }) : undefined,
+    r.readers.halted ? t("ui.tune.readers.halted", { n: r.readers.halted }) : undefined,
+    rollup?.backfillLogs && (rollup.backfillLogs.gone || rollup.backfillLogs.skipped) ? t("ui.tune.backfill.partial", { gone: rollup.backfillLogs.gone, skipped: rollup.backfillLogs.skipped }) : undefined,
+    bookLines.length ? lines(t("ui.tune.books"), ...bookLines, r.books.length > shown.length ? t("ui.tune.more", { n: r.books.length - shown.length }) : undefined) : undefined,
+    hostLines.length ? lines(t("ui.tune.hosts"), ...hostLines) : undefined,
+    sigLines.length ? lines(t("ui.tune.signals"), ...sigLines.slice(0, SIGNALS_SHOWN), sigLines.length > SIGNALS_SHOWN ? t("ui.tune.more", { n: sigLines.length - SIGNALS_SHOWN }) : undefined) : t("ui.tune.signals.none"),
+    r.short.length ? t("ui.tune.short", { list: r.short.map((m) => t(`ui.tune.m.${m}` as UIKey)).join(", ") }) : undefined,
+    f.text,
+    recLines.length ? lines(t("ui.tune.recommend"), ...recLines) : undefined,
+    r.signals.some((s) => s.metric === "M8") ? t("ui.tune.cap") : undefined,
+    asked.length ? t("ui.tune.q.waiting", { n: asked.length }) : undefined,
+    othersLine,
+    f.reset,
+  );
+  return { text, data };
+}
+
+/** One question as a person reads it: what, why, the choices (the recommended first) and how to answer it. */
+function questionLines(lang: string, q: Question, k: number, withCommand = true): string {
+  const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
+  return lines(
+    ` ${k}. ${q.text}`,
+    `    ${q.why}`,
+    ...q.choices.map((c) => `    ${c.id}: ${c.label}${c.id === q.recommended ? ` ${t("ui.tune.q.recommended")}` : ""}`),
+    withCommand ? `    ${q.answer}` : undefined,
+  );
+}
+
+/**
+ * strom media calibrate --questions: what only a person decides about the reading of scans. At a person's terminal each
+ * is asked in turn (Enter: the recommended, 0: back with nothing changed); else listed with the command that answers it
+ * — an agent never answers, it tells the person.
+ */
+async function questions(ctx: Context, tree: Tree, who: string): Promise<{ text: string; data: unknown }> {
+  const lang = tree.lang;
+  const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
+  const set = tuneQuestions(tree, ctx.settings, { refresh: true, write: true, others: otherUnits(ctx.knownTrees().map((k) => k.root), tree.root) });
+  const held = set.all.filter((q) => !q.due);
+  const data = { key: set.key, ...(set.label.reported ? { model: set.label.reported } : {}), questions: set.due, held };
+  const heldLine = held.length ? t("ui.tune.q.held", { n: held.length }) : undefined;
+  if (!set.due.length) return { text: lines(t("ui.tune.q.none", { agent: who }), heldLine), data };
+  if (ctx.interactive && !isAgent(ctx.env)) {
+    const said: string[] = [];
+    for (const [i, q] of set.due.entries()) {
+      ctx.io.stdout(`\n${i === 0 ? `${t("ui.tune.q.title", { agent: who })}\n` : ""}${questionLines(lang, q, i + 1, false)}\n`);
+      const pick = await ctx.choose("", q.choices.map((c) => ({ label: `${c.label}${c.id === q.recommended ? ` ${t("ui.tune.q.recommended")}` : ""}` })), q.choices.findIndex((c) => c.id === q.recommended), { back: t("ui.browse.back") });
+      // back: nothing changed, the questions after it wait too
+      if (pick === undefined) break;
+      said.push((await answerWith(ctx, tree, set.key, q, q.choices[pick]!.id, "terminal")).text);
+    }
+    return { text: lines(...said), data };
+  }
+  return {
+    text: lines(t("ui.tune.q.title", { agent: who }), ...set.due.map((q, i) => questionLines(lang, q, i + 1)), heldLine, t("ui.tune.q.person")),
+    data,
+  };
+}
+
+/** strom media calibrate --answer <id>=<choice>: a person's answer — in their terminal, else in a window of the system. */
+async function answer(ctx: Context, tree: Tree, raw: string): Promise<{ text: string; data: unknown; exitCode?: number }> {
+  const m = /^\s*(Q[0-9a-f]{6})\s*=\s*([\p{L}\p{N}._-]+)\s*$/iu.exec(raw);
+  if (!m) throw new UsageError(`invalid --answer "${raw}"`, { hint: "--answer <question>=<choice>, e.g. --answer Q1a2b3c=later — the questions: strom media calibrate --questions" });
+  const id = `Q${m[1]!.slice(1).toLowerCase()}`;
+  const set = tuneQuestions(tree, ctx.settings, { refresh: true, write: true, others: otherUnits(ctx.knownTrees().map((k) => k.root), tree.root) });
+  const q = set.all.find((x) => x.id === id);
+  if (!q) throw new UsageError(`no question ${id} about the reading of scans now`, { hint: "strom media calibrate --questions" });
+  const choice = q.choices.find((c) => c.id.toLowerCase() === m[2]!.toLowerCase());
+  if (!choice) throw new UsageError(`${id} has no choice "${m[2]}"`, { hint: `one of: ${q.choices.map((c) => c.id).join(", ")}` });
+  // the person's decision: in their own terminal they gave it by running the command; from anywhere else a window asks
+  const where = ctx.requireHuman(`Answer ${id} (${q.kind}) with "${choice.id}": ${choice.label}?`, `strom media calibrate --answer ${id}=${choice.id}`, "tune.answer", ui(tree.lang, "ui.tune.q.window", { text: q.text, label: choice.label }));
+  return answerWith(ctx, tree, set.key, q, choice.id, where);
+}
+
+/** What an answer does — tasks, a setting, a command said — and the answer kept. */
+async function answerWith(ctx: Context, tree: Tree, key: string, q: Question, choice: string, by: TuneAnswer["by"]): Promise<{ text: string; data: unknown; exitCode?: number }> {
+  const lang = tree.lang;
+  const t = (k: UIKey, values: Record<string, string | number> = {}) => ui(lang, k, values);
+  const label = q.choices.find((c) => c.id === choice)!.label;
+  const out: (string | undefined)[] = [];
+  const data: Record<string, unknown> = { id: q.id, kind: q.kind, scope: q.scope, choice, by };
+  let exitCode: number | undefined;
+  if (q.kind === "negatives.weak" && choice === "edge") {
+    // at once, at most one per person, with the priority of the task the search was of (O7)
+    const planned = weakNegativeTasks(tree, q);
+    if (planned.length) {
+      assertIntact(tree);
+      const made = tree.atomically(() => planned.map((p) => create<Task>(tree, "task", p.fields, (id) => `+${id} task "${truncate(p.fields.what, 60)}" (${q.kind} ${q.id})`)));
+      const blocked = autoCommit(ctx, { path: ["media", "calibrate"] } as unknown as CommandDef);
+      if (blocked) {
+        out.push(blocked.message);
+        exitCode = 1;
+      }
+      data.tasks = made.map((x) => x.id);
+      out.push(t("ui.tune.q.kept.tasks", { tasks: made.map((x) => x.id).join(", ") }));
+    } else out.push(t("ui.tune.q.kept.notasks"));
+  }
+  if (q.kind === "vision.best" && choice === "lead") {
+    const lead = String(q.basis.extra?.lead ?? "");
+    const agent = ctx.settings.agent(tree.config).value;
+    if (ctx.settings.resolve("model.vision", tree.config, agent)?.source === "tree") out.push(t("ui.tune.q.kept.vision.tree", { model: lead }));
+    else if (lead) {
+      // the settings as they are now: the agent's own default again when the research's model is it
+      ctx.settings.reload();
+      writeStored(ctx.settings.config, "model.vision", agent, lead === PROFILES[agent]?.models.vision ? undefined : lead);
+      ctx.settings.save();
+      data.model = lead;
+      out.push(t("ui.tune.q.kept.vision", { model: lead }));
+    }
+  }
+  if (q.kind === "views.smaller" && choice === "calibrate") out.push(t("ui.tune.q.kept.calibrate"));
+  if (q.kind === "reset.after" && choice === "reset") {
+    // returning the tuning is the next part of strom: said with its command
+    const command = `strom media calibrate --reset${q.key.recordset ? ` --recordset ${q.key.recordset}` : ""}`;
+    data.command = command;
+    out.push(t("ui.tune.q.kept.reset", { command }));
+  }
+  const kept = keepAnswer(tree, ctx.settings, key, q, choice, by);
+  data.at = kept.at;
+  return { text: lines(t("ui.tune.q.kept", { label }), ...out), data, ...(exitCode !== undefined ? { exitCode } : {}) };
+}
+
+/** --all, --only, --recordset, --host and --dry-run of a reset, checked. */
+function resetOptions(opts: Record<string, unknown>): Omit<ResetRequest, "key" | "model"> {
+  const only = typeof opts.only === "string" ? [...new Set(opts.only.split(/[,\s]+/u).filter(Boolean).map((p) => p.toLowerCase()))] : undefined;
+  const bad = only?.filter((p) => !(RESET_PARTS as readonly string[]).includes(p)) ?? [];
+  if (bad.length || (only && !only.length)) throw new UsageError(`invalid --only "${String(opts.only)}"`, { hint: `one or more of ${RESET_PARTS.join(",")}, e.g. --only sizes,batches` });
+  const rs = typeof opts.recordset === "string" ? bookId(opts.recordset) : undefined;
+  if (rs !== undefined && !/^B\d+$/u.test(rs)) throw new UsageError(`invalid --recordset "${String(opts.recordset)}"`, { hint: "a book's ID, e.g. --recordset B0003" });
+  const host = typeof opts.host === "string" ? hostName(opts.host) : undefined;
+  if (host !== undefined && !host) throw new UsageError("--host needs an archive's host", { hint: "e.g. --host archive.example" });
+  return {
+    ...(opts.all ? { all: true } : {}),
+    ...(only ? { only: only as ResetPart[] } : {}),
+    ...(rs ? { recordset: rs } : {}),
+    ...(host ? { host } : {}),
+    ...(opts["dry-run"] ? { dryRun: true } : {}),
+  };
+}
+
 const usd = (n: number | undefined, lang: string) => (n === undefined ? ui(lang, "ui.views.cost.unknown") : `$${n.toFixed(2)}`);
 
 register({
@@ -102,33 +387,83 @@ register({
     "this agent and model (strom config get views.size), only on a clear result; else the defaults stay. strom media view\n" +
     "and strom read go by it. Paid model work (a few dollars): the cost is said first and only a person says yes — in their\n" +
     "terminal, or in a window of the system when an agent asks; nothing runs by itself. Too few known records: nothing\n" +
-    "runs, it says how many more are needed. --estimate: the sample and the cost only.",
+    "runs, it says how many more are needed. --estimate: the sample and the cost only.\n" +
+    "--report is free: how the reading of scans went, from what strom recorded of the sessions, the\n" +
+    "readers, the views and the fetches (.strom/metrics, summed up in rollup.json) — cost and views per scan, unsure\n" +
+    "readings, enlarged views, context clears, readers without a result, per book and per archive the requests, the waits\n" +
+    "for its limit and the images fetched and never read; what is clearly above the usual of the same agent and model and\n" +
+    "what would be suggested. No agent, no network. What only adds accuracy or saves requests to an archive strom sets by\n" +
+    "itself and says so, with its reason (tune.auto: on by default) — never a smaller view, a cheaper model or more requests.\n" +
+    "--questions: what only a person decides about it — smaller views (only through the paid calibration), weak scans\n" +
+    "searched again, sharper parts from an archive (with the requests it adds per host and the time at its pace), an\n" +
+    "index first from how many scans, the research's model reading handwriting again, a change of the tuning returned.\n" +
+    "Each with what is recommended and why, in numbers; asked again only when the data change. A person answers: at their\n" +
+    "terminal one by one (Enter: the recommended, 0: back), or --answer <question>=<choice> — from an agent's session a\n" +
+    "window of the system asks; nobody to ask: exit 4. An agent never answers: it tells the person. Nothing in an archive.\n" +
+    "--reset returns the reading of scans to the defaults: the calibrated sizes, what strom set by itself and the answers to\n" +
+    "its questions — listed first (what, scope, now → default, source, date, why), returned only on a person's yes (their\n" +
+    "terminal, Enter says no; a window of the system when an agent asks); --dry-run and --json only list. The research\n" +
+    "itself is never touched: tasks an answer added stay, the measurements stay. What was returned strom does not set again\n" +
+    "by itself for 30 days or until new readings come. strom doctor says when the reading got worse after a change of strom's.",
   options: [
     { name: "model", type: "string", value: "<model>", description: "the model to tune for (default: the research's model, else the one it reads scans with)" },
     { name: "sizes", type: "string", value: "<px,px,…>", description: "the long sides compared (default 1400,1568,2000 — those the model takes)" },
     { name: "estimate", type: "boolean", description: "the sample and the estimated cost; nothing run" },
-    { name: "reset", type: "boolean", description: "forget the tuning of this agent and model: the default sizes again" },
+    {
+      name: "reset",
+      type: "boolean",
+      description:
+        "back to the defaults for this agent and model: the calibrated sizes, what strom set by itself (in the user config and this research) and the answers to its questions — listed first, returned on a person's yes",
+    },
+    { name: "all", type: "boolean", description: "with --reset: every agent and model of the user config and of this research (other researches keep their books' values: said, with the command)" },
+    { name: "only", type: "string", value: "<parts>", description: "with --reset: only sizes, batches, fetch or answers (several separated by commas)" },
+    { name: "recordset", type: "string", value: "<B…>", description: "with --reset: only what is set for this book" },
+    { name: "host", type: "string", value: "<host>", description: "with --reset: only what is set for this archive" },
+    { name: "dry-run", type: "boolean", description: "with --reset: only list what would be returned" },
+    {
+      name: "report",
+      type: "boolean",
+      description: "free: how the reading of scans went, from this research's own records (no agent, no network) — per book and archive, what is above the usual, what strom set by itself and what would be suggested",
+    },
+    {
+      name: "questions",
+      type: "boolean",
+      description: "what only a person decides about the reading of scans, each with what is recommended and why (free; asked one by one at a person's terminal)",
+    },
+    { name: "answer", type: "string", value: "<question>=<choice>", description: "a person's answer to one, e.g. Q1a2b3c=later (from an agent's session: a window of the system asks the person)" },
     { name: "parallel", type: "string", value: "<n>", description: "readers at the same time (default 3)" },
-    { name: "minutes", type: "string", value: "<n>", description: "time limit of one reader (default 15)" },
+    { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP },
   ],
-  examples: ["strom media calibrate --estimate", "strom media calibrate", "strom media calibrate --reset"],
+  examples: [
+    "strom media calibrate --report",
+    "strom media calibrate --questions",
+    "strom media calibrate --estimate",
+    "strom media calibrate",
+    "strom media calibrate --reset --dry-run",
+    "strom media calibrate --reset",
+    "strom media calibrate --reset --only sizes --recordset B0003",
+    "strom media calibrate --reset --only fetch --host archive.example",
+    "strom media calibrate --reset --all",
+  ],
   run: async (ctx: Context, { opts }) => {
     const tree = ctx.tree();
-    refuseInArchive(tree, "strom media calibrate");
     const lang = tree.lang;
     const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
+    // an archive: nobody reads scans there, nothing is asked about it (and nothing of an agent said)
+    if (isArchive(tree) && (opts.questions || typeof opts.answer === "string")) return { text: t("ui.waiting.none"), data: { questions: [] } };
+    refuseInArchive(tree, "strom media calibrate");
     const agent = ctx.settings.agent(tree.config).value;
     const model = viewModel(ctx.settings, agent, tree.config, typeof opts.model === "string" ? opts.model : undefined);
     const key = calibrationKey(agent, model);
     const who = calibrationLabel(key, t("ui.settings.model.own"));
     const defaults = defaultViewSizes(agent, model);
 
-    if (opts.reset) {
-      ctx.settings.reload();
-      const had = forgetCalibration(ctx.settings.config, key);
-      if (had) ctx.settings.save();
-      return { text: t(had ? "ui.views.reset" : "ui.views.reset.none", { agent: who, find: defaults.find, read: defaults.read }), data: { key, reset: had, find: defaults.find, read: defaults.read } };
-    }
+    if (opts.report) return report(ctx, tree, key, who);
+    if (typeof opts.answer === "string") return answer(ctx, tree, opts.answer);
+    if (opts.questions) return questions(ctx, tree, who);
+
+    if (opts.reset) return resetReading(ctx, tree, { key, ...resetOptions(opts), ...(typeof opts.model === "string" ? { model: opts.model } : {}) });
+    for (const o of ["all", "only", "recordset", "host", "dry-run"]) if (opts[o] !== undefined && opts[o] !== false) throw new UsageError(`--${o} goes with --reset`, { hint: "strom media calibrate --reset --dry-run" });
 
     const runner = RUNNERS[agent];
     if (!runner) throw new UsageError(`no reader for agent "${agent}"`, { hint: "strom agents use claude (or codex, opencode, grok, antigravity)" });
@@ -176,7 +511,7 @@ register({
       const jobs: CalJob[] = p.items.map((it) => ({
         id: it.id,
         target: it.target,
-        views: viewsOf(p.kind, it, p.size).map((v) => ({ ...(v.label ? { label: v.label } : {}), view: makeView(tree, it.file, it.mediaId, { max: p.size, ...(v.crop ? { crop: v.crop } : {}) }).file })),
+        views: viewsOf(p.kind, it, p.size).map((v) => ({ ...(v.label ? { label: v.label } : {}), view: makeView(tree, it.file, it.mediaId, { max: p.size, ...(v.crop ? { crop: v.crop } : {}) }, { reader: true }).file })),
       }));
       r0.progress(t("ui.views.progress", { what: t(p.kind === "find" ? "ui.views.what.find" : "ui.views.what.read"), size: p.size, n: p.items.length }));
       const r = await r0.read(`${p.kind}${p.size}-${k}`, jobs.flatMap((j) => j.views.map((v) => v.view)), `Calibration · ${p.kind} at ${p.size} px`, (report) => calibrationPrompt(p.kind, jobs, report));

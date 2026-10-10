@@ -1,4 +1,4 @@
-// connector list · show · new · add · remove · test — fetch — allow connector · allow host · consents · login
+// connector list · show · new · add · remove · discard · test — fetch — allow connector · allow host · consents · login
 //
 // Archive downloads through plugins (connectors) in the plugins folder,
 // <shared>/plugins/connectors/<name>/: copied in by the user, or built there
@@ -18,7 +18,7 @@ import { lines, moreLine, paginate, runs, shellArg, table } from "../cli/format.
 import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import { deadlineOf, REMIND_MS } from "../core/clock.ts";
 import { isAgent } from "../core/which.ts";
-import type { Media, RecordSet, Region, Repository } from "../core/model.ts";
+import { RECORD_TYPES, type Media, type RecordSet, type Region, type Repository, type Search, type Source } from "../core/model.ts";
 import { requireRecord } from "../core/records.ts";
 import { readable } from "../core/text.ts";
 import { findImage, isWhole, regionText, sameRegion } from "../core/media.ts";
@@ -92,6 +92,159 @@ import {
   type RunReport,
 } from "../core/connector.ts";
 import { registerImages } from "./media.ts";
+import { FetchMeter, metricsDir, recordFetch, requestsPerImage } from "../core/metrics.ts";
+import { currentSession } from "../core/session.ts";
+
+/** Which session of the research started a connector (strom connector new): its agent may discard it in that session. */
+function madeMarker(root: string, name: string): string {
+  return path.join(root, ".strom", "connectors-made", `${name}.json`);
+}
+
+/** What a marker of strom connector new says: the session, its research and tree, when, and which folder it made. */
+interface MadeConnector {
+  session: string;
+  /** The tree's id (strom.json): a marker copied into another research names none of its sessions. */
+  tree: string;
+  /** The direction (G…) of the session, when it has one. */
+  research?: string;
+  at: string;
+  /** The folder made, as the file system knows it: a folder of that name put there since is another one. */
+  folder: FolderId;
+}
+
+/** A folder's identity: its inode and its birth time (ns; 0 where the file system keeps none). */
+interface FolderId {
+  ino: string;
+  birth: string;
+}
+
+/** The identity of a folder itself (a symbolic link is none), or nothing. */
+function folderId(dir: string): FolderId | undefined {
+  try {
+    const s = fs.lstatSync(dir, { bigint: true });
+    return s.isDirectory() ? { ino: String(s.ino), birth: String(s.birthtimeNs) } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * An entry of the plugins folder a new connector's name would meet: the same name, or one a file system that ignores
+ * case or the form of an accented letter (macOS, Windows) takes for it — a folder with no connector in it, a file and a
+ * symbolic link too.
+ */
+function nameTaken(dir: string, name: string): string | undefined {
+  const key = (s: string) => s.normalize("NFC").toLowerCase();
+  let entries: string[] = [];
+  try {
+    entries = fs.readdirSync(dir);
+  } catch {
+    return undefined;
+  }
+  return entries.find((e) => key(e) === key(name));
+}
+
+/** The folder of a connector a session made, when it is that one still: a real folder right in the plugins folder. */
+function ownFolder(connectors: string, name: string, made: MadeConnector): string | undefined {
+  const dir = path.join(connectors, name);
+  try {
+    if (path.basename(dir) !== name || path.dirname(dir) !== connectors) return undefined;
+    if (fs.realpathSync.native(dir) !== path.join(fs.realpathSync.native(connectors), name)) return undefined;
+  } catch {
+    return undefined;
+  }
+  const now = folderId(dir);
+  return now && now.ino === made.folder.ino && now.birth === made.folder.birth ? dir : undefined;
+}
+
+/**
+ * Who else used a connector one session made: another session (or the user) of this research — images it fetched, the
+ * record sets, sources and searches resting on them, its runs measured in fetch.jsonl — or another research on this
+ * computer (images it fetched, its runs). Each said in a few words; none: the session alone used it.
+ */
+function usedElsewhere(ctx: Context, tree: Tree, name: string, made: MadeConnector): string[] {
+  const out: string[] = [];
+  const said = new Set<string>();
+  const say = (s: string) => {
+    if (!said.has(s)) said.add(s), out.push(s);
+  };
+  // this research: the records of what it fetched, and every operation on them by anyone but the session
+  const media = tree.list<Media>("media").filter((m) => m.fetched?.connector === name);
+  const mediaIds = new Set(media.map((m) => m.id));
+  const sets = new Set(media.map((m) => m.recordset).filter((b): b is string => !!b));
+  const resting = new Set<string>();
+  for (const s of tree.list<Source>("source")) if ((s.media ?? []).some((m) => mediaIds.has(m)) || (s.clips ?? []).some((c) => mediaIds.has(c.media))) resting.add(s.id);
+  for (const q of tree.list<Search>("search")) if (q.recordsets.some((b) => sets.has(b))) resting.add(q.id);
+  for (const b of sets) resting.add(b);
+  if (mediaIds.size || resting.size)
+    for (const op of tree.readOps()) {
+      if (op.by === made.session) continue;
+      // its images are its own whenever they came; what rests on them, from the time it was made (a record set may be older)
+      const hit = op.targets.find((t) => mediaIds.has(t) || (resting.has(t) && op.at >= made.at));
+      if (hit) say(`${actorText(op.by)} of this research (${op.op} ${hit})`);
+    }
+  for (const r of fetchRuns(tree.root, name)) if (r.session !== made.session) say(`${actorText(r.session ?? r.by)} of this research (a run of it measured${r.at ? ` ${r.at}` : ""})`);
+  // the other researches on this computer: anything of it at all
+  let here = tree.root;
+  try {
+    here = fs.realpathSync.native(tree.root);
+  } catch {}
+  for (const k of ctx.knownTrees()) {
+    let root = k.root;
+    try {
+      root = fs.realpathSync.native(k.root);
+    } catch {}
+    if (root === here) continue;
+    const images = fetchedImages(root, name);
+    if (images) say(`the research "${k.name}" (${images} image${images === 1 ? "" : "s"} fetched)`);
+    const runs = fetchRuns(root, name).length;
+    if (runs) say(`the research "${k.name}" (${runs} run${runs === 1 ? "" : "s"} of it measured)`);
+  }
+  return out;
+}
+
+/** Who an operation or a run names: a session, the user, an agent outside a session. */
+function actorText(by: string | undefined): string {
+  return by && /^N\d+$/.test(by) ? `session ${by}` : by === "agent" ? "an agent outside a session" : "the user";
+}
+
+/** The runs of a connector a research measured (.strom/metrics/fetch.jsonl): who and when. */
+function fetchRuns(root: string, name: string): { session?: string; by?: string; at?: string }[] {
+  let text = "";
+  try {
+    text = fs.readFileSync(path.join(metricsDir(root), "fetch.jsonl"), "utf8");
+  } catch {
+    return [];
+  }
+  const out: { session?: string; by?: string; at?: string }[] = [];
+  for (const line of text.split("\n"))
+    try {
+      const r = JSON.parse(line) as { connector?: unknown; session?: unknown; by?: unknown; at?: unknown };
+      if (r.connector === name) out.push({ ...(typeof r.session === "string" ? { session: r.session } : {}), ...(typeof r.by === "string" ? { by: r.by } : {}), ...(typeof r.at === "string" ? { at: r.at } : {}) });
+    } catch {
+      // a line cut short names nothing
+    }
+  return out;
+}
+
+/** How many images of a research (its data, read without opening it) a connector fetched. */
+function fetchedImages(root: string, name: string): number {
+  const dir = path.join(root, "data", RECORD_TYPES.media.dir);
+  let names: string[] = [];
+  try {
+    names = fs.readdirSync(dir).filter((n) => n.endsWith(".json"));
+  } catch {
+    return 0;
+  }
+  let n = 0;
+  for (const f of names)
+    try {
+      if ((JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")) as Partial<Media>).fetched?.connector === name) n++;
+    } catch {
+      // an unreadable record names nothing
+    }
+  return n;
+}
 
 function shared(ctx: Context): string {
   const s = ctx.settings.shared();
@@ -219,9 +372,14 @@ function pixels(file: string): string {
   return s ? ` ${s.width}×${s.height} px` : "";
 }
 
+/**
+ * What a run asked of the archive: the requests that went to its hosts, as the hourly counter takes them (a redirect
+ * and a retry are requests too) — the connector's own count said beside where it is less.
+ */
 function describeRun(r: RunReport, what: string): string {
+  const more = r.sent - r.requests;
   return lines(
-    `${what}: ${r.requests} request(s)${r.pages ? ` + ${r.pages} page(s) your browser got` : ""}${r.stopped ? ` · stopped: ${r.stopped}` : ""}`,
+    `${what}: ${r.sent} request(s)${more > 0 ? ` (the connector asked ${r.requests}; ${more} more: redirects or retries)` : ""}${r.pages ? ` + ${r.pages} page(s) your browser got` : ""}${r.stopped ? ` · stopped: ${r.stopped}` : ""}`,
     ...r.logs.slice(-10).map((l) => `  · ${l}`),
   );
 }
@@ -244,6 +402,46 @@ function limitWait(ctx: Context): { waitMs: number; onWait: (w: { host: string; 
         `  · ${w.host}: ${w.why === "cap" ? "its hourly cap is used up" : "it says its limit is used up"} — strom waits until ${clock(w.until)} (${Math.max(1, Math.ceil(w.ms / 60_000))} min), then goes on by itself (it waits at most ${Math.round(waitMs / 60_000)} min); do not stop it\n`,
       ),
   };
+}
+
+/** The limiter's pauses and requests counted for the measure of a run (core/metrics.ts). */
+function metered(m: FetchMeter): { onPause: FetchMeter["pause"]; onRequest: FetchMeter["request"] } {
+  return { onPause: m.pause, onRequest: m.request };
+}
+
+/**
+ * A run of a connector written to .strom/metrics/fetch.jsonl: who asked what of which archive — its requests to each
+ * host, the pauses for its pace and the waits for its limits, what it got. Outside a research nothing is written.
+ */
+function measure(ctx: Context, c: Connector, meter: FetchMeter | undefined, rec: Record<string, unknown>, r?: RunReport): void {
+  try {
+    if (!ctx.hasTree()) return;
+    const tree = ctx.tree();
+    const got = r ? r.images.map((i) => i.n).filter((n): n is number => n !== undefined) : [];
+    recordFetch(
+      tree,
+      ctx.env,
+      {
+        connector: c.name,
+        ...rec,
+        ...(r
+          ? {
+              requests: r.requests,
+              pages: r.pages,
+              got,
+              located: r.located.length || undefined,
+              books: r.books.length || undefined,
+              later: r.later !== undefined ? new Date(r.later).toISOString() : undefined,
+              stopped: r.stopped?.slice(0, 200),
+              result: rec.result ?? (r.needs ? "page" : r.later !== undefined ? "later" : r.stopped ? "stopped" : "ok"),
+            }
+          : {}),
+      },
+      meter,
+    );
+  } catch {
+    // a measurement is no reason to fail
+  }
 }
 
 /** A run that ended at a limit used up: when to try again, and the exit code that says "later". */
@@ -345,9 +543,15 @@ export function requestsSpan(n: number, pace: Pace, recent: number[], now = Date
   return Math.max(0, t - now);
 }
 
-/** What a fetch asks of the archive, said before it starts: the requests, how long at the host's pace, its hourly cap and what is left of it. */
+/**
+ * What a fetch asks of the archive, said before it starts: the requests, how long at the host's pace, its hourly cap
+ * and what is left of it. The requests as the host's counter took them in this research's last runs of the connector
+ * (a page of the book first, a redirect, a request for its size): an image, or a part, at least one.
+ */
 function estimate(ctx: Context, c: Connector, images: number, part?: number): string {
   const host = bareHost(c.manifest.hosts[0] ?? "");
+  const per = ctx.hasTree() ? requestsPerImage(ctx.tree().root, c.name, part !== undefined ? "part" : "fetch") : undefined;
+  const asks = Math.max(images, Math.ceil(images * (per ?? 1) - 1e-9));
   const pace = connectorPace(ctx, c);
   const recent = hostState(netDir(ctx), host).recent;
   const now = (testHooks.now ?? Date.now)();
@@ -358,13 +562,19 @@ function estimate(ctx: Context, c: Connector, images: number, part?: number): st
   const capped = Number.isFinite(pace.perHour) && pace.perHour > 0;
   const left = capped ? Math.max(0, pace.perHour - recent.filter((t) => t > now - 3600_000).length) : Infinity;
   const pacing = `≥${pace.minIntervalMs / 1000} s apart${capped ? `, at most ${pace.perHour} an hour — ${left} left this hour` : ""}`;
-  const waits = images > left;
+  const waits = asks > left;
+  const learned = per !== undefined && asks > images ? ` (${nf(per)} ${part !== undefined ? "a part" : "an image"}, as its last runs here went)` : "";
   return lines(
-    `${part !== undefined ? `a part of image ${part}` : `${images} image(s)`} through ${c.name}: at least ${images} request(s) to ${host}, about ${span(images)} at its pace (${pacing})`,
+    `${part !== undefined ? `a part of image ${part}` : `${images} image(s)`} through ${c.name}: ${learned ? "about" : "at least"} ${asks} request(s) to ${host}${learned}, about ${span(asks)} at its pace (${pacing})`,
     waits
       ? `  the hourly cap holds the rest back: fetch the whole images first (a request each) and a part only of an image whose entry needs it`
       : undefined,
   );
+}
+
+/** 1.5, 2, 2.33 — a number of requests as said. */
+function nf(n: number): string {
+  return String(Math.round(n * 100) / 100);
 }
 
 /** How a connector's images come here, and what else it can do. */
@@ -527,11 +737,24 @@ register(
       } catch {
         throw new UsageError(`not a URL: ${opts.url}`);
       }
-      const dir = path.join(ensurePluginsDir(shared(ctx)), name);
-      if (fs.existsSync(dir)) throw new UsageError(`${ctx.display(dir)} exists already`, { hint: `strom connector show ${name}` });
+      const connectors = ensurePluginsDir(shared(ctx));
+      const dir = path.join(connectors, name);
+      // never somebody else's or an older folder taken over (a folder with no connector in it, a file, a symbolic link,
+      // the same name in other capitals or another form of its letters): a connector of its own, under another name
+      const taken = (other: string) =>
+        new UsageError(`${ctx.display(path.join(connectors, other))} is there already — a new connector never takes over what is in the plugins folder`, {
+          hint: `another name: strom connector new ${name}-2 --url ${shellArg(url.href)}${opts.title ? ` --title ${shellArg(String(opts.title))}` : ""}`,
+        });
+      const other = nameTaken(connectors, name);
+      if (other !== undefined) throw taken(other);
       const title = String(opts.title ?? url.hostname);
       const fill = (s: string) => s.replaceAll("__TITLE__", title).replaceAll("__URL__", url.origin).replaceAll("__NAME__", name);
-      fs.mkdirSync(dir, { recursive: true });
+      try {
+        fs.mkdirSync(dir); // its own, or none: another process making the same name meanwhile gets EEXIST
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "EEXIST") throw taken(name);
+        throw err;
+      }
       const manifest = {
         interface: INTERFACE,
         title,
@@ -547,6 +770,19 @@ register(
       fs.writeFileSync(path.join(dir, "connector.ts"), fill(readAsset("plugins", "connectors", "template.ts")!));
       fs.writeFileSync(path.join(dir, "DISCOVERY.md"), fill(readAsset("plugins", "connectors", "DISCOVERY.md")!));
       fs.writeFileSync(path.join(dir, "README.md"), `# ${title} — strom connector\n\nPortal: ${url.origin}\n\nHow the portal is mapped (catalogue search, book IDs, image URLs, requests per image) — written by whoever builds it.\n`);
+      // started in a session at work: its agent may take it away again in that session when it serves nothing
+      // (strom connector discard) — in the research's own .strom, never in the plugin's folder
+      const tree = ctx.hasTree() ? ctx.tree() : undefined;
+      const session = tree ? currentSession(tree, ctx.env) : undefined;
+      if (tree) {
+        const marker = madeMarker(tree.root, name);
+        const folder = folderId(dir);
+        if (session && folder) {
+          const made: MadeConnector = { session: session.id, tree: tree.config.id, ...(session.research ? { research: session.research } : {}), at: new Date().toISOString(), folder };
+          fs.mkdirSync(path.dirname(marker), { recursive: true });
+          fs.writeFileSync(marker, JSON.stringify(made) + "\n");
+        } else fs.rmSync(marker, { force: true }); // one of an older connector of that name names nothing now
+      }
       const rel = ctx.display(dir);
       return {
         text: lines(
@@ -636,6 +872,61 @@ register(
     },
   },
   {
+    path: ["connector", "discard"],
+    summary: "Take away a connector started in this session that can neither fetch nor find anything (what it learned: a lesson first)",
+    group: "sources",
+    tree: true,
+    description:
+      "Only one strom connector new started in the session at work, in this research: a connector that can neither\n" +
+      "fetch nor find anything does not stay in the plugins folder. What the portal does (a token on its files, a\n" +
+      "login, a viewer that gives nothing) goes into a lesson on its archive first: strom lesson add \"…\" --on R….\n" +
+      "One that finds books stays, said as what it is (\"can\": [\"find\", \"list\"]). Any other connector is the user's\n" +
+      "to remove, in their terminal: strom connector remove — so is one another session or another research used\n" +
+      "meanwhile, and a folder of that name that is not the one the session made.",
+    args: [{ name: "connector", description: "its name", required: true }],
+    examples: ["strom connector discard example-archive"],
+    run(ctx, { args }) {
+      const name = args[0]!;
+      const tree = ctx.tree();
+      const users = { hint: `the user, in their terminal: strom connector remove ${name}` };
+      // a name is a folder's name and nothing more: no path (/, \, ..), nothing empty or hidden
+      if (!NAME_RE.test(name)) throw new UsageError(`"${name}" is not a connector's name: lowercase letters, digits and dashes`, { hint: "strom connector list" });
+      const connectors = connectorsDir(shared(ctx));
+      if (!fs.existsSync(path.join(connectors, name)) && !folderId(path.join(connectors, name))) throw new UsageError(`no connector "${name}"`, { hint: "strom connector list" });
+      const marker = madeMarker(tree.root, name);
+      let made: Partial<MadeConnector> | undefined;
+      try {
+        made = JSON.parse(fs.readFileSync(marker, "utf8"));
+      } catch {}
+      // the session open now, of this research, made it — not one before, not a session of another research
+      const session = currentSession(tree, ctx.env);
+      if (!session || made?.session !== session.id || made.tree !== tree.config.id || (made.research ?? undefined) !== (session.research ?? undefined) || !made.folder || !made.at)
+        throw new UsageError(`${name} was not started in the session at work — taking it away is the user's`, users);
+      // the very folder it made: in the plugins folder itself (no symbolic link out of it), not one put there since
+      const dir = ownFolder(connectors, name, made as MadeConnector);
+      if (!dir) throw new UsageError(`the folder of ${name} is not the one this session made — taking it away is the user's`, users);
+      // used meanwhile by anyone else, here or in another research: no longer the session's to take away
+      const used = usedElsewhere(ctx, tree, name, made as MadeConnector);
+      if (used.length) throw new UsageError(`${name} was used meanwhile by ${used.slice(0, 3).join("; ")}${used.length > 3 ? ` and ${used.length - 3} more` : ""} — taking it away is the user's`, users);
+      // a login is the user's own: they take it away with the connector
+      if (loadLogins(ctx.env)[name]) throw new UsageError(`the user saved a login for ${name} — taking it away is theirs`, { hint: `the user, in their terminal: strom connector remove ${name}` });
+      const all = loadConsents(ctx.env);
+      if (all.connectors[name]) {
+        delete all.connectors[name];
+        saveConsents(ctx.env, all);
+      }
+      fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(marker, { force: true });
+      return {
+        text: lines(
+          `connector ${name} taken away (${ctx.display(dir)})`,
+          `what its portal does belongs in a lesson on its archive, for the next session: strom lesson add "…" --on R…`,
+        ),
+        data: { discarded: name },
+      };
+    },
+  },
+  {
     path: ["connector", "test"],
     summary: "Try a connector with a few requests (at most 10): what it finds, lists or fetches — files into its .test folder",
     group: "sources",
@@ -717,15 +1008,22 @@ register(
         if (!opts.fresh) kept = JSON.parse(fs.readFileSync(jarFile, "utf8"));
       } catch {}
       const cookies = CookieJar.from(kept);
-      const res = await politeRequest(url, {
-        stateDir: netDir(ctx),
-        hosts: c.manifest.hosts,
-        pace: c.manifest.policy.pace ?? {},
-        method: method as "GET" | "POST" | "HEAD",
-        headers,
-        ...(opts.body !== undefined ? { body: String(opts.body) } : {}),
-        cookies,
-      });
+      const meter = new FetchMeter();
+      let res: Awaited<ReturnType<typeof politeRequest>>;
+      try {
+        res = await politeRequest(url, {
+          stateDir: netDir(ctx),
+          hosts: c.manifest.hosts,
+          pace: c.manifest.policy.pace ?? {},
+          method: method as "GET" | "POST" | "HEAD",
+          headers,
+          ...(opts.body !== undefined ? { body: String(opts.body) } : {}),
+          cookies,
+          ...metered(meter),
+        });
+      } finally {
+        measure(ctx, c, meter, { via: "direct", cmd: "probe", requests: meter.requests() });
+      }
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(jarFile, JSON.stringify(cookies.entries(), null, 2) + "\n");
       return probeResult(ctx, c, method, url, res, opts.save === undefined ? undefined : String(opts.save), [...new Set(cookies.entries().map((k) => k.name))]);
@@ -746,7 +1044,7 @@ register(
       { name: "pattern", description: "the text to find: in any case, as it reads (&aacute; is á), a space for any white space", required: true },
     ],
     options: [
-      { name: "regex", type: "boolean", description: "the pattern is a regular expression (JavaScript, in any case)" },
+      { name: "regex", type: "boolean", description: "the pattern is a regular expression (JavaScript, in any case) — a backtick in it written as . (any character): a command with one is refused" },
       { name: "in", type: "string", value: "<file>", description: "only this file (its name in .test/probe, or its path in .test)" },
       { name: "around", type: "string", value: "<n>", description: "characters shown before and after a hit (default 80)" },
     ],
@@ -1123,7 +1421,9 @@ async function testWith(ctx: Context, c: Connector, request: ConnectorRequest, m
   fs.mkdirSync(workDir, { recursive: true });
   for (const e of fs.readdirSync(workDir)) if (e !== "probe") fs.rmSync(path.join(workDir, e), { recursive: true, force: true }); // what probes saved stays
   const pages = pagesOf(ctx, c);
-  const r = await runConnector(c, request, { env: ctx.env, workDir, netDir: netDir(ctx), maxRequests: max, onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...(pages ? { pages } : {}) });
+  const meter = new FetchMeter();
+  const r = await runConnector(c, request, { env: ctx.env, workDir, netDir: netDir(ctx), maxRequests: max, onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...metered(meter), ...(pages ? { pages } : {}) });
+  measure(ctx, c, meter, { via: "direct", cmd: "test", test: request.cmd, ...("book" in request ? { book: request.book } : {}) }, r);
   if (r.needs) return planPages(ctx, c, r.needs, { cmd: "test", request: { ...request }, max }, `strom connector test ${c.name} (${request.cmd})`, describeRun(r, `test ${request.cmd}`));
   const direct = directNetwork(c);
   return {
@@ -1141,6 +1441,21 @@ async function testWith(ctx: Context, c: Connector, request: ConnectorRequest, m
   };
 }
 
+/** A probe's answer an agent reads whole at most (bytes), and its longest line (characters): past either, it searches it. */
+const PROBE_READ_MAX = 64 * 1024;
+const PROBE_LINE_MAX = 5000;
+
+/** The longest line of a saved answer, in characters (bytes, near enough). */
+function longestLine(body: Buffer): number {
+  let max = 0;
+  let from = 0;
+  for (let i = body.indexOf(10); i !== -1; i = body.indexOf(10, from)) {
+    max = Math.max(max, i - from);
+    from = i + 1;
+  }
+  return Math.max(max, body.length - from);
+}
+
 /** What a probe got, saved in .test/probe to read — from strom's request or from the user's browser. */
 function probeResult(ctx: Context, c: Connector, method: string, url: string, res: { status: number; contentType: string; headers: Record<string, string>; url: string; body: Buffer }, save: string | undefined, cookies?: string[]): Result {
   const dir = path.join(c.dir, ".test", "probe");
@@ -1149,15 +1464,20 @@ function probeResult(ctx: Context, c: Connector, method: string, url: string, re
   const name = String(save ?? fromUrl).replace(/[^\p{L}\p{M}\p{N}._-]+/gu, "_").replace(/^\.+/, "_");
   const file = path.join(dir, name);
   fs.writeFileSync(file, res.body);
-  const textual = /^(text\/|application\/(json|xml|javascript)|image\/svg)/.test(res.contentType);
+  const textual = /^(text\/|application\/(json|xml|javascript|x-javascript)|image\/svg)/.test(res.contentType);
   const check = botCheck(res.body, res.headers);
+  // a big page or script, or a minified one (one long line), is past what an agent can read whole (a live run: a
+  // script of one line went past its read limit): it is searched
+  const longest = textual ? longestLine(res.body) : 0;
+  const big = textual && (res.body.length > PROBE_READ_MAX || longest > PROBE_LINE_MAX);
+  const search = `strom connector grep ${c.name} <text>${big ? ` --in ${shellArg(name)}` : ""} (an address such as /api/, .json, .jpg; a form field)`;
   return {
     text: lines(
       `${method} ${url} → ${res.status} · ${res.contentType || "no type"} · ${res.body.length} B${res.url && res.url !== url ? ` · after redirects ${res.url}` : ""}${cookies ? "" : " · from your browser"}`,
       ...Object.entries(res.headers)
         .filter(([k]) => !["date", "connection", "keep-alive", "transfer-encoding", "vary"].includes(k))
         .map(([k, v]) => `  ${k}: ${v}`),
-      `saved: ${ctx.display(file)}${textual ? ` — search it: strom connector grep ${c.name} <text> (an address such as /api/, .json, .jpg; a form field)` : ""}`,
+      `saved: ${ctx.display(file)}${big ? ` — too big to read whole (${Math.round(res.body.length / 1024)} KB${longest > PROBE_LINE_MAX ? `, a line of ${longest} characters` : ""}): never read the file, search it: ${search}` : textual ? ` — search it: ${search}` : ""}`,
       check
         ? c.manifest.browser?.pages
           ? `⚠ this is ${check}'s check whether a person is there, not the page: the user passes it in that tab of their browser (never you), then probe again`
@@ -1166,7 +1486,7 @@ function probeResult(ctx: Context, c: Connector, method: string, url: string, re
       cookies?.length ? `cookies kept for the next probe: ${cookies.join(", ")} (--fresh starts without them)` : undefined,
       textual && res.body.length <= 1500 ? res.body.toString("utf8") : undefined,
     ),
-    data: { status: res.status, type: res.contentType, headers: res.headers, url: res.url, bytes: res.body.length, file, ...(cookies ? { cookies } : { via: "browser" }), ...(check ? { botCheck: check } : {}) },
+    data: { status: res.status, type: res.contentType, headers: res.headers, url: res.url, bytes: res.body.length, file, ...(big ? { big: true } : {}), ...(cookies ? { cookies } : { via: "browser" }), ...(check ? { botCheck: check } : {}) },
   };
 }
 
@@ -1345,6 +1665,8 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     const had = tree.list<Media>("media").find((m) => m.recordset === recordset && m.image === request.image && m.part && sameRegion(m.part, request.region) && fs.existsSync(path.join(shared(ctx), m.file)));
     if (had) return { text: `part ${regionText(request.region)} of image ${request.image} of ${recordset} is registered already: ${had.id} — nothing fetched`, data: { added: [], again: [had.id] } };
     const none = noSharperPart(tree.list<Media>("media"), c.name, recordset, request.image, request.region);
+    if (none && !tree.dryRun)
+      measure(ctx, c, undefined, { via, cmd: "part", book: request.book, rs: recordset, img: request.image, part: request.region, requests: 0, noSharper: { gain: Math.round(none.gain * 100) / 100, detail: none.detail, width: none.width }, result: "no-sharper" });
     if (none)
       return {
         text: lines(
@@ -1377,9 +1699,15 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   const workDir = path.join(tree.root, ".strom", "fetch", `${c.name}-${Date.now()}`);
   const t0 = Date.now();
   const pages = pagesOf(ctx, c);
-  const r = await runConnector(c, request, { env: ctx.env, workDir, netDir: netDir(ctx), onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...(pages ? { pages } : {}) });
+  const meter = new FetchMeter();
+  const r = await runConnector(c, request, { env: ctx.env, workDir, netDir: netDir(ctx), onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...metered(meter), ...(pages ? { pages } : {}) });
+  // what it asked of the archive (a part's gain once it is registered, below)
+  const asked = request.cmd === "fetch" ? { asked: request.images } : request.cmd === "part" ? { img: request.image, part: request.region } : {};
+  const run = { via, cmd: request.cmd, ...("book" in request ? { book: request.book } : {}), ...(recordset ? { rs: recordset } : {}), ...asked };
+  if (request.cmd !== "part") measure(ctx, c, meter, run, r);
   if (r.needs) {
     fs.rmSync(workDir, { recursive: true, force: true });
+    if (request.cmd === "part") measure(ctx, c, meter, run, r);
     return planPages(ctx, c, r.needs, { cmd: "fetch", request: { ...request }, ...(recordset ? { recordset } : {}) }, `strom fetch ${c.name} (${request.cmd})`, describeRun(r, request.cmd));
   }
   const took = `${Math.round((Date.now() - t0) / 1000)} s`;
@@ -1402,6 +1730,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     const m = res.added[0];
     const whole = recordset ? findImage(tree.list<Media>("media").filter((x) => !x.part), recordset, request.image) : undefined;
     const gain = m?.width && m.part && whole?.width ? m.width / m.part.w / whole.width : undefined;
+    measure(ctx, c, meter, { ...run, ...(gain !== undefined ? { gain: Math.round(gain * 100) / 100, ...(gain < 1.2 ? { noSharper: true } : {}) } : {}), ...(m ? { media: [m.id] } : {}) }, r);
     text = m
       ? lines(
           `part ${regionText(m.part!)} of image ${request.image} of ${recordset} fetched and registered: ${m.id}${m.width ? ` · ${m.width}×${m.height} px` : ""}${gain ? ` · ${gain.toFixed(1)}× the detail of the whole image` : ""} · ${took}`,
@@ -1460,7 +1789,9 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
   const batch = asked.slice(0, Math.max(1, Math.floor(SCRIPT_MS / pace.minIntervalMs)));
   const workDir = path.join(tree.root, ".strom", "fetch", `${c.name}-${Date.now()}`);
   const pages = pagesOf(ctx, c);
-  const r = await runConnector(c, { cmd: "locate", book: request.book, images: batch, ...(part ? { region: request.region } : {}) }, { env: ctx.env, workDir, netDir: netDir(ctx), onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...(pages ? { pages } : {}) });
+  const meter = new FetchMeter();
+  const r = await runConnector(c, { cmd: "locate", book: request.book, images: batch, ...(part ? { region: request.region } : {}) }, { env: ctx.env, workDir, netDir: netDir(ctx), onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...metered(meter), ...(pages ? { pages } : {}) });
+  measure(ctx, c, meter, { via: "browser", cmd: "locate", book: request.book, ...(recordset ? { rs: recordset } : {}), ...(part ? { img: request.image, part: request.region } : { asked: batch }) }, r);
   fs.rmSync(workDir, { recursive: true, force: true });
   if (r.needs) return planPages(ctx, c, r.needs, { cmd: "fetch", request: { ...request }, ...(recordset ? { recordset } : {}) }, `strom fetch ${c.name} (${request.cmd} of book ${request.book})`, describeRun(r, "locate"));
   if (!r.located.length) return { text: lines(describeRun(r, "locate"), "no image located — nothing planned"), data: r, exitCode: 1 };
@@ -1588,6 +1919,16 @@ async function takeOver(ctx: Context, c: Connector, result: string | undefined):
     const left = plan.items.filter((i) => !mine.some((t) => t.item === i));
     if (left.length) savePlan(tree.root, { ...plan, items: left });
     else removePlan(tree.root, plan.id);
+  }
+  // what the user's browser asked of the archive for each plan (one request an image), for the measure of the load
+  for (const plan of plans) {
+    const mine = taken.filter((t) => t.plan === plan).map((t) => t.item.n);
+    const told = got.filter((g) => plan.items.some((i) => i.n === g.n)).length;
+    const n = Math.max(told, mine.length);
+    if (!n) continue;
+    const meter = new FetchMeter();
+    for (let i = 0; i < n; i++) meter.request(plan.host);
+    measure(ctx, c, meter, { via: "browser", cmd: "take", book: plan.book, ...(plan.recordset ? { rs: plan.recordset } : {}), requests: n, got: mine, result: "ok" });
   }
   const fetchedOk = new Set(got.filter((g) => g.status === 200).map((g) => g.n));
   const lost = missing.filter((m) => fetchedOk.has(m.item.n) && !m.unfinished);

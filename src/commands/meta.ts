@@ -30,6 +30,7 @@ import { liveWorkers, runAlive } from "../core/workers.ts";
 import { label } from "../core/people.ts";
 import { isArchive } from "../core/mode.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
+import { questionsWaiting } from "../core/tuneask.ts";
 
 interface Orientation {
   version: string;
@@ -51,6 +52,8 @@ interface Orientation {
   reread?: { facts: number; models: string[]; model: string };
   /** The scan views were tuned for another agent or model than the research's now: offered again, never started. */
   views?: { now: string; before: string[] };
+  /** Questions about the reading of scans waiting for a person (an agent tells the person; it never answers them). */
+  tune?: { questions: number; command: string };
   next: { why: string; command: string };
 }
 
@@ -121,6 +124,8 @@ function orientation(ctx: Context): Orientation {
   }
   const views = isArchive(tree) ? undefined : calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config);
   if (views) base.views = views;
+  const questions = isArchive(tree) ? 0 : questionsWaiting(tree, ctx.settings);
+  if (questions) base.tune = { questions, command: "strom media calibrate --questions" };
   const stories = ctx.settings.stories(tree.config);
   base.stories = !stories.on ? "off" : stories.said || told.stories ? "on" : "tell";
   if (!told.ask && base.tree.persons > 0) base.ask = true;
@@ -225,6 +230,8 @@ register(
               o.reread && !archive ? row(t("ui.o.reread"), t("ui.o.reread.offer", { n: o.reread.facts, models: o.reread.models.join(", "), model: o.reread.model })) : undefined,
               // the scan views tuned before for another agent or model: offered again, never run unasked
               o.views && !archive ? row(t("ui.o.views"), t("ui.views.offer", { before: calibrationLabel(o.views.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(o.views.now, t("ui.settings.model.own")) })) : undefined,
+              // what only a person decides about reading them: one line, for the agent to tell the person
+              o.tune && !archive ? row(t("ui.o.views"), t("ui.o.tune", { n: o.tune.questions })) : undefined,
               o.researches?.length
                 ? t("ui.o.research") + "\n" + table(o.researches.map((r) => [`  ${r.id}`, r.name, `[${r.state}]`, r.focus]))
                 : t("ui.o.research.none"),

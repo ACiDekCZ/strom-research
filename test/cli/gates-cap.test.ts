@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { readJsonFile } from "../helpers.ts";
+import { readJsonFile, World } from "../helpers.ts";
 import { opts, world } from "./gates.helpers.ts";
 import { limitsOf } from "../../src/runners/claude.ts";
 import { mergeLimits } from "../../src/runners/runner.ts";
@@ -213,20 +213,81 @@ test("a session asked to finish by the limit: every strom command its agent runs
 test("a cap in run.gate is checked when it is set: a whole number 1 to 100, else said at once and nothing saved", opts, async () => {
   const w = await world([]);
   for (const spec of ["claude-usage 15 --cap 0", "claude-usage 15 --cap 101", "claude-usage 15 --cap", "claude-usage --cap=dost", "claude-usage --cap --x", "claude-usage --cap 9.5"]) {
+    // said in the research's language (this tree's Czech) through the catalog, never an English line in it
     const r = await w.run(["config", "set", "run.gate", spec], { tty: true });
     assert.equal(r.code, 2, spec);
-    assert.match(r.err, /--cap[^\n]*: the cap is a whole number from 1 to 100 — the % of the week a run never goes past/, spec);
-    assert.match(r.err, /strom config set run\.gate "claude-usage 15 --cap 95"/, spec);
+    assert.match(r.err, /--cap[^\n]*: strop je celé číslo od 1 do 100 – procento týdne, přes které běh nikdy nepůjde/, spec);
+    assert.match(r.err, /např\. strom config set run\.gate "claude-usage 15 --cap 95"/, spec);
+    assert.doesNotMatch(r.err, /the cap is|e\.g\./, spec);
     assert.equal((await w.ok(["config", "get", "run.gate"])).out.trim(), "", `${spec}: nothing saved`);
   }
+  assert.match((await w.run(["config", "set", "run.gate", "claude-usage 15 --cap"], { tty: true })).err, /--cap bez čísla: strop je/);
+  for (const [lang, said, hint] of [
+    ["en", /--cap 150: the cap is a whole number from 1 to 100 — the % of the week a run never goes past/, /e\.g\. strom config set run\.gate "claude-usage 15 --cap 95"/],
+    ["de", /--cap abc: die Obergrenze ist eine ganze Zahl von 1 bis 100 – der Anteil der Woche in %, über den ein Lauf nie hinausgeht/, /z\. B\. strom config set run\.gate "claude-usage 15 --cap 95"/],
+  ] as const) {
+    const r = await w.run(["config", "set", "run.gate", lang === "en" ? "claude-usage 15 --cap 150" : "claude-usage 15 --cap abc", "--lang", lang], { tty: true });
+    assert.equal(r.code, 2, lang);
+    assert.match(r.err, said, lang);
+    assert.match(r.err, hint, lang);
+  }
+  assert.match((await w.run(["config", "set", "run.gate", "claude-usage --cap", "--lang", "de"], { tty: true })).err, /^Fehler: --cap ohne Zahl: die Obergrenze/m);
+  assert.match((await w.run(["config", "set", "run.gate", "claude-usage --cap 0"], { tty: true })).err, /^chyba: --cap 0: strop je/m);
+  // a program reads the English and the code
+  const json = await w.run(["config", "set", "run.gate", "claude-usage 15 --cap 0", "--json"], { tty: true });
+  assert.equal(json.json.code, "gate.cap");
+  assert.deepEqual(json.json.params, { cap: "--cap 0", name: "claude-usage" });
+  assert.match(json.json.message, /^--cap 0: the cap is a whole number from 1 to 100/);
   // an agent hears it too, before any window is asked
   const asAgent = await w.run(["config", "set", "run.gate", "claude-usage 15 --cap 0"], { env: { CLAUDECODE: "1" } });
   assert.equal(asAgent.code, 2);
-  // a gate test and a run say it the same
-  assert.equal((await w.run(["gate", "test", "claude-usage --cap 0"])).code, 2);
+  // a gate test and a run say it the same, in the same language
+  const tested = await w.run(["gate", "test", "claude-usage --cap 0"]);
+  assert.equal(tested.code, 2);
+  assert.match(tested.err, /--cap 0: strop je celé číslo od 1 do 100/);
+  assert.match((await w.run(["gate", "test", "claude-usage --cap 0", "--lang", "de"])).err, /--cap 0: die Obergrenze ist eine ganze Zahl/);
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  const ran = await w.run(["run", "--gate", "claude-usage --cap 0", "--max", "1"]);
+  assert.equal(ran.code, 2);
+  assert.match(ran.err, /--cap 0: strop je celé číslo od 1 do 100/);
+  await w.ok(["config", "unset", "run.gate"], { tty: true });
   // right: saved
   await w.ok(["config", "set", "run.gate", "claude-usage 15 --cap 95"], { tty: true });
   assert.equal((await w.ok(["config", "get", "run.gate"])).out.trim(), "claude-usage 15 --cap 95");
   await w.ok(["config", "set", "run.gate", "claude-usage --cap=100"], { tty: true });
+  w.cleanup();
+});
+
+test("before setup: a cap is checked all the same, and nothing of the gates is put on the disk — not by setting, listing, testing or a refused consent", opts, async () => {
+  const w = new World();
+  const home = path.join(w.dir, "Výzkum ř");
+  const tried = async (env: Record<string, string>) => {
+    for (const [args, said] of [
+      [["config", "set", "run.gate", "claude-usage 15 --cap 0"], /--cap 0: strop je celé číslo od 1 do 100/],
+      [["config", "set", "run.gate", "claude-usage 15 --cap abc", "--lang", "de"], /--cap abc: die Obergrenze ist eine ganze Zahl von 1 bis 100/],
+      [["gate", "test", "claude-usage --cap 150"], /--cap 150: strop je celé číslo od 1 do 100/],
+    ] as const) {
+      const r = await w.run([...args], { tty: true, env });
+      assert.equal(r.code, 2, `${args.join(" ")}: ${r.err}`);
+      assert.match(r.err, said);
+    }
+    assert.equal((await w.ok(["config", "get", "run.gate"], { env })).out.trim(), "", "nothing saved");
+    // listing and testing say what to run first
+    for (const args of [["gate", "list"], ["gate", "test", "claude-usage 15"]]) assert.match((await w.run(args, { env })).err, /strom setup/, args.join(" "));
+    // a consent refused (no terminal): nothing written before it
+    assert.equal((await w.run(["config", "set", "run.gate", "claude-usage 15"], { env })).code, 4);
+  };
+  await tried({});
+  // a home given from outside (STROM_HOME) before any setup: its folder stays as it was
+  await tried({ STROM_HOME: home });
+  // the person's own yes at a terminal: the setting is kept, the folder still made only by the setup
+  await w.ok(["config", "set", "run.gate", "claude-usage 15"], { tty: true, env: { STROM_HOME: home } });
+  assert.equal((await w.ok(["config", "get", "run.gate"], { env: { STROM_HOME: home } })).out.trim(), "claude-usage 15");
+  assert.equal(fs.existsSync(home), false, "nothing under the research's home before setup");
+  assert.equal(fs.existsSync(path.join(w.home, "shared")), false);
+  // after setup: the gates are there
+  await w.ok(["setup", "--yes"]);
+  assert.ok(fs.existsSync(path.join(w.home, "shared", "plugins", "gates", "claude-usage", "gate.json")));
+  assert.match((await w.ok(["gate", "list"])).out, /claude-usage ◀ run\.gate \(claude-usage 15\)/);
   w.cleanup();
 });

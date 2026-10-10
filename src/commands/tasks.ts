@@ -565,6 +565,7 @@ register(
     writes: true,
     args: [{ name: "task", description: "task ID", required: true }],
     options: [{ name: "until", type: "string", value: "<YYYY-MM-DD>", description: "offer it again after this date" }],
+    examples: ['strom task park T0002 --reason "waiting until the register is digitised"', 'strom task park T0002 --until 2027-01-15 --reason "the archive reopens in January"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (!opts.reason) throw new UsageError("--reason is required", { hint: 'e.g. --reason "waiting until the register is digitised"' });
@@ -610,13 +611,16 @@ register(
     tree: true,
     writes: true,
     description:
-      "--on says what it waits for, to the user, in their language. When it is images the user downloads by hand\n" +
+      "--on says what it waits for, to the user: they read it in strom's menu and the Strom app — impersonal (what\n" +
+      "is needed, never addressed to them: \"Images 40–45 of the baptisms to be saved from <link>\", not \"Open … and\n" +
+      "save …\"), in the research language. When it is images the user downloads by hand\n" +
       "(no connector may fetch them), name them with --images B…:<numbers>: strom makes the folder of the shared\n" +
       "inbox they go into and shows it to the user, checks the numbers of what arrives, and the task comes back\n" +
       "by itself once they are registered.",
     args: [{ name: "task", description: "task ID", required: true }],
     options: [
-      { name: "on", type: "string", value: "<text>", description: "what it waits for, for the user: which book, its link, which images" },
+      // the sheet of a brief shows the placeholder: how to write it, where the agent writes it (a live run: "Otevřete …")
+      { name: "on", type: "string", value: "<for the user: impersonal, research language>", description: "what it waits for, for the user: which book, its link, which images" },
       { name: "images", type: "string", value: "<B…:n-m>", description: "the images the user saves by hand, numbered as the portal's viewer counts them (B0001:40-69, B0001:9,12)" },
     ],
     examples: [
@@ -661,6 +665,7 @@ register(
     tree: true,
     writes: true,
     args: [{ name: "task", description: "task ID", required: true }],
+    examples: ['strom task drop T0002 --reason "the book was destroyed; no other copy is known"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (!opts.reason) throw new UsageError("--reason is required");

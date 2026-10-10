@@ -80,20 +80,21 @@ const config = (w: World) => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "co
 test("the setup wizard: Antigravity's own list — the strong ones offered (Gemini Pro suggested, no Flash), kept for Antigravity; again: the one kept suggested, 0 keeps it", unix, async () => {
   const w = new World();
   fakes(w, { agy: listing(w, "agy", AGY, "models") });
-  // language, folder, model (Enter: the suggested one), stories, level, no shortcut
-  const r = await w.ok(["setup"], { answers: ["en", "", "", "", "", "n"] });
+  // language, folder, model (Enter: the suggested one), its effort (Enter: high, recommended), stories, level, no shortcut
+  const r = await w.ok(["setup"], { answers: ["en", "", "", "", "", "", "n"] });
+  assert.match(r.out, /How deeply should Antigravity CLI reason before it answers \(its reasoning effort\)\?\n {3}1 {2}high — recommended: old handwriting read with the best setting; the plan's limit runs out sooner \(in a test it ran out after 18 minutes even on low\)\n {3}2 {2}xhigh[^\n]*\n {3}3 {2}medium\n {3}4 {2}low[^\n]*\n {3}5 {2}Leave it to Antigravity CLI's own setting\nChoose \[1\]/);
   assert.match(r.out, /Which model should do the research in Antigravity CLI\? The strongest read old handwriting best — they use up a subscription sooner or cost more\.\n {3}1 {2}Gemini 3\.1 Pro \(High\) · gemini-3\.1-pro-high \(recommended\)\n {3}2 {2}Claude Opus 4\.6 \(Thinking\) · claude-opus-4-6-thinking\n {3}3 {2}Claude Sonnet 4\.6 \(Thinking\) · claude-sonnet-4-6\n {3}4 {2}Leave it to the agent\nChoose \[1\]/);
   assert.doesNotMatch(r.out, /Flash|GPT-OSS/);
   assert.doesNotMatch(r.out, /choose its best model, not a fast or mini one/, "a model chosen: no word to choose one in the agent");
-  assert.deepEqual(config(w).models, { antigravity: { lead: "gemini-3.1-pro-high" } });
+  assert.deepEqual(config(w).models, { antigravity: { lead: "gemini-3.1-pro-high", effort: "high" } });
   // again: Opus picked; then 0 keeps it
-  await w.ok(["setup"], { answers: ["", "", "2", "", "", "n"] });
+  await w.ok(["setup"], { answers: ["", "", "2", "0", "", "", "n"] });
   assert.equal(config(w).models.antigravity.lead, "claude-opus-4-6-thinking");
-  const again = await w.ok(["setup"], { answers: ["", "", "0", "", "", "n"] });
+  const again = await w.ok(["setup"], { answers: ["", "", "0", "0", "", "", "n"] });
   assert.match(again.out, /Leave it to the agent\n {3}0 {2}Keep it as it is\nChoose \[2\]/);
   assert.equal(config(w).models.antigravity.lead, "claude-opus-4-6-thinking");
-  // the agent's own: nothing kept, the word to choose a strong one in the agent
-  const own = await w.ok(["setup"], { answers: ["", "", "4", "", "", "n"] });
+  // the agent's own, its own effort too: nothing kept, the word to choose a strong one in the agent
+  const own = await w.ok(["setup"], { answers: ["", "", "4", "5", "", "", "n"] });
   assert.match(own.out, /choose its best model, not a fast or mini one/);
   assert.equal(config(w).models, undefined);
   w.cleanup();
@@ -104,7 +105,9 @@ test("the setup wizard: an agent that gives no list (a failure, or one that hang
   fakes(w, { codex: "exit 1" });
   fs.mkdirSync(path.join(w.env.HOME!, ".codex"), { recursive: true });
   fs.writeFileSync(path.join(w.env.HOME!, ".codex", "config.toml"), 'model = "gpt-6.1-sol"\nmodel_reasoning_effort = "low"\n\n[features]\nmodel = "no"\n');
-  const r = await w.ok(["setup"], { answers: ["en", "", "2", "", "", "", "n"] });
+  const r = await w.ok(["setup"], { answers: ["en", "", "2", "", "", "", "", "n"] });
+  // its effort: what its config.toml says now named beside the agent's own
+  assert.match(r.out, / 5 {2}Leave it to Codex's own setting \(now low — from [^\n]*config\.toml\)\n/);
   assert.match(r.out, /Which model should do the research in OpenAI Codex CLI\?[^\n]*\n {3}1 {2}gpt-6-astra \(recommended\)\n {3}2 {2}gpt-6-sol\n {3}3 {2}Leave it to the agent \(now gpt-6\.1-sol\)\n/);
   assert.equal(config(w).models.codex.lead, "gpt-6-sol");
   w.cleanup();
@@ -123,9 +126,9 @@ test("the setup wizard: an agent that gives no list (a failure, or one that hang
 test("Claude Code's choice as it was: Opus, Sonnet or the agent's own — no list asked for", unix, async () => {
   const w = new World();
   fakes(w, { claude: `echo "$*" >> "${path.join(w.dir, "claude.calls")}"\nexit 0` });
-  const r = await w.ok(["setup"], { answers: ["en", "", "2", "", "", "", "n"] });
+  const r = await w.ok(["setup"], { answers: ["en", "", "2", "", "", "", "", "n"] });
   assert.match(r.out, /Which model should do the research\?\n {3}1 {2}Opus — best at reading old handwriting \(recommended\)\n {3}2 {2}Sonnet — faster; printed documents and everyday work\n {3}3 {2}Leave it to the agent\n/);
-  assert.deepEqual(config(w).models, { claude: { lead: "sonnet" } });
+  assert.deepEqual(config(w).models, { claude: { lead: "sonnet", effort: "high" } });
   assert.ok(!fs.existsSync(path.join(w.dir, "claude.calls")), "Claude Code not started to list anything");
   w.cleanup();
 });

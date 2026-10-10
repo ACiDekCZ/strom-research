@@ -5,7 +5,7 @@
 // The brief has a hard token budget; sections come in priority order and
 // what does not fit is cut to a pointer: the command that shows the rest.
 
-import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Task } from "../core/model.ts";
+import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task } from "../core/model.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { inboxFolders, inputPath } from "../core/media.ts";
@@ -33,7 +33,48 @@ import { SHARPER_SCAN } from "../core/views.ts";
 import { HYPOTHESIS_LINKS_ORIGIN, recordedLinks, recordedText } from "../core/hypolinks.ts";
 
 export { DEFAULT_BUDGET } from "../core/config.ts";
-import { DEFAULT_BUDGET } from "../core/config.ts";
+import { DEFAULT_BUDGET, Settings } from "../core/config.ts";
+import { bookTuned, hostTuned, readingOf, treeTuning, tuningOn, type TuneState } from "../core/tune.ts";
+import { calibrationKey, viewModel, viewSizes } from "../core/viewsizes.ts";
+import { inWords, PROFILES } from "../agents/profiles.ts";
+import { ENRICH_PAGES, STORY_SOURCES_ORIGIN } from "../core/stories.ts";
+import { sandboxOf, WITHOUT_READERS, type Sandbox } from "../core/sandbox.ts";
+
+/** What strom tuned for the session's agent and model (core/tune.ts), as at the session's start: it holds for all of it. */
+interface BriefTuning {
+  key: string;
+  state: TuneState;
+  since?: string | undefined;
+  /** The long side a book read worse is shown at (what the model takes). */
+  max: number;
+}
+
+/** The hosts of a connector, as its manifest names them (a wildcard without its star). */
+function connectorHosts(shared: string | undefined, name: string): string[] {
+  try {
+    return listConnectors(shared).find((c) => c.name === name)?.manifest.hosts.map((h) => h.replace(/^\*\./, "")) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * What strom set by itself for a book and its archive, as the agent is told it: a book read worse than the others shown
+ * bigger, no part asked of a portal that has none sharper, the whole images of an archive whose limit was reached
+ * first, only what the task reads fetched — each only towards accuracy or fewer requests.
+ */
+function tunedBookLines(t: BriefTuning | undefined, b: RecordSet, route: BookRoute | undefined, shared: string | undefined): string[] {
+  if (!t) return [];
+  const book = bookTuned(t.state, t.key, b.id, t.since);
+  const hosts = route ? connectorHosts(shared, route.connector).map((h) => hostTuned(t.state, t.key, h, t.since)) : [];
+  const out: string[] = [];
+  if (book.find !== undefined || book.read !== undefined || book.halves)
+    out.push(`    read worse than the other books (strom tuned it): its views are as big as your model takes them (${t.max} px) — a whole image too, a double page in halves`);
+  if (book.noSharper) out.push("    its portal has no part sharper than the whole image: ask no part of it (no --crop of strom fetch) — what is weak here stays weak");
+  if (hosts.some((h) => h.wholeFirst)) out.push("    its archive's limit was reached before: fetch the whole images first, halves and parts only of the candidates — the same requests in another order");
+  if (book.onlyNeeded || hosts.some((h) => h.onlyNeeded)) out.push("    many of its images were fetched and never read: fetch only the images this task reads (its years), the next batch once the last is read");
+  return out;
+}
 
 /**
  * Estimated tokens, on the safe side. A word of plain ASCII (English, IDs, numbers) takes about 2.5 characters a
@@ -384,16 +425,25 @@ function materialText(tree: Tree, inputs: Input[]): MaterialText {
 }
 
 /**
+ * How a lesson of the whole project goes with a task: `named` — it names the task's book or archive, or a family or
+ * place of the task; `general` — it names nothing of the tree; none — it is about other families, places, books or
+ * archives.
+ */
+type LessonFit = "named" | "general" | false;
+
+/**
  * Which lessons of the whole project (no record set, archive or place of their own) go with a task: one naming a
  * family or a place of this tree goes with a task of that family or place (its text, its people, their facts, its
  * books, the material it takes in); one naming none of them is general and goes with every task. A name told in a
  * lesson's own words ("Dvořákovi", "u Lhoty") is known by its stem; one not recognised keeps the lesson in — never a
  * lesson lost. A lesson that names a family goes with a task besides when its rule or detail names — beyond the first
  * word of a sentence — a name the task's text gives, a look-alike of a task's person's surname (one or two letters
- * apart: a reading of the same name), or one of the task's books ("Lhota 03", B0001).
+ * apart: a reading of the same name), or one of the task's books ("Lhota 03", B0001). One that names another book or
+ * archive of the tree (its ID, the start of its title, its name) and none of the task's is about that one: not the
+ * task's.
  */
-function projectLessonFit(tree: Tree, task: Task | undefined, persons: Person[], where: string[], material?: MaterialText): (l: Lesson) => boolean {
-  if (material?.unknown) return () => true;
+function projectLessonFit(tree: Tree, task: Task | undefined, persons: Person[], where: string[], material?: MaterialText): (l: Lesson) => LessonFit {
+  if (material?.unknown) return () => "general";
   const known = new Set<string>();
   const add = (n: string | undefined) => {
     if (!n) return;
@@ -422,24 +472,66 @@ function projectLessonFit(tree: Tree, task: Task | undefined, persons: Person[],
   const names = new Set([...taskTexts, ...(material?.texts ?? [])].flatMap((t) => textNames(t, true)).filter((w) => [...w].length >= 4 && !given.has(w)));
   const surnames = [...new Set(persons.flatMap((p) => p.names.flatMap((n) => (n.surname ? [...surnameForms(n.surname)] : []))))];
   // a book as a lesson names it: the start of its title ("Lhota 03, N 1700–1750" → "lhota 03"), or its ID
-  const bookNames = books.flatMap((b) => {
+  const bookName = (b: RecordSet) => {
     const head = foldedWords(b.title.split(",")[0] ?? "").join(" ");
     return [b.id.toLowerCase(), ...(head.includes(" ") || /\p{N}/u.test(head) ? [head] : [])];
-  });
+  };
+  const bookNames = books.flatMap(bookName);
+  // an archive as a lesson names it: its ID, or its name
+  const archives = new Set(books.map((b) => b.repository).filter(Boolean));
+  const repoName = (r: Repository) => [r.id.toLowerCase(), ...(foldedWords(r.name).length > 1 ? [foldedWords(r.name).join(" ")] : [])];
+  const repos = tree.list<Repository>("repository");
+  const ownNames = [...bookNames, ...repos.filter((r) => archives.has(r.id)).flatMap(repoName)];
+  const otherNames = [...tree.list<RecordSet>("recordset").filter((b) => !books.includes(b)).flatMap(bookName), ...repos.filter((r) => !archives.has(r.id)).flatMap(repoName)].filter((n) => !ownNames.includes(n));
   return (l) => {
+    const text = [l.rule, l.detail ?? ""].join("\n");
+    const words = ` ${foldedWords(text).join(" ")} `;
+    // the task's own book or archive; another one, and none of the task's: that one's
+    if (ownNames.some((b) => words.includes(` ${b} `))) return "named";
+    if (otherNames.some((b) => words.includes(` ${b} `))) return false;
     // the names it gives: words written with a capital that are a family or a place of this tree
     const rule = textNames(l.rule);
-    if (!knownList.some((k) => rule.some((w) => w.startsWith(k)))) return true;
+    if (!knownList.some((k) => rule.some((w) => w.startsWith(k)))) return "general";
     // and those of its detail, past the first word of a sentence ("Stará kniha…")
-    const text = [l.rule, l.detail ?? ""].join("\n");
     const inner = textNames(text, true).filter((w) => !given.has(w));
     const all = [...rule, ...inner];
-    if (knownList.some((k) => all.some((w) => w.startsWith(k)) && context.some((w) => w.startsWith(k)))) return true;
-    if (inner.some((w) => names.has(w) || surnames.some((s) => lookAlike(w, s)))) return true;
-    const words = ` ${foldedWords(text).join(" ")} `;
-    return bookNames.some((b) => words.includes(` ${b} `));
+    if (knownList.some((k) => all.some((w) => w.startsWith(k)) && context.some((w) => w.startsWith(k)))) return "named";
+    if (inner.some((w) => names.has(w) || surnames.some((s) => lookAlike(w, s)))) return "named";
+    return false;
   };
 }
+
+/** At most this many sources of a person's places are named in the brief of a search beyond the registers. */
+const PLACE_WRITTEN = 4;
+
+/**
+ * What the research has written of the places of a person's life already — sources of a book, a website or a newspaper
+ * whose title or text names the place (in any of its forms: its stem), and the lessons on the place — so its history is
+ * searched once in a research.
+ */
+function placeWritten(tree: Tree, persons: Person[]): string[] {
+  const names = new Set<string>();
+  for (const p of persons) for (const e of p.events) if (!e.retracted && e.place) names.add(e.place.split(",")[0]!.trim());
+  const stems = [...names].map((n) => ({ name: n, stem: stem(foldedWords(n)[0] ?? "") })).filter((x): x is { name: string; stem: string } => !!x.stem);
+  if (!stems.length) return [];
+  const namesPlace = (text: string) => {
+    const words = foldedWords(text);
+    return stems.some((s) => words.some((w) => w.startsWith(s.stem)));
+  };
+  const sources = tree.list<Source>("source").filter((s) => !s.retracted && ["book", "web", "newspaper", "other"].includes(s.kind) && namesPlace(`${s.title} ${s.transcript ?? ""}`));
+  const places = tree.list<Place>("place").filter((pl) => pl.names.some((n) => namesPlace(n.name)));
+  const lessons = tree.list<Lesson>("lesson").filter((l) => !l.retracted && l.target && places.some((pl) => pl.id === l.target));
+  // the sources by their titles, the lessons by their IDs (strom show K…)
+  const shown = sources.slice(0, PLACE_WRITTEN).map((s) => `${s.id} "${noteStart(s.title, 60)}"`);
+  return [
+    ...shown,
+    ...(sources.length > PLACE_WRITTEN ? [`${sources.length - PLACE_WRITTEN} more: strom find ${shellArg(stems[0]!.name)}`] : []),
+    ...(lessons.length ? [`lessons ${lessons.map((l) => l.id).join(" ")}`] : []),
+  ];
+}
+
+/** The characters of the general lessons a verify task's brief carries (each with its line); the rest are counted. */
+const VERIFY_GENERAL_LESSONS = 1200;
 
 /** The connectors of an address: those that get its images now, or every one installed for it. */
 type Ready = (url: string | undefined) => Connector[];
@@ -499,7 +591,7 @@ function bookFinder(tree: Tree, b: RecordSet, installed: Ready): Finder | undefi
 
 /** The user saves a record set's images by hand: the command that asks them (the whole of it once in a brief). */
 function byHandAsk(b: RecordSet, whole: boolean): string {
-  return `strom task wait <T…> --images ${b.id}:<numbers> --on "${whole ? "<for the user, in their language: the book, its link, which images as its viewer counts them>" : "…"}"`;
+  return `strom task wait <T…> --images ${b.id}:<numbers> --on "${whole ? "<for the user, impersonal, in the research language: the book, its link, which images as its viewer counts them>" : "…"}"`;
 }
 
 /** What a finder of a record set means for its images. */
@@ -553,7 +645,7 @@ function bookRoute(tree: Tree, b: RecordSet, ready: Ready): BookRoute | undefine
 }
 
 /** How many images of a record set are registered, how to look at them, and how the others come. */
-function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, shape: boolean, finder?: Finder): string[] {
+function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, shape: boolean, finder?: Finder, noSharper = false): string[] {
   // each image once: its parts and other copies are the same image
   const nums = imagesIndex(tree).sets.get(b.id)?.images ?? [];
   const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
@@ -579,7 +671,7 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
   return [
     `    images registered (${nums.length}): ${which} · strom media view ${b.id}:<image>[-<image>] [--half left|right|both] [--grid] [--crop x,y,w,h]…`,
     weak
-      ? `    weak scans (long side ${weak} px): a negative on them is weak — ${route?.part ? `a part sharper: strom fetch ${route.connector} --recordset ${b.id} --images <n> --crop x,y,w,h` : SHARPER_SCAN}`
+      ? `    weak scans (long side ${weak} px): a negative on them is weak — ${route?.part && !noSharper ? `a part sharper: strom fetch ${route.connector} --recordset ${b.id} --images <n> --crop x,y,w,h` : SHARPER_SCAN}`
       : "",
     // the others: through the connector, else as the archive allows
     fetch ??
@@ -648,13 +740,58 @@ function placeConnectors(tree: Tree, sets: RecordSet[], places: Set<string>, key
   return [...[...serving].map(([name, archive]) => ({ name, ...(archive ? { archive } : {}), serves: true })), ...others];
 }
 
-export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; budget?: number; shared?: string | undefined; deadline?: number | undefined }): Brief {
+/** At most this many of the browser's sites are named in the brief; the rest by their number. */
+const BROWSER_SITES = 12;
+
+/**
+ * How a session with the browser (Claude in Chrome) uses it: within its sites, without asking where the other ways
+ * lead nowhere, as gently as strom fetch. Working alone nobody answers: a browser of this computer picked without a
+ * person (several connected) — only another computer's: none, somebody may be working there —, and what is outside
+ * its sites or forbids automation goes to the user as a task that waits — never a question left in the summary.
+ */
+export function browserRules(sites: readonly string[], alone: boolean, task?: string): string {
+  const bare = [...new Set(sites.map((h) => h.replace(/^\*\./, "").toLowerCase()))];
+  const named = bare.length > BROWSER_SITES ? `${bare.slice(0, BROWSER_SITES).join(", ")} and ${bare.length - BROWSER_SITES} more` : bare.join(", ");
+  return [
+    "## The browser (Claude in Chrome)",
+    `Its sites: ${named || "none yet"} — no other.`,
+    "- Use it without asking where a connector (strom fetch), WebFetch and WebSearch lead nowhere; images only through strom fetch.",
+    "- As gently as strom fetch: the site's terms and robots.txt, its pace and hourly cap (strom connector show; else a page at a time, 2 s apart at least), only the pages the task needs, nothing ahead. A site that forbids automated access: never through the browser, never a way round.",
+    ...(alone
+      ? [
+          "- Nobody answers in a run: no AskUserQuestion, no switch_browser. Several browsers connected, none selected: list_connected_browsers, then select_browser — onThisComputer, else isLocal.",
+          `- Neither: those browsers are another computer's, somebody may be working there — no browser: strom task wait ${task ?? "T…"} --on "<the question, in the research language: no browser of this computer is connected>", then close the session.`,
+          `- Another site, or one that forbids automation: an archive the task needs without a connector — build one (strom connector new); anything else — strom task wait ${task ?? "T…"} --on "<the question>", then close the session.`,
+        ]
+      : [
+          "- Several browsers connected, none selected: list_connected_browsers, ask the user which — onThisComputer, else isLocal, else the first suggested —, then select_browser.",
+          "- Another site, or one that forbids automation: ask the user first.",
+        ]),
+  ].join("\n");
+}
+
+export function buildBrief(
+  tree: Tree,
+  opts: {
+    task?: Task;
+    session?: Session;
+    budget?: number;
+    shared?: string | undefined;
+    deadline?: number | undefined;
+    browser?: readonly string[] | undefined;
+    /** The sandbox the session works in, one that lets no reader start (strom run knows it before the agent starts; else the agent's marks). */
+    sandbox?: Sandbox | undefined;
+  },
+): Brief {
   const budget = opts.budget ?? DEFAULT_BUDGET;
   const task = opts.task;
   const research = (task?.research ? tree.get<Research>(task.research) : undefined) ?? tree.list<Research>("research").find((r) => r.state === "active");
   const lang = tree.lang;
   const sections: Section[] = [];
   const focus = research ? tree.get<Person>(research.focus) : undefined;
+  // a session of strom run: nobody reads it live — what the tree's instructions say of a conversation with the user is
+  // not this session's
+  const alone = !!opts.session?.runner;
 
   // 1. who, where, rules — and what the research is for
   sections.push({
@@ -666,7 +803,8 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
       `Tree "${tree.config.name}"${research ? ` · research ${research.id} "${research.name}" (${research.direction} of ${focus ? label(focus) : research.focus})` : ""}.`,
       research?.question ? `Research question: ${research.question}` : "",
       ...(research?.notes ?? []).slice(-3).map((n) => `From the user: ${n.text}`),
-      `Research language: ${langName(lang)} — talk to the user and write notes, tasks and summaries in ${langName(lang)}; transcripts stay in the original language.`,
+      `Research language: ${langName(lang)} — ${alone ? "" : "talk to the user and "}write notes, tasks and summaries in ${langName(lang)}; transcripts stay in the original language.`,
+      alone ? "Working alone (strom run): nobody reads this session live — nothing in it is said to the user, its last words neither." : "",
       "Work ONLY through `strom` commands; never edit files in data/ (it is detected and blocks all writing). Record findings as you go.",
       opts.deadline !== undefined ? briefClock(opts.deadline) : "",
     ].filter(Boolean).join("\n"),
@@ -807,9 +945,22 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   const all = tree.list<Lesson>("lesson").filter((l) => !l.retracted);
   // a lesson of the whole project goes with the task whose families or places it names — or names none of the tree's
   const project = all.filter((l) => l.scope === "project" && !l.target);
-  const fits = project.length ? projectLessonFit(tree, task, persons, [...where], inputs.length ? materialText(tree, inputs) : undefined) : () => true;
-  const lessons = all.filter((l) => (l.target && (where.has(l.target) || repos.has(l.target) || ofPlace(l.target))) || (l.scope === "project" && (l.target || fits(l))));
-  const otherProject = project.filter((l) => !lessons.includes(l)).length;
+  const fitOf = project.length ? projectLessonFit(tree, task, persons, [...where], inputs.length ? materialText(tree, inputs) : undefined) : (): LessonFit => "general";
+  const fits = new Map(project.map((l) => [l, fitOf(l)]));
+  // A verify task reads one entry again: the lessons of its books, its archive, its places and its people whole, the
+  // general ones (naming nothing of the tree) the newest within a budget — the rest counted.
+  const general = task?.level === "verify" ? project.filter((l) => fits.get(l) === "general") : [];
+  const kept = new Set<Lesson>();
+  let room = VERIFY_GENERAL_LESSONS;
+  for (const l of [...general].reverse()) {
+    const n = [...l.rule].length + 10;
+    if (n > room) break;
+    room -= n;
+    kept.add(l);
+  }
+  const unshown = general.filter((l) => !kept.has(l));
+  const lessons = all.filter((l) => !unshown.includes(l) && ((l.target && (where.has(l.target) || repos.has(l.target) || ofPlace(l.target))) || (l.scope === "project" && (l.target || fits.get(l)))));
+  const otherProject = project.filter((l) => !lessons.includes(l) && !unshown.includes(l)).length;
   const method = all.filter((l) => l.scope === "method").length;
   // Shown before the people, given its room after the others: first the lessons that go with the task — after whom the
   // task is about, the last sessions and its own open questions (a long list never pushes out whom the task is about,
@@ -824,7 +975,8 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
         ...(searches.length ? [] : ["  nothing searched yet for this task's record sets and surnames"]),
         ...(elsewhere.length ? [`  +${elsewhere.length} search${elsewhere.length > 1 ? "es" : ""} of ${elsewhereNames.join(", ")} in other places and years: ${elsewhereNames.map((n) => `strom searched ${shellArg(n)}`).join(" · ")}`] : []),
         ...(lessons.length ? ["lessons:", ...lessons.map((l) => `  ${l.id}${l.target ? ` (${l.target})` : ""}: ${l.rule}`)] : []),
-        ...(otherProject ? [`lessons about other families and places: ${otherProject} — strom lesson list --scope project`] : []),
+        ...(unshown.length ? [`${unshown.length} more general lesson${unshown.length > 1 ? "s" : ""}: strom lesson list --scope project`] : []),
+        ...(otherProject ? [`lessons about other families, places, books and archives: ${otherProject} — strom lesson list --scope project`] : []),
         ...(method ? [`method lessons of this research: ${method} — strom lesson list --scope method`] : []),
       ],
       more: searched,
@@ -913,7 +1065,14 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
       }),
     );
 
-  // 7. the record sets to work in, each with the connector that fetches its images and its ID of the book
+  // 7. the record sets to work in, each with the connector that fetches its images and its ID of the book — and what
+  // strom tuned for them (the session's agent and model, as at its start)
+  const tuneSettings = new Settings(tree.env, {});
+  const tuneAgent = opts.session?.agent ?? tuneSettings.agent(tree.config).value;
+  const tuneModel = viewModel(tuneSettings, tuneAgent, tree.config);
+  const tuning: BriefTuning | undefined = tuningOn(tuneSettings)
+    ? { key: calibrationKey(tuneAgent, tuneModel), state: treeTuning(tree, tuneSettings), since: opts.session?.started, max: viewSizes(tuneSettings.config, tuneAgent, tuneModel).max }
+    : undefined;
   const sets = located.sets;
   const installed = installedFor(opts.shared);
   const ready = readyFor(tree, opts.shared, installed);
@@ -938,7 +1097,8 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
             repo ? `    ${repo.name} · automated download: ${repo.automation}${repo.terms ? ` · terms: ${repo.terms}` : ""}` : "",
             b.layout ? `    layout: ${b.layout}` : "",
             calibrationLine(b) ? `    ${calibrationLine(b)}` : "",
-            ...imagesLines(tree, b, routes.get(b.id), b.id === shapeFor, finders.get(b.id)),
+            ...imagesLines(tree, b, routes.get(b.id), b.id === shapeFor, finders.get(b.id), !!(tuning && bookTuned(tuning.state, tuning.key, b.id, tuning.since).noSharper)),
+            ...tunedBookLines(tuning, b, routes.get(b.id), opts.shared),
           ].filter(Boolean).join("\n");
         }),
       ].join("\n"),
@@ -977,12 +1137,62 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   const kind = linking ? METHOD_LINKS : task?.level;
   sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(kind, conditions) });
 
+  // 8 bis. the search beyond the registers: its budget of pages, printed pages for the user's model for print where the
+  // agent hands work to another model, and what the research has written of the person's places already
+  if (task?.origin === STORY_SOURCES_ORIGIN) {
+    const agent = opts.session?.agent ?? tuneSettings.agent(tree.config).value;
+    const print = PROFILES[agent]?.delegation === "native" ? tuneSettings.models(agent, tree.config).text : undefined;
+    const written = placeWritten(tree, persons);
+    sections.push({
+      name: "beyond registers",
+      first: true,
+      pointer: "strom find <place>",
+      text: [
+        `## Beyond the registers: about ${ENRICH_PAGES} pages fetched or read, then record the searches and close`,
+        print ? `- print: a subagent on ${print} (model.text), never handwriting` : "",
+        written.length ? `- of the places, written already (reuse): ${written.join(" · ")}` : "",
+      ].filter(Boolean).join("\n"),
+    });
+  }
+
+  // 8a. the numbers of reading scans strom tuned for this agent and model (smaller batches, an earlier stop): over the
+  // method's, for the whole session
+  const reading = tuning ? readingOf(tuneSettings.config, tuning.key, { since: tuning.since }) : undefined;
+  if (reading?.tuned.length)
+    sections.push({
+      name: "reading",
+      first: true,
+      pointer: "strom config get reading.batch",
+      text: [
+        "## Reading scans in this session (strom tuned it from how the reading went: these numbers hold over the method's)",
+        `- about ${inWords(reading.batch)} scans a batch — a delegate's or your own; at most ${reading.viewsPerCall} views a call of strom media view`,
+        `- after about ${reading.viewsStop} views: write down what you found (a delegate stops and reports)`,
+      ].join("\n"),
+    });
+
+  // 8a'. a sandbox that lets no reader start (Codex's below the level full): strom read cannot work here — what the
+  // method says of readers does not hold, and the commands leave it out (core/sandbox.ts)
+  const sandbox = opts.sandbox ?? sandboxOf(tree.env);
+  if (sandbox && kind !== METHOD_LINKS && kind !== "narrate" && kind !== "request")
+    sections.push({
+      name: "readers",
+      first: true,
+      pointer: "strom guide",
+      text: [
+        `## No readers in this session (${sandbox.name} lets no other agent start: strom read, strom clips and strom transcripts cannot start one — over what the method says of readers)`,
+        `- ${WITHOUT_READERS}.`,
+      ].join("\n"),
+    });
+
   // 8b. the commands this kind of task uses, with every option and limit (K2): asking for them costs a turn each —
   // and the connectors of the task's places, so that fetching needs no lookup
   // (the others installed only where none serves them, or the task is to find where the records are)
   const connectors = placeConnectors(tree, sets, taskPlaces, placeKeys, ready, installed, listConnectors(opts.shared));
-  const sheet = commandSheet(kind, { connectors: task?.level === "locate" || !connectors.some((c) => c.serves) ? connectors : connectors.filter((c) => c.serves) });
+  const sheet = commandSheet(kind, { connectors: task?.level === "locate" || !connectors.some((c) => c.serves) ? connectors : connectors.filter((c) => c.serves), ...(sandbox ? { without: ["read"] } : {}) });
   if (sheet) sections.push({ name: "commands", first: true, pointer: "strom help <command>", text: sheet });
+
+  // 8c. the browser, for a session that has it (its sites): how to use it, and gently
+  if (opts.browser) sections.push({ name: "browser", first: true, pointer: "strom guide", text: browserRules(opts.browser, !!opts.session?.runner, task?.id) });
 
   // 9. how to finish
   sections.push({
@@ -999,10 +1209,14 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
       `- if the task is not finished: strom session close --continue --summary "…" --next "exactly where you stopped"`,
       // what the user reads of a session is its summary (strom's run output, the menu, the Strom app): strom's own words
       // there are impersonal, so is what it shows of the agent's
-      "- the user reads the summary (menu, Strom app): plain words, never addressed to them",
-      // working alone: every task starts in a fresh session by itself; nobody reads a closing message
-      opts.session?.runner
-        ? "- working alone (strom run): after strom session close you are done — no closing message to the user and no advice to clear the context (/clear, a new conversation): each task starts fresh by itself"
+      alone
+        ? // working alone: every task starts in a fresh session by itself; nobody reads a closing message
+          "- the summary: plain words of the research for the record (menu, Strom app), never addressed to the user, no advice (/clear, starting anything); after strom session close you are done: no closing message"
+        : "- the user reads the summary (menu, Strom app): plain words, never addressed to them",
+      // nobody answers a question in a run: what only the user can decide waits for them where they look (the menu's
+      // What waits for you, the Strom app), their answer comes back on the task (strom task wake --answer)
+      alone && task
+        ? `- a decision or a step only the user can take: strom task wait ${task.id} --on "<the question, impersonal, in the research language>" — they see it in the menu and the Strom app; a question in the summary gets no answer`
         : "",
       "- a command you need: strom help <command> (short, with examples) — the full guide: strom guide",
     ].filter(Boolean).join("\n"),

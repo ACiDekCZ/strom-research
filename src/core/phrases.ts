@@ -41,6 +41,9 @@ export const PHRASES = {
   "story.sources.where": "the digitised newspapers, books and archives of the country and time; the web (indexes and trees are leads only)",
   "story.sources.why": "the story is to tell more than the registers do — every word still on a record; then strom proposes the story",
   "story.sources.done": "each find recorded as a source and a fact with its citation (the person matched by more than the name), the history of the place as a source, every search recorded — also in vain",
+  "tune.negatives.what": "Search again for {name} in {book}: the earlier search found nothing on weak scans, a sharper copy is here now",
+  "tune.negatives.why": "the negative search ({searches}) was made on views enlarged beyond the scans' detail; the sharper copy has {gain}× the detail — the person decided to search again",
+  "tune.negatives.done": "the images {pages} read again on the sharper copies: the entry found and recorded, or the search recorded again as negative",
 
   "review.research": "Review of {name}",
   "review.unproven.research": "People without a record of their own",
@@ -88,6 +91,7 @@ export const PHRASES = {
   "session.run": "the run stopped before the session ended (interrupted, or the computer went down)",
   "session.chat": "the conversation ended before the session was closed",
   "session.agent": "the agent stopped ({outcome}) without closing the session",
+  "session.limit": "the agent's plan limit ran out before the session was closed{resets}",
 
   "transcript.read": "Transcript written by a reader ({model}) from the entry cut out of its scan and checked by a second reader ({date}, strom transcripts).",
 
@@ -167,6 +171,7 @@ export const PHRASES = {
   "log.session.start": "The agent began: {name}",
   "log.session.close": "The agent finished: {name}",
   "log.lesson.add": "Learned: {name}",
+  "log.lesson.edit": "Lesson corrected: {name}",
   "log.hypothesis.add": "A question weighed: {name}",
   "log.hypothesis.argue": "Weighed further: {name}",
   "log.hypothesis.link": "What a variant would connect: {name}",

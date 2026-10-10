@@ -15,7 +15,7 @@ import { normId, requireRecord, update } from "../core/records.ts";
 import { makeView } from "../core/views.ts";
 import { clipText, MAX_CLIPS, regionText } from "../core/media.ts";
 import { withMargin } from "../core/excerpt.ts";
-import { batches } from "../core/reader.ts";
+import { batches, READER_MINUTES_HELP } from "../core/reader.ts";
 import { checkPrompt, locatePrompt, parseChecked, parseLocated, widen, type CheckJob, type Checked, type ClipJob, type Located } from "../core/clipfinder.ts";
 import { displayName } from "../core/people.ts";
 import { readers } from "./readers.ts";
@@ -64,7 +64,7 @@ register({
     { name: "batch", type: "string", value: "<n>", description: `entries per reader (default ${PER_READER})` },
     { name: "parallel", type: "string", value: "<n>", description: "readers at the same time (default 3)" },
     { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision — it reads the handwriting to find the entry)" },
-    { name: "minutes", type: "string", value: "<n>", description: "time limit of one reader (default 15)" },
+    { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP },
   ],
   examples: ["strom clips --dry-run", "strom clips --recordset B0001 --limit 20", "strom clips S0001 S0002"],
   run: async (ctx: Context, { args, opts }) => {
@@ -120,7 +120,7 @@ register({
         words: s.transcript ? truncate(s.transcript.replace(/\s+/g, " "), 400) : undefined,
         images: s.media!.flatMap((id) => {
           const m = imageOf(id);
-          return m ? [{ media: m.id, view: makeView(tree, path.join(shared, m.file), m.id, { grid: true, max: viewMax }).file }] : [];
+          return m ? [{ media: m.id, view: makeView(tree, path.join(shared, m.file), m.id, { grid: true, max: viewMax }, { reader: true }).file }] : [];
         }),
       }));
       progress(`▶ finding ${k + 1}/${groups.length}: ${group.map((s) => s.id).join(" ")}`);
@@ -142,7 +142,7 @@ register({
           media: l.media,
           title: s.title,
           words: s.transcript ? truncate(s.transcript.replace(/\s+/g, " "), 400) : undefined,
-          view: makeView(tree, path.join(shared, m.file), m.id, { crop: regionText(withMargin(l.region)), max: viewMax }).file,
+          view: makeView(tree, path.join(shared, m.file), m.id, { crop: regionText(withMargin(l.region)), max: viewMax }, { reader: true }).file,
         };
       });
       const checkGroups = batches(checks, size);

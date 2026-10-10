@@ -20,6 +20,25 @@ import { lacksImages } from "../core/queue.ts";
 import { forStory } from "../core/stories.ts";
 import { isArchive } from "../core/mode.ts";
 import { rankedQueue, waitingForUser } from "./tasks.ts";
+import { readTuneLog, type TuneLogEntry } from "../core/tune.ts";
+import { calibrationLabel } from "../core/viewsizes.ts";
+import type { UIKey } from "../cli/ui.ts";
+
+/** A change strom made by itself in the reading of scans, as a person reads it in strom recent. */
+function tuneLine(e: TuneLogEntry, lang: string): string {
+  const t = (k: UIKey, v: Record<string, string | number> = {}) => ui(lang, k, v);
+  const scope = e.scope === "key" ? calibrationLabel(e.key, t("ui.settings.model.own")) : e.scope.replace(/^(book|host):/, "");
+  // a change of several values said by its first (A2: the batch, A3: the stop)
+  const one = (v: unknown) => String(v && typeof v === "object" ? Object.values(v)[0] : v);
+  const what = t(`ui.tune.what.${e.what}` as UIKey);
+  const text =
+    e.action === "A6"
+      ? t("ui.tune.back", { scope, what })
+      : e.action === "restart"
+        ? t("ui.tune.restart", { scope, what, model: String(e.basis?.model ?? "") })
+        : t(`ui.tune.rec.${e.action}` as UIKey, { scope, from: one(e.from), to: one(e.to) });
+  return `  ${humanDay(e.at, lang)} – ${text.trim()}`;
+}
 
 /** Most rows a section of `recent` lists; the rest is counted. */
 const RECENT_ROWS = 15;
@@ -226,7 +245,9 @@ register(
       const r = recent(tree, tree.config.created && tree.config.created > back ? tree.config.created : back);
       const since = humanDay(r.since, lang);
       const refined = r.facts.filter((f) => f.refined).length;
-      if (!r.persons.length && !r.facts.length && !r.sources.length && !r.stories.length && !r.sessions.length && !r.tasksDone)
+      // what strom set by itself in the reading of scans (core/tune.ts) — a line of the settings, never in an archive
+      const tuning = ctx.archiveHere() ? [] : readTuneLog(tree.root).filter((e) => e.by === "selftune" && e.at >= r.since);
+      if (!r.persons.length && !r.facts.length && !r.sources.length && !r.stories.length && !r.sessions.length && !r.tasksDone && !tuning.length)
         return { text: ui(lang, "ui.recent.nothing", { since }), data: { days, ...r } };
       const out: (string | undefined)[] = [
         ui(lang, "ui.recent.title", { since }),
@@ -248,7 +269,8 @@ register(
           ...r.sessions.slice(0, RECENT_ROWS).map((s) => `  ${humanDay(s.at, lang)} – ${[s.task, s.summary ? truncate(s.summary, 220) : undefined].filter(Boolean).join(": ")}${s.costUsd !== undefined ? ` · ${humanCost(s.costUsd, lang)}${s.costPartial ? "+" : ""}${s.readersUsd ? ui(lang, "ui.stats.cost.readers", { cost: humanCost(s.readersUsd, lang) }) : ""}` : ""}`),
           more(r.sessions.length - RECENT_ROWS, lang),
         );
-      return { text: lines(...out), data: { days, ...r } };
+      if (tuning.length) out.push("", ui(lang, "ui.recent.tune"), ...tuning.slice(-RECENT_ROWS).map((e) => tuneLine(e, lang)), more(tuning.length - RECENT_ROWS, lang));
+      return { text: lines(...out), data: { days, ...r, ...(tuning.length ? { tuning } : {}) } };
     },
   },
 );

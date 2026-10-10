@@ -38,8 +38,11 @@ const RARE: Record<string, string[]> = {
 const CITE = ["cite", "locator", "quote", "information"];
 /** The values of an option whose description says them in words. */
 const VALUES: Record<string, readonly string[]> = { information: INFORMATION };
-/** The commands that change what was known: their reason is asked. */
-const REASON = new Set(["event edit", "family edit", "person merge"]);
+/**
+ * The commands that change what was known: their reason is asked — every writing command whose registry entry says
+ * --reason (its summary, description or examples), so the sheet never drifts from what the command requires.
+ */
+const needsReason = (def: CommandDef) => Boolean(def.writes) && /--reason(?![\p{L}\p{N}-])/u.test([def.summary, def.description ?? "", ...(def.examples ?? [])].join("\n"));
 /** The levels that read records and write facts from them: their sheet says what a status is for. */
 const RECORDS = new Set(["link", "verify", "enrich", "intake"]);
 
@@ -84,7 +87,7 @@ function option(def: CommandDef, o: OptionDef): string {
  */
 export function synopsis(def: CommandDef, sheet = false, add?: CommandDef): string {
   const name = def.path.join(" ");
-  const reason = REASON.has(name) ? WRITE_OPTIONS.filter((o) => o.name === "reason") : [];
+  const reason = needsReason(def) ? WRITE_OPTIONS.filter((o) => o.name === "reason") : [];
   const opts = [...(def.options ?? []), ...reason].filter((o) => !o.hidden && !(sheet && RARE[name]?.includes(o.name)));
   const cites = sheet && CITE.every((c) => opts.some((o) => o.name === c));
   // an edit shown after its add: the options they share said once, as the add's
@@ -124,8 +127,9 @@ function connectorLine(list: SheetConnector[]): string {
 }
 
 /** The section of the brief: the commands of this level, or nothing (no level, or no registry — a unit test). */
-export function commandSheet(level: string | undefined, extra: { connectors?: SheetConnector[] } = {}): string {
-  const names = level ? LEVELS[level] : undefined;
+export function commandSheet(level: string | undefined, extra: { connectors?: SheetConnector[]; without?: readonly string[] } = {}): string {
+  // (a command that cannot work in this session left out: strom read where no reader can start)
+  const names = level ? LEVELS[level]?.filter((n) => !extra.without?.includes(n)) : undefined;
   if (!names) return "";
   const defs = names.map((n) => commands().find((c) => c.path.join(" ") === n)).filter((d): d is CommandDef => !!d);
   if (!defs.length) return "";

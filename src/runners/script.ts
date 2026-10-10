@@ -4,7 +4,7 @@
 // prompt both on stdin (like a headless agent) and in STROM_PROMPT.
 
 import { spawn } from "node:child_process";
-import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, OWN_GROUP, stopTree, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, OWN_GROUP, stopTree, tellUsage, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
 
 export const scriptRunner: Runner = {
   id: "script",
@@ -42,6 +42,15 @@ function once(opts: RunOptions, prompt: string, timeoutMs: number | undefined, w
     const denied: string[] = [];
     const on = (d: Buffer) => {
       for (const l of d.toString("utf8").split("\n")) if (l.startsWith("denied: ")) denied.push(l.slice(8).trim());
+      // a script says its use as an agent's stream would: a line "usage: {…}" (a sample, core/metrics.ts)
+      for (const l of d.toString("utf8").split("\n"))
+        if (l.startsWith("usage: "))
+          try {
+            const u = JSON.parse(l.slice(7)) as unknown;
+            if (u && typeof u === "object" && !Array.isArray(u)) tellUsage(opts, u as UsageSample);
+          } catch {
+            // not a sample
+          }
       out += d.toString("utf8");
       appendLog(opts.logFile, d.toString("utf8"));
       for (const l of d.toString("utf8").split("\n")) if (l.trim()) opts.onProgress?.(l.trim().slice(0, 160));

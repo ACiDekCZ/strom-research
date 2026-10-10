@@ -13,6 +13,63 @@ import { foldText } from "./text.ts";
 export const BATCH = 10;
 export const BATCH_MAX = 12;
 
+/**
+ * A reader's time limit by what it is given (found live: one crop, a reader stuck for the 15 minutes every reader had,
+ * the agent waiting on it): a few minutes to start and write its report, a minute more for each view it opens — never
+ * less than the floor, never more than the ceiling (the limit of a full batch). --minutes sets it by hand.
+ */
+export const READER_MINUTES_BASE = 5;
+export const READER_MINUTES_PER_VIEW = 1;
+export const READER_MINUTES_FLOOR = 6;
+export const READER_MINUTES_CEILING = 15;
+
+/** The time limit of a reader of so many views, in minutes. */
+export function readerMinutes(views: number): number {
+  return Math.min(READER_MINUTES_CEILING, Math.max(READER_MINUTES_FLOOR, READER_MINUTES_BASE + READER_MINUTES_PER_VIEW * Math.max(1, views)));
+}
+
+/**
+ * A reader's time limit learned from the readers of the same agent and model before it (found live: a reader of one
+ * crop stopped at its 6 minutes with no result, the same reading with 12 done in 4): the last READER_LEARN_RECENT of
+ * them that ran to an end — done, or stopped at their limit. Each says what share of its own limit by the formula it
+ * needed (its time against readerMinutes of its views, so a long batch says little of one crop): one done needed that
+ * share, one stopped more than it had. The next reader gets its formula's limit times the largest share, with room
+ * (×READER_LEARN_DONE after one done, ×READER_LEARN_STOPPED after one stopped) — never less than the formula, never more
+ * than the ceiling. Only how long strom waits for a reader; never what it reads or asks an archive for.
+ */
+export const READER_LEARN_RECENT = 10;
+export const READER_LEARN_DONE = 1.5;
+export const READER_LEARN_STOPPED = 2;
+
+/** What a reader before said of its time (its record in readers.jsonl). */
+export interface ReaderTime {
+  outcome?: string;
+  views?: number;
+  /** How long it ran: strom's own measure, else the agent's. */
+  ms?: number;
+  /** The limit it had. */
+  minutes?: number;
+}
+
+/** The time limit of a reader of so many views after these readers of the same agent and model (oldest first). */
+export function learnedReaderMinutes(views: number, earlier: ReaderTime[]): { minutes: number; learned: boolean } {
+  const base = readerMinutes(views);
+  let need = 0;
+  for (const r of earlier.filter((x) => x.outcome === "ok" || x.outcome === "timeout").slice(-READER_LEARN_RECENT)) {
+    const ran = (r.ms ?? 0) / 60_000;
+    // stopped at its limit: it needed more than it had
+    const took = r.outcome === "timeout" ? Math.max(r.minutes ?? 0, ran) : ran;
+    if (!(took > 0)) continue;
+    const share = took / readerMinutes(r.views ?? 1);
+    need = Math.max(need, share * (r.outcome === "timeout" ? READER_LEARN_STOPPED : READER_LEARN_DONE) * base);
+  }
+  const minutes = Math.min(READER_MINUTES_CEILING, Math.max(base, Math.ceil(need)));
+  return { minutes, learned: minutes > base };
+}
+
+/** "time limit of one reader" of the options --minutes. */
+export const READER_MINUTES_HELP = `time limit of one reader (default: ${READER_MINUTES_BASE} min and ${READER_MINUTES_PER_VIEW} for each view it opens, at least ${READER_MINUTES_FLOOR}, more where earlier readers of the same agent and model needed it, at most ${READER_MINUTES_CEILING})`;
+
 export interface ReaderImage {
   /** M0012 */
   id: string;
@@ -119,7 +176,10 @@ section: only when another part of the book begins on this image (another place,
 
 "unclear" is for a possible match you cannot confirm: a name you cannot read while the other
 details fit (age, house, date, parents), or a name you are not sure of. Write it as an entry, with
-where it stands and why it might answer the question — never hide it inside a "nothing" block.
+where it stands and why it might answer the question — never hide it inside a "nothing" block: the
+researcher looks at that place closer before the range counts as searched in vain.
+Transcribe only what the question asks for (page numbers and headings only, the entries of one
+surname, one entry whole): nothing else, however much is on the page.
 "nothing" is a valid and valuable result: say what you checked. "Illegible" beats a guess.
 When all images are done, finish with one line: "done: <n> images, found on <image numbers or none>".`;
 }

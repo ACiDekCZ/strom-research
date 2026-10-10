@@ -138,6 +138,10 @@ export interface NetOptions {
   waitMs?: number;
   /** Told before a wait for a limit: the host, until when, and why. */
   onWait?: (w: { host: string; until: number; ms: number; why: "cap" | "limit" }) => void;
+  /** Told of every pause a request makes (the host's pace, its hourly cap, a limit used up) — measured, never decided by. */
+  onPause?: (p: { host: string; ms: number; why: "pace" | "cap" | "limit" }) => void;
+  /** Told of every request that goes to a host (a redirect and a retry are requests too) — measured only. */
+  onRequest?: (host: string) => void;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   fetchImpl?: typeof fetch;
@@ -327,6 +331,15 @@ export function clock(ms: number, today = Date.now()): string {
 }
 
 /** One request, politely. Throws NetError when the host is not allowed, refused us, went silent, or is capped. */
+/** A pause told to the caller's measure; whatever it does, the request goes on. */
+function paused(opts: NetOptions, p: { host: string; ms: number; why: "pace" | "cap" | "limit" }): void {
+  try {
+    opts.onPause?.(p);
+  } catch {
+    // a measurement is no reason to fail
+  }
+}
+
 export async function politeRequest(url: string, opts: NetOptions, redirects = 0): Promise<NetResponse> {
   const now = opts.now ?? testHooks.now ?? Date.now;
   const sleep = opts.sleep ?? testHooks.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -386,18 +399,28 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
         if (free > waitBy) throw capError(host, "cap", free, pace.perHour);
         // a pause: here, holding the host; longer: with the host let go, said first
         if (free - t > MAX_WAIT_MS) throw new WaitOutside(free, "cap");
+        paused(opts, { host, ms: free - t, why: "cap" });
         await sleep(free - t);
       }
       if (s.waitUntil && s.waitUntil > now()) {
         if (s.waitUntil > waitBy) throw capError(host, "limit", s.waitUntil, pace.perHour);
         if (s.waitUntil - now() > MAX_WAIT_MS) throw new WaitOutside(s.waitUntil, "limit");
+        paused(opts, { host, ms: s.waitUntil - now(), why: "limit" });
         await sleep(s.waitUntil - now());
       }
       const gap = (s.last ?? 0) + gapOf(s, pace) - now();
-      if (gap > 0) await sleep(gap);
+      if (gap > 0) {
+        paused(opts, { host, ms: gap, why: "pace" });
+        await sleep(gap);
+      }
       s.last = now();
       s.recent.push(s.last);
       writeJson(file, s);
+      try {
+        opts.onRequest?.(host);
+      } catch {
+        // a measurement is no reason to fail
+      }
       viaH2 = !!s.http2;
       const asked = now();
       try {
@@ -429,6 +452,7 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
       // a slot freed may go to another strom first: waited again, a few times at most, then said when to try again
       if (++waitedOutside > 3) throw capError(host, outside.why, outside.until, pace.perHour);
       opts.onWait?.({ host, until: outside.until, ms: Math.max(0, outside.until - now()), why: outside.why });
+      paused(opts, { host, ms: Math.max(0, outside.until - now()), why: outside.why });
       await sleep(Math.max(0, outside.until - now()));
       continue;
     }

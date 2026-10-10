@@ -19,6 +19,13 @@ export type StoryProposal = Omit<Task, "id" | "type" | "created" | "updated" | "
 /** The origin of the search beyond the registers that comes before a story (an enrich task). */
 export const STORY_SOURCES_ORIGIN = "story:sources";
 
+/**
+ * The web pages a search beyond the registers fetches or reads for one person before it writes down what it searched
+ * and closes (two such sessions cost $7 and found nothing on the person). strom cannot count an agent's own fetches: the
+ * brief says it, the session records its searches.
+ */
+export const ENRICH_PAGES = 15;
+
 /** Work for a story: writing it, or the search beyond the registers before it — the queue keeps them after the research. */
 export function forStory(t: Pick<Task, "level" | "origin">): boolean {
   return t.level === "narrate" || t.origin === STORY_SOURCES_ORIGIN;

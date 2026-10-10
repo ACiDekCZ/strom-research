@@ -20,6 +20,9 @@ import { parseBatch } from "../../src/commands/batch.ts";
 import { permissionPath } from "../../src/agents/files.ts";
 import { opts, agent, world, startRun } from "./review.helpers.ts";
 
+/** Headless: nothing that waits for a person (a question, the browser's pairing request). */
+const NO_WAIT = ["--disallowedTools", "AskUserQuestion,mcp__claude-in-chrome__switch_browser"];
+
 test("strom run beside another: each run has a name of its own, takes another task and leaves the other's session alone", opts, async () => {
   const w = await world();
   for (const what of ["Křest", "Oddavky"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "Kamenice", "--why", "a", "--done-when", "b", "--about", "P1"]);
@@ -78,17 +81,17 @@ test("agent permissions use this computer's paths; PATH is replaced, not duplica
   assert.deepEqual(Object.keys(env).filter((k) => k.toUpperCase() === "PATH"), ["Path"]);
   assert.ok(env.Path!.startsWith("C:\\bin"));
   assert.deepEqual(claudeArgs({ kickoff: "k", name: "strom N0001", model: "opus", extraArgs: ["--add-dir", "x"] }), [
-    "-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "dontAsk", "--name", "strom N0001", "--model", "opus", "--add-dir", "x",
+    "-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "dontAsk", "--name", "strom N0001", "--model", "opus", ...NO_WAIT, "--add-dir", "x",
   ]);
   // interactive: what the permissions do not decide, Claude Code's own review does — nobody clicks through every action
   assert.deepEqual(claudeArgs({ interactive: true, kickoff: "Run strom brief" }), ["Run strom brief", "--permission-mode", "auto"]);
   // browser tools only for connectors that fetch through the browser; the user's full level is Claude Code's bypass
-  assert.deepEqual(claudeArgs({ kickoff: "k", chrome: false }).slice(-1), ["--no-chrome"]);
-  assert.deepEqual(claudeArgs({ kickoff: "k", chrome: true, permissions: "full" }).slice(4), ["--permission-mode", "bypassPermissions", "--chrome"]);
+  assert.deepEqual(claudeArgs({ kickoff: "k", chrome: false }).slice(-3), ["--no-chrome", ...NO_WAIT]);
+  assert.deepEqual(claudeArgs({ kickoff: "k", chrome: true, permissions: "full" }).slice(4), ["--permission-mode", "bypassPermissions", "--chrome", ...NO_WAIT]);
   assert.deepEqual(claudeArgs({ interactive: true, kickoff: "k", permissions: "full" }), ["k", "--permission-mode", "bypassPermissions"]);
   // Remote Control (agent.remote): always with a name — a bare flag would take the next argument
   assert.deepEqual(claudeArgs({ interactive: true, kickoff: "k", name: "Strom · Novákovi", remote: true }), ["k", "--permission-mode", "auto", "--name", "Strom · Novákovi", "--remote-control", "Strom · Novákovi"]);
-  assert.deepEqual(claudeArgs({ kickoff: "k", remote: true }).slice(-2), ["--remote-control", "Strom"]);
+  assert.deepEqual(claudeArgs({ kickoff: "k", remote: true }).slice(-4), ["--remote-control", "Strom", ...NO_WAIT]);
   // ask: Claude Code's own mode — it asks about what the tree's permissions do not decide; headless never asks
   assert.deepEqual(claudeArgs({ interactive: true, kickoff: "k", permissions: "ask" }), ["k"]);
   assert.deepEqual(claudeArgs({ kickoff: "k", permissions: "ask" }).slice(4, 6), ["--permission-mode", "dontAsk"]);

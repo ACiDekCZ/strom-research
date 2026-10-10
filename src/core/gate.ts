@@ -52,6 +52,10 @@ export interface Gate {
 
 export interface GateAnswer {
   verdict: "go" | "wait" | "stop" | "error";
+  /** The program's exit status (0 go on, 1 wait, 2 stop, else an error); none when it could not run or ran out of time. */
+  status?: number | null;
+  /** The signal that ended it, when one did. */
+  signal?: string;
   /** Why, in the gate's words (for the user). */
   reason?: string;
   /** When to ask again (wait). */
@@ -85,9 +89,13 @@ export function gatesDir(shared: string): string {
   return path.join(pluginsDir(shared), "gates");
 }
 
-/** The gates folder with strom's own files: the interface and the gates strom ships (refreshed). */
+/**
+ * The gates folder with strom's own files: the interface and the gates strom ships (refreshed) — only in a shared
+ * folder the setup made: before it, nothing is put on the disk (a home named from outside stays as it was).
+ */
 export function ensureGatesDir(shared: string): string {
   const dir = gatesDir(shared);
+  if (!fs.existsSync(shared)) return dir;
   try {
     fs.mkdirSync(dir, { recursive: true });
     const own: [string, string | undefined][] = [[path.join(dir, "README.md"), readAsset("plugins", "gates", "README.md")]];
@@ -114,6 +122,15 @@ export function ensureGatesDir(shared: string): string {
 /** Gates strom ships: ready in the gates folder, used only when the user sets run.gate. */
 export const SHIPPED = ["claude-usage"];
 
+/**
+ * A gate named in run.gate checked before anybody is asked and with nothing written: its name and cap always, its
+ * folder where it is there — a gate strom ships is put there by the setup (and refreshed by a run), never by this.
+ */
+export function checkGate(shared: string | undefined, spec: string): void {
+  const { name } = checkGateSpec(spec);
+  if (shared && (!SHIPPED.includes(name) || fs.existsSync(path.join(gatesDir(shared), name, MANIFEST)))) loadGate(shared, spec);
+}
+
 export function listGates(shared: string): Gate[] {
   const dir = gatesDir(shared);
   let names: string[] = [];
@@ -133,10 +150,10 @@ export function listGates(shared: string): Gate[] {
   return out;
 }
 
-/** A gate as the user names it: its name, then what it is given ("claude-usage 10"). */
 /**
  * A cap given to a gate (--cap n, --cap=n): the share of the week in % a run never goes past — a whole number from 1
- * to 100. What else was given, said at once (setting it, testing it, a run), never first before a session.
+ * to 100. What else was given, said at once (setting it, testing it, a run), never first before a session: the --cap
+ * as given, or "" when no number follows it.
  */
 export function capProblem(args: string[]): string | undefined {
   for (let i = 0; i < args.length; i++) {
@@ -144,19 +161,33 @@ export function capProblem(args: string[]): string | undefined {
     if (a !== "--cap" && !a.startsWith("--cap=")) continue;
     const v = a === "--cap" ? args[i + 1] : a.slice("--cap=".length);
     if (v !== undefined && /^\d{1,3}$/u.test(v) && Number(v) >= 1 && Number(v) <= 100) continue;
-    return v === undefined || v === "" || v.startsWith("--") ? "--cap without a number" : `--cap ${v}`;
+    return v === undefined || v === "" || v.startsWith("--") ? "" : `--cap ${v}`;
   }
   return undefined;
 }
 
-export function loadGate(shared: string, spec: string): Gate {
-  const [name = "", ...args] = spec.trim().split(/\s+/);
+/**
+ * A gate as the user names it — its name, then what it is given ("claude-usage 10") — checked without its folder: a
+ * name strom takes, a cap that is a cap. Its code (gate.cap, gate.cap.none) says it to a person in the research's
+ * language through the catalog (ui.error.*), a program reads the English.
+ */
+export function checkGateSpec(spec: string): { name: string; args: string[] } {
+  const [name = "", ...args] = spec.trim().split(/\s+/u);
   if (!NAME_RE.test(name)) throw new UsageError(`invalid gate name "${name}"`, { hint: "lowercase letters, digits and dashes, e.g. claude-usage" });
   const cap = capProblem(args);
-  if (cap)
-    throw new UsageError(`${cap}: the cap is a whole number from 1 to 100 — the % of the week a run never goes past`, {
+  if (cap !== undefined)
+    throw new UsageError(`${cap || "--cap without a number"}: the cap is a whole number from 1 to 100 — the % of the week a run never goes past`, {
       hint: `e.g. strom config set run.gate "${name} 15 --cap 95"`,
+      code: cap ? "gate.cap" : "gate.cap.none",
+      params: { ...(cap ? { cap } : {}), name },
+      hintCode: "gate.cap",
     });
+  return { name, args };
+}
+
+/** A gate as the user names it: its name, then what it is given ("claude-usage 10"). */
+export function loadGate(shared: string, spec: string): Gate {
+  const { name, args } = checkGateSpec(spec);
   const dir = path.join(gatesDir(shared), name);
   const file = path.join(dir, MANIFEST);
   if (!fs.existsSync(file)) throw new StromError(`no gate "${name}" (no ${file})`, { hint: `the gates here: strom gate list — a gate is a folder in ${gatesDir(shared)} with ${MANIFEST}` });
@@ -206,16 +237,87 @@ export function askGate(gate: Gate, env: Env, facts: GateFacts): GateAnswer {
   const said = parseSaid(r.stdout ?? "");
   const reason = said.reason ?? (r.status !== 0 && r.status !== 1 && r.status !== 2 ? lastLine(r.stderr ?? "") : undefined);
   const more = { ...(said.watch ? { watch: said.watch } : {}), ...(said.hard && r.status !== 0 ? { hard: true } : {}) };
+  const exit = { status: r.status, ...(r.signal ? { signal: r.signal } : {}) };
   switch (r.status) {
     case 0:
-      return { verdict: "go", ...(reason ? { reason } : {}), ...more };
+      return { verdict: "go", ...exit, ...(reason ? { reason } : {}), ...more };
     case 1:
-      return { verdict: "wait", ...(reason ? { reason } : {}), waitMs: Math.max(MIN_WAIT_MS, said.waitMs ?? DEFAULT_WAIT_MS), ...more };
+      return { verdict: "wait", ...exit, ...(reason ? { reason } : {}), waitMs: Math.max(MIN_WAIT_MS, said.waitMs ?? DEFAULT_WAIT_MS), ...more };
     case 2:
-      return { verdict: "stop", ...(reason ? { reason } : {}), ...more };
+      return { verdict: "stop", ...exit, ...(reason ? { reason } : {}), ...more };
     default:
-      return { verdict: "error", reason: reason ?? (r.signal ? ui(facts.lang, "ui.gate.signal", { signal: r.signal }) : ui(facts.lang, "ui.gate.status", { status: String(r.status) })) };
+      return { verdict: "error", ...exit, reason: reason ?? (r.signal ? ui(facts.lang, "ui.gate.signal", { signal: r.signal }) : ui(facts.lang, "ui.gate.status", { status: String(r.status) })) };
   }
+}
+
+/** The record of the gates asked in a tree's runs (JSON lines; kept within limits by core/tidy.ts). */
+export const GATE_LOG = "gate.log";
+
+/**
+ * One time a run asked its gate: when, which gate with what it was given, what its program answered (exit status →
+ * verdict, why, how long to wait), what strom told it (the plan's limits, the next task) and what the run did then —
+ * so a run can be checked afterwards.
+ */
+export interface GateRecord {
+  at: string;
+  /** The run (its worker's name). */
+  run: string;
+  gate: string;
+  args: string[];
+  status: number | null;
+  signal?: string;
+  verdict: GateAnswer["verdict"];
+  reason?: string;
+  waitMs?: number;
+  /** When it said to ask again (a wait). */
+  until?: string;
+  hard?: boolean;
+  watch?: GateAnswer["watch"];
+  /** The limits of the agent's plan the gate was given (STROM_AGENT_LIMITS). */
+  limits?: AgentLimit[];
+  /** The task the next session would take; the sessions and cost of the run so far. */
+  task?: string;
+  sessions: number;
+  costUsd: number;
+  /** What the run did: began the session, waited, stopped, or began it although the gate would not (the user's yes). */
+  then?: "go" | "wait" | "stop" | "anyway";
+}
+
+/** What a gate answered, as a record of the run (its time: when it was asked). */
+export function gateRecord(gate: Gate, said: GateAnswer, facts: GateFacts & { run: string }, at = new Date()): GateRecord {
+  return {
+    at: at.toISOString(),
+    run: facts.run,
+    gate: gate.name,
+    args: gate.args,
+    status: said.status ?? null,
+    ...(said.signal ? { signal: said.signal } : {}),
+    verdict: said.verdict,
+    ...(said.reason ? { reason: said.reason } : {}),
+    ...(said.waitMs !== undefined ? { waitMs: said.waitMs, until: new Date(at.getTime() + said.waitMs).toISOString() } : {}),
+    ...(said.hard ? { hard: true } : {}),
+    ...(said.watch ? { watch: said.watch } : {}),
+    ...(facts.limits?.length ? { limits: facts.limits } : {}),
+    ...(facts.nextTask ? { task: facts.nextTask } : {}),
+    sessions: facts.sessions,
+    costUsd: Math.round(facts.costUsd * 100) / 100,
+  };
+}
+
+/** The record appended to the tree's .strom/gate.log. Never fails: a log is no reason to stop a run. */
+export function recordGate(root: string, rec: GateRecord): void {
+  try {
+    const dir = path.join(root, ".strom");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, GATE_LOG), JSON.stringify(rec) + "\n");
+  } catch {
+    // nothing to write to: the run goes on
+  }
+}
+
+/** The record as a line of a session's log (.strom/runs/<session>.log), for whoever reads the run afterwards. */
+export function gateLogLine(rec: GateRecord): string {
+  return `[strom] gate ${JSON.stringify(rec)}\n`;
 }
 
 /**

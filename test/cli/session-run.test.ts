@@ -63,6 +63,8 @@ test("strom run: the subscription limit stops the loop", opts, async () => {
   assert.equal(r.sessions.length, 1);
   assert.equal(r.stop, "limit");
   assert.match(r.stopped, /limit předplatného \(obnoví se 7pm\)/);
+  // the session it cut off says the limit, never only that the agent stopped
+  assert.equal(r.sessions[0].summary, "limit plánu agenta se vyčerpal dřív, než bylo sezení zavřeno (7pm)");
   w.cleanup();
 });
 

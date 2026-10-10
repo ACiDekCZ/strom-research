@@ -13,6 +13,7 @@ import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
+import { questionsWaiting } from "../core/tuneask.ts";
 
 /** A line as a sentence: its first letter capital (a catalog's text that also stands inside a line). */
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -164,7 +165,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         }
       }
       // the tasks that wait for the person, and the new versions of the stories they approved
-      const waiting = waitingForUser(tree).length + storiesToApprove(tree).length + receivedPending(root).length;
+      const waiting = waitingForUser(tree).length + storiesToApprove(tree).length + receivedPending(root).length + questionsWaiting(tree, ctx.settings);
       const started = tree.list<Research>("research").length > 0;
       out(t("ui.menu.tree", { name: tree.config.name, persons: tree.countLive("person") }));
       // No agent yet (none installed, or not the one chosen): the research waits for it, and item 1 gets one.

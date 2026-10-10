@@ -19,6 +19,8 @@ import type { Session } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { liveWorkers } from "./workers.ts";
 import { receivedAll, resent, SYNC_INBOX } from "./sync.ts";
+import { refreshRollup } from "./readstats.ts";
+import { selfTune } from "./tune.ts";
 
 const DAY = 24 * 3600_000;
 const MB = 1024 * 1024;
@@ -30,7 +32,14 @@ export const LIMITS = {
   excerpts: { bytes: 200 * MB },
   fetch: { days: 1 },
   kept: { written: 5, days: 7, undoneDays: 30, refused: 5 },
+  /** The measurements (core/metrics.ts): each journal and the use of the sessions together — never a summary. */
+  metrics: { days: 90, bytes: 20 * MB },
+  /** The record of the gates asked by runs (.strom/gate.log, core/gate.ts): its old lines go, its newest part stays. */
+  gate: { days: 90, bytes: 2 * MB },
 } as const;
+
+/** The record of the gates' answers (core/gate.ts GATE_LOG), directly in .strom. */
+const GATE_LOG = "gate.log";
 
 /** So much to free is worth saying (status, the menu, the orientation). */
 export const TIDY_SAID = 100 * MB;
@@ -38,7 +47,7 @@ export const TIDY_SAID = 100 * MB;
 /** A file (or a work folder) only touched this long ago is left: something may still write it. */
 const QUIET_MS = 10 * 60_000;
 
-export type TidyKind = "logs" | "briefs" | "views" | "excerpts" | "fetch" | "kept" | "inbox" | "pointers";
+export type TidyKind = "logs" | "briefs" | "views" | "excerpts" | "fetch" | "kept" | "inbox" | "pointers" | "metrics" | "gate";
 
 export interface TidyItem {
   kind: TidyKind;
@@ -174,6 +183,36 @@ export function tidyPlan(tree: Tree, at = Date.now()): TidyPlan {
     }
     const journal = entries(root, "views").find((e) => path.basename(e.rel) === "views.jsonl");
     if (journal && journal.bytes > LIMITS.views.journal) items.push({ kind: "views", path: journal.rel, bytes: journal.bytes - LIMITS.views.journal / 2, do: "shrink", why: "the record of views looked at: its newest part kept" });
+
+    // the measurements of the reading of scans and of the load on the archives: what is older than their days, or
+    // beyond their size, goes (a journal keeps its newest lines) — never while somebody is at work (they append)
+    for (const e of entries(root, "metrics").filter((x) => /\.jsonl$/.test(x.rel))) {
+      const first = firstAt(e.abs);
+      const cutoff = at - LIMITS.metrics.days * DAY;
+      const old = first < cutoff;
+      // how much of it is old: by the time its lines span (nothing read but its first line)
+      const oldBytes = old && e.mtime > first ? Math.round((e.bytes * Math.min(1, (cutoff - first) / (e.mtime - first))) || 0) : old ? e.bytes : 0;
+      if (e.bytes > LIMITS.metrics.bytes || old)
+        items.push({ kind: "metrics", path: e.rel, bytes: Math.max(oldBytes, e.bytes > LIMITS.metrics.bytes ? e.bytes - LIMITS.metrics.bytes / 2 : 0), do: "shrink", why: old ? `measurements older than ${LIMITS.metrics.days} days left out` : `the measurements: their newest ${LIMITS.metrics.bytes / 2 / MB} MB kept` });
+    }
+    const usage = entries(root, path.join("metrics", "usage")).filter((e) => /\.jsonl$/.test(e.rel) && quiet(e)).sort((a, b) => b.mtime - a.mtime);
+    let usageBytes = 0;
+    for (const e of usage) {
+      const old = at - e.mtime > LIMITS.metrics.days * DAY;
+      if (old || usageBytes + e.bytes > LIMITS.metrics.bytes) items.push({ kind: "metrics", path: e.rel, bytes: e.bytes, do: "remove", why: old ? `the use of a session over ${LIMITS.metrics.days} days ago` : `beyond ${LIMITS.metrics.bytes / MB} MB of the use of sessions` });
+      else usageBytes += e.bytes;
+    }
+
+    // the record of the gates' answers: its lines older than its days, or beyond its size, go (a run appends to it)
+    const gateLog = entries(root, "").find((e) => path.basename(e.rel) === GATE_LOG);
+    if (gateLog) {
+      const first = firstAt(gateLog.abs);
+      const cutoff = at - LIMITS.gate.days * DAY;
+      const old = first < cutoff;
+      const big = gateLog.bytes > LIMITS.gate.bytes;
+      const oldBytes = old && gateLog.mtime > first ? Math.round(gateLog.bytes * Math.min(1, (cutoff - first) / (gateLog.mtime - first)) || 0) : old ? gateLog.bytes : 0;
+      if (old || big) items.push({ kind: "gate", path: gateLog.rel, bytes: Math.max(oldBytes, big ? gateLog.bytes - LIMITS.gate.bytes / 2 : 0), do: "shrink", why: old ? `answers of the gate older than ${LIMITS.gate.days} days left out` : `the answers of the gate: their newest ${LIMITS.gate.bytes / 2 / MB} MB kept` });
+    }
   }
 
   // excerpts: made again from the scans
@@ -273,6 +312,35 @@ export function tidyPlan(tree: Tree, at = Date.now()): TidyPlan {
   };
 }
 
+/** When the first line of a journal was written (its "at"); unknown: now (nothing is old). */
+function firstAt(file: string): number {
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(file, "r");
+    const b = Buffer.alloc(512);
+    const head = b.subarray(0, fs.readSync(fd, b, 0, b.length, 0)).toString("utf8");
+    const t = Date.parse(/"at":"([^"]+)"/.exec(head)?.[1] ?? "");
+    return Number.isFinite(t) ? t : Date.now();
+  } catch {
+    return Date.now();
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+/** A journal of measurements without its lines older than `since`, and at most its newest `keep` bytes. */
+export function trimJournal(text: string, since: number, keep: number): string {
+  let out = text;
+  if (out.length > keep) out = out.slice(out.indexOf("\n", out.length - keep) + 1);
+  const lines = out.split("\n");
+  let i = 0;
+  for (; i < lines.length; i++) {
+    const t = Date.parse(/"at":"([^"]+)"/.exec(lines[i]!)?.[1] ?? "");
+    if (!Number.isFinite(t) || t >= since) break;
+  }
+  return lines.slice(i).join("\n");
+}
+
 /** The image data in a log of an agent's session: left out, its size said. */
 function withoutImages(text: string): string {
   return text.replace(/"data":"([A-Za-z0-9+/=]{2048,})"/g, (_, d: string) => `"data":"[image ${Math.round((d.length * 3) / 4 / 1024)} kB left out]"`);
@@ -280,10 +348,17 @@ function withoutImages(text: string): string {
 
 /** The path checked again as it goes: in the tree's .strom, of its kind, no link. */
 function safe(root: string, item: TidyItem): string | undefined {
-  const dirs: Record<TidyKind, string> = { logs: "runs", briefs: "briefs", views: "views", excerpts: "excerpts", fetch: "fetch", kept: path.join("sync", "kept"), inbox: "sync", pointers: "" };
+  const dirs: Record<TidyKind, string> = { logs: "runs", briefs: "briefs", views: "views", excerpts: "excerpts", fetch: "fetch", kept: path.join("sync", "kept"), inbox: "sync", pointers: "", metrics: "metrics", gate: "" };
   const abs = path.resolve(root, item.path);
   const expected = path.resolve(root, ".strom", dirs[item.kind]);
-  if (path.dirname(abs) !== expected) return undefined;
+  // the measurements: a journal in .strom/metrics, the use of a session in its usage folder — nothing else
+  const fits =
+    item.kind === "metrics"
+      ? /\.jsonl$/.test(abs) && (path.dirname(abs) === expected || (item.do === "remove" && path.dirname(abs) === path.join(expected, "usage")))
+      : item.kind === "gate"
+        ? item.do === "shrink" && path.basename(abs) === GATE_LOG && path.dirname(abs) === expected
+        : path.dirname(abs) === expected;
+  if (!fits) return undefined;
   try {
     const st = fs.lstatSync(abs);
     if (st.isSymbolicLink() || (item.kind === "fetch" ? !st.isDirectory() : !st.isFile())) return undefined;
@@ -300,6 +375,14 @@ export function tidy(tree: Tree, plan: TidyPlan, how: "person" | "auto"): { remo
   let removed = 0;
   let shrunk = 0;
   let freed = 0;
+  // the measurements summed up before a journal is shortened or a log of a session goes (what older sessions left is
+  // read from their logs while they are here): the figures outlive them (core/readstats.ts)
+  if (plan.items.some((i) => i.kind === "metrics" || i.kind === "logs" || (i.kind === "views" && i.do === "shrink")))
+    try {
+      refreshRollup(tree);
+    } catch {
+      // a summary is no reason to keep everything
+    }
   for (const item of plan.items) {
     const abs = safe(tree.root, item);
     if (!abs) continue;
@@ -326,6 +409,16 @@ export function tidy(tree: Tree, plan: TidyPlan, how: "person" | "auto"): { remo
         fs.writeFileSync(abs, text.slice(from));
         shrunk++;
         freed += from;
+      } else if (item.kind === "metrics" || item.kind === "gate") {
+        // a journal of measurements, the record of the gates: its old lines out, its newest part kept
+        const text = fs.readFileSync(abs, "utf8");
+        const limit = LIMITS[item.kind];
+        const kept = trimJournal(text, Date.now() - limit.days * DAY, limit.bytes / 2);
+        if (kept.length < text.length) {
+          fs.writeFileSync(abs, kept);
+          shrunk++;
+          freed += Buffer.byteLength(text) - Buffer.byteLength(kept);
+        }
       }
     } catch {
       // left as it is: tried again next time
@@ -351,6 +444,14 @@ export function autoTidy(tree: Tree): void {
   if (!tree.dryRun) compactSoon(tree.root, tree.env);
   try {
     if (tree.dryRun) return;
+    // the reading of scans summed up after each session and once a day (core/readstats.ts): free, local — and what only
+    // adds accuracy or saves requests to an archive set by itself from it (core/tune.ts; never .strom/tune tidied)
+    try {
+      const rollup = refreshRollup(tree);
+      if (rollup) selfTune(tree, { rollup });
+    } catch {
+      // a summary is no reason to fail
+    }
     if (!tidyOn(tree.root)) {
       // nothing gathered: in order from now on
       if (tidyPlan(tree).items.length === 0) setTidyOn(tree.root);

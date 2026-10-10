@@ -50,7 +50,7 @@ test("an archive says nothing of an agent or AI anywhere a person or the app loo
   for (const key of ["1", "2", "3", "4"]) await look(`menu 5.${key}`, ["menu"], menu(["5", key, "", "0", "0", "0"]));
   await look("menu 1 (switch asked, no)", ["menu"], menu(["1", "n", "0"]));
   await look("settings: the setup", ["menu"], menu(["8", "1", "", "", "n", "0", "n", "0", "0", "0"]));
-  for (const args of [[], ["stats"], ["plan"], ["check"], ["doctor"], ["recent"], ["person", "card", "P0001"], ["pedigree", "P0001"], ["live"], ["help"], ["help", "--human"], ["help", "--agent"], ["help", "sync"], ["help", "sync", "--human"], ["help", "doctor", "--human"], ["doctor", "--help"], ["guide"], ["mode"], ["sync", "--inbox"], ["intake", "--text", "Děda Karel byl mlynář"], ["sync", "undo", "I0001", "--dry-run"], ["history"], ["status"]])
+  for (const args of [[], ["stats"], ["plan"], ["check"], ["doctor"], ["recent"], ["person", "card", "P0001"], ["pedigree", "P0001"], ["live"], ["help"], ["help", "--human"], ["help", "--agent"], ["help", "sync"], ["help", "sync", "--human"], ["help", "doctor", "--human"], ["doctor", "--help"], ["guide"], ["mode"], ["sync", "--inbox"], ["intake", "--text", "Děda Karel byl mlynář"], ["sync", "undo", "I0001", "--dry-run"], ["history"], ["status"], ["media", "calibrate", "--questions"], ["media", "calibrate", "--questions", "--json"]])
     await look(`strom ${args.join(" ")}`, args, args[0] === "help" || args.includes("--help") ? { tty: true } : {}); // the person's help: at a terminal
   for (const [label, text] of said) {
     const bad = text.split("\n").filter((l) => AI.test(l));

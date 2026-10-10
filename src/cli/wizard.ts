@@ -13,7 +13,7 @@ import { gitVersion } from "../core/git.ts";
 import { fixGit, offerAgent } from "./fixes.ts";
 import { agentsHere, suggestedWay, waysHere, whereToTalk } from "../core/apps.ts";
 import { chooseWay, wayName } from "./ways.ts";
-import { chooseModel } from "./model-choice.ts";
+import { chooseEffort, chooseModel } from "./model-choice.ts";
 import { ADDON_SWITCHES, PROFILES } from "../agents/profiles.ts";
 import { writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
@@ -154,6 +154,9 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
     const { value } = await chooseModel(ctx, lang, agent, cfg.models?.[agent]?.lead, { first, ...keep });
     writeStored(cfg, "model.lead", agent, value);
     if (agent !== "claude" && value === undefined) out(ui(lang, "ui.setup.model.strong", { agent: PROFILES[agent]!.name }));
+    // 5a. its reasoning effort, for an agent that takes one (high recommended); 0 or no answer keeps what is
+    const effort = await chooseEffort(ctx, lang, agent, cfg.models?.[agent]?.effort, keep);
+    if (effort?.picked) writeStored(cfg, "model.effort", agent, effort.value);
   }
 
   // 5b. Stories of the ancestors for the family book: on unless the person says no (an agent writes them).

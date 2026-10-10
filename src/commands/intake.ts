@@ -260,6 +260,7 @@ register(
     tree: true,
     writes: true,
     args: [{ name: "input", description: "input ID", required: true }],
+    examples: ['strom input skip I0003 --reason "the same letter as I0002"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (!opts.reason) throw new UsageError("--reason is required");

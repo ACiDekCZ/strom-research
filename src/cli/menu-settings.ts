@@ -20,7 +20,7 @@ import { ADDON_SWITCHES, PROFILES } from "../agents/profiles.ts";
 import { loadLogins } from "../core/logins.ts";
 import { claudeRemoteAtStartup } from "../agents/global.ts";
 import { chooseMode } from "./menu-mode.ts";
-import { chooseModel } from "./model-choice.ts";
+import { chooseEffort, chooseModel } from "./model-choice.ts";
 import { agentsHere } from "../core/apps.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
@@ -78,10 +78,17 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
         act: async () => {
           const now = kept ? String(kept.value) : undefined;
           const pick = await chooseModel(ctx, lang, agent, now, { first: false, back: t("ui.browse.back") });
-          if (!pick.picked || pick.value === now) return;
+          if (!pick.picked) return;
           // where it is kept now: this family tree's own, else this computer's (for this agent)
           const scope = ["--agent", agent, ...(kept?.source === "tree" ? ["--for-tree"] : [])];
-          await run(pick.value ? ["config", "set", "model.lead", pick.value, ...scope] : ["config", "unset", "model.lead", ...scope], true);
+          // (--yes: its effort is asked below, not by config set)
+          if (pick.value !== now) await run(pick.value ? ["config", "set", "model.lead", pick.value, ...scope, "--yes"] : ["config", "unset", "model.lead", ...scope], true);
+          // with the model its reasoning effort (an agent that takes one): high recommended, 0 changes nothing
+          const effortNow = ctx.settings.resolve("model.effort", tree, agent);
+          const effort = await chooseEffort(ctx, lang, agent, effortNow ? String(effortNow.value) : undefined, { back: t("ui.browse.back") });
+          if (!effort?.picked || effort.value === (effortNow ? String(effortNow.value) : undefined)) return;
+          const where = ["--agent", agent, ...(effortNow?.source === "tree" ? ["--for-tree"] : [])];
+          await run(effort.value ? ["config", "set", "model.effort", effort.value, ...where] : ["config", "unset", "model.effort", ...where], true);
         },
       });
     }

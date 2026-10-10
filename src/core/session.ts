@@ -19,6 +19,7 @@ import type { Env } from "./paths.ts";
 import { detectAgent } from "./which.ts";
 import { finishAsked, finishByLimit, finishFile } from "./clock.ts";
 import { isLiveWorker, isWorkerId } from "./workers.ts";
+import { readCodexConfig } from "../agents/effort.ts";
 
 function currentFile(tree: Tree, env: Env = tree.env): string {
   const w = env.STROM_WORKER;
@@ -147,7 +148,7 @@ export function openSessions(tree: Tree): Session[] {
 }
 
 /** Start a session on a task (the task goes to "doing"). One open session per agent; one agent per task. */
-export function startSession(tree: Tree, opts: { task?: Task; research?: string; runner?: string; model?: string }): Session {
+export function startSession(tree: Tree, opts: { task?: Task; research?: string; runner?: string; model?: string; effort?: string }): Session {
   return tree.withTreeLock(() => {
     const me = holderOf(tree.env, opts.runner);
     // one open session per agent in each research (each has its own pointer); a session of no research is the agent's only one
@@ -166,6 +167,8 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
     const agent = detectAgent(tree.env) ?? (opts.runner && opts.runner !== "script" ? opts.runner : undefined);
     // the model strom started the agent with (strom run, strom chat): what it read with, for a later review
     const model = opts.model ?? tree.env.STROM_MODEL?.trim();
+    // the reasoning effort it ran with: strom's (the person's model.effort), else what Codex's own config says (read only)
+    const effort = opts.effort ?? (tree.env.STROM_MODEL_EFFORT?.trim() || (agent === "codex" ? readCodexConfig(tree.env).effort : undefined));
     const t = now();
     const s: Session = {
       id: tree.allocate("N"),
@@ -181,6 +184,7 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
       ...(isWorkerId(tree.env.STROM_WORKER) ? { worker: tree.env.STROM_WORKER } : {}),
       ...(agent ? { agent } : {}),
       ...(model ? { model } : {}),
+      ...(effort ? { effort } : {}),
       strom: VERSION,
     };
     tree.put(s, { op: "session.start", targets: [s.id, ...(task ? [task.id] : [])], summary: `${s.id} session started${task ? ` on ${task.id}` : ""}` });
