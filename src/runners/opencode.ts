@@ -8,9 +8,12 @@
 // step_start, step_finish (tokens and cost of a step), error; each names its
 // session (sessionID), which `--session` resumes.
 
-import { runJsonLines } from "./jsonl.ts";
+import { runJsonLines, webUse } from "./jsonl.ts";
 import { OPENCODE_RUN_AGENT } from "../agents/files.ts";
-import { usageNumber, tellUsage, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+
+/** OpenCode's own web tools (OpenCode 2: webfetch with its url, websearch with its query), counted once each call is done. */
+export const OPENCODE_WEB = { page: ["webfetch"], search: ["websearch"] } as const;
 
 /** Command-line arguments of a headless run (exported for tests). */
 export function opencodeArgs(opts: Pick<RunOptions, "model" | "extraArgs" | "permissions" | "kickoff">): string[] {
@@ -25,6 +28,8 @@ export const opencodeRunner: Runner = {
     const args = opencodeArgs({ ...opts, kickoff: "Your brief is above. Work only through `strom` in this folder, as it says." });
     const tokens = { input: 0, output: 0, cacheRead: 0 };
     let main: string | undefined;
+    // the web tools' calls passed on (a call is said again as its state changes)
+    const webSeen = new Set<string>();
     // Resumed: its session by id, the message as the prompt.
     const resume = (id: string, message: string) => ({ args: [...opencodeArgs({ ...opts, kickoff: message }).slice(0, -1), "--session", id, message], input: "" });
     return runJsonLines("opencode", args, opts.env, opts, resume, (msg, heard) => {
@@ -43,8 +48,15 @@ export const opencodeRunner: Runner = {
         const what = typeof input.command === "string" ? `$ ${input.command}` : typeof input.filePath === "string" ? `${String(part.tool)} ${input.filePath}` : String(part.tool ?? "tool");
         opts.onProgress?.(what.split("\n")[0]!.slice(0, 140));
         // (its shell tool: "bash", "shell" from OpenCode 2 — named "Bash" like Claude Code's, so a refused strom stops the run)
-        if (state.status === "error" && /reject|denied|not allowed|permission/i.test(state.error ?? ""))
-          heard.denied.push(typeof input.command === "string" ? `Bash: ${input.command.slice(0, 120)}` : `${String(part.tool)}: ${what.slice(0, 120)}`);
+        const refused = state.status === "error" && /reject|denied|not allowed|permission/i.test(state.error ?? "");
+        if (refused) heard.denied.push(typeof input.command === "string" ? `Bash: ${input.command.slice(0, 120)}` : `${String(part.tool)}: ${what.slice(0, 120)}`);
+        // its web tools: a page or a search once done — or failed other than refused (asked of the host all the same)
+        const w = state.status === "completed" || (state.status === "error" && !refused) ? webUse(part.tool, input, OPENCODE_WEB) : undefined;
+        const call = typeof part.callID === "string" ? part.callID : typeof part.id === "string" ? part.id : undefined;
+        if (w && !(call && webSeen.has(call))) {
+          if (call) webSeen.add(call);
+          tellWeb(opts, w);
+        }
       }
       if (msg.type === "text" && typeof part.text === "string" && part.text.trim()) heard.text = part.text;
       if (msg.type === "step_finish") {

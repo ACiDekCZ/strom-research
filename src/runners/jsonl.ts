@@ -7,6 +7,7 @@
 
 import type { SessionMetrics } from "../core/model.ts";
 import type { Env } from "../core/paths.ts";
+import type { AgentWeb } from "../core/metrics.ts";
 import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, OWN_GROUP, spawnAgent, stopTree, type RunOptions, type RunResult } from "./runner.ts";
 
 /** What a runner learns from its agent's events. */
@@ -16,6 +17,8 @@ export interface Heard {
   text: string;
   isError: boolean;
   denied: string[];
+  /** Tool calls strom's own hook refused (RunResult.refused): not the permissions. */
+  refused?: string[];
   /** The agent's own id of this session, when it says it (for resuming it). */
   sessionId?: string;
   /** This process's responses as the agent said them one by one (heardResponse), for a runner whose totals come at its end. */
@@ -54,6 +57,21 @@ export function addResponses(m: SessionMetrics, r: Responses | undefined): void 
   if (r.cr !== undefined) m.cacheReadTokens = (m.cacheReadTokens ?? 0) + r.cr;
   if (r.cw !== undefined) m.cacheWriteTokens = (m.cacheWriteTokens ?? 0) + r.cw;
   if (r.turns) m.turns = (m.turns ?? 0) + r.n;
+}
+
+/** The fields an agent's web tool names the address of its page in. */
+const URL_FIELDS = ["url", "Url", "URL", "uri", "href"] as const;
+
+/**
+ * One of the agent's own web tools by its name (core/metrics.ts AgentWeb): a page with its address from the tool's input,
+ * or a search; another tool, or a page whose address its input does not say: undefined.
+ */
+export function webUse(tool: unknown, input: Record<string, unknown> | undefined, names: { page: readonly string[]; search: readonly string[] }): AgentWeb | undefined {
+  if (typeof tool !== "string") return undefined;
+  if (names.search.includes(tool)) return { via: "search", tool };
+  if (!names.page.includes(tool)) return undefined;
+  const url = URL_FIELDS.map((k) => input?.[k]).find((v): v is string => typeof v === "string" && v.trim() !== "");
+  return url ? { via: "web", url, tool } : undefined;
 }
 
 /**
@@ -139,6 +157,7 @@ export async function runJsonLines(
   const code = a.code;
   heard.metrics.durationMs ??= Date.now() - started;
   if (heard.denied.length) heard.metrics.denied = heard.denied.length;
+  if (heard.refused?.length) heard.metrics.refused = heard.refused.length;
   const all = `${heard.text}\n${a.stderr}`;
   const limit = looksLikeLimit(all);
   const outcome: RunResult["outcome"] = opts.signal?.aborted
@@ -159,6 +178,7 @@ export async function runJsonLines(
     metrics: heard.metrics,
     ...(limit.resumeAt ? { resumeAt: limit.resumeAt } : {}),
     ...(heard.denied.length ? { denied: heard.denied } : {}),
+    ...(heard.refused?.length ? { refused: heard.refused } : {}),
     ...(outcome === "error" && looksLikeModelRejected(all) ? { modelRejected: true as const } : {}),
   };
 }

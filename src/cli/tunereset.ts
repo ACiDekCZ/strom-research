@@ -6,7 +6,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import type { Context } from "./context.ts";
-import { lines, table, truncate } from "./format.ts";
+import { lines, numberIn, table, truncate } from "./format.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { loadRollup, TUNING } from "../core/readstats.ts";
 import { applyReset, researchHeld, resetItems, RESET_PARTS, type ResetItem, type ResetPart } from "../core/tunereset.ts";
@@ -52,6 +52,71 @@ function valueText(v: unknown): string {
     .filter(([, x]) => x !== false && x !== null && x !== undefined)
     .map(([k, x]) => (x === true ? k : `${k} ${String(x)}`));
   return parts.length ? parts.join(" · ") : "–";
+}
+
+/**
+ * The reason of a value as a person reads it — in the research language, its numbers as the language writes them:
+ * a calibration by the known records it read, an answer by where it was given, a change of strom's by its figures
+ * (core/tune.ts reasonOf; one kept before they were: from the readings measured). The English `why` stays the agent's.
+ */
+export function reasonText(lang: string, i: ResetItem): string | undefined {
+  const t = (k: UIKey, values: Record<string, string | number> = {}) => ui(lang, k, values);
+  const nf = (n: number) => numberIn(lang, n, { maximumFractionDigits: 1 });
+  if (i.source === "calibrated") return i.sample !== undefined ? t("ui.tune.why.calibrated", { n: nf(i.sample) }) : undefined;
+  if (i.source === "answered") {
+    if (!i.by) return undefined;
+    return ["terminal", "window", "app"].includes(i.by) ? t(`ui.tune.why.answered.${i.by}` as UIKey) : t("ui.tune.why.answered");
+  }
+  const b = i.basis ?? {};
+  const num = (k: string) => (typeof b[k] === "number" && Number.isFinite(b[k]) ? (b[k] as number) : undefined);
+  const pct = (v: number | undefined) => (v === undefined ? "–" : `${nf(Math.round(v * 100))} %`);
+  // "3 of the last 10" (readers), "3 of 10" (sessions, images); without its whole (kept before it was): the count
+  const count = (n: number, of: number | undefined, last: boolean) => (of === undefined ? nf(n) : t(last ? "ui.tune.why.last" : "ui.tune.why.of", { n: nf(n), of: nf(of) }));
+  if (i.action === "A3") {
+    const n = num("M4");
+    const ctx = num("ctx");
+    const view = num("viewTokens");
+    if (n !== undefined && ctx !== undefined && view !== undefined) return t("ui.tune.why.A3", { count: count(n, num("M4.of"), true), ctx: nf(ctx), view: nf(view) });
+    // where the context never cleared: the main agent's long stretches (M12)
+    const long = num("M12");
+    if (long !== undefined && ctx !== undefined && view !== undefined) return t("ui.tune.why.A3.long", { count: count(long, num("M12.of"), true), ctx: nf(ctx), view: nf(view) });
+    return t("ui.tune.why.measured");
+  }
+  const parts: string[] = [];
+  for (const m of Object.keys(b).filter((k) => /^M\d+$/u.test(k))) {
+    const value = num(m);
+    const n = num(`${m}.n`) ?? 0;
+    const of = num(`${m}.of`);
+    if (value === undefined) continue;
+    switch (m) {
+      case "M5":
+      case "M6":
+        parts.push(t(`ui.tune.why.${m}` as UIKey, { value: pct(value), base: pct(num(`${m}.base`)), n: nf(n) }));
+        break;
+      case "M7":
+        parts.push(t("ui.tune.why.M7", { n: nf(n) }));
+        break;
+      case "M8": {
+        const wait = num("M8.wait");
+        const c = count(value, n, false);
+        parts.push(wait === undefined ? t("ui.tune.why.M8", { count: c }) : t("ui.tune.why.M8.wait", { count: c, wait: nf(wait), later: nf(num("M8.later") ?? 0) }));
+        break;
+      }
+      case "M11":
+        parts.push(t("ui.tune.why.M11", { value: pct(value), count: count(n, of, false) }));
+        break;
+      case "M3":
+      case "M10":
+        parts.push(t(`ui.tune.why.${m}` as UIKey, { count: count(n, of, true) }));
+        break;
+      case "M4": {
+        const ctx = num("M4.ctx");
+        parts.push(ctx === undefined ? t("ui.tune.why.M4", { count: count(n, of, true) }) : t("ui.tune.why.M4.ctx", { count: count(n, of, true), ctx: nf(ctx) }));
+        break;
+      }
+    }
+  }
+  return parts.length ? parts.join("; ") : t("ui.tune.why.measured");
 }
 
 /** The tasks an answer added that stay: those it names, and the open ones of an answer to search weak scans again. */
@@ -105,13 +170,14 @@ export async function resetReading(ctx: Context, tree: Tree, r: ResetRequest): P
   for (const key of [...new Set(items.map((i) => i.key))]) {
     const rows = items
       .filter((i) => i.key === key)
-      .map((i) => [whatLabel(i), scopeLabel(i.scope), `${valueText(i.now)} → ${valueText(i.default)}`, t(`ui.tune.reset.src.${i.source}` as UIKey), (i.at ?? "").slice(0, 10) || "–", i.why ? truncate(i.why, 70) : "–"]);
+      .map((i) => [whatLabel(i), scopeLabel(i.scope), `${valueText(i.now)} → ${valueText(i.default)}`, t(`ui.tune.reset.src.${i.source}` as UIKey), (i.at ?? "").slice(0, 10) || "–", truncate(reasonText(lang, i) ?? "–", 70)]);
     blocks.push(lines(t("ui.tune.reset.title", { agent: calibrationLabel(key, own) }), table(rows, { header }).replace(/^/gmu, "  ")));
   }
   const listing = blocks.join("\n");
   const tasks = tasksStaying(tree, items);
   const tasksLine = tasks.length ? t("ui.tune.reset.tasks", { tasks: tasks.join(", ") }) : undefined;
-  const data = { ...base, items: items.map(({ fields: _f, ...i }) => i), ...(tasks.length ? { tasks } : {}), others, command };
+  // (the figures of a reason are the listing's; --json keeps the English reason as before)
+  const data = { ...base, items: items.map(({ fields: _f, basis: _b, sample: _s, by: _by, ...i }) => i), ...(tasks.length ? { tasks } : {}), others, command };
   if (r.dryRun || ctx.json) return { text: lines(listing, tasksLine, othersLine, t("ui.tune.reset.dry", { command })), data: { ...data, reset: false, dryRun: true } };
 
   // a person's yes: in their terminal (Enter says no), a window of the system when an agent asks; nobody: exit 4

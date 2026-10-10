@@ -44,7 +44,7 @@ test("strom run with Codex: unset, its config.toml's effort said and recorded; s
   const head = JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "metrics", "usage", "N0001.jsonl"), "utf8").split("\n")[0]!);
   assert.deepEqual([head.effort, head.effortFrom], ["low", "config"]);
 
-  await w.ok(["config", "set", "model.effort", "high", "--agent", "codex"]);
+  await w.ok(["config", "set", "model.effort", "high", "--agent", "codex"], { tty: true });
   await w.ok(["task", "add", "Křest Josefa", "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
   const second = await w.run(["run", "--agent", "codex", "--task", "T2"]);
   assert.match(second.out, /hloubka uvažování high \(nastavení strom\)/);
@@ -56,6 +56,52 @@ test("strom run with Codex: unset, its config.toml's effort said and recorded; s
   // doctor says it on Codex's line
   await w.ok(["config", "unset", "model.effort", "--agent", "codex"]);
   assert.match((await w.run(["doctor"])).out, /Codex: model výchozí nastavení agenta Codex, hloubka uvažování low – z /);
+  w.cleanup();
+});
+
+test("model.effort is raised by the person alone (a higher effort uses up the plan's limits sooner); lowering it is anyone's, no variable sets it", { ...opts, skip: opts.skip || process.platform === "win32" }, async () => {
+  const w = await world();
+  const codex = fakeCodex(w, 'model_reasoning_effort = "medium"\n');
+  const effort = async (agent = "codex") => (await w.ok(["config", "get", "model.effort", "--agent", agent, "--json"])).json.value;
+  // an agent: higher than Codex's own medium — refused, the command for the person said
+  w.env.CLAUDECODE = "1";
+  const refused = await w.run(["config", "set", "model.effort", "xhigh", "--agent", "codex"]);
+  assert.equal(refused.code, 4, refused.out + refused.err);
+  assert.match(refused.out + refused.err, /an agent cannot answer this/);
+  assert.match(refused.out + refused.err, /strom config set model\.effort xhigh --agent codex/);
+  assert.equal((await w.run(["config", "set", "model.effort", "high", "--agent", "codex", "--for-tree"])).code, 4, "nor for the tree");
+  assert.equal((await w.run(["config", "set", "model.effort", "high", "--agent", "claude"])).code, 4, "nor above the agents' usual default");
+  // lowering: anyone's
+  await w.ok(["config", "set", "model.effort", "low", "--agent", "codex"]);
+  assert.equal(await effort(), "low");
+  // back to Codex's own (medium) from low: higher again, the person's
+  assert.equal((await w.run(["config", "unset", "model.effort", "--agent", "codex"])).code, 4);
+  delete w.env.CLAUDECODE;
+
+  // the person at the terminal: no extra question, as the menu's settings and the wizard
+  await w.ok(["config", "set", "model.effort", "xhigh", "--agent", "codex"], { tty: true });
+  assert.equal(await effort(), "xhigh");
+  // a person's script without a terminal or a window: needs the person too
+  assert.equal((await w.run(["config", "set", "model.effort", "max", "--agent", "codex"])).code, 4);
+  w.env.CLAUDECODE = "1";
+  await w.ok(["config", "set", "model.effort", "high", "--agent", "codex", "--for-tree"]);
+  assert.equal(await effort(), "high", "the tree's, lower than the user's: anyone's");
+  // removing the tree's lower value lets the user's higher one hold again: the person's
+  assert.equal((await w.run(["config", "unset", "model.effort", "--agent", "codex", "--for-tree"])).code, 4);
+  // no variable raises it
+  w.env.STROM_MODEL_EFFORT = "max";
+  assert.equal(await effort(), "high");
+  delete w.env.STROM_MODEL_EFFORT;
+
+  // a run of an agent with a higher effort by the agent's own switch: the person's; the same or lower runs
+  await w.ok(["task", "add", "Křest Jana", "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
+  const up = await w.run(["run", "--agent", "codex", "--", "-c", "model_reasoning_effort=xhigh"]);
+  assert.equal(up.code, 4, up.out + up.err);
+  assert.match(up.out + up.err, /strom run -- -c "?model_reasoning_effort=xhigh/);
+  assert.ok(!fs.existsSync(codex.argv), "nothing started");
+  const same = await w.run(["run", "--agent", "codex", "--", "-c", "model_reasoning_effort=low"]);
+  assert.ok(fs.existsSync(codex.argv), same.out + same.err);
+  delete w.env.CLAUDECODE;
   w.cleanup();
 });
 

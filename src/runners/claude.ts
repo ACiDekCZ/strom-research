@@ -17,7 +17,7 @@
 // is on: --strict-mcp-config, --tools <what strom uses>, no auto-memory.
 
 import { randomUUID } from "node:crypto";
-import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, mergeLimits, OWN_GROUP, usageNumber, spawnAgent, stopTree, tellUsage, type AgentLimit, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
+import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, mergeLimits, refusedByStrom, OWN_GROUP, usageNumber, spawnAgent, stopTree, tellUsage, type AgentLimit, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
 import { effortArgs } from "../agents/effort.ts";
 import type { SessionMetrics } from "../core/model.ts";
 import { addResponses, type Responses } from "./jsonl.ts";
@@ -182,8 +182,17 @@ interface Attempt {
   stderr: string;
   isError: boolean;
   denied: string[];
+  /** Tool calls strom's own hook refused (RunResult.refused). */
+  refused: string[];
   /** The plan's limits as the agent said them last. */
   limits?: AgentLimit[];
+}
+
+/** A tool call in one line, as a refusal is listed: "Bash: strom input show I0001", "WebFetch: https://…". */
+function callLabel(name: string | undefined, input: Record<string, unknown> | undefined): string {
+  const i = input ?? {};
+  const what = typeof i.command === "string" ? i.command : typeof i.file_path === "string" ? i.file_path : typeof i.url === "string" ? i.url : "";
+  return `${name ?? "tool"}${what ? `: ${String(what).split("\n")[0]!.slice(0, 120)}` : ""}`;
 }
 
 function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: number | undefined, sid?: string): Promise<Attempt> {
@@ -206,7 +215,11 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
       : undefined;
     const abort = () => stopTree(child);
     opts.signal?.addEventListener("abort", abort, { once: true });
-    const a: Attempt = { code: null, timedOut: false, metrics: {}, reported: false, responses: { n: 0 }, text: "", stderr: "", isError: false, denied: [] };
+    const a: Attempt = { code: null, timedOut: false, metrics: {}, reported: false, responses: { n: 0 }, text: "", stderr: "", isError: false, denied: [], refused: [] };
+    // the calls strom's own hook refused, by their id: its reason begins with "strom: " (refusedByStrom) — said as
+    // strom's refusals, not the permissions' (the result's permission_denials lists them too)
+    const calls = new Map<string, string>();
+    const byStrom = new Set<string>();
     let buffer = "";
     // One request's message comes in several lines (a line per block, the same id): its last usage is the request's.
     // Kept per stream (the agent's own, each subagent's) until that stream's next request, then said.
@@ -259,11 +272,22 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
         }
       }
       if (msg.type === "assistant") {
-        const content = ((msg.message as { content?: unknown[] })?.content ?? []) as { type: string; text?: string; name?: string; input?: Record<string, unknown> }[];
+        const content = ((msg.message as { content?: unknown[] })?.content ?? []) as { type: string; id?: string; text?: string; name?: string; input?: Record<string, unknown> }[];
         for (const b of content) {
-          if (b.type === "tool_use") opts.onProgress?.(describeTool(b));
-          else if (b.type === "text" && b.text?.trim()) opts.onProgress?.(b.text.trim().split("\n")[0]!.slice(0, 160));
+          if (b.type === "tool_use") {
+            opts.onProgress?.(describeTool(b));
+            if (typeof b.id === "string") calls.set(b.id, callLabel(b.name, b.input));
+          } else if (b.type === "text" && b.text?.trim()) opts.onProgress?.(b.text.trim().split("\n")[0]!.slice(0, 160));
         }
+      }
+      if (msg.type === "user") {
+        const content = (msg.message as { content?: unknown })?.content;
+        if (Array.isArray(content))
+          for (const b of content as { type?: string; tool_use_id?: string; is_error?: boolean; content?: unknown }[])
+            if (b?.type === "tool_result" && b.is_error && typeof b.tool_use_id === "string" && !byStrom.has(b.tool_use_id) && refusedByStrom(typeof b.content === "string" ? b.content : JSON.stringify(b.content ?? ""))) {
+              byStrom.add(b.tool_use_id);
+              a.refused.push(calls.get(b.tool_use_id) ?? "tool");
+            }
       }
       if (msg.type === "result") {
         a.reported = true;
@@ -278,11 +302,8 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
         if (typeof msg.total_cost_usd === "number") m.costUsd = msg.total_cost_usd;
         if (typeof msg.num_turns === "number") m.turns = msg.num_turns;
         if (typeof msg.duration_ms === "number") m.durationMs = msg.duration_ms;
-        for (const d of (msg.permission_denials ?? []) as { tool_name?: string; tool_input?: Record<string, unknown> }[]) {
-          const input = d.tool_input ?? {};
-          const what = typeof input.command === "string" ? input.command : typeof input.file_path === "string" ? input.file_path : typeof input.url === "string" ? input.url : "";
-          a.denied.push(`${d.tool_name ?? "tool"}${what ? `: ${String(what).split("\n")[0]!.slice(0, 120)}` : ""}`);
-        }
+        for (const d of (msg.permission_denials ?? []) as { tool_name?: string; tool_use_id?: string; tool_input?: Record<string, unknown> }[])
+          if (!(d.tool_use_id && byStrom.has(d.tool_use_id))) a.denied.push(callLabel(d.tool_name, d.tool_input));
       }
     };
     child.stdout?.on("data", (d: Buffer) => {
@@ -355,6 +376,7 @@ export const claudeRunner: Runner = {
     const timedOut = a.timedOut;
     let metrics: SessionMetrics = measured(a);
     const denied = [...a.denied];
+    const refused = [...a.refused];
     let limits = a.limits;
     if (timedOut) {
       const min = Math.round(opts.timeoutMs! / 60000);
@@ -364,11 +386,13 @@ export const claudeRunner: Runner = {
         if (more.timedOut) opts.onProgress?.("the agent did not finish in time — stopped");
         metrics = { ...together(metrics, measured(more)), costPartial: true };
         denied.push(...more.denied);
+        refused.push(...more.refused);
         limits = mergeLimits(limits, more.limits);
         a = { ...more, code: more.code, stderr: a.stderr + more.stderr, text: more.text || a.text };
       } else opts.onProgress?.(`time limit reached (${min} min) — the agent was stopped`);
     }
     if (denied.length) metrics.denied = denied.length;
+    if (refused.length) metrics.refused = refused.length;
     const all = `${a.text}\n${a.stderr}`;
     const limit = looksLikeLimit(all);
     const code = a.code;
@@ -383,6 +407,6 @@ export const claudeRunner: Runner = {
             : (code ?? 0) !== 0 || a.isError
               ? "error"
               : "ok";
-    return { exitCode: code ?? 1, outcome, text: a.text || a.stderr.trim(), metrics, ...(limit.resumeAt ? { resumeAt: limit.resumeAt } : {}), ...(denied.length ? { denied } : {}), ...(outcome === "error" && looksLikeModelRejected(all) ? { modelRejected: true as const } : {}), ...(limits ? { limits } : {}) };
+    return { exitCode: code ?? 1, outcome, text: a.text || a.stderr.trim(), metrics, ...(limit.resumeAt ? { resumeAt: limit.resumeAt } : {}), ...(denied.length ? { denied } : {}), ...(refused.length ? { refused } : {}), ...(outcome === "error" && looksLikeModelRejected(all) ? { modelRejected: true as const } : {}), ...(limits ? { limits } : {}) };
   },
 };

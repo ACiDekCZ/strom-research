@@ -44,7 +44,10 @@ test("method by level: a level gets the parts it uses, never the parts it does n
     assert.ok(has(level, /Extract everything the first time/), level);
     assert.ok(has(level, /Say what a hypothesis would connect/), level);
     // the delegation rule and the premise check stay with them
-    assert.ok(has(level, /\(Subagents read too — strom-scan-reader where your agent has one, on your\n {2}own model, never a faster one —, about six scans each with the whole\n {2}question\.\)/), level);
+    // a range is browsed by strom read (in halves where the script is small), a subagent reads only crops of the
+    // entries found — the same model, about a dollar or two less a run (found in a live run of beta.7)
+    assert.ok(has(level, /\*\*Browsing a book or a range is a reader's job\*\*: `strom read B0001\n {2}--images 40-69 --question "…"` \(small script: `--half both`\)/), level);
+    assert.ok(has(level, /A subagent \(strom-scan-reader, called without `model`\) reads only crops of the\n {2}entries found, about six scans each with the whole question — never a range\n {2}`strom read` can browse\./), level);
     // a reader writes down only what it is told to, and a reader's "unclear" holds a negative back
     assert.ok(has(level, /\*\*A reader is told exactly what to write down\*\* — page numbers\n {2}and headings only, one surname's entries, one entry whole — and transcribes\n {2}nothing else\./), level);
     assert.ok(has(level, /every place a reader\n {2}found unclear looked at closer \(else `--result inconclusive`, the place in\n {2}`--note`\)/), level);
@@ -127,6 +130,11 @@ test("sheet by level: the writing commands a level uses, with their usage from t
   assert.match(line(link, "media view"), /several crops of an image: --crop … --crop … \(no loop\)/);
   assert.match(methodFor("link", EVERY), /At most 12 images and 24 views in one call: with 4 views an\n {2}image \(halves and crops\), 6 images a call\./);
   assert.match(link, /all options: strom help <command>\)/);
+
+  // a text in the inputs and notes: strom grep in one call, in every sheet that reads or records (a delegate read three
+  // big inputs in 110 pieces for want of it)
+  for (const level of ["link", "verify", "enrich", "locate", "intake", "request"])
+    assert.equal(line(sheet(level), "grep"), "  strom grep <text>… --in <where>… --context <n> — never Read inputs/ or notes/ in pieces", level);
 
   // locating: places, archives and books, the task pointed at the book — no facts
   const locate = sheet("locate");

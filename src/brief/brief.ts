@@ -35,10 +35,11 @@ import { HYPOTHESIS_LINKS_ORIGIN, recordedLinks, recordedText } from "../core/hy
 export { DEFAULT_BUDGET } from "../core/config.ts";
 import { DEFAULT_BUDGET, Settings } from "../core/config.ts";
 import { bookTuned, hostTuned, readingOf, treeTuning, tuningOn, type TuneState } from "../core/tune.ts";
-import { calibrationKey, viewModel, viewSizes } from "../core/viewsizes.ts";
+import { researchKey, viewModel, viewSizes } from "../core/viewsizes.ts";
 import { inWords, PROFILES } from "../agents/profiles.ts";
 import { ENRICH_PAGES, STORY_SOURCES_ORIGIN } from "../core/stories.ts";
 import { sandboxOf, WITHOUT_READERS, type Sandbox } from "../core/sandbox.ts";
+import { WEB_SOFT } from "../core/metrics.ts";
 
 /** What strom tuned for the session's agent and model (core/tune.ts), as at the session's start: it holds for all of it. */
 interface BriefTuning {
@@ -770,6 +771,17 @@ export function browserRules(sites: readonly string[], alone: boolean, task?: st
   ].join("\n");
 }
 
+/**
+ * The web, one sentence for every agent, with the thresholds (core/web.ts, per site and session): up to WEB_SOFT pages
+ * of one server freely, more through its connector built first (never a task to read the rest later through the web
+ * tool), past web.perHost (the person's number) the web fetch refused.
+ */
+export const webRule = (perHost: number) =>
+  `Search the web freely. Over ${Math.min(WEB_SOFT, perHost)} pages of one site: build its connector (strom connector new <site> --url https://<host>/), strom fetch the rest; past ${perHost} the web tool is refused.`;
+
+/** The first rule of the brief's head: everything through strom (with webRule, no longer than the two were before: the brief's budget). */
+export const STROM_ONLY = "Work ONLY through `strom`; never edit data/ (it blocks all writing). Record finds as you go.";
+
 export function buildBrief(
   tree: Tree,
   opts: {
@@ -805,7 +817,8 @@ export function buildBrief(
       ...(research?.notes ?? []).slice(-3).map((n) => `From the user: ${n.text}`),
       `Research language: ${langName(lang)} — ${alone ? "" : "talk to the user and "}write notes, tasks and summaries in ${langName(lang)}; transcripts stay in the original language.`,
       alone ? "Working alone (strom run): nobody reads this session live — nothing in it is said to the user, its last words neither." : "",
-      "Work ONLY through `strom` commands; never edit files in data/ (it is detected and blocks all writing). Record findings as you go.",
+      STROM_ONLY,
+      webRule(new Settings(tree.env, {}).webPerHost(tree.config)),
       opts.deadline !== undefined ? briefClock(opts.deadline) : "",
     ].filter(Boolean).join("\n"),
   });
@@ -1071,7 +1084,7 @@ export function buildBrief(
   const tuneAgent = opts.session?.agent ?? tuneSettings.agent(tree.config).value;
   const tuneModel = viewModel(tuneSettings, tuneAgent, tree.config);
   const tuning: BriefTuning | undefined = tuningOn(tuneSettings)
-    ? { key: calibrationKey(tuneAgent, tuneModel), state: treeTuning(tree, tuneSettings), since: opts.session?.started, max: viewSizes(tuneSettings.config, tuneAgent, tuneModel).max }
+    ? { key: researchKey(tuneSettings, tuneAgent, tree.config, tree.root), state: treeTuning(tree, tuneSettings), since: opts.session?.started, max: viewSizes(tuneSettings.config, tuneAgent, tuneModel).max }
     : undefined;
   const sets = located.sets;
   const installed = installedFor(opts.shared);
@@ -1157,7 +1170,7 @@ export function buildBrief(
 
   // 8a. the numbers of reading scans strom tuned for this agent and model (smaller batches, an earlier stop): over the
   // method's, for the whole session
-  const reading = tuning ? readingOf(tuneSettings.config, tuning.key, { since: tuning.since }) : undefined;
+  const reading = tuning ? readingOf(tuneSettings.config, tuning.key, { since: tuning.since, root: tree.root }) : undefined;
   if (reading?.tuned.length)
     sections.push({
       name: "reading",

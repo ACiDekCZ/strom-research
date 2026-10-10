@@ -20,9 +20,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { readJsonIfExists, writeFileAtomic } from "./json.ts";
 import { isArchive } from "./mode.ts";
-import { metricsDir } from "./metrics.ts";
-import { calibrationKey, viewModel } from "./viewsizes.ts";
-import { D1_BASIS, D1_BOOKS, groups, isReading, loadRollup, readJournal, refreshRollup, summarize, THRESHOLDS, wilson, WINDOW_DAYS, READING_DEFAULTS, type BookSummary, type KeyReport, type Unit } from "./readstats.ts";
+import { isAgentWeb, metricsDir } from "./metrics.ts";
+import { calibrationKey, calibrationOf, viewModel } from "./viewsizes.ts";
+import { loadAliases, resolveKey } from "./modelkey.ts";
+import { canonicalAnswers, readTuneLog } from "./tune.ts";
+import { D1_BASIS, D1_BOOKS, groups, isReading, keepBeforeKeys, loadRollup, readJournal, refreshRollup, summarize, THRESHOLDS, wilson, WINDOW_DAYS, READING_DEFAULTS, type BookSummary, type KeyReport, type Unit } from "./readstats.ts";
 import { findImage } from "./media.ts";
 import { bareHost, listConnectors, type Connector } from "./connector.ts";
 import { hostPace, hostState, paceOf } from "./net.ts";
@@ -176,13 +178,16 @@ export function fingerprintOf(basis: Basis): string {
 
 /** The answers kept for a key: the user config's, and this research's. */
 export function storedAnswers(root: string, cfg: UserConfig, key: string): { config: Record<string, TuneAnswer>; research: Record<string, TuneAnswer> } {
+  // under the key of the model (core/modelkey.ts): what an older strom kept under an alias of it too
+  const aliases = loadAliases(root);
   let research: Record<string, TuneAnswer> = {};
   try {
-    research = readJsonIfExists<Answers>(answersFile(root))?.[key] ?? {};
+    const all = readJsonIfExists<Answers>(answersFile(root));
+    research = (all && typeof all === "object" ? canonicalAnswers(all, aliases).answers[key] : undefined) ?? {};
   } catch {
     // a file written over: as if nothing was answered
   }
-  return { config: cfg.tuneAnswers?.[key] ?? {}, research };
+  return { config: canonicalAnswers((cfg.tuneAnswers ?? {}) as Answers, aliases).answers[key] ?? {}, research };
 }
 
 /**
@@ -355,7 +360,7 @@ const name = (p: Person) => `${displayName(p)}${lifespan(p) ? ` (${lifespan(p)})
 function viewsSmaller(c: Ctx): Draft[] {
   if (!c.report.recommend.some((r) => r.id === "D1")) return [];
   // calibrated already: the sizes were measured on the research's own records
-  if (c.settings.config.viewSizes?.[c.key]) return [];
+  if (calibrationOf(c.settings.config, c.key, loadAliases(c.tree.root))) return [];
   const costly = c.report.books.filter((b) => D1_BASIS.some((m) => b.signals.includes(m)) && !b.signals.includes("M5"));
   if (costly.length < ASK.smallerBooks) return [];
   const ratios = c.report.signals.filter((s) => D1_BASIS.includes(s.metric) && costly.some((b) => s.scope === `book:${b.id}`) && s.ratio !== undefined && Number.isFinite(s.ratio)).map((s) => s.ratio!);
@@ -567,8 +572,9 @@ function visionBest(c: Ctx, all: Unit[]): Draft[] {
   const vision = m.vision;
   const lead = m.lead ?? PROFILES[c.agent]?.models.vision;
   if (!vision || !lead || vision === lead) return [];
-  const vk = calibrationKey(c.agent, vision);
-  const lk = calibrationKey(c.agent, lead);
+  const aliases = loadAliases(c.tree.root);
+  const vk = resolveKey(calibrationKey(c.agent, vision), aliases);
+  const lk = resolveKey(calibrationKey(c.agent, lead), aliases);
   if (vk === lk) return [];
   const from = c.now - WINDOW_DAYS * DAY;
   const v = readingsOf(all.filter((u) => Date.parse(u.at) >= from), vk);
@@ -596,7 +602,8 @@ function visionBest(c: Ctx, all: Unit[]): Draft[] {
 
 /** What P4's tuning changed (.strom/tune/log.jsonl), as far as it can be read: the changes not returned since. */
 export function tuneChanges(root: string): { at: string; id: string; key: string; scope: string; what: string }[] {
-  const log = readJournal(path.join(tuneDir(root), "log.jsonl"));
+  // each line's key that of the model it was for (core/modelkey.ts)
+  const log = readTuneLog(root) as unknown as Record<string, unknown>[];
   const out = new Map<string, { at: string; id: string; key: string; scope: string; what: string }>();
   for (const e of log.sort((a, b) => String(a.at).localeCompare(String(b.at)))) {
     const at = typeof e.at === "string" && Number.isFinite(Date.parse(e.at)) ? e.at : undefined;
@@ -719,11 +726,13 @@ export interface QuestionSet {
 export function tuneQuestions(tree: Tree, settings: Settings, o: QuestionsOptions = {}): QuestionSet {
   const agent = settings.agent(tree.config).value;
   const model = viewModel(settings, agent, tree.config);
-  const key = calibrationKey(agent, model);
-  const none: QuestionSet = { key, label: { agent, ...(model ? { model } : {}) }, all: [], due: [] };
-  if (isArchive(tree)) return none;
+  const askedKey = calibrationKey(agent, model);
+  if (isArchive(tree)) return { key: askedKey, label: { agent, ...(model ? { model } : {}) }, all: [], due: [] };
   const now = o.now ?? Date.now();
   const rollup = o.refresh ? refreshRollup(tree, { settings, now }) : loadRollup(tree.root);
+  // the model the alias asked runs on, as the history says it now (core/modelkey.ts)
+  const key = resolveKey(askedKey, loadAliases(tree.root));
+  const none: QuestionSet = { key, label: { agent, ...(model ? { model } : {}) }, all: [], due: [] };
   const units = rollup?.units ?? [];
   const group = groups(units, now).find((g) => g.key === key);
   if (!group) return none;
@@ -754,7 +763,8 @@ export function tuneQuestions(tree: Tree, settings: Settings, o: QuestionsOption
     now,
     ...(shared ? { shared } : {}),
     media: tree.list<Media>("media").filter((m) => !m.retracted),
-    fetches: readJournal(path.join(metricsDir(tree.root), "fetch.jsonl")),
+    // strom's own fetches (an agent's own web tools fetch no image of an archive)
+    fetches: readJournal(path.join(metricsDir(tree.root), "fetch.jsonl")).filter((f) => !isAgentWeb(f)),
     connectors,
   };
   const drafts = [...viewsSmaller(c), ...negativesWeak(c), ...viewsSharper(c), ...indexFirst(c), ...visionBest(c, units), ...resetAfter(c, units)];
@@ -851,7 +861,11 @@ export function keepAnswer(tree: Tree, settings: Settings, key: string, q: Quest
     fs.mkdirSync(tuneDir(tree.root), { recursive: true });
     let all: Answers = {};
     try {
-      all = readJsonIfExists<Answers>(answersFile(tree.root)) ?? {};
+      const raw = readJsonIfExists<Answers>(answersFile(tree.root)) ?? {};
+      // under the keys of the models (core/modelkey.ts): a copy of the file as it was, once, before it is renamed
+      const named = canonicalAnswers(raw, loadAliases(tree.root));
+      if (named.changed) keepBeforeKeys(answersFile(tree.root));
+      all = named.answers;
     } catch {
       // written over: this answer starts it again
     }

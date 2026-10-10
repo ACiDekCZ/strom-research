@@ -48,13 +48,25 @@ export function inWords(n: number): string {
   return WORDS[n] ?? String(n);
 }
 
+/**
+ * What a delegate of the agent's general kind (Claude Code's general-purpose, Explore) is told first: it gets no brief
+ * and knows nothing of strom, and in a run nobody watches whatever it tries beyond strom is refused (found in a live
+ * run: 5 of 6 refused commands were delegates' — grep with awk, $(…), a variable — and one read three big inputs in
+ * 110 pieces).
+ */
+export const DELEGATE_SHEET =
+  'A family research kept with strom: you read and report, you never write to it. Run each `strom …` command on its own — no pipes, `;`, `&&`, `$(…)`, variables, awk or any other program: they are refused. Read opens inputs/, notes/, output/ and .strom/views/ only, never data/. A text in those files: `strom grep "<text>" [--in inputs|notes|I…] [--context 2]` — never Read a big file in pieces.';
+
 /** The scans a call gives at four views each (halves and crops). */
 const perCall = (n: ReadingNumbers) => Math.max(1, Math.floor(n.viewsPerCall / 4));
 
 function delegationRules(n: ReadingNumbers): string {
   const first = inWords(n.batch);
   return `- Browsing a book, an index or a range of images ("is our surname on this page?")
-  is delegated; so is anything self-contained that returns little.
+  goes to \`strom read\` (by halves: \`--half both\`); a delegate reads only crops
+  of the entries found. Anything self-contained that returns little is delegated.
+- A delegate other than strom-scan-reader (text, print, a search) gets no brief:
+  begin its prompt with this, word for word — "${DELEGATE_SHEET}"
 - About ${first} scans (images B…:n) per delegate, four views each (halves and
   crops); tell it to write down what each call gave before the next, to stop
   at about ${n.viewsStop} views and return what it has, and never to open again a view
@@ -130,13 +142,15 @@ comes back to you. Choose the model by the kind of work:
 
 | work | model |
 |---|---|
-| handwriting: registers, indexes, land books, any scan read closely | \`${m.vision ?? "opus"}\` — never cheaper |
-| print and type: documents of the 20th century, catalogues, web pages, big text files | \`${m.text ?? "sonnet"}\` |
-| mechanical: downloads, renaming, counting, a plain grep | \`${m.cheap ?? "haiku"}\` |
+| handwriting: registers, indexes, land books, any scan read closely | \`strom-scan-reader\`, ${m.vision ? `on \`${m.vision}\`` : "on your own model"} — never cheaper |
+| print and type: documents of the 20th century, catalogues, web pages, big text files (the lines \`strom grep\` found) | \`${m.text ?? "sonnet"}\` |
+| mechanical: downloads, renaming, counting | \`${m.cheap ?? "haiku"}\` |
+| a text in inputs/ or notes/ | nobody — \`strom grep\`, one call |
 | judgement: identity, conflicts, which task next, writing to strom | nobody — you |
 
 Scans are read by this tree's subagent type \`strom-scan-reader\` (strom and the
-file reader only, so it starts small); the model above still holds.
+file reader only, so it starts small). Call it without \`model\`: strom set its
+model (the user's choice for handwriting), and a call naming another is refused.
 
 ${delegationRules(n)}
 - Send independent batches in ONE message so they run in parallel.

@@ -130,11 +130,14 @@ export class NeedsInputError extends StromError {
 export class NeedsConsentError extends StromError {
   readonly needs: Need[];
 
-  /** `says`: the question as the person reads it (their language) — said so at a terminal (ui.error.consent). */
-  constructor(needs: Need[], says?: string) {
+  /**
+   * `says`: the question as the person reads it (their language) — said so at a terminal (ui.error.consent). `more`:
+   * what the agent does besides (a run nobody watches: the task for it).
+   */
+  constructor(needs: Need[], says?: string, more?: string) {
     super(`consent required — ${needs.map((n) => n.question).join(" · ")}`, {
       exitCode: EXIT.needsConsent,
-      hint: `ask the user to run in their own terminal: ${needs.map((n) => n.set).join(" ; ")}`,
+      hint: `ask the user to run in their own terminal: ${needs.map((n) => n.set).join(" ; ")}${more ? ` — ${more}` : ""}`,
       ...(says ? { code: "consent", params: { question: says, set: needs.map((n) => n.set).join(" ; ") } } : {}),
     });
     this.name = "NeedsConsentError";

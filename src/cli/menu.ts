@@ -179,7 +179,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       const disk = tidyPlan(tree);
       if (disk.frees >= TIDY_SAID) out(t("ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) }));
       // the scan views tuned before, but for another agent or model: offered again (the settings), never run unasked
-      const offer = !archive && ready ? calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config) : undefined;
+      const offer = !archive && ready ? calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root) : undefined;
       if (offer) out(sentence(t("ui.views.offer", { before: calibrationLabel(offer.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(offer.now, t("ui.settings.model.own")) })));
       const runs = runsAtWork(root).length;
       if (runs) out(t(runs > 1 ? "ui.menu.working.more" : "ui.menu.working", { n: runs }));
@@ -348,7 +348,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       // Several trees and none chosen: pick one first.
       items.push({ key: "1", label: t("ui.menu.trees"), act: async () => pickTree(ctx, run, lang) });
     }
-    // The settings of this computer (with the check); at most nine: the newer strom is taken in the settings, the line above says where.
+    // The settings of this computer (with maintenance); at most nine: the newer strom is taken in the settings' maintenance, the line above says where.
     const settings: Item = { key: "8", label: t(ctx.archiveHere() ? "ui.menu.settings.archive" : "ui.menu.settings"), act: async () => settingsMenu(ctx, run, lang, root, newer) };
     items.push(settings);
     // Only with several agents here: last, so that it moves no other number.

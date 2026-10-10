@@ -379,6 +379,8 @@ test("conversation levels map to each agent's own switches", () => {
 test("which agent runs strom: Grok passes on the terminal it was started from; an agent strom starts gets no marks of another", () => {
   assert.equal(detectAgent({ GROK_AGENT: "1", CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli" }), "grok");
   assert.equal(detectAgent({ CLAUDECODE: "1" }), "claude");
+  assert.equal(detectAgent({ CODEX_HOME: "/c", ANTIGRAVITY_HOME: "/a" }), undefined, "a person's own folders of the agents: no agent");
+  assert.equal(detectAgent({ CODEX_HOME: "/c", CODEX_THREAD_ID: "t" }), "codex");
   assert.equal(detectAgent({ CURSOR_AGENT: "1", SAND_BOX_ID: "x" }), "cursor", "Cursor's agents, Grok Bot among them");
   const env = withoutAgentMarks({ PATH: "/bin", GROK_AGENT: "1", GROK_SESSION_ID: "x", CODEX_HOME: "/c", CODEX_THREAD_ID: "t", STROM_HOME: "/s" });
   assert.deepEqual(env, { PATH: "/bin", CODEX_HOME: "/c", STROM_HOME: "/s" }, "an agent's own settings (…_HOME) and strom's stay");

@@ -5,9 +5,10 @@
 
 import { langName } from "../core/lang.ts";
 import { appSite } from "../core/stromapp.ts";
+import { WEB_PER_HOST, webRuleLines } from "../core/web.ts";
 
-/** The guide; appUrl: the Strom app's address it names — the one `strom app` opens (appUrlShown). */
-export function guideText(lang: string | undefined, appUrl: string): string {
+/** The guide; appUrl: the Strom app's address it names — the one `strom app` opens (appUrlShown); perHost: web.perHost here. */
+export function guideText(lang: string | undefined, appUrl: string, perHost: number = WEB_PER_HOST): string {
   const language = lang
     ? `The research language of this tree is ${langName(lang)} (${lang}): talk to the user in ${langName(lang)} and write notes, tasks and stories in ${langName(lang)}. Keep transcripts of records in their original language.`
     : "Talk to the user in their language. Set it as the research language: strom setup --lang <code> (cs, en, de, pl, …).";
@@ -36,6 +37,7 @@ HARD RULES
    the research needs has none yet: build one first (strom connector new,
    its DISCOVERY.md) and tell the user in a sentence. The user saves images
    by hand only where the archive does not allow automation.
+   ${webRuleLines(perHost, "")}
 8. Old handwriting is read by your strongest model — you, or a subagent on
    that same model; never a faster, cheaper or "quick" pass. A name or place
    the next search depends on is read again on a crop at full resolution
@@ -153,6 +155,9 @@ SEARCHING
 FINDING YOUR WAY
   strom research show G0001 · strom person show P0001 · strom family show F0001
   strom gaps · strom find <text> [<text>…] · strom frontier · strom task list
+  strom grep <text> [--in inputs|notes|output|I…] [--context 2]
+                                       a text in the research's own files, line by line (accents
+                                       optional) — never Read a big input in pieces
   for the user, in the research language: strom stats (how far the research got) · strom recent
   (what came in lately) · strom plan (what you do next) · strom pedigree [P…] (the ancestors as a
   tree) · strom person card P… (one life)

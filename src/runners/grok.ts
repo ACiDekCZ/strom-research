@@ -15,10 +15,17 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { heardResponse, runJsonLines } from "./jsonl.ts";
-import { usageNumber, tellUsage, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { heardResponse, runJsonLines, webUse } from "./jsonl.ts";
+import { refusedByStrom, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 import { effortArgs } from "../agents/effort.ts";
 import { isolated, type Env } from "../core/paths.ts";
+import type { AgentWeb } from "../core/metrics.ts";
+
+/**
+ * Grok's own web tools (grok 1.0.46: web_fetch with its url, web_search with its query — the names from its tool
+ * registry, the inputs as the other tools': rawInput), counted after the fact (core/metrics.ts).
+ */
+export const GROK_WEB = { page: ["web_fetch"], search: ["web_search"] } as const;
 
 /**
  * How Grok reads the folder's own files (AGENTS.md, .grok/config.toml with the tree's rules: loaded only in a trusted
@@ -86,11 +93,11 @@ export function grokEnv(env: RunOptions["env"], timeoutMs: number | undefined, r
   return { ...env, ...grokOwnEnv(env, { reader, clean }), GROK_CONFIG: JSON.stringify({ toolset: { bash: { timeout_secs: secs, max_timeout_secs: secs, auto_background_on_timeout: false } } }) };
 }
 
-/** What a tool call was, in one line: its command, else the tool and its file. */
+/** What a tool call was, in one line: its command, else the tool and its file (a page: its address). */
 function describe(e: Record<string, unknown>): string {
   const input = (e.rawInput ?? {}) as Record<string, unknown>;
   if (typeof input.command === "string") return `$ ${input.command.split("\n")[0]!.slice(0, 140)}`;
-  const file = input.target_file ?? input.file_path ?? input.path ?? input.target_directory;
+  const file = input.target_file ?? input.file_path ?? input.path ?? input.target_directory ?? input.url;
   return typeof file === "string" ? `${String(e.toolName ?? e.title ?? "tool")} ${file}` : String(e.toolName ?? e.title ?? "tool");
 }
 
@@ -106,6 +113,8 @@ export const grokRunner: Runner = {
     // Its text comes in pieces; the last message (after the last tool call) is its answer.
     let said = "";
     const calls = new Map<string, string>();
+    // its web tools' calls until they are done (a refused one fetched nothing)
+    const web = new Map<string, AgentWeb>();
     const resume = (sid: string, message: string) => ({ args: grokArgs(opts, ["-p", message], ["--resume", sid]), input: "" });
     return runJsonLines("grok", grokArgs(opts, ["--prompt-file", promptFile], ["--session-id", id]), env, opts, resume, (msg, heard) => {
       heard.sessionId ??= id;
@@ -117,12 +126,34 @@ export const grokRunner: Runner = {
         if (said.trim()) opts.onProgress?.(said.trim().split("\n")[0]!.slice(0, 160));
         said = "";
         const what = describe(msg);
-        if (typeof msg.toolCallId === "string") calls.set(msg.toolCallId, `${msg.toolName === "run_terminal_command" ? "Bash" : String(msg.toolName ?? "tool")}: ${what.replace(/^\$ /, "").slice(0, 120)}`);
+        if (typeof msg.toolCallId === "string") {
+          // "Bash: ls", "web_fetch: https://…" (the tool's name once)
+          const name = String(msg.toolName ?? "tool");
+          const shown = what.startsWith(`${name} `) ? what.slice(name.length + 1) : what.replace(/^\$ /, "");
+          calls.set(msg.toolCallId, `${name === "run_terminal_command" ? "Bash" : name}: ${shown.slice(0, 120)}`);
+        }
+        const w = webUse(msg.toolName, msg.rawInput as Record<string, unknown> | undefined, GROK_WEB);
+        // with its id: the tree's hook (.grok/hooks/strom.json) records the same call by it — counted once
+        if (w && typeof msg.toolCallId === "string") web.set(msg.toolCallId, { ...w, toolUse: msg.toolCallId });
+        else if (w) tellWeb(opts, w);
         opts.onProgress?.(what);
       } else if (type === "tool_call_update" && msg.status === "failed") {
-        // Refused by the rules ("Denied by permission policy") or by dontAsk ("User cancelled the execution").
+        // Refused by the rules ("Denied by permission policy"), by dontAsk ("User cancelled the execution"), or by a hook
+        // ("Hook denied: …") — strom's own (its web limits: "Hook denied: strom: …") said apart from the permissions
         const content = JSON.stringify(msg.content ?? "");
-        if (/denied by permission|permission policy|user cancelled|not allowed/i.test(content)) heard.denied.push(calls.get(String(msg.toolCallId)) ?? "tool");
+        const what = calls.get(String(msg.toolCallId)) ?? "tool";
+        const byStrom = refusedByStrom(content);
+        const refused = byStrom || /denied by permission|permission policy|user cancelled|not allowed|hook denied/i.test(content);
+        if (byStrom) (heard.refused ??= []).push(what);
+        else if (refused) heard.denied.push(what);
+        // a page that failed was asked of its host all the same; a refused one never left
+        const w = web.get(String(msg.toolCallId));
+        web.delete(String(msg.toolCallId));
+        if (w && !refused) tellWeb(opts, w);
+      } else if (type === "tool_call_update" && msg.status === "completed") {
+        const w = web.get(String(msg.toolCallId));
+        web.delete(String(msg.toolCallId));
+        if (w) tellWeb(opts, w);
       } else if (type === "usage") {
         // one model response: its tokens (input is what the cache did not hold) — the context of the request is its
         // input, the cache read and the cache written together, so the series shows the context and its clears

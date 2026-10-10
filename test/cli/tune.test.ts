@@ -17,6 +17,8 @@ import { emptyBook, type BookCounts, type Unit } from "../../src/core/readstats.
 const opts = { skip: !hasGit };
 const DAY = 24 * 3600_000;
 const KEY = "claude opus";
+/** The key of the model the alias ran on (core/modelkey.ts): what strom measures and sets goes by it. */
+const TUNED = "claude claude-opus-5-5";
 const HOST = "archiv.příklad.example";
 const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
 
@@ -77,19 +79,26 @@ test("strom sets by itself only what adds accuracy or saves requests: each said 
   const j = (await w.ok(["media", "calibrate", "--report", "--json"])).json;
   assert.deepEqual(new Set(j.tuned.map((x: { action: string }) => x.action)), new Set(["A1", "A2", "A4", "A5"]));
   assert.deepEqual(j.recommend, [], "what only a person decides: none here; what asks an archive for more: never");
-  const t = config(w).tuning[KEY];
+  const t = config(w).tuning[TUNED];
   assert.deepEqual([t.batch.value, t.batch.default, t.viewsPerCall.value, t.viewsPerCall.default, t.reported], [3, 6, 12, 24, "claude-opus-5-5"]);
   assert.match(t.batch.why, /readers without a result 2 of the last 5 → about 3 scans a batch instead of 6, at most 12 views a call instead of 24/);
   assert.equal(t.batch.source, "tuned");
   assert.ok(t.batch.id === t.viewsPerCall.id && /^T[0-9a-f]{6}$/.test(t.batch.id), "one change, one id");
-  const state = readJsonFile(path.join(root, ".strom", "tune", "state.json"))[KEY];
+  const state = readJsonFile(path.join(root, ".strom", "tune", "state.json"))[TUNED];
   assert.deepEqual([state.books.B0003.find.from, state.books.B0003.find.value, state.books.B0003.halves.value, state.books.B0003.read], [1400, 2000, true, undefined], "read was as big as the model takes already");
   assert.match(state.books.B0003.find.why, /^B0003: unsure readings 75 % of 32 against \d+ % of the other books; enlarged views 100 % of 32 against 0 % → the whole image at reading size \(2000 px\), a double page in halves$/);
   assert.equal(state.books.B0001.noSharper.value, true);
   assert.equal(state.hosts[HOST].order.value, "whole-first");
+  // the reasons the person reads in the reset's listing: from the change's own figures, in the research language
+  const listed = (await w.ok(["media", "calibrate", "--reset", "--dry-run"])).out;
+  assert.match(listed, /menší dávky .* čtenáři bez výsledku: 2 z posledních 5$/m, listed);
+  assert.match(listed, /větší pohledy +B0003 .* nejisté 75 % proti \d+ % u ostatních knih \(n=32\); zvětšené pohledy 100/m, listed);
+  assert.match(listed, /napřed celé snímky .* sezení s čekáním na limit archivu: 2 z 2 \(\d+ min, vyčerpán 1×\)$/m, listed);
+  assert.match(listed, /žádné výřezy .* portál ostřejší výřez nedal 2×$/m, listed);
+  assert.doesNotMatch(listed, /readers without|unsure readings|enlarged views|waited for/);
   const log = fs.readFileSync(path.join(root, ".strom", "tune", "log.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
   assert.deepEqual(new Set(log.map((e: { action: string }) => e.action)), new Set(["A1", "A2", "A4", "A5"]));
-  assert.ok(log.every((e: { by: string; why: string; key: string }) => e.by === "selftune" && e.why && e.key === KEY));
+  assert.ok(log.every((e: { by: string; why: string; key: string }) => e.by === "selftune" && e.why && e.key === TUNED));
   assert.deepEqual(log.find((e: { action: string }) => e.action === "A2").to, { batch: 3, viewsPerCall: 12 });
   // nothing in the research's data, no commit
   assert.equal((await w.ok(["status", "--json"])).code, 0);
@@ -157,12 +166,35 @@ test("strom sets by itself only what adds accuracy or saves requests: each said 
 
   // taken back by a person: the default again, not set again by the next look at the same figures
   await w.ok(["config", "unset", "reading.batch"]);
-  assert.equal(config(w).tuning?.[KEY]?.batch, undefined);
+  assert.equal(config(w).tuning?.[TUNED]?.batch, undefined);
   await w.ok(["media", "calibrate", "--report"]);
-  assert.equal(config(w).tuning?.[KEY]?.batch, undefined, "held back after a person took it back");
+  assert.equal(config(w).tuning?.[TUNED]?.batch, undefined, "held back after a person took it back");
   const reset = fs.readFileSync(path.join(root, ".strom", "tune", "log.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((e: { by: string }) => e.by === "reset");
   assert.equal(reset.length, 1);
   assert.equal((await w.run(["config", "set", "reading.batch", "2"])).code === 0, false, "set by strom alone, never typed");
+  w.cleanup();
+});
+
+test("a main agent whose context never clears (a big window): long stretches give the earlier stop, said in the report and the next brief", opts, async () => {
+  const w = await world();
+  const px = 3_000_000;
+  // five sessions, two of them 40 views past 170 000 tokens, no clear of their own
+  plant(
+    w.cwd,
+    [0, 1, 2, 3, 4].map((i) => {
+      const views = i < 2 ? 40 : 12;
+      return unit(`N090${i + 1}`, 10 - i, { B0001: { scans: 10, views, whole: views, px: views * px, pxWH: views * px } }, { kind: "session", series: true, clears: 0, peakCtx: i < 2 ? 170_000 : 60_000 });
+    }),
+  );
+  const text = (await w.ok(["media", "calibrate", "--report"])).out;
+  assert.match(text, /^ {2}dlouhé úseky bez vyčištění: 2 z posledních 5 sezení přes 150\s000 tokenů \(zhruba 40 pohledů, 170\s000 tokenů\)$/m, text);
+  const t = config(w).tuning[TUNED];
+  assert.deepEqual([t.viewsStop.value, t.ctx.value], [22, 150_000]);
+  const listed = (await w.ok(["media", "calibrate", "--reset", "--dry-run"])).out;
+  assert.match(listed, /kontext se nevyčistil, a přesto přerostl 150\s000 tokenů: 2 z poslední/, listed);
+  await w.ok(["task", "add", "Křest Marie", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]);
+  const brief = (await w.ok(["session", "start", "T1"])).out;
+  assert.match(brief, /- after about 22 views: write down what you found \(a delegate stops and reports\)/, brief);
   w.cleanup();
 });
 
@@ -178,7 +210,7 @@ test("tune.auto off: strom sets nothing by itself and what it set is not used; o
   assert.match((await w.ok(["media", "calibrate", "--report"])).out, /^strom tu sám nic nenastavuje: tune\.auto je vypnuté\.$/m);
   await w.ok(["config", "set", "tune.auto", "on"]);
   await w.ok(["media", "calibrate", "--report"]);
-  assert.equal(config(w).tuning[KEY].batch.value, 3);
+  assert.equal(config(w).tuning[TUNED].batch.value, 3);
   // set, then off: not used
   await w.ok(["config", "set", "tune.auto", "off"]);
   assert.equal((await w.ok(["config", "get", "reading.batch", "--json"])).json.source, "default");

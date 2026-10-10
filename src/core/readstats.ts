@@ -1,7 +1,7 @@
 // How the reading of scans went, from what strom recorded itself (core/metrics.ts, the views' record, the sessions,
 // the readers' reports, the searches): free — no agent, no network, nothing fetched — and nothing changed by it. Per
-// key of agent and model (calibrationKey, the model that reads the scans), split by the model the agent said it ran on
-// (a new version under the same alias starts again), per book (record set) and per archive (host of a connector):
+// key of agent and model (core/modelkey.ts: the model the agent said it ran on — an alias asked goes with the model it
+// ran on, another version is another key), per book (record set) and per archive (host of a connector):
 //
 //   M1  cost per scan               USD where the agent says it, else the tokens per scan
 //   M2  views per scan              and the share of whole views, halves, crops
@@ -20,6 +20,12 @@
 //   M11 load on the archive         requests per session, book and host; images fetched and never read (7 days on)
 //                                   — only those fetched while the views were recorded, and none a source stands on
 //                                   or a reader's report read
+//   M12 long stretches              a session whose main agent's own context grew past the point a clear would come
+//                                   (THRESHOLDS.M12.ctx) with more views than a stop, and never cleared — a model of a
+//                                   big window (Opus 5.5: 1M) clears nothing, its views all stay in its context
+//
+// Beside them, never a signal of the reading: the pages an agent fetched with its own web tools per host, and its web
+// searches (fetch.jsonl via web|search) — no image, no run of a connector: never in M11, A7 or the archives' figures.
 //
 // Each session, reader or other agent's day is one unit; the units are kept in .strom/metrics/rollup.json (never tidied),
 // so the figures outlive the journals strom tidy shortens. What older sessions left (their logs, the readers' notes, the
@@ -30,13 +36,14 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { metricsDir } from "./metrics.ts";
+import { countedWeb, isAgentWeb, metricsDir, WEB_SOFT } from "./metrics.ts";
 import { readJsonIfExists, writeFileAtomic } from "./json.ts";
 import { BATCH, learnedReaderMinutes, parseReport, type ReaderTime } from "./reader.ts";
 import { eachFileLine, eachGzipLine, type LineOptions } from "./lines.ts";
 import { listConnectors } from "./connector.ts";
 import { isArchive } from "./mode.ts";
 import { calibrationKey, viewModel } from "./viewsizes.ts";
+import { aliasPair, keyOf, loadAliases, modelId, normalKey, noteAliases, splitKey, UNKNOWN_KEY, type AliasPair, type Aliases } from "./modelkey.ts";
 import { Settings } from "./config.ts";
 import { claudeUsage } from "../runners/claude.ts";
 import { claudeTranscript } from "./transcripts.ts";
@@ -63,6 +70,8 @@ export const Z90 = 1.6449;
  * still there (2: logs line by line, only the readings of scans, a limit's older words, halves of older views, the
  * key kept, the reading's cost of a session with subagents, a message of Claude Code's own no clear, images fetched;
  * 3: an image fetched is read when the research shows it read, and never "never read" from before the views' record).
+ * The key of each unit is not read again: it is made the key of the model it ran on whenever the summary is read
+ * (canonicalUnits), whatever version kept it.
  */
 export const BACKFILL_VERSION = 3;
 
@@ -105,6 +114,9 @@ export const TUNING = {
  *       30 views, the Wilson intervals apart
  *   M8  waits for an archive's limit: a limit used up or a wait over 10 min in 2 sessions of the host
  *   M11 fetched and never read: over 20 % or 1.5× the usual, 3 sessions
+ *   M12 long stretches: in 2 of the last 5 sessions (the rule of M4) the main agent's own context past 150k tokens —
+ *       where Claude Code clears a window of 200k by itself — with more views than the stop (30), and no clear of its
+ *       own: the context a stop is measured on where none clears (A3)
  */
 export const THRESHOLDS = {
   M1: { ratio: 2, scans: 30, units: 2 },
@@ -117,6 +129,7 @@ export const THRESHOLDS = {
   M8: { waitMs: 10 * 60_000, sessions: 2 },
   M10: { of: 5, hits: 2 },
   M11: { share: 0.2, ratio: 1.5, sessions: 3 },
+  M12: { of: 5, hits: 2, ctx: 150_000, per: "session" },
 } as const;
 
 /**
@@ -276,6 +289,10 @@ export interface Unit {
   session?: string;
   books: Record<string, BookCounts>;
   hosts: Record<string, HostCounts>;
+  /** Pages its agent fetched with its own web tools, per host (fetch.jsonl via web): never an archive's fetch. */
+  web?: Record<string, number>;
+  /** Searches its agent made with its own web tools (via search). */
+  webSearches?: number;
   /** The cost of its reading (the session's share of it: Claude Code by the tokens of the views, else whole). */
   usd?: number;
   tokens?: { new: number; out: number; cr: number };
@@ -289,9 +306,13 @@ export interface Unit {
   streams?: { clears: number; ctx?: number }[];
   viewsAfterClear?: number;
   reopenedAfterClear?: number;
+  /** The main agent's own context at its highest (the series' stream of the agent itself, not its subagents'). */
+  peakCtx?: number;
   /** A reader: how it ended, and whether it gave no result (never set for one halted: HALTED_OUTCOMES). */
   outcome?: string;
   noResult?: true;
+  /** The key as strom asked it (an alias, "claude opus") where `key` names another: the model it ran on. */
+  asked?: string;
 }
 
 export interface Rollup {
@@ -337,8 +358,9 @@ function addInto<T extends object>(into: T, from: T): T {
  */
 export function readerLimit(root: string, key: string, views: number): { minutes: number; from: "default" | "learned" } {
   const earlier: ReaderTime[] = [];
+  const aliases = loadAliases(root);
   for (const r of readJournal(path.join(metricsDir(root), "readers.jsonl"))) {
-    if (r.key !== key) continue;
+    if (typeof r.key !== "string" || keyOf(r.key, str(r.reported), aliases, str(r.at)) !== key) continue;
     earlier.push({ outcome: str(r.outcome), views: num(r.views), ms: num(r.wallMs) ?? num(r.ms), minutes: num(r.minutes) });
   }
   const l = learnedReaderMinutes(views, earlier);
@@ -383,39 +405,50 @@ export function keyGuesser(settings: Settings, tree: TreeConfig): KeyGuess {
   };
 }
 
-const fold = (s: string) => s.normalize("NFC").toLowerCase();
-
 /**
- * The key of a session or reader by the model its agent said it ran on: the guess (from the settings of now) when the
- * model said is the guess's model or the guess names none (the agent's own); else the alias of the model said (Claude:
- * opus, sonnet, haiku…), else the model said itself.
+ * The key of a session or reader by the model its agent said it ran on (core/modelkey.ts) — the settings of now (the
+ * guess) only where it said none: a setting changed since never takes what was read on another model.
  */
 export function keyOfReported(agent: string, guess: string, reported: string | undefined): string {
-  if (!reported || reported.startsWith("<")) return guess;
-  const model = guess.startsWith(`${agent} `) ? guess.slice(agent.length + 1).trim() : "";
-  if (!model || fold(reported).includes(fold(model))) return guess;
-  const family = agent === "claude" ? /\b(?:claude-)?(opus|sonnet|haiku|fable)\b/iu.exec(reported)?.[1]?.toLowerCase() : undefined;
-  return calibrationKey(agent, family ?? reported);
+  const said = modelId(agent, reported);
+  return said ? `${agent} ${said}` : normalKey(guess);
 }
 
-/** The key of what nothing says the agent and model of (an older view outside a session, a report of no session). */
-export const UNKNOWN_KEY = "unknown";
-
-/** The model of an agent as its key names it: Claude's alias of a model it said (claude-opus-5-5 → opus), else as said. */
-function modelOfKey(agent: string, model: string | undefined, reported: string | undefined): string | undefined {
-  if (model?.trim()) return model.trim();
-  if (!reported || reported.startsWith("<")) return undefined;
-  return (agent === "claude" ? /\b(?:claude-)?(opus|sonnet|haiku|fable)\b/iu.exec(reported)?.[1]?.toLowerCase() : undefined) ?? reported;
-}
+export { UNKNOWN_KEY } from "./modelkey.ts";
 
 /**
  * The key of a session or reader strom did not record one for, from what its own record says: its agent and the model
  * strom started it with (else the model it said it ran on) — never the settings of now (another agent or model chosen
- * since would take its history). No agent said: UNKNOWN_KEY.
+ * since would take its history). No agent said: UNKNOWN_KEY. The model said makes it the key of that model with the
+ * summary (canonicalUnits).
  */
 export function recordKey(agent: string | undefined, model: string | undefined, reported: string | undefined): string {
   if (!agent) return UNKNOWN_KEY;
-  return calibrationKey(agent, modelOfKey(agent, model, reported));
+  return calibrationKey(agent, model?.trim() || reported);
+}
+
+/**
+ * The units under the key of the model they ran on (core/modelkey.ts): what was asked (an alias, as an older strom kept
+ * it) kept beside it as `asked`. The same again changes nothing.
+ */
+export function canonicalUnits(units: Unit[], aliases: Aliases): Unit[] {
+  for (const u of units) {
+    const asked = normalKey(u.asked ?? u.key);
+    u.key = keyOf(asked, u.reported, aliases, u.at);
+    if (asked !== u.key) u.asked = asked;
+    else delete u.asked;
+  }
+  return units;
+}
+
+/** What the units say an alias ran on: what each asked, with the model its agent said (only one of what was asked). */
+export function aliasPairsOf(units: Unit[]): AliasPair[] {
+  const out: AliasPair[] = [];
+  for (const u of units) {
+    const p = u.reported ? aliasPair(u.asked ?? u.key, u.reported, u.at) : undefined;
+    if (p) out.push(p);
+  }
+  return out;
 }
 
 /** One request's use in a series: the context, and its tokens where said. */
@@ -853,7 +886,28 @@ export function computeUnits(tree: Tree, o: ComputeOptions): Unit[] {
     const e = time(s?.ended);
     return Number.isFinite(e) ? Math.max(t, e) : t;
   };
-  const fetchJournal = readJournal(path.join(metricsDir(root), "fetch.jsonl"));
+  const fetchLines = readJournal(path.join(metricsDir(root), "fetch.jsonl"));
+  // the agents' own web tools: their pages per host and their searches, counted apart (no image, no connector's run)
+  const fetchJournal = fetchLines.filter((f) => !isAgentWeb(f));
+  // each request once, the hook's and the stream's alike: none refused, a tool call once, a session's stream lines left
+  // out where the hook recorded that session's agent (core/metrics.ts countedWeb)
+  for (const f of countedWeb(fetchLines.filter(isAgentWeb))) {
+    const t = time(f.at);
+    if (!Number.isFinite(t)) continue;
+    const by = str(f.session) ?? str(f.by) ?? "";
+    const u = /^N\d+$/.test(by) ? sessionUnit(by, t) : otherUnit(by || "agent", t);
+    // the key its line recorded, where nothing else of the session did (its use not said)
+    const key = str(f.key);
+    if (u.guessed && key && u.kind === "session") {
+      u.key = key;
+      delete u.guessed;
+    }
+    if (f.via === "search") u.webSearches = (u.webSearches ?? 0) + 1;
+    else {
+      const host = str(f.host);
+      if (host) (u.web ??= {})[host] = (u.web[host] ?? 0) + 1;
+    }
+  }
   for (const f of fetchJournal) {
     const t = time(f.at);
     if (!Number.isFinite(t)) continue;
@@ -1002,6 +1056,9 @@ function applySeries(u: Unit, use: { samples: SeriesSample[] }): number | undefi
   const c = clearsOf(series);
   u.series = true;
   u.clears = c.clears;
+  // the main agent's own context at its highest (M12): its stream, never a subagent's
+  const own = series.filter((x) => !x.sub).map((x) => x.ctx!);
+  if (own.length) u.peakCtx = Math.max(...own);
   const streams = streamClears(series);
   if (streams.length) u.streams = streams.map(({ clears, ctx }) => ({ clears, ...(ctx !== undefined ? { ctx } : {}) }));
   if (!c.first) return undefined;
@@ -1303,7 +1360,14 @@ export function rollupFile(root: string): string {
   return path.join(metricsDir(root), "rollup.json");
 }
 
+/** The summary as kept, its units under the key of the model they ran on (core/modelkey.ts) whatever version kept it. */
 export function loadRollup(root: string): Rollup | undefined {
+  const r = rawRollup(root);
+  if (r) canonicalUnits(r.units, loadAliases(root));
+  return r;
+}
+
+function rawRollup(root: string): Rollup | undefined {
   try {
     const r = readJsonIfExists<Rollup>(rollupFile(root));
     return r && r.version === 1 && Array.isArray(r.units) ? r : undefined;
@@ -1312,10 +1376,31 @@ export function loadRollup(root: string): Rollup | undefined {
   }
 }
 
+/** The name of the copy of a file kept before strom first wrote it under the keys of the models (core/modelkey.ts). */
+export const BEFORE_KEYS = ".before-keys";
+
+/**
+ * A copy of a file as it was, beside it, before strom first rewrites it under the keys of the models — once: a copy
+ * there already is never written over. Never fails (the rewrite goes on: what it changes is only the names).
+ */
+export function keepBeforeKeys(file: string): void {
+  try {
+    if (!fs.existsSync(file) || fs.existsSync(file + BEFORE_KEYS)) return;
+    fs.copyFileSync(file, file + BEFORE_KEYS, fs.constants.COPYFILE_EXCL);
+  } catch {
+    // kept by another strom at the same moment, or not to be kept: the names only change
+  }
+}
+
 /** How much a unit holds (a count a summary lacks — written by another version — is none). */
 function weight(u: Unit): number {
   const n = (v: number | undefined) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-  return Object.values(u.books).reduce((s, b) => s + n(b.views) + n(b.read) + n(b.searches) + n(b.fetched) + n(b.requests) + n(b.noSharper), 0) + Object.values(u.hosts).reduce((s, h) => s + n(h.fetches) + n(h.requests) + n(h.later), 0);
+  return (
+    Object.values(u.books).reduce((s, b) => s + n(b.views) + n(b.read) + n(b.searches) + n(b.fetched) + n(b.requests) + n(b.noSharper), 0) +
+    Object.values(u.hosts).reduce((s, h) => s + n(h.fetches) + n(h.requests) + n(h.later), 0) +
+    Object.values(u.web ?? {}).reduce((s, k) => s + n(k), 0) +
+    n(u.webSearches)
+  );
 }
 
 /** The newer reading of a unit, with what only the older one knew (recovered parts, a journal shortened since). */
@@ -1333,17 +1418,15 @@ export function mergeUnit(older: Unit | undefined, newer: Unit): Unit {
   return out;
 }
 
-const SERIES_FIELDS = ["series", "clears", "firstClearCtx", "streams", "viewsAfterClear", "reopenedAfterClear"] as const;
+const SERIES_FIELDS = ["series", "clears", "firstClearCtx", "streams", "viewsAfterClear", "reopenedAfterClear", "peakCtx"] as const;
 
 /** A unit's key once kept is its key: a setting changed since never moves it (only a key recorded replaces a guess). */
 function keepKey(out: Unit, older: Unit, newer: Unit): void {
-  if (older.guessed && !newer.guessed) {
-    out.key = newer.key;
-    delete out.guessed;
-    return;
-  }
-  out.key = older.key;
-  if (older.guessed) out.guessed = true;
+  const from = older.guessed && !newer.guessed ? newer : older;
+  out.key = from.key;
+  if (from.asked) out.asked = from.asked;
+  else delete out.asked;
+  if (from.guessed) out.guessed = true;
   else delete out.guessed;
 }
 
@@ -1357,6 +1440,8 @@ function rebuilt(older: Unit, fresh: Unit): Unit {
   const out: Unit = { ...fresh };
   if (views(older) > views(fresh)) out.books = older.books;
   if (!Object.keys(fresh.hosts).length) out.hosts = older.hosts;
+  if (!fresh.web && older.web) out.web = older.web;
+  if (fresh.webSearches === undefined && older.webSearches !== undefined) out.webSearches = older.webSearches;
   if (!fresh.series && older.series) for (const k of SERIES_FIELDS) if (older[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = older[k];
   out.backfill = true;
   return out;
@@ -1390,7 +1475,10 @@ export function refreshRollup(tree: Tree, o: RefreshOptions = {}): Rollup | unde
   if (isArchive(tree)) return undefined;
   const now = o.now ?? Date.now();
   const settings = o.settings ?? new Settings(tree.env, {});
-  const stored = loadRollup(tree.root);
+  const stored = rawRollup(tree.root);
+  // the keys as kept: one named otherwise now (kept by a strom of before the keys of the models) keeps a copy of it
+  const keptKeys = new Map((stored?.units ?? []).map((u) => [u.id, u.key]));
+  if (stored) canonicalUnits(stored.units, loadAliases(tree.root));
   const rebuild = Boolean(stored?.backfilled) && (stored?.backfillVersion ?? 1) < BACKFILL_VERSION;
   const backfill = !stored?.backfilled || rebuild;
   const logs: BackfillLogs = { read: 0, gone: 0, skipped: 0, long: 0 };
@@ -1413,6 +1501,9 @@ export function refreshRollup(tree: Tree, o: RefreshOptions = {}): Rollup | unde
     const old = units.get(u.id);
     units.set(u.id, rebuild && old?.backfill ? rebuilt(old, u) : mergeUnit(old, u));
   }
+  // what the units say each alias ran on joins the history of the alias with that model; then every unit by that model
+  const aliases = noteAliases(tree.root, aliasPairsOf([...units.values()]));
+  canonicalUnits([...units.values()], aliases);
   const keepFrom = now - KEEP_DAYS * DAY;
   const kept = [...units.values()].filter((u) => time(u.at) >= keepFrom && weight(u) + (u.series ? 1 : 0) + (u.outcome ? 1 : 0) > 0).sort((a, b) => time(a.at) - time(b.at) || a.id.localeCompare(b.id));
   const rollup: Rollup = {
@@ -1427,6 +1518,7 @@ export function refreshRollup(tree: Tree, o: RefreshOptions = {}): Rollup | unde
   if (!stored && !kept.length) return rollup;
   try {
     fs.mkdirSync(metricsDir(tree.root), { recursive: true });
+    if (kept.some((u) => keptKeys.has(u.id) && keptKeys.get(u.id) !== u.key)) keepBeforeKeys(rollupFile(tree.root));
     writeFileAtomic(rollupFile(tree.root), JSON.stringify(rollup) + "\n");
   } catch {
     // the figures are said all the same
@@ -1436,7 +1528,7 @@ export function refreshRollup(tree: Tree, o: RefreshOptions = {}): Rollup | unde
 
 // ── the summary of one key ─────────────────────────────────────────────────────────────────────────────────────────
 
-export type Metric = "M1" | "M2" | "M3" | "M4" | "M5" | "M6" | "M7" | "M8" | "M9" | "M10" | "M11";
+export type Metric = "M1" | "M2" | "M3" | "M4" | "M5" | "M6" | "M7" | "M8" | "M9" | "M10" | "M11" | "M12";
 
 export interface Signal {
   metric: Metric;
@@ -1553,6 +1645,8 @@ export interface KeyReport {
   readers: { n: number; noResult: number; halted: number; haltedBy?: Record<string, number> };
   books: BookSummary[];
   hosts: HostSummary[];
+  /** The agent's own web tools: pages per host and searches (never an archive's fetch, never a signal). */
+  web: WebLoad;
   signals: Signal[];
   /** Measures below their minimum sample: not compared yet. */
   short: Metric[];
@@ -1586,6 +1680,42 @@ interface Group {
   units: Unit[];
 }
 
+/** What agents asked of the web with their own tools: pages per host (in how many units, the most in one), searches. */
+export interface WebLoad {
+  requests: number;
+  searches: number;
+  hosts: { host: string; requests: number; sessions: number; most: number; mostIn?: string; mostAt?: string }[];
+}
+
+/** The pages and searches of the agents' own web tools in these units (a session, a reader or an agent's day each). */
+export function webLoad(units: Unit[]): WebLoad {
+  const hosts = new Map<string, WebLoad["hosts"][number]>();
+  let searches = 0;
+  for (const u of units) {
+    searches += u.webSearches ?? 0;
+    for (const [host, n] of Object.entries(u.web ?? {})) {
+      if (!(typeof n === "number" && n > 0)) continue;
+      const h = hosts.get(host) ?? hosts.set(host, { host, requests: 0, sessions: 0, most: 0 }).get(host)!;
+      h.requests += n;
+      h.sessions++;
+      if (n > h.most) Object.assign(h, { most: n, mostIn: u.id, mostAt: u.at });
+    }
+  }
+  const list = [...hosts.values()].sort((a, b) => b.requests - a.requests || a.host.localeCompare(b.host));
+  return { requests: list.reduce((n, h) => n + h.requests, 0), searches, hosts: list };
+}
+
+/** The days doctor looks back over for sites an agent asked much of with its own web tools. */
+export const WEB_DAYS = 7;
+
+/** The sites an agent asked more than `limit` (the soft threshold: a connector advised) pages of in one session with its own web tools, in the last WEB_DAYS. */
+export function manyWeb(units: Unit[], now = Date.now(), limit = WEB_SOFT): WebLoad["hosts"] {
+  const from = now - WEB_DAYS * DAY;
+  return webLoad(units.filter((u) => time(u.at) >= from))
+    .hosts.filter((h) => h.most > limit)
+    .sort((a, b) => b.most - a.most || a.host.localeCompare(b.host));
+}
+
 /** The units of the window by key and the model the agent said (an older model under the same alias apart). */
 export function groups(units: Unit[], now = Date.now()): Group[] {
   const from = now - WINDOW_DAYS * DAY;
@@ -1595,11 +1725,14 @@ export function groups(units: Unit[], now = Date.now()): Group[] {
   const out: Group[] = [];
   for (const [key, us] of byKey) {
     const sorted = [...us].sort((a, b) => time(a.at) - time(b.at));
+    // the model said as one key names it ("claude-opus-5-5[1m]" is "claude-opus-5-5")
+    const agent = splitKey(key).agent;
+    const said = (u: Unit) => modelId(agent, u.reported);
     // the newest model said under the key; the units that said none go with it
-    const latest = [...sorted].reverse().find((u) => u.reported)?.reported;
+    const latest = [...sorted].reverse().map(said).find(Boolean);
     const by = new Map<string, Unit[]>();
     for (const u of sorted) {
-      const r = u.reported ?? latest ?? "";
+      const r = said(u) ?? latest ?? "";
       (by.get(r) ?? by.set(r, []).get(r)!).push(u);
     }
     for (const [r, list] of by) out.push({ key, ...(r ? { reported: r } : {}), units: list });
@@ -1855,6 +1988,19 @@ export function summarize(group: Group, o: SummaryOptions = {}): KeyReport {
   if (m4.enough) met("M4");
   if (m4.signal) signals.push({ metric: "M4", scope: "key", value: m4.hits, n: m4.hits, of: m4.of, ...(ctxFirst !== undefined ? { extra: { ctx: Math.round(ctxFirst) } } : {}) });
   else if (!m4.enough && readerSeries.length) tried.add("M4");
+  // M12 per session of its main agent (its own stream): its context past where a clear would come, more views than a
+  // stop, and never a clear of its own — the long stretch a model of a big window makes (THRESHOLDS.M12)
+  const viewsOf = (u: Unit) => Object.values(u.books).reduce((n, b) => n + b.views, 0);
+  const stopNow = (o.defaults ?? READING_DEFAULTS).viewsStop;
+  const mains = withSeries.filter((u) => u.kind === "session" && u.peakCtx !== undefined);
+  const ownClears = (u: Unit) => (u.clears ?? 0) - (u.streams ?? []).reduce((n, x) => n + x.clears, 0);
+  const long = (u: Unit) => ownClears(u) <= 0 && u.peakCtx! >= THRESHOLDS.M12.ctx && viewsOf(u) > stopNow;
+  const m12 = lastOf(mains.map(long), THRESHOLDS.M12);
+  if (m12.enough) met("M12");
+  if (m12.signal) {
+    const peaks = mains.slice(-THRESHOLDS.M12.of).filter(long);
+    signals.push({ metric: "M12", scope: "key", value: m12.hits, n: m12.hits, of: m12.of, extra: { ctx: THRESHOLDS.M12.ctx, peak: Math.round(median(peaks.map((u) => u.peakCtx!)) ?? 0), views: Math.round(median(peaks.map(viewsOf)) ?? 0) } });
+  } else if (!m12.enough && mains.length) tried.add("M12");
   // M10 on the readers that read (a unit kept from before may carry noResult for one halted: its outcome decides)
   const readers = ordered.filter(isReading);
   const halted = ordered.filter(isHalted);
@@ -1955,6 +2101,7 @@ export function summarize(group: Group, o: SummaryOptions = {}): KeyReport {
     readers: { n: readers.length, noResult: readers.filter((u) => u.noResult).length, halted: halted.length, ...(halted.length ? { haltedBy } : {}) },
     books: bookList,
     hosts: hostList,
+    web: webLoad(units),
     signals,
     short: [...tried].filter((m) => !enough.has(m)).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1))),
     recommend: [],
@@ -1993,13 +2140,15 @@ export function recommendations(r: KeyReport, defaults: { batch: number; viewsSt
   if (key.length) out.push({ id: "A2", what: "reading.batch", scope: "key", auto: true, requestsMore: 0, because: [...key], from: defaults.batch, to: Math.max(1, Math.ceil(defaults.batch * TUNING.smallest)) });
   // the views a reader takes before its context clears: TUNING.stopShare × the context at the first clear / the tokens of
   // one view of a reader (w·h/750: Claude Code's; another agent's is not known — nothing)
-  if (by("M4").length && r.context.ctxAtFirstClear && r.key.startsWith("claude")) {
+  // — where the context never clears (M12: a model of a big window), the context a clear would come at (M12's ctx)
+  const stopBasis = stopContext(r);
+  if (stopBasis && r.key.startsWith("claude")) {
     const px = units.reduce((n, u) => n + Object.values(u.books).reduce((m, b) => m + b.px, 0), 0);
     const views = units.reduce((n, u) => n + Object.values(u.books).reduce((m, b) => m + b.views, 0), 0);
     const perView = r.context.readerViewTokens ?? (views ? px / views / 750 : 0);
     if (perView > 0) {
-      const stop = Math.floor((TUNING.stopShare * r.context.ctxAtFirstClear) / perView);
-      if (stop < defaults.viewsStop) out.push({ id: "A3", what: "reading.views", scope: "key", auto: true, requestsMore: 0, because: ["M4"], from: defaults.viewsStop, to: Math.max(TUNING.stopMin, stop) });
+      const stop = Math.floor((TUNING.stopShare * stopBasis.ctx) / perView);
+      if (stop < defaults.viewsStop) out.push({ id: "A3", what: "reading.views", scope: "key", auto: true, requestsMore: 0, because: [stopBasis.metric], from: defaults.viewsStop, to: Math.max(TUNING.stopMin, stop) });
     }
   }
   // cheaper only through a calibration a person starts: a high cost per scan (D1_BASIS — never views per scan alone) on
@@ -2007,6 +2156,16 @@ export function recommendations(r: KeyReport, defaults: { batch: number; viewsSt
   const costly = r.books.filter((b) => D1_BASIS.some((m) => b.signals.includes(m)) && !b.signals.includes("M5"));
   if (costly.length >= D1_BOOKS) out.push({ id: "D1", what: "views.smaller", scope: "key", auto: false, requestsMore: 0, because: [...D1_BASIS] });
   return out;
+}
+
+/**
+ * The context a stop of the views is measured on (A3): where readers' contexts cleared (M4), the context at the first
+ * clear; else, where the main agent's never clears in its long stretches (M12), the context a clear would come at.
+ */
+export function stopContext(r: Pick<KeyReport, "signals" | "context">): { metric: "M4" | "M12"; ctx: number } | undefined {
+  if (r.signals.some((s) => s.metric === "M4") && r.context.ctxAtFirstClear) return { metric: "M4", ctx: r.context.ctxAtFirstClear };
+  const m12 = r.signals.find((s) => s.metric === "M12");
+  return m12 ? { metric: "M12", ctx: m12.extra?.ctx ?? THRESHOLDS.M12.ctx } : undefined;
 }
 
 /** The units of the other researches on this computer (their summaries only, read as they are). */

@@ -212,7 +212,11 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // "přechod beta ↔ produkce nikdy nepřijde o data"). Made once (strom update made it already, or another strom of
     // this version a moment ago); in any strom of this version, a bridge too (it may write what the app sends).
     const channelNow = updateChannel(env);
-    const pending = fromSources ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
+    // an agent's hook (strom net web --hook, before each of its web requests; strom agents delegate --hook, before each
+    // subagent call) does none of a new version's first run: it answers within the hook's time and changes nothing
+    // outside the research's measurements
+    const hook = (command === "net web" || command === "agents delegate") && v.hook === true;
+    const pending = fromSources || hook ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
     if (pending && ctx.settings.home()) {
       try {
         const made = backupBefore(ctx, pending);
@@ -227,7 +231,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     if (ctx.backupFailed && (def.writes || STARTS_WORK.has(def.path.join(" ")))) throw ctx.backupFailed;
     const lastChannel = lastChannelOf(ctx.settings.config);
     const otherChannel = !!lastChannel && lastChannel !== channelNow;
-    if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources) {
+    if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook) {
       ctx.settings.config.lastVersion = VERSION;
       // …and its channel: another one than last time is a change of channel
       ctx.settings.config.lastChannel = updateChannel(env);
@@ -312,7 +316,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       if (result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), dryRun: true };
     }
     print(io, ctx, result);
-    remind(io, ctx, command);
+    if (!hook) remind(io, ctx, command);
     return result.exitCode ?? EXIT.ok;
   } catch (err) {
     let lang: string | undefined;

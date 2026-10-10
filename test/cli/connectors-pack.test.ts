@@ -497,9 +497,27 @@ test("a part of an image, sharper: one request, registered with its image — a 
   assert.match((await w.ok(["media", "view", "B1:1", "--crop", "0.6,0.1,0.3,0.3"])).out, /from M0003, a part of the image fetched sharper \(2\.0× the detail of the whole image\)/);
   // a place outside the part: the whole image
   assert.equal((await w.ok(["media", "view", "B1:1", "--crop", "0.1,0.5,0.3,0.3", "--json"])).json.from, undefined);
-  // again: registered already, nothing asked for; the whole image is not "registered" by its part
-  assert.match((await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--crop", "0.5,0,0.5,0.5"])).out, /is registered already: M0003 — nothing fetched/);
-  assert.equal(a.hits.length, 1);
+  // again: here already, nothing asked for; the whole image is not "registered" by its part
+  const commits = spawnSync("git", ["rev-list", "--count", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).stdout.trim();
+  const again = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--crop", "0.5,0,0.5,0.5"]);
+  assert.match(again.out, /^part 0\.5,0,0\.5,0\.5 of image 1 of B0001: already here — M0003, the same part · no request\nlook at it: strom media view M0003\n/);
+  const json = (await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--crop", "0.5,0,0.5,0.5", "--json"])).json;
+  assert.deepEqual([json.held.id, json.held.how, json.added], ["M0003", "same", []]);
+  // a part inside it, a little smaller (as an agent asks for one entry again): a new one would bring at most 800 ×
+  // 0.5/0.45 = 889 px across the image, not 1.2× the 800 of M0003 — answered from M0003, its place in it, no request
+  const inner = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--crop", "0.52,0.02,0.45,0.45"]);
+  assert.match(inner.out, /part 0\.52,0\.02,0\.45,0\.45 of image 1 of B0001: already here — M0003 \(part 0\.5,0,0\.5,0\.5, 800 px across the image · 2\.0× the detail of the whole image\) · no request\n {2}a part this size comes from zkusebni at most 889 px across the image \(1\.1× — no sharper\)\nlook at it: strom media view M0003 --crop 0\.04,0\.04,0\.9,0\.9 · a smaller part \(one entry\) may come sharper/);
+  assert.equal(a.hits.length, 1, "no request");
+  const fetches = fs.readFileSync(path.join(w.cwd, ".strom", "metrics", "fetch.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  const held = fetches.at(-1)!;
+  assert.deepEqual([held.cmd, held.img, held.requests, held.held, held.result, held.noSharper, held.hosts], ["part", 1, 0, "M0003", "held", undefined, undefined]);
+  // nothing written: no new image, no commit
+  assert.equal((await w.ok(["media", "list", "--json"])).json.total, 3);
+  assert.equal(spawnSync("git", ["rev-list", "--count", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).stdout.trim(), commits);
+  // the view it names is that place of M0003
+  assert.deepEqual((await w.ok(["media", "view", "M0003", "--crop", "0.04,0.04,0.9,0.9", "--json"])).json.region, { x: 16, y: 12, w: 360, h: 270 });
+  // a much smaller part inside it may come sharper (at most 800 × 0.5/0.2 across the image): it would be asked for
+  assert.match((await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--crop", "0.6,0.1,0.2,0.2", "--dry-run"])).out, /would fetch part 0\.6,0\.1,0\.2,0\.2 of image 1/);
   assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1", "--recordset", "B1"])).out, /images 1 of B0001 are registered already/);
   // tried while building it
   const t = await w.ok(["connector", "test", "zkusebni", "--fetch", "5359", "--images", "2", "--crop", "0,0.5,0.5,0.5"]);
@@ -523,7 +541,7 @@ test("a part of an image, sharper: one request, registered with its image — a 
   await w.ok(["media", "add", big, "--recordset", "B1"]); // M0004, image 3, 800×600
   a.hits.length = 0;
   const same = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "3", "--half", "right"]);
-  assert.match(same.out, /part 0\.5,0,0\.5,1 of image 3 of B0001 not fetched: a part this size came from zkusebni at most 800 px across the image, and image 3 here has 800 already \(1\.0× — no sharper\)\nread it from the image: strom media view B0001:3 --crop 0\.5,0,0\.5,1 · a smaller part \(one entry\) may come sharper/);
+  assert.match(same.out, /part 0\.5,0,0\.5,1 of image 3 of B0001: already here — M0004 \(the whole image, 800 px across\) · no request\n {2}a part this size comes from zkusebni at most 800 px across the image \(1\.0× — no sharper\)\nlook at it: strom media view B0001:3 --crop 0\.5,0,0\.5,1 · a smaller part \(one entry\) may come sharper/);
   assert.deepEqual(a.hits, [], "no request");
   // a smaller part may come sharper (the portal's size limit): asked for; so is a half of an image whose scan here is small
   await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "3", "--crop", "0.1,0.1,0.2,0.2"]);

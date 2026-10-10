@@ -13,6 +13,7 @@ import type { AnyRecord, Conflict, Family, Hypothesis, Input, Lesson, Media, Per
 import { conflictTitle, displayName, lifespan } from "./people.ts";
 import { ownerName, cardFact } from "./overview.ts";
 import { phrase, type PhraseKey } from "./phrases.ts";
+import { clock } from "./net.ts";
 import { eventName, humanDate, humanPlace, humanTask } from "../cli/human.ts";
 import { UI, ui, type UIKey } from "../cli/ui.ts";
 
@@ -243,8 +244,9 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     kind = kindOf(o.op);
     const [first, second] = o.targets;
     if (o.op === "media.add") {
+      // a part of an image fetched sharper is no new scan: said as a part of its image, apart from the new scans
       const m = get<Media>(first);
-      const key = m?.recordset ?? "";
+      const key = `${m?.part ? "part" : "scan"}:${m?.recordset ?? ""}`;
       if (!images.has(key)) {
         images.set(key, []);
         out.push({ text: `\u0000media:${key}`, kind: "source" }); // its place in the order, filled in below
@@ -316,6 +318,13 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       say(step in UI ? ui(lang, "ui.migrated", { step: ui(lang, step) }) : phrase(lang, "log.migrate"));
       continue;
     }
+    // an archive's hourly cap nearly used up by the research's requests (strom fetch): said once at each share reached
+    if (o.op === "net.cap") {
+      const m = /^(\S+): (\d+) of its (\d+) requests an hour used; the next frees at (\S+)$/.exec(o.summary);
+      const at = m ? Date.parse(m[4]!) : NaN;
+      say(m && Number.isFinite(at) ? phrase(lang, "log.net.cap", { host: m[1]!, used: m[2]!, cap: m[3]!, time: clock(at, Date.parse(o.at) || Date.now()) }) : "");
+      continue;
+    }
     // strom mode: said in the research's language (found on Windows: "the research is an archive" in a Czech history)
     if (o.op === "config.set" && MODE_SAID[o.summary]) {
       say(phrase(lang, MODE_SAID[o.summary]!));
@@ -344,15 +353,22 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
   }
   const lines = out.map(({ text: line, kind }) => {
     if (!line.startsWith("\u0000media:")) return { text: line, kind };
-    const book = line.slice("\u0000media:".length);
-    const ns = images.get(book) ?? [];
+    const key = line.slice("\u0000media:".length);
+    const part = key.startsWith("part:");
+    const book = key.slice(key.indexOf(":") + 1);
+    // each image once: parts of one image fetched again and again are one line of that image
+    const ns = [...new Set(images.get(key) ?? [])];
     const title = get<RecordSet>(book)?.title;
     const n = Math.max(ns.length, 1);
-    const text = !title
-      ? phrase(lang, "log.media.loose", { n })
-      : ns.length === 1
-        ? phrase(lang, "log.media.one", { name: title, image: ns[0]! })
-        : phrase(lang, "log.media", { name: title, n, images: ns.length ? ranges(ns) : "" });
+    const text = part
+      ? !title || !ns.length
+        ? phrase(lang, "log.media.part.loose", { n })
+        : phrase(lang, ns.length === 1 ? "log.media.part.one" : "log.media.part", { name: title, image: ns[0]!, images: ranges(ns) })
+      : !title
+        ? phrase(lang, "log.media.loose", { n })
+        : ns.length === 1
+          ? phrase(lang, "log.media.one", { name: title, image: ns[0]! })
+          : phrase(lang, "log.media", { name: title, n, images: ns.length ? ranges(ns) : "" });
     return { text, kind };
   });
   if (lines.length) return lines;

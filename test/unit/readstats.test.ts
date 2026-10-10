@@ -18,6 +18,7 @@ import {
   keyOfReported,
   kindOfRegion,
   lastOf,
+  manyWeb,
   median,
   mergeUnit,
   rateSignal,
@@ -274,12 +275,13 @@ test("an older line of the views: its kind by its region — a page of a double 
 
 test("a key from what the record says, never the settings of now; once kept, never moved", () => {
   assert.equal(recordKey("claude", "opus", "claude-sonnet-4-6"), "claude opus", "the model strom started it with");
-  assert.equal(recordKey("claude", undefined, "claude-opus-5-5"), "claude opus", "the model it said, by its alias");
+  assert.equal(recordKey("claude", undefined, "claude-opus-5-5[1m]"), "claude claude-opus-5-5", "the model it said, as one key names it");
   assert.equal(recordKey("codex", undefined, "gpt-x-1"), "codex gpt-x-1");
   assert.equal(recordKey("claude", undefined, undefined), "claude");
   assert.equal(recordKey(undefined, "opus", "claude-opus-5-5"), UNKNOWN_KEY, "no agent said: not known");
-  assert.equal(keyOfReported("claude", "claude sonnet", "claude-opus-5-5"), "claude opus");
-  assert.equal(keyOfReported("claude", "claude opus", "claude-opus-5-5"), "claude opus");
+  assert.equal(keyOfReported("claude", "claude sonnet", "claude-opus-5-5"), "claude claude-opus-5-5");
+  assert.equal(keyOfReported("claude", "claude opus", "claude-opus-5-5"), "claude claude-opus-5-5");
+  assert.equal(keyOfReported("claude", "claude opus", undefined), "claude opus");
   // a stored unit keeps its key whatever a later reading guesses (another agent or model chosen since)
   const stored = unit("N1", 5, { B1: { scans: 10, views: 30 } }, { kind: "session", key: "claude opus", guessed: true });
   const later = unit("N1", 5, { B1: { scans: 12, views: 40 } }, { kind: "session", key: "codex gpt-x", guessed: true });
@@ -373,7 +375,7 @@ test("M10 counts only readers that read: a login, a plan's limit or a failure st
 
 // G3: "fetched, never read" (M11) only where it is true — the views' record lives in .strom, which a copy of the tree,
 // an unpacked one or a tree of an older strom does not have; what the research itself shows read is read
-function fetchedTree(o: { views?: Record<string, unknown>[]; cited?: number[]; reported?: number[] }) {
+function fetchedTree(o: { views?: Record<string, unknown>[]; cited?: number[]; reported?: number[]; web?: Record<string, unknown>[] }) {
   const now = Date.parse("2026-10-10T12:00:00Z");
   const iso2 = (t: number) => new Date(t).toISOString();
   const session = (id: string, daysAgo: number) => ({ id, type: "session", state: "closed", started: iso2(now - daysAgo * DAY), ended: iso2(now - daysAgo * DAY + 3600_000), created: iso2(now - daysAgo * DAY), agent: "claude", model: "opus" });
@@ -387,7 +389,11 @@ function fetchedTree(o: { views?: Record<string, unknown>[]; cited?: number[]; r
   // three sessions fetched the same four images of a book from one archive
   put(
     path.join(root, ".strom", "metrics", "fetch.jsonl"),
-    [["N0001", 14], ["N0002", 12], ["N0003", 10]].map(([s, d]) => ({ at: iso2(now - (d as number) * DAY + 600_000), session: s, connector: "zkusebni", cmd: "fetch", rs: "B0002", got: [17, 18, 19, 20], requests: 4, hosts: { "archiv.příklad.example": { requests: 4 } } })),
+    [
+      // (an agent's own web tools: lines of their own, from before strom's first fetch too)
+      ...(o.web ?? []),
+      ...[["N0001", 14], ["N0002", 12], ["N0003", 10]].map(([s, d]) => ({ at: iso2(now - (d as number) * DAY + 600_000), session: s, connector: "zkusebni", cmd: "fetch", rs: "B0002", got: [17, 18, 19, 20], requests: 4, hosts: { "archiv.příklad.example": { requests: 4 } } })),
+    ],
   );
   if (o.views) put(path.join(root, ".strom", "views", "views.jsonl"), o.views);
   if (o.reported?.length) {
@@ -443,6 +449,121 @@ test("G3: fetched while the views were recorded, never viewed nor cited, in thre
     assert.equal(sum(units, (u) => u.books.B0002?.unjudged), 0);
     assert.deepEqual(m11(report).sort(), ["book:B0002", "host:archiv.příklad.example"]);
     assert.deepEqual(a7(report).sort(), ["book:B0002", "host:archiv.příklad.example"]);
+  } finally {
+    done();
+  }
+});
+
+// The pages and searches of an agent's own web tools (fetch.jsonl via web|search): counted apart per key and host,
+// never an image, never an archive's request, never in M11 or A7 — whatever the host
+const webAt = (session: string, daysAgo: number, host?: string, via: "web" | "search" = "web") => ({
+  at: new Date(Date.parse("2026-10-10T12:00:00Z") - daysAgo * DAY + 900_000).toISOString(),
+  via,
+  ...(host ? { host } : {}),
+  session,
+  key: "claude opus",
+  agent: "grok",
+  from: "stream",
+});
+const webLines = [
+  // before strom's first fetch of the archive (12 days before now: 2 days before the first)
+  ...Array.from({ length: 3 }, () => webAt("N0009", 30, "obec.example")),
+  ...Array.from({ length: 14 }, () => webAt("N0002", 12, "obec.example")),
+  ...Array.from({ length: 2 }, () => webAt("N0003", 10, "obec.example")),
+  // the archive's own host through the agent's web tools: still not a fetch of its connector
+  ...Array.from({ length: 5 }, () => webAt("N0001", 14, "archiv.příklad.example")),
+  ...Array.from({ length: 3 }, () => webAt("N0002", 12, undefined, "search")),
+];
+
+test("web: an agent's own web requests and searches counted apart per host and key; the fetches, M11 and A7 as before", () => {
+  const plain = fetchedTree({ views: [olderView], cited: [17] });
+  const withWeb = fetchedTree({ views: [olderView], cited: [17], web: webLines });
+  try {
+    for (const { units, report } of [plain, withWeb]) {
+      assert.equal(sum(units, (u) => u.books.B0002?.fetched), 12);
+      assert.equal(sum(units, (u) => u.books.B0002?.unread), 9);
+      assert.equal(sum(units, (u) => u.hosts["archiv.příklad.example"]?.requests), 12);
+      assert.equal(sum(units, (u) => u.hosts["archiv.příklad.example"]?.images), 12);
+      assert.equal(sum(units, (u) => u.hosts["obec.example"]?.requests), 0);
+      assert.deepEqual(m11(report).sort(), ["book:B0002", "host:archiv.příklad.example"]);
+      assert.deepEqual(a7(report).sort(), ["book:B0002", "host:archiv.příklad.example"]);
+      assert.deepEqual(report.hosts.map((h) => [h.host, h.requests, h.fetched, h.unread]), [["archiv.příklad.example", 12, 12, 9]]);
+    }
+    assert.deepEqual(plain.report.web, { requests: 0, searches: 0, hosts: [] });
+    const w = withWeb.report.web;
+    assert.deepEqual([w.requests, w.searches], [24, 3]);
+    assert.deepEqual(
+      w.hosts.map((h) => [h.host, h.requests, h.sessions, h.most, h.mostIn]),
+      [
+        ["obec.example", 19, 3, 14, "N0002"],
+        ["archiv.příklad.example", 5, 1, 5, "N0001"],
+      ],
+    );
+    assert.equal(withWeb.units.find((u) => u.id === "N0002")?.webSearches, 3);
+    // the sites asked more than WEB_PER_HOST pages in one session lately (doctor): within its days only
+    const now = Date.parse("2026-10-10T12:00:00Z");
+    assert.deepEqual(manyWeb(withWeb.units, now), []);
+    assert.deepEqual(manyWeb(withWeb.units, now - 8 * DAY).map((h) => [h.host, h.most]), [["obec.example", 14]]);
+  } finally {
+    plain.done();
+    withWeb.done();
+  }
+});
+
+test("web: lines of the agents' web tools make no image fetched before the views were recorded (G3 stays: no M11, no A7)", () => {
+  const { units, report, done } = fetchedTree({ web: webLines });
+  try {
+    assert.equal(sum(units, (u) => u.books.B0002?.unread), 0);
+    assert.equal(sum(units, (u) => u.books.B0002?.unjudged), 12);
+    assert.deepEqual([m11(report), a7(report)], [[], []]);
+    // a unit of web requests only is kept (it holds something), with nothing of a book or an archive
+    const only = units.find((u) => u.id === "N0009")!;
+    assert.deepEqual([only.books, only.hosts, only.web], [{}, {}, { "obec.example": 3 }]);
+    assert.deepEqual(mergeUnit(undefined, only).web, { "obec.example": 3 });
+  } finally {
+    done();
+  }
+});
+
+test("web: each request counted once, the tree's hook's and the stream's alike — none refused, a call once, a session's stream lines after its hook's first left out", () => {
+  const hookAt = (session: string, host: string | undefined, toolUse: string, decision: "allow" | "ask" | "deny", agent = "grok", via: "web" | "search" = "web") => ({
+    ...webAt(session, 12, host, via),
+    agent,
+    from: "hook",
+    toolUse,
+    decision,
+  });
+  const streamAt = (session: string, toolUse: string) => ({ ...webAt(session, 12, "obec.example"), toolUse });
+  const web = [
+    // N0004 (Grok): a page its stream told before the hook ran, then the hook and the stream both for c1–c3, and one the
+    // stream told by another id (the ids not matching): the hook's three and the one before
+    streamAt("N0004", "s0"),
+    hookAt("N0004", "obec.example", "c1", "allow"),
+    streamAt("N0004", "c1"),
+    hookAt("N0004", "obec.example", "c2", "allow"),
+    hookAt("N0004", "obec.example", "c3", "allow"),
+    streamAt("N0004", "c2"),
+    streamAt("N0004", "x3"),
+    // N0005 (Grok, no hook ran): the stream's two
+    streamAt("N0005", "a1"),
+    streamAt("N0005", "a2"),
+    // N0006 (Claude Code): allowed ones count, an asked one once it went out (the hook's line after it), refused and
+    // asked-but-said-no never; a search; one call recorded twice once
+    hookAt("N0006", "obec.example", "d1", "allow", "claude"),
+    hookAt("N0006", "obec.example", "d1", "allow", "claude"),
+    hookAt("N0006", "obec.example", "d2", "ask", "claude"),
+    hookAt("N0006", "obec.example", "d4", "ask", "claude"),
+    { ...hookAt("N0006", "obec.example", "d2", "allow", "claude"), why: "asked" },
+    hookAt("N0006", "obec.example", "d3", "deny", "claude"),
+    hookAt("N0006", undefined, "q1", "allow", "claude", "search"),
+  ];
+  const { units, report, done } = fetchedTree({ web });
+  try {
+    const by = (id: string) => units.find((u) => u.id === id)?.web?.["obec.example"];
+    assert.deepEqual([by("N0004"), by("N0005"), by("N0006")], [4, 2, 2]);
+    assert.equal(units.find((u) => u.id === "N0006")?.webSearches, 1);
+    const host = report.web.hosts.find((h) => h.host === "obec.example")!;
+    assert.deepEqual([host.requests, host.sessions, report.web.searches], [8, 3, 1]);
   } finally {
     done();
   }

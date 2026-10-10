@@ -114,7 +114,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
   if (agentId !== "script" && !which(runner.command, ctx.env)) throw new StromError(`${runner.command} is not installed`);
   const model = typeof opts.model === "string" ? opts.model : ctx.settings.models(agentId, tree.config).vision;
   const effort = ctx.settings.effort(agentId, tree.config)?.value;
-  const sizes = viewSizesFor(ctx.settings, agentId, tree.config, model);
+  const sizes = viewSizesFor(ctx.settings, agentId, tree.config, model, tree.root);
   const parallel = opts.parallel === undefined ? 3 : Math.max(1, Number(opts.parallel) || 1);
   // a reader's time limit: by hand, else by the views it is given and what the readers before it needed (readerLimit)
   const minutesSaid = opts.minutes === undefined ? undefined : Number(opts.minutes);
@@ -157,7 +157,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
       ...(model ? { model } : {}),
       // the reasoning effort the person chose for the agent (model.effort): readers read with it too
       ...(effort ? { effort } : {}),
-      ...usageOpt(tree, `${kind}-${stem}-${name}`, { agent: agentId, key: sizes.key, ...(model ? { model } : {}), ...(effort ? { effort } : {}), reader: kind }),
+      ...usageOpt(tree, `${kind}-${stem}-${name}`, { agent: agentId, key: sizes.asked ?? sizes.key, ...(model ? { model } : {}), ...(effort ? { effort } : {}), reader: kind }),
     });
     const ranMs = Date.now() - startedAt;
     // the reader as it went, for the measure of the reading of scans (core/metrics.ts)
@@ -165,7 +165,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
       reader: `${kind}-${stem}-${name}`,
       kind,
       agent: agentId,
-      key: sizes.key,
+      key: sizes.asked ?? sizes.key,
       model,
       reported: r.metrics.model,
       views: views.length,

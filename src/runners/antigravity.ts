@@ -19,8 +19,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { addResponses, heardResponse, runJsonLines, type Heard } from "./jsonl.ts";
-import { usageNumber, tellUsage, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
+import { addResponses, heardResponse, runJsonLines, webUse, type Heard } from "./jsonl.ts";
+import type { AgentWeb } from "../core/metrics.ts";
+import { usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
 import { effortArgs } from "../agents/effort.ts";
 
 /** Command-line arguments of a headless run (exported for tests); `first` is its first message. */
@@ -78,6 +79,13 @@ function describe(s: Step): { line: string; denied: string } {
   return { line, denied: `${tool}: ${line.slice(tool.length).trim().slice(0, 120)}`.replace(/: $/, "") };
 }
 
+/**
+ * agy's own web tools: search_web with its query (seen in its streams, agy 1.3), read_url_content with its Url and the
+ * browser's open_browser_url (named in its list of tools at init; their parameters assumed to be Url, as its other
+ * steps name a path) — counted when the step is done (core/metrics.ts).
+ */
+export const ANTIGRAVITY_WEB = { page: ["read_url_content", "open_browser_url"], search: ["search_web"] } as const;
+
 /** A tool step refused by the permissions (headless: what would ask is denied). */
 function refused(s: Step): boolean {
   return s.state === "ERROR" && /denied permission|permission check failed|auto-denied/i.test(s.tool_info?.error?.message ?? "");
@@ -105,7 +113,8 @@ export const antigravityRunner: Runner = {
       said: (heard: Heard, n: number, max: number) => `the agent stopped at a refused command (${heard.endedAtRefusal}) — it goes on in the same conversation, told to work only through strom (${n} of ${max})`,
       resume: (id: string, message: string, timeoutMs: number | undefined) => ({ args: antigravityGoOnArgs({ ...opts, timeoutMs }, id, message), input: "" }),
     };
-    return runJsonLines("agy", antigravityArgs(opts, first), opts.env, { ...opts, prompt: "" }, undefined, (msg, heard) => readEvent(msg, heard, said, opts.onProgress, opts.onUsage), { totalsAtEnd: true, goOn });
+    const web = { seen: new Set<string>(), on: (w: AgentWeb) => tellWeb(opts, w) };
+    return runJsonLines("agy", antigravityArgs(opts, first), opts.env, { ...opts, prompt: "" }, undefined, (msg, heard) => readEvent(msg, heard, said, opts.onProgress, opts.onUsage, web), { totalsAtEnd: true, goOn });
   },
 };
 
@@ -151,8 +160,18 @@ function usageOf(kind: string, msg: Record<string, unknown>): UsageSample[] {
   return s.step_type === "agent_response" && s.state === "DONE" ? tokens(s.usage, {}) : [];
 }
 
-/** One event of agy's stream (exported for tests). */
-export function readEvent(msg: Record<string, unknown>, heard: Heard, said: Map<number, string>, onProgress?: (line: string) => void, onUsage?: (u: UsageSample) => void): void {
+/**
+ * One event of agy's stream (exported for tests). `web`: its web tools' steps passed on once each when done (`seen`: the
+ * steps of its conversations passed on already).
+ */
+export function readEvent(
+  msg: Record<string, unknown>,
+  heard: Heard,
+  said: Map<number, string>,
+  onProgress?: (line: string) => void,
+  onUsage?: (u: UsageSample) => void,
+  web?: { seen: Set<string>; on: (w: AgentWeb) => void },
+): void {
   const kind = String(msg.event ?? msg.type ?? "");
   for (const u of usageOf(kind, msg)) {
     if (onUsage) tellUsage({ onUsage }, u);
@@ -218,6 +237,15 @@ export function readEvent(msg: Record<string, unknown>, heard: Heard, said: Map<
     return;
   }
   if (s.step_type !== "tool") return;
+  // its web tools: a page or a search once its step is done — or failed other than refused (asked of the host all the same)
+  const w = web && (s.state === "DONE" || (s.state === "ERROR" && !refused(s))) ? webUse(s.tool_name ?? s.tool_info?.name, s.tool_info?.parameters, ANTIGRAVITY_WEB) : undefined;
+  if (w && web) {
+    const id = `${String((msg.step_update as { conversation_id?: unknown } | undefined)?.conversation_id ?? heard.sessionId ?? "")}:${i}`;
+    if (i < 0 || !web.seen.has(id)) {
+      if (i >= 0) web.seen.add(id);
+      web.on(w);
+    }
+  }
   const d = describe(s);
   if (s.state === "ACTIVE") {
     heard.endedAtRefusal = undefined;

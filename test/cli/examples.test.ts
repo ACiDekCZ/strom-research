@@ -52,6 +52,7 @@ async function seeded(): Promise<World> {
   fs.writeFileSync(path.join(w.cwd, "zapis.txt"), "Joannes filius Josephi\n");
   fs.mkdirSync(path.join(w.cwd, "notes"), { recursive: true });
   fs.writeFileSync(path.join(w.cwd, "notes", "story-P0001.md"), "Jan byl mlynář v Týnci.\n");
+  fs.writeFileSync(path.join(w.cwd, "inputs", "rodokmen.md"), "Jan Novák, Lhota čp. 12\n"); // a text the user gave (strom grep)
   fs.writeFileSync(path.join(w.cwd, "krest-1885.txt"), 'person add "Karel /Novák/" --sex M #karel\nnote add @karel "z křestního zápisu"\n');
   fs.writeFileSync(path.join(w.cwd, "strom-export.json"), JSON.stringify({ persons: {}, partnerships: {} }));
   // scans: registered ones for the views, new ones for media add, one download in the inbox

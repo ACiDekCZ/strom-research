@@ -17,6 +17,7 @@ import { downloadsDir } from "./browser.ts";
 import { acquireLock } from "./lock.ts";
 import { defaultAppUrl, isAppVersion, isStromAppOrigin, STROM_APP_BETA_URL, STROM_APP_URL } from "./stromapp.ts";
 import { updateChannel } from "./update.ts";
+import { WEB_PER_HOST, WEB_SOFT } from "./metrics.ts";
 import type { BackupRecord } from "./backup.ts";
 import type { ViewCalibration } from "./viewsizes.ts";
 import type { KeyTuning } from "./tune.ts";
@@ -55,6 +56,8 @@ export interface UserConfig {
   briefBudget?: number;
   /** Time limit of one `strom run` session in minutes. */
   runMinutes?: number;
+  /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost). */
+  webPerHost?: number;
   /** Order of the task queue: balanced (default), depth, priority. */
   queueStrategy?: string;
   /** Ask the user before a connector runs: off (default) or on. */
@@ -191,10 +194,15 @@ export const SETTINGS: SettingDef[] = [
       cheap: "model for mechanical work",
     }[t],
   })),
-  // (kept per agent beside its models; checked against the agent's own levels where the agent is known)
-  { key: "model.effort", env: "STROM_MODEL_EFFORT", tree: true, kind: "model", description: "reasoning effort of the agent's model in the sessions strom starts (Codex, Claude Code, Antigravity, Grok): high recommended — old handwriting read with the best setting; a plan's limit runs out sooner. Unset: the agent's own settings (Codex: its config.toml)" },
+  // (kept per agent beside its models; checked against the agent's own levels where the agent is known) — read from
+  // the config files only (the user's or the tree's), no variable: a higher level uses up a plan's limits sooner, so
+  // raising it is the user's decision (as agent.addons on)
+  { key: "model.effort", env: "", tree: true, kind: "model", description: "reasoning effort of the agent's model in the sessions strom starts (Codex, Claude Code, Antigravity, Grok): high recommended — old handwriting read with the best setting; a plan's limit runs out sooner. Unset: the agent's own settings (Codex: its config.toml); only you raise it" },
   { key: "brief.budget", env: "STROM_BRIEF_BUDGET", tree: true, kind: "number", description: `size of the brief in tokens (default ${DEFAULT_BUDGET})` },
   { key: "run.minutes", env: "STROM_RUN_MINUTES", tree: true, kind: "number", description: `time limit of one \`strom run\` session (default ${DEFAULT_RUN_MINUTES})` },
+  // Read from the config files only (the user's or the tree's) — no variable: more requests to one server is the
+  // user's decision (as model.effort higher); lowering it is anyone's.
+  { key: "web.perHost", env: "", tree: true, kind: "number", description: `web requests to one site (its mirrors with it) in one session through an agent's own web fetch (default ${WEB_PER_HOST}; past ${WEB_SOFT} they go slower and the agent builds a connector): past it a run refuses and a conversation asks you, and more pages of that site go through strom fetch with a connector — only you raise it` },
   // Read from the config file only, changed by the user alone: the gate decides what working alone spends.
   { key: "run.gate", env: "", tree: false, kind: "plugin", description: "a condition on the agent working alone: the gate (plugins/gates/<name>) strom asks before each session of strom run — go on, wait or stop; its name, then what it is given (strom gate list; e.g. claude-usage 10: the Claude subscription's daily ration, 10 points in hand; claude-usage 10 --cap 95: and never past 95 % of the week, before every session of every run, no “start anyway”) — only you set it" },
   { key: "queue.strategy", env: "STROM_QUEUE_STRATEGY", tree: true, kind: "choice", choices: STRATEGIES, description: "order of the task queue: balanced (default — nearest ancestors first, spread over the lines, nothing taken forever), depth (stay on one line), priority (strict priority)" },
@@ -236,6 +244,7 @@ export const SETTINGS: SettingDef[] = [
 const FIELDS: Record<string, string> = {
   "brief.budget": "briefBudget",
   "run.minutes": "runMinutes",
+  "web.perHost": "webPerHost",
   "gedcom.for": "gedcomFor",
   "strom.version": "stromVersion",
   "queue.strategy": "queueStrategy",
@@ -373,13 +382,13 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
     case "number": {
       const n = Number(v);
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
-      return def.key === "brief.budget" ? Math.round(n) : n;
+      return def.key === "brief.budget" || def.key === "web.perHost" ? Math.max(1, Math.round(n)) : n;
     }
   }
 }
 
 /** Where a setting is stored in the user config or in strom.json. */
-function readStored(store: UserConfig | TreeConfig | undefined, key: string, agent: string): string | number | undefined {
+export function readStored(store: UserConfig | TreeConfig | undefined, key: string, agent: string): string | number | undefined {
   if (!store) return undefined;
   if (key.startsWith("model.")) return store.models?.[agent]?.[key.slice(6) as Tier];
   const v = (store as Record<string, unknown>)[FIELDS[key] ?? key];
@@ -522,7 +531,7 @@ export class Settings {
   }
 
   /**
-   * The reasoning effort the person chose for this agent's sessions (model.effort: flag > env > tree > user), when the
+   * The reasoning effort the person chose for this agent's sessions (model.effort: tree > user, no variable), when the
    * agent takes it — else none: the agent's own settings hold.
    */
   effort(agent: string, tree?: TreeConfig): Resolved<string> | undefined {
@@ -531,9 +540,15 @@ export class Settings {
     return r && EFFORTS[agent]!.includes(String(r.value)) ? { value: String(r.value), source: r.source } : undefined;
   }
 
-  number(key: "brief.budget" | "run.minutes" | "excerpts.mb", tree: TreeConfig | undefined, fallback: number): number {
+  number(key: "brief.budget" | "run.minutes" | "excerpts.mb" | "web.perHost", tree: TreeConfig | undefined, fallback: number): number {
     const r = this.resolve(key, tree);
     return r ? Number(r.value) : fallback;
+  }
+
+  /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost: tree > user). */
+  webPerHost(tree?: TreeConfig): number {
+    const n = Math.round(this.number("web.perHost", tree, WEB_PER_HOST));
+    return Number.isFinite(n) && n >= 1 ? n : WEB_PER_HOST;
   }
 
   /** How the task queue is ordered (core/queue.ts). */

@@ -15,6 +15,8 @@ import { blank } from "../../src/image/image.ts";
 const opts = { skip: !hasGit };
 const DAY = 24 * 3600_000;
 const KEY = "claude opus";
+/** The key of the model the alias ran on (core/modelkey.ts): the units are kept under it. */
+const TUNED = "claude claude-opus-5-5";
 const ago = (days: number, min = 0) => new Date(Date.now() - days * DAY + min * 60_000).toISOString();
 
 function put(file: string, lines: (Record<string, unknown> | string)[]): void {
@@ -96,7 +98,7 @@ test("the reading of scans summed up from the research's own records: per book a
   const r = await w.ok(["media", "calibrate", "--report"]);
   const text = r.out;
   // in the research's language — its numbers too (a decimal comma, the dollar after) — impersonal
-  assert.match(text, /^Čtení snímků · Claude Code · opus \(claude-opus-5-5\) · 60 dní od \d{4}-\d\d-\d\d — z vlastních záznamů výzkumu, zdarma$/m, text);
+  assert.match(text, /^Čtení snímků · Claude Code · claude-opus-5-5 · 60 dní od \d{4}-\d\d-\d\d — z vlastních záznamů výzkumu, zdarma$/m, text);
   assert.match(text, /^Sezení 0 · čtenáři 5 · skeny 80 · pohledy 80$/m, text);
   assert.match(text, /^Cena za sken 0,038\s\$ · za pohled 0,038\s\$ \(známá u 100 % skenů\)$/m, text);
   // the older view line outside a session: nothing says its agent and model — apart, never under those of now
@@ -127,7 +129,7 @@ test("the reading of scans summed up from the research's own records: per book a
 
   // the same as JSON for an agent
   const j = (await w.ok(["media", "calibrate", "--report", "--json"])).json;
-  assert.equal(j.key, KEY);
+  assert.equal(j.key, TUNED);
   assert.equal(j.model, "claude-opus-5-5");
   assert.deepEqual(j.samples, { sessions: 0, readers: 5, others: 5, scans: 80, views: 80, recovered: 0 });
   assert.deepEqual(j.others.map((o: { key: string; scans: number }) => [o.key, o.scans]), [["unknown", 1]]);
@@ -284,8 +286,8 @@ test("a unit's key once kept is its own: another agent or model chosen since mov
   assert.equal(rollup.backfillVersion, 3);
   assert.equal(rollup.units.some((u: { id: string }) => u.id.includes("clips-check")), false, "taken for readings by an older version: gone");
   const n1 = rollup.units.find((u: { id: string }) => u.id === "N0001");
-  assert.deepEqual([n1.key, n1.hosts["archiv.example"].requests, n1.hosts["archiv.example"].later], [KEY, 4, 1], "read again from its log, its key from its own record");
-  assert.equal(j.key, KEY);
+  assert.deepEqual([n1.key, n1.hosts["archiv.example"].requests, n1.hosts["archiv.example"].later], [TUNED, 4, 1], "read again from its log, its key from its own record");
+  assert.equal(j.key, TUNED);
 
   // another agent chosen: the history stays where it was — nothing measured for the new one yet
   await w.ok(["agents", "use", "codex"]);
@@ -293,9 +295,9 @@ test("a unit's key once kept is its own: another agent or model chosen since mov
   put(path.join(root, ".strom", "views", "views.jsonl"), [{ at: new Date().toISOString(), key: media.B0001![0], by: "N0001", view: "a.jpg", region: { x: 0, y: 0, w: 300, h: 200 }, scale: 1 }]);
   const after = (await w.ok(["media", "calibrate", "--report", "--json"])).json;
   assert.equal(after.measured, false, JSON.stringify(after).slice(0, 300));
-  assert.ok(after.others.some((o: { key: string }) => o.key === KEY));
+  assert.ok(after.others.some((o: { key: string }) => o.key === TUNED));
   const kept = readJsonFile(path.join(root, ".strom", "metrics", "rollup.json"));
-  assert.deepEqual(new Set(kept.units.map((u: { key: string }) => u.key)), new Set([KEY]), "no unit moved to the agent of now");
+  assert.deepEqual(new Set(kept.units.map((u: { key: string }) => u.key)), new Set([TUNED]), "no unit moved to the agent of now");
   w.cleanup();
 });
 

@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { emptyBook, TUNING, type BookCounts, type Rollup, type Unit } from "../../src/core/readstats.ts";
-import { bookViewSizes, pinned, readingOf, selfTune, type Tuned } from "../../src/core/tune.ts";
+import { bookViewSizes, pinned, readingFor, readingOf, selfTune, type Tuned } from "../../src/core/tune.ts";
 import { Settings } from "../../src/core/config.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { DEFAULT_READING_NUMBERS, selfReading, SELF_READING, PROFILES } from "../../src/agents/profiles.ts";
@@ -19,6 +19,8 @@ import { viewSizes } from "../../src/core/viewsizes.ts";
 const opts = { skip: !hasGit };
 const DAY = 24 * 3600_000;
 const KEY = "claude opus";
+/** The key of the model the alias ran on (core/modelkey.ts): what is measured and set goes by it. */
+const TUNED = "claude claude-opus-5-5";
 const T0 = Date.parse("2026-11-02T10:00:00Z");
 
 function unit(id: string, at: number, books: Record<string, Partial<BookCounts>>, more: Partial<Unit> = {}): Unit {
@@ -43,13 +45,13 @@ test("smaller batches set, kept while their signal is there, back to the default
   const first = readers(T0, 2, "a");
   const r0 = selfTune(tree, { settings: settings(), rollup: rollup(first, T0), now: T0, others: [] });
   assert.deepEqual(r0.changes.map((c) => [c.action, c.to]), [["A2", { batch: 3, viewsPerCall: 12 }]]);
-  assert.equal(settings().config.tuning![KEY]!.batch!.value, 3);
+  assert.equal(settings().config.tuning![TUNED]!.batch!.value, 3);
 
   // a month on, the readers fine now: still smaller (its signal gone only 30 days)
   const fine = readers(T0 + 30 * DAY, 0, "b");
   const r1 = selfTune(tree, { settings: settings(), rollup: rollup([...first, ...fine], T0 + 30 * DAY), now: T0 + 30 * DAY, others: [] });
   assert.deepEqual(r1.changes, []);
-  assert.equal(settings().config.tuning![KEY]!.batch!.value, 3);
+  assert.equal(settings().config.tuning![TUNED]!.batch!.value, 3);
 
   // gone longer than TUNING.backAfterDays but nothing read since: kept (no new data says so)
   const quiet = selfTune(tree, { settings: settings(), rollup: rollup(first, T0 + (TUNING.backAfterDays + 1) * DAY), now: T0 + (TUNING.backAfterDays + 1) * DAY, others: [] });
@@ -79,7 +81,58 @@ test("an earlier stop from the context measured, by the tokens of a reader's vie
   // 0.6 × 150 000 / 4 000 = 22 (with the average view, ~430 tokens, it would be 209: never lower than 30)
   assert.deepEqual(a3?.to, { viewsStop: 22, ctx: 150_000 });
   assert.match(a3!.why, /a reader's view about 4000 tokens → a reader stops after about 22 views instead of 30/);
-  assert.deepEqual([settings().config.tuning![KEY]!.viewsStop!.value, settings().config.tuning![KEY]!.ctx!.value], [22, 150_000]);
+  assert.deepEqual([settings().config.tuning![TUNED]!.viewsStop!.value, settings().config.tuning![TUNED]!.ctx!.value], [22, 150_000]);
+  w.cleanup();
+});
+
+/**
+ * Five sessions of a main agent whose context never cleared (a model of a big window): `long` of them past 150 000
+ * tokens with `views` views each, the others small; its views wholes of ~4 000 tokens (3 Mpx).
+ */
+function stretches(long: number, o: { views?: number; peak?: number; ownClears?: number } = {}): Unit[] {
+  const views = o.views ?? 40;
+  const px = 3_000_000;
+  return [0, 1, 2, 3, 4].map((i) =>
+    unit(`N000${i + 1}`, T0 - (5 - i) * DAY, { B0001: { scans: 10, views: i < long ? views : 12, whole: i < long ? views : 12, px: (i < long ? views : 12) * px, pxWH: (i < long ? views : 12) * px } }, {
+      kind: "session",
+      series: true,
+      clears: i < long ? (o.ownClears ?? 0) : 0,
+      peakCtx: i < long ? (o.peak ?? 170_000) : 60_000,
+    }),
+  );
+}
+
+test("an earlier stop where the context never clears: the main agent's long stretches against the stop, by the context a clear would come at", opts, async () => {
+  const { w, tree, settings } = await research();
+  // two of the last five sessions past 150 000 tokens with 40 views each, no clear: 0.6 × 150 000 / 4 000 = 22
+  const r = selfTune(tree, { settings: settings(), rollup: rollup(stretches(2), T0), now: T0, others: [] });
+  const a3 = r.changes.find((c) => c.action === "A3");
+  assert.deepEqual(a3?.to, { viewsStop: 22, ctx: 150_000 });
+  assert.match(a3!.why, /^the context never cleared, yet it grew past 150000 tokens with more than 30 views in 2 of the last 5 sessions \(about 40 views, 170000 tokens\), a reader's view about 4000 tokens → a reader stops after about 22 views instead of 30 — the main agent writes down what it found before more$/);
+  assert.deepEqual(a3!.basis, { M12: 2, "M12.of": 5, "M12.views": 40, "M12.peak": 170_000, ctx: 150_000, viewTokens: 4000 });
+  assert.equal(readingOf(settings().config, TUNED).viewsStop, 22);
+  assert.equal(r.changes.some((c) => c.action === "A2"), false, "no smaller batches from it");
+  w.cleanup();
+});
+
+test("no earlier stop from a stretch that is not long: one session, the context under 150 000, the views within the stop, or a context that cleared", opts, async () => {
+  for (const [why, units] of [
+    ["one of five", stretches(1)],
+    ["under 150 000 tokens", stretches(3, { peak: 140_000 })],
+    ["30 views: within the stop", stretches(3, { views: 30 })],
+  ] as const) {
+    const { w, tree, settings } = await research();
+    const r = selfTune(tree, { settings: settings(), rollup: rollup([...units], T0), now: T0, others: [] });
+    assert.equal(r.changes.some((c) => c.action === "A3"), false, why);
+    w.cleanup();
+  }
+  // its own context cleared: the stop by the clear measured (M4), never by M12
+  const { w, tree, settings } = await research();
+  const cleared = stretches(3, { ownClears: 1 }).map((u, i) => (i < 3 ? { ...u, firstClearCtx: 120_000 } : u));
+  const r = selfTune(tree, { settings: settings(), rollup: rollup(cleared, T0), now: T0, others: [] });
+  const a3 = r.changes.find((c) => c.action === "A3");
+  assert.deepEqual(a3?.to, { viewsStop: 18, ctx: 120_000 });
+  assert.match(a3!.why, /^the context cleared in 3 of the last 5 readers/);
   w.cleanup();
 });
 
@@ -88,7 +141,7 @@ test("a signal seen again keeps a change: A6 counts from the last day its signal
   selfTune(tree, { settings: settings(), rollup: rollup(readers(T0, 2, "a"), T0), now: T0, others: [] });
   const again = T0 + 40 * DAY;
   selfTune(tree, { settings: settings(), rollup: rollup(readers(again, 3, "b"), again), now: again, others: [] });
-  assert.equal(settings().config.tuning![KEY]!.batch!.seen.slice(0, 10), new Date(again).toISOString().slice(0, 10));
+  assert.equal(settings().config.tuning![TUNED]!.batch!.seen.slice(0, 10), new Date(again).toISOString().slice(0, 10));
   // 61 days after the first, 21 after it was seen last: kept
   const later = T0 + 61 * DAY;
   const r = selfTune(tree, { settings: settings(), rollup: rollup(readers(later, 0, "c"), later), now: later, others: [] });
@@ -105,18 +158,22 @@ test("only towards accuracy or fewer requests: a batch smaller already is never 
   s.save();
   const r = selfTune(tree, { settings: settings(), rollup: rollup(readers(T0, 2, "a"), T0), now: T0, others: [] });
   assert.deepEqual(r.changes.map((c) => [c.to]), [[12]], "only the views a call");
-  assert.equal(settings().config.tuning![KEY]!.batch!.value, 2);
+  assert.equal(settings().config.tuning![TUNED]!.batch!.value, 2);
   w.cleanup();
 });
 
-test("a new model under the same alias begins again: what was set for the one before is not used for it", opts, async () => {
+test("another version under the same alias is another key: what was set for the one before is not used for it, and stays its own", opts, async () => {
   const { w, tree, settings } = await research();
   selfTune(tree, { settings: settings(), rollup: rollup(readers(T0, 2, "a"), T0), now: T0, others: [] });
-  assert.equal(settings().config.tuning![KEY]!.reported, "claude-opus-5-5");
+  assert.equal(settings().config.tuning![TUNED]!.reported, "claude-opus-5-5");
+  assert.equal(readingFor(settings(), "claude", tree.config, { root: tree.root }).batch, 3, "the alias runs on 5.5: its values");
   const at = T0 + 3 * DAY;
   const r = selfTune(tree, { settings: settings(), rollup: rollup(readers(at, 0, "b", "claude-opus-5-6"), at), now: at, others: [] });
-  assert.deepEqual(r.changes.map((c) => [c.action, c.basis]), [["restart", { model: "claude-opus-5-6" }]]);
-  assert.equal(settings().config.tuning, undefined);
+  assert.deepEqual(r.changes, []);
+  // the alias runs on 5.6 now: the defaults for it; 5.5 keeps what was set for it
+  assert.equal(readingFor(settings(), "claude", tree.config, { root: tree.root }).batch, 6);
+  assert.equal(readingFor(settings(), "claude", tree.config, { root: tree.root }).key, "claude claude-opus-5-6");
+  assert.equal(settings().config.tuning![TUNED]!.batch!.value, 3);
   w.cleanup();
 });
 

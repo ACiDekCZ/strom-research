@@ -60,6 +60,15 @@ export function runs(nums: number[]): string {
   return out.join(", ");
 }
 
+/** A number as a language writes it (1,4 in Czech, 1.4 in English); a language Intl does not know: English. */
+export function numberIn(lang: string, n: number, o: Intl.NumberFormatOptions = { maximumFractionDigits: 1 }): string {
+  try {
+    return new Intl.NumberFormat(lang, o).format(n);
+  } catch {
+    return new Intl.NumberFormat("en", o).format(n);
+  }
+}
+
 /** An argument as it is typed in a shell: quoted when it holds spaces or special characters. */
 export function shellArg(arg: string): string {
   return /^[\p{L}\p{M}\p{N}._\/:@+-]+$/u.test(arg) ? arg : `"${arg.replace(/["\\$`]/g, "\\$&")}"`;

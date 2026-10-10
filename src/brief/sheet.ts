@@ -8,7 +8,9 @@ import { SCHEMAS } from "../core/schema.ts";
 import { NOTE_MAX, type RecordType } from "../core/model.ts";
 import { INFORMATION } from "../core/evidence.ts";
 
-const ALL = ["search add", "task add", "note add", "lesson add"];
+// (strom grep: a text in the inputs and notes in one call — read in pieces instead, three big files cost a live run
+// 110 reads)
+const ALL = ["search add", "task add", "note add", "lesson add", "grep"];
 const SCANS = ["media view", "read", "fetch"];
 // what an entry read in a record writes: its source, its facts and names, the people and families it names
 const ENTRY = ["source add", "event add", "event edit", "cite", "name add", "person add", "family add", "family child"];
@@ -33,6 +35,7 @@ const RARE: Record<string, string[]> = {
   "source add": ["translation", "media"],
   "source edit": ["translation", "media"],
   "recordset add": ["images"],
+  grep: ["regex", "files"],
 };
 /** Where a source is cited — written once as +cite, the same in every command that takes all of it. */
 const CITE = ["cite", "locator", "quote", "information"];

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { agentSettingsSaid, effortArgs, hasEffort, offeredEfforts, readCodexConfig } from "../../src/agents/effort.ts";
+import { agentSettingsSaid, effortArgs, effortInArgs, hasEffort, offeredEfforts, raisesEffort, readCodexConfig } from "../../src/agents/effort.ts";
 import { agentSettingsLine } from "../../src/cli/model-choice.ts";
 import { codexArgs, codexResumeArgs } from "../../src/runners/codex.ts";
 import { claudeArgs } from "../../src/runners/claude.ts";
@@ -98,18 +98,33 @@ test("the effort reaches each agent's command line as its own switch; none set, 
   assert.ok(!hasEffort("opencode"));
 });
 
+test("a higher effort raises, a lower or the same does not; unset is the agent's own, else the usual medium", () => {
+  assert.equal(raisesEffort("high", "medium"), true);
+  assert.equal(raisesEffort("low", "xhigh"), false);
+  assert.equal(raisesEffort("high", "high"), false);
+  assert.equal(raisesEffort("high", undefined), true, "above the usual default");
+  assert.equal(raisesEffort("high", undefined, "xhigh"), false, "below Codex's own");
+  assert.equal(raisesEffort(undefined, "low"), true, "back to the agent's own medium");
+  assert.equal(effortInArgs("codex", ["-c", 'model_reasoning_effort="xhigh"']), "xhigh");
+  assert.equal(effortInArgs("claude", ["--effort", "max"]), "max");
+  assert.equal(effortInArgs("antigravity", ["--effort=xhigh"]), "xhigh");
+  assert.equal(effortInArgs("grok", ["--reasoning-effort", "high"]), "high");
+  assert.equal(effortInArgs("opencode", ["--effort", "high"]), undefined);
+});
+
 test("offered: high first (recommended), then the others the agent takes", () => {
   assert.deepEqual(offeredEfforts("codex"), ["high", "xhigh", "medium", "low"]);
   assert.deepEqual(offeredEfforts("claude"), ["high", "xhigh", "medium", "low"]);
   assert.deepEqual(offeredEfforts("opencode"), []);
 });
 
-test("model.effort: per agent like the models, env over the user's, a level the agent does not take is none", () => {
+test("model.effort: per agent like the models, no variable, a level the agent does not take is none", () => {
   const s = new Settings({ STROM_CONFIG_DIR: fs.mkdtempSync(path.join(os.tmpdir(), "strom cfg ")) }, {}, { models: { codex: { effort: "high" }, claude: { effort: "minimal" } } });
   assert.deepEqual(s.effort("codex"), { value: "high", source: "config" });
   assert.equal(s.effort("claude"), undefined, "minimal is no level of Claude Code's");
   assert.equal(s.effort("opencode"), undefined);
-  const e = new Settings({ STROM_MODEL_EFFORT: "low" }, {}, { models: { codex: { effort: "high" } } });
-  assert.deepEqual(e.effort("codex"), { value: "low", source: "env" });
+  // no variable: raising it is the person's (config set), so nothing of the environment sets it
+  const e = new Settings({ STROM_MODEL_EFFORT: "max" }, {}, { models: { codex: { effort: "high" } } });
+  assert.deepEqual(e.effort("codex"), { value: "high", source: "config" });
   assert.deepEqual(s.models("codex"), {}, "no model tier from it");
 });

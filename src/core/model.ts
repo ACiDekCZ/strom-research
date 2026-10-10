@@ -575,6 +575,8 @@ export interface SessionMetrics {
   durationMs?: number;
   /** Tool calls the agent's permissions refused. */
   denied?: number;
+  /** Tool calls strom's own hook refused (an agent's web fetch past strom's limits for one server: core/web.ts). */
+  refused?: number;
 }
 
 /** One working session of an agent on one task. */
@@ -637,6 +639,8 @@ export interface TreeConfig {
   stromVersion?: string;
   /** Time limit of one `strom run` session in minutes. */
   runMinutes?: number;
+  /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost). */
+  webPerHost?: number;
   /** Order of the task queue: balanced (default), depth, priority. */
   queueStrategy?: string;
   /** Stories of the ancestors: yes or no (overrides the user's). */

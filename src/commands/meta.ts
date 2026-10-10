@@ -122,7 +122,7 @@ function orientation(ctx: Context): Orientation {
     const other = readByOtherModels(tree, vision);
     if (other.facts) base.reread = { ...other, model: vision };
   }
-  const views = isArchive(tree) ? undefined : calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config);
+  const views = isArchive(tree) ? undefined : calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root);
   if (views) base.views = views;
   const questions = isArchive(tree) ? 0 : questionsWaiting(tree, ctx.settings);
   if (questions) base.tune = { questions, command: "strom media calibrate --questions" };
@@ -263,7 +263,7 @@ register(
         const said = ui(ctx.tree().lang, "ui.guide.archive");
         return { text: said, data: { guide: said, lang, archive: true } };
       }
-      const text = guideText(lang, appUrlShown(ctx.settings).url);
+      const text = guideText(lang, appUrlShown(ctx.settings).url, ctx.settings.webPerHost(ctx.hasTree() ? ctx.tree().config : undefined));
       return { text, data: { guide: text, lang } };
     },
   },

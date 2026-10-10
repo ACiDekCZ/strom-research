@@ -40,21 +40,20 @@ never open again a view cleared from your context — your notes hold it.
   again comes from it. Whole images first, a part only where entries need
   it: an archive's hourly cap stops the rest.
 <!-- end -->
-- **Browsing a book is a reader's job**: `strom read B0001 --images 40-69
-  --question "…"` — readers in batches of ten, each with the full question.
-  Their reports stay in notes/readings/; `strom read` ends with what they
-  found, compact: the found and unclear entries whole, what was illegible
-  where nothing was found (a possible match often hides there — look at it),
-  and the gaps in the book. Later, or in the next session: `strom readings`
-  (`--match <surname>` across all readings, `--list`); one image's whole
-  block: `strom readings B0001 --image 57`. Never open the reports whole.
-  Images read before are said before they are read again: another question
-  or a blind check is fine, the same one is not. Run it in the foreground and
-  let it finish (often ten minutes or more): what is left in the background
-  ends with your turn.
-  (Subagents read too — strom-scan-reader where your agent has one, on your
-  own model, never a faster one —, about six scans each with the whole
-  question.) **A reader is told exactly what to write down** — page numbers
+- **Browsing a book or a range is a reader's job**: `strom read B0001
+  --images 40-69 --question "…"` (small script: `--half both`) — readers in
+  batches of ten, each with the full question, their reports in
+  notes/readings/. It ends with what they found, compact: the found and
+  unclear entries whole, what was illegible where nothing was found (a
+  possible match often hides there — look at it), the gaps in the book.
+  Later: `strom readings` (`--match <surname>`, `--list`; one image's block:
+  `strom readings B0001 --image 57`) — never the reports whole. Images read
+  before are said first: another question or a blind check is fine, the same
+  one is not. Run it in the foreground and let it finish (often ten minutes or
+  more): what is left in the background ends with your turn.
+  A subagent (strom-scan-reader, called without `model`) reads only crops of the
+  entries found, about six scans each with the whole question — never a range
+  `strom read` can browse. **A reader is told exactly what to write down** — page numbers
   and headings only, one surname's entries, one entry whole — and transcribes
   nothing else. Record each report as it comes back, before the next readers.
   Only the entries that will be cited need your own eyes, at full resolution.

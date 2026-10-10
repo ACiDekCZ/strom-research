@@ -218,8 +218,8 @@ test("tuned before for another model: offered again in the orientation, the menu
   // the menu: the line above it, the settings' item (8 settings · 0 · 0)
   const menu = await w.ok([], { tty: true, answers: ["8", "0", "0"] });
   assert.match(menu.out, /Čtení snímků bylo vyladěno pro Claude Code · sonnet/);
-  // after Remote Control (8), so the numbers a person knows stay
-  assert.match(menu.out, / 7 {2}Model výzkumu \(Claude Code\): vlastní model agenta\n {3}8 {2}Sledovat agenta z telefonu[^\n]*\n {3}9 {2}Vyladit čtení snímků \(zatím vyladěno pro jiný model\)\n/);
+  // at its own number (6), Remote Control 7 after it
+  assert.match(menu.out, / 5 {2}Výzkum, nebo jen archiv[^\n]*\n {3}6 {2}Vyladit čtení snímků \(zatím vyladěno pro jiný model\)\n {3}7 {2}Remote Control v aplikaci Claude[^\n]*\n/);
   assert.ok(!fs.existsSync(path.join(w.cwd, ".strom", "calibrate")), "offered, never run");
   // once tuned for the model of the research: no offer, the date said
   cfg.viewSizes["claude opus"] = { find: 1400, read: 2000, at: "2026-10-09", sample: 6, sizes: [1400, 1568, 2000], clear: { find: true, read: true } };

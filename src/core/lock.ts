@@ -35,8 +35,10 @@ export function readLock(file: string): LockInfo | undefined {
   }
 }
 
-function isStale(info: LockInfo | undefined, staleMs: number): boolean {
+function isStale(info: LockInfo | undefined, staleMs: number, maxAgeMs?: number): boolean {
   if (!info) return true; // unreadable: locks appear whole, so this one was damaged (a crash, a full disk)
+  // held longer than any holder of this lock ever holds it: its pid lives on in another process (taken again by the system)
+  if (maxAgeMs !== undefined && Date.now() - Date.parse(info.at) > maxAgeMs) return true;
   // On this computer the process decides: a live holder keeps its lock however
   // long it works (a big intake), a dead one loses it at once.
   if (info.host === os.hostname()) return !processAlive(info.pid);
@@ -55,6 +57,8 @@ export interface LockOptions {
   /** Wait this long for a busy lock before failing (0 = fail at once). */
   waitMs?: number;
   staleMs?: number;
+  /** Older than this the lock is taken over even when a process of its pid lives here (a pid the system gave again). */
+  maxAgeMs?: number;
 }
 
 /** Acquire the lock or throw LockedError. Returns the release function. */
@@ -83,7 +87,7 @@ export function acquireLock(file: string, opts: LockOptions): () => void {
         if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
       }
       const holder = readLock(file);
-      if (isStale(holder, staleMs)) {
+      if (isStale(holder, staleMs, opts.maxAgeMs)) {
         // Taken out of the way in one step; of several waiters only one moves it, and only
         // the lock it judged dead — another one is put back.
         const dead = `${file}.dead.${process.pid}.${Math.random().toString(36).slice(2)}`;

@@ -25,6 +25,7 @@ import { configDir, desktopDir, isolated, noLinks } from "../core/paths.ts";
 import { ensureShared } from "../commands/setup.ts";
 import { moveHome, planMove, repointSettings, sameFolder } from "../core/relocate.ts";
 import type { StromError } from "../core/errors.ts";
+import type { TreeConfig } from "../core/model.ts";
 
 export interface WizardResult {
   home: string;
@@ -216,6 +217,28 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
   out();
   out(`${ui(lang, "ui.setup.done")}  (${langName(lang, lang)} · ${ctx.display(home)})`);
   return { home, lang, ...(agent ? { agent } : {}), permissions: level };
+}
+
+/**
+ * The setup's model step alone (the settings' first item: "only the model"): the research's model for its agent — the
+ * strong ones offered, the one kept suggested, 0 changes nothing — then its reasoning effort. Where it is kept now
+ * stays: this family tree's own, else this computer's for that agent.
+ */
+export async function modelStep(ctx: Context, run: (argv: string[], quiet?: boolean) => Promise<number>, lang: string, agent: string, tree: TreeConfig | undefined): Promise<void> {
+  const back = { back: ui(lang, "ui.browse.back") };
+  const kept = ctx.settings.resolve("model.lead", tree, agent);
+  const now = kept ? String(kept.value) : undefined;
+  const pick = await chooseModel(ctx, lang, agent, now, { first: false, ...back });
+  if (!pick.picked) return;
+  const scope = ["--agent", agent, ...(kept?.source === "tree" ? ["--for-tree"] : [])];
+  // (--yes: its effort is asked below, not by config set)
+  if (pick.value !== now) await run(pick.value ? ["config", "set", "model.lead", pick.value, ...scope, "--yes"] : ["config", "unset", "model.lead", ...scope], true);
+  // with the model its reasoning effort (an agent that takes one): high recommended, 0 changes nothing
+  const effortNow = ctx.settings.resolve("model.effort", tree, agent);
+  const effort = await chooseEffort(ctx, lang, agent, effortNow ? String(effortNow.value) : undefined, back);
+  if (!effort?.picked || effort.value === (effortNow ? String(effortNow.value) : undefined)) return;
+  const where = ["--agent", agent, ...(effortNow?.source === "tree" ? ["--for-tree"] : [])];
+  await run(effort.value ? ["config", "set", "model.effort", effort.value, ...where] : ["config", "unset", "model.effort", ...where], true);
 }
 
 /**

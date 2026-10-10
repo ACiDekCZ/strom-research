@@ -358,7 +358,7 @@ test("each agent gets delegation rules for its kind; models per tier are configu
   await w.withTree();
   const claude = fs.readFileSync(path.join(w.cwd, "CLAUDE.md"), "utf8");
   assert.match(claude, /Use the Agent tool for subagents/);
-  assert.match(claude, /handwriting.*`opus` — never cheaper/);
+  assert.match(claude, /handwriting.*`strom-scan-reader`, on your own model — never cheaper/);
   assert.match(claude, /About six scans \(images B…:n\) per delegate, four views each/);
   // AGENTS.md is read by every agent — the same whichever is the default, since several may work
   // here side by side: nothing Claude-specific, reading rules for those without subagents.
@@ -405,9 +405,12 @@ test("a new version: seen at most once a day, said by strom, the menu and doctor
   // what to do right after the detail, never padded to another check's long detail (found on Mac: hundreds of spaces)
   assert.match((await w.run(["doctor"])).out, /nová verze\s+vyšla 9\.9\.10 {2}→ strom update\n/);
   // The menu offers it.
-  const said = /Vyšla nová verze stromu: 9\.9\.10 – aktualizovat ji jde v Nastavení \(volba (\d)\)\./.exec((await w.ok([], { tty: true, answers: ["0"] })).out);
+  const said = /Vyšla nová verze stromu: 9\.9\.10 – aktualizovat ji jde v Nastavení \(volba (\d)\) → Údržba\./.exec((await w.ok([], { tty: true, answers: ["0"] })).out);
   assert.ok(said, "said above the menu, with where");
-  assert.match((await w.ok([], { tty: true, answers: [said[1]!, "0", "0"] })).out, /Nastavení \(na tomto počítači\)\n[\s\S]* {2,3}\d+ {2}Aktualizovat strom na 9\.9\.10\n {2,3}\d+ {2}Nápověda: příkazy pro člověka\n {3}0 {2}Zpět/);
+  // the settings' maintenance (8) says it on its line, its own item 3 takes it
+  const menu = (await w.ok([], { tty: true, answers: [said[1]!, "8", "0", "0", "0"] })).out;
+  assert.match(menu, /Nastavení \(na tomto počítači\)\n[\s\S]* {3}8 {2}Údržba: kontrola instalace, místo na disku, aktualizace na 9\.9\.10\n {3}9 {2}Nápověda: příkazy pro člověka\n {3}0 {2}Zpět/);
+  assert.match(menu, /Údržba\n {3}1 {2}Kontrola instalace\n {3}2 {2}Místo na disku[^\n]*\n {3}3 {2}Aktualizovat strom na 9\.9\.10\n {3}0 {2}Zpět/);
   // Off: never asked, never said.
   await w.ok(["config", "set", "updates", "off"]);
   delete w.env.STROM_UPDATES;

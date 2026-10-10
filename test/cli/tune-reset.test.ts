@@ -21,6 +21,8 @@ const DAY = 24 * 3600_000;
 const KEY = "claude opus";
 const HOST = "archiv.příklad.example";
 const REPORTED = "claude-opus-5-5";
+/** The key of the model the alias ran on (core/modelkey.ts): what was kept under the alias is listed and returned by it. */
+const TUNED = "claude claude-opus-5-5";
 const iso = (t: number) => new Date(t).toISOString();
 
 function unit(id: string, at: number, books: Record<string, Partial<BookCounts>>, more: Partial<Unit> = {}): Unit {
@@ -42,8 +44,8 @@ const resets = (root: string) =>
     ? fs.readFileSync(tuneFile(root, "log.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((e: { by: string }) => e.by === "reset")
     : [];
 
-function tuned(id: string, action: string, what: string, scope: string, value: unknown, def: unknown, at: string, why: string) {
-  return { id, action, what, scope, value, default: def, from: def, at, why, basis: {}, rev: 1, seen: at, reported: REPORTED, source: "tuned" };
+function tuned(id: string, action: string, what: string, scope: string, value: unknown, def: unknown, at: string, why: string, basis: Record<string, number> = {}) {
+  return { id, action, what, scope, value, default: def, from: def, at, why, basis, rev: 1, seen: at, reported: REPORTED, source: "tuned" };
 }
 
 /** What a research and its computer keep for the reading of scans: a calibration, changes of strom's, answers. */
@@ -54,8 +56,8 @@ function planted(w: World, root: string): void {
   c.tuning = {
     [KEY]: {
       reported: REPORTED,
-      batch: tuned("Taaaaa1", "A2", "reading.batch", "key", 3, 6, at, "readers without a result 2 of the last 5"),
-      viewsPerCall: tuned("Taaaaa1", "A2", "reading.batch", "key", 12, 24, at, "readers without a result 2 of the last 5"),
+      batch: tuned("Taaaaa1", "A2", "reading.batch", "key", 3, 6, at, "readers without a result 2 of the last 5", { M10: 0.4, "M10.n": 2, "M10.of": 5 }),
+      viewsPerCall: tuned("Taaaaa1", "A2", "reading.batch", "key", 12, 24, at, "readers without a result 2 of the last 5", { M10: 0.4, "M10.n": 2, "M10.of": 5 }),
     },
     "claude sonnet": { reported: "claude-sonnet-5", batch: tuned("Tbbbbb1", "A2", "reading.batch", "key", 4, 6, at, "readers without a result") },
   };
@@ -69,12 +71,12 @@ function planted(w: World, root: string): void {
         reported: REPORTED,
         books: {
           B0003: {
-            find: tuned("Tccccc1", "A1", "views.size", "book:B0003", 2000, 1400, at, "B0003: unsure readings 75 % of 24 against 5 % of the other books"),
-            halves: tuned("Tccccc1", "A1", "views.size", "book:B0003", true, false, at, "B0003: unsure readings 75 % of 24 against 5 % of the other books"),
+            find: tuned("Tccccc1", "A1", "views.size", "book:B0003", 2000, 1400, at, "B0003: unsure readings 75 % of 24 against 5 % of the other books", { M5: 0.75, "M5.n": 24, "M5.base": 0.05 }),
+            halves: tuned("Tccccc1", "A1", "views.size", "book:B0003", true, false, at, "B0003: unsure readings 75 % of 24 against 5 % of the other books", { M5: 0.75, "M5.n": 24, "M5.base": 0.05 }),
           },
           B0001: { noSharper: tuned("Tddddd1", "A5", "parts.none", "book:B0001", true, false, at, "B0001: 2 parts the portal gave no sharper") },
         },
-        hosts: { [HOST]: { order: tuned("Teeeee1", "A4", "fetch.order", `host:${HOST}`, "whole-first", "as-asked", at, "waited for its limit in 2 of 2 sessions") } },
+        hosts: { [HOST]: { order: tuned("Teeeee1", "A4", "fetch.order", `host:${HOST}`, "whole-first", "as-asked", at, "waited for its limit in 2 of 2 sessions", { M8: 2, "M8.n": 2, "M8.wait": 12, "M8.later": 1 }) } },
       },
     }),
   );
@@ -103,13 +105,18 @@ test("listed first, returned only on a person's yes; --only, --recordset, --host
 
   // --dry-run: the table, nothing returned, no question
   const dry = await w.ok(["media", "calibrate", "--reset", "--dry-run"]);
-  assert.match(dry.out, /^Nastaveno pro čtení snímků · Claude Code · opus:$/m);
+  assert.match(dry.out, /^Nastaveno pro čtení snímků · Claude Code · claude-opus-5-5:$/m);
   assert.match(dry.out, /co +rozsah +teď → výchozí +zdroj +datum +proč/);
   assert.match(dry.out, /kalibrované velikosti +model +find 1000 · read 1400 → find 1400 · read 2000 +kalibrace/);
-  assert.match(dry.out, /menší dávky +model +batch 3 · viewsPerCall 12 → batch 6 · viewsPerCall 24 +nastavil strom +\d{4}-\d\d-\d\d +readers without a result 2 of the last 5/);
-  assert.match(dry.out, /větší pohledy +B0003 +find 2000 · halves → find 1400 +nastavil strom/);
-  assert.match(dry.out, /odpověď na negatives\.weak +B0003 +edge → – +odpověď/);
-  assert.match(dry.out, /odpověď na index\.first +tento výzkum +30 → –/);
+  assert.match(dry.out, /menší dávky +model +batch 3 · viewsPerCall 12 → batch 6 · viewsPerCall 24 +nastavil strom +\d{4}-\d\d-\d\d +čtenáři bez výsledku: 2 z posledních 5$/m);
+  // every reason in the research language: a calibration, a change of strom's by its figures, an answer by its place
+  assert.match(dry.out, /kalibrace +\d{4}-\d\d-\d\d +změřeno na 6 známých záznamech$/m);
+  assert.match(dry.out, /větší pohledy +B0003 +find 2000 · halves → find 1400 +nastavil strom +\d{4}-\d\d-\d\d +nejisté 75 % proti 5 % u ostatních knih \(n=24\)$/m);
+  assert.match(dry.out, /žádné výřezy +B0001 +noSharper → – +nastavil strom +\d{4}-\d\d-\d\d +z naměřených čtení$/m, "one kept before its figures were");
+  assert.match(dry.out, /napřed celé snímky +archiv\.příklad\.example +.* +sezení s čekáním na limit archivu: 2 z 2 \(12 min, vyčerpán 1×\)$/m);
+  assert.match(dry.out, /odpověď na negatives\.weak +B0003 +edge → – +odpověď +\d{4}-\d\d-\d\d +zodpovězeno v okně systému$/m);
+  assert.match(dry.out, /odpověď na index\.first +tento výzkum +30 → – +odpověď +\d{4}-\d\d-\d\d +zodpovězeno v terminálu$/m);
+  assert.doesNotMatch(dry.out, /measured on|readers without|unsure readings|waited for|answered \(/u, "no English reason in a Czech research");
   assert.match(dry.out, /Úkoly T0001 zůstávají: patří k výzkumu\./);
   assert.match(dry.out, /Jen výpis, nic se nevrátilo\. Vrací se se souhlasem člověka: strom media calibrate --reset\n?$/);
   assert.doesNotMatch(dry.out, /sonnet/, "another model only with --all");
@@ -119,7 +126,7 @@ test("listed first, returned only on a person's yes; --only, --recordset, --host
   assert.deepEqual([j.reset, j.dryRun, j.tasks], [false, true, ["T0001"]]);
   assert.deepEqual(j.items.map((i: { id: string }) => i.id), ["calibration", "Taaaaa1", "answer:views.smaller", "answer:index.first", "Tddddd1", "Tccccc1", "answer:negatives.weak:B0003", "Teeeee1"]);
   assert.deepEqual(j.items.find((i: { id: string }) => i.id === "Tccccc1"), {
-    id: "Tccccc1", part: "sizes", what: "views.size", action: "A1", key: KEY, scope: "book:B0003", where: "research", now: { find: 2000, halves: true }, default: { find: 1400, halves: false }, source: "tuned", at: j.items.find((i: { id: string }) => i.id === "Tccccc1").at, why: "B0003: unsure readings 75 % of 24 against 5 % of the other books", reported: REPORTED,
+    id: "Tccccc1", part: "sizes", what: "views.size", action: "A1", key: TUNED, scope: "book:B0003", where: "research", now: { find: 2000, halves: true }, default: { find: 1400, halves: false }, source: "tuned", at: j.items.find((i: { id: string }) => i.id === "Tccccc1").at, why: "B0003: unsure readings 75 % of 24 against 5 % of the other books", reported: REPORTED,
   });
   unchanged();
 
@@ -152,11 +159,11 @@ test("listed first, returned only on a person's yes; --only, --recordset, --host
   assert.equal(c.viewSizes, undefined);
   assert.deepEqual(Object.keys(c.tuning), ["claude sonnet"], "another model's stays");
   assert.ok(c.tuneAnswers[KEY]["views.smaller"], "answers only with answers");
-  const state = readJsonFile(tuneFile(root, "state.json"))[KEY];
+  const state = readJsonFile(tuneFile(root, "state.json"))[TUNED];
   assert.deepEqual([Object.keys(state.books), Object.keys(state.hosts)], [["B0001"], [HOST]]);
   const log = resets(root);
   assert.equal(log.length, 1);
-  assert.equal(log[0].key, KEY);
+  assert.equal(log[0].key, TUNED);
   assert.deepEqual(log[0].items.map((i: { id: string; source: string; from: unknown; to: unknown }) => [i.id, i.source, i.from, i.to]), [
     ["calibration", "calibrated", { find: 1000, read: 1400 }, { find: 1400, read: 2000 }],
     ["Taaaaa1", "tuned", { batch: 3, viewsPerCall: 12 }, { batch: 6, viewsPerCall: 24 }],
@@ -171,7 +178,7 @@ test("listed first, returned only on a person's yes; --only, --recordset, --host
   assert.ok(Tree.open(root, w.env).get<Task>("T0001"));
   assert.ok(fs.existsSync(path.join(root, ".strom", "metrics", "rollup.json")));
   assert.equal(spawnSync("git", ["status", "--porcelain", "--", "data"], { cwd: root, encoding: "utf8" }).stdout.split("\n").filter((l) => l && !l.includes("T0001")).join("\n"), "");
-  assert.match((await w.ok(["media", "calibrate", "--reset", "--only", "answers"])).out, /Pro čtení snímků není nic nastaveno, co by se vracelo \(Claude Code · opus\): platí výchozí hodnoty\./);
+  assert.match((await w.ok(["media", "calibrate", "--reset", "--only", "answers"])).out, /Pro čtení snímků není nic nastaveno, co by se vracelo \(Claude Code · claude-opus-5-5\): platí výchozí hodnoty\./);
   w.cleanup();
 });
 
@@ -189,11 +196,11 @@ test("--all: every model of the user config and this research; other researches 
   const otherState = JSON.stringify({ [KEY]: { books: { B0002: { noSharper: tuned("Tfffff1", "A5", "parts.none", "book:B0002", true, false, at, "x") } }, hosts: {} } });
   fs.writeFileSync(tuneFile(other, "state.json"), otherState);
   const dry = await w.ok(["media", "calibrate", "--reset", "--all", "--dry-run"]);
-  assert.match(dry.out, /^Nastaveno pro čtení snímků · Claude Code · sonnet:$/m);
+  assert.match(dry.out, /^Nastaveno pro čtení snímků · Claude Code · claude-sonnet-5:$/m);
   assert.match(dry.out, /Jiné výzkumy na tomto počítači si drží vlastní hodnoty knih a archivů: Dvořákovi \(1\)\. Vrací se v každém zvlášť: strom media calibrate --reset --all --tree Dvořákovi/);
   const j = (await w.ok(["media", "calibrate", "--reset", "--all", "--json"])).json;
   assert.deepEqual(j.others.map((o: { name: string; items: number }) => [o.name, o.items]), [["Dvořákovi", 1]]);
-  assert.ok(j.items.some((i: { key: string }) => i.key === "claude sonnet"));
+  assert.ok(j.items.some((i: { key: string }) => i.key === "claude claude-sonnet-5"));
   await w.ok(["media", "calibrate", "--reset", "--all"], { tty: true, answers: ["a"] });
   const c = config(w);
   assert.deepEqual([c.viewSizes, c.tuning, c.tuneAnswers], [undefined, undefined, undefined]);
@@ -211,11 +218,11 @@ test("an agent asks: a window; what was returned is held back until the data cha
   const readers = [0, 1, 2, 3, 4].map((i) => unit(`r-${i}`, now - (10 - i) * DAY, { B0001: { scans: 12, views: 12, read: 12 } }, { outcome: i < 2 ? "timeout" : "ok", ...(i < 2 ? { noResult: true as const } : {}) }));
   plant(root, readers);
   await w.ok(["media", "calibrate", "--report"]);
-  assert.equal(config(w).tuning[KEY].batch.value, 3);
+  assert.equal(config(w).tuning[TUNED].batch.value, 3);
   // an agent asks: no in the window — nothing; yes — returned
   const no = await w.run(["media", "calibrate", "--reset"], { dialog: false, env: { CLAUDECODE: "1" } });
   assert.notEqual(no.code, 0);
-  assert.equal(config(w).tuning[KEY].batch.value, 3);
+  assert.equal(config(w).tuning[TUNED].batch.value, 3);
   const yes = await w.run(["media", "calibrate", "--reset", "--only", "batches"], { dialog: true, env: { CLAUDECODE: "1" } });
   assert.equal(yes.code, 0, yes.out + yes.err);
   assert.match(yes.out, /menší dávky +model +batch 3 · viewsPerCall 12 → batch 6 · viewsPerCall 24/, "the window's answer, the table in the output");
@@ -232,7 +239,7 @@ test("an agent asks: a window; what was returned is held back until the data cha
   // the data changed (half again as many scans): its signal still there — set again
   plant(root, [...readers, ...after(4, 10, 0)]);
   await w.ok(["media", "calibrate", "--report"]);
-  assert.equal(config(w).tuning?.[KEY]?.batch?.value, 3, "40 scans since: free again");
+  assert.equal(config(w).tuning?.[TUNED]?.batch?.value, 3, "40 scans since: free again");
   w.cleanup();
 });
 
@@ -282,10 +289,10 @@ test("strom doctor: worse after a change of strom's — a reset recommended wher
   assert.match(a.out, /! +po samoladění +model: čte se hůř od změny stromu z \d{4}-\d\d-\d\d \(menší dávky\) — nejistá čtení 2 % → 33 % \(60 skenů před, 36 po\); doporučeno ji vrátit {2}→ strom media calibrate --reset --only batches/);
   const json = (await w.run(["doctor", "--json"])).json;
   assert.equal(json.checks.find((c: { name: string }) => c.name === "tuneworse").status, "warn");
-  assert.equal(config(w).tuning[KEY].batch.value, 3, "doctor runs nothing");
+  assert.equal(config(w).tuning[TUNED].batch.value, 3, "doctor runs nothing");
   // --fix: only on the person's yes (an agent asks: a window)
   await w.run(["doctor", "--fix"], { dialog: false, env: { CLAUDECODE: "1" } });
-  assert.equal(config(w).tuning[KEY].batch.value, 3, "no in the window: kept");
+  assert.equal(config(w).tuning[TUNED].batch.value, 3, "no in the window: kept");
   await w.run(["doctor", "--fix"], { dialog: true, env: { CLAUDECODE: "1" } });
   assert.equal(config(w).tuning, undefined, "returned on the yes");
   assert.equal(resets(root).length, 1);
@@ -307,4 +314,26 @@ test("strom doctor: worse after a change of strom's — a reset recommended wher
   assert.doesNotMatch((await w.run(["doctor"])).out, /po samoladění|calibrate/);
   assert.match((await w.run(["media", "calibrate", "--reset", "--dry-run"])).err, /archive/);
   w.cleanup();
+});
+
+test("the reason a person reads: the research language, its numbers as the language writes them, the English why the agent's", async () => {
+  const { reasonText } = await import("../../src/cli/tunereset.ts");
+  const item = (o: Record<string, unknown>) => ({ id: "T1", part: "batches", what: "reading.views", key: KEY, scope: "key", where: "config", now: {}, default: {}, source: "tuned", fields: [], why: "English", ...o }) as never;
+  const a3 = item({ action: "A3", basis: { M4: 3, "M4.of": 10, ctx: 118500, viewTokens: 4200.5 } });
+  assert.equal(reasonText("cs", a3), "kontext se vyčistil: 3 z posledních 10 čtenářů, poprvé zhruba při 118 500 tokenech, pohled čtenáře zhruba 4 200,5 tokenů");
+  assert.equal(reasonText("en", a3), "the context cleared: 3 of the last 10 readers, the first at about 118,500 tokens, a reader's view about 4,200.5 tokens");
+  assert.equal(reasonText("de", a3), "der Kontext wurde geleert: 3 der letzten 10 Leser, das erste Mal bei etwa 118.500 Tokens, eine Ansicht eines Lesers etwa 4.200,5 Tokens");
+  // the stop where the context never cleared: the main agent's long stretches (M12)
+  const long = item({ action: "A3", basis: { M12: 2, "M12.of": 5, "M12.views": 40, "M12.peak": 170000, ctx: 150000, viewTokens: 4000 } });
+  assert.equal(reasonText("en", long), "the context never cleared, yet grew past 150,000 tokens: 2 of the last 5 sessions, a reader's view about 4,000 tokens");
+  assert.equal(reasonText("cs", long), "kontext se nevyčistil, a přesto přerostl 150 000 tokenů: 2 z posledních 5 sezení, pohled čtenáře zhruba 4 000 tokenů");
+  assert.equal(reasonText("de", long), "der Kontext wurde nie geleert und wuchs doch über 150.000 Tokens: 2 der letzten 5 Sitzungen, eine Ansicht eines Lesers etwa 4.000 Tokens");
+  // several figures of one change, one kept before its whole (M11.of) was
+  const two = item({ action: "A7", basis: { M11: 0.625, "M11.n": 5, "M4": 0.3, "M4.n": 3, "M4.of": 10, "M4.ctx": 90000 } });
+  assert.equal(reasonText("cs", two), "staženo a nepřečteno 63 % (5 snímků); kontext se vyčistil: 3 z posledních 10 čtenářů, poprvé zhruba při 90 000 tokenech");
+  assert.equal(reasonText("cs", item({ action: "A2", basis: {} })), "z naměřených čtení");
+  assert.equal(reasonText("de", item({ source: "calibrated", sample: 6 })), "gemessen an 6 bekannten Einträgen");
+  assert.equal(reasonText("cs", item({ source: "answered", by: "app" })), "zodpovězeno v aplikaci Strom");
+  // a language without a catalog reads English
+  assert.equal(reasonText("pl", item({ source: "calibrated", sample: 6 })), "measured on 6 known records");
 });

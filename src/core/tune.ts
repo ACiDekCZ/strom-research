@@ -14,8 +14,8 @@
 //
 // Decided after each session (with the summary, core/tidy.ts autoTidy), at strom media calibrate --report and at strom
 // doctor — never within a session: a session goes by the values of its start (each change keeps the value before it,
-// `from`, and its time). Per key of agent and model (calibrationKey: the model that reads the scans); a new model under
-// the same alias (the model the agent says) starts again. What holds for the model everywhere is kept in the user
+// `from`, and its time). Per key of agent and model (core/modelkey.ts: the model the agent said it ran on — an alias
+// asked goes by the model it runs on, another version is another key and starts again). What holds for the model everywhere is kept in the user
 // config (`tuning`), what is of a book or an archive of this research in .strom/tune/state.json; every change logged in
 // .strom/tune/log.jsonl. Nothing in data/, no commit; strom tidy never touches .strom/tune. Each change carries its id,
 // key, scope, value, default, time, reason and source, so a reset can list and undo it. An archive: nothing at all.
@@ -24,12 +24,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { Settings, type UserConfig } from "./config.ts";
+import { configFile, Settings, type UserConfig } from "./config.ts";
 import { readJsonIfExists, writeFileAtomic } from "./json.ts";
 import { acquireLock } from "./lock.ts";
 import { isArchive } from "./mode.ts";
-import { calibrationKey, defaultViewSizes, viewModel, viewSizes, type ViewSizes } from "./viewsizes.ts";
-import { groups, otherUnits, READING_DEFAULTS, readJournal, refreshRollup, summarize, TUNING, UNKNOWN_KEY, type KeyReport, type Recommendation, type Rollup, type Signal, type TunedItem, type Unit } from "./readstats.ts";
+import { defaultViewSizes, researchKey, viewSizes, type ViewSizes } from "./viewsizes.ts";
+import { aliasPairsOf, canonicalUnits, groups, keepBeforeKeys, otherUnits, READING_DEFAULTS, readJournal, refreshRollup, stopContext, summarize, THRESHOLDS, TUNING, UNKNOWN_KEY, type KeyReport, type Recommendation, type Rollup, type Signal, type TunedItem, type Unit } from "./readstats.ts";
+import { keyed, keyOf, keysFor, loadAliases, modelId, noteAliases, resolveKey, splitKey, type Aliases } from "./modelkey.ts";
 import type { TreeConfig } from "./model.ts";
 import type { Tree } from "./tree.ts";
 
@@ -147,7 +148,7 @@ const stateFile = (root: string) => path.join(tuneDir(root), "state.json");
 export const tuneLockFile = (root: string): string => `${stateFile(root)}.lock`;
 const logFile = (root: string) => path.join(tuneDir(root), "log.jsonl");
 
-export function loadTuneState(root: string): TuneState {
+function rawTuneState(root: string): TuneState {
   try {
     const s = readJsonIfExists<TuneState>(stateFile(root));
     return s && typeof s === "object" && !Array.isArray(s) ? s : {};
@@ -156,13 +157,128 @@ export function loadTuneState(root: string): TuneState {
   }
 }
 
+/** What strom set for this research's books and archives, by the key of the model (whatever version kept it). */
+export function loadTuneState(root: string, aliases: Aliases = loadAliases(root)): TuneState {
+  return canonicalState(rawTuneState(root), aliases).state;
+}
+
+/** The newer of two values set for one field (by when each was set). */
+const newer = <T extends Tuned | undefined>(a: T, b: T): T => (!a ? b : !b ? a : b.at > a.at ? b : a);
+
+/** Two stores of one key joined: each field's newer value (the model said kept apart). */
+function joinSlots(into: Record<string, unknown>, from: Record<string, unknown>): void {
+  for (const [f, v] of Object.entries(from)) {
+    if (f === "reported") continue;
+    into[f] = newer(into[f] as Tuned | undefined, v as Tuned | undefined);
+  }
+}
+
+/** When the newest value of a store was set ("" none). */
+function lastAt(store: object): string {
+  return allTuned(store).reduce((m, t) => (t.at > m ? t.at : m), "");
+}
+
+/**
+ * The state under the key of the model each part of it was set for (core/modelkey.ts): the model said it kept with it,
+ * else its key resolved; two names of one key joined (each value the newer). Whether anything was named otherwise.
+ */
+export function canonicalState(raw: TuneState, aliases: Aliases): { state: TuneState; changed: boolean } {
+  const out: TuneState = {};
+  let changed = false;
+  const names = Object.keys(raw).sort((a, b) => lastAt(raw[a] ?? {}).localeCompare(lastAt(raw[b] ?? {})));
+  for (const k of names) {
+    const tt = raw[k];
+    if (!tt || typeof tt !== "object") continue;
+    const key = keyOf(k, tt.reported, aliases, lastAt(tt) || undefined);
+    if (key !== k) changed = true;
+    const into = out[key];
+    if (!into) {
+      out[key] = { ...tt, books: { ...(tt.books ?? {}) }, hosts: { ...(tt.hosts ?? {}) } };
+      continue;
+    }
+    changed = true;
+    for (const part of ["books", "hosts"] as const)
+      for (const [name, slot] of Object.entries(tt[part] ?? {})) {
+        const mine = ((into[part] as Record<string, Record<string, unknown>>)[name] = { ...((into[part] as Record<string, Record<string, unknown>>)[name] ?? {}) });
+        joinSlots(mine, slot as Record<string, unknown>);
+      }
+    if (tt.reported) into.reported = tt.reported;
+  }
+  return { state: out, changed };
+}
+
+/**
+ * The state and the answers of this research written under the keys of the models (core/modelkey.ts), each once with a
+ * copy of it as it was beside it (<name>.before-keys, never written over). Under the lock of the tuning (the caller's);
+ * the same again changes nothing; the journals (log.jsonl, .strom/metrics) are never rewritten — read under the keys.
+ */
+export function migrateTuneKeys(root: string, aliases: Aliases = loadAliases(root)): { state: boolean; answers: boolean } {
+  const done = { state: false, answers: false };
+  try {
+    const s = canonicalState(rawTuneState(root), aliases);
+    if (s.changed) {
+      keepBeforeKeys(stateFile(root));
+      saveTuneState(root, s.state);
+      done.state = true;
+    }
+  } catch {
+    // read under the keys next time all the same
+  }
+  try {
+    const file = path.join(tuneDir(root), "answers.json");
+    const raw = readJsonIfExists<Record<string, Record<string, unknown>>>(file);
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      const a = canonicalAnswers(raw, aliases);
+      if (a.changed) {
+        keepBeforeKeys(file);
+        writeFileAtomic(file, JSON.stringify(a.answers, null, 2) + "\n");
+        done.answers = true;
+      }
+    }
+  } catch {
+    // read under the keys next time all the same
+  }
+  return done;
+}
+
+/** The model the answers of a key were given for, as their basis keeps it. */
+const answerModel = (v: unknown): string | undefined => {
+  for (const a of Object.values((v ?? {}) as Record<string, { basis?: { reported?: unknown } } | undefined>)) if (typeof a?.basis?.reported === "string") return a.basis.reported;
+  return undefined;
+};
+
+/** Answers kept by key under the keys of the models: two names of one key joined (each answer the newer). */
+export function canonicalAnswers<T>(raw: Record<string, Record<string, T>>, aliases: Aliases): { answers: Record<string, Record<string, T>>; changed: boolean } {
+  const out: Record<string, Record<string, T>> = {};
+  let changed = false;
+  for (const [k, slots] of Object.entries(raw)) {
+    if (!slots || typeof slots !== "object") continue;
+    const key = keyOf(k, answerModel(slots), aliases);
+    if (key !== k) changed = true;
+    const into = (out[key] ??= {});
+    for (const [slot, a] of Object.entries(slots)) {
+      const cur = into[slot] as { at?: unknown } | undefined;
+      if (cur) changed = true;
+      if (!cur || String((a as { at?: unknown } | undefined)?.at ?? "") > String(cur.at ?? "")) into[slot] = a;
+    }
+  }
+  return { answers: out, changed };
+}
+
 export function saveTuneState(root: string, s: TuneState): void {
   fs.mkdirSync(tuneDir(root), { recursive: true });
   writeFileAtomic(stateFile(root), JSON.stringify(s, null, 1) + "\n");
 }
 
-export function readTuneLog(root: string): TuneLogEntry[] {
-  return readJournal(logFile(root)) as unknown as TuneLogEntry[];
+/** The log of the tuning, each line's key that of the model it was for (core/modelkey.ts) — the file never rewritten. */
+export function readTuneLog(root: string, aliases: Aliases = loadAliases(root)): TuneLogEntry[] {
+  const log = readJournal(logFile(root)) as unknown as (TuneLogEntry & { items?: { key?: unknown; reported?: unknown }[] })[];
+  for (const e of log) {
+    const at = typeof e.at === "string" ? e.at : undefined;
+    if (typeof e.key === "string") e.key = resolveKey(e.key, aliases, at);
+    if (Array.isArray(e.items)) for (const i of e.items) if (i && typeof i.key === "string") i.key = keyOf(i.key, typeof i.reported === "string" ? i.reported : undefined, aliases, at);
+  }
+  return log;
 }
 
 export function appendTuneLog(root: string, entries: (TuneLogEntry | TuneResetEntry)[]): void {
@@ -171,11 +287,7 @@ export function appendTuneLog(root: string, entries: (TuneLogEntry | TuneResetEn
   fs.appendFileSync(logFile(root), entries.map((e) => JSON.stringify(e)).join("\n") + "\n");
 }
 
-/** "claude opus" → its agent and model. */
-export function splitKey(key: string): { agent: string; model?: string } {
-  const [agent = "", ...rest] = key.split(" ");
-  return rest.length ? { agent, model: rest.join(" ") } : { agent };
-}
+export { splitKey } from "./modelkey.ts";
 
 export function tuneId(key: string, action: string, scope: string): string {
   return `T${crypto.createHash("sha1").update(`${key}|${action}|${scope}`).digest("hex").slice(0, 6)}`;
@@ -210,9 +322,12 @@ export interface Reading {
   tuned: string[];
 }
 
-/** The reading of a key from the user config (tuning off: the defaults); `since` a session's start. */
-export function readingOf(cfg: UserConfig, key: string, o: { since?: string | undefined; on?: boolean } = {}): Reading {
-  const t = o.on === false ? undefined : cfg.tuning?.[key];
+/**
+ * The reading of a key from the user config (tuning off: the defaults); `since` a session's start; `root` the research
+ * whose aliases name what an older strom kept it under.
+ */
+export function readingOf(cfg: UserConfig, key: string, o: { since?: string | undefined; on?: boolean; root?: string | undefined } = {}): Reading {
+  const t = o.on === false ? undefined : keyTuningOf(cfg, key, loadAliases(o.root));
   const batch = pinned(t?.batch, o.since) ?? READING_DEFAULTS.batch;
   const viewsStop = pinned(t?.viewsStop, o.since) ?? READING_DEFAULTS.viewsStop;
   const viewsPerCall = pinned(t?.viewsPerCall, o.since) ?? READING_DEFAULTS.viewsPerCall;
@@ -223,9 +338,14 @@ export function readingOf(cfg: UserConfig, key: string, o: { since?: string | un
 }
 
 /** The reading of an agent and its model (model.lead, else model.vision — as the views are sized). */
-export function readingFor(settings: Settings, agent: string, tree?: TreeConfig, o: { model?: string | undefined; since?: string | undefined } = {}): Reading {
-  const key = calibrationKey(agent, viewModel(settings, agent, tree, o.model));
-  return readingOf(settings.config, key, { since: o.since, on: tuningOn(settings) });
+export function readingFor(settings: Settings, agent: string, tree?: TreeConfig, o: { model?: string | undefined; since?: string | undefined; root?: string | undefined } = {}): Reading {
+  const key = researchKey(settings, agent, tree, o.root, o.model);
+  return readingOf(settings.config, key, { since: o.since, on: tuningOn(settings), root: o.root });
+}
+
+/** What the user config keeps for a key: its own, else what an older strom kept under an alias of it. */
+export function keyTuningOf(cfg: UserConfig, key: string, aliases?: Aliases): KeyTuning | undefined {
+  return keyed(cfg.tuning, key, aliases, (v) => v?.reported);
 }
 
 /** What holds for one book of this research (tuning off: nothing). */
@@ -296,7 +416,10 @@ interface Want {
 
 const pct = (n: number | undefined) => (n === undefined ? "–" : `${Math.round(n * 100)} %`);
 
-/** The reason of a change in a sentence with its figures (English: an agent and strom config read it). */
+/**
+ * The reason of a change in a sentence with its figures (English: an agent and strom config read it) and the figures
+ * themselves (basis: a person reads the reason from them in the research language, cli/tunereset.ts).
+ */
 function reasonOf(rec: Recommendation, r: KeyReport): { why: string; basis: Record<string, number | string> } {
   const sig = (m: string) => r.signals.find((s) => s.metric === m && (s.scope === rec.scope || s.scope === "key")) as Signal | undefined;
   const scope = rec.scope.replace(/^(book|host):/, "");
@@ -308,6 +431,10 @@ function reasonOf(rec: Recommendation, r: KeyReport): { why: string; basis: Reco
     basis[m] = Math.round(s.value * 1000) / 1000;
     basis[`${m}.n`] = s.n;
     if (s.base !== undefined) basis[`${m}.base`] = Math.round(s.base * 1000) / 1000;
+    // the rest of its figures, for the reason in the person's language (the reset's listing)
+    if (s.of !== undefined) basis[`${m}.of`] = s.of;
+    if (m === "M8") Object.assign(basis, { "M8.wait": s.extra?.waitMin ?? 0, "M8.later": s.extra?.later ?? 0 });
+    if (m === "M4" && s.extra?.ctx) basis["M4.ctx"] = s.extra.ctx;
     switch (m) {
       case "M5":
         parts.push(`unsure readings ${pct(s.value)} of ${s.n} against ${pct(s.base)} of the other books`);
@@ -373,15 +500,22 @@ function wanted(r: KeyReport, units: Unit[] = []): Want[] {
   }
   const stop = readerStop(r, units);
   if (stop) {
-    const m4 = r.signals.find((s) => s.metric === "M4");
+    const sig = r.signals.find((s) => s.metric === stop.metric);
+    const after = `a reader's view about ${stop.perView} tokens → a reader stops after about ${stop.views} views instead of ${READING_DEFAULTS.viewsStop}`;
     out.push({
       action: "A3",
       what: "reading.views",
       scope: "key",
       values: { viewsStop: stop.views, ctx: stop.ctx },
       defaults: { viewsStop: READING_DEFAULTS.viewsStop, ctx: 0 },
-      why: `the context cleared in ${m4?.n ?? 0} of the last ${m4?.of ?? 0} readers, the first at about ${stop.ctx} tokens, a reader's view about ${stop.perView} tokens → a reader stops after about ${stop.views} views instead of ${READING_DEFAULTS.viewsStop}`,
-      basis: { M4: m4?.n ?? 0, "M4.of": m4?.of ?? 0, ctx: stop.ctx, viewTokens: stop.perView },
+      why:
+        stop.metric === "M4"
+          ? `the context cleared in ${sig?.n ?? 0} of the last ${sig?.of ?? 0} readers, the first at about ${stop.ctx} tokens, ${after}`
+          : `the context never cleared, yet it grew past ${stop.ctx} tokens with more than ${READING_DEFAULTS.viewsStop} views in ${sig?.n ?? 0} of the last ${sig?.of ?? 0} sessions (about ${sig?.extra?.views ?? 0} views, ${sig?.extra?.peak ?? 0} tokens), ${after} — the main agent writes down what it found before more`,
+      basis:
+        stop.metric === "M4"
+          ? { M4: sig?.n ?? 0, "M4.of": sig?.of ?? 0, ctx: stop.ctx, viewTokens: stop.perView }
+          : { M12: sig?.n ?? 0, "M12.of": sig?.of ?? 0, "M12.views": sig?.extra?.views ?? 0, "M12.peak": sig?.extra?.peak ?? 0, ctx: stop.ctx, viewTokens: stop.perView },
     });
   }
   return out;
@@ -405,14 +539,18 @@ export function readerViewTokens(r: KeyReport, units: Unit[]): number | undefine
   return per(units.filter((u) => (u.clears ?? 0) > 0)) ?? per(units.filter((u) => u.kind === "reader"));
 }
 
-/** A3: the views a reader holds before its context clears — only fewer than the default, only on the clears measured (M4). */
-function readerStop(r: KeyReport, units: Unit[]): { views: number; ctx: number; perView: number } | undefined {
-  const ctx = r.context.ctxAtFirstClear;
-  if (!ctx || !r.signals.some((s) => s.metric === "M4")) return undefined;
+/**
+ * A3: the views a reader (and the main agent, between two write-downs) holds — only fewer than the default: on the
+ * clears measured (M4), else, where the context never clears, on the long stretches of the main agent (M12) with the
+ * context a clear would come at (THRESHOLDS.M12.ctx). Never below TUNING.stopMin.
+ */
+function readerStop(r: KeyReport, units: Unit[]): { views: number; ctx: number; perView: number; metric: "M4" | "M12" } | undefined {
+  const basis = stopContext(r);
+  if (!basis) return undefined;
   const perView = readerViewTokens(r, units);
   if (!perView) return undefined;
-  const views = Math.max(TUNING.stopMin, Math.floor((TUNING.stopShare * ctx) / perView));
-  return views < READING_DEFAULTS.viewsStop ? { views, ctx: Math.round(ctx), perView: Math.round(perView) } : undefined;
+  const views = Math.max(TUNING.stopMin, Math.floor((TUNING.stopShare * basis.ctx) / perView));
+  return views < READING_DEFAULTS.viewsStop ? { views, ctx: Math.round(basis.ctx), perView: Math.round(perView), metric: basis.metric } : undefined;
 }
 
 /** Only towards accuracy or fewer requests: a size only up, a batch, a call and a stop only down. */
@@ -493,14 +631,18 @@ export function selfTune(tree: Tree, o: TuneOptions = {}): TuneResult {
   }
   try {
     settings.reload();
-    const state = loadTuneState(tree.root);
-    const log = readTuneLog(tree.root);
+    // what an older strom kept under an alias or another name of a model: under the key of the model, once with a copy
+    const aliases = noteAliases(tree.root, aliasPairsOf(rollup.units));
+    canonicalUnits(rollup.units, aliases);
+    migrateTuneKeys(tree.root, aliases);
+    let cfgChanged = canonicalConfigTuning(settings, aliases);
+    const state = loadTuneState(tree.root, aliases);
+    const log = readTuneLog(tree.root, aliases);
     const others = o.others ?? otherUnits(siblingRoots(tree.root), tree.root);
     const changes: TuneLogEntry[] = [];
-    let cfgChanged = false;
     let stateChanged = false;
     const seenKeys = new Set<string>();
-    const held = (id: string, key: string, scope: string, reported?: string) => heldBack(log, { id, key, scope, ...(reported ? { reported } : {}) }, rollup.units, now);
+    const held = (id: string, key: string, scope: string, what: string, reported?: string) => heldBack(log, { id, key, scope, what, ...(reported ? { reported } : {}) }, rollup.units, now);
 
     for (const group of groups(rollup.units, now)) {
       // the newest model said under each key (groups come newest first)
@@ -518,7 +660,7 @@ export function selfTune(tree: Tree, o: TuneOptions = {}): TuneResult {
         [kt, () => (cfgChanged = true)],
         [tt, () => (stateChanged = true)],
       ] as const) {
-        if (group.reported && store.reported && store.reported !== group.reported && allTuned(store).length) {
+        if (group.reported && store.reported && modelId(splitKey(key).agent, store.reported) !== group.reported && allTuned(store).length) {
           const said = new Set<string>();
           for (const t of allTuned(store)) {
             if (said.has(t.id)) continue;
@@ -542,7 +684,7 @@ export function selfTune(tree: Tree, o: TuneOptions = {}): TuneResult {
           touched.add(`${w.scope}|${f}`);
           const cur = slots[f];
           // the effective value now: a calibration of the sizes counts as where a book starts from
-          const start = cur?.value ?? startOf(field, w, settings.config, key);
+          const start = cur?.value ?? startOf(field, w, settings.config, key, aliases);
           if (cur && !better(field, cur.value, value)) {
             // still wanted: its signal seen today (A6 counts from the last day it was)
             if (cur.seen.slice(0, 10) !== day) {
@@ -554,7 +696,7 @@ export function selfTune(tree: Tree, o: TuneOptions = {}): TuneResult {
           }
           // the context measured goes only with the stop it sets
           if (field === "ctx" && !("viewsStop" in to)) continue;
-          if (!better(field, start, value) || held(id, key, w.scope, group.reported)) continue;
+          if (!better(field, start, value) || held(id, key, w.scope, w.what, group.reported)) continue;
           slots[f] = { id, action: w.action, what: w.what, scope: w.scope, value, default: w.defaults[field]!, from: start, at, why: w.why, basis: w.basis, rev: TUNE_REV, seen: at, ...(group.reported ? { reported: group.reported } : {}), source: "tuned" };
           from[field] = start;
           to[field] = value;
@@ -594,7 +736,7 @@ export function selfTune(tree: Tree, o: TuneOptions = {}): TuneResult {
         [kt, () => (cfgChanged = true)],
         [tt, () => (stateChanged = true)],
       ] as const)
-        if (allTuned(store).length && group.reported && store.reported !== group.reported) {
+        if (allTuned(store).length && group.reported && modelId(splitKey(key).agent, store.reported) !== group.reported) {
           store.reported = group.reported;
           mark();
         }
@@ -636,7 +778,7 @@ export function scopeScans(units: Unit[], key: string, scope: string, after?: nu
  * Whether a change a person took back is held back now: within TUNING.heldDays of the reset, its data unchanged since
  * (RESET_HOLD; an older reset that kept no count: by the days alone), the same model said.
  */
-export function heldBack(log: readonly unknown[], t: { id: string; key: string; scope: string; reported?: string }, units: Unit[], now: number): boolean {
+export function heldBack(log: readonly unknown[], t: { id: string; key: string; scope: string; reported?: string; what?: string }, units: Unit[], now: number): boolean {
   for (const raw of log) {
     const e = raw as Partial<TuneLogEntry> & { items?: unknown };
     if (e.by !== "reset" || typeof e.at !== "string") continue;
@@ -644,9 +786,10 @@ export function heldBack(log: readonly unknown[], t: { id: string; key: string; 
     if (!(now - at < TUNING.heldDays * DAY)) continue;
     const items = (Array.isArray(e.items) ? e.items : [e]) as Partial<ResetLogItem>[];
     for (const i of items) {
-      if (!i || i.id !== t.id) continue;
+      // the same change by its ID — or, kept under another name of the key by an older strom, by its key, scope and what
+      if (!i || (i.id !== t.id && !(i.key === t.key && i.scope === t.scope && i.what !== undefined && i.what === t.what))) continue;
       // another model under the same alias since: begun again all the same
-      if (t.reported && i.reported && i.reported !== t.reported) continue;
+      if (t.reported && i.reported && modelId(splitKey(t.key).agent, i.reported) !== modelId(splitKey(t.key).agent, t.reported)) continue;
       if (typeof i.scans === "number") {
         const since = scopeScans(units, t.key, t.scope, at);
         if (since >= RESET_HOLD.growUnits && since >= RESET_HOLD.growShare * i.scans) continue;
@@ -658,12 +801,36 @@ export function heldBack(log: readonly unknown[], t: { id: string; key: string; 
 }
 
 /** Where a value starts from before strom changes it: a book's sizes from the calibration (else the defaults). */
-function startOf(field: string, w: Want, cfg: UserConfig, key: string): number | boolean | string {
+function startOf(field: string, w: Want, cfg: UserConfig, key: string, aliases?: Aliases): number | boolean | string {
   if (field === "find" || field === "read") {
     const { agent, model } = splitKey(key);
-    return viewSizes(cfg, agent, model)[field];
+    return viewSizes(cfg, agent, model, aliases)[field];
   }
   return w.defaults[field]!;
+}
+
+/**
+ * The user config's `tuning` under the keys of the models (core/modelkey.ts): what an older strom kept under an alias
+ * joined into the key of the model it was set for (each value the newer) — once with a copy of the config beside it.
+ * Whether anything moved (the caller saves).
+ */
+export function canonicalConfigTuning(settings: Settings, aliases: Aliases): boolean {
+  const all = settings.config.tuning;
+  if (!all) return false;
+  let moved = false;
+  for (const k of Object.keys(all)) {
+    const kt = all[k];
+    if (!kt || typeof kt !== "object") continue;
+    const key = keyOf(k, kt.reported, aliases, lastAt(kt) || undefined);
+    if (key === k) continue;
+    if (!moved) keepBeforeKeys(configFile(settings.env));
+    moved = true;
+    const into = (all[key] ??= {});
+    joinSlots(into as Record<string, unknown>, kt as Record<string, unknown>);
+    if (kt.reported && (!into.reported || lastAt(kt) >= lastAt(into))) into.reported = kt.reported;
+    delete all[k];
+  }
+  return moved;
 }
 
 const single = (o: Record<string, unknown>): unknown => {
@@ -694,10 +861,10 @@ function clearTuned(store: KeyTuning | TreeTuning): void {
 }
 
 /** Every change in force for a key (the user config's and this research's), as the summary and a reset list it. */
-export function tunedItems(cfg: UserConfig, state: TuneState, key: string): TunedItem[] {
+export function tunedItems(cfg: UserConfig, state: TuneState, key: string, aliases?: Aliases): TunedItem[] {
   const out: TunedItem[] = [];
   const add = (t: Tuned, where: TunedItem["where"]) => out.push({ id: t.id, action: t.action, what: t.what, scope: t.scope, from: t.default, to: t.value, at: t.at.slice(0, 10), why: t.why, source: "tuned", where });
-  for (const t of allTuned(cfg.tuning?.[key] ?? {})) add(t, "config");
+  for (const t of allTuned(keyTuningOf(cfg, key, aliases) ?? {})) add(t, "config");
   for (const t of allTuned(state[key] ?? {})) add(t, "research");
   return out;
 }
@@ -705,14 +872,17 @@ export function tunedItems(cfg: UserConfig, state: TuneState, key: string): Tune
 /** The changes in force for a key here, measured or not (tuning off or an archive: none). */
 export function tunedFor(settings: Settings, tree: Tree, key: string): TunedItem[] {
   if (!tuningOn(settings) || isArchive(tree)) return [];
-  return tunedItems(settings.config, loadTuneState(tree.root), key);
+  const aliases = loadAliases(tree.root);
+  return tunedItems(settings.config, loadTuneState(tree.root, aliases), key, aliases);
 }
 
 /** A change taken back by a person (strom config unset reading.*): its values gone, logged, held back a while. */
 export function forgetTuning(settings: Settings, root: string | undefined, key: string, fields: (keyof KeyTuning)[]): TuneLogEntry[] {
   settings.reload();
-  const kt = settings.config.tuning?.[key];
-  if (!kt) return [];
+  // kept under the key of the model, or by an older strom under an alias of it
+  const name = keysFor(settings.config.tuning, key, loadAliases(root), (v) => v?.reported)[0];
+  const kt = name === undefined ? undefined : settings.config.tuning![name];
+  if (!kt || name === undefined) return [];
   const at = new Date().toISOString();
   const out: TuneLogEntry[] = [];
   const seen = new Set<string>();
@@ -724,7 +894,7 @@ export function forgetTuning(settings: Settings, root: string | undefined, key: 
     delete kt[f];
   }
   if (!out.length) return [];
-  if (!allTuned(kt).length && !kt.reported) delete settings.config.tuning![key];
+  if (!allTuned(kt).length && !kt.reported) delete settings.config.tuning![name];
   if (settings.config.tuning && !Object.keys(settings.config.tuning).length) delete settings.config.tuning;
   settings.save();
   if (root) appendTuneLog(root, out);

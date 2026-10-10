@@ -6,7 +6,7 @@
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, truncate } from "../cli/format.ts";
+import { lines, numberIn, truncate } from "../cli/format.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { StromError, UsageError } from "../core/errors.ts";
 import { which } from "../core/which.ts";
@@ -30,7 +30,8 @@ import {
   type CalNegative,
   type SizeScore,
 } from "../core/viewsample.ts";
-import { calibrationKey, calibrationLabel, defaultViewSizes, viewModel, type ViewCalibration } from "../core/viewsizes.ts";
+import { calibrationKey, calibrationLabel, calibrationOf, defaultViewSizes, viewModel, type ViewCalibration } from "../core/viewsizes.ts";
+import { loadAliases, resolveKey, splitKey } from "../core/modelkey.ts";
 import { bookId, hostName, RESET_PARTS, type ResetPart } from "../core/tunereset.ts";
 import { resetReading, type ResetRequest } from "../cli/tunereset.ts";
 import { BOOKS_SHOWN, groups, otherUnits, READING_DEFAULTS, refreshRollup, summarize, UNKNOWN_KEY, type BookSummary, type TunedItem } from "../core/readstats.ts";
@@ -103,43 +104,41 @@ function sizesOption(raw: unknown, max: number): number[] {
 /** The signals said one by one in the human report (all of them in --json). */
 const SIGNALS_SHOWN = 20;
 
-/** A number as a language writes it; a language Intl does not know: English. */
-function numberIn(lang: string, n: number, o: Intl.NumberFormatOptions): string {
-  try {
-    return new Intl.NumberFormat(lang, o).format(n);
-  } catch {
-    return new Intl.NumberFormat("en", o).format(n);
-  }
-}
-
 /**
  * strom media calibrate --report: how the reading of scans went for this agent and model, from what strom recorded —
  * free, no agent, no network; the summary kept in .strom/metrics/rollup.json made again, and what only adds accuracy or
  * saves requests set by itself from it (core/tune.ts) — nothing else changed.
  */
-function report(ctx: Context, tree: Tree, key: string, who: string): { text: string; data: unknown } {
+function report(ctx: Context, tree: Tree, askedKey: string, whoAsked: string): { text: string; data: unknown } {
   const lang = tree.lang;
   const t = (k: UIKey, values: Record<string, string | number> = {}) => ui(lang, k, values);
   // the summary made again, and what only adds accuracy or saves requests set by itself from it (core/tune.ts)
   const otherResearch = otherUnits(ctx.knownTrees().map((k) => k.root), tree.root);
   const rollup = selfTune(tree, { settings: ctx.settings, others: otherResearch }).rollup;
+  // the key of the model the alias asked runs on, as the history now says it (core/modelkey.ts)
+  const aliases = loadAliases(tree.root);
+  const key = resolveKey(askedKey, aliases);
+  const who = key === askedKey ? whoAsked : calibrationLabel(key, t("ui.settings.model.own"));
   const units = rollup?.units ?? [];
   const all = groups(units);
   const mine = all.filter((g) => g.key === key);
   const own = t("ui.settings.model.own");
   // what nothing said the agent and model of: said so, never under the agent and model of now
-  const label = (g: { key: string; reported?: string }) => `${g.key === UNKNOWN_KEY ? t("ui.tune.unknownKey") : calibrationLabel(g.key, own)}${g.reported ? ` (${g.reported})` : ""}`;
+  // the model said only where the key names another (an alias kept from before, a model it fell back to)
+  const label = (g: { key: string; reported?: string }) => `${g.key === UNKNOWN_KEY ? t("ui.tune.unknownKey") : calibrationLabel(g.key, own)}${g.reported && g.reported !== splitKey(g.key).model ? ` (${g.reported})` : ""}`;
   const others = all.filter((g) => g !== mine[0]).map((g) => ({ key: g.key, ...(g.reported ? { model: g.reported } : {}), units: g.units.length, scans: g.units.reduce((n, u) => n + Object.values(u.books).reduce((m, b) => m + b.scans, 0), 0) }));
   const othersLine = others.length ? t("ui.tune.others", { list: others.map((o) => `${label(o.model ? { key: o.key, reported: o.model } : { key: o.key })} (${o.scans})`).join(", ") }) : undefined;
   const group = mine[0];
   // what is in force for the key, measured or not: what strom set (each with its id, where it is kept) and the
   // person's own calibration of the sizes
-  const cal = ctx.settings.config.viewSizes?.[key];
+  const cal = calibrationOf(ctx.settings.config, key, aliases);
   const calibration = cal ? { find: cal.find, read: cal.read, at: cal.at, sample: cal.sample, source: "calibrated" as const } : undefined;
+  // its counts as the research language writes them (sizes in px as everywhere: 1400 px)
+  const figure = (v: unknown) => (typeof v === "number" ? numberIn(lang, v, { maximumFractionDigits: 1 }) : String(v));
   const inForce = (tuned: TunedItem[]) => {
-    const said = tunedSaid(tuned).map((x) => t(`ui.tune.rec.${x.action}` as UIKey, { scope: x.scope.replace(/^(book|host):/, ""), from: String(x.from), to: String(x.to) }));
+    const said = tunedSaid(tuned).map((x) => t(`ui.tune.rec.${x.action}` as UIKey, { scope: x.scope.replace(/^(book|host):/, ""), from: figure(x.from), to: figure(x.to) }));
     return {
-      text: lines(said.length ? lines(t("ui.tune.tuned"), ...said) : tuningOn(ctx.settings) ? undefined : t("ui.tune.off"), cal ? t("ui.tune.calibrated", { find: cal.find, read: cal.read, at: cal.at, n: cal.sample }) : undefined) || undefined,
+      text: lines(said.length ? lines(t("ui.tune.tuned"), ...said) : tuningOn(ctx.settings) ? undefined : t("ui.tune.off"), cal ? t("ui.tune.calibrated", { find: cal.find, read: cal.read, at: cal.at, n: figure(cal.sample) }) : undefined) || undefined,
       // the way back, last (core/tunereset.ts)
       reset: said.length || cal ? t("ui.tune.reset.last") : undefined,
     };
@@ -155,7 +154,19 @@ function report(ctx: Context, tree: Tree, key: string, who: string): { text: str
   const asked = tuneQuestions(tree, ctx.settings, { others: otherResearch, write: true }).due;
   const data = { ...r, ...(calibration ? { calibration } : {}), questions: asked, others, updated: rollup?.updated, ...(rollup?.backfillLogs ? { backfillLogs: rollup.backfillLogs } : {}) };
   const f = inForce(r.tuned);
-  if (!r.samples.scans) return { text: lines(t("ui.tune.noscans", { agent: label(group), sessions: r.samples.sessions }), f.text, othersLine, f.reset), data };
+  const perHost = ctx.settings.webPerHost(tree.config);
+  // the agent's own web tools: pages per host and its searches (never an archive's fetch) — a connector where it is much
+  const web =
+    r.web.requests || r.web.searches
+      ? lines(
+          t("ui.tune.web"),
+          ...r.web.hosts.slice(0, BOOKS_SHOWN).map((h) => t("ui.tune.web.host", { n: h.requests, host: h.host, sessions: h.sessions, most: h.most })),
+          r.web.hosts.length > BOOKS_SHOWN ? t("ui.tune.more", { n: r.web.hosts.length - BOOKS_SHOWN }) : undefined,
+          r.web.searches ? t("ui.tune.web.searches", { n: r.web.searches }) : undefined,
+          r.web.hosts.some((h) => h.most > perHost) ? t("ui.tune.web.many", { limit: perHost }) : undefined,
+        )
+      : undefined;
+  if (!r.samples.scans) return { text: lines(t("ui.tune.noscans", { agent: label(group), sessions: r.samples.sessions }), web, f.text, othersLine, f.reset), data };
 
   // numbers as the research language writes them (1,4 · 0,158 $ in Czech; 1.4 · $0.158 in English)
   const nf = (n: number, digits = 1) => numberIn(lang, n, { maximumFractionDigits: digits });
@@ -223,6 +234,8 @@ function report(ctx: Context, tree: Tree, key: string, who: string): { text: str
         return t("ui.tune.sig.M10", { n: s.n, of: s.of ?? 0 });
       case "M11":
         return t("ui.tune.sig.M11", { scope, value: pct(s.value), n: s.n, of: s.of ?? 0 });
+      case "M12":
+        return t("ui.tune.sig.M12", { n: s.n, of: s.of ?? 0, ctx: nf(s.extra?.ctx ?? 0, 0), views: nf(s.extra?.views ?? 0, 0), peak: nf(s.extra?.peak ?? 0, 0) });
     }
   });
   const recLines = r.recommend.map((x) => t(`ui.tune.rec.${x.id}` as UIKey, { scope: scopeOf(x.scope), from: x.from ?? 0, to: x.to ?? 0 }));
@@ -237,6 +250,7 @@ function report(ctx: Context, tree: Tree, key: string, who: string): { text: str
     rollup?.backfillLogs && (rollup.backfillLogs.gone || rollup.backfillLogs.skipped) ? t("ui.tune.backfill.partial", { gone: rollup.backfillLogs.gone, skipped: rollup.backfillLogs.skipped }) : undefined,
     bookLines.length ? lines(t("ui.tune.books"), ...bookLines, r.books.length > shown.length ? t("ui.tune.more", { n: r.books.length - shown.length }) : undefined) : undefined,
     hostLines.length ? lines(t("ui.tune.hosts"), ...hostLines) : undefined,
+    web,
     sigLines.length ? lines(t("ui.tune.signals"), ...sigLines.slice(0, SIGNALS_SHOWN), sigLines.length > SIGNALS_SHOWN ? t("ui.tune.more", { n: sigLines.length - SIGNALS_SHOWN }) : undefined) : t("ui.tune.signals.none"),
     r.short.length ? t("ui.tune.short", { list: r.short.map((m) => t(`ui.tune.m.${m}` as UIKey)).join(", ") }) : undefined,
     f.text,
@@ -391,7 +405,8 @@ register({
     "--report is free: how the reading of scans went, from what strom recorded of the sessions, the\n" +
     "readers, the views and the fetches (.strom/metrics, summed up in rollup.json) — cost and views per scan, unsure\n" +
     "readings, enlarged views, context clears, readers without a result, per book and per archive the requests, the waits\n" +
-    "for its limit and the images fetched and never read; what is clearly above the usual of the same agent and model and\n" +
+    "for its limit and the images fetched and never read; the pages the agent fetched with its own web tools per site and\n" +
+    "its web searches (a site asked often: a connector is the gentle way); what is clearly above the usual of the same agent and model and\n" +
     "what would be suggested. No agent, no network. What only adds accuracy or saves requests to an archive strom sets by\n" +
     "itself and says so, with its reason (tune.auto: on by default) — never a smaller view, a cheaper model or more requests.\n" +
     "--questions: what only a person decides about it — smaller views (only through the paid calibration), weak scans\n" +
@@ -454,11 +469,13 @@ register({
     refuseInArchive(tree, "strom media calibrate");
     const agent = ctx.settings.agent(tree.config).value;
     const model = viewModel(ctx.settings, agent, tree.config, typeof opts.model === "string" ? opts.model : undefined);
-    const key = calibrationKey(agent, model);
+    const asked = calibrationKey(agent, model);
+    // the model the alias runs on here (core/modelkey.ts): what is measured and tuned goes by it
+    const key = resolveKey(asked, loadAliases(tree.root));
     const who = calibrationLabel(key, t("ui.settings.model.own"));
     const defaults = defaultViewSizes(agent, model);
 
-    if (opts.report) return report(ctx, tree, key, who);
+    if (opts.report) return report(ctx, tree, asked, calibrationLabel(asked, t("ui.settings.model.own")));
     if (typeof opts.answer === "string") return answer(ctx, tree, opts.answer);
     if (opts.questions) return questions(ctx, tree, who);
 
@@ -539,7 +556,9 @@ register({
       stored = { find: find.size, read: read.size, at: day, sample: cases.length, sizes, clear: { find: find.clear, read: read.clear }, ...(spent ? { usd: Math.round(spent * 100) / 100 } : {}) };
       // the settings as they are now (another strom may have saved meanwhile): this agent and model's alone
       ctx.settings.reload();
-      ctx.settings.config.viewSizes = { ...(ctx.settings.config.viewSizes ?? {}), [key]: stored };
+      // under the model the readers ran on (their agent said it as they began: core/modelkey.ts)
+      const measured = resolveKey(asked, loadAliases(tree.root));
+      ctx.settings.config.viewSizes = { ...(ctx.settings.config.viewSizes ?? {}), [measured]: stored };
       ctx.settings.save();
     }
 

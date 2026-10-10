@@ -34,6 +34,39 @@ export function hasEffort(agent: string): boolean {
   return !!EFFORTS[agent];
 }
 
+/** The levels from the least thinking to the most: a higher one uses up a plan's limits sooner. */
+const EFFORT_ORDER: readonly string[] = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"];
+
+/** What a session runs with where neither strom nor the agent's own settings say a level: the agents' usual default. */
+const USUAL_EFFORT = "medium";
+
+/**
+ * Whether `next` makes the sessions think more than `now` (each undefined: the agent's own setting, `own` when strom
+ * knows it, else the agents' usual default) — raising it is the person's decision alone, lowering it anyone's.
+ */
+export function raisesEffort(next: string | undefined, now: string | undefined, own?: string): boolean {
+  const rank = (e: string | undefined) => EFFORT_ORDER.indexOf((e ?? own ?? USUAL_EFFORT).toLowerCase());
+  return rank(next) > rank(now);
+}
+
+/** The level a session's own extra arguments set (Codex `-c model_reasoning_effort=…`, `--effort`, `--reasoning-effort`). */
+export function effortInArgs(agent: string, extra: readonly string[] | undefined): string | undefined {
+  if (agent === "codex") return codexEffortArg(extra);
+  const flag = agent === "grok" ? "--reasoning-effort" : agent === "claude" || agent === "antigravity" ? "--effort" : undefined;
+  if (!flag || !extra) return undefined;
+  let found: string | undefined;
+  for (let i = 0; i < extra.length; i++) {
+    if (extra[i] === flag && extra[i + 1]) found = extra[i + 1];
+    else if (extra[i]!.startsWith(`${flag}=`)) found = extra[i]!.slice(flag.length + 1);
+  }
+  return found?.trim() || undefined;
+}
+
+/** The agent's own setting for its effort where strom knows it (Codex's config.toml; read only). */
+export function ownEffort(env: Env, agent: string): string | undefined {
+  return agent === "codex" ? readCodexConfig(env).effort : undefined;
+}
+
 /** The agent's own switch for a session's effort (none: the agent's own settings hold). */
 export function effortArgs(agent: string, effort: string | undefined): string[] {
   if (!effort || !EFFORTS[agent]?.includes(effort)) return [];

@@ -133,31 +133,33 @@ test("Claude Code's choice as it was: Opus, Sonnet or the agent's own — no lis
   w.cleanup();
 });
 
-test("the menu's settings: the research's model — the agent's strong ones, the one kept suggested, 0 changes nothing; a tree's own model changed in the tree; nothing in an archive", unix, async () => {
+test("the menu's settings: the setup's model step alone — the agent's strong ones, the one kept suggested, 0 changes nothing; a tree's own model changed in the tree; nothing in an archive", unix, async () => {
   const w = new World();
   fakes(w, { grok: listing(w, "grok", GROK, "models") });
   await w.ok(["setup", "--yes"]);
   await w.ok(["init", "Novákovi"]);
   w.cwd = w.treeDir("Novákovi");
-  // 8 settings · 7 the model: 2 grok-4.6 · 0 · 0
-  const r = await w.ok([], { tty: true, answers: ["8", "7", "2", "0", "0"] });
-  assert.match(r.out, / 6 {2}Výzkum, nebo jen archiv[^\n]*\n {3}7 {2}Model výzkumu \(Grok Build\): vlastní model agenta\n/);
+  // 8 settings · 1 the setup: 2 only the model · 2 grok-4.6 · 0 · 0
+  const r = await w.ok([], { tty: true, answers: ["8", "1", "2", "2", "0", "0"] });
+  assert.match(r.out, / 1 {2}Jazyk, agent, model[^\n]*\n/);
+  assert.match(r.out, /Co nastavit\?\n {3}1 {2}Všechno, krok za krokem \(průvodce nastavením\)\n {3}2 {2}Jen model výzkumu \(Grok Build\): vlastní model agenta\n {3}0 {2}Zpět\nVybrat \[1\]/);
   assert.match(r.out, /Který model má v Grok Build dělat výzkum\?[^\n]*\n {3}1 {2}grok-4\.7 \(doporučeno\)\n {3}2 {2}grok-4\.6\n {3}3 {2}Nechat na agentovi \(teď grok-4\.7\)\n {3}0 {2}Zpět\nVybrat \[3\]/);
+  assert.doesNotMatch(r.out, /Jazyk \(|V jakém jazyce/, "only the model: no other step of the setup");
   assert.equal(config(w).models.grok.lead, "grok-4.6");
-  // 0: nothing changed
-  const back = await w.ok([], { tty: true, answers: ["8", "7", "0", "0", "0"] });
-  assert.match(back.out, /Model výzkumu \(Grok Build\): grok-4\.6/);
+  // 0 at the model: nothing changed; 0 at "what to set up": back in the settings, nothing started
+  const back = await w.ok([], { tty: true, answers: ["8", "1", "2", "0", "1", "0", "0", "0"] });
+  assert.match(back.out, /Jen model výzkumu \(Grok Build\): grok-4\.6/);
   assert.match(back.out, /Vybrat \[2\]/);
   assert.equal(config(w).models.grok.lead, "grok-4.6");
   // the tree's own model: changed there, this computer's stays
   await w.ok(["config", "set", "model.lead", "grok-4.5", "--for-tree"]);
-  await w.ok([], { tty: true, answers: ["8", "7", "1", "0", "0"] });
+  await w.ok([], { tty: true, answers: ["8", "1", "2", "1", "0", "0"] });
   assert.equal(readJsonFile(path.join(w.cwd, "strom.json")).models.grok.lead, "grok-4.7");
   assert.equal(config(w).models.grok.lead, "grok-4.6");
-  // an archive: nothing of a model
+  // an archive: nothing of a model, the setup started at once
   await w.ok(["mode", "archive"], { tty: true, answers: ["a"] });
   const a = await w.ok([], { tty: true, answers: ["8", "0", "0"] });
-  assert.doesNotMatch(a.out, /Model výzkumu|Který model/);
+  assert.doesNotMatch(a.out, /model|Co nastavit/i);
   w.cleanup();
 });
 

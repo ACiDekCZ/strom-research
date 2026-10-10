@@ -108,6 +108,33 @@ export function stromLauncher(): { command: string; args: string[] } {
 }
 
 /**
+ * A `strom` in the tree's .strom/bin for the agent — on its PATH when strom starts it, named by the tree's agent hooks —
+ * pointing at this very installation (a shell script and a .cmd; strom-hook.cmd: the .cmd whose exit is always 0, for
+ * a hook). Written only when it differs. The folder.
+ */
+export function writeShim(root: string): string {
+  const dir = path.join(root, ".strom", "bin");
+  const { command, args } = stromLauncher();
+  const run = [command, ...args].map((a) => `"${a}"`).join(" ");
+  fs.mkdirSync(dir, { recursive: true });
+  const put = (name: string, text: string, mode?: number) => {
+    const file = path.join(dir, name);
+    try {
+      if (fs.readFileSync(file, "utf8") === text) return;
+    } catch {
+      // not there yet
+    }
+    fs.writeFileSync(file, text, mode === undefined ? {} : { mode });
+  };
+  put("strom", `#!/bin/sh\nexec ${run} "$@"\n`, 0o755);
+  put("strom.cmd", `@echo off\r\n${run} %*\r\n`);
+  // for an agent's hook on Windows run by a shell that is not PowerShell (Grok's): strom's answer passed on, its
+  // failure never blocking the call — an older strom that knows not the command exits 2, which would
+  put("strom-hook.cmd", `@echo off\r\ncall "%~dp0strom.cmd" %*\r\nexit /b 0\r\n`);
+  return dir;
+}
+
+/**
  * A path as compared, both as named and as the disk has it (/tmp and /private/tmp — a folder not there yet by the
  * nearest one that is); case aside on macOS and Windows.
  */

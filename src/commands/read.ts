@@ -156,10 +156,10 @@ register({
     const effort = ctx.settings.effort(agentId, tree.config)?.value;
     // as at the start of the session at work: what strom tuned for the readers' agent and model holds for all of it
     const since = currentSession(tree, ctx.env)?.started;
-    const sizes = viewSizesFor(ctx.settings, agentId, tree.config, model);
+    const sizes = viewSizesFor(ctx.settings, agentId, tree.config, model, tree.root);
     const tuned = treeTuning(tree, ctx.settings);
     // a reader's batch: smaller where the readers of this agent and model lost their context (core/tune.ts, A2)
-    const size = opts.batch === undefined ? readingOf(ctx.settings.config, sizes.key, { since, on: tuningOn(ctx.settings) }).readerBatch : Number(opts.batch);
+    const size = opts.batch === undefined ? readingOf(ctx.settings.config, sizes.key, { since, on: tuningOn(ctx.settings), root: tree.root }).readerBatch : Number(opts.batch);
     if (!Number.isInteger(size) || size < 1) throw new UsageError("--batch must be a positive number");
     const parallel = opts.parallel === undefined ? 3 : Math.max(1, Number(opts.parallel) || 1);
     // a reader's time limit: by hand, else by what it is given and what the readers before it needed (readerLimit)
@@ -280,7 +280,7 @@ register({
         ...(model ? { model } : {}),
         // the reasoning effort the person chose for the agent (model.effort): readers read with it too
         ...(effort ? { effort } : {}),
-        ...usageOpt(tree, `read-${stem}-${k + 1}`, { agent: agentId, key: sizes.key, ...(model ? { model } : {}), ...(effort ? { effort } : {}), reader: "read" }),
+        ...usageOpt(tree, `read-${stem}-${k + 1}`, { agent: agentId, key: sizes.asked ?? sizes.key, ...(model ? { model } : {}), ...(effort ? { effort } : {}), reader: "read" }),
       });
       const ranMs = Date.now() - startedAt;
       // A reader that wrote its report whole, without strom's head (in the research language, found live): the head
@@ -304,7 +304,7 @@ register({
         reader: `read-${stem}-${k + 1}`,
         kind: "read",
         agent: agentId,
-        key: sizes.key,
+        key: sizes.asked ?? sizes.key,
         model,
         reported: r.metrics.model,
         images: group.length,

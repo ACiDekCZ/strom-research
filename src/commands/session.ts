@@ -12,14 +12,14 @@ import path from "node:path";
 import { register } from "../cli/registry.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, table, truncate } from "../cli/format.ts";
+import { lines, shellArg, table, truncate } from "../cli/format.ts";
 import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
 import type { Person, Research, Session, Task } from "../core/model.ts";
 import { closeSession, costPartial, currentSession, openSessions, othersAtWork, sessionCost, sessionNote, startSession, whichSession, withReaders } from "../core/session.ts";
 import { reviveLive } from "../core/live.ts";
 import { buildBrief } from "../brief/brief.ts";
 import { sandboxOfRun } from "../core/sandbox.ts";
-import { agentSettingsSaid } from "../agents/effort.ts";
+import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../agents/effort.ts";
 import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
 import { prependPath, type AgentLimit } from "../runners/runner.ts";
@@ -42,7 +42,7 @@ import { askGate, checkGateSpec, ensureGatesDir, gateLogLine, gateRecord, loadGa
 import { keepAwake } from "../core/awake.ts";
 import { askFinish, deadlineOf, finishAsked, finishByLimit, WRAP_UP_MS } from "../core/clock.ts";
 import { OWN_GROUP } from "../runners/runner.ts";
-import { stromLauncher } from "../core/self.ts";
+import { stromLauncher, writeShim } from "../core/self.ts";
 import { phrase } from "../core/phrases.ts";
 import { enterWorker, markPaused, runAlive, runsAtWork } from "../core/workers.ts";
 import type { Env } from "../core/paths.ts";
@@ -55,7 +55,7 @@ import { agentBrowser, sessionBrowser, treeBrowserConnectors } from "../core/con
 import { browserNote } from "./connectors.ts";
 import { reviewProposals } from "../core/review.ts";
 import { refuseInArchive } from "../core/mode.ts";
-import { usageOpt } from "../core/metrics.ts";
+import { usageOpt, webOpt } from "../core/metrics.ts";
 import { calibrationKey, viewModel } from "../core/viewsizes.ts";
 
 function written(tree: Tree): string {
@@ -314,6 +314,7 @@ register(
                 costText(m),
                 s.ended && `${Math.max(1, Math.round((Date.parse(s.ended) - Date.parse(s.started)) / 60000))} min`,
                 m.denied && `${m.denied} refused by permissions`,
+                m.refused && `${m.refused} refused by strom (its web limits for one server)`,
               ]
                 .filter(Boolean)
                 .join(" · ")}`
@@ -603,13 +604,7 @@ register(
 
 /** A `strom` on PATH for the agent, pointing at this very installation. */
 export function shimDir(tree: Tree): string {
-  const dir = path.join(tree.root, ".strom", "bin");
-  const { command, args } = stromLauncher();
-  const run = [command, ...args].map((a) => `"${a}"`).join(" ");
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "strom"), `#!/bin/sh\nexec ${run} "$@"\n`, { mode: 0o755 });
-  fs.writeFileSync(path.join(dir, "strom.cmd"), `@echo off\r\n${run} %*\r\n`);
-  return dir;
+  return writeShim(tree.root);
 }
 
 function parseUntil(v: unknown): number | undefined {
@@ -714,6 +709,18 @@ register({
     const effort = ctx.settings.effort(runnerId, treeCfg)?.value;
     // what the sessions run with, and from where (Codex: its config.toml where strom sets nothing) — said, never changed
     const said = agentSettingsSaid(ctx.env, runnerId, { model: models.lead, effort, extraArgs: extra });
+    // a higher effort for this run alone, by the agent's own switch after --: the person's decision, as the setting is
+    const runEffort = effortInArgs(runnerId, extra);
+    if (runEffort && isAgent(ctx.env) && raisesEffort(runEffort, effort, ownEffort(ctx.env, runnerId))) {
+      const name = PROFILES[runnerId]?.name ?? runnerId;
+      const lang = ctx.uiLang();
+      ctx.requireHuman(
+        `Start ${name} working alone with the reasoning effort ${runEffort} for this run, above the setting (a higher effort uses up the plan's limits sooner)?`,
+        `strom run -- ${(extra ?? []).map(shellArg).join(" ")}`,
+        "model.effort",
+        ui(lang, "ui.consent.effort.run", { agent: name, effort: runEffort, now: effort ?? ownEffort(ctx.env, runnerId) ?? ui(lang, "ui.effort.default", { agent: name }) }),
+      );
+    }
     if (runnerId !== "script" && !which(runner.command, ctx.env))
       throw new StromError(`${runner.command} is not installed`, { hint: runnerId === "claude" ? "install Claude Code: https://claude.com/claude-code — then log in once by running: claude" : `install ${runner.command}` });
     const until = parseUntil(opts.until);
@@ -1011,6 +1018,8 @@ register({
             ...(models.vision ? { vision: models.vision } : {}),
             ...(opts.interactive ? { interactive: true } : {}),
           }),
+          // the pages and searches of its own web tools, from its stream (Claude Code's: its hook counts them, never twice)
+          ...(runnerId !== "claude" ? webOpt(tree, { session: session.id, key: calibrationKey(runnerId, viewModel(ctx.settings, runnerId, treeCfg, models.lead)), agent: runnerId }) : {}),
           // the plan's limits as the agent says them: kept for the gate; at the cap's window nearly full (the user's cap),
           // the session is asked to finish — the agent writes down what it found before the limit cuts it off
           onLimits: (limits) => {
@@ -1074,6 +1083,8 @@ register({
         report.push({ session: s.id, task: task.id, outcome: result.outcome, ...(s.summary ? { summary: s.summary } : {}), ...(total !== undefined ? { costUsd: total } : {}), ...(m.readersUsd !== undefined ? { agentUsd: m.costUsd ?? 0, readersUsd: m.readersUsd } : {}) });
         out(`■ ${s.id} ${s.state} · ${result.outcome}${costText(m) ? ` · ${costText(m)}` : ""}${s.summary ? ` · ${truncate(s.summary, 80)}` : ""}`);
         if (result.denied?.length) out(ui(lang, "ui.run.denied", { n: result.denied.length, what: result.denied.slice(0, 3).join(" · ") }));
+        // what strom's own hook refused (its web limits) is strom's, never the permissions'
+        if (result.refused?.length) out(ui(lang, "ui.run.refused", { n: result.refused.length, per: ctx.settings.webPerHost(after.config), what: result.refused.slice(0, 3).join(" · ") }));
         if (!committed) {
           stopCode = "problems";
           break;

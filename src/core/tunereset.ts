@@ -16,8 +16,9 @@ import path from "node:path";
 import { readJsonIfExists, writeFileAtomic } from "./json.ts";
 import { acquireLock } from "./lock.ts";
 import { isReading, wilson, type Unit } from "./readstats.ts";
-import { allTuned, appendTuneLog, loadTuneState, saveTuneState, scopeScans, splitKey, tuneDir, tuneLockFile, type ResetLogItem, type TuneResetEntry, type TuneState, type Tuned } from "./tune.ts";
-import { defaultViewSizes, forgetCalibration, type ViewCalibration } from "./viewsizes.ts";
+import { allTuned, appendTuneLog, canonicalAnswers, keyTuningOf, loadTuneState, migrateTuneKeys, saveTuneState, scopeScans, splitKey, tuneDir, tuneLockFile, type ResetLogItem, type TuneResetEntry, type TuneState, type Tuned } from "./tune.ts";
+import { calibrationOf, defaultViewSizes, forgetCalibration, type ViewCalibration } from "./viewsizes.ts";
+import { keyOf, keysFor, loadAliases, type Aliases } from "./modelkey.ts";
 import type { Settings, UserConfig } from "./config.ts";
 
 /** What a reset can be narrowed to (--only). */
@@ -56,7 +57,14 @@ export interface ResetItem {
   default: unknown;
   source: "calibrated" | "tuned" | "answered";
   at?: string;
+  /** The reason in English (an agent, --json, the log); a person reads it from what follows (cli/tunereset.ts). */
   why?: string;
+  /** The figures of a change of strom's (core/tune.ts reasonOf). */
+  basis?: Record<string, number | string>;
+  /** How many known records a calibration read. */
+  sample?: number;
+  /** Where an answer was given: terminal, window, app. */
+  by?: string;
   reported?: string;
   /** The fields it is kept in (a change of several values), or the name of an answer. */
   fields: string[];
@@ -78,19 +86,26 @@ const answersFile = (root: string) => path.join(tuneDir(root), "answers.json");
 type AnswerRecord = { choice?: unknown; at?: unknown; by?: unknown; tasks?: unknown };
 type Answers = Record<string, Record<string, AnswerRecord>>;
 
-/** The answers kept beside a research (core/tuneask.ts) — none when the file is not there or not one. */
-function researchAnswers(root: string): Answers {
+/** The answers kept beside a research (core/tuneask.ts), under the keys of the models — none when not there or not one. */
+function researchAnswers(root: string, aliases: Aliases = loadAliases(root)): Answers {
   try {
     const a = readJsonIfExists<Answers>(answersFile(root));
-    return a && typeof a === "object" && !Array.isArray(a) ? a : {};
+    return a && typeof a === "object" && !Array.isArray(a) ? canonicalAnswers(a, aliases).answers : {};
   } catch {
     return {};
   }
 }
 
-function configAnswers(cfg: UserConfig): Answers {
+/** The answers of the user config, under the keys of the models (as read: the config's names stay as they are). */
+function configAnswers(cfg: UserConfig, aliases: Aliases = {}): Answers {
   const a = (cfg as unknown as { tuneAnswers?: unknown }).tuneAnswers;
-  return a && typeof a === "object" && !Array.isArray(a) ? (a as Answers) : {};
+  return a && typeof a === "object" && !Array.isArray(a) ? canonicalAnswers(a as Answers, aliases).answers : {};
+}
+
+/** The names the user config keeps a key's answers under (its own, an alias an older strom kept them under). */
+function configAnswerNames(cfg: UserConfig, key: string, aliases: Aliases): string[] {
+  const a = (cfg as unknown as { tuneAnswers?: Answers }).tuneAnswers;
+  return keysFor(a, key, aliases);
 }
 
 /** "B3", "b0003" → "B0003"; anything else as written. */
@@ -138,6 +153,7 @@ function changesIn(store: object | undefined, key: string, where: ResetItem["whe
       source: "tuned" as const,
       at: t.at,
       why: t.why,
+      ...(t.basis && typeof t.basis === "object" ? { basis: t.basis } : {}),
       ...(t.reported ? { reported: t.reported } : {}),
       fields: [],
     };
@@ -170,15 +186,16 @@ function answerItem(key: string, slot: string, a: AnswerRecord, scope: string, k
     default: null,
     source: "answered",
     ...(typeof a.at === "string" ? { at: a.at } : {}),
-    ...(typeof a.by === "string" ? { why: `answered (${a.by})` } : {}),
+    ...(typeof a.by === "string" ? { why: `answered (${a.by})`, by: a.by } : {}),
     fields: [slot],
     ...(tasks.length ? { tasks } : {}),
   };
 }
 
 /** Every key something is kept for: calibrations, changes, answers — of the user config and of this research. */
-function allKeys(root: string, cfg: UserConfig): string[] {
-  return [...new Set([...Object.keys(cfg.viewSizes ?? {}), ...Object.keys(cfg.tuning ?? {}), ...Object.keys(configAnswers(cfg)), ...Object.keys(loadTuneState(root)), ...Object.keys(researchAnswers(root))])].sort();
+function allKeys(root: string, cfg: UserConfig, aliases: Aliases): string[] {
+  const of = (rec: Record<string, { reported?: string } | unknown> | undefined) => Object.entries(rec ?? {}).map(([k, v]) => keyOf(k, (v as { reported?: string } | undefined)?.reported, aliases));
+  return [...new Set([...of(cfg.viewSizes), ...of(cfg.tuning), ...Object.keys(configAnswers(cfg, aliases)), ...Object.keys(loadTuneState(root, aliases)), ...Object.keys(researchAnswers(root, aliases))])].sort();
 }
 
 /**
@@ -186,21 +203,22 @@ function allKeys(root: string, cfg: UserConfig): string[] {
  * calibration and the key's own values only when no book or archive is named.
  */
 export function resetItems(root: string, cfg: UserConfig, f: ResetFilter): ResetItem[] {
-  const keys = f.keys === "all" ? allKeys(root, cfg) : f.keys;
-  const state = loadTuneState(root);
-  const answers = researchAnswers(root);
-  const fromCfg = configAnswers(cfg);
+  const aliases = loadAliases(root);
+  const keys = f.keys === "all" ? allKeys(root, cfg, aliases) : f.keys;
+  const state = loadTuneState(root, aliases);
+  const answers = researchAnswers(root, aliases);
+  const fromCfg = configAnswers(cfg, aliases);
   const narrowed = f.recordset !== undefined || f.host !== undefined;
   const wanted = (scope: string) => !narrowed || (f.recordset !== undefined && scope === `book:${f.recordset}`) || (f.host !== undefined && scope === `host:${f.host}`);
   const out: ResetItem[] = [];
   for (const key of keys) {
     const { agent, model } = splitKey(key);
-    const cal: ViewCalibration | undefined = cfg.viewSizes?.[key];
+    const cal: ViewCalibration | undefined = calibrationOf(cfg, key, aliases);
     if (cal && !narrowed) {
       const d = defaultViewSizes(agent, model);
-      out.push({ id: "calibration", part: "sizes", what: "calibration", key, scope: "key", where: "config", now: { find: cal.find, read: cal.read }, default: { find: d.find, read: d.read }, source: "calibrated", at: cal.at, why: `measured on ${cal.sample} known records`, fields: ["viewSizes"] });
+      out.push({ id: "calibration", part: "sizes", what: "calibration", key, scope: "key", where: "config", now: { find: cal.find, read: cal.read }, default: { find: d.find, read: d.read }, source: "calibrated", at: cal.at, why: `measured on ${cal.sample} known records`, sample: cal.sample, fields: ["viewSizes"] });
     }
-    out.push(...changesIn(cfg.tuning?.[key], key, "config"));
+    out.push(...changesIn(keyTuningOf(cfg, key, aliases), key, "config"));
     const tt = state[key];
     for (const b of Object.values(tt?.books ?? {})) out.push(...changesIn(b, key, "research"));
     for (const h of Object.values(tt?.hosts ?? {})) out.push(...changesIn(h, key, "research"));
@@ -245,17 +263,24 @@ export function applyReset(root: string, settings: Settings, items: ResetItem[],
     settings.reload();
     const cfg = settings.config;
     let cfgChanged = false;
-    const state: TuneState = loadTuneState(root);
+    // this research's own under the keys of the models first (once, with a copy of each file as it was)
+    const aliases = loadAliases(root);
+    migrateTuneKeys(root, aliases);
+    const state: TuneState = loadTuneState(root, aliases);
     let stateChanged = false;
-    const answers = researchAnswers(root);
+    const answers = researchAnswers(root, aliases);
     let answersChanged = false;
     for (const i of items) {
-      if (i.source === "calibrated") cfgChanged = forgetCalibration(cfg, i.key) || cfgChanged;
+      if (i.source === "calibrated") cfgChanged = forgetCalibration(cfg, i.key, aliases) || cfgChanged;
       else if (i.source === "tuned" && i.where === "config") {
-        const kt = cfg.tuning?.[i.key] as Record<string, unknown> | undefined;
-        if (!kt) continue;
-        for (const f of i.fields) if (f in kt) delete kt[f];
-        if (!allTuned(kt).length) delete cfg.tuning![i.key];
+        // the key's own, and what an older strom kept under an alias of it
+        const names = keysFor(cfg.tuning, i.key, aliases, (v) => v?.reported);
+        if (!names.length) continue;
+        for (const name of names) {
+          const kt = cfg.tuning![name] as Record<string, unknown>;
+          for (const f of i.fields) if (f in kt) delete kt[f];
+          if (!allTuned(kt).length) delete cfg.tuning![name];
+        }
         if (emptyObject(cfg.tuning)) delete cfg.tuning;
         cfgChanged = true;
       } else if (i.source === "tuned") {
@@ -269,10 +294,13 @@ export function applyReset(root: string, settings: Settings, items: ResetItem[],
         if (emptyObject(tt.books) && emptyObject(tt.hosts)) delete state[i.key];
         stateChanged = true;
       } else if (i.where === "config") {
-        const all = configAnswers(cfg);
-        if (!all[i.key]) continue;
-        for (const f of i.fields) delete all[i.key]![f];
-        if (emptyObject(all[i.key])) delete all[i.key];
+        const all = (cfg as unknown as { tuneAnswers?: Answers }).tuneAnswers;
+        const names = configAnswerNames(cfg, i.key, aliases);
+        if (!all || !names.length) continue;
+        for (const name of names) {
+          for (const f of i.fields) delete all[name]![f];
+          if (emptyObject(all[name])) delete all[name];
+        }
         if (emptyObject(all)) delete (cfg as unknown as { tuneAnswers?: unknown }).tuneAnswers;
         cfgChanged = true;
       } else {
@@ -341,7 +369,7 @@ export interface Worsening {
  * clearly worse: compared over the readings just before the change and those since — only once enough came since.
  */
 export function worsenings(root: string, cfg: UserConfig, key: string, units: Unit[], state: TuneState = loadTuneState(root)): Worsening[] {
-  const changes = [...changesIn(cfg.tuning?.[key], key, "config"), ...Object.values(state[key]?.books ?? {}).flatMap((b) => changesIn(b, key, "research"))].filter((c) => c.scope === "key" || c.scope.startsWith("book:"));
+  const changes = [...changesIn(keyTuningOf(cfg, key, loadAliases(root)), key, "config"), ...Object.values(state[key]?.books ?? {}).flatMap((b) => changesIn(b, key, "research"))].filter((c) => c.scope === "key" || c.scope.startsWith("book:"));
   const mine = units.filter((u) => u.key === key).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const out: Worsening[] = [];
   for (const ch of changes) {

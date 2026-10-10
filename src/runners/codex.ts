@@ -8,7 +8,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runJsonLines, type Heard } from "./jsonl.ts";
-import { looksLikeLimit, usageNumber, tellUsage, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { looksLikeLimit, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import type { AgentWeb } from "../core/metrics.ts";
 import { codexModel, effortArgs } from "../agents/effort.ts";
 import { isolated, type Env } from "../core/paths.ts";
 
@@ -75,6 +76,19 @@ export function codexResumeArgs(id: string, opts: Pick<RunOptions, "model" | "ef
  */
 const STEPS = new Set(["agent_message", "command_execution", "file_change", "mcp_tool_call", "web_search", "collab_tool_call"]);
 
+/**
+ * What Codex's web search did, from its item (codex 0.155 `exec --json`: a web_search item with its query, and an action
+ * as its Responses API says it — search, open_page with its url, find_in_page): a page it opened is a request to that
+ * host, a search a search; a find in a page already opened asks nothing more. Exported for tests.
+ */
+export function codexWeb(item: Record<string, unknown> | undefined): AgentWeb | undefined {
+  if (item?.type !== "web_search") return undefined;
+  const action = (item.action ?? {}) as { type?: unknown; url?: unknown };
+  if (action.type === "find_in_page") return undefined;
+  if (action.type === "open_page") return typeof action.url === "string" && action.url ? { via: "web", url: action.url, tool: "web_search" } : undefined;
+  return { via: "search", tool: "web_search" };
+}
+
 /** The error Codex said last, kept when an earlier one said the plan's limit (the later one may only say the turn failed). */
 function failure(said: string, had: string): string {
   return looksLikeLimit(had).limit && !looksLikeLimit(said).limit ? had : said || had;
@@ -116,6 +130,11 @@ export const codexRunner: Runner = {
       // The sandbox refused a command (a write outside the tree, the network off): counted like a denial.
       if (msg.type === "item.completed" && item?.type === "command_execution" && item.exit_code !== 0 && /operation not permitted|sandbox|read-only file system/i.test(item.aggregated_output ?? ""))
         heard.denied.push(`Bash: ${String(item.command ?? "").replace(/^\S*sh -lc '(.*)'$/s, "$1").slice(0, 120)}`);
+      // its web search, once its item is done (counted after the fact: core/metrics.ts)
+      if (msg.type === "item.completed") {
+        const w = codexWeb(msg.item as Record<string, unknown> | undefined);
+        if (w) tellWeb(opts, w);
+      }
       if (msg.type === "item.completed" && item?.type && STEPS.has(item.type)) {
         steps++;
         heard.metrics.turns = (heard.metrics.turns ?? 0) + 1;

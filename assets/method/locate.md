@@ -1,6 +1,6 @@
 # Method: locating records
 
-Before anything can be proven you need to know where the records are.
+Before anything can be proven, know where the records are.
 
 1. Place and time decide the jurisdiction. Record it: `strom place add …` and
    `strom place jurisdiction L… --kind parish|civil|manor|district --from --to`.

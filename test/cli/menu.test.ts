@@ -12,6 +12,7 @@ import { droppedPaths } from "../../src/cli/menu-parts.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
+import { ui } from "../../src/cli/ui.ts";
 
 const unix = { skip: !hasGit || process.platform === "win32" };
 
@@ -98,12 +99,12 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   fs.writeFileSync(path.join(hook, "hook.json"), JSON.stringify({ interface: 1, title: "Zpráva do telefonu", command: ["node", "hook.ts"] }));
   const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   // 8 settings · 2 working alone · 1 minutes: 90 · 2 the condition: 1 Claude usage, 12 · 0 back
-  // · 3 hooks · 1 on: yes · 0 back · 8 Remote Control: yes · 4 archives · 1 ask first: yes · 0 back · 0 back · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["8", "2", "1", "90", "2", "1", "12", "0", "3", "1", "a", "0", "8", "a", "4", "1", "a", "0", "0", "0"] });
+  // · 3 hooks · 1 on: yes · 0 back · 7 Remote Control: yes · 4 archives · 1 ask first: yes · 0 back · 0 back · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["8", "2", "1", "90", "2", "1", "12", "0", "3", "1", "a", "0", "7", "a", "4", "1", "a", "0", "0", "0"] });
   assert.match(r.out, /Nastavení \(na tomto počítači\)\n {3}1 {2}Jazyk, agent, model/);
   assert.match(r.out, /Samostatná práce agenta: 90 min na úkol · podmínka: Claude usage 12/);
   assert.match(r.out, /Zpráva do telefonu: zapnuto/);
-  assert.match(r.out, /Sledovat agenta z telefonu \(Remote Control\): rozhovory i samostatná práce/);
+  assert.match(r.out, / 7 {2}Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): rozhovory i samostatná práce\n/);
   assert.match(r.out, /Stahovače se ptají, než začnou: zapnuto/);
   const c = config();
   assert.equal(c.runMinutes, 90);
@@ -115,6 +116,59 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   await w.ok([], { tty: true, answers: ["8", "2", "2", "2", "0", "3", "1", "0", "0", "0"] });
   assert.equal(config().runGate, undefined);
   assert.equal(config().hooks, undefined);
+  w.cleanup();
+});
+
+/** The numbers of a (sub)menu's items in the last listing that has this title, 0 last. */
+function numbersUnder(out: string, title: string): number[] {
+  const at = out.lastIndexOf(`${title}\n`);
+  assert.ok(at >= 0, `${title} in:\n${out}`);
+  const block = out.slice(at + title.length + 1).split(/\nVybrat /u)[0]!;
+  return [...block.matchAll(/^ {2,3}(\d) {2}/gmu)].map((m) => Number(m[1]));
+}
+
+test("the settings: at most nine items and 0, each at a number of its own — what shows only sometimes leaves a gap, its number refused; maintenance a submenu; an archive's without an agent", unix, async () => {
+  const w = await world();
+  const title = "Nastavení (na tomto počítači)";
+  // Claude Code here: every item
+  const all = await w.ok([], { tty: true, answers: ["8", "0", "0"] });
+  assert.deepEqual(numbersUnder(all.out, title), [1, 2, 3, 4, 5, 6, 7, 8, 9, 0], all.out);
+  assert.match(
+    all.out,
+    / 1 {2}Jazyk, agent, model[^\n]*\n {3}2 {2}Samostatná práce agenta[^\n]*\n {3}3 {2}Zprávy o tom, co se uloží[^\n]*\n {3}4 {2}Archivy[^\n]*\n {3}5 {2}Výzkum, nebo jen archiv[^\n]*\n {3}6 {2}Vyladit čtení snímků[^\n]*\n {3}7 {2}Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): vypnuto\n {3}8 {2}Údržba: kontrola instalace, místo na disku\n {3}9 {2}Nápověda: příkazy pro člověka\n {3}0 {2}Zpět\n/,
+  );
+  assert.doesNotMatch(all.out, /Model výzkumu|Kontrola instalace\n/, "the model in the setup, the check in maintenance");
+  // maintenance: the check of the installation, disk space — the update only when one is out (a gap at 3)
+  const care = await w.ok([], { tty: true, answers: ["8", "8", "3", "0", "0", "0"] });
+  assert.deepEqual(numbersUnder(care.out, "Údržba"), [1, 2, 0]);
+  assert.match(care.out, /Údržba\n {3}1 {2}Kontrola instalace\n {3}2 {2}Místo na disku: strom si vedle výzkumu drží [^\n]+\n {3}0 {2}Zpět\n/);
+  assert.match(care.out, /Čekám jedno z čísel: 1, 2, 0\./, "a number not shown is refused");
+  // the help keeps its 9
+  assert.match((await w.ok([], { tty: true, answers: ["8", "9", "", "0", "0"] })).out, /strom/);
+  // another agent here does the research: nothing of Claude's — Remote Control's 7 a gap, typed 7 refused, the rest stay
+  fs.writeFileSync(path.join(w.dir, "bin", "codex"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  await w.ok(["agents", "use", "codex"]);
+  const codex = await w.ok([], { tty: true, answers: ["8", "7", "0", "0"] });
+  assert.deepEqual(numbersUnder(codex.out, title), [1, 2, 3, 4, 5, 6, 8, 9, 0], codex.out);
+  assert.match(codex.out, /Čekám jedno z čísel: 1, 2, 3, 4, 5, 6, 8, 9, 0\./);
+  assert.doesNotMatch(codex.out, /Remote Control/);
+  // no agent of the research on this computer: no model, no tuning — 6 and 7 gaps, 8 and 9 where they were
+  fs.rmSync(path.join(w.dir, "bin", "codex"));
+  const none = await w.ok([], { tty: true, answers: ["8", "0", "0"] });
+  assert.deepEqual(numbersUnder(none.out, title), [1, 2, 3, 4, 5, 8, 9, 0], none.out);
+  // an archive: nothing of an agent — 2, 4, 6, 7 gaps, typed 2 refused
+  await w.ok(["agents", "use", "claude"]);
+  await w.ok(["mode", "archive"], { tty: true, answers: ["a"] });
+  const archive = await w.ok([], { tty: true, answers: ["8", "2", "0", "0"] });
+  assert.deepEqual(numbersUnder(archive.out, title), [1, 3, 5, 8, 9, 0], archive.out);
+  assert.match(archive.out, /Čekám jedno z čísel: 1, 3, 5, 8, 9, 0\./);
+  const settings = archive.out.slice(archive.out.indexOf(title));
+  assert.doesNotMatch(settings, /agent|model|Claude|Remote Control/i, settings);
+  // Remote Control said so it is not taken for following the research in the Strom app — impersonal in every language
+  assert.equal(ui("en", "ui.settings.remote", { state: "off" }), "Remote Control in the Claude app (the conversation with the agent from a phone too): off");
+  assert.equal(ui("cs", "ui.settings.remote", { state: "vypnuto" }), "Remote Control v aplikaci Claude (rozhovor s agentem i z mobilu): vypnuto");
+  assert.equal(ui("de", "ui.settings.remote", { state: "aus" }), "Remote Control in der Claude-App (das Gespräch mit dem Agenten auch vom Handy): aus");
+  for (const lang of ["en", "cs", "de"]) assert.doesNotMatch(ui(lang, "ui.settings.remote"), /\b(you|your)\b|(?<![\p{L}])(vy|váš|ty|tvůj|Sie|Ihr|du|dein)(?![\p{L}])|Strom/iu, lang);
   w.cleanup();
 });
 
@@ -145,7 +199,7 @@ test("the menu never has more than nine items: two agents and a new version at o
   assert.deepEqual(items, [1, 2, 3, 4, 5, 6, 7, 8, 9, 0], r.out);
   assert.match(r.out, /Tentokrát mluvit s jiným agentem/);
   assert.match(r.out, / 6 {2}Jiný rodokmen[^\n]*\n {3}7 {2}Aplikace Strom[^\n]*\n {3}8 {2}Nastavení[^\n]*\n {3}9 {2}Tentokrát mluvit s jiným agentem/, "another tree 6, the settings 8, another agent last");
-  assert.match(r.out, /Vyšla nová verze stromu: 9\.9\.9 – aktualizovat ji jde v Nastavení \(volba 8\)\./);
+  assert.match(r.out, /Vyšla nová verze stromu: 9\.9\.9 – aktualizovat ji jde v Nastavení \(volba 8\) → Údržba\./);
   w.cleanup();
 });
 
@@ -214,9 +268,9 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
 
 test("the settings: a research with an agent, or only an archive — switched there and back; the archive's menu has no agent in it, its first item switches it on; the numbers stay", unix, async () => {
   const w = await world();
-  // 8 settings · 6 research or archive · 2 only an archive · yes · Enter · 0 back · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["8", "6", "2", "a", "", "0", "0"] });
-  assert.match(r.out, /6 {2}Výzkum, nebo jen archiv: výzkum: hledání v matrikách a archivech/);
+  // 8 settings · 5 research or archive · 2 only an archive · yes · Enter · 0 back · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["8", "5", "2", "a", "", "0", "0"] });
+  assert.match(r.out, /5 {2}Výzkum, nebo jen archiv: výzkum: hledání v matrikách a archivech/);
   assert.match(r.out, /Výzkum je teď archiv\./);
   const menu = await w.ok([], { tty: true, answers: ["0"] });
   assert.match(menu.out, /Archiv: data přicházejí z aplikace Strom\./);
@@ -235,8 +289,8 @@ test("Remote Control on in Claude Code itself: the settings say so, and what str
   fs.mkdirSync(claudeDir);
   fs.writeFileSync(path.join(claudeDir, "settings.json"), JSON.stringify({ remoteControlAtStartup: true }));
   w.env.CLAUDE_CONFIG_DIR = claudeDir;
-  const r = await w.ok([], { tty: true, answers: ["8", "8", "n", "0", "0"] });
-  assert.match(r.out, /Sledovat agenta z telefonu \(Remote Control\): rozhovory ano, samostatná práce ne/);
+  const r = await w.ok([], { tty: true, answers: ["8", "7", "n", "0", "0"] });
+  assert.match(r.out, /Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): rozhovory ano, samostatná práce ne/);
   assert.match(r.out, /Samostatnou práci agenta \(volba 2 v menu\) až po zapnutí i tohohle\.\nZapnout to i pro samostatnou práci\?/);
   w.cleanup();
 });
@@ -344,7 +398,8 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   const target = path.join(w.dir, "Nové místo");
   fs.mkdirSync(target);
   fs.writeFileSync(path.join(target, ".DS_Store"), "");
-  const r = await w.ok([], { tty: true, answers: ["8", "1", "", target, "", "0", "0", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
+  // 8 settings · 1 the setup · Enter: everything, step by step · …
+  const r = await w.ok([], { tty: true, answers: ["8", "1", "", "", target, "", "0", "0", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
   assert.match(r.out, /✓ Výzkum je teď ve složce .*Nové místo\./);
   assert.match(r.out, /Novákovi – přehled výzkumu/, "the menu goes on, the tree opened where it is now");
   assert.doesNotMatch(r.out + r.err, /not a Strom tree|error:/);

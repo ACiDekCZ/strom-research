@@ -1,7 +1,9 @@
 // The menu's settings: what belongs to this computer and to the person alone —
-// the setup wizard, the agent working alone (its time, the condition it works
-// on under), hooks, Remote Control, logins to archives and the consent to
-// downloaders, the check of the installation. Only the user changes these; here
+// the setup wizard (with its model step alone), the agent working alone (its
+// time, the condition it works on under), hooks, logins to archives and the
+// consent to downloaders, research or archive, the tuning of the scans, Remote
+// Control, maintenance (the check of the installation, disk space, the update)
+// and the person's help — each at a number of its own. Only the user changes these; here
 // the person at the terminal does, through the ordinary commands.
 
 import path from "node:path";
@@ -10,7 +12,7 @@ import type { UIKey } from "./ui.ts";
 import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
 import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
-import { shortcutName } from "./wizard.ts";
+import { modelStep, shortcutName } from "./wizard.ts";
 import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
 import { askGate, ensureGatesDir, listGates, loadGate } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
@@ -20,144 +22,170 @@ import { ADDON_SWITCHES, PROFILES } from "../agents/profiles.ts";
 import { loadLogins } from "../core/logins.ts";
 import { claudeRemoteAtStartup } from "../agents/global.ts";
 import { chooseMode } from "./menu-mode.ts";
-import { chooseEffort, chooseModel } from "./model-choice.ts";
 import { agentsHere } from "../core/apps.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
-  return subMenu(ctx, lang, () => {
-    ctx.settings.reload();
-    const shared = ctx.settings.shared()?.value;
-    const tree = root ? Tree.open(root, ctx.env).config : undefined;
-    const minutes = ctx.settings.number("run.minutes", tree, DEFAULT_RUN_MINUTES);
-    const gate = ctx.settings.runGate();
-    const on = ctx.settings.config.hooks ?? [];
-    const anyHook = shared ? listHooks(shared).length > 0 : false;
-    // The items always here first, in the same order; what shows only sometimes (Remote Control, a newer strom) after
-    // them — the numbers a person knows never move.
-    // an archive: nothing of an agent — working alone, the downloaders, Remote Control not shown
-    const archive = ctx.archiveHere();
-    const items: Item[] = [
-      // After the wizard the menu starts afresh: the research may be in another folder now.
-      { key: "1", label: t(archive ? "ui.settings.wizard.archive" : "ui.settings.wizard"), act: async () => (await run(["setup"]), true) },
-      ...(archive ? [] : [{ key: "2", label: t("ui.settings.alone", { minutes, gate: gate ? gateName(shared, gate) : t("ui.settings.gate.none") }), act: async () => alone(ctx, run, lang, root) }]),
-      {
-        key: "3",
-        label: t("ui.settings.hooks", { state: on.length ? on.join(", ") : t(anyHook ? "ui.settings.off" : "ui.hooks.nothing") }),
-        act: async () => (shared ? hooks(ctx, run, lang, shared) : undefined),
-      },
-      ...(archive ? [] : [{ key: "4", label: t("ui.settings.archives"), act: async () => archives(ctx, run, lang, shared, root) }]),
-      {
-        key: "5",
-        label: t("ui.menu.doctor"),
-        act: async () => {
-          const code = await run(["doctor"]);
-          if (code !== 0 && (await ctx.confirm(t("ui.menu.fix"), true))) await run(["doctor", "--fix"]);
-          await pause(ctx, lang);
+  return subMenu(
+    ctx,
+    lang,
+    () => {
+      ctx.settings.reload();
+      const shared = ctx.settings.shared()?.value;
+      const tree = root ? Tree.open(root, ctx.env).config : undefined;
+      const minutes = ctx.settings.number("run.minutes", tree, DEFAULT_RUN_MINUTES);
+      const gate = ctx.settings.runGate();
+      const on = ctx.settings.config.hooks ?? [];
+      const anyHook = shared ? listHooks(shared).length > 0 : false;
+      // Each item keeps its number (fixed): what shows only sometimes leaves a gap where it is not — the numbers a person
+      // knows never move. An archive: nothing of an agent — working alone, the downloaders, the tuning of the scans,
+      // Remote Control not shown.
+      const archive = ctx.archiveHere();
+      // the model the agent does the research with (every agent: its strong ones offered) — not in an archive, nor
+      // while the research's agent is not on this computer (nothing of an agent the person does not use)
+      const agent = ctx.settings.agent(tree).value;
+      const modelShown = !archive && !!PROFILES[agent] && agentsHere(ctx.env).some((a) => a.id === agent);
+      const items: Item[] = [
+        {
+          key: "1",
+          label: t(archive ? "ui.settings.wizard.archive" : "ui.settings.wizard"),
+          act: async () => {
+            // the setup's model step alone, or the whole setup (Enter); 0 back with nothing changed
+            if (modelShown) {
+              const kept = ctx.settings.resolve("model.lead", tree, agent);
+              const i = await ctx.choose(
+                t("ui.settings.wizard.what"),
+                [{ label: t("ui.settings.wizard.all") }, { label: t("ui.settings.model", { agent: PROFILES[agent]!.name, model: kept ? String(kept.value) : t("ui.settings.model.own") }) }],
+                0,
+                { back: t("ui.browse.back") },
+              );
+              if (i === undefined) return;
+              if (i === 1) return void (await modelStep(ctx, run, lang, agent, tree));
+            }
+            // After the wizard the menu starts afresh: the research may be in another folder now.
+            await run(["setup"]);
+            return true;
+          },
         },
-      },
-    ];
-    // the research of the tree worked on: with an agent, or only an archive of the data from the Strom app
-    if (root)
-      items.push({
-        key: "6",
-        label: t("ui.settings.mode", { state: t(tree?.mode === "archive" ? "ui.mode.archive" : "ui.mode.research") }),
-        act: async () => chooseMode(ctx, run, lang, root),
-      });
-    // the model the agent does the research with (every agent: its strong ones offered) — not in an archive, nor
-    // while the research's agent is not on this computer (nothing of an agent the person does not use)
-    const agent = ctx.settings.agent(tree).value;
-    const modelShown = !archive && !!PROFILES[agent] && agentsHere(ctx.env).some((a) => a.id === agent);
-    if (modelShown) {
-      const kept = ctx.settings.resolve("model.lead", tree, agent);
-      items.push({
-        key: "model",
-        label: t("ui.settings.model", { agent: PROFILES[agent]!.name, model: kept ? String(kept.value) : t("ui.settings.model.own") }),
-        act: async () => {
-          const now = kept ? String(kept.value) : undefined;
-          const pick = await chooseModel(ctx, lang, agent, now, { first: false, back: t("ui.browse.back") });
-          if (!pick.picked) return;
-          // where it is kept now: this family tree's own, else this computer's (for this agent)
-          const scope = ["--agent", agent, ...(kept?.source === "tree" ? ["--for-tree"] : [])];
-          // (--yes: its effort is asked below, not by config set)
-          if (pick.value !== now) await run(pick.value ? ["config", "set", "model.lead", pick.value, ...scope, "--yes"] : ["config", "unset", "model.lead", ...scope], true);
-          // with the model its reasoning effort (an agent that takes one): high recommended, 0 changes nothing
-          const effortNow = ctx.settings.resolve("model.effort", tree, agent);
-          const effort = await chooseEffort(ctx, lang, agent, effortNow ? String(effortNow.value) : undefined, { back: t("ui.browse.back") });
-          if (!effort?.picked || effort.value === (effortNow ? String(effortNow.value) : undefined)) return;
-          const where = ["--agent", agent, ...(effortNow?.source === "tree" ? ["--for-tree"] : [])];
-          await run(effort.value ? ["config", "set", "model.effort", effort.value, ...where] : ["config", "unset", "model.effort", ...where], true);
+        ...(archive ? [] : [{ key: "2", label: t("ui.settings.alone", { minutes, gate: gate ? gateName(shared, gate) : t("ui.settings.gate.none") }), act: async () => alone(ctx, run, lang, root) }]),
+        {
+          key: "3",
+          label: t("ui.settings.hooks", { state: on.length ? on.join(", ") : t(anyHook ? "ui.settings.off" : "ui.hooks.nothing") }),
+          act: async () => (shared ? hooks(ctx, run, lang, shared) : undefined),
         },
-      });
-    }
-    if (!archive && claudeHere(ctx, tree)) {
-      // Claude Code may do it for its conversations itself (its own setting): what holds is said as it is.
-      const own = claudeRemoteAtStartup(ctx.env);
-      const remote = ctx.settings.agentRemote();
-      items.push({
-        key: "7",
-        label: t("ui.settings.remote", { state: t(remote ? "ui.settings.remote.both" : own ? "ui.settings.remote.chats" : "ui.settings.off") }),
-        act: async () => {
-          ctx.io.stdout(t(own ? "ui.settings.remote.own" : "ui.settings.remote.about") + "\n");
-          if (await ctx.confirm(t(remote ? "ui.settings.remote.off" : own ? "ui.settings.remote.onalone" : "ui.settings.remote.on"), !remote))
-            await run(["config", "set", "agent.remote", remote ? "off" : "on"], true);
-        },
-      });
-    }
-    // the size of the scan views tuned for this agent and model on the research's own records (paid: the person's yes
-    // after the cost is said) — shown when the model is, after Remote Control, so the numbers a person knows stay
-    if (root && modelShown) {
-      const views = viewSizesFor(ctx.settings, agent, tree);
-      const other = calibrationOffer(ctx.settings, agent, tree);
-      items.push({
-        key: "views",
-        label: t("ui.settings.views", {
-          state: views.calibrated ? t("ui.settings.views.done", { date: views.calibrated.at }) : t(other ? "ui.settings.views.other" : "ui.settings.views.default"),
-        }),
-        act: async () => {
-          await run(["media", "calibrate"]);
-          await pause(ctx, lang);
-        },
-      });
-    }
-    if (newer)
+        ...(archive ? [] : [{ key: "4", label: t("ui.settings.archives"), act: async () => archives(ctx, run, lang, shared, root) }]),
+      ];
+      // the research of the tree worked on: with an agent, or only an archive of the data from the Strom app
+      if (root)
+        items.push({
+          key: "5",
+          label: t("ui.settings.mode", { state: t(tree?.mode === "archive" ? "ui.mode.archive" : "ui.mode.research") }),
+          act: async () => chooseMode(ctx, run, lang, root),
+        });
+      // the size of the scan views tuned for this agent and model on the research's own records (paid: the person's yes
+      // after the cost is said) — shown where the model can be chosen
+      if (root && modelShown) {
+        const views = viewSizesFor(ctx.settings, agent, tree, undefined, root);
+        const other = calibrationOffer(ctx.settings, agent, tree, root);
+        items.push({
+          key: "6",
+          label: t("ui.settings.views", {
+            state: views.calibrated ? t("ui.settings.views.done", { date: views.calibrated.at }) : t(other ? "ui.settings.views.other" : "ui.settings.views.default"),
+          }),
+          act: async () => {
+            await run(["media", "calibrate"]);
+            await pause(ctx, lang);
+          },
+        });
+      }
+      if (!archive && claudeHere(ctx, tree)) {
+        // Claude Code may do it for its conversations itself (its own setting): what holds is said as it is.
+        const own = claudeRemoteAtStartup(ctx.env);
+        const remote = ctx.settings.agentRemote();
+        items.push({
+          key: "7",
+          label: t("ui.settings.remote", { state: t(remote ? "ui.settings.remote.both" : own ? "ui.settings.remote.chats" : "ui.settings.off") }),
+          act: async () => {
+            ctx.io.stdout(t(own ? "ui.settings.remote.own" : "ui.settings.remote.about") + "\n");
+            if (await ctx.confirm(t(remote ? "ui.settings.remote.off" : own ? "ui.settings.remote.onalone" : "ui.settings.remote.on"), !remote))
+              await run(["config", "set", "agent.remote", remote ? "off" : "on"], true);
+          },
+        });
+      }
+      // maintenance: the check of the installation, disk space, the newer strom when one is out (said on its line)
+      const disk = root ? tidyPlan(Tree.open(root, ctx.env)) : undefined;
       items.push({
         key: "8",
-        label: t("ui.menu.update", { version: newer }),
+        label: newer
+          ? t("ui.settings.maintenance.update", { version: newer })
+          : disk && disk.frees >= TIDY_SAID
+            ? t("ui.settings.maintenance.tidy", { size: mb(disk.frees, lang) })
+            : t("ui.settings.maintenance"),
+        act: async () => maintenance(ctx, run, lang, root, newer),
+      });
+      // a person's help in their language (strom help --human)
+      items.push({
+        key: "9",
+        label: t("ui.settings.help"),
         act: async () => {
-          if ((await run(["update"])) !== 0) return;
-          // this menu is still the old strom: the new one starts with the next strom
-          if (!replacedOnDisk(VERSION)) return;
-          ctx.io.stdout(t("ui.update.restart", { shortcut: shortcutName(lang) }) + "\n");
-          return "quit";
+          await run(["help", "--human"]);
+          await pause(ctx, lang);
         },
       });
-    // what strom keeps beside the research, when there is much of it to free: shown, then the person's yes
-    if (root) {
-      const plan = tidyPlan(Tree.open(root, ctx.env));
-      if (plan.frees >= TIDY_SAID)
+      return { title: t("ui.settings.title"), items };
+    },
+    { fixed: true },
+  );
+}
+
+/** Maintenance: the check of the installation, what strom keeps beside the research (disk space), the newer strom when one is out. */
+async function maintenance(ctx: Context, run: Run, lang: string, root: string | undefined, newer: string | undefined): Promise<"quit" | void> {
+  const t = translator(lang);
+  return subMenu(
+    ctx,
+    lang,
+    () => {
+      const items: Item[] = [
+        {
+          key: "1",
+          label: t("ui.menu.doctor"),
+          act: async () => {
+            const code = await run(["doctor"]);
+            if (code !== 0 && (await ctx.confirm(t("ui.menu.fix"), true))) await run(["doctor", "--fix"]);
+            await pause(ctx, lang);
+          },
+        },
+      ];
+      // what strom keeps beside the research: shown, then the person's yes (strom tidy)
+      if (root) {
+        const plan = tidyPlan(Tree.open(root, ctx.env));
         items.push({
-          key: "9",
-          label: t("ui.menu.settings.tidy", { size: mb(plan.frees, lang) }),
+          key: "2",
+          label: plan.frees >= TIDY_SAID ? t("ui.menu.settings.tidy", { size: mb(plan.frees, lang) }) : t("ui.maintenance.tidy", { size: mb(plan.size.strom, lang) }),
           act: async () => {
             await run(["tidy"]);
             await pause(ctx, lang);
           },
         });
-    }
-    // a person's help in their language (strom help --human) — last, so the numbers a person knows never move
-    items.push({
-      key: "help",
-      label: t("ui.settings.help"),
-      act: async () => {
-        await run(["help", "--human"]);
-        await pause(ctx, lang);
-      },
-    });
-    return { title: t("ui.settings.title"), items };
-  });
+      }
+      if (newer)
+        items.push({
+          key: "3",
+          label: t("ui.menu.update", { version: newer }),
+          act: async () => {
+            if ((await run(["update"])) !== 0) return;
+            // this menu is still the old strom: the new one starts with the next strom
+            if (!replacedOnDisk(VERSION)) return;
+            ctx.io.stdout(t("ui.update.restart", { shortcut: shortcutName(lang) }) + "\n");
+            return "quit";
+          },
+        });
+      return { title: t("ui.maintenance.title"), items };
+    },
+    { fixed: true },
+  );
 }
 
 /** A gate as the user reads it: its title and what it is given ("Claude usage 10"). */

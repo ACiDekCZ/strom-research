@@ -10,8 +10,9 @@ import path from "node:path";
 import { hasGit } from "../helpers.ts";
 import { Tree, type Op } from "../../src/core/tree.ts";
 import { changeLines } from "../../src/core/changelog.ts";
+import type { Media } from "../../src/core/model.ts";
 import { history } from "../../src/core/live.ts";
-import { world } from "./links.helpers.ts";
+import { fixtures, world } from "./links.helpers.ts";
 import { world as syncWorld, post } from "./sync.helpers.ts";
 
 const opts = { skip: !hasGit || process.platform === "win32" };
@@ -60,6 +61,29 @@ test("the history in a Czech research: strom's own commits and operations said i
   assert.match(last!.what.join("\n") + last!.text.join("\n"), /^Agent instructions: AGENTS\.md$/m);
   assert.deepEqual(last!.text, []);
   for (const e of history(w.cwd, Tree.open(w.cwd, w.env))) for (const l of e.text) assert.doesNotMatch(l, ENGLISH, l);
+  w.cleanup();
+});
+
+test("a part of an image fetched sharper is said as a part of its image, never a new scan — parts of one image again and again one line", opts, async () => {
+  const { w } = await world(); // B0001 with image 1 (M0001)
+  const parts = path.join(w.dir, "výřezy");
+  fs.mkdirSync(parts);
+  fs.copyFileSync(path.join(fixtures, "s0002.jpg"), path.join(parts, "levá.jpg"));
+  fs.copyFileSync(path.join(fixtures, "s0003.jpg"), path.join(parts, "pravá.jpg"));
+  await w.ok(["media", "add", path.join(parts, "levá.jpg"), "--recordset", "B1", "--image", "1", "--half", "left"]); // M0002
+  await w.ok(["media", "add", path.join(parts, "pravá.jpg"), "--recordset", "B1", "--image", "1", "--half", "right"]); // M0003
+  const tree = Tree.open(w.cwd, w.env);
+  assert.ok(tree.get<Media>("M0002")?.part && tree.get<Media>("M0003")?.part);
+  const add = (id: string) => op({ op: "media.add", targets: [id], summary: `+${id}` });
+  const said = (...ids: string[]) => changeLines(tree, ids.map(add), "", "cs").map((l) => l.text);
+  assert.deepEqual(said("M0002"), ["Výřez snímku ve větším rozlišení: Kniha N 1850-1870 (obr. 1)"]);
+  assert.deepEqual(said("M0002", "M0003"), ["Výřez snímku ve větším rozlišení: Kniha N 1850-1870 (obr. 1)"], "two parts of one image: one line of that image");
+  assert.deepEqual(said("M0001", "M0002"), ["Nový snímek: Kniha N 1850-1870 (obr. 1)", "Výřez snímku ve větším rozlišení: Kniha N 1850-1870 (obr. 1)"]);
+  assert.deepEqual(changeLines(tree, [add("M0002")], "", "en").map((l) => l.text), ["Part of an image fetched sharper: Kniha N 1850-1870 (image 1)"]);
+  assert.deepEqual(changeLines(tree, [add("M0002")], "", "de").map((l) => l.text), ["Bildausschnitt in höherer Auflösung: Kniha N 1850-1870 (Bild 1)"]);
+  // as the Strom app's history gives it: the commits of the two parts, neither a new scan
+  const texts = history(w.cwd, Tree.open(w.cwd, w.env)).slice(0, 2).flatMap((e) => e.text);
+  assert.deepEqual(texts, ["Výřez snímku ve větším rozlišení: Kniha N 1850-1870 (obr. 1)", "Výřez snímku ve větším rozlišení: Kniha N 1850-1870 (obr. 1)"]);
   w.cleanup();
 });
 

@@ -176,7 +176,7 @@ export function agentViewSizes(ctx: Context, tree: Tree): ViewSizes {
   const seen = detectAgent(ctx.env);
   const agent = seen && PROFILES[seen] ? seen : ctx.settings.agent(tree.config).value;
   // calibrated for this agent and model (strom media calibrate), else the defaults
-  return viewSizesFor(ctx.settings, agent, tree.config);
+  return viewSizesFor(ctx.settings, agent, tree.config, undefined, tree.root);
 }
 
 function viewSpec(opts: Record<string, unknown>): ViewSpec {
@@ -822,7 +822,7 @@ register(
       // hold for the whole of it
       const since = currentSession(tree, ctx.env)?.started;
       const tuned: TuneState = treeTuning(tree, ctx.settings);
-      const reading = readingOf(ctx.settings.config, own.key, { since, on: tuningOn(ctx.settings) });
+      const reading = readingOf(ctx.settings.config, own.key, { since, on: tuningOn(ctx.settings), root: tree.root });
       const { targets, missing } = resolveTargets(tree, shared, all, args, opts, parts, reading.viewsPerCall);
       const spec = viewSpec({ ...opts, half: undefined, crop: undefined });
       // a book read worse than the others: its views bigger (never above what the model takes)

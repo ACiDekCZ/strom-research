@@ -21,7 +21,7 @@ import { isAgent } from "../core/which.ts";
 import { RECORD_TYPES, type Media, type RecordSet, type Region, type Repository, type Search, type Source } from "../core/model.ts";
 import { requireRecord } from "../core/records.ts";
 import { readable } from "../core/text.ts";
-import { findImage, isWhole, regionText, sameRegion } from "../core/media.ts";
+import { findImage, isWhole, partHere, regionText, SHARPER, type PartHere } from "../core/media.ts";
 import { partRegion } from "../core/views.ts";
 import { loadLogins, loginOf, loginsFile, removeLogin, saveLogin, VISIBLE_FIELDS } from "../core/logins.ts";
 import { readAsset } from "../core/assets.ts";
@@ -29,7 +29,7 @@ import { runGit } from "../core/git.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { Tree } from "../core/tree.ts";
 import { syncAgentFiles } from "../agents/files.ts";
-import { clearBlock, clock, CookieJar, DEFAULT_PACE, hostAllowed, hostPace, hostState, knownHosts, MIN_INTERVAL_MS, NetError, paceText, politeRequest, refusedBy, reserveSlots, setOwnPace, testHooks, type Pace } from "../core/net.ts";
+import { CAP_WARN, capNear, clearBlock, clock, CookieJar, DEFAULT_PACE, hostAllowed, hostPace, hostState, knownHosts, MIN_INTERVAL_MS, NetError, paceText, politeRequest, refusedBy, reserveSlots, setOwnPace, testHooks, type Pace } from "../core/net.ts";
 import {
   botCheck,
   fileBase,
@@ -92,7 +92,8 @@ import {
   type RunReport,
 } from "../core/connector.ts";
 import { registerImages } from "./media.ts";
-import { FetchMeter, metricsDir, recordFetch, requestsPerImage } from "../core/metrics.ts";
+import { FetchMeter, metricsDir, recordFetch, requestsPerImage, webDomain } from "../core/metrics.ts";
+import { siteConnector } from "../core/web.ts";
 import { currentSession } from "../core/session.ts";
 
 /** Which session of the research started a connector (strom connector new): its agent may discard it in that session. */
@@ -747,6 +748,9 @@ register(
         });
       const other = nameTaken(connectors, name);
       if (other !== undefined) throw taken(other);
+      // a connector of the same site (its domain: a mirror's, an API host's) under another name: said — the web's pages
+      // of the site go through that one (the hook names it too); this one only for another portal of the site
+      const ofSite = siteConnector(shared(ctx), url.hostname);
       const title = String(opts.title ?? url.hostname);
       const fill = (s: string) => s.replaceAll("__TITLE__", title).replaceAll("__URL__", url.origin).replaceAll("__NAME__", name);
       try {
@@ -794,8 +798,11 @@ register(
           "  2. it writes connector.json (policy) and connector.ts, and tests with a few requests:",
           `     strom connector test ${name} --find "<place>"`,
           consentRequired(ctx.env) ? `  3. the first test needs your consent, in your terminal: strom allow connector ${name}` : undefined,
+          ofSite
+            ? `\nnote: the connector ${ofSite} is here already for ${webDomain(url.hostname)} (its hosts: ${listConnectors(shared(ctx)).find((c) => c.name === ofSite)?.manifest.hosts.join(", ") ?? "?"}) — more pages of that site go through it (strom connector show ${ofSite}); keep this one only for another portal of the site, else take it away: strom connector discard ${name}`
+            : undefined,
         ),
-        data: { name, dir },
+        data: { name, dir, ...(ofSite ? { site: { domain: webDomain(url.hostname), connector: ofSite } } : {}) },
       };
     },
   },
@@ -1140,10 +1147,13 @@ register(
       "longer, it ends with exit 7 and the time to try again. With --recordset the images are registered at once;\n" +
       "without it they go into the inbox, a folder for the book.\n" +
       "It says first how many requests it asks of the archive and how long they take at the host's pace and hourly\n" +
-      "cap: fetch whole images first (a request each) and a part only of an image whose entry needs it.\n" +
+      "cap: fetch whole images first (a request each) and a part only of an image whose entry needs it. From 80 %\n" +
+      "of a host's hourly cap used it says after each fetch what is left of the hour and when the next frees.\n" +
       "--crop or --half fetches a part of one image, as sharp as the portal gives it (a connector that can: part),\n" +
       "registered with the image; a view of the image then shows that place from it by itself. The book is\n" +
-      "known from images the connector fetched for the record set before.\n" +
+      "known from images the connector fetched for the record set before. A part held here already — the same\n" +
+      "part, or a part or the whole image it lies in, as sharp as a new part could come — asks nothing: strom\n" +
+      "names it and the view to read the place in.\n" +
       "A connector set to fetch through your browser (strom connector use <c> --via browser) gives a plan instead:\n" +
       "the page to open, a script to run there that fetches the images at the archive's pace into the browser's\n" +
       "downloads folder, and --take, which takes them over from there, checked and registered.\n" +
@@ -1621,22 +1631,86 @@ async function takePages(ctx: Context, c: Connector, plans: BrowserPlan[], resul
 }
 
 /**
- * A part not worth a request: the parts of this book a connector fetched before show the most detail the portal gives
- * a part of that size (a smaller part may come sharper: the portal's image has a size limit, the scan its own), and the
- * image registered here has as much already (below 1.2× more: what strom fetch calls no sharper). The same book's scans
- * are taken to be of one size; each image is weighed against its own registered scan, never the book's at once.
+ * A host this fetch brought near its hourly cap (CAP_WARN of it used in the last hour): said to the agent after each
+ * fetch — what is left of the hour, when the next request frees, to write down and work on what is here meanwhile — and
+ * to the person once at each share reached, in the research's history (op net.cap, said in the research language).
+ * Only said: the pace and the cap stay as they are, never raised, never gone round.
  */
-export function noSharperPart(all: Media[], connector: string, recordset: string, image: number, region: Region): { detail: number; width: number; gain: number } | undefined {
-  const whole = findImage(all.filter((m) => !m.part), recordset, image);
-  if (!whole?.width) return undefined;
-  const EPS = 1e-6;
-  const details = all
-    .filter((m) => !m.retracted && m.recordset === recordset && m.part && m.width && m.fetched?.connector === connector && region.w >= m.part.w - EPS && region.h >= m.part.h - EPS)
-    .map((m) => m.width! / m.part!.w);
-  if (!details.length) return undefined;
-  const detail = Math.round(Math.max(...details));
-  const gain = detail / whole.width;
-  return gain < 1.2 ? { detail, width: whole.width, gain } : undefined;
+function capSaid(ctx: Context, c: Connector, asked: Map<string, number>): string | undefined {
+  const now = (testHooks.now ?? Date.now)();
+  const said: string[] = [];
+  for (const [host, n] of asked) {
+    if (!(n > 0)) continue;
+    const near = capNear(hostState(netDir(ctx), host), paceAt(ctx, host, c), now);
+    if (!near) continue;
+    said.push(
+      `⚠ ${host}: ${near.used} of its ${near.cap} requests an hour used (${Math.round(near.share * 100)} % of its cap) — ${near.left} left this hour; the next frees at ${clock(near.free)}, as each request is an hour old. Write down what was found now and work on what is here meanwhile (the images fetched, reading, other tasks); never go round the cap (another connector, the browser, another way to the same archive).`,
+    );
+    // the person hears it once at each share: the one this fetch reached
+    const before = near.used - n;
+    const reached = CAP_WARN.filter((x) => before < x * near.cap && near.used >= x * near.cap);
+    if (!reached.length || !ctx.hasTree()) continue;
+    const tree = ctx.tree();
+    if (tree.dryRun) continue;
+    try {
+      tree.withTreeLock(() => tree.appendOp({ op: "net.cap", targets: [], files: [], summary: `${host}: ${near.used} of its ${near.cap} requests an hour used; the next frees at ${new Date(near.free).toISOString()}` }));
+    } catch {
+      // the research busy: the agent was told; the person hears it at the next share
+    }
+  }
+  return said.length ? said.join("\n") : undefined;
+}
+
+/**
+ * A part of an image strom holds already (partHere): answered from what is here, nothing asked of the archive. It is
+ * recorded with no request — as the portal's "no sharper" when the whole image here holds as much as a part brings
+ * (what tells the tuning a portal gives nothing sharper), else as held (the same part, or a part it lies in).
+ */
+function fromStore(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "part" }>, recordset: string, h: PartHere, via: string): Result {
+  const tree = ctx.tree();
+  const what = `part ${regionText(request.region)} of image ${request.image} of ${recordset}`;
+  const px = (n: number) => `${Math.round(n)} px across the image`;
+  const whole = findImage(tree.list<Media>("media").filter((m) => !m.part), recordset, request.image);
+  const gainOverWhole = h.held.part && whole?.width && h.detail ? h.detail / whole.width : undefined;
+  const heldText =
+    h.how === "same"
+      ? `${h.held.id}, the same part`
+      : h.how === "whole"
+        ? `${h.held.id} (the whole image, ${Math.round(h.detail)} px across)`
+        : `${h.held.id} (part ${regionText(h.held.part!)}, ${px(h.detail)}${gainOverWhole && gainOverWhole >= SHARPER ? ` · ${gainOverWhole.toFixed(1)}× the detail of the whole image` : ""})`;
+  const gain = h.most !== undefined && h.detail ? h.most / h.detail : undefined;
+  const view = h.how === "whole" ? `strom media view ${recordset}:${request.image} --crop ${regionText(request.region)}` : `strom media view ${h.held.id}${h.how === "same" ? "" : ` --crop ${regionText(h.crop)}`}`;
+  const noSharper = h.how === "whole" && gain !== undefined;
+  if (!tree.dryRun)
+    measure(ctx, c, undefined, {
+      via,
+      cmd: "part",
+      book: request.book,
+      rs: recordset,
+      img: request.image,
+      part: request.region,
+      requests: 0,
+      held: h.held.id,
+      ...(noSharper ? { noSharper: { gain: Math.round(gain! * 100) / 100, detail: h.most, width: Math.round(h.detail) } } : {}),
+      result: noSharper ? "no-sharper" : "held",
+    });
+  return {
+    text: lines(
+      `${what}: already here — ${heldText} · no request`,
+      gain !== undefined
+        ? h.native
+          ? `  the sharpest ${c.name} gives of this book is ${px(h.most!)} (${gain.toFixed(1)}× — no sharper)`
+          : `  a part this size comes from ${c.name} at most ${px(h.most!)} (${gain.toFixed(1)}× — no sharper)`
+        : undefined,
+      `look at it: ${view}${gain !== undefined && !h.native ? " · a smaller part (one entry) may come sharper" : ""}`,
+    ),
+    data: {
+      added: [],
+      again: [h.held.id],
+      held: { id: h.held.id, how: h.how, crop: h.crop, detail: Math.round(h.detail), ...(h.most !== undefined ? { most: h.most } : {}), ...(h.native ? { native: true } : {}) },
+      ...(noSharper ? { skipped: { image: request.image, region: request.region, detail: h.most, width: Math.round(h.detail), gain: gain! } } : {}),
+    },
+  };
 }
 
 /** strom fetch, once the request is known: checked against the policy, then through strom or the user's browser. */
@@ -1662,19 +1736,11 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     if (!request.images.length) return { text: `images ${runs(asked)} of ${recordset} are registered already — nothing fetched`, data: { added: [], again: asked } };
   }
   if (recordset && request.cmd === "part") {
-    const had = tree.list<Media>("media").find((m) => m.recordset === recordset && m.image === request.image && m.part && sameRegion(m.part, request.region) && fs.existsSync(path.join(shared(ctx), m.file)));
-    if (had) return { text: `part ${regionText(request.region)} of image ${request.image} of ${recordset} is registered already: ${had.id} — nothing fetched`, data: { added: [], again: [had.id] } };
-    const none = noSharperPart(tree.list<Media>("media"), c.name, recordset, request.image, request.region);
-    if (none && !tree.dryRun)
-      measure(ctx, c, undefined, { via, cmd: "part", book: request.book, rs: recordset, img: request.image, part: request.region, requests: 0, noSharper: { gain: Math.round(none.gain * 100) / 100, detail: none.detail, width: none.width }, result: "no-sharper" });
-    if (none)
-      return {
-        text: lines(
-          `part ${regionText(request.region)} of image ${request.image} of ${recordset} not fetched: a part this size came from ${c.name} at most ${none.detail} px across the image, and image ${request.image} here has ${none.width} already (${none.gain.toFixed(1)}× — no sharper)`,
-          `read it from the image: strom media view ${recordset}:${request.image} --crop ${regionText(request.region)} · a smaller part (one entry) may come sharper`,
-        ),
-        data: { added: [], skipped: { image: request.image, region: request.region, ...none } },
-      };
+    // what is here already of that place, as sharp as a new part could be: answered from it, no request
+    const here = (m: Media) => fs.existsSync(path.join(shared(ctx), m.file));
+    const all = tree.list<Media>("media");
+    const held = partHere(all, c.name, recordset, request.image, request.region, here);
+    if (held) return fromStore(ctx, c, request, recordset, held, via);
   }
   if (tree.dryRun) {
     // a dry run never contacts the archive, nor asks for consent
@@ -1701,6 +1767,8 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   const pages = pagesOf(ctx, c);
   const meter = new FetchMeter();
   const r = await runConnector(c, request, { env: ctx.env, workDir, netDir: netDir(ctx), onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...metered(meter), ...(pages ? { pages } : {}) });
+  // a host near its hourly cap: said to the agent, and to the person once at each share reached
+  const near = capSaid(ctx, c, new Map([...meter.hosts].map(([h, l]) => [h, l.requests])));
   // what it asked of the archive (a part's gain once it is registered, below)
   const asked = request.cmd === "fetch" ? { asked: request.images } : request.cmd === "part" ? { img: request.image, part: request.region } : {};
   const run = { via, cmd: request.cmd, ...("book" in request ? { book: request.book } : {}), ...(recordset ? { rs: recordset } : {}), ...asked };
@@ -1708,14 +1776,14 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   if (r.needs) {
     fs.rmSync(workDir, { recursive: true, force: true });
     if (request.cmd === "part") measure(ctx, c, meter, run, r);
-    return planPages(ctx, c, r.needs, { cmd: "fetch", request: { ...request }, ...(recordset ? { recordset } : {}) }, `strom fetch ${c.name} (${request.cmd})`, describeRun(r, request.cmd));
+    return planPages(ctx, c, r.needs, { cmd: "fetch", request: { ...request }, ...(recordset ? { recordset } : {}) }, `strom fetch ${c.name} (${request.cmd})`, lines(describeRun(r, request.cmd), near));
   }
   const took = `${Math.round((Date.now() - t0) / 1000)} s`;
   if (request.cmd === "find" || request.cmd === "list") {
     fs.rmSync(workDir, { recursive: true, force: true });
     const wait = later(r, "the same command");
     return {
-      text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`)].join("\n") : "no books found", wait.line),
+      text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`)].join("\n") : "no books found", wait.line, near),
       data: r,
       ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.books.length ? { exitCode: 1 } : {}),
     };
@@ -1730,11 +1798,11 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     const m = res.added[0];
     const whole = recordset ? findImage(tree.list<Media>("media").filter((x) => !x.part), recordset, request.image) : undefined;
     const gain = m?.width && m.part && whole?.width ? m.width / m.part.w / whole.width : undefined;
-    measure(ctx, c, meter, { ...run, ...(gain !== undefined ? { gain: Math.round(gain * 100) / 100, ...(gain < 1.2 ? { noSharper: true } : {}) } : {}), ...(m ? { media: [m.id] } : {}) }, r);
+    measure(ctx, c, meter, { ...run, ...(gain !== undefined ? { gain: Math.round(gain * 100) / 100, ...(gain < SHARPER ? { noSharper: true } : {}) } : {}), ...(m ? { media: [m.id] } : {}) }, r);
     text = m
       ? lines(
           `part ${regionText(m.part!)} of image ${request.image} of ${recordset} fetched and registered: ${m.id}${m.width ? ` · ${m.width}×${m.height} px` : ""}${gain ? ` · ${gain.toFixed(1)}× the detail of the whole image` : ""} · ${took}`,
-          gain !== undefined && gain < 1.2 ? "  no sharper than the whole image: the portal gives no more detail than that" : undefined,
+          gain !== undefined && gain < SHARPER ? "  no sharper than the whole image: the portal gives no more detail than that" : undefined,
           `look at it: strom media view ${recordset}:${request.image} --crop ${regionText(m.part!)} (a view of the image uses the part by itself)`,
         )
       : res.again.length && whole && res.again.includes(whole.id) && r.images.every((i) => isWhole(i.region))
@@ -1775,7 +1843,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   }
   // the images it got are registered; the rest when the archive takes requests again
   const wait = later(r, request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)}${recordset ? ` --recordset ${recordset}` : ""} — what is here already is not fetched again` : "the same command");
-  return { text: lines(describeRun(r, request.cmd), text, wait.line), data, ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.images.length ? { exitCode: 1 } : {}) };
+  return { text: lines(describeRun(r, request.cmd), text, wait.line, near), data, ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.images.length ? { exitCode: 1 } : {}) };
 }
 
 async function planBrowser(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" | "part" }>, recordset: string | undefined): Promise<Result> {
@@ -1806,6 +1874,10 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
     if (!(err instanceof NetError)) throw err;
     return { text: lines(describeRun(r, "locate"), `nothing planned: ${err.message}`), data: r, exitCode: err.failure === "cap" && err.until !== undefined ? EXIT.later : 1 };
   }
+  // the times kept for the browser count in the host's hour as strom's own requests: near its cap, said
+  const counted = new Map([...meter.hosts].map(([h, l]) => [h, l.requests]));
+  counted.set(first.hostname, (counted.get(first.hostname) ?? 0) + times.length);
+  const near = capSaid(ctx, c, counted);
   const items: PlanItem[] = here
     .slice(0, times.length - 1)
     .map((l, i) => ({ n: l.n, src: l.src, url: l.url ?? l.src, ...(l.page ? { page: l.page } : {}), ...(l.region ? { region: l.region } : {}), file: fileBase(c.name, request.book, l.n, part), at: times[i + 1]! }))
@@ -1840,6 +1912,7 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
       `The browser saves them into ${ctx.display(ctx.settings.downloads())} as ${shown} — strom takes them over; do not open, move or read them yourself.`,
       `The first time, Chrome asks whether ${first.hostname} may download several files: the user allows it once (at the right end of the address bar).`,
       rest.length ? `The rest (images ${runs(rest)}): the same strom fetch again, after the take.` : undefined,
+      near,
     ),
     data: { ...r, plan: { id: plan.id, open, host: plan.host, items: items.map((i) => ({ n: i.n, src: i.src, file: i.file, at: new Date(i.at).toISOString() })) }, script, take, rest },
   };

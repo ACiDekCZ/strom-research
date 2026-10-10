@@ -34,6 +34,9 @@ from your context to make room, your notes stay. Never open a view again because
 notes hold what it gave. After about ${n.viewsStop} views, stop and report what you have. \`strom read …\` hands
 a range to strom's own readers: only when the question asks for it (in the foreground; let it finish).
 
+Commands: \`strom …\` only, each on its own (no pipes, \`;\`, \`$(…)\` or other programs: refused). A text in
+the research's files (inputs/, notes/): \`strom grep "<text>"\` — never Read a big file in pieces.
+
 Images: you never fetch them (no \`strom fetch\`) and never wait or sleep for an archive. An image not
 here, or too small to read: say which in your report — the agent who sent you fetches them.
 
@@ -67,7 +70,7 @@ export function scanReaderTools(platform: NodeJS.Platform = process.platform): s
 
 /** The numbers of an agent's reading in this tree (what strom tuned for its agent and model; a session: as at its start). */
 export function treeReading(tree: Tree, agent: string, since?: string): ReadingNumbers {
-  return readingFor(new Settings(tree.env, {}), agent, tree.config, { since });
+  return readingFor(new Settings(tree.env, {}), agent, tree.config, { since, root: tree.root });
 }
 
 /** .claude/agents/strom-scan-reader.md: a conversation (the terminal, the desktop app) finds it in the tree. */

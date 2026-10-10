@@ -85,13 +85,38 @@ function capFree(recent: number[], perHour: number): number {
   return sorted[sorted.length - perHour]! + 3600_000;
 }
 
+/**
+ * The shares of a host's hourly cap at which strom fetch says that little of the hour is left — to the agent after
+ * every fetch past the first, to the person once at each share reached. Only said: the pace and the cap stay.
+ */
+export const CAP_WARN = [0.8, 0.9] as const;
+
+/** A host near its hourly cap (CAP_WARN): the requests of the last hour, the cap, what is left, when the next frees. */
+export interface CapNear {
+  used: number;
+  cap: number;
+  left: number;
+  /** When the oldest request of the hour is an hour old, so that one more may go (ms). */
+  free: number;
+  /** The highest share of CAP_WARN reached. */
+  share: number;
+}
+
+export function capNear(s: HostState, pace: Pace, now: number): CapNear | undefined {
+  if (!Number.isFinite(pace.perHour) || !(pace.perHour > 0)) return undefined;
+  const hour = s.recent.filter((t) => t > now - 3600_000);
+  const share = [...CAP_WARN].reverse().find((x) => hour.length >= x * pace.perHour);
+  if (share === undefined) return undefined;
+  return { used: hour.length, cap: pace.perHour, left: Math.max(0, pace.perHour - hour.length), free: Math.min(...hour) + 3600_000, share };
+}
+
 /** A limit used up: try again then. */
 function capError(host: string, why: "cap" | "limit", until: number, perHour: number): NetError {
   const what = why === "cap" ? `${perHour} requests to ${host} in the last hour — its hourly cap` : `${host} says its limit is used up`;
   return new NetError("cap", host, `${what}; try again at ${clock(until)}`, `go on with other work; run it again at ${clock(until)} — not sooner: strom sends nothing to ${host} before then`, undefined, until);
 }
 
-interface HostState {
+export interface HostState {
   /** When the last request started (ms). */
   last?: number;
   /** Request times within the last hour. */
@@ -218,7 +243,10 @@ export class CookieJar {
 }
 
 /** For tests running strom in-process: record the pauses instead of sleeping (no env or flag reaches this). */
-export const testHooks: { sleep?: (ms: number) => Promise<void>; now?: () => number } = {};
+/** Longer than any of strom's requests holds a host's lock (its pause, its waits within MAX_WAIT_MS, the answer within TIMEOUT_MS): an agent's web fetch takes over one older. */
+export const HOST_LOCK_MAX_AGE_MS = 30 * 60_000;
+
+export const testHooks: { sleep?: (ms: number) => Promise<void>; now?: () => number; /** agentRequest's wait for a host's lock */ lockWaitMs?: number } = {};
 
 /** The pace a connector gives for its service, on a host the user set nothing for. */
 export function paceOf(asked?: ServicePace): Pace {
@@ -288,8 +316,32 @@ function stateFile(dir: string, host: string): string {
   return path.join(dir, `${host.replace(/[^a-z0-9.-]/gi, "_")}.json`);
 }
 
+/** The state of a site's requests (agentRequest's `site`): beside the hosts', never a host's own file. */
+function siteStateFile(dir: string, site: string): string {
+  return path.join(dir, `site~${site.replace(/[^a-z0-9.-]/gi, "_")}.json`);
+}
+
 export function hostState(dir: string, host: string): HostState {
-  return readJsonIfExists<HostState>(stateFile(dir, host)) ?? { recent: [] };
+  return readHostState(dir, host).state;
+}
+
+/**
+ * A host's state as its file keeps it — `broken` when the file is there but no state can be read from it (cut short by
+ * a crash, overwritten): a fresh one then, which the next write puts in its place whole (writeJson: aside, then renamed)
+ * — never a host left uncounted for good because its file cannot be read.
+ */
+export function readHostState(dir: string, host: string): { state: HostState; broken: boolean } {
+  let v: unknown;
+  try {
+    v = readJsonIfExists<unknown>(stateFile(dir, host));
+  } catch {
+    return { state: { recent: [] }, broken: true };
+  }
+  if (v === undefined) return { state: { recent: [] }, broken: false };
+  if (!v || typeof v !== "object" || Array.isArray(v)) return { state: { recent: [] }, broken: true };
+  const st = v as HostState;
+  // (the hour's times only: anything else in it is no time of a request)
+  return { state: { ...st, recent: Array.isArray(st.recent) ? st.recent.filter((x) => typeof x === "number" && Number.isFinite(x)) : [] }, broken: false };
 }
 
 /** The hosts the limiter has met (it keeps a state for each). */
@@ -297,7 +349,7 @@ export function knownHosts(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
   return fs
     .readdirSync(dir)
-    .filter((f) => f.endsWith(".json"))
+    .filter((f) => f.endsWith(".json") && !f.startsWith("site~"))
     .map((f) => f.slice(0, -5));
 }
 
@@ -573,6 +625,144 @@ export function refusedBy(stateDir: string, host: string, status: number, now: (
   } finally {
     release();
   }
+}
+
+/** Why a host takes no request of another program now: left alone (a refusal, silence), its own limit, its hourly cap. */
+export interface HostRefusal {
+  why: "blocked" | "limit" | "cap";
+  until: number;
+  reason?: string;
+  perHour?: number;
+}
+
+/** What `inside` is told under the host's lock: a refusal of the host, and when the request's slot of its pace would be. */
+export interface AgentSlot {
+  refused: HostRefusal | undefined;
+  /** How long the request would wait for the host's pace (ms): its slot is now + this. */
+  waitMs: number;
+  /**
+   * The slot is later than `maxWaitMs`: no slot of the pace is reserved — taken by `inside`, the request goes at the end
+   * of the call's wait (`maxWaitMs` from its start), counted in the host's hour, its pace not kept.
+   */
+  late: boolean;
+}
+
+/**
+ * A request another program makes to a host — an agent's own web tool (core/web.ts) — kept like strom's own, in the
+ * host's state shared by every strom process. The host's lock is held only for a moment, to reserve: refused while the
+ * host is left alone (401/403/429, silence), while it says its limit is used up, and when its hourly cap (the user's,
+ * the service's) is full; else `inside` decides (false: nothing taken) knowing the slot the host's pace gives the
+ * request (the host's last slot + its pause), and a request taken has that slot reserved — counted in the host's hour
+ * and its last slot moved — and `after` told, all before the lock is let go; only then it waits until its slot, outside
+ * the lock, so many requests at once are each counted and spaced by the pace. A slot later than `maxWaitMs` from the
+ * call's start (the wait for the lock with it) is `late`:
+ * never reserved — the caller says no, or takes it to go at the end of the call's wait, counted in the hour. `wait:
+ * false` (a request that went out already): counted now, no slot. The locks (the host's, then the site's) not had within
+ * `lockWaitMs` together: the lock's error is thrown (LockedError — the caller decides).
+ *
+ * `site`: the requests of the host's whole site (its registrable domain, the host's mirrors with it) kept together too —
+ * its own state (a file of its own beside the hosts'), its lock taken under the host's (always in that order: no lock
+ * of a host is ever waited for under a site's), so whatever `site.gapMs()` and `inside` read there holds for every host
+ * of the site; `site.gapMs()` (read under both locks): a pause the site's requests keep between them besides the host's
+ * pace (0: none) — the slot is the later of the two; every request taken moves the site's last slot.
+ */
+export async function agentRequest<T>(
+  stateDir: string,
+  host: string,
+  asked: ServicePace | undefined,
+  o: {
+    inside: (slot: AgentSlot) => { take: boolean; value: T };
+    /** Told with the lock still held, once the request is counted (or not): the pause it will make for the host's pace. */
+    after?: (value: T, waitedMs: number) => void;
+    maxWaitMs: number;
+    /** False: the request went out already — counted now, never waited for. */
+    wait?: boolean;
+    lockWaitMs: number;
+    site?: { key: string; gapMs: () => number };
+    /**
+     * The host's state found broken: the times of its requests in the last hour as the caller's own journal tells them
+     * (ms), put into the fresh state written at once — the hour and the pace go on from what is known.
+     */
+    recover?: (now: number) => number[];
+    now?: () => number;
+    sleep?: (ms: number) => Promise<void>;
+  },
+): Promise<{ value: T; waitedMs: number }> {
+  const now = o.now ?? testHooks.now ?? Date.now;
+  const sleep = o.sleep ?? testHooks.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  fs.mkdirSync(stateDir, { recursive: true });
+  const file = stateFile(stateDir, host);
+  const wait = o.wait !== false;
+  let value: T;
+  let waitedMs = 0;
+  // the wait for the host's turn counts in the call's wait too
+  const begun = now();
+  // (a host's lock is held for one request with its pauses — minutes at most: one older is left by a process gone)
+  const lockOpts = { owner: "strom net", waitMs: testHooks.lockWaitMs ?? o.lockWaitMs, staleMs: 10 * 60_000, maxAgeMs: HOST_LOCK_MAX_AGE_MS };
+  // (the locks' wait on the real clock, as acquireLock waits: the host's and the site's together within lockWaitMs)
+  const lockBegun = Date.now();
+  const release = acquireLock(`${file}.lock`, lockOpts);
+  let releaseSite: (() => void) | undefined;
+  try {
+    const siteFile = o.site ? siteStateFile(stateDir, o.site.key) : undefined;
+    if (siteFile) releaseSite = acquireLock(`${siteFile}.lock`, { ...lockOpts, waitMs: Math.max(0, lockOpts.waitMs - (Date.now() - lockBegun)) });
+    // a site's state that cannot be read: a fresh one (written below with the request's slot, or now)
+    let siteBroken = false;
+    let site: { last?: number } | undefined;
+    if (siteFile) {
+      try {
+        const v = readJsonIfExists<{ last?: number }>(siteFile);
+        site = v && typeof v === "object" && !Array.isArray(v) ? v : {};
+        siteBroken = v !== undefined && site !== v;
+      } catch {
+        site = {};
+        siteBroken = true;
+      }
+    }
+    const { state: s, broken } = readHostState(stateDir, host);
+    const t = now();
+    if (broken) {
+      const known = (o.recover?.(t) ?? []).filter((x) => Number.isFinite(x) && x > t - 3600_000);
+      s.recent = known;
+      if (known.length) s.last = Math.max(...known);
+    }
+    const pace = hostPace(s, asked);
+    s.recent = s.recent.filter((x) => x > t - 3600_000);
+    const refused: HostRefusal | undefined =
+      s.blockedUntil && s.blockedUntil > t
+        ? { why: "blocked", until: s.blockedUntil, ...(s.reason ? { reason: s.reason } : {}) }
+        : s.waitUntil && s.waitUntil > t
+          ? { why: "limit", until: s.waitUntil }
+          : s.recent.length >= pace.perHour
+            ? { why: "cap", until: capFree(s.recent, pace.perHour), perHour: pace.perHour }
+            : undefined;
+    // the request's slot: the host's last one (strom's own, another agent's, one reserved and not yet gone) + its pause
+    const siteGap = site && wait ? o.site!.gapMs() : 0;
+    const slot = wait ? Math.max(t, (s.last ?? 0) + gapOf(s, pace), siteGap > 0 ? (site!.last ?? 0) + siteGap : 0) : t;
+    const late = wait && slot - begun > o.maxWaitMs;
+    const decided = o.inside({ refused, waitMs: Math.round(slot - t), late });
+    value = decided.value;
+    if (decided.take && !refused) {
+      // a late one goes at the end of the call's wait: in the hour, no slot of the pace (the later slots stay theirs)
+      const at = late ? Math.max(t, begun + o.maxWaitMs) : slot;
+      waitedMs = Math.round(at - t);
+      s.last = Math.max(s.last ?? 0, at);
+      s.recent.push(at);
+      writeJson(file, s);
+      if (siteFile) writeJson(siteFile, { ...site, last: Math.max(site!.last ?? 0, at) });
+    } else {
+      // nothing taken: a broken state is put right all the same, from what is known
+      if (broken) writeJson(file, s);
+      if (siteFile && siteBroken) writeJson(siteFile, site);
+    }
+    o.after?.(value, waitedMs);
+  } finally {
+    releaseSite?.();
+    release();
+  }
+  // the pause for the pace, with the host let go: the next request reserves its own slot after this one meanwhile
+  if (waitedMs > 0) await sleep(waitedMs);
+  return { value, waitedMs };
 }
 
 /** A GET — see politeRequest. */

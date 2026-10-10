@@ -219,7 +219,13 @@ export class Context {
       if (answer === false) throw new StromError(ui(lang, "ui.dialog.refused"), { hint: `the user said no to: ${question} — do not ask again unless they want to` });
     }
     // a person (a script, no terminal) reads it in their language; an agent the English it goes by
-    throw new NeedsConsentError([{ key, kind: "consent", question: `${question}${agent ? " (an agent cannot answer this)" : ""}`, set }], agent ? undefined : says);
+    // a run nobody watches: nobody to say yes before it ends — a task for it, for the user to see, and on another way
+    const run = this.env.STROM_NONINTERACTIVE === "1" && !!this.env.STROM_SESSION;
+    const q = (t: string) => `"${t.replace(/["\\$`]/g, "")}"`;
+    const task = run
+      ? `nobody watches this run to say yes: add a task for it and go on another way — strom task add ${q(`The user's consent: ${set}`)} --level locate --where ${q(set)} --why ${q(question)} --done-when ${q(`the user ran ${set} in their own terminal`)}, then strom task wait <its T…> --on "<for the user, impersonal, in the research language: run ${set} in a terminal>"; never go round it`
+      : undefined;
+    throw new NeedsConsentError([{ key, kind: "consent", question: `${question}${agent ? " (an agent cannot answer this)" : ""}`, set }], agent ? undefined : says, task);
   }
 
   /**

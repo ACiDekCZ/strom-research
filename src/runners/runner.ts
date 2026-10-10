@@ -7,6 +7,7 @@ import path from "node:path";
 import type { SessionMetrics } from "../core/model.ts";
 import type { Env } from "../core/paths.ts";
 import type { AgentPermissions } from "../core/config.ts";
+import type { AgentWeb } from "../core/metrics.ts";
 import { findAgent } from "../core/which.ts";
 
 export interface RunOptions {
@@ -72,6 +73,11 @@ export interface RunOptions {
    * else once at the end; and its own id of the session. Never a number the agent did not say.
    */
   onUsage?: (u: UsageSample) => void;
+  /**
+   * A page the agent fetched or a search it made with its own web tools, heard from its stream after the fact
+   * (core/metrics.ts: fetch.jsonl). Claude Code's are counted by its hook, never from its stream (once, not twice).
+   */
+  onWeb?: (w: AgentWeb) => void;
   /** Stop the agent when this is aborted (the user pressed Ctrl-C). */
   signal?: AbortSignal;
 }
@@ -85,6 +91,11 @@ export interface RunResult {
   resumeAt?: string;
   /** Tool calls the permissions refused, e.g. "Bash: strom input show I0001". */
   denied?: string[];
+  /**
+   * Tool calls strom's own hook refused (core/web.ts: a web fetch past WEB_PER_HOST to one server in a run, or while
+   * the server is left alone, its limit used up or its hour full), e.g. "WebFetch: https://…" — not the permissions.
+   */
+  refused?: string[];
   /** The agent refused the model it was started with (one it does not know, or no longer serves). */
   modelRejected?: true;
   /** The limits of the agent's plan as it said them last (Claude Code's rate_limit_event); none from other agents. */
@@ -149,6 +160,16 @@ export function tellUsage(opts: Pick<RunOptions, "onUsage">, u: UsageSample): vo
   }
 }
 
+/** A use of the agent's own web tool passed on (a page with its address, a search); a failure is left out. */
+export function tellWeb(opts: Pick<RunOptions, "onWeb">, w: AgentWeb): void {
+  if (!opts.onWeb || (w.via === "web" && !w.url)) return;
+  try {
+    opts.onWeb(w);
+  } catch {
+    // a measurement is no reason to fail
+  }
+}
+
 /** The latest of each kind: what came later replaces what was said before. */
 export function mergeLimits(had: AgentLimit[] | undefined, now: AgentLimit[] | undefined): AgentLimit[] | undefined {
   if (!now?.length) return had;
@@ -162,6 +183,15 @@ export interface Runner {
   /** Executable to find on PATH. */
   command: string;
   run(opts: RunOptions): Promise<RunResult>;
+}
+
+/**
+ * A tool call refused by strom's own hook, as the agent tells it: every reason core/web.ts gives begins with "strom: ",
+ * and the agent puts its own words before it — Claude Code "PreToolUse:WebFetch hook error: strom: …", Grok "Hook
+ * denied: strom: …". A hook of the person's own (another reason) is no such thing.
+ */
+export function refusedByStrom(text: string): boolean {
+  return /\bhook (?:error|denied): strom: /i.test(text);
 }
 
 /** Recognise a subscription/usage limit in an agent's message. */

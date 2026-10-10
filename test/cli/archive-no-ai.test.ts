@@ -124,3 +124,20 @@ test("research switched on, the agents' files come; an archive again, strom's ow
   assert.match(fs.readFileSync(path.join(w.cwd, "CLAUDE.md"), "utf8"), /Moje poznámka/);
   w.cleanup();
 });
+
+test("an archive with an agent's web requests from before (fetch.jsonl): doctor says nothing of agents on the web", opts, async () => {
+  const w = new World();
+  await w.withTree("Webovi");
+  const at = new Date(Date.now() - 3600_000).toISOString();
+  const line = { at, via: "web", host: "obec.example", session: "N0004", key: "claude opus", agent: "grok", tool: "web_fetch", from: "stream" };
+  fs.mkdirSync(path.join(w.cwd, ".strom", "metrics"), { recursive: true });
+  fs.writeFileSync(path.join(w.cwd, ".strom", "metrics", "fetch.jsonl"), Array.from({ length: 30 }, () => JSON.stringify(line)).join("\n") + "\n");
+  // research: said
+  assert.ok((await w.run(["doctor", "--json"])).json.checks.some((c: { name: string }) => c.name === "web"));
+  await w.ok(["mode", "archive"], { tty: true });
+  const json = (await w.run(["doctor", "--json"])).json.checks as { name: string }[];
+  assert.equal(json.some((c) => c.name === "web"), false);
+  const text = (await w.run(["doctor"])).out;
+  assert.deepEqual(text.split("\n").filter((l) => AI.test(l) || /obec\.example|webu/.test(l)), [], text);
+  w.cleanup();
+});
