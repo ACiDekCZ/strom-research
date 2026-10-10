@@ -28,6 +28,7 @@
 import { GedWriter } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, HypothesisVariant, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
+import { linkInTree, recordedLinks } from "../core/hypolinks.ts";
 import { birthEvent, claimText, conflictTitle, coupleSides, displayName, familySides, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { dateYears } from "../core/gdate.ts";
@@ -608,7 +609,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         if (h.state === "decided" && h.chosen) w.line(2, "_CHOSEN", h.chosen);
       }
       w.text(2, "NOTE", h.variants.map((v) => `${v.label}: ${v.claim}`).join("\n"));
-      if (opts.hypothesisLinks) for (const v of h.variants) variant(v, h.state === "open");
+      if (opts.hypothesisLinks) for (const v of h.variants) variant(h, v);
     }
     for (const q of research.searched.filter((x) => x.people.includes(p.id)).map((x) => x.search)) {
       w.line(1, "_STROM_SEARCHED");
@@ -623,14 +624,18 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   /**
    * A variant of a hypothesis: its claim, what it would connect — only a link all of whose records are in the file,
    * and of an open one none the tree has already (a child of that family; a decided one keeps it: the link it chose,
-   * now recorded); never one person merged into the other — and the sources its claim and support name (the app's
-   * ZADANI_VYZKUM_nejista-spojeni.md).
+   * now recorded); never one person merged into the other —, of an open one what it says that the tree records already
+   * (3 _INTREE: nothing uncertain to show, never "not linked yet"), and the sources its claim and support name (the
+   * app's ZADANI_VYZKUM_nejista-spojeni.md).
    */
-  function variant(v: HypothesisVariant, open: boolean): void {
+  function variant(h: Hypothesis, v: HypothesisVariant): void {
+    const open = h.state === "open";
     w.line(2, "_VAR", v.label);
     w.text(3, "TITL", v.claim);
     const person = (id: string) => personIds.has(id);
     for (const l of v.links ?? []) {
+      // of an open one, a link the tree records since: said as the tree's own below (_INTREE), never as one to show
+      if (open && linkInTree(tree, l)) continue;
       if (l.kind === "child") {
         const parents = [...new Set(l.parents ?? [])];
         // the family named, else the one its parents have made since (_PAR: parents who have no family together)
@@ -646,6 +651,15 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         w.line(3, "_LINK", l.kind);
         for (const p of people) w.line(4, "_PERS", x(p));
       }
+    }
+    for (const l of recordedLinks(tree, h, v)) {
+      // the family that records it, and its people — all in the file
+      const f = linkInTree(tree, l);
+      const people = l.kind === "child" ? [l.person] : [...new Set(l.persons)];
+      if (!f || !families.some((y) => y.id === f.id) || !people.every(person)) continue;
+      w.line(3, "_INTREE", l.kind);
+      for (const p of people) w.line(4, "_PERS", x(p));
+      w.line(4, "_FAM", x(f.id));
     }
     const named = new Set([v.claim, ...v.support].flatMap((text) => text.match(SOURCE_ID) ?? []));
     for (const s of named)
@@ -684,6 +698,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       const y = parseYears(b.years);
       if (y) w.line(3, "DATE", years({ from: y.from, to: y.to }));
       w.line(3, "_ACCESS", b.access);
+      // its scans weak (their long side, px): an app that does not know it passes it by
+      if (b.weak) w.line(3, "_WEAK", String(b.weak));
     }
     for (const r of e.covered) w.line(2, "_COVERED", years(r));
     for (const r of e.noRecords) w.line(2, "_NORECORDS", years(r));

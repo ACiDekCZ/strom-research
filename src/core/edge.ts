@@ -18,6 +18,7 @@ import { effectiveState, rankTasks } from "./queue.ts";
 import { subjectPeople } from "./records.ts";
 import { foldText } from "./text.ts";
 import { parseYears } from "./years.ts";
+import { weakScans } from "./mediaindex.ts";
 import { costPartial, sessionCost } from "./session.ts";
 
 /** What is missing above the person: both parents, one of them, or a record that proves the parents recorded. */
@@ -89,8 +90,8 @@ export interface Edge {
   window?: { from: number; to: number };
   /** The known birth records of the place begin (before-records). */
   recordsFrom?: number;
-  /** The known books of the birth in those years. */
-  books: { id: string; title: string; years?: string; access: RecordSet["access"] }[];
+  /** The known books of the birth in those years; weak: the long side of their scans when they are weak (core/mediaindex.ts WEAK_SCAN_PX) — what was searched in vain on them may be there. */
+  books: { id: string; title: string; years?: string; access: RecordSet["access"]; weak?: number }[];
   /** Years of the window searched in vain in every known book of them. */
   covered: { from: number; to: number }[];
   /** Years of the window no book is known for (before the records begin, a gap). */
@@ -330,7 +331,8 @@ export function treeEdges(tree: Tree, opts: { named?: boolean } = {}): { edges: 
         else if (!kept.length) lostYears.push(y);
         else if (
           kept.every((b) =>
-            sought.some((q) => q.result === "negative" && q.recordsets.includes(b.id) && within(y, yearsOf(q.scope.years) ?? (q.scope.pages ? { from: 0, to: -1 } : yearsOf(b.years)))),
+            // a negative of an index is the index's (a copy, written by another hand, maybe incomplete): never the book searched in vain
+            sought.some((q) => q.result === "negative" && q.method !== "index" && q.recordsets.includes(b.id) && within(y, yearsOf(q.scope.years) ?? (q.scope.pages ? { from: 0, to: -1 } : yearsOf(b.years)))),
           )
         )
           covered.push(y);
@@ -402,7 +404,10 @@ export function treeEdges(tree: Tree, opts: { named?: boolean } = {}): { edges: 
       ...(est.year || est.place ? { estimate: { ...(est.year ? { year: est.year } : {}), ...(est.place ? { place: est.place } : {}), ...(est.basis ? { basis: est.basis } : {}) } } : {}),
       ...(window ? { window } : {}),
       ...(Number.isFinite(earliest) && (end === "before-records" || noRecords.some((y) => y < earliest)) ? { recordsFrom: earliest } : {}),
-      books: books.map((b) => ({ id: b.id, title: b.title, ...(b.years ? { years: b.years } : {}), access: b.access })),
+      books: books.map((b) => {
+        const weak = weakScans(tree, b.id);
+        return { id: b.id, title: b.title, ...(b.years ? { years: b.years } : {}), access: b.access, ...(weak ? { weak } : {}) };
+      }),
       covered: ranges(covered),
       noRecords: ranges(noRecords),
       tasks: edgeTasks,

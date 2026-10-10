@@ -7,9 +7,9 @@ search depends on** (a surname, a birthplace, a parish) is read again on a
 crop at full resolution before it is recorded; what stays unsure is recorded
 as unsure and said so.
 
-Every image you open stays in your context to the end of the session: look at
-as few pixels as the question needs, write down what you saw at once, and after
-about 80 views write down what you found before you open more.
+Look at as few pixels as the question needs and write down what you saw at
+once: after about 30 views write down what you found before you open more, and
+never open again a view cleared from your context — your notes hold it.
 
 - **Look only through views**: `strom media view B0001:57` (record set and
   image number) makes a file in `.strom/views/` — open that file. Whole images
@@ -24,18 +24,19 @@ about 80 views write down what you found before you open more.
   page, where they are sharper than one view of it), `--crop … --crop …`
   (several entries of one image), `--split 2x2` (a page in overlapping parts),
   `strom media view B0001 --page 112 113`. Each file comes with its image, page
-  and `--clip`. At most 12 images and 24 views in one call.
+  and `--clip`. At most 12 images and 24 views in one call: with 4 views an
+  image (halves and crops), 6 images a call.
 - **Find, then crop.** `--grid` overlays tenths with labels; read off where the
   entry is and ask for exactly that part: `--crop 0.05,0.40,0.45,0.18` (x, y,
   width, height as fractions) or `--half left|right` for one page of a spread.
   A crop comes at full resolution (small ones enlarged). `--contrast` for faded
   ink, `--rotate 90` for sideways pages.
 <!-- for link verify enrich part -->
-- **Too small to read?** When a crop says it is enlarged, the scan has no more
-  detail there. A connector that can fetch a part of an image sharper says so
-  in that line: `strom fetch <connector> --recordset B0001 --images 57 --crop
-  …` (one request). Then view the same crop again: it comes from the sharper
-  part by itself.
+- **Too small to read?** A crop said enlarged: the scan has no more detail.
+  A connector that fetches a part sharper says so in that line: `strom fetch
+  <connector> --recordset B0001 --images 57 --crop …`; the same crop viewed
+  again comes from it. Whole images first, a part only where entries need
+  it: an archive's hourly cap stops the rest.
 <!-- end -->
 - **Browsing a book is a reader's job**: `strom read B0001 --images 40-69
   --question "…"` — readers in batches of ten, each with the full question.
@@ -51,8 +52,8 @@ about 80 views write down what you found before you open more.
   foreground and let it finish — your session ends with your turn, and
   whatever is left running in the background ends with it.
   (A scan-reader subagent where your agent has one, strom-scan-reader, or your
-  own subagents — on your own model, never a faster one — read too, in batches
-  of at most twelve with the whole question; what they report is lost with
+  own subagents — on your own model, never a faster one — read too, about six scans
+  each with the whole question; what they report is lost with
   your session unless you write it down: record each report as it comes back,
   before you send the next readers.) Only the entries
   that will be cited need your own eyes, at full resolution.

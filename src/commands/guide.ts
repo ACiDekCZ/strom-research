@@ -62,8 +62,9 @@ conversation opened anywhere, a bot on its own server)
                                        (a complete negative search is a result) — it proposes the next tasks
   not finished: strom session close --continue --summary "…" --next "…"; put aside: strom task park|wait T…,
   then strom session close --summary "…" --next "…"
-  then tell the user what was found (strom person card …) and what comes next (strom plan), and ask
-  before the next session. The next step is strom's queue: what the user wants instead becomes a
+  then, in a conversation, tell the user what was found (strom person card …) and what comes next
+  (strom plan), and ask before the next session; working alone (strom run) the summary is what they
+  read (plain words of the research, never addressed to them) — nothing more after it. The next step is strom's queue: what the user wants instead becomes a
   task first (strom task add …, or strom research new …) — never search outside a session and its task.
   The user names a research (G…) to work on: its tasks only — strom session start --research G….
   A side of the family no direction reaches (a spouse's line) is a direction of its own: strom research
@@ -71,7 +72,8 @@ conversation opened anywhere, a bot on its own server)
   tasks leave the queue, nothing is deleted; strom research resume G… brings them back).
   In a conversation the next task is best begun in a fresh context (Claude Code: /clear) — suggest
   it to the user; many tasks waiting: the agent working on its own (strom run, the user starts it
-  from strom's menu), every task in a fresh session
+  from strom's menu), every task in a fresh session. A strom command that says ⏳ finish (the user asked, or
+  the agent's usage limit is near): start nothing new — no reader, nothing delegated —, record, close the session
 
 RECORDING
 A record (register entry, certificate) — the source first, then its facts:

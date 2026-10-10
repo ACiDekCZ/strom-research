@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { World, hasGit, readJsonFile } from "../helpers.ts";
+import { World, fakeConnector, hasGit, readJsonFile } from "../helpers.ts";
 import { claudeArgs, cleanTools, headlessEnv, missingTools, READER_TOOLS, RUN_TOOLS } from "../../src/runners/claude.ts";
 import { CODEX_CLEAN, codexArgs, codexResumeArgs } from "../../src/runners/codex.ts";
 import { grokArgs } from "../../src/runners/grok.ts";
@@ -200,5 +200,38 @@ test("strom config get agent.addons: off by default, said as the other settings 
   assert.deepEqual((await w.ok(["config", "get", "agent.addons", "--json"])).json, { key: "agent.addons", value: "on", source: "tree" });
   await w.ok(["config", "unset", "agent.addons", "--for-tree"]);
   assert.equal((await w.ok(["config", "get", "agent.addons"])).out.trim(), "off");
+  w.cleanup();
+});
+
+test("the browser in a run: only for a session whose task may need it — never a story, a letter, a book served directly, a reader", unix, async () => {
+  const w = await world();
+  // an archive through the browser and one served directly (the plugins folder is every tree's)
+  const dir = await fakeConnector(w, "prohlizec");
+  const m = readJsonFile(path.join(dir, "connector.json"));
+  fs.writeFileSync(path.join(dir, "connector.json"), JSON.stringify({ ...m, can: [...m.can, "locate"], routes: ["browser"] }));
+  await fakeConnector(w, "primo", "https://direct.example.net");
+  await w.ok(["research", "new", "Předci", "--new-person", "Jan /Novák/"]);
+  await w.ok(["repo", "add", "Archiv Žďár", "--url", "https://archive.example.org/"]); // R1
+  await w.ok(["recordset", "add", "Kniha Ä 1801–1820", "--repo", "R1"]); // B1: through the browser
+  await w.ok(["recordset", "add", "Книга Б 1821–1840", "--url", "https://direct.example.net/kniha/2"]); // B2: directly
+  await w.ok(["recordset", "add", "Kniha C 1841–1860"]); // B3: its archive not known
+  const add = (what: string, level: string, where: string) =>
+    w.ok(["task", "add", what, "--level", level, "--where", where, "--why", "rodiče", "--done-when", "zápis nalezen", "--about", "P1", "--anyway"]);
+  await add("Křest Jana (B1)", "link", "B1"); // T1
+  await add("Křest Jana (B2)", "link", "B2"); // T2
+  await add("Vyprávění: Jan Novák", "narrate", "zapsané údaje"); // T3
+  await add("Kde jsou matriky Kamenice", "locate", "katalog archivu"); // T4
+  await add("Křest Jana (B3)", "link", "B3"); // T5
+  await add("Dopis archivu", "request", "B1"); // T6
+  const run = await w.run(["run", "--agent", "claude", "--task", "T1,T2,T3,T4,T5,T6", "--max", "6"]);
+  const flags = calls(w).map((c) => /\[--(no-)?chrome\]/.exec(c.args)?.[0]);
+  assert.deepEqual(flags, ["[--chrome]", "[--no-chrome]", "[--no-chrome]", "[--chrome]", "[--chrome]", "[--no-chrome]"], run.out + run.err);
+  // agent.browser always (the person's choice): every session
+  await w.ok(["config", "set", "agent.browser", "always"], { tty: true, answers: ["a"] });
+  await w.run(["run", "--agent", "claude", "--task", "T2,T3", "--max", "2"]);
+  assert.deepEqual(calls(w).map((c) => /\[--(no-)?chrome\]/.exec(c.args)?.[0]), ["[--chrome]", "[--chrome]"]);
+  // a reader never, whatever it is given
+  assert.ok(claudeArgs({ kickoff: "k", reader: true, chrome: true }).includes("--no-chrome"));
+  assert.ok(!claudeArgs({ kickoff: "k", reader: true, chrome: true }).includes("--chrome"));
   w.cleanup();
 });

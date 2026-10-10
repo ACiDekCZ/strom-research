@@ -20,8 +20,27 @@ import type { Tree } from "./tree.ts";
 export interface ImagesIndex {
   /** Images that stand (not withdrawn). */
   alive: number;
-  /** Per record set: how many of its images stand, and their numbers (each once, sorted). */
-  sets: Map<string, { count: number; images: number[] }>;
+  /** Per record set: how many of its images stand, their numbers (each once, sorted), and the long side of its scans (the median of its whole images whose size is known, px). */
+  sets: Map<string, SetImages>;
+}
+
+export interface SetImages {
+  count: number;
+  images: number[];
+  long?: number;
+}
+
+/**
+ * A weak scan: its long side at most this many pixels — what an archive's viewer gives at most (2000 px), where a
+ * double page has under ~1000 px across each page. Readers of such scans (1 142–2 000 px) said the scan had no more
+ * detail, never the view; a negative read on them is weak. Measured on the image's own size, nothing stored.
+ */
+export const WEAK_SCAN_PX = 2000;
+
+/** The long side of a record set's scans when they are weak (WEAK_SCAN_PX), else nothing. */
+export function weakScans(tree: Tree, recordset: string): number | undefined {
+  const long = imagesIndex(tree).sets.get(recordset)?.long;
+  return long !== undefined && long <= WEAK_SCAN_PX ? long : undefined;
 }
 
 interface Stamp {
@@ -33,10 +52,10 @@ interface Stored {
   v: number;
   stamp: Stamp;
   alive: number;
-  sets: Record<string, { count: number; images: number[] }>;
+  sets: Record<string, SetImages>;
 }
 
-const FORMAT = 1;
+const FORMAT = 2;
 const TYPE: RecordType = "media";
 /** A folder changed this recently may change again within the same tick of its clock: no stamp for it. */
 export const STABLE_MS = 2000;
@@ -108,7 +127,8 @@ function sameStamp(a: Stamp, b: Stamp): boolean {
 }
 
 function build(all: Media[]): ImagesIndex {
-  const sets = new Map<string, { count: number; images: number[] }>();
+  const sets = new Map<string, SetImages>();
+  const sides = new Map<string, number[]>();
   let alive = 0;
   for (const m of all) {
     if (m.retracted) continue;
@@ -118,8 +138,18 @@ function build(all: Media[]): ImagesIndex {
     s.count++;
     if (m.image !== undefined) s.images.push(m.image);
     sets.set(m.recordset, s);
+    // a part of an image is not its scan
+    if (!m.part && m.width && m.height) {
+      const l = sides.get(m.recordset) ?? [];
+      l.push(Math.max(m.width, m.height));
+      sides.set(m.recordset, l);
+    }
   }
-  for (const s of sets.values()) s.images = [...new Set(s.images)].sort((x, y) => x - y);
+  for (const [id, s] of sets) {
+    s.images = [...new Set(s.images)].sort((x, y) => x - y);
+    const l = sides.get(id)?.sort((x, y) => x - y);
+    if (l?.length) s.long = l[Math.floor((l.length - 1) / 2)]!;
+  }
   return { alive, sets };
 }
 

@@ -23,6 +23,7 @@ import { chooseMode } from "./menu-mode.ts";
 import { chooseModel } from "./model-choice.ts";
 import { agentsHere } from "../core/apps.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -68,7 +69,8 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
     // the model the agent does the research with (every agent: its strong ones offered) — not in an archive, nor
     // while the research's agent is not on this computer (nothing of an agent the person does not use)
     const agent = ctx.settings.agent(tree).value;
-    if (!archive && PROFILES[agent] && agentsHere(ctx.env).some((a) => a.id === agent)) {
+    const modelShown = !archive && !!PROFILES[agent] && agentsHere(ctx.env).some((a) => a.id === agent);
+    if (modelShown) {
       const kept = ctx.settings.resolve("model.lead", tree, agent);
       items.push({
         key: "model",
@@ -94,6 +96,22 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
           ctx.io.stdout(t(own ? "ui.settings.remote.own" : "ui.settings.remote.about") + "\n");
           if (await ctx.confirm(t(remote ? "ui.settings.remote.off" : own ? "ui.settings.remote.onalone" : "ui.settings.remote.on"), !remote))
             await run(["config", "set", "agent.remote", remote ? "off" : "on"], true);
+        },
+      });
+    }
+    // the size of the scan views tuned for this agent and model on the research's own records (paid: the person's yes
+    // after the cost is said) — shown when the model is, after Remote Control, so the numbers a person knows stay
+    if (root && modelShown) {
+      const views = viewSizesFor(ctx.settings, agent, tree);
+      const other = calibrationOffer(ctx.settings, agent, tree);
+      items.push({
+        key: "views",
+        label: t("ui.settings.views", {
+          state: views.calibrated ? t("ui.settings.views.done", { date: views.calibrated.at }) : t(other ? "ui.settings.views.other" : "ui.settings.views.default"),
+        }),
+        act: async () => {
+          await run(["media", "calibrate"]);
+          await pause(ctx, lang);
         },
       });
     }

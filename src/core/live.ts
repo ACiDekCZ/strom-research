@@ -634,7 +634,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "conflict.decide", "status.recent", "spend.readers"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "conflict.decide", "status.recent", "spend.readers", "hypothesis.intree"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -665,15 +665,26 @@ function rawCommits(root: string, range: string[]): RawCommit[] {
     });
 }
 
+/**
+ * A task as the app shows it (/log, a change's entries, who is at work): its ID first — the app groups the history by
+ * it — then its text with the records it names by their names, as the queue says it. A task's own words stay as they
+ * were written (an old task strom wrote in English is not written anew).
+ */
+function taskTitle(tree: Tree, task: Task): string {
+  return `${task.id} ${humanTask(tree, task.what, tree.lang)}`;
+}
+
 /** The commits as the app reads them — what depends on the research now (names, tasks, directions) worked out afresh. */
 function rendered(tree: Tree, raws: RawCommit[]): HistoryEntry[] {
   const sessions = new Map(tree.list<Session>("session").map((s) => [s.id, s]));
   let all: Scope[] | undefined;
   const now = Date.now();
+  const titles = new Map<string, string>();
   const taskOf = (s: Session | undefined): { task?: string } => {
     if (!s?.task) return {};
     const task = tree.get<Task>(s.task);
-    return { task: task ? `${task.id} ${task.what}` : s.task };
+    if (task && !titles.has(task.id)) titles.set(task.id, taskTitle(tree, task));
+    return { task: task ? titles.get(task.id)! : s.task };
   };
   return raws.map(({ head, at, subject, body, files, ops }) => {
     const named = new Set<string>();
@@ -838,7 +849,7 @@ function working(root: string, tree: Tree, all: Scope[]): { who: string; since: 
       who: whoAtWork(w.label, tree.lang),
       since: w.since,
       ...(w.paused ? { paused: w.paused } : {}),
-      ...(s ? { session: s.id, ...(s.task ? { task: task ? `${task.id} ${task.what}` : s.task } : {}), ...workedOn(root, tree, s, task) } : {}),
+      ...(s ? { session: s.id, ...(s.task ? { task: task ? taskTitle(tree, task) : s.task } : {}), ...workedOn(root, tree, s, task) } : {}),
       ...(research ? { research } : {}),
     };
   });
@@ -1170,7 +1181,12 @@ export function serveLive(root: string, env: Env): Promise<void> {
     try {
       // an answer begun (the events) is only ended
       if (res.headersSent) res.end();
-      else res.writeHead(500, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ error: (e as Error)?.message ?? String(e) }));
+      else {
+        // a send or an adoption that went wrong on the way: its stable code too, for the app to say it in its words
+        const what = req.method === "POST" ? (req.url ?? "").split("?")[0]!.split("/")[2] : undefined;
+        const code = what === "sync" ? CODES["ui.sync.bridge.failed"] : what === "adopt" ? CODES["ui.sync.bridge.adopt"] : undefined;
+        res.writeHead(500, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ error: (e as Error)?.message ?? String(e), ...(code ? { code } : {}) }));
+      }
     } catch {
       res.destroy();
     }
@@ -1691,7 +1707,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
     };
     req.resume();
-    if (!origin) return reply(403, { error: "only the Strom app may send a tree here" });
+    if (!origin) return reply(403, refusal("only the Strom app may send a tree here", "app.only"));
     const text = undoneSend(root, intake);
     if (!text) return reply(404, { error: `no send ${intake.slice(0, 64)} taken back is kept here`, code: "send.none", intake });
     safely(req, res, () => {
@@ -1731,7 +1747,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       }
     };
     if (!origin) {
-      reply(403, { error: "only the Strom app may send a tree here" });
+      reply(403, refusal("only the Strom app may send a tree here", "app.only"));
       return;
     }
     const chunks: Buffer[] = [];

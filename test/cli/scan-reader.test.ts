@@ -34,6 +34,18 @@ test("the tree's scan reader: Bash and Read only, the user's model.vision else i
   let text = md();
   assert.match(text, new RegExp(`^---\nname: strom-scan-reader\ndescription: "Reads scans[^\n]*"\ntools: ${scanReaderTools().join(", ")}\nmodel: "inherit"\n---\n`));
   assert.match(text, /Open ALL the views a call lists in ONE message/);
+  // a call within the cap: 6 images with halves and crops, not ten (every subagent lost a turn on it)
+  assert.match(text, /24 views a call: 12 whole images, or 6 with 4 views each/);
+  // views cleared from a reader's context to make room were opened again and again, nothing written down (a run's
+  // readers re-read half their views and returned nothing): notes after each call, a view gone never reopened, ~30 views
+  assert.match(text, /then read them and write down at once, image by image,\s+what they gave/);
+  assert.match(text, /Never open a view again because it is gone — your\s+notes hold what it gave/);
+  assert.match(text, /After about 30 views, stop and report what you have/);
+  assert.doesNotMatch(text, /Every view stays\s+in your context|about 80 views/);
+  assert.match(text, /your last message is all that comes back: it repeats every note/);
+  // a run's readers fetched halves of every image themselves and one slept 36 min on an archive's hourly cap
+  assert.match(text, /you never fetch them \(no `strom fetch`\) and never wait or sleep for an archive/);
+  assert.match(text, /say which in your report — the agent who sent you fetches them/);
   assert.match(text, /\[\?\] for each uncertain letter/);
   assert.match(text, /never report an image you did not read as\s+searched/);
   assert.doesNotMatch(text, /Agent|WebSearch|SendMessage|ToolSearch/);
@@ -44,6 +56,8 @@ test("the tree's scan reader: Bash and Read only, the user's model.vision else i
   assert.equal(oc.model, undefined, "the starting agent's model");
   assert.equal(oc.permission.bash["*"], "deny");
   assert.equal(oc.permission.bash["strom *"], "allow");
+  assert.equal(oc.permission.bash["strom fetch *"], "deny", "it never fetches");
+  assert.equal(Object.keys(oc.permission.bash).at(-1), "strom fetch *", "after strom *: the last matching rule counts");
   assert.equal(Object.keys(oc.permission.bash)[0], "*", "the general rule first: the last matching one counts");
   for (const k of ["edit", "webfetch", "websearch", "task", "question", "skill"]) assert.equal(oc.permission[k], "deny", k);
   assert.equal(oc.permission.read["data/*"], "deny", "the tree's rules hold");

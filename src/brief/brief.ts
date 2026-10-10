@@ -5,7 +5,7 @@
 // The brief has a hard token budget; sections come in priority order and
 // what does not fit is cut to a pointer: the command that shows the rest.
 
-import type { Citation, Conflict, Family, Hypothesis, Input, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Task } from "../core/model.ts";
+import type { Citation, Conflict, Family, Hypothesis, HypothesisVariant, Input, Lesson, Media, Name, Person, Place, RecordSet, Repository, Research, Search, Session, Task } from "../core/model.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { inboxFolders, inputPath } from "../core/media.ts";
@@ -13,7 +13,7 @@ import { displayName, familiesAsChild, familiesAsPartner, formatName, label, lif
 import { parseYears } from "../core/years.ts";
 import { langName } from "../core/lang.ts";
 import { dateYears } from "../core/gdate.ts";
-import { methodFor } from "../core/assets.ts";
+import { methodFor, METHOD_LINKS } from "../core/assets.ts";
 import { recentSessions } from "../core/session.ts";
 import { briefClock } from "../core/clock.ts";
 import { calibrationLine } from "../core/calibration.ts";
@@ -25,9 +25,12 @@ import { runs, shellArg } from "../cli/format.ts";
 import { commandSheet } from "./sheet.ts";
 import { foldText } from "../core/text.ts";
 import { subjectPeople } from "../core/records.ts";
+import { searchedAs } from "../core/evidence.ts";
 import { hypothesisPeople } from "../core/directions.ts";
 import type { Tree } from "../core/tree.ts";
-import { imagesIndex } from "../core/mediaindex.ts";
+import { imagesIndex, weakScans } from "../core/mediaindex.ts";
+import { SHARPER_SCAN } from "../core/views.ts";
+import { HYPOTHESIS_LINKS_ORIGIN, recordedLinks, recordedText } from "../core/hypolinks.ts";
 
 export { DEFAULT_BUDGET } from "../core/config.ts";
 import { DEFAULT_BUDGET } from "../core/config.ts";
@@ -38,9 +41,14 @@ import { DEFAULT_BUDGET } from "../core/config.ts";
  * briefs and outputs of real sessions: a Czech research's brief is 1.7–1.8 characters a token, not 3.5).
  */
 export function tokens(text: string): number {
+  return Math.ceil(rawTokens(text));
+}
+
+/** The estimate not rounded: adds up exactly over a text split at whitespace. */
+function rawTokens(text: string): number {
   let other = 0;
   for (const m of text.matchAll(/\S+/gu)) if (/[^\x00-\x7F]/u.test(m[0])) other += m[0].length;
-  return Math.ceil((text.length - other) / 2.5 + other);
+  return (text.length - other) / 2.5 + other;
 }
 
 export interface Section {
@@ -51,9 +59,37 @@ export interface Section {
   required?: boolean;
   /** Given its room right after the required ones (still cut when even that does not fit). */
   first?: boolean;
-  /** Given what room is left after all the others: a long list with a command for the rest, cut first. */
+  /** Given its room after all the others (in parts: its short after theirs). */
   last?: boolean;
+  /**
+   * A section in parts that may be given in short: its heading, its tail and each part in short get their room with
+   * the other sections; each part is given whole after them all, in the order of `UPGRADES`, while it fits. `text` is
+   * the whole of it.
+   */
+  layers?: Layers;
 }
+
+/** A part of a section: in short (empty: left out) before the lesser parts of the others, whole when there is room. */
+export interface Part {
+  short: string;
+  whole: string;
+}
+
+export interface Layers {
+  head: string[];
+  parts: Part[];
+  tail: string[];
+  /** Where the parts given in short or left out are, said where they stand. */
+  more: string;
+}
+
+/** A section given in parts: the whole text, and the parts that may stand in short. */
+function layered(name: string, pointer: string, layers: Layers): Section {
+  return { name, pointer, layers, text: [...layers.head, ...layers.parts.map((p) => p.whole).filter(Boolean), ...layers.tail].join("\n") };
+}
+
+/** The sections whose parts are given whole once all the others have their room, in this order. */
+const UPGRADES = ["premise", "open questions", "people"];
 
 export interface Brief {
   text: string;
@@ -71,7 +107,15 @@ function citesOf(citations: Citation[] | undefined): string {
   return (citations ?? []).map((c) => `${c.source}${c.locator ? ` ${c.locator}` : ""}`).join(", ");
 }
 
-function personBlock(tree: Tree, p: Person, depth: number): string[] {
+/** The notes of a person in short: the start of the last one, the others counted — what tells namesakes apart. */
+function notesShort(p: Person): string[] {
+  const last = p.notes.at(-1);
+  if (!last) return [];
+  return [`    note: ${noteStart(last.text, NOTE_LINE)}${p.notes.length > 1 ? ` (${p.notes.length} notes: strom person show ${p.id})` : [...last.text.replace(/\s+/gu, " ").trim()].length > NOTE_LINE ? ` (strom person show ${p.id})` : ""}`];
+}
+
+/** Whom the task is about: every fact with its sources, other names, parents, families, the story — and the last notes (in short: the start of the last one). */
+function personBlock(tree: Tree, p: Person, depth: number, short = false): string[] {
   const out = [`  ${label(p)} ${p.sex}`];
   // other names, and where any name comes from
   if (p.names.length > 1 || p.names.some((n) => n.citations?.length))
@@ -87,6 +131,7 @@ function personBlock(tree: Tree, p: Person, depth: number): string[] {
       out.push(`    ${f.id} with ${partner.join(", ") || "?"}${kids.length ? ` · children: ${kids.join(", ")}` : ""}`);
     }
   if (p.story) out.push(`    story: ${p.story.status}${p.story.title ? ` "${p.story.title}"` : ""}, ${p.story.text.split(/\s+/).length} words (strom story show ${p.id})`);
+  if (short) return [...out, ...notesShort(p)];
   for (const n of p.notes.slice(-3)) out.push(`    note: ${n.text}`);
   if (p.notes.length > 3) out.push(`    (${p.notes.length - 3} older note${p.notes.length > 4 ? "s" : ""}: strom person show ${p.id})`);
   return out;
@@ -159,7 +204,7 @@ function noteStart(text: string, max: number): string {
 }
 
 /** A parent of the task's person: the vital facts (sources by ID), the other forms of the name, where they lived and what they did, the parents, the last notes cut short. */
-function relativeBlock(tree: Tree, p: Person, role: string): string[] {
+function relativeBlock(tree: Tree, p: Person, role: string, short = false): string[] {
   const out = [`  ${label(p)} ${p.sex} — ${role}`];
   const others = otherNames(p);
   if (others.length)
@@ -171,12 +216,21 @@ function relativeBlock(tree: Tree, p: Person, role: string): string[] {
     out.push(`    ${[houses.length ? `lived: ${houses.join("; ")}` : "", work.length ? `occupation: ${work.join("; ")}` : "", more ? `${more} more fact${more > 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ")}`);
   const parents = parentsOf(tree, p.id);
   out.push(`    parents: ${parents.length ? parents.map(label).join(" & ") : "unknown"}`);
+  if (short) return [...out, ...notesShort(p)];
   for (const n of p.notes.slice(-2)) out.push(`    note: ${[...n.text].length > NOTE_SHOWN ? `${[...n.text].slice(0, NOTE_SHOWN).join("")}…` : n.text}`);
   if (p.notes.length > 2) out.push(`    (${p.notes.length - 2} older note${p.notes.length > 3 ? "s" : ""}: strom person show ${p.id})`);
   return out;
 }
 
 const NOTE_LINE = 100;
+/** An open question the task is not about, in short: its start. */
+const QUESTION_SHORT = 120;
+
+/** A variant saying what the tree records already, marked: no link to make (strom hypothesis link refuses it). */
+function variantRecorded(tree: Tree, h: Hypothesis, v: HypothesisVariant): string {
+  const recorded = recordedLinks(tree, h, v);
+  return recorded.length ? ` [${recordedText(recorded)}]` : "";
+}
 
 /**
  * Anyone else concerned, in one line: who they are to the task's people, their birth, baptism and death with the day and
@@ -199,13 +253,42 @@ function relativeLine(tree: Tree, p: Person, role: string, withParents: boolean)
   ].filter(Boolean).join(" · ")}`;
 }
 
-/** A family the task is about: its partners, its own facts, the records that show it, its notes. */
-function familyBlock(tree: Tree, f: Family): string[] {
+/**
+ * A person of a task that links hypotheses to the tree (it reads no records): who they are — what tells namesakes apart
+ * (other names, the day and place of birth, baptism and death, where they lived, what they did, the start of the last
+ * note) — and the families a link would join them by: the one they were born in, those they founded, with every ID.
+ */
+function identityBlock(tree: Tree, p: Person, role: string): string[] {
+  const { houses, work } = identifying(p, false);
+  const others = otherNames(p);
+  const note = p.notes.at(-1);
+  const facts = [
+    ...vitalShort(p),
+    others.length ? `also: ${others.map((n) => `${formatName(n)}${n.kind ? ` (${n.kind})` : ""}`).join("; ")}` : "",
+    houses.length ? `lived: ${houses.join("; ")}` : "",
+    work.length ? `occupation: ${work.join("; ")}` : "",
+  ].filter(Boolean);
+  const out = [`  ${label(p)} ${p.sex}${role ? ` — ${role}` : ""}`];
+  if (facts.length) out.push(`    ${facts.join(" · ")}`);
+  const parents = parentsOf(tree, p.id);
+  const born = familiesAsChild(tree, p.id)[0];
+  out.push(`    parents: ${parents.length ? parents.map(label).join(" & ") : "unknown"}${born ? ` (${born.id})` : ""}`);
+  for (const f of familiesAsPartner(tree, p.id)) {
+    const partner = f.partners.filter((x) => x !== p.id).map((x) => tree.get<Person>(x)).filter(Boolean).map((x) => label(x!));
+    const kids = f.children.map((c) => tree.get<Person>(c.person)).filter(Boolean).map((x) => label(x!));
+    out.push(`    ${f.id} with ${partner.join(", ") || "?"}${kids.length ? ` · children: ${kids.join(", ")}` : ""}`);
+  }
+  if (note) out.push(`    note: ${noteStart(note.text, NOTE_LINE)}`);
+  return out;
+}
+
+/** A family the task is about: its partners, its own facts, the records that show it, its notes (in short: the start of the last one). */
+function familyBlock(tree: Tree, f: Family, short = false): string[] {
   const partners = f.partners.map((x) => tree.get<Person>(x)).filter((x): x is Person => !!x).map(label);
   const out = [`  ${f.id} family of ${partners.join(" & ") || "?"}${f.union ? ` [${f.union}]` : ""}${f.children.length ? ` · ${f.children.length} child${f.children.length > 1 ? "ren" : ""}` : ""}`];
   for (const e of f.events.filter((x) => !x.retracted)) out.push(eventLine(e));
   if (f.citations?.length) out.push(`    sources: ${citesOf(f.citations)}`);
-  for (const n of f.notes.slice(-3)) out.push(`    note: ${noteStart(n.text, NOTE_SHOWN)}`);
+  for (const n of f.notes.slice(short ? -1 : -3)) out.push(`    note: ${noteStart(n.text, short ? NOTE_LINE : NOTE_SHOWN)}`);
   return out;
 }
 
@@ -491,8 +574,13 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
   // Which ones exist, when there are gaps (a few runs), or just the span.
   const list = runs(nums);
   const which = list.split(", ").length <= 12 ? list : `${nums[0]}–${nums.at(-1)} with gaps (strom media list --recordset ${b.id})`;
+  // scans with little detail (core/mediaindex.ts WEAK_SCAN_PX): what is not found on them may be there
+  const weak = weakScans(tree, b.id);
   return [
-    `    images registered (${nums.length}): ${which} · strom media view ${b.id}:<image>[-<image>] [--half left|right|both] [--grid] [--crop x,y,w,h]`,
+    `    images registered (${nums.length}): ${which} · strom media view ${b.id}:<image>[-<image>] [--half left|right|both] [--grid] [--crop x,y,w,h]…`,
+    weak
+      ? `    weak scans (long side ${weak} px): a negative on them is weak — ${route?.part ? `a part sharper: strom fetch ${route.connector} --recordset ${b.id} --images <n> --crop x,y,w,h` : SHARPER_SCAN}`
+      : "",
     // the others: through the connector, else as the archive allows
     fetch ??
       (byHand
@@ -723,22 +811,24 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   const lessons = all.filter((l) => (l.target && (where.has(l.target) || repos.has(l.target) || ofPlace(l.target))) || (l.scope === "project" && (l.target || fits(l))));
   const otherProject = project.filter((l) => !lessons.includes(l)).length;
   const method = all.filter((l) => l.scope === "method").length;
+  // Shown before the people, given its room after the others: first the lessons that go with the task — after whom the
+  // task is about, the last sessions and its own open questions (a long list never pushes out whom the task is about,
+  // P3) —, then its searches, before the people's notes and the other open questions are given whole.
+  const searched = `strom searched ${[...where].find((w) => w.startsWith("B")) ?? [...surnames][0] ?? "<where>"}`;
   sections.push({
-    name: "premise",
-    // shown before the people, but given its room after them, the last sessions and the open questions: a long
-    // list of searches never pushes out whom the task is about (P3)
     last: true,
-    pointer: `strom searched ${[...where].find((w) => w.startsWith("B")) ?? [...surnames][0] ?? "<where>"}${lessons.length ? " · lessons: strom lesson list" : ""}`,
-    text: [
-      "## Already known (check the premise before searching)",
-      searches.length
-        ? searches.map((s) => `  ${s.id} [${s.result}] ${s.question}${s.scope.years ? ` · ${s.scope.years}` : ""}${s.scope.pages ? ` · pages ${s.scope.pages}` : ""} · ${s.recordsets.join(" ")}${s.by !== "main" ? ` (by ${s.by})` : ""}`).join("\n")
-        : "  nothing searched yet for this task's record sets and surnames",
-      ...(elsewhere.length ? [`  +${elsewhere.length} search${elsewhere.length > 1 ? "es" : ""} of ${elsewhereNames.join(", ")} in other places and years: ${elsewhereNames.map((n) => `strom searched ${shellArg(n)}`).join(" · ")}`] : []),
-      ...(lessons.length ? ["lessons:", ...lessons.map((l) => `  ${l.id}${l.target ? ` (${l.target})` : ""}: ${l.rule}`)] : []),
-      ...(otherProject ? [`lessons about other families and places: ${otherProject} — strom lesson list --scope project`] : []),
-      ...(method ? [`method lessons of this research: ${method} — strom lesson list --scope method`] : []),
-    ].join("\n"),
+    ...layered("premise", `${searched}${lessons.length ? " · lessons: strom lesson list" : ""}`, {
+      head: ["## Already known (check the premise before searching)"],
+      parts: searches.map((s) => ({ short: "", whole: `  ${s.id} [${searchedAs(s)}] ${s.question}${s.scope.years ? ` · ${s.scope.years}` : ""}${s.scope.pages ? ` · pages ${s.scope.pages}` : ""} · ${s.recordsets.join(" ")}${s.by !== "main" ? ` (by ${s.by})` : ""}` })),
+      tail: [
+        ...(searches.length ? [] : ["  nothing searched yet for this task's record sets and surnames"]),
+        ...(elsewhere.length ? [`  +${elsewhere.length} search${elsewhere.length > 1 ? "es" : ""} of ${elsewhereNames.join(", ")} in other places and years: ${elsewhereNames.map((n) => `strom searched ${shellArg(n)}`).join(" · ")}`] : []),
+        ...(lessons.length ? ["lessons:", ...lessons.map((l) => `  ${l.id}${l.target ? ` (${l.target})` : ""}: ${l.rule}`)] : []),
+        ...(otherProject ? [`lessons about other families and places: ${otherProject} — strom lesson list --scope project`] : []),
+        ...(method ? [`method lessons of this research: ${method} — strom lesson list --scope method`] : []),
+      ],
+      more: searched,
+    }),
   });
 
   // 4. handover from the previous sessions
@@ -757,6 +847,12 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   // no person named: the research's focus, to know whose tree it is
   const about = personSubjects.length ? personSubjects : research ? [research.focus] : [];
   for (const id of about) people.set(id, { how: "full", role: "" });
+  // A task that links hypotheses to the tree reads no records: its people by who they are and the families a link
+  // would join, nothing more — never their every fact and note; besides whom they are about, those their variants name.
+  const linking = task?.origin === HYPOTHESIS_LINKS_ORIGIN;
+  if (linking)
+    for (const h of (task?.subject ?? []).map((id) => tree.get<Hypothesis>(id)).filter((x): x is Hypothesis => x?.type === "hypothesis"))
+      for (const id of hypothesisPeople(tree, h)) if (!people.has(id) && tree.get(id)?.type === "person") people.set(id, { how: "full", role: `named in ${h.id}` });
   for (const f of families) for (const c of f.children) if (!people.has(c.person)) people.set(c.person, { how: "line", role: `child of ${f.id}` });
   for (const id of about) {
     for (const p of parentsOf(tree, id)) {
@@ -766,23 +862,32 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
     for (const f of familiesAsChild(tree, id)) for (const s of f.children) if (!people.has(s.person) && s.person !== id) people.set(s.person, { how: "line", role: `sibling of ${id}` });
   }
   if (people.size || families.length) {
-    const blocks = [...families.map((f) => familyBlock(tree, f).join("\n")), ...[...people.entries()].flatMap(([id, { how, role }]) => {
-      const p = tree.get<Person>(id);
-      if (!p) return [];
-      if (how === "full") return [personBlock(tree, p, 1).join("\n")];
-      if (how === "parent") return [relativeBlock(tree, p, role).join("\n")];
-      return [relativeLine(tree, p, role, !role.startsWith("sibling") && !role.startsWith("child of"))];
-    })];
-    const short = [...people.values()].some((x) => x.how !== "full");
-    sections.push({
-      name: "people",
-      pointer: `strom person show ${[...people.keys()][0] ?? "P…"}`,
-      text: [
-        "## People concerned",
-        ...blocks,
-        ...(short ? ["  (others in short — all facts, sources and notes: strom person show P… · their life with its records: strom person card P…)"] : []),
-      ].join("\n"),
-    });
+    // each block whole, and in short — its notes cut to the start of the last one, what tells namesakes apart
+    const blocks: Part[] = [
+      ...families.map((f) => ({ short: familyBlock(tree, f, true).join("\n"), whole: familyBlock(tree, f).join("\n") })),
+      ...[...people.entries()].flatMap(([id, { how, role }]) => {
+        const p = tree.get<Person>(id);
+        if (!p) return [];
+        const line = () => relativeLine(tree, p, role, !role.startsWith("sibling") && !role.startsWith("child of"));
+        if (linking) {
+          const text = how === "full" ? identityBlock(tree, p, role).join("\n") : line();
+          return [{ short: text, whole: text }];
+        }
+        if (how === "full") return [{ short: personBlock(tree, p, 1, true).join("\n"), whole: personBlock(tree, p, 1).join("\n") }];
+        if (how === "parent") return [{ short: relativeBlock(tree, p, role, true).join("\n"), whole: relativeBlock(tree, p, role).join("\n") }];
+        return [{ short: line(), whole: line() }];
+      }),
+    ];
+    const short = linking || [...people.values()].some((x) => x.how !== "full");
+    const whom = [...people.keys()][0] ?? "P…";
+    sections.push(
+      layered("people", `strom person show ${whom}`, {
+        head: ["## People concerned"],
+        parts: blocks,
+        tail: short ? [`  (${linking ? "in short" : "others in short"} — all facts, sources and notes: strom person show P… · their life with its records: strom person card P…)`] : [],
+        more: `strom person show ${whom}`,
+      }),
+    );
   }
 
   // 6. open conflicts and hypotheses about them
@@ -793,16 +898,20 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
   const hyps = tree.list<Hypothesis>("hypothesis").filter((h) => own(h.id) || (h.state === "open" && hypothesisPeople(tree, h).some((s) => ids.has(s))));
   const first = <T extends { id: string }>(list: T[]) => [...list.filter((x) => own(x.id)), ...list.filter((x) => !own(x.id))];
   const mark = (id: string, state: string) => `${own(id) ? "→ " : "  "}${id}${state === "open" ? "" : ` [${state}]`}`;
+  // the task's own whole always; the others in short (the start of each) until there is room for them whole
+  const question = (id: string, whole: string): Part => ({ short: own(id) ? whole : noteStart(whole, QUESTION_SHORT), whole });
   if (conflicts.length || hyps.length)
-    sections.push({
-      name: "open questions",
-      pointer: "strom conflict list · strom hypothesis list",
-      text: [
-        "## Open conflicts and hypotheses" + (conflicts.some((c) => own(c.id)) || hyps.some((h) => own(h.id)) ? " (→ this task is about it)" : ""),
-        ...first(conflicts).map((c) => `${mark(c.id, c.state)} ${c.title}: ${c.claims.map((x) => `${x.source ? `${x.source} ` : ""}${x.value}`).join(" | ")}${c.resolution ? ` — resolved: ${c.resolution}` : ""}`),
-        ...first(hyps).map((h) => `${mark(h.id, h.state)} ${h.question}: ${h.variants.map((v) => `${v.label}) ${v.claim}`).join("; ")}${h.decision ? ` — ${h.state}: ${h.decision}` : ""}`),
-      ].join("\n"),
-    });
+    sections.push(
+      layered("open questions", "strom conflict list · strom hypothesis list", {
+        head: ["## Open conflicts and hypotheses" + (conflicts.some((c) => own(c.id)) || hyps.some((h) => own(h.id)) ? " (→ this task is about it)" : "")],
+        parts: [
+          ...first(conflicts).map((c) => question(c.id, `${mark(c.id, c.state)} ${c.title}: ${c.claims.map((x) => `${x.source ? `${x.source} ` : ""}${x.value}`).join(" | ")}${c.resolution ? ` — resolved: ${c.resolution}` : ""}`)),
+          ...first(hyps).map((h) => question(h.id, `${mark(h.id, h.state)} ${h.question}: ${h.variants.map((v) => `${v.label}) ${v.claim}${variantRecorded(tree, h, v)}`).join("; ")}${h.decision ? ` — ${h.state}: ${h.decision}` : ""}`)),
+        ],
+        tail: [],
+        more: "strom conflict show X… · strom hypothesis show H…",
+      }),
+    );
 
   // 7. the record sets to work in, each with the connector that fetches its images and its ID of the book
   const sets = located.sets;
@@ -864,13 +973,15 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
     ...(sets.some((b) => noRoute(b) && !repoByHand(b) && !finders.get(b.id)) || !sets.length ? ["no-connector"] : []),
     ...(sets.some((b) => (noRoute(b) && (repoByHand(b) || !!finders.get(b.id) || !b.url)) || routes.get(b.id)?.browser) || !sets.length ? ["by-hand"] : []),
   ];
-  sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(task?.level, conditions) });
+  // a task that links hypotheses reads no records: the parts of the method and the commands it uses, whatever its level
+  const kind = linking ? METHOD_LINKS : task?.level;
+  sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(kind, conditions) });
 
   // 8b. the commands this kind of task uses, with every option and limit (K2): asking for them costs a turn each —
   // and the connectors of the task's places, so that fetching needs no lookup
   // (the others installed only where none serves them, or the task is to find where the records are)
   const connectors = placeConnectors(tree, sets, taskPlaces, placeKeys, ready, installed, listConnectors(opts.shared));
-  const sheet = commandSheet(task?.level, { connectors: task?.level === "locate" || !connectors.some((c) => c.serves) ? connectors : connectors.filter((c) => c.serves) });
+  const sheet = commandSheet(kind, { connectors: task?.level === "locate" || !connectors.some((c) => c.serves) ? connectors : connectors.filter((c) => c.serves) });
   if (sheet) sections.push({ name: "commands", first: true, pointer: "strom help <command>", text: sheet });
 
   // 9. how to finish
@@ -886,13 +997,21 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
         : '- then: strom session close --summary "what was proven, what was searched in vain" --next "the next cheapest step"',
       task ? `- put aside: strom task park|wait ${task.id} …, then strom session close --summary "…" --next "…"` : "",
       `- if the task is not finished: strom session close --continue --summary "…" --next "exactly where you stopped"`,
+      // what the user reads of a session is its summary (strom's run output, the menu, the Strom app): strom's own words
+      // there are impersonal, so is what it shows of the agent's
+      "- the user reads the summary (menu, Strom app): plain words, never addressed to them",
+      // working alone: every task starts in a fresh session by itself; nobody reads a closing message
+      opts.session?.runner
+        ? "- working alone (strom run): after strom session close you are done — no closing message to the user and no advice to clear the context (/clear, a new conversation): each task starts fresh by itself"
+        : "",
       "- a command you need: strom help <command> (short, with examples) — the full guide: strom guide",
     ].filter(Boolean).join("\n"),
   });
 
   // Assemble within the budget: required sections always, then the first ones whole when they fit, then the others in
-  // order, the last ones after them; each written where it stands. Everything written counts: the blank line between
-  // sections, the pointer of a section cut.
+  // order — those in parts in short —, a first one that did not fit whole cut after them, and last the parts given in
+  // short made whole while they fit (UPGRADES); each written where it stands. Everything written counts: the blank line
+  // between sections, the pointer of a section cut.
   const SEP = tokens("\n\n");
   let used = sections.filter((s) => s.required).reduce((n, s) => n + tokens(s.text) + SEP, 0);
   const shown = new Map<Section, { text: string; cut: boolean }>();
@@ -901,28 +1020,87 @@ export function buildBrief(tree: Tree, opts: { task?: Task; session?: Session; b
       used += tokens(s.text) + SEP;
       shown.set(s, { text: s.text, cut: false });
     }
+  // Its heading always (the agent knows what it was not given), as many whole lines as fit, then the pointer.
+  const cutLines = (s: Section, text: string) => {
+    const [head = "", ...rest] = text.split("\n");
+    const pointer = `  … cut to fit the brief — see: ${s.pointer}`;
+    const kept: string[] = [head];
+    // each line with the line break before it: what it adds to the text written
+    let raw = rawTokens(head) + rawTokens(`\n${pointer}`);
+    for (const l of rest) {
+      const r = rawTokens(`\n${l}`);
+      if (used + Math.ceil(raw + r) + SEP > budget) break;
+      kept.push(l);
+      raw += r;
+    }
+    used += Math.ceil(raw) + SEP;
+    shown.set(s, { text: [...kept, pointer].join("\n"), cut: true });
+  };
+  // A section in parts: which of them are given whole. Parts left out are said where they would stand (they come in
+  // order); parts in short after them all.
+  const wholeParts = new Map<Section, boolean[]>();
+  const render = (s: Section, whole: boolean[]) => {
+    const { head, parts, tail, more } = s.layers!;
+    const lines = [...head];
+    let out = false;
+    let short = false;
+    parts.forEach((p, i) => {
+      if (whole[i]) return void lines.push(p.whole);
+      if (p.short) {
+        short = true;
+        return void lines.push(p.short);
+      }
+      if (!out) lines.push(`  … cut to fit the brief — see: ${more}`);
+      out = true;
+    });
+    if (short) lines.push(`  … in short to fit the brief — all: ${more}`);
+    return { text: [...lines, ...tail].join("\n"), cut: out || short };
+  };
   const fit = (s: Section) => {
+    if (s.layers) {
+      const whole = s.layers.parts.map((p) => p.short === p.whole);
+      const r = render(s, whole);
+      const t = tokens(r.text);
+      if (used + t + SEP <= budget) {
+        used += t + SEP;
+        shown.set(s, r);
+        wholeParts.set(s, whole);
+      } else cutLines(s, [...s.layers.head, ...s.layers.parts.map((p, i) => (whole[i] ? p.whole : p.short)).filter(Boolean), ...s.layers.tail].join("\n"));
+      return;
+    }
     const t = tokens(s.text);
     if (!s.first && used + t + SEP <= budget) {
       used += t + SEP;
       shown.set(s, { text: s.text, cut: false });
       return;
     }
-    // Its heading always (the agent knows what it was not given), as many whole lines as fit, then the pointer.
-    const [head = "", ...rest] = s.text.split("\n");
-    const pointer = `  … cut to fit the brief — see: ${s.pointer}`;
-    const kept: string[] = [head];
-    used += tokens(head) + tokens(pointer) + SEP;
-    for (const l of rest) {
-      if (used + tokens(l) > budget) break;
-      kept.push(l);
-      used += tokens(l);
-    }
-    shown.set(s, { text: [...kept, pointer].join("\n"), cut: true });
+    cutLines(s, s.text);
   };
   // the others in order, a first one that did not fit whole cut after them, the last ones after all
   const pending = sections.filter((s) => !s.required && !shown.has(s));
   for (const s of [...pending.filter((x) => !x.first && !x.last), ...pending.filter((x) => x.first), ...pending.filter((x) => x.last && !x.first)]) fit(s);
+  // then the parts given in short made whole, section by section, each while it fits
+  for (const name of UPGRADES)
+    for (const s of sections.filter((x) => x.name === name && wholeParts.has(x))) {
+      const whole = wholeParts.get(s)!;
+      const parts = s.layers!.parts;
+      let now = shown.get(s)!;
+      for (let i = 0; i < parts.length; i++) {
+        if (whole[i]) continue;
+        whole[i] = true;
+        const next = render(s, whole);
+        const more = tokens(next.text) - tokens(now.text);
+        if (used + more <= budget) {
+          used += more;
+          now = next;
+          continue;
+        }
+        whole[i] = false;
+        // a part left out ends it (the list stays in its order); one in short is passed over for those after it
+        if (!parts[i]!.short) break;
+      }
+      shown.set(s, now);
+    }
   const report: Brief["sections"] = [];
   const parts: string[] = [];
   for (const s of sections) {

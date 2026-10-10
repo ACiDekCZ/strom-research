@@ -14,7 +14,8 @@ import { normId, requireRecord } from "../core/records.ts";
 import { pageOf } from "../core/calibration.ts";
 import { findImage, imageOfRef } from "../core/media.ts";
 import { cropOf, halves, makeView, parseCrop, readInHalves, tiles } from "../core/views.ts";
-import { IMAGE_MAX, IMAGE_MAX_LARGE, imageMax } from "../agents/images.ts";
+import { IMAGE_MAX, IMAGE_MAX_LARGE } from "../agents/images.ts";
+import { viewSizesFor } from "../core/viewsizes.ts";
 import { currentSession } from "../core/session.ts";
 import { BATCH, BATCH_MAX, batches, parseReport, readerPrompt, readerSettings, viewCount, type Finding, type ReaderImage } from "../core/reader.ts";
 import { imageSize } from "../image/index.ts";
@@ -25,6 +26,7 @@ import { verifyFast } from "../core/integrity.ts";
 import { shellArg, truncate } from "../cli/format.ts";
 import { earlierLines, earlierReadings, loadReadings, summary, unclearBefore } from "./readings.ts";
 import { addReaders } from "../core/session.ts";
+import { refuseReadersWhenFinishing } from "../core/clock.ts";
 
 /** "40-69" → [40, 69] */
 function range(v: string): [number, number] {
@@ -57,7 +59,8 @@ register({
     "a found entry after looking at it with your own eyes, and the search — also a negative one — with --by reader.\n" +
     "You get the found and unclear entries, what was illegible where nothing was found, and the gaps in the book;\n" +
     "the same later with strom readings (one image's whole block: strom readings B… --image N).\n" +
-    `Views are as big as the readers' model takes them in whole (${IMAGE_MAX_LARGE} px for the newer models, else ${IMAGE_MAX}).\n` +
+    `Views are as big as the readers' model takes them in whole (${IMAGE_MAX_LARGE} px for the newer models, else ${IMAGE_MAX}),\n` +
+    "or as the person calibrated them for this agent and model (strom media calibrate).\n" +
     "A blind reading, a reading in a verify task and an image a reader found unclear before get a double page as its\n" +
     "two halves, overlapping at the gutter — each page sharper (two views: a reader takes fewer images). Otherwise a\n" +
     "spread is read whole. --half both for halves anyway, --whole for one view.\n" +
@@ -126,8 +129,9 @@ register({
     if (sides && !["left", "right", "both"].includes(sides)) throw new UsageError("--half is left, right or both");
     if (sides && opts.whole) throw new UsageError("--half or --whole, not both");
     const half = sides === "both" ? undefined : sides;
-    // as big as the readers' model takes an image in whole (bigger: the agent shrinks it itself)
-    const cap = imageMax(agentId, model);
+    // as big as the readers' model takes an image in whole (bigger: the agent shrinks it itself) — or as a person
+    // calibrated it for this agent and model (strom media calibrate)
+    const cap = viewSizesFor(ctx.settings, agentId, tree.config, model).read;
     const max = opts.max === undefined ? cap : Number(opts.max);
     if (!(max >= 100)) throw new UsageError(`invalid --max "${String(opts.max)}"`, { hint: `the long side of a view in px, e.g. ${cap}` });
     // A double page in halves where reading closely matters: a blind reading, a verify task, an image found unclear before.
@@ -178,6 +182,7 @@ register({
     for (let n = 2; fs.existsSync(path.join(reportsDir, `${stem}-1.md`)); n++) stem = `${day}-${label}-run${n}`;
     const work = path.join(ctx.settings.shared()!.value, "cache", "readers");
 
+    refuseReadersWhenFinishing(tree.root, ctx.env);
     const results = await pool(groups, parallel, async (group, k) => {
       const report = path.join(reportsDir, `${stem}-${k + 1}.md`);
       // Outside the tree: a reader must not pick up the researcher's instructions (CLAUDE.md).

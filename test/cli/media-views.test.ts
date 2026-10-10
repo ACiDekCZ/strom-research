@@ -158,7 +158,7 @@ test("media view: at most 12 images and 24 views in one call, said with the call
   const many = await w.run(["media", "view", "B1:1-13"]);
   assert.equal(many.code, 2);
   assert.match(many.err, /13 image\(s\) — at most 12 images and 24 views in one call: every view stays in the context that opens it/);
-  assert.match(many.err, /12 image\(s\) now, the next ones in the next call: strom media view B0001:1-12/);
+  assert.match(many.err, /12 image\(s\) now — write down what they gave before the next call: strom media view B0001:1-12/);
   const views = await w.run(["media", "view", "B1:1-7", "--split", "2x2"]);
   assert.equal(views.code, 2);
   assert.match(views.err, /7 image\(s\) × 4 views — at most 12 images and 24 views/);
@@ -196,9 +196,9 @@ test("the method and the agents' instructions ask for the views of a scan or a b
   const { SELF_READING, PROFILES } = await import("../../src/agents/profiles.ts");
   const reading = fs.readFileSync(path.join(import.meta.dirname, "..", "..", "assets", "method", "reading.md"), "utf8");
   assert.doesNotMatch(reading, /paid for again on every turn/, "an image stays in the context; it is not paid for again in full");
-  assert.match(reading, /stays in your context to the end of the session/);
+  assert.match(reading, /never open again a view cleared from your context — your notes hold it/);
   assert.match(reading, /\*\*The views of a scan, or of a batch, in one call\*\*/);
   assert.match(reading, /strom media view B0001:57-60 --half both/);
-  assert.match(SELF_READING, /strom media view B0001:57-66 --half both` — open them together/);
+  assert.match(SELF_READING, /strom media view B0001:57-62 --half both` — open them together/);
   assert.match(PROFILES.claude!.instructions({}), /views of a scan \(or of a few\) in one call/);
 });

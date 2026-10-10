@@ -17,7 +17,8 @@ import { create, normId, requireRecord, update } from "../core/records.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { imageOf, pageOf } from "../core/calibration.ts";
 import { cropOf, describeView, ENLARGED_HINT, halves, makeView, OVERVIEW_HINT, parseCrop, partRegion, readInHalves, REDUCED_HINT, SHARPER_SCAN, viewLine, viewRegion, viewSize, type View, type ViewSpec } from "../core/views.ts";
-import { IMAGE_MAX, IMAGE_MAX_LARGE, imageMax, OVERVIEW_MAX } from "../agents/images.ts";
+import { IMAGE_MAX, IMAGE_MAX_LARGE, OVERVIEW_MAX } from "../agents/images.ts";
+import { viewSizesFor } from "../core/viewsizes.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { detectAgent } from "../core/which.ts";
 import { listConnectors, missingConsents } from "../core/connector.ts";
@@ -164,13 +165,15 @@ function resolveTarget(tree: Tree, shared: string, ref: string, opts: Record<str
 }
 
 /**
- * The longest side of a view for the agent that runs strom (its shell's marks, else the research's agent) and the
- * model it works with (model.lead, STROM_MODEL from strom run and chat; none: the agent's own).
+ * The longest sides of the views for the agent that runs strom (its shell's marks, else the research's agent) and the
+ * model it works with (model.lead, STROM_MODEL from strom run and chat; none: the agent's own): a whole image to find
+ * an entry on (find), a part of it to read (read).
  */
-export function agentViewMax(ctx: Context, tree: Tree): number {
+export function agentViewSizes(ctx: Context, tree: Tree): { find: number; read: number } {
   const seen = detectAgent(ctx.env);
   const agent = seen && PROFILES[seen] ? seen : ctx.settings.agent(tree.config).value;
-  return imageMax(agent, ctx.settings.models(agent, tree.config).lead);
+  // calibrated for this agent and model (strom media calibrate), else the defaults
+  return viewSizesFor(ctx.settings, agent, tree.config);
 }
 
 function viewSpec(opts: Record<string, unknown>): ViewSpec {
@@ -198,8 +201,9 @@ function viewSpec(opts: Record<string, unknown>): ViewSpec {
 }
 
 /**
- * Several views in one call, at most: about ten scans go to one reader (never more than twelve), and every view stays
- * in the context that opens it (a reader stops at about 80) — a call gives the views of one scan or of a batch.
+ * Several views in one call, at most: about six scans of four views go to one reader, who writes down what each call
+ * gave and stops at about 30 views (a context clears older views and they must not be opened again) — a call gives
+ * the views of one scan or of a batch.
  */
 export const VIEW_MAX_IMAGES = 12;
 export const VIEW_MAX_VIEWS = 24;
@@ -369,7 +373,7 @@ function resolveTargets(tree: Tree, shared: string, all: Media[], args: string[]
       {
         hint: k < 1
           ? `fewer parts of each image (a --split of fewer parts, fewer --crop), at most ${VIEW_MAX_VIEWS} views`
-          : `${k} image(s) now, the next ones in the next call: strom media view ${refsText(wants.slice(0, k))}${same ? ` ${same}` : ""}`,
+          : `${k} image(s) now — write down what they gave before the next call: strom media view ${refsText(wants.slice(0, k))}${same ? ` ${same}` : ""}`,
       },
     );
   }
@@ -720,13 +724,14 @@ register(
     path: ["media", "view"],
     summary: "Make views of images to look at: a crop, a half page, enlarged, more contrast, a grid — several in one call",
     group: "sources",
-    sheet: `at most ${VIEW_MAX_IMAGES} images a call; a whole view finds, a crop is read — never transcribe from a whole view; a book read through: strom read`,
+    sheet: `at most ${VIEW_MAX_IMAGES} images a call; several crops of an image: --crop … --crop … (no loop); a whole view finds, only a crop is read; a book read through: strom read`,
     tree: true,
     description:
       `Writes the views to .strom/views/ and prints their paths: open those files with your image reader. A whole image\n` +
       `is at most ${OVERVIEW_MAX} px on the long side, enough to find an entry; a half, a crop and the parts of --split at most\n` +
       `what your model takes in whole (${IMAGE_MAX_LARGE} px for the newer models, else ${IMAGE_MAX}) — unless --scale or --max says\n` +
-      "otherwise. Browse whole images; read an entry by cropping it — use --grid first to see where it is (the labels\n" +
+      "otherwise, or the person calibrated the sizes for this agent and model (strom media calibrate; strom config get\n" +
+      "views.size). Browse whole images; read an entry by cropping it — use --grid first to see where it is (the labels\n" +
       "are tenths of the image).\n" +
       "Several views in one call, then open all the files it lists together: several images (B0001:57 B0001:58, a range\n" +
       "B0001:57-60, B0001 --page 112 113), several parts of each (--half left --half right; --half both = the two pages\n" +
@@ -765,8 +770,9 @@ register(
       const { targets, missing } = resolveTargets(tree, shared, all, args, opts, parts);
       const spec = viewSpec({ ...opts, half: undefined, crop: undefined });
       // a whole image to find the entry on; a part of it (a half, a crop, a grid's part) as big as the model takes it
-      const cap = spec.max ?? agentViewMax(ctx, tree);
-      const maxOf = (p: ViewPart) => (spec.max === undefined && isOverview(p) ? Math.min(OVERVIEW_MAX, cap) : cap);
+      const own = agentViewSizes(ctx, tree);
+      const cap = spec.max ?? own.read;
+      const maxOf = (p: ViewPart) => (spec.max === undefined && isOverview(p) ? own.find : cap);
       // the old call: one image, one view — said as it always was
       if (targets.length === 1 && !missing.length && parts.length === 1 && !parts[0]!.both && !parts[0]!.split) {
         const t = targets[0]!;

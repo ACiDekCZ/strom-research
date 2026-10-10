@@ -396,7 +396,8 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   assert.deepEqual(a.hits, [], "a dry run never contacts the archive");
   pauses.length = 0;
   const r = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1"]);
-  assert.match(r.err, /3 image\(s\) through zkusebni: at least 4 s at its pace \(one request per image, ≥2 s apart\)/);
+  assert.match(r.err, /3 image\(s\) through zkusebni: at least 3 request\(s\) to 127\.0\.0\.1, about 4 s at its pace \(≥2 s apart\)\n/);
+  assert.doesNotMatch(r.err, /hourly cap/, "no cap: none said");
   assert.match(r.out, /fetch: 3 request\(s\)/);
   assert.match(r.out, /3 image\(s\) of B0001 \(images 1–3\) fetched and registered/);
   assert.match(r.out, /back in the queue \(they waited for these images\): T0001/);
@@ -409,7 +410,7 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
   assert.deepEqual(fs.readdirSync(path.join(w.cwd, ".strom", "fetch")), [], "the work folder is gone");
   // the brief: the book known from its images, in the form fetch takes it; another book of the archive by its address
-  assert.match((await w.ok(["brief", "T1"])).out, /\n {4}images registered \(3\): 1–3 · [^\n]*\n {4}fetch: zkusebni 5359 — strom fetch zkusebni 5359 --images <from-to> --recordset B0001\n/);
+  assert.match((await w.ok(["brief", "T1"])).out, /\n {4}images registered \(3\): 1–3 · [^\n]*\n {4}weak scans \(long side 400 px\): a negative on them is weak — [^\n]*\n {4}fetch: zkusebni 5359 — strom fetch zkusebni 5359 --images <from-to> --recordset B0001\n/);
   await w.ok(["recordset", "add", "Týnec Z 1784–1820", "--kinds", "burial", "--url", `${a.base}/book/6012`]); // B0002
   await w.ok(["recordset", "add", "Týnec, katalog", "--kinds", "index", "--url", `${a.base}/catalog?place=T%C3%BDnec`]); // B0003
   await w.ok(["task", "add", "Pohřeb", "--level", "link", "--where", "B2", "--where", "B3", "--why", "a", "--done-when", "b"]); // T2

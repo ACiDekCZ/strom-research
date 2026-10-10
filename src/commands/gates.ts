@@ -40,7 +40,7 @@ register(
     summary: "Ask a gate now what it would answer before a session: go on, wait (until when) or stop — and why",
     group: "research",
     args: [{ name: "gate", description: 'the gate and what it is given, e.g. "claude-usage 10" (default: run.gate)' }],
-    examples: ["strom gate test", 'strom gate test "claude-usage 10"'],
+    examples: ["strom gate test", 'strom gate test "claude-usage 10"', 'strom gate test "claude-usage 10 --cap 95"'],
     run(ctx, { args }) {
       const s = shared(ctx);
       const name = args[0] ?? ctx.settings.runGate();
@@ -57,10 +57,18 @@ register(
         costUsd: 0,
       });
       const until = said.verdict === "wait" ? new Date(Date.now() + said.waitMs!) : undefined;
-      const word = { go: "go on", wait: `wait until ${until?.toLocaleString(ctx.uiLang(), { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}`, stop: "stop", error: "error — a run would stop" }[said.verdict];
+      // what a person reads: in the research's language
+      const lang = ctx.uiLang();
+      const word =
+        said.verdict === "wait"
+          ? ui(lang, "ui.gate.test.wait", { at: until!.toLocaleString(lang, { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) })
+          : ui(lang, said.verdict === "go" ? "ui.gate.test.go" : said.verdict === "stop" ? "ui.gate.test.stop" : "ui.gate.test.error");
       return {
-        text: `${[gate.name, ...gate.args].join(" ")}: ${word}${said.reason ? ` — ${said.reason}` : ""}`,
-        data: { gate: gate.name, verdict: said.verdict, ...(said.reason ? { reason: said.reason } : {}), ...(until ? { until: until.toISOString() } : {}) },
+        text: lines(
+          `${[gate.name, ...gate.args].join(" ")}: ${word}${said.reason ? ` — ${said.reason}` : ""}${said.hard ? ` ${ui(lang, "ui.gate.test.hard")}` : ""}`,
+          said.watch ? ui(lang, said.watch.kind === "seven_day" ? "ui.gate.cap.week" : "ui.gate.cap.window", { pct: Math.round(said.watch.finish * 100) }) : undefined,
+        ),
+        data: { gate: gate.name, verdict: said.verdict, ...(said.reason ? { reason: said.reason } : {}), ...(until ? { until: until.toISOString() } : {}), ...(said.hard ? { hard: true } : {}), ...(said.watch ? { watch: said.watch } : {}) },
         exitCode: said.verdict === "error" ? 1 : 0,
       };
     },

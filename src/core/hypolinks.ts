@@ -20,6 +20,12 @@ import { readJson } from "./json.ts";
 import { writableUnasked } from "./integrity.ts";
 import { TREE_FILE, typeOfId, VERSION, type Tree } from "./tree.ts";
 
+/**
+ * A variant whose link the tree records already: it gets none (nothing uncertain to show — strom hypothesis show marks
+ * it, the Strom app shows it as the tree's own), and the hypothesis stays open until the records decide it.
+ */
+const RECORDED_HINT = "the tree records this already: the variant gets no link (strom hypothesis show marks it); the hypothesis stays open until the records decide it";
+
 export const LINK_HOW = "--child P… --of F… | --child P… --parents P… [P…] | --same P… P… | --partners P… P… | --siblings P… P… [P…]";
 
 /** A person a link may name: there, not retracted, not merged. */
@@ -55,7 +61,7 @@ export function childLink(tree: Tree, childRef: string, of: string | undefined, 
     if (!f) throw new UsageError(`no family ${famId}`, { hint: "strom family list", code: "record.none", params: { kind: "family", id: famId } });
     if (f.mergedInto) throw new UsageError(`${famId} was merged into ${f.mergedInto}`, { hint: `use ${f.mergedInto}`, code: "record.merged", params: { id: famId, into: f.mergedInto } });
     if (f.retracted) throw new UsageError(`${famId} is retracted`);
-    if (f.children.some((c) => c.person === child)) throw new UsageError(`${child} is a child of ${famId} already: nothing uncertain to show`, { hint: "decide the hypothesis: strom hypothesis decide H… --decision \"…\"" });
+    if (f.children.some((c) => c.person === child)) throw new UsageError(`${child} is a child of ${famId} already: nothing uncertain to show`, { hint: RECORDED_HINT });
     if (f.partners.includes(child)) throw new UsageError(`${child} is a partner of ${famId}`);
     return { kind: "child", person: child, family: famId };
   }
@@ -64,7 +70,7 @@ export function childLink(tree: Tree, childRef: string, of: string | undefined, 
   const ps = distinct(parents.map((p) => linkPerson(tree, p)), "--parents");
   if (ps.includes(child)) throw new UsageError(`${child} cannot be their own parent`);
   const fam = familyOf(tree, ps);
-  if (fam?.children.some((c) => c.person === child)) throw new UsageError(`${child} is a child of ${fam.id} already: nothing uncertain to show`);
+  if (fam?.children.some((c) => c.person === child)) throw new UsageError(`${child} is a child of ${fam.id} already: nothing uncertain to show`, { hint: RECORDED_HINT });
   if (fam) throw new UsageError(`${ps.join(" and ")} are a family of the tree: ${fam.id}`, { hint: `strom hypothesis link H… <variant> --child ${child} --of ${fam.id}` });
   return { kind: "child", person: child, parents: ps };
 }
@@ -75,7 +81,7 @@ export function personsLink(tree: Tree, kind: "same" | "partners" | "siblings", 
   if (kind === "siblings" ? persons.length < 2 : persons.length !== 2)
     throw new UsageError(kind === "siblings" ? "--siblings takes two or more people" : `--${kind} takes two people`, { hint: `--${kind} P… P…${kind === "siblings" ? " [P…]" : ""}` });
   const together = kind === "partners" ? familyOf(tree, persons) : undefined;
-  if (together) throw new UsageError(`${persons.join(" and ")} are partners of ${together.id} already: nothing uncertain to show`);
+  if (together) throw new UsageError(`${persons.join(" and ")} are partners of ${together.id} already: nothing uncertain to show`, { hint: RECORDED_HINT });
   return { kind, persons };
 }
 
@@ -330,6 +336,95 @@ export function claimLink(tree: Tree, h: Hypothesis, v: HypothesisVariant): Vari
   }
 }
 
+// ── what the tree records already ─────────────────────────────────────────
+// A variant may say what the tree holds now ("the parents as the tree has them: P0012 and P0013, F0005"): its link
+// would show nothing uncertain, and strom hypothesis link refuses it. Such a variant is no link to make — it is said
+// as the tree's own (strom hypothesis show, the brief, the Strom app's _INTREE) and the hypothesis stays open until the
+// records decide it. Read from the words only where they name that family (or both its partners) and nothing else.
+
+/** Whole words after which a claim is no plain statement of the tree's link: or, not, another, unknown. */
+const NOT_THE_TREE = new Set([
+  "or", "nebo", "ci", "oder", "alebo", "albo", "lub", "either", "entweder", "bzw", "beziehungsweise", "respektive", "resp", "pripadne", "versus", "vs",
+  "not", "nor", "neither", "nicht", "kein", "keine", "keiner", "keinem", "keinen", "weder", "ne", "neni", "nebyl", "nebyla", "nebylo", "nejsou", "nebyli", "nikoli", "nikoliv", "ani", "nie", "nebol", "nebola",
+  "other", "another", "instead", "andere", "anderer", "anderen", "anderem", "anderes", "statt", "anstatt", "jiny", "jina", "jine", "jineho", "jinem", "jinou", "jinych", "jinym", "misto", "cizi", "fremd", "fremde", "fremder", "fremden",
+]);
+/** Beginnings of words that say another link than the tree's: step, adopted, foster, unknown, unidentified. */
+const NOT_THE_TREE_STEMS = ["stepso", "stepda", "stepch", "stepfa", "stepmo", "steppa", "stief", "nevlastn", "adopt", "foster", "pflege", "pestoun", "neznam", "nezjist", "unknown", "unbekannt", "unident"];
+
+const usableFamily = (f: Family | undefined): f is Family => !!f && f.type === "family" && !f.retracted && !f.mergedInto;
+
+/** Whether the tree records this link now: the child in that family (or of those parents), the couple, the siblings. */
+export function linkInTree(tree: Tree, l: VariantLink): Family | undefined {
+  if (l.kind === "child") {
+    const f = l.family ? tree.get<Family>(l.family) : l.parents?.length ? familyOf(tree, [...new Set(l.parents)]) : undefined;
+    return usableFamily(f) && f.children.some((c) => c.person === l.person) ? f : undefined;
+  }
+  if (l.kind === "partners") {
+    const f = familyOf(tree, [...new Set(l.persons)]);
+    return usableFamily(f) ? f : undefined;
+  }
+  if (l.kind === "siblings") {
+    const [first, ...rest] = [...new Set(l.persons)];
+    if (!first || !rest.length) return undefined;
+    return familiesAsChild(tree, first).find((f) => usableFamily(f) && rest.every((p) => f.children.some((c) => c.person === p)));
+  }
+  // two records of one person are never both in the tree as one
+  return undefined;
+}
+
+/**
+ * The tree's own link a claim says, read from its words: the subjects already children of the family it names — by its
+ * ID, or both its partners with a word that says parents ("son of P0012 and P0013") — naming nobody else, with no
+ * word of doubt, of another relation (a wife, a brother, the same person) or of another link. Of a question about
+ * another relation (a brother, the same person) none: whose child, then? Children of two families: which, then?
+ */
+function claimInTree(tree: Tree, h: Hypothesis, v: HypothesisVariant): VariantLink[] {
+  const words = tokens(v.claim);
+  if (words.includes("?")) return [];
+  if (words.some((w) => doubtful(w) || NOT_THE_TREE.has(w) || NOT_THE_TREE_STEMS.some((s) => w.startsWith(s)))) return [];
+  // "stejnojmenný" (a namesake) asks whose child; "stejný" (the same person) another relation
+  if (tokens(h.question).some((w) => otherRelation(w) && !w.startsWith("stejnojmen"))) return [];
+  const persons = new Set<string>();
+  const families = new Set<string>();
+  for (const [i, w] of words.entries()) {
+    if (!ID_TOKEN.test(w)) continue;
+    // a mark right after an ID: "P0013's", a possessive — whose, then?
+    if (["'", "’"].includes(words[i + 1] ?? "")) return [];
+    const id = w.toUpperCase();
+    if (id[0] === "P") persons.add(id);
+    else if (id[0] === "F") families.add(id);
+    else if (!CITED.has(id[0]!)) return [];
+  }
+  if (families.size > 1 || (!families.size && persons.size !== 2)) return [];
+  const parentWord = words.some((w) => CHILD_WORDS.has(w) || PARENT_WORDS.has(w));
+  const found: { child: string; family: string }[] = [];
+  for (const child of h.subject.filter((s) => typeOfId(s) === "person" && usable(tree, s)))
+    for (const f of familiesAsChild(tree, child).filter(usableFamily)) {
+      const named = families.size ? families.has(f.id) : parentWord && f.partners.length === 2 && f.partners.every((p) => persons.has(p));
+      if (named && [...persons].every((p) => p === child || f.partners.includes(p))) found.push({ child, family: f.id });
+    }
+  if (new Set(found.map((x) => x.family)).size !== 1) return [];
+  return found.map((x) => ({ kind: "child", person: x.child, family: x.family }));
+}
+
+/**
+ * The links of a variant the tree records already: those it was given that the tree has since, or — a variant nobody
+ * gave any — the one its words say of the tree as it is. None to make: the hypothesis stays open until the records
+ * decide it (never decided by strom).
+ */
+export function recordedLinks(tree: Tree, h: Hypothesis, v: HypothesisVariant): VariantLink[] {
+  if (h.state !== "open") return [];
+  if (v.links?.length) return v.links.filter((l) => linkInTree(tree, l));
+  // links taken off: somebody said what it connects — never read again from its words
+  if (v.linked?.length) return [];
+  return claimInTree(tree, h, v);
+}
+
+/** What strom says of a variant the tree records already: "the tree records this already: child P0006 of F0001". */
+export function recordedText(links: VariantLink[]): string {
+  return `the tree records this already: ${links.map(linkText).join(" · ")} — no link to make; open until the records decide it`;
+}
+
 // ── once per research ──────────────────────────────────────────────────────
 
 /** The marker in strom.json: the variants' links filled in once (an optional field: an older strom keeps it). */
@@ -355,6 +450,14 @@ function namesPeople(tree: Tree, h: Hypothesis, v: HypothesisVariant): boolean {
   return new Set([...named, ...subject]).size >= 2;
 }
 
+/**
+ * A variant to say links of: nobody did yet, its words name people of the tree a link could join, and what they say is
+ * not what the tree records already (that one has no link to make).
+ */
+export function toLink(tree: Tree, h: Hypothesis, v: HypothesisVariant): boolean {
+  return untouched(v) && namesPeople(tree, h, v) && !recordedLinks(tree, h, v).length;
+}
+
 /** The open hypotheses nobody has said any links of yet (written before strom hypothesis link). */
 function olderHypotheses(tree: Tree): Hypothesis[] {
   return tree.list<Hypothesis>("hypothesis").filter((h) => h.state === "open" && !h.retracted && !h.mergedInto && h.variants.every(untouched));
@@ -378,7 +481,7 @@ const shortText = (t: string, n: number) => ([...t].length > n ? `${[...t].slice
 export function settleHypothesisLinks(tree: Tree): SettledLinks | undefined {
   if (tree.dryRun) return undefined;
   if (tree.config.settled?.includes(HYPOTHESIS_LINKS_SETTLED)) return undefined;
-  if (!olderHypotheses(tree).some((h) => h.variants.some((v) => namesPeople(tree, h, v)))) return undefined;
+  if (!olderHypotheses(tree).some((h) => h.variants.some((v) => toLink(tree, h, v)))) return undefined;
   // somebody at work on it (an agent present, a run) or holding its lock: next time
   if (liveWorkers(tree.root).length || runsAtWork(tree.root).length || liveHolder(path.join(tree.root, ".strom", "tree.lock"))) return undefined;
   // another computer's seal (a copy, a research brought here): the person adopts it first — nothing written till then
@@ -406,11 +509,12 @@ export function settleHypothesisLinks(tree: Tree): SettledLinks | undefined {
         }
       }
     }
-    // the rest: a variant whose words name people, still without links — for the agent
+    // the rest: a variant whose words name people, still without links — for the agent; one that says what the tree
+    // records already is no link to make (strom hypothesis link refuses it)
     const tasks = tree.list<Task>("task").filter((t) => t.origin === HYPOTHESIS_LINKS_ORIGIN);
     const rest = older
       .map((h) => tree.get<Hypothesis>(h.id)!)
-      .filter((h) => h.variants.some((v) => untouched(v) && namesPeople(tree, h, v)))
+      .filter((h) => h.variants.some((v) => toLink(tree, h, v)))
       .filter((h) => !tasks.some((t) => t.subject.includes(h.id)))
       .map((h) => h.id);
     for (let i = 0; i < rest.length; i += HYPOTHESIS_LINKS_BATCH) {
@@ -477,6 +581,11 @@ export function linkHints(tree: Tree, h: Hypothesis, labels: string[]): string[]
   for (const label of labels) {
     const v = h.variants.find((x) => x.label === label);
     if (!v || v.links?.length || !namesPeople(tree, h, v)) continue;
+    const recorded = recordedLinks(tree, h, v);
+    if (recorded.length) {
+      out.push(`${label}: ${recordedText(recorded)}`);
+      continue;
+    }
     const link = claimLink(tree, h, v);
     out.push(
       link

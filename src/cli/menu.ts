@@ -12,6 +12,10 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
+
+/** A line as a sentence: its first letter capital (a catalog's text that also stands inside a line). */
+const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { BACKUP_SAID_DAYS, lastBackup } from "../core/backup.ts";
 import { lastBackupLine } from "./backups.ts";
@@ -173,6 +177,9 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       // much kept beside the research that can go (an older strom never tidied it): said, freed in the settings
       const disk = tidyPlan(tree);
       if (disk.frees >= TIDY_SAID) out(t("ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) }));
+      // the scan views tuned before, but for another agent or model: offered again (the settings), never run unasked
+      const offer = !archive && ready ? calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config) : undefined;
+      if (offer) out(sentence(t("ui.views.offer", { before: calibrationLabel(offer.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(offer.now, t("ui.settings.model.own")) })));
       const runs = runsAtWork(root).length;
       if (runs) out(t(runs > 1 ? "ui.menu.working.more" : "ui.menu.working", { n: runs }));
       items.push(

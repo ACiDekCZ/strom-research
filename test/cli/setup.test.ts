@@ -358,14 +358,14 @@ test("each agent gets delegation rules for its kind; models per tier are configu
   const claude = fs.readFileSync(path.join(w.cwd, "CLAUDE.md"), "utf8");
   assert.match(claude, /Use the Agent tool for subagents/);
   assert.match(claude, /handwriting.*`opus` — never cheaper/);
-  assert.match(claude, /About ten scans \(images B…:n\) per delegate, never more than twelve/);
+  assert.match(claude, /About six scans \(images B…:n\) per delegate, four views each/);
   // AGENTS.md is read by every agent — the same whichever is the default, since several may work
   // here side by side: nothing Claude-specific, reading rules for those without subagents.
   let agents = fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8");
   assert.doesNotMatch(agents, /Delegating work|strom read/);
   assert.match(agents, /no pipes/);
   assert.match(agents, /Reading scans \(Codex, Antigravity, OpenCode, Grok\)/);
-  assert.match(agents, /batches of at most ten/);
+  assert.match(agents, /batches of about six/);
   assert.match(claude, /not the way "Reading scans" in AGENTS\.md says/);
   await w.ok(["agents", "use", "codex", "--for-tree"]);
   assert.equal(fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8"), agents, "the default agent changes nothing in it");

@@ -17,6 +17,7 @@ import { acquireLock } from "./lock.ts";
 import { defaultAppUrl, isAppVersion, isStromAppOrigin, STROM_APP_BETA_URL, STROM_APP_URL } from "./stromapp.ts";
 import { updateChannel } from "./update.ts";
 import type { BackupRecord } from "./backup.ts";
+import type { ViewCalibration } from "./viewsizes.ts";
 
 export interface UserConfig {
   /** Strom home: default parent of trees and shared data. */
@@ -100,6 +101,8 @@ export interface UserConfig {
   told?: Record<string, string>;
   /** The last answer to "watch the work live in the Strom app?" when the agent was set to work alone from the menu. */
   stromAppFollow?: "yes" | "no";
+  /** The sizes of scan views a calibration found, per agent and model ("claude opus"): strom media calibrate. */
+  viewSizes?: Record<string, ViewCalibration>;
 }
 
 /** A route chosen for a connector: when, and from where (a terminal, or a command without one — an agent or the app). */
@@ -153,7 +156,7 @@ export interface SettingDef {
   env: string;
   /** Can a tree carry its own value (strom.json)? */
   tree: boolean;
-  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin";
+  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin" | "views";
   /** The values a "choice" allows. */
   choices?: readonly string[];
   description: string;
@@ -180,7 +183,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "brief.budget", env: "STROM_BRIEF_BUDGET", tree: true, kind: "number", description: `size of the brief in tokens (default ${DEFAULT_BUDGET})` },
   { key: "run.minutes", env: "STROM_RUN_MINUTES", tree: true, kind: "number", description: `time limit of one \`strom run\` session (default ${DEFAULT_RUN_MINUTES})` },
   // Read from the config file only, changed by the user alone: the gate decides what working alone spends.
-  { key: "run.gate", env: "", tree: false, kind: "plugin", description: "a condition on the agent working alone: the gate (plugins/gates/<name>) strom asks before each session of strom run — go on, wait or stop; its name, then what it is given (strom gate list; e.g. claude-usage 10: the Claude subscription's daily ration, 10 points in hand) — only you set it" },
+  { key: "run.gate", env: "", tree: false, kind: "plugin", description: "a condition on the agent working alone: the gate (plugins/gates/<name>) strom asks before each session of strom run — go on, wait or stop; its name, then what it is given (strom gate list; e.g. claude-usage 10: the Claude subscription's daily ration, 10 points in hand; claude-usage 10 --cap 95: and never past 95 % of the week, before every session of every run, no “start anyway”) — only you set it" },
   { key: "queue.strategy", env: "STROM_QUEUE_STRATEGY", tree: true, kind: "choice", choices: STRATEGIES, description: "order of the task queue: balanced (default — nearest ancestors first, spread over the lines, nothing taken forever), depth (stay on one line), priority (strict priority)" },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
@@ -206,6 +209,8 @@ export const SETTINGS: SettingDef[] = [
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
   { key: "app.browser", env: "STROM_APP_BROWSER", tree: false, kind: "choice", choices: ["chrome", "edge", "brave", "opera", "firefox", "chromium"], description: "the browser strom opens the Strom app in — the one its tree came from (strom keeps it), or yours: chrome, edge, brave, opera, firefox, chromium (another Chromium: Vivaldi, Arc). The Strom app installed from a browser always comes first (from this one when it is installed from several); without one, a tab of this browser — unset: of the default browser when the app reaches strom from it, else of the first such browser here" },
+  // Measured, never typed: strom media calibrate (a person starts it) keeps it per agent and model; unset: the defaults.
+  { key: "views.size", env: "", tree: false, kind: "views", description: "the size of the scan views for the research's agent and model: find (a whole image, to find an entry; default 1400 px) and read (a half, a crop, a reader's view; default what the model takes) — set by strom media calibrate, which a person starts; strom config unset views.size returns to the defaults" },
   { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of {appUrl} — e.g. its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
 ];
 
@@ -340,6 +345,8 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       // as the app says it to the bridge (its header): its betas too
       if (!isAppVersion(v)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: "a version like 3.9.0 or 3.10.0-beta.6" });
       return v;
+    case "views":
+      throw new UsageError(`${def.key} is measured, not set: strom media calibrate`, { hint: "strom media calibrate (a person starts it: paid readings of the research's own records) · strom config unset views.size returns to the defaults" });
     case "number": {
       const n = Number(v);
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);

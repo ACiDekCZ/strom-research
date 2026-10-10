@@ -20,6 +20,8 @@ const LEVELS: Record<string, string[]> = {
   intake: [...ALL, "input sort", "input skip", "media view", ...ENTRY.filter((c) => c !== "event edit"), "person merge", "recordset add", "conflict add"],
   request: [...ALL, "task wait"],
   narrate: ["task add", "note add", "story set"],
+  // a task that links hypotheses to the tree (METHOD_LINKS): it reads the hypotheses and their people, and links
+  links: ["hypothesis show", "hypothesis link", "hypothesis argue", "hypothesis variant", "person show", "family show", "task add", "note add", "search add"],
 };
 /** Options a task hardly uses (another route, a reader's tuning): left out — strom help <command> has them. */
 const RARE: Record<string, string[]> = {

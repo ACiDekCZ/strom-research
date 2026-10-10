@@ -24,7 +24,7 @@ import { backupBefore, backupSaid } from "./backups.ts";
 import { installation } from "../core/self.ts";
 import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
-import { clockLine, FINISH_LINE, finishAsked } from "../core/clock.ts";
+import { clockLine, FINISH_LINE, finishLimitLine, finishOf } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
 import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, severalRecords, splitPassthrough, usageOf } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
@@ -347,8 +347,9 @@ function remind(io: IO, ctx: Context | undefined, command: string | undefined): 
   if (session) {
     try {
       const root = ctx.locateTree();
-      if (root && finishAsked(root, session)) {
-        io.stderr(FINISH_LINE + "\n");
+      const asked = root ? finishOf(root, session) : undefined;
+      if (asked) {
+        io.stderr((asked.by === "limit" ? finishLimitLine(asked.why) : FINISH_LINE) + "\n");
         return;
       }
     } catch {

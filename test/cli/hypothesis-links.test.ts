@@ -229,6 +229,8 @@ test("where the tree ends: the parents a variant names — named; the user decid
   const ged = exportGedcom(Tree.open(w.cwd, w.env), { for: "strom", research: true, edges: true, hypothesisLinks: true }).text;
   assert.match(ged, /\n2 _VAR B\n/);
   assert.doesNotMatch(ged, /_LINK child|_END named/);
+  // said as the tree's own now: never as a link not made yet
+  assert.match(ged, /\n2 _VAR B\n3 TITL [^\n]*\n3 _INTREE child\n4 _PERS @P0002@\n4 _FAM @F\d+@\n/);
   w.cleanup();
 });
 

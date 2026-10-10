@@ -74,7 +74,7 @@ test("brief: a search of the surname elsewhere and long before is counted, not l
   await w.ok(["lesson", "add", "Шевчуки з Києва — інший рід"]);
   await w.ok(["lesson", "add", "Rejstříky té doby jsou psány latinsky"]);
   const known = section((await w.ok(["brief", "T1"])).out, "## Already known");
-  assert.match(known, /Q0001 \[negative\] Křty Novák v Lhotě/);
+  assert.match(known, /Q0001 \[negative in the index only\] Křty Novák v Lhotě/);
   assert.doesNotMatch(known, /Oddaní v Brně/);
   assert.match(known, /\+1 search of Novák in other places and years: strom searched Novák/);
   assert.match(known, /Novákovi psali jméno i Nowak/);
@@ -282,7 +282,7 @@ test("brief: the estimate is real, so the budget holds the brief to its tokens (
   w.cleanup();
 });
 
-test("brief: a long list of what is already known is cut before the task's people, its last sessions and open questions (P3)", opts, async () => {
+test("brief: a long list of what is already known is cut before whom the task is about, its last sessions and open questions — the people's notes in short first (P3)", opts, async () => {
   const w = await family();
   for (let i = 0; i < 60; i++) await w.ok(["search", "add", `Křty Nováků v Lhotě, ročník ${1900 + (i % 10)}: žádný zápis — přečteno celé, i rejstřík`, "--recordset", "B1", "--method", "page-by-page", "--result", "negative"]);
   await w.ok(["hypothesis", "add", "Je Josef syn Václava?", "--about", "P1", "--variant", "A: ano", "--variant", "B: ne"]);
@@ -294,8 +294,11 @@ test("brief: a long list of what is already known is cut before the task's peopl
   const b = (await w.ok(["brief", "T1", "--budget", String(big.total - Math.round(premise.tokens / 2)), "--json"])).json;
   const cut = Object.fromEntries(b.sections.map((s: any) => [s.name, s.cut]));
   assert.equal(cut.premise, true);
-  for (const name of ["people", "open questions", "record sets", "method", "commands"]) assert.equal(cut[name], false, `${name} cut`);
+  for (const name of ["open questions", "record sets", "method", "commands"]) assert.equal(cut[name], false, `${name} cut`);
+  // whom the task is about stays; the father's notes in short — the start of the last one
+  assert.equal(cut.people, true);
   assert.match(section(b.text, "## People concerned"), /\n {2}P0001 Jan Novák \(\*1905\) M\n/);
+  assert.match(section(b.text, "## People concerned"), /\n {2}P0002 Josef Novák M — father of P0001\n {4}lived: Lhota 12 1900 · occupation: mlynář 1905\n {4}parents: P0004 Václav Novák\n {4}note: třetí: Josef je mlynář[^\n]{60,100}… \(3 notes: strom person show P0002\)\n/);
   // the premise keeps the searches that fit, still where it stands, and points to the rest
   assert.ok(b.text.indexOf("## Already known") < b.text.indexOf("## People concerned"));
   assert.match(section(b.text, "## Already known"), /Q0001 \[negative\][\s\S]*  … cut to fit the brief — see: strom searched B0001\n/);
@@ -315,10 +318,16 @@ test("brief: the default budget holds what the old one did, in real tokens (P3)"
   assert.ok(tokens(brief) <= DEFAULT_BUDGET, `${tokens(brief)} > ${DEFAULT_BUDGET}`);
 });
 
-test("delegation: about ten scans to a delegate, stopped at about 80 views; an agent reading alone writes down after 80", () => {
+test("delegation: about six scans of four views to a delegate, written down call by call, stopped at about 30 views, a cleared view never opened again; an agent reading alone writes down after 30 (N0240)", () => {
   const claude = PROFILES.claude!.instructions({});
-  assert.match(claude, /About ten scans \(images B…:n\) per delegate, never more than twelve; it opens\n {2}as many halves and crops of them as reading needs, but tell it to stop at\n {2}about 80 views and return what it has: every view stays in its context to\n {2}the end\./);
-  assert.doesNotMatch(claude, /paid for again on every turn/);
-  assert.match(SELF_READING, /after about 80\nviews, write down what you found and go on/);
-  for (const id of ["codex", "antigravity", "opencode", "grok"]) assert.match(PROFILES[id]!.instructions({}), /after about 80/);
+  assert.match(claude, /About six scans \(images B…:n\) per delegate, four views each \(halves and\n {2}crops\); tell it to write down what each call gave before the next, to stop\n {2}at about 30 views and return what it has, and never to open again a view\n {2}cleared from its context \(its notes hold it\)\./);
+  assert.doesNotMatch(claude, /paid for again on every turn|about 80|About ten scans/);
+  assert.match(SELF_READING, /After about 30 views, write down what you found\nand go on; a view cleared from your context is not opened again/);
+  for (const id of ["codex", "antigravity", "opencode", "grok"]) assert.match(PROFILES[id]!.instructions({}), /After about 30 views/);
+  assert.doesNotMatch(SELF_READING, /about 80|at most ten/);
+});
+
+test("delegation: the agent fetches the images before it delegates; a delegate never fetches nor waits for an archive (N0233)", () => {
+  const claude = PROFILES.claude!.instructions({});
+  assert.match(claude, /Fetch the images before you delegate: a delegate never fetches, nor waits\n {2}for an archive — it reports the images missing or too small, and you fetch them\./);
 });

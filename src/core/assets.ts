@@ -31,7 +31,14 @@ export const METHOD_PAGES: Record<string, string[]> = {
   verify: ["recording.md", "reading.md"],
   enrich: ["recording.md", "reading.md"],
   intake: ["reading.md"],
+  links: [],
 };
+
+/**
+ * The method of a task that links hypotheses to the tree (origin hypothesis:links), whatever its level: it reads no
+ * records — the core's parts marked for it, no page of a level.
+ */
+export const METHOD_LINKS = "links";
 
 /**
  * What a part of the method may be given for besides the level: a record set of the brief comes through a connector
@@ -48,7 +55,8 @@ const END = "<!-- end -->";
 /**
  * The parts of one page of the method a level is given. A part a level does not use is marked on its page —
  * `<!-- for link verify … -->` … `<!-- end -->` — with the levels it is for and, besides, the conditions it needs
- * (any one of them). Unmarked text is everyone's; marks do not nest. With no level, the whole page.
+ * (any one of them). Unmarked text is everyone's; marks do not nest. With no level, the whole page but what is for a
+ * task linking hypotheses alone (METHOD_LINKS).
  */
 export function methodPage(text: string, level: string | undefined, conditions: readonly string[] = []): string {
   const out: string[] = [];
@@ -59,8 +67,8 @@ export function methodPage(text: string, level: string | undefined, conditions: 
       const words = mark[1]!.trim().split(/\s+/u);
       const levels = words.filter((w) => !(METHOD_CONDITIONS as readonly string[]).includes(w));
       const when = words.filter((w) => (METHOD_CONDITIONS as readonly string[]).includes(w));
-      // no level (a brief with no task): the whole page
-      keep = !level || ((!levels.length || levels.includes(level)) && (!when.length || when.some((w) => conditions.includes(w))));
+      // no level (a brief with no task): the whole page, but the part of a task linking hypotheses
+      keep = !level ? !levels.length || levels.some((l) => l !== METHOD_LINKS) : ((!levels.length || levels.includes(level)) && (!when.length || when.some((w) => conditions.includes(w))));
       continue;
     }
     if (line === END) {
@@ -74,6 +82,6 @@ export function methodPage(text: string, level: string | undefined, conditions: 
 
 /** Method text for a task level: the core plus the level's own page and the pages it works by, each with the parts the level uses. */
 export function methodFor(level: string | undefined, conditions: readonly string[] = []): string {
-  const pages = ["core.md", ...(level ? [`${level}.md`, ...(METHOD_PAGES[level] ?? [])] : [])];
+  const pages = ["core.md", ...(level ? [...(level === METHOD_LINKS ? [] : [`${level}.md`]), ...(METHOD_PAGES[level] ?? [])] : [])];
   return pages.map((p) => readAsset("method", p)).filter((t): t is string => !!t).map((t) => methodPage(t, level, conditions)).join("\n");
 }

@@ -15,6 +15,8 @@ import { Settings } from "../../src/core/config.ts";
 import { hypothesisPeople, namesId } from "../../src/core/directions.ts";
 import { joiningHypotheses } from "../../src/core/kin.ts";
 import type { Hypothesis } from "../../src/core/model.ts";
+import { encodeImage } from "../../src/image/index.ts";
+import { WEAK_SCAN_PX } from "../../src/core/mediaindex.ts";
 
 const opts = { skip: !hasGit };
 
@@ -155,6 +157,8 @@ test("edge: the Strom app's own parser reads the edges and the islands, and drop
   await w.ok(["hypothesis", "add", "Byl Matouš otcem Václava?", "--about", "P4", "--about", "P5", "--variant", "A: ano", "--variant", "B: ne"]);
   await w.ok(["task", "add", "Křest Václava: otec Matouš?", "--level", "link", "--where", "B0001", "--why", "H0001", "--done-when", "zápis", "--about", "H0001"]);
   await w.ok(["search", "add", "Křest Václava", "--recordset", "B0001", "--years", "1787-1790", "--method", "page-by-page", "--result", "negative", "--task", "T0001"]);
+  // its scans weak (3 _WEAK): the app passes it by, drops nothing
+  await w.ok(["media", "add", scansOf(w, [[300, 400]]), "--recordset", "B0001"]);
   const ged = path.join(w.dir, "edges.ged");
   fs.writeFileSync(ged, exportGedcom(Tree.open(w.cwd, w.env), { for: "strom", research: true, edges: true }).text);
   const script = path.join(w.dir, "read.ts");
@@ -245,4 +249,60 @@ test("edge: an ID is named in a text of any script — never a part of a longer 
   assert.equal(namesId("e\u0301H0007", "H0007"), false, "a decomposed accent before it");
   assert.equal(namesId("H00071", "H0007"), false);
   assert.equal(namesId("H0007é", "H0007"), false);
+});
+
+test("edge: a negative of an index is the index's — never the book searched in vain; the brief and strom searched say so", opts, async () => {
+  const w = await world();
+  await w.ok(["task", "add", "Křest Václava", "--level", "link", "--where", "B0001", "--why", "rodiče", "--done-when", "zápis nalezen", "--about", "P4"]);
+  // an index of the whole span read in vain (a question in another script and decomposed): the book is not searched by it
+  await w.ok(["search", "add", "Индекс крещений: Новак".normalize("NFD"), "--recordset", "B0001", "--years", "1787-1793", "--surname", "Novák", "--method", "index", "--result", "negative", "--task", "T0001"]);
+  let e = await edges(w);
+  assert.deepEqual(e.P0004.covered, [], "an index negative covers no year of the book");
+  assert.equal(e.P0004.end, "partly");
+  assert.equal(e.P0004.searches, 1);
+  assert.doesNotMatch((await w.ok(["edge", "P4"])).out, /searched in vain/);
+  assert.match((await w.ok(["brief", "T1"])).out, /Q0001 \[negative in the index only\] Индекс крещений/);
+  const said = (await w.ok(["searched", "B0001"])).out;
+  assert.match(said, /1 negative \(1 in an index only — not the book searched in vain\)/);
+  assert.match(said, /negative in the index only/);
+  // the pages themselves read in vain: those years are
+  await w.ok(["search", "add", "Křest Václava Nováka", "--recordset", "B0001", "--years", "1787-1793", "--method", "page-by-page", "--result", "negative", "--task", "T0001"]);
+  e = await edges(w);
+  assert.deepEqual(e.P0004.covered, [{ from: 1787, to: 1793 }]);
+  assert.equal(e.P0004.end, "not-found");
+  assert.match((await w.ok(["brief", "T1"])).out, /Q0002 \[negative\] Křest Václava Nováka/);
+});
+
+/** A folder of scans of these sizes (s0001.jpg …), grey. */
+function scansOf(w: World, sizes: [number, number][]): string {
+  const dir = fs.mkdtempSync(path.join(w.dir, "skeny-"));
+  sizes.forEach(([width, height], i) =>
+    fs.writeFileSync(path.join(dir, `s${String(i + 1).padStart(4, "0")}.jpg`), encodeImage({ width, height, channels: 1, data: new Uint8Array(width * height).fill(200 - i * 40) }, "jpeg")),
+  );
+  return dir;
+}
+
+test("edge and the brief: a book of weak scans (the long side at most 2000 px) is said so — in the record set's line, strom edge and the Strom file", opts, async () => {
+  const w = await world();
+  await w.ok(["task", "add", "Křest Václava", "--level", "link", "--where", "B0001", "--why", "rodiče", "--done-when", "zápis nalezen", "--about", "P4"]);
+  assert.equal(WEAK_SCAN_PX, 2000);
+  // a double page as a portal's viewer gives it: 2000 px across
+  await w.ok(["media", "add", scansOf(w, [[2000, 1400], [1990, 1400], [2000, 1410]]), "--recordset", "B0001"]);
+  let e = await edges(w);
+  assert.equal(e.P0004.books[0].weak, 2000);
+  assert.match((await w.ok(["brief", "T1"])).out, /\n {4}weak scans \(long side 2000 px\): a negative on them is weak — a sharper scan: ask the user/);
+  assert.match((await w.ok(["edge", "P4"])).out, /books: B0001 \(1784-1830\) weak scans \(2000 px\)/);
+  const tree = Tree.open(w.cwd, w.env);
+  const ged = exportGedcom(tree, { for: "strom", research: true, edges: true }).text;
+  assert.match(ged, /\n2 _BOOK B0001\n3 TITL [^\n]*\n3 DATE [^\n]*\n3 _ACCESS online-free\n3 _WEAK 2000\n/);
+  assert.deepEqual(validateGedcom(ged).filter((f) => f.message.includes("_WEAK")), []);
+  assert.doesNotMatch(exportGedcom(tree, { for: "standard" }).text, /_WEAK/, "a snapshot for the app only");
+  // sharper scans of another book of the place: nothing said of them
+  await w.ok(["recordset", "add", "Лхота, крещения 1784–1830".normalize("NFD"), "--kinds", "baptism", "--places", "Lhota", "--years", "1784-1830", "--access", "online-free"]); // B0002
+  await w.ok(["media", "add", scansOf(w, [[2600, 1900]]), "--recordset", "B0002"]);
+  e = await edges(w);
+  assert.equal(e.P0004.books.find((b: any) => b.id === "B0002").weak, undefined);
+  assert.doesNotMatch((await w.ok(["brief", "T1"])).out, /weak scans \(long side 2600/);
+  // nothing offered again: the queue is the same with or without weak scans
+  assert.equal(e.P0004.next, "queued");
 });

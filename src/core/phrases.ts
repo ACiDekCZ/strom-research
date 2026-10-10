@@ -207,6 +207,21 @@ export const PHRASES = {
   "log.research.done": "Direction ended: {name}",
   "log.mode.archive": "The research is now an archive",
   "log.mode.research": "Research switched on again",
+  "log.reading.loose": "Images read through: {n}",
+  "log.clips": "Entries marked on their scans: {n} of {total}",
+  "log.transcripts": "Entries transcribed from their cut-outs: {n} of {total}",
+  "log.tree.create": "Research begun: {name}",
+  "log.repair": "The data put back as they were last sealed",
+  "log.chat.saved": "Saved after a conversation with the agent",
+  "log.migrate": "The family tree's data brought up to date for a newer strom",
+  "log.setting": "Setting of the research changed: {key}",
+  "log.image": "{name}, image {image}",
+  "log.media.edit": "Image changed: {name}",
+  "log.media.retract": "Image withdrawn: {name}",
+  "log.input.edit": "Material added to: {name}",
+  "log.input.skip": "Material put aside as of no use: {name}",
+  "log.input.sort": "Material sorted: {name}",
+  "log.record.edit": "Changed: {name}",
 } as const;
 
 export type PhraseKey = keyof typeof PHRASES;

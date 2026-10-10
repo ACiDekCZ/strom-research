@@ -29,7 +29,7 @@ import { runGit } from "../core/git.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { Tree } from "../core/tree.ts";
 import { syncAgentFiles } from "../agents/files.ts";
-import { clearBlock, clock, CookieJar, DEFAULT_PACE, hostAllowed, hostPace, hostState, knownHosts, MIN_INTERVAL_MS, NetError, paceText, politeRequest, refusedBy, reserveSlots, setOwnPace, type Pace } from "../core/net.ts";
+import { clearBlock, clock, CookieJar, DEFAULT_PACE, hostAllowed, hostPace, hostState, knownHosts, MIN_INTERVAL_MS, NetError, paceText, politeRequest, refusedBy, reserveSlots, setOwnPace, testHooks, type Pace } from "../core/net.ts";
 import {
   botCheck,
   fileBase,
@@ -324,12 +324,47 @@ function forbiddenBy(ctx: Context, c: Connector): Repository | undefined {
     });
 }
 
-/** How long a fetch takes at least, at the connector's pace (one request per image). */
-function estimate(ctx: Context, c: Connector, images: number): string {
+/**
+ * When the last of n requests can go to a host at its pace: one at a time, ≥ its pause apart, and under its hourly cap
+ * with the requests of the last hour counted (ms from now). A connector may make more requests than images (a page of
+ * the book first): this is the least.
+ */
+export function requestsSpan(n: number, pace: Pace, recent: number[], now = Date.now()): number {
+  const window = recent.filter((t) => t > now - 3600_000).sort((a, b) => a - b);
+  let t = now;
+  for (let i = 0; i < n; i++) {
+    if (i) t += pace.minIntervalMs;
+    if (Number.isFinite(pace.perHour) && pace.perHour > 0)
+      for (;;) {
+        const inHour = window.filter((x) => x > t - 3600_000);
+        if (inHour.length < pace.perHour) break;
+        t = inHour[inHour.length - pace.perHour]! + 3600_000;
+      }
+    window.push(t);
+  }
+  return Math.max(0, t - now);
+}
+
+/** What a fetch asks of the archive, said before it starts: the requests, how long at the host's pace, its hourly cap and what is left of it. */
+function estimate(ctx: Context, c: Connector, images: number, part?: number): string {
+  const host = bareHost(c.manifest.hosts[0] ?? "");
   const pace = connectorPace(ctx, c);
-  const secs = Math.round(((images - 1) * pace.minIntervalMs) / 1000);
-  const took = secs < 90 ? `${secs} s` : `${Math.round(secs / 60)} min`;
-  return `${images} image(s) through ${c.name}: at least ${took} at its pace (one request per image, ≥${pace.minIntervalMs / 1000} s apart)`;
+  const recent = hostState(netDir(ctx), host).recent;
+  const now = (testHooks.now ?? Date.now)();
+  const span = (n: number) => {
+    const secs = Math.round(requestsSpan(n, pace, recent, now) / 1000);
+    return secs < 90 ? `${secs} s` : `${Math.round(secs / 60)} min`;
+  };
+  const capped = Number.isFinite(pace.perHour) && pace.perHour > 0;
+  const left = capped ? Math.max(0, pace.perHour - recent.filter((t) => t > now - 3600_000).length) : Infinity;
+  const pacing = `≥${pace.minIntervalMs / 1000} s apart${capped ? `, at most ${pace.perHour} an hour — ${left} left this hour` : ""}`;
+  const waits = images > left;
+  return lines(
+    `${part !== undefined ? `a part of image ${part}` : `${images} image(s)`} through ${c.name}: at least ${images} request(s) to ${host}, about ${span(images)} at its pace (${pacing})`,
+    waits
+      ? `  the hourly cap holds the rest back: fetch the whole images first (a request each) and a part only of an image whose entry needs it`
+      : undefined,
+  );
 }
 
 /** How a connector's images come here, and what else it can do. */
@@ -806,6 +841,8 @@ register(
       "itself (up to 30 min, never into a session's last 10) and says until when — no need to sleep and ask again;\n" +
       "longer, it ends with exit 7 and the time to try again. With --recordset the images are registered at once;\n" +
       "without it they go into the inbox, a folder for the book.\n" +
+      "It says first how many requests it asks of the archive and how long they take at the host's pace and hourly\n" +
+      "cap: fetch whole images first (a request each) and a part only of an image whose entry needs it.\n" +
       "--crop or --half fetches a part of one image, as sharp as the portal gives it (a connector that can: part),\n" +
       "registered with the image; a view of the image then shows that place from it by itself. The book is\n" +
       "known from images the connector fetched for the record set before.\n" +
@@ -1263,6 +1300,25 @@ async function takePages(ctx: Context, c: Connector, plans: BrowserPlan[], resul
   return { text: lines(head, then.text), data: { taken, notes, then: then.data }, ...(then.exitCode ? { exitCode: then.exitCode } : {}) };
 }
 
+/**
+ * A part not worth a request: the parts of this book a connector fetched before show the most detail the portal gives
+ * a part of that size (a smaller part may come sharper: the portal's image has a size limit, the scan its own), and the
+ * image registered here has as much already (below 1.2× more: what strom fetch calls no sharper). The same book's scans
+ * are taken to be of one size; each image is weighed against its own registered scan, never the book's at once.
+ */
+export function noSharperPart(all: Media[], connector: string, recordset: string, image: number, region: Region): { detail: number; width: number; gain: number } | undefined {
+  const whole = findImage(all.filter((m) => !m.part), recordset, image);
+  if (!whole?.width) return undefined;
+  const EPS = 1e-6;
+  const details = all
+    .filter((m) => !m.retracted && m.recordset === recordset && m.part && m.width && m.fetched?.connector === connector && region.w >= m.part.w - EPS && region.h >= m.part.h - EPS)
+    .map((m) => m.width! / m.part!.w);
+  if (!details.length) return undefined;
+  const detail = Math.round(Math.max(...details));
+  const gain = detail / whole.width;
+  return gain < 1.2 ? { detail, width: whole.width, gain } : undefined;
+}
+
 /** strom fetch, once the request is known: checked against the policy, then through strom or the user's browser. */
 async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, recordset: string | undefined): Promise<Result> {
   const tree = ctx.tree();
@@ -1288,6 +1344,15 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   if (recordset && request.cmd === "part") {
     const had = tree.list<Media>("media").find((m) => m.recordset === recordset && m.image === request.image && m.part && sameRegion(m.part, request.region) && fs.existsSync(path.join(shared(ctx), m.file)));
     if (had) return { text: `part ${regionText(request.region)} of image ${request.image} of ${recordset} is registered already: ${had.id} — nothing fetched`, data: { added: [], again: [had.id] } };
+    const none = noSharperPart(tree.list<Media>("media"), c.name, recordset, request.image, request.region);
+    if (none)
+      return {
+        text: lines(
+          `part ${regionText(request.region)} of image ${request.image} of ${recordset} not fetched: a part this size came from ${c.name} at most ${none.detail} px across the image, and image ${request.image} here has ${none.width} already (${none.gain.toFixed(1)}× — no sharper)`,
+          `read it from the image: strom media view ${recordset}:${request.image} --crop ${regionText(request.region)} · a smaller part (one entry) may come sharper`,
+        ),
+        data: { added: [], skipped: { image: request.image, region: request.region, ...none } },
+      };
   }
   if (tree.dryRun) {
     // a dry run never contacts the archive, nor asks for consent
@@ -1306,6 +1371,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   if (!(await ensureAllowed(ctx, c))) return { text: "not allowed — nothing was fetched", exitCode: 1 };
   if (!(await ensureLogin(ctx, c))) return { text: "no login — nothing was fetched", exitCode: 1 };
   if (request.cmd === "fetch") ctx.io.stderr(estimate(ctx, c, request.images.length) + "\n");
+  if (request.cmd === "part") ctx.io.stderr(estimate(ctx, c, 1, request.image) + "\n");
   if (request.cmd === "fetch" && c.manifest.policy.automation === "unknown")
     ctx.io.stderr(`note: what the terms of ${c.manifest.title} say about automated download is not known yet — strom connector show ${c.name}\n`);
   const workDir = path.join(tree.root, ".strom", "fetch", `${c.name}-${Date.now()}`);

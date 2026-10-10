@@ -31,11 +31,14 @@ export interface AgentProfile {
 
 const DELEGATION_RULES = `- Browsing a book, an index or a range of images ("is our surname on this page?")
   is delegated; so is anything self-contained that returns little.
-- About ten scans (images B…:n) per delegate, never more than twelve; it opens
-  as many halves and crops of them as reading needs, but tell it to stop at
-  about 80 views and return what it has: every view stays in its context to
-  the end. It asks for the views of a scan (or of a few) in one call —
+- About six scans (images B…:n) per delegate, four views each (halves and
+  crops); tell it to write down what each call gave before the next, to stop
+  at about 30 views and return what it has, and never to open again a view
+  cleared from its context (its notes hold it). It asks for the
+  views of a scan (or of a few) in one call —
   \`strom media view B0001:57-60 --half both\` — and opens them together.
+- Fetch the images before you delegate: a delegate never fetches, nor waits
+  for an archive — it reports the images missing or too small, and you fetch them.
 - Every delegate gets the full question (what counts as a find, which years,
   which names) and returns for each image: image and page, find or nothing,
   what was illegible, the hand, and certainty per name — written as it goes.
@@ -48,11 +51,12 @@ export const SELF_READING = `## Reading scans (Codex, Antigravity, OpenCode, Gro
 
 Read the images yourself, with your strongest model — never hand old
 handwriting to a faster or cheaper model, subagent or pass. Read them
-in batches of at most ten: open a batch (one call gives its views —
-\`strom media view B0001:57-66 --half both\` — open them together), write
+in batches of about six: open a batch (one call gives its views —
+\`strom media view B0001:57-62 --half both\` — open them together), write
 down what it gave (strom search add … for what was not found, facts for what
-was), then open the next. Every image and view stays in your context to the end: after about 80
-views, write down what you found and go on. A name or place the next search depends on:
+was), then open the next. After about 30 views, write down what you found
+and go on; a view cleared from your context is not opened again — your
+notes hold it. A name or place the next search depends on:
 read it again on a crop at full resolution (\`strom media view … --crop\`)
 before you record it.
 OpenCode: this tree's subagent strom-scan-reader (strom and the file reader

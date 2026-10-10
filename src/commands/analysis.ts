@@ -39,8 +39,9 @@ import { againAllowed, claimOf, isEditConflict, weighedSources } from "../core/c
 import { currentSession } from "../core/session.ts";
 import { typeOfId, type Tree } from "../core/tree.ts";
 import { resolveResearch } from "./research.ts";
-import { childLink, LINK_HOW, linkHints, linkText, personsLink, writeVariantLink } from "../core/hypolinks.ts";
+import { childLink, LINK_HOW, linkHints, linkText, personsLink, recordedLinks, recordedText, toLink, writeVariantLink } from "../core/hypolinks.ts";
 import { yearsOption, yearsOverlap } from "../core/years.ts";
+import { searchedAs } from "../core/evidence.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -148,7 +149,7 @@ function variantLink(tree: Tree, opts: Record<string, unknown>, extra: string[])
 // ── searches ───────────────────────────────────────────────────────────────
 
 function searchLine(s: Search): string[] {
-  return [s.id, s.result, s.method, truncate(s.question, 60), s.scope.years ?? "", (s.scope.surnames ?? []).join(","), s.recordsets.join(" "), s.by === "main" ? "" : `by ${s.by}`];
+  return [s.id, searchedAs(s), s.method, truncate(s.question, 60), s.scope.years ?? "", (s.scope.surnames ?? []).join(","), s.recordsets.join(" "), s.by === "main" ? "" : `by ${s.by}`];
 }
 
 /** What a found search needs before it: the source it found (N0181, N0187: the search written first). */
@@ -362,8 +363,10 @@ register(
       const years = yearsOption(opts.years, said);
       const hits = tree.list<Search>("search").filter((s) => match(s) && yearsOverlap(s.scope.years, years));
       const negative = hits.filter((s) => s.result === "negative").length;
+      // a negative of an index is the index's: the book itself not searched in vain by it
+      const ofIndex = hits.filter((s) => s.result === "negative" && s.method === "index").length;
       const text = hits.length
-        ? lines(`${hits.length} search(es) for ${what}${years ? ` in ${years}` : ""} — ${negative} negative, ${hits.length - negative} with results`, table(hits.map(searchLine)))
+        ? lines(`${hits.length} search(es) for ${what}${years ? ` in ${years}` : ""} — ${negative} negative${ofIndex ? ` (${ofIndex} in an index only — not the book searched in vain)` : ""}, ${hits.length - negative} with results`, table(hits.map(searchLine)))
         : `nothing searched yet for ${what}${years ? ` in ${years}` : ""}`;
       return { text: lines(text, ...said), data: { searches: hits } };
     },
@@ -734,15 +737,14 @@ register(
     tree: true,
     options: [
       { name: "all", type: "boolean", description: "include decided and abandoned" },
-      { name: "unlinked", type: "boolean", description: "only those no variant of which says what it would connect (strom hypothesis link)" },
+      { name: "unlinked", type: "boolean", description: "only those no variant of which says what it would connect (strom hypothesis link), but those whose every variant naming people says what the tree records already" },
     ],
     examples: ["strom hypothesis list", "strom hypothesis list --unlinked"],
     run(ctx, { opts }) {
-      const linked = (h: Hypothesis) => h.variants.some((v) => v.links?.length);
-      const all = ctx
-        .tree()
-        .list<Hypothesis>("hypothesis")
-        .filter((h) => (opts.all || h.state === "open") && !(opts.unlinked && linked(h)));
+      const tree = ctx.tree();
+      // a hypothesis whose variants say only what the tree records already has nothing to link
+      const linked = (h: Hypothesis) => h.variants.some((v) => v.links?.length) || (h.variants.some((v) => recordedLinks(tree, h, v).length) && !h.variants.some((v) => toLink(tree, h, v)));
+      const all = tree.list<Hypothesis>("hypothesis").filter((h) => (opts.all || h.state === "open") && !(opts.unlinked && linked(h)));
       const links = (h: Hypothesis) => h.variants.reduce((n, v) => n + (v.links?.length ?? 0), 0);
       return {
         text: all.length
@@ -763,15 +765,23 @@ register(
     run(ctx, { args }) {
       const tree = ctx.tree();
       const h = requireRecord<Hypothesis>(tree, args[0]!, "hypothesis");
+      // a variant saying what the tree records already: no link to make, the hypothesis open until the records decide it
+      const recorded = Object.fromEntries(h.variants.map((v) => [v.label, recordedLinks(tree, h, v)] as const).filter(([, l]) => l.length));
       return {
         text: lines(
           `${h.id} ${h.question}  [${h.state}]`,
           `about  ${h.subject.join(" ")}`,
           taskLines(tree, h.id),
-          ...h.variants.flatMap((v) => [`\n${v.label}: ${v.claim}`, ...v.support.map((s) => `  + ${s}`), ...v.against.map((s) => `  − ${s}`), ...(v.links ?? []).map((l) => `  ⇢ ${linkText(l)}`)]),
+          ...h.variants.flatMap((v) => [
+            `\n${v.label}: ${v.claim}`,
+            ...v.support.map((s) => `  + ${s}`),
+            ...v.against.map((s) => `  − ${s}`),
+            ...(v.links ?? []).map((l) => `  ⇢ ${linkText(l)}`),
+            ...(recorded[v.label] ? [`  = ${recordedText(recorded[v.label]!)}`] : []),
+          ]),
           h.decision ? `\ndecision${h.chosen ? ` (for ${h.chosen})` : ""}  ${h.decision}` : undefined,
         ),
-        data: { hypothesis: h },
+        data: { hypothesis: h, ...(Object.keys(recorded).length ? { recorded } : {}) },
       };
     },
   },

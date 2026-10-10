@@ -12,8 +12,16 @@
 // information for the fact.
 
 import { UsageError } from "./errors.ts";
-import type { Citation, Source, Status } from "./model.ts";
+import type { Citation, Search, Source, Status } from "./model.ts";
 import type { Tree } from "./tree.ts";
+
+/**
+ * What a search came to, as said beside it: a negative of an index is the index's — an index is a copy, written by
+ * another hand and maybe incomplete, so the book itself is not searched in vain by it (core/edge.ts counts it so too).
+ */
+export function searchedAs(s: Pick<Search, "result" | "method">): string {
+  return s.result === "negative" && s.method === "index" ? "negative in the index only" : s.result;
+}
 
 /** Sources that are leads by nature: compiled by someone, not a record of the event. */
 export function isWeak(src: Source | undefined): boolean {

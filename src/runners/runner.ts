@@ -63,6 +63,8 @@ export interface RunOptions {
   logFile: string;
   /** One-line progress for the user (tool calls, messages). */
   onProgress?: (line: string) => void;
+  /** The limits of the agent's plan as the agent says them while it works (Claude Code only; the latest of each kind). */
+  onLimits?: (limits: AgentLimit[]) => void;
   /** Stop the agent when this is aborted (the user pressed Ctrl-C). */
   signal?: AbortSignal;
 }
@@ -78,6 +80,27 @@ export interface RunResult {
   denied?: string[];
   /** The agent refused the model it was started with (one it does not know, or no longer serves). */
   modelRejected?: true;
+  /** The limits of the agent's plan as it said them last (Claude Code's rate_limit_event); none from other agents. */
+  limits?: AgentLimit[];
+}
+
+/**
+ * How much of one limit of the agent's plan is used, as the agent itself said it — strom knows no agent's limits
+ * beyond this: a window (Claude Code's five-hour and week), its use 0–1, when it resets, when it was said.
+ */
+export interface AgentLimit {
+  kind: "five_hour" | "seven_day";
+  used: number;
+  resetsAt?: string;
+  at: string;
+}
+
+/** The latest of each kind: what came later replaces what was said before. */
+export function mergeLimits(had: AgentLimit[] | undefined, now: AgentLimit[] | undefined): AgentLimit[] | undefined {
+  if (!now?.length) return had;
+  const byKind = new Map((had ?? []).map((l) => [l.kind, l]));
+  for (const l of now) byKind.set(l.kind, l);
+  return [...byKind.values()];
 }
 
 export interface Runner {

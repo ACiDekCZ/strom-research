@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import "../../src/commands/index.ts";
-import { assetPath, methodFor, methodPage, METHOD_CONDITIONS } from "../../src/core/assets.ts";
+import { assetPath, methodFor, methodPage, METHOD_CONDITIONS, METHOD_LINKS } from "../../src/core/assets.ts";
 import { commandSheet } from "../../src/brief/sheet.ts";
 import { TASK_LEVELS } from "../../src/core/model.ts";
 
@@ -14,7 +14,7 @@ const sheet = (level: string) => commandSheet(level, { connectors: [{ name: "exa
 const line = (text: string, command: string) => text.split("\n").find((l) => l.startsWith(`  strom ${command} `)) ?? "";
 
 test("method pages: every mark names levels or conditions, is closed, and none nests", () => {
-  const known = new Set<string>([...TASK_LEVELS, ...METHOD_CONDITIONS]);
+  const known = new Set<string>([...TASK_LEVELS, METHOD_LINKS, ...METHOD_CONDITIONS]);
   for (const file of fs.readdirSync(assetPath("method")).filter((f) => f.endsWith(".md"))) {
     let open = false;
     for (const l of fs.readFileSync(assetPath("method", file), "utf8").split("\n")) {
@@ -43,7 +43,7 @@ test("method by level: a level gets the parts it uses, never the parts it does n
     assert.ok(has(level, /Extract everything the first time/), level);
     assert.ok(has(level, /Say what a hypothesis would connect/), level);
     // the delegation rule and the premise check stay with them
-    assert.ok(has(level, /A scan-reader subagent where your agent has one, strom-scan-reader, or your\n {2}own subagents — on your own model, never a faster one — read too, in batches\n {2}of at most twelve/), level);
+    assert.ok(has(level, /A scan-reader subagent where your agent has one, strom-scan-reader, or your\n {2}own subagents — on your own model, never a faster one — read too, about six scans\n {2}each with the whole question/), level);
     assert.ok(has(level, /Check the premise first/), level);
     // a whole view finds, a crop is read; an entry not found on a whole view is looked at in halves first
     assert.ok(has(level, /\*\*Transcribe only from a crop\*\*[\s\S]*`--half both` before calling it not found/), level);
@@ -119,6 +119,9 @@ test("sheet by level: the writing commands a level uses, with their usage from t
   assert.match(link, /\n {2}strom fetch <connector> \[book\] [^\n]*\n {2}connectors of these places: example-archive = Example Archive · others: other-archive — books of a place: strom fetch <connector> --find "<place>" --years <from-to>\n/);
   // what a task hardly uses is left to strom help
   assert.doesNotMatch(link, /--parallel|--minutes|--take|--png/);
+  // several parts of one image in one call, not a loop of the shell (refused in a run: turns lost)
+  assert.match(line(link, "media view"), /several crops of an image: --crop … --crop … \(no loop\)/);
+  assert.match(methodFor("link", EVERY), /At most 12 images and 24 views in one call: with 4 views an\n {2}image \(halves and crops\), 6 images a call\./);
   assert.match(link, /all options: strom help <command>\)/);
 
   // locating: places, archives and books, the task pointed at the book — no facts
@@ -147,10 +150,24 @@ test("sheet by level: the writing commands a level uses, with their usage from t
 test("brief size by level: the method and the commands every session of a level carries stay within their budget", () => {
   // Characters of the method (every part a level can get) and the command sheet. 1.13.1 carried only the method:
   // link 16 083, verify 15 729, enrich 16 698, locate 5 690, intake 12 263, request 4 438, narrate 5 607 — the levels
-  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding).
-  const BUDGET: Record<string, number> = { link: 23_400, verify: 22_300, enrich: 23_500, locate: 7_600, intake: 16_600, request: 4_438, narrate: 5_607 };
+  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding), several crops in one call.
+  const BUDGET: Record<string, number> = { link: 23_500, verify: 22_400, enrich: 23_600, locate: 7_600, intake: 16_600, request: 4_438, narrate: 5_607 };
   for (const level of TASK_LEVELS) {
     const size = methodFor(level, EVERY).length + sheet(level).length;
     assert.ok(size <= BUDGET[level]!, `${level}: ${size} > ${BUDGET[level]}`);
   }
+});
+
+test("method of a task that links hypotheses: the core it uses — premise, certainty, namesakes, what a hypothesis would connect — and nothing of reading, recording or getting images", () => {
+  const method = methodFor(METHOD_LINKS, EVERY);
+  for (const part of ["Check the premise first", "Certainty is explicit", "A namesake is not your person", "Say what a hypothesis would connect", "Read each variant whole", "--remove", "Stay within the task", "Hand over cleanly"])
+    assert.ok(method.includes(part), part);
+  for (const part of ["# Method: reading scans", "# Method: recording an entry", "# Method: enriching a person", "Extract everything the first time", "gets them now: through the archive's connector", "Lessons belong where they apply"])
+    assert.ok(!method.includes(part), part);
+  // its own part is no other level's, nor of a brief with no task
+  for (const level of [...TASK_LEVELS, undefined]) assert.doesNotMatch(methodFor(level, EVERY), /Read each variant whole/u, String(level));
+  // its commands: the hypotheses and their people, no scan, fetch or entry
+  const commands = sheet(METHOD_LINKS);
+  for (const c of ["hypothesis show", "hypothesis link", "hypothesis argue", "person show", "family show", "task add", "note add", "search add"]) assert.ok(line(commands, c), c);
+  for (const c of ["media view", "read", "fetch", "event add", "source add", "lesson add"]) assert.equal(line(commands, c), "", c);
 });

@@ -10,13 +10,14 @@
 // permissions do not decide; auto — its own review decides and asks only when
 // it is risky; full — --permission-mode bypassPermissions (only the deny rules
 // count), headless or not. Browser tools
-// are on only when a connector fetches through the browser (--chrome), and off
-// otherwise (--no-chrome), whatever Claude Code's own default is. Working alone
+// are on only when a connector fetches through the browser (--chrome) — in a run
+// only for a session whose task may need them (sessionBrowser), never for a
+// reader — and off otherwise (--no-chrome), whatever Claude Code's own default is. Working alone
 // (strom run, a reader) it starts without the user's add-ons unless agent.addons
 // is on: --strict-mcp-config, --tools <what strom uses>, no auto-memory.
 
 import { randomUUID } from "node:crypto";
-import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, OWN_GROUP, spawnAgent, stopTree, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, mergeLimits, OWN_GROUP, spawnAgent, stopTree, type AgentLimit, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 import type { SessionMetrics } from "../core/model.ts";
 
 function describeTool(block: { name?: string; input?: Record<string, unknown> }): string {
@@ -53,6 +54,31 @@ export function missingTools(asked: string[], loaded: string[]): string[] {
   return asked.filter((t) => t !== "PowerShell" && !has.has(t) && !(t === "Agent" && has.has("Task")) && !(t === "Bash" && has.has("PowerShell")));
 }
 
+const LIMIT_KINDS = ["five_hour", "seven_day"] as const;
+
+/**
+ * The limits of the plan in one line of Claude Code's stream (rate_limit_event): each window of `unifiedWindows`
+ * (five_hour, seven_day: utilization 0–1, resetsAt in seconds), else the one the event is about; a rejected one is full.
+ * Anything else, or a shape not known: nothing — never a number made up.
+ */
+export function limitsOf(msg: Record<string, unknown>, at: Date = new Date()): AgentLimit[] | undefined {
+  if (msg.type !== "rate_limit_event" || !msg.rate_limit_info || typeof msg.rate_limit_info !== "object") return undefined;
+  const info = msg.rate_limit_info as Record<string, unknown>;
+  const out = new Map<AgentLimit["kind"], AgentLimit>();
+  const take = (kind: unknown, w: unknown) => {
+    if (!LIMIT_KINDS.includes(kind as AgentLimit["kind"]) || !w || typeof w !== "object") return;
+    const { utilization, resetsAt } = w as Record<string, unknown>;
+    if (typeof utilization !== "number" || !Number.isFinite(utilization) || utilization < 0) return;
+    const reset = typeof resetsAt === "number" && Number.isFinite(resetsAt) && resetsAt > 0 ? new Date(resetsAt * 1000).toISOString() : undefined;
+    out.set(kind as AgentLimit["kind"], { kind: kind as AgentLimit["kind"], used: utilization, ...(reset ? { resetsAt: reset } : {}), at: at.toISOString() });
+  };
+  if (info.unifiedWindows && typeof info.unifiedWindows === "object") for (const [k, w] of Object.entries(info.unifiedWindows)) take(k, w);
+  if (!out.has(info.rateLimitType as AgentLimit["kind"])) take(info.rateLimitType, info);
+  const hit = out.get(info.rateLimitType as AgentLimit["kind"]);
+  if (info.status === "rejected" && hit && hit.used < 1) out.set(hit.kind, { ...hit, used: 1 });
+  return out.size ? [...out.values()] : undefined;
+}
+
 /** Command-line arguments for a run (exported for tests). */
 export function claudeArgs(opts: Pick<RunOptions, "interactive" | "kickoff" | "name" | "model" | "extraArgs" | "settingsFile" | "agentsFile" | "chrome" | "permissions" | "remote" | "clean" | "reader">): string[] {
   const level = opts.permissions ?? "auto";
@@ -64,7 +90,9 @@ export function claudeArgs(opts: Pick<RunOptions, "interactive" | "kickoff" | "n
   if (opts.agentsFile && !opts.interactive && !opts.reader) args.push("--agents", opts.agentsFile);
   if (opts.name) args.push("--name", opts.name);
   if (opts.model) args.push("--model", opts.model);
-  if (opts.chrome !== undefined) args.push(opts.chrome ? "--chrome" : "--no-chrome");
+  // a reader never gets the browser, whatever Claude Code's own default is (its views and its report only)
+  if (opts.reader && !opts.interactive) args.push("--no-chrome");
+  else if (opts.chrome !== undefined) args.push(opts.chrome ? "--chrome" : "--no-chrome");
   // named always: its value is optional, and a bare flag would take the next argument
   if (opts.remote) args.push("--remote-control", opts.name ?? "Strom");
   // working alone without the user's add-ons: no MCP servers of theirs (the browser's, --chrome, stays), the tools strom
@@ -111,6 +139,8 @@ interface Attempt {
   stderr: string;
   isError: boolean;
   denied: string[];
+  /** The plan's limits as the agent said them last. */
+  limits?: AgentLimit[];
 }
 
 function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: number | undefined): Promise<Attempt> {
@@ -144,6 +174,11 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
         return;
       }
       if (msg.type === "system" && msg.subtype === "init" && typeof msg.model === "string") a.metrics.model = msg.model;
+      const limits = limitsOf(msg);
+      if (limits) {
+        a.limits = mergeLimits(a.limits, limits);
+        opts.onLimits?.(a.limits!);
+      }
       // a tool strom asked for and Claude Code did not load (renamed in a newer version?): said, the session goes on
       if (msg.type === "system" && msg.subtype === "init" && opts.clean && !opts.interactive && Array.isArray(msg.tools)) {
         const missing = missingTools(cleanTools(opts.reader), msg.tools.map(String));
@@ -238,6 +273,7 @@ export const claudeRunner: Runner = {
     const timedOut = a.timedOut;
     let metrics: SessionMetrics = { ...a.metrics, ...(a.reported ? {} : { costPartial: true }) };
     const denied = [...a.denied];
+    let limits = a.limits;
     if (timedOut) {
       const min = Math.round(opts.timeoutMs! / 60000);
       if (opts.wrapUp && id && !opts.signal?.aborted) {
@@ -246,6 +282,7 @@ export const claudeRunner: Runner = {
         if (more.timedOut) opts.onProgress?.("the agent did not finish in time — stopped");
         metrics = { ...together(metrics, more.metrics), costPartial: true };
         denied.push(...more.denied);
+        limits = mergeLimits(limits, more.limits);
         a = { ...more, code: more.code, stderr: a.stderr + more.stderr, text: more.text || a.text };
       } else opts.onProgress?.(`time limit reached (${min} min) — the agent was stopped`);
     }
@@ -264,6 +301,6 @@ export const claudeRunner: Runner = {
             : (code ?? 0) !== 0 || a.isError
               ? "error"
               : "ok";
-    return { exitCode: code ?? 1, outcome, text: a.text || a.stderr.trim(), metrics, ...(limit.resumeAt ? { resumeAt: limit.resumeAt } : {}), ...(denied.length ? { denied } : {}), ...(outcome === "error" && looksLikeModelRejected(all) ? { modelRejected: true as const } : {}) };
+    return { exitCode: code ?? 1, outcome, text: a.text || a.stderr.trim(), metrics, ...(limit.resumeAt ? { resumeAt: limit.resumeAt } : {}), ...(denied.length ? { denied } : {}), ...(outcome === "error" && looksLikeModelRejected(all) ? { modelRejected: true as const } : {}), ...(limits ? { limits } : {}) };
   },
 };

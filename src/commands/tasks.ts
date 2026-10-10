@@ -30,6 +30,7 @@ import { receivedPending } from "../core/sync.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
 import { isArchive } from "../core/mode.ts";
 import { othersAtWork } from "../core/session.ts";
+import { isAgent } from "../core/which.ts";
 
 
 function written(tree: Tree): string {
@@ -48,6 +49,31 @@ function subjects(tree: Tree, refs: string[]): string[] {
     }
     return resolvePerson(tree, r).id;
   });
+}
+
+/**
+ * The highest priority a task may get from an agent at work: the priority of the task its session works on — a
+ * follow-up never goes before the work it came from (a chain of follow-ups one higher held a night's queue on one
+ * family). A person at their own terminal sets any priority; a session without a task, or none, caps nothing.
+ */
+function priorityCap(ctx: Context, tree: Tree): { cap: number; from: string } | undefined {
+  if (ctx.interactive && !isAgent(ctx.env)) return undefined;
+  const session = typeOfId(tree.actor) === "session" ? tree.get<Session>(tree.actor) : undefined;
+  const from = session?.task ? tree.get<Task>(session.task) : undefined;
+  return from?.type === "task" ? { cap: from.priority, from: from.id } : undefined;
+}
+
+/** The priority asked, held at the cap (never below what the task has already); the line that says it was lowered. */
+function cappedPriority(ctx: Context, tree: Tree, asked: number, id: string, has?: number): { priority: number; line?: string; lowered?: { asked: number; to: number; from: string } } {
+  const limit = priorityCap(ctx, tree);
+  if (!limit) return { priority: asked };
+  const most = Math.max(limit.cap, has ?? 0);
+  if (asked <= most) return { priority: asked };
+  return {
+    priority: most,
+    line: `· priority ${asked} → ${most}: no higher than ${limit.from} (p${limit.cap}), the task of this session — a higher one is the user's: strom task edit ${id} --priority ${asked} in their own terminal`,
+    lowered: { asked, to: most, from: limit.from },
+  };
 }
 
 /** A new task's research: the one named, else the session's that adds it, else the one active research its people belong to. */
@@ -264,7 +290,8 @@ register(
     description:
       "Levels: intake (process an input), locate (find where records are), link (prove a parent/marriage),\n" +
       "verify (independent second reading), enrich (details of a placed person), request (ask an archive),\n" +
-      "narrate (write the story). Priority 1 (low) – 5 (urgent), default 3.",
+      "narrate (write the story). Priority 1 (low) – 5 (urgent), default 3 — added in a session, at most the priority of\n" +
+      "the session's task (a follow-up never goes before the work it came from).",
     args: [{ name: "what", description: 'what to find, one line: "Baptism of Jan Novák (~1905)"', required: true }],
     options: [
       { name: "level", type: "string", value: "<level>", description: TASK_LEVELS.join(", ") },
@@ -286,8 +313,8 @@ register(
       if (missing.length)
         throw new UsageError(`a task needs ${missing.join(", ")}`, { hint: "a task without where is a wish: name the record set (B…) or describe exactly where to look" });
       if (!TASK_LEVELS.includes(opts.level as (typeof TASK_LEVELS)[number])) throw new UsageError(`invalid --level "${opts.level}"`, { hint: TASK_LEVELS.join(", ") });
-      const priority = opts.priority === undefined ? 3 : Number(opts.priority);
-      if (!Number.isInteger(priority) || priority < 1 || priority > 5) throw new UsageError("--priority must be 1..5");
+      const asked = opts.priority === undefined ? 3 : Number(opts.priority);
+      if (!Number.isInteger(asked) || asked < 1 || asked > 5) throw new UsageError("--priority must be 1..5");
       const where = listOpt(opts.where).map((w) => (/^[Bb]\d+$/.test(w) ? requireRecord<RecordSet>(tree, w, "recordset").id : w));
       const subject = subjects(tree, listOpt(opts.about));
       const research = defaultResearch(tree, opts.research, subject);
@@ -317,6 +344,8 @@ register(
             details: { task: same.x.id },
           });
       }
+      const held = cappedPriority(ctx, tree, asked, "T…");
+      const priority = held.priority;
       const t = create<Task>(
         tree,
         "task",
@@ -347,11 +376,12 @@ register(
       return {
         text: lines(
           written(tree),
+          held.line?.replace("T…", t.id),
           ...similar.map((x) => `⚠ similar ${x.state} task ${x.id} "${truncate(x.what, 60)}" — if it is the same, keep one: strom task drop ${t.id} --reason "duplicate of ${x.id}" and strom task edit ${x.id} --where … --note "…"`),
           offTreeLine(tree, t),
           noImages ? `· no images for it here yet — if the user has to download them, say which now: strom task wait ${t.id} --images B…:<numbers> --on "<the book, its link, which images>"` : undefined,
         ),
-        data: { task: t, similar: similar.map((x) => x.id), needsImages: noImages },
+        data: { task: t, similar: similar.map((x) => x.id), needsImages: noImages, ...(held.lowered ? { priorityLowered: held.lowered } : {}) },
       };
     },
   },
@@ -470,6 +500,7 @@ register(
       const tree = ctx.tree();
       const id = normId(args[0]!, "task");
       const change: Partial<Task> = {};
+      let held: ReturnType<typeof cappedPriority> | undefined;
       if (typeof opts.what === "string" && opts.what.trim()) change.what = opts.what.trim();
       if (listOpt(opts.where).length) change.where = listOpt(opts.where).map((w) => (/^[Bb]\d+$/.test(w) ? requireRecord<RecordSet>(tree, w, "recordset").id : w));
       if (typeof opts.why === "string" && opts.why.trim()) change.why = opts.why.trim();
@@ -477,7 +508,8 @@ register(
       if (opts.priority !== undefined) {
         const priority = Number(opts.priority);
         if (!Number.isInteger(priority) || priority < 1 || priority > 5) throw new UsageError("--priority must be 1..5");
-        change.priority = priority;
+        held = cappedPriority(ctx, tree, priority, id, requireRecord<Task>(tree, id, "task").priority);
+        change.priority = held.priority;
       }
       if (listOpt(opts.about).length) change.subject = subjects(tree, listOpt(opts.about));
       const note = typeof opts.note === "string" ? makeNotes(tree, opts.note) : undefined;
@@ -488,7 +520,7 @@ register(
         summary: `${id} ${fields.map((f) => (f === "doneWhen" ? "done-when" : f === "subject" ? "about" : f)).join(", ")}${change.where ? ` → ${truncate(change.where.join("; "), 50)}` : ""}`,
         reason: opts.reason as string | undefined,
       });
-      return { text: lines(written(tree), change.subject ? offTreeLine(tree, t) : undefined), data: { task: t } };
+      return { text: lines(written(tree), held?.line, change.subject ? offTreeLine(tree, t) : undefined), data: { task: t, ...(held?.lowered ? { priorityLowered: held.lowered } : {}) } };
     },
   },
   {

@@ -78,9 +78,11 @@ they ask.
   - the agent working on its own: they start it from strom's menu ("Let the
     agent work on its own"); it works the task queue and tells them the result;
     with many tasks in the queue, suggest it — every task gets a fresh session;
-  - one task, one fresh context: after a session closes, strom says how the
-    user clears your context (Claude Code: /clear) — nothing is lost, strom
-    keeps it all; suggest it in a sentence, go on here if they prefer;
+  - one task, one fresh context — in a conversation: after a session closes
+    there, strom says how the user clears your context (Claude Code: /clear)
+    — nothing is lost, strom keeps it all; suggest it in a sentence, go on
+    here if they prefer. Working alone (strom run) each task starts fresh by
+    itself and nobody reads a closing message: no such advice there;
   - what only they can do: when strom needs their consent it opens a window
     on their screen — tell them to answer it, you cannot; images a portal gives
     only by hand — strom says which ones and where to save them.

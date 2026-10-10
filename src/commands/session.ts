@@ -19,7 +19,7 @@ import { closeSession, costPartial, currentSession, openSessions, othersAtWork, 
 import { reviveLive } from "../core/live.ts";
 import { buildBrief } from "../brief/brief.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
-import { prependPath } from "../runners/runner.ts";
+import { prependPath, type AgentLimit } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
 import { label, parentsOf, resolvePerson } from "../core/people.ts";
@@ -37,7 +37,7 @@ import { PROFILES } from "../agents/profiles.ts";
 import { AGENTS, detectAgent, isAgent, which, withoutAgentMarks } from "../core/which.ts";
 import { askGate, ensureGatesDir, loadGate, type Gate, type GateAnswer } from "../core/gate.ts";
 import { keepAwake } from "../core/awake.ts";
-import { askFinish, deadlineOf, finishAsked, WRAP_UP_MS } from "../core/clock.ts";
+import { askFinish, deadlineOf, finishAsked, finishByLimit, WRAP_UP_MS } from "../core/clock.ts";
 import { OWN_GROUP } from "../runners/runner.ts";
 import { stromLauncher } from "../core/self.ts";
 import { phrase } from "../core/phrases.ts";
@@ -48,7 +48,7 @@ import { guard } from "../core/guard.ts";
 import { hasErrors } from "../core/check.ts";
 import { autoTidy } from "../core/tidy.ts";
 import { Tree } from "../core/tree.ts";
-import { agentBrowser, treeBrowserConnectors } from "../core/connector.ts";
+import { agentBrowser, sessionBrowser, treeBrowserConnectors } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { reviewProposals } from "../core/review.ts";
 import { refuseInArchive } from "../core/mode.ts";
@@ -496,7 +496,7 @@ function edgeLines(tree: Tree, e: Edge, who: (id: string) => string): string[] {
     `  ${SCOPE_WORDS[e.scope]}${e.research ? ` ${e.research}, generation ${e.generation}` : ""}`,
     `  the records: ${END_WORDS[e.end]}${e.recordsFrom ? ` (from ${e.recordsFrom})` : ""}`,
     e.window ? `  baptism sought ${y(e.window)}${est?.place ? ` in ${est.place}` : ""}${basis}` : est?.place ? `  born in ${est.place}, year unknown` : undefined,
-    e.books.length ? `  books: ${e.books.map((b) => `${b.id}${b.years ? ` (${b.years})` : ""}${b.access.startsWith("online") ? "" : ` ${b.access}`}`).join(", ")}` : undefined,
+    e.books.length ? `  books: ${e.books.map((b) => `${b.id}${b.years ? ` (${b.years})` : ""}${b.access.startsWith("online") ? "" : ` ${b.access}`}${b.weak ? ` weak scans (${b.weak} px)` : ""}`).join(", ")}` : undefined,
     e.covered.length ? `  searched in vain: ${e.covered.map(y).join(", ")}` : undefined,
     e.noRecords.length ? `  no records known: ${e.noRecords.map(y).join(", ")}` : undefined,
     `  next: ${e.next === "decide" && e.end === "named" ? "the hypothesis that names the parents waits for a decision — the user decides (or a task tests it)" : NEXT_WORDS[e.next]}`,
@@ -655,6 +655,9 @@ register({
     "--until: go on, wait (the run waits and asks again) or stop — the user's condition, e.g. the subscription's room\n" +
     "(strom gate list). Tasks started otherwise (one, --max, --task) are the user's choice: the gate is asked once,\n" +
     "and when it would not start, the user is asked whether to start anyway (an agent: a window of the system).\n" +
+    "A gate with a cap (e.g. run.gate \"claude-usage 15 --cap 95\") is asked before every session of every run, and\n" +
+    "no \"start anyway\" goes past the cap: the run ends saying the use and the reset; a session at work is asked to\n" +
+    "finish when the agent says the cap's window is at 99 %.\n" +
     "Arguments after -- go to the agent CLI unchanged.",
   options: [
     { name: "task", type: "string", multiple: true, value: "<T…>", description: "work on these tasks, in this order (repeatable or T0003,T0007; default: the next one of the queue)" },
@@ -712,7 +715,10 @@ register({
     let followed = false;
     // Why the run stopped: a code for the exit status and for data, words for the user (their language).
     const lang = Tree.open(root, runEnv).lang;
-    type Stop = "done" | "user" | "time" | "empty" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined";
+    type Stop = "done" | "user" | "time" | "empty" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
+    // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
+    let lastLimits: AgentLimit[] | undefined;
+    let watch: GateAnswer["watch"];
     let stopCode: Stop = "done";
     let stopValues: Record<string, string> = {};
     // The first Ctrl-C while a session works: it is asked to finish (the agent writes down what it found and closes
@@ -802,12 +808,28 @@ register({
         }
         // The user's condition, between sessions only: go on, wait and ask again, or stop — in a run that goes on by
         // itself. Tasks the user started themselves: asked once, and the user decides when it would not start.
-        if (gate && !gateAnswered) {
-          const said = askGate(gate, runEnv, { tree: root, lang, agent: runnerId, model: models.lead, sessions: report.length, costUsd: report.reduce((a, r) => a + (r.costUsd ?? 0), 0), nextTask: task.id });
+        // A gate with a cap (the user's own hard stop, its answer's "watch") is asked before every session, also of the
+        // tasks the user started: there only its hard stop counts, and no "start anyway" goes past it.
+        if (gate && (!gateAnswered || watch)) {
+          const said = askGate(gate, runEnv, { tree: root, lang, agent: runnerId, model: models.lead, sessions: report.length, costUsd: report.reduce((a, r) => a + (r.costUsd ?? 0), 0), nextTask: task.id, limits: lastLimits });
           const answer: (typeof gates)[number] = { at: new Date().toISOString(), verdict: said.verdict, ...(said.reason ? { reason: said.reason } : {}) };
           gates.push(answer);
           const name = gate.manifest.title ?? gate.name;
-          if (!gateHolds) {
+          if (said.watch && !watch) out(ui(lang, "ui.run.gate.cap", { name }));
+          watch = said.watch;
+          if (said.hard && said.verdict !== "go") {
+            stopCode = "gate.cap";
+            stopValues = { name, reason: said.reason ?? "" };
+            break;
+          }
+          if (!gateHolds && gateAnswered) {
+            // asked again for its cap only: what else it says the user decided already — but a cap it cannot check stops
+            if (said.verdict === "error") {
+              stopCode = "gate.error";
+              stopValues = { name, reason: said.reason ?? "" };
+              break;
+            }
+          } else if (!gateHolds) {
             gateAnswered = true;
             if (said.verdict !== "go") {
               if (!(await startAnyway(ctx, name, gateReason(said, lang), lang))) {
@@ -903,19 +925,32 @@ register({
           permissions,
           // working alone without the user's own add-ons (skills, plugins, MCP servers) unless they said otherwise
           ...(!opts.interactive && !ctx.settings.agentAddons(tree.config) ? { clean: true } : {}),
-          ...(runnerId === "claude" ? { chrome: Boolean(web?.on), remote: ctx.settings.agentRemote() } : {}),
+          // the browser only for a session whose task may need it (a story, a letter, a book served directly: none)
+          ...(runnerId === "claude" ? { chrome: Boolean(web?.on) && sessionBrowser(tree, ctx.settings.shared()?.value, task).on, remote: ctx.settings.agentRemote() } : {}),
           ...(extra?.length ? { extraArgs: extra } : {}),
           onProgress: (l) => out(`  · ${l}`),
+          // the plan's limits as the agent says them: kept for the gate; at the cap's window nearly full (the user's cap),
+          // the session is asked to finish — the agent writes down what it found before the limit cuts it off
+          onLimits: (limits) => {
+            lastLimits = limits;
+            const hit = watch && limits.find((l) => l.kind === watch!.kind && l.used >= watch!.finish);
+            if (!hit || finishAsked(root, session.id)) return;
+            const used = Math.floor(hit.used * 100);
+            askFinish(root, session.id, "limit", `${hit.kind === "seven_day" ? "week" : "five-hour window"} ${used} % used`);
+            out(ui(lang, "ui.run.cap.finish", { session: session.id, used, kind: ui(lang, `ui.run.limit.${hit.kind}` as UIKey) }));
+          },
           signal: stop.signal,
         });
         atWorkOn = undefined;
+        lastLimits = result.limits ?? lastLimits;
         // Close what the agent left open, record the metrics, export, commit.
         const after = Tree.open(root, runEnv);
         let s = after.get<Session>(session.id)!;
         // strom worked for the agent when it closed the session itself or recorded something
         const ranStrom = s.state !== "open" || sessionWrites(after, s.id) > 0;
         // the user asked it to finish (strom session finish, the Strom app's "finish and stop"): no next session
-        const askedToFinish = finishAsked(root, s.id) || s.endedBy === "user";
+        // (asked by the plan's limit under the user's cap: the gate's cap ends the run before the next session, saying why)
+        const askedToFinish = (finishAsked(root, s.id) && !finishByLimit(root, s.id)) || s.endedBy === "user";
         if (s.state === "open")
           s = closeSession(after, s, {
             summary: result.outcome === "stopped" ? phrase(after.lang, "session.user") : phrase(after.lang, "session.agent", { outcome: result.outcome }),

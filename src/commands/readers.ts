@@ -12,8 +12,9 @@ import { readerSettings } from "../core/reader.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { which, withoutAgentMarks } from "../core/which.ts";
 import { permissionPath } from "../agents/files.ts";
-import { imageMax } from "../agents/images.ts";
+import { viewSizesFor } from "../core/viewsizes.ts";
 import type { Tree } from "../core/tree.ts";
+import { refuseReadersWhenFinishing } from "../core/clock.ts";
 
 export interface Readers {
   model: string | undefined;
@@ -24,7 +25,7 @@ export interface Readers {
   stem: string;
   reportsDir: string;
   /** One reader: it looks at these views and writes its report; the report's text comes back. */
-  read: (name: string, views: string[], title: string, prompt: (report: string) => string) => Promise<{ report: string; text: string; outcome: string }>;
+  read: (name: string, views: string[], title: string, prompt: (report: string) => string) => Promise<{ report: string; text: string; outcome: string; costUsd?: number }>;
   cost: () => number;
   /** How many readers ran, and whether one stopped before it said what it cost. */
   runs: () => number;
@@ -33,8 +34,12 @@ export interface Readers {
   progress: (s: string) => void;
 }
 
-/** Set up the readers of a run (--model, --parallel, --minutes; the agent of the tree). */
-export function readers(ctx: Context, tree: Tree, shared: string, kind: string, first: string, opts: Record<string, unknown>): Readers {
+/**
+ * Set up the readers of a run (--model, --parallel, --minutes; the agent of the tree). `reportsDir`: where their reports
+ * go when they are not the research's readings (notes/readings) — a calibration's, beside the research in .strom.
+ */
+export function readers(ctx: Context, tree: Tree, shared: string, kind: string, first: string, opts: Record<string, unknown>, reportsAt?: string): Readers {
+  refuseReadersWhenFinishing(tree.root, ctx.env);
   const agentId = ctx.settings.agent(tree.config).value;
   const runner = RUNNERS[agentId];
   if (!runner) throw new UsageError(`no reader for agent "${agentId}" yet`, { hint: `strom ${kind} works with Claude Code: strom ${kind} … --agent claude` });
@@ -43,7 +48,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
   const parallel = opts.parallel === undefined ? 3 : Math.max(1, Number(opts.parallel) || 1);
   const minutes = opts.minutes === undefined ? 15 : Number(opts.minutes);
   const day = new Date().toISOString().slice(0, 10);
-  const reportsDir = path.join(tree.root, "notes", "readings");
+  const reportsDir = reportsAt ?? path.join(tree.root, "notes", "readings");
   fs.mkdirSync(reportsDir, { recursive: true });
   let stem = `${day}-${kind}`;
   for (let n = 2; fs.existsSync(path.join(reportsDir, `${stem}-${first}-1.md`)); n++) stem = `${day}-${kind}-run${n}`;
@@ -82,7 +87,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
     if (r.outcome !== "ok") failed.push(`${name} (${r.outcome})`);
     const written = fs.readFileSync(report, "utf8");
     if (!/^##\s/m.test(written) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
-    return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome };
+    return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}) };
   };
-  return { model, viewMax: imageMax(agentId, model), parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
+  return { model, viewMax: viewSizesFor(ctx.settings, agentId, tree.config, model).read, parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
 }

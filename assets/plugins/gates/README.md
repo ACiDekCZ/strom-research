@@ -49,6 +49,17 @@ One line of JSON on stdout (the last line) may say more:
 - `reason`: why, for the user (in their language: `STROM_LANG`).
 - `wait` (seconds) or `until` (a time): when to ask again. Without them: in
   15 minutes; never sooner than a minute.
+- `hard` (`true`, with status 1 or 2): this answer is the user's own hard
+  limit — a cap set in `run.gate`. The run ends, saying the reason; no
+  "start anyway" goes past it.
+- `watch` (`{"kind": "seven_day", "finish": 0.99}`): the gate holds a cap on
+  that window of the agent's plan (`five_hour` or `seven_day`). strom then asks
+  it before **every** session, also of the runs you started yourself (there
+  only its hard stop counts), and asks a session at work to finish — write
+  down what it found and close — once the agent says the window's use reached
+  `finish` (0–1). A gate that never says `watch` is asked as before.
+
+Both are optional; an older strom ignores them.
 
 Plain text instead of JSON is the reason.
 
@@ -66,9 +77,13 @@ Environment variables, besides the user's own:
 | `STROM_SESSIONS` | sessions this run has had |
 | `STROM_COST_USD` | what this run has cost so far (as the agent reported it) |
 | `STROM_NEXT_TASK` | the task the next session would take |
+| `STROM_AGENT_LIMITS` | what the agent said of its plan's limits in this run, when it said any (Claude Code): JSON `[{"kind": "five_hour" \| "seven_day", "used": 0.97, "resetsAt": "<ISO time>", "at": "<when it said it>"}]` — absent otherwise; an older gate ignores it |
 
 A session already at work is never stopped by a gate: it is asked between
-sessions only (a session's own time limit is `run.minutes`).
+sessions only (a session's own time limit is `run.minutes`). Under a cap
+(`watch`) the session is asked to finish, as `strom session finish` does: its
+agent hears it from its next strom command and starts no new reader; work it
+delegated inside itself (a subagent) strom cannot stop half-way.
 
 The gate holds the runs that go on by themselves: `strom run --loop` and
 `--until`. Tasks you start yourself (one, `--max 3`, `--task T0007`, "work
@@ -90,6 +105,18 @@ Without a number: 0 — no faster than the week goes; 14: about a day in hand.
 Not enough in hand: it waits until the week has caught up (past the reset: the
 new week's share). A used-up session: until it resets. Another agent than
 Claude Code: it lets the work go on.
+
+**A cap** — your own hard stop for the week:
+
+    strom config set run.gate "claude-usage 10 --cap 95"
+
+At 95 % of the week used no session starts: in every run, `--max` and
+`--task` and the menu's too, asked before each session, and no "start anyway"
+goes past it — the run ends saying the use and when the week resets. A session
+at work is asked to finish when Claude Code says the week is at 99 %. What
+Claude Code said in the run (`STROM_AGENT_LIMITS`, at most 15 minutes old) is
+read instead of asking `claude -p /usage`. `--cap` alone: the cap without the
+pace (`claude-usage --cap 95`).
 
 A gate is a program on this computer, put here by you (or by strom); the
 `.gitignore` of the plugins folder keeps it out of any repository.

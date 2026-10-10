@@ -104,7 +104,15 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
   assert.equal((await w.ok(["gate", "test", "--json"])).json.verdict, "wait");
   assert.equal((await ask("claude-usage x")).verdict, "stop", "not a number");
   fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\necho 'something else'\n", { mode: 0o755 });
-  assert.equal((await ask("claude-usage 10")).verdict, "stop", "a form it cannot read: stop, never spend blind");
+  const unread = await ask("claude-usage 10");
+  assert.equal(unread.verdict, "stop", "a form it cannot read: stop, never spend blind");
+  // why, in the research language — the gate's own words too, never an English detail in a Czech research
+  assert.equal(unread.reason, "nelze přečíst `claude -p /usage`: chybí řádek „Current week … resets …“");
+  // what the program itself said is data: said as it is; nothing said, the gate says how it ended
+  fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\necho 'Error: not logged in' >&2\nexit 3\n", { mode: 0o755 });
+  assert.equal((await ask("claude-usage 10")).reason, "nelze přečíst `claude -p /usage`: Error: not logged in");
+  fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\nexit 3\n", { mode: 0o755 });
+  assert.equal((await ask("claude-usage 10")).reason, "nelze přečíst `claude -p /usage`: skončilo s kódem 3");
   w.cleanup();
 });
 

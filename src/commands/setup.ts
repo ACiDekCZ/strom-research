@@ -41,6 +41,7 @@ import { globalTargets, installGlobal } from "../agents/global.ts";
 import { placeholders, ui, UI } from "../cli/ui.ts";
 import { PERMISSION_LEVELS, type AgentPermissions } from "../core/config.ts";
 import { PROFILES, type Tier } from "../agents/profiles.ts";
+import { calibrationLabel, calibrationOffer, forgetCalibration, sizesText, viewSizesFor } from "../core/viewsizes.ts";
 import { NeedsInputError, StromError, UsageError } from "../core/errors.ts";
 import { check } from "../core/check.ts";
 import { assertIntact, verifyFull } from "../core/integrity.ts";
@@ -191,7 +192,7 @@ const FIX = "strom doctor --fix";
 
 /** Everything strom needs and has on this computer, in the user's language. */
 /** The checks of the agents: what they are, know, may do, where the person talks with them, their model and browser. */
-const AGENT_CHECKS = new Set(["agent", "knows", "where", "level", "model", "browser", "remote", "fence"]);
+const AGENT_CHECKS = new Set(["agent", "knows", "where", "level", "model", "views", "browser", "remote", "fence"]);
 
 /** What doctor says of an isolated installation: its folder — a second one with a command of its own: the command and its links too. */
 function secondLine(ctx: Context, t: (key: UIKey, values?: Record<string, string | number>) => string): string {
@@ -327,6 +328,11 @@ function diagnose(ctx: Context): Check[] {
     add("level", "ok", t(`ui.setup.level.${level}` as UIKey));
     const model = ctx.settings.models(chosen, tree).lead;
     if (model) add("model", "ok", model);
+    // the size of the scan views: the defaults, a calibration of this agent and model, or one of another (offered again)
+    const views = viewSizesFor(ctx.settings, chosen, tree);
+    const offer = calibrationOffer(ctx.settings, chosen, tree);
+    if (offer) add("views", "warn", t("ui.views.offer", { before: calibrationLabel(offer.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(offer.now, t("ui.settings.model.own")) }), "strom media calibrate");
+    else add("views", "ok", views.calibrated ? t("ui.doc.views.done", { date: views.calibrated.at, find: views.find, read: views.read }) : t("ui.doc.views.default", { find: views.find, read: views.read }));
   }
 
   // Archives through the browser: only Claude Code has browser tools, and they work through the Claude in Chrome extension.
@@ -620,6 +626,11 @@ function effective(ctx: Context, def: SettingDef): { value: string | number | un
   if (def.key === "trees") return s.trees() ?? { value: undefined, source: "unset" };
   if (def.key === "lang") return s.lang(tree);
   if (def.key === "agent") return s.agent(tree);
+  // measured per agent and model (strom media calibrate): the sizes the research's views take now, and from where
+  if (def.key === "views.size") {
+    const v = viewSizesFor(s, s.agent(tree).value, tree);
+    return { value: sizesText(v), source: v.calibrated ? `calibrated (${v.calibrated.at})` : "default" };
+  }
   const r = s.resolve(def.key, tree);
   if (r) return r;
   if (def.kind === "model") {
@@ -724,6 +735,11 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
   addonsDecision(ctx, key, value);
   if ((key === "home" || key === "trees" || key === "shared") && value !== undefined) refuseInProgram(ctx, key, String(value));
   guardResearchFolder(ctx, key, value === undefined ? undefined : String(value));
+  // the calibration of the research's agent and model forgotten: the defaults again (anybody may go back to them)
+  if (key === "views.size") {
+    forgetCalibration(s.config, viewSizesFor(s, s.agent(treeSettings(ctx)).value, treeSettings(ctx)).key);
+    return s.save();
+  }
   // Loosening the agent's permissions is the user's decision alone.
   if (key === "agent.permissions" && raises(s.agentPermissions(), value))
     ctx.requireHuman(
@@ -741,6 +757,12 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
   // Asking before a connector runs is the user's safeguard: only they take it away.
   if (key === "connectors.consent" && value !== "on" && s.connectorsConsent())
     ctx.requireHuman("Let connectors run without asking first?", `strom config set connectors.consent ${value ?? "off"}`, "connectors.consent", ui(ctx.uiLang(), "ui.consent.connectors.off"));
+  // a gate that is not there (or not a gate), or a cap that is no cap, is said now — before anybody is asked
+  const sh = s.shared()?.value;
+  if (key === "run.gate" && typeof value === "string" && sh) {
+    ensureGatesDir(sh);
+    loadGate(sh, value);
+  }
   // The gate decides what working alone spends: set and taken away by the user alone.
   if (key === "run.gate" && value !== s.runGate())
     ctx.requireHuman(
@@ -749,12 +771,6 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
       "run.gate",
       ui(ctx.uiLang(), value ? "ui.consent.gate.set" : "ui.consent.gate.unset", { name: String(value ?? s.runGate()) }),
     );
-  // a gate that is not there (or not a gate) is said now, not at the next run
-  const sh = s.shared()?.value;
-  if (key === "run.gate" && typeof value === "string" && sh) {
-    ensureGatesDir(sh);
-    loadGate(sh, value);
-  }
   writeStored(s.config, key, s.agent(treeSettings(ctx)).value, value);
   s.save();
   if (key === "shared" && typeof value === "string") ensureShared(value);

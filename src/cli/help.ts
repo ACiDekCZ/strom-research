@@ -146,7 +146,7 @@ export const HUMAN_COMMANDS = [
   "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "review",
   "intake", "sync", "sync undo", "sync discard", "task list", "task wake", "story approve", "story discard",
   "stats", "recent", "plan", "history", "person card", "person list", "pedigree", "find",
-  "app", "app install", "live start", "live stop", "export gedcom", "pack", "unpack", "tidy", "check",
+  "app", "app install", "live start", "live stop", "export gedcom", "pack", "unpack", "tidy", "check", "media calibrate",
   "config get", "config set", "login", "connector use", "link on", "link off", "hook on", "hook off",
 ];
 

@@ -473,6 +473,21 @@ test("a part of an image, sharper: one request, registered with its image — a 
   const wrong = await w.run(["fetch", "zkusebni", "--recordset", "B1", "--images", "2", "--crop", "0,0,0.5,0.5"]);
   assert.match(wrong.out, /stopped: asked for a part of image 2, it gave image 3/);
   assert.equal((await w.ok(["media", "list", "--json"])).json.total, 3, "nothing registered");
+  // a part no sharper than the image here is not asked for (N0233: halves of a book, some of whose scans held as much):
+  // the parts of the book show the most a part of that size gets — image 3 here has as much already
+  program(dir, code);
+  const big = path.join(w.dir, "velký");
+  fs.mkdirSync(big);
+  fs.writeFileSync(path.join(big, "s0003.jpg"), encodeJpeg(blank(800, 600, 1, 180), 85));
+  await w.ok(["media", "add", big, "--recordset", "B1"]); // M0004, image 3, 800×600
+  a.hits.length = 0;
+  const same = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "3", "--half", "right"]);
+  assert.match(same.out, /part 0\.5,0,0\.5,1 of image 3 of B0001 not fetched: a part this size came from zkusebni at most 800 px across the image, and image 3 here has 800 already \(1\.0× — no sharper\)\nread it from the image: strom media view B0001:3 --crop 0\.5,0,0\.5,1 · a smaller part \(one entry\) may come sharper/);
+  assert.deepEqual(a.hits, [], "no request");
+  // a smaller part may come sharper (the portal's size limit): asked for; so is a half of an image whose scan here is small
+  await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "3", "--crop", "0.1,0.1,0.2,0.2"]);
+  await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "2", "--half", "right"]);
+  assert.equal(a.hits.length, 2);
   w.cleanup();
   await a.close();
 });

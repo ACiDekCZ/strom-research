@@ -21,21 +21,26 @@ export const SCAN_READER_PROMPT = `You read scans of old records for a family re
 and report; you never write to the research and decide nothing.
 
 Views: run strom by its command — \`strom media view B0001:57-60 --half both\` (at most 12 images and
-24 views a call); an entry to read closely: \`--grid\` to see where it is, then \`--crop x,y,w,h\` at
+24 views a call: 12 whole images, or 6 with 4 views each — halves and crops); an entry to read closely: \`--grid\` to see where it is, then \`--crop x,y,w,h\` at
 full resolution; \`--contrast\` for faded ink. Open ALL the views a call lists in ONE message — every
-Read call together, never one view at a time — then read them, then the next call. Every view stays
-in your context: after about 80 views, stop and report what you have. \`strom read …\` hands a range
-to strom's own readers: only when the question asks for it (in the foreground; let it finish).
+Read call together, never one view at a time — then read them and write down at once, image by image,
+what they gave (as under Return), then the next call. Views take much room: the oldest may be cleared
+from your context to make room, your notes stay. Never open a view again because it is gone — your
+notes hold what it gave. After about 30 views, stop and report what you have. \`strom read …\` hands
+a range to strom's own readers: only when the question asks for it (in the foreground; let it finish).
+
+Images: you never fetch them (no \`strom fetch\`) and never wait or sleep for an archive. An image not
+here, or too small to read: say which in your report — the agent who sent you fetches them.
 
 Reading: transcribe as written — the record's language, spelling and abbreviations, not modernised;
 [?] for each uncertain letter or word; never complete a name or date from what the question expects.
 "Illegible" beats a guess; "nothing" is a valid result.
 
-Return, image by image (image and page): found / nothing / unclear; each entry that answers the
-question word for word, where it stands and its columns (date, house, names, parents, godparents,
-witnesses, remarks); what was illegible and where; the hand; how sure you are of each name. Say
-plainly which images you did not open or read whole — never report an image you did not read as
-searched.
+Return (your last message is all that comes back: it repeats every note), image by image (image and
+page): found / nothing / unclear; each entry that answers the question word for word, where it stands
+and its columns (date, house, names, parents, godparents, witnesses, remarks); what was illegible and
+where; the hand; how sure you are of each name. Say plainly which images you did not open or read
+whole — never report an image you did not read as searched.
 `;
 
 /** The model the user chose for reading handwriting (model.vision: flag, env, tree, user config) — none: the starting agent's. */
@@ -98,6 +103,8 @@ export function opencodeScanReader(tree: Tree, permission: Record<string, unknow
     skill: "deny",
     todowrite: "deny",
   };
+  // it never fetches (the agent who sent it does, before): the last matching rule counts, so after "strom *"
+  only.bash = { ...(only.bash as Record<string, string>), "strom fetch *": "deny" };
   return {
     mode: "subagent",
     description: SCAN_READER_DESCRIPTION,

@@ -20,6 +20,8 @@ import { StromError, UsageError } from "./errors.ts";
 import type { Env } from "./paths.ts";
 import { NAME_RE, pluginsDir } from "./connector.ts";
 import { readAsset } from "./assets.ts";
+import type { AgentLimit } from "../runners/runner.ts";
+import { ui } from "../cli/ui.ts";
 
 export const GATE_INTERFACE = 1;
 const MANIFEST = "gate.json";
@@ -54,6 +56,13 @@ export interface GateAnswer {
   reason?: string;
   /** When to ask again (wait). */
   waitMs?: number;
+  /** The answer is the user's own hard limit (a cap set in run.gate): no "start anyway" goes past it, the run ends. */
+  hard?: boolean;
+  /**
+   * The gate holds a hard limit on this window of the agent's plan: ask it before every session (also of the runs the
+   * user started), and ask a session at work to finish once the agent says the window's use reached `finish` (0–1).
+   */
+  watch?: { kind: AgentLimit["kind"]; finish: number };
 }
 
 /** What strom tells the gate about the run (environment variables STROM_*). */
@@ -68,6 +77,8 @@ export interface GateFacts {
   costUsd: number;
   /** The task the next session would take. */
   nextTask?: string | undefined;
+  /** The limits of the agent's plan as the agent said them last in this run (STROM_AGENT_LIMITS). */
+  limits?: AgentLimit[] | undefined;
 }
 
 export function gatesDir(shared: string): string {
@@ -123,9 +134,29 @@ export function listGates(shared: string): Gate[] {
 }
 
 /** A gate as the user names it: its name, then what it is given ("claude-usage 10"). */
+/**
+ * A cap given to a gate (--cap n, --cap=n): the share of the week in % a run never goes past — a whole number from 1
+ * to 100. What else was given, said at once (setting it, testing it, a run), never first before a session.
+ */
+export function capProblem(args: string[]): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (a !== "--cap" && !a.startsWith("--cap=")) continue;
+    const v = a === "--cap" ? args[i + 1] : a.slice("--cap=".length);
+    if (v !== undefined && /^\d{1,3}$/u.test(v) && Number(v) >= 1 && Number(v) <= 100) continue;
+    return v === undefined || v === "" || v.startsWith("--") ? "--cap without a number" : `--cap ${v}`;
+  }
+  return undefined;
+}
+
 export function loadGate(shared: string, spec: string): Gate {
   const [name = "", ...args] = spec.trim().split(/\s+/);
   if (!NAME_RE.test(name)) throw new UsageError(`invalid gate name "${name}"`, { hint: "lowercase letters, digits and dashes, e.g. claude-usage" });
+  const cap = capProblem(args);
+  if (cap)
+    throw new UsageError(`${cap}: the cap is a whole number from 1 to 100 — the % of the week a run never goes past`, {
+      hint: `e.g. strom config set run.gate "${name} 15 --cap 95"`,
+    });
   const dir = path.join(gatesDir(shared), name);
   const file = path.join(dir, MANIFEST);
   if (!fs.existsSync(file)) throw new StromError(`no gate "${name}" (no ${file})`, { hint: `the gates here: strom gate list — a gate is a folder in ${gatesDir(shared)} with ${MANIFEST}` });
@@ -147,13 +178,15 @@ export function askGate(gate: Gate, env: Env, facts: GateFacts): GateAnswer {
   const [cmd, ...args] = gate.manifest.command;
   const program = cmd === "node" ? process.execPath : cmd!;
   const timeout = (gate.manifest.timeout ?? DEFAULT_TIMEOUT_S) * 1000;
+  // what strom knows of the agent's limits, and nothing an older process left in the environment
+  const { STROM_AGENT_LIMITS: _old, ...inherited } = env;
   const r = spawnSync(program, [...args, ...gate.args], {
     cwd: gate.dir,
     encoding: "utf8",
     timeout,
     windowsHide: true,
     env: {
-      ...env,
+      ...inherited,
       STROM_GATE: gate.name,
       STROM_TREE: facts.tree,
       STROM_LANG: facts.lang,
@@ -162,34 +195,44 @@ export function askGate(gate: Gate, env: Env, facts: GateFacts): GateAnswer {
       STROM_SESSIONS: String(facts.sessions),
       STROM_COST_USD: facts.costUsd.toFixed(2),
       STROM_NEXT_TASK: facts.nextTask ?? "",
+      ...(facts.limits?.length ? { STROM_AGENT_LIMITS: JSON.stringify(facts.limits) } : {}),
     },
   });
   if (r.error) {
     const timedOut = (r.error as NodeJS.ErrnoException).code === "ETIMEDOUT";
-    return { verdict: "error", reason: timedOut ? `no answer within ${timeout / 1000} s` : r.error.message };
+    // strom's own words in the research language (the Strom app shows them); the system's are said as they are
+    return { verdict: "error", reason: timedOut ? ui(facts.lang, "ui.gate.timeout", { s: timeout / 1000 }) : r.error.message };
   }
   const said = parseSaid(r.stdout ?? "");
   const reason = said.reason ?? (r.status !== 0 && r.status !== 1 && r.status !== 2 ? lastLine(r.stderr ?? "") : undefined);
+  const more = { ...(said.watch ? { watch: said.watch } : {}), ...(said.hard && r.status !== 0 ? { hard: true } : {}) };
   switch (r.status) {
     case 0:
-      return { verdict: "go", ...(reason ? { reason } : {}) };
+      return { verdict: "go", ...(reason ? { reason } : {}), ...more };
     case 1:
-      return { verdict: "wait", ...(reason ? { reason } : {}), waitMs: Math.max(MIN_WAIT_MS, said.waitMs ?? DEFAULT_WAIT_MS) };
+      return { verdict: "wait", ...(reason ? { reason } : {}), waitMs: Math.max(MIN_WAIT_MS, said.waitMs ?? DEFAULT_WAIT_MS), ...more };
     case 2:
-      return { verdict: "stop", ...(reason ? { reason } : {}) };
+      return { verdict: "stop", ...(reason ? { reason } : {}), ...more };
     default:
-      return { verdict: "error", reason: reason ?? (r.signal ? `ended by ${r.signal}` : `exit status ${r.status}`) };
+      return { verdict: "error", reason: reason ?? (r.signal ? ui(facts.lang, "ui.gate.signal", { signal: r.signal }) : ui(facts.lang, "ui.gate.status", { status: String(r.status) })) };
   }
 }
 
-/** The last line of JSON the gate printed: {"reason", "wait" (seconds) | "until" (a time)}; plain text is the reason. */
-function parseSaid(stdout: string): { reason?: string; waitMs?: number } {
+/**
+ * The last line of JSON the gate printed: {"reason", "wait" (seconds) | "until" (a time), "hard", "watch"}; plain text
+ * is the reason.
+ */
+function parseSaid(stdout: string): { reason?: string; waitMs?: number; hard?: boolean; watch?: GateAnswer["watch"] } {
   const line = lastLine(stdout);
   if (!line) return {};
   if (!line.startsWith("{")) return { reason: line.slice(0, 300) };
   try {
-    const j = JSON.parse(line) as { reason?: unknown; wait?: unknown; until?: unknown };
-    const out: { reason?: string; waitMs?: number } = {};
+    const j = JSON.parse(line) as { reason?: unknown; wait?: unknown; until?: unknown; hard?: unknown; watch?: unknown };
+    const out: { reason?: string; waitMs?: number; hard?: boolean; watch?: GateAnswer["watch"] } = {};
+    if (j.hard === true) out.hard = true;
+    const w = j.watch as { kind?: unknown; finish?: unknown } | undefined;
+    if (w && typeof w === "object" && (w.kind === "five_hour" || w.kind === "seven_day") && typeof w.finish === "number" && w.finish > 0 && w.finish <= 1)
+      out.watch = { kind: w.kind, finish: w.finish };
     if (typeof j.reason === "string" && j.reason.trim()) out.reason = j.reason.trim().slice(0, 300);
     if (typeof j.wait === "number" && Number.isFinite(j.wait) && j.wait >= 0) out.waitMs = j.wait * 1000;
     else if (typeof j.until === "string" && !Number.isNaN(Date.parse(j.until))) out.waitMs = Date.parse(j.until) - Date.now();

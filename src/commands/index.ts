@@ -27,3 +27,4 @@ import "./hooks.ts";
 import "./links.ts";
 import "./checks.ts";
 import "./setup.ts";
+import "./calibrate.ts";

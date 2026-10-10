@@ -28,7 +28,8 @@ import { readAsset } from "./assets.ts";
 import { foldText } from "./text.ts";
 import { CookieJar, hostAllowed, NetError, paceOf, paceText, politeRequest, type Pace, type ServicePace } from "./net.ts";
 import { loginOf, redactor } from "./logins.ts";
-import type { Media, RecordSet, Region, Repository, Source } from "./model.ts";
+import type { Media, RecordSet, Region, Repository, Source, Task } from "./model.ts";
+import { HYPOTHESIS_LINKS_ORIGIN } from "./hypolinks.ts";
 import type { Tree } from "./tree.ts";
 import { decodeImage, encodeImage, imageSize, imageSizeOfFile } from "../image/index.ts";
 import { blank, paste, toRgb, type RawImage } from "../image/image.ts";
@@ -317,6 +318,48 @@ export function agentBrowser(tree: Tree, shared: string | undefined): { on: bool
     for (const h of treeSites(tree)) hosts.add(h);
   }
   return { on: always || via.length > 0, hosts: [...hosts], always };
+}
+
+/** The site of an address, or nothing when it is none. */
+function urlSite(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    return siteOf(new URL(url).hostname);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Tasks that fetch nothing from an archive: a story, a letter to an archive, the links of the hypotheses. */
+const FETCHES_NOTHING: readonly Task["level"][] = ["narrate", "request"];
+
+/**
+ * Browser tools for one session of a run (Claude in Chrome): only when its task needs them — agent.browser always
+ * (the user's choice); a task that fetches nothing never; a task whose record sets are all known by their sites
+ * (the book's address, its archive's, the connector that fetched its images) only when one of them is served
+ * through the browser; a task that names no record set, or one whose site is not known, as the tree (it may search
+ * an archive through the browser). Readers and the scan reader never get them (their own tools).
+ */
+export function sessionBrowser(tree: Tree, shared: string | undefined, task: Pick<Task, "level" | "origin" | "where">): { on: boolean; why: string } {
+  const web = agentBrowser(tree, shared);
+  if (!web.on) return { on: false, why: "no archive of this research goes through the browser" };
+  if (web.always) return { on: true, why: "agent.browser always" };
+  if (FETCHES_NOTHING.includes(task.level) || task.origin === HYPOTHESIS_LINKS_ORIGIN) return { on: false, why: `a ${task.origin === HYPOTHESIS_LINKS_ORIGIN ? "hypothesis-links" : task.level} task fetches nothing` };
+  const books = task.where.map((w) => tree.get<RecordSet>(w)).filter((b): b is RecordSet => b?.type === "recordset");
+  if (!books.length) return { on: true, why: "no record set named: it may search an archive through the browser" };
+  const via = browserConnectors(tree.env, shared);
+  const ids = new Set(books.map((b) => b.id));
+  const fetchedBy = new Map<string, Set<string>>();
+  for (const m of tree.list<Media>("media"))
+    if (m.fetched && m.recordset && ids.has(m.recordset)) fetchedBy.set(m.recordset, (fetchedBy.get(m.recordset) ?? new Set()).add(m.fetched.connector));
+  let unknown = false;
+  for (const b of books) {
+    const sites = [urlSite(b.url), urlSite(b.repository ? tree.get<Repository>(b.repository)?.url : undefined)].filter((x): x is string => !!x);
+    const fetched = fetchedBy.get(b.id) ?? new Set<string>();
+    if (via.some((c) => fetched.has(c.name) || c.manifest.hosts.some((h) => sites.includes(siteOf(h))))) return { on: true, why: `${b.id} is served through the browser` };
+    if (!sites.length && !fetched.size) unknown = true;
+  }
+  return unknown ? { on: true, why: "a record set whose archive is not known: it may be one served through the browser" } : { on: false, why: "its record sets are served without the browser" };
 }
 
 export function findConnector(shared: string | undefined, name: string): Connector {

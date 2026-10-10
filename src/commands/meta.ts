@@ -29,6 +29,7 @@ import type { Person, Research, Session } from "../core/model.ts";
 import { liveWorkers, runAlive } from "../core/workers.ts";
 import { label } from "../core/people.ts";
 import { isArchive } from "../core/mode.ts";
+import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
 
 interface Orientation {
   version: string;
@@ -48,6 +49,8 @@ interface Orientation {
   ask?: boolean;
   /** Facts that only another model read than the one the user reads with now: offered, never started. */
   reread?: { facts: number; models: string[]; model: string };
+  /** The scan views were tuned for another agent or model than the research's now: offered again, never started. */
+  views?: { now: string; before: string[] };
   next: { why: string; command: string };
 }
 
@@ -116,6 +119,8 @@ function orientation(ctx: Context): Orientation {
     const other = readByOtherModels(tree, vision);
     if (other.facts) base.reread = { ...other, model: vision };
   }
+  const views = isArchive(tree) ? undefined : calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config);
+  if (views) base.views = views;
   const stories = ctx.settings.stories(tree.config);
   base.stories = !stories.on ? "off" : stories.said || told.stories ? "on" : "tell";
   if (!told.ask && base.tree.persons > 0) base.ask = true;
@@ -178,7 +183,7 @@ register(
       const lang = ctx.uiLang();
       const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
       // Labels in one column, whatever their length in the user's language.
-      const labels = [t("ui.o.home"), t("ui.o.tree"), t("ui.o.lang"), t("ui.o.data"), t("ui.o.results"), t("ui.o.stories"), t("ui.o.ask"), t("ui.o.reread"), t("ui.o.update"), t("ui.o.disk"), t("ui.o.next")];
+      const labels = [t("ui.o.home"), t("ui.o.tree"), t("ui.o.lang"), t("ui.o.data"), t("ui.o.results"), t("ui.o.stories"), t("ui.o.ask"), t("ui.o.reread"), t("ui.o.views"), t("ui.o.update"), t("ui.o.disk"), t("ui.o.next")];
       const width = Math.max(...labels.map((l) => l.length)) + 2;
       const row = (label: string, value: string) => `${label.padEnd(width)}${value}`;
       // an archive: nothing of an agent or AI (Milan's decision, 2026-10-03) — what the agent is told of stories,
@@ -218,6 +223,8 @@ register(
               o.stories && !archive ? row(t("ui.o.stories"), t(`ui.o.stories.${o.stories}`)) : undefined,
               o.ask && !archive ? row(t("ui.o.ask"), t("ui.o.ask.tell")) : undefined,
               o.reread && !archive ? row(t("ui.o.reread"), t("ui.o.reread.offer", { n: o.reread.facts, models: o.reread.models.join(", "), model: o.reread.model })) : undefined,
+              // the scan views tuned before for another agent or model: offered again, never run unasked
+              o.views && !archive ? row(t("ui.o.views"), t("ui.views.offer", { before: calibrationLabel(o.views.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(o.views.now, t("ui.settings.model.own")) })) : undefined,
               o.researches?.length
                 ? t("ui.o.research") + "\n" + table(o.researches.map((r) => [`  ${r.id}`, r.name, `[${r.state}]`, r.focus]))
                 : t("ui.o.research.none"),

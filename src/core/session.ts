@@ -17,7 +17,7 @@ import { now, VERSION, type Tree } from "./tree.ts";
 import { makeNote, makeNotes } from "./actions.ts";
 import type { Env } from "./paths.ts";
 import { detectAgent } from "./which.ts";
-import { finishAsked, finishFile } from "./clock.ts";
+import { finishAsked, finishByLimit, finishFile } from "./clock.ts";
 import { isLiveWorker, isWorkerId } from "./workers.ts";
 
 function currentFile(tree: Tree, env: Env = tree.env): string {
@@ -238,7 +238,7 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
       ...(input.next.trim() ? { next: input.next.trim() } : {}),
       ...(input.metrics ? { metrics: input.metrics } : {}),
       // asked to finish by the user (strom session finish): theirs, and a run stops after it
-      ...(input.endedBy ? { endedBy: input.endedBy } : finishAsked(tree.root, s.id) ? { endedBy: "user" as const } : {}),
+      ...(input.endedBy ? { endedBy: input.endedBy } : finishAsked(tree.root, s.id) && !finishByLimit(tree.root, s.id) ? { endedBy: "user" as const } : {}),
     };
     tree.put(closed, { op: "session.close", targets: [s.id], summary: `${s.id} ${closed.state}: ${(input.summary || "no summary").slice(0, 80)}` });
     // Only the session this agent calls its current one is forgotten — not another agent's.

@@ -33,8 +33,9 @@ const CHILDREN: Record<string, string[]> = {
   "INDI._STROM_CONFLICT": ["TYPE", "TITL", "STAT", "_STROM_TAKE", "VAL", "DECI"],
   "INDI._STROM_HYPO": ["TITL", "STAT", "_CHOSEN", "NOTE", "_VAR"],
   // what a variant of a hypothesis would connect (the Strom profile)
-  _VAR: ["TITL", "_LINK", "SOUR"],
+  _VAR: ["TITL", "_LINK", "_INTREE", "SOUR"],
   _LINK: ["_PERS", "_FAM", "_PAR"],
+  _INTREE: ["_PERS", "_FAM"],
   "INDI._STROM_SEARCHED": ["TITL", "DATE", "RESN", "_AT"],
   "INDI._STROM_EDGE": ["_SCOPE", "_RESEARCH", "_GEN", "_END", "_NEXT", "_EST", "DATE", "_RECORDS", "_BOOK", "_COVERED", "_NORECORDS", "_TASK", "_TRIED", "_HYPO", "_CONFLICT", "_SEARCHES", "_SESSIONS", "_LAST"],
   "INDI._STROM_ISLAND": ["_HYPO", "_HELD"],
@@ -69,13 +70,13 @@ const EXTENSIONS = new Set([
   "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
   "_STROM_ASOF", "_SCHEME", "_STROM_CONFLICT", "_STROM_TAKE", "_STROM_SIDE", "_STROM_RAW", "_STROM_HYPO", "_STROM_SEARCHED", "_AT",
   // where the tree ends (_STROM_EDGE) and the families nothing links to it (_STROM_ISLAND), with their parts
-  "_STROM_EDGE", "_STROM_ISLAND", "_SCOPE", "_RESEARCH", "_GEN", "_END", "_NEXT", "_EST", "_BASIS", "_RECORDS", "_BOOK", "_ACCESS",
+  "_STROM_EDGE", "_STROM_ISLAND", "_SCOPE", "_RESEARCH", "_GEN", "_END", "_NEXT", "_EST", "_BASIS", "_RECORDS", "_BOOK", "_ACCESS", "_WEAK",
   "_COVERED", "_NORECORDS", "_TASK", "_LEVEL", "_POS", "_HELD", "_UNTIL", "_TRIED", "_HYPO", "_JOIN", "_ISLAND", "_TEST", "_CONFLICT",
   "_SEARCHES", "_SESSIONS", "_COST", "_PARTIAL", "_LAST",
   // the new version of an approved story, waiting for the user
   "_DRAFT",
-  // what a variant of a hypothesis would connect
-  "_VAR", "_LINK", "_PERS", "_FAM", "_PAR", "_CHOSEN",
+  // what a variant of a hypothesis would connect, and what of it the tree records already
+  "_VAR", "_LINK", "_PERS", "_FAM", "_PAR", "_CHOSEN", "_INTREE",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */
@@ -91,6 +92,7 @@ function contextOf(anc: string[]): string | undefined {
   if (parent === "_WITN") return "_WITN";
   if (parent === "_VAR" && anc[1] === "_STROM_HYPO") return "_VAR";
   if (parent === "_LINK" && anc[2] === "_VAR") return "_LINK";
+  if (parent === "_INTREE" && anc[2] === "_VAR") return "_INTREE";
   if (parent === "ADDR") return "ADDR";
   if (parent === "DATA" && anc[depth - 2] === "SOUR") return "CITATION.DATA";
   if (depth === 2) {

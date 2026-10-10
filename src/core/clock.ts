@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Env } from "./paths.ts";
+import { UsageError } from "./errors.ts";
 
 /** From how long before the end strom's output reminds the agent (a short session: its last quarter). */
 export const REMIND_MS = 10 * 60_000;
@@ -25,13 +26,29 @@ export function finishFile(root: string, session: string): string {
   return path.join(root, ".strom", "finish", `${session}.json`);
 }
 
-export function askFinish(root: string, session: string, by: string): void {
+/** `by`: the user (or their worker), or "limit" — the agent's plan near its limit under the user's cap (`why` says it). */
+export function askFinish(root: string, session: string, by: string, why?: string): void {
   fs.mkdirSync(path.dirname(finishFile(root, session)), { recursive: true });
-  fs.writeFileSync(finishFile(root, session), JSON.stringify({ at: new Date().toISOString(), by }) + "\n");
+  fs.writeFileSync(finishFile(root, session), JSON.stringify({ at: new Date().toISOString(), by, ...(why ? { why } : {}) }) + "\n");
 }
 
 export function finishAsked(root: string, session: string): boolean {
   return fs.existsSync(finishFile(root, session));
+}
+
+/** Who asked a session to finish, and why: undefined when nobody did. */
+export function finishOf(root: string, session: string): { by: string; why?: string } | undefined {
+  try {
+    const j = JSON.parse(fs.readFileSync(finishFile(root, session), "utf8")) as { by?: unknown; why?: unknown };
+    return { by: typeof j.by === "string" ? j.by : "user", ...(typeof j.why === "string" ? { why: j.why } : {}) };
+  } catch {
+    return finishAsked(root, session) ? { by: "user" } : undefined;
+  }
+}
+
+/** Asked to finish by the plan's limit (the user's cap), not by the user: the run goes on to its gate. */
+export function finishByLimit(root: string, session: string): boolean {
+  return finishOf(root, session)?.by === "limit";
 }
 
 /** What every strom command says to the agent of a session the user asked to finish. */
@@ -39,6 +56,29 @@ export const FINISH_LINE =
   "⏳ the user asks you to finish this session now: start nothing new; record in strom what you found and have not recorded yet " +
   '(facts, sources, the images searched, in vain too), then strom session close --continue --summary "…" --next "exactly where you stopped" ' +
   "(or finish the task, if it is done).";
+
+/**
+ * No new reader for a session asked to finish (by the user, or by the plan's limit): it is to write down and close.
+ * strom can hold what it starts itself; work an agent delegated inside itself it cannot stop half-way.
+ */
+export function refuseReadersWhenFinishing(root: string, env: Env): void {
+  const session = env.STROM_SESSION;
+  const asked = session ? finishOf(root, session) : undefined;
+  if (asked)
+    throw new UsageError(`session ${session} is asked to finish${asked.by === "limit" && asked.why ? ` (the agent's usage limit: ${asked.why})` : ""}: no new reader starts`, {
+      hint: 'record what you found, then strom session close --continue --summary "…" --next "exactly where you stopped"',
+      code: "session.finishing",
+    });
+}
+
+/** What every strom command says to the agent of a session near the limit of its plan (the user's cap). */
+export function finishLimitLine(why: string | undefined): string {
+  return (
+    `⏳ the agent's usage limit is almost reached${why ? ` (${why})` : ""}: start nothing new — no reader, nothing delegated; record in strom what you found ` +
+    'and have not recorded yet (facts, sources, the images searched, in vain too), then strom session close --continue --summary "…" ' +
+    '--next "exactly where you stopped" (or finish the task, if it is done). Work delegated and still running: have it report now.'
+  );
+}
 
 /** When this session is stopped (ms since the epoch), if a run set a limit. */
 export function deadlineOf(env: Env): number | undefined {
