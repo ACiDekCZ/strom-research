@@ -16,6 +16,7 @@ import { isArchive } from "../core/mode.ts";
 import { Settings } from "../core/config.ts";
 import { agentAppUrl, appSite } from "../core/stromapp.ts";
 import { configDir } from "../core/paths.ts";
+import { within } from "../core/relocate.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
 import { claudeScanReader, opencodeScanReader, SCAN_READER, scanReaderModel, treeReading } from "./scanreader.ts";
@@ -72,6 +73,10 @@ the researcher; \`strom\` is your only way to read and change the research.
     either — check with \`strom net web --check <url>\`. Another way to the
     same records first; a task for the user (\`strom task wait T… --check
     <url> --on "…"\`) only if the source stays necessary.
+11. What strom or this tree denies you (a command, a site, a file) stays
+    denied: never offer the user to change your permissions or settings,
+    strom's or the tree's, to get round it — go another way, or say what was
+    refused.
 
 ## Working with the user
 
@@ -172,6 +177,43 @@ export function permissionPath(abs: string): string {
   return win ? `//${win[1]!.toLowerCase()}/${win[2]}` : `/${p}`;
 }
 
+/** What strom keeps in its settings folder that no agent reads or edits: the seal keys, the person's settings,
+ * consents, permissions, logins. */
+const SETTINGS_KEPT = ["keys", "config.json", "consents.json", "archives.json", "logins.json", "agents-taught.json", "shortcut"];
+
+/**
+ * The parts of strom's settings folder kept from the agents, each with whether it is a folder. The whole folder —
+ * unless the research is in it (an isolated installation's home is "Strom research" inside it: a deny of the whole
+ * folder outweighs every allow and cuts the agent off its connectors, its inbox and the research itself). Then what
+ * strom keeps there always, and every other entry that holds none of the research's folders.
+ */
+export function settingsKeptFrom(dir: string, research: string[], platform: NodeJS.Platform = process.platform): { path: string; folder: boolean }[] {
+  const keep = research.map((p) => path.resolve(p));
+  if (!keep.some((p) => within(p, dir, platform))) return [{ path: dir, folder: true }];
+  let entries: string[] = [];
+  try {
+    entries = fs.readdirSync(dir);
+  } catch {
+    // no settings folder yet: what strom will keep there
+  }
+  const names = [...new Set([...SETTINGS_KEPT, ...entries])].filter((n) => !keep.some((p) => within(p, path.join(dir, n), platform)));
+  return names.sort().map((n) => {
+    const p = path.join(dir, n);
+    let folder = n === "keys";
+    try {
+      folder = fs.statSync(p).isDirectory();
+    } catch {
+      // not there yet: as strom makes it
+    }
+    return { path: p, folder };
+  });
+}
+
+/** The folders of the research the agent works in: its home, the shared folder, the tree. */
+function researchFolders(tree: Tree, settings: Settings): string[] {
+  return [settings.home()?.value, settings.shared()?.value, tree.root].filter((p): p is string => !!p);
+}
+
 /** A tree's rules in the words Claude Code and Grok Build share: allowed without asking, and denied. */
 interface Rules {
   allow: string[];
@@ -189,7 +231,7 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
   const shared = settings.shared()?.value;
   const claude = agent === "claude";
   const at = (abs: string) => (claude ? permissionPath(abs) : abs.replace(/\\/g, "/"));
-  const keys = at(configDir(tree.env));
+  const kept = settingsKeptFrom(configDir(tree.env), researchFolders(tree, settings)).map((k) => (k.folder ? `${at(k.path)}/**` : at(k.path)));
   // Browser tools (Claude in Chrome): for the sites of the connectors fetching through the browser — or, agent.browser
   // always, of every archive of the research (anything else is asked in a conversation, not used in a run).
   const web = claude ? agentBrowser(tree, shared) : { on: false, hosts: [] };
@@ -231,9 +273,8 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
       ...(shared ? [`Edit(${at(path.join(shared, "net"))}/**)`] : []),
       // A session ends with its turn: nothing wakes it up later (a live run waited for a wake-up that never came).
       ...(claude ? ["ScheduleWakeup", "CronCreate"] : []),
-      // The seal keys: an agent that could read them could forge the seal.
-      `Read(${keys}/**)`,
-      `Edit(${keys}/**)`,
+      // The seal keys: an agent that could read them could forge the seal; the person's settings, consents and logins.
+      ...kept.flatMap((k) => [`Read(${k})`, `Edit(${k})`]),
       // What the browser downloads is strom's to take over; the rest of the folder is the user's.
       `Read(${downloads}/**)`,
       ...(claude ? CHROME_DENY : []),
@@ -341,8 +382,8 @@ export function opencodeConfig(tree: Tree): Record<string, unknown> {
             [`${abs(path.join(shared, "net"))}/*`]: "deny",
           }
         : {}),
-      // the seal keys, and what the browser downloads (strom's to take over)
-      [`${abs(configDir(tree.env))}/*`]: "deny",
+      // the seal keys and the person's settings, and what the browser downloads (strom's to take over)
+      ...Object.fromEntries(settingsKeptFrom(configDir(tree.env), researchFolders(tree, settings)).map((k) => [k.folder ? `${abs(k.path)}/*` : abs(k.path), "deny"])),
       [`${abs(settings.downloads())}/*`]: "deny",
     },
     webfetch: "allow",

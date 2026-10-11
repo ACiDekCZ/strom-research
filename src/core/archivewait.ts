@@ -125,11 +125,14 @@ export function clearSessionWait(root: string, session: string): void {
 
 /**
  * What a task waits for when its session ends unfinished, or it is put aside, on archives whose question is still not
- * decided: the hosts its session met (undecided still), else — `queue` — those the queue holds it back for. Undefined: none.
+ * decided: the hosts its session met (undecided still, their question still waiting for the person — one gone since, a
+ * connector taken away with it, leaves nothing to wait for), else — `queue` — those the queue holds it back for.
+ * Undefined: none.
  */
 export function permissionWait(tree: Tree, t: Task, session: string | undefined, o: { queue?: boolean } = {}): NonNullable<Task["awaitsPermission"]> | undefined {
   const met = session ? sessionWait(tree.root, session) : undefined;
-  const hosts = met?.task === t.id ? met.hosts.filter((h) => undecided(tree.env, h.host)) : [];
+  const asked = met?.task === t.id ? permissionQuestions(tree.env) : [];
+  const hosts = met?.task === t.id ? met.hosts.filter((h) => undecided(tree.env, h.host) && asked.some((q) => onHost(h.host, q.host!))) : [];
   if (hosts.length) return { hosts: hosts.map((h) => h.host), since: hosts[0]!.at, ...(hosts[0]!.title ? { title: hosts[0]!.title } : {}) };
   if (!o.queue) return undefined;
   const q = heldOn(tree, t, permissionQuestions(tree.env));

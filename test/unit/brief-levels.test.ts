@@ -181,8 +181,8 @@ test("the sheet says --reason wherever the command asks it: source edit, input s
 test("brief size by level: the method and the commands every session of a level carries stay within their budget", () => {
   // Characters of the method (every part a level can get) and the command sheet. 1.13.1 carried only the method:
   // link 16 083, verify 15 729, enrich 16 698, locate 5 690, intake 12 263, request 4 438, narrate 5 607 — the levels
-  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding), several crops in one call; --reason on the input commands that ask it (intake +23); grep --all and the crops of each image in one media view call (+20), the budget of a search beyond the registers one with the web rule (enrich); a site that refused strom or restricts automation: another way first, the person's check last (locate +310, link +210, verify +195, enrich +320: task wait --check, the method's lines); an index read before 30 images of a book are browsed (+11, link, verify, enrich +22); the time strom's to say, apart from a filling context (+101 each). Each budget: the measured size rounded up to the next ten.
-  const BUDGET: Record<string, number> = { link: 23_850, verify: 22_680, enrich: 24_060, locate: 8_030, intake: 16_780, request: 4_438, narrate: 5_607 };
+  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding), several crops in one call; --reason on the input commands that ask it (intake +23); grep --all and the crops of each image in one media view call (+20), the budget of a search beyond the registers one with the web rule (enrich); a site that refused strom or restricts automation: another way first, the person's check last (locate +310, link +210, verify +195, enrich +320: task wait --check, the method's lines); an index read before 30 images of a book are browsed (+11, link, verify, enrich +22); the time strom's to say, apart from a filling context (+101 each); images fetched as the archive allows — sparing on a restricted one, batches where automation is allowed (link, verify, enrich, locate +765) — and nothing denied got round through the agent's permissions (+184 each). Each budget: the measured size rounded up to the next ten.
+  const BUDGET: Record<string, number> = { link: 24_810, verify: 23_640, enrich: 25_020, locate: 8_980, intake: 16_970, request: 4_438, narrate: 5_607 };
   for (const level of TASK_LEVELS) {
     const size = methodFor(level, EVERY).length + sheet(level).length;
     assert.ok(size <= BUDGET[level]!, `${level}: ${size} > ${BUDGET[level]}`);
@@ -201,4 +201,19 @@ test("method of a task that links hypotheses: the core it uses — premise, cert
   const commands = sheet(METHOD_LINKS);
   for (const c of ["hypothesis show", "hypothesis link", "hypothesis argue", "person show", "family show", "task add", "note add", "search add"]) assert.ok(line(commands, c), c);
   for (const c of ["media view", "read", "fetch", "event add", "source add", "lesson add"]) assert.equal(line(commands, c), "", c);
+});
+
+test("method: images fetched as the archive allows — sparing on a restricted archive, batches on one that allows automation — and nothing denied got round through the agent's permissions", () => {
+  for (const level of ["link", "verify", "enrich", "locate"]) {
+    const m = methodFor(level, ["connector"]);
+    // a restricted archive: an index by halving, only the letter's images, a page calibrated by 1–2 images, an entry ±1
+    assert.match(m, /restricts automation[^]*an index searched by halving[^]*only the images of the\s+name's letter fetched/u, level);
+    assert.match(m, /by one or two images, never a batch of ten; an entry: its image ±1/u, level);
+    // an archive that allows automation: batches as usual
+    assert.match(m, /An archive that allows automation: batches as\s+usual \(about ±5 around the target, an index in batches\)/u, level);
+    assert.match(m, /An image known exactly from another source[^]*start with it/u, level);
+  }
+  assert.doesNotMatch(methodFor("link", ["by-hand"]), /Fetch only what you read/u, "no connector: nothing fetched");
+  // never offered to the person: their settings or the agent's permissions changed to get round what is denied
+  for (const level of [...TASK_LEVELS, METHOD_LINKS]) assert.match(methodFor(level, EVERY), /Never offer the user to\s+change your permissions or settings, strom's or the tree's, to get round it/u, level);
 });

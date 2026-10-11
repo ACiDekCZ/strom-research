@@ -70,7 +70,11 @@ test("the queue holds back a task whose images wait for the person's decision; a
     // decided by the person: back in the queue
     await w.ok(["allow", "archive", "archive.example.org", "--way", "slow"], { tty: true });
     assert.equal((await w.ok(["task", "next", "--json"])).json.task.id, "T0001");
-    assert.doesNotMatch((await w.ok(["brief", "T1"])).out, /a question waits for the person/);
+    const decided = (await w.ok(["brief", "T1"])).out;
+    assert.doesNotMatch(decided, /a question waits for the person/);
+    // allowed slowly: its images fetched sparingly, as the method says for a restricted archive
+    assert.match(decided, /archive archive\.example\.org: restricted · the person's permission: images slowly · fetch sparingly: an index by halving, a page to its image by 1–2 images, an entry ±1/);
+    assert.match(fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8"), /never offer the user to change your permissions or settings,\s+strom's or the tree's, to get round it/);
   } finally {
     w.cleanup();
   }
@@ -193,6 +197,51 @@ test("above the menu: a question that waits long, or holds up much, is said with
     // the English and German forms
     const en = await w.run([], { tty: true, answers: ["0"], env: { STROM_LANG: "en", LANG: "en_US.UTF-8" } });
     assert.match(en.out, /A decision on downloading from the archive Testovací archiv has waited since [^\n]+ – tasks held up by it: 3/);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("the person forgets the archive's decision: its question goes, a task that waited only for it comes back to the queue — asked again at the next real need", opts, async () => {
+  const w = await world();
+  try {
+    await w.ok(["session", "start", "T1"]);
+    assert.equal((await fetchOne(w)).code, 4);
+    await w.ok(["session", "close", "--continue", "--summary", "čeká", "--next", "snímky 1–2"]);
+    assert.equal((await task(w, "T1")).state, "waiting");
+    const r = await w.ok(["allow", "archive", "archive.example.org", "--revoke"], { tty: true });
+    assert.match(r.out, /Úkoly T0001 se vracejí do fronty\./);
+    assert.equal(question(w), undefined, "no question waits");
+    const back = await task(w, "T1");
+    assert.equal(back.state, "open");
+    assert.equal(back.awaitsPermission, undefined);
+    assert.equal((await w.ok(["task", "next", "--json"])).json.task.id, "T0001");
+    // the real need: asked again
+    assert.equal((await fetchOne(w)).code, 4);
+    assert.ok(question(w));
+  } finally {
+    w.cleanup();
+  }
+});
+
+// A review: the agent met the question through a connector of its own, then took the connector away (its question
+// went with it) — and the session's end still left the task waiting on a question nobody would ever be asked.
+test("a session whose question went with the connector it made hands its task back to the queue, never waiting on nothing", opts, async () => {
+  const w = new World();
+  await w.withTree("Novákovi");
+  try {
+    await researchHere(w);
+    await w.ok(["session", "start", "T1"]);
+    await fakeConnector(w, "vlastni", "", { automation: "restricted", terms: "https://archive.example.org/terms" }, { confirm: false });
+    assert.equal((await w.run(["fetch", "vlastni", "5359", "--images", "1-2", "--recordset", "B1", "--json"])).code, 4);
+    assert.ok(question(w), "the person is asked");
+    await w.ok(["connector", "discard", "vlastni"]);
+    assert.equal(question(w), undefined, "its question went with it");
+    await w.ok(["session", "close", "--continue", "--summary", "konektor nic nepřinesl", "--next", "jiný zdroj"]);
+    const t = await task(w, "T1");
+    assert.equal(t.state, "open");
+    assert.equal(t.awaitsPermission, undefined);
+    assert.equal((await w.ok(["task", "next", "--json"])).json.task.id, "T0001");
   } finally {
     w.cleanup();
   }

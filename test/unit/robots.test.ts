@@ -66,17 +66,17 @@ test("Crawl-delay: a floor of the pace — the user's own and the service's slow
   assert.equal(hostPace(s, undefined, { minIntervalMs: 10_000, perHour: 120 }).minIntervalMs, 12_000);
 });
 
-test("refusal kinds: the first request of a run — the client when the host never let strom in, or a second day; else a day; 401 with a login never", () => {
+test("refusal kinds: the first request of a run — the client a second day; else a day, also from a host that never answered strom; 401 with a login never", () => {
   const now = Date.now();
   const day = 24 * 3600_000;
-  assert.equal(refusalKind({ recent: [], tracked: now - 1000 }, 403, { first: true, login: false }, now), "client", "never answered strom (it counts from the first request)");
+  assert.equal(refusalKind({ recent: [], tracked: now - 1000 }, 403, { first: true, login: false }, now), "first", "never answered strom: a day too — one 403 of a firewall or an outage blocks nobody for good");
   assert.equal(refusalKind({ recent: [], tracked: now - 1000, okAt: now - 500 }, 403, { first: true, login: false }, now), "first");
   assert.equal(refusalKind({ recent: [], latencyMs: 300 }, 403, { first: true, login: false }, now), "first", "met before strom counted: it answered");
   assert.equal(refusalKind({ recent: [], okAt: now - 2 * day, refusedFirst: { at: now - day - 3600_000 } }, 403, { first: true, login: false }, now), "client", "a second day");
   assert.equal(refusalKind({ recent: [], okAt: now - 2 * day, refusedFirst: { at: now } }, 403, { first: true, login: false }, now), "first", "the same day: not yet");
   assert.equal(refusalKind({ recent: [], tracked: now }, 403, { first: false, login: false }, now), "load");
   assert.equal(refusalKind({ recent: [], tracked: now }, 401, { first: true, login: true }, now), "login");
-  assert.equal(refusalKind({ recent: [], tracked: now }, 403, { first: true, login: true }, now), "client", "a 403 is no login");
+  assert.equal(refusalKind({ recent: [], tracked: now }, 403, { first: true, login: true }, now), "first", "a 403 is no login");
 });
 
 test("a host's state keeps a refusal of the client however far ahead, and what strom read of it; broken parts left out", () => {
@@ -103,7 +103,7 @@ test("times said in the clock on the wall here, never UTC: a refusal's reason", 
   await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
   try {
     const dir = tmp();
-    await assert.rejects(politeGet(`http://127.0.0.1:${(s.address() as AddressInfo).port}/x`, { stateDir: dir, hosts: ["127.0.0.1"], sleep: async () => {} }), (e: NetError) => e.failure === "refused" && e.refusedKind === "client");
+    await assert.rejects(politeGet(`http://127.0.0.1:${(s.address() as AddressInfo).port}/x`, { stateDir: dir, hosts: ["127.0.0.1"], sleep: async () => {} }), (e: NetError) => e.failure === "refused" && e.refusedKind === "first");
     const reason = readHostState(dir, "127.0.0.1").state.reason!;
     const local = new Date().toLocaleString("sv-SE", { timeZone: "Pacific/Kiritimati" }).slice(0, 13);
     assert.ok(reason.includes(`at ${local}`), `${reason} — local ${local}`);

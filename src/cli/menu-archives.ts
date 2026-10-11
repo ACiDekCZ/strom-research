@@ -11,7 +11,7 @@ import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./m
 import { humanDay } from "./human.ts";
 import { Tree } from "../core/tree.ts";
 import { isArchive } from "../core/mode.ts";
-import { bareHost, listConnectors, routeOf, type Connector } from "../core/connector.ts";
+import { bareHost, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
 import { claimOf, loadArchives, rank, type ArchiveLevel, type Claim, type PendingQuestion, type Way } from "../core/terms.ts";
 import { archiveQuestions, connectorFor, levelWords, tasksStanding, tasksWaitingOn, termsText, waysOffered, wokenLines } from "../core/archiveasks.ts";
 import { wakeForArchive } from "../core/archivewait.ts";
@@ -208,6 +208,17 @@ async function decideMilder(ctx: Context, run: Run, lang: string, q: PendingQues
   if ((await run(["allow", "archive", c.name, i === 0 ? "--accept" : "--keep"], true)) === 0) out(t(i === 0 ? "ui.archive.milder.accepted" : "ui.archive.milder.kept", { title }));
 }
 
+/** An archive only a person's browser goes to, in the person's words: through the browser, or by hand where the downloader cannot. */
+function onlyBrowser(t: T, c: Connector, robots: boolean): string {
+  const browser = routesOf(c).includes("browser");
+  return t(robots ? (browser ? "ui.archive.level.robots" : "ui.archive.level.robots.manual") : browser ? "ui.archive.level.browserOnly" : "ui.archive.level.browserOnly.manual");
+}
+
+/** Does only a person's browser go to an archive of this downloader (its robots.txt, strom's known terms)? Its line says how. */
+export function browserOnlyHere(ctx: Context, c: Connector): boolean {
+  return archivesOverview(ctx).some((r) => r.connector === c.name && r.browserOnly && r.level !== "manual" && r.level !== "forbidden");
+}
+
 /** What holds for a downloader's archive, on its line in the settings: its level, the person's way and since when, the pace. */
 export function archiveState(ctx: Context, lang: string, c: Connector): string {
   const t = translator(lang);
@@ -218,7 +229,10 @@ export function archiveState(ctx: Context, lang: string, c: Connector): string {
       const rec = store[r.host];
       const level = r.level as Claim;
       const closed = level === "manual" || level === "forbidden";
-      const way = !closed && r.way ? t("ui.archives.state.way", { way: t(`ui.archive.is.${r.way}` as UIKey), date: rec?.at ? humanDay(rec.at, lang) : "–" }) : levelWords(lang, level, !!r.robots, r.from);
+      // only a person's browser goes to the archive (its robots.txt, strom's known terms): said so — through the browser
+      // where the downloader can go that way, else by hand only; never "directly" (that is not the way here)
+      const only = !closed && !r.way && r.browserOnly ? onlyBrowser(t, c, !!r.robots) : undefined;
+      const way = only ?? (!closed && r.way ? t("ui.archives.state.way", { way: t(`ui.archive.is.${r.way}` as UIKey), date: rec?.at ? humanDay(rec.at, lang) : "–" }) : levelWords(lang, level, !!r.robots, r.from));
       const pace = !closed && r.way !== "manual" && (level === "allowed" || r.way) ? `; ${paceWords(t, r.pace)}` : "";
       return `${rows.length > 1 ? `${r.host}: ` : ""}${way}${pace}`;
     })

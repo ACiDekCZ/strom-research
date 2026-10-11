@@ -8,8 +8,8 @@
 // used up (RateLimit headers, Retry-After). An archive that asks
 // us to slow down (429) gets one more try after the wait it asks for, then an
 // hour off; one that refuses (401/403) is left alone for a day — and one that
-// refuses strom's client itself (the first request of a run, a second day too,
-// or a host that never let strom in) until the person lifts it; one that does
+// refuses strom's client itself (the first request of a run, a second day too)
+// until the person lifts it; one that does
 // not answer at all is treated the same way: silence from a live server is
 // how a firewall block looks. Repeating a refused request is the quickest way
 // from "slow down" to a blocked IP — for the user, and for every other
@@ -85,7 +85,7 @@ export type NetFailure = "host" | "refused" | "blocked" | "cap" | "http" | "sile
 
 /**
  * Why a host refused (401/403): client — it refused strom's client itself (the first request of a run refused a second
- * day too, or by a host that never let strom in): left alone until the person lifts it; first — the first request of
+ * day too): left alone until the person lifts it; first — the first request of
  * a run refused once: a day, and a second such day makes it client; load — refused after strom's requests: a day;
  * login — 401 to a connector with a login: the login ran out, a day.
  */
@@ -236,7 +236,8 @@ export interface NetOptions {
   /**
    * A person's pace (core/terms.ts humanPace): images of a restricted archive. The pause is the longer of the
    * person's own for the host (else this one) and the service's; the hourly cap the smaller of the person's own (else
-   * this one) and the service's.
+   * this one) and the service's — counted over every request to the host, its catalogue and robots.txt too (Milan,
+   * 2026-10-11: never a cap raised).
    */
   human?: Pace;
   /** Extra request headers (Referer, Accept, a Cookie of the caller's own …); strom sets User-Agent itself. */
@@ -725,15 +726,13 @@ function sameDay(a: number, b: number): boolean {
 }
 
 /**
- * Why a host refused (401/403) — see RefusedKind. The first request of a run refused by a host strom never got an
- * answer from (2xx, its robots.txt aside) is a refusal of the client at once; a host met before strom counted its
- * answers (no `tracked`) is taken to have answered. A 401 to a connector with a login is never one of the client.
+ * Why a host refused (401/403) — see RefusedKind. The first request of a run refused is a day's pause, also from a
+ * host that never answered strom (one 403 of a firewall or an outage blocks nobody for good); the client only when it
+ * is refused so again on another day. A 401 to a connector with a login is never one of the client.
  */
 export function refusalKind(s: HostState, status: number, o: { first: boolean; login: boolean }, now: number): RefusedKind {
   if (status === 401 && o.login) return "login";
   if (!o.first) return "load";
-  const answered = s.okAt !== undefined || s.tracked === undefined;
-  if (!answered) return "client";
   if (s.refusedFirst && !sameDay(s.refusedFirst.at, now)) return "client";
   return "first";
 }
@@ -742,7 +741,7 @@ export function refusalKind(s: HostState, status: number, o: { first: boolean; l
 function refusalText(host: string, status: number, kind: RefusedKind, s: HostState): { message: string; hint: string } {
   if (kind === "client")
     return {
-      message: `${host} refused strom's client on the first request${s.refusedFirst ? ", a second day too" : ", and never let it in before"} (HTTP ${status}; no load from strom): the site does not let automated tools in — not a block for too many requests. strom leaves it alone until the person lifts it`,
+      message: `${host} refused strom's client on the first request, a second day too (HTTP ${status}; no load from strom): the site does not let automated tools in — not a block for too many requests. strom leaves it alone until the person lifts it`,
       hint: `do not try it through your web tools or a browser either; only the person lifts it: strom allow host ${host} --unblock`,
     };
   if (kind === "first")

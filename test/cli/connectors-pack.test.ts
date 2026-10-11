@@ -198,11 +198,13 @@ test("the pace of a host: strom's pause and no cap made up — the user's own, s
   assert.equal((await w.run(["allow", "host", "127.0.0.1", "--pace", "1"])).code, 4, "the user's decision");
   assert.equal((await w.run(["allow", "host", "127.0.0.1", "--pace", "0.1"], { tty: true })).code, 2, "not below the shortest pause");
   const set = await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5", "--per-hour", "3000"], { tty: true });
-  assert.match(set.out, /127\.0\.0\.1: at least 0\.5 s apart, at most 3000 an hour — yours/);
+  // the person reads it in the research language, as strom allow archive says its decision
+  assert.match(set.out, /127\.0\.0\.1: nejméně 0\.5 s mezi dvěma požadavky, nejvýš 3000 za hodinu – vlastní tempo/);
   assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · at least 0\.5 s apart, at most 3000 an hour \(yours\)/);
   assert.match((await w.ok(["connector", "show", "zkusebni"])).out, /pace\s+at least 0\.5 s apart, at most 3000 an hour — yours for the host/);
   const back = await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--per-hour", "auto"], { tty: true });
-  assert.match(back.out, /127\.0\.0\.1: at least 2 s apart, no hourly cap — the service's again/);
+  assert.match(back.out, /127\.0\.0\.1: nejméně 2 s mezi dvěma požadavky, bez hodinového limitu – zase tempo služby/);
+  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--lang", "en"], { tty: true })).out, /127\.0\.0\.1: at least 2 s between two requests, no hourly cap – the service's pace again/);
   w.cleanup();
   await a.close();
 });
@@ -213,11 +215,11 @@ test("a refusal (403) stops the run and leaves the archive alone — until the u
   assert.equal(r.code, 1);
   assert.match(r.out, /stopped: .*403/);
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 1, "nothing after the refusal");
-  // the first request strom ever sent it, refused: the site refuses strom's client — left alone until the person lifts it
-  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · ⛔ refused strom's client — left alone until the person lifts it/);
+  // the first request strom ever sent it, refused: a day's pause, as any first refusal (strom's client only a second day)
+  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · ⛔ refused us — left alone until \d{4}-\d\d-\d\d \d\d:\d\d/);
   const again = await w.run(["fetch", "zkusebni", "5359", "--images", "1"]);
-  assert.equal(again.code, 2, "refused before anything goes, as an archive that forbids it");
-  assert.match(again.err, /refused strom's client — left alone until the person lifts it/);
+  assert.equal(again.code, 1, "left alone for the day: nothing goes, not even another book");
+  assert.match(again.out + again.err, /left alone|until \d{4}-|stopped/);
   assert.deepEqual(a.hits, ["/robots.txt", "/img/zakazana/1.jpg"], "not even another book");
   assert.equal((await w.run(["allow", "host", "127.0.0.1", "--unblock"])).code, 4, "only the user");
   assert.match((await w.ok(["allow", "host", "127.0.0.1", "--unblock"], { tty: true, answers: ["y"] })).out, /127\.0\.0\.1: už se na něj zase smí – strom se ho bude znovu ptát, pomalu/);

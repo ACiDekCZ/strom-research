@@ -354,7 +354,7 @@ test("consent: only the user, on a terminal — never --yes, --json or an agent'
   assert.match((await w.ok(["allow", "connector", "zkusebni"], { tty: true })).out, /allowed already/);
   assert.match((await w.ok(["consents"])).out, /connectors\n  zkusebni[\s\S]*hosts \(automated access\)\n  127\.0\.0\.1/);
   // taking it back
-  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--revoke"], { tty: true })).out, /consent taken back/);
+  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--revoke"], { tty: true })).out, /127\.0\.0\.1: svolení odvoláno – žádný stahovač se tam teď nedostane/);
   assert.equal((await w.run(["connector", "test", "zkusebni", "--find", "Týnec"])).code, 4);
   assert.match((await w.ok(["allow", "connector", "zkusebni", "--revoke"], { tty: true })).out, /consent taken back — it does not run now/);
   assert.match((await w.ok(["connector", "list"])).out, /zkusebni\s.*needs a consent/);
@@ -653,4 +653,78 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "1-1001"])).code, 2, "not more than a thousand at once");
   w.cleanup();
   await a.close();
+});
+
+// A live run: a connector built for one page of a general website, then discarded, left its host in the person's
+// archives as a restricted archive.
+test("connector discard and remove take away what only the connector brought into the person's archives — never the person's decision", opts, async () => {
+  const w = new World();
+  await w.withTree("Dvořákovi");
+  try {
+    const archives = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "archives.json"));
+    await w.ok(["research", "new", "Předci Kryštofa", "--new-person", "Kryštof /Žďárský/", "--sex", "M", "--born", "1802"]);
+    await w.ok(["task", "add", "Křest Kryštofa", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
+    await w.ok(["recordset", "add", "Kniha N", "--url", "https://archive.example.org/book/5359"]); // B0001
+    await w.ok(["session", "start", "T1"]);
+    await fakeConnector(w, "jedna-stranka", "", { automation: "restricted", terms: "https://archive.example.org/terms" }, { confirm: false });
+    assert.equal((await w.run(["fetch", "jedna-stranka", "5359", "--images", "1", "--recordset", "B1"])).code, 4);
+    assert.ok(archives().archives["archive.example.org"], "its first fetch made the entry");
+    await w.ok(["connector", "discard", "jedna-stranka"]);
+    assert.equal(archives().archives["archive.example.org"], undefined, "nothing of it left");
+    assert.deepEqual(archives().pending.filter((p: { kind: string }) => p.kind === "permission"), []);
+    // the person decided for the host: kept, whoever takes the connector away
+    await fakeConnector(w, "druha", "", { automation: "restricted", terms: "https://archive.example.org/terms" }, { confirm: false });
+    assert.equal((await w.run(["fetch", "druha", "5359", "--images", "1", "--recordset", "B1"])).code, 4);
+    await w.ok(["allow", "archive", "archive.example.org", "--way", "manual"], { tty: true });
+    await w.ok(["connector", "discard", "druha"]);
+    assert.equal(archives().archives["archive.example.org"]?.way, "manual");
+    // removed by the user: the same (the level its own reading made goes; the one before it would stay)
+    await fakeConnector(w, "treti", "", { automation: "forbidden" }, { confirm: false });
+    await w.ok(["allow", "archive", "archive.example.org", "--revoke"], { tty: true });
+    assert.equal((await w.run(["fetch", "treti", "5359", "--images", "1", "--recordset", "B1"])).code, 2);
+    assert.equal(archives().archives["archive.example.org"]?.floorConnector, "treti");
+    await w.ok(["connector", "remove", "treti"], { tty: true, answers: ["y"] });
+    assert.equal(archives().archives["archive.example.org"], undefined);
+  } finally {
+    w.cleanup();
+  }
+});
+
+// A review: a connector that read the archive as forbidden went away, an agent made another for the host and
+// discarded it — and the forbidden strom had kept was gone with it. Only the person makes a level milder.
+test("connector discard keeps a level strom kept before the connector was made — what only it brought goes", opts, async () => {
+  const w = new World();
+  await w.withTree("Dvořákovi");
+  try {
+    const archives = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "archives.json"));
+    const fetch = async (name: string) => (await w.run(["fetch", name, "5359", "--images", "1", "--recordset", "B1"])).code;
+    await w.ok(["research", "new", "Předci Kryštofa", "--new-person", "Kryštof /Žďárský/", "--sex", "M", "--born", "1802"]);
+    await w.ok(["task", "add", "Křest Kryštofa", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
+    await w.ok(["recordset", "add", "Kniha N", "--url", "https://archive.example.org/book/5359"]); // B0001
+    await w.ok(["session", "start", "T1"]);
+    // a connector of its own, forbidden by its reading: discarded, what it brought goes
+    await fakeConnector(w, "zakazany", "", { automation: "forbidden" }, { confirm: false });
+    assert.equal(await fetch("zakazany"), 2);
+    assert.equal(archives().archives["archive.example.org"]?.floor, "forbidden");
+    assert.equal(archives().archives["archive.example.org"]?.floorConnector, "zakazany");
+    await w.ok(["connector", "discard", "zakazany"]);
+    assert.equal(archives().archives["archive.example.org"], undefined, "its own level goes with it");
+    // another one reads it forbidden, then its folder disappears
+    await fakeConnector(w, "puvodni", "", { automation: "forbidden" }, { confirm: false });
+    assert.equal(await fetch("puvodni"), 2);
+    assert.equal(archives().archives["archive.example.org"]?.floor, "forbidden");
+    fs.rmSync(pluginDir(w, "puvodni"), { recursive: true, force: true });
+    // the agent makes one of its own for the host: the level holds, and holds after it is discarded
+    await fakeConnector(w, "agentb", "", { automation: "allowed" }, { confirm: false });
+    assert.equal(await fetch("agentb"), 2);
+    await w.ok(["connector", "discard", "agentb"]);
+    assert.equal(archives().archives["archive.example.org"]?.floor, "forbidden", "the level strom saw before it stays");
+    await fakeConnector(w, "dalsi", "", { automation: "allowed" }, { confirm: false });
+    assert.equal(await fetch("dalsi"), 2, "still forbidden — never a question to the person instead");
+    // removed by the user: a level from before the connector stays too
+    await w.ok(["connector", "remove", "dalsi"], { tty: true, answers: ["y"] });
+    assert.equal(archives().archives["archive.example.org"]?.floor, "forbidden");
+  } finally {
+    w.cleanup();
+  }
 });

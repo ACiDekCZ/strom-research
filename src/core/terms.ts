@@ -181,12 +181,14 @@ export interface ArchiveRecord {
   floor?: Level;
   floorBy?: "strom" | "agent" | "person";
   floorAt?: string;
+  /** The connector whose own reading made strom keep the floor (floorBy strom); none when the archive's terms or the tree did. */
+  floorConnector?: string;
   /** Per connector of the host: its reading as strom keeps it (the latch). */
   seen?: Record<string, Seen>;
   /** Per connector: the service's pace when the person gave the permission (a connector not confirmed yet). */
   seenPace?: Record<string, { minIntervalMs?: number; perHour?: number }>;
   /** What the person's first decision changed (the record new, its connector and terms, the paces it kept, its question): put back by "ask again". */
-  prior?: { none?: boolean; connector?: string; terms?: string; seenPace?: string[]; pending?: PendingQuestion };
+  prior?: { none?: boolean; connector?: string; terms?: string; seenPace?: string[]; /** Kept by an older strom: no longer brought back. */ pending?: PendingQuestion };
   /**
    * The host refused strom's client (core/net.ts RefusedKind client): left alone until the person lifts it (strom allow
    * host --unblock) — kept here too, where an agent cannot write: a shared folder's net/ wiped lifts nothing.
@@ -550,7 +552,14 @@ export function archiveLevel(env: Env, input: LevelInput): ArchiveLevel {
     if (stricter || seenStricter || milder) {
       updateArchives(env, (s) => {
         const r = (s.archives[host] ??= {});
-        if (stricter && rank(live) > rank(r.floor ?? "allowed")) Object.assign(r, { floor: asLevel(live), floorBy: "strom", floorAt: new Date().toISOString() });
+        if (stricter && rank(live) > rank(r.floor ?? "allowed")) {
+          // whose reading it was: the connector's own (its claim, its latch, its bot check), else the terms or the tree
+          const its = from.filter((f) => f.by === "connector" || f.by === "new connector" || f.by === "kept" || f.by === "pages");
+          const byIt = c && its.length && rank(strictest(...its.map((f) => f.level))) >= rank(live);
+          Object.assign(r, { floor: asLevel(live), floorBy: "strom", floorAt: new Date().toISOString() });
+          if (byIt) r.floorConnector = c.name;
+          else delete r.floorConnector;
+        }
         if (c && seenStricter && r.seen?.[c.name]) r.seen[c.name] = { ...seenOf(c, "strom"), ...(r.seen[c.name]!.pace ? { pace: r.seen[c.name]!.pace } : {}) };
         const declined = c ? r.seen?.[c.name]?.declined : undefined;
         const kept = c && milder && declined?.to === milder.to && declined.termsHash === termsHash(c);
@@ -760,8 +769,7 @@ export function grantWay(env: Env, hosts: string[], way: Way, o: { by: NonNullab
       const r = (s.archives[h] ??= {});
       // the first decision keeps what was there before it (a later one, another way, keeps that)
       if (!r.way && !r.prior) {
-        const q = s.pending.find((p) => p.key === `permission:${h}`);
-        r.prior = { ...(fresh ? { none: true } : {}), ...(r.connector !== undefined ? { connector: r.connector } : {}), ...(r.terms !== undefined ? { terms: r.terms } : {}), ...(q ? { pending: q } : {}) };
+        r.prior = { ...(fresh ? { none: true } : {}), ...(r.connector !== undefined ? { connector: r.connector } : {}), ...(r.terms !== undefined ? { terms: r.terms } : {}) };
       }
       Object.assign(r, { way, at: new Date().toISOString(), by: o.by, ...(o.connector ? { connector: o.connector.name } : {}), ...(o.connector?.manifest.policy.terms ? { terms: o.connector.manifest.policy.terms } : {}) });
       // the pace the person agreed to goes with it: the connector's own, as it is now (a faster one later: asked)
@@ -777,11 +785,13 @@ export function grantWay(env: Env, hosts: string[], way: Way, o: { by: NonNullab
 
 /**
  * The person's permission taken back ("ask again"): the archive as it was before the decision — what the decision
- * wrote gone, its question back if one waited — asked again at the next need.
+ * wrote gone — asked again only at the next real need: no question of it waits meanwhile (one that waited before the
+ * decision, or since, goes too — the person is bothered as little as possible).
  */
 export function revokeWay(env: Env, hosts: string[]): boolean {
   return updateArchives(env, (s) => {
     for (const h of hosts) {
+      dropPending(s, `permission:${h}`);
       const r = s.archives[h];
       if (!r) continue;
       const prior = r.prior;
@@ -796,17 +806,54 @@ export function revokeWay(env: Env, hosts: string[]): boolean {
         }
         for (const n of prior.seenPace ?? []) delete r.seenPace?.[n];
         if (r.seenPace && !Object.keys(r.seenPace).length) delete r.seenPace;
-        if (prior.pending && !s.pending.some((p) => p.key === prior.pending!.key)) s.pending.push(prior.pending);
         if (prior.none && !Object.keys(r).length) delete s.archives[h];
       }
     }
   });
 }
 
+/**
+ * A connector taken away (strom connector discard, remove): what only it brought into the person's archives goes —
+ * strom's latch of its reading and the level strom kept from it, its question nobody waits on, a milder reading of it.
+ * Never a person's decision (a way, a level an agent or the person set), a refusal, robots.txt, another connector's
+ * reading, nor a host `keep` says stays (another connector reaches it, strom's known terms name it, tasks wait on its
+ * question). A level strom kept goes only when this very connector brought it — its reading made it, after the
+ * connector was made (`since`) —, never one strom saw before (another connector of the host, gone since): only the
+ * person makes a level milder. When the connector was made is not known: the level stays. The hosts whose entry went.
+ */
+export function forgetConnector(env: Env, name: string, hosts: string[], keep: (host: string) => boolean, since?: string): string[] {
+  const gone: string[] = [];
+  updateArchives(env, (s) => {
+    s.pending = s.pending.filter((p) => !(p.kind === "milder" && p.connector === name));
+    for (const h of hosts) {
+      if (keep(h)) continue;
+      const r = s.archives[h];
+      const q = s.pending.find((p) => p.key === `permission:${h}`);
+      if (q && q.connector !== undefined && q.connector !== name) continue;
+      if (r) {
+        const others = (o?: Record<string, unknown>) => Object.keys(o ?? {}).some((k) => k !== name);
+        const theirs = r.way || r.refused || r.robots || r.prior || (r.floor && r.floorBy !== "strom") || others(r.seen) || others(r.seenPace) || (r.connector !== undefined && r.connector !== name);
+        if (theirs) continue;
+        // a level strom kept from before this connector, or from another one's reading: it stays (its question goes)
+        const before = r.floor && (!since || !r.floorAt || r.floorAt < since || (r.floorConnector !== undefined && r.floorConnector !== name));
+        if (!before) {
+          delete s.archives[h];
+          gone.push(h);
+        }
+      }
+      if (q) dropPending(s, q.key);
+    }
+  });
+  return gone;
+}
+
 /** A level set for hosts: stricter by anyone (an agent too), milder by the person alone (the caller asks them). */
 export function setFloor(env: Env, hosts: string[], level: Level, by: "agent" | "person"): boolean {
   return updateArchives(env, (s) => {
-    for (const h of hosts) Object.assign((s.archives[h] ??= {}), { floor: level, floorBy: by, floorAt: new Date().toISOString() });
+    for (const h of hosts) {
+      const r = Object.assign((s.archives[h] ??= {}), { floor: level, floorBy: by, floorAt: new Date().toISOString() });
+      delete r.floorConnector;
+    }
   });
 }
 
@@ -824,6 +871,7 @@ export function acceptConnectors(env: Env, connectors: ConnectorLike[]): boolean
         delete r.floor;
         delete r.floorBy;
         delete r.floorAt;
+        delete r.floorConnector;
         dropPending(s, `milder:${c.name}:${h}`);
       }
       const t = s.pending.find((p) => p.kind === "takeover");
@@ -857,7 +905,7 @@ export function takenOverWaiting(env: Env): string[] {
 
 // ── the pace of a person ─────────────────────────────────────────────────────
 
-/** archive.pace as the person set it ("10 120": seconds between two images, images an hour), or nothing. */
+/** archive.pace as the person set it ("10 120": seconds between two images, requests to the archive an hour — its catalogue counted too), or nothing. */
 export function parseArchivePace(v: string): Pace | undefined {
   const m = /^\s*(\d+(?:\.\d+)?)\s+(\d+)\s*$/u.exec(v);
   if (!m) return undefined;

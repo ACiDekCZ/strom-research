@@ -1,8 +1,8 @@
 // robots.txt and an archive's refusals (core/net.ts, core/terms.ts): strom reads a host's robots.txt itself, at most once
 // a day and only when a request goes there anyway; a path it keeps automated tools off is not asked (the person may
 // allow it slowly), the whole site kept off is a site only a person's browser goes to; its Crawl-delay slows the pace.
-// A refusal (403) of a run's first request is a day's pause, the same a second day (or from a host that never let strom
-// in) a refusal of strom's client — left alone until the person lifts it, kept in their settings too; a 401 to a
+// A refusal (403) of a run's first request is a day's pause (a host that never let strom in too), the same a second day
+// a refusal of strom's client — left alone until the person lifts it, kept in their settings too; a 401 to a
 // connector with a login is the login, never that. The agent hears what to do next, the person hears it in the
 // research's history, strom status and doctor. A person's answer is simulated only in each test's own settings (R8).
 
@@ -50,6 +50,18 @@ async function site(): Promise<Site> {
   st.base = `http://127.0.0.1:${(s.address() as AddressInfo).port}`;
   st.close = () => new Promise<void>((r) => s.close(() => r()));
   return st;
+}
+
+/** A day after a first refusal (its pause over), the first request refused again: strom's client. */
+async function refusedAgainNextDay(w: World): Promise<void> {
+  writeState(w, (x) => {
+    x.blockedUntil = Date.now() - 1000;
+    x.refusedFirst.at -= REFUSED_MS + 3600_000;
+    if (x.robots) x.robots.at -= REFUSED_MS + 3600_000;
+  });
+  const r = await w.run(["fetch", "zkusebni", "--find", "Týnec"]);
+  assert.equal(r.code, 1, r.out + r.err);
+  assert.match(r.out, /refused strom's client on the first request, a second day too \(HTTP 403; no load from strom\)/);
 }
 
 async function world(policy?: Record<string, unknown>): Promise<{ w: World; s: Site }> {
@@ -165,6 +177,26 @@ test("robots.txt keeps tools off the whole site: no direct request — restricte
   }
 });
 
+test("Settings → Archives: an archive whose robots.txt keeps tools off the whole site is said as it holds — by hand where the downloader cannot go through the browser, through the browser where it can; never \"directly\"", opts, async () => {
+  const { w, s } = await world();
+  try {
+    s.robots = { status: 200, body: "User-agent: *\nDisallow: /\n" };
+    assert.equal((await w.run(["fetch", "zkusebni", "--find", "Týnec"])).code, 1);
+    const line = async () => /• Testovací archiv — [^\n]*/.exec((await w.run([], { tty: true, answers: ["8", "4", "0", "0", "0"] })).out)?.[0] ?? "";
+    const direct = await line();
+    assert.equal(direct, "• Testovací archiv — robots.txt nedovoluje automatický přístup a stahovač neumí jít přes prohlížeč – snímky jen ručně");
+    assert.doesNotMatch(direct, /přímo|jen přes prohlížeč/);
+    // a downloader that can go through the browser: through the browser, with permission
+    const file = path.join(pluginDir(w, "zkusebni"), "connector.json");
+    fs.writeFileSync(file, JSON.stringify({ ...readJsonFile(file), can: ["find", "list", "locate", "fetch"], routes: ["direct", "browser"] }));
+    const browser = await line();
+    assert.equal(browser, "• Testovací archiv — robots.txt nedovoluje automatický přístup – snímky jen přes prohlížeč, se svolením");
+  } finally {
+    w.cleanup();
+    await s.close();
+  }
+});
+
 test("Crawl-delay: a floor of the host's pace — slower, never faster", opts, async () => {
   const { w, s } = await world();
   try {
@@ -252,7 +284,7 @@ test("a refusal of the first request: a day's pause; the same a second day — s
   }
 });
 
-test("a host that never let strom in refuses its first request: strom's client refused at once; one that refused after many answers: load — a day", opts, async () => {
+test("a host that never let strom in refuses its first request: a day, strom's client only a second day; one that refused after many answers: load — a day", opts, async () => {
   const { w, s } = await world();
   try {
     await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism"]); // B0001
@@ -271,14 +303,30 @@ test("a host that never let strom in refuses its first request: strom's client r
     w.cleanup();
     await s.close();
   }
-  // a host strom meets first now, refusing its first request: it never let strom in — the client
+  // a host strom meets first now (a new installation), refusing its first request: a day, as any first refusal — one
+  // 403 of a firewall or an outage blocks nobody for good; refused again on another day: the client
   const n = await world();
   try {
     n.s.refuse = 403;
     const r = await n.w.run(["fetch", "zkusebni", "--find", "Týnec"]);
     assert.equal(r.code, 1);
-    assert.match(r.out, /refused strom's client on the first request, and never let it in before/);
-    assert.equal(state(n.w).refusedKind, "client");
+    assert.match(r.out, /refused strom's first request \(HTTP 403\) — strom leaves it alone for a day; refused so again on another day, it is left alone until the person lifts it/);
+    assert.doesNotMatch(r.out, /never let it in|until the person lifts it \(strom allow host/);
+    let st = state(n.w);
+    assert.equal(st.refusedKind, "first");
+    assert.ok(st.blockedUntil > Date.now() + REFUSED_MS - 60_000 && st.blockedUntil <= Date.now() + REFUSED_MS);
+    assert.equal(store(n.w).archives["127.0.0.1"]?.refused, undefined, "nothing kept for good");
+    // the same day: left alone, nothing asked
+    n.s.hits.length = 0;
+    const again = await n.w.run(["fetch", "zkusebni", "--find", "Týnec"]);
+    assert.notEqual(again.code, 0);
+    assert.match(again.out + again.err, /leaves it alone for a day|until \d|refused/);
+    assert.deepEqual(n.s.hits, []);
+    // another day: refused again — the client, until the person lifts it
+    await refusedAgainNextDay(n.w);
+    st = state(n.w);
+    assert.equal(st.refusedKind, "client");
+    assert.ok(st.blockedUntil >= REFUSED_FOREVER);
   } finally {
     n.w.cleanup();
     await n.s.close();
@@ -307,7 +355,7 @@ test("a refusal of robots.txt itself (401/403) decides nothing: no refusal of st
     w.cleanup();
     await s.close();
   }
-  // a host that refuses robots.txt and its first real request: that request decides — strom's client refused
+  // a host that refuses robots.txt and its first real request: that request decides — a day, as any first refusal
   const n = await world();
   try {
     n.s.robots = { status: 401 };
@@ -315,8 +363,8 @@ test("a refusal of robots.txt itself (401/403) decides nothing: no refusal of st
     const r = await n.w.run(["fetch", "zkusebni", "--find", "Týnec"]);
     assert.equal(r.code, 1, r.out + r.err);
     assert.deepEqual(n.s.hits, ["/robots.txt", "/catalog?place=T%C3%BDnec"], "the real request was asked");
-    assert.match(r.out, /refused strom's client on the first request, and never let it in before \(HTTP 403/);
-    assert.equal(state(n.w).refusedKind, "client");
+    assert.match(r.out, /refused strom's first request \(HTTP 403\) — strom leaves it alone for a day/);
+    assert.equal(state(n.w).refusedKind, "first");
   } finally {
     n.w.cleanup();
     await n.s.close();
@@ -328,6 +376,8 @@ test("Settings → Archives: an archive whose server refused strom's client says
   try {
     s.refuse = 403;
     assert.equal((await w.run(["fetch", "zkusebni", "--find", "Týnec"])).code, 1);
+    assert.equal(state(w).refusedKind, "first");
+    await refusedAgainNextDay(w);
     assert.equal(state(w).refusedKind, "client");
     const look = await w.run([], { tty: true, answers: ["8", "4", "0", "0", "0"] });
     assert.match(look.out, /• Testovací archiv — [^\n]*server odmítl automatický přístup stromu – snímky ručně/);

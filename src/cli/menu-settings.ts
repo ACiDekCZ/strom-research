@@ -25,7 +25,7 @@ import { chooseMode } from "./menu-mode.ts";
 import { agentsHere } from "../core/apps.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
-import { archivePermissions, archiveState } from "./menu-archives.ts";
+import { archivePermissions, archiveState, browserOnlyHere } from "./menu-archives.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -358,7 +358,9 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
       const login = !c.manifest.login ? "" : `; ${saved[c.name] ? t("ui.archives.login.saved", { date: saved[c.name]!.at.slice(0, 10) }) : t("ui.archives.login.none")}`;
       // what its archive's terms let it do here, the person's decision and since when, the pace (read only: the commands change it)
       const state = archiveState(ctx, lang, c);
-      return `  • ${c.manifest.title ?? c.name} — ${t(`ui.archives.via.${via(c)}` as UIKey)}${login}${state ? `; ${state}` : ""}`;
+      // an archive only a person's browser goes to: its state says the way (never "directly", a route it cannot take there)
+      const how = browserOnlyHere(ctx, c) && state ? "" : t(`ui.archives.via.${via(c)}` as UIKey);
+      return `  • ${c.manifest.title ?? c.name} — ${[how, login.replace(/^; /, ""), state].filter(Boolean).join("; ")}`;
     });
     // Through the browser: only Claude Code can, with the Claude in Chrome extension — said as it is here.
     const browser = connectors.filter((c) => via(c) === "browser");

@@ -794,6 +794,8 @@ function archiveLine(tree: Tree, b: RecordSet, repo: Repository | undefined, sha
         : ((q) => (q ? `the person's decision on its images waits since ${q.at.slice(0, 10)}` : "no decision of the person's yet: a fetch of its images asks them once, and the question then waits — never fetch there again until they decide"))(qs.find((x) => onHost(a.host, x.host!))),
     );
   else if (a.permission === "manual") parts.push("the person: images by hand only");
+  // a restricted archive's images, allowed slowly or through the browser: sparing (the method's "Fetch only what you read")
+  if ((a.level === "restricted" || a.level === "unknown") && (a.permission === "slow" || a.permission === "browser")) parts.push("fetch sparingly: an index by halving, a page to its image by 1–2 images, an entry ±1");
   if (a.refused) parts.push(`${a.refused.host} refused strom's client — left alone ${a.refused.until && a.refused.until < REFUSED_FOREVER ? `until ${clock(a.refused.until)}` : "until the person lifts it"}; not through your web tools or a browser either`);
   else if (net) {
     try {

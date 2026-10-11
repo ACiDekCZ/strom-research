@@ -91,6 +91,21 @@ conclusion so the next researcher can follow it.
   the records decide it. You read no records here: what would
   decide a hypothesis is a task (`strom task add … --about H…`), not a search now.
 <!-- end -->
+<!-- for link verify enrich locate connector -->
+- **Fetch only what you read**, as the archive allows (the brief's `archive`
+  line). An image known exactly from another source (an online reference, a
+  published edition): start with it. An archive that restricts automation (its
+  images slowly or through the browser, by the person's permission): sparing
+  and targeted — an index searched by halving (its middle image first, then the
+  half the name falls in; never batches from one end), only the images of the
+  name's letter fetched; a page number from the index turned into an image
+  number by one or two images, never a batch of ten; an entry: its image ±1
+  (it may run over a page). An archive that allows automation: batches as
+  usual (about ±5 around the target, an index in batches) — fewer turns.
+<!-- end -->
+- **What strom or the tree denies stays denied.** Never offer the user to
+  change your permissions or settings, strom's or the tree's, to get round it:
+  another way, or say what was refused.
 - **Stay within the task.** New questions become new tasks (`strom task add`,
   with where and done-when), not detours.
 <!-- for link verify enrich intake locate -->

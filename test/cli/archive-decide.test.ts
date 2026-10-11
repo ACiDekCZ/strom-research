@@ -51,7 +51,7 @@ test("What waits: the archive's question after the app's sends, counted, said ab
     assert.match(before.out, /Co čeká \(3\)/, "counted with the tasks");
     assert.match(before.out, / 1\. Stahování snímků z archivu Testovací archiv \(archive\.example\.org\)\n {4}Podmínky podle stahovače: Snímky jen jednotlivě, standardními prostředky prohlížeče\. \(https:\/\/archive\.example\.org\/terms\)\n {4}Čekají na to úkoly: T0001, T0002/);
     assert.match(before.out, / 2\. Křest 1/, "the tasks after it");
-    assert.match(before.out, /Tempo snímků pomalu: jeden snímek nejvýš za 10 s, nejvýš 120 za hodinu – změnit jde jen příkazem: strom allow host archive\.example\.org/);
+    assert.match(before.out, /Tempo snímků pomalu: jeden snímek nejvýš za 10 s, nejvýš 120 požadavků za hodinu včetně katalogu – změnit jde jen příkazem: strom allow host archive\.example\.org/);
     assert.match(before.out, /Testovací archiv – jak získávat snímky\?\n {3}1 {2}Pomalu, lidským tempem[^\n]*\n {3}2 {2}Jen ručně[^\n]*\n {3}0 {2}Zpět – nic se nemění\nVybrat \[0\]/, "0 suggested, no browser for a downloader without its route");
     assert.equal(store(w).archives["archive.example.org"]?.way, undefined, "0: nothing changed");
     assert.equal(store(w).pending.filter((p: { kind: string }) => p.kind === "permission").length, 1);
@@ -106,11 +106,38 @@ test("by hand only: the tasks keep waiting; Settings → Archives: each download
     await menu(w, ["8", "4", key!, "1", "1", "0", "0", "0", "0"]);
     assert.equal(store(w).archives["archive.example.org"].way, "slow");
     const slow = await menu(w, ["8", "4", "0", "0", "0"]);
-    assert.match(slow.out, /• Testovací archiv — snímky přímo, strom hlídá tempo; snímky pomalu, lidským tempem, rozhodnuto [^;\n]+; jeden snímek nejvýš za 10 s, nejvýš 120 za hodinu/);
+    assert.match(slow.out, /• Testovací archiv — snímky přímo, strom hlídá tempo; snímky pomalu, lidským tempem, rozhodnuto [^;\n]+; jeden snímek nejvýš za 10 s, nejvýš 120 požadavků za hodinu včetně katalogu/);
     // forgotten: asked again at the next need
     const gone = await menu(w, ["8", "4", key!, "1", "3", "0", "0", "0", "0"]);
     assert.match(gone.out, /✓ Testovací archiv: rozhodnutí zapomenuto/);
     assert.equal(store(w).archives["archive.example.org"].way, undefined);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a decision forgotten brings back no old question: nothing waits above the menu until a fetch needs the archive again", opts, async () => {
+  const w = await asked();
+  try {
+    // decided in What waits (slowly), then forgotten in Settings → Archives
+    await menu(w, ["3", "1", "1", "0", "0"]);
+    const look = await menu(w, ["8", "4", "0", "0", "0"]);
+    const key = /(\d) {2}Svolení ke stahování z archivů/.exec(look.out)?.[1];
+    assert.ok(key, look.out);
+    const gone = await menu(w, ["8", "4", key!, "1", "3", "0", "0", "0", "0"]);
+    assert.match(gone.out, /✓ Testovací archiv: rozhodnutí zapomenuto/);
+    assert.deepEqual(store(w).pending.filter((p: { kind: string }) => p.kind === "permission"), [], "the question from before the decision not brought back");
+    const after = await menu(w, ["0"]);
+    assert.doesNotMatch(after.out, /Čeká rozhodnutí o stahování/);
+    assert.doesNotMatch(after.out, /Co čeká \(2\)/, "only the task with its images in its folder waits");
+    assert.doesNotMatch((await w.ok([])).out, /Čeká rozhodnutí o stahování/);
+    // a question that waits (later) is dropped by forgetting too; a task that waited only for the decision comes back
+    const r = await w.run(["fetch", "zkusebni", "5359", "--images", "1-2", "--recordset", "B1", "--json"]);
+    assert.equal(r.code, 4, "the real need asks again");
+    assert.equal(store(w).pending.filter((p: { kind: string }) => p.kind === "permission").length, 1);
+    await w.ok(["allow", "archive", "archive.example.org", "--revoke"], { tty: true });
+    assert.deepEqual(store(w).pending.filter((p: { kind: string }) => p.kind === "permission"), []);
+    assert.doesNotMatch((await menu(w, ["0"])).out, /Čeká rozhodnutí o stahování/);
   } finally {
     w.cleanup();
   }
@@ -294,7 +321,7 @@ async function permissionsKey(w: World): Promise<string> {
   return key!;
 }
 
-test("Settings → Archives switches the way: the tasks waiting for the archive come back in every research here; ask again puts the archive back as it was before the decision", opts, async () => {
+test("Settings → Archives switches the way: the tasks waiting for the archive come back in every research here; ask again puts the archive back as it was before the decision, its old question not brought back", opts, async () => {
   const w = await asked();
   try {
     // a second research on this computer, with a task waiting for an image of the same archive
@@ -313,14 +340,17 @@ test("Settings → Archives switches the way: the tasks waiting for the archive 
     assert.equal((await task(w, "T0001")).state, "open");
     assert.equal((await task(w, "T0002")).state, "waiting");
     assert.equal(((await w.ok(["task", "show", "T0001", "--json"], other)).json.task as { state: string }).state, "open");
-    // switched to by hand, then asked again: as before the first decision — its question back in What waits
+    // switched to by hand, then asked again: as before the first decision — but no old question in What waits (asked
+    // again only at the next real need)
     await menu(w, ["8", "4", key, "1", "2", "0", "0", "0", "0"]);
     assert.equal(store(w).archives["archive.example.org"].way, "manual");
     const again = await menu(w, ["8", "4", key, "1", "3", "0", "0", "0", "0"]);
     assert.match(again.out, /✓ Testovací archiv: rozhodnutí zapomenuto/);
     assert.deepEqual(store(w).archives, before.archives);
-    assert.deepEqual(store(w).pending.map((p: { key: string }) => p.key), before.pending.map((p: { key: string }) => p.key));
+    assert.deepEqual(before.pending.map((p: { key: string }) => p.key), ["permission:archive.example.org"]);
+    assert.deepEqual(store(w).pending.map((p: { key: string }) => p.key), []);
     assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "1", "--recordset", "B1"])).code, 4, "asked again at the next need");
+    assert.deepEqual(store(w).pending.map((p: { key: string }) => p.key), ["permission:archive.example.org"]);
   } finally {
     w.cleanup();
   }

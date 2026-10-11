@@ -12,7 +12,7 @@ import { lines, shellArg, table } from "../cli/format.ts";
 import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import { isAgent } from "../core/which.ts";
 import { canShowDialog, systemChoice, WAIT_SECONDS, type ChoiceText } from "../core/dialog.ts";
-import { bareHost, listConnectors, routeOf, type Connector } from "../core/connector.ts";
+import { bareHost, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
 import { hostAllowed, hostPace, hostState, netTrust, paceText, robotsNow, ROBOTS_MS, type NetVerdict, type Pace } from "../core/net.ts";
 import { settingsTrust } from "../core/trust.ts";
 import { Tree } from "../core/tree.ts";
@@ -20,7 +20,7 @@ import { syncAgentFiles } from "../agents/files.ts";
 import { currentSession } from "../core/session.ts";
 import type { Session } from "../core/model.ts";
 import { noteSessionWait, wakeForArchive, type Woken } from "../core/archivewait.ts";
-import { levelWords, waysOffered, wokenLines } from "../core/archiveasks.ts";
+import { connectorFor, levelWords, waysOffered, wokenLines } from "../core/archiveasks.ts";
 import { claudeHere } from "../cli/menu-parts.ts";
 import {
   acceptConnectors,
@@ -48,6 +48,7 @@ import {
   WAYS,
   type ArchiveLevel,
   type Level,
+  type PendingQuestion,
   type Route,
   type Way,
 } from "../core/terms.ts";
@@ -296,26 +297,53 @@ export function paceFor(ctx: Context, host: string, c?: Connector): Pace {
   return hostPace(dir ? hostState(path.join(dir, "net"), host) : { recent: [] }, c ? latchedPace(ctx.env, c, host) : undefined, humanPace(ctx.env), host);
 }
 
+/**
+ * The ways offered for an archive's images where a command needs them — the terminal's question, the window, the
+ * question kept for the menu, the hint: the same as the menu's and the bridge's (waysOffered), the way this command
+ * needs first when it is one of them.
+ */
+function waysHere(ctx: Context, c: Connector, a: ArchiveLevel, way: "slow" | "browser"): Way[] {
+  const tree = ctx.hasTree() ? ctx.tree() : undefined;
+  return waysOffered(c, claudeHere(ctx, tree?.config), way, !!a.browserOnly);
+}
+
+/**
+ * The connector's route follows a way the person chose (through the browser, or slowly straight through strom), as the
+ * menu does it (strom connector use): the agents' permissions of every tree follow. True: switched.
+ */
+function routeFollows(ctx: Context, c: Connector, chosen: Way): boolean {
+  const via: Route | undefined = chosen === "browser" ? "browser" : chosen === "slow" ? "direct" : undefined;
+  if (!via || !routesOf(c).includes(via) || routeOf(ctx.env, c).via === via) return false;
+  const s = ctx.settings;
+  s.config.connectorRoutes = { ...(s.config.connectorRoutes ?? {}), [c.name]: { via, at: new Date().toISOString(), by: ctx.io.tty ? "in a terminal" : "by a command without a terminal (an agent or the app)" } };
+  s.save();
+  syncTrees(ctx);
+  return true;
+}
+
 /** The person's choice for an archive, in their terminal or in a window: the way chosen, or nothing. */
 async function askPerson(ctx: Context, c: Connector, missing: ArchiveLevel[], way: "slow" | "browser"): Promise<{ way?: Way; window: boolean }> {
   const lang = ctx.uiLang();
   const a = missing[0]!;
   const hosts = missing.map((m) => m.host);
-  const question = permissionText(ctx, a, way, c);
+  const ways = waysHere(ctx, c, a, way);
+  // the window's main choice: the way this command needs, else the other way offered (only two choices fit a window)
+  const main: "slow" | "browser" = ways.includes(way) ? way : ((ways.find((w) => w !== "manual") as "slow" | "browser" | undefined) ?? way);
+  const question = permissionText(ctx, a, main, c);
   const p = paceFor(ctx, a.host, c);
-  const allowLabel = ui(lang, way === "browser" ? "ui.archive.btn.browser" : "ui.archive.btn.slow");
-  // the person in their own terminal: the choice right here (Enter: later, nothing changes)
+  const allowLabel = ui(lang, main === "browser" ? "ui.archive.btn.browser" : "ui.archive.btn.slow");
+  const decided = (chosen: Way) => {
+    grantWay(ctx.env, hosts, chosen, { by: "terminal", connector: c });
+    routeFollows(ctx, c, chosen);
+  };
+  // the person in their own terminal: the choice right here, the ways the menu offers (Enter: later, nothing changes)
   if (ctx.interactive && !agentRuns(ctx)) {
     ctx.io.stdout(`\n${question}\n`);
-    const i = await ctx.choose(
-      ui(lang, "ui.archive.choose", { title: a.title ?? a.host }),
-      [{ label: ui(lang, way === "browser" ? "ui.archive.way.browser" : "ui.archive.way.slow", { seconds: p.minIntervalMs / 1000, n: Number.isFinite(p.perHour) ? p.perHour : "∞" }) }, { label: ui(lang, "ui.archive.way.manual") }],
-      2,
-      { back: ui(lang, "ui.archive.way.later") },
-    );
-    if (i === 0 || i === 1) {
-      const chosen: Way = i === 0 ? way : "manual";
-      grantWay(ctx.env, hosts, chosen, { by: "terminal", connector: c });
+    const labels = ways.map((w) => ({ label: ui(lang, w === "slow" ? "ui.archive.way.slow" : w === "browser" ? "ui.archive.way.browser" : "ui.archive.way.manual", { seconds: p.minIntervalMs / 1000, n: Number.isFinite(p.perHour) ? p.perHour : "∞" }) }));
+    const i = await ctx.choose(ui(lang, "ui.archive.choose", { title: a.title ?? a.host }), labels, labels.length, { back: ui(lang, "ui.archive.way.later") });
+    if (i !== undefined && ways[i]) {
+      const chosen = ways[i]!;
+      decided(chosen);
       for (const line of wokenLines(lang, wakeAfterDecision(ctx, hosts, chosen), rootHere(ctx))) ctx.io.stdout(`${line}\n`);
       return { way: chosen, window: false };
     }
@@ -329,9 +357,9 @@ async function askPerson(ctx: Context, c: Connector, missing: ArchiveLevel[], wa
     const text: ChoiceText = {
       title: ui(lang, "ui.dialog.title"),
       // short: what the terms do, the way and its pace, where to change it — Enter takes the recommended way
-      question: windowText(ctx, a, way, c),
+      question: windowText(ctx, a, main, c),
       choices: [
-        { key: way, label: allowLabel },
+        { key: main, label: allowLabel },
         { key: "manual", label: ui(lang, "ui.archive.btn.manual") },
       ],
       later: ui(lang, "ui.archive.btn.later"),
@@ -339,8 +367,9 @@ async function askPerson(ctx: Context, c: Connector, missing: ArchiveLevel[], wa
     };
     ctx.io.stderr(`${ui(lang, "ui.dialog.waiting", { minutes: String(WAIT_SECONDS / 60), question: ui(lang, "ui.archive.name", { title: a.title ?? a.host, host: a.host }) })}\n`);
     const answer = ctx.io.choice ? ctx.io.choice(text) : systemChoice(text, ctx.env);
-    if (answer === way || answer === "manual") {
+    if (answer === main || answer === "manual") {
       grantWay(ctx.env, hosts, answer, { by: "window", connector: c });
+      routeFollows(ctx, c, answer);
       // the tasks that waited for it elsewhere come back (an agent reads the IDs: they are its work)
       const woken = wakeAfterDecision(ctx, hosts, answer).flatMap((r) => r.woken.map((id) => `${r.name} ${id}`));
       if (woken.length) ctx.io.stderr(`note: the person decided ${hosts.join(", ")} — tasks back in the queue: ${woken.join(", ")}\n`);
@@ -362,8 +391,8 @@ async function askPerson(ctx: Context, c: Connector, missing: ArchiveLevel[], wa
 export async function gateArchive(
   ctx: Context,
   c: Connector,
-  o: { activity: "catalogue" | "images"; route?: Route; images?: string; book?: string; ask?: boolean; readOnly?: boolean; closedOnly?: boolean },
-): Promise<{ levels: ArchiveLevel[]; human: Map<string, Pace> }> {
+  o: { activity: "catalogue" | "images"; route?: Route; images?: string; book?: string; ask?: boolean; readOnly?: boolean; closedOnly?: boolean; reroute?: boolean },
+): Promise<{ levels: ArchiveLevel[]; human: Map<string, Pace>; rerouted?: Way }> {
   const pages = !!c.manifest.browser?.pages;
   const activity = pages && o.activity === "catalogue" ? "pages" : o.activity;
   const route: Route = pages ? "browser" : (o.route ?? "direct");
@@ -425,8 +454,19 @@ export async function gateArchive(
         title: a.title ?? a.host,
         person: !agentRuns(ctx),
         unconfirmed: a.from.includes("new connector"),
-        ways: waysOffered(c, claudeHere(ctx, tree?.config), way, !!a.browserOnly),
+        ways: waysHere(ctx, c, a, way),
         hint: `go on with another source now (another archive, a copy, an index), or the user saves the images by hand: ${byHand(ctx, o.images)} — never round it (another connector, your web tools, the browser)`,
+      });
+    }
+    // the person chose the other way (through the browser, or slowly straight through strom): the connector's route
+    // follows it — the command goes again that way (strom fetch), or says to run it again
+    if (got.way !== way) {
+      const a = missing[0]!;
+      if (o.reroute) return { levels, human: new Map(), rerouted: got.way };
+      throw new UsageError(`the person chose ${WAY_TEXT[got.way]} for ${a.title ?? a.host} (${missing.map((x) => x.host).join(", ")}) — ${c.name} goes ${got.way === "browser" ? "through the browser" : "straight through strom"} from now on; this command did not go`, {
+        hint: "run the same command again",
+        ...(agentRuns(ctx) ? {} : { code: "archive.rerouted" }),
+        params: { title: a.title ?? a.host, way: ui(ctx.uiLang(), got.way === "browser" ? "ui.archive.is.browser" : "ui.archive.is.slow") },
       });
     }
     // decided: as it is now (the agents' browser tools follow at the next conversation or run, which refresh them) —
@@ -509,10 +549,15 @@ register({
     if (!target && !opts.accept) {
       const s = { ...loadArchives(ctx.env), pending: pendingQuestions(ctx.env) };
       const rows = Object.entries(s.archives).sort(([a], [b]) => a.localeCompare(b));
+      // every way the question offers, as a fetch's hint, the menu and the bridge offer them (waysOffered)
+      const tree = ctx.hasTree() ? ctx.tree() : undefined;
+      const all = listConnectors(shared(ctx), ctx.env);
+      const claude = claudeHere(ctx, tree?.config);
+      const ways = (p: PendingQuestion) => waysOffered(connectorFor(all, p.host!, p.connector), claude, p.way, !!p.browserOnly).join("|");
       return {
         text: lines(
           rows.length ? table(rows.map(([h, r]) => [h, r.way ? WAY_TEXT[r.way] : "no permission", r.floor ? `level ≥ ${r.floor}` : "", Object.keys(r.seen ?? {}).join(", ")])) : "no archive decided yet",
-          s.pending.length ? `waiting for the person: ${s.pending.map((p) => p.kind === "takeover" ? `confirm the connectors taken over (${p.connectors?.join(", ")}): strom allow archive --accept` : p.kind === "milder" ? `${p.connector} says ${p.host} allows ${p.to} (kept ${p.from}): strom allow archive ${p.connector} --accept` : `${p.title ?? p.host}: strom allow archive ${p.host} --way ${p.way}`).join(" · ")}` : undefined,
+          s.pending.length ? `waiting for the person: ${s.pending.map((p) => p.kind === "takeover" ? `confirm the connectors taken over (${p.connectors?.join(", ")}): strom allow archive --accept` : p.kind === "milder" ? `${p.connector} says ${p.host} allows ${p.to} (kept ${p.from}): strom allow archive ${p.connector} --accept` : `${p.title ?? p.host}: strom allow archive ${p.host} --way ${ways(p)}`).join(" · ")}` : undefined,
         ),
         data: { archives: s.archives, pending: s.pending },
       };
@@ -560,7 +605,13 @@ register({
     if (opts.revoke) {
       ctx.requireHuman(`Forget the permission for ${title} (${hosts.join(", ")})?`, `strom allow archive ${target} --revoke`, `archive:${hosts.join(",")}`, ui(lang, "ui.archive.revoke", { title }));
       revokeWay(ctx.env, hosts);
-      return { text: `${hosts.join(", ")}: permission forgotten — the person is asked again at the next need`, data: { hosts, way: null } };
+      // no question waits for the archive now: a task that waited only for the decision comes back to the queue (its
+      // fetch asks at the real need); one that waits for images saved by hand keeps waiting
+      const woken = wakeAfterDecision(ctx, hosts, "manual");
+      return {
+        text: lines(`${hosts.join(", ")}: permission forgotten — the person is asked again at the next need`, ...wokenLines(lang, woken, rootHere(ctx))),
+        data: { hosts, way: null, woken: woken.map((r) => ({ tree: r.name, path: r.root, woken: r.woken, inbox: r.inbox, kept: r.kept })) },
+      };
     }
     if (!way) throw new UsageError("what to decide: --way slow|browser|manual, --revoke, --level <level> or --accept", { hint: `strom allow archive ${target} --way slow` });
     // the levels: a permission does nothing where the terms give no images (manual, forbidden) — that is a level to lift

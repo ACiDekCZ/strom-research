@@ -18,7 +18,7 @@ import { lines, moreLine, paginate, runs, shellArg, table } from "../cli/format.
 import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import { deadlineOf, REMIND_MS } from "../core/clock.ts";
 import { isAgent } from "../core/which.ts";
-import { RECORD_TYPES, type Media, type RecordSet, type Region, type Repository, type Search, type Source } from "../core/model.ts";
+import { RECORD_TYPES, type Media, type RecordSet, type Region, type Repository, type Search, type Source, type Task } from "../core/model.ts";
 import { requireRecord } from "../core/records.ts";
 import { guardIndexFirst } from "../core/indexfirst.ts";
 import { readable } from "../core/text.ts";
@@ -97,7 +97,8 @@ import {
 import { registerImages } from "./media.ts";
 import { FetchMeter, metricsDir, recordFetch, requestsPerImage, webDomain } from "../core/metrics.ts";
 import { siteConnector } from "../core/web.ts";
-import { allows, grantWay, keyHost, latchedPace, liftRefusal, loadArchives, pendingQuestions, type ArchiveLevel } from "../core/terms.ts";
+import { allows, forgetConnector, grantWay, keyHost, latchedPace, liftRefusal, loadArchives, pendingQuestions, termsFor, type ArchiveLevel } from "../core/terms.ts";
+import { waitsOnHost } from "../core/archivewait.ts";
 import { waysOffered } from "../core/archiveasks.ts";
 import { archivesOverview, checkEnvironment, gateArchive, levelsOf, levelText, NeedsPermissionError, permissionText, robotsPermits, syncTrees, taskHere, verdictKeeper } from "./archives.ts";
 import { currentSession } from "../core/session.ts";
@@ -954,7 +955,16 @@ register(
       delete all.connectors[name];
       saveConsents(ctx.env, all);
       const forgot = removeLogin(ctx.env, name);
+      const hosts = (() => {
+        try {
+          return readManifest(dir, ctx.env).hosts;
+        } catch {
+          return [];
+        }
+      })();
+      const since = madeAt(dir);
       fs.rmSync(dir, { recursive: true, force: true });
+      forgetItsArchives(ctx, name, hosts, since);
       return { text: `connector ${name} removed${forgot ? ", and your login for it forgotten" : ""} — hosts you allowed stay allowed (strom consents)`, data: { removed: name } };
     },
   },
@@ -1002,8 +1012,17 @@ register(
         delete all.connectors[name];
         saveConsents(ctx.env, all);
       }
+      const hosts = (() => {
+        try {
+          return readManifest(dir, ctx.env).hosts;
+        } catch {
+          return [];
+        }
+      })();
       fs.rmSync(dir, { recursive: true, force: true });
       fs.rmSync(marker, { force: true });
+      // what only it brought into the person's archives goes with it (a person's decision stays)
+      forgetItsArchives(ctx, name, hosts, made.at);
       return {
         text: lines(
           `connector ${name} taken away (${ctx.display(dir)})`,
@@ -1405,7 +1424,9 @@ register(
         ctx.requireHuman(`Set the pace of ${host}: ${paceText(next)}?`, `strom allow host ${host}${opts.pace !== undefined ? ` --pace ${opts.pace}` : ""}${opts["per-hour"] !== undefined ? ` --per-hour ${opts["per-hour"]}` : ""}`, `pace:${host}`, ui(lang, "ui.consent.host.pace", { host, seconds: next.minIntervalMs / 1000, cap: Number.isFinite(next.perHour) ? ui(lang, "ui.pace.cap", { n: next.perHour }) : ui(lang, "ui.pace.nocap") }));
         const s = setOwnPace(netDir(ctx), host, own);
         const now = paceAt(ctx, host, c);
-        return { text: `${host}: ${paceText(now)}${s.own ? " — yours" : " — the service's again"}`, data: { host, pace: { minIntervalMs: now.minIntervalMs, perHour: Number.isFinite(now.perHour) ? now.perHour : null }, own: s.own ?? null } };
+        // what the person reads, in the research language (as strom allow archive says its decision)
+        const words = ui(lang, "ui.pace.text", { seconds: now.minIntervalMs / 1000, cap: Number.isFinite(now.perHour) ? ui(lang, "ui.pace.cap", { n: now.perHour }) : ui(lang, "ui.pace.nocap") });
+        return { text: ui(lang, s.own ? "ui.host.pace.own" : "ui.host.pace.service", { host, pace: words }), data: { host, pace: { minIntervalMs: now.minIntervalMs, perHour: Number.isFinite(now.perHour) ? now.perHour : null }, own: s.own ?? null } };
       }
       const how = ctx.requireHuman(
         `${opts.revoke ? "Take back" : opts.unblock ? "Lift the refusal or the used-up limit of" : "Allow"} automated access to ${host}?`,
@@ -1417,7 +1438,7 @@ register(
       if (opts.revoke) {
         delete all.hosts[host];
         saveConsents(ctx.env, all);
-        return { text: `${host}: consent taken back — no connector reaches it now`, data: { host, allowed: false } };
+        return { text: ui(lang, "ui.host.revoked", { host }), data: { host, allowed: false } };
       }
       if (opts.unblock) {
         // the person's question and answer, in their language (a refusal, or a limit the host said is used up)
@@ -1429,7 +1450,7 @@ register(
       }
       const c = listConnectors(ctx.settings.shared()?.value).find((x) => x.manifest.hosts.some((h) => hostAllowed(host, [h])));
       const ok = await askHost(ctx, host, c, how === "window");
-      return { text: ok ? `${host}: automated access allowed (strom consents)` : "not allowed — nothing changed", data: { host, allowed: ok } };
+      return { text: ui(lang, ok ? "ui.host.allowed" : "ui.host.notallowed", { host }), data: { host, allowed: ok } };
     },
   },
   {
@@ -1516,6 +1537,36 @@ register(
     },
   },
 );
+
+/**
+ * A connector taken away: what only it brought into the person's archives goes with it (core/terms.ts forgetConnector) —
+ * a host another connector here reaches, one strom's known terms name, or one whose question tasks wait on stays; so
+ * does a level strom kept before the connector was made (`since`) or from another one's reading.
+ */
+function forgetItsArchives(ctx: Context, name: string, hosts: string[], since: string | undefined): string[] {
+  const others = listConnectors(shared(ctx), ctx.env).filter((x) => x.name !== name);
+  const trees: Tree[] = [];
+  for (const k of ctx.knownTrees()) {
+    try {
+      trees.push(Tree.open(k.root, ctx.env));
+    } catch {
+      // a tree strom cannot open now: its tasks are not looked at
+    }
+  }
+  if (ctx.hasTree() && !trees.some((t) => t.root === ctx.tree().root)) trees.push(ctx.tree());
+  const waits = (h: string) => trees.some((t) => t.list<Task>("task").some((x) => waitsOnHost(t, x, h) === "decision"));
+  return forgetConnector(ctx.env, name, [...new Set(hosts.map(bareHost))], (h) => others.some((x) => x.manifest.hosts.some((o) => hostAllowed(h, [o]))) || !!termsFor(ctx.env, h) || waits(h), since);
+}
+
+/** When a connector's folder was made (its birth, where the file system keeps one): a level strom kept before it is not its own. */
+function madeAt(dir: string): string | undefined {
+  try {
+    const ms = fs.lstatSync(dir).birthtimeMs;
+    return ms > 0 ? new Date(Math.floor(ms)).toISOString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function need(v: string | undefined, what: string): string {
   if (!v) throw new UsageError(`give ${what}`, { hint: "strom fetch <connector> <book> --images 40-69 --recordset B… · or --find <place>" });
@@ -1870,7 +1921,7 @@ function fromStore(ctx: Context, c: Connector, request: Extract<ConnectorRequest
 }
 
 /** strom fetch, once the request is known: checked against the archive's terms, then through strom or the user's browser. */
-async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, recordset: string | undefined, noIndex = false): Promise<Result> {
+async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, recordset: string | undefined, noIndex = false, again = false): Promise<Result> {
   const tree = ctx.tree();
   const via = routeOf(ctx.env, c).via;
   const images = request.cmd === "fetch" || request.cmd === "part";
@@ -1906,7 +1957,10 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     if (held) return fromStore(ctx, c, request, recordset, held, via);
   }
   // the person's permission where the terms restrict automation (asked once; else the question waits in the menu)
-  const gate = tree.dryRun ? { human: new Map<string, Pace>() } : await gateArchive(ctx, c, { activity: images ? "images" : "catalogue", route, ...(wanted ? { images: wanted } : {}), ...(book ? { book } : {}) });
+  const gate = tree.dryRun ? { human: new Map<string, Pace>() } : await gateArchive(ctx, c, { activity: images ? "images" : "catalogue", route, ...(wanted ? { images: wanted } : {}), ...(book ? { book } : {}), reroute: !again });
+  // the person chose the other way at its question (through the browser, or slowly straight through strom): the
+  // connector's route follows it, and the fetch goes that way
+  if ("rerouted" in gate && gate.rerouted) return fetchWith(ctx, c, request, recordset, noIndex, true);
   if (tree.dryRun) {
     // a dry run never contacts the archive, nor asks for consent
     const what =
