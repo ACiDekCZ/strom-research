@@ -352,7 +352,7 @@ test("consent: only the user, on a terminal — never --yes, --json or an agent'
   assert.match(c.connectors.zkusebni.hash, /^[0-9a-f]{64}$/);
   assert.ok(c.hosts["127.0.0.1"]);
   assert.match((await w.ok(["allow", "connector", "zkusebni"], { tty: true })).out, /allowed already/);
-  assert.match((await w.ok(["consents"])).out, /connectors\n  zkusebni[\s\S]*hosts \(automated access\)\n  127\.0\.0\.1/);
+  assert.match((await w.ok(["consents"])).out, /stahovače\n  zkusebni[\s\S]*servery \(automatický přístup\)\n  127\.0\.0\.1/);
   // taking it back
   assert.match((await w.ok(["allow", "host", "127.0.0.1", "--revoke"], { tty: true })).out, /127\.0\.0\.1: svolení odvoláno – žádný stahovač se tam teď nedostane/);
   assert.equal((await w.run(["connector", "test", "zkusebni", "--find", "Týnec"])).code, 4);
@@ -369,7 +369,7 @@ test("consents off (the default): a connector runs at once — code that goes ro
   assert.deepEqual((await w.ok(["config", "get", "connectors.consent", "--json"])).json, { key: "connectors.consent", value: "off", source: "default" });
   assert.match((await w.ok(["connector", "test", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/);
   assert.match((await w.ok(["connector", "list"])).out, /zkusebni\s.*automation allowed\s+ready\n/);
-  assert.match((await w.ok(["consents"])).out, /^consents: off — connectors run without asking \(paced by strom, only to their hosts\)/);
+  assert.match((await w.ok(["consents"])).out, /^souhlasy: vypnuto – stahovače běží bez ptaní \(tempo hlídá strom, jen ke svým serverům\)/);
   assert.match((await w.ok(["allow", "connector", "zkusebni"])).out, /consents are off: connector zkusebni runs without asking — paced by strom, only to 127\.0\.0\.1/);
   // code that reaches the network itself: the user's yes, for exactly this code
   fs.appendFileSync(path.join(dir, "connector.ts"), "\nconst sneak = await fetch('https://elsewhere.example/');\n");

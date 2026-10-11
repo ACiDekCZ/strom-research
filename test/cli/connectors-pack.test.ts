@@ -15,11 +15,11 @@ import http from "node:http";
 import { spawnSync } from "node:child_process";
 import type { AddressInfo } from "node:net";
 import { World, hasGit, fakeConnector, pluginDir, readJsonFile } from "../helpers.ts";
-import { testHooks, DEFAULT_PACE } from "../../src/core/net.ts";
+import { testHooks, DEFAULT_PACE, REFUSED_FOREVER } from "../../src/core/net.ts";
 import { encodeJpeg } from "../../src/image/jpeg-encode.ts";
 import { decodeJpeg } from "../../src/image/jpeg-decode.ts";
 import { blank } from "../../src/image/image.ts";
-import { opts, scans, pauses, TILE, archive, world, program, runInTab } from "./connectors.helpers.ts";
+import { opts, scans, pauses, TILE, archive, world, program, runInTab, netFile } from "./connectors.helpers.ts";
 import type { Archive } from "./connectors.helpers.ts";
 
 test("pack and unpack: the research handed over — the tree with its history, the images its records stand on, the connectors; the rest fetched again", opts, async () => {
@@ -199,8 +199,9 @@ test("the pace of a host: strom's pause and no cap made up — the user's own, s
   assert.equal((await w.run(["allow", "host", "127.0.0.1", "--pace", "0.1"], { tty: true })).code, 2, "not below the shortest pause");
   const set = await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5", "--per-hour", "3000"], { tty: true });
   // the person reads it in the research language, as strom allow archive says its decision
-  assert.match(set.out, /127\.0\.0\.1: nejméně 0\.5 s mezi dvěma požadavky, nejvýš 3000 za hodinu – vlastní tempo/);
-  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · at least 0\.5 s apart, at most 3000 an hour \(yours\)/);
+  // a decimal comma in Czech and German, as the language writes it; a point in English
+  assert.match(set.out, /127\.0\.0\.1: nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu – vlastní tempo/);
+  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu \(vlastní tempo\)/);
   assert.match((await w.ok(["connector", "show", "zkusebni"])).out, /pace\s+at least 0\.5 s apart, at most 3000 an hour — yours for the host/);
   const back = await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--per-hour", "auto"], { tty: true });
   assert.match(back.out, /127\.0\.0\.1: nejméně 2 s mezi dvěma požadavky, bez hodinového limitu – zase tempo služby/);
@@ -216,7 +217,7 @@ test("a refusal (403) stops the run and leaves the archive alone — until the u
   assert.match(r.out, /stopped: .*403/);
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 1, "nothing after the refusal");
   // the first request strom ever sent it, refused: a day's pause, as any first refusal (strom's client only a second day)
-  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · ⛔ refused us — left alone until \d{4}-\d\d-\d\d \d\d:\d\d/);
+  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · ⛔ odmítl automatický přístup \(HTTP 403, \d{1,2}\. \d{1,2}\. \d\d:\d\d\) – znovu to strom zkusí až od \d{1,2}\. \d{1,2}\. \d\d:\d\d · /);
   const again = await w.run(["fetch", "zkusebni", "5359", "--images", "1"]);
   assert.equal(again.code, 1, "left alone for the day: nothing goes, not even another book");
   assert.match(again.out + again.err, /left alone|until \d{4}-|stopped/);
@@ -235,6 +236,112 @@ test("a refusal (403) stops the run and leaves the archive alone — until the u
   assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "2"])).code, 0);
   w.cleanup();
   await a.close();
+});
+
+test("strom consents speaks the research language — each host, archive, level and pace in Czech and German, English as before, --json the same", opts, async () => {
+  const { w, a } = await world();
+  await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5", "--per-hour", "3000"], { tty: true });
+  assert.equal((await w.run(["fetch", "zkusebni", "zakazana", "--images", "1"])).code, 1, "a refusal (403): left alone for a day");
+  const english = /consents: (on|off)|connectors run|refused us|left alone|at least|apart|an hour|hosts \(automated|archives \(what|the service's pace|take back|\(none\)|  allowed  /;
+  // the research's language (Czech): every line, the date as the menu says it
+  const cs = (await w.ok(["consents"])).out;
+  assert.match(cs, /^souhlasy: vypnuto – stahovače běží bez ptaní \(tempo hlídá strom, jen ke svým serverům\)/);
+  // the refusal said once — why, its details in one parenthesis, then what strom does — and never "us"
+  assert.match(cs, /\nstahovače\n  \(žádné\)\nservery \(automatický přístup\)\n  127\.0\.0\.1 · ⛔ odmítl automatický přístup \(HTTP 403, \d{1,2}\. \d{1,2}\. \d\d:\d\d\) – znovu to strom zkusí až od \d{1,2}\. \d{1,2}\. \d\d:\d\d · požadavků za poslední hodinu: \d+ · /);
+  assert.match(cs, /nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu \(vlastní tempo\)\narchivy \(co jejich podmínky stromu dovolují: dovoleno · omezeno · jen ručně · zakázáno; neznámé jako omezeno\)\n/);
+  assert.match(cs, /\n  127\.0\.0\.1  zkusebni  dovoleno · tempo služby: nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu\n/);
+  assert.doesNotMatch(cs, /0\.5 s/);
+  assert.match(cs, /\ntempo: na každý server jeden požadavek po druhém – .*jinak nejméně 2 s mezi požadavky;/);
+  assert.match(cs, /\nvzít zpět: strom allow connector <name> --revoke · strom allow host <host> --revoke · strom allow archive <host> --revoke\n$/);
+  assert.doesNotMatch(cs, english);
+  const de = (await w.ok(["consents", "--lang", "de"])).out;
+  assert.match(de, /^Zustimmungen: aus – Downloader laufen ohne Nachfrage/);
+  assert.match(de, /\n {2}127\.0\.0\.1 · ⛔ hat den automatischen Zugriff abgelehnt \(HTTP 403, \d{1,2}\.\d{1,2}\. \d\d:\d\d\) – strom versucht es erst wieder ab \d{1,2}\.\d{1,2}\. \d\d:\d\d · /);
+  assert.match(de, /mindestens 0,5 s zwischen zwei Anfragen, höchstens 3000 pro Stunde \(eigenes Tempo\)/);
+  assert.match(de, /\n {2}127\.0\.0\.1 {2}zkusebni {2}erlaubt · Tempo des Dienstes: mindestens 0,5 s/);
+  assert.doesNotMatch(de, /0\.5 s/);
+  assert.match(de, /\nzurücknehmen: strom allow connector <name> --revoke/);
+  assert.doesNotMatch(de, english);
+  // English as it read before, only impersonal now
+  const en = (await w.ok(["consents", "--lang", "en"])).out;
+  assert.match(en, /^consents: off — connectors run without asking \(paced by strom, only to their hosts\); code that goes round strom needs the person's yes/);
+  assert.match(en, /\nconnectors\n {2}\(none\)\nhosts \(automated access\)\n {2}127\.0\.0\.1 · ⛔ refused automated access \(HTTP 403, \d{4}-\d\d-\d\d \d\d:\d\d\) — strom tries again only from (\d{4}-\d\d-\d\d )?\d\d:\d\d · /);
+  // the reason once, no "us"/"uns"/"nás" in any language
+  for (const [out, why] of [[cs, /odmítl/g], [de, /abgelehnt|abgewiesen/g], [en, /refused/g]] as const) {
+    const line = out.split("\n").find((l) => l.includes("⛔"))!.split(" · ")[1]!;
+    assert.equal(line.match(why)?.length, 1, line);
+    assert.equal(line.match(/\(/g)?.length, 1, "the details in one parenthesis: " + line);
+    assert.doesNotMatch(line, /(^|[^\p{L}\p{M}])(nás|uns|us)(?![\p{L}\p{M}])/u, line);
+  }
+  assert.match(en, /at least 0\.5 s apart, at most 3000 an hour \(the person's own\)\narchives \(what their terms let strom do: allowed · restricted · manual · forbidden; unknown as restricted\)\n {2}127\.0\.0\.1 {2}zkusebni {2}allowed · the service's pace at least 0\.5 s apart, at most 3000 an hour\n/);
+  assert.match(en, /\ntake back: strom allow connector <name> --revoke/);
+  assert.doesNotMatch(en, /\b(you|your|yours)\b/);
+  // --json: what it always was, whatever the language
+  const json = (await w.ok(["consents", "--json"])).json;
+  assert.deepEqual((await w.ok(["consents", "--json", "--lang", "de"])).json, json);
+  assert.deepEqual(Object.keys(json).sort(), ["archives", "connectors", "consents", "hostState", "hosts", "logins", "pending"]);
+  assert.equal(json.consents, "off");
+  assert.deepEqual(json.archives.map((x: { host: string; connector: string; level: string; pace: unknown }) => [x.host, x.connector, x.level, x.pace]), [["127.0.0.1", "zkusebni", "allowed", { minIntervalMs: 500, perHour: 3000 }]]);
+  assert.ok(json.hostState["127.0.0.1"].blockedUntil > Date.now());
+  w.cleanup();
+  await a.close();
+});
+
+test("strom consents: every kind of refusal said once — why, its details in one parenthesis, what strom does — never \"us\", a slowdown and a pace with the language's decimal comma", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  const day = Date.now() + 20 * 3600_000;
+  const states: Record<string, Record<string, unknown>> = {
+    "client.example.org": { refusedKind: "client", blockedUntil: REFUSED_FOREVER, reason: "it refused strom's client (HTTP 403 at 2026-10-11 15:44)" },
+    "client-old.example.org": { refusedKind: "client", blockedUntil: REFUSED_FOREVER, reason: "it refused strom's client (HTTP 403)" },
+    "first.example.org": { refusedKind: "first", blockedUntil: day, reason: "it refused us (HTTP 403 at 2026-10-11 15:44)" },
+    "load.example.org": { refusedKind: "load", blockedUntil: day, reason: "it refused us (HTTP 401 at 2026-10-11 15:44)" },
+    "login.example.org": { refusedKind: "login", blockedUntil: day, reason: "it refused us (HTTP 401 at 2026-10-11 15:44)" },
+    "slow.example.org": { blockedUntil: day, reason: "it asked us to slow down twice (HTTP 429 at 2026-10-11 15:44)", slowdown: 1.5 },
+    "silent.example.org": { blockedUntil: day, reason: "no answer at 2026-10-11 15:44 — the server is down, or it blocks this IP" },
+    "browser.example.org": { blockedUntil: day, reason: "it refused the browser (HTTP 403 at 2026-10-11 15:44)" },
+    "browser-slow.example.org": { blockedUntil: day, reason: "it asked the browser to slow down (HTTP 429 at 2026-10-11 15:44)" },
+    "none.example.org": { refusedKind: "first", blockedUntil: day },
+  };
+  for (const [host, s] of Object.entries(states)) {
+    fs.mkdirSync(path.dirname(netFile(w, host)), { recursive: true });
+    fs.writeFileSync(netFile(w, host), JSON.stringify({ recent: [], ...s }));
+  }
+  const said = { cs: /odmítl|požádal|bez odpovědi/g, de: /abgelehnt|gebeten|keine Antwort/g, en: /refused|asked|no answer/g };
+  const outs: Record<string, string> = {};
+  for (const lang of ["cs", "de", "en"] as const) {
+    const out = (outs[lang] = (await w.ok(["consents", "--lang", lang])).out);
+    const refused = out.split("\n").filter((l) => l.includes("⛔"));
+    assert.equal(refused.length, Object.keys(states).length, out);
+    for (const line of refused) {
+      const part = line.split(" · ")[1]!;
+      assert.equal(part.match(said[lang])?.length, 1, `the reason once: ${part}`);
+      assert.ok((part.match(/\(/g)?.length ?? 0) <= 1, `its details in one parenthesis: ${part}`);
+      assert.doesNotMatch(part, /(^|[^\p{L}\p{M}])(nás|uns|us)(?![\p{L}\p{M}])/u, part);
+      assert.doesNotMatch(part, /it refused|it asked|left alone|nesahá|in Ruhe/, part);
+    }
+  }
+  const { cs, de, en } = outs as { cs: string; de: string; en: string };
+  // a refusal of strom's client: until the person lifts it
+  assert.match(cs, /\n  client\.example\.org · ⛔ odmítl automatický přístup stromu \(HTTP 403, \d{1,2}\. \d{1,2}\. 15:44\) – strom to znovu nezkusí, dokud to člověk nezruší: strom allow host client\.example\.org --unblock · /);
+  assert.match(cs, /\n  client-old\.example\.org · ⛔ odmítl automatický přístup stromu \(HTTP 403\) – strom to znovu nezkusí, dokud to člověk nezruší: /);
+  assert.match(de, /\n  client\.example\.org · ⛔ hat den automatischen Zugriff von strom abgelehnt \(HTTP 403, \d{1,2}\.\d{1,2}\. 15:44\) – strom versucht es nicht wieder, bis ein Mensch es aufhebt: strom allow host client\.example\.org --unblock · /);
+  assert.match(en, /\n  client\.example\.org · ⛔ refused strom's automated access \(HTTP 403, 2026-10-11 15:44\) — strom will not try again until the person lifts it: strom allow host client\.example\.org --unblock · /);
+  // a day's pause: the moment it ends
+  assert.match(cs, /\n  first\.example\.org · ⛔ odmítl automatický přístup \(HTTP 403, \d{1,2}\. \d{1,2}\. 15:44\) – znovu to strom zkusí až od [^·]+ · /);
+  assert.match(cs, /\n  login\.example\.org · ⛔ odmítl přihlášení \(HTTP 401, [^)]+\) – znovu to strom zkusí až od /);
+  assert.match(cs, /\n  none\.example\.org · ⛔ odmítl automatický přístup – znovu to strom zkusí až od /);
+  assert.match(cs, /\n  silent\.example\.org · ⛔ bez odpovědi \(\d{1,2}\. \d{1,2}\. 15:44; server neběží, nebo blokuje IP adresu tohoto počítače\) – znovu to strom zkusí až od /);
+  assert.match(cs, /\n  slow\.example\.org · ⛔ dvakrát požádal o zpomalení \(HTTP 429, [^)]+\) – znovu to strom zkusí až od [^·]+ · zpomaleno ×1,5 · /);
+  assert.match(de, /\n  load\.example\.org · ⛔ hat den automatischen Zugriff abgelehnt \(HTTP 401, \d{1,2}\.\d{1,2}\. 15:44\) – strom versucht es erst wieder ab /);
+  assert.match(de, /\n  browser\.example\.org · ⛔ hat den Browser abgelehnt \(HTTP 403, [^)]+\) – strom versucht es erst wieder ab /);
+  assert.match(en, /\n  first\.example\.org · ⛔ refused automated access \(HTTP 403, 2026-10-11 15:44\) — strom tries again only from (\d{4}-\d\d-\d\d )?\d\d:\d\d · /);
+  assert.match(en, /\n  browser-slow\.example\.org · ⛔ asked the browser to slow down \(HTTP 429, 2026-10-11 15:44\) — strom tries again only from /);
+  assert.match(en, /· slowed ×1\.5 · /);
+  // the pace: a decimal comma in Czech and German, a point in English
+  assert.match(cs, /nejméně 2 s mezi dvěma požadavky/);
+  assert.doesNotMatch(cs + de, /\d\.\d+ s\b|×\d\.\d/);
+  w.cleanup();
 });
 
 test("what the portal and the tree allow: manual stays manual, a forbidden archive is not fetched", opts, async () => {

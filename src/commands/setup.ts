@@ -7,7 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { APP_URL_INVALID_SETTING, register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, table } from "../cli/format.ts";
+import { lines, secondsIn, table } from "../cli/format.ts";
 import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import type { Input, Media, TreeConfig } from "../core/model.ts";
@@ -978,7 +978,7 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
       `Set the pace for the images of archives that restrict automation: at least ${pace.minIntervalMs / 1000} s apart, at most ${pace.perHour} an hour?`,
       value === undefined ? "strom config unset archive.pace" : `strom config set archive.pace "${value}"`,
       "archive.pace",
-      ui(ctx.uiLang(), "ui.consent.archive.pace", { seconds: pace.minIntervalMs / 1000, n: pace.perHour }),
+      ui(ctx.uiLang(), "ui.consent.archive.pace", { seconds: secondsIn(ctx.uiLang(), pace.minIntervalMs), n: pace.perHour }),
     );
   }
   writeStored(s.config, key, s.agent(treeSettings(ctx)).value, value);

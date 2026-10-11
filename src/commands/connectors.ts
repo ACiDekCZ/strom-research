@@ -11,10 +11,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { ui } from "../cli/ui.ts";
+import { UI, ui, type UIKey } from "../cli/ui.ts";
+import { humanDay, humanWhen } from "../cli/human.ts";
 import { register, type Result } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, moreLine, paginate, runs, shellArg, table } from "../cli/format.ts";
+import { lines, moreLine, numberIn, paginate, runs, secondsIn, shellArg, table } from "../cli/format.ts";
 import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import { deadlineOf, REMIND_MS } from "../core/clock.ts";
 import { isAgent } from "../core/which.ts";
@@ -30,7 +31,7 @@ import { runGit } from "../core/git.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { Tree } from "../core/tree.ts";
 import { syncAgentFiles } from "../agents/files.ts";
-import { CAP_WARN, capNear, clearBlock, clock, CookieJar, DEFAULT_PACE, hostAllowed, hostPace, hostState, knownHosts, leftUntil, MIN_INTERVAL_MS, NetError, paceText, politeRequest, refusedBy, reserveSlots, setOwnPace, testHooks, type Pace, type ServicePace } from "../core/net.ts";
+import { CAP_WARN, capNear, clearBlock, clock, CookieJar, DEFAULT_PACE, hostAllowed, hostPace, hostState, knownHosts, leftUntil, MIN_INTERVAL_MS, NetError, paceText, politeRequest, REFUSED_FOREVER, refusedBy, reserveSlots, setOwnPace, testHooks, type Pace, type RefusedKind, type ServicePace } from "../core/net.ts";
 import { match, optionsOf } from "../cli/registry.ts";
 import {
   botCheck,
@@ -289,16 +290,68 @@ function pacing(ctx: Context, c: Connector, human: Map<string, Pace>): { paceFor
   };
 }
 
-function hostLine(ctx: Context, host: string): string {
+/** A day of a consent in the person's words: English as it always read (2026-10-11), the others as their menu says it. */
+function consentDay(lang: string, iso: string): string {
+  return lang === "en" ? iso.slice(0, 10) : humanDay(iso, lang);
+}
+
+/** A moment (a refusal's end, a used-up limit) in the person's words: English on strom's clock, the others as their menu says it. */
+function consentMoment(lang: string, ms: number): string {
+  return lang === "en" ? clock(ms) : humanWhen(new Date(ms).toISOString(), lang);
+}
+
+/** A pace as strom consents says it: "at least 2 s apart, at most 120 an hour" — in the person's language. */
+function consentPace(lang: string, pace: Pace | { minIntervalMs: number; perHour: number | null }): string {
+  const n = pace.perHour;
+  return ui(lang, "ui.consents.pace", { seconds: secondsIn(lang, pace.minIntervalMs), cap: n !== null && Number.isFinite(n) ? ui(lang, "ui.pace.cap", { n }) : ui(lang, "ui.pace.nocap") });
+}
+
+/**
+ * Why a host is left alone, as the limiter wrote it (core/net.ts, in English, its moment on strom's stamp) — said once,
+ * in the person's language, its details (the HTTP status, when) in one parenthesis; without "us" (a refusal of
+ * automated access, as Settings → Archives says it). A reason that is none of the limiter's own: as it is; none at
+ * all: what the refusal's kind says.
+ */
+function refusalReason(lang: string, reason: string | undefined, kind: RefusedKind | undefined): string {
+  const at = (s: string | undefined) => {
+    if (!s || lang === "en") return s;
+    const m = /^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d)$/.exec(s);
+    return m ? humanWhen(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5])).toISOString(), lang) : s;
+  };
+  const said = (key: UIKey, status?: string, when?: string) => {
+    const details = [status ? `HTTP ${status}` : "", at(when) ?? ""].filter(Boolean).join(", ");
+    return ui(lang, key, { details }).replace(/ \(\)/, "");
+  };
+  const refused: UIKey = kind === "client" ? "ui.consents.reason.client" : kind === "login" ? "ui.consents.reason.login" : "ui.consents.reason.refused";
+  if (!reason) return said(refused);
+  const known: [RegExp, UIKey][] = [
+    [/^it refused strom's client \(HTTP (\d+)(?: at (.+))?\)$/, "ui.consents.reason.client"],
+    [/^it refused us \(HTTP (\d+)(?: at (.+))?\)$/, refused],
+    [/^it refused the browser \(HTTP (\d+)(?: at (.+))?\)$/, "ui.consents.reason.browser"],
+    [/^it asked us to slow down twice \(HTTP (429)(?: at (.+))?\)$/, "ui.consents.reason.slow"],
+    [/^it asked the browser to slow down \(HTTP (429)(?: at (.+))?\)$/, "ui.consents.reason.browser.slow"],
+    [/^no answer at ()(.+) — the server is down, or it blocks this IP$/, "ui.consents.reason.silent"],
+  ];
+  for (const [re, key] of known) {
+    const m = re.exec(reason);
+    if (m) return said(key, m[1], m[2]);
+  }
+  return reason;
+}
+
+/** How a host is doing (refused, requests of the last hour, slowed, its limit used up, its pace) — in `lang` (strom consents: the research language). */
+function hostLine(ctx: Context, host: string, lang = "en"): string {
   const s = hostState(netDir(ctx), host);
   const hour = s.recent.filter((t) => t > Date.now() - 3600_000).length;
+  const pace = consentPace(lang, paceAt(ctx, host));
+  const reason = refusalReason(lang, s.reason, s.refusedKind);
   return [
     host,
-    s.blockedUntil && s.blockedUntil > Date.now() ? `⛔ ${s.refusedKind === "client" ? "refused strom's client" : "refused us"} — left alone ${leftUntil(host, s.blockedUntil)} (${s.reason ?? ""})` : "",
-    hour ? `${hour} request(s) in the last hour` : "",
-    (s.slowdown ?? 1) > 1 ? `slowed ×${(s.slowdown ?? 1).toFixed(1)}` : "",
-    s.waitUntil && s.waitUntil > Date.now() ? `its limit used up until ${clock(s.waitUntil)}` : "",
-    `${paceText(paceAt(ctx, host))}${s.own ? " (yours)" : ""}`,
+    s.blockedUntil && s.blockedUntil > Date.now() ? (s.blockedUntil >= REFUSED_FOREVER ? ui(lang, "ui.consents.host.refused.lifted", { reason, host }) : ui(lang, "ui.consents.host.refused", { reason, when: consentMoment(lang, s.blockedUntil) })) : "",
+    hour ? ui(lang, "ui.consents.host.recent", { n: hour }) : "",
+    (s.slowdown ?? 1) > 1 ? ui(lang, "ui.consents.host.slowed", { factor: numberIn(lang, s.slowdown ?? 1, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false }) }) : "",
+    s.waitUntil && s.waitUntil > Date.now() ? ui(lang, "ui.consents.host.limit", { when: consentMoment(lang, s.waitUntil) }) : "",
+    s.own ? ui(lang, "ui.consents.pace.own", { pace }) : pace,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -1421,11 +1474,11 @@ register(
         }
         const c = listConnectors(ctx.settings.shared()?.value).find((x) => x.manifest.hosts.some((h) => hostAllowed(host, [h])));
         const next = hostPace({ recent: [], own: { ...own, at: "" } }, c?.manifest.policy.pace);
-        ctx.requireHuman(`Set the pace of ${host}: ${paceText(next)}?`, `strom allow host ${host}${opts.pace !== undefined ? ` --pace ${opts.pace}` : ""}${opts["per-hour"] !== undefined ? ` --per-hour ${opts["per-hour"]}` : ""}`, `pace:${host}`, ui(lang, "ui.consent.host.pace", { host, seconds: next.minIntervalMs / 1000, cap: Number.isFinite(next.perHour) ? ui(lang, "ui.pace.cap", { n: next.perHour }) : ui(lang, "ui.pace.nocap") }));
+        ctx.requireHuman(`Set the pace of ${host}: ${paceText(next)}?`, `strom allow host ${host}${opts.pace !== undefined ? ` --pace ${opts.pace}` : ""}${opts["per-hour"] !== undefined ? ` --per-hour ${opts["per-hour"]}` : ""}`, `pace:${host}`, ui(lang, "ui.consent.host.pace", { host, seconds: secondsIn(lang, next.minIntervalMs), cap: Number.isFinite(next.perHour) ? ui(lang, "ui.pace.cap", { n: next.perHour }) : ui(lang, "ui.pace.nocap") }));
         const s = setOwnPace(netDir(ctx), host, own);
         const now = paceAt(ctx, host, c);
         // what the person reads, in the research language (as strom allow archive says its decision)
-        const words = ui(lang, "ui.pace.text", { seconds: now.minIntervalMs / 1000, cap: Number.isFinite(now.perHour) ? ui(lang, "ui.pace.cap", { n: now.perHour }) : ui(lang, "ui.pace.nocap") });
+        const words = ui(lang, "ui.pace.text", { seconds: secondsIn(lang, now.minIntervalMs), cap: Number.isFinite(now.perHour) ? ui(lang, "ui.pace.cap", { n: now.perHour }) : ui(lang, "ui.pace.nocap") });
         return { text: ui(lang, s.own ? "ui.host.pace.own" : "ui.host.pace.service", { host, pace: words }), data: { host, pace: { minIntervalMs: now.minIntervalMs, perHour: Number.isFinite(now.perHour) ? now.perHour : null }, own: s.own ?? null } };
       }
       const how = ctx.requireHuman(
@@ -1463,24 +1516,37 @@ register(
       const names = Object.keys(all.connectors).sort();
       const archives = archivesOverview(ctx);
       const pending = pendingQuestions(ctx.env);
+      // what the person reads, in the research language (as Settings → Archives says it); --json stays as it was
+      const lang = ctx.uiLang();
+      const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
+      const level = (l: string | undefined) => (l && `ui.consents.level.${l}` in UI ? t(`ui.consents.level.${l}` as UIKey) : (l ?? ""));
+      const none = `  ${t("ui.consents.none")}`;
       return {
         text: lines(
-          consentRequired(ctx.env)
-            ? "consents: on — a connector runs only once you allow it, and each archive host it contacts"
-            : "consents: off — connectors run without asking (paced by strom, only to their hosts); code that goes round strom needs your yes · to be asked first: strom config set connectors.consent on",
-          "connectors",
-          ...names.map((n) => `  ${n}  ${ctx.display(all.connectors[n]!.dir)}  since ${all.connectors[n]!.at.slice(0, 10)}  hosts ${all.connectors[n]!.hosts.join(", ")}`),
-          names.length ? undefined : "  (none)",
-          "hosts (automated access)",
-          ...hosts.map((h) => `  ${hostLine(ctx, h)}${all.hosts[h] ? `  · allowed since ${all.hosts[h].at.slice(0, 10)}` : ""}`),
-          hosts.length ? undefined : "  (none)",
-          "archives (what their terms let strom do: allowed · restricted · manual · forbidden; unknown as restricted)",
-          ...archives.map((a) => `  ${a.host}  ${a.connector}  ${a.level}${a.refused ? `  · its server refused strom's client (the server's answer, not the archive's terms) — only the person lifts it: strom allow host ${a.refused} --unblock` : ""}${a.browserOnly ? `  · only through a person's browser${a.robots ? " (its robots.txt)" : ""}` : ""}${a.way ? `  · the user's permission: ${a.way}` : a.level === "restricted" || a.level === "unknown" ? "  · images only with the user's permission" : ""}  · ${a.level === "allowed" || !a.way || a.way === "manual" ? "the service's pace" : "images"} ${paceText({ minIntervalMs: a.pace.minIntervalMs, perHour: a.pace.perHour ?? Infinity })}`),
-          archives.length ? undefined : "  (none)",
-          pending.length ? `waiting for the user's word: ${pending.map((p) => (p.kind === "permission" ? `${p.title ?? p.host} (images)` : p.kind === "takeover" ? `the archives' levels of ${p.connectors?.join(", ")} (strom allow archive --accept)` : `${p.connector} says ${p.host} allows ${p.to}`)).join(" · ")}` : undefined,
-          `pace: one request at a time per host — the service's pace (its connector says it), else ≥${DEFAULT_PACE.minIntervalMs / 1000} s apart; an hourly cap only where the service or you set one; slower while a host answers slowly, a wait when it says its limit is used up; its robots.txt read once a day (the paths it keeps tools off not asked, its Crawl-delay the slowest pace); a refusal stops for a day — one of strom's client until the person lifts it (strom allow host <host> --unblock) · yours for a host: strom allow host <host> --pace <seconds> --per-hour <n>`,
-          Object.keys(loadLogins(ctx.env)).length ? `logins saved (strom login): ${Object.keys(loadLogins(ctx.env)).sort().join(", ")}` : undefined,
-          "take back: strom allow connector <name> --revoke · strom allow host <host> --revoke · strom allow archive <host> --revoke",
+          t(consentRequired(ctx.env) ? "ui.consents.on" : "ui.consents.off"),
+          t("ui.consents.connectors"),
+          ...names.map((n) => `  ${t("ui.consents.connector", { name: n, dir: ctx.display(all.connectors[n]!.dir), date: consentDay(lang, all.connectors[n]!.at), hosts: all.connectors[n]!.hosts.join(", ") })}`),
+          names.length ? undefined : none,
+          t("ui.consents.hosts"),
+          ...hosts.map((h) => `  ${hostLine(ctx, h, lang)}${all.hosts[h] ? ` · ${t("ui.consents.host.since", { date: consentDay(lang, all.hosts[h].at) })}` : ""}`),
+          hosts.length ? undefined : none,
+          t("ui.consents.archives"),
+          ...archives.map((a) =>
+            [
+              `  ${a.host}  ${a.connector}  ${level(a.level)}`,
+              a.refused ? t("ui.consents.archive.refused", { host: a.refused }) : undefined,
+              a.browserOnly ? t(a.robots ? "ui.consents.archive.browser.robots" : "ui.consents.archive.browser") : undefined,
+              a.way ? t("ui.consents.archive.way", { way: t(`ui.consents.way.${a.way}`) }) : a.level === "restricted" || a.level === "unknown" ? t("ui.consents.archive.ask") : undefined,
+              t(a.level === "allowed" || !a.way || a.way === "manual" ? "ui.consents.archive.pace.service" : "ui.consents.archive.pace.images", { pace: consentPace(lang, a.pace) }),
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          ),
+          archives.length ? undefined : none,
+          pending.length ? t("ui.consents.pending", { items: pending.map((p) => (p.kind === "permission" ? t("ui.consents.pending.permission", { title: p.title ?? p.host ?? "" }) : p.kind === "takeover" ? t("ui.consents.pending.takeover", { names: p.connectors?.join(", ") ?? "" }) : t("ui.consents.pending.milder", { connector: p.connector ?? "", host: p.host ?? "", to: level(p.to) }))).join(" · ") }) : undefined,
+          t("ui.consents.pace.about", { seconds: secondsIn(lang, DEFAULT_PACE.minIntervalMs) }),
+          Object.keys(loadLogins(ctx.env)).length ? t("ui.consents.logins", { names: Object.keys(loadLogins(ctx.env)).sort().join(", ") }) : undefined,
+          t("ui.consents.revoke"),
         ),
         data: { consents: consentRequired(ctx.env) ? "on" : "off", ...all, archives, pending, logins: Object.keys(loadLogins(ctx.env)).sort(), hostState: Object.fromEntries(hosts.map((h) => [h, hostState(netDir(ctx), h)])) },
       };

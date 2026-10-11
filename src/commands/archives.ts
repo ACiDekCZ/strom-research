@@ -8,7 +8,7 @@ import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { ui } from "../cli/ui.ts";
-import { lines, shellArg, table } from "../cli/format.ts";
+import { lines, secondsIn, shellArg, table } from "../cli/format.ts";
 import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import { isAgent } from "../core/which.ts";
 import { canShowDialog, systemChoice, WAIT_SECONDS, type ChoiceText } from "../core/dialog.ts";
@@ -269,7 +269,7 @@ export function permissionText(ctx: Context, a: ArchiveLevel, way: "slow" | "bro
   return [
     ui(lang, "ui.archive.name", { title: a.title ?? a.host, host: a.host }),
     termsLine(lang, a),
-    ui(lang, way === "browser" ? "ui.archive.ask.browser" : "ui.archive.ask.slow", { seconds: p.minIntervalMs / 1000, n: Number.isFinite(p.perHour) ? p.perHour : "∞" }),
+    ui(lang, way === "browser" ? "ui.archive.ask.browser" : "ui.archive.ask.slow", { seconds: secondsIn(lang, p.minIntervalMs), n: Number.isFinite(p.perHour) ? p.perHour : "∞" }),
     ui(lang, "ui.archive.ask.change", { host: a.host }),
   ].join("\n\n");
 }
@@ -288,7 +288,7 @@ export function windowText(ctx: Context, a: ArchiveLevel, way: "slow" | "browser
   const robots = a.quoteBy === "robots" || a.browserOnly?.by === "robots";
   const why = robots ? "robots" : a.browserOnly ? "browserOnly" : pages ? "pages" : a.level === "unknown" ? "unknown" : "restricted";
   const terms = robots ? ` (${a.quoteBy === "robots" && a.terms ? a.terms : `https://${a.host}/robots.txt`})` : a.terms ? ` (${a.terms})` : "";
-  return `${ui(lang, `ui.archive.window.${why}`, { title: a.title ?? a.host, terms })}\n\n${ui(lang, way === "browser" ? "ui.archive.window.browser" : "ui.archive.window.slow", { seconds: p.minIntervalMs / 1000 })} ${ui(lang, "ui.archive.window.change")}`;
+  return `${ui(lang, `ui.archive.window.${why}`, { title: a.title ?? a.host, terms })}\n\n${ui(lang, way === "browser" ? "ui.archive.window.browser" : "ui.archive.window.slow", { seconds: secondsIn(lang, p.minIntervalMs) })} ${ui(lang, "ui.archive.window.change")}`;
 }
 
 /** The pace a person's permission gives a host: the person's own for it first, else archive.pace / HUMAN_PACE. */
@@ -339,7 +339,7 @@ async function askPerson(ctx: Context, c: Connector, missing: ArchiveLevel[], wa
   // the person in their own terminal: the choice right here, the ways the menu offers (Enter: later, nothing changes)
   if (ctx.interactive && !agentRuns(ctx)) {
     ctx.io.stdout(`\n${question}\n`);
-    const labels = ways.map((w) => ({ label: ui(lang, w === "slow" ? "ui.archive.way.slow" : w === "browser" ? "ui.archive.way.browser" : "ui.archive.way.manual", { seconds: p.minIntervalMs / 1000, n: Number.isFinite(p.perHour) ? p.perHour : "∞" }) }));
+    const labels = ways.map((w) => ({ label: ui(lang, w === "slow" ? "ui.archive.way.slow" : w === "browser" ? "ui.archive.way.browser" : "ui.archive.way.manual", { seconds: secondsIn(lang, p.minIntervalMs), n: Number.isFinite(p.perHour) ? p.perHour : "∞" }) }));
     const i = await ctx.choose(ui(lang, "ui.archive.choose", { title: a.title ?? a.host }), labels, labels.length, { back: ui(lang, "ui.archive.way.later") });
     if (i !== undefined && ways[i]) {
       const chosen = ways[i]!;

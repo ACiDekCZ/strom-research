@@ -205,7 +205,7 @@ test("Crawl-delay: a floor of the host's pace — slower, never faster", opts, a
     pauses.length = 0;
     await w.ok(["fetch", "zkusebni", "5359", "--images", "1-2", "--recordset", "B1"]);
     assert.equal(pauses.filter((p) => p > 29_000 && p <= 30_000).length, 2, `${pauses.join(", ")}`);
-    assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · .*at least 30 s apart/);
+    assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · .*nejméně 30 s mezi dvěma požadavky/);
   } finally {
     w.cleanup();
     await s.close();
@@ -388,7 +388,7 @@ test("Settings → Archives: an archive whose server refused strom's client says
     assert.match(one.out, /Testovací archiv: server 127\.0\.0\.1 odmítl automatický přístup stromu \(od [^)]+\) – je to odpověď serveru, ne podmínky archivu\. Snímky ručně; odmítnutí zruší jen člověk: strom allow host 127\.0\.0\.1 --unblock/);
     assert.doesNotMatch(one.out, /\(podmínky\)|--level restricted/);
     // strom consents says it too: the server's answer, how it is lifted
-    assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 {2}zkusebni {2}forbidden {2}· its server refused strom's client \(the server's answer, not the archive's terms\) — only the person lifts it: strom allow host 127\.0\.0\.1 --unblock/);
+    assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 {2}zkusebni {2}zakázáno · jeho server odmítl automatický přístup stromu \(odpověď serveru, ne podmínky archivu\) – zruší to jen člověk: strom allow host 127\.0\.0\.1 --unblock/);
   } finally {
     w.cleanup();
     await s.close();

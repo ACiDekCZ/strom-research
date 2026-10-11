@@ -6,7 +6,8 @@
 // to the queue once they may come — unless the images are in their folder already (saved by hand meanwhile).
 
 import type { Context } from "./context.ts";
-import type { UIKey } from "./ui.ts";
+import { ui, type UIKey } from "./ui.ts";
+import { secondsIn } from "./format.ts";
 import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
 import { humanDay } from "./human.ts";
 import { Tree } from "../core/tree.ts";
@@ -21,9 +22,9 @@ import type { Pace } from "../core/net.ts";
 type T = ReturnType<typeof translator>;
 
 /** A pace in the person's words: "one image at most every 10 s, at most 120 an hour". */
-export function paceWords(t: T, p: Pace | { minIntervalMs: number; perHour: number | null }): string {
+export function paceWords(lang: string, p: Pace | { minIntervalMs: number; perHour: number | null }): string {
   const n = p.perHour === null || !Number.isFinite(p.perHour) ? "∞" : p.perHour;
-  return t("ui.archive.pace", { seconds: p.minIntervalMs / 1000, n });
+  return ui(lang, "ui.archive.pace", { seconds: secondsIn(lang, p.minIntervalMs), n });
 }
 
 function connectorsHere(ctx: Context): Connector[] {
@@ -126,13 +127,13 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
   const allowed = a?.level === "allowed";
   if (allowed) {
     out(`    ${t("ui.archive.allowed.line", { level: levelWords(lang, "allowed") })}`);
-    out(`    ${t("ui.archive.pace.service", { pace: paceWords(t, archivesOverview(ctx).find((r) => r.host === host && r.connector === c.name)?.pace ?? slow), host })}`);
-  } else out(`    ${t("ui.archive.pace.line", { pace: paceWords(t, slow), host })}`);
+    out(`    ${t("ui.archive.pace.service", { pace: paceWords(lang, archivesOverview(ctx).find((r) => r.host === host && r.connector === c.name)?.pace ?? slow), host })}`);
+  } else out(`    ${t("ui.archive.pace.line", { pace: paceWords(lang, slow), host })}`);
   const ways: Way[] = allowed ? ["manual"] : waysOffered(c, claudeHere(ctx, tree?.config), q?.way, !!(a?.browserOnly ?? q?.browserOnly));
   const now = a?.permission;
   const choices: { label: string; way?: Way }[] = ways.map((w) => ({
     way: w,
-    label: t(w === "slow" ? "ui.archive.way.slow" : w === "browser" ? "ui.archive.way.browser" : "ui.archive.way.manual", { seconds: slow.minIntervalMs / 1000, n: Number.isFinite(slow.perHour) ? slow.perHour : "∞" }),
+    label: t(w === "slow" ? "ui.archive.way.slow" : w === "browser" ? "ui.archive.way.browser" : "ui.archive.way.manual", { seconds: secondsIn(lang, slow.minIntervalMs), n: Number.isFinite(slow.perHour) ? slow.perHour : "∞" }),
   }));
   if (now) choices.push({ label: t("ui.archive.way.revoke") });
   // what holds now is suggested (Enter keeps it); a question nobody answered yet: 0, nothing changes
@@ -233,7 +234,7 @@ export function archiveState(ctx: Context, lang: string, c: Connector): string {
       // where the downloader can go that way, else by hand only; never "directly" (that is not the way here)
       const only = !closed && !r.way && r.browserOnly ? onlyBrowser(t, c, !!r.robots) : undefined;
       const way = only ?? (!closed && r.way ? t("ui.archives.state.way", { way: t(`ui.archive.is.${r.way}` as UIKey), date: rec?.at ? humanDay(rec.at, lang) : "–" }) : levelWords(lang, level, !!r.robots, r.from));
-      const pace = !closed && r.way !== "manual" && (level === "allowed" || r.way) ? `; ${paceWords(t, r.pace)}` : "";
+      const pace = !closed && r.way !== "manual" && (level === "allowed" || r.way) ? `; ${paceWords(lang, r.pace)}` : "";
       return `${rows.length > 1 ? `${r.host}: ` : ""}${way}${pace}`;
     })
     .join(" · ");

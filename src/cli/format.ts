@@ -75,6 +75,11 @@ export function numberIn(lang: string, n: number, o: Intl.NumberFormatOptions = 
   }
 }
 
+/** Seconds of a pace as a language writes them: 0,5 in Czech and German, 0.5 in English (no grouping: 3600, never 3,600). */
+export function secondsIn(lang: string, ms: number): string {
+  return numberIn(lang, ms / 1000, { maximumFractionDigits: 2, useGrouping: false });
+}
+
 /** An argument as it is typed in a shell: quoted when it holds spaces or special characters. */
 export function shellArg(arg: string): string {
   return /^[\p{L}\p{M}\p{N}._\/:@+-]+$/u.test(arg) ? arg : `"${arg.replace(/["\\$`]/g, "\\$&")}"`;

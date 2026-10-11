@@ -294,6 +294,10 @@ test("the connectors taken over from an older strom: one item, confirmed all at 
     await w.ok(["fetch", "prvni", "--find", "Týnec"]);
     assert.equal((await w.run(["allow", "archive", "prvni", "--keep"], { env: { CLAUDECODE: "1" } })).code, 4);
     assert.ok(store(w).pending.some((p: { kind: string }) => p.kind === "milder"), "a reading changed again is asked again");
+    // strom consents names the milder level once, never "allows: allowed"
+    const consents = (await w.ok(["consents"])).out;
+    assert.match(consents, /prvni uvádí pro archive\.example\.org mírnější úroveň: dovoleno/);
+    assert.doesNotMatch(consents, /dovoluje: dovoleno| {2}·/);
   } finally {
     w.cleanup();
   }
