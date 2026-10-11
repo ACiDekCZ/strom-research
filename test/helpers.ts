@@ -6,6 +6,10 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { main } from "../src/cli/main.ts";
+import type { ChoiceText } from "../src/core/dialog.ts";
+
+/** The answer of a window with choices: the key chosen, none (null: later, Esc, no answer in time) — or one given by what it says. */
+export type Choice = string | null | ((text: ChoiceText) => string | null);
 
 // Isolate git from the developer's global configuration.
 const gitGlobal = path.join(os.tmpdir(), `strom-test-gitconfig-${process.pid}`);
@@ -19,6 +23,8 @@ const isolatedHome = fs.mkdtempSync(path.join(os.tmpdir(), "strom-test-home-"));
 process.env.HOME = isolatedHome;
 process.env.USERPROFILE = isolatedHome;
 process.env.STROM_CONFIG_DIR = path.join(isolatedHome, "config");
+// A test's archive is a server on this computer: connectors of tests name 127.0.0.1 / localhost as their hosts.
+process.env.STROM_TEST_HOSTS = "1";
 
 export const hasGit = spawnSync("git", ["--version"]).status === 0;
 
@@ -56,6 +62,8 @@ export class World {
       STROM_APP_DIRS: "",
       // Nothing into the computer's trash.
       STROM_TRASH: path.join(this.dir, "trash"),
+      // A test's archive is a server on this computer (127.0.0.1, localhost): its connectors may name it.
+      STROM_TEST_HOSTS: "1",
     };
     this.cwd = this.dir;
   }
@@ -68,7 +76,7 @@ export class World {
     return path.join(this.home, name);
   }
 
-  async run(args: string[], opts: { answers?: string[]; cwd?: string; tty?: boolean; stdin?: string; dialog?: boolean; env?: Record<string, string> } = {}): Promise<RunResult> {
+  async run(args: string[], opts: { answers?: string[]; cwd?: string; tty?: boolean; stdin?: string; dialog?: boolean; choice?: Choice; env?: Record<string, string> } = {}): Promise<RunResult> {
     let out = "";
     let err = "";
     const io = {
@@ -79,6 +87,8 @@ export class World {
       ...(opts.stdin !== undefined ? { stdinText: () => opts.stdin! } : {}),
       // The window of a consent, answered by the person at the screen.
       ...(opts.dialog !== undefined ? { dialog: () => opts.dialog } : {}),
+      // A window with choices, answered by the person at the screen (null: none — later, Esc, no answer in time).
+      ...(opts.choice !== undefined ? { choice: typeof opts.choice === "function" ? opts.choice : () => opts.choice as string | null } : {}),
     };
     const code = await main(args, io, opts.env ? { ...this.env, ...opts.env } : this.env, opts.cwd ?? this.cwd);
     let json: any;
@@ -93,7 +103,7 @@ export class World {
   }
 
   /** Run and fail loudly on a non-zero exit. */
-  async ok(args: string[], opts: { answers?: string[]; cwd?: string; tty?: boolean; stdin?: string; dialog?: boolean; env?: Record<string, string> } = {}): Promise<RunResult> {
+  async ok(args: string[], opts: { answers?: string[]; cwd?: string; tty?: boolean; stdin?: string; dialog?: boolean; choice?: Choice; env?: Record<string, string> } = {}): Promise<RunResult> {
     const r = await this.run(args, opts);
     if (r.code !== 0) throw new Error(`strom ${args.join(" ")} → exit ${r.code}\n${r.out}\n${r.err}`);
     return r;
@@ -131,12 +141,15 @@ export function readJsonFile(file: string): any {
  * With `base` it talks to a local server (/catalog, /book/<id>, /img/<book>/<n>.jpg);
  * without it, it answers from memory and never asks for a URL.
  */
-export async function fakeConnector(w: World, name: string, base = "", policy: Record<string, unknown> = { automation: "allowed" }): Promise<string> {
+export async function fakeConnector(w: World, name: string, base = "", policy: Record<string, unknown> = { automation: "allowed" }, opts: { confirm?: boolean } = {}): Promise<string> {
   const host = base ? new URL(base).hostname : "archive.example.org";
   await w.ok(["connector", "new", name, "--url", base || `https://${host}`, "--title", "Testovací archiv"]);
   const dir = pluginDir(w, name);
   const manifest = readJsonFile(path.join(dir, "connector.json"));
   fs.writeFileSync(path.join(dir, "connector.json"), JSON.stringify({ ...manifest, hosts: [host], policy }, null, 2));
+  // the person confirms its reading of the archive's terms (a test's own settings only — R8): it runs as a connector
+  // the person knows; a test of a connector nobody confirmed writes its own
+  if (opts.confirm !== false) await w.ok(["allow", "archive", name, "--accept"], { tty: true });
   fs.writeFileSync(
     path.join(dir, "connector.ts"),
     `import { book, done, fail, get, image, located, log, request, Refused } from "./sdk.ts";

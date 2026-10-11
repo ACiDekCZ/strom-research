@@ -44,6 +44,8 @@ import { expandHome, isolated } from "../core/paths.ts";
 import { offerAgent } from "./fixes.ts";
 import { addToResearch } from "./menu-research.ts";
 import { waitingForYou } from "./menu-waiting.ts";
+import { archiveQuestionCount } from "./menu-archives.ts";
+import { permissionWaitingLines } from "../core/archiveasks.ts";
 import { settingsMenu } from "./menu-settings.ts";
 import { mainPerson } from "../core/kin.ts";
 import { findAgent } from "../core/which.ts";
@@ -165,7 +167,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         }
       }
       // the tasks that wait for the person, and the new versions of the stories they approved
-      const waiting = waitingForUser(tree).length + storiesToApprove(tree).length + receivedPending(root).length + questionsWaiting(tree, ctx.settings);
+      const waiting = waitingForUser(tree).length + storiesToApprove(tree).length + receivedPending(root).length + questionsWaiting(tree, ctx.settings) + archiveQuestionCount(tree);
       const started = tree.list<Research>("research").length > 0;
       out(t("ui.menu.tree", { name: tree.config.name, persons: tree.countLive("person") }));
       // No agent yet (none installed, or not the one chosen): the research waits for it, and item 1 gets one.
@@ -175,6 +177,9 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       if (archive) out(t("ui.menu.archive"));
       else if (!ready) out(t(agentsHere(ctx.env).length ? "ui.menu.noagent.chosen" : "ui.menu.noagent"));
       if (waiting) out(t("ui.menu.waiting", { count: waiting }));
+      // an archive's images wait for the person's decision: one line, only until it is answered
+      // (since when, and the tasks that stand on it, once it waits long or holds up much)
+      for (const line of permissionWaitingLines(tree, lang)) out(line);
       // much kept beside the research that can go (an older strom never tidied it): said, freed in the settings
       const disk = tidyPlan(tree);
       if (disk.frees >= TIDY_SAID) out(t("ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) }));

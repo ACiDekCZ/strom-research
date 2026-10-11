@@ -117,11 +117,69 @@ export function clockLine(env: Env, now = Date.now()): string | undefined {
   return `⏳ ${min} min left: this session is stopped at ${clockTime(end)}. Go on, but write each find down as you have it and start nothing you cannot finish by then.`;
 }
 
-/** What the brief says of the session's time: when, and not to hurry — strom says when it is getting short. */
+/** A command that ran this long says the time left after it (long fetches and readers: the agent lost track, N0281). */
+export const TIME_AFTER_MS = 60_000;
+/** Before the reminders, the time left is said at most this often (with any command). */
+export const TIME_EVERY_MS = 10 * 60_000;
+
+/** When the time left was said last to a session's agent: a file of the tree's own (each command is a process). */
+export function timeSaidFile(root: string, session: string): string {
+  return path.join(root, ".strom", "clock", `${session}.json`);
+}
+
+function timeSaidAt(root: string, session: string): number | undefined {
+  try {
+    const t = Date.parse((JSON.parse(fs.readFileSync(timeSaidFile(root, session), "utf8")) as { said?: string }).said ?? "");
+    return Number.isNaN(t) ? undefined : t;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Before the reminders: the time left, neutral — after a command that ran a minute or more, else every TIME_EVERY_MS
+ * (kept in .strom/clock/<session>.json). The agent sees only how long each step took: two agents that estimated the
+ * time themselves stopped after 16 and 18 minutes of 60 (N0281, N0283). None near the end: clockLine says it then.
+ */
+export function timeLine(env: Env, o: { ranMs: number; root?: string | undefined; session?: string | undefined; now?: number }): string | undefined {
+  const now = o.now ?? Date.now();
+  const end = deadlineOf(env);
+  if (end === undefined || end <= now || clockLine(env, now) !== undefined) return undefined;
+  const kept = o.root !== undefined && o.session !== undefined;
+  const last = kept ? timeSaidAt(o.root!, o.session!) : undefined;
+  const due = o.ranMs >= TIME_AFTER_MS || (kept && (last === undefined || now - last >= TIME_EVERY_MS));
+  if (!due) return undefined;
+  if (kept)
+    try {
+      fs.mkdirSync(path.dirname(timeSaidFile(o.root!, o.session!)), { recursive: true });
+      fs.writeFileSync(timeSaidFile(o.root!, o.session!), JSON.stringify({ said: new Date(now).toISOString() }) + "\n");
+    } catch {
+      // not kept: said again with the next command
+    }
+  return `time: ${Math.floor((end - now) / 60_000)} min left (stopped at ${clockTime(end)}) — go on`;
+}
+
+/**
+ * A session closed before its work is done (--continue, --done over unclear places) with more than half of its time
+ * left and nothing said by strom of the time being short (its reminders, a finish asked): the line that says so — the
+ * agent goes on, unless its context is full. Undefined when closing is right.
+ */
+export function earlyClose(env: Env, root: string, session: string, now = Date.now()): string | undefined {
+  const end = deadlineOf(env);
+  const limit = limitOf(env);
+  if (end === undefined || limit === undefined) return undefined;
+  const left = end - now;
+  if (left <= limit / 2 || clockLine(env, now) !== undefined || finishOf(root, session)) return undefined;
+  return `${Math.floor(left / 60_000)} min left (stopped at ${clockTime(end)}): strom has not said the time is short — go on unless the context is full`;
+}
+
+/** What the brief says of the session's time: when, and not to hurry — strom says the time left and when it is getting short. */
 export function briefClock(end: number, now = Date.now()): string {
   return (
-    `Time: this session is stopped at ${clockTime(end)} (it is ${clockTime(now)} now). Do not hurry and do not stop early: strom's output tells you ` +
-    "when the time is getting short; until then work on the task as usual. Write each find and each stretch of images searched into strom the " +
-    "moment you have it: what is only in your context is lost when the session ends."
+    `Time: this session is stopped at ${clockTime(end)} (it is ${clockTime(now)} now). Do not hurry and do not stop early: strom's output says ` +
+    "the time left after long steps and when it is getting short; until then work on the task as usual — never estimate the time yourself. " +
+    "Write each find and each stretch of images searched into strom the moment you have it: what is only in your context is lost when the session ends.\n" +
+    "A filling context is no sign of the time: write down what you have, then go on (readers through strom read keep your context small); " +
+    'close with --continue --next "exactly where you stopped" only when the context is full.'
   );
 }

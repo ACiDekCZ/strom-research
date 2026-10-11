@@ -34,13 +34,22 @@ test("strom run builds a connector itself: new, its files, probe, test, fetch �
     assert.equal(oc.agent["strom-run"]!.permission.edit[`${connectors}/*`], "allow", "in a run too, where what would ask is refused");
 
     // connector new: the scaffold and its discovery brief, the agent's edits of its files — strom asks nothing
-    const dir = await fakeConnector(w, "tynec", a.base);
+    const dir = await fakeConnector(w, "tynec", a.base, { automation: "allowed" }, { confirm: false });
     assert.equal(dir, pluginDir(w, "tynec"));
     assert.ok(fs.existsSync(path.join(dir, "DISCOVERY.md")));
     const probe = await w.ok(["connector", "probe", "tynec", `${a.base}/book/5359`]);
     assert.match(probe.out, /200/);
     const tried = await w.ok(["connector", "test", "tynec", "--find", "Týnec"]);
     assert.match(tried.out, /5359/);
+    // its first image: a connector the agent built says "allowed" — the person's word first (R2); nobody watches the
+    // run: no request for an image, the question waits in strom's menu, the run goes on with other work
+    const before = a.hits.length;
+    const first = await w.run(["fetch", "tynec", "5359", "--images", "1", "--recordset", "B1", "--json"]);
+    assert.equal(first.code, 4, first.out + first.err);
+    assert.equal(first.json.needs, "permission");
+    assert.ok(!a.hits.slice(before).some((h) => h.startsWith("/img/")), "no image asked for");
+    // the person decides (in their own terminal — a test's own settings, R8): slowly
+    await w.ok(["allow", "archive", "tynec", "--way", "slow"], { tty: true, env: { CLAUDECODE: "", STROM_SESSION: "", STROM_WORKER: "", STROM_NONINTERACTIVE: "" } });
     const got = await w.ok(["fetch", "tynec", "5359", "--images", "1", "--recordset", "B1"]);
     assert.match(got.out, /1 image|image 1|s0001/);
     assert.equal((await w.ok(["media", "list", "--json"])).json.total, 1, "fetched and registered");

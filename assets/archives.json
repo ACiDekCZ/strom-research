@@ -1,0 +1,260 @@
+{
+  "about": "Known terms of archives, shipped with strom: a host (with its subdomains) and the level its published terms give automated access — allowed < restricted (unknown: the terms not found, as restricted) < manual < forbidden. A level here is a confirmed one: a connector's allowed needs no person's word, a connector taken over no confirmation; the strictest of all that is known still holds (a connector, the tree's archive, robots.txt, a refusal stricter than this keeps it stricter). browserOnly: only a person's browser goes there. pace: the site's Crawl-delay, a floor (only ever slower). disallow: paths no automated request takes. scope: what the level covers. quoteFrom robots: the quote is the site's robots.txt (its address in terms), not its terms of use. Only public terms, quoted word for word from the address given, on the day checked; a release adds an archive.",
+  "archives": [
+    {
+      "host": "mza.cz",
+      "name": "Moravský zemský archiv (Acta Publica)",
+      "level": "restricted",
+      "terms": "https://www.mza.cz/actapublica/page/view/napoveda",
+      "quote": "Lze stáhnout snímek? Ano, lze, i pro neregistrované uživatele, ale pouze standardními prostředky webových prohlížečů - pravé tlačítko myši a uložit obrázek.",
+      "robots": "User-agent: * · Disallow: /wp-admin/ · Disallow: /wp-includes/ (nothing on /actapublica)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "ebadatelna.soapraha.cz",
+      "name": "Státní oblastní archiv v Praze (eBadatelna)",
+      "level": "allowed",
+      "terms": "https://soapraha.gov.cz/castokladenedotazy/",
+      "quote": "Prohlížení digitálních studijních kopií je umožněno všem bez nutnosti registrace. Registrovaní uživatelé však mají navíc možnost stahování celých archiválií v ZIP balíčcích",
+      "robots": "none (the address leads to the portal's error page)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "digi.ceskearchivy.cz",
+      "name": "Státní oblastní archiv v Třeboni (DigiArchiv)",
+      "level": "manual",
+      "terms": "https://digi.ceskearchivy.cz/DA?subject=2&menu=8",
+      "quote": "Snímky jsou poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování, distribuování, prodávání, využití v jiných projektech apod. je zakázáno.",
+      "robots": "Allow: /index.php · Allow: /index_main.php · Allow: /DA* · Disallow: /help/* · Disallow: /pages/* · Disallow: /oai/* · Disallow: /Assets/*",
+      "disallow": ["/help/", "/pages/", "/oai/", "/Assets/"],
+      "scope": "the catalogue only; its images by hand (the server refuses clients that call themselves genealogy tools)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "aron.vychodoceskearchivy.cz",
+      "name": "Východočeské archivy (ARchiv ONline)",
+      "level": "allowed",
+      "terms": "https://soahradec.gov.cz/napoveda-archivu-online/jak-nalezt-matriku/",
+      "quote": "Chci si stáhnout jednotlivý snímek nebo celou matriku. Jednotlivý snímek: Klikněte na symbol šipky (1). Celá matrika: Klikněte na odkaz Stáhnout všechny snímky (2).",
+      "robots": "none (/robots.txt answers the application's page)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "imgx.vychodoceskearchivy.cz",
+      "name": "Východočeské archivy (ARchiv ONline)",
+      "level": "allowed",
+      "terms": "https://soahradec.gov.cz/napoveda-archivu-online/jak-nalezt-matriku/",
+      "quote": "Chci si stáhnout jednotlivý snímek nebo celou matriku. Jednotlivý snímek: Klikněte na symbol šipky (1). Celá matrika: Klikněte na odkaz Stáhnout všechny snímky (2).",
+      "robots": "none (404)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "katalog.ahmp.cz",
+      "name": "Archiv hlavního města Prahy (Praga Publica)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://katalog.ahmp.cz/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "termsPage": "https://katalog.ahmp.cz/pragapublica/pages/podminky_uziti.jsp",
+      "termsPageSays": "Text se připravuje.",
+      "robots": "User-agent: * · Disallow: /",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "www.szukajwarchiwach.gov.pl",
+      "name": "Archiwa Państwowe (Szukaj w Archiwach)",
+      "level": "restricted",
+      "terms": "https://www.szukajwarchiwach.gov.pl/ponowne-wykorzystanie",
+      "quote": "including downloading, copying and distributing using any technology unless otherwise stated in the descriptions of the materials or on the digital copies",
+      "robots": "User-Agent: * · Disallow: (nothing)",
+      "scope": "behind a bot check (Imperva): its pages and images only through the person's browser, the check passed by the person",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "content.landesarchiv-berlin.de",
+      "name": "Landesarchiv Berlin (Standesamtsabfrage)",
+      "level": "allowed",
+      "terms": "https://content.landesarchiv-berlin.de/labsa/show/help.php",
+      "quote": "4. Schritt: öffnen des pdf-Dokuments – Klicken Sie nun auf das pdf-Icon Ihres gewünschten Jahrgangs; es wird jetzt geladen.",
+      "robots": "none (404)",
+      "scope": "the name indexes' PDF files the portal offers, one year at a time",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "www.landesarchiv-berlin.de",
+      "name": "Landesarchiv Berlin",
+      "level": "allowed",
+      "terms": "https://content.landesarchiv-berlin.de/labsa/show/help.php",
+      "quote": "4. Schritt: öffnen des pdf-Dokuments – Klicken Sie nun auf das pdf-Icon Ihres gewünschten Jahrgangs; es wird jetzt geladen.",
+      "robots": "Disallow: /wp-admin/",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "digi.soalitomerice.cz",
+      "name": "Státní oblastní archiv v Litoměřicích (Digitální badatelna)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://digi.soalitomerice.cz/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: / (and a bot check on every page)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "vademecum.soalitomerice.cz",
+      "name": "Státní oblastní archiv v Litoměřicích (Vademecum)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "robots": "/robots.txt answers 403 Forbidden",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "portal.nacr.cz",
+      "name": "Národní archiv (Národní archivní portál)",
+      "level": "allowed",
+      "terms": "https://portal.nacr.cz/cro/o-portalu/",
+      "quote": "© Národní archiv 2016-2021 | v. 2.0",
+      "license": "http://creativecommons.org/licenses/by-nc-sa/4.0/",
+      "robots": "none (404)",
+      "scope": "the catalogue only (its digitised records are behind a login and an approval)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "data.matricula-online.eu",
+      "name": "Matricula",
+      "level": "allowed",
+      "terms": "https://data.matricula-online.eu/de/nutzungsbedingungen/",
+      "quote": "Sämtliche Bilder von und aus Kirchen- bzw. Matrikenbüchern stehen unter der Lizenz CC BY-NC-ND 2.0 zur Verfügung. Eine kommerzielle Weiterverwertung der Bilder ist demnach nicht gestattet.",
+      "robots": "User-agent: * · Disallow: /*?pg= · Disallow: /*/suchen · Disallow: /*/landkarte-features · Disallow: /*/accounts (and Disallow: / for AI crawlers)",
+      "disallow": ["/*?pg=", "/*/suchen", "/*/landkarte-features", "/*/accounts"],
+      "scope": "the fonds and parishes browsed and their images — never its search (/…/suchen)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "digital.martin-opitz-bibliothek.de",
+      "name": "Martin-Opitz-Bibliothek (digital)",
+      "level": "unknown",
+      "terms": "https://digital.martin-opitz-bibliothek.de/index.php?id=8",
+      "robots": "User-agent: * · Allow: /",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "www.portafontium.eu",
+      "name": "Porta fontium",
+      "level": "unknown",
+      "terms": "https://www.portafontium.eu/faq",
+      "quote": "U některých materiálů (matriky) je možné pomocí příslušné ikony stáhnout aktuálně zobrazenou část stránky. … Umožnit stahování kompletních snímků všech zobrazovaných materiálů z uživatelského rozhraní aplikace Porta fontium není plánováno.",
+      "robots": "User-agent: * · Crawl-delay: 10",
+      "pace": { "minIntervalMs": 10000 },
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "digi.archives.cz",
+      "name": "Zemský archiv v Opavě (Digitální archiv)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://digi.archives.cz/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: / (and a bot check)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "digi2.archives.cz",
+      "name": "Zemský archiv v Opavě (Digitální badatelna)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://digi2.archives.cz/robots.txt",
+      "quote": "User-agent: * / Disallow: /",
+      "robots": "User-agent: * · Disallow: / (leads to digi.archives.cz's)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "kramerius.mzk.cz",
+      "name": "Moravská zemská knihovna (Kramerius)",
+      "level": "allowed",
+      "terms": "https://www.digitalniknihovna.cz/assets/shared/terms/mzk/terms.cs.html",
+      "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
+      "robots": "none",
+      "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "www.digitalniknihovna.cz",
+      "name": "Digitální knihovna (Kramerius)",
+      "level": "allowed",
+      "terms": "https://www.digitalniknihovna.cz/assets/shared/terms/mzk/terms.cs.html",
+      "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
+      "robots": "none (the application's page)",
+      "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "api.kramerius.mzk.cz",
+      "name": "Moravská zemská knihovna (Kramerius API)",
+      "level": "allowed",
+      "terms": "https://www.digitalniknihovna.cz/assets/shared/terms/mzk/terms.cs.html",
+      "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
+      "robots": "none (404)",
+      "scope": "public-domain works only (works under copyright or DNNT need an institution's login: never)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "kramerius5.nkp.cz",
+      "name": "Národní knihovna ČR (Kramerius)",
+      "level": "allowed",
+      "terms": "https://ndk.cz/assets/pages/terms.cs.html",
+      "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
+      "robots": "none (the application's page)",
+      "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "ndk.cz",
+      "name": "Národní digitální knihovna (Kramerius)",
+      "level": "allowed",
+      "terms": "https://ndk.cz/assets/pages/terms.cs.html",
+      "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
+      "robots": "none (the application's page)",
+      "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "geneteka.genealodzy.pl",
+      "name": "Polskie Towarzystwo Genealogiczne (Geneteka)",
+      "level": "allowed",
+      "terms": "https://geneteka.genealodzy.pl/ogenetece.php",
+      "quote": "PTG umożliwia i wyraża zgodę na bezpłatne wykorzystywanie danych … w celach … popularyzatorskich i hobbystycznych · 8. PTG przysługuje prawo przeciwdziałania nieuprawnionemu pobieraniu i wtórnemu wykorzystywaniu całości lub istotnej części zawartości bazy danych.",
+      "robots": "Disallow: (empty) · Crawl-delay: 120 · Disallow: /cgi-bin/",
+      "pace": { "minIntervalMs": 120000 },
+      "disallow": ["/cgi-bin/"],
+      "scope": "single queries only, never a whole parish or a substantial part of the database",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "metryki.genealodzy.pl",
+      "name": "Polskie Towarzystwo Genealogiczne (Metryki)",
+      "level": "allowed",
+      "terms": "https://geneteka.genealodzy.pl/ogenetece.php",
+      "quote": "PTG umożliwia i wyraża zgodę na bezpłatne wykorzystywanie danych … w celach … popularyzatorskich i hobbystycznych · 8. PTG przysługuje prawo przeciwdziałania nieuprawnionemu pobieraniu i wtórnemu wykorzystywaniu całości lub istotnej części zawartości bazy danych.",
+      "robots": "Disallow: (empty) · Crawl-delay: 60 · Disallow: /cgi-bin/",
+      "pace": { "minIntervalMs": 60000 },
+      "disallow": ["/cgi-bin/"],
+      "scope": "single images only, never a whole parish or a substantial part of the database",
+      "checked": "2026-10-11"
+    },
+    {
+      "host": "familysearch.org",
+      "name": "FamilySearch",
+      "level": "forbidden",
+      "terms": "https://www.familysearch.org/en/legal/terms",
+      "quote": "You further agree that, unless you have received our prior written permission, you will not use any software, technology, or device to perform a bulk download, to scrape content, or to otherwise harvest any information or materials from this site.",
+      "robots": "Disallow: /ark:/61903/1: · Disallow: /ark:/61903/2: · Disallow: /Search/ · Disallow: /tree/person …",
+      "scope": "no automated request at all: links and a task for the person",
+      "checked": "2026-10-11"
+    }
+  ]
+}

@@ -12,7 +12,7 @@ import { StromError, UsageError } from "../core/errors.ts";
 import type { Media, RecordSet, Task } from "../core/model.ts";
 import { normId, requireRecord } from "../core/records.ts";
 import { pageOf } from "../core/calibration.ts";
-import { coveringPart, findImage, imageOfRef, onlyParts, regionText, wholeSizeOf } from "../core/media.ts";
+import { coveringPart, findImage, IMAGE_RANGE_MAX, imageOfRef, onlyParts, regionText, wholeSizeOf } from "../core/media.ts";
 import { cropOf, halves, makeView, parseCrop, readInHalves, tiles, type ViewMeta } from "../core/views.ts";
 import { IMAGE_MAX, IMAGE_MAX_LARGE } from "../agents/images.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
@@ -29,6 +29,7 @@ import { addReaders } from "../core/session.ts";
 import { refuseReadersWhenFinishing } from "../core/clock.ts";
 import { recordReader, tokensOf, usageOpt } from "../core/metrics.ts";
 import { readerLimit } from "../core/readstats.ts";
+import { guardIndexFirst, INDEX_FIRST_DEFAULT } from "../core/indexfirst.ts";
 import { bookViewSizes, readingOf, treeTuning, tuningOn } from "../core/tune.ts";
 import { claimStem, readerAgent, readerDesk, refuseReadersInSandbox } from "./readers.ts";
 import { noReaderHere, refusedBySandbox } from "../core/sandbox.ts";
@@ -55,6 +56,9 @@ function range(v: string): [number, number] {
   if (!m) throw new UsageError(`invalid --images "${v}"`, { hint: "e.g. 40-69" });
   const [lo, hi] = [Number(m[1]), Number(m[2] ?? m[1])];
   if (hi < lo) throw new UsageError(`--images ${v.trim()}: a range from the lower number`, { hint: `--images ${hi}-${lo}` });
+  // hundreds of images in one reading: a mistake, never a request (as strom media view and strom readings say it)
+  if (hi - lo + 1 > IMAGE_RANGE_MAX)
+    throw new UsageError(`--images ${v.trim()}: ${hi - lo + 1} images — at most ${IMAGE_RANGE_MAX} in one reading`, { hint: `--images ${lo}-${lo + IMAGE_RANGE_MAX - 1}, then --images ${lo + IMAGE_RANGE_MAX}-${hi} — recording what the first gave before the next` });
   return [lo, hi];
 }
 
@@ -90,7 +94,7 @@ register({
     "It waits for its readers (often ten minutes or more): run it in the foreground and let it finish.",
   args: [{ name: "images", description: "a record set (with --images), or images: M… or B…:<image>", variadic: true, required: true }],
   options: [
-    { name: "images", type: "string", value: "<from-to>", description: "image numbers of the record set, e.g. 40-69" },
+    { name: "images", type: "string", value: "<from-to>", description: `image numbers of the record set, e.g. 40-69 (at most ${IMAGE_RANGE_MAX})` },
     { name: "question", type: "string", value: "<text>", description: "what to look for, what counts as a find and what to write down (page numbers only, one surname's entries, one entry whole) — the whole question: readers know nothing else" },
     { name: "context", type: "string", value: "<text>", description: "what is known that helps recognise the family (names, house, years)" },
     { name: "blind", type: "boolean", description: "blind reading: transcribe exactly, no expectations (for verification)" },
@@ -103,6 +107,7 @@ register({
     { name: "parallel", type: "string", value: "<n>", description: "readers at the same time (default 3)" },
     { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision — never weaker for handwriting)" },
     { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP, mistaken: ["timeout", "time", "time-limit", "max-minutes"] },
+    { name: "no-index", type: "boolean", description: `browse the images although an index of the book's parish and years is known (read already, or of no use here) — from ${INDEX_FIRST_DEFAULT} images on (the person's answer: strom media calibrate --questions) strom names the index first, and a session of strom run needs this to go on` },
   ],
   examples: [
     'strom read B0001 --images 40-69 --question "Every baptism of the surname Novák (Nowak, Nowack) in 1820–1824: the child, date, house, both parents and their parents"',
@@ -124,8 +129,27 @@ register({
       // each image once, as the sharpest copy of it
       const nums = [...new Set(all.filter((m) => m.recordset === b.id && !m.part && m.image !== undefined && m.image >= lo && m.image <= hi).map((m) => m.image!))];
       images = nums.sort((x, y) => x - y).map((n) => findImage(all, b.id, n)!);
-      if (images.length === 0) throw new UsageError(`no registered images ${lo}–${hi} of ${b.id}`, { hint: `strom media add <folder> --recordset ${b.id}` });
+      // Images only in parts (a half, a detail): readers read whole images. A book with a connector gets them through
+      // it (the connector of its images fetched before), never by hand (N0285: "media add" in a run nobody watches).
+      const inParts: number[] = [];
+      for (let n = lo; n <= hi && inParts.length <= 1000; n++) if (!nums.includes(n) && onlyParts(all, b.id, n).length) inParts.push(n);
+      const route = all.find((m) => m.recordset === b.id && !m.retracted && m.fetched)?.fetched;
+      const whole = (which: string) => (route ? `strom fetch ${route.connector} ${route.book} --images ${which} --recordset ${b.id}` : `strom media add <folder> --recordset ${b.id}`);
+      const partsSaid = inParts.length ? `registered only in parts (images ${runs(inParts)}): readers need whole images` : undefined;
+      if (images.length === 0) throw new UsageError(partsSaid ? `no whole ${lo === hi ? `image ${lo}` : `images ${lo}–${hi}`} of ${b.id}: ${partsSaid}` : `no registered images ${lo}–${hi} of ${b.id}`, { hint: whole(lo === hi ? `${lo}` : `${lo}-${hi}`) });
+      if (partsSaid) (ctx.json ? ctx.io.stderr : ctx.io.stdout)(`${b.id}: ${partsSaid}, these are not read → ${whole(runs(inParts).replace(/–/g, "-").replace(/,\s*/g, ","))}\n`);
       label = `${b.id}-${lo}-${hi}`;
+      // a book browsed where an index of its parish is known and not searched for this: the index first (D3)
+      guardIndexFirst(tree, {
+        settings: ctx.settings,
+        env: ctx.env,
+        book: b,
+        n: images.length,
+        question,
+        noIndex: Boolean(opts["no-index"]),
+        command: `strom read ${b.id} --images ${lo}-${hi} …`,
+        say: (l) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(l + "\n"),
+      });
     } else {
       images = args.map((a) => {
         const at = /^([Bb]\d+):(\d+)$/.exec(a.trim());

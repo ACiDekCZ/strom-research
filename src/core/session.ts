@@ -17,9 +17,10 @@ import { now, VERSION, type Tree } from "./tree.ts";
 import { makeNote, makeNotes } from "./actions.ts";
 import type { Env } from "./paths.ts";
 import { detectAgent } from "./which.ts";
-import { finishAsked, finishByLimit, finishFile } from "./clock.ts";
+import { finishAsked, finishByLimit, finishFile, timeSaidFile } from "./clock.ts";
 import { isLiveWorker, isWorkerId } from "./workers.ts";
 import { readCodexConfig } from "../agents/effort.ts";
+import { clearSessionWait, permissionWait, waitingForDecision } from "./archivewait.ts";
 
 function currentFile(tree: Tree, env: Env = tree.env): string {
   const w = env.STROM_WORKER;
@@ -191,7 +192,7 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
     tree.actor = s.id;
     if (task && task.state !== "doing") {
       // taken up: what kept it aside goes (a parked task's date and reason)
-      const { parkedUntil: _until, parkedReason: _reason, ...rest } = task;
+      const { parkedUntil: _until, parkedReason: _reason, awaitsPermission: _decision, ...rest } = task;
       const doing = { ...rest, state: "doing" as const, updated: now() };
       tree.put(doing, { op: "task.start", targets: [doing.id, s.id], summary: `${doing.id} start` });
     }
@@ -230,8 +231,17 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
         throw new UsageError(`task ${task.id} is still in progress`, {
           hint: `close it first: strom task done ${task.id} --result "…" | task park | task wait — or keep it for the next session: --continue`,
         });
-      const back: Task = { ...task, state: "open", notes: [...task.notes, makeNote(tree, `${input.interrupted ? "interrupted" : "continued"} in ${s.id}: ${input.next || "(no handover)"}`.slice(0, 500))], updated: now() };
-      tree.put(back, { op: "task.continue", targets: [task.id, s.id], summary: `${task.id} back to the queue` });
+      const note = makeNote(tree, `${input.interrupted ? "interrupted" : "continued"} in ${s.id}: ${input.next || "(no handover)"}`.slice(0, 500));
+      // a fetch of this session met an archive's question the person has not answered yet: the task waits for the
+      // decision (woken by it, core/archivewait.ts), not back in the queue to ask again and again
+      const decision = permissionWait(tree, task, s.id);
+      if (decision) {
+        const waits: Task = { ...waitingForDecision(tree, task, decision), notes: [...task.notes, note], updated: now() };
+        tree.put(waits, { op: "task.wait", targets: [task.id, s.id], summary: `${task.id} waits for the person's decision on ${decision.hosts.join(", ")}` });
+      } else {
+        const back: Task = { ...task, state: "open", notes: [...task.notes, note], updated: now() };
+        tree.put(back, { op: "task.continue", targets: [task.id, s.id], summary: `${task.id} back to the queue` });
+      }
     }
     const closed: Session = {
       ...s,
@@ -250,7 +260,12 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
     return closed;
   });
   // asked to finish (strom session finish): done
-  if (!tree.dryRun) fs.rmSync(finishFile(tree.root, closed.id), { force: true });
+  if (!tree.dryRun) {
+    fs.rmSync(finishFile(tree.root, closed.id), { force: true });
+    clearSessionWait(tree.root, closed.id);
+    // the time it was told (core/clock.ts timeLine) and an early close said once: gone with it
+    for (const f of [timeSaidFile(tree.root, closed.id), timeSaidFile(tree.root, closed.id).replace(/\.json$/, ".close")]) fs.rmSync(f, { force: true });
+  }
   return closed;
 }
 

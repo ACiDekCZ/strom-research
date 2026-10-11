@@ -16,7 +16,7 @@ import { modelStep, shortcutName } from "./wizard.ts";
 import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
 import { askGate, ensureGatesDir, listGates, loadGate } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
-import { listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
+import { byHandOnly, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL } from "../core/browser.ts";
 import { ADDON_SWITCHES, PROFILES } from "../agents/profiles.ts";
 import { loadLogins } from "../core/logins.ts";
@@ -25,6 +25,7 @@ import { chooseMode } from "./menu-mode.ts";
 import { agentsHere } from "../core/apps.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
+import { archivePermissions, archiveState } from "./menu-archives.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -346,16 +347,18 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
   await subMenu(ctx, lang, () => {
     ctx.settings.reload();
     const saved = loadLogins(ctx.env);
-    const connectors = listConnectors(shared);
+    const connectors = listConnectors(shared, ctx.env);
     const consent = ctx.settings.connectorsConsent();
     const treeConfig = root ? Tree.open(root, ctx.env).config : undefined;
     const agent = ctx.settings.agent(treeConfig).value;
     const always = ctx.settings.resolve("agent.browser", treeConfig)?.value === "always";
-    const via = (c: Connector) => (c.manifest.policy.automation === "manual" ? "manual" : routeOf(ctx.env, c).via);
+    const via = (c: Connector) => (byHandOnly(c) ? "manual" : routeOf(ctx.env, c).via);
     // Each downloader on a line of its own: how its images come, and its login where it can use one.
     const lines = connectors.map((c) => {
       const login = !c.manifest.login ? "" : `; ${saved[c.name] ? t("ui.archives.login.saved", { date: saved[c.name]!.at.slice(0, 10) }) : t("ui.archives.login.none")}`;
-      return `  • ${c.manifest.title ?? c.name} — ${t(`ui.archives.via.${via(c)}` as UIKey)}${login}`;
+      // what its archive's terms let it do here, the person's decision and since when, the pace (read only: the commands change it)
+      const state = archiveState(ctx, lang, c);
+      return `  • ${c.manifest.title ?? c.name} — ${t(`ui.archives.via.${via(c)}` as UIKey)}${login}${state ? `; ${state}` : ""}`;
     });
     // Through the browser: only Claude Code can, with the Claude in Chrome extension — said as it is here.
     const browser = connectors.filter((c) => via(c) === "browser");
@@ -410,6 +413,8 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
           },
         };
       }),
+      // the permission for each archive's images: slowly, through the browser, by hand — or forgotten
+      ...(connectors.length ? [{ key: "p", label: t("ui.archives.permissions"), act: async () => archivePermissions(ctx, run, lang, root) }] : []),
       ...withLogin.map((c) => ({
         key: "l",
         label: t(saved[c.name] ? "ui.archives.login.change" : "ui.archives.login.save", { title: c.manifest.title ?? c.name }),

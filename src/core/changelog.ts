@@ -325,6 +325,23 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       say(m && Number.isFinite(at) ? phrase(lang, "log.net.cap", { host: m[1]!, used: m[2]!, cap: m[3]!, time: clock(at, Date.parse(o.at) || Date.now()) }) : "");
       continue;
     }
+    // an archive's host refused strom's requests (strom fetch, a test, a probe): who, why, until when
+    if (o.op === "net.refused") {
+      const m = /^(\S+): refused \((\w+), HTTP (\S+)\); left alone until (.+); connector (\S+)$/.exec(o.summary);
+      if (!m) {
+        say("");
+        continue;
+      }
+      const at = Date.parse(m[4]!);
+      say(
+        m[2] === "client"
+          ? phrase(lang, "log.net.refused.client", { host: m[1]! })
+          : m[2] === "login"
+            ? phrase(lang, "log.net.refused.login", { host: m[1]!, connector: m[5]! })
+            : phrase(lang, "log.net.refused", { host: m[1]!, status: m[3]!, time: Number.isFinite(at) ? clock(at, Date.parse(o.at) || Date.now()) : m[4]! }),
+      );
+      continue;
+    }
     // strom mode: said in the research's language (found on Windows: "the research is an archive" in a Czech history)
     if (o.op === "config.set" && MODE_SAID[o.summary]) {
       say(phrase(lang, MODE_SAID[o.summary]!));

@@ -26,7 +26,7 @@ import { loadUserConfig, Settings, type RouteChoice } from "./config.ts";
 import { readJsonIfExists, writeJson } from "./json.ts";
 import { readAsset } from "./assets.ts";
 import { foldText } from "./text.ts";
-import { CookieJar, hostAllowed, NetError, paceOf, paceText, politeRequest, type Pace, type ServicePace } from "./net.ts";
+import { CookieJar, hostAllowed, hostState, NetError, paceOf, paceText, politeRequest, type NetVerdict, type Pace, type RefusedKind, type ServicePace } from "./net.ts";
 import { loginOf, redactor } from "./logins.ts";
 import type { Media, RecordSet, Region, Repository, Source, Task } from "./model.ts";
 import { HYPOTHESIS_LINKS_ORIGIN } from "./hypolinks.ts";
@@ -34,6 +34,7 @@ import type { Tree } from "./tree.ts";
 import { decodeImage, encodeImage, imageSize, imageSizeOfFile } from "../image/index.ts";
 import { blank, paste, toRgb, type RawImage } from "../image/image.ts";
 import { botCheck, type PageAnswer, type PageRequest } from "./browser.ts";
+import { allows, archiveLevel, browserPermitted } from "./terms.ts";
 
 /** The newest version of the contract. */
 export const INTERFACE = 1;
@@ -51,6 +52,24 @@ export const ROUTES = ["direct", "browser"] as const;
 export type Route = (typeof ROUTES)[number];
 /** A connector's name: its folder's name — lowercase letters, digits and dashes. */
 export const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+/** What a connector says the portal's terms allow (core/terms.ts: the levels, the strictest source wins). */
+export const AUTOMATIONS = ["allowed", "restricted", "manual", "forbidden", "unknown"] as const;
+export type Automation = (typeof AUTOMATIONS)[number];
+
+/** The terms allow no automated images at all: manual or forbidden. */
+export function byHandOnly(c: Pick<Connector, "manifest">): boolean {
+  return c.manifest.policy.automation === "manual" || c.manifest.policy.automation === "forbidden";
+}
+
+/** Hosts of this computer: a test's archive (STROM_TEST_HOSTS=1), never an archive's. */
+const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
+
+/** A host written as an address (an IP literal) rather than a name — the terms of a site go by its name. */
+export function ipLiteral(h: string): boolean {
+  const x = h.replace(/^\*\./, "").toLowerCase();
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(x) || x.includes(":") || /^\[.*\]$/.test(x);
+}
 
 export interface ConnectorManifest {
   interface: number;
@@ -71,8 +90,12 @@ export interface ConnectorManifest {
   browser?: { open?: string; pages?: boolean };
   /** What the portal allows — found out before the connector was written. */
   policy: {
-    /** allowed · manual (the terms forbid automation: assisted download only) · unknown */
-    automation: "allowed" | "manual" | "unknown";
+    /**
+     * allowed · restricted (the terms restrict automation: images only with the person's permission, slowly or
+     * through their browser) · manual (images by hand only; the catalogue may still be read) · forbidden (no
+     * automated request at all) · unknown (core/terms.ts)
+     */
+    automation: Automation;
     terms?: string;
     termsSummary?: string;
     robots?: string;
@@ -90,6 +113,8 @@ export interface ConnectorManifest {
   };
   /** Not in the file: what it declares that this strom does not know (from a newer contract) — left out. */
   newer?: string[];
+  /** Not in the file: what it can that its terms ("manual", "forbidden") do not let tools do — left out. */
+  withheld?: Capability[];
 }
 
 export interface Connector {
@@ -168,7 +193,7 @@ export function suggestName(folder: string): string | undefined {
 
 // ── reading and checking ─────────────────────────────────────────────────────
 
-export function readManifest(dir: string): ConnectorManifest {
+export function readManifest(dir: string, env: Env = process.env): ConnectorManifest {
   const file = path.join(dir, MANIFEST);
   if (!fs.existsSync(file)) throw new UsageError(`no ${MANIFEST} in ${dir}`, { hint: "a connector is a folder with connector.json — strom connector new <name> --url <portal> makes one" });
   let m: ConnectorManifest;
@@ -195,12 +220,22 @@ export function readManifest(dir: string): ConnectorManifest {
   if (!m.title || typeof m.title !== "string") problems.push("title: the archive or portal");
   if (!Array.isArray(m.run) || !m.run.length || m.run.some((x) => typeof x !== "string")) problems.push('run: the program, e.g. ["node", "connector.ts"]');
   if (!Array.isArray(m.hosts) || !m.hosts.length || m.hosts.some((h) => typeof h !== "string" || !/^(\*\.)?[a-z0-9.-]+$/i.test(h))) problems.push('hosts: the host names it contacts, e.g. ["digi.example.org"]');
+  // an archive's terms go by its name: an address in place of it would go round them (a test's own server aside)
+  else if (m.hosts.some((h) => (ipLiteral(h) || bareHost(h) === "localhost") && !(env.STROM_TEST_HOSTS === "1" && LOOPBACK.has(bareHost(h)))))
+    problems.push('hosts: the archive\'s host names, not addresses (an IP address or localhost), e.g. ["digi.example.org"]');
   if (!Array.isArray(m.can) || !m.can.length || m.can.some((c) => !CAPABILITIES.includes(c))) problems.push(`can: some of ${CAPABILITIES.join(", ")}`);
-  if (!m.policy || !["allowed", "manual", "unknown"].includes(m.policy.automation)) problems.push("policy.automation: allowed, manual or unknown — what the portal's terms say");
+  if (!m.policy || !AUTOMATIONS.includes(m.policy.automation)) problems.push("policy.automation: allowed, restricted, manual, forbidden or unknown — what the portal's terms say");
+  // a connector of an archive whose terms allow no automated images fetches none: its fetch, part and locate are left
+  // out (said by connector show and test) — one written so before keeps finding books as it did
+  else if ((m.policy.automation === "manual" || m.policy.automation === "forbidden") && Array.isArray(m.can) && m.can.some((x) => x === "fetch" || x === "part" || x === "locate")) {
+    m.withheld = m.can.filter((x) => x === "fetch" || x === "part" || x === "locate");
+    m.can = m.can.filter((x) => !m.withheld!.includes(x));
+    if (!m.can.length) problems.push(`can: an archive whose terms are "${m.policy.automation}" gives no images to tools — no fetch, part or locate; ${m.policy.automation === "manual" ? '"can": ["find", "list"]' : "the user saves what the research needs by hand"}`);
+  }
   if (m.routes !== undefined) {
     if (!Array.isArray(m.routes) || !m.routes.length || m.routes.some((r) => !ROUTES.includes(r)) || new Set(m.routes).size !== m.routes.length)
       problems.push(`routes: some of ${ROUTES.join(", ")}, the usual one first`);
-    else if (m.routes.includes("browser") && Array.isArray(m.can) && !m.can.includes("locate"))
+    else if (m.routes.includes("browser") && Array.isArray(m.can) && !m.can.includes("locate") && !m.withheld?.includes("locate"))
       problems.push('routes "browser": the connector says where the images are — add "locate" to can (see the contract)');
   }
   if (m.browser !== undefined) {
@@ -229,7 +264,7 @@ export function readManifest(dir: string): ConnectorManifest {
 }
 
 /** Every folder in the plugins folder: the connectors that work, and those that do not (and why). */
-export function scanConnectors(shared: string | undefined): { connectors: Connector[]; broken: BrokenConnector[] } {
+export function scanConnectors(shared: string | undefined, env: Env = process.env): { connectors: Connector[]; broken: BrokenConnector[] } {
   const connectors: Connector[] = [];
   const broken: BrokenConnector[] = [];
   if (!shared) return { connectors, broken };
@@ -243,7 +278,7 @@ export function scanConnectors(shared: string | undefined): { connectors: Connec
       continue;
     }
     try {
-      connectors.push({ name: e.name, dir, manifest: readManifest(dir) });
+      connectors.push({ name: e.name, dir, manifest: readManifest(dir, env) });
     } catch (err) {
       broken.push({ name: e.name, dir, problem: (err as Error).message, ...(err instanceof UsageError && err.hint ? { hint: err.hint } : {}) });
     }
@@ -251,8 +286,8 @@ export function scanConnectors(shared: string | undefined): { connectors: Connec
   return { connectors, broken };
 }
 
-export function listConnectors(shared: string | undefined): Connector[] {
-  return scanConnectors(shared).connectors;
+export function listConnectors(shared: string | undefined, env: Env = process.env): Connector[] {
+  return scanConnectors(shared, env).connectors;
 }
 
 /** The ways a connector's images may come, the usual one first. */
@@ -260,16 +295,24 @@ export function routesOf(c: Connector): Route[] {
   return c.manifest.routes?.length ? c.manifest.routes : ["direct"];
 }
 
-/** The route the user chose for a connector (strom connector use), or its usual one. */
+/**
+ * The route the user chose for a connector (strom connector use), or its usual one — never the browser by itself
+ * where the archive's terms need the person's word for it and a direct way is there (core/terms.ts).
+ */
 export function routeOf(env: Env, c: Connector): { via: Route; chosen?: RouteChoice } {
   const chosen = loadUserConfig(env).connectorRoutes?.[c.name];
   const routes = routesOf(c);
-  return chosen && routes.includes(chosen.via) ? { via: chosen.via, chosen } : { via: routes[0]! };
+  if (chosen && routes.includes(chosen.via)) return { via: chosen.via, chosen };
+  if (routes[0] === "browser" && routes.includes("direct") && !browserPermitted(env, c)) return { via: "direct" };
+  return { via: routes[0]! };
 }
 
-/** Connectors whose images come through the user's own browser on this computer. */
+/**
+ * Connectors whose images come through the user's own browser on this computer — not one of an archive whose terms
+ * allow no automation, nor of one that restricts it without the person's permission "through the browser".
+ */
 export function browserConnectors(env: Env, shared: string | undefined): Connector[] {
-  return listConnectors(shared).filter((c) => c.manifest.policy.automation !== "manual" && routeOf(env, c).via === "browser");
+  return listConnectors(shared).filter((c) => !byHandOnly(c) && routeOf(env, c).via === "browser" && browserPermitted(env, c));
 }
 
 /** A site as written anywhere: lower case, without "*." or "www.". */
@@ -313,11 +356,25 @@ export function agentBrowser(tree: Tree, shared: string | undefined): { on: bool
   const via = treeBrowserConnectors(tree, shared);
   const always = new Settings(tree.env, {}).resolve("agent.browser", tree.config)?.value === "always";
   const hosts = new Set(via.flatMap((c) => c.manifest.hosts));
+  const net = shared ? path.join(shared, "net") : undefined;
   if (always) {
-    for (const c of shared ? scanConnectors(shared).connectors : []) for (const h of c.manifest.hosts) hosts.add(h);
-    for (const h of treeSites(tree)) hosts.add(h);
+    // never the sites whose terms allow no automation, nor those that restrict it without the person's "through the browser",
+    // nor one that refused strom's client (core/terms.ts reads the limiter's state)
+    for (const c of shared ? scanConnectors(shared).connectors : []) if (!byHandOnly(c) && browserPermitted(tree.env, c, net)) for (const h of c.manifest.hosts) hosts.add(h);
+    for (const h of treeSites(tree)) if (allows(archiveLevel(tree.env, { url: h, tree, readOnly: true, ...(net ? { net } : {}) }), "images", "browser").ok) hosts.add(h);
   }
-  return { on: always || via.length > 0, hosts: [...hosts], always };
+  // a host left alone now (it refused, it asked for a pause): not through the browser either until then
+  const now = Date.now();
+  const paused = (h: string) => {
+    if (!net) return false;
+    try {
+      const s = hostState(net, h.replace(/^\*\./, "").toLowerCase());
+      return (!!s.blockedUntil && s.blockedUntil > now) || (!!s.waitUntil && s.waitUntil > now);
+    } catch {
+      return false;
+    }
+  };
+  return { on: always || via.length > 0, hosts: [...hosts].filter((h) => !paused(h)), always };
 }
 
 /** The site of an address, or nothing when it is none. */
@@ -561,7 +618,7 @@ export function readyConnectors(env: Env, shared: string | undefined, url: strin
     return [];
   }
   return listConnectors(shared).filter((c) => {
-    if (!c.manifest.can.includes("fetch") || c.manifest.policy.automation === "manual" || !hostAllowed(host, c.manifest.hosts)) return false;
+    if (!c.manifest.can.includes("fetch") || byHandOnly(c) || !hostAllowed(host, c.manifest.hosts)) return false;
     const miss = missingConsents(env, c);
     return !miss.code && !miss.hosts.length;
   });
@@ -601,7 +658,7 @@ export function codeWarning(c: Connector, source: string, direct: string[]): str
       : sandboxedRun(c)
         ? "  its code seems to use no network of its own (a check of its words, not a guarantee); it runs in Node's permission model, so the agent may go on improving it without asking again"
         : undefined,
-    m.policy.automation === "manual" ? "  ⚠ its own reading of the portal's terms: automation is not allowed — it only helps download by hand" : undefined,
+    byHandOnly(c) ? "  ⚠ its own reading of the portal's terms: automation is not allowed — it only helps download by hand" : m.policy.automation === "restricted" ? "  ⚠ its own reading of the portal's terms: automation is restricted — images only with your permission for the archive (slowly, or through your browser)" : undefined,
   ]
     .filter(Boolean)
     .join("\n");
@@ -783,6 +840,12 @@ export interface RunReport {
   stopped?: string;
   /** It ended at a limit used up (an hourly cap): when the host takes requests again (ms). */
   later?: number;
+  /**
+   * It ended at a refusal: the host refused (401/403 — `now`), was left alone after one, or its robots.txt keeps
+   * automated tools off the path (`robots`) — why, and what the agent is told to do (the limiter's hint).
+   */
+  /** origin: the scheme, host and port of the address refused (a check of the site by the person goes there). */
+  refused?: { host: string; origin?: string; kind?: RefusedKind; status?: number; until?: number; robots?: { line: string; path: string; all: boolean }; hint?: string; now: boolean };
 }
 
 export interface RunOptions {
@@ -805,6 +868,15 @@ export interface RunOptions {
   /** The measure of the load on the archive (core/metrics.ts): every pause and every request, as the limiter makes them. */
   onPause?: (p: { host: string; ms: number; why: "pace" | "cap" | "limit" }) => void;
   onRequest?: (host: string) => void;
+  /**
+   * The pace of a request's host, where it is not the service's own: an archive whose terms restrict automation,
+   * its images at a person's pace (core/terms.ts) — the service's pace as the person last saw it, and the person's.
+   */
+  paceFor?: (host: string) => { pace: ServicePace; human: Pace } | undefined;
+  /** The person's permission for a host's archive (images slowly): paths its robots.txt keeps tools off go at this pace. */
+  robotsPermitFor?: (host: string) => Pace | undefined;
+  /** What strom read and decided of a host (its robots.txt, a refusal): kept beside the person's settings (core/terms.ts). */
+  onVerdict?: (v: NetVerdict) => void;
 }
 
 /** A minimal environment: the connector gets no secrets of the shell that runs strom. */
@@ -863,6 +935,7 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
   const report: RunReport = { books: [], images: [], located: [], requests: 0, sent: 0, logs: [] };
   const cookies = new CookieJar(); // the cookies of this run, and of no other
   const seen = new Map<string, number | undefined>(); // the images of this run by their content
+  const asked = new Set<string>(); // the hosts this run has asked: a refusal of its first request may be one of the client
   // the user's login, put into requests by strom and taken out of every answer
   const login = c.manifest.login ? loginOf(opts.env, c) : undefined;
   const clean = redactor(login);
@@ -1030,11 +1103,20 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
       }
       if (opts.maxRequests !== undefined && Math.max(report.requests, report.sent) >= opts.maxRequests) return refuse("cap", `the run's limit of ${opts.maxRequests} requests (a test: --max <n>, at most 50)`);
       report.requests++;
+      const reqHost = URL.canParse(h.url) ? new URL(h.url).hostname : "";
+      const paced = opts.paceFor?.(reqHost);
+      const permit = opts.robotsPermitFor?.(reqHost);
       try {
         const res = await politeRequest(h.url, {
           stateDir: opts.netDir,
           hosts: c.manifest.hosts,
-          pace: c.manifest.policy.pace ?? {},
+          pace: paced?.pace ?? c.manifest.policy.pace ?? {},
+          ...(paced ? { human: paced.human } : {}),
+          ...(permit ? { robotsPermit: permit } : {}),
+          robots: true,
+          run: asked,
+          login: !!c.manifest.login,
+          ...(opts.onVerdict ? { onVerdict: opts.onVerdict } : {}),
           method: method as "GET" | "POST" | "HEAD",
           headers,
           ...(body !== undefined ? { body } : {}),
@@ -1067,6 +1149,19 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
       } catch (err) {
         if (!(err instanceof NetError)) throw err;
         if (err.failure === "cap" && err.until !== undefined) report.later = err.until;
+        // a refusal: why, and the limiter's advice with it (the agent reads it with what strom fetch says next)
+        const refusal = (err.failure === "refused" && (err.status === 401 || err.status === 403)) || (err.failure === "blocked" && !!err.refusedKind) || err.failure === "robots";
+        if (refusal)
+          report.refused = {
+            host: err.host,
+            ...(URL.canParse(h.url) && new URL(h.url).hostname === err.host ? { origin: new URL(h.url).origin } : {}),
+            ...(err.refusedKind ? { kind: err.refusedKind } : {}),
+            ...(err.status !== undefined ? { status: err.status } : {}),
+            ...(err.until !== undefined ? { until: err.until } : {}),
+            ...(err.robots ? { robots: err.robots } : {}),
+            ...(err.hint ? { hint: err.hint } : {}),
+            now: err.failure === "refused",
+          };
         // every refusal ends the run: nothing more goes to an archive that said no, or went silent
         refuse(err.failure, clean(err.message));
       }

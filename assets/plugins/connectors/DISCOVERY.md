@@ -17,13 +17,26 @@ strom runs the connector; you never run it yourself, you test it with
 - Write what you found into `connector.json` → `policy`:
   - `terms` (the URL), `termsSummary` (one to three sentences, quoted where it
     matters), `robots`, `officialExport`.
-  - `automation`, one of:
-    - `"allowed"`: the terms allow it or say nothing against it, and nothing
-      is got round.
-    - `"manual"`: the terms forbid automated or bulk download. The connector
-      only finds books and gives their links (`"can": ["find", "list"]`), and
-      the user downloads by hand into the inbox.
-    - `"unknown"`: you could not find out. Say so; the user decides.
+  - `automation`, one of (the strictest that fits; strom keeps to the
+    strictest of yours, the family tree's archive and what it knows itself):
+    - `"allowed"`: the terms allow it or say nothing against it, robots.txt
+      does not forbid the paths, and nothing is got round.
+    - `"restricted"`: the terms restrict automation without forbidding it —
+      images only by a browser's own means ("right click and save image"),
+      only one image at a time — or the portal is behind a bot check, or
+      robots.txt disallows the paths. strom reads the catalogue by itself;
+      the images only with the user's permission for the archive (slowly,
+      at a person's pace, or through their browser), asked once.
+    - `"manual"`: the images are for viewing online only — the terms forbid
+      downloading or copying them, not the catalogue. The connector only
+      finds books and gives their links (`"can": ["find", "list"]`: no
+      fetch, part or locate), and the user saves the images by hand.
+    - `"forbidden"`: the terms forbid any automated access. strom sends the
+      portal nothing at all (but its robots.txt); the user works by hand.
+    - `"unknown"`: you could not find out. Say so; images then wait for the
+      user's decision, as for `"restricted"`.
+    Making a level stricter is yours; a milder one counts only once the user
+    accepts it (`strom allow archive <connector> --accept`).
   - `pace`: the service's own, when it states one — slower when the terms
     or robots.txt ask for it (`{"minIntervalMs": 5000}` for a crawl-delay of
     5), faster when its documentation allows it (an API, an image server:

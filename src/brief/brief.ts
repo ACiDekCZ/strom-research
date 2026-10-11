@@ -19,8 +19,10 @@ import { briefClock } from "../core/clock.ts";
 import { calibrationLine } from "../core/calibration.ts";
 import { taskRecordsets } from "../core/frontier.ts";
 import { reviewItems } from "../core/review.ts";
-import { listConnectors, missingConsents, readyConnectors, routeOf, type Connector } from "../core/connector.ts";
-import { hostAllowed } from "../core/net.ts";
+import { byHandOnly, listConnectors, missingConsents, readyConnectors, routeOf, type Connector } from "../core/connector.ts";
+import { clock, hostAllowed, hostState, REFUSED_FOREVER } from "../core/net.ts";
+import { archiveLevel, type PendingQuestion } from "../core/terms.ts";
+import { onHost, permissionQuestions, setHosts } from "../core/archivewait.ts";
 import { runs, shellArg } from "../cli/format.ts";
 import { commandSheet } from "./sheet.ts";
 import { foldText } from "../core/text.ts";
@@ -40,6 +42,7 @@ import { inWords, PROFILES } from "../agents/profiles.ts";
 import { ENRICH_PAGES, STORY_SOURCES_ORIGIN } from "../core/stories.ts";
 import { sandboxOf, WITHOUT_READERS, type Sandbox } from "../core/sandbox.ts";
 import { WEB_SOFT } from "../core/metrics.ts";
+import { indexBriefLines } from "../core/indexfirst.ts";
 
 /** What strom tuned for the session's agent and model (core/tune.ts), as at the session's start: it holds for all of it. */
 interface BriefTuning {
@@ -553,7 +556,7 @@ function readyFor(tree: Tree, shared: string | undefined, installed: Ready): Rea
     if (!host) return [];
     if (!byHost.has(host)) {
       const direct = readyConnectors(tree.env, shared, url!);
-      const browser = installed(url).filter((c) => !direct.some((d) => d.name === c.name) && viaBrowser(tree, c) && c.manifest.policy.automation !== "manual" && !missingConsents(tree.env, c).code && !missingConsents(tree.env, c).hosts.length);
+      const browser = installed(url).filter((c) => !direct.some((d) => d.name === c.name) && viaBrowser(tree, c) && !byHandOnly(c) && !missingConsents(tree.env, c).code && !missingConsents(tree.env, c).hosts.length);
       byHost.set(host, [...direct, ...browser]);
     }
     return byHost.get(host)!;
@@ -586,7 +589,7 @@ function bookFinder(tree: Tree, b: RecordSet, installed: Ready): Finder | undefi
   const all = installed(b.url);
   const c = all.find((x) => x.manifest.can.includes("fetch") || viaBrowser(tree, x)) ?? all[0];
   if (!c) return undefined;
-  const why = c.manifest.policy.automation === "manual" ? "manual" : c.manifest.can.includes("fetch") || viaBrowser(tree, c) ? "consent" : "search";
+  const why = byHandOnly(c) ? "manual" : c.manifest.can.includes("fetch") || viaBrowser(tree, c) ? "consent" : "search";
   return { connector: c.name, why };
 }
 
@@ -597,7 +600,7 @@ function byHandAsk(b: RecordSet, whole: boolean): string {
 
 /** What a finder of a record set means for its images. */
 function finderText(f: Finder, b: RecordSet): string {
-  if (f.why === "consent") return `its connector ${f.connector} fetches them once the user allows it — strom fetch ${f.connector} <book> --images <from-to> --recordset ${b.id} asks them`;
+  if (f.why === "consent") return `its connector ${f.connector} fetches them once the user allows it — one strom fetch ${f.connector} <book> --images <from-to> --recordset ${b.id} asks them; once the question waits, never again until they decide`;
   const what = f.why === "manual" ? `the archive's terms allow no automation: its connector ${f.connector} finds books and gives their links` : `its connector ${f.connector} only finds books and fetches no images`;
   return `${what} — the user saves the images by hand`;
 }
@@ -646,7 +649,7 @@ function bookRoute(tree: Tree, b: RecordSet, ready: Ready): BookRoute | undefine
 }
 
 /** How many images of a record set are registered, how to look at them, and how the others come. */
-function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, shape: boolean, finder?: Finder, noSharper = false): string[] {
+function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, shape: boolean, finder?: Finder, noSharper = false, waiting?: string): string[] {
   // each image once: its parts and other copies are the same image
   const nums = imagesIndex(tree).sets.get(b.id)?.images ?? [];
   const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
@@ -658,6 +661,8 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
       }`
     : undefined;
   if (nums.length === 0) {
+    // the person's decision about its archive waits: no fetch, nothing that would ask again
+    if (waiting) return [`    no images here yet — ${waiting}`];
     if (route) return [`    no images here yet — the connector fetches the ones you need`, fetch!];
     if (finder && !byHand) return [`    no images here yet — ${finderText(finder, b)}${finder.why === "consent" ? "" : `: ${byHandAsk(b, true)}, then take the next task`}`];
     if (b.url && !byHand)
@@ -674,8 +679,9 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
     weak
       ? `    weak scans (long side ${weak} px): a negative on them is weak — ${route?.part && !noSharper ? `a part sharper: strom fetch ${route.connector} --recordset ${b.id} --images <n> --crop x,y,w,h` : SHARPER_SCAN}`
       : "",
-    // the others: through the connector, else as the archive allows
-    fetch ??
+    // the others: through the connector, else as the archive allows (the person's decision waiting: not fetched)
+    (waiting ? `    more: ${waiting}` : undefined) ??
+      fetch ??
       (byHand
         ? `    more: by the user's hand — ${byHandAsk(b, false)}`
         : finder
@@ -741,6 +747,83 @@ function placeConnectors(tree: Tree, sets: RecordSet[], places: Set<string>, key
   return [...[...serving].map(([name, archive]) => ({ name, ...(archive ? { archive } : {}), serves: true })), ...others];
 }
 
+/**
+ * What strom keeps to at a record set's archive now (C6): its level where it is not simply allowed, the person's
+ * permission, a refusal of strom's client or a pause of its host — nothing for an archive that allows it all.
+ */
+/** What the agent reads of an archive's question that waits for the person: since when, and never to fetch there again. */
+function questionWaits(q: PendingQuestion, task: string, book: string): string {
+  return `a question waits for the person since ${q.at.slice(0, 10)}${(q.tries ?? 1) > 1 ? ` (needed ${q.tries}×)` : ""} — do not fetch from ${q.host} again: another source, or strom task wait ${task} --images ${book}:<from-to> --on "<the book, its link, which images — impersonal, in the research language>"`;
+}
+
+/**
+ * Every archive whose images wait for the person's decision, with the books of the research there — not only the
+ * task's: a session spent fetching any of them only asks again. Empty: none.
+ */
+function questionsWaiting(tree: Tree, task: string, qs: PendingQuestion[]): string[] {
+  if (!qs.length) return [];
+  const books = tree.list<RecordSet>("recordset");
+  const out: string[] = [];
+  for (const q of qs) {
+    const here = books.filter((b) => setHosts(tree, b).some((h) => onHost(h, q.host!))).map((b) => b.id);
+    if (!here.length) continue;
+    const shown = here.slice(0, 8).join(", ") + (here.length > 8 ? ` (+${here.length - 8})` : "");
+    out.push(`  ${q.title ?? q.host} (${q.host}): ${questionWaits(q, task, here[0]!)} · its books here: ${shown}`);
+  }
+  return out;
+}
+
+function archiveLine(tree: Tree, b: RecordSet, repo: Repository | undefined, shared: string | undefined, installed: Ready, qs: PendingQuestion[] = []): string {
+  const url = [b.url, repo?.url].find((x) => !!x && URL.canParse(x));
+  if (!url) return "";
+  const host = new URL(url).hostname.toLowerCase();
+  const net = shared ? path.join(shared, "net") : undefined;
+  let a: ReturnType<typeof archiveLevel>;
+  try {
+    const c = installed(url)[0];
+    a = archiveLevel(tree.env, { ...(c ? { connector: c } : {}), url, tree, readOnly: true, ...(net ? { net } : {}) });
+  } catch {
+    return "";
+  }
+  const parts: string[] = [];
+  if (a.level !== "allowed") parts.push(`${a.level}${a.browserOnly ? " — only through a person's browser" : a.level === "manual" ? " — images by hand only" : a.level === "forbidden" ? " — no automated request at all" : ""}`);
+  if (a.level === "restricted" || a.level === "unknown")
+    parts.push(
+      a.permission
+        ? `the person's permission: ${a.permission === "slow" ? "images slowly" : a.permission === "browser" ? "through the browser" : "by hand only"}`
+        : ((q) => (q ? `the person's decision on its images waits since ${q.at.slice(0, 10)}` : "no decision of the person's yet: a fetch of its images asks them once, and the question then waits — never fetch there again until they decide"))(qs.find((x) => onHost(a.host, x.host!))),
+    );
+  else if (a.permission === "manual") parts.push("the person: images by hand only");
+  if (a.refused) parts.push(`${a.refused.host} refused strom's client — left alone ${a.refused.until && a.refused.until < REFUSED_FOREVER ? `until ${clock(a.refused.until)}` : "until the person lifts it"}; not through your web tools or a browser either`);
+  else if (net) {
+    try {
+      const st = hostState(net, host);
+      if (st.blockedUntil && st.blockedUntil > Date.now()) parts.push(`${host} left alone until ${clock(st.blockedUntil)}${st.reason ? ` (${st.reason})` : ""} — nothing to it before then`);
+    } catch {
+      // the host's state unreadable: the level says enough
+    }
+  }
+  return parts.length ? `    archive ${a.host}: ${parts.join(" · ")}` : "";
+}
+
+/**
+ * What the person answered for the task (Task.answers: only theirs, through strom task wake --answer/--check in their
+ * terminal, a window or strom's menu) — apart from the notes, which anybody writes — and the way on from a check.
+ */
+function personAnswers(tree: Tree, task: Task): string[] {
+  const all = task.answers ?? [];
+  if (!all.length) return [];
+  const words = { works: "it works — the book and its images can be seen there", view: "only to be viewed there", no: "it does not work — nothing there" } as const;
+  const out = all.slice(-3).map((a) => `the person answered (${a.at.slice(0, 10)}; asked: ${a.asked}${a.url ? ` — ${a.url}` : ""}): ${[a.check ? words[a.check] : "", a.answer ? `"${a.answer}"` : ""].filter(Boolean).join(" — ")}`);
+  if (task.notes.length) out.push("(the notes are the research's own; only the lines above are the person's answers)");
+  const last = all.at(-1)!;
+  const set = task.where.find((w) => /^B\d{4,}$/.test(w) && tree.get<RecordSet>(w)) ?? "B…";
+  if (last.check === "works") out.push(`next: the images by the person's hand — strom task wait ${task.id} --images ${set}:<numbers> --on "<the book, its link, which images — impersonal, in the research language>" (they go into the inbox; the task comes back with them)`);
+  else if (last.check === "view") out.push(`next: only to be viewed there — the person reads what the task needs (strom task wait ${task.id} --on "<what to read there>"), or the source put aside: strom recordset edit ${set} --access onsite|request`);
+  else if (last.check === "no") out.push(`next: nothing there for the person — strom task park ${task.id} --reason "…" or strom task drop ${task.id} --reason "…"`);
+  return out;
+}
+
 /** At most this many of the browser's sites are named in the brief; the rest by their number. */
 const BROWSER_SITES = 12;
 
@@ -756,17 +839,18 @@ export function browserRules(sites: readonly string[], alone: boolean, task?: st
   return [
     "## The browser (Claude in Chrome)",
     `Its sites: ${named || "none yet"} — no other.`,
-    "- Use it without asking where a connector (strom fetch), WebFetch and WebSearch lead nowhere; images only through strom fetch.",
+    "- Use it without asking where a connector (strom fetch), WebFetch and WebSearch lead nowhere — never where they led nowhere because the site refused strom (401/403/429) or its terms forbid or restrict automation; images only through strom fetch.",
     "- As gently as strom fetch: the site's terms and robots.txt, its pace and hourly cap (strom connector show; else a page at a time, 2 s apart at least), only the pages the task needs, nothing ahead. A site that forbids automated access: never through the browser, never a way round.",
+    `- A site that forbids automation, refused strom, or restricts it without the person's permission "through the browser" (strom net web --check <url> says it): no connector, no browser — another way to the same records (another archive or fonds of the jurisdiction, the parish, an index, secondary sources), the search recorded (strom search add … --result inconclusive --note "<host>: …"); only if the source stays necessary: strom task wait ${task ?? "T…"} --check <url> --on "<what the person checks there>"${alone ? ", then close the session" : ""}.`,
     ...(alone
       ? [
           "- Nobody answers in a run: no AskUserQuestion, no switch_browser. Several browsers connected, none selected: list_connected_browsers, then select_browser — onThisComputer, else isLocal.",
           `- Neither: those browsers are another computer's, somebody may be working there — no browser: strom task wait ${task ?? "T…"} --on "<the question, in the research language: no browser of this computer is connected>", then close the session.`,
-          `- Another site, or one that forbids automation: an archive the task needs without a connector — build one (strom connector new); anything else — strom task wait ${task ?? "T…"} --on "<the question>", then close the session.`,
+          `- Another site that allows automation: an archive the task needs without a connector — build one (strom connector new); anything else — strom task wait ${task ?? "T…"} --on "<the question>", then close the session.`,
         ]
       : [
           "- Several browsers connected, none selected: list_connected_browsers, ask the user which — onThisComputer, else isLocal, else the first suggested —, then select_browser.",
-          "- Another site, or one that forbids automation: ask the user first.",
+          "- Another site: ask the user first.",
         ]),
   ].join("\n");
 }
@@ -847,6 +931,7 @@ export function buildBrief(
         task.subject.length ? `about: ${task.subject.join(" ")}` : "",
         ...task.notes.slice(-3).map((n) => `note:  ${n.text}`),
         task.notes.length > 3 ? `(notes: the last 3 of ${task.notes.length} — all: strom task show ${task.id})` : "",
+        ...personAnswers(tree, task),
       ].filter(Boolean).join("\n"),
     });
 
@@ -986,6 +1071,7 @@ export function buildBrief(
       parts: searches.map((s) => ({ short: "", whole: `  ${s.id} [${searchedAs(s)}] ${s.question}${s.scope.years ? ` · ${s.scope.years}` : ""}${s.scope.pages ? ` · pages ${s.scope.pages}` : ""} · ${s.recordsets.join(" ")}${s.by !== "main" ? ` (by ${s.by})` : ""}` })),
       tail: [
         ...(searches.length ? [] : ["  nothing searched yet for this task's record sets and surnames"]),
+        ...indexBriefLines(tree, [...where].map((w) => tree.get<RecordSet>(w)).filter((b): b is RecordSet => b?.type === "recordset")),
         ...(elsewhere.length ? [`  +${elsewhere.length} search${elsewhere.length > 1 ? "es" : ""} of ${elsewhereNames.join(", ")} in other places and years: ${elsewhereNames.map((n) => `strom searched ${shellArg(n)}`).join(" · ")}`] : []),
         ...(lessons.length ? ["lessons:", ...lessons.map((l) => `  ${l.id}${l.target ? ` (${l.target})` : ""}: ${l.rule}`)] : []),
         ...(unshown.length ? [`${unshown.length} more general lesson${unshown.length > 1 ? "s" : ""}: strom lesson list --scope project`] : []),
@@ -1087,6 +1173,12 @@ export function buildBrief(
     ? { key: researchKey(tuneSettings, tuneAgent, tree.config, tree.root), state: treeTuning(tree, tuneSettings), since: opts.session?.started, max: viewSizes(tuneSettings.config, tuneAgent, tuneModel).max }
     : undefined;
   const sets = located.sets;
+  // the archives whose images wait for the person's decision (every research's, shared by this computer)
+  const asked = permissionQuestions(tree.env);
+  const waitsFor = (b: RecordSet) => {
+    const q = asked.find((x) => setHosts(tree, b).some((h) => onHost(h, x.host!)));
+    return q ? questionWaits(q, task?.id ?? "T…", b.id) : undefined;
+  };
   const installed = installedFor(opts.shared);
   const ready = readyFor(tree, opts.shared, installed);
   const routes = new Map(sets.map((b) => [b.id, bookRoute(tree, b, ready)]));
@@ -1108,13 +1200,24 @@ export function buildBrief(
             `  ${b.id} ${b.title}`,
             `    ${[b.kinds.join(", "), b.places.join(", "), b.years].filter(Boolean).join(" · ")} · access ${b.access}${b.url ? ` · ${b.url}` : ""}`,
             repo ? `    ${repo.name} · automated download: ${repo.automation}${repo.terms ? ` · terms: ${repo.terms}` : ""}` : "",
+            archiveLine(tree, b, repo, opts.shared, installed, asked),
             b.layout ? `    layout: ${b.layout}` : "",
             calibrationLine(b) ? `    ${calibrationLine(b)}` : "",
-            ...imagesLines(tree, b, routes.get(b.id), b.id === shapeFor, finders.get(b.id), !!(tuning && bookTuned(tuning.state, tuning.key, b.id, tuning.since).noSharper)),
+            ...imagesLines(tree, b, routes.get(b.id), b.id === shapeFor, finders.get(b.id), !!(tuning && bookTuned(tuning.state, tuning.key, b.id, tuning.since).noSharper), waitsFor(b)),
             ...tunedBookLines(tuning, b, routes.get(b.id), opts.shared),
           ].filter(Boolean).join("\n");
         }),
       ].join("\n"),
+    });
+
+  // 7a. every archive whose images wait for the person's decision, with the research's books there: never fetched again
+  const waitingOn = questionsWaiting(tree, task?.id ?? "T…", asked);
+  if (waitingOn.length)
+    sections.push({
+      name: "archive questions",
+      first: true,
+      pointer: "strom allow archive",
+      text: ["## Archives whose images wait for the person's decision (the person answers in strom's menu; work that needs them waits out of the queue)", ...waitingOn].join("\n"),
     });
 
   // 7b. what the user put in the shared inbox — scans or documents nobody registered yet

@@ -10,7 +10,7 @@ import type { Context } from "../cli/context.ts";
 import { lines } from "../cli/format.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { readJsonIfExists } from "../core/json.ts";
-import type { Conflict, Person, Research, Source, TreeConfig } from "../core/model.ts";
+import type { Conflict, Person, Research, Source, Task, TreeConfig } from "../core/model.ts";
 import { Tree } from "../core/tree.ts";
 import { LinkError, linkHandlerState, linkScheme, linkText, parseLink, registerLinks, unregisterLinks, type Link } from "../core/links.ts";
 import { displayName, lifespan } from "../core/people.ts";
@@ -160,6 +160,12 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       return end(true);
     }
     case "task": {
+      // the person's check of a site (and a wake of one, which only their answer does): its question in the terminal
+      if (link.do === "check" || (link.do === "wake" && Tree.open(root, ctx.env).get<Task>(link.task)?.awaitsCheck)) {
+        const { waitingTask } = await import("../cli/menu-waiting.ts");
+        if (!(await waitingTask(ctx, run, treeLang, root, link.task))) return said("ui.link.notask");
+        return end(true);
+      }
       if (link.do) {
         const { taskDo } = await import("../cli/menu-links.ts");
         return end(await taskDo(ctx, run, treeLang, root, link.task, link.do));
@@ -201,6 +207,12 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     case "finish": {
       const { finishSession } = await import("../cli/menu-links.ts");
       return end(await finishSession(ctx, run, treeLang, root, link.session));
+    }
+    case "archive": {
+      // an archive's question, as What waits asks it — only for an archive a downloader here reaches (an archive of the
+      // data from the app asks nothing of the kind); the answer is the person's, here
+      const { archiveAsked } = await import("../cli/menu-links.ts");
+      return end(await archiveAsked(ctx, run, treeLang, root, link.host));
     }
   }
   const named = "person" in link ? link.person : undefined;
@@ -326,6 +338,8 @@ register(
       "taken up again (strom research pause|done|resume).\n" +
       "strom-research://chat?tree=<id>&research=G0002 — a conversation about one direction, its tasks only.\n" +
       "strom-research://finish?tree=<id>&session=N0012 — the session at work asked to finish (strom session finish).\n" +
+      "strom-research://archive?tree=<id>&host=www.example.org — the question about an archive's images (slowly, through the\n" +
+      "browser, by hand), answered in the terminal as in the menu's What waits; the answer is never in the link.\n" +
       "strom-research://update|sessions|setup?tree=<id> — strom update, the agent's sessions and their cost, strom setup.\n" +
       "strom-research://new?app=<the app's mark> — a tree of the app becomes a new research: named, made, the app hands the\n" +
       "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app.\n" +

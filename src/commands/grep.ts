@@ -2,6 +2,7 @@
 // lines round it. Big inputs (an old research's protocols, a transcribed register) are searched in one call, never
 // read in pieces (core/grep.ts).
 
+import path from "node:path";
 import { register } from "../cli/registry.ts";
 import { lines, moreLine, paginate, shellArg } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
@@ -63,6 +64,19 @@ register({
       if (!input.file?.startsWith("inputs/")) throw new UsageError(`${input.id} has no file in inputs/ to search`, { hint: `strom input show ${input.id}` });
       return input.file;
     });
+    // a file outside the research: what an agent's tool saved of a long output of strom (N0280, N0281) — strom's own
+    // filters find it in one short call, never a search through a saved listing
+    const outside = wanted.find((w) => {
+      const p = w.startsWith("~") ? path.join(ctx.env.HOME ?? "", w.slice(1)) : w;
+      if (!path.isAbsolute(p)) return false;
+      const rel = path.relative(tree.root, p);
+      return rel.startsWith("..") || path.isAbsolute(rel);
+    });
+    if (outside)
+      throw new UsageError(`--in ${outside}: a file outside the research — a saved listing of strom: run it again with its own filter`, {
+        hint: `strom recordset list ${shellArg(patterns[0]!)} | --place <name> | --years <from-to> | --repo <R…> · strom task list --about <who> · strom find ${shellArg(patterns[0]!)}`,
+        code: "grep.outside",
+      });
     const { targets, error } = grepTargets(tree.root, wanted);
     if (error) throw new UsageError(error, { hint: `strom grep ${patterns.map(shellArg).join(" ")} --in ${GREP_FOLDERS.join("|")}|all` });
     let match: (line: string) => number;

@@ -134,7 +134,7 @@ test("through the browser: the connector says where the images are, strom plans 
 
   // the plan: the connector located the images (its book page, through strom); no image was fetched by strom
   const plan = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1", "--json"]);
-  assert.deepEqual([...a.hits], ["/book/5359"], "only the book's page — the images are the browser's to fetch");
+  assert.deepEqual([...a.hits], ["/robots.txt", "/book/5359"], "its robots.txt (strom reads it once a day) and the book's page — the images are the browser's to fetch");
   const p = plan.json;
   assert.equal(p.plan.items.length, 3);
   assert.deepEqual(p.plan.items.map((i: { file: string }) => i.file), ["strom-zkusebni-5359-0001", "strom-zkusebni-5359-0002", "strom-zkusebni-5359-0003"]);
@@ -230,6 +230,19 @@ done();
   fs.mkdirSync(downloads);
   await w.ok(["config", "set", "browser.downloads", downloads]);
   a.hits.length = 0;
+
+  // a bot check: every page goes through the person's browser — only with their permission for the archive (S3);
+  // nobody to ask here: the question waits in the menu, nothing planned, nothing asked of the archive
+  const asked = await w.run(["fetch", "zkusebni", "--find", "Týnec", "--json"]);
+  assert.equal(asked.code, 4, asked.out + asked.err);
+  assert.equal(asked.json.needs, "permission");
+  assert.equal(asked.json.way, "browser");
+  assert.deepEqual([...a.hits], []);
+  assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "archives.json")).pending.find((p: { kind: string }) => p.kind === "permission").host, "127.0.0.1");
+  // the person allows it through the browser (in their own terminal; a test's own settings — R8)
+  await w.ok(["allow", "archive", "zkusebni", "--way", "browser"], { tty: true });
+  // …at the service's own pace for its images (the person's own pace for the host, as for an archive they know)
+  await w.ok(["allow", "host", "127.0.0.1", "--pace", "5"], { tty: true });
 
   // find: the first page, planned in the limiter — nothing asked by strom itself
   const one = await w.ok(["fetch", "zkusebni", "--find", "Týnec", "--json"]);

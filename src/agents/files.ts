@@ -67,6 +67,11 @@ the researcher; \`strom\` is your only way to read and change the research.
    OpenCode, Grok — the user's choice). \`strom\` shows who is working now; never take a task
    another one has started.
 9. ${webRuleLines(new Settings(tree.env, {}).webPerHost(tree.config), "`")}
+10. A site strom refused, or whose archive forbids or restricts automation
+    without the user's permission: not through your web tools or a browser
+    either — check with \`strom net web --check <url>\`. Another way to the
+    same records first; a task for the user (\`strom task wait T… --check
+    <url> --on "…"\`) only if the source stays necessary.
 
 ## Working with the user
 

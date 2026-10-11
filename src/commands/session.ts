@@ -14,7 +14,7 @@ import { ui, type UIKey } from "../cli/ui.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, shellArg, table, truncate } from "../cli/format.ts";
 import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
-import type { Person, Research, Session, Task } from "../core/model.ts";
+import type { Person, RecordSet, Research, Session, Task } from "../core/model.ts";
 import { closeSession, costPartial, currentSession, openSessions, othersAtWork, sessionCost, sessionNote, startSession, whichSession, withReaders } from "../core/session.ts";
 import { reviveLive } from "../core/live.ts";
 import { buildBrief } from "../brief/brief.ts";
@@ -40,10 +40,12 @@ import { PROFILES } from "../agents/profiles.ts";
 import { AGENTS, detectAgent, isAgent, which, withoutAgentMarks } from "../core/which.ts";
 import { askGate, checkGateSpec, ensureGatesDir, gateLogLine, gateRecord, loadGate, recordGate, type Gate, type GateAnswer, type GateRecord } from "../core/gate.ts";
 import { keepAwake } from "../core/awake.ts";
-import { askFinish, deadlineOf, finishAsked, finishByLimit, WRAP_UP_MS } from "../core/clock.ts";
+import { askFinish, deadlineOf, earlyClose, finishAsked, finishByLimit, WRAP_UP_MS } from "../core/clock.ts";
+import { openUnclear } from "./readings.ts";
 import { OWN_GROUP } from "../runners/runner.ts";
 import { stromLauncher, writeShim } from "../core/self.ts";
 import { phrase } from "../core/phrases.ts";
+import { permissionWait } from "../core/archivewait.ts";
 import { enterWorker, markPaused, runAlive, runsAtWork } from "../core/workers.ts";
 import type { Env } from "../core/paths.ts";
 import { assertIntact, snapshot, verifyFast } from "../core/integrity.ts";
@@ -235,6 +237,23 @@ register(
           if (held.has(id)) throw new UsageError(`${id} is being worked on in another session`, { hint: "only tasks nobody holds: strom task list" });
           if (t.state === "done" || t.state === "dropped") throw new UsageError(`${id} is ${t.state} already`, { hint: "leave it out of --also-done" });
         }
+      }
+      // A session of strom run closing early — its task back to the queue, or done over places its readers found unclear
+      // — with most of its time left and nothing said of the time being short: said once, closed on the second call or
+      // with --reason (N0281, N0283: closed after 16 and 18 minutes of 60, the time only guessed).
+      const unverified = done ? openUnclear(tree, tree.list<RecordSet>("recordset").map((b) => b.id), undefined, Date.parse(s.started)) : [];
+      const early = opts.continue || unverified.length ? earlyClose(ctx.env, tree.root, s.id) : undefined;
+      const said = path.join(tree.root, ".strom", "clock", `${s.id}.close`);
+      if (early && !(typeof opts.reason === "string" && opts.reason.trim()) && !fs.existsSync(said)) {
+        fs.mkdirSync(path.dirname(said), { recursive: true });
+        fs.writeFileSync(said, new Date().toISOString() + "\n");
+        throw new UsageError(`not closed — ${early}`, {
+          hint: lines(
+            unverified.length ? `readers found ${unverified.map((u) => `${u.recordset}:${u.image}`).slice(0, 5).join(", ")} unclear and nobody looked closer since: strom media view ${unverified[0]!.recordset}:${unverified[0]!.image} --half both` : undefined,
+            `the context full or another reason to stop: the same command again closes it (or with --reason "…")`,
+          ),
+          code: "session.early-close",
+        });
       }
       let finished: { task: Task; said: string[] } | undefined;
       if (done) {
@@ -1069,7 +1088,9 @@ register({
         const idle = back && back.state === "open" ? idleSessions(after, task.id) : 0;
         if (idle >= MAX_IDLE_SESSIONS) {
           const why = `${idle} sessions in a row recorded nothing for it — needs a look (strom task show ${task.id})`;
-          update<Task>(after, task.id, "task", (t) => ({ ...t, state: "parked", parkedReason: why }), {
+          // its images wait for the person's decision about an archive: said, so the decision wakes it
+          const decision = permissionWait(after, back!, undefined, { queue: true });
+          update<Task>(after, task.id, "task", (t) => ({ ...t, state: "parked", parkedReason: why, ...(decision ? { awaitsPermission: decision } : {}) }), {
             op: "task.park",
             summary: `${task.id} park: ${idle} sessions without a result`,
             reason: why,

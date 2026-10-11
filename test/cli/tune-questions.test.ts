@@ -129,7 +129,8 @@ test("weak negatives and sharper parts: asked with a recommendation, the request
   const yes = sharper.choices.find((c: { id: string }) => c.id === "yes");
   assert.deepEqual(yes.requests, [{ host: "127.0.0.1", n: 19, minutes: 1 }]);
   assert.match(yes.label, /19 požadavků navíc na 127\.0\.0\.1, asi 1 min v jeho tempu/, yes.label);
-  assert.match(sharper.why, /Požadavků navíc 19 proti 3 za den na 127\.0\.0\.1 – víc než desetina: archiv se šetří\./, sharper.why);
+  // the day's requests at the archive: the fetches and its robots.txt, read by strom once a day
+  assert.match(sharper.why, /Požadavků navíc 19 proti 4 za den na 127\.0\.0\.1 – víc než desetina: archiv se šetří\./, sharper.why);
   // as text: what, why, the choices with the recommended one marked, the command — answered by a person only
   const text = (await w.ok(["media", "calibrate", "--questions"])).out;
   assert.match(text, /^Otázky ke čtení snímků · Claude Code · opus – rozhoduje člověk; bez odpovědi se nic nemění:$/m, text);

@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 import { UsageError } from "../core/errors.ts";
 import { ALL_PREFIXES } from "../core/model.ts";
 import { shellArg } from "./format.ts";
-import { GLOBAL_OPTIONS, aliasExtends, commands, match, optionsOf, subcommandsOf, usageLine, WRITE_OPTIONS, type CommandDef, type Input, type OptionDef } from "./registry.ts";
+import { GLOBAL_OPTIONS, aliasExtends, commands, match, optionsOf, subcommandsOf, usageLine, WRITE_OPTIONS, type CommandDef, type Input, type OptionDef, type Typed } from "./registry.ts";
 
 const VALUE_GLOBALS = new Set(GLOBAL_OPTIONS.filter((o) => o.type === "string").map((o) => `--${o.name}`));
 
@@ -243,7 +243,7 @@ function foldSurplus(def: CommandDef, defs: OptionDef[], tokens: Token[], values
 }
 
 /** Parse options strictly; Node's messages are replaced by short ones with suggestions. */
-export function parseOptions(def: CommandDef, rest: string[], program = "strom"): { values: Input["opts"]; positionals: string[]; fix?: string; after?: Record<string, number[]> } {
+export function parseOptions(def: CommandDef, rest: string[], program = "strom"): { values: Input["opts"]; positionals: string[]; fix?: string; seq?: Typed[] } {
   const defs: OptionDef[] = optionsOf(def);
   rest = withOptionAliases(defs, rest);
   const usage = usageOf(def, program);
@@ -258,15 +258,15 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
   try {
     const r = parseArgs({ args: rest, options, allowPositionals: true, strict: true, tokens: true });
     const folded = foldSurplus(def, defs, r.tokens as Token[], r.values as Input["opts"], r.positionals);
-    // where the values of a repeatable option were typed among the arguments (a command of several arguments only)
+    // the line as typed, in order: which option came after which argument (a command of several arguments only)
     if (!def.args?.some((a) => a.variadic)) return folded;
-    const after: Record<string, number[]> = {};
+    const seq: Typed[] = [];
     let seen = 0;
     for (const t of r.tokens as Token[]) {
-      if (t.kind === "positional") seen++;
-      else if (t.kind === "option" && defs.find((d) => d.name === t.name)?.multiple) (after[t.name] ??= []).push(seen);
+      if (t.kind === "positional") seq.push({ arg: seen++ });
+      else if (t.kind === "option") seq.push({ opt: t.name, ...(t.value !== undefined ? { value: t.value } : {}) });
     }
-    return { ...folded, after };
+    return { ...folded, seq };
   } catch (err) {
     const e = err as Error & { code?: string };
     const opt = /'(-{1,2}[^' =]+)/.exec(e.message)?.[1] ?? "";

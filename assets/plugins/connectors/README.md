@@ -60,7 +60,8 @@ starts with `.` or `_` are ignored (`_old-version/`).
   `..`, no absolute paths) runs in Node's permission model. Any other program,
   or a switch of Node's, runs only with the user's consent to the code exactly
   as it is, asked again after every change of it.
-- `hosts`: every host it contacts. `"example.org"` includes its subdomains.
+- `hosts`: every host it contacts, by its name (an archive's terms go by it:
+  no IP address, no localhost). `"example.org"` includes its subdomains.
   strom refuses requests anywhere else, and each host needs the user's consent.
 - `can`: what it does: any of `find`, `list`, `fetch`, `part`, `locate`.
 - `routes` (optional): how its images may come, the usual one first:
@@ -80,11 +81,29 @@ starts with `.` or `_` are ignored (`_old-version/`).
     the user's browser (section 5). It needs `"routes": ["browser"]` alone and
     no `login`: the user logs in in their own browser.
 - `policy`: what the portal allows, found out before the connector was written.
-  - `automation`: one of
+  - `automation`: one of (from the most strom does by itself to the least)
     - `allowed`: the terms allow it or say nothing against it;
-    - `manual`: the terms forbid automated download. strom fetches no images
-      through it, but it may still find books and give their links;
-    - `unknown`.
+    - `restricted`: the terms restrict automation (images only by a
+      browser's own means, one at a time), a bot check, robots.txt disallows
+      the paths: strom reads the catalogue by itself, the images only with
+      the user's permission for the archive — slowly (a person's pace: at
+      least 10 s apart, at most 120 an hour, or the user's own) or through
+      their browser;
+    - `manual`: the images are for viewing online only. strom fetches no
+      images through it (no `fetch`, `part` or `locate` in `can`: left out
+      if listed), but it may still find books and give their links;
+    - `forbidden`: no automated access at all — strom sends nothing;
+    - `unknown`: as `restricted` for the images.
+
+    strom keeps to the strictest of this, the family tree's archive (by its
+    site), the terms strom knows itself and the strictest it saw before. A
+    connector that says the archive allows more than it said before keeps its
+    earlier level until the user accepts the new one; a connector strom has
+    not met before counts its `allowed` as `unknown` until the user decides at
+    its first image — unless strom's own list of archives' terms knows the
+    host: a level from that list is a confirmed one (the stricter still
+    holds). An older strom refuses a connector with `restricted` or
+    `forbidden` as one it cannot run (nothing is fetched).
   - `terms` (a URL), `termsSummary`, `robots` and `officialExport`: shown to
     the user when they decide.
   - `pace` (optional): the service's own pace, where it states one — its
@@ -396,3 +415,27 @@ they run a test or a fetch themselves, where strom asks right away):
 
 When a consent is missing, strom answers with exit code 4 and the command for
 the user. An agent never gives it.
+
+The user's permissions and paces are kept in their own settings folder. When
+an agent runs strom with a settings folder that is not the user's (a
+STROM_CONFIG_DIR or HOME of its own, one inside a family tree), strom takes no
+permission, no pace and no milder level from it — what restricts still counts,
+the user's own folder's too. At the level `full`, or wherever an agent runs
+with no sandbox, it could write the user's own settings itself: there the
+permission is held only by the rule that an agent never gives it.
+
+What else is held only by a rule, not by strom:
+- An agent's own web tools are kept to an archive's level by the tree's hook
+  (`strom net web --hook`) only where the agent has hooks: Claude Code and
+  Grok Build. Codex, OpenCode and Antigravity have none in a tree; they are
+  told the rule and run `strom net web --check <url>` before their own web
+  fetch of an archive's site. Codex's sandbox has the network on (strom
+  fetches through it), so `curl` or a script there is held by the rule too:
+  Codex reads command rules from a project's `.codex/rules/` only when that
+  folder is trusted, and its documentation describes them for commands
+  outside its sandbox — strom writes none.
+- A test's own list of terms (`STROM_ARCHIVES_FILE`) gives "allowed" only to
+  a host that leads to this computer: strom resolves it again before each
+  request and refuses any other address, but the request's own connection
+  resolves the name once more a moment later — a name whose answer changes
+  in that moment is not caught.

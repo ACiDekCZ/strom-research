@@ -2,6 +2,7 @@
 // it (the guided menu's "Look through the family tree"), in the research
 // language. Read only; --json gives the same for a program.
 
+import { changeLines } from "../core/changelog.ts";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table, truncate } from "../cli/format.ts";
@@ -247,7 +248,9 @@ register(
       const refined = r.facts.filter((f) => f.refined).length;
       // what strom set by itself in the reading of scans (core/tune.ts) — a line of the settings, never in an archive
       const tuning = ctx.archiveHere() ? [] : readTuneLog(tree.root).filter((e) => e.by === "selftune" && e.at >= r.since);
-      if (!r.persons.length && !r.facts.length && !r.sources.length && !r.stories.length && !r.sessions.length && !r.tasksDone && !tuning.length)
+      // archives that refused strom's requests: the person hears it (op net.refused), in the research's language
+      const refusals = changeLines(tree, tree.readOps().filter((o) => o.op === "net.refused" && o.at >= r.since), "", lang).map((l) => l.text).filter(Boolean);
+      if (!r.persons.length && !r.facts.length && !r.sources.length && !r.stories.length && !r.sessions.length && !r.tasksDone && !tuning.length && !refusals.length)
         return { text: ui(lang, "ui.recent.nothing", { since }), data: { days, ...r } };
       const out: (string | undefined)[] = [
         ui(lang, "ui.recent.title", { since }),
@@ -270,7 +273,8 @@ register(
           more(r.sessions.length - RECENT_ROWS, lang),
         );
       if (tuning.length) out.push("", ui(lang, "ui.recent.tune"), ...tuning.slice(-RECENT_ROWS).map((e) => tuneLine(e, lang)), more(tuning.length - RECENT_ROWS, lang));
-      return { text: lines(...out), data: { days, ...r, ...(tuning.length ? { tuning } : {}) } };
+      if (refusals.length) out.push("", ui(lang, "ui.recent.archives"), ...refusals.slice(-RECENT_ROWS).map((x) => `  ${x}`), more(refusals.length - RECENT_ROWS, lang));
+      return { text: lines(...out), data: { days, ...r, ...(tuning.length ? { tuning } : {}), ...(refusals.length ? { refusals } : {}) } };
     },
   },
 );

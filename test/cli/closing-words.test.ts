@@ -54,7 +54,8 @@ test("working alone the brief says to end after strom session close, without /cl
   // what the agent wrote there is what the person reads under What waits for you, and their answer goes back to the task
   await w.ok(["task", "wait", "T1", "--on", "Povolit prohlížeč pro mapy.example.org? — Ждарский"]);
   assert.match((await w.ok(["status"])).out, /T0001 {2}Povolit prohlížeč pro mapy\.example\.org\? — Ждарский/);
-  await w.ok(["task", "wake", "T1", "--answer", "Ano, povolit."]);
+  // the person's answer (theirs alone: their terminal — this test's own settings)
+  await w.ok(["task", "wake", "T1", "--answer", "Ano, povolit."], { tty: true });
   const shown = (await w.ok(["task", "show", "T1"])).out;
   assert.match(shown, /Povolit prohlížeč pro mapy\.example\.org\? — Ждарский/);
   assert.match(shown, /Ano, povolit\./);

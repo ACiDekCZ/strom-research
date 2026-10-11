@@ -17,7 +17,7 @@ import { STROM_APP_URL } from "../../src/core/stromapp.ts";
 const opts = { skip: !hasGit };
 
 /** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
-const NOT_RUN = new Set(["setup", "init", "run", "read", "seal adopt", "unpack", "trees remove", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "login", "uninstall", "update", "gate test", "hook on", "hook test"]); // uninstall, update, unpack, trees remove: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests)
+const NOT_RUN = new Set(["setup", "init", "run", "read", "seal adopt", "unpack", "trees remove", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test"]); // uninstall, update, unpack, trees remove: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests)
 
 async function seeded(): Promise<World> {
   const w = new World();
@@ -91,6 +91,10 @@ async function seeded(): Promise<World> {
   await w.ok(["story", "approve", "P0001"]);
   await w.ok(["story", "set", "P0001", "--text", "Jan byl mlynář v Týnci nad Labem."]);
   await w.ok(["search", "add", "Křty Novák 1903–1907", "--recordset", "B0001", "--years", "1903-1907", "--method", "page-by-page", "--result", "negative"]); // Q0001
+  // a site that refused strom: the blocked way recorded in the session, then the person's check of it (task wait --check, task wake --check)
+  await w.ok(["search", "add", "Kniha oddaných Týnec", "--method", "web", "--result", "inconclusive", "--note", "archive.example.org refused automated access; tried instead: the parish"]); // Q0002
+  await w.ok(["task", "add", "Ověřit knihu oddaných", "--level", "locate", "--where", "archiv", "--why", "sňatek", "--done-when", "kniha ověřena"]); // T0004
+  await w.ok(["task", "wait", "T0004", "--check", "https://archive.example.org/book/5359", "--on", "zda je kniha oddaných 1784–1820 vidět i se snímky"]);
   // a hypothesis about whose son Josef Víšek was, one variant saying what it would connect (hypothesis link --remove)
   await w.ok(["hypothesis", "add", "Čí syn byl Josef?", "--about", "P0006", "--variant", "A: sourozenec Antonína", "--variant", "B: syn Josefa a Marie"]); // H0001
   await w.ok(["hypothesis", "link", "H0001", "A", "--siblings", "P0004", "P0006"]);
@@ -108,7 +112,9 @@ test("every example in the help runs", opts, async () => {
       const argv = lines[0]!.argv;
       // Paths outside the test world are only checked for syntax.
       if (argv.some((a) => a.startsWith("/Volumes/"))) continue;
-      const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])]);
+      // the person's own answer (task wake --answer/--check): in their terminal — this test's own settings (R8)
+      const person = def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check");
+      const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true } : {});
       if (r.code !== 0) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
     }
   }

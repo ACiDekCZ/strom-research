@@ -10,9 +10,9 @@ import path from "node:path";
 import { ui } from "../cli/ui.ts";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, moreLine, paginate, runs, table, truncate } from "../cli/format.ts";
+import { LIST_PAGE_MAX, lines, moreLine, paginate, runs, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
-import { TASK_LEVELS, type Input, type Lesson, type Note, type RecordSet, type Research, type Search, type Session, type Source, type Strategy, type Task } from "../core/model.ts";
+import { CHECK_ANSWERS, TASK_LEVELS, type CheckAnswer, type PersonAnswer, type Input, type Lesson, type Note, type RecordSet, type Research, type Search, type Session, type Source, type Strategy, type Task } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
 import { directionOf, ofResearch, scopes } from "../core/directions.ts";
 import { resolvePerson } from "../core/people.ts";
@@ -22,15 +22,20 @@ import { resolveResearch } from "./research.ts";
 import { makeNote, makeNotes, splitText } from "../core/actions.ts";
 import { phrase } from "../core/phrases.ts";
 import { readJsonLines } from "../core/json.ts";
-import { lacksImages, rankTasks, type Ranked } from "../core/queue.ts";
+import { lacksImages, rankTasks, waitsForDecision, type Ranked } from "../core/queue.ts";
 import { joiningHypotheses, offTree } from "../core/kin.ts";
 import { aboutPeople } from "../core/directions.ts";
 import { storiesToApprove } from "../core/stories.ts";
+import { permissionsWaiting, permissionWaitingLines } from "../core/archiveasks.ts";
 import { receivedPending } from "../core/sync.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
 import { isArchive } from "../core/mode.ts";
 import { othersAtWork } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
+import { currentSession } from "../core/session.ts";
+import { webDomain } from "../core/metrics.ts";
+import { permissionWait } from "../core/archivewait.ts";
+import type { Repository } from "../core/model.ts";
 
 
 function written(tree: Tree): string {
@@ -106,7 +111,11 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
   // trees the Strom app sent on its own: the user writes or throws them away (the menu), never the agent
   const sent = receivedPending(tree.root);
   const sentLine = sent.length ? `  ${ui(tree.lang, "ui.wait.sent", { n: sent.length, changes: sent.reduce((a, r) => a + r.changes, 0) })}` : undefined;
-  if (!w.length) return stories.length || sent.length ? lines(ui(tree.lang, "ui.wait.title", { n: stories.length + sent.length }), sentLine, storyLine) : undefined;
+  // an archive's images wait for the person's decision (shared by every tree here): one line, only until it is answered
+  const asked = permissionsWaiting(tree);
+  const askedLine = asked.length ? lines(...permissionWaitingLines(tree, tree.lang).map((l) => `  ${l}`)) : undefined;
+  const others = stories.length + sent.length + asked.length;
+  if (!w.length) return others ? lines(ui(tree.lang, "ui.wait.title", { n: others }), sentLine, askedLine, storyLine) : undefined;
   const show = where.display ?? ((p: string) => p);
   const lang = tree.lang;
   const images = (t: Task) => {
@@ -119,8 +128,9 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
     ];
   };
   return lines(
-    ui(lang, "ui.wait.title", { n: w.length + stories.length + sent.length }),
+    ui(lang, "ui.wait.title", { n: w.length + others }),
     sentLine,
+    askedLine,
     ...w.slice(0, max).flatMap((t) => [`  ${t.id}  ${truncate(t.waitingOn || t.what, 150)}`, ...images(t)]),
     w.length > max ? `  … strom task list --state waiting` : undefined,
     storyLine,
@@ -157,6 +167,27 @@ export function offTreeLine(tree: Tree, t: Task, starting = false): string | und
   return starting
     ? `⚠ ${t.id} is about people nothing links to the tree yet: go on only if the user asked for this work. Else close the session (strom session close --continue …) and ${first}`
     : `· ${t.id} is about people nothing links to the tree yet: it waits out of the queue until the user asks for it or a hypothesis joins them — ${first}`;
+}
+
+/**
+ * The open tasks out of the queue because their images wait for the person's decision about an archive (core/queue.ts
+ * waitsForDecision): one line per archive, for the agent — why, since when, and the way on. Undefined: none.
+ */
+export function decisionLines(tree: Tree, filter: (t: Task) => boolean = () => true): string | undefined {
+  const dec = waitsForDecision(tree);
+  const by = new Map<string, { title: string; at: string; ids: string[] }>();
+  for (const t of tree.list<Task>("task")) {
+    if (t.state !== "open" || !filter(t)) continue;
+    const q = dec(t);
+    if (!q) continue;
+    const e = by.get(q.host!) ?? { title: q.title ?? q.host!, at: q.at, ids: [] };
+    e.ids.push(t.id);
+    by.set(q.host!, e);
+  }
+  if (!by.size) return undefined;
+  return lines(
+    ...[...by].map(([host, e]) => `${e.ids.length} more wait out of the queue (${e.ids.join(", ")}): their images are at ${e.title} (${host}), whose question waits for the person since ${e.at.slice(0, 10)} — another source meanwhile, or strom task wait ${e.ids[0]} --images B…:<from-to> --on "…"; never strom fetch there again before the person decides`),
+  );
 }
 
 function taskLine(t: Task): string[] {
@@ -197,6 +228,9 @@ function taskDetail(tree: Tree, t: Task): string {
     searches.length ? "\nalready searched there\n" + table(searches.map((s) => [`  ${s.id}`, s.result, truncate(s.question, 60), s.scope.years ?? ""])) : undefined,
     lessons.length ? "\nlessons for these record sets\n" + lessons.map((l) => `  ${l.id} ${l.rule}`).join("\n") : undefined,
     ...t.notes.map((n) => `note   ${n.text}`),
+    t.awaitsCheck ? `check  the person checks ${t.awaitsCheck.url}: ${t.awaitsCheck.ask}` : undefined,
+    // the person's own answers (only theirs: strom task wake --answer/--check), apart from the notes
+    ...(t.answers ?? []).map((a) => `person ${a.at.slice(0, 10)} answered${a.check ? ` ${a.check}` : ""}${a.answer ? `: ${a.answer}` : ""} (asked: ${truncate(a.asked, 80)})`),
   );
 }
 
@@ -248,6 +282,21 @@ const RESULT_MAX = 1000;
 /** What a task's what holds (schema task.what): one line. */
 const WHAT_MAX = 200;
 
+/**
+ * A task put aside or set waiting in a session whose fetch met an archive's question the person has not answered: it
+ * says the archive's hosts, so the person's decision wakes it (core/archivewait.ts). Nothing when there was none.
+ */
+function decisionAwaited(ctx: Context, tree: Tree, ref: string): Pick<Task, "awaitsPermission"> {
+  try {
+    const t = tree.get<Task>(normId(ref, "task"));
+    const s = currentSession(tree, ctx.env, ctx.refs);
+    const w = t && s ? permissionWait(tree, t, s.id) : undefined;
+    return w ? { awaitsPermission: w } : {};
+  } catch {
+    return {};
+  }
+}
+
 function stateChange(tree: Tree, ref: string, state: Task["state"], fields: Partial<Task>, reason: string | undefined, verb: string, notes: Note[] = []): Task {
   const id = normId(ref, "task");
   return update<Task>(tree, id, "task", (t) => {
@@ -257,10 +306,16 @@ function stateChange(tree: Tree, ref: string, state: Task["state"], fields: Part
       delete next.parkedUntil;
       delete next.parkedReason;
     } else if (reason) next.parkedReason = reason;
+    // the archive's decision it waited for goes with any change but the one that says it
+    if (!fields.awaitsPermission) delete next.awaitsPermission;
     if (state !== "waiting") {
       delete next.waitingOn;
       delete next.awaits;
-    } else if (!fields.awaits) delete next.awaits;
+      delete next.awaitsCheck;
+    } else {
+      if (!fields.awaits) delete next.awaits;
+      if (!fields.awaitsCheck) delete next.awaitsCheck;
+    }
     return next;
   }, { op: `task.${verb}`, summary: `${id} ${verb}${fields.result ? `: ${truncate(fields.result, 60)}` : ""}`, reason });
 }
@@ -278,6 +333,45 @@ export function alikeness(a: string, b: string): number {
   if (!x.size || !y.size) return 0;
   const common = [...x].filter((w) => y.has(w)).length;
   return common / (x.size + y.size - common);
+}
+
+/**
+ * The site of a check by the person (strom task wait --check): an http(s) address, and only once another way was
+ * tried and the blocked way recorded (D9) — a search of this session (else of the task) that names the site: its
+ * host or domain in its question or notes, or a record set of it.
+ */
+function checkUrl(ctx: Context, tree: Tree, id: string, raw: string): string {
+  let u: URL;
+  try {
+    u = new URL(raw.trim());
+  } catch {
+    throw new UsageError(`--check takes the address of the site to check — not "${raw}"`, { hint: `strom task wait ${id} --check https://archive.example.org/book/5359 --on "…"` });
+  }
+  if (!/^https?:$/.test(u.protocol)) throw new UsageError(`--check takes an http(s) address — not "${raw}"`);
+  const host = u.hostname.toLowerCase();
+  const site = webDomain(host);
+  const session = currentSession(tree, ctx.env, ctx.refs);
+  const of = (x: string | undefined) => {
+    if (!x || !URL.canParse(x)) return false;
+    return webDomain(new URL(x).hostname.toLowerCase()) === site;
+  };
+  const names = (q: Search) => {
+    const text = foldText([q.question, q.scope.pages ?? "", ...q.notes.map((n) => n.text)].join(" "));
+    if (text.includes(foldText(host)) || text.includes(foldText(site))) return true;
+    return q.recordsets.some((r) => {
+      const b = tree.get<RecordSet>(r);
+      return of(b?.url) || of(b?.repository ? tree.get<Repository>(b.repository)?.url : undefined);
+    });
+  };
+  const recorded = tree.list<Search>("search").some((q) => !q.retracted && (session ? q.created >= session.started : q.task === id) && names(q));
+  if (!recorded)
+    throw new UsageError(
+      `--check asks the user to look at ${host} — only after another way: no search recorded for ${site}${session ? " in this session" : ` for ${id}`}. ` +
+        `First another way to the same records (another archive or fonds of the jurisdiction, the parish, an index, secondary sources); then record the blocked way: ` +
+        `strom search add "<what was looked for>" --method web --result inconclusive --task ${id} --note "${host} refused automated access (or its terms forbid it); tried instead: <the other way>"`,
+      { hint: `then strom task wait ${id} --check ${u.href} --on "<what the user checks there — impersonal, in the research language>"`, code: "task.check-search" },
+    );
+  return u.href;
 }
 
 register(
@@ -407,7 +501,7 @@ register(
         const text = held
           ? `no open task of the tree — ${held} wait about people nothing links to it yet (strom task list --off-tree): test the hypothesis that would join them, or ask the user`
           : "no open tasks → strom research show <G…> to see what is missing, then strom task add";
-        return { text, data: { task: null, offTree: held } };
+        return { text: lines(text, decisionLines(tree)), data: { task: null, offTree: held } };
       }
       const t = first.task;
       return {
@@ -454,13 +548,15 @@ register(
         const id = subjects(tree, [String(opts.about)])[0]!;
         all = all.filter((t) => t.subject.includes(id));
       }
-      const page = paginate(all, ctx.limit, ctx.page);
+      // a page at most LIST_PAGE_MAX rows, whatever --limit says: under ~20 kB
+      const page = paginate(all, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
       // the queue says what waits out of it for a link to the tree
       const held = !opts.state && !opts["off-tree"] && !opts.about ? tree.list<Task>("task").filter((t) => t.state === "open" && off(t)).length : 0;
       return {
         text: lines(
           all.length ? lines(table(page.items.map(taskLine)), moreLine(page, "strom task list")) : "no tasks",
           held ? `${held} more wait out of the queue: about people nothing links to the tree yet (strom task list --off-tree)` : undefined,
+          !opts.state && !opts["off-tree"] && !opts.about ? decisionLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
         ),
         data: { total: page.total, tasks: opts.full ? page.items : page.items.map((t) => ({ id: t.id, priority: t.priority, level: t.level, state: t.state, what: t.what, subject: t.subject, ...(why.has(t.id) ? { why: why.get(t.id) } : {}) })) },
       };
@@ -571,7 +667,7 @@ register(
       if (!opts.reason) throw new UsageError("--reason is required", { hint: 'e.g. --reason "waiting until the register is digitised"' });
       const until = opts.until ? String(opts.until) : undefined;
       if (until && !/^\d{4}-\d{2}-\d{2}$/.test(until)) throw new UsageError("--until must be YYYY-MM-DD");
-      const t = stateChange(tree, args[0]!, "parked", until ? { parkedUntil: until } : {}, String(opts.reason), "park");
+      const t = stateChange(tree, args[0]!, "parked", { ...(until ? { parkedUntil: until } : {}), ...decisionAwaited(ctx, tree, args[0]!) }, String(opts.reason), "park");
       return { text: written(tree), data: { task: t } };
     },
   },
@@ -581,14 +677,51 @@ register(
     group: "tasks",
     tree: true,
     writes: true,
-    description: "--answer: what the user found or decided for a task that waited for them (a link, a book's number) — kept on\nthe task with what it asked, so the agent reads both in its brief.",
+    description:
+      "--answer: what the user found or decided for a task that waited for them (a link, a book's number), --check: the\n" +
+      "user's answer to a check of a site (strom task wait --check) — works (the book and its images are there), view\n" +
+      "(only to be viewed there), no (nothing there). Both are the user's alone: in their own terminal or strom's menu;\n" +
+      "from an agent's session a window of the system shows the answer to the person to confirm (none: exit 4). Kept on\n" +
+      "the task apart from its notes, with what it asked, so the agent reads it in its brief as the person's answer. A\n" +
+      "task that waits for the user's check of a site comes back only with their answer.",
     args: [{ name: "task", description: "task ID", required: true }],
-    options: [{ name: "answer", type: "string", value: "<text>", description: "the user's answer to what the task waited for" }],
-    examples: ["strom task wake T0002", 'strom task wake T0003 --answer "https://archive.example.org/book/5359"'],
+    options: [
+      { name: "answer", type: "string", value: "<text>", description: "the user's answer to what the task waited for (the user's alone)" },
+      { name: "check", type: "string", value: "works|view|no", description: "the user's answer to a check of a site: works, view (only to be viewed there), no (the user's alone)" },
+    ],
+    examples: ["strom task wake T0002", 'strom task wake T0003 --answer "https://archive.example.org/book/5359"', 'strom task wake T0004 --check view --answer "the book is there, its images only in the viewer"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const id = normId(args[0]!, "task");
       const answer = typeof opts.answer === "string" && opts.answer.trim() ? opts.answer.trim() : undefined;
+      let check: CheckAnswer | undefined;
+      if (opts.check !== undefined) {
+        const c = String(opts.check).trim().toLowerCase();
+        if (!(CHECK_ANSWERS as readonly string[]).includes(c)) throw new UsageError(`--check is one of ${CHECK_ANSWERS.join(", ")} — not "${opts.check}"`);
+        check = c as CheckAnswer;
+      }
+      const seen = requireRecord<Task>(tree, id, "task");
+      if (check && !seen.awaitsCheck) throw new UsageError(`${id} waits for no check of a site — --check answers strom task wait --check`, { hint: answer ? `strom task wake ${id} --answer "…"` : `strom task show ${id}` });
+      // a check of a site comes back with the person's answer only — never woken round it by an agent
+      if (seen.state === "waiting" && seen.awaitsCheck && !check && (isAgent(ctx.env) || !ctx.interactive))
+        throw new UsageError(`${id} waits for the person's check of ${seen.awaitsCheck.url} — only the person answers it (strom's menu, What waits; or strom task wake ${id} --check works|view|no in their own terminal)`, {
+          hint: "go on with other work; the task comes back with their answer",
+          code: "task.check-person",
+        });
+      // the person's answer is theirs alone: their terminal, else a window that shows it to them (none: exit 4)
+      let via: PersonAnswer["via"];
+      if (answer || check) {
+        if (seen.state !== "waiting")
+          throw new UsageError(`${id} does not wait for the user (it is ${seen.state}) — the answer is not needed there`, { hint: `strom task show ${id}` });
+        const lang = ctx.uiLang();
+        const words = [check ? ui(lang, `ui.waiting.check.${check}`) : "", answer ?? ""].filter(Boolean).join(" – ");
+        via = ctx.requireHuman(
+          `Write the user's answer to ${id}: ${check ? `${check}${answer ? " — " : ""}` : ""}${answer ? `"${truncate(answer, 120)}"` : ""}?`,
+          `strom task wake ${id}${check ? ` --check ${check}` : ""}${answer ? ` --answer "…"` : ""}`,
+          `task.answer:${id}`,
+          ui(lang, "ui.task.answer.window", { task: id, answer: truncate(words, 300) }),
+        );
+      }
       const t = tree.withTreeLock(() => {
         const before = requireRecord<Task>(tree, id, "task");
         // only what was put aside comes back: a task at work stays its session's, a task done stays done
@@ -596,10 +729,21 @@ register(
           throw new UsageError(`${id} is being worked on — it comes back to the queue when its session closes`, { hint: `strom session close --continue --summary "…" --next "…"`, code: "task.wake-doing" });
         if (before.state === "done") throw new UsageError(`${id} is done (${truncate(before.result ?? "", 80)}) — what is left is a new task`, { hint: `strom task add "…" --about …`, code: "task.wake-done" });
         // an answer is to what the task waits for: one that waits no more (done, dropped, taken up) is left as it is
-        if (answer && before.state !== "waiting")
+        if ((answer || check) && before.state !== "waiting")
           throw new UsageError(`${id} does not wait for the user (it is ${before.state}) — the answer is not needed there`, { hint: `strom task show ${id}` });
-        const note = answer ? makeNote(tree, phrase(tree.lang, "task.answer", { asked: truncate(before.waitingOn || before.what, 120), answer })) : undefined;
-        return stateChange(tree, id, "open", note ? { notes: [...before.notes, note] } : {}, undefined, "wake");
+        const said: PersonAnswer | undefined =
+          answer || check
+            ? {
+                by: "person",
+                asked: truncate(before.awaitsCheck?.ask || before.waitingOn || before.what, 300),
+                ...(before.awaitsCheck ? { url: before.awaitsCheck.url } : {}),
+                ...(check ? { check } : {}),
+                ...(answer ? { answer: truncate(answer, 500) } : {}),
+                at: now(),
+                ...(via ? { via } : {}),
+              }
+            : undefined;
+        return stateChange(tree, id, "open", said ? { answers: [...(before.answers ?? []), said] } : {}, undefined, "wake");
       });
       return { text: written(tree), data: { task: t } };
     },
@@ -616,22 +760,31 @@ register(
       "save …\"), in the research language. When it is images the user downloads by hand\n" +
       "(no connector may fetch them), name them with --images B…:<numbers>: strom makes the folder of the shared\n" +
       "inbox they go into and shows it to the user, checks the numbers of what arrives, and the task comes back\n" +
-      "by itself once they are registered.",
+      "by itself once they are registered.\n" +
+      "--check <URL>: the user looks at a site strom and your web tools may not read (it refused strom, or its terms\n" +
+      "forbid or restrict automation) — only after another way to the same records was tried and the blocked way recorded\n" +
+      "in this session (strom search add … --note \"<host>: …\"); --on says what to check there. They answer in strom's\n" +
+      "menu: works (the book and its images are there), view (only to be viewed there), no — the task comes back with it.",
     args: [{ name: "task", description: "task ID", required: true }],
     options: [
       // the sheet of a brief shows the placeholder: how to write it, where the agent writes it (a live run: "Otevřete …")
       { name: "on", type: "string", value: "<for the user: impersonal, research language>", description: "what it waits for, for the user: which book, its link, which images" },
       { name: "images", type: "string", value: "<B…:n-m>", description: "the images the user saves by hand, numbered as the portal's viewer counts them (B0001:40-69, B0001:9,12)" },
+      { name: "check", type: "string", value: "<URL>", description: "a site for the user to check (one strom may not read): only after another way was tried and the blocked way recorded (strom search add)" },
     ],
     examples: [
       'strom task wait T0002 --on "reply of the archive to the request of 21 Sep"',
       'strom task wait T0002 --images B0001:40-45 --on "images 40–45 of the baptisms of Týnec 1784–1820 (https://archive.example.org/book/5359)"',
+      'strom task wait T0002 --check https://archive.example.org/book/5359 --on "whether the baptisms of 1784–1820 are there, with their images"',
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (!opts.on) throw new UsageError("--on is required", { hint: 'e.g. --on "reply of the archive to the request of 21 Sep"' });
       let awaits: Task["awaits"];
+      let awaitsCheck: Task["awaitsCheck"];
       let b: RecordSet | undefined;
+      if (opts.check !== undefined && opts.images !== undefined) throw new UsageError("--check or --images, not both: the check first; the images by hand after the user's answer");
+      if (opts.check !== undefined) awaitsCheck = { url: checkUrl(ctx, tree, normId(args[0]!, "task"), String(opts.check)), ask: String(opts.on) };
       if (opts.images !== undefined) {
         const m = /^\s*([Bb]\d+)\s*:\s*(.+)$/.exec(String(opts.images));
         const nums = m ? parseImageList(m[2]!) : undefined;
@@ -642,7 +795,8 @@ register(
       const id = normId(args[0]!, "task");
       const task = tree.get<Task>(id);
       const where = b && task && !task.where.includes(b.id) ? { where: [...task.where, b.id] } : {};
-      const t = stateChange(tree, args[0]!, "waiting", { waitingOn: String(opts.on), ...(awaits ? { awaits } : {}), ...where }, undefined, "wait");
+      const t = stateChange(tree, args[0]!, "waiting", { waitingOn: String(opts.on), ...(awaits ? { awaits } : {}), ...(awaitsCheck ? { awaitsCheck } : {}), ...(awaitsCheck ? {} : decisionAwaited(ctx, tree, args[0]!)), ...where }, undefined, "wait");
+      if (awaitsCheck) return { text: lines(written(tree), `the user checks ${awaitsCheck.url} (strom's menu, What waits; the Strom app): the task comes back with their answer — meanwhile other work`), data: { task: t } };
       if (!awaits) return { text: written(tree), data: { task: t } };
       // the folder is there before the user looks for it
       const s = ctx.settings.shared()?.value;

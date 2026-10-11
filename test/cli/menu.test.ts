@@ -219,7 +219,9 @@ test("the menu: what waits for the person — what to do for each, the folder fo
   assert.match(r.out, /✓ Úkol se vrátil agentovi i s odpovědí\./);
   const t1 = (await w.ok(["task", "show", "T1", "--json"])).json.task;
   assert.equal(t1.state, "open");
-  assert.match(t1.notes.at(-1).text, /^Odpověď uživatele \(na: V badatelně archivu najít knihu narozených pro Týnec.*\): https:\/\/archive\.example\.org\/book\/77$/);
+  // the person's answer: a record of its own, with what it asked — never a note
+  assert.deepEqual({ ...t1.answers.at(-1), at: undefined }, { by: "person", asked: "V badatelně archivu najít knihu narozených pro Týnec a poslat odkaz na ni.", answer: "https://archive.example.org/book/77", at: undefined, via: "terminal" });
+  assert.equal(t1.notes.length, 0);
   // what is left: the images only
   assert.match(r.out, /Agent potřebuje \(1\):\n\n 1\. Křest Jana/);
   w.cleanup();

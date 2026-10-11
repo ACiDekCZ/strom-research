@@ -158,6 +158,24 @@ test("media view: several parts of each image — both pages of a spread by the 
   const bare = await w.run(["media", "view", "B1:3", "--crop", "0.1,0.1,0.4,0.2", "B1:4", "B1:1", "--crop", "0,0,0.5,0.5"]);
   assert.equal(bare.code, 2);
   assert.match(bare.err, /B1:4 has no --crop of its own/);
+  // a half, a grid of parts, a grid of tenths after an image: of that image alone, as a crop is (C3: a half after the
+  // second image was refused; N1: an image named by --image or by its number gave 4 views where 2 were meant)
+  const clipOrPart = (j: { views: { image: string; clip?: string; part?: string }[] }) => j.views.map((v) => `${v.image} ${v.part ?? v.clip ?? "whole"}`);
+  assert.deepEqual(clipOrPart((await w.ok(["media", "view", "B1:3", "--crop", "0.1,0.1,0.4,0.2", "B1:4", "--half", "right", "--json"])).json), ["M0003 M0003@0.1,0.1,0.4,0.2", "M0004 right half"]);
+  assert.deepEqual(clipOrPart((await w.ok(["media", "view", "B1", "--image", "3", "--crop", "0.1,0.1,0.4,0.2", "B1", "--image", "4", "--crop", "0.2,0.2,0.5,0.5", "--json"])).json), ["M0003 M0003@0.1,0.1,0.4,0.2", "M0004 M0004@0.2,0.2,0.5,0.5"]);
+  assert.deepEqual(clipOrPart((await w.ok(["media", "view", "B1", "3", "--crop", "0.1,0.1,0.4,0.2", "4", "--crop", "0.2,0.2,0.5,0.5", "--json"])).json), ["M0003 M0003@0.1,0.1,0.4,0.2", "M0004 M0004@0.2,0.2,0.5,0.5"]);
+  assert.deepEqual(clipOrPart((await w.ok(["media", "view", "B1", "--image", "3", "--half", "left", "--image", "4", "--half", "right", "--json"])).json), ["M0003 left half", "M0004 right half"]);
+  const split = (await w.ok(["media", "view", "B1:3", "--split", "2x1", "B1:4", "--crop", "0.2,0.2,0.5,0.5", "--json"])).json;
+  assert.deepEqual(clipOrPart(split), ["M0003 part 1 of 2 (left)", "M0003 part 2 of 2 (right)", "M0004 M0004@0.2,0.2,0.5,0.5"]);
+  const tenths = (await w.ok(["media", "view", "B1:3", "--grid", "B1:4", "--crop", "0.2,0.2,0.5,0.5", "--json"])).json;
+  assert.deepEqual(clipOrPart(tenths), ["M0003 whole", "M0004 M0004@0.2,0.2,0.5,0.5"]);
+  const kinds = fs.readFileSync(path.join(w.cwd, ".strom", "views", "views.jsonl"), "utf8").trim().split("\n").slice(-2).map((l) => JSON.parse(l).kind);
+  assert.deepEqual(kinds, ["grid", "crop"], "the grid of tenths on the image it follows");
+  // a range and numbers of a record set alone, parts after the last: of every image, as always
+  assert.equal((await w.ok(["media", "view", "B1", "3", "4", "--half", "right", "--json"])).json.views.length, 2);
+  const missingHalf = await w.run(["media", "view", "B1:3", "--half", "left", "B1:4", "B1:1", "--half", "right"]);
+  assert.match(missingHalf.err, /B1:4 has no --half of its own: each --half is of the image named before it/);
+  assert.match(missingHalf.err, /strom media view B1:3 --half left B1:4 --half …/);
   // one image, the crop before it: unambiguous, as always
   assert.equal((await w.ok(["media", "view", "--crop", "0.1,0.1,0.4,0.2", "B1:3", "--json"])).json.clip, "M0003@0.1,0.1,0.4,0.2");
   // a grid of overlapping parts: of the image, or of each page of a spread

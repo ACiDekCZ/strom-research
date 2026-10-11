@@ -16,3 +16,5 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), "strom-test-home-"));
 process.env.HOME = home;
 process.env.USERPROFILE = home;
 process.env.STROM_CONFIG_DIR = path.join(home, "config");
+// A test's archive is a server on this computer: connectors of tests name 127.0.0.1 / localhost as their hosts.
+process.env.STROM_TEST_HOSTS = "1";

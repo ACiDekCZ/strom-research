@@ -181,8 +181,8 @@ test("the sheet says --reason wherever the command asks it: source edit, input s
 test("brief size by level: the method and the commands every session of a level carries stay within their budget", () => {
   // Characters of the method (every part a level can get) and the command sheet. 1.13.1 carried only the method:
   // link 16 083, verify 15 729, enrich 16 698, locate 5 690, intake 12 263, request 4 438, narrate 5 607 — the levels
-  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding), several crops in one call; --reason on the input commands that ask it (intake +23); grep --all and the crops of each image in one media view call (+20), the budget of a search beyond the registers one with the web rule (enrich).
-  const BUDGET: Record<string, number> = { link: 23_520, verify: 22_400, enrich: 23_620, locate: 7_600, intake: 16_670, request: 4_438, narrate: 5_607 };
+  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding), several crops in one call; --reason on the input commands that ask it (intake +23); grep --all and the crops of each image in one media view call (+20), the budget of a search beyond the registers one with the web rule (enrich); a site that refused strom or restricts automation: another way first, the person's check last (locate +310, link +210, verify +195, enrich +320: task wait --check, the method's lines); an index read before 30 images of a book are browsed (+11, link, verify, enrich +22); the time strom's to say, apart from a filling context (+101 each). Each budget: the measured size rounded up to the next ten.
+  const BUDGET: Record<string, number> = { link: 23_850, verify: 22_680, enrich: 24_060, locate: 8_030, intake: 16_780, request: 4_438, narrate: 5_607 };
   for (const level of TASK_LEVELS) {
     const size = methodFor(level, EVERY).length + sheet(level).length;
     assert.ok(size <= BUDGET[level]!, `${level}: ${size} > ${BUDGET[level]}`);

@@ -74,13 +74,13 @@ test("option aliases and list filters agents look for", opts, async () => {
   assert.deepEqual((await w.ok(["recordset", "list", "--years", "1840-1885", "--json"])).json.recordsets.map((b: any) => b.id), ["B0001", "B0002"]);
   assert.deepEqual((await w.ok(["recordset", "list", "--years", "1890", "--repo", "R0001", "--json"])).json.recordsets.map((b: any) => b.id), ["B0002"]);
   // a short list says nothing more; a long one ends with the filters not used yet
-  assert.doesNotMatch((await w.ok(["recordset", "list"])).out, /fewer:/);
+  assert.doesNotMatch((await w.ok(["recordset", "list"])).out, /narrow:/);
   await w.ok(["batch", ...Array.from({ length: 30 }, (_, i) => `recordset add "Matrika Dolní Ves ${i + 1}" --places "Dolní Ves" --years ${1700 + i}-${1710 + i}`)]);
   const long = (await w.ok(["recordset", "list"])).out.trim().split("\n");
   assert.equal(long.length, 33);
-  assert.equal(long.at(-1), "32 record sets — fewer: strom recordset list <text> --place <name> --kind <kind> --years <from-to> --repo <R…>");
-  assert.doesNotMatch((await w.ok(["recordset", "list", "--place", "dolni ves"])).out, /fewer:/, "30 lines: not long");
-  assert.equal((await w.ok(["recordset", "list", "--years", "1700-1800"])).out.trim().split("\n").at(-1), "31 record sets — fewer: strom recordset list <text> --place <name> --kind <kind> --repo <R…>");
+  assert.equal(long[0], "32 record sets — narrow: strom recordset list <text> --place <name> --kind <kind> --years <from-to> --repo <R…>");
+  assert.doesNotMatch((await w.ok(["recordset", "list", "--place", "dolni ves"])).out, /narrow:/, "30 lines: not long");
+  assert.equal((await w.ok(["recordset", "list", "--years", "1700-1800"])).out.trim().split("\n")[0], "31 record sets — narrow: strom recordset list <text> --place <name> --kind <kind> --repo <R…>");
   // media list with the record set as its argument
   const ml = await w.ok(["media", "list", "B0001"]);
   assert.match(ml.out, /no images registered/);
@@ -104,6 +104,11 @@ test("a mistake in calling a command says its usage at once — to an agent", op
   // a range of read from the higher number: said (and 35..38 read as 35-38)
   assert.match((await w.run(["read", "B0001", "--images", "38..35", "--question", "x"], { env })).err, /--images 38\.\.35: a range from the lower number\n→ --images 35-38/);
   assert.match((await w.run(["read", "B0001", "--images", "35..38", "--question", "x"], { env })).err, /no registered images 35–38 of B0001/);
+  // hundreds of images in one reading: refused with the form to use, as media view and readings refuse them
+  const many = await w.run(["read", "B0001", "--images", "1-250", "--question", "x"], { env });
+  assert.equal(many.code, 2);
+  assert.match(many.err, /--images 1-250: 250 images — at most 200 in one reading\n→ --images 1-200, then --images 201-250/);
+  assert.match((await w.run(["read", "B0001", "--images", "1-200", "--question", "x"], { env })).err, /no registered images 1–200 of B0001/, "200: within");
   const missing = await w.run(["task", "done"], { env });
   assert.match(missing.err, /missing <task>/);
   assert.match(missing.err, /usage: strom task done <task> \[options\]\n +--result <text>/);

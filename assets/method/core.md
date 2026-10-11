@@ -39,11 +39,9 @@ conclusion so the next researcher can follow it.
   fact is edited with a reason. Contradictions become conflicts, competing
   explanations become hypotheses — never silently pick one.
 <!-- end -->
-- **Write as you go.** Record each finding as soon as you have it. Your context
-  can be cut or summarised at any moment, and a session working alone is
-  stopped at its time limit (the brief says when; near the end strom's output
-  counts down): what is only in the conversation is lost, what is in strom is
-  not.
+- **Write as you go.** Record each finding as soon as you have it: what is
+  only in the conversation is lost, what is in strom is not. A filling
+  context is no sign of the time: write down, then go on.
 <!-- for link verify enrich intake -->
   Going through many images, record each stretch when it is done (every
   ten images, each district or year): the finds, and `strom search add …
@@ -52,6 +50,9 @@ conclusion so the next researcher can follow it.
   for what is not a fact yet. What you held back while who it was stayed a
   hypothesis goes on the person when you decide it.
 <!-- end -->
+- **The time is strom's to say** (a session working alone stops when the
+  brief says): its output gives the time left after long steps and counts
+  down near the end. Never estimate it, never close early for it.
 <!-- for link verify enrich intake locate -->
 - **Lessons belong where they apply.** A quirk of a register (its calibration,
   two years per page, a hand that writes 7 like 1) goes to `strom lesson add

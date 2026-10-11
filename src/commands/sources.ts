@@ -4,8 +4,9 @@ import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
 import fs from "node:fs";
 import { commands, register, type CommandDef, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
+import { LIST_PAGE_MAX, lines, moreLine, paginate, shellArg, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
+import { ui } from "../cli/ui.ts";
 import {
   ACCESS,
   AUTOMATION,
@@ -31,6 +32,7 @@ import { partRegion } from "../core/views.ts";
 import { formatName } from "../core/people.ts";
 import { yearsOption, yearsOverlap } from "../core/years.ts";
 import type { Tree } from "../core/tree.ts";
+import { levelWords } from "../core/archiveasks.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -320,7 +322,7 @@ register(
       { name: "region", type: "string", value: "<text>", description: "region it covers" },
       { name: "url", type: "string", value: "<url>", description: "website or portal" },
       { name: "terms", type: "string", value: "<text>", description: "terms of use in one sentence (+ link)" },
-      { name: "automation", type: "string", value: "<a>", description: "allowed, manual (browser only), forbidden, unknown (default)" },
+      { name: "automation", type: "string", value: "<a>", description: "allowed, manual (images by hand only — a person), forbidden (no automated request), unknown (default); an archive whose terms only restrict automation: strom allow archive <host> --level restricted" },
       { name: "note", type: "string", value: "<text>", description: "short note" },
       { name: "another", type: "boolean", description: "a different archive, though one here has its name or website" },
     ],
@@ -376,7 +378,7 @@ register(
       const text = lines(
         `${r.id} ${r.name}${r.country ? ` (${r.country}${r.region ? `, ${r.region}` : ""})` : ""}`,
         r.url ? `url         ${r.url}` : undefined,
-        `automation  ${r.automation}${r.automation === "forbidden" ? " — never download with tools" : r.automation === "manual" ? " — browser only" : ""}`,
+        `automation  ${r.automation}${r.automation === "forbidden" ? " — no automated request at all" : r.automation === "manual" ? " — the catalogue may be read; images by hand only (a person)" : ""}`,
         r.terms ? `terms       ${r.terms}` : undefined,
         sets.length ? `\nrecord sets\n${table(sets.map((b) => [`  ${b.id}`, b.title, b.years ?? "", b.access]))}` : undefined,
         ...r.notes.map((n) => `note        ${n.text}`),
@@ -472,14 +474,19 @@ register(
         opts.years === undefined ? "--years <from-to>" : undefined,
         opts.repo === undefined ? "--repo <R…>" : undefined,
       ].filter(Boolean);
+      // A page at most (--limit, LIST_PAGE_MAX rows: under ~20 kB — an agent's tool keeps a longer output in a file and
+      // shows only its start, N0280, N0281); a long list says its filters first, where a cut output still shows them.
+      const page = paginate(all, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
+      const narrow = all.length > LONG_LIST && filters.length ? `${all.length} record sets — narrow: strom recordset list ${filters.join(" ")}` : undefined;
       return {
         text: all.length
           ? lines(
-              table(all.map((b) => [b.id, truncate(b.title, 60), b.years ?? "", b.access, b.calibration.length ? "calibrated" : ""])),
-              all.length > LONG_LIST && filters.length ? `${all.length} record sets — fewer: strom recordset list ${filters.join(" ")}` : undefined,
+              narrow,
+              table(page.items.map((b) => [b.id, truncate(b.title, 60), b.years ?? "", b.access, b.calibration.length ? "calibrated" : ""])),
+              moreLine(page, ["strom recordset list", ...(args[0] ? [shellArg(args[0])] : []), ...(["place", "kind", "years", "repo"] as const).filter((k) => typeof opts[k] === "string").map((k) => `--${k} ${shellArg(String(opts[k]))}`)].join(" ")),
             )
           : "no record sets match",
-        data: { recordsets: opts.full ? all : all.map((b) => ({ id: b.id, title: b.title, years: b.years, access: b.access, places: b.places, calibrated: b.calibration.length > 0 })) },
+        data: { total: page.total, recordsets: opts.full ? page.items : page.items.map((b) => ({ id: b.id, title: b.title, years: b.years, access: b.access, places: b.places, calibrated: b.calibration.length > 0 })) },
       };
     },
   },
@@ -780,6 +787,12 @@ register(
     examples: ['strom repo edit R0001 --automation forbidden --terms "no automated downloads (https://…/terms)"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
+      // an archive recorded milder than before (its terms allow more): the person's word — making it stricter is anybody's
+      const next = optOneOf(opts.automation, AUTOMATION, "automation");
+      const cur = next ? requireRecord<Repository>(tree, args[0]!, "repository") : undefined;
+      const strict = (x: string) => (x === "forbidden" ? 3 : x === "manual" ? 2 : 0);
+      if (cur && next && strict(next) < strict(cur.automation))
+        ctx.requireHuman(`Record ${cur.id} ${cur.name} as automation ${next} — milder than ${cur.automation}?`, `strom repo edit ${cur.id} --automation ${next}`, `repo:${cur.id}`, ui(ctx.uiLang(), "ui.archive.level.milder", { title: cur.name, level: levelWords(ctx.uiLang(), next), now: levelWords(ctx.uiLang(), cur.automation) }));
       const r = editFields<Repository>(
         tree,
         args[0]!,

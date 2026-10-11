@@ -52,16 +52,19 @@ export const GROUPS = {
 
 export type Group = keyof typeof GROUPS;
 
+/** One word of a command line as typed: an argument, or an option with its value. */
+export type Typed = { arg: number } | { opt: string; value?: string };
+
 export interface Input {
   args: string[];
   opts: Record<string, string | boolean | string[] | undefined>;
   /** Arguments after a bare "--", for commands that pass them on (strom run). */
   extra?: string[];
   /**
-   * Where each value of a repeatable option was typed: how many arguments came before it, in the order of its values
-   * (strom media view B0001:2 --crop … B0001:3 --crop …: each crop of the image named before it).
+   * The line as typed, in order: each argument (its index) and each option with its value — a command of several
+   * arguments only (strom media view B0001:2 --crop … B0001:3 --half right: each part of the image named before it).
    */
-  after?: Record<string, number[]>;
+  seq?: Typed[];
 }
 
 export interface Result {

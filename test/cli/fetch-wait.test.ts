@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { opts, world } from "./connectors.helpers.ts";
+import { opts, robotsReadToday, world } from "./connectors.helpers.ts";
 import { pluginDir, readJsonFile } from "../helpers.ts";
 import { testHooks, type Pace } from "../../src/core/net.ts";
 import { requestsSpan } from "../../src/commands/connectors.ts";
@@ -25,6 +25,7 @@ function capped(dir: string): void {
 
 test("fetch: past the wait for an hourly cap — exit 7, the time and the command to run again", opts, async () => {
   const { w, a } = await world();
+  robotsReadToday(w); // the hour counts the archive's requests: its robots.txt read today already
   capped(pluginDir(w, "zkusebni"));
   await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`]); // B0001
   assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1-2", "--recordset", "B1"])).out, /2 image\(s\) of B0001 \(images 1–2\) fetched and registered/);
@@ -38,6 +39,7 @@ test("fetch: past the wait for an hourly cap — exit 7, the time and the comman
 
 test("fetch: an hourly cap used up within its wait — said with the time, waited for, then on", opts, async () => {
   const { w, a } = await world();
+  robotsReadToday(w); // the hour counts the archive's requests: its robots.txt read today already
   capped(pluginDir(w, "zkusebni"));
   await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`]); // B0001
   let clock = Date.now();
@@ -69,6 +71,7 @@ test("fetch: an hourly cap used up within its wait — said with the time, waite
 
 test("fetch: says beforehand how many requests it asks and how long at the host's pace and cap, with what is left this hour (N0233)", opts, async () => {
   const { w, a } = await world();
+  robotsReadToday(w); // the hour counts the archive's requests: its robots.txt read today already
   capped(pluginDir(w, "zkusebni"));
   await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`]); // B0001
   const first = await w.ok(["fetch", "zkusebni", "5359", "--images", "1", "--recordset", "B1"]);
@@ -86,6 +89,7 @@ test("fetch: says beforehand how many requests it asks and how long at the host'
 
 test("fetch near a host's hourly cap: the agent hears what is left and when it frees at 80 % and on, the person once at 80 % and once at 90 % — the cap and the pace untouched", opts, async () => {
   const { w, a } = await world();
+  robotsReadToday(w); // the hour counts the archive's requests: its robots.txt read today already
   const file = path.join(pluginDir(w, "zkusebni"), "connector.json");
   const m = readJsonFile(file);
   fs.writeFileSync(file, JSON.stringify({ ...m, policy: { ...m.policy, pace: { perHour: 10, source: "the archive's terms of use" } } }, null, 2));

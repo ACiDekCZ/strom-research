@@ -48,6 +48,8 @@ export interface UserConfig {
   stories?: string;
   /** The gate the agent working alone asks before each session (plugins/gates/<name>). */
   runGate?: string;
+  /** A person's pace for the images of restricted archives: "<seconds> <images an hour>" (core/terms.ts humanPace). */
+  archivePace?: string;
   /** Hooks told of what is saved into a research (plugins/hooks/<name>), turned on by the user. */
   hooks?: string[];
   /** Model per tier, per agent, and its reasoning effort (model.effort): { claude: { vision: "opus" }, codex: { effort: "high" } }. */
@@ -170,7 +172,7 @@ export interface SettingDef {
   env: string;
   /** Can a tree carry its own value (strom.json)? */
   tree: boolean;
-  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin" | "views" | "tuned";
+  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin" | "views" | "tuned" | "pace";
   /** The values a "choice" allows. */
   choices?: readonly string[];
   description: string;
@@ -205,6 +207,9 @@ export const SETTINGS: SettingDef[] = [
   { key: "web.perHost", env: "", tree: true, kind: "number", description: `web requests to one site (its mirrors with it) in one session through an agent's own web fetch (default ${WEB_PER_HOST}; past ${WEB_SOFT} they go slower and the agent builds a connector): past it a run refuses and a conversation asks you, and more pages of that site go through strom fetch with a connector — only you raise it` },
   // Read from the config file only, changed by the user alone: the gate decides what working alone spends.
   { key: "run.gate", env: "", tree: false, kind: "plugin", description: "a condition on the agent working alone: the gate (plugins/gates/<name>) strom asks before each session of strom run — go on, wait or stop; its name, then what it is given (strom gate list; e.g. claude-usage 10: the Claude subscription's daily ration, 10 points in hand; claude-usage 10 --cap 95: and never past 95 % of the week, before every session of every run, no “start anyway”) — only you set it" },
+  // Read from the config file only, changed by the user alone: how fast strom may take images of an archive whose
+  // terms restrict automation, once the user allowed it slowly (core/terms.ts).
+  { key: "archive.pace", env: "", tree: false, kind: "pace", description: "a person's pace for the images of an archive whose terms restrict automated access, once you allowed it slowly: seconds between two images, then images an hour (default \"10 120\"; auto: the default) — the service's own pace stays the slowest; one archive's own: strom allow host <host> --pace/--per-hour — only you set it" },
   { key: "queue.strategy", env: "STROM_QUEUE_STRATEGY", tree: true, kind: "choice", choices: STRATEGIES, description: "order of the task queue: balanced (default — nearest ancestors first, spread over the lines, nothing taken forever), depth (stay on one line), priority (strict priority)" },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
@@ -263,6 +268,7 @@ const FIELDS: Record<string, string> = {
   "excerpts.for": "excerptsFor",
   "excerpts.mb": "excerptsMb",
   "run.gate": "runGate",
+  "archive.pace": "archivePace",
   "tune.transcripts": "tuneTranscripts",
   "tune.auto": "tuneAuto",
 };
@@ -359,6 +365,13 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       const c = def.key === "agent.permissions" ? (PERMISSION_ALIASES[v.toLowerCase()] ?? v.toLowerCase()) : v.toLowerCase();
       if (!def.choices?.includes(c)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: def.choices?.join(", ") });
       return c;
+    }
+    case "pace": {
+      // seconds between two images, then images an hour: "10 120" — or auto, the default
+      if (v.toLowerCase() === "auto") return "auto";
+      const m = /^(\d+(?:\.\d+)?)\s+(\d+)$/u.exec(v);
+      if (!m || Number(m[1]) < 0.25 || !(Number(m[2]) >= 1)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: 'seconds between two images (at least 0.25), then images an hour: "10 120" — or auto' });
+      return `${Number(m[1])} ${Number(m[2])}`;
     }
     case "plugin":
       // its name, then what it is given: "claude-usage 10"

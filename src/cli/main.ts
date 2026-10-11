@@ -1,6 +1,11 @@
 // CLI entry: find the command, parse options, run it, print the result,
 // and commit what a writing command changed. Returns the exit code.
 
+import fs from "node:fs";
+import { takeOverConnectors } from "../core/terms.ts";
+import { notePersonFolder } from "../core/trust.ts";
+import { netTrust } from "../core/net.ts";
+import { connectorsDir, listConnectors } from "../core/connector.ts";
 import { Cancelled, EXIT, StromError, UsageError } from "../core/errors.ts";
 import { ownCommand, type Env } from "../core/paths.ts";
 import { Context, type IO } from "./context.ts";
@@ -24,7 +29,7 @@ import { backupBefore, backupSaid } from "./backups.ts";
 import { installation, refreshTreeShim } from "../core/self.ts";
 import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
-import { clockLine, FINISH_LINE, finishLimitLine, finishOf } from "../core/clock.ts";
+import { clockLine, FINISH_LINE, finishLimitLine, finishOf, timeLine } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
 import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, severalRecords, splitPassthrough, usageOf } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
@@ -136,7 +141,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
   resetCache(undefined, "command");
   // the app's install line in its one variable (STROM_FROM): read as the five of an older line
   expandFromLine(env);
-  // what ran, for the reminder of the session's time
+  // what ran and how long, for the reminder of the session's time
+  const startedAt = Date.now();
   let ran: Context | undefined;
   let command: string | undefined;
   let called: CommandDef | undefined;
@@ -185,6 +191,17 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       .map((x) => `${x[0]!.toUpperCase()}${x.slice(1).padStart(4, "0")}`);
     ran = ctx;
     command = def.path.join(" ");
+    // a person's own pace for a host taken as given until a command to an archive finds settings not the person's
+    netTrust.ownPace = true;
+    // the person's own settings folder (another than their default one, outside an agent): listed as theirs, so that an
+    // agent's command there later reads its permissions (core/trust.ts) — never for a hook's quick answer
+    if (!(v.hook === true)) {
+      try {
+        notePersonFolder(env, { cwd });
+      } catch {
+        // asked again next time
+      }
+    }
     // What is saved into a research, the user's hooks are told of (in the background).
     Tree.onCommit = (tree, ops, commit) => {
       if (!ctx.settings.config.hooks?.length || env.STROM_HOOK) return;
@@ -232,6 +249,15 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     const lastChannel = lastChannelOf(ctx.settings.config);
     const otherChannel = !!lastChannel && lastChannel !== channelNow;
     if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook) {
+      // the connectors here when this strom first runs: taken over as they are — they run as before, the person
+      // confirms them once (core/terms.ts); a strom new on this computer takes over none (every connector is new)
+      try {
+        // (read where the plugins folder is: nothing made on the disk before the setup makes it)
+        const sharedNow = ctx.settings.shared()?.value;
+        takeOverConnectors(env, sharedNow && fs.existsSync(connectorsDir(sharedNow)) ? listConnectors(sharedNow, env) : [], last === undefined);
+      } catch {
+        // asked again at the first look at an archive
+      }
       ctx.settings.config.lastVersion = VERSION;
       // …and its channel: another one than last time is a change of channel
       ctx.settings.config.lastChannel = updateChannel(env);
@@ -284,7 +310,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       if (def.writes && def.tree) assertIntact(ctx.tree());
       let result: Result;
       try {
-        result = await (shows ?? def).run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}), ...(parsed.after ? { after: parsed.after } : {}) });
+        result = await (shows ?? def).run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}), ...(parsed.seq ? { seq: parsed.seq } : {}) });
       } catch (err) {
         // A writing command is a transaction: on failure nothing it wrote remains.
         const t = def.writes ? ctx.current() : undefined;
@@ -319,7 +345,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       if (result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), dryRun: true };
     }
     print(io, ctx, result);
-    if (!hook) remind(io, ctx, command);
+    if (!hook) remind(io, ctx, command, Date.now() - startedAt);
     return result.exitCode ?? EXIT.ok;
   } catch (err) {
     let lang: string | undefined;
@@ -339,7 +365,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // the usage is the agent's (or a program's): a person reads the error and its hint in their language, no English
     if (said instanceof StromError && said.usage && !json && !isAgent(env)) said.usage = undefined;
     const code = printError(io, json, said, debug, lang);
-    remind(io, ran, command);
+    remind(io, ran, command, Date.now() - startedAt);
     return code;
   }
 }
@@ -348,12 +374,13 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
  * Near the end of a session with a time limit (strom run), every command reminds the agent how long it has left;
  * a session the user asked to finish (strom session finish) is told to write down and close, from its next command.
  */
-function remind(io: IO, ctx: Context | undefined, command: string | undefined): void {
+function remind(io: IO, ctx: Context | undefined, command: string | undefined, ranMs: number): void {
   if (!ctx || command === "session close" || command === "session finish") return;
   const session = ctx.env.STROM_SESSION;
+  let root: string | undefined;
   if (session) {
     try {
-      const root = ctx.locateTree();
+      root = ctx.locateTree();
       const asked = root ? finishOf(root, session) : undefined;
       if (asked) {
         io.stderr((asked.by === "limit" ? finishLimitLine(asked.why) : FINISH_LINE) + "\n");
@@ -363,7 +390,8 @@ function remind(io: IO, ctx: Context | undefined, command: string | undefined): 
       // no tree here: only the clock
     }
   }
-  const line = clockLine(ctx.env);
+  // before the reminders, the time left after a long step (and now and then): the agent never estimates it
+  const line = clockLine(ctx.env) ?? timeLine(ctx.env, { ranMs, root, session });
   if (!line) return;
   try {
     // closed already: nothing to remind of

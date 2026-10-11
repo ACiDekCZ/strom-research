@@ -36,6 +36,9 @@ import { PROFILES } from "../agents/profiles.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
 import { StromError } from "../core/errors.ts";
 import { forgetTree } from "../commands/trees.ts";
+import { archiveQuestions } from "../core/archiveasks.ts";
+import { bareHost, listConnectors } from "../core/connector.ts";
+import { decideArchive } from "./menu-archives.ts";
 
 /** What the Strom app asks, said before anything is done; true when the person goes on. */
 export async function asks(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true): Promise<boolean> {
@@ -76,6 +79,20 @@ export async function taskDo(ctx: Context, run: Run, lang: string, root: string,
   if ((await run(["task", what, id, ...reason], true)) !== 0) return false;
   out(ctx, t(`ui.link.task.${what}.done`));
   return true;
+}
+
+/**
+ * The question about an archive's images a link of the Strom app opens: only an archive that waits for the person's
+ * decision, or one a downloader here reaches (its permission looked at again) — anything else only said.
+ */
+export async function archiveAsked(ctx: Context, run: Run, lang: string, root: string, host: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  if (isArchive(tree)) return stop(ctx, t("ui.link.archive.none"));
+  const q = archiveQuestions(tree).find((p) => p.kind === "permission" && p.host === host);
+  const known = q ? true : listConnectors(ctx.settings.shared()?.value, ctx.env).some((c) => c.manifest.hosts.map(bareHost).includes(host));
+  if (!known) return stop(ctx, t("ui.link.archive.none"));
+  return decideArchive(ctx, run, lang, root, host, q);
 }
 
 /** A direction of the research paused, ended (each with the person's reason, if they give one) or taken up again. */

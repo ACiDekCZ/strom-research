@@ -13,6 +13,11 @@ Before anything can be proven, know where the records are.
    `strom fetch <connector> --find "<place>" --years 1780-1850`.
 3. Respect the terms of every archive. Never scrape a portal whose terms forbid
    it; if records are only on site or on request, the task becomes a `request`.
+   A site that refused strom or restricts automation (`strom net web --check
+   <url>`): not through your web tools or a browser either — another way first
+   (another archive or fonds, the parish, an index), the search recorded; the
+   user's check (`strom task wait T… --check <url>`) only if the source stays
+   necessary.
 4. Indexes, catalogues and online trees tell you where to look — they are not
    evidence of the fact itself. Use a catalogue as a person would: a search or
    the page of one book — never walk its record numbers one after another

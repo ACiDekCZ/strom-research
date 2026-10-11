@@ -34,7 +34,9 @@ test("fetch and views recorded: requests by host with the pauses for its pace, t
   const { w, a } = await world();
   await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism"]); // B0001
   await w.ok(["fetch", "zkusebni", "5359", "--images", "1-2", "--recordset", "B1"]);
-  const [f] = journal(metrics(w, "fetch.jsonl"));
+  const [robots, f] = journal(metrics(w, "fetch.jsonl"));
+  // the archive's robots.txt, read by strom itself before its first request of the day: a line of its own
+  assert.deepEqual({ cmd: robots!.cmd, host: robots!.host, status: robots!.status, requests: robots!.requests, hosts: robots!.hosts }, { cmd: "robots", host: "127.0.0.1", status: 404, requests: 1, hosts: { "127.0.0.1": { requests: 1 } } });
   assert.ok(f);
   const { at, ms, hosts, ...rest } = f;
   assert.match(at, /^\d{4}-\d\d-\d\dT/);

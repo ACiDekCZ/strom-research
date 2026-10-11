@@ -31,13 +31,18 @@ before(() => {
   if (opts.skip) return;
   dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "strom-channel-")));
   const download = path.join(dir, "releases");
+  // the dist/ of the sources as it was: the builds below leave it alone (C10 — a manual try may run from it meanwhile)
+  const srcDist = path.join(ROOT, "dist");
+  const distWas = fs.existsSync(srcDist) ? `${fs.statSync(srcDist).ino}:${fs.statSync(srcDist).mtimeMs}` : undefined;
   for (const v of [STABLE, BETA]) {
     const out = path.join(download, `v${v}`);
-    const r = spawnSync(process.execPath, [path.join(ROOT, "scripts", "build-release.ts"), "--version", v, "--out", out], { encoding: "utf8", cwd: ROOT });
+    // compiled into the test's own folder: the dist/ of the sources stays as it is (another process may run from it)
+    const r = spawnSync(process.execPath, [path.join(ROOT, "scripts", "build-release.ts"), "--version", v, "--out", out, "--dist", path.join(dir, `dist-${v}`)], { encoding: "utf8", cwd: ROOT });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     // the Node of this test (a mirror of it: no download), the exact version — strom update keeps it
     fs.writeFileSync(path.join(out, "NODE_VERSION"), `${process.versions.node}\n`);
   }
+  assert.equal(fs.existsSync(srcDist) ? `${fs.statSync(srcDist).ino}:${fs.statSync(srcDist).mtimeMs}` : undefined, distWas, "the sources' dist/ untouched");
   // a "Node" that is this one: the installer checks its version, strom runs on it
   const name = nodeArchive(process.versions.node);
   const top = name.replace(/\.tar\.gz$/, "");

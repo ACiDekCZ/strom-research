@@ -164,7 +164,10 @@ test("the app's menus through links, in the research's terminal: a task answered
   assert.match(answered.out, /✓ Úkol se vrátil agentovi i s odpovědí\./);
   const t1 = (await w.ok(["task", "show", "T0001", "--json"])).json.task;
   assert.equal(t1.state, "open");
-  assert.match(t1.notes.at(-1).text, /https:\/\/archive\.example\.org\/book\/77$/);
+  // the person's answer: a record of its own, apart from the notes (an agent writes those too)
+  assert.equal(t1.answers.at(-1).by, "person");
+  assert.equal(t1.answers.at(-1).answer, "https://archive.example.org/book/77");
+  assert.equal(t1.answers.at(-1).asked, "Poslat odkaz na knihu narozených.");
   assert.match((await open("task", "&task=T0001", [""])).out, /Tento úkol už nečeká/);
   // a person reviewed: said what it does, a no writes nothing, a yes the tasks
   const no = await open("review", "&person=P0001&scope=family", ["n", ""]);

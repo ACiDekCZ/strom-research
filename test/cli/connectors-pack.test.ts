@@ -54,6 +54,9 @@ test("pack and unpack: the research handed over — the tree with its history, t
   assert.match((await b.ok(["person", "list"], { cwd: root })).out, /P0001  Jan Novák/);
   assert.ok(fs.existsSync(path.join(b.home, "shared", "plugins", "connectors", "zkusebni", "connector.json")));
   assert.ok(fs.readFileSync(path.join(root, ".claude", "settings.json"), "utf8").includes(b.home), "the tree's permissions name this computer's folders");
+  // a connector that came with the research is new here: the person confirms its reading of the archive's terms
+  assert.equal((await b.run(["fetch", "zkusebni", "5359", "--recordset", "B1", "--images", "1"], { cwd: root })).code, 4, "asked first");
+  await b.ok(["allow", "archive", "zkusebni", "--accept"], { cwd: root, tty: true });
   // the image the record stands on is here; a page searched through comes from the archive again
   await b.ok(["media", "view", "B1:2"], { cwd: root });
   assert.match((await b.run(["media", "view", "B1:1"], { cwd: root })).err, /strom fetch zkusebni 5359 --recordset B0001 --images 1/);
@@ -98,7 +101,7 @@ done();
   const r = await w.ok(["fetch", "zkusebni", "--find", "Dolní Lhota"]);
   assert.match(r.out, /find \(\d+ s\): 3 request\(s\) \(the connector asked 2; 1 more: redirects or retries\)/, "the redirect is a request to the host too");
   assert.match(r.out, /Dolní Lhota N 1784–1820/);
-  assert.deepEqual(a.hits, ["/login", "/search-page", "/search"], "the redirect followed by strom, with its cookie");
+  assert.deepEqual(a.hits, ["/robots.txt", "/login", "/search-page", "/search"], "its robots.txt (once a day), then the redirect followed by strom, with its cookie");
   // the next run starts without the cookie: the server wants a new session
   program(dir, `import { done, fail, post, request } from "./sdk.ts";\nawait request();\nconst r = await post(${JSON.stringify(a.base)} + "/search", { place: "x" }, { headers: { "X-Requested-With": "XMLHttpRequest" } });\nif (r.status !== 400) fail("a cookie of another run");\ndone();\n`);
   assert.equal((await w.run(["fetch", "zkusebni", "--find", "x"])).code, 0);
@@ -210,11 +213,12 @@ test("a refusal (403) stops the run and leaves the archive alone — until the u
   assert.equal(r.code, 1);
   assert.match(r.out, /stopped: .*403/);
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 1, "nothing after the refusal");
-  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · ⛔ refused us — left alone until/);
+  // the first request strom ever sent it, refused: the site refuses strom's client — left alone until the person lifts it
+  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · ⛔ refused strom's client — left alone until the person lifts it/);
   const again = await w.run(["fetch", "zkusebni", "5359", "--images", "1"]);
-  assert.equal(again.code, 1);
-  assert.match(again.out, /left alone until/);
-  assert.equal(a.hits.length, 1, "not even another book");
+  assert.equal(again.code, 2, "refused before anything goes, as an archive that forbids it");
+  assert.match(again.err, /refused strom's client — left alone until the person lifts it/);
+  assert.deepEqual(a.hits, ["/robots.txt", "/img/zakazana/1.jpg"], "not even another book");
   assert.equal((await w.run(["allow", "host", "127.0.0.1", "--unblock"])).code, 4, "only the user");
   assert.match((await w.ok(["allow", "host", "127.0.0.1", "--unblock"], { tty: true, answers: ["y"] })).out, /127\.0\.0\.1: už se na něj zase smí – strom se ho bude znovu ptát, pomalu/);
   assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "1"])).code, 0);
@@ -457,7 +461,7 @@ test("connector probe: one request through strom while mapping a portal, the ans
   assert.notEqual(off.code, 0);
   assert.match(off.err, /elsewhere\.example is not one of the hosts this connector may contact/);
   assert.equal((await w.run(["connector", "probe", "zkusebni", `${a.base}/x`, "--header", "bez dvojtečky"])).code, 2);
-  assert.deepEqual(a.hits, ["/login", "/search-page", "/search", "/search"]);
+  assert.deepEqual(a.hits, ["/robots.txt", "/login", "/search-page", "/search", "/search"], "its robots.txt once, before the first probe of the day");
   await w.ok(["connector", "test", "zkusebni", "--find", "Lhota"]);
   assert.ok(fs.existsSync(path.join(dir, ".test", "probe", "hledani.txt")), "a test starts afresh, but what probes saved stays");
   w.cleanup();

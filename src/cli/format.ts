@@ -31,6 +31,12 @@ export function paginate<T>(items: T[], limit: number, page: number): Page<T> {
   return { items: items.slice((p - 1) * limit, p * limit), total: items.length, page: p, pages, limit };
 }
 
+/**
+ * The most rows a page of a long listing gives, whatever --limit says: a row is at most ~170 bytes, a page under ~20 kB
+ * — an agent's tool keeps a longer output in a file and shows only its start (N0280, N0281: the filters never seen).
+ */
+export const LIST_PAGE_MAX = 100;
+
 /** Footer telling the caller how to see more. */
 export function moreLine(page: Page<unknown>, command: string): string {
   if (page.page >= page.pages) return "";

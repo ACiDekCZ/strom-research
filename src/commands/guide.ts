@@ -40,6 +40,13 @@ HARD RULES
    its DISCOVERY.md) and tell the user in a sentence. The user saves images
    by hand only where the archive does not allow automation.
    ${webRuleLines(perHost, "")}
+   A site strom refused, or whose archive forbids or restricts automation
+   without the person's permission: not through your web tools or a browser
+   either (strom net web --check <url> says it). Then another way to the same
+   records first — another archive or fonds of the jurisdiction, the parish,
+   an index, secondary sources —, the search recorded (strom search add …
+   --result inconclusive --note "<host>: …"); only if the source stays
+   necessary: strom task wait T… --check <url> --on "…", for the person.
 8. Old handwriting is read by your strongest model — you, or a subagent on
    that same model; never a faster, cheaper or "quick" pass. A name or place
    the next search depends on is read again on a crop at full resolution

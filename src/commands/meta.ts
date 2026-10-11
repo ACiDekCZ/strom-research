@@ -31,6 +31,9 @@ import { label } from "../core/people.ts";
 import { isArchive } from "../core/mode.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
 import { questionsWaiting } from "../core/tuneask.ts";
+import { connectorFor, permissionsWaiting, tasksStanding, waysOffered } from "../core/archiveasks.ts";
+import { listConnectors } from "../core/connector.ts";
+import { claudeHere } from "../cli/menu-parts.ts";
 
 interface Orientation {
   version: string;
@@ -54,6 +57,8 @@ interface Orientation {
   views?: { now: string; before: string[] };
   /** Questions about the reading of scans waiting for a person (an agent tells the person; it never answers them). */
   tune?: { questions: number; command: string };
+  /** Archives whose images wait for the person's decision (asked in strom's menu: What waits) — for the agent to tell them. */
+  permissions?: { host: string; title: string; connector?: string; since: string; tries: number; tasks: string[]; command: string }[];
   next: { why: string; command: string };
 }
 
@@ -126,6 +131,13 @@ function orientation(ctx: Context): Orientation {
   if (views) base.views = views;
   const questions = isArchive(tree) ? 0 : questionsWaiting(tree, ctx.settings);
   if (questions) base.tune = { questions, command: "strom media calibrate --questions" };
+  const asked = permissionsWaiting(tree);
+  if (asked.length) {
+    // the ways as the menu and the bridge offer them (a site only a browser goes to, a bot check: never slowly)
+    const connectors = listConnectors(ctx.settings.shared()?.value, ctx.env);
+    const claude = claudeHere(ctx, tree.config);
+    base.permissions = asked.map((q) => ({ host: q.host!, title: q.title ?? q.host!, ...(q.connector ? { connector: q.connector } : {}), since: q.at, tries: q.tries ?? 1, tasks: tasksStanding(tree, q), command: `strom allow archive ${q.host} --way ${waysOffered(connectorFor(connectors, q.host!, q.connector), claude, q.way, !!q.browserOnly).join("|")}` }));
+  }
   const stories = ctx.settings.stories(tree.config);
   base.stories = !stories.on ? "off" : stories.said || told.stories ? "on" : "tell";
   if (!told.ask && base.tree.persons > 0) base.ask = true;

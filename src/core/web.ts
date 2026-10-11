@@ -45,6 +45,7 @@ import { Settings } from "./config.ts";
 import { calibrationKey, viewModel } from "./viewsizes.ts";
 import { ui } from "../cli/ui.ts";
 import { isAgent } from "./which.ts";
+import { otherWay, webGate, type WebGate } from "./webgate.ts";
 import type { Env } from "./paths.ts";
 
 /**
@@ -216,6 +217,13 @@ export interface ConnectorWay {
   later: boolean;
   /** The command that adds that task. */
   task: string;
+  /**
+   * The archive lets strom read no more of it (core/webgate.ts): it refused strom's client, its terms forbid automated
+   * access, only a person's browser goes there, or its images are by hand only — no connector to build, no way round.
+   */
+  closed?: "refused" | "forbidden" | "browser" | "manual";
+  /** The session's task (the commands of the way on name it). */
+  of?: string;
 }
 
 /**
@@ -283,7 +291,7 @@ const dq = (s: string) => `"${s.replace(/["\\$`]/g, "")}"`;
  * through strom fetch — a task for it only where no time is left (STROM_DEADLINE within CONNECTOR_MIN_MS, or the
  * session asked to finish) or the server does not allow automated access, said why.
  */
-export function connectorWay(o: { host: string; netHost: string; shared: string | undefined; tree: Tree; session?: Session | undefined; env: Env; now?: number }): ConnectorWay {
+export function connectorWay(o: { host: string; netHost: string; shared: string | undefined; tree: Tree; session?: Session | undefined; env: Env; now?: number; closed?: ConnectorWay["closed"] }): ConnectorWay {
   const have = o.shared ? siteConnector(o.shared, o.netHost) : undefined;
   const name = connectorName(o.netHost);
   const url = `https://${o.host}/`;
@@ -301,7 +309,7 @@ export function connectorWay(o: { host: string; netHost: string; shared: string 
     person ? `--about ${person}` : "",
     research ? `--research ${research}` : "",
   ].filter(Boolean).join(" ");
-  return { ...(have ? { have } : {}), name, url, later, task: add };
+  return { ...(have ? { have } : {}), name, url, later, task: add, ...(o.closed ? { closed: o.closed } : {}), ...(task ? { of: task.id } : {}) };
 }
 
 const NEVER = "Never go round it (curl, another tool, another address of the same server). Single searches stay free.";
@@ -320,6 +328,12 @@ const steps = (host: string, way: ConnectorWay) =>
  * connector still named first, and its task what to do now.
  */
 export function wayText(host: string, way: ConnectorWay): string {
+  // an archive that lets strom read no more of it: no connector to build or go on through, no way round (D4)
+  if (way.closed === "manual")
+    return way.have
+      ? `Its connector ${way.have} reads its catalogue (strom fetch ${way.have} --find "<place>", --list <book>); its images by hand only: strom task wait ${way.of ?? "T…"} --images B…:<numbers> --on "<the book, its link, which images — impersonal, in the research language>". For the rest another way first. ${GO_ON}`
+      : `Its archive allows its images by hand only — no connector to build for its images: strom task wait ${way.of ?? "T…"} --images B…:<numbers> --on "<the book, its link, which images — impersonal, in the research language>"; its catalogue one page at a time within the limit. ${GO_ON}`;
+  if (way.closed) return `This site lets strom read no more of it (${way.closed === "refused" ? "it refused strom's client" : way.closed === "forbidden" ? "its terms forbid automated access" : "only a person's browser goes there"}): no connector, no browser. ${otherWay(host, way.url, way.of)}`;
   if (way.have) return `Its connector is here: go on through it — strom connector show ${way.have}, then strom fetch ${way.have} … (it keeps the server's pace, robots.txt and terms).`;
   if (way.later)
     return (
@@ -412,7 +426,19 @@ export async function answerWebEvent(ev: WebEvent, o: { env: Env; cwd: string; n
   const lang = tree.lang;
   // the soft threshold: never above the hard one the person set
   const soft = Math.min(WEB_SOFT, perHost);
-  const way = () => connectorWay({ host, netHost: ev.netHost ?? host, shared, tree, session, env: o.env, ...(o.now ? { now: o.now() } : {}) });
+  // what the archive's terms let the agent's own tool do here (core/webgate.ts; read only, before the host's lock)
+  let gate: WebGate | undefined;
+  if (!ev.phase && !seen()) {
+    gate = webGate({ env: o.env, tree, url: ev.url!, shared, agent: ev.agent, ...(session?.task ? { task: session.task } : {}), ...(o.now ? { now: o.now() } : {}) });
+    if (!gate.allow) {
+      const record: AgentWebRecord = { ...base, decision: "deny", why: gate.why ?? "terms", n: webRequestsOf(root, who).domains.get(site) ?? 0 };
+      recordWebRequest(tree, o.env, record);
+      return { decision: "deny", reason: gate.reason ?? `strom: ${host} — not through the web fetch tool.`, record };
+    }
+  }
+  const lvl = gate?.level;
+  const closed: ConnectorWay["closed"] = lvl ? (lvl.refused ? "refused" : lvl.level === "forbidden" ? "forbidden" : lvl.browserOnly ? "browser" : lvl.level === "manual" ? "manual" : undefined) : undefined;
+  const way = () => connectorWay({ host, netHost: ev.netHost ?? host, shared, tree, session, env: o.env, ...(o.now ? { now: o.now() } : {}), ...(closed ? { closed } : {}) });
   /**
    * A call the hard threshold (many) or the host's pace (a slot too far: pace; its turn not had: busy) holds back. The
    * pace: refused in a run (one request at a time) and past the soft threshold (the site's slower pace, in a
@@ -457,6 +483,8 @@ export async function answerWebEvent(ev: WebEvent, o: { env: Env; cwd: string; n
   };
   const write = (a: WebAnswer | undefined, waitedMs: number) => {
     if (!a?.record) return;
+    // the one terms page of a closed archive: counted as such (at most TERMS_PER_DAY a day)
+    if (gate?.why === "terms" && a.record.decision === "allow" && (!a.record.why || a.record.why === "soft")) a.record.why = "terms";
     if (waitedMs > 0) a.record.paceMs = waitedMs;
     recordWebRequest(tree, o.env, a.record);
   };

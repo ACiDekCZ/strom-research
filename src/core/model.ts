@@ -372,6 +372,25 @@ export interface Search extends BaseRecord {
 export const STRATEGIES = ["balanced", "depth", "priority"] as const;
 export type Strategy = (typeof STRATEGIES)[number];
 
+/** The person's answer to a task's check of a site: the book and its images there, only to be viewed there, nothing there. */
+export const CHECK_ANSWERS = ["works", "view", "no"] as const;
+export type CheckAnswer = (typeof CHECK_ANSWERS)[number];
+
+/** The person's answer to what a task waited for (Task.answers). */
+export interface PersonAnswer {
+  by: "person";
+  /** What the task asked (its waitingOn then). */
+  asked: string;
+  /** The site the person checked (awaitsCheck). */
+  url?: string;
+  check?: CheckAnswer;
+  /** Their words. */
+  answer?: string;
+  at: string;
+  /** Where they gave it: their terminal (strom's menu too), a window of the system. */
+  via?: "terminal" | "window";
+}
+
 export const TASK_LEVELS = ["intake", "locate", "link", "verify", "enrich", "request", "narrate"] as const;
 export const TASK_STATES = ["open", "doing", "done", "parked", "waiting", "dropped"] as const;
 
@@ -398,6 +417,22 @@ export interface Task extends BaseRecord {
   waitingOn?: string;
   /** The images it waits for, which the user saves by hand: of this record set, into this folder of the shared inbox. */
   awaits?: { recordset: string; images: string; folder: string };
+  /**
+   * The person's check of a site it waits for (strom task wait --check): the address, and what to check there — a
+   * site that keeps automated tools off, the source still necessary. Only the person answers it.
+   */
+  awaitsCheck?: { url: string; ask: string };
+  /**
+   * The person's decision about an archive's images it waits for (or was put aside over): the archive's hosts, since
+   * when, its name — woken in every research here once the person decides (core/archivewait.ts). Optional: an older
+   * strom keeps it and ignores it.
+   */
+  awaitsPermission?: { hosts: string[]; since: string; title?: string };
+  /**
+   * What the person answered for it (strom task wake --answer/--check, only by the person: their terminal, a window of
+   * the system, strom's menu) — kept apart from the notes, which an agent writes too.
+   */
+  answers?: PersonAnswer[];
   result?: string;
   produced?: string[];
   origin: string;

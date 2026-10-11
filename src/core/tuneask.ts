@@ -338,7 +338,7 @@ function dayRequests(c: Ctx, host: string): number {
 
 /** How long n requests take at a host: its pace, and its hourly cap when it has one — never more than it allows. */
 function minutesFor(c: Ctx, host: string, connector: Connector | undefined, n: number): number {
-  const pace = c.shared ? hostPace(hostState(path.join(c.shared, "net"), host), connector?.manifest.policy.pace) : paceOf(connector?.manifest.policy.pace);
+  const pace = c.shared ? hostPace(hostState(path.join(c.shared, "net"), host), connector?.manifest.policy.pace, undefined, host) : paceOf(connector?.manifest.policy.pace);
   const byPace = (n * pace.minIntervalMs) / 60_000;
   const byCap = Number.isFinite(pace.perHour) && n > pace.perHour ? Math.floor((n - 1) / pace.perHour) * 60 : 0;
   return Math.max(1, Math.ceil(Math.max(byPace, byCap)));

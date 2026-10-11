@@ -20,6 +20,7 @@ const label = (p: Person) => `${displayName(p)}${lifespan(p) ? ` (${lifespan(p)}
 import { openForUser } from "../core/open.ts";
 import { isArchive } from "../core/mode.ts";
 import { tuneQuestions, type Question } from "../core/tuneask.ts";
+import { archiveItems } from "./menu-archives.ts";
 
 /** At most this many are listed to answer (the menu's nine); the rest after them. */
 const SHOWN = 9;
@@ -29,6 +30,8 @@ const ANSWER_MAX = 300;
 /** What to do for a task that waits: the images to save and where, or what it asks. */
 function whatToDo(ctx: Context, lang: string, tree: Tree, x: Task): string[] {
   const t = translator(lang);
+  // a check of a site only a person sees: what to check, and its link
+  if (x.awaitsCheck) return [`    ${t("ui.waiting.check", { ask: x.awaitsCheck.ask })}`, `    ${x.awaitsCheck.url}`, `    ${t("ui.waiting.check.why")}`];
   if (!x.awaits) return [`    ${t("ui.waiting.do", { what: x.waitingOn || t("ui.waiting.ask") })}`];
   const b = tree.get<RecordSet>(x.awaits.recordset);
   return [
@@ -51,6 +54,7 @@ async function takeUp(ctx: Context, run: Run, lang: string, root: string, x: Tas
     if (dir) openForUser(dir, ctx.env);
     return void out(t("ui.waiting.opened", { dir: dir ? ctx.display(dir) : `inbox/${x.awaits.folder}` }));
   }
+  if (x.awaitsCheck) return checkSite(ctx, run, lang, root, x);
   let answer = "";
   for (;;) {
     answer = (await ctx.ask(t("ui.waiting.write"))).trim();
@@ -63,6 +67,33 @@ async function takeUp(ctx: Context, run: Run, lang: string, root: string, x: Tas
   // meanwhile taken up by an agent (done, dropped, back in the queue): said, nothing written
   if (Tree.open(root, ctx.env).get<Task>(x.id)?.state !== "waiting") return void out(t("ui.waiting.gone"));
   if ((await run(["task", "wake", x.id, `--answer=${answer}`], true)) !== 0) return;
+  out(t("ui.waiting.back"));
+  await offerChat(ctx, run, lang, root, t("ui.waiting.chat"), t("ui.waiting.say", { what: truncate(x.what, 80) }));
+}
+
+/**
+ * A check of a site only a person sees (strom task wait --check): the link, what is there — the book and its images,
+ * only to be viewed there, nothing — and a note if any, 0 back with nothing changed; the task back with the answer.
+ */
+async function checkSite(ctx: Context, run: Run, lang: string, root: string, x: Task): Promise<void> {
+  const t = translator(lang);
+  const out = (line: string) => ctx.io.stdout(line + "\n");
+  const c = x.awaitsCheck!;
+  out(`\n ${t("ui.waiting.check", { ask: c.ask })}\n    ${c.url}`);
+  const pick = await ctx.choose(t("ui.waiting.check.pick"), [{ label: t("ui.waiting.check.works") }, { label: t("ui.waiting.check.view") }, { label: t("ui.waiting.check.no") }], 0, { back: t("ui.browse.back") });
+  if (pick === undefined) return;
+  const check = (["works", "view", "no"] as const)[pick]!;
+  let note = "";
+  for (;;) {
+    note = (await ctx.ask(t("ui.waiting.check.note"))).trim();
+    if (note === "0") return;
+    if (note.length <= ANSWER_MAX) break;
+    out(t("ui.waiting.long", { n: ANSWER_MAX }));
+    if (ctx.io.answers !== undefined && ctx.io.answers.length === 0) return;
+  }
+  // meanwhile taken up (done, dropped, back in the queue): said, nothing written
+  if (Tree.open(root, ctx.env).get<Task>(x.id)?.state !== "waiting") return void out(t("ui.waiting.gone"));
+  if ((await run(["task", "wake", x.id, `--check=${check}`, ...(note ? [`--answer=${note}`] : [])], true)) !== 0) return;
   out(t("ui.waiting.back"));
   await offerChat(ctx, run, lang, root, t("ui.waiting.chat"), t("ui.waiting.say", { what: truncate(x.what, 80) }));
 }
@@ -145,23 +176,28 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
     const sent = receivedPending(root);
     // the questions about the reading of scans only a person answers: last, after the research's own
     const tune = isArchive(tree) ? [] : tuneQuestions(tree, ctx.settings).due;
-    if (!waiting.length && !stories.length && !sent.length && !tune.length) return { title: t("ui.waiting.none"), items: [] };
-    // the trees from the app first, then the tasks, then the stories: at most the menu's nine together
+    // the questions about archives' terms (none in an archive): right after the app's sends — they hold work up
     const shownSent = sent.slice(0, SHOWN);
-    const shown = waiting.slice(0, SHOWN - shownSent.length);
-    const shownStories = stories.slice(0, SHOWN - shownSent.length - shown.length);
-    const shownTune = tune.slice(0, SHOWN - shownSent.length - shown.length - shownStories.length);
-    const k0 = shownSent.length;
+    const asked = archiveItems(ctx, run, lang, root, shownSent.length, SHOWN - shownSent.length);
+    if (!waiting.length && !stories.length && !sent.length && !tune.length && !asked.count) return { title: t("ui.waiting.none"), items: [] };
+    // the trees from the app first, the archives, then the tasks, then the stories: at most the menu's nine together
+    const ka = shownSent.length + asked.items.length;
+    const shown = waiting.slice(0, SHOWN - ka);
+    const shownStories = stories.slice(0, SHOWN - ka - shown.length);
+    const shownTune = tune.slice(0, SHOWN - ka - shown.length - shownStories.length);
+    const k0 = ka;
     const k1 = k0 + shown.length + shownStories.length;
-    const text: string[] = [t(sent.length && !waiting.length && !stories.length && !tune.length ? "ui.waiting.title.sent" : "ui.waiting.title", { n: waiting.length + stories.length + sent.length + tune.length })];
+    const total = waiting.length + stories.length + sent.length + tune.length + asked.count;
+    const text: string[] = [t(sent.length && !waiting.length && !stories.length && !tune.length && !asked.count ? "ui.waiting.title.sent" : "ui.waiting.title", { n: total })];
     for (const [k, r] of shownSent.entries()) text.push("", ` ${k + 1}. ${t("ui.waiting.sent", { day: humanDay(r.at, lang), time: r.at.slice(11, 16), n: r.changes })}`);
+    text.push(...asked.text);
     for (const [k, x] of shown.entries()) {
       text.push("", ` ${k0 + k + 1}. ${x.what}`, ...whatToDo(ctx, lang, tree, x));
     }
     for (const [k, s] of shownStories.entries()) text.push("", ` ${k0 + shown.length + k + 1}. ${t("ui.waiting.story", { who: storyOf(tree, s.id) })}`);
     for (const [k, q] of shownTune.entries()) text.push("", ` ${k1 + k + 1}. ${t("ui.waiting.tune", { text: q.text })}`);
     if (shown.some((x) => x.awaits)) text.push("", t("ui.wait.how1"), t("ui.wait.how2"));
-    const hidden = waiting.length + stories.length + sent.length + tune.length - shownSent.length - shown.length - shownStories.length - shownTune.length;
+    const hidden = total - shownSent.length - asked.items.length - shown.length - shownStories.length - shownTune.length;
     if (hidden > 0) text.push("", t("ui.waiting.more", { n: hidden }));
     const items: Item[] = [
       ...shownSent.map((r, k) => ({
@@ -169,6 +205,7 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
         label: t("ui.waiting.sent.read", { k: k + 1 }),
         act: async () => void (await decideSent(ctx, run, lang, root, r)),
       })),
+      ...asked.items,
       ...shown.map((x, k) => ({
         key: String(k0 + k + 1),
         label: x.awaits ? t("ui.waiting.folder", { k: k0 + k + 1 }) : t("ui.waiting.answer", { k: k0 + k + 1, what: truncate(x.what, 60) }),

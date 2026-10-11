@@ -260,7 +260,10 @@ test("the browser in a run: only for a session whose task may need it — never 
   }
   const browser = briefs.get("T0004")!;
   assert.match(browser, /Its sites: archive\.example\.org — no other\./);
-  assert.match(browser, /Use it without asking where a connector \(strom fetch\), WebFetch and WebSearch lead nowhere; images only through strom fetch/);
+  assert.match(browser, /Use it without asking where a connector \(strom fetch\), WebFetch and WebSearch lead nowhere — never where they led nowhere because the site refused strom \(401\/403\/429\) or its terms forbid or restrict automation; images only through strom fetch/);
+  // B8: a site closed to automation is never a connector to build nor the browser's — another way first, the person last
+  assert.match(browser, /- A site that forbids automation, refused strom, or restricts it without the person's permission "through the browser" \(strom net web --check <url> says it\): no connector, no browser — another way to the same records .*only if the source stays necessary: strom task wait T0004 --check <url> --on "<what the person checks there>", then close the session\./);
+  assert.match(browser, /- Another site that allows automation: an archive the task needs without a connector — build one/);
   assert.match(browser, /terms and robots\.txt, its pace and hourly cap .*only the pages the task needs, nothing ahead/);
   assert.match(browser, /forbids automated access: never through the browser, never a way round/);
   assert.match(browser, /no AskUserQuestion, no switch_browser\. Several browsers connected, none selected: list_connected_browsers, then select_browser — onThisComputer, else isLocal\.\n/);
@@ -275,7 +278,8 @@ test("the browser in a run: only for a session whose task may need it — never 
   const talk = (await w.ok(["session", "start", "T2"])).out;
   delete w.env.CLAUDECODE;
   assert.match(talk, /## The browser \(Claude in Chrome\)\nIts sites: archive\.example\.org — no other\./);
-  assert.match(talk, /- Another site, or one that forbids automation: ask the user first\./);
+  assert.match(talk, /- Another site: ask the user first\./);
+  assert.match(talk, /- A site that forbids automation, refused strom, or restricts it without the person's permission .*no connector, no browser/);
   // a conversation: the person picks the browser, the one of this computer suggested first
   assert.match(talk, /- Several browsers connected, none selected: list_connected_browsers, ask the user which — onThisComputer, else isLocal, else the first suggested —, then select_browser\./);
   assert.doesNotMatch(talk, /Neither: those browsers/);

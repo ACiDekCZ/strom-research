@@ -17,7 +17,7 @@ import { readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
 import { currentSession } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
-import { canShowDialog, systemDialog, WAIT_SECONDS, type DialogText } from "../core/dialog.ts";
+import { canShowDialog, systemDialog, WAIT_SECONDS, type ChoiceText, type DialogText } from "../core/dialog.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 
 export interface IO {
@@ -32,6 +32,8 @@ export interface IO {
   stdin?: NodeJS.ReadableStream;
   /** Test hook: the answer of the window of a consent (true yes, false no, undefined no window). */
   dialog?: (text: DialogText) => boolean | undefined;
+  /** Test hook: the answer of a window with choices (the key chosen, null none — later, Esc, no answer —, undefined no window). */
+  choice?: (text: ChoiceText) => string | null | undefined;
 }
 
 export interface KnownTree {

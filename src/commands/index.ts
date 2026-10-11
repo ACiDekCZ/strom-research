@@ -12,6 +12,7 @@ import "./batch.ts";
 import "./sources.ts";
 import "./media.ts";
 import "./connectors.ts";
+import "./archives.ts";
 import "./web.ts";
 import "./delegate.ts";
 import "./read.ts";

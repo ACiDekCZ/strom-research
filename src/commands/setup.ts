@@ -1,5 +1,6 @@
 // setup · doctor · config — the environment around the trees.
 
+import { refusedHosts } from "../core/terms.ts";
 import { gitSize, lastCompacted } from "../core/history.ts";
 import fs from "node:fs";
 import path from "node:path";
@@ -31,6 +32,8 @@ import { configDir, defaultHome, desktopDir, isolated, noLinks, ownCommand } fro
 import { backupBefore, backupSaid, lastBackupLine } from "../cli/backups.ts";
 import { BACKUP_SAID_DAYS, lastBackup, type BackupRecord } from "../core/backup.ts";
 import { planMove, sameFolder } from "../core/relocate.ts";
+import { parseArchivePace } from "../core/terms.ts";
+import { HUMAN_PACE } from "../core/net.ts";
 import { appOpensLinks, appUrlSetting, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
 import { isInstalled } from "../agents/global.ts";
 import { offerLinks, shortcutName } from "../cli/wizard.ts";
@@ -416,6 +419,10 @@ function diagnose(ctx: Context): Check[] {
     const many = isArchive(tr) ? [] : manyWeb(tuned.rollup?.units ?? [], Date.now(), Math.min(WEB_SOFT, ctx.settings.webPerHost(tr.config)));
     if (many.length) add("web", "warn", t("ui.doc.web.many", { list: many.slice(0, 3).map((h) => `${h.host} (${h.most})`).join(", ") }), "strom connector new");
   }
+  // archives that refused strom's client: left alone until the person lifts it (only once the archive said it is fine)
+  const sharedNet = ctx.settings.shared()?.value;
+  const refused = refusedHosts(ctx.env, sharedNet ? path.join(sharedNet, "net") : undefined);
+  if (refused.length) add("refused", "warn", t(refused.length > 1 ? "ui.doc.refused.hosts.more" : "ui.doc.refused.hosts", { hosts: refused.join(", ") }), t("ui.doc.refused.fix", { host: refused[0]! }));
   return checks;
 }
 
@@ -963,6 +970,17 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
       "run.gate",
       ui(ctx.uiLang(), value ? "ui.consent.gate.set" : "ui.consent.gate.unset", { name: String(value ?? s.runGate()) }),
     );
+  // A person's pace for the images of restricted archives: theirs alone, faster or slower — never the agent's.
+  if (key === "archive.pace" && value !== (s.config.archivePace ?? undefined)) {
+    const p = typeof value === "string" && value !== "auto" ? parseArchivePace(value) : undefined;
+    const pace = p ?? HUMAN_PACE;
+    ctx.requireHuman(
+      `Set the pace for the images of archives that restrict automation: at least ${pace.minIntervalMs / 1000} s apart, at most ${pace.perHour} an hour?`,
+      value === undefined ? "strom config unset archive.pace" : `strom config set archive.pace "${value}"`,
+      "archive.pace",
+      ui(ctx.uiLang(), "ui.consent.archive.pace", { seconds: pace.minIntervalMs / 1000, n: pace.perHour }),
+    );
+  }
   writeStored(s.config, key, s.agent(treeSettings(ctx)).value, value);
   s.save();
   if (key === "shared" && typeof value === "string") ensureShared(value);

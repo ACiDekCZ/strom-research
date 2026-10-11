@@ -470,6 +470,28 @@ export function webHourOf(root: string, host: string, now: number): number[] {
 }
 
 /**
+ * The terms pages of a closed archive's host the hook let an agent's web tools read within the last day, in any session
+ * (core/webgate.ts: at most TERMS_PER_DAY): its lines `why: "terms"` let through.
+ */
+export function termsPagesToday(root: string, host: string, now: number): number {
+  const text = journalTail(root);
+  if (text === undefined) return 0;
+  const bare = (h: string) => h.replace(/:\d+$/, "");
+  let n = 0;
+  for (const line of text.split("\n")) {
+    if (!line.includes('"why":"terms"')) continue;
+    try {
+      const r = JSON.parse(line) as AgentWebRecord & { at?: string };
+      const at = Date.parse(String(r.at ?? ""));
+      if (r.via === "web" && r.decision === "allow" && typeof r.host === "string" && bare(r.host) === host && Number.isFinite(at) && at > now - 24 * 3600_000 && at <= now + 60_000) n++;
+    } catch {
+      // a line cut or broken: read past
+    }
+  }
+  return n;
+}
+
+/**
  * The web requests of fetch.jsonl one session made (its strom session, else the agent's own id of it), from the end of
  * the journal: the hosts' counts (via web, as countedWeb counts them — the hook's and the stream's), the searches, and
  * the tool calls recorded already (refused ones too), and what the person answered for each host the hook asked about.

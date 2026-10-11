@@ -1,5 +1,6 @@
 // init · trees · status · lang — trees (one folder per family tree).
 
+import { refusedHosts } from "../core/terms.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { waitingLines } from "./tasks.ts";
@@ -29,6 +30,8 @@ import { history, stopLive } from "../core/live.ts";
 import { humanWhen } from "../cli/human.ts";
 import { onlyItsFiles, packPlan } from "../core/pack.ts";
 import { defaultPackFile, packTree } from "./pack.ts";
+import { archiveWaitingItems } from "../core/archiveasks.ts";
+import { claudeHere } from "../cli/menu-parts.ts";
 
 register({
   path: ["init"],
@@ -211,6 +214,10 @@ register({
     const warnings = findings.length - errors.length;
     // what the research takes on the disk, and what strom keeps beside it (found 2026-10-04: 8.4 GB of it)
     const disk = tidyPlan(tree);
+    const sharedDir = ctx.settings.shared()?.value;
+    const refused = refusedHosts(ctx.env, sharedDir ? path.join(sharedDir, "net") : undefined);
+    // the questions about archives that wait for the person, as the bridge's /status gives them (none in an archive)
+    const archiveQuestions = archiveWaitingItems(tree, sharedDir, () => claudeHere(ctx, tree.config));
     const text = lines(
       `${tree.config.name} — ${langName(tree.config.lang, lang)} (${tree.config.lang}) — ${ctx.display(tree.root)}`,
       ui(lang, "ui.status.data", { persons: tree.countLive("person"), families: tree.countLive("family") }) + (archive ? "" : ui(lang, "ui.status.directions", { n: researches.length })),
@@ -218,6 +225,8 @@ register({
       researches.length && !archive ? ui(lang, "ui.status.dirs") + "\n" + table(researches.map((r) => [`  ${r.id}`, r.name, `[${ui(lang, `ui.dirs.${r.state === "done" || r.state === "paused" ? r.state : "active"}`)}]`])) : undefined,
       ui(lang, "ui.status.disk", { research: mb(disk.size.research, lang), strom: mb(disk.size.strom, lang) }) + (disk.frees >= TIDY_SAID ? ui(lang, "ui.status.disk.frees", { size: mb(disk.frees, lang) }) : ""),
       waitingLines(tree, { shared: ctx.settings.shared()?.value, display: (p) => ctx.display(p) }),
+      // an archive that refused strom's client: left alone until the person lifts it — said while it lasts
+      ...refused.map((host) => ui(lang, "ui.status.refused", { host })),
       changed.length ? ui(lang, "ui.status.recent") + "\n" + table(changed) : undefined,
     );
     return {
@@ -229,6 +238,8 @@ register({
         findings,
         recent,
         disk: { research: disk.size.research, strom: disk.size.strom, frees: disk.frees },
+        ...(refused.length ? { refused } : {}),
+        ...(archiveQuestions.length ? { archiveQuestions } : {}),
       },
     };
   },

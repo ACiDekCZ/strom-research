@@ -103,10 +103,13 @@ import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, link
 import { autoTidy } from "./tidy.ts";
 import { diskVersion, stromLauncher } from "./self.ts";
 import type { AnyRecord, Conflict, Family, Input, Person, Session, Source, Task, TreeConfig } from "./model.ts";
+import { CHECK_ANSWERS } from "./model.ts";
 import { sidesOf } from "./conflicts.ts";
 import { normId } from "./records.ts";
 import { foldText } from "./text.ts";
 import { storiesToApprove } from "./stories.ts";
+import { archiveWaitingItems } from "./archiveasks.ts";
+import { agentsHere } from "./apps.ts";
 
 export interface LiveInfo {
   port: number;
@@ -634,7 +637,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "conflict.decide", "status.recent", "spend.readers", "hypothesis.intree"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "conflict.decide", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1117,9 +1120,21 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
     open: openSessions(tree).map((s) => ({ id: s.id, task: s.task, started: s.started })),
     // since when it waits: its last change is the one that made it wait
     waiting: [
-      ...waiting.map((t) => ({ id: t.id, what: t.what, on: t.waitingOn ?? "", at: t.updated, ...personOf(t), ...researchOf(tree, t, all) })),
+      ...waiting.map((t) => ({
+        id: t.id,
+        what: t.what,
+        on: t.waitingOn ?? "",
+        at: t.updated,
+        // a check of a site only the person sees: its link and the answers (given in the terminal its link opens: task&do=check)
+        ...(t.awaitsCheck ? { kind: "check", url: t.awaitsCheck.url, choices: [...CHECK_ANSWERS] } : {}),
+        ...personOf(t),
+        ...researchOf(tree, t, all),
+      })),
       // a new version of an approved story, as the menu counts it — for an app that shows it (the _DRAFT gate)
       ...(appShowsStoryDrafts(settings, version) ? storiesWaiting(tree) : []),
+      // an archive's images that wait for the person's decision, the connectors taken over to confirm (none in an
+      // archive): the app shows them, the person decides in the terminal its link opens (archive&host=)
+      ...archiveWaitingItems(tree, settings.shared()?.value, () => settings.agent(tree.config).value === "claude" && agentsHere(env).some((a) => a.id === "claude" && a.cli)),
     ],
     links: links(env),
     ...linkSchemeOf(env),

@@ -608,7 +608,8 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   assert.match(r.out, /fetch: 3 request\(s\)/);
   assert.match(r.out, /3 image\(s\) of B0001 \(images 1–3\) fetched and registered/);
   assert.match(r.out, /back in the queue \(they waited for these images\): T0001/);
-  assert.equal(pauses.length, 2, "no pause before the first request, one before each next");
+  assert.equal(a.hits[0], "/robots.txt", "the archive's robots.txt first, read by strom itself (once a day)");
+  assert.equal(pauses.length, 3, "no pause before the first request (its robots.txt), one before each next");
   assert.ok(pauses.every((p) => p > DEFAULT_PACE.minIntervalMs - 500), pauses.join(","));
   const m = (await w.ok(["media", "show", "B1:2", "--json"])).json.media;
   assert.equal(m.url, `${a.base}/img/5359/2.jpg`);
