@@ -120,6 +120,22 @@ export async function world(): Promise<{ w: World; a: Archive; dir: string }> {
   return { w, a, dir };
 }
 
+/** The limiter's state of a host in the test's own shared folder (<shared>/net/<host>.json). */
+export function netFile(w: World, host = "127.0.0.1"): string {
+  return path.join(w.home, "shared", "net", `${host}.json`);
+}
+
+/**
+ * The host's robots.txt as read today already (nothing kept off): a test that counts a host's requests in the hour
+ * leaves out the one strom reads it with once a day.
+ */
+export function robotsReadToday(w: World, host = "127.0.0.1", at = Date.now()): void {
+  const file = netFile(w, host);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const s = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { recent: [] };
+  fs.writeFileSync(file, JSON.stringify({ ...s, robots: { at, status: 404, groups: [] } }));
+}
+
 /** Replace the program of a connector (the SDK and the manifest stay). */
 export function program(dir: string, code: string): void {
   fs.writeFileSync(path.join(dir, "connector.ts"), code);

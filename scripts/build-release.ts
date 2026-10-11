@@ -18,6 +18,9 @@
 // is built (VERSION, the code's own version, its package.json) without touching the sources, `--out <folder>`
 // builds it there instead of release/ — the installers take it with STROM_DOWNLOAD_BASE=file://<folder>.
 //
+// `--dist <folder>` compiles the code there instead of the sources' dist/ (a test builds releases without touching the
+// dist/ of the sources another process may be running from).
+//
 // A beta (`--version X.Y.Z-beta.N`) also gets its npm tarball, <out>/strom-research-X.Y.Z-beta.N.tgz (what npm pack
 // would publish, the version stamped, `publishConfig.tag` beta), and the line that publishes it under the tag beta.
 // A candidate (`-rc.N`) gets none: it stays local. Any other prerelease is refused.
@@ -38,6 +41,7 @@ const opt = (name: string) => {
   return i > 0 ? process.argv[i + 1] : undefined;
 };
 const OUT = path.resolve(opt("--out") ?? path.join(ROOT, "release"));
+const DIST = path.resolve(opt("--dist") ?? path.join(ROOT, "dist"));
 /** A path as said: within the sources from them, else whole. */
 const shown = (p: string) => (path.relative(ROOT, p).startsWith("..") ? p : path.relative(ROOT, p) || ".");
 
@@ -98,8 +102,10 @@ async function main(): Promise<void> {
   const kind = releaseKind(version);
   if (typeof kind === "object") throw new Error(`--version ${kind.refused}`);
   console.log("· building dist/");
-  fs.rmSync(path.join(ROOT, "dist"), { recursive: true, force: true });
-  run("npx", ["tsc", "-p", "tsconfig.build.json"]);
+  // never the sources or a folder above them
+  if (DIST !== path.join(ROOT, "dist") && (path.relative(DIST, ROOT) === "" || !path.relative(DIST, ROOT).startsWith(".."))) throw new Error(`--dist ${DIST}: the sources are in it`);
+  fs.rmSync(DIST, { recursive: true, force: true });
+  run("npx", ["tsc", "-p", "tsconfig.build.json", "--outDir", DIST]);
 
   // strom's own code: the same for every system.
   // the folder is made anew: never the sources or a folder above them
@@ -107,7 +113,7 @@ async function main(): Promise<void> {
   fs.rmSync(OUT, { recursive: true, force: true });
   const stage = path.join(OUT, "app");
   fs.mkdirSync(stage, { recursive: true });
-  for (const top of ["dist", "assets"]) fs.cpSync(path.join(ROOT, top), path.join(stage, top), { recursive: true, filter: (f) => path.basename(f) !== ".DS_Store" });
+  for (const [from, top] of [[DIST, "dist"], [path.join(ROOT, "assets"), "assets"]] as const) fs.cpSync(from, path.join(stage, top), { recursive: true, filter: (f) => path.basename(f) !== ".DS_Store" });
   for (const f of ["package.json", "LICENSE", "README.md"]) fs.copyFileSync(path.join(ROOT, f), path.join(stage, f));
   // a candidate: its own version in what is built (the code says it, strom update compares it), the sources as they are
   if (version !== released) {

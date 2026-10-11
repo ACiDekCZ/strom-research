@@ -12,6 +12,7 @@ import { droppedPaths } from "../../src/cli/menu-parts.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
+import { ui } from "../../src/cli/ui.ts";
 
 const unix = { skip: !hasGit || process.platform === "win32" };
 
@@ -103,7 +104,7 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   assert.match(r.out, /Nastavení \(na tomto počítači\)\n {3}1 {2}Jazyk, agent, model/);
   assert.match(r.out, /Samostatná práce agenta: 90 min na úkol · podmínka: Claude usage 12/);
   assert.match(r.out, /Zpráva do telefonu: zapnuto/);
-  assert.match(r.out, /Sledovat agenta z telefonu \(Remote Control\): rozhovory i samostatná práce/);
+  assert.match(r.out, / 7 {2}Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): rozhovory i samostatná práce\n/);
   assert.match(r.out, /Stahovače se ptají, než začnou: zapnuto/);
   const c = config();
   assert.equal(c.runMinutes, 90);
@@ -115,6 +116,59 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   await w.ok([], { tty: true, answers: ["8", "2", "2", "2", "0", "3", "1", "0", "0", "0"] });
   assert.equal(config().runGate, undefined);
   assert.equal(config().hooks, undefined);
+  w.cleanup();
+});
+
+/** The numbers of a (sub)menu's items in the last listing that has this title, 0 last. */
+function numbersUnder(out: string, title: string): number[] {
+  const at = out.lastIndexOf(`${title}\n`);
+  assert.ok(at >= 0, `${title} in:\n${out}`);
+  const block = out.slice(at + title.length + 1).split(/\nVybrat /u)[0]!;
+  return [...block.matchAll(/^ {2,3}(\d) {2}/gmu)].map((m) => Number(m[1]));
+}
+
+test("the settings: at most nine items and 0, each at a number of its own — what shows only sometimes leaves a gap, its number refused; maintenance a submenu; an archive's without an agent", unix, async () => {
+  const w = await world();
+  const title = "Nastavení (na tomto počítači)";
+  // Claude Code here: every item
+  const all = await w.ok([], { tty: true, answers: ["8", "0", "0"] });
+  assert.deepEqual(numbersUnder(all.out, title), [1, 2, 3, 4, 5, 6, 7, 8, 9, 0], all.out);
+  assert.match(
+    all.out,
+    / 1 {2}Jazyk, agent, model[^\n]*\n {3}2 {2}Samostatná práce agenta[^\n]*\n {3}3 {2}Zprávy o tom, co se uloží[^\n]*\n {3}4 {2}Archivy[^\n]*\n {3}5 {2}Výzkum, nebo jen archiv[^\n]*\n {3}6 {2}Vyladit čtení snímků[^\n]*\n {3}7 {2}Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): vypnuto\n {3}8 {2}Údržba: kontrola instalace, místo na disku\n {3}9 {2}Nápověda: příkazy pro člověka\n {3}0 {2}Zpět\n/,
+  );
+  assert.doesNotMatch(all.out, /Model výzkumu|Kontrola instalace\n/, "the model in the setup, the check in maintenance");
+  // maintenance: the check of the installation, disk space — the update only when one is out (a gap at 3)
+  const care = await w.ok([], { tty: true, answers: ["8", "8", "3", "0", "0", "0"] });
+  assert.deepEqual(numbersUnder(care.out, "Údržba"), [1, 2, 0]);
+  assert.match(care.out, /Údržba\n {3}1 {2}Kontrola instalace\n {3}2 {2}Místo na disku: strom si vedle výzkumu drží [^\n]+\n {3}0 {2}Zpět\n/);
+  assert.match(care.out, /Čekám jedno z čísel: 1, 2, 0\./, "a number not shown is refused");
+  // the help keeps its 9
+  assert.match((await w.ok([], { tty: true, answers: ["8", "9", "", "0", "0"] })).out, /strom/);
+  // another agent here does the research: nothing of Claude's — Remote Control's 7 a gap, typed 7 refused, the rest stay
+  fs.writeFileSync(path.join(w.dir, "bin", "codex"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  await w.ok(["agents", "use", "codex"]);
+  const codex = await w.ok([], { tty: true, answers: ["8", "7", "0", "0"] });
+  assert.deepEqual(numbersUnder(codex.out, title), [1, 2, 3, 4, 5, 6, 8, 9, 0], codex.out);
+  assert.match(codex.out, /Čekám jedno z čísel: 1, 2, 3, 4, 5, 6, 8, 9, 0\./);
+  assert.doesNotMatch(codex.out, /Remote Control/);
+  // no agent of the research on this computer: no model, no tuning — 6 and 7 gaps, 8 and 9 where they were
+  fs.rmSync(path.join(w.dir, "bin", "codex"));
+  const none = await w.ok([], { tty: true, answers: ["8", "0", "0"] });
+  assert.deepEqual(numbersUnder(none.out, title), [1, 2, 3, 4, 5, 8, 9, 0], none.out);
+  // an archive: nothing of an agent — 2, 4, 6, 7 gaps, typed 2 refused
+  await w.ok(["agents", "use", "claude"]);
+  await w.ok(["mode", "archive"], { tty: true, answers: ["a"] });
+  const archive = await w.ok([], { tty: true, answers: ["8", "2", "0", "0"] });
+  assert.deepEqual(numbersUnder(archive.out, title), [1, 3, 5, 8, 9, 0], archive.out);
+  assert.match(archive.out, /Čekám jedno z čísel: 1, 3, 5, 8, 9, 0\./);
+  const settings = archive.out.slice(archive.out.indexOf(title));
+  assert.doesNotMatch(settings, /agent|model|Claude|Remote Control/i, settings);
+  // Remote Control said so it is not taken for following the research in the Strom app — impersonal in every language
+  assert.equal(ui("en", "ui.settings.remote", { state: "off" }), "Remote Control in the Claude app (the conversation with the agent from a phone too): off");
+  assert.equal(ui("cs", "ui.settings.remote", { state: "vypnuto" }), "Remote Control v aplikaci Claude (rozhovor s agentem i z mobilu): vypnuto");
+  assert.equal(ui("de", "ui.settings.remote", { state: "aus" }), "Remote Control in der Claude-App (das Gespräch mit dem Agenten auch vom Handy): aus");
+  for (const lang of ["en", "cs", "de"]) assert.doesNotMatch(ui(lang, "ui.settings.remote"), /\b(you|your)\b|(?<![\p{L}])(vy|váš|ty|tvůj|Sie|Ihr|du|dein)(?![\p{L}])|Strom/iu, lang);
   w.cleanup();
 });
 
@@ -145,7 +199,7 @@ test("the menu never has more than nine items: two agents and a new version at o
   assert.deepEqual(items, [1, 2, 3, 4, 5, 6, 7, 8, 9, 0], r.out);
   assert.match(r.out, /Tentokrát mluvit s jiným agentem/);
   assert.match(r.out, / 6 {2}Jiný rodokmen[^\n]*\n {3}7 {2}Aplikace Strom[^\n]*\n {3}8 {2}Nastavení[^\n]*\n {3}9 {2}Tentokrát mluvit s jiným agentem/, "another tree 6, the settings 8, another agent last");
-  assert.match(r.out, /Vyšla nová verze stromu: 9\.9\.9 – aktualizovat ji jde v Nastavení \(volba 8\)\./);
+  assert.match(r.out, /Vyšla nová verze stromu: 9\.9\.9 – aktualizovat ji jde v Nastavení \(volba 8\) → Údržba\./);
   w.cleanup();
 });
 
@@ -157,17 +211,23 @@ test("the menu: what waits for the person — what to do for each, the folder fo
   await w.ok(["task", "add", "Křest Jana", "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis"]); // T2
   await w.ok(["task", "wait", "T1", "--on", "V badatelně archivu najít knihu narozených pro Týnec a poslat odkaz na ni."]);
   await w.ok(["task", "wait", "T2", "--images", "B1:9-10", "--on", "snímky 9–10 knihy Žďár"]);
-  // 3 what waits · 2 open the folder of the images · 1 answer the first · the link · not with the agent now · 0 back · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["3", "2", "1", "https://archive.example.org/book/77", "n", "0", "0"] });
-  assert.match(r.out, /Agent potřebuje \(2\):\n\n 1\. Kde jsou zapsány křty obce Týnec\n {4}Co udělat: V badatelně archivu najít knihu narozených pro Týnec a poslat odkaz na ni\./);
-  assert.match(r.out, / 2\. Křest Jana\n {4}Uložit ručně: snímky 9–10 z Žďár N 1784–1820 · https:\/\/archive\.example\.org\/book\/5359\n {4}uložit je do .+inbox\/B0001 Žďár N 1784–1820\//);
-  assert.match(r.out, /1 {2}Odpovědět k 1: Kde jsou zapsány křty obce Týnec\n {3}2 {2}Otevřít složku pro snímky k 2/);
-  assert.match(r.out, /✓ Úkol se vrátil agentovi i s odpovědí\./);
+  // 3 what waits · 2 the place of the images (one thing: its detail at once) · 2 its folder · 0 back · 1 the other ·
+  // 1 an answer · the link (kept with the task: no conversation offered) · 0 back · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["3", "2", "2", "0", "1", "1", "https://archive.example.org/book/77", "0", "0"] });
+  assert.match(r.out, /\nCo čeká · k vyřízení 2\n {2}s snímky 1 · w web 1\n 1 {2}Ostatní · 1 {15}Kde jsou zapsány křty obce Týnec\n 2 {2}archive\.example\.org · 1 {3}Křest Jana\n číslo = skupina · s\/w filtr · 0 zpět\n/);
+  assert.match(r.out, /\n T0002 · snímky · priorita 3\n Křest Jana\n {4}Čeká na: snímky 9–10 knihy Žďár\n {4}Kde: archive\.example\.org\n {4}Čeká od [^\n]+\n {4}Uložit ručně: snímky 9–10 z Žďár N 1784–1820 · https:\/\/archive\.example\.org\/book\/5359\n {4}uložit je do .+inbox\/B0001 Žďár N 1784–1820\/\n/);
+  assert.match(r.out, /\n {3}1 {2}Otevřít archiv\n {3}2 {2}Otevřít složku \(uloženo 0\/2\)\n {3}3 {2}Nejde to – napsat proč\n {3}4 {2}Rozhovor s agentem\n {3}0 {2}Zpět\n/);
+  assert.match(r.out, /Složka: .+inbox\/B0001 Žďár N 1784–1820 – až tam snímky budou/);
+  assert.match(r.out, /\n T0001 · web · priorita 3\n Kde jsou zapsány křty obce Týnec\n {4}Čeká na: V badatelně archivu najít knihu narozených pro Týnec a poslat odkaz na ni\.\n[^]*?\n {3}1 {2}Odpovědět textem\n {3}2 {2}Rozhovor s agentem\n {3}0 {2}Zpět\n/);
+  assert.match(r.out, /✓ Odpověď se uloží k úkolu, agent ji zpracuje při další práci\./);
+  assert.doesNotMatch(r.out, /Pokračovat s agentem hned\?/);
   const t1 = (await w.ok(["task", "show", "T1", "--json"])).json.task;
   assert.equal(t1.state, "open");
-  assert.match(t1.notes.at(-1).text, /^Odpověď uživatele \(na: V badatelně archivu najít knihu narozených pro Týnec.*\): https:\/\/archive\.example\.org\/book\/77$/);
+  // the person's answer: a record of its own, with what it asked — never a note
+  assert.deepEqual({ ...t1.answers.at(-1), at: undefined }, { by: "person", asked: "V badatelně archivu najít knihu narozených pro Týnec a poslat odkaz na ni.", answer: "https://archive.example.org/book/77", at: undefined, via: "terminal" });
+  assert.equal(t1.notes.length, 0);
   // what is left: the images only
-  assert.match(r.out, /Agent potřebuje \(1\):\n\n 1\. Křest Jana/);
+  assert.match(r.out, /\nCo čeká · k vyřízení 1\n {2}s snímky 1\n 1 {2}archive\.example\.org · 1 {3}Křest Jana\n/);
   w.cleanup();
 });
 
@@ -206,7 +266,8 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
   // a long answer to what waits is asked again, shorter
   await w.ok(["task", "add", "Kde je kniha", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
   await w.ok(["task", "wait", "T1", "--on", "poslat odkaz na knihu"]);
-  const long = await w.ok([], { tty: true, answers: ["3", "1", "x".repeat(301), "https://archive.example.org/book/1", "n", "0", "0"] });
+  // 3 · 1 the one thing · 2 an answer (1 marks its request sent) · too long · shorter · 0 · 0
+  const long = await w.ok([], { tty: true, answers: ["3", "1", "2", "x".repeat(301), "https://archive.example.org/book/1", "0", "0"] });
   assert.match(long.out, /Na odpověď sem je to dlouhé \(nejvýš 300 znaků\)/);
   assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
   w.cleanup();
@@ -214,9 +275,9 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
 
 test("the settings: a research with an agent, or only an archive — switched there and back; the archive's menu has no agent in it, its first item switches it on; the numbers stay", unix, async () => {
   const w = await world();
-  // 8 settings · 6 research or archive · 2 only an archive · yes · Enter · 0 back · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["8", "6", "2", "a", "", "0", "0"] });
-  assert.match(r.out, /6 {2}Výzkum, nebo jen archiv: výzkum: hledání v matrikách a archivech/);
+  // 8 settings · 5 research or archive · 2 only an archive · yes · Enter · 0 back · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["8", "5", "2", "a", "", "0", "0"] });
+  assert.match(r.out, /5 {2}Výzkum, nebo jen archiv: výzkum: hledání v matrikách a archivech/);
   assert.match(r.out, /Výzkum je teď archiv\./);
   const menu = await w.ok([], { tty: true, answers: ["0"] });
   assert.match(menu.out, /Archiv: data přicházejí z aplikace Strom\./);
@@ -236,7 +297,7 @@ test("Remote Control on in Claude Code itself: the settings say so, and what str
   fs.writeFileSync(path.join(claudeDir, "settings.json"), JSON.stringify({ remoteControlAtStartup: true }));
   w.env.CLAUDE_CONFIG_DIR = claudeDir;
   const r = await w.ok([], { tty: true, answers: ["8", "7", "n", "0", "0"] });
-  assert.match(r.out, /Sledovat agenta z telefonu \(Remote Control\): rozhovory ano, samostatná práce ne/);
+  assert.match(r.out, /Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): rozhovory ano, samostatná práce ne/);
   assert.match(r.out, /Samostatnou práci agenta \(volba 2 v menu\) až po zapnutí i tohohle\.\nZapnout to i pro samostatnou práci\?/);
   w.cleanup();
 });
@@ -260,7 +321,7 @@ test(
     const full = path.join(w.dir, "plná složka");
     fs.mkdirSync(full);
     fs.writeFileSync(path.join(full, "něco.txt"), "x");
-    const r1 = await w.ok(["setup"], { tty: true, answers: ["", full, "0", "0", "0", "n", "0"] });
+    const r1 = await w.ok(["setup"], { tty: true, answers: ["", full, "0", "0", "0", "0", "0", "n", "0"] });
     assert.match(r1.out, /Ve složce .*plná složka už něco je/);
     assert.match(r1.out, /Výzkum zůstává ve složce/);
     assert.equal(config().home, old);
@@ -268,11 +329,11 @@ test(
     const { enterWorker } = await import("../../src/core/workers.ts");
     const leave = enterWorker(w.treeDir("Novákovi"), "chat-1", "rozhovor");
     const target = path.join(w.dir, "Nový disk", "Strom");
-    const r2 = await w.ok(["setup"], { tty: true, answers: ["", target, "0", "0", "0", "n", "0"] });
+    const r2 = await w.ok(["setup"], { tty: true, answers: ["", target, "0", "0", "0", "0", "0", "n", "0"] });
     assert.match(r2.out, /V rodokmenu Novákovi teď někdo pracuje \(agent, samostatná práce nebo živé sledování v aplikaci Strom\)/);
     leave();
     // moved, on a yes: the tree works from there, the hook is found, the old folder is gone
-    const r3 = await w.ok(["setup"], { tty: true, answers: ["", target, "", "0", "0", "0", "n", "0"] });
+    const r3 = await w.ok(["setup"], { tty: true, answers: ["", target, "", "0", "0", "0", "0", "0", "n", "0"] });
     assert.match(r3.out, /Výzkum je ve složce .* \(rodokmeny: Novákovi\) i se sdílenou složkou/);
     assert.match(r3.out, /✓ Výzkum je teď ve složce .*Nový disk\/Strom\./);
     assert.equal(config().home, target);
@@ -337,14 +398,15 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   const consents = path.join(w.env.STROM_CONFIG_DIR!, "consents.json");
   fs.writeFileSync(consents, JSON.stringify({ connectors: { zkouska: { dir: path.join(old, "shared", "plugins", "connectors", "zkouska"), hash: "x", hosts: [], at: "2026-01-01" } }, hosts: {} }));
   // 0 for the folder keeps it
-  await w.ok(["setup"], { tty: true, answers: ["", "0", "0", "0", "0", "n", "0"] });
+  await w.ok(["setup"], { tty: true, answers: ["", "0", "0", "0", "0", "0", "0", "n", "0"] });
   assert.equal(config().home, old);
   assert.ok(!fs.existsSync(path.join(w.cwd, "0")) && !fs.existsSync(path.join(w.dir, "0")));
   // moved from the menu's settings into a folder Finder has been in: the menu goes on, with the tree where it is now
   const target = path.join(w.dir, "Nové místo");
   fs.mkdirSync(target);
   fs.writeFileSync(path.join(target, ".DS_Store"), "");
-  const r = await w.ok([], { tty: true, answers: ["8", "1", "", target, "", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
+  // 8 settings · 1 the setup · Enter: everything, step by step · …
+  const r = await w.ok([], { tty: true, answers: ["8", "1", "", "", target, "", "0", "0", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
   assert.match(r.out, /✓ Výzkum je teď ve složce .*Nové místo\./);
   assert.match(r.out, /Novákovi – přehled výzkumu/, "the menu goes on, the tree opened where it is now");
   assert.doesNotMatch(r.out + r.err, /not a Strom tree|error:/);
@@ -352,7 +414,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   // the top of a disk (only its own hidden folders): into a folder of its own there
   const disk = path.join(w.dir, "USB");
   fs.mkdirSync(path.join(disk, ".fseventsd"), { recursive: true });
-  const d = await w.ok(["setup"], { tty: true, answers: ["", disk, "", "0", "0", "0", "n", "0"] });
+  const d = await w.ok(["setup"], { tty: true, answers: ["", disk, "", "0", "0", "0", "0", "0", "n", "0"] });
   assert.match(d.out, /✓ Výzkum je teď ve složce .*USB\/Nové místo\./);
   assert.equal(config().home, path.join(disk, "Nové místo"));
   w.cleanup();
@@ -413,7 +475,7 @@ test("a story the person approved is locked: written again, the new version wait
   // the menu: it waits for the person; they keep the old one (3 what waits · 1 the story · 2 keep · 0 · 0)
   const kept = await w.ok([], { tty: true, answers: ["3", "1", "2", "0", "0"] });
   assert.match(kept.out, /Čeká: 1/);
-  assert.match(kept.out, /1\. Nová verze vyprávění o Jan Novák \[P0001\] – schválené zůstává až do rozhodnutí/);
+  assert.match(kept.out, /\n 1 {2}Příběhy · 1 {3}Nová verze vyprávění o Jan Novák – schválené zůstává až do …\n/);
   assert.match(kept.out, /Nová verze vyprávění o Jan Novák \[P0001\] \(\d{4}-\d{2}-\d{2}\) – schválené zůstává až do rozhodnutí:\n\nJan byl mlynář v Týnci\./);
   assert.match(kept.out, /✓ Schválené vyprávění zůstává, nová verze je pryč/);
   st = await story();

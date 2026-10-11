@@ -5,9 +5,12 @@
 
 import { langName } from "../core/lang.ts";
 import { appSite } from "../core/stromapp.ts";
+import { WEB_PER_HOST, webRuleLines } from "../core/web.ts";
+import { powershellUtf8Rule } from "../core/self.ts";
 
-/** The guide; appUrl: the Strom app's address it names — the one `strom app` opens (appUrlShown). */
-export function guideText(lang: string | undefined, appUrl: string): string {
+/** The guide; appUrl: the Strom app's address it names — the one `strom app` opens (appUrlShown); perHost: web.perHost here. */
+export function guideText(lang: string | undefined, appUrl: string, perHost: number = WEB_PER_HOST, platform: NodeJS.Platform = process.platform): string {
+  const ps = powershellUtf8Rule("", platform);
   const language = lang
     ? `The research language of this tree is ${langName(lang)} (${lang}): talk to the user in ${langName(lang)} and write notes, tasks and stories in ${langName(lang)}. Keep transcripts of records in their original language.`
     : "Talk to the user in their language. Set it as the research language: strom setup --lang <code> (cs, en, de, pl, …).";
@@ -36,6 +39,14 @@ HARD RULES
    the research needs has none yet: build one first (strom connector new,
    its DISCOVERY.md) and tell the user in a sentence. The user saves images
    by hand only where the archive does not allow automation.
+   ${webRuleLines(perHost, "")}
+   A site strom refused, or whose archive forbids or restricts automation
+   without the person's permission: not through your web tools or a browser
+   either (strom net web --check <url> says it). Then another way to the same
+   records first — another archive or fonds of the jurisdiction, the parish,
+   an index, secondary sources —, the search recorded (strom search add …
+   --result inconclusive --note "<host>: …"); only if the source stays
+   necessary: strom task wait T… --check <url> --on "…", for the person.
 8. Old handwriting is read by your strongest model — you, or a subagent on
    that same model; never a faster, cheaper or "quick" pass. A name or place
    the next search depends on is read again on a crop at full resolution
@@ -58,10 +69,26 @@ conversation opened anywhere, a bot on its own server)
   strom session start                  the next task of the queue (or: strom session start T0003, the one
                                        the user chose): its brief — the task, what is known, the method
   … work on that task only; record every finding at once …
-  strom task done T0001 --result "…"   a complete negative search is a result
-  strom session close --summary "…" --next "…"    (not finished: --continue) — it proposes the next tasks
-  then tell the user what was found (strom person card …) and what comes next (strom plan), and ask
-  before the next session. The next step is strom's queue: what the user wants instead becomes a
+  strom session close --done "<result>" --next "…"   the task done and the session closed in one call
+                                       (a complete negative search is a result) — it proposes the next tasks
+  not finished: strom session close --continue --summary "…" --next "…"; put aside: strom task park T… --reason "…"
+  (or task wait T… --on "…"), then strom session close --summary "…" --next "…"
+  What a task waits for (strom task wait T… --on "…") the user reads in strom's menu and the Strom app:
+  write it in the research language, impersonal — what is needed, never addressed to them ("Images
+  40–45 of the baptisms to be saved from <link>", not "Open … and save …"), nor in your voice ("please",
+  "I will then…"). Say its kind (--kind letter|family|web|other) and, when known, whom it waits on (--to),
+  the request's text saved in notes/ (--request notes/<file>.md), the site (--url); strom task sent T…
+  once the user says the request went out (the task still waits for the reply).
+  A conversation that begins with a waiting task (strom chat --task T…: the user picked it in the menu
+  or the Strom app) leads the user through it and the tasks waiting at the same place: strom guide waiting.
+  then, in a conversation, tell the user what was found (strom person card …) and what comes next
+  (strom plan), and ask before the next session; working alone (strom run) nobody reads the session
+  live and the summary is what they read (plain words of the research for the record, never addressed
+  to them) — nothing more after it, no advice to clear the context (/clear) or to start anything,
+  nothing said to the user: every message there, the last one too, in the research language and
+  impersonal (they may read the run afterwards); nobody answers a question there: what only the user can decide waits for
+  them (strom task wait T… --on "<the question, impersonal>": the menu's What waits for you, the Strom
+  app; their answer comes back on the task). The next step is strom's queue: what the user wants instead becomes a
   task first (strom task add …, or strom research new …) — never search outside a session and its task.
   The user names a research (G…) to work on: its tasks only — strom session start --research G….
   A side of the family no direction reaches (a spouse's line) is a direction of its own: strom research
@@ -69,7 +96,8 @@ conversation opened anywhere, a bot on its own server)
   tasks leave the queue, nothing is deleted; strom research resume G… brings them back).
   In a conversation the next task is best begun in a fresh context (Claude Code: /clear) — suggest
   it to the user; many tasks waiting: the agent working on its own (strom run, the user starts it
-  from strom's menu), every task in a fresh session
+  from strom's menu), every task in a fresh session. A strom command that says ⏳ finish (the user asked, or
+  the agent's usage limit is near): start nothing new — no reader, nothing delegated —, record, close the session
 
 RECORDING
 A record (register entry, certificate) — the source first, then its facts:
@@ -87,7 +115,10 @@ strom family add --partner P0004 --child P0003 --cite S0001 --information second
 Corrections — a person, a fact, a source:
   strom person edit P0003 --sex F --name "…" --reason "…"
   strom event edit E0001 --date "…" --reason "…"
-  strom source edit S0001 --translation "…"
+  strom source edit S0001 --locator "…" --reason "…"   (filling in, e.g. --translation, needs no reason)
+Lessons — a quirk of a book, an archive or a place, for whoever works with it next (strom lesson add "…" --on B…);
+one found wrong or out of date is corrected, never added again:
+  strom lesson edit K0001 --rule "…" --reason "…"
 One person recorded twice (an imported tree and the research) — parents
 recorded twice are merged first:
   strom family merge F0002 F0005 --reason "…"
@@ -132,10 +163,16 @@ SEARCHING
   strom connector use <connector> --via browser    only when the user asks: images through their own
                                        browser (strom fetch then says what to do; --via direct: back)
   strom connector new <name> --url <portal>    an archive you need has none: build it (its DISCOVERY.md)
+  strom connector discard <name>       one you started this session that can neither fetch nor find:
+                                       what you learned into a lesson on its archive first; one that
+                                       finds books stays, as what it is
 
 FINDING YOUR WAY
   strom research show G0001 · strom person show P0001 · strom family show F0001
   strom gaps · strom find <text> [<text>…] · strom frontier · strom task list
+  strom grep <text> [--in inputs|notes|output|I…] [--context 2]
+                                       a text in the research's own files, line by line (accents
+                                       optional) — never Read a big input in pieces
   for the user, in the research language: strom stats (how far the research got) · strom recent
   (what came in lately) · strom plan (what you do next) · strom pedigree [P…] (the ancestors as a
   tree) · strom person card P… (one life)
@@ -211,14 +248,15 @@ THE STROM APP — where the user sees the result
 
 OUTPUT AND ERRORS
 - One line per record, IDs first. Read the text; add --json only to parse.
-- Listings are paged (--limit, --page). Do not pipe strom output.
+- Listings are paged (--limit, --page). Do not pipe strom output.${ps ? `\n- ${ps}` : ""}
 - People can be named by ID (P0001) or name ("Jan Novák", no diacritics ok).
   An ambiguous name lists candidates (exit 2) — then use the ID.
 - Every error ends with "→ <what to run next>".
 - Exit codes: 0 ok · 1 error · 2 usage/ambiguous · 3 needs input (ask the
   user, then run the given command) · 4 needs consent (the USER must run the
   given command in their terminal) · 5 locked by another session · 6 the
-  backup before another version could not be made (tell the user why).
+  backup before another version could not be made (tell the user why) · 7 an
+  archive's limit is used up (other work; run it again at the time it says).
 - Settings and how to override them: strom config where.
 
 MORE

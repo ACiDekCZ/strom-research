@@ -6,6 +6,7 @@
 import { MONTHS } from "../core/gdate.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { displayName } from "../core/people.ts";
+import { foldText } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
 import type { Family, Person, RecordSet, Session, Source } from "../core/model.ts";
 
@@ -130,8 +131,33 @@ export function humanPlace(place: string | undefined, house: string | undefined,
   return ui(lang, "ui.card.house", { place: place ?? "", house }).replace(/^[,\s]+/, "");
 }
 
-/** What the agent wrote into a task, for the user: the records it names by ID by their names ("S0001" → its title). */
-export function humanTask(tree: Tree, text: string, lang: string): string {
+/** The words of a person's name, folded: what a text that names them may decline ("Václava" for Václav). */
+function nameWords(p: Person): string[] {
+  return foldText(displayName(p)).split(/[^\p{L}\p{M}\p{N}]+/u).filter((w) => w.length >= 2);
+}
+
+/** Does a word name one of these (its stem: the first letters but the last, five at most)? */
+function namesOne(word: string, names: string[]): boolean {
+  return names.some((n) => {
+    const k = Math.min(5, Math.max(2, n.length - 1));
+    return word.length >= k && word.slice(0, k) === n.slice(0, k);
+  });
+}
+
+/**
+ * What the agent wrote into a task, for the user: the records it names by ID by their names ("S0001" → its title).
+ * `asWritten`: a person's ID right after their name in the text stays the bare ID in brackets ("Václava Nováka P0001" →
+ * "Václava Nováka [P0001]"), never the name said twice — the short lines of What waits.
+ */
+export function humanTask(tree: Tree, text: string, lang: string, o: { asWritten?: boolean } = {}): string {
+  const named = (id: string, before: string): boolean => {
+    const p = tree.get<Person>(id);
+    if (p?.type !== "person") return false;
+    // the two words before the ID (letters only, none of them an ID)
+    const words = foldText(before.slice(-60)).split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean).slice(-2).filter((w) => !/^[pfsbn]\d{4,}$/u.test(w));
+    const names = nameWords(p);
+    return words.some((w) => namesOne(w, names));
+  };
   const name = (id: string): string => {
     const r = tree.get<Person | Family | Source | RecordSet | Session>(id);
     if (!r) return id;
@@ -141,5 +167,7 @@ export function humanTask(tree: Tree, text: string, lang: string): string {
     return r.title;
   };
   // A list of IDs as a list of names, each once (two sessions of one day read as one).
-  return text.replace(/\b[PFSBN]\d{4,}\b(?:, [PFSBN]\d{4,}\b)*/g, (ids) => [...new Set(ids.split(", ").map(name))].join(", "));
+  return text.replace(/\b[PFSBN]\d{4,}\b(?:, [PFSBN]\d{4,}\b)*/g, (ids: string, at: number) =>
+    o.asWritten && !ids.includes(",") && named(ids, text.slice(0, at)) ? `[${ids}]` : [...new Set(ids.split(", ").map(name))].join(", "),
+  );
 }

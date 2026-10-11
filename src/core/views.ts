@@ -18,9 +18,14 @@ import { now, type Tree } from "./tree.ts";
 import { crop, grid, resize, rotate, stretch, toGrey, type RawImage } from "../image/image.ts";
 import { decodeImage, encodeImage, ImageFormatError, imageSize } from "../image/index.ts";
 import type { Media, Region } from "./model.ts";
+import { IMAGE_MAX } from "../agents/images.ts";
+import { isWorkerId } from "./workers.ts";
 
-/** Longest side of a view by default: what vision models take in without shrinking it again. */
-export const VIEW_MAX = 1568;
+/**
+ * Longest side of a view by default: what every vision model takes in without shrinking it again. A view made for
+ * an agent goes by what its model takes (agents/images.ts imageMax: 2000 for the newer ones).
+ */
+export const VIEW_MAX = IMAGE_MAX;
 /** Small crops are enlarged at least to this long side (script gets bigger, not sharper). */
 const VIEW_MIN = 800;
 
@@ -96,8 +101,77 @@ export function tiles(region: { x: number; y: number; w: number; h: number }, ma
   return out;
 }
 
+/**
+ * Each half of a double page reaches this far past the middle (a share of the width): what stands at the gutter
+ * is whole in one of the halves, also when the scan is not centred on it.
+ */
+export const SPREAD_OVERLAP = 0.04;
+/**
+ * A reader gets an image in halves only when they show it at least this much sharper than one view of it (a spread
+ * of two pages side by side; a near-square one gains less than the second view costs).
+ */
+export const SPREAD_GAIN = 1.25;
+
+/** The left and right half of a W×H image in its pixels, overlapping at the middle by SPREAD_OVERLAP on each side. */
+export function halves(W: number, H: number, overlap = SPREAD_OVERLAP): { left: Box; right: Box } {
+  const w = Math.min(W, Math.round(W * (0.5 + overlap)));
+  return { left: { x: 0, y: 0, w, h: H }, right: { x: W - w, y: 0, w, h: H } };
+}
+
+/**
+ * Whether an image is read sharper as its two halves than whole: a double page wider than tall, which one view
+ * of at most `max` px would shrink (a single page is taller than wide and stays whole; so does a scan small enough
+ * to be seen whole at its own resolution, and a near-square spread, whose halves would be no sharper).
+ */
+export function readInHalves(W: number, H: number, max = VIEW_MAX): boolean {
+  const whole = Math.min(1, max / Math.max(W, H));
+  const half = Math.min(1, max / Math.max(halves(W, H).left.w, H));
+  return half / whole >= SPREAD_GAIN;
+}
+
+/** "x,y,w,h" in pixels for --crop. */
+export function cropOf(b: Box): string {
+  return `${b.x},${b.y},${b.w},${b.h}`;
+}
+
+type Box = { x: number; y: number; w: number; h: number };
+
+/**
+ * What the record of a view says besides what it shows (core/metrics.ts): what kind of view it is, the size it was
+ * made for and where that size came from, that it was made for a reader. Never part of the view itself (its file).
+ */
+export interface ViewMeta {
+  kind?: "whole" | "half" | "crop" | "split" | "grid";
+  /** The longest side it was made for. */
+  cap?: number;
+  /** Where that size came from: the default of the agent and model, a calibration, an option of the command, a change strom made by itself for the book (tuned:T…). */
+  capFrom?: "default" | "calibrated" | "option" | `tuned:${string}`;
+  /** Made for a reader strom starts (strom read, clips, transcripts, a calibration). */
+  reader?: boolean;
+}
+
+/** The kind of a view by its spec, unless its maker says it. */
+function kindOf(spec: ViewSpec, region: { x: number; y: number; w: number; h: number }, W: number, H: number): NonNullable<ViewMeta["kind"]> {
+  if (spec.grid) return "grid";
+  if (spec.half && !spec.crop) return "half";
+  if (spec.crop || spec.half) return "crop";
+  return region.w >= W && region.h >= H ? "whole" : "crop";
+}
+
+/** The book and image a view is of (its media record, a part's too): for what was read of what was fetched. */
+function imageOfKey(tree: Tree, key: string): { rs?: string; img?: number; part?: 1 } {
+  if (!/^M\d+$/.test(key)) return {};
+  try {
+    const m = tree.get<Media>(key);
+    if (!m) return {};
+    return { ...(m.recordset ? { rs: m.recordset } : {}), ...(m.image !== undefined ? { img: m.image } : {}), ...(m.part ? { part: 1 as const } : {}) };
+  } catch {
+    return {};
+  }
+}
+
 /** Make (or reuse) a view of an image file. `key` names it (M0012, I0003). */
-export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec): View {
+export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec, meta: ViewMeta = {}): View {
   if (!fs.existsSync(source)) {
     // a research handed over without its images: the archive gives the same scan again
     const m = /^M\d+$/.test(key) ? tree.get<Media>(key) : undefined;
@@ -156,26 +230,66 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, encodeImage(img, spec.png ? "png" : "jpeg"));
   } else if (spec.rotate === 90 || spec.rotate === 270) dims = { width: outH, height: outW };
-  // Which images were looked at, and by whom (session costs, "who read this").
-  fs.appendFileSync(path.join(dir, "views.jsonl"), JSON.stringify({ at: now(), key, by: tree.actor, view: path.basename(file), region, scale }) + "\n");
+  // Which images were looked at, and by whom (session costs, "who read this"); how big, what kind, for whom (the
+  // reading of scans measured: core/metrics.ts)
+  const cap = spec.scale === undefined ? (spec.max ?? VIEW_MAX) : undefined;
+  const worker = tree.env.STROM_WORKER;
+  const record = {
+    at: now(),
+    key,
+    by: tree.actor,
+    view: path.basename(file),
+    region,
+    scale,
+    w: dims.width,
+    h: dims.height,
+    W,
+    H,
+    kind: meta.kind ?? kindOf(spec, region, W, H),
+    ...imageOfKey(tree, key),
+    ...(cap !== undefined ? { cap } : {}),
+    ...(meta.capFrom ? { capFrom: meta.capFrom } : {}),
+    cached,
+    ...(meta.reader || tree.env.STROM_READER === "1" ? { reader: 1 } : {}),
+    ...(isWorkerId(worker) ? { worker } : {}),
+  };
+  try {
+    fs.appendFileSync(path.join(dir, "views.jsonl"), JSON.stringify(record) + "\n");
+  } catch {
+    // the record is no reason to fail the view
+  }
   return { file, ...dims, scale, original: { width: W, height: H }, region, cached };
 }
 
-/** One line telling the reader what it sees and how to see more. */
-export function describeView(v: View, display: (p: string) => string, fetchPart?: string): string {
-  const pct = Math.round(v.scale * 100);
+/** What a view shows: "1000×1568 px · part 0,0 1200×2000 px of 2400×2000 · 78 %". */
+export function viewLine(v: View): string {
   const part = v.region.w === v.original.width && v.region.h === v.original.height ? "whole image" : `part ${v.region.x},${v.region.y} ${v.region.w}×${v.region.h} px`;
+  return `${v.width}×${v.height} px · ${part} of ${v.original.width}×${v.original.height} · ${Math.round(v.scale * 100)} %`;
+}
+
+/** A view smaller than the part of the scan it shows (crop to read it), or bigger (no more detail than the scan has). */
+export function viewSize(v: View): "reduced" | "enlarged" | undefined {
+  return v.scale < 0.75 ? "reduced" : v.scale > 1.25 ? "enlarged" : undefined;
+}
+
+export const REDUCED_HINT = "crop the part you need to read it at full size (--crop x,y,w,h, --half left|right, --grid to find it)";
+/** Said of a whole image shown reduced: what it is for. */
+export const OVERVIEW_HINT = "a whole view is for finding the entry; unclear, or the entry not where expected: --half both before calling it not found";
+export const ENLARGED_HINT = "What you cannot read for sure is marked [?] in the transcript and stays out of the fields";
+export const SHARPER_SCAN = 'a sharper scan: ask the user (strom task wait … --images B…:<n> --on "…": zoomed in on the entry, or the full-resolution scan)';
+
+/** One line telling the reader what it sees and how to see more. */
+export function describeView(v: View, display: (p: string) => string, fetchPart?: string, overview?: boolean): string {
+  const size = viewSize(v);
   const hint =
-    v.scale < 0.75
-      ? " — reduced: crop the part you need to read it at full size (--crop x,y,w,h, --half left|right, --grid to find it)"
-      : v.scale > 1.25
-        ? `\nenlarged from ${v.region.w}×${v.region.h} px of the scan: it has no more detail than that. What you cannot read for sure is marked [?] in the transcript and stays out of the fields; ${
-            fetchPart
-              ? `this part sharper from the archive (one request): ${fetchPart}`
-              : 'a sharper scan: ask the user (strom task wait … --images B…:<n> --on "…": zoomed in on the entry, or the full-resolution scan)'
+    size === "reduced"
+      ? ` — reduced: ${REDUCED_HINT}${overview ? `; ${OVERVIEW_HINT}` : ""}`
+      : size === "enlarged"
+        ? `\nenlarged from ${v.region.w}×${v.region.h} px of the scan: it has no more detail than that. ${ENLARGED_HINT}; ${
+            fetchPart ? `this part sharper from the archive (one request): ${fetchPart}` : SHARPER_SCAN
           }`
         : "";
-  return `${display(v.file)}\n${v.width}×${v.height} px · ${part} of ${v.original.width}×${v.original.height} · ${pct} %${hint}`;
+  return `${display(v.file)}\n${viewLine(v)}${hint}`;
 }
 
 /** A part of an image from --half / --crop (fractions, or pixels of the registered whole image). */

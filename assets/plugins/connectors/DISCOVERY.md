@@ -17,13 +17,26 @@ strom runs the connector; you never run it yourself, you test it with
 - Write what you found into `connector.json` → `policy`:
   - `terms` (the URL), `termsSummary` (one to three sentences, quoted where it
     matters), `robots`, `officialExport`.
-  - `automation`, one of:
-    - `"allowed"`: the terms allow it or say nothing against it, and nothing
-      is got round.
-    - `"manual"`: the terms forbid automated or bulk download. The connector
-      only finds books and gives their links (`"can": ["find", "list"]`), and
-      the user downloads by hand into the inbox.
-    - `"unknown"`: you could not find out. Say so; the user decides.
+  - `automation`, one of (the strictest that fits; strom keeps to the
+    strictest of yours, the family tree's archive and what it knows itself):
+    - `"allowed"`: the terms allow it or say nothing against it, robots.txt
+      does not forbid the paths, and nothing is got round.
+    - `"restricted"`: the terms restrict automation without forbidding it —
+      images only by a browser's own means ("right click and save image"),
+      only one image at a time — or the portal is behind a bot check, or
+      robots.txt disallows the paths. strom reads the catalogue by itself;
+      the images only with the user's permission for the archive (slowly,
+      at a person's pace, or through their browser), asked once.
+    - `"manual"`: the images are for viewing online only — the terms forbid
+      downloading or copying them, not the catalogue. The connector only
+      finds books and gives their links (`"can": ["find", "list"]`: no
+      fetch, part or locate), and the user saves the images by hand.
+    - `"forbidden"`: the terms forbid any automated access. strom sends the
+      portal nothing at all (but its robots.txt); the user works by hand.
+    - `"unknown"`: you could not find out. Say so; images then wait for the
+      user's decision, as for `"restricted"`.
+    Making a level stricter is yours; a milder one counts only once the user
+    accepts it (`strom allow archive <connector> --accept`).
   - `pace`: the service's own, when it states one — slower when the terms
     or robots.txt ask for it (`{"minIntervalMs": 5000}` for a crawl-delay of
     5), faster when its documentation allows it (an API, an image server:
@@ -99,7 +112,8 @@ as well: see step 2.
   script it loads (`<script src=…>`), probe that too, and search it for the
   addresses the application calls (`/api/`, `.json`, image or file addresses):
   `strom connector grep __NAME__ <text>` shows each hit with the text round it
-  (`--regex` for a pattern). Pages and scripts are often too big to read whole.
+  (`--regex` for a pattern; a backtick in it written as `.`, any character —
+  a command with a backtick is refused). Pages and scripts are often too big to read whole.
   Then probe those addresses to see what they answer. A POST works too:
   `--method POST --body '…' --header "Content-Type: application/json"`.
   Probes keep the cookies servers set, like one visit in a browser: probe the
@@ -156,6 +170,20 @@ as well: see step 2.
 - If strom answers with exit code 4 (consent required), stop and tell the
   user: they give it in their own terminal after reading the warning
   (`strom allow connector __NAME__`). You never do that.
+
+## When it gets nothing
+
+- A connector that can neither fetch nor find anything (the portal guards its
+  files with a token meant to stop scripts, a login the user has not got, a
+  viewer that gives nothing) does not stay in the plugins folder. First write
+  down what you learned where the next session reads it: a lesson on the
+  archive (`strom lesson add "<what the portal does>" --on R…`) and the
+  searches you made (`strom search add … --result negative`). Then take it
+  away in the same session: `strom connector discard __NAME__` (any other
+  connector is the user's: `strom connector remove`). Its images come by hand
+  where the archive allows it.
+- One that finds books but fetches no images stays, as what it is:
+  `"can": ["find", "list"]`, and why in `policy.termsSummary` and `README.md`.
 
 ## 5. Hand over
 

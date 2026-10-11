@@ -10,6 +10,8 @@ export const EXIT = {
   locked: 5,
   /** A backup before another channel or an older version could not be made: nothing is switched (core/backup.ts). */
   noBackup: 6,
+  /** An archive's limit is used up (its hourly cap): nothing more goes to it until the time said — other work meanwhile. */
+  later: 7,
   cancelled: 130,
 } as const;
 
@@ -32,10 +34,13 @@ export class StromError extends Error {
   readonly params: Record<string, string> | undefined;
   /** The person's hint of another case of the same code (ui.error.<hintCode>.hint); the code a program reads stays. */
   readonly hintCode: string | undefined;
+  /** The command's synopsis and options, said under a mistake in calling it (no strom help needed to try again). */
+  usage: string | undefined;
 
-  constructor(message: string, opts: { exitCode?: ExitCode; hint?: string; details?: unknown; hintCode?: string } & Partial<ErrorCode> = {}) {
+  constructor(message: string, opts: { exitCode?: ExitCode; hint?: string; details?: unknown; hintCode?: string; usage?: string } & Partial<ErrorCode> = {}) {
     super(message);
     this.name = "StromError";
+    this.usage = opts.usage;
     this.exitCode = opts.exitCode ?? EXIT.error;
     this.hint = opts.hint;
     this.hintCode = opts.hintCode;
@@ -50,13 +55,14 @@ export class StromError extends Error {
     if (this.details !== undefined) out.details = this.details;
     if (this.code) out.code = this.code;
     if (this.params) out.params = this.params;
+    if (this.usage) out.usage = this.usage;
     return out;
   }
 }
 
 /** Invalid arguments or an ambiguous reference. */
 export class UsageError extends StromError {
-  constructor(message: string, opts: { hint?: string; details?: unknown; hintCode?: string } & Partial<ErrorCode> = {}) {
+  constructor(message: string, opts: { hint?: string; details?: unknown; hintCode?: string; usage?: string } & Partial<ErrorCode> = {}) {
     super(message, { ...opts, exitCode: EXIT.usage });
     this.name = "UsageError";
   }
@@ -124,11 +130,14 @@ export class NeedsInputError extends StromError {
 export class NeedsConsentError extends StromError {
   readonly needs: Need[];
 
-  /** `says`: the question as the person reads it (their language) — said so at a terminal (ui.error.consent). */
-  constructor(needs: Need[], says?: string) {
+  /**
+   * `says`: the question as the person reads it (their language) — said so at a terminal (ui.error.consent). `more`:
+   * what the agent does besides (a run nobody watches: the task for it).
+   */
+  constructor(needs: Need[], says?: string, more?: string) {
     super(`consent required — ${needs.map((n) => n.question).join(" · ")}`, {
       exitCode: EXIT.needsConsent,
-      hint: `ask the user to run in their own terminal: ${needs.map((n) => n.set).join(" ; ")}`,
+      hint: `ask the user to run in their own terminal: ${needs.map((n) => n.set).join(" ; ")}${more ? ` — ${more}` : ""}`,
       ...(says ? { code: "consent", params: { question: says, set: needs.map((n) => n.set).join(" ; ") } } : {}),
     });
     this.name = "NeedsConsentError";

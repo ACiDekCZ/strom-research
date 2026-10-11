@@ -13,7 +13,7 @@ const prompt = process.env.STROM_PROMPT ?? "";
 
 // A reader (strom read): opens nothing, writes a report — a find on the first image of the batch.
 if (process.env.STROM_READER === "1") {
-  const { appendFileSync } = await import("node:fs");
+  const { appendFileSync, writeFileSync } = await import("node:fs");
   const report = /Write your report to (.+?) AS YOU GO/.exec(prompt)?.[1];
   // strom clips: where each entry is (every entry found at the same place), then the check (a title with "cizí" is the wrong entry, "úzký" cut off once)
   if (prompt.includes("find that entry on it")) {
@@ -47,9 +47,35 @@ if (process.env.STROM_READER === "1") {
       );
     process.exit(0);
   }
+  // the prompt kept for the test to read
+  if (process.env.READER_PROMPT_OUT) appendFileSync(process.env.READER_PROMPT_OUT, prompt + "\n=====\n");
   const images = [...prompt.matchAll(/^- (M\d{4}) · image (\d+)/gm)].map((m) => ({ id: m[1]!, n: m[2]! }));
   if (process.env.AGENT_MODE === "reader-silent") {
     console.log(`## Image ${images[0]!.n} · ${images[0]!.id}\nresult: nothing`);
+    process.exit(0);
+  }
+  // a reader that writes its report whole, its own head in the research language (strom's head gone)
+  if (process.env.AGENT_MODE === "reader-own-head") {
+    writeFileSync(report!, `# Čtení ${images[0]!.id} · snímek ${images[0]!.n}\n\nOtázka: celý přepis\n\n## Image ${images[0]!.n} · ${images[0]!.id}\nresult: found\nentries: Franz · 18. Oktober · Haus 13\n\n`);
+    process.exit(0);
+  }
+  // a richer report: a possible match only in what was illegible, a gap in the page numbering
+  if (process.env.AGENT_MODE === "reader-rich") {
+    images.forEach((img, i) =>
+      appendFileSync(
+        report!,
+        i === 1
+          ? `## Image ${img.n} · ${img.id}\nresult: nothing\nentries: —\nillegible: 3. zápis: muž, 58 let, příjmení nečitelné, dům sedí — rodina snad na 50 %\npages: 21–22\ngaps: strany 11–20 chybí: po 10 následuje 21\n\n`
+          : `## Image ${img.n} · ${img.id}\nresult: ${i === 0 ? "found" : "nothing"}\nentries: ${i === 0 ? "Franz · 18. Oktober · Haus 13" : "—"}\nillegible: —\n\n`,
+      ),
+    );
+    process.exit(0);
+  }
+  // nothing found, a possible match on the second image it could not read
+  if (process.env.AGENT_MODE === "reader-unclear") {
+    images.forEach((img, i) =>
+      appendFileSync(report!, i === 1 ? `## Image ${img.n} · ${img.id}\nresult: unclear\nentries: pravý okraj, poznámka: „…ský“, jméno nečitelné\n\n` : `## Image ${img.n} · ${img.id}\nresult: nothing\n\n`),
+    );
     process.exit(0);
   }
   images.forEach((img, i) => {
@@ -71,10 +97,11 @@ if (mode === "denied") {
   console.log("denied: Bash: strom input show I0001");
   process.exit(0);
 }
+// a session handed back at once, its time hardly begun: with the reason (strom says the time left otherwise)
 if (mode === "denied-once") {
   // one compound command refused (strom … && a loop), the rest of its work through strom as usual
   console.log("denied: Bash: strom fetch x 1 --images 9-9 && for i in 9; strom media view B1:$i; end");
-  strom("session", "close", "--continue", "--summary", "read what it could", "--next", "the rest");
+  strom("session", "close", "--continue", "--summary", "read what it could", "--next", "the rest", "--reason", "nothing more to do in this session");
   process.exit(0);
 }
 if (mode === "sleep-wrap" && process.env.STROM_WRAP_UP === "1") {
@@ -105,7 +132,14 @@ if (mode === "finish") {
 }
 if (mode === "idle") {
   // works on nothing, hands the task back
-  strom("session", "close", "--continue", "--summary", "nothing yet", "--next", "try again");
+  strom("session", "close", "--continue", "--summary", "nothing yet", "--next", "try again", "--reason", "nothing more to do in this session");
+  process.exit(0);
+}
+if (mode === "fetch-wait") {
+  // tries an archive whose images wait for the person's decision, records the search and hands the task back
+  strom("fetch", "zkusebni", "5359", "--images", "1-2", "--recordset", "B1");
+  strom("search", "add", "Křty 1903-1907", "--recordset", "B1", "--years", "1903-1907", "--method", "page-by-page", "--result", "negative");
+  strom("session", "close", "--continue", "--summary", "the images wait for the archive", "--next", "images 1-2", "--reason", "the images wait for the person's decision");
   process.exit(0);
 }
 if (mode === "echo") {
@@ -116,7 +150,7 @@ if (mode === "echo") {
   });
   console.log(`args: ${process.argv.slice(2).join(" ")}`);
   console.log(`stdin: ${stdin.includes("## Task") ? "brief" : "none"}`);
-  strom("session", "close", "--continue", "--summary", "echo", "--next", "echo");
+  strom("session", "close", "--continue", "--summary", "echo", "--next", "echo", "--reason", "nothing more to do in this session");
   process.exit(0);
 }
 

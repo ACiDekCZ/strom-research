@@ -156,5 +156,13 @@ test("brief respects its budget and says where the rest is", opts, async () => {
   assert.ok(b.total <= 1500, `brief ${b.total} tokens`);
   assert.ok(b.sections.some((s: any) => s.cut));
   assert.match(b.text, /cut to fit the brief — see: strom /);
+  // C17: the pointers and blank lines count; a section cut keeps its heading; the people and books go before the method
+  // over the budget only by the heading and pointer of each section that did not fit at all
+  const cuts = b.sections.filter((s: any) => s.cut).length;
+  assert.ok(b.total <= 1200 + 30 * cuts, `brief ${b.total} tokens, ${cuts} cut`);
+  assert.match(b.text, /## Already known[^\n]*\n(?:[^\n]*\n)*?  … cut to fit the brief/);
+  const method = (await w.ok(["brief", "--budget", "100000", "--stats", "--json"])).json.sections.find((s: any) => s.name === "method");
+  const room = (await w.ok(["brief", "--budget", String(1200 + method.tokens + 400), "--json"])).json;
+  assert.deepEqual(room.sections.filter((s: any) => s.name === "method" || s.name === "premise").map((s: any) => [s.name, s.cut]), [["premise", true], ["method", false]]);
   w.cleanup();
 });

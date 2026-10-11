@@ -1,7 +1,7 @@
 {
   "interface": 1,
   "title": "Claude usage",
-  "description": "Keeps working alone to the daily ration of your Claude subscription: a session starts only while the week's usage is at least n points behind the share of the week gone (a day ≈ 14.3): strom config set run.gate \"claude-usage 10\" (without a number: 0).",
+  "description": "Keeps working alone to the daily ration of your Claude subscription: a session starts only while the week's usage is at least n points behind the share of the week gone (a day ≈ 14.3): strom config set run.gate \"claude-usage 10\" (without a number: 0). A cap: \"claude-usage 10 --cap 95\" — at 95 % of the week no session starts, in any run, and no \"start anyway\" goes past it.",
   "command": [
     "node",
     "gate.ts"

@@ -50,24 +50,31 @@ function handlerName(env: Env): string {
  * and (the app's second wave) a new research with a tree of the app, strom's update, the agent's sessions and
  * what they cost, a conflict decided (by the user or the agent), a story approved, a sync taken back, the setup —
  * and (the app's 3.5.0) the research followed live in the app's window; a direction of the research paused, ended or
- * taken up again, a conversation about one direction, a session at work asked to finish.
+ * taken up again, a conversation about one direction, a session at work asked to finish — and the question about an
+ * archive's images (the answer is the person's, in the terminal).
  */
 /** A story: approved (or, beside an approved one, its new version approved in its place), or that new version not wanted. */
 export const LINK_STORY_DOS = ["final", "keep"] as const;
 
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
 export const LINK_DIRECTIONS = ["ancestors", "descendants"] as const;
-/** What a link does with a task: put it aside, give it up, back into the queue (none: answer it). */
-export const LINK_TASK_DOS = ["park", "drop", "wake"] as const;
+/**
+ * What a link does with a task: put it aside, give it up, back into the queue, the person's check of a site; one that
+ * waits: a conversation about it (and what waits with it), its request's text or its folder of images opened, its
+ * request marked sent, a file that came for it (none: answer it).
+ */
+export const LINK_TASK_DOS = ["park", "drop", "wake", "check", "chat", "note", "folder", "sent", "file"] as const;
 /** What a link does with a direction of the research (strom research pause|done|resume). */
 export const LINK_DIRECTION_DOS = ["pause", "done", "resume"] as const;
 /** A tree the app sent that waits in the research's inbox: shown, then written or thrown away on the person's word. */
 export const LINK_SYNC_DOS = ["show"] as const;
 /** What a link does with a conflict: the user decides it, or leaves it to the agent. */
 export const LINK_CONFLICT_DOS = ["decide", "agent"] as const;
+/** The side a conflict of the user's edit is decided for, picked in the app: the terminal asks only to confirm and why. */
+export const LINK_CONFLICT_TAKES = ["user", "research"] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SOURCE = /^S\d{1,9}$/;
@@ -79,6 +86,8 @@ const INPUT = /^I\d{1,9}$/;
 const RECEIVED = /^R\d{17}-[0-9a-f]{4}$/;
 const RESEARCH = /^G\d{1,9}$/;
 const SESSION = /^N\d{1,9}$/;
+/** An archive's host, as a connector names it (www.example.org): letters, digits, hyphens and dots only. */
+const HOST = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 /** The name the app gives the tree's file of a move (its strom-prenos-<8 of its mark>.json). */
 const TRANSFER_NAME = /^strom-prenos-[A-Za-z0-9_-]{8}\.json$/;
 /** The app's own mark of a tree it hands over (32 random bytes, base64url). */
@@ -144,12 +153,13 @@ export type Link =
   | { action: "task"; tree: string; task: string; do?: (typeof LINK_TASK_DOS)[number] }
   | { action: "review"; tree: string; person: string; scope: (typeof LINK_SCOPES)[number] }
   | { action: "research"; tree: string; person: string; direction: (typeof LINK_DIRECTIONS)[number] }
-  | { action: "conflict"; tree: string; id: string; do: (typeof LINK_CONFLICT_DOS)[number] }
+  | { action: "conflict"; tree: string; id: string; do: (typeof LINK_CONFLICT_DOS)[number]; take?: (typeof LINK_CONFLICT_TAKES)[number] }
   | { action: "story"; tree: string; person: string; partner?: string; do: (typeof LINK_STORY_DOS)[number] }
   | { action: "sync-undo"; tree: string; intake: string }
   | { action: "sync"; tree: string; do: (typeof LINK_SYNC_DOS)[number]; intake?: string }
   | { action: "direction"; tree: string; id: string; do: (typeof LINK_DIRECTION_DOS)[number] }
   | { action: "finish"; tree: string; session: string }
+  | { action: "archive"; tree: string; host: string }
   | { action: "new"; app: string; browser?: BrowserKind; file?: string }
   | { action: "menu" };
 
@@ -239,8 +249,12 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
       const partner = idOf(q, "partner", PERSON, false);
       return { action, tree: id, person, ...(partner ? { partner } : {}), do: oneOf(q, "do", LINK_STORY_DOS) };
     }
-    case "conflict":
-      return { action, tree: id, id: idOf(q, "id", CONFLICT, true)!, do: oneOf(q, "do", LINK_CONFLICT_DOS, "decide") };
+    case "conflict": {
+      const how = oneOf(q, "do", LINK_CONFLICT_DOS, "decide");
+      // the side, only of a decision, only one of its fixed values
+      const take = how === "decide" && q.has("take") ? oneOf(q, "take", LINK_CONFLICT_TAKES) : undefined;
+      return { action, tree: id, id: idOf(q, "id", CONFLICT, true)!, do: how, ...(take ? { take } : {}) };
+    }
     case "sync-undo":
       return { action, tree: id, intake: idOf(q, "intake", INPUT, true)! };
     case "sync": {
@@ -253,6 +267,12 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
       return { action, tree: id, id: idOf(q, "id", RESEARCH, true)!, do: oneOf(q, "do", LINK_DIRECTION_DOS) };
     case "finish":
       return { action, tree: id, session: idOf(q, "session", SESSION, true)! };
+    case "archive": {
+      // the archive whose question the person answers in the terminal — only its host, never the answer
+      const host = (q.get("host") ?? "").toLowerCase();
+      if (!HOST.test(host)) throw new LinkError("no archive named");
+      return { action, tree: id, host };
+    }
   }
   throw new LinkError(`unknown action "${action.slice(0, 32)}"`);
 }

@@ -372,6 +372,39 @@ export interface Search extends BaseRecord {
 export const STRATEGIES = ["balanced", "depth", "priority"] as const;
 export type Strategy = (typeof STRATEGIES)[number];
 
+/** The person's answer to a task's check of a site: the book and its images there, only to be viewed there, nothing there. */
+export const CHECK_ANSWERS = ["works", "view", "no"] as const;
+export type CheckAnswer = (typeof CHECK_ANSWERS)[number];
+
+/** The person's answer to what a task waited for (Task.answers). */
+export interface PersonAnswer {
+  by: "person";
+  /** What the task asked (its waitingOn then). */
+  asked: string;
+  /** The site the person checked (awaitsCheck). */
+  url?: string;
+  check?: CheckAnswer;
+  /** Their words. */
+  answer?: string;
+  at: string;
+  /** Where they gave it: their terminal (strom's menu too), a window of the system. */
+  via?: "terminal" | "window";
+}
+
+/** A file that came for what a task waited for (Task.files). */
+export interface TaskFile {
+  /** The input it became (I…), or the image of a source the research had of the same content (M…). */
+  input: string;
+  /** Who handed it over: "user" (a terminal), "app" (the Strom app through the bridge), "agent", a session. */
+  by: string;
+  /** What the task asked (its waitingOn then). */
+  asked: string;
+  at: string;
+}
+
+/** What a task waits for, as the agent says it (strom task wait --kind; core/waitkind.ts reads the rest). */
+export const WAIT_KINDS = ["letter", "family", "web", "other"] as const;
+
 export const TASK_LEVELS = ["intake", "locate", "link", "verify", "enrich", "request", "narrate"] as const;
 export const TASK_STATES = ["open", "doing", "done", "parked", "waiting", "dropped"] as const;
 
@@ -398,6 +431,40 @@ export interface Task extends BaseRecord {
   waitingOn?: string;
   /** The images it waits for, which the user saves by hand: of this record set, into this folder of the shared inbox. */
   awaits?: { recordset: string; images: string; folder: string };
+  /**
+   * The person's check of a site it waits for (strom task wait --check): the address, and what to check there — a
+   * site that keeps automated tools off, the source still necessary. Only the person answers it.
+   */
+  awaitsCheck?: { url: string; ask: string };
+  /**
+   * The person's decision about an archive's images it waits for (or was put aside over): the archive's hosts, since
+   * when, its name — woken in every research here once the person decides (core/archivewait.ts). Optional: an older
+   * strom keeps it and ignores it.
+   */
+  awaitsPermission?: { hosts: string[]; since: string; title?: string };
+  /**
+   * What it waits for, as the agent says it (strom task wait --kind/--to/--request/--url): a letter (by post or e-mail),
+   * the family, a site, other; whom (an office, an archive, the family); the request's text saved in the tree's notes/;
+   * the site. Optional: what a task waits for is otherwise read from its words (core/waitkind.ts). Gone when it waits
+   * no more.
+   */
+  wait?: { kind?: (typeof WAIT_KINDS)[number]; to?: string; note?: string; url?: string };
+  /**
+   * The request it waits on went out (strom task sent): the letter mailed, the family asked — when, by whom. Not a
+   * consent, not a wake: the task still waits. Gone when it waits no more, or is set waiting again.
+   */
+  sent?: { at: string; by: string };
+  /**
+   * What the person answered for it (strom task wake --answer/--check, only by the person: their terminal, a window of
+   * the system, strom's menu) — kept apart from the notes, which an agent writes too.
+   */
+  answers?: PersonAnswer[];
+  /**
+   * Files that came for what it waited for (strom intake --answers, the Strom app's file to a task): each an input of
+   * the research (or the image it had of that content), who handed it over (the user, the app, an agent), what the task
+   * asked then. Not the person's words: only that the file came. Optional: an older strom keeps it and ignores it.
+   */
+  files?: TaskFile[];
   result?: string;
   produced?: string[];
   origin: string;
@@ -425,21 +492,60 @@ export interface Conflict extends BaseRecord {
   state: "open" | "resolved";
   resolution?: string;
   reasoning?: string;
+  /**
+   * Who decided it: the user (in the Strom app, or at a terminal — a link, the menu) or an agent (a session, or one
+   * outside a session). A user's decision stands: an agent decides it again only on a source it did not weigh, with a
+   * reason. None: decided by an older strom.
+   */
+  decidedBy?: "user" | "agent";
+  /** The user decided it in the Strom app (through the bridge). */
+  decidedIn?: "app";
+  decidedAt?: string;
+  /** A conflict of the user's edit decided for a side: whose value the fact keeps. */
+  taken?: "user" | "research";
   notes: Note[];
+}
+
+/**
+ * What a variant of a hypothesis would connect, were it true (strom hypothesis link): whose child a person is — a
+ * family of the tree, or one or two parents who have no family together —, two records of one person, a couple, or
+ * siblings whose parents are unknown. Nothing of it is a link of the tree: the variant's claim, said so a program can
+ * show it (the Strom app: _VAR / _LINK under _STROM_HYPO).
+ */
+export const VARIANT_LINK_KINDS = ["child", "same", "partners", "siblings"] as const;
+export type VariantLink =
+  | { kind: "child"; person: string; family?: string; parents?: string[] }
+  | { kind: "same" | "partners" | "siblings"; persons: string[] };
+
+export interface HypothesisVariant {
+  label: string;
+  claim: string;
+  support: string[];
+  against: string[];
+  /** What it would connect (optional: an older strom keeps the field as it is). */
+  links?: VariantLink[];
+  /**
+   * Every person and family its links have named, kept when they are taken off: the label stays that claim's (the
+   * Strom app remembers "H0022, variant B"), so links naming other people are a new variant, never this one again.
+   */
+  linked?: string[];
 }
 
 export interface Hypothesis extends BaseRecord {
   type: "hypothesis";
   question: string;
   subject: string[];
-  variants: { label: string; claim: string; support: string[]; against: string[] }[];
+  variants: HypothesisVariant[];
   state: "open" | "decided" | "abandoned";
   decision?: string;
+  /** Decided for this variant (its label; strom hypothesis decide --variant). */
+  chosen?: string;
   notes: Note[];
 }
 
 export const LESSON_SCOPES = ["method", "repository", "recordset", "place", "project"] as const;
 export const LESSON_MAX = 200;
+export const LESSON_DETAIL_MAX = 2000;
 
 /** Something learned, attached to what it is about, so it shows up only there. */
 export interface Lesson extends BaseRecord {
@@ -526,10 +632,18 @@ export interface SessionMetrics {
   costUsd?: number;
   /** Stopped before it said what it cost: more was spent than costUsd (if any) says. */
   costPartial?: boolean;
+  /** What the readers it started cost (strom read, clips, transcripts) — apart from costUsd, the agent's own. */
+  readersUsd?: number;
+  /** How many readers it started. */
+  readers?: number;
+  /** A reader stopped before it said what it cost: more was spent than readersUsd says. */
+  readersPartial?: boolean;
   turns?: number;
   durationMs?: number;
   /** Tool calls the agent's permissions refused. */
   denied?: number;
+  /** Tool calls strom's own hook refused (an agent's web fetch past strom's limits for one server: core/web.ts). */
+  refused?: number;
 }
 
 /** One working session of an agent on one task. */
@@ -545,6 +659,8 @@ export interface Session extends BaseRecord {
   agent?: string;
   /** The model it ran on, when strom knows it (it started the agent with it, or the agent said so). */
   model?: string;
+  /** The reasoning effort it ran with, when strom knows it (it started the agent with it, or the agent's own config says it). */
+  effort?: string;
   /** The version of strom it ran with: its method and its checks. */
   strom?: string;
   /** Closed by strom, not by its agent: stopped by the user, its run or conversation gone, the agent quit. */
@@ -580,8 +696,8 @@ export interface TreeConfig {
   migratedWith?: string;
   /** Agent for this tree (overrides the user's default). */
   agent?: string;
-  /** Model per tier, per agent, for this tree. */
-  models?: Record<string, Partial<Record<"lead" | "vision" | "text" | "cheap", string>>>;
+  /** Model per tier, per agent, for this tree — and its reasoning effort (model.effort). */
+  models?: Record<string, Partial<Record<"lead" | "vision" | "text" | "cheap" | "effort", string>>>;
   /** Size of the brief in tokens. */
   briefBudget?: number;
   /** Which GEDCOM files to write: both (default), standard, strom. */
@@ -590,6 +706,8 @@ export interface TreeConfig {
   stromVersion?: string;
   /** Time limit of one `strom run` session in minutes. */
   runMinutes?: number;
+  /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost). */
+  webPerHost?: number;
   /** Order of the task queue: balanced (default), depth, priority. */
   queueStrategy?: string;
   /** Stories of the ancestors: yes or no (overrides the user's). */
@@ -600,6 +718,8 @@ export interface TreeConfig {
   excerptsQuality?: string;
   excerptsFor?: string;
   excerptsMb?: number;
+  /** What a newer strom did once in this research (core/hypolinks.ts: "hypothesis-links"); an older one keeps it. */
+  settled?: string[];
 }
 
 /** How sharp the entries cut out for the Strom app are, and whose they are (core/excerpt.ts). */

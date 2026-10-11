@@ -7,7 +7,7 @@
 export const MAX_LINE_BYTES = 255;
 
 /** Tags whose value may be a pointer (@X@) — everywhere else an "@" is text and is doubled. */
-const POINTER_TAGS = new Set(["FAMC", "FAMS", "HUSB", "WIFE", "CHIL", "SOUR", "REPO", "ASSO", "SUBM", "SUBN", "OBJE", "NOTE", "ALIA", "ANCI", "DESI"]);
+const POINTER_TAGS = new Set(["FAMC", "FAMS", "HUSB", "WIFE", "CHIL", "SOUR", "REPO", "ASSO", "SUBM", "SUBN", "OBJE", "NOTE", "ALIA", "ANCI", "DESI", "_PERS", "_FAM", "_PAR"]);
 
 /** GEDCOM 5.5.1 writes a literal "@" as "@@" (so "@I1@ BIRT" in a note is not a pointer). */
 export function escapeAt(tag: string, value: string): string {

@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Env } from "./paths.ts";
+import { UsageError } from "./errors.ts";
 
 /** From how long before the end strom's output reminds the agent (a short session: its last quarter). */
 export const REMIND_MS = 10 * 60_000;
@@ -25,13 +26,29 @@ export function finishFile(root: string, session: string): string {
   return path.join(root, ".strom", "finish", `${session}.json`);
 }
 
-export function askFinish(root: string, session: string, by: string): void {
+/** `by`: the user (or their worker), or "limit" — the agent's plan near its limit under the user's cap (`why` says it). */
+export function askFinish(root: string, session: string, by: string, why?: string): void {
   fs.mkdirSync(path.dirname(finishFile(root, session)), { recursive: true });
-  fs.writeFileSync(finishFile(root, session), JSON.stringify({ at: new Date().toISOString(), by }) + "\n");
+  fs.writeFileSync(finishFile(root, session), JSON.stringify({ at: new Date().toISOString(), by, ...(why ? { why } : {}) }) + "\n");
 }
 
 export function finishAsked(root: string, session: string): boolean {
   return fs.existsSync(finishFile(root, session));
+}
+
+/** Who asked a session to finish, and why: undefined when nobody did. */
+export function finishOf(root: string, session: string): { by: string; why?: string } | undefined {
+  try {
+    const j = JSON.parse(fs.readFileSync(finishFile(root, session), "utf8")) as { by?: unknown; why?: unknown };
+    return { by: typeof j.by === "string" ? j.by : "user", ...(typeof j.why === "string" ? { why: j.why } : {}) };
+  } catch {
+    return finishAsked(root, session) ? { by: "user" } : undefined;
+  }
+}
+
+/** Asked to finish by the plan's limit (the user's cap), not by the user: the run goes on to its gate. */
+export function finishByLimit(root: string, session: string): boolean {
+  return finishOf(root, session)?.by === "limit";
 }
 
 /** What every strom command says to the agent of a session the user asked to finish. */
@@ -39,6 +56,29 @@ export const FINISH_LINE =
   "⏳ the user asks you to finish this session now: start nothing new; record in strom what you found and have not recorded yet " +
   '(facts, sources, the images searched, in vain too), then strom session close --continue --summary "…" --next "exactly where you stopped" ' +
   "(or finish the task, if it is done).";
+
+/**
+ * No new reader for a session asked to finish (by the user, or by the plan's limit): it is to write down and close.
+ * strom can hold what it starts itself; work an agent delegated inside itself it cannot stop half-way.
+ */
+export function refuseReadersWhenFinishing(root: string, env: Env): void {
+  const session = env.STROM_SESSION;
+  const asked = session ? finishOf(root, session) : undefined;
+  if (asked)
+    throw new UsageError(`session ${session} is asked to finish${asked.by === "limit" && asked.why ? ` (the agent's usage limit: ${asked.why})` : ""}: no new reader starts`, {
+      hint: 'record what you found, then strom session close --continue --summary "…" --next "exactly where you stopped"',
+      code: "session.finishing",
+    });
+}
+
+/** What every strom command says to the agent of a session near the limit of its plan (the user's cap). */
+export function finishLimitLine(why: string | undefined): string {
+  return (
+    `⏳ the agent's usage limit is almost reached${why ? ` (${why})` : ""}: start nothing new — no reader, nothing delegated; record in strom what you found ` +
+    'and have not recorded yet (facts, sources, the images searched, in vain too), then strom session close --continue --summary "…" ' +
+    '--next "exactly where you stopped" (or finish the task, if it is done). Work delegated and still running: have it report now.'
+  );
+}
 
 /** When this session is stopped (ms since the epoch), if a run set a limit. */
 export function deadlineOf(env: Env): number | undefined {
@@ -77,11 +117,69 @@ export function clockLine(env: Env, now = Date.now()): string | undefined {
   return `⏳ ${min} min left: this session is stopped at ${clockTime(end)}. Go on, but write each find down as you have it and start nothing you cannot finish by then.`;
 }
 
-/** What the brief says of the session's time: when, and not to hurry — strom says when it is getting short. */
+/** A command that ran this long says the time left after it (long fetches and readers: the agent lost track, N0281). */
+export const TIME_AFTER_MS = 60_000;
+/** Before the reminders, the time left is said at most this often (with any command). */
+export const TIME_EVERY_MS = 10 * 60_000;
+
+/** When the time left was said last to a session's agent: a file of the tree's own (each command is a process). */
+export function timeSaidFile(root: string, session: string): string {
+  return path.join(root, ".strom", "clock", `${session}.json`);
+}
+
+function timeSaidAt(root: string, session: string): number | undefined {
+  try {
+    const t = Date.parse((JSON.parse(fs.readFileSync(timeSaidFile(root, session), "utf8")) as { said?: string }).said ?? "");
+    return Number.isNaN(t) ? undefined : t;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Before the reminders: the time left, neutral — after a command that ran a minute or more, else every TIME_EVERY_MS
+ * (kept in .strom/clock/<session>.json). The agent sees only how long each step took: two agents that estimated the
+ * time themselves stopped after 16 and 18 minutes of 60 (N0281, N0283). None near the end: clockLine says it then.
+ */
+export function timeLine(env: Env, o: { ranMs: number; root?: string | undefined; session?: string | undefined; now?: number }): string | undefined {
+  const now = o.now ?? Date.now();
+  const end = deadlineOf(env);
+  if (end === undefined || end <= now || clockLine(env, now) !== undefined) return undefined;
+  const kept = o.root !== undefined && o.session !== undefined;
+  const last = kept ? timeSaidAt(o.root!, o.session!) : undefined;
+  const due = o.ranMs >= TIME_AFTER_MS || (kept && (last === undefined || now - last >= TIME_EVERY_MS));
+  if (!due) return undefined;
+  if (kept)
+    try {
+      fs.mkdirSync(path.dirname(timeSaidFile(o.root!, o.session!)), { recursive: true });
+      fs.writeFileSync(timeSaidFile(o.root!, o.session!), JSON.stringify({ said: new Date(now).toISOString() }) + "\n");
+    } catch {
+      // not kept: said again with the next command
+    }
+  return `time: ${Math.floor((end - now) / 60_000)} min left (stopped at ${clockTime(end)}) — go on`;
+}
+
+/**
+ * A session closed before its work is done (--continue, --done over unclear places) with more than half of its time
+ * left and nothing said by strom of the time being short (its reminders, a finish asked): the line that says so — the
+ * agent goes on, unless its context is full. Undefined when closing is right.
+ */
+export function earlyClose(env: Env, root: string, session: string, now = Date.now()): string | undefined {
+  const end = deadlineOf(env);
+  const limit = limitOf(env);
+  if (end === undefined || limit === undefined) return undefined;
+  const left = end - now;
+  if (left <= limit / 2 || clockLine(env, now) !== undefined || finishOf(root, session)) return undefined;
+  return `${Math.floor(left / 60_000)} min left (stopped at ${clockTime(end)}): strom has not said the time is short — go on unless the context is full`;
+}
+
+/** What the brief says of the session's time: when, and not to hurry — strom says the time left and when it is getting short. */
 export function briefClock(end: number, now = Date.now()): string {
   return (
-    `Time: this session is stopped at ${clockTime(end)} (it is ${clockTime(now)} now). Do not hurry and do not stop early: strom's output tells you ` +
-    "when the time is getting short; until then work on the task as usual. Write each find and each stretch of images searched into strom the " +
-    "moment you have it: what is only in your context is lost when the session ends."
+    `Time: this session is stopped at ${clockTime(end)} (it is ${clockTime(now)} now). Do not hurry and do not stop early: strom's output says ` +
+    "the time left after long steps and when it is getting short; until then work on the task as usual — never estimate the time yourself. " +
+    "Write each find and each stretch of images searched into strom the moment you have it: what is only in your context is lost when the session ends.\n" +
+    "A filling context is no sign of the time: write down what you have, then go on (readers through strom read keep your context small); " +
+    'close with --continue --next "exactly where you stopped" only when the context is full.'
   );
 }

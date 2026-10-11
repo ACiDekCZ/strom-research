@@ -11,18 +11,25 @@ import path from "node:path";
 import { langName } from "../core/lang.ts";
 import { writeFileAtomic } from "../core/json.ts";
 import type { Tree } from "../core/tree.ts";
-import { PROFILES, SELF_READING } from "./profiles.ts";
+import { PROFILES, selfReading } from "./profiles.ts";
 import { isArchive } from "../core/mode.ts";
 import { Settings } from "../core/config.ts";
 import { agentAppUrl, appSite } from "../core/stromapp.ts";
 import { configDir } from "../core/paths.ts";
+import { within } from "../core/relocate.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
+import { claudeScanReader, opencodeScanReader, SCAN_READER, scanReaderModel, treeReading } from "./scanreader.ts";
+import { claudeWebHooks, grokWebHooks, webRuleLines } from "../core/web.ts";
+import { claudeDelegateHooks } from "../core/delegate.ts";
+import { powershellUtf8Rule, putShim } from "../core/self.ts";
 
 export const MARKER = "<!-- strom: generated above this line (strom agents sync); your own notes below are kept -->";
 
-function agentsMd(tree: Tree): string {
+export function agentsMd(tree: Tree, platform: NodeJS.Platform = process.platform): string {
   const lang = langName(tree.config.lang);
+  // (Windows only: written on the computer the agent works on, as its other files)
+  const ps = powershellUtf8Rule("`", platform);
   // the Strom app's address as strom app opens it now (the beta its beta, strom.app.url where it says another)
   const app = agentAppUrl(tree.env);
   return `# Family research: ${tree.config.name}
@@ -34,9 +41,10 @@ the researcher; \`strom\` is your only way to read and change the research.
 1. Start with \`strom\` — it says where things stand and what to do next.
    \`strom guide\` explains the work; \`strom help <command>\` any command.
 2. Work in sessions: \`strom session start\` gives you the brief for the next
-   task; finish with \`strom session close --summary "…" --next "…"\`. The
-   next step is strom's queue (\`strom\` names it, \`strom plan\` lists it):
-   what the user wants instead becomes a task first — never search outside a
+   task; finish with \`strom session close --done "<result>" --next "…"\`
+   (the task and the session in one call). The next step is strom's queue
+   (\`strom\` names it, \`strom plan\` lists it): what the user wants
+   instead becomes a task first — never search outside a
    session and its task.
 3. Never create, edit or delete anything in \`data/\`, \`strom.json\` or \`.git\`,
    never read the files in \`data/\` (strom shows them better and shorter), and
@@ -49,19 +57,38 @@ the researcher; \`strom\` is your only way to read and change the research.
    terminal — never do it yourself.
 6. You may read \`inputs/\`, \`output/\`, \`notes/\` and \`.strom/views/\`, and write
    your own working notes in \`notes/\`. Scans are looked at through views:
-   \`strom media view B0001:57 --half left\` writes one to \`.strom/views/\`.
+   \`strom media view B0001:57 --half left\` writes one to \`.strom/views/\`;
+   the views of a scan or a batch come in one call (\`B0001:57-60 --half both\`).
+   A text in those files: \`strom grep "<text>"\` (each line with its file and
+   number) — never read a big file in pieces.
 7. Run strom commands on their own — no pipes (\`| head\`, \`| grep\`): output is
    already short, listings take \`--limit\` and \`--page\`, and piped commands may
-   be refused by your permissions.
+   be refused by your permissions.${ps ? `\n   ${ps}` : ""}
 8. Other agents may work on this tree too (Claude Code, Codex, Antigravity,
    OpenCode, Grok — the user's choice). \`strom\` shows who is working now; never take a task
    another one has started.
+9. ${webRuleLines(new Settings(tree.env, {}).webPerHost(tree.config), "`")}
+10. A site strom refused, or whose archive forbids or restricts automation
+    without the user's permission: not through your web tools or a browser
+    either — check with \`strom net web --check <url>\`. Another way to the
+    same records first; a task for the user (\`strom task wait T… --check
+    <url> --on "…"\`) only if the source stays necessary.
+    What a task waits for (\`--on\`) is a sentence the user reads in strom's
+    menu: impersonal, what is needed and from whom, never addressed to them;
+    say its kind (\`--kind letter|family|web|other\`) and, when known,
+    \`--to\`, \`--request notes/<file>.md\`, \`--url\`.
+11. What strom or this tree denies you (a command, a site, a file) stays
+    denied: never offer the user to change your permissions or settings,
+    strom's or the tree's, to get round it — go another way, or say what was
+    refused.
 
 ## Working with the user
 
 The user watches this conversation and is usually not technical. Talk in
 ${lang}, plainly: say "the baptism of Karel in 1782", not record IDs, unless
-they ask.
+they ask. (Working alone — a session of strom run — nobody watches: this
+section is a conversation's; nothing there is said to the user, and its brief
+says how it ends.)
 
 - **First conversation** (no research yet): explain in a few sentences how you
   work together — you search registers and archives, record only what a
@@ -75,9 +102,11 @@ they ask.
   - the agent working on its own: they start it from strom's menu ("Let the
     agent work on its own"); it works the task queue and tells them the result;
     with many tasks in the queue, suggest it — every task gets a fresh session;
-  - one task, one fresh context: after a session closes, strom says how the
-    user clears your context (Claude Code: /clear) — nothing is lost, strom
-    keeps it all; suggest it in a sentence, go on here if they prefer;
+  - one task, one fresh context — in a conversation: after a session closes
+    there, strom says how the user clears your context (Claude Code: /clear)
+    — nothing is lost, strom keeps it all; suggest it in a sentence, go on
+    here if they prefer. Working alone (strom run) each task starts fresh by
+    itself and its closing message gives no such advice;
   - what only they can do: when strom needs their consent it opens a window
     on their screen — tell them to answer it, you cannot; images a portal gives
     only by hand — strom says which ones and where to save them.
@@ -104,7 +133,9 @@ they ask.
   would take — tell them, write it on their yes (\`--apply\`); a sync is
   undone with \`strom sync undo I…\`. Straight from the app: \`strom sync --app\`.
 - **What waits for them** (\`strom\` shows it): tell them plainly what to do
-  and where, one thing at a time.
+  and where, one thing at a time. A conversation that begins with a task that
+  waits for them (they picked it in the menu or the Strom app): \`strom guide
+  waiting\` says how to lead it.
 - **Results and the Strom app**: \`output/tree-strom.ged\` is the family tree
   for the Strom app (${appSite(app)}) — strom's companion: a free family
   tree app, no account, their data stay on their computer; it shows the tree,
@@ -126,7 +157,7 @@ they ask.
   behind each fact, no IDs. When \`strom\` says to (once), tell them they can
   ask like this.
 
-${SELF_READING}
+${selfReading(treeReading(tree, new Settings(tree.env, {}).agent(tree.config).value))}
 ${MARKER}
 `;
 }
@@ -139,7 +170,7 @@ Claude Code: use Bash for \`strom\` commands only; read images and documents
 with the Read tool. You can choose a model for a subagent: delegate reading as
 below, not the way "Reading scans" in AGENTS.md says for other agents.
 
-${PROFILES.claude!.instructions(models)}
+${PROFILES.claude!.instructions({ ...models, vision: scanReaderModel(tree, "claude") }, treeReading(tree, "claude"))}
 ${MARKER}
 `;
 }
@@ -150,6 +181,43 @@ export function permissionPath(abs: string): string {
   const p = abs.replace(/\\/g, "/");
   const win = /^([A-Za-z]):\/(.*)$/.exec(p);
   return win ? `//${win[1]!.toLowerCase()}/${win[2]}` : `/${p}`;
+}
+
+/** What strom keeps in its settings folder that no agent reads or edits: the seal keys, the person's settings,
+ * consents, permissions, logins. */
+const SETTINGS_KEPT = ["keys", "config.json", "consents.json", "archives.json", "logins.json", "agents-taught.json", "shortcut"];
+
+/**
+ * The parts of strom's settings folder kept from the agents, each with whether it is a folder. The whole folder —
+ * unless the research is in it (an isolated installation's home is "Strom research" inside it: a deny of the whole
+ * folder outweighs every allow and cuts the agent off its connectors, its inbox and the research itself). Then what
+ * strom keeps there always, and every other entry that holds none of the research's folders.
+ */
+export function settingsKeptFrom(dir: string, research: string[], platform: NodeJS.Platform = process.platform): { path: string; folder: boolean }[] {
+  const keep = research.map((p) => path.resolve(p));
+  if (!keep.some((p) => within(p, dir, platform))) return [{ path: dir, folder: true }];
+  let entries: string[] = [];
+  try {
+    entries = fs.readdirSync(dir);
+  } catch {
+    // no settings folder yet: what strom will keep there
+  }
+  const names = [...new Set([...SETTINGS_KEPT, ...entries])].filter((n) => !keep.some((p) => within(p, path.join(dir, n), platform)));
+  return names.sort().map((n) => {
+    const p = path.join(dir, n);
+    let folder = n === "keys";
+    try {
+      folder = fs.statSync(p).isDirectory();
+    } catch {
+      // not there yet: as strom makes it
+    }
+    return { path: p, folder };
+  });
+}
+
+/** The folders of the research the agent works in: its home, the shared folder, the tree. */
+function researchFolders(tree: Tree, settings: Settings): string[] {
+  return [settings.home()?.value, settings.shared()?.value, tree.root].filter((p): p is string => !!p);
 }
 
 /** A tree's rules in the words Claude Code and Grok Build share: allowed without asking, and denied. */
@@ -169,7 +237,7 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
   const shared = settings.shared()?.value;
   const claude = agent === "claude";
   const at = (abs: string) => (claude ? permissionPath(abs) : abs.replace(/\\/g, "/"));
-  const keys = at(configDir(tree.env));
+  const kept = settingsKeptFrom(configDir(tree.env), researchFolders(tree, settings)).map((k) => (k.folder ? `${at(k.path)}/**` : at(k.path)));
   // Browser tools (Claude in Chrome): for the sites of the connectors fetching through the browser — or, agent.browser
   // always, of every archive of the research (anything else is asked in a conversation, not used in a run).
   const web = claude ? agentBrowser(tree, shared) : { on: false, hosts: [] };
@@ -211,9 +279,8 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
       ...(shared ? [`Edit(${at(path.join(shared, "net"))}/**)`] : []),
       // A session ends with its turn: nothing wakes it up later (a live run waited for a wake-up that never came).
       ...(claude ? ["ScheduleWakeup", "CronCreate"] : []),
-      // The seal keys: an agent that could read them could forge the seal.
-      `Read(${keys}/**)`,
-      `Edit(${keys}/**)`,
+      // The seal keys: an agent that could read them could forge the seal; the person's settings, consents and logins.
+      ...kept.flatMap((k) => [`Read(${k})`, `Edit(${k})`]),
       // What the browser downloads is strom's to take over; the rest of the folder is the user's.
       `Read(${downloads}/**)`,
       ...(claude ? CHROME_DENY : []),
@@ -223,6 +290,12 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
   };
 }
 
+/** Claude Code's hooks of the tree: strom's web hook and its delegate hook. */
+function claudeHooks(root: string): Record<string, unknown> {
+  const web = claudeWebHooks(root) as Record<string, unknown[]>;
+  return { ...web, PreToolUse: [...(web.PreToolUse ?? []), ...claudeDelegateHooks(root).PreToolUse] };
+}
+
 /** Permissions for Claude Code in this tree (paths of this computer). */
 export function claudeSettings(tree: Tree): Record<string, unknown> {
   const lead = new Settings(tree.env, {}).models("claude", tree.config).lead;
@@ -230,6 +303,9 @@ export function claudeSettings(tree: Tree): Record<string, unknown> {
     permissions: treeRules(tree, "claude"),
     // The user's model: the desktop app cannot be given one when it opens (the CLI is, with --model).
     ...(lead ? { model: lead } : {}),
+    // Before each web fetch and search: recorded, counted and paced like strom's own requests (core/web.ts); before
+    // each call of a subagent: strom's delegates on the model strom set for them (core/delegate.ts).
+    hooks: claudeHooks(tree.root),
   };
 }
 
@@ -298,6 +374,8 @@ export function opencodeConfig(tree: Tree): Record<string, unknown> {
       // its own rules and instructions
       "opencode.json": "deny",
       ...Object.fromEntries(["AGENTS.md", "CLAUDE.md", ".claude/*"].map((f) => [f, "deny"])),
+      // a connector it builds for an archive the research needs (strom connector new), in a run too (ask → deny there)
+      ...(shared ? { [`${abs(path.join(shared, "plugins", "connectors"))}/*`]: "allow" } : {}),
     },
     external_directory: {
       "*": "ask",
@@ -310,8 +388,8 @@ export function opencodeConfig(tree: Tree): Record<string, unknown> {
             [`${abs(path.join(shared, "net"))}/*`]: "deny",
           }
         : {}),
-      // the seal keys, and what the browser downloads (strom's to take over)
-      [`${abs(configDir(tree.env))}/*`]: "deny",
+      // the seal keys and the person's settings, and what the browser downloads (strom's to take over)
+      ...Object.fromEntries(settingsKeptFrom(configDir(tree.env), researchFolders(tree, settings)).map((k) => [k.folder ? `${abs(k.path)}/*` : abs(k.path), "deny"])),
       [`${abs(settings.downloads())}/*`]: "deny",
     },
     webfetch: "allow",
@@ -331,6 +409,8 @@ export function opencodeConfig(tree: Tree): Record<string, unknown> {
         description: "strom run: the agent working alone, nobody to ask — what the rules do not allow is refused",
         permission: refused(permission),
       },
+      // reading scans: the shell for strom and the file reader, nothing else
+      [SCAN_READER]: opencodeScanReader(tree, permission, refused),
     },
   };
 }
@@ -363,9 +443,11 @@ function dropAgentFiles(tree: Tree): string[] {
     ["AGENTS.md", agentsMd(tree)],
     ["CLAUDE.md", claudeMd(tree)],
     [path.join(".claude", "settings.json"), JSON.stringify(claudeSettings(tree), null, 2) + "\n"],
+    [CLAUDE_SCAN_READER, claudeScanReader(tree)],
     ["opencode.json", JSON.stringify(opencodeConfig(tree), null, 2) + "\n"],
     [path.join(".grok", "config.toml"), grokConfig(tree)],
     [path.join(".grok", "rules", "strom.md"), GROK_RULES],
+    [GROK_HOOKS, JSON.stringify(grokWebHooks(tree.root), null, 2) + "\n"],
   ];
   for (const [rel, content] of generated) {
     const file = path.join(tree.root, rel);
@@ -388,9 +470,19 @@ function dropAgentFiles(tree: Tree): string[] {
   return gone;
 }
 
-export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md")];
+/** Grok Build's own hooks of the tree: strom's before each web fetch and search (core/web.ts). */
+export const GROK_HOOKS = path.join(".grok", "hooks", "strom.json");
 
-export function syncAgentFiles(tree: Tree): string[] {
+/** Claude Code's subagent for reading scans, in the tree. */
+export const CLAUDE_SCAN_READER = path.join(".claude", "agents", `${SCAN_READER}.md`);
+
+export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS];
+
+/**
+ * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the
+ * shim in .strom/bin was written now (never committed: not among the files).
+ */
+export function syncAgentFiles(tree: Tree, said: { shim?: boolean } = {}): string[] {
   // an archive: no agent works on it, and nothing of one shows in its folder (Milan's decision, 2026-10-03) — strom's own
   // files of the agents go (what a person wrote in them stays); research switched on writes them again
   if (isArchive(tree)) return dropAgentFiles(tree);
@@ -411,9 +503,19 @@ export function syncAgentFiles(tree: Tree): string[] {
   write("AGENTS.md", agentsMd(tree));
   write("CLAUDE.md", claudeMd(tree));
   write(path.join(".claude", "settings.json"), JSON.stringify(claudeSettings(tree), null, 2) + "\n");
+  write(CLAUDE_SCAN_READER, claudeScanReader(tree));
   write("opencode.json", JSON.stringify(opencodeConfig(tree), null, 2) + "\n");
   write(path.join(".grok", "config.toml"), grokConfig(tree));
   write(path.join(".grok", "rules", "strom.md"), GROK_RULES);
+  write(GROK_HOOKS, JSON.stringify(grokWebHooks(tree.root), null, 2) + "\n");
+  // the strom the agent hooks name (the tree's .strom/bin, never committed) — there also for a conversation strom did not start
+  if (!tree.dryRun) {
+    try {
+      said.shim = putShim(tree.root).changed.length > 0;
+    } catch {
+      // a hook that finds no strom lets the call go
+    }
+  }
   for (const [rel, ours] of OBSOLETE) {
     const file = path.join(tree.root, rel);
     let text: string;

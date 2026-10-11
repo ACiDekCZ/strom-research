@@ -3,7 +3,7 @@
 import { register, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
-import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, mergeFamilies, mergePersons, parseParticipant, retractEvent, retractPerson } from "../core/actions.ts";
+import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, mergeFamilies, notRetracted, mergePersons, parseParticipant, retractEvent, retractPerson } from "../core/actions.ts";
 import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
@@ -124,7 +124,7 @@ function nameLine(n: Name, w: Words = ENGLISH): string {
   return `${titledName(n)}${n.kind ? ` (${w.word("name", n.kind)})` : ""}${cites ? `  ← ${cites}` : ""}`;
 }
 
-function eventLine(e: Event, w: Words = ENGLISH): string {
+export function eventLine(e: Event, w: Words = ENGLISH): string {
   const cites = citesOf(e.citations, w);
   const who = (e.participants ?? []).map((p) => `${w.word("role", p.role)} ${p.person ?? p.name}`).join(", ");
   const ages = e.ages ? Object.entries(e.ages).map(([p, a]) => `${w.word("who", p)} ${a}`).join(", ") : "";
@@ -578,11 +578,11 @@ register(
       { name: "quote", type: "string", value: "<text>", description: "the words of the record" },
       { name: "information", type: "string", value: "<kind>", description: "for this fact the source is primary, secondary or unknown (default: the source's)" },
       { name: "with", type: "string", multiple: true, value: "<role:who>", description: "participant: godparent:Marie Dvořáková, witness:P0012 — roles godparent, witness, officiant, midwife, informant, other (repeatable)" },
-      { name: "status", type: "string", value: "<status>", description: "lead (default without citation), possible, probable, proven, disproven" },
+      { name: "status", type: "string", value: "<status>", description: "lead (default without citation), possible, probable, proven (with --information primary: a record of the time read yourself), disproven" },
       { name: "note", type: "string", value: "<text>", description: "short note on this fact" },
     ],
     examples: [
-      'strom event add P0001 CHR --date "25 JUN 1905" --place "Týnec nad Labem" --house 12 --cite S0001 --locator "fol. 45, č. 12" --with "godparent:Marie Dvořáková" --status proven',
+      'strom event add P0001 CHR --date "25 JUN 1905" --place "Týnec nad Labem" --house 12 --cite S0001 --locator "fol. 45, č. 12" --with "godparent:Marie Dvořáková" --information primary --status proven',
       'strom event add P0002 OCCU --value "miller" --status lead',
       'strom event add P0002 EVEN --label "Fire of the farmhouse" --date "NOV 1905"',
     ],
@@ -628,13 +628,13 @@ register(
     writes: true,
     args: [
       { name: "id", description: "record ID (P0001, F0001, G0001) or person name", required: true },
-      { name: "text", description: "the note (max 500 characters)", required: true },
+      { name: "text", description: "the note (over 500 characters: kept whole as several notes)", required: true },
     ],
     run(ctx, { args }) {
       const tree = ctx.tree();
       const ref = args[0]!;
       const id = /^[A-Z]\d+$/i.test(ref) ? normId(ref) : resolvePerson(tree, ref).id;
-      const note = addNote(tree, id, args[1]!);
+      const note = addNote(tree, id, args[1]!, { whole: true });
       return { text: written(tree), data: { id, note } };
     },
   },
@@ -656,7 +656,7 @@ register(
       { name: "locator", type: "string", value: "<where>", description: "where in the source: folio, entry, line" },
       { name: "quote", type: "string", value: "<text>", description: "the words of the record" },
       { name: "information", type: "string", value: "<kind>", description: "for this fact the source is primary, secondary or unknown (default: the source's)" },
-      { name: "status", type: "string", value: "<status>", description: "new status: probable (default) or proven — proven only when you read the record yourself" },
+      { name: "status", type: "string", value: "<status>", description: "of a fact (E…) only: probable (default) or proven — proven only when you read the record yourself" },
     ],
     examples: ['strom cite E0001 S0001 --locator "fol. 45, č. 12" --status proven', 'strom cite F0001 S0001 --locator "fol. 45, č. 12" --information secondary'],
     run(ctx, { args, opts }) {
@@ -694,7 +694,7 @@ register(
       { name: "age", type: "string", multiple: true, value: "<age|who:age>", description: 'age as the record gives it; a family event per partner: "husband:27", "wife:17"' },
       { name: "with", type: "string", multiple: true, value: "<role:who>", description: "add a participant: witness:Jan Novák, godparent:P0012, officiant:…, midwife:… (repeatable)" },
       { name: "without", type: "string", multiple: true, value: "<role:who>", description: "take off a participant recorded wrongly — with --reason; a wrong role: --without witness:X --with godparent:X" },
-      { name: "status", type: "string", value: "<status>", description: "new status" },
+      { name: "status", type: "string", value: "<status>", description: "new status — proven needs a record of the time read yourself: strom cite E… S… --information primary --status proven" },
       { name: "note", type: "string", value: "<text>", description: "replace the note on this fact" },
     ],
     description: "Filling in what was unknown (an age, the house, the witnesses a record names) needs no reason; changing\nwhat was known, or the status, does.",
@@ -708,6 +708,7 @@ register(
       const tree = ctx.tree();
       const id = normId(args[0]!);
       const { owner } = findEventOwner(tree, id);
+      notRetracted(tree, id, "edit");
       const ages = listOpt(opts.age);
       let age: string | undefined;
       let partnerAge: Record<string, string> | undefined;

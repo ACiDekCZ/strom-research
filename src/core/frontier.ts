@@ -8,6 +8,7 @@ import { ancestorGenerations, birthEvent, displayName, familiesAsChild, families
 import { foldText } from "./text.ts";
 import { phrase } from "./phrases.ts";
 import type { Tree } from "./tree.ts";
+import { parseYears } from "./years.ts";
 
 export interface FrontierItem {
   person: Person;
@@ -61,8 +62,8 @@ export function recordsetsCovering(tree: Tree, place: string | undefined, year: 
     if (b.kinds.length && !b.kinds.some((k) => kinds.includes(k) || GENERAL_KINDS.includes(k))) return false;
     if (!b.places.some((pl) => names.some((n) => inPlace(n, pl)))) return false;
     if (!year || !b.years) return true;
-    const [from, to] = b.years.split("-").map(Number);
-    return year >= from! - 2 && year <= (to ?? from!) + 2;
+    const span = parseYears(b.years);
+    return !span || (year >= span.from - 2 && year <= span.to + 2);
   });
 }
 

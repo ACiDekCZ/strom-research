@@ -8,11 +8,11 @@ import { configDir, userHome, type Env } from "../core/paths.ts";
 import { prependPath, spawnAgent } from "../runners/runner.ts";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines } from "../cli/format.ts";
+import { lines, truncate } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { StromError, UsageError } from "../core/errors.ts";
 import { PROFILES } from "../agents/profiles.ts";
-import { conversationArgs } from "../agents/launch.ts";
+import { conversationArgs, conversationEnv } from "../agents/launch.ts";
 import { globalTargets, installGlobal, isInstalled, uninstallGlobal } from "../agents/global.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import { AGENTS, findAgent, isAgent, withoutAgentMarks } from "../core/which.ts";
@@ -32,7 +32,10 @@ import { appWindow, openAppIn, replaceGone } from "../core/appbrowser.ts";
 import { endProcess, notOurs, ownProcesses, uninstallPlan, type Removal } from "../core/uninstall.ts";
 import { newerTree, Tree, TREE_FILE } from "../core/tree.ts";
 import { readJsonIfExists } from "../core/json.ts";
-import type { TreeConfig } from "../core/model.ts";
+import type { Task, TreeConfig } from "../core/model.ts";
+import { requireRecord } from "../core/records.ts";
+import { waitGroupOf } from "../core/waitkind.ts";
+import { sameGroup } from "../core/waiting.ts";
 import type { Research } from "../core/model.ts";
 import { commitNow, shimDir } from "./session.ts";
 import { abandonedSessions, closeSession, openSessions } from "../core/session.ts";
@@ -97,6 +100,30 @@ function liveAppData(ctx: Context, bridge: string): { app?: string } {
   return url ? { app: url } : {};
 }
 
+/**
+ * The first message of a conversation about a task that waits for the person (the menu's What waits, the Strom app's
+ * Chat): the task, what it waits for and where, and the other tasks waiting at the same place — in the research
+ * language, the person's own words to the agent. A task that waits for nothing is refused.
+ */
+function aboutWaiting(tree: Tree, ref: string, shared: string | undefined): { id: string; say: string } {
+  const t = requireRecord<Task>(tree, ref, "task");
+  if (t.type !== "task" || t.retracted) throw new UsageError(`no task ${t.id}`, { hint: "strom task list --state waiting" });
+  if (t.state !== "waiting")
+    throw new UsageError(`${t.id} does not wait for the user (it is ${t.state}) — strom chat --task takes a task that waits`, { hint: "strom task list --state waiting · strom chat", code: "chat.task-not-waiting" });
+  const lang = tree.lang;
+  // the task's words end their sentence by themselves (a question its "?"); what it waits for runs on into its place
+  const what = truncate(t.what, 160);
+  const first = ui(lang, "ui.chat.task.say", {
+    task: t.id,
+    what: /[.?!…]$/u.test(what) ? what : `${what}.`,
+    on: truncate(t.waitingOn || "–", 200).replace(/(?<!\.)\.$/u, ""),
+    group: waitGroupOf(tree, t, lang).name,
+  });
+  const others = sameGroup(tree, t, shared);
+  const more = others.length ? ui(lang, "ui.chat.task.more.say", { tasks: others.map((x) => `${x.id} (${truncate(x.what, 60)})`).join(", ") }) : undefined;
+  return { id: t.id, say: more ? `${first} ${more}` : first };
+}
+
 register({
   path: ["chat"],
   summary: "Talk with the AI agent about the research — in its desktop app or in this terminal, set up the way you chose",
@@ -111,10 +138,11 @@ register({
     "stand and suggests what next.",
   options: [
     { name: "say", type: "string", value: "<text>", description: "your first message to the agent" },
+    { name: "task", type: "string", value: "<T…>", description: "a conversation about a task that waits for the user (the menu's What waits, the Strom app): the first message names it, what it waits for and the other tasks waiting at the same place" },
     { name: "where", type: "string", value: "<app|terminal>", description: "this time in the agent's desktop app or in this terminal (default: agent.where)" },
     { name: "print", type: "boolean", description: "print the command line instead of starting the agent" },
   ],
-  examples: ["strom chat", 'strom chat --say "Find the baptism of Karel"', "strom chat --agent codex", "strom chat --where terminal", "strom chat --print"],
+  examples: ["strom chat", 'strom chat --say "Find the baptism of Karel"', "strom chat --task T0003", "strom chat --agent codex", "strom chat --where terminal", "strom chat --print"],
   run: async (ctx: Context, { opts }) => {
     // An agent strom started (a conversation, a run) is where the research happens already. Any other
     // agent — the one that set strom up from the web page, one opened in some folder — hands the
@@ -134,11 +162,14 @@ register({
     const where = whereToTalk(agent, typeof opts.where === "string" ? opts.where : ctx.settings.agentWhere(), ctx.env);
     const program = findAgent(profile.command, ctx.env);
     if (!program && where === "terminal" && !opts.print) throw new StromError(ui(lang, "ui.chat.agent.missing", { agent: profile.name }), { hint: `strom setup — or install it: ${profile.url}` });
+    const shared = ctx.settings.shared()?.value;
     const files = syncAgentFiles(tree);
     if (files.length) tree.withTreeLock(() => tree.commit(`Agent instructions: ${files.join(", ")}`, files));
-    const shared = ctx.settings.shared()?.value;
     const researches = tree.list<Research>("research");
-    const kickoff = typeof opts.say === "string" && opts.say.trim() ? opts.say.trim() : ui(lang, researches.length ? "ui.chat.continue" : "ui.chat.first");
+    const said = typeof opts.say === "string" && opts.say.trim() ? opts.say.trim() : undefined;
+    if (said && opts.task !== undefined) throw new UsageError("strom chat takes --say or --task, not both", { hint: "strom chat --task T…" });
+    const about = opts.task !== undefined ? aboutWaiting(tree, String(opts.task), shared) : undefined;
+    const kickoff = about?.say ?? said ?? ui(lang, researches.length ? "ui.chat.continue" : "ui.chat.first");
     const level = ctx.settings.agentPermissions();
 
     // In the agent's desktop app: a link opens a conversation in the tree folder with the first
@@ -151,14 +182,16 @@ register({
       const opened = openForUser(link, ctx.env);
       const say = [opened ? ui(lang, "ui.chat.app.open", { app: app.name }) : ui(lang, "ui.chat.app.closed", { app: app.name, dir: ctx.display(tree.root), message: kickoff })];
       if (agent === "claude" && level !== "ask") say.push(ui(lang, level === "full" ? "ui.chat.app.full" : "ui.chat.app.auto"));
-      // Claude's app takes the model from the tree's settings; the others' the person picks there.
-      if (agent !== "claude") say.push(ui(lang, "ui.chat.app.model", { app: app.name }));
+      // Claude's app takes the model from the tree's settings, OpenCode's from the tree's opencode.json; the others' the
+      // person picks there — the one chosen in strom named
+      const chosen = ctx.settings.models(agent, tree.config).lead;
+      if (agent !== "claude" && !(agent === "opencode" && chosen)) say.push(chosen ? ui(lang, "ui.chat.app.model.chosen", { app: app.name, model: chosen }) : ui(lang, "ui.chat.app.model", { app: app.name }));
       if (agentHere && opened) say.push(ui(lang, "ui.chat.handover.end"));
       return { text: say.join("\n"), data: { agent, app: app.name, link, opened, ...(agentHere ? { handover: "app" } : {}) } };
     }
     // In a terminal: a new window, not a conversation inside this one.
     if (agentHere && !opts.print) {
-      const say = typeof opts.say === "string" && opts.say.trim() ? ["--say", opts.say.trim()] : [];
+      const say = about ? ["--task", about.id] : said ? ["--say", said] : [];
       const opened = openInNewTerminal(["chat", "--agent", agent, "--where", "terminal", ...say], tree.root, ctx.env);
       if (opened === "recent") return { text: ui(lang, "ui.chat.handover.recent", { agent: profile.name }), data: { agent, handover: "recent", cwd: tree.root } };
       return { text: ui(lang, opened ? "ui.chat.handover" : "ui.chat.handover.failed", { agent: profile.name }), data: { agent, handover: opened ? "window" : "none", cwd: tree.root } };
@@ -168,15 +201,22 @@ register({
       kickoff,
       level,
       model: ctx.settings.models(agent, tree.config).lead,
+      // the reasoning effort the person chose (none: the agent's own settings)
+      effort: ctx.settings.effort(agent, tree.config)?.value,
       settingsFile: path.join(tree.root, ".claude", "settings.json"),
       // Found again in Claude Code's list of sessions (/resume) and the terminal's title: the family,
       // its research when there is one, the day.
       name: ["Strom", tree.config.name, researches.length === 1 ? researches[0]!.name : undefined, new Date().toLocaleDateString(lang, { day: "numeric", month: "numeric" })].filter(Boolean).join(" · "),
       shared,
+      env: ctx.env,
       ...(agent === "claude" ? { chrome: agentBrowser(tree, shared).on, remote: ctx.settings.agentRemote() } : {}),
     };
     const args = conversationArgs(agent, base);
-    if (opts.print) return { text: [program ?? profile.command, ...args].map(shellQuote).join(" "), data: { command: program ?? profile.command, args, cwd: tree.root } };
+    const agentEnv = conversationEnv(agent, ctx.env);
+    if (opts.print) {
+      const vars = Object.entries(agentEnv).map(([k, v]) => `${k}=${shellQuote(v)}`);
+      return { text: [...(vars.length && process.platform !== "win32" ? ["env", ...vars] : []), ...[program ?? profile.command, ...args].map(shellQuote)].join(" "), data: { command: program ?? profile.command, args, cwd: tree.root, ...(vars.length ? { env: agentEnv } : {}) } };
+    }
 
     // Other agents may work in this tree too: this one gets a name of its own, is present while it
     // works, and has its own session. Sessions of conversations that ended without closing are closed.
@@ -193,7 +233,7 @@ register({
     if (browserSays) ctx.io.stdout(browserSays + "\n");
     // Claude Code asks once whether the folder is to be trusted — its own safety step, kept; the user knows what to answer.
     if (agent === "claude" && !claudeTrusts(tree.root, ctx.env)) ctx.io.stdout(ui(lang, "ui.chat.trust") + "\n");
-    const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree)), STROM_WORKER: worker, ...(base.model ? { STROM_MODEL: base.model } : {}) };
+    const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree)), ...agentEnv, STROM_WORKER: worker, ...(base.model ? { STROM_MODEL: base.model } : {}), ...(base.effort ? { STROM_MODEL_EFFORT: base.effort } : {}) };
     delete env.STROM_HANDOVER;
     let code: number;
     try {

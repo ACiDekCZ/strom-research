@@ -2,20 +2,23 @@
 // language, records by their names: "New person: Jan Novák (*1905) [P0001]",
 // "Downloaded 7 images: Kniha N 1850 (images 16–22)". Made from the operations
 // the commit logged (data/ops/*.jsonl, each line one operation); a commit
-// without them (the readers' notes) by its subject. For the Strom app (the
-// bridge's /log and change events): strom's own commit subjects are English
-// and name records by their IDs.
+// without them by the subjects strom writes itself (the readers' notes, the
+// clips, the transcripts) — its upkeep (the agents' instructions, an export)
+// and a subject it does not know say nothing. For the Strom app (the bridge's
+// /log and change events): strom's own commit subjects and the summaries of its
+// operations are English and name records by their IDs — never shown as they are.
 
 import type { Op, Tree } from "./tree.ts";
 import type { AnyRecord, Conflict, Family, Hypothesis, Input, Lesson, Media, Person, Place, RecordSet, Repository, Research, Search, Session, Source, Task } from "./model.ts";
 import { conflictTitle, displayName, lifespan } from "./people.ts";
 import { ownerName, cardFact } from "./overview.ts";
 import { phrase, type PhraseKey } from "./phrases.ts";
+import { clock } from "./net.ts";
 import { eventName, humanDate, humanPlace, humanTask } from "../cli/human.ts";
 import { UI, ui, type UIKey } from "../cli/ui.ts";
 
 /** Operations nobody needs to read: what another line says already, or bookkeeping. */
-const QUIET = new Set(["session.metrics", "task.start", "task.continue", "session.note"]);
+const QUIET = new Set(["session.metrics", "session.readers", "task.start", "task.continue", "session.note", "tree.settle", "seal.adopt"]);
 
 /** The one-line form of an operation, by its kind: {who} a person or family, {name} the record. */
 /** What strom mode logs (core/mode.ts), as the history says it. */
@@ -42,11 +45,16 @@ const SAID: Record<string, PhraseKey> = {
   "task.wait": "log.task.wait",
   "task.wake": "log.task.wake",
   "task.edit": "log.task.edit",
+  "task.sent": "log.task.sent",
+  "task.unsent": "log.task.unsent",
   "session.start": "log.session.start",
   "session.close": "log.session.close",
   "lesson.add": "log.lesson.add",
+  "lesson.edit": "log.lesson.edit",
   "hypothesis.add": "log.hypothesis.add",
   "hypothesis.argue": "log.hypothesis.argue",
+  "hypothesis.link": "log.hypothesis.link",
+  "hypothesis.variant": "log.hypothesis.variant",
   "hypothesis.decide": "log.hypothesis.decide",
   "conflict.add": "log.conflict.add",
   "conflict.resolve": "log.conflict.resolve",
@@ -69,6 +77,15 @@ const SAID: Record<string, PhraseKey> = {
   "family.retract": "log.family.retract",
   "source.retract": "log.source.retract",
   "source.sync": "log.source.edit",
+  "source.media": "log.source.edit",
+  "person.import": "log.person.add",
+  "family.import": "log.family.add",
+  "media.retract": "log.media.retract",
+  "input.skip": "log.input.skip",
+  "input.sort": "log.input.sort",
+  "input.note": "log.input.edit",
+  "input.amend": "log.input.edit",
+  "input.imported": "log.input.done",
   "place.retract": "log.place.retract",
   "repo.retract": "log.repository.retract",
   "name.cite": "log.person.cite",
@@ -78,6 +95,23 @@ const SAID: Record<string, PhraseKey> = {
   "research.resume": "log.research.resume",
   "research.done": "log.research.done",
 };
+
+/** An operation with no line of its own: said by the kind of record it changed, never by its English summary. */
+const RECORD_SAID: Record<string, PhraseKey> = {
+  person: "log.person.edit",
+  family: "log.family.edit",
+  source: "log.source.edit",
+  recordset: "log.recordset.edit",
+  media: "log.media.edit",
+  input: "log.input.edit",
+  task: "log.task.edit",
+  place: "log.place.edit",
+  repository: "log.repository.edit",
+  research: "log.research.edit",
+  hypothesis: "log.hypothesis.argue",
+};
+/** The kind of record an operation is about, when its record is not there to say it. */
+const OP_RECORD: Record<string, string> = { repo: "repository", name: "person" };
 
 const EVENT_SAID: Record<string, PhraseKey> = {
   "event.add": "log.event.add",
@@ -139,9 +173,13 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     return t ? short(humanTask(tree, t.what, lang)) : (id ?? "");
   };
   const name = (id: string | undefined): string => {
-    const r = get<Person | Family | Source | RecordSet | Task | Session | Research | Search | Lesson | Hypothesis | Conflict | Place | Repository | Input>(id);
+    const r = get<Person | Family | Source | RecordSet | Task | Session | Research | Search | Lesson | Hypothesis | Conflict | Place | Repository | Input | Media>(id);
     if (!r) return id ?? "";
     switch (r.type) {
+      case "media": {
+        const title = get<RecordSet>(r.recordset)?.title;
+        return title ? (r.image !== undefined ? phrase(lang, "log.image", { name: short(title), image: r.image }) : short(title)) : r.from ? short(r.from) : r.id;
+      }
       case "person":
       case "family":
         return who(r.id);
@@ -178,6 +216,24 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     return `${eventName(f.kind, lang, f.label)}${what ? `: ${what}` : ""}`;
   };
 
+  /** A fact as an operation's summary names it, its record gone since ("+E0274 BIRT P0076 MAR 1776 [probable]"). */
+  const factOf = (summary: string): string | undefined => {
+    const m = /^\+E\d+ (\S+) \S+(?: (.+?))? \[\p{L}+\]$/u.exec(summary);
+    if (!m) return undefined;
+    const when = humanDate(m[2], lang);
+    return `${eventName(m[1]!, lang)}${when ? `: ${when}` : ""}`;
+  };
+  /** What an operation with no line of its own changed: by the kind of its record, with its name; nothing when not known. */
+  const changed = (o: Op): string => {
+    const [first] = o.targets;
+    if (!first) return "";
+    const [record = ""] = o.op.split(".");
+    const rec = get(first);
+    const type = rec?.type ?? (record === "event" ? (first.startsWith("F") ? "family" : "person") : (OP_RECORD[record] ?? record));
+    const key = RECORD_SAID[type] ?? (rec ? "log.record.edit" : undefined);
+    return key ? phrase(lang, key, { who: who(first), name: name(first) }) : "";
+  };
+
   const out: { text: string; kind: ChangeKind }[] = [];
   let kind: ChangeKind = "other";
   const say = (line: string) => {
@@ -190,8 +246,9 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     kind = kindOf(o.op);
     const [first, second] = o.targets;
     if (o.op === "media.add") {
+      // a part of an image fetched sharper is no new scan: said as a part of its image, apart from the new scans
       const m = get<Media>(first);
-      const key = m?.recordset ?? "";
+      const key = `${m?.part ? "part" : "scan"}:${m?.recordset ?? ""}`;
       if (!images.has(key)) {
         images.set(key, []);
         out.push({ text: `\u0000media:${key}`, kind: "source" }); // its place in the order, filled in below
@@ -221,12 +278,14 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       const f = fact(first, id);
       // what it was before too, where a preview knows it (an undo of a send: "narození: 1871 → 1870")
       const before = was && o.op === "event.edit" ? fact(first, id, was) : undefined;
-      say(f ? phrase(lang, EVENT_SAID[o.op]!, { who: who(first), fact: before && before !== f ? `${before} → ${f.replace(/^[^:]*: /, "")}` : f }) : o.summary);
+      // a fact no longer there (taken off since): as its summary names it, else by its person
+      const g = f ?? (o.op === "event.add" ? factOf(o.summary) : undefined);
+      say(g ? phrase(lang, EVENT_SAID[o.op]!, { who: who(first), fact: before && f && before !== f ? `${before} → ${f.replace(/^[^:]*: /, "")}` : g }) : changed(o));
       continue;
     }
     if (o.op === "search.add" || o.op === "search.edit") {
       const s = get<Search>(first);
-      say(s ? phrase(lang, SEARCH_SAID[s.result] ?? "log.search.found", { name: short(s.question) }) : o.summary);
+      say(s ? phrase(lang, SEARCH_SAID[s.result] ?? "log.search.found", { name: short(s.question) }) : changed(o));
       continue;
     }
     if (o.op === "family.child") {
@@ -237,17 +296,17 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     // what the line is about besides its person, from what the operation says of it: the name, the note, the fact
     if (o.op === "person.name" || o.op === "name.remove") {
       const m = o.op === "person.name" ? /^\S+ name (.+?)(?: \([\w-]+\))?(?: ← \S+)?$/.exec(o.summary) : /^\S+ name (.+?) removed[:,]/.exec(o.summary);
-      say(m ? phrase(lang, o.op === "person.name" ? "log.name.add" : "log.name.remove", { name: m[1]!.replace(/\//g, " ").replace(/\s+/g, " ").trim(), who: who(first) }) : o.op === "person.name" ? phrase(lang, "log.person.name", { who: who(first) }) : o.summary);
+      say(m ? phrase(lang, o.op === "person.name" ? "log.name.add" : "log.name.remove", { name: m[1]!.replace(/\//g, " ").replace(/\s+/g, " ").trim(), who: who(first) }) : o.op === "person.name" ? phrase(lang, "log.person.name", { who: who(first) }) : changed(o));
       continue;
     }
     if (o.op === "note.remove") {
       const m = /^\S+ note "(.*)" removed:/.exec(o.summary);
-      say(m ? phrase(lang, "log.note.remove", { note: m[1]!, name: name(first) }) : o.summary);
+      say(m ? phrase(lang, "log.note.remove", { note: m[1]!, name: name(first) }) : changed(o));
       continue;
     }
     if (o.op === "event.status" || o.op === "event.restore") {
       const f = fact(first, /^(E\d+)/.exec(o.summary)?.[1]);
-      say(f ? phrase(lang, o.op === "event.status" ? "log.event.status" : "log.event.restore", { who: who(first), fact: f }) : o.summary);
+      say(f ? phrase(lang, o.op === "event.status" ? "log.event.status" : "log.event.restore", { who: who(first), fact: f }) : changed(o));
       continue;
     }
     if (o.op === "person.merge" || o.op === "family.merge") {
@@ -258,12 +317,42 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     // a Czech history), as the person was told when it happened
     if (o.op === "tree.migrate") {
       const step = `ui.migrated.${/^schema (\d+):/.exec(o.summary)?.[1]}` as UIKey;
-      say(step in UI ? ui(lang, "ui.migrated", { step: ui(lang, step) }) : o.summary);
+      say(step in UI ? ui(lang, "ui.migrated", { step: ui(lang, step) }) : phrase(lang, "log.migrate"));
+      continue;
+    }
+    // an archive's hourly cap nearly used up by the research's requests (strom fetch): said once at each share reached
+    if (o.op === "net.cap") {
+      const m = /^(\S+): (\d+) of its (\d+) requests an hour used; the next frees at (\S+)$/.exec(o.summary);
+      const at = m ? Date.parse(m[4]!) : NaN;
+      say(m && Number.isFinite(at) ? phrase(lang, "log.net.cap", { host: m[1]!, used: m[2]!, cap: m[3]!, time: clock(at, Date.parse(o.at) || Date.now()) }) : "");
+      continue;
+    }
+    // an archive's host refused strom's requests (strom fetch, a test, a probe): who, why, until when
+    if (o.op === "net.refused") {
+      const m = /^(\S+): refused \((\w+), HTTP (\S+)\); left alone until (.+); connector (\S+)$/.exec(o.summary);
+      if (!m) {
+        say("");
+        continue;
+      }
+      const at = Date.parse(m[4]!);
+      say(
+        m[2] === "client"
+          ? phrase(lang, "log.net.refused.client", { host: m[1]! })
+          : m[2] === "login"
+            ? phrase(lang, "log.net.refused.login", { host: m[1]!, connector: m[5]! })
+            : phrase(lang, "log.net.refused", { host: m[1]!, status: m[3]!, time: Number.isFinite(at) ? clock(at, Date.parse(o.at) || Date.now()) : m[4]! }),
+      );
       continue;
     }
     // strom mode: said in the research's language (found on Windows: "the research is an archive" in a Czech history)
     if (o.op === "config.set" && MODE_SAID[o.summary]) {
       say(phrase(lang, MODE_SAID[o.summary]!));
+      continue;
+    }
+    // a setting of the research (strom config set): its name, never the English summary
+    if (o.op === "config.set") {
+      const m = /^tree setting (\S+)/.exec(o.summary);
+      say(m ? phrase(lang, "log.setting", { key: m[1]! }) : "");
       continue;
     }
     // what the Strom app sent: said so, never "material from the family" with the file's name (found on Mac)
@@ -278,25 +367,66 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
         continue;
       }
     }
+    // a file that came for a task: only that it came, never words as the person's
+    if (o.op === "task.file") {
+      say(phrase(lang, "log.task.file", { name: name(first), inputs: o.targets.slice(1).join(", ") }));
+      continue;
+    }
     const key = SAID[o.op];
-    say(key ? phrase(lang, key, { who: who(first), name: name(first) }) : o.summary);
+    say(key ? phrase(lang, key, { who: who(first), name: name(first) }) : changed(o));
   }
   const lines = out.map(({ text: line, kind }) => {
     if (!line.startsWith("\u0000media:")) return { text: line, kind };
-    const book = line.slice("\u0000media:".length);
-    const ns = images.get(book) ?? [];
+    const key = line.slice("\u0000media:".length);
+    const part = key.startsWith("part:");
+    const book = key.slice(key.indexOf(":") + 1);
+    // each image once: parts of one image fetched again and again are one line of that image
+    const ns = [...new Set(images.get(key) ?? [])];
     const title = get<RecordSet>(book)?.title;
     const n = Math.max(ns.length, 1);
-    const text = !title
-      ? phrase(lang, "log.media.loose", { n })
-      : ns.length === 1
-        ? phrase(lang, "log.media.one", { name: title, image: ns[0]! })
-        : phrase(lang, "log.media", { name: title, n, images: ns.length ? ranges(ns) : "" });
+    const text = part
+      ? !title || !ns.length
+        ? phrase(lang, "log.media.part.loose", { n })
+        : phrase(lang, ns.length === 1 ? "log.media.part.one" : "log.media.part", { name: title, image: ns[0]!, images: ranges(ns) })
+      : !title
+        ? phrase(lang, "log.media.loose", { n })
+        : ns.length === 1
+          ? phrase(lang, "log.media.one", { name: title, image: ns[0]! })
+          : phrase(lang, "log.media", { name: title, n, images: ns.length ? ranges(ns) : "" });
     return { text, kind };
   });
   if (lines.length) return lines;
-  // no operations: the readers' notes of a book, else the subject as strom wrote it
+  const said = subjectLine(tree, subject, lang);
+  return said ? [said] : [];
+}
+
+/**
+ * A commit with no operation to say, by the subject strom wrote for it (English, records by their IDs): the work of
+ * the readers in the research language; its upkeep — the agents' instructions written again, an export, what stays out
+ * of the history, a seal — and any subject strom does not know: nothing (never the English subject to a person).
+ */
+function subjectLine(tree: Tree, subject: string, lang: string): { text: string; kind: ChangeKind } | undefined {
+  // the readers' notes of a book's images (B0013-75-93), or of images named one by one (M0750, M0750-M0751-…)
   const reading = /^Reading (B\d+)-(\d+)-(\d+): (\d+) images?/.exec(subject);
-  if (reading) return [{ text: phrase(lang, "log.reading", { name: get<RecordSet>(reading[1])?.title ?? reading[1]!, n: reading[4]!, images: reading[2] === reading[3] ? reading[2]! : `${reading[2]}–${reading[3]}` }), kind: "source" }];
-  return ops.length ? [] : [{ text: subject, kind: "other" }];
+  if (reading) return { text: phrase(lang, "log.reading", { name: tree.get<RecordSet>(reading[1]!)?.title ?? reading[1]!, n: reading[4]!, images: reading[2] === reading[3] ? reading[2]! : `${reading[2]}–${reading[3]}` }), kind: "source" };
+  const one = /^Reading (M\d+(?:-M\d+)*)\S*: (\d+) images?/.exec(subject);
+  if (one) {
+    const media = one[1]!.split("-").map((id) => tree.get<Media>(id)).filter((m): m is Media => !!m);
+    const books = [...new Set(media.map((m) => m.recordset))];
+    const title = books.length === 1 && books[0] ? tree.get<RecordSet>(books[0])?.title : undefined;
+    const ns = media.map((m) => m.image).filter((n): n is number => n !== undefined);
+    return {
+      text: title && ns.length && ns.length === media.length ? phrase(lang, "log.reading", { name: title, n: one[2]!, images: ranges(ns) }) : phrase(lang, "log.reading.loose", { n: one[2]! }),
+      kind: "source",
+    };
+  }
+  const clips = /^Clips: (\d+) of (\d+) entries/.exec(subject);
+  if (clips) return { text: phrase(lang, "log.clips", { n: clips[1]!, total: clips[2]! }), kind: "source" };
+  const transcripts = /^Transcripts: (\d+) of (\d+) entries/.exec(subject);
+  if (transcripts) return { text: phrase(lang, "log.transcripts", { n: transcripts[1]!, total: transcripts[2]! }), kind: "source" };
+  const created = /^Create tree "(.*)"$/.exec(subject);
+  if (created) return { text: phrase(lang, "log.tree.create", { name: created[1]! }), kind: "other" };
+  if (/^Repair: restore the sealed state/.test(subject)) return { text: phrase(lang, "log.repair"), kind: "other" };
+  if (subject === "Results after a conversation with the agent") return { text: phrase(lang, "log.chat.saved"), kind: "other" };
+  return undefined;
 }

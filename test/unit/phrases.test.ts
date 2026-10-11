@@ -8,6 +8,7 @@ import { PHRASES, catalog, phrase } from "../../src/core/phrases.ts";
 import { assetPath } from "../../src/core/assets.ts";
 import { UI } from "../../src/cli/ui.ts";
 import { LABELS, labels, type LabelKey } from "../../src/gedcom/labels.ts";
+import { addressesPerson } from "../../src/core/impersonal.ts";
 
 const ENGLISH: Record<string, string> = { ...PHRASES, ...UI };
 
@@ -48,26 +49,21 @@ const SPOKEN_BY_THE_PERSON = new Set(["ui.chat.first", "ui.chat.continue"]); // 
 const FOR_THE_AGENT = new Set(["ui.o.ask.tell", "ui.o.results.installed.live", "ui.o.stories.tell"]);
 /** A word that only looks like addressing ("lang:key"). */
 const IMPERSONAL_EXCEPTIONS = new Set<string>([]);
-const ADDRESSING: Record<string, RegExp> = {
-  en: /\b(you|your|yours|yourself)\b/i,
-  cs: /(?<![\p{L}])(vy|vás|vám|vámi|váš|vaš\p{L}*|ty|tě|tebe|tobě|tebou|tvůj|tvoj\p{L}*|tvé\p{L}*|tvým\p{L}*|tvou|tvá|tví|jste|jsi|máte|máš|chcete|chceš|můžete|můžeš|budete|budeš|\p{L}{2,}(?:ejte|ete|íte|ěte|ujte|ňte|ďte|ťte|řte|žte|šte))(?![\p{L}])/iu,
-  de: /(?<![\p{L}])(Sie|Ihr|Ihre|Ihren|Ihrem|Ihrer|Ihres|Ihnen|du|dich|dir|dein|deine|deinen|deinem|deiner|deines|euch|euer|eure|euren|eurem|eurer|eures)(?![\p{L}])/u,
-};
 
 test("what a person reads never addresses them: impersonal, in every language (texts for the agent aside)", () => {
   const found: string[] = [];
-  for (const [lang, re] of Object.entries(ADDRESSING)) {
+  for (const lang of ["en", "cs", "de"]) {
     const texts = lang === "en" ? ENGLISH : catalog(lang);
     for (const [key, text] of Object.entries(texts)) {
       if (!/^(ui|log)\./.test(key) || SPOKEN_BY_THE_PERSON.has(key) || key.endsWith(".say") || FOR_THE_AGENT.has(key) || IMPERSONAL_EXCEPTIONS.has(`${lang}:${key}`)) continue;
-      const m = re.exec((text ?? "").replace(/\{\w+\}/g, ""));
-      if (m) found.push(`${lang} ${key}: „${m[0]}“ in ${text}`);
+      const m = addressesPerson((text ?? "").replace(/\{\w+\}/g, ""), lang, { thorough: true });
+      if (m) found.push(`${lang} ${key}: „${m}“ in ${text}`);
     }
     // the words strom writes into the GEDCOM a person opens (the header's note, how sure a fact is…)
     for (const key of Object.keys(LABELS.en) as LabelKey[]) {
       const text = labels(lang)(key);
-      const m = re.exec(text);
-      if (m) found.push(`${lang} GEDCOM ${key}: „${m[0]}“ in ${text}`);
+      const m = addressesPerson(text, lang, { thorough: true });
+      if (m) found.push(`${lang} GEDCOM ${key}: „${m}“ in ${text}`);
     }
   }
   assert.deepEqual(found, []);

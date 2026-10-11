@@ -31,6 +31,12 @@ export function paginate<T>(items: T[], limit: number, page: number): Page<T> {
   return { items: items.slice((p - 1) * limit, p * limit), total: items.length, page: p, pages, limit };
 }
 
+/**
+ * The most rows a page of a long listing gives, whatever --limit says: a row is at most ~170 bytes, a page under ~20 kB
+ * — an agent's tool keeps a longer output in a file and shows only its start (N0280, N0281: the filters never seen).
+ */
+export const LIST_PAGE_MAX = 100;
+
 /** Footer telling the caller how to see more. */
 export function moreLine(page: Page<unknown>, command: string): string {
   if (page.page >= page.pages) return "";
@@ -58,6 +64,20 @@ export function runs(nums: number[]): string {
     i = j + 1;
   }
   return out.join(", ");
+}
+
+/** A number as a language writes it (1,4 in Czech, 1.4 in English); a language Intl does not know: English. */
+export function numberIn(lang: string, n: number, o: Intl.NumberFormatOptions = { maximumFractionDigits: 1 }): string {
+  try {
+    return new Intl.NumberFormat(lang, o).format(n);
+  } catch {
+    return new Intl.NumberFormat("en", o).format(n);
+  }
+}
+
+/** Seconds of a pace as a language writes them: 0,5 in Czech and German, 0.5 in English (no grouping: 3600, never 3,600). */
+export function secondsIn(lang: string, ms: number): string {
+  return numberIn(lang, ms / 1000, { maximumFractionDigits: 2, useGrouping: false });
 }
 
 /** An argument as it is typed in a shell: quoted when it holds spaces or special characters. */

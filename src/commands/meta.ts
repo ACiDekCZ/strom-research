@@ -13,6 +13,7 @@ import type { Context } from "../cli/context.ts";
 import { helpAs } from "../cli/help.ts";
 import { lines, table } from "../cli/format.ts";
 import { guideText } from "./guide.ts";
+import { assetPath, methodPage, readAsset } from "../core/assets.ts";
 import { langName } from "../core/lang.ts";
 import { placeholders, ui, type UIKey } from "../cli/ui.ts";
 import { VERSION } from "../core/tree.ts";
@@ -29,6 +30,11 @@ import type { Person, Research, Session } from "../core/model.ts";
 import { liveWorkers, runAlive } from "../core/workers.ts";
 import { label } from "../core/people.ts";
 import { isArchive } from "../core/mode.ts";
+import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
+import { questionsWaiting } from "../core/tuneask.ts";
+import { connectorFor, permissionsWaiting, tasksStanding, waysOffered } from "../core/archiveasks.ts";
+import { listConnectors } from "../core/connector.ts";
+import { claudeHere } from "../cli/menu-parts.ts";
 
 interface Orientation {
   version: string;
@@ -48,6 +54,12 @@ interface Orientation {
   ask?: boolean;
   /** Facts that only another model read than the one the user reads with now: offered, never started. */
   reread?: { facts: number; models: string[]; model: string };
+  /** The scan views were tuned for another agent or model than the research's now: offered again, never started. */
+  views?: { now: string; before: string[] };
+  /** Questions about the reading of scans waiting for a person (an agent tells the person; it never answers them). */
+  tune?: { questions: number; command: string };
+  /** Archives whose images wait for the person's decision (asked in strom's menu: What waits) — for the agent to tell them. */
+  permissions?: { host: string; title: string; connector?: string; since: string; tries: number; tasks: string[]; command: string }[];
   next: { why: string; command: string };
 }
 
@@ -116,6 +128,17 @@ function orientation(ctx: Context): Orientation {
     const other = readByOtherModels(tree, vision);
     if (other.facts) base.reread = { ...other, model: vision };
   }
+  const views = isArchive(tree) ? undefined : calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root);
+  if (views) base.views = views;
+  const questions = isArchive(tree) ? 0 : questionsWaiting(tree, ctx.settings);
+  if (questions) base.tune = { questions, command: "strom media calibrate --questions" };
+  const asked = permissionsWaiting(tree);
+  if (asked.length) {
+    // the ways as the menu and the bridge offer them (a site only a browser goes to, a bot check: never slowly)
+    const connectors = listConnectors(ctx.settings.shared()?.value, ctx.env);
+    const claude = claudeHere(ctx, tree.config);
+    base.permissions = asked.map((q) => ({ host: q.host!, title: q.title ?? q.host!, ...(q.connector ? { connector: q.connector } : {}), since: q.at, tries: q.tries ?? 1, tasks: tasksStanding(tree, q), command: `strom allow archive ${q.host} --way ${waysOffered(connectorFor(connectors, q.host!, q.connector), claude, q.way, !!q.browserOnly).join("|")}` }));
+  }
   const stories = ctx.settings.stories(tree.config);
   base.stories = !stories.on ? "off" : stories.said || told.stories ? "on" : "tell";
   if (!told.ask && base.tree.persons > 0) base.ask = true;
@@ -134,7 +157,7 @@ function orientation(ctx: Context): Orientation {
   }
   // The session this agent works in; else one nobody is working in any more.
   const busy = (s: Session) => (s.worker && workers.some((w) => w.id === s.worker)) || (s.runner && workers.some((w) => w.id === "run"));
-  const open = currentSession(tree, ctx.env) ?? sessions.find((s) => !busy(s) && !(s.worker && s.worker !== ctx.env.STROM_WORKER && !human));
+  const open = currentSession(tree, ctx.env, ctx.refs) ?? sessions.find((s) => !busy(s) && !(s.worker && s.worker !== ctx.env.STROM_WORKER && !human));
   const queued = taskQueue(tree).length;
   // An agent outside the tree that strom did not start (it set strom up from the web page, or was
   // opened in some folder): the research goes on in its own conversation, where the tree lives — when
@@ -178,7 +201,7 @@ register(
       const lang = ctx.uiLang();
       const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
       // Labels in one column, whatever their length in the user's language.
-      const labels = [t("ui.o.home"), t("ui.o.tree"), t("ui.o.lang"), t("ui.o.data"), t("ui.o.results"), t("ui.o.stories"), t("ui.o.ask"), t("ui.o.reread"), t("ui.o.update"), t("ui.o.disk"), t("ui.o.next")];
+      const labels = [t("ui.o.home"), t("ui.o.tree"), t("ui.o.lang"), t("ui.o.data"), t("ui.o.results"), t("ui.o.stories"), t("ui.o.ask"), t("ui.o.reread"), t("ui.o.views"), t("ui.o.update"), t("ui.o.disk"), t("ui.o.next")];
       const width = Math.max(...labels.map((l) => l.length)) + 2;
       const row = (label: string, value: string) => `${label.padEnd(width)}${value}`;
       // an archive: nothing of an agent or AI (Milan's decision, 2026-10-03) — what the agent is told of stories,
@@ -218,6 +241,10 @@ register(
               o.stories && !archive ? row(t("ui.o.stories"), t(`ui.o.stories.${o.stories}`)) : undefined,
               o.ask && !archive ? row(t("ui.o.ask"), t("ui.o.ask.tell")) : undefined,
               o.reread && !archive ? row(t("ui.o.reread"), t("ui.o.reread.offer", { n: o.reread.facts, models: o.reread.models.join(", "), model: o.reread.model })) : undefined,
+              // the scan views tuned before for another agent or model: offered again, never run unasked
+              o.views && !archive ? row(t("ui.o.views"), t("ui.views.offer", { before: calibrationLabel(o.views.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(o.views.now, t("ui.settings.model.own")) })) : undefined,
+              // what only a person decides about reading them: one line, for the agent to tell the person
+              o.tune && !archive ? row(t("ui.o.views"), t("ui.o.tune", { n: o.tune.questions })) : undefined,
               o.researches?.length
                 ? t("ui.o.research") + "\n" + table(o.researches.map((r) => [`  ${r.id}`, r.name, `[${r.state}]`, r.focus]))
                 : t("ui.o.research.none"),
@@ -242,14 +269,27 @@ register(
     path: ["guide"],
     summary: "How to do research with strom — read this first (for agents)",
     group: "start",
-    run(ctx) {
+    description: "With a topic, one page of the method: waiting — a conversation that begins with a task that waits for the user.",
+    args: [{ name: "topic", description: "a page of the method: waiting, core, locate, link, verify, enrich, request, intake, narrate, reading, recording" }],
+    examples: ["strom guide", "strom guide waiting"],
+    run(ctx, { args }) {
       const lang = ctx.hasTree() ? ctx.tree().lang : ctx.settings.home() ? ctx.settings.lang().value : undefined;
       // an archive: what it holds and who switches research on — nothing of an agent's work (Milan's decision, 2026-10-03)
       if (ctx.hasTree() && isArchive(ctx.tree())) {
         const said = ui(ctx.tree().lang, "ui.guide.archive");
         return { text: said, data: { guide: said, lang, archive: true } };
       }
-      const text = guideText(lang, appUrlShown(ctx.settings).url);
+      const topic = args[0]?.trim();
+      if (topic) {
+        const page = /^[a-z]+$/u.test(topic) ? readAsset("method", `${topic}.md`) : undefined;
+        if (!page) {
+          const pages = fs.readdirSync(assetPath("method")).filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3)).sort();
+          throw new UsageError(`no page "${topic}" in the method`, { hint: `strom guide ${pages.includes("waiting") ? "waiting" : pages[0]} — pages: ${pages.join(", ")}` });
+        }
+        const text = methodPage(page, undefined).trim();
+        return { text, data: { guide: text, topic, lang } };
+      }
+      const text = guideText(lang, appUrlShown(ctx.settings).url, ctx.settings.webPerHost(ctx.hasTree() ? ctx.tree().config : undefined));
       return { text, data: { guide: text, lang } };
     },
   },

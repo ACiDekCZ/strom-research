@@ -8,10 +8,11 @@
 // their turn: after STORY_EVERY sessions without one, a story first. In a
 // conversation the user leads, and a story is written when they want it. Work
 // about people nothing links to the tree waits until the user asks for it or a
-// hypothesis joins them (core/kin.ts offTree). Strategies (setting queue.strategy): balanced (the default), depth
-// (stay on the line of the last sessions), priority (strict priority).
+// hypothesis joins them (core/kin.ts offTree). Work that needs images of an archive whose images wait for the person's
+// decision waits for it (core/archivewait.ts): a session spent on it finds nothing and asks again. Strategies (setting
+// queue.strategy): balanced (the default), depth (stay on the line of the last sessions), priority (strict priority).
 
-import type { Media, Research, Session, Strategy, Task } from "./model.ts";
+import type { Research, Session, Strategy, Task } from "./model.ts";
 import { parentsOf } from "./people.ts";
 import { taskRecordsets } from "./frontier.ts";
 import { now, type Tree } from "./tree.ts";
@@ -19,6 +20,9 @@ import { subjectPeople } from "./records.ts";
 import { directionOf, scopes } from "./directions.ts";
 import { offTree } from "./kin.ts";
 import { forStory } from "./stories.ts";
+import { setsWithImages } from "./mediaindex.ts";
+import { heldOn, permissionQuestions } from "./archivewait.ts";
+import type { PendingQuestion } from "./terms.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
 
@@ -40,8 +44,23 @@ export interface Ranked {
   why: string;
 }
 
+/**
+ * An open task whose images wait for the person's decision about an archive: it needs images none of its record sets
+ * has, and every record set of it with an address lies on a host with a question that waits (core/archivewait.ts) —
+ * the question, else undefined. Out of the queue until the person decides.
+ */
+export function waitsForDecision(tree: Tree, qs: PendingQuestion[] = permissionQuestions(tree.env), withImages?: Set<string | undefined>): (t: Task) => PendingQuestion | undefined {
+  if (!qs.length) return () => undefined;
+  let sets = withImages;
+  return (t) => {
+    if (!NEEDS_IMAGES.has(t.level)) return undefined;
+    sets ??= setsWithImages(tree);
+    return lacksImages(tree, t, sets) ? heldOn(tree, t, qs) : undefined;
+  };
+}
+
 /** A task that needs images none of its record sets has yet. */
-export function lacksImages(tree: Tree, t: Task, withImages = new Set(tree.list<Media>("media").map((m) => m.recordset))): boolean {
+export function lacksImages(tree: Tree, t: Task, withImages: Set<string | undefined> = setsWithImages(tree)): boolean {
   return NEEDS_IMAGES.has(t.level) && !taskRecordsets(tree, t).sets.some((b) => withImages.has(b.id));
 }
 
@@ -80,9 +99,11 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   const all = scopes(tree);
   // work about people nothing links to the tree waits for the user or for the hypothesis that joins them (core/kin.ts)
   const off = offTree(tree);
-  const waits = (t: Task) => t.state !== "doing" && ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? "")) || off(t));
+  const withImages = setsWithImages(tree);
+  // work whose images wait for the person's decision about an archive: a session on it would only ask again
+  const decision = waitsForDecision(tree, permissionQuestions(tree.env), withImages);
+  const waits = (t: Task) => t.state !== "doing" && ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? "")) || off(t) || !!decision(t));
   const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)) && !waits(t));
-  const withImages = new Set(tree.list<Media>("media").map((m) => m.recordset));
   const lines = new Map<string, Map<string, { gen: number; line: string }>>();
   const linesOf = (researchId: string | undefined) => {
     const r = researches.find((x) => x.id === researchId) ?? (researches.length === 1 ? researches[0] : undefined);

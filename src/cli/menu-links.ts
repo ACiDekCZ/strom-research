@@ -8,13 +8,13 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "./context.ts";
 import { outOfAnswers, translator, type Run } from "./menu-parts.ts";
-import { directionTasks, offerChat, setDirection } from "./menu-research.ts";
+import { askPaths, directionTasks, offerChat, setDirection } from "./menu-research.ts";
 import { humanCost, humanDay, humanTask, humanWhen } from "./human.ts";
 import { lines, truncate } from "./format.ts";
 import { isArchive } from "../core/mode.ts";
 import { Tree } from "../core/tree.ts";
 import type { Conflict, Family, Person, Research, Session, Source, Task } from "../core/model.ts";
-import { monthSpend } from "../core/session.ts";
+import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
 import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, SYNC_INBOX, undoSync, withoutImages, type SyncInput } from "../core/sync.ts";
 import { moveToTrash } from "../core/trash.ts";
 import { noteMovedByFile } from "../core/transfer.ts";
@@ -31,10 +31,18 @@ import { isValidLang } from "../core/lang.ts";
 import { agentsHere, suggestedWay, waysHere, type Where } from "../core/apps.ts";
 import { chooseWay } from "./ways.ts";
 import { claimText } from "../core/people.ts";
+import { sideOf, sideText, sidesOf } from "../core/conflicts.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
 import { StromError } from "../core/errors.ts";
 import { forgetTree } from "../commands/trees.ts";
+import { archiveQuestions } from "../core/archiveasks.ts";
+import { bareHost, listConnectors } from "../core/connector.ts";
+import { decideArchive } from "./menu-archives.ts";
+import { inboxOf, requestFile, sameGroup } from "../core/waiting.ts";
+import { SENDABLE, waitGroupOf, waitKindOf } from "../core/waitkind.ts";
+import { openForUser } from "../core/open.ts";
+import { fileRefused } from "../core/taskfiles.ts";
 
 /** What the Strom app asks, said before anything is done; true when the person goes on. */
 export async function asks(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true): Promise<boolean> {
@@ -75,6 +83,88 @@ export async function taskDo(ctx: Context, run: Run, lang: string, root: string,
   if ((await run(["task", what, id, ...reason], true)) !== 0) return false;
   out(ctx, t(`ui.link.task.${what}.done`));
   return true;
+}
+
+/**
+ * What a link of the Strom app does with a task that waits: a conversation about it and what waits with it at the same
+ * place (said and asked first: the agent costs), its request's text or its folder of images opened (nothing written),
+ * its request marked sent on the person's word (Enter: no). True: done.
+ *
+ * `menu`: the same chosen in the menu's What waits — the person picked it there, nothing said as the app's: a
+ * conversation starts at once, sent is asked in a line of its own (Enter: no).
+ */
+export async function waitingDo(ctx: Context, run: Run, lang: string, root: string, id: string, what: "chat" | "note" | "folder" | "sent" | "file", agent: string, menu = false): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const task = tree.get<Task>(id);
+  if (!task || task.type !== "task" || task.retracted) return stop(ctx, t("ui.link.task.none", { task: id }));
+  if (task.state !== "waiting") return stop(ctx, t("ui.link.notask"));
+  const shown = humanTask(tree, task.what, lang);
+  if (what === "chat") {
+    if (menu) return (await run(["chat", "--task", task.id])) === 0;
+    const more = sameGroup(tree, task, ctx.settings.shared()?.value).length;
+    const said = `${t("ui.link.what.task.chat", { agent, what: shown })}${more ? t("ui.link.what.task.chat.more", { n: more }) : ""}`;
+    if (!(await asks(ctx, lang, root, said, t("ui.link.cost")))) return false;
+    return (await run(["chat", "--task", task.id])) === 0;
+  }
+  if (what === "note") {
+    const file = requestFile(tree, task);
+    if (!file) return stop(ctx, t("ui.link.note.none", { task: task.id }));
+    openForUser(file, ctx.env);
+    out(ctx, t("ui.link.note.opened", { file: ctx.display(file) }));
+    return true;
+  }
+  if (what === "folder") {
+    const inbox = inboxOf(ctx.settings.shared()?.value, task);
+    if (!inbox) return stop(ctx, t("ui.link.folder.none", { task: task.id }));
+    openForUser(inbox.dir, ctx.env);
+    out(ctx, t("ui.waiting.opened", { dir: ctx.display(inbox.dir) }));
+    return true;
+  }
+  // a file that came for it: dragged in, a short note — an input of its people, the task back in the queue (Enter or 0
+  // at the file, 0 at the note: nothing written)
+  if (what === "file") {
+    if (fileRefused(task, task.id)) return stop(ctx, t("ui.link.file.cannot", { task: task.id }));
+    if (!menu) {
+      out(ctx, t("ui.link.asks", { what: t("ui.link.what.task.file", { what: shown }), name: tree.config.name }));
+      if (task.waitingOn) out(ctx, ` ${t("ui.waiting.do", { what: task.waitingOn })}`);
+    }
+    const paths = await askPaths(ctx, lang, root);
+    if (!paths?.length) return false;
+    const note = (await ctx.ask(t("ui.link.file.note"))).trim();
+    if (note === "0") return false;
+    if ((await run(["intake", ...paths, `--answers=${task.id}`, ...(note ? [`--note=${note}`] : [])], true)) !== 0) return false;
+    out(ctx, t("ui.link.task.file.done"));
+    return true;
+  }
+  // sent: a fact the person gives, never a consent — the task still waits for the reply
+  if (!SENDABLE.includes(waitKindOf(task))) return stop(ctx, t("ui.link.sent.cannot", { task: task.id }));
+  if (task.sent) return stop(ctx, t("ui.link.sent.already", { task: task.id, day: humanDay(task.sent.at, lang) }));
+  const group = waitGroupOf(tree, task, lang);
+  const to = task.wait?.to?.trim() || (group.kind === "office" || group.kind === "family" ? group.name : undefined);
+  if (menu) {
+    if (!(await ctx.confirm(t("ui.wait.sent.sure", { to: to ? ` (${to})` : "" }), false))) return false;
+  } else {
+    if (task.waitingOn) out(ctx, ` ${t("ui.waiting.do", { what: task.waitingOn })}`);
+    if (!(await asks(ctx, lang, root, t("ui.link.what.task.sent", { what: shown, to: to ? ` (${to})` : "" }), undefined, false))) return false;
+  }
+  if ((await run(["task", "sent", task.id], true)) !== 0) return false;
+  out(ctx, t("ui.link.task.sent.done"));
+  return true;
+}
+
+/**
+ * The question about an archive's images a link of the Strom app opens: only an archive that waits for the person's
+ * decision, or one a downloader here reaches (its permission looked at again) — anything else only said.
+ */
+export async function archiveAsked(ctx: Context, run: Run, lang: string, root: string, host: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  if (isArchive(tree)) return stop(ctx, t("ui.link.archive.none"));
+  const q = archiveQuestions(tree).find((p) => p.kind === "permission" && p.host === host);
+  const known = q ? true : listConnectors(ctx.settings.shared()?.value, ctx.env).some((c) => c.manifest.hosts.map(bareHost).includes(host));
+  if (!known) return stop(ctx, t("ui.link.archive.none"));
+  return decideArchive(ctx, run, lang, root, host, q);
 }
 
 /** A direction of the research paused, ended (each with the person's reason, if they give one) or taken up again. */
@@ -122,19 +212,36 @@ export function sessionsView(ctx: Context, lang: string, root: string): void {
     const task = s.task ? tree.get<Task>(s.task) : undefined;
     const agent = PROFILES[s.agent ?? ""]?.name ?? s.agent ?? "";
     const what = truncate(humanTask(tree, task?.what ?? s.summary ?? "", lang), 80);
-    const cost = s.metrics?.costUsd !== undefined ? `${humanCost(s.metrics.costUsd, lang)}${s.metrics.costPartial ? "+" : ""}` : "";
+    const spent = sessionCost(s.metrics);
+    const cost = spent !== undefined ? `${humanCost(spent, lang)}${costPartial(s.metrics) ? "+" : ""}` : "";
     out(ctx, `  ${humanDay(s.started, lang)}  ${[agent, what, cost].filter(Boolean).join(" · ")}`);
   }
   if (all.length > shown.length) out(ctx, `  ${t("ui.link.sessions.more", { n: all.length - shown.length })}`);
 }
 
-/** A conflict the person decides: which claim holds (or their own words), and why. */
-export async function decideConflict(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<boolean> {
+/**
+ * A conflict the person decides: which claim holds (or their own words), and why. The side picked in the Strom app
+ * already (take): only confirmed, and why — that side taken (a conflict not decided by side: the claims offered).
+ */
+export async function decideConflict(ctx: Context, run: Run, lang: string, root: string, id: string, take?: "user" | "research"): Promise<boolean> {
   const t = translator(lang);
   const tree = Tree.open(root, ctx.env);
   const c = tree.get<Conflict>(id);
   if (!c || c.type !== "conflict") return stop(ctx, t("ui.link.conflict.none", { id }));
   if (c.state === "resolved") return stop(ctx, t("ui.link.conflict.decided", { resolution: c.resolution ?? "" }));
+  const sides = take ? sidesOf(c) : undefined;
+  if (take && sides) {
+    const value = sideText(tree, c, sides[take]) || t("ui.link.conflict.empty");
+    if (!(await asks(ctx, lang, root, t(take === "user" ? "ui.link.what.conflict.user" : "ui.link.what.conflict.research", { title: c.title, value })))) return false;
+    let why = "";
+    while (!why) {
+      why = (await ctx.ask(t("ui.link.conflict.why"))).trim();
+      if (why === "0" || outOfAnswers(ctx)) return false;
+    }
+    if ((await run(["conflict", "resolve", id, `--take=${take}`, `--reasoning=${t("ui.link.conflict.by", { why })}`], true)) !== 0) return false;
+    out(ctx, t("ui.link.conflict.done"));
+    return true;
+  }
   if (!(await asks(ctx, lang, root, t("ui.link.what.conflict.decide", { title: c.title })))) return false;
   const claim = (x: Conflict["claims"][number]) => `${claimText(tree, c, x)}${x.source ? ` — ${tree.get<Source>(x.source)?.title ?? x.source}` : ""}`;
   const i = await ctx.choose(t("ui.link.conflict.pick"), [...c.claims.map((x) => ({ label: claim(x) })), { label: t("ui.link.conflict.other") }], 0, { back: t("ui.browse.back") });
@@ -149,7 +256,10 @@ export async function decideConflict(ctx: Context, run: Run, lang: string, root:
     why = (await ctx.ask(t("ui.link.conflict.why"))).trim();
     if (why === "0" || outOfAnswers(ctx)) return false;
   }
-  if ((await run(["conflict", "resolve", id, `--resolution=${resolution}`, `--reasoning=${t("ui.link.conflict.by", { why })}`], true)) !== 0) return false;
+  // a side of a conflict of the user's edit picked: that side taken — the user's value written into the fact (found: the
+  // value with its source named neither side, the conflict closed and nothing written)
+  const side = i < c.claims.length ? sideOf(c, c.claims[i]!) : undefined;
+  if ((await run(["conflict", "resolve", id, `--resolution=${resolution}`, ...(side ? [`--take=${side}`] : []), `--reasoning=${t("ui.link.conflict.by", { why })}`], true)) !== 0) return false;
   out(ctx, t("ui.link.conflict.done"));
   return true;
 }

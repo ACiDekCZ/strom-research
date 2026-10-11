@@ -20,6 +20,7 @@ import { Tree } from "../../src/core/tree.ts";
 import { asCommand } from "../../src/cli/format.ts";
 import { ui } from "../../src/cli/ui.ts";
 import { sayCommandAs } from "../../src/core/phrases.ts";
+import { settingsKeptFrom } from "../../src/agents/files.ts";
 
 const unix = { skip: process.platform === "win32" };
 const ID = "0f8c2d4e-1b2a-4c3d-9e8f-7a6b5c4d3e2f";
@@ -407,4 +408,67 @@ test("D3b-a: a person's help in any language begins with the installation's own 
     assert.doesNotMatch(plain, /strom-beta/);
   }
   w.cleanup?.();
+});
+
+test("an isolated installation's research in its settings folder: the agents' rules keep the seal keys and the settings from them, never the research, its connectors or its inbox", unix, async () => {
+  const w = new World();
+  try {
+    Object.assign(w.env, { STROM_ISOLATED: "1" });
+    await w.ok(["setup", "--yes"]);
+    await w.ok(["init", "Muchovi"]);
+    const cfg = w.env.STROM_CONFIG_DIR!;
+    const home = path.join(cfg, "Strom research");
+    w.cwd = path.join(home, "Muchovi");
+    assert.ok(fs.existsSync(path.join(w.cwd, "strom.json")), "the research inside the settings folder");
+    // Claude Code: "//abs/path"; a rule covers a path when the path starts with it (folder/** or the file itself)
+    const cc = (p: string) => `/${p}`;
+    const covers = (rules: string[], tool: string, p: string) =>
+      rules.some((r) => {
+        const m = new RegExp(`^${tool}\\((.*)\\)$`).exec(r);
+        if (!m) return false;
+        const pat = m[1]!;
+        return pat.endsWith("/**") ? `${p}/`.startsWith(pat.slice(0, -2)) : p === pat;
+      });
+    const settings = readJsonFile(path.join(w.cwd, ".claude", "settings.json")) as { permissions: { allow: string[]; deny: string[] } };
+    const deny = settings.permissions.deny;
+    const connectors = path.join(home, "shared", "plugins", "connectors");
+    for (const p of [path.join(connectors, "x", "connector.ts"), path.join(home, "shared", "inbox", "a.jpg"), path.join(w.cwd, "notes", "n.md"), path.join(w.cwd, "inputs", "i.txt")])
+      for (const tool of ["Read", "Edit"]) assert.ok(!covers(deny, tool, cc(p)), `${tool} of ${p} not denied:\n${deny.join("\n")}`);
+    assert.ok(covers(settings.permissions.allow, "Edit", cc(path.join(connectors, "x", "connector.ts"))));
+    for (const p of [path.join(cfg, "keys", "t.key"), path.join(cfg, "config.json"), path.join(cfg, "archives.json"), path.join(cfg, "consents.json"), path.join(cfg, "logins.json")])
+      for (const tool of ["Read", "Edit"]) assert.ok(covers(deny, tool, cc(p)), `${tool} of ${p} denied:\n${deny.join("\n")}`);
+    // Grok: the same rules, plain paths
+    const grok = fs.readFileSync(path.join(w.cwd, ".grok", "config.toml"), "utf8");
+    assert.ok(grok.includes(`Read(${path.join(cfg, "keys")}/**)`) && grok.includes(`Read(${path.join(cfg, "config.json")})`));
+    assert.ok(!grok.includes(`Read(${cfg}/**)`), "never the whole settings folder");
+    // OpenCode: of several matching rules the last counts — none for the settings folder as a whole
+    const oc = readJsonFile(path.join(w.cwd, "opencode.json")) as { permission: { external_directory: Record<string, string> } };
+    const ext = oc.permission.external_directory;
+    assert.equal(ext[`${cfg}/*`], undefined);
+    assert.equal(ext[`${path.join(cfg, "keys")}/*`], "deny");
+    assert.equal(ext[path.join(cfg, "config.json")], "deny");
+    assert.equal(ext[`${connectors}/*`], "allow");
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("the settings folder kept from the agents: whole while the research is elsewhere; else what strom keeps there and every entry without the research", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom kept ěš "));
+  try {
+    const cfg = path.join(dir, "config");
+    fs.mkdirSync(path.join(cfg, "Strom research", "shared"), { recursive: true });
+    fs.mkdirSync(path.join(cfg, "keys"));
+    fs.writeFileSync(path.join(cfg, "config.json"), "{}");
+    fs.writeFileSync(path.join(cfg, "něco nového.json"), "{}");
+    assert.deepEqual(settingsKeptFrom(cfg, [path.join(dir, "Documents", "Strom")]), [{ path: cfg, folder: true }]);
+    const kept = settingsKeptFrom(cfg, [path.join(cfg, "Strom research"), path.join(cfg, "Strom research", "shared")]);
+    const names = kept.map((k) => path.relative(cfg, k.path));
+    assert.ok(!names.includes("Strom research"), names.join(", "));
+    for (const n of ["keys", "config.json", "consents.json", "archives.json", "logins.json", "něco nového.json"]) assert.ok(names.includes(n), n);
+    assert.equal(kept.find((k) => k.path.endsWith("keys"))!.folder, true);
+    assert.equal(kept.find((k) => k.path.endsWith("config.json"))!.folder, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

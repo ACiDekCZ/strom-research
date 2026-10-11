@@ -36,8 +36,9 @@ export function detectAgent(env: Env): string | undefined {
   // Grok first: it passes on the environment it was started from (a Claude Code terminal's too).
   if (env.GROK_AGENT === "1") return "grok";
   if (env.CLAUDECODE) return "claude";
-  if (Object.keys(env).some((k) => k.startsWith("ANTIGRAVITY_"))) return "antigravity";
-  if (Object.keys(env).some((k) => k.startsWith("CODEX_"))) return "codex";
+  // (never the person's own folder of the agent, CODEX_HOME: set in a person's shell too)
+  if (Object.keys(env).some((k) => k.startsWith("ANTIGRAVITY_") && !k.endsWith("_HOME"))) return "antigravity";
+  if (Object.keys(env).some((k) => k.startsWith("CODEX_") && !k.endsWith("_HOME"))) return "codex";
   if (env.OPENCODE === "1" || env.OPENCODE_PID) return "opencode";
   // Cursor's agents — also xAI's Grok Bot, on Cursor's platform (found live): not one strom starts, but an agent
   if (env.CURSOR_AGENT) return "cursor";

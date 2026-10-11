@@ -31,13 +31,18 @@ before(() => {
   if (opts.skip) return;
   dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "strom-channel-")));
   const download = path.join(dir, "releases");
+  // the dist/ of the sources as it was: the builds below leave it alone (C10 — a manual try may run from it meanwhile)
+  const srcDist = path.join(ROOT, "dist");
+  const distWas = fs.existsSync(srcDist) ? `${fs.statSync(srcDist).ino}:${fs.statSync(srcDist).mtimeMs}` : undefined;
   for (const v of [STABLE, BETA]) {
     const out = path.join(download, `v${v}`);
-    const r = spawnSync(process.execPath, [path.join(ROOT, "scripts", "build-release.ts"), "--version", v, "--out", out], { encoding: "utf8", cwd: ROOT });
+    // compiled into the test's own folder: the dist/ of the sources stays as it is (another process may run from it)
+    const r = spawnSync(process.execPath, [path.join(ROOT, "scripts", "build-release.ts"), "--version", v, "--out", out, "--dist", path.join(dir, `dist-${v}`)], { encoding: "utf8", cwd: ROOT });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     // the Node of this test (a mirror of it: no download), the exact version — strom update keeps it
     fs.writeFileSync(path.join(out, "NODE_VERSION"), `${process.versions.node}\n`);
   }
+  assert.equal(fs.existsSync(srcDist) ? `${fs.statSync(srcDist).ino}:${fs.statSync(srcDist).mtimeMs}` : undefined, distWas, "the sources' dist/ untouched");
   // a "Node" that is this one: the installer checks its version, strom runs on it
   const name = nodeArchive(process.versions.node);
   const top = name.replace(/\.tar\.gz$/, "");
@@ -196,6 +201,12 @@ test("stable → beta → stable on an isolated installation: each switch backed
   inst.ok(["init", "Novákovi"]);
   const tree = path.join(inst.config().home, "Novákovi");
   const at = { cwd: tree };
+  // the model chosen for an agent — this computer's and a tree's own — goes on with every version
+  inst.ok(["config", "set", "model.lead", "gemini-3.1-pro-high", "--agent", "antigravity"]);
+  inst.ok(["config", "set", "model.lead", "gpt-6-sol", "--agent", "codex", "--for-tree"], at);
+  const models = () => [inst.config().models, JSON.parse(fs.readFileSync(path.join(tree, "strom.json"), "utf8")).models];
+  const chosen = [{ antigravity: { lead: "gemini-3.1-pro-high" } }, { codex: { lead: "gpt-6-sol" } }];
+  assert.deepEqual(models(), chosen);
   inst.ok(["person", "add", "Jiří /Dvořák/", "--sex", "M", "--born", "1890"], at);
   // Cyrillic, decomposed (NFD) as a keyboard of another system may send it
   inst.ok(["person", "add", "Анна /Иванова/".normalize("NFD"), "--sex", "F"], at);
@@ -226,6 +237,7 @@ test("stable → beta → stable on an isolated installation: each switch backed
   inst.ok(["check"], at);
   assert.equal(inst.config().lastVersion, BETA);
   assert.deepEqual(snapshot(inst, tree), a, "the beta changed nothing of the research");
+  assert.deepEqual(models(), chosen, "the models kept on the beta");
   inst.ok(["person", "add", "Marie /Nováková/", "--sex", "F"], at);
   const b = snapshot(inst, tree);
 
@@ -244,6 +256,7 @@ test("stable → beta → stable on an isolated installation: each switch backed
   const c = snapshot(inst, tree);
   assert.deepEqual(c, b, "the stable sees the research as the beta left it");
   nothingMissing(a, c);
+  assert.deepEqual(models(), chosen, "the models kept back on the stable");
   assert.ok((c.persons as any).persons.some((p: any) => p.name === "Marie Nováková"));
 
   // there and back again: each trip its own backup (the research written on in between)

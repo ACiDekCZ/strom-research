@@ -27,7 +27,8 @@
 
 import { GedWriter } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
-import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
+import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, HypothesisVariant, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
+import { linkInTree, recordedLinks } from "../core/hypolinks.ts";
 import { birthEvent, claimText, conflictTitle, coupleSides, displayName, familySides, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { dateYears } from "../core/gdate.ts";
@@ -40,7 +41,9 @@ import { hypothesisPeople } from "../core/directions.ts";
 import * as git from "../core/git.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
 import { readersOf } from "../core/review.ts";
+import { sexRaw, sideText, sidesOf } from "../core/conflicts.ts";
 import { humanTask } from "../cli/human.ts";
+import { parseYears } from "../core/years.ts";
 
 export const GED_PROFILES = ["standard", "strom"] as const;
 export type GedProfile = (typeof GED_PROFILES)[number];
@@ -125,6 +128,18 @@ export interface ExportOptions {
    * with 2 _STROM_ORIENT. Anything else gets it turned already, without the tag (an older app would show it lying).
    */
   turnsExcerpts?: boolean;
+  /**
+   * The Strom profile, for an app that shows what a hypothesis would connect (APP_SHOWS_HYPOTHESIS_LINKS): under each
+   * open hypothesis (_STROM_HYPO) its variants (2 _VAR) with their claim, links and sources, and where the tree ends
+   * the parents a variant names but nobody linked (2 _END named).
+   */
+  hypothesisLinks?: boolean;
+  /**
+   * The Strom profile, for an app that decides a conflict of the user's edit by side (APP_DECIDES_CONFLICTS): under an
+   * open one it may, 2 _STROM_TAKE Y; under each of its values the side (3 _STROM_SIDE user|research), the value empty
+   * when the side's is (a title taken off), a sex also as 3 _STROM_RAW M|F|U.
+   */
+  conflictSides?: boolean;
 }
 
 export interface ExportResult {
@@ -132,6 +147,9 @@ export interface ExportResult {
   lines: string[];
   stats: { persons: number; families: number; sources: number; repositories: number; events: number; skipped: number };
 }
+
+/** A source named by its ID in a text of any script (never \b, which knows only ASCII letters): as namesId. */
+const SOURCE_ID = /(?<![\p{L}\p{M}\p{N}])S\d{4,}(?![\p{L}\p{M}\p{N}])/gu;
 
 /** Whose IDs a person's REFN carries: a tree coming back is matched by them (strom sync, the Strom app). */
 export const REFN_TYPE = "strom-research";
@@ -215,11 +233,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   // What the research knows beyond the facts (the Strom profile, opts.research): read once.
   const research = {
     conflicts: opts.research ? tree.list<Conflict>("conflict") : [],
-    // with the people each is about: its subject's, and those its variants name (core/directions.ts hypothesisPeople)
+    // with the people each is about: its subject's, and those its variants name (core/directions.ts hypothesisPeople);
+    // for an app that shows what a hypothesis would connect, a decided or abandoned one too while a variant of it has
+    // links — the app tells "decided for B" (its ghost now a real link) from "decided otherwise" (STAT, _CHOSEN)
     hypotheses: opts.research
       ? tree
           .list<Hypothesis>("hypothesis")
-          .filter((h) => h.state === "open")
+          .filter((h) => !h.retracted && (h.state === "open" || (opts.hypothesisLinks && h.variants.some((v) => v.links?.length))))
           .map((h) => ({ h, people: hypothesisPeople(tree, h) }))
       : [],
     // a search is of the people of the task it served
@@ -232,7 +252,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   };
 
   // Where the tree ends, and the families nothing links to it (the Strom profile, opts.edges).
-  const ends = opts.edges && opts.for === "strom" ? treeEdges(tree) : undefined;
+  const ends = opts.edges && opts.for === "strom" ? treeEdges(tree, { named: !!opts.hypothesisLinks }) : undefined;
 
   // Who read each source (the Strom profile, opts.sourceReads).
   const readers = opts.sourceReads && opts.for === "strom" ? readersOf(tree) : undefined;
@@ -562,12 +582,21 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       w.line(2, "TYPE", c.fact ?? "EVEN");
       w.text(2, "TITL", conflictTitle(tree, c));
       w.line(2, "STAT", c.state === "resolved" ? "decided" : "open");
+      // a conflict of the user's edit the app decides by side (open: it may now), each value with its side
+      const sides = opts.conflictSides && opts.for === "strom" ? sidesOf(c) : undefined;
+      if (sides && c.state === "open") w.line(2, "_STROM_TAKE", "Y");
       for (const claim of c.claims) {
-        // in the research's language (found on Mac: "14 JAN 1931, Dolní Lhota, house 12" in the app's dialog)
-        w.text(2, "VAL", claimText(tree, c, claim));
+        const side = sides ? (claim === sides.user ? "user" : claim === sides.research ? "research" : undefined) : undefined;
+        // in the research's language (found on Mac: "14 JAN 1931, Dolní Lhota, house 12" in the app's dialog); a side's
+        // empty value empty (2 VAL alone: the app shows it as empty)
+        w.text(2, "VAL", side ? sideText(tree, c, claim) : claimText(tree, c, claim));
         if (claim.source && sourceById.has(claim.source)) {
           citedSources.add(claim.source);
           w.line(3, "SOUR", x(claim.source));
+        }
+        if (side) {
+          w.line(3, "_STROM_SIDE", side);
+          if (c.fact === "SEX") w.line(3, "_STROM_RAW", sexRaw(claim.value));
         }
       }
       if (c.state === "resolved" && c.resolution) w.text(2, "DECI", c.resolution);
@@ -575,18 +604,70 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const { h } of research.hypotheses.filter((x) => x.people.includes(p.id))) {
       w.line(1, "_STROM_HYPO", h.id);
       w.text(2, "TITL", h.question);
+      if (opts.hypothesisLinks) {
+        w.line(2, "STAT", h.state);
+        if (h.state === "decided" && h.chosen) w.line(2, "_CHOSEN", h.chosen);
+      }
       w.text(2, "NOTE", h.variants.map((v) => `${v.label}: ${v.claim}`).join("\n"));
+      if (opts.hypothesisLinks) for (const v of h.variants) variant(h, v);
     }
     for (const q of research.searched.filter((x) => x.people.includes(p.id)).map((x) => x.search)) {
       w.line(1, "_STROM_SEARCHED");
       w.text(2, "TITL", q.question);
-      const years = /^(\d{3,4})(?:\s*[-–]\s*(\d{3,4}))?$/.exec(q.scope.years ?? "");
-      if (years) w.line(2, "DATE", years[2] && years[2] !== years[1] ? `FROM ${years[1]} TO ${years[2]}` : years[1]!);
+      const years = parseYears(q.scope.years);
+      if (years) w.line(2, "DATE", years.to !== years.from ? `FROM ${years.from} TO ${years.to}` : String(years.from));
       w.line(2, "RESN", q.result === "found" ? "found" : "none");
       w.line(2, "_AT", q.created.slice(0, 10));
     }
   }
 
+  /**
+   * A variant of a hypothesis: its claim, what it would connect — only a link all of whose records are in the file,
+   * and of an open one none the tree has already (a child of that family; a decided one keeps it: the link it chose,
+   * now recorded); never one person merged into the other —, of an open one what it says that the tree records already
+   * (3 _INTREE: nothing uncertain to show, never "not linked yet"), and the sources its claim and support name (the
+   * app's ZADANI_VYZKUM_nejista-spojeni.md).
+   */
+  function variant(h: Hypothesis, v: HypothesisVariant): void {
+    const open = h.state === "open";
+    w.line(2, "_VAR", v.label);
+    w.text(3, "TITL", v.claim);
+    const person = (id: string) => personIds.has(id);
+    for (const l of v.links ?? []) {
+      // of an open one, a link the tree records since: said as the tree's own below (_INTREE), never as one to show
+      if (open && linkInTree(tree, l)) continue;
+      if (l.kind === "child") {
+        const parents = [...new Set(l.parents ?? [])];
+        // the family named, else the one its parents have made since (_PAR: parents who have no family together)
+        const f = l.family ? families.find((x) => x.id === l.family) : families.find((x) => parents.length && x.partners.length === parents.length && parents.every((p) => x.partners.includes(p)));
+        if (!person(l.person) || (l.family && !f) || (!f && (!parents.length || !parents.every(person))) || (open && f?.children.some((c) => c.person === l.person))) continue;
+        w.line(3, "_LINK", "child");
+        w.line(4, "_PERS", x(l.person));
+        if (f) w.line(4, "_FAM", x(f.id));
+        else for (const p of parents) w.line(4, "_PAR", x(p));
+      } else {
+        const people = [...new Set(l.persons)];
+        if (people.length < 2 || !people.every(person)) continue;
+        w.line(3, "_LINK", l.kind);
+        for (const p of people) w.line(4, "_PERS", x(p));
+      }
+    }
+    for (const l of recordedLinks(tree, h, v)) {
+      // the family that records it, and its people — all in the file
+      const f = linkInTree(tree, l);
+      const people = l.kind === "child" ? [l.person] : [...new Set(l.persons)];
+      if (!f || !families.some((y) => y.id === f.id) || !people.every(person)) continue;
+      w.line(3, "_INTREE", l.kind);
+      for (const p of people) w.line(4, "_PERS", x(p));
+      w.line(4, "_FAM", x(f.id));
+    }
+    const named = new Set([v.claim, ...v.support].flatMap((text) => text.match(SOURCE_ID) ?? []));
+    for (const s of named)
+      if (sourceById.has(s)) {
+        citedSources.add(s);
+        w.line(3, "SOUR", x(s));
+      }
+  }
 
   /** Years as a GEDCOM date: one year, or FROM … TO …. */
   function years(r: { from: number; to: number }): string {
@@ -614,9 +695,11 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const b of e.books) {
       w.line(2, "_BOOK", b.id);
       w.text(3, "TITL", b.title);
-      const y = /^(\d{3,4})(?:\s*[-–]\s*(\d{3,4}))?$/.exec(b.years ?? "");
-      if (y) w.line(3, "DATE", years({ from: Number(y[1]), to: Number(y[2] ?? y[1]) }));
+      const y = parseYears(b.years);
+      if (y) w.line(3, "DATE", years({ from: y.from, to: y.to }));
       w.line(3, "_ACCESS", b.access);
+      // its scans weak (their long side, px): an app that does not know it passes it by
+      if (b.weak) w.line(3, "_WEAK", String(b.weak));
     }
     for (const r of e.covered) w.line(2, "_COVERED", years(r));
     for (const r of e.noRecords) w.line(2, "_NORECORDS", years(r));
@@ -634,6 +717,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const h of e.hypotheses) {
       w.line(2, "_HYPO", h.id);
       for (const j of h.joins) w.line(3, "_JOIN", j);
+      // which variant would make the join (an app that shows what a hypothesis would connect)
+      if (opts.hypothesisLinks) for (const v of h.variants ?? []) w.line(3, "_VAR", v);
       if (h.island) {
         w.line(3, "_ISLAND", String(h.island.people));
         w.line(3, "_HELD", String(h.island.held));
@@ -656,6 +741,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const h of i.hypotheses) {
       w.line(2, "_HYPO", h.id);
       for (const j of h.joins) w.line(3, "_JOIN", j);
+      if (opts.hypothesisLinks) for (const v of h.variants ?? []) w.line(3, "_VAR", v);
     }
     if (i.held) w.line(2, "_HELD", String(i.held));
   }

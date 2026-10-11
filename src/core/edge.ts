@@ -5,11 +5,11 @@
 // links to the tree yet. Read only, computed from the research: what the Strom app shows on the card where the
 // tree ends (_STROM_EDGE, _STROM_ISLAND) and what `strom edge` says.
 
-import type { Conflict, Hypothesis, Person, RecordSet, Research, Search, Session, Task } from "./model.ts";
+import type { Conflict, Family, Hypothesis, Person, RecordSet, Research, Search, Session, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { now } from "./tree.ts";
 import { Settings } from "./config.ts";
-import { aboutPeople, directionOf, hypothesisPeople, namesId, scopes, type Scope } from "./directions.ts";
+import { aboutPeople, directionOf, hypothesisPeople, joiningVariants, namesId, scopes, type Scope } from "./directions.ts";
 import { birthEstimate, birthRecordProven, birthWindow, frontier, FRONTIER_LEVELS, RECORD_KINDS, recordsetsCovering, type FrontierItem } from "./frontier.ts";
 import { kinship, offTree } from "./kin.ts";
 import { familiesAsChild, familiesAsPartner, parentsOf, primaryName } from "./people.ts";
@@ -17,6 +17,9 @@ import { livingBorn } from "./review.ts";
 import { effectiveState, rankTasks } from "./queue.ts";
 import { subjectPeople } from "./records.ts";
 import { foldText } from "./text.ts";
+import { parseYears } from "./years.ts";
+import { weakScans } from "./mediaindex.ts";
+import { costPartial, sessionCost } from "./session.ts";
 
 /** What is missing above the person: both parents, one of them, or a record that proves the parents recorded. */
 export const EDGE_MISSING = ["parents", "father", "mother", "proof"] as const;
@@ -27,12 +30,13 @@ export const EDGE_MISSING = ["parents", "father", "mother", "proof"] as const;
  */
 export const EDGE_SCOPES = ["in", "limit", "paused", "done", "living", "outside", "off-tree"] as const;
 /**
- * What the records say so far, from the most final: the baptism names no father (born out of wedlock); every year of the
+ * What the records say so far, from the most final: the baptism names no father (born out of wedlock); a variant of an
+ * open hypothesis names the parents, nobody linked them (strom hypothesis link --child: the user decides); every year of the
  * birth is searched in vain or has no records — lost, before the known records begin, a gap in them; searched in
  * vain everywhere strom knew to look; the books left are only in the archive; searched in part; not searched yet;
  * no book of the birthplace known; the birthplace unknown; nothing to go on (no year, no place).
  */
-export const EDGE_ENDS = ["unnamed", "lost", "before-records", "gap", "not-found", "offline", "partly", "unsearched", "no-books", "no-place", "no-clue"] as const;
+export const EDGE_ENDS = ["unnamed", "named", "lost", "before-records", "gap", "not-found", "offline", "partly", "unsearched", "no-books", "no-place", "no-clue"] as const;
 /**
  * What comes next: an agent works on it now, it waits for the user, it is in the queue, it waits out of the queue
  * (a direction paused, people off the tree, put aside), strom proposes it with the next session, everything strom
@@ -65,6 +69,8 @@ export interface EdgeHypothesis {
   joins: string[];
   /** The family off the tree it would join (an edge on the tree): how many people, how many tasks about them wait for it. */
   island?: { people: number; held: number };
+  /** The variants that would make the join: their links, or their claims by ID, name the people off the tree. */
+  variants?: string[];
   /** The open tasks that test it. */
   tests: string[];
 }
@@ -84,8 +90,8 @@ export interface Edge {
   window?: { from: number; to: number };
   /** The known birth records of the place begin (before-records). */
   recordsFrom?: number;
-  /** The known books of the birth in those years. */
-  books: { id: string; title: string; years?: string; access: RecordSet["access"] }[];
+  /** The known books of the birth in those years; weak: the long side of their scans when they are weak (core/mediaindex.ts WEAK_SCAN_PX) — what was searched in vain on them may be there. */
+  books: { id: string; title: string; years?: string; access: RecordSet["access"]; weak?: number }[];
   /** Years of the window searched in vain in every known book of them. */
   covered: { from: number; to: number }[];
   /** Years of the window no book is known for (before the records begin, a gap). */
@@ -109,7 +115,7 @@ export interface Edge {
 /** A family nothing links to the tree: its people, the hypotheses that would join it (with the tree's people they name), tasks waiting for it. */
 export interface Island {
   people: string[];
-  hypotheses: { id: string; joins: string[] }[];
+  hypotheses: { id: string; joins: string[]; variants?: string[] }[];
   held: number;
 }
 
@@ -121,11 +127,8 @@ const EDGE_FACTS = new Set(["BIRT", "CHR", "BAPM", "FAMC"]);
 type Years = { from: number; to: number };
 
 function yearsOf(text: string | undefined): Years | undefined {
-  const m = /^\s*(\d{3,4})(?:\s*[-–]\s*(\d{3,4}))?\s*$/.exec(text ?? "");
-  if (!m) return undefined;
-  const a = Number(m[1]);
-  const b = m[2] ? Number(m[2]) : a;
-  return { from: Math.min(a, b), to: Math.max(a, b) };
+  const span = parseYears(text);
+  return span && { from: span.from, to: span.to };
 }
 
 /** Single years as ranges ([1780, 1781, 1782, 1790] → 1780–1782, 1790). */
@@ -161,7 +164,11 @@ function islands(tree: Tree, kin: Map<string, unknown>, tasks: Task[], hypothese
       hypotheses: hypotheses
         .map((h) => ({ h, about: hypothesisPeople(tree, h) }))
         .filter(({ about }) => about.some((x) => people.has(x)) && about.some((x) => kin.has(x)))
-        .map(({ h, about }) => ({ id: h.id, joins: about.filter((x) => kin.has(x)) })),
+        .map(({ h, about }) => {
+          // the variants that would join this family: they name its people
+          const variants = joiningVariants(tree, h, people);
+          return { id: h.id, joins: about.filter((x) => kin.has(x)), ...(variants.length ? { variants } : {}) };
+        }),
       held: tasks.filter((t) => LIVE.has(t.state) && off(t) && aboutPeople(tree, t.subject).some((x) => people.has(x))).length,
     };
     for (const id of people) out.set(id, island);
@@ -169,8 +176,38 @@ function islands(tree: Tree, kin: Map<string, unknown>, tasks: Task[], hypothese
   return out;
 }
 
-/** Every edge of the tree with something the research knows of it, and the families nothing links to the tree. */
-export function treeEdges(tree: Tree): { edges: Map<string, Edge>; islands: Map<string, Island> } {
+/**
+ * Whether a variant of the hypothesis would make the person a child of parents of the tree (strom hypothesis link
+ * --child): a family there, or parents there — not already (as the Strom file says it: core/gedcom export).
+ */
+function namesParents(tree: Tree, h: Hypothesis, person: string): boolean {
+  const there = (id: string) => {
+    const p = tree.get<Person>(id);
+    return !!p && !p.retracted;
+  };
+  return h.variants.some((v) =>
+    (v.links ?? []).some((l) => {
+      if (l.kind !== "child" || l.person !== person) return false;
+      const parents = [...new Set(l.parents ?? [])];
+      // parents of no family together — none since, with the child in it
+      if (!l.family)
+        return (
+          parents.length > 0 &&
+          parents.every(there) &&
+          !familiesAsChild(tree, person).some((f) => !f.retracted && f.partners.length === parents.length && parents.every((x) => f.partners.includes(x)))
+        );
+      const f = tree.get<Family>(l.family);
+      return !!f && !f.retracted && !f.children.some((c) => c.person === person);
+    }),
+  );
+}
+
+/**
+ * Every edge of the tree with something the research knows of it, and the families nothing links to the tree.
+ * `named`: an edge whose parents a variant names (the end named) — off for a Strom app that does not know it yet.
+ */
+export function treeEdges(tree: Tree, opts: { named?: boolean } = {}): { edges: Map<string, Edge>; islands: Map<string, Island> } {
+  const named = opts.named ?? true;
   const lang = tree.lang;
   const today = now().slice(0, 10);
   const kin = kinship(tree);
@@ -294,16 +331,20 @@ export function treeEdges(tree: Tree): { edges: Map<string, Edge>; islands: Map<
         else if (!kept.length) lostYears.push(y);
         else if (
           kept.every((b) =>
-            sought.some((q) => q.result === "negative" && q.recordsets.includes(b.id) && within(y, yearsOf(q.scope.years) ?? (q.scope.pages ? { from: 0, to: -1 } : yearsOf(b.years)))),
+            // a negative of an index is the index's (a copy, written by another hand, maybe incomplete): never the book searched in vain
+            sought.some((q) => q.result === "negative" && q.method !== "index" && q.recordsets.includes(b.id) && within(y, yearsOf(q.scope.years) ?? (q.scope.pages ? { from: 0, to: -1 } : yearsOf(b.years)))),
           )
         )
           covered.push(y);
         else open.push({ year: y, online: kept.some((b) => b.access === "online-free" || b.access === "online-login") });
       }
     const earliest = Math.min(...placeBooks.map((b) => yearsOf(b.years)?.from ?? Infinity));
+    // the parents a variant of an open hypothesis names, not linked: the user decides it (the hypothesis, its tests)
+    const naming = named && missing !== "proof" ? hyps.filter(({ h }) => namesParents(tree, h, p.id)).map(({ h }) => h.id) : [];
     let end: Edge["end"];
     // the baptism is read and names the mother alone (a child born out of wedlock); a mother missing is one not recorded yet
     if (missing === "father" && proven) end = "unnamed";
+    else if (naming.length) end = "named";
     else if (!est.place) end = est.year ? "no-place" : "no-clue";
     else if (!placeBooks.length) end = "no-books";
     else if (window && !open.length)
@@ -327,21 +368,28 @@ export function treeEdges(tree: Tree): { edges: Map<string, Edge>; islands: Map<
       const joining = kin.size > 0 && about.some((x) => kin.has(x)) && about.some((x) => !kin.has(x));
       const joins = joining ? about.filter((x) => kin.has(x) !== onTree) : [];
       const isle = joins.length && onTree ? isles.get(joins[0]!) : undefined;
+      // the variants that would make the join: those that name the people off the tree
+      const variants = joins.length ? joiningVariants(tree, h, onTree ? joins : (isles.get(p.id)?.people ?? [p.id])) : [];
       return {
         id: h.id,
         question: h.question,
         joins,
         ...(isle ? { island: { people: isle.people.length, held: isle.held } } : {}),
+        ...(variants.length ? { variants } : {}),
         // a task about it, or one whose words name it ("the baptism … (H0007 B)")
         tests: tasks.filter((t) => LIVE.has(t.state) && (t.subject.includes(h.id) || namesId(t.what, h.id))).map((t) => t.id),
       };
     });
+    // named, and no task tests the hypotheses that name them: what comes next is the user's decision
+    const untested = naming.length > 0 && edgeHyps.filter((h) => naming.includes(h.id)).every((h) => !h.tests.length);
+    const nextNow: Edge["next"] = end === "named" && untested && (next === "none" || next === "proposed") ? "decide" : next;
     const edgeConflicts = conflicts
       .filter((c) => subjectPeople(tree, c.subject).includes(p.id) && (!c.fact || EDGE_FACTS.has(c.fact)))
       .map((c) => c.id);
     const spent = sessions.filter((s) => s.task && mineIds.has(s.task));
-    const cost = spent.reduce((n, s) => n + (s.metrics?.costUsd ?? 0), 0);
-    const partial = spent.some((s) => s.state !== "open" && (s.metrics?.costPartial || s.metrics?.costUsd === undefined));
+    // what the sessions cost, the readers they started included
+    const cost = spent.reduce((n, s) => n + (sessionCost(s.metrics) ?? 0), 0);
+    const partial = spent.some((s) => s.state !== "open" && (costPartial(s.metrics) || s.metrics?.costUsd === undefined));
     const last = [...spent.map((s) => s.ended ?? s.started), ...sought.map((q) => q.created)].sort().pop()?.slice(0, 10);
 
     const known = scope === "in" || scope === "limit" || scope === "paused" || scope === "done" || edgeTasks.length || tried.length || edgeHyps.length || sought.length || edgeConflicts.length;
@@ -352,11 +400,14 @@ export function treeEdges(tree: Tree): { edges: Map<string, Edge>; islands: Map<
       scope,
       ...(through ? { research: through.research.id, generation: through.people.get(p.id)! } : {}),
       end,
-      next,
+      next: nextNow,
       ...(est.year || est.place ? { estimate: { ...(est.year ? { year: est.year } : {}), ...(est.place ? { place: est.place } : {}), ...(est.basis ? { basis: est.basis } : {}) } } : {}),
       ...(window ? { window } : {}),
       ...(Number.isFinite(earliest) && (end === "before-records" || noRecords.some((y) => y < earliest)) ? { recordsFrom: earliest } : {}),
-      books: books.map((b) => ({ id: b.id, title: b.title, ...(b.years ? { years: b.years } : {}), access: b.access })),
+      books: books.map((b) => {
+        const weak = weakScans(tree, b.id);
+        return { id: b.id, title: b.title, ...(b.years ? { years: b.years } : {}), access: b.access, ...(weak ? { weak } : {}) };
+      }),
       covered: ranges(covered),
       noRecords: ranges(noRecords),
       tasks: edgeTasks,

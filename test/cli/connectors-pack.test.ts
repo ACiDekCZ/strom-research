@@ -15,11 +15,11 @@ import http from "node:http";
 import { spawnSync } from "node:child_process";
 import type { AddressInfo } from "node:net";
 import { World, hasGit, fakeConnector, pluginDir, readJsonFile } from "../helpers.ts";
-import { testHooks, DEFAULT_PACE } from "../../src/core/net.ts";
+import { testHooks, DEFAULT_PACE, REFUSED_FOREVER } from "../../src/core/net.ts";
 import { encodeJpeg } from "../../src/image/jpeg-encode.ts";
 import { decodeJpeg } from "../../src/image/jpeg-decode.ts";
 import { blank } from "../../src/image/image.ts";
-import { opts, scans, pauses, TILE, archive, world, program, runInTab } from "./connectors.helpers.ts";
+import { opts, scans, pauses, TILE, archive, world, program, runInTab, netFile } from "./connectors.helpers.ts";
 import type { Archive } from "./connectors.helpers.ts";
 
 test("pack and unpack: the research handed over — the tree with its history, the images its records stand on, the connectors; the rest fetched again", opts, async () => {
@@ -54,6 +54,9 @@ test("pack and unpack: the research handed over — the tree with its history, t
   assert.match((await b.ok(["person", "list"], { cwd: root })).out, /P0001  Jan Novák/);
   assert.ok(fs.existsSync(path.join(b.home, "shared", "plugins", "connectors", "zkusebni", "connector.json")));
   assert.ok(fs.readFileSync(path.join(root, ".claude", "settings.json"), "utf8").includes(b.home), "the tree's permissions name this computer's folders");
+  // a connector that came with the research is new here: the person confirms its reading of the archive's terms
+  assert.equal((await b.run(["fetch", "zkusebni", "5359", "--recordset", "B1", "--images", "1"], { cwd: root })).code, 4, "asked first");
+  await b.ok(["allow", "archive", "zkusebni", "--accept"], { cwd: root, tty: true });
   // the image the record stands on is here; a page searched through comes from the archive again
   await b.ok(["media", "view", "B1:2"], { cwd: root });
   assert.match((await b.run(["media", "view", "B1:1"], { cwd: root })).err, /strom fetch zkusebni 5359 --recordset B0001 --images 1/);
@@ -96,9 +99,9 @@ done();
 `,
   );
   const r = await w.ok(["fetch", "zkusebni", "--find", "Dolní Lhota"]);
-  assert.match(r.out, /find \(\d+ s\): 2 request\(s\)/);
+  assert.match(r.out, /find \(\d+ s\): 3 request\(s\) \(the connector asked 2; 1 more: redirects or retries\)/, "the redirect is a request to the host too");
   assert.match(r.out, /Dolní Lhota N 1784–1820/);
-  assert.deepEqual(a.hits, ["/login", "/search-page", "/search"], "the redirect followed by strom, with its cookie");
+  assert.deepEqual(a.hits, ["/robots.txt", "/login", "/search-page", "/search"], "its robots.txt (once a day), then the redirect followed by strom, with its cookie");
   // the next run starts without the cookie: the server wants a new session
   program(dir, `import { done, fail, post, request } from "./sdk.ts";\nawait request();\nconst r = await post(${JSON.stringify(a.base)} + "/search", { place: "x" }, { headers: { "X-Requested-With": "XMLHttpRequest" } });\nif (r.status !== 400) fail("a cookie of another run");\ndone();\n`);
   assert.equal((await w.run(["fetch", "zkusebni", "--find", "x"])).code, 0);
@@ -195,11 +198,14 @@ test("the pace of a host: strom's pause and no cap made up — the user's own, s
   assert.equal((await w.run(["allow", "host", "127.0.0.1", "--pace", "1"])).code, 4, "the user's decision");
   assert.equal((await w.run(["allow", "host", "127.0.0.1", "--pace", "0.1"], { tty: true })).code, 2, "not below the shortest pause");
   const set = await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5", "--per-hour", "3000"], { tty: true });
-  assert.match(set.out, /127\.0\.0\.1: at least 0\.5 s apart, at most 3000 an hour — yours/);
-  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · at least 0\.5 s apart, at most 3000 an hour \(yours\)/);
+  // the person reads it in the research language, as strom allow archive says its decision
+  // a decimal comma in Czech and German, as the language writes it; a point in English
+  assert.match(set.out, /127\.0\.0\.1: nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu – vlastní tempo/);
+  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu \(vlastní tempo\)/);
   assert.match((await w.ok(["connector", "show", "zkusebni"])).out, /pace\s+at least 0\.5 s apart, at most 3000 an hour — yours for the host/);
   const back = await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--per-hour", "auto"], { tty: true });
-  assert.match(back.out, /127\.0\.0\.1: at least 2 s apart, no hourly cap — the service's again/);
+  assert.match(back.out, /127\.0\.0\.1: nejméně 2 s mezi dvěma požadavky, bez hodinového stropu – zase tempo služby/);
+  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--lang", "en"], { tty: true })).out, /127\.0\.0\.1: at least 2 s between two requests, no hourly cap – the service's pace again/);
   w.cleanup();
   await a.close();
 });
@@ -210,16 +216,132 @@ test("a refusal (403) stops the run and leaves the archive alone — until the u
   assert.equal(r.code, 1);
   assert.match(r.out, /stopped: .*403/);
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 1, "nothing after the refusal");
-  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · ⛔ refused us — left alone until/);
+  // the first request strom ever sent it, refused: a day's pause, as any first refusal (strom's client only a second day)
+  assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · ⛔ odmítl automatický přístup \(HTTP 403, \d{1,2}\. \d{1,2}\. \d\d:\d\d\) – znovu to strom zkusí až od \d{1,2}\. \d{1,2}\. \d\d:\d\d · /);
   const again = await w.run(["fetch", "zkusebni", "5359", "--images", "1"]);
-  assert.equal(again.code, 1);
-  assert.match(again.out, /left alone until/);
-  assert.equal(a.hits.length, 1, "not even another book");
+  assert.equal(again.code, 1, "left alone for the day: nothing goes, not even another book");
+  assert.match(again.out + again.err, /left alone|until \d{4}-|stopped/);
+  assert.deepEqual(a.hits, ["/robots.txt", "/img/zakazana/1.jpg"], "not even another book");
   assert.equal((await w.run(["allow", "host", "127.0.0.1", "--unblock"])).code, 4, "only the user");
-  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--unblock"], { tty: true, answers: ["y"] })).out, /the refusal is lifted/);
+  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--unblock"], { tty: true, answers: ["y"] })).out, /127\.0\.0\.1: už se na něj zase smí – strom se ho bude znovu ptát, pomalu/);
   assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "1"])).code, 0);
+  // the person's question and answer in their language: the research's (Czech) above, English and German here
+  await w.run(["fetch", "zkusebni", "zakazana", "--images", "1"]);
+  const no = await w.ok(["allow", "host", "127.0.0.1", "--unblock"], { env: { STROM_LANG: "en" }, tty: true, answers: ["n"] });
+  assert.match(no.out, /127\.0\.0\.1 is left alone \(it refused the requests, or said its limit is used up\)\. Lift it now — only if the archive said it is fine\?/);
+  assert.match(no.out, /Nothing changed: 127\.0\.0\.1 is still left alone\./);
+  const de = await w.ok(["allow", "host", "127.0.0.1", "--unblock"], { env: { STROM_LANG: "de" }, tty: true, answers: ["j"] });
+  assert.match(de.out, /127\.0\.0\.1 wird in Ruhe gelassen/);
+  assert.match(de.out, /127\.0\.0\.1: nicht mehr in Ruhe gelassen – strom fragt wieder an, langsam/);
+  assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "2"])).code, 0);
   w.cleanup();
   await a.close();
+});
+
+test("strom consents speaks the research language — each host, archive, level and pace in Czech and German, English as before, --json the same", opts, async () => {
+  const { w, a } = await world();
+  await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5", "--per-hour", "3000"], { tty: true });
+  assert.equal((await w.run(["fetch", "zkusebni", "zakazana", "--images", "1"])).code, 1, "a refusal (403): left alone for a day");
+  const english = /consents: (on|off)|connectors run|refused us|left alone|at least|apart|an hour|hosts \(automated|archives \(what|the service's pace|take back|\(none\)|  allowed  /;
+  // the research's language (Czech): every line, the date as the menu says it
+  const cs = (await w.ok(["consents"])).out;
+  assert.match(cs, /^souhlasy: vypnuto – stahovače běží bez ptaní \(tempo hlídá strom, jen ke svým serverům\)/);
+  // the refusal said once — why, its details in one parenthesis, then what strom does — and never "us"
+  assert.match(cs, /\nstahovače\n  \(žádné\)\nservery \(automatický přístup\)\n  127\.0\.0\.1 · ⛔ odmítl automatický přístup \(HTTP 403, \d{1,2}\. \d{1,2}\. \d\d:\d\d\) – znovu to strom zkusí až od \d{1,2}\. \d{1,2}\. \d\d:\d\d · požadavků za poslední hodinu: \d+ · /);
+  assert.match(cs, /nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu \(vlastní tempo\)\narchivy \(co jejich podmínky stromu dovolují: dovoleno · omezeno · jen ručně · zakázáno; neznámé jako omezeno\)\n/);
+  assert.match(cs, /\n  127\.0\.0\.1  zkusebni  dovoleno · tempo služby: nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu\n/);
+  assert.doesNotMatch(cs, /0\.5 s/);
+  assert.match(cs, /\ntempo: na každý server jeden požadavek po druhém – .*jinak nejméně 2 s mezi požadavky;/);
+  assert.match(cs, /\nvzít zpět: strom allow connector <name> --revoke · strom allow host <host> --revoke · strom allow archive <host> --revoke\n$/);
+  assert.doesNotMatch(cs, english);
+  const de = (await w.ok(["consents", "--lang", "de"])).out;
+  assert.match(de, /^Zustimmungen: aus – Downloader laufen ohne Nachfrage/);
+  assert.match(de, /\n {2}127\.0\.0\.1 · ⛔ hat den automatischen Zugriff abgelehnt \(HTTP 403, \d{1,2}\.\d{1,2}\. \d\d:\d\d\) – strom versucht es erst wieder ab \d{1,2}\.\d{1,2}\. \d\d:\d\d · /);
+  assert.match(de, /mindestens 0,5 s zwischen zwei Anfragen, höchstens 3000 pro Stunde \(eigenes Tempo\)/);
+  assert.match(de, /\n {2}127\.0\.0\.1 {2}zkusebni {2}erlaubt · Tempo des Dienstes: mindestens 0,5 s/);
+  assert.doesNotMatch(de, /0\.5 s/);
+  assert.match(de, /\nzurücknehmen: strom allow connector <name> --revoke/);
+  assert.doesNotMatch(de, english);
+  // English as it read before, only impersonal now
+  const en = (await w.ok(["consents", "--lang", "en"])).out;
+  assert.match(en, /^consents: off — connectors run without asking \(paced by strom, only to their hosts\); code that goes round strom needs the person's yes/);
+  assert.match(en, /\nconnectors\n {2}\(none\)\nhosts \(automated access\)\n {2}127\.0\.0\.1 · ⛔ refused automated access \(HTTP 403, \d{4}-\d\d-\d\d \d\d:\d\d\) — strom tries again only from (\d{4}-\d\d-\d\d )?\d\d:\d\d · /);
+  // the reason once, no "us"/"uns"/"nás" in any language
+  for (const [out, why] of [[cs, /odmítl/g], [de, /abgelehnt|abgewiesen/g], [en, /refused/g]] as const) {
+    const line = out.split("\n").find((l) => l.includes("⛔"))!.split(" · ")[1]!;
+    assert.equal(line.match(why)?.length, 1, line);
+    assert.equal(line.match(/\(/g)?.length, 1, "the details in one parenthesis: " + line);
+    assert.doesNotMatch(line, /(^|[^\p{L}\p{M}])(nás|uns|us)(?![\p{L}\p{M}])/u, line);
+  }
+  assert.match(en, /at least 0\.5 s apart, at most 3000 an hour \(the person's own\)\narchives \(what their terms let strom do: allowed · restricted · manual · forbidden; unknown as restricted\)\n {2}127\.0\.0\.1 {2}zkusebni {2}allowed · the service's pace at least 0\.5 s apart, at most 3000 an hour\n/);
+  assert.match(en, /\ntake back: strom allow connector <name> --revoke/);
+  assert.doesNotMatch(en, /\b(you|your|yours)\b/);
+  // --json: what it always was, whatever the language
+  const json = (await w.ok(["consents", "--json"])).json;
+  assert.deepEqual((await w.ok(["consents", "--json", "--lang", "de"])).json, json);
+  assert.deepEqual(Object.keys(json).sort(), ["archives", "connectors", "consents", "hostState", "hosts", "logins", "pending"]);
+  assert.equal(json.consents, "off");
+  assert.deepEqual(json.archives.map((x: { host: string; connector: string; level: string; pace: unknown }) => [x.host, x.connector, x.level, x.pace]), [["127.0.0.1", "zkusebni", "allowed", { minIntervalMs: 500, perHour: 3000 }]]);
+  assert.ok(json.hostState["127.0.0.1"].blockedUntil > Date.now());
+  w.cleanup();
+  await a.close();
+});
+
+test("strom consents: every kind of refusal said once — why, its details in one parenthesis, what strom does — never \"us\", a slowdown and a pace with the language's decimal comma", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  const day = Date.now() + 20 * 3600_000;
+  const states: Record<string, Record<string, unknown>> = {
+    "client.example.org": { refusedKind: "client", blockedUntil: REFUSED_FOREVER, reason: "it refused strom's client (HTTP 403 at 2026-10-11 15:44)" },
+    "client-old.example.org": { refusedKind: "client", blockedUntil: REFUSED_FOREVER, reason: "it refused strom's client (HTTP 403)" },
+    "first.example.org": { refusedKind: "first", blockedUntil: day, reason: "it refused us (HTTP 403 at 2026-10-11 15:44)" },
+    "load.example.org": { refusedKind: "load", blockedUntil: day, reason: "it refused us (HTTP 401 at 2026-10-11 15:44)" },
+    "login.example.org": { refusedKind: "login", blockedUntil: day, reason: "it refused us (HTTP 401 at 2026-10-11 15:44)" },
+    "slow.example.org": { blockedUntil: day, reason: "it asked us to slow down twice (HTTP 429 at 2026-10-11 15:44)", slowdown: 1.5 },
+    "silent.example.org": { blockedUntil: day, reason: "no answer at 2026-10-11 15:44 — the server is down, or it blocks this IP" },
+    "browser.example.org": { blockedUntil: day, reason: "it refused the browser (HTTP 403 at 2026-10-11 15:44)" },
+    "browser-slow.example.org": { blockedUntil: day, reason: "it asked the browser to slow down (HTTP 429 at 2026-10-11 15:44)" },
+    "none.example.org": { refusedKind: "first", blockedUntil: day },
+  };
+  for (const [host, s] of Object.entries(states)) {
+    fs.mkdirSync(path.dirname(netFile(w, host)), { recursive: true });
+    fs.writeFileSync(netFile(w, host), JSON.stringify({ recent: [], ...s }));
+  }
+  const said = { cs: /odmítl|požádal|bez odpovědi/g, de: /abgelehnt|gebeten|keine Antwort/g, en: /refused|asked|no answer/g };
+  const outs: Record<string, string> = {};
+  for (const lang of ["cs", "de", "en"] as const) {
+    const out = (outs[lang] = (await w.ok(["consents", "--lang", lang])).out);
+    const refused = out.split("\n").filter((l) => l.includes("⛔"));
+    assert.equal(refused.length, Object.keys(states).length, out);
+    for (const line of refused) {
+      const part = line.split(" · ")[1]!;
+      assert.equal(part.match(said[lang])?.length, 1, `the reason once: ${part}`);
+      assert.ok((part.match(/\(/g)?.length ?? 0) <= 1, `its details in one parenthesis: ${part}`);
+      assert.doesNotMatch(part, /(^|[^\p{L}\p{M}])(nás|uns|us)(?![\p{L}\p{M}])/u, part);
+      assert.doesNotMatch(part, /it refused|it asked|left alone|nesahá|in Ruhe/, part);
+    }
+  }
+  const { cs, de, en } = outs as { cs: string; de: string; en: string };
+  // a refusal of strom's client: until the person lifts it
+  assert.match(cs, /\n  client\.example\.org · ⛔ odmítl automatický přístup stromu \(HTTP 403, \d{1,2}\. \d{1,2}\. 15:44\) – strom to znovu nezkusí, dokud to člověk nezruší: strom allow host client\.example\.org --unblock · /);
+  assert.match(cs, /\n  client-old\.example\.org · ⛔ odmítl automatický přístup stromu \(HTTP 403\) – strom to znovu nezkusí, dokud to člověk nezruší: /);
+  assert.match(de, /\n  client\.example\.org · ⛔ hat den automatischen Zugriff von strom abgelehnt \(HTTP 403, \d{1,2}\.\d{1,2}\. 15:44\) – strom versucht es nicht wieder, bis ein Mensch es aufhebt: strom allow host client\.example\.org --unblock · /);
+  assert.match(en, /\n  client\.example\.org · ⛔ refused strom's automated access \(HTTP 403, 2026-10-11 15:44\) — strom will not try again until the person lifts it: strom allow host client\.example\.org --unblock · /);
+  // a day's pause: the moment it ends
+  assert.match(cs, /\n  first\.example\.org · ⛔ odmítl automatický přístup \(HTTP 403, \d{1,2}\. \d{1,2}\. 15:44\) – znovu to strom zkusí až od [^·]+ · /);
+  assert.match(cs, /\n  login\.example\.org · ⛔ odmítl přihlášení \(HTTP 401, [^)]+\) – znovu to strom zkusí až od /);
+  assert.match(cs, /\n  none\.example\.org · ⛔ odmítl automatický přístup – znovu to strom zkusí až od /);
+  assert.match(cs, /\n  silent\.example\.org · ⛔ bez odpovědi \(\d{1,2}\. \d{1,2}\. 15:44; server neběží, nebo blokuje IP adresu tohoto počítače\) – znovu to strom zkusí až od /);
+  assert.match(cs, /\n  slow\.example\.org · ⛔ dvakrát požádal o zpomalení \(HTTP 429, [^)]+\) – znovu to strom zkusí až od [^·]+ · zpomaleno ×1,5 · /);
+  assert.match(de, /\n  load\.example\.org · ⛔ hat den automatischen Zugriff abgelehnt \(HTTP 401, \d{1,2}\.\d{1,2}\. 15:44\) – strom versucht es erst wieder ab /);
+  assert.match(de, /\n  browser\.example\.org · ⛔ hat den Browser abgelehnt \(HTTP 403, [^)]+\) – strom versucht es erst wieder ab /);
+  assert.match(en, /\n  first\.example\.org · ⛔ refused automated access \(HTTP 403, 2026-10-11 15:44\) — strom tries again only from (\d{4}-\d\d-\d\d )?\d\d:\d\d · /);
+  assert.match(en, /\n  browser-slow\.example\.org · ⛔ asked the browser to slow down \(HTTP 429, 2026-10-11 15:44\) — strom tries again only from /);
+  assert.match(en, /· slowed ×1\.5 · /);
+  // the pace: a decimal comma in Czech and German, a point in English
+  assert.match(cs, /nejméně 2 s mezi dvěma požadavky/);
+  assert.doesNotMatch(cs + de, /\d\.\d+ s\b|×\d\.\d/);
+  w.cleanup();
 });
 
 test("what the portal and the tree allow: manual stays manual, a forbidden archive is not fetched", opts, async () => {
@@ -229,10 +351,23 @@ test("what the portal and the tree allow: manual stays manual, a forbidden archi
   assert.equal(m.code, 2);
   assert.match(m.err, /does not allow automated download[\s\S]*the user saves them by hand: strom task wait T… --images B…:1 --on/);
   assert.match((await w.ok(["fetch", "rucni", "--find", "Týnec"])).out, /Týnec N 1784–1820/, "finding books is fine");
-  await w.ok(["repo", "add", "Archiv Čížkov", "--url", `${a.base}/`, "--automation", "forbidden"]);
+  // an archive the tree marks manual (browser only): no images, but its catalogue may be searched and listed
+  await w.ok(["repo", "add", "Archiv Čížkov", "--url", `${a.base}/`, "--automation", "manual"]);
+  const mi = await w.run(["fetch", "zkusebni", "5359", "--images", "1"]);
+  assert.equal(mi.code, 2);
+  assert.match(mi.err, /R0001 Archiv Čížkov is marked automation manual in this tree — no images downloaded/);
+  assert.match(mi.err, /the user saves them by hand: strom task wait T… --images B…:1[\s\S]*strom fetch zkusebni 5359 --list/);
+  assert.doesNotMatch(mi.err, /--automation allowed/, "never a hint to lift the archive's own rule");
+  assert.match((await w.ok(["fetch", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/, "finding books in a manual archive is fine");
+  assert.match((await w.ok(["fetch", "zkusebni", "5359", "--list"])).out, /5359/, "so is describing one");
+  // forbidden: nothing automated at all
+  await w.ok(["repo", "edit", "R0001", "--automation", "forbidden"]);
   const f = await w.run(["fetch", "zkusebni", "5359", "--images", "1"]);
   assert.equal(f.code, 2);
   assert.match(f.err, /R0001 Archiv Čížkov is marked automation forbidden in this tree/);
+  const ff = await w.run(["fetch", "zkusebni", "--find", "Týnec"]);
+  assert.equal(ff.code, 2, "a forbidden archive is not searched either");
+  assert.match(ff.err, /automation forbidden in this tree — no requests through a connector/);
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 0);
   w.cleanup();
   await a.close();
@@ -330,6 +465,16 @@ test("connector add: from a folder, copied into the plugins folder under its nam
   await a.close();
 });
 
+// A live run's --regex with a backtick (a script's template string) made its shell command be refused under dontAsk.
+test("connector grep --regex: a backtick is written as . — the help and the discovery brief say so", async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  assert.match((await w.ok(["help", "connector", "grep"])).out, /--regex\s+the pattern is a regular expression \(JavaScript, in any case\) — a backtick in it written as \. \(any character\): a command with one is refused/);
+  await w.ok(["connector", "new", "zkouska", "--url", "https://archive.example.org"]);
+  assert.match(fs.readFileSync(path.join(pluginDir(w, "zkouska"), "DISCOVERY.md"), "utf8"), /\(`--regex` for a pattern; a backtick in it written as `\.`, any character —\s+a command with a backtick is refused\)/);
+  w.cleanup();
+});
+
 test("connector grep: the saved answers searched, each hit with the text round it — any case, any script, composed or not", opts, async () => {
   const { w, a, dir } = await world();
   const probe = path.join(dir, ".test", "probe");
@@ -377,6 +522,37 @@ test("connector grep: the saved answers searched, each hit with the text round i
   await a.close();
 });
 
+// A live run read a minified script a probe saved whole and went past its read limit.
+test("connector probe: a big answer, or a minified one of one long line, is to be searched, never read whole", opts, async () => {
+  const minified = `var a={${Array.from({ length: 800 }, (_, i) => `k${i}:"/api/v1/item/${i}"`).join(",")}};`; // one line, ~20 000 characters
+  const page = Array.from({ length: 3000 }, (_, i) => `<li><a href="/kniha/${i}">Žďár — kniha ${i}</a></li>`).join("\n"); // ~150 KB of short lines
+  const server = http.createServer((req, res) => {
+    if (req.url === "/app.min.js") res.writeHead(200, { "content-type": "application/javascript" }).end(minified);
+    else if (req.url === "/seznam.html") res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(page);
+    else res.writeHead(200, { "content-type": "text/html" }).end("<p>malá stránka</p>\n");
+  });
+  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const w = new World();
+  await w.withTree();
+  await fakeConnector(w, "velky", base);
+  const js = await w.ok(["connector", "probe", "velky", `${base}/app.min.js`]);
+  assert.match(js.out, /saved: .*app\.min\.js — too big to read whole \(\d+ KB, a line of \d+ characters\): never read the file, search it: strom connector grep velky <text> --in app\.min\.js/);
+  const html = await w.ok(["connector", "probe", "velky", `${base}/seznam.html`, "--json"]);
+  assert.equal(html.json.big, true);
+  const htmlText = await w.ok(["connector", "probe", "velky", `${base}/seznam.html`]);
+  assert.match(htmlText.out, /too big to read whole \(\d+ KB\): never read the file, search it: strom connector grep velky <text> --in seznam\.html/);
+  assert.doesNotMatch(htmlText.out, /a line of/);
+  // a small one is read as before
+  const small = await w.ok(["connector", "probe", "velky", `${base}/mala`]);
+  assert.match(small.out, /saved: .*mala — search it: strom connector grep velky <text> \(an address/);
+  assert.doesNotMatch(small.out, /too big/);
+  // and the search finds what it holds
+  assert.equal((await w.ok(["connector", "grep", "velky", "/api/v1/item/799", "--in", "app.min.js", "--json"])).json.total, 1);
+  w.cleanup();
+  await new Promise((done) => server.close(done));
+});
+
 test("connector probe: one request through strom while mapping a portal, the answer saved to read", opts, async () => {
   const { w, a, dir } = await world();
   const r = await w.ok(["connector", "probe", "zkusebni", `${a.base}/login`]);
@@ -394,7 +570,7 @@ test("connector probe: one request through strom while mapping a portal, the ans
   assert.notEqual(off.code, 0);
   assert.match(off.err, /elsewhere\.example is not one of the hosts this connector may contact/);
   assert.equal((await w.run(["connector", "probe", "zkusebni", `${a.base}/x`, "--header", "bez dvojtečky"])).code, 2);
-  assert.deepEqual(a.hits, ["/login", "/search-page", "/search", "/search"]);
+  assert.deepEqual(a.hits, ["/robots.txt", "/login", "/search-page", "/search", "/search"], "its robots.txt once, before the first probe of the day");
   await w.ok(["connector", "test", "zkusebni", "--find", "Lhota"]);
   assert.ok(fs.existsSync(path.join(dir, ".test", "probe", "hledani.txt")), "a test starts afresh, but what probes saved stays");
   w.cleanup();
@@ -456,9 +632,27 @@ test("a part of an image, sharper: one request, registered with its image — a 
   assert.match((await w.ok(["media", "view", "B1:1", "--crop", "0.6,0.1,0.3,0.3"])).out, /from M0003, a part of the image fetched sharper \(2\.0× the detail of the whole image\)/);
   // a place outside the part: the whole image
   assert.equal((await w.ok(["media", "view", "B1:1", "--crop", "0.1,0.5,0.3,0.3", "--json"])).json.from, undefined);
-  // again: registered already, nothing asked for; the whole image is not "registered" by its part
-  assert.match((await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--crop", "0.5,0,0.5,0.5"])).out, /is registered already: M0003 — nothing fetched/);
-  assert.equal(a.hits.length, 1);
+  // again: here already, nothing asked for; the whole image is not "registered" by its part
+  const commits = spawnSync("git", ["rev-list", "--count", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).stdout.trim();
+  const again = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--crop", "0.5,0,0.5,0.5"]);
+  assert.match(again.out, /^part 0\.5,0,0\.5,0\.5 of image 1 of B0001: already here — M0003, the same part · no request\nlook at it: strom media view M0003\n/);
+  const json = (await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--crop", "0.5,0,0.5,0.5", "--json"])).json;
+  assert.deepEqual([json.held.id, json.held.how, json.added], ["M0003", "same", []]);
+  // a part inside it, a little smaller (as an agent asks for one entry again): a new one would bring at most 800 ×
+  // 0.5/0.45 = 889 px across the image, not 1.2× the 800 of M0003 — answered from M0003, its place in it, no request
+  const inner = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--crop", "0.52,0.02,0.45,0.45"]);
+  assert.match(inner.out, /part 0\.52,0\.02,0\.45,0\.45 of image 1 of B0001: already here — M0003 \(part 0\.5,0,0\.5,0\.5, 800 px across the image · 2\.0× the detail of the whole image\) · no request\n {2}a part this size comes from zkusebni at most 889 px across the image \(1\.1× — no sharper\)\nlook at it: strom media view M0003 --crop 0\.04,0\.04,0\.9,0\.9 · a smaller part \(one entry\) may come sharper/);
+  assert.equal(a.hits.length, 1, "no request");
+  const fetches = fs.readFileSync(path.join(w.cwd, ".strom", "metrics", "fetch.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  const held = fetches.at(-1)!;
+  assert.deepEqual([held.cmd, held.img, held.requests, held.held, held.result, held.noSharper, held.hosts], ["part", 1, 0, "M0003", "held", undefined, undefined]);
+  // nothing written: no new image, no commit
+  assert.equal((await w.ok(["media", "list", "--json"])).json.total, 3);
+  assert.equal(spawnSync("git", ["rev-list", "--count", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).stdout.trim(), commits);
+  // the view it names is that place of M0003
+  assert.deepEqual((await w.ok(["media", "view", "M0003", "--crop", "0.04,0.04,0.9,0.9", "--json"])).json.region, { x: 16, y: 12, w: 360, h: 270 });
+  // a much smaller part inside it may come sharper (at most 800 × 0.5/0.2 across the image): it would be asked for
+  assert.match((await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--crop", "0.6,0.1,0.2,0.2", "--dry-run"])).out, /would fetch part 0\.6,0\.1,0\.2,0\.2 of image 1/);
   assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1", "--recordset", "B1"])).out, /images 1 of B0001 are registered already/);
   // tried while building it
   const t = await w.ok(["connector", "test", "zkusebni", "--fetch", "5359", "--images", "2", "--crop", "0,0.5,0.5,0.5"]);
@@ -473,6 +667,21 @@ test("a part of an image, sharper: one request, registered with its image — a 
   const wrong = await w.run(["fetch", "zkusebni", "--recordset", "B1", "--images", "2", "--crop", "0,0,0.5,0.5"]);
   assert.match(wrong.out, /stopped: asked for a part of image 2, it gave image 3/);
   assert.equal((await w.ok(["media", "list", "--json"])).json.total, 3, "nothing registered");
+  // a part no sharper than the image here is not asked for (N0233: halves of a book, some of whose scans held as much):
+  // the parts of the book show the most a part of that size gets — image 3 here has as much already
+  program(dir, code);
+  const big = path.join(w.dir, "velký");
+  fs.mkdirSync(big);
+  fs.writeFileSync(path.join(big, "s0003.jpg"), encodeJpeg(blank(800, 600, 1, 180), 85));
+  await w.ok(["media", "add", big, "--recordset", "B1"]); // M0004, image 3, 800×600
+  a.hits.length = 0;
+  const same = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "3", "--half", "right"]);
+  assert.match(same.out, /part 0\.5,0,0\.5,1 of image 3 of B0001: already here — M0004 \(the whole image, 800 px across\) · no request\n {2}a part this size comes from zkusebni at most 800 px across the image \(1\.0× — no sharper\)\nlook at it: strom media view B0001:3 --crop 0\.5,0,0\.5,1 · a smaller part \(one entry\) may come sharper/);
+  assert.deepEqual(a.hits, [], "no request");
+  // a smaller part may come sharper (the portal's size limit): asked for; so is a half of an image whose scan here is small
+  await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "3", "--crop", "0.1,0.1,0.2,0.2"]);
+  await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "2", "--half", "right"]);
+  assert.equal(a.hits.length, 2);
   w.cleanup();
   await a.close();
 });

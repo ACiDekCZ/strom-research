@@ -2,8 +2,12 @@
 // strom — genealogical research toolkit for AI agents.
 
 import fs from "node:fs";
-import { main } from "./cli/main.ts";
-import { installation, withInstallEnv } from "./core/self.ts";
+import { settleColors } from "./cli/colors.ts";
+
+// Before anything else loads (an agent's shell with NO_COLOR and FORCE_COLOR both: no warning of Node's on every command).
+settleColors(process.env);
+const { main } = await import("./cli/main.ts");
+const { installation, withInstallEnv } = await import("./core/self.ts");
 
 // The environment this installation was installed with (its own settings, isolated): for this strom and all it starts.
 Object.assign(process.env, withInstallEnv(process.env, installation().env));

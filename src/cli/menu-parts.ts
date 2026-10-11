@@ -35,18 +35,21 @@ export async function pause(ctx: Context, lang: string, enter: "ui.enter" | "ui.
  * A submenu: its items (built afresh each time, so what they say is current), numbered in the order shown, 0 back.
  * An item's act returning true leaves the submenu. An act waits for Enter itself, only after a long answer —
  * never after 0 or a question left: the person went back, nothing to read.
+ *
+ * `fixed`: each item keeps its own key as its number (1…9) — an item shown only sometimes leaves a gap where it is not,
+ * so the numbers a person knows never move; the number of an item not shown is refused like any wrong one.
  */
-export async function subMenu(ctx: Context, lang: string, build: () => { title?: string; items: Item[] }): Promise<"quit" | void> {
+export async function subMenu(ctx: Context, lang: string, build: () => { title?: string; items: Item[] }, opts: { fixed?: boolean } = {}): Promise<"quit" | void> {
   for (;;) {
     if (outOfAnswers(ctx)) return;
     const { title, items } = build();
-    const all = [...items, { key: "0", label: ui(lang, "ui.browse.back"), act: async () => true }];
+    const all = [...(opts.fixed ? [...items].sort((a, b) => Number(a.key) - Number(b.key)) : items), { key: "0", label: ui(lang, "ui.browse.back"), act: async () => true }];
     ctx.io.stdout("\n");
     let n = 0;
     // Enter goes back: an item here changes or starts something, a person picks it by its number
     const i = await ctx.choose(
       title ?? "",
-      all.map((it) => ({ key: it.key === "0" ? "0" : String(++n), label: it.label })),
+      all.map((it) => ({ key: it.key === "0" || opts.fixed ? it.key : String(++n), label: it.label })),
       all.length - 1,
     );
     if (i === undefined) return;

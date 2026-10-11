@@ -4,7 +4,9 @@
 
 import { parseArgs } from "node:util";
 import { UsageError } from "../core/errors.ts";
-import { GLOBAL_OPTIONS, commands, match, optionsOf, subcommandsOf, type CommandDef, type Input, type OptionDef } from "./registry.ts";
+import { ALL_PREFIXES } from "../core/model.ts";
+import { shellArg } from "./format.ts";
+import { GLOBAL_OPTIONS, aliasExtends, commands, match, optionsOf, subcommandsOf, usageLine, WRITE_OPTIONS, type CommandDef, type Input, type OptionDef, type Typed } from "./registry.ts";
 
 const VALUE_GLOBALS = new Set(GLOBAL_OPTIONS.filter((o) => o.type === "string").map((o) => `--${o.name}`));
 
@@ -32,7 +34,7 @@ export function splitCommand(argv: string[]): { words: string[]; rest: string[] 
     }
     if (collecting) {
       const candidate = [...words, tok];
-      const extends_ = match(candidate)?.used === candidate.length || subcommandsOf(candidate).length > 0;
+      const extends_ = match(candidate)?.used === candidate.length || subcommandsOf(candidate).length > 0 || aliasExtends(candidate);
       if (extends_) {
         words.push(tok);
         continue;
@@ -117,9 +119,134 @@ function unknownCommand(words: string[]): UsageError {
   });
 }
 
+/** One option as the usage under a mistake says it: --name <value>, "…" when repeatable, its limit. */
+function optionWord(o: OptionDef): string {
+  const value = o.type === "boolean" ? "" : ` ${o.value ?? "<value>"}`;
+  return `--${o.name}${value}${o.multiple ? "…" : ""}${o.max ? ` (≤${o.max})` : ""}`;
+}
+
+/**
+ * The command's synopsis and its own options, compact — said under a mistake in calling it, so the agent tries again
+ * without strom help (K2: a help after most such errors).
+ */
+export function usageOf(def: CommandDef, program = "strom"): string {
+  const own = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !o.hidden);
+  const synopsis = usageLine(def).replace(/^strom/, program);
+  const args = (def.args ?? []).filter((a) => a.max).map((a) => `<${a.name}> ≤${a.max} characters`);
+  const out = [`usage: ${synopsis}${args.length ? `   (${args.join(", ")})` : ""}`];
+  let line = " ";
+  for (const w of own.map(optionWord)) {
+    if (line.length + w.length + 1 > 110 && line.trim()) {
+      out.push(line);
+      line = " ";
+    }
+    line += ` ${w}`;
+  }
+  if (line.trim()) out.push(line);
+  return out.join("\n");
+}
+
+/** Other names of options (--surnames for --surname) as their own: "--surnames=x" too. */
+function withOptionAliases(defs: OptionDef[], rest: string[]): string[] {
+  const alias = new Map<string, string>(defs.flatMap((o) => (o.aliases ?? []).map((a): [string, string] => [`--${a}`, `--${o.name}`])));
+  if (!alias.size) return rest;
+  const end = rest.indexOf("--");
+  return rest.map((t, i) => {
+    if (end >= 0 && i > end) return t;
+    const eq = t.indexOf("=");
+    const name = eq > 0 ? t.slice(0, eq) : t;
+    const own = alias.get(name);
+    return own ? `${own}${eq > 0 ? t.slice(eq) : ""}` : t;
+  });
+}
+
+/** An ID as an option of IDs takes it ("S0213", "s12"): its letter, upper case. */
+function idLetter(v: string): string | undefined {
+  return /^(\p{L})\p{N}+$/u.exec(v)?.[1]?.toUpperCase();
+}
+
+type Token = { kind: "positional"; index: number; value: string } | { kind: "option"; index: number; name: string; rawName: string; value?: string | undefined; inlineValue?: boolean | undefined } | { kind: "option-terminator"; index: number };
+
+/**
+ * More values after an option than the command takes (`--found S0213 S0214`, `--note two words`): agents type them so
+ * often (N0180–N0188) that a turn goes on each. Where it is beyond doubt — IDs of the same kind after a repeatable
+ * option of IDs, and the command's own arguments all there besides — they are that option's values (`--found S0213
+ * --found S0214`); anything else is never guessed: the error then shows the line as it is meant (values with spaces
+ * quoted, a repeatable option once per value). A command's arguments are never taken into an option.
+ */
+function foldSurplus(def: CommandDef, defs: OptionDef[], tokens: Token[], values: Input["opts"], positionals: string[]): { values: Input["opts"]; positionals: string[]; fix?: string } {
+  const declared = def.args ?? [];
+  if (declared.some((a) => a.variadic) || positionals.length <= declared.length || tokens.some((t) => t.kind === "option-terminator")) return { values, positionals };
+  const required = declared.filter((a) => a.required).length;
+  // the line in units: an option with what follows it, or a word of no option
+  type Unit = { opt?: OptionDef; raw?: string; value?: string; inline?: boolean; ids: string[]; join: string[]; free: string[] };
+  const units: Unit[] = [];
+  let cur: Unit | undefined;
+  for (const t of tokens) {
+    if (t.kind === "option") {
+      const o = defs.find((d) => d.name === t.name);
+      cur = { ...(o ? { opt: o } : {}), raw: t.rawName, ...(t.value !== undefined ? { value: t.value, inline: !!t.inlineValue } : {}), ids: [], join: [], free: [] };
+      units.push(cur);
+      // a flag takes no value: the words after it are the command's
+      if (!o || o.type !== "string") cur = undefined;
+      continue;
+    }
+    if (t.kind !== "positional") continue;
+    if (!cur) {
+      const last = units.at(-1);
+      if (last && !last.raw) last.free.push(t.value);
+      else units.push({ ids: [], join: [], free: [t.value] });
+      continue;
+    }
+    const letter = cur.value !== undefined ? idLetter(cur.value) : undefined;
+    // IDs of the same kind as the option's own (S… after --found S…), as long as they follow it
+    if (cur.opt?.multiple && letter && !cur.join.length && !cur.free.length && idLetter(t.value) === letter) cur.ids.push(t.value);
+    // after an option of an ID, or once its IDs ended: the command's words
+    else if (letter || cur.ids.length || cur.free.length) cur.free.push(t.value);
+    else cur.join.push(t.value);
+  }
+  const free = units.flatMap((u) => u.free);
+  const ids = units.flatMap((u) => u.ids);
+  const joined = units.some((u) => u.join.length);
+  // beyond doubt: only IDs of the option's kind were too many, and the command's arguments are what is left
+  if (ids.length && !joined && free.length >= required && free.length <= declared.length) {
+    const out: Input["opts"] = { ...values };
+    for (const u of units)
+      if (u.opt && u.ids.length) {
+        // the option's values in the order typed: the earlier ones, its own, the ones after it
+        const before = (out[u.opt.name] as string[] | undefined) ?? [];
+        const at = before.lastIndexOf(u.value!);
+        out[u.opt.name] = [...before.slice(0, at + 1), ...u.ids, ...before.slice(at + 1)];
+      }
+    return { values: out, positionals: free };
+  }
+  // the line as it is meant: each ID its own option, words after an option of text its value, the command's last
+  // argument the words of one run (a title, a question) — when that leaves the arguments it takes
+  let left = free.length;
+  const parts: string[] = [];
+  for (const u of units) {
+    if (u.raw) {
+      const value = u.value === undefined ? undefined : [u.value, ...u.join].join(" ");
+      parts.push(value === undefined ? u.raw : u.inline ? `${u.raw}=${shellArg(value)}` : `${u.raw} ${shellArg(value)}`);
+      for (const id of u.ids) parts.push(`${u.raw} ${id}`);
+    }
+    if (!u.free.length) continue;
+    // one run of words, more than the arguments it may be: its last words one value
+    const keep = Math.max(0, declared.length - (left - u.free.length) - 1);
+    if (left > declared.length && u.free.length > keep + 1) {
+      parts.push(...u.free.slice(0, keep).map(shellArg), shellArg(u.free.slice(keep).join(" ")));
+      left -= u.free.length - keep - 1;
+    } else parts.push(...u.free.map(shellArg));
+  }
+  if (left < required || left > declared.length) return { values, positionals };
+  return { values, positionals, fix: [...def.path, ...parts].join(" ") };
+}
+
 /** Parse options strictly; Node's messages are replaced by short ones with suggestions. */
-export function parseOptions(def: CommandDef, rest: string[], program = "strom"): { values: Input["opts"]; positionals: string[] } {
+export function parseOptions(def: CommandDef, rest: string[], program = "strom"): { values: Input["opts"]; positionals: string[]; fix?: string; seq?: Typed[] } {
   const defs: OptionDef[] = optionsOf(def);
+  rest = withOptionAliases(defs, rest);
+  const usage = usageOf(def, program);
   const options: Record<string, { type: "string" | "boolean"; short?: string; multiple?: boolean }> = {};
   for (const o of defs) {
     options[o.name] = { type: o.type };
@@ -129,8 +256,17 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
   // (a second installation's own command: strom-beta — "for strom" alone names no command the output could tell)
   const cmd = `${program} ${def.path.join(" ")}`.trim();
   try {
-    const r = parseArgs({ args: rest, options, allowPositionals: true, strict: true });
-    return { values: r.values as Input["opts"], positionals: r.positionals };
+    const r = parseArgs({ args: rest, options, allowPositionals: true, strict: true, tokens: true });
+    const folded = foldSurplus(def, defs, r.tokens as Token[], r.values as Input["opts"], r.positionals);
+    // the line as typed, in order: which option came after which argument (a command of several arguments only)
+    if (!def.args?.some((a) => a.variadic)) return folded;
+    const seq: Typed[] = [];
+    let seen = 0;
+    for (const t of r.tokens as Token[]) {
+      if (t.kind === "positional") seq.push({ arg: seen++ });
+      else if (t.kind === "option") seq.push({ opt: t.name, ...(t.value !== undefined ? { value: t.value } : {}) });
+    }
+    return { ...folded, seq };
   } catch (err) {
     const e = err as Error & { code?: string };
     const opt = /'(-{1,2}[^' =]+)/.exec(e.message)?.[1] ?? "";
@@ -138,13 +274,27 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
     if (e.code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
       // "strom brief --task T0003": the task is an argument there, not an option
       const arg = def.args?.find((a) => `--${a.name}` === opt);
-      if (arg) throw new UsageError(`${opt.slice(2)} is an argument of ${cmd}, not an option`, { hint: `strom ${def.path.join(" ")} <${arg.name}>`, code: "option.is-arg", params: { opt, cmd, arg: arg.name } });
+      if (arg) throw new UsageError(`${opt.slice(2)} is an argument of ${cmd}, not an option`, { hint: `strom ${def.path.join(" ")} <${arg.name}>`, code: "option.is-arg", params: { opt, cmd, arg: arg.name }, usage });
+      // a status asked of a name or a family (N0191): it is a fact's only — said as cite says it (the person's
+      // language: the plain unknown option, its code kept)
+      if (opt === "--status" && (def.path[0] === "name" || def.path[0] === "family"))
+        throw new UsageError(`unknown option ${opt} for ${cmd}`, {
+          hint: `a status is a fact's (E…) only, never a name's or a family's: strom cite E… S… --status probable|proven, strom event edit E… --status …`,
+          code: "option.unknown", hintCode: "option.unknown.status", params: { opt, cmd, options: own.join(" "), path: def.path.join(" ") }, usage,
+        });
+      // a name agents type meaning another option (--timeout for --minutes): that one, with what it takes
+      const meant = optionsOf(def).find((o) => o.mistaken?.includes(opt.replace(/^-+/u, "")));
+      if (meant) {
+        const near = `--${meant.name}${meant.value ? ` ${meant.value}` : ""}`;
+        throw new UsageError(`unknown option ${opt} for ${cmd}`, { hint: `meant: ${near} — ${meant.description}`, code: "option.near", params: { opt, cmd, near }, usage });
+      }
       const near = suggest(opt, optionsOf(def).filter((o) => !o.hidden).map((o) => `--${o.name}`));
       const help = `strom help${def.path.length ? ` ${def.path.join(" ")}` : ""}`;
       throw new UsageError(`unknown option ${opt} for ${cmd}`, {
         hint: near.length ? `similar option: ${near.join(" · ")}` : `${own.length ? `options: ${own.join(" ")} · ` : ""}${help}`,
         // (none of its own — strom itself, "strom --bogus": in the person's language too)
         ...(near.length ? { code: "option.near", params: { opt, cmd, near: near.join(" · ") } } : own.length ? { code: "option.unknown", params: { opt, cmd, options: own.join(" "), path: def.path.join(" ") } } : { code: "option.unknown.none", params: { opt, cmd, help } }),
+        ...(own.length ? { usage } : {}),
       });
     }
     if (e.code === "ERR_PARSE_ARGS_INVALID_OPTION_VALUE") {
@@ -152,26 +302,92 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
       throw new UsageError(o?.type === "boolean" ? `${opt} takes no value` : `${opt} needs a value${o?.value ? ` ${o.value}` : ""}`, {
         hint: `strom help ${def.path.join(" ")}`,
         ...(o?.type === "boolean" ? { code: "option.no-value", params: { opt } } : o?.value ? { code: "option.needs-value", params: { opt, value: o.value, path: def.path.join(" ") } } : {}),
+        usage,
       });
     }
-    throw new UsageError(e.message.split("\n")[0] ?? "invalid arguments", { hint: `strom help ${def.path.join(" ")}` });
+    throw new UsageError(e.message.split("\n")[0] ?? "invalid arguments", { hint: `strom help ${def.path.join(" ")}`, usage });
   }
 }
 
-/** Required and surplus positional arguments. */
-export function checkArgs(def: CommandDef, args: string[]): void {
+/** The show command of each kind of record, by its ID's letter (strom show goes by it; lessons and events it shows). */
+export const SHOW_OF: Record<string, string[]> = {
+  G: ["research", "show"],
+  P: ["person", "show"],
+  F: ["family", "show"],
+  S: ["source", "show"],
+  R: ["repo", "show"],
+  B: ["recordset", "show"],
+  L: ["place", "show"],
+  Q: ["search", "show"],
+  T: ["task", "show"],
+  X: ["conflict", "show"],
+  H: ["hypothesis", "show"],
+  I: ["input", "show"],
+  N: ["session", "show"],
+  M: ["media", "show"],
+};
+
+const RECORD_SHOWS = new Set(Object.values(SHOW_OF).map((p) => p.join(" ")));
+const ID_LETTERS = new Set(Object.values(ALL_PREFIXES));
+
+/** A record's ID of any kind as typed (P0001, p1, E0012) or an image by its book and number (B0001:57). */
+export function isRecordRef(word: string): boolean {
+  const w = word.trim();
+  if (/^[Bb]\d+:\d+$/u.test(w)) return true;
+  const m = /^([A-Za-z])\d+$/u.exec(w);
+  return !!m && ID_LETTERS.has(m[1]!.toUpperCase());
+}
+
+/**
+ * "person show P0001 P0002" (N0194): the show command of one record given several IDs — each shown in turn by
+ * strom show, as if it had been typed (any kind: the one of each ID).
+ */
+export function severalRecords(def: CommandDef, args: string[]): boolean {
+  return RECORD_SHOWS.has(def.path.join(" ")) && args.length > 1 && args.every(isRecordRef);
+}
+
+/** Required and surplus positional arguments; `fix`: the line as it is meant (parseOptions), said under a surplus one. */
+export function checkArgs(def: CommandDef, args: string[], fix?: string, program = "strom"): void {
   const declared = def.args ?? [];
   const required = declared.filter((a) => a.required);
   if (args.length < required.length) {
     const missing = required[args.length]!;
-    throw new UsageError(`missing <${missing.name}>: ${missing.description}`, { hint: `strom help ${def.path.join(" ")}`, code: "arg.missing", params: { arg: missing.name, cmd: def.path.join(" ") } });
+    throw new UsageError(`missing <${missing.name}>: ${missing.description}`, { hint: `strom help ${def.path.join(" ")}`, code: "arg.missing", params: { arg: missing.name, cmd: def.path.join(" ") }, usage: usageOf(def) });
   }
-  if (!declared.some((a) => a.variadic) && args.length > declared.length)
-    throw new UsageError(`unexpected argument "${args[declared.length]}"`, { hint: `strom help ${def.path.join(" ")} — quote values with spaces`, code: "arg.extra", params: { arg: args[declared.length]!, cmd: def.path.join(" ") } });
+  if (!declared.some((a) => a.variadic) && args.length > declared.length) {
+    const extra = args[declared.length]!;
+    // another record's ID after the one shown: never a value to quote — strom show takes several
+    if (RECORD_SHOWS.has(def.path.join(" ")) && isRecordRef(extra)) {
+      const line = `strom show ${args.filter(isRecordRef).join(" ")}`;
+      throw new UsageError(`unexpected argument "${extra}"`, {
+        hint: `several records: ${line}`,
+        code: "arg.extra",
+        hintCode: "arg.extra.several",
+        params: { arg: extra, cmd: def.path.join(" "), line },
+        usage: usageOf(def),
+      });
+    }
+    const line = fix ? `${program ? `${program} ` : ""}${fix}` : undefined;
+    throw new UsageError(`unexpected argument "${extra}"`, {
+      // the line as it is meant: quoted values with spaces, a repeatable option once per value
+      hint: line ? `as meant: ${line}` : `strom help ${def.path.join(" ")} — quote values with spaces`,
+      code: "arg.extra",
+      ...(line ? { hintCode: "arg.extra.fix" } : {}),
+      params: { arg: extra, cmd: def.path.join(" "), ...(line ? { fix: line } : {}) },
+      usage: usageOf(def),
+    });
+  }
 }
 
 /** Split off everything after a bare "--" (passed through to another program). */
 export function splitPassthrough(rest: string[]): { rest: string[]; passthrough: string[] } {
   const i = rest.indexOf("--");
   return i < 0 ? { rest, passthrough: [] } : { rest: rest.slice(0, i), passthrough: rest.slice(i + 1) };
+}
+
+/** A usage error of a command that is about how it was called: one of its options named, or its help as the hint. */
+export function callMistake(e: UsageError, def: CommandDef): boolean {
+  if (e.hint?.startsWith(`strom help ${def.path.join(" ")}`)) return true;
+  const named = [...e.message.matchAll(/--([\p{L}\p{N}-]+)/gu)].map((m) => m[1]!);
+  return named.some((n) => n !== "reason" && optionsOf(def).some((o) => o.name === n && !o.hidden));
 }

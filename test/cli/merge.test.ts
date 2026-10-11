@@ -125,3 +125,44 @@ test("an imported tree: the people already researched are pointed out, a wife un
   assert.doesNotMatch(brief, /P0007 Antonín/, "a namesake born 38 years later is not the same man");
   w.cleanup();
 });
+
+test("merge never makes a person their own parent; a partner's age and a child's relation follow the merge; check finds a circle", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Jan /Novák/", "--sex", "M", "--born", "1880"]); // P1 the son
+  await w.ok(["person", "add", "Jan /Novák/", "--sex", "M", "--born", "1850"]); // P2 the father
+  await w.ok(["person", "add", "Anna /Nováková/", "--sex", "F"]); // P3
+  await w.ok(["family", "add", "--partner", "P2", "--partner", "P3", "--child", "P1"]); // F1
+  const own = await w.run(["person", "merge", "P1", "P2", "--reason", "týž Jan"]);
+  assert.equal(own.code, 2);
+  assert.match(own.err, /P0002 is a parent or ancestor of P0001: as one person they would be their own ancestor/);
+  assert.match((await w.run(["person", "merge", "P2", "P1", "--reason", "týž Jan"])).err, /P0002 is a parent or ancestor of P0001/);
+  await w.ok(["person", "add", "Josef /Novák/", "--sex", "M"]); // P4 the grandson
+  await w.ok(["family", "add", "--partner", "P1", "--child", "P4"]); // F2
+  assert.match((await w.run(["person", "merge", "P4", "P2", "--reason", "x"])).err, /P0002 is a parent or ancestor of P0004/);
+  // a link that would close a circle is refused where it is made
+  assert.match((await w.run(["family", "add", "--partner", "P4", "--child", "P2", "--relation", "adopted"])).err, /P0004 is a descendant of P0002/);
+  assert.match((await w.run(["family", "child", "F2", "P2", "--relation", "adopted"])).err, /P0001 is a descendant of P0002/);
+
+  // C2: an age at the marriage and a child's own relation are keyed by the partner: the keys follow
+  await w.ok(["person", "add", "Marie /Svobodová/", "--sex", "F"]); // P5
+  await w.ok(["person", "add", "Marie /Svobodová/", "--sex", "F"]); // P6 the same woman again
+  await w.ok(["person", "add", "Karel /Dvořák/", "--sex", "M"]); // P7
+  await w.ok(["person", "add", "Eva /Dvořáková/", "--sex", "F"]); // P8
+  await w.ok(["family", "add", "--partner", "P7", "--partner", "P6", "--married", "1900", "--age", "P6:22", "--child", "P8"]); // F3
+  await w.ok(["family", "edit", "F3", "--child", "P8", "--relation", "step", "--parent", "P6", "--reason", "dcera Karla z prvního manželství"]);
+  await w.ok(["person", "merge", "P5", "P6", "--reason", "táž Marie"]);
+  const f3 = readJsonFile(path.join(w.cwd, "data", "families", "F0003.json"));
+  assert.deepEqual(f3.partners, ["P0007", "P0005"]);
+  assert.deepEqual(f3.events[0].ages, { P0005: "22y" });
+  assert.deepEqual(f3.children[0].relations, { P0005: "step" });
+  assert.match((await w.ok(["check"])).out, /^ok/);
+
+  // a circle made outside strom's rules (an old tree, a hand edit): check says it
+  const f1 = path.join(w.cwd, "data", "families", "F0001.json");
+  const fam = readJsonFile(f1);
+  fs.writeFileSync(f1, JSON.stringify({ ...fam, children: [...fam.children, { person: "P0002", relation: "birth" }] }, null, 2) + "\n");
+  const checked = await w.run(["check"]);
+  assert.match(checked.out + checked.err, /P0002 is their own parent/);
+  w.cleanup();
+});

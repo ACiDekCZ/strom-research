@@ -13,7 +13,8 @@ import { gitVersion } from "../core/git.ts";
 import { fixGit, offerAgent } from "./fixes.ts";
 import { agentsHere, suggestedWay, waysHere, whereToTalk } from "../core/apps.ts";
 import { chooseWay, wayName } from "./ways.ts";
-import { PROFILES } from "../agents/profiles.ts";
+import { chooseEffort, chooseModel } from "./model-choice.ts";
+import { ADDON_SWITCHES, PROFILES } from "../agents/profiles.ts";
 import { writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
 import { appCopyOfInstall, appOpensLinks, defaultAppUrl, noticeStromApp, researchUrl, STROM_APP_URL, stromAppState, appUrlSetting } from "../core/stromapp.ts";
@@ -24,6 +25,7 @@ import { configDir, desktopDir, isolated, noLinks } from "../core/paths.ts";
 import { ensureShared } from "../commands/setup.ts";
 import { moveHome, planMove, repointSettings, sameFolder } from "../core/relocate.ts";
 import type { StromError } from "../core/errors.ts";
+import type { TreeConfig } from "../core/model.ts";
 
 export interface WizardResult {
   home: string;
@@ -146,19 +148,17 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
     out(ui(lang, archiveFirst && installed.length ? "ui.setup.archive.chosen" : "ui.setup.archive"));
   } else if (cfg.mode === "archive" && (fromApp || (await ctx.confirm(ui(lang, "ui.setup.archive.off"), true)))) delete cfg.mode;
 
-  // 5. The model (Claude Code: the one choice that matters for reading old hands).
-  if (agent === "claude") {
-    const models = ["opus", "sonnet", undefined];
-    const current = cfg.models?.claude?.lead;
-    const suggested = current === undefined ? (first ? 0 : 2) : Math.max(0, models.indexOf(current));
-    const i = await ctx.choose(
-      ui(lang, "ui.setup.model"),
-      [{ label: ui(lang, "ui.setup.model.opus") }, { label: ui(lang, "ui.setup.model.sonnet") }, { label: ui(lang, "ui.setup.model.own") }],
-      suggested,
-      keep,
-    );
-    writeStored(cfg, "model.lead", "claude", models[i ?? suggested]);
-  } else if (agent) out(ui(lang, "ui.setup.model.strong", { agent: PROFILES[agent]!.name }));
+  // 5. The model — the one choice that matters for reading old hands — for every agent: Claude Code's Opus or Sonnet,
+  // the strong ones of another agent's own list; kept for that agent (model.lead), used by every run, reader and
+  // conversation of it.
+  if (agent) {
+    const { value } = await chooseModel(ctx, lang, agent, cfg.models?.[agent]?.lead, { first, ...keep });
+    writeStored(cfg, "model.lead", agent, value);
+    if (agent !== "claude" && value === undefined) out(ui(lang, "ui.setup.model.strong", { agent: PROFILES[agent]!.name }));
+    // 5a. its reasoning effort, for an agent that takes one (high recommended); 0 or no answer keeps what is
+    const effort = await chooseEffort(ctx, lang, agent, cfg.models?.[agent]?.effort, keep);
+    if (effort?.picked) writeStored(cfg, "model.effort", agent, effort.value);
+  }
 
   // 5b. Stories of the ancestors for the family book: on unless the person says no (an agent writes them).
   if (agent) {
@@ -179,6 +179,15 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
     }
   }
   cfg.agentPermissions = level;
+
+  // 6b. The agent working alone without the person's own add-ons (skills, plugins, MCP servers): on by default; a
+  // conversation loads them always. Only for an agent that has the switches.
+  if (agent && ADDON_SWITCHES.includes(agent)) {
+    const was = cfg.agentAddons === "on" ? 1 : 0;
+    const ai = await ctx.choose(`${ui(lang, "ui.setup.addons")}\n${ui(lang, "ui.alone.addons.about")}`, [{ label: ui(lang, "ui.setup.addons.yes") }, { label: ui(lang, "ui.setup.addons.no") }], was, keep);
+    if ((ai ?? was) === 1) cfg.agentAddons = "on";
+    else delete cfg.agentAddons;
+  }
   s.save();
 
   // 7. A shortcut on the desktop (asked here, a no suggested again; refreshed quietly after) — none for an isolated
@@ -208,6 +217,28 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
   out();
   out(`${ui(lang, "ui.setup.done")}  (${langName(lang, lang)} · ${ctx.display(home)})`);
   return { home, lang, ...(agent ? { agent } : {}), permissions: level };
+}
+
+/**
+ * The setup's model step alone (the settings' first item: "only the model"): the research's model for its agent — the
+ * strong ones offered, the one kept suggested, 0 changes nothing — then its reasoning effort. Where it is kept now
+ * stays: this family tree's own, else this computer's for that agent.
+ */
+export async function modelStep(ctx: Context, run: (argv: string[], quiet?: boolean) => Promise<number>, lang: string, agent: string, tree: TreeConfig | undefined): Promise<void> {
+  const back = { back: ui(lang, "ui.browse.back") };
+  const kept = ctx.settings.resolve("model.lead", tree, agent);
+  const now = kept ? String(kept.value) : undefined;
+  const pick = await chooseModel(ctx, lang, agent, now, { first: false, ...back });
+  if (!pick.picked) return;
+  const scope = ["--agent", agent, ...(kept?.source === "tree" ? ["--for-tree"] : [])];
+  // (--yes: its effort is asked below, not by config set)
+  if (pick.value !== now) await run(pick.value ? ["config", "set", "model.lead", pick.value, ...scope, "--yes"] : ["config", "unset", "model.lead", ...scope], true);
+  // with the model its reasoning effort (an agent that takes one): high recommended, 0 changes nothing
+  const effortNow = ctx.settings.resolve("model.effort", tree, agent);
+  const effort = await chooseEffort(ctx, lang, agent, effortNow ? String(effortNow.value) : undefined, back);
+  if (!effort?.picked || effort.value === (effortNow ? String(effortNow.value) : undefined)) return;
+  const where = ["--agent", agent, ...(effortNow?.source === "tree" ? ["--for-tree"] : [])];
+  await run(effort.value ? ["config", "set", "model.effort", effort.value, ...where] : ["config", "unset", "model.effort", ...where], true);
 }
 
 /**

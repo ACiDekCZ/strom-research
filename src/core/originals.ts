@@ -153,6 +153,8 @@ export interface OriginalMeta {
   source?: string | undefined;
   region?: Region | undefined;
   note?: string | undefined;
+  /** For a task that waits for it (X-Strom-Task): an input with no task of its own — the caller hands it to that task. */
+  task?: boolean | undefined;
   /** A batch of the app it comes in, and its path there: an input with no task of its own (the batch's tasks come when it is closed). */
   batch?: string | undefined;
   path?: string | undefined;
@@ -214,7 +216,7 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
     if (!tree.dryRun) fs.rmSync(file, { force: true });
     // an input of the people: what is said of it now is added (in a batch the batch's tasks see to it)
     if (known.kind === "input" && !meta.batch) {
-      const a = amendInput(tree, known.id, { persons: meta.persons, note: meta.note });
+      const a = amendInput(tree, known.id, { persons: meta.persons, note: meta.note }, { again: !meta.task });
       return { known: known.id, ...(a.added.persons.length || a.added.note ? { added: a.added } : {}), ...(a.task ? { task: a.task } : {}) };
     }
     return { known: known.id };
@@ -314,7 +316,7 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
     meta.persons,
   );
   out.input = input.id;
-  if (!meta.batch) out.task = gatherTask(tree, input, meta.persons);
+  if (!meta.batch && !meta.task) out.task = gatherTask(tree, input, meta.persons);
   return out;
 }
 
@@ -383,7 +385,7 @@ export interface AmendedInput {
  * task at hand holds the input, an intake task looks at it again (in an archive put aside). Nothing new: nothing written.
  * The caller holds the tree lock and commits.
  */
-export function amendInput(tree: Tree, id: string, more: { persons: string[]; note?: string | undefined }): AmendedInput {
+export function amendInput(tree: Tree, id: string, more: { persons: string[]; note?: string | undefined }, o: { again?: boolean; app?: boolean } = {}): AmendedInput {
   const input = tree.get<Input>(id);
   if (!input || input.type !== "input") throw new UsageError(`no input ${id} in this research`, { hint: "strom input list" });
   const had = input.persons ?? [];
@@ -393,7 +395,7 @@ export function amendInput(tree: Tree, id: string, more: { persons: string[]; no
   const out: AmendedInput = { known: id, added: { persons, note } };
   if (!persons.length && !note) return out;
   const held = tree.list<Task>("task").some((t) => t.where.includes(id) && (t.state === "open" || t.state === "doing" || t.state === "parked" || t.state === "waiting"));
-  const again = !held && !input.batch;
+  const again = o.again !== false && !held && !input.batch;
   const next = update<Input>(
     tree,
     id,
@@ -404,7 +406,7 @@ export function amendInput(tree: Tree, id: string, more: { persons: string[]; no
       ...(note ? { notes: [...i.notes, makeNote(tree, text!)] } : {}),
       ...(again ? { state: "new" as const } : {}),
     }),
-    { op: "input.amend", summary: `${id}: ${[persons.length ? `+ ${persons.join(", ")}` : "", note ? "+ a note" : ""].filter(Boolean).join(", ")} (the Strom app)`, targets: persons },
+    { op: "input.amend", summary: `${id}: ${[persons.length ? `+ ${persons.join(", ")}` : "", note ? "+ a note" : ""].filter(Boolean).join(", ")}${o.app === false ? "" : " (the Strom app)"}`, targets: persons },
   );
   if (again) out.task = gatherTask(tree, next, next.persons ?? []);
   return out;

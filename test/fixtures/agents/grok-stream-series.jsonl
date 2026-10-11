@@ -1,0 +1,12 @@
+{"type":"text","data":"Čtu "}
+{"type":"text","data":"skeny."}
+{"type":"usage","messageId":"resp_1","stopReason":"tool_use","usage":{"input_tokens":4200,"output_tokens":400,"cache_read_input_tokens":0,"cache_creation_input_tokens":52000,"reasoning_tokens":90},"signature":"s1"}
+{"type":"tool_call","toolCallId":"call_1","toolName":"read_file","rawInput":{"target_file":".strom/views/M0001-v.jpg"}}
+{"type":"tool_call_update","toolCallId":"call_1","status":"completed","content":"image"}
+{"type":"usage","messageId":"resp_2","stopReason":"tool_use","usage":{"input_tokens":1800,"output_tokens":420,"cache_read_input_tokens":56200,"cache_creation_input_tokens":40000,"reasoning_tokens":0},"signature":"s2"}
+{"type":"tool_call","toolCallId":"call_2","toolName":"read_file","rawInput":{"target_file":".strom/views/M0002-v.jpg"}}
+{"type":"tool_call_update","toolCallId":"call_2","status":"completed","content":"image"}
+{"type":"usage","messageId":"resp_3","stopReason":"tool_use","usage":{"input_tokens":2500,"output_tokens":250,"cache_read_input_tokens":30000,"cache_creation_input_tokens":3500,"reasoning_tokens":50},"signature":"s3"}
+{"type":"text","data":"Hotovo."}
+{"type":"usage","messageId":"resp_4","stopReason":"end_turn","usage":{"input_tokens":900,"output_tokens":120,"cache_read_input_tokens":36000},"signature":"s4"}
+{"type":"end","sessionId":"00000000-0000-4000-8000-0000000000f2","stopReason":"end_turn","num_turns":4,"total_cost_usd":0.052,"usage":{"input_tokens":9400,"output_tokens":1190,"reasoning_tokens":140,"cache_read_input_tokens":122200,"cache_creation_input_tokens":95500},"modelUsage":{"grok-model-z":{"inputTokens":9400}}}

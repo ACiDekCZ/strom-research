@@ -152,3 +152,29 @@ test("queue: the user's own wish — a direction of someone off the tree — bri
   await w.ok(["research", "new", "Předci Pavla", "--person", "P5"]);
   assert.deepEqual(await order(w), ["T0001"]);
 });
+
+test("queue: a follow-up an agent adds in a session goes no higher than the task it came from; the person at a terminal sets any", opts, async () => {
+  const w = await world();
+  await task(w, "Rodiče Josefa", "P2", "--priority", "2"); // T1, the session's task
+  await task(w, "Rodiče Marie", "P3"); // T2, another line, p3
+  const agent = { env: { CLAUDECODE: "1" } };
+  await w.ok(["session", "start", "T1"], agent);
+  // the follow-up asked for at p4 (and one at the default 3): both p2, said in a line
+  const added = await w.ok(["task", "add", "Úmrtí Вацлава Новака", "--level", "link", "--where", "matrika zemřelých", "--why", "děti", "--done-when", "zápis nalezen", "--about", "P4", "--priority", "4", "--json"], agent);
+  assert.equal(added.json.task.priority, 2);
+  assert.deepEqual(added.json.priorityLowered, { asked: 4, to: 2, from: "T0001" });
+  const said = await w.ok(["task", "add", "Křest Marie Dvořákové", "--level", "link", "--where", "matrika narozených", "--why", "rodiče", "--done-when", "zápis nalezen", "--about", "P3"], agent);
+  assert.match(said.out, /· priority 3 → 2: no higher than T0001 \(p2\), the task of this session — a higher one is the user's: strom task edit T0004 --priority 3 in their own terminal/);
+  // nor raised afterwards by an edit; lowering stays the agent's
+  const edited = await w.ok(["task", "edit", "T3", "--priority", "5", "--json"], agent);
+  assert.equal(edited.json.task.priority, 2);
+  assert.equal((await w.ok(["task", "edit", "T3", "--priority", "1", "--json"], agent)).json.task.priority, 1);
+  // a task at its priority already keeps it (the user's p3 on T2 is no follow-up of this session)
+  assert.equal((await w.ok(["task", "edit", "T2", "--priority", "3", "--json"], agent)).json.task.priority, 3);
+  // so the queue goes on to the other line, not down the follow-ups
+  assert.equal((await w.ok(["task", "list", "--json"], agent)).json.tasks.find((t: any) => t.priority > 2)?.id, "T0002");
+  await w.ok(["session", "close", "--continue", "--summary", "follow-ups written", "--next", "go on"], agent);
+  // the person at their own terminal sets any priority
+  assert.equal((await w.ok(["task", "edit", "T3", "--priority", "5", "--json"], { tty: true })).json.task.priority, 5);
+  w.cleanup();
+});

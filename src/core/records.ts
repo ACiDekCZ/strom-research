@@ -4,7 +4,7 @@
 import { UsageError } from "./errors.ts";
 import { RECORD_TYPES, type AnyRecord, type Conflict, type Hypothesis, type RecordType } from "./model.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
-import { makeNote } from "./actions.ts";
+import { makeNote, makeNotes } from "./actions.ts";
 import { heldInArchive } from "./mode.ts";
 
 type Fields<T> = Omit<T, "id" | "type" | "created" | "updated" | "notes"> & { note?: string | undefined };
@@ -20,7 +20,7 @@ export function create<T extends AnyRecord>(tree: Tree, type: RecordType, fields
       id: tree.allocate(RECORD_TYPES[type].prefix),
       type,
       ...stripUndefined(fieldsNow),
-      notes: note ? [makeNote(tree, note)] : [],
+      notes: note ? makeNotes(tree, note) : [],
       created: t,
       updated: t,
     } as unknown as T;
@@ -67,8 +67,25 @@ export function normId(ref: string, type?: RecordType): string {
   const m = /^([A-Za-z])(\d+)$/.exec(ref.trim());
   if (!m) return ref.trim();
   const id = m[1]!.toUpperCase() + m[2]!.padStart(4, "0");
-  if (type && typeOfId(id) !== type) throw new UsageError(`${ref} is not a ${type} ID (${RECORD_TYPES[type].prefix}0001)`);
+  if (type && typeOfId(id) !== type) {
+    const other = otherKind(ref, type);
+    throw new UsageError(`${ref} is not a ${type} ID (${RECORD_TYPES[type].prefix}0001)`, other ? { hint: otherKindHint(other) } : {});
+  }
   return id;
+}
+
+/** A reference that is the ID of another kind of record than the one asked for (Q0202 where a research is: N0186). */
+export function otherKind(ref: string, want: RecordType): { id: string; type: RecordType } | undefined {
+  const m = /^([A-Za-z])(\d+)$/.exec(ref.trim());
+  if (!m) return undefined;
+  const id = m[1]!.toUpperCase() + m[2]!.padStart(4, "0");
+  const type = typeOfId(id);
+  return type && type !== want ? { id, type } : undefined;
+}
+
+/** What to run to see a record of another kind: strom show takes any ID. */
+export function otherKindHint(o: { id: string; type: RecordType }): string {
+  return `${o.id} is a ${o.type}: strom show ${o.id}`;
 }
 
 export function requireRecord<T extends AnyRecord>(tree: Tree, ref: string, type: RecordType): T {

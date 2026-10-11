@@ -11,6 +11,7 @@ import type { Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { UsageError } from "./errors.ts";
 import { phrase } from "./phrases.ts";
+import { writableUnasked } from "./integrity.ts";
 
 export type Mode = "archive" | "research";
 
@@ -91,13 +92,19 @@ export function holdForArchive(tree: Tree): string[] {
   return touched;
 }
 
-/** An archive with tasks not put aside (switched by an older strom, or written to since): they are, committed. */
+/**
+ * An archive with tasks not put aside (switched by an older strom, or written to since): they are, committed. Not while
+ * strom may not write it unasked (another computer's seal waiting for the person's adoption, data changed outside
+ * strom): next time; a failure on the way leaves nothing written.
+ */
 export function settleArchive(tree: Tree): string[] {
   if (!isArchive(tree) || tree.dryRun) return [];
   const loose = (t: Task) => t.state === "open" || t.state === "doing" || t.state === "waiting";
   if (!tree.list<Task>("task").some(loose)) return [];
+  if (!tree.key) return [];
   let held: string[] = [];
-  tree.withTreeLock(() => {
+  tree.atomically(() => {
+    if (!writableUnasked(tree)) return;
     held = holdForArchive(tree);
     if (held.length) tree.commit(`Tasks put aside: the research is an archive (${held.join(", ")})`);
   });

@@ -68,6 +68,9 @@ const MIME: Record<string, string> = {
   ".m4a": "audio/mp4",
 };
 
+/** The files strom takes as images of a book (strom media add, the inbox of images saved by hand). */
+export const IMAGE_FILE_EXT: ReadonlySet<string> = new Set([".jpg", ".jpeg", ".png", ".tif", ".tiff", ".gif", ".webp", ".heic", ".jp2", ".bmp"]);
+
 export function mimeOf(file: string): string {
   return MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream";
 }
@@ -115,12 +118,36 @@ export function inboxFolderFor(b: { id: string; title: string }): string {
   return name.length <= 80 ? name.join("") : name.slice(0, 80).join("").replace(/[. ]+$/, "");
 }
 
+/** A number or a range of numbers: 35, 35-38, 35–38, 35..38. */
+const RANGE = /^(\d+)(?:\s*(?:[-–]|\.\.\.?)\s*(\d+))?$/u;
+
+/** The most images one range of an option names (a range of more is a mistake, never a request). */
+export const IMAGE_RANGE_MAX = 200;
+
+/**
+ * An option's image numbers as typed — a number, a range (35-38, 35..38) or a list of them (35,37-38): a range from the
+ * higher number or of more than IMAGE_RANGE_MAX images is said, never guessed.
+ */
+export function imageRange(v: string, opt = "--image"): number[] {
+  const out = new Set<number>();
+  for (const p of String(v).split(",").map((x) => x.trim())) {
+    const m = RANGE.exec(p);
+    if (!m) throw new UsageError(`invalid ${opt} "${v}"`, { hint: `an image number or a range: ${opt} 35, ${opt} 35-38` });
+    const a = Number(m[1]);
+    const z = Number(m[2] ?? m[1]);
+    if (z < a) throw new UsageError(`${opt} ${p}: a range from the lower number`, { hint: `${opt} ${z}-${a}` });
+    if (z - a + 1 > IMAGE_RANGE_MAX) throw new UsageError(`${opt} ${p}: ${z - a + 1} images — at most ${IMAGE_RANGE_MAX} in a range`, { hint: "a narrower range" });
+    for (let n = a; n <= z; n++) out.add(n);
+  }
+  return [...out].sort((x, y) => x - y);
+}
+
 /** A list of image numbers as people write it: "9", "9-12", "9–12, 15" → [9, 10, 11, 12, 15]; undefined if it is not one. */
 export function parseImageList(s: string, max = 2000): number[] | undefined {
   const parts = s.split(",").map((p) => p.trim());
   const out = new Set<number>();
   for (const p of parts) {
-    const m = /^(\d+)(?:\s*[-–]\s*(\d+))?$/.exec(p);
+    const m = RANGE.exec(p);
     if (!m) return undefined;
     const a = Number(m[1]);
     const z = Number(m[2] ?? m[1]);
@@ -182,6 +209,47 @@ export function imageOfRef(all: Media[], recordset: string, image: number): Medi
   });
 }
 
+/** Image n of a record set registered only in parts (no whole image of it): those parts; else none. */
+export function onlyParts(all: Media[], recordset: string, image: number): Media[] {
+  const of = all.filter((m) => !m.retracted && m.recordset === recordset && m.image === image);
+  return of.length && of.every((m) => m.part) ? of : [];
+}
+
+/** How big the whole image is, as a part of it says (its pixels over the share of the image it shows). */
+export function wholeSizeOf(part: Media): { width: number; height: number } | undefined {
+  if (!part.part || !part.width || !part.height) return undefined;
+  return { width: Math.round(part.width / part.part.w), height: Math.round(part.height / part.part.h) };
+}
+
+/** A part covers a region when it shows this share of it at least (a half with its strip past the gutter). */
+const COVERS = 0.9;
+
+/**
+ * Of the parts an image is registered in (no whole image of it), the one that shows a region of the whole image
+ * (fractions of it) — of those that show nearly all of it (COVERS), the one that shows the most, then the sharpest —
+ * and where the region is in that part (cut to it). None covers it: undefined (nothing is fetched for it).
+ */
+export function coveringPart(parts: Media[], r: Region): { part: Media; crop: Region } | undefined {
+  let best: { part: Media; crop: Region; share: number; detail: number } | undefined;
+  for (const m of parts) {
+    const p = m.part;
+    if (!p || m.retracted || !(r.w > 0 && r.h > 0)) continue;
+    const x0 = Math.max(r.x, p.x);
+    const y0 = Math.max(r.y, p.y);
+    const x1 = Math.min(r.x + r.w, p.x + p.w);
+    const y1 = Math.min(r.y + r.h, p.y + p.h);
+    if (x1 <= x0 || y1 <= y0) continue;
+    // to a thousandth: a region exactly the part's is all of it
+    const share = Math.min(1, Math.round((((x1 - x0) * (y1 - y0)) / (r.w * r.h)) * 1000) / 1000);
+    if (share < COVERS) continue;
+    const detail = (m.width ?? 0) / p.w;
+    if (best && (share < best.share || (share === best.share && detail <= best.detail))) continue;
+    const crop = { x: (x0 - p.x) / p.w, y: (y0 - p.y) / p.h, w: (x1 - x0) / p.w, h: (y1 - y0) / p.h };
+    best = { part: m, share, detail, crop };
+  }
+  return best && { part: best.part, crop: best.crop };
+}
+
 /** The other copies of the same whole image, sharpest first. */
 export function otherCopies(all: Media[], m: Media): Media[] {
   if (m.part || m.recordset === undefined || m.image === undefined) return [];
@@ -214,27 +282,104 @@ export function regionText(r: Region): string {
 }
 
 /**
+ * A copy of a place of an image is sharper from this much more detail on (pixels of the scan per pixel of the copy, as
+ * px across the whole image): below it a part, a view or a request for one gives nothing a reader sees.
+ */
+export const SHARPER = 1.2;
+
+/** A region inside another, to a little of the image (a part cut to the pixel). */
+const INSIDE = 0.002;
+
+function inside(r: Region, p: Region): boolean {
+  return r.x >= p.x - INSIDE && r.y >= p.y - INSIDE && r.x + r.w <= p.x + p.w + INSIDE && r.y + r.h <= p.y + p.h + INSIDE;
+}
+
+/** Where a region of the whole image (fractions of it) is in a part that holds it (fractions of the part). */
+function cropIn(p: Region, r: Region): Region {
+  const f = (n: number) => Math.min(1, Math.max(0, n));
+  const x = f((r.x - p.x) / p.w);
+  const y = f((r.y - p.y) / p.h);
+  return { x, y, w: Math.min(1 - x, r.w / p.w), h: Math.min(1 - y, r.h / p.h) };
+}
+
+/**
  * A registered part of a whole image that shows a region of it (fractions of the
  * whole) with more detail than the whole image has: the sharpest one, and where
- * the region is in it. Worth it from a fifth more pixels on. Another copy of the
+ * the region is in it. Worth it from SHARPER on. Another copy of the
  * whole image with more pixels counts as a part that covers all of it.
  */
 export function sharperPart(all: Media[], whole: Media, r: Region): { part: Media; crop: Region; gain: number } | undefined {
   if (!whole.width || whole.part || whole.recordset === undefined || whole.image === undefined) return undefined;
-  const e = 0.002;
   let best: { part: Media; crop: Region; gain: number } | undefined;
   for (const m of all) {
     const p = m.part ?? (m.id !== whole.id ? { x: 0, y: 0, w: 1, h: 1 } : undefined);
     if (!p || !m.width || m.retracted || m.recordset !== whole.recordset || m.image !== whole.image) continue;
-    if (r.x < p.x - e || r.y < p.y - e || r.x + r.w > p.x + p.w + e || r.y + r.h > p.y + p.h + e) continue;
+    if (!inside(r, p)) continue;
     const gain = m.width / p.w / whole.width;
-    if (gain < 1.2 || (best && gain <= best.gain)) continue;
-    const f = (n: number) => Math.min(1, Math.max(0, n));
-    const x = f((r.x - p.x) / p.w);
-    const y = f((r.y - p.y) / p.h);
-    best = { part: m, gain, crop: { x, y, w: Math.min(1 - x, r.w / p.w), h: Math.min(1 - y, r.h / p.h) } };
+    if (gain < SHARPER || (best && gain <= best.gain)) continue;
+    best = { part: m, gain, crop: cropIn(p, r) };
   }
   return best;
+}
+
+/** What strom holds already of a part of an image a connector would fetch (partHere). */
+export interface PartHere {
+  /** The image or part that holds the place, the sharpest. */
+  held: Media;
+  /** How the place is held: the same part, a part it lies in, the whole image. */
+  how: "same" | "inside" | "whole";
+  /** Where the place is in it (fractions of it). */
+  crop: Region;
+  /** Its detail: px across the whole image. */
+  detail: number;
+  /** The most a new part of the place could give from the portal (px across the whole image), as its parts here show. */
+  most?: number;
+  /** The portal's sharpest of the book, when its parts show it (a smaller part came no sharper than a larger one). */
+  native?: boolean;
+}
+
+/**
+ * A part of image n a connector would fetch that strom holds already, so that no request is made: the same part
+ * registered; or a part it lies in, or the whole image, with at least as much detail as a new part could bring — a new
+ * part brings SHARPER × more or it is not asked for. What a new part could bring is learned from the parts this
+ * connector fetched of the book (its scans taken to be of one size, as the portal cuts its parts the same way): a
+ * portal gives a part at most as many pixels as its limit (on its longer side, or its area), else the scan's own — so
+ * a part as big as one fetched, or bigger, comes no sharper than it; a smaller one at most as much sharper as it is
+ * smaller; and a part that came no sharper than one clearly bigger shows the scan's own detail (what no part passes).
+ * Its whole images are not counted: a portal may give them smaller than its parts. Nothing learned yet: undefined
+ * unless the part is the same (it may come sharper; the first part of a book is fetched). Only media whose file is
+ * here (`here`) hold anything: one gone is fetched again.
+ */
+export function partHere(all: Media[], connector: string, recordset: string, image: number, r: Region, here: (m: Media) => boolean = () => true): PartHere | undefined {
+  const live = all.filter((m) => !m.retracted && m.recordset === recordset);
+  // what holds the place: the same part registered (never asked for again), else the sharpest part it lies in or
+  // whole copy of the image
+  let best: PartHere | undefined;
+  for (const m of live) {
+    if (m.image !== image || !here(m)) continue;
+    const p = m.part ?? { x: 0, y: 0, w: 1, h: 1 };
+    if (!(p.w > 0 && p.h > 0) || !inside(r, p)) continue;
+    const detail = (m.width ?? 0) / p.w;
+    if (m.part && sameRegion(m.part, r)) return { held: m, how: "same", crop: { x: 0, y: 0, w: 1, h: 1 }, detail };
+    if (!detail || (best && detail <= best.detail)) continue;
+    best = { held: m, how: m.part ? "inside" : "whole", crop: m.part ? cropIn(p, r) : r, detail };
+  }
+  if (!best) return undefined;
+  // the most a new part could bring, from the parts this connector fetched of the book
+  const parts = live.filter((m) => m.part && m.width && m.part.w > 0 && m.part.h > 0 && m.fetched?.connector === connector);
+  const detailOf = (m: Media) => m.width! / m.part!.w;
+  let most = Infinity;
+  for (const s of parts) most = Math.min(most, detailOf(s) * Math.max(1, s.part!.w / r.w, s.part!.h / r.h));
+  // the scan's own detail: a part that came no sharper than one clearly bigger (on both sides) was not held back by
+  // the portal's limit — the most any part of the book gives
+  let native: number | undefined;
+  for (const big of parts)
+    for (const small of parts)
+      if (Math.min(big.part!.w / small.part!.w, big.part!.h / small.part!.h) >= SHARPER && detailOf(small) < SHARPER * detailOf(big)) native = Math.max(native ?? 0, detailOf(small));
+  const isNative = native !== undefined && native <= most;
+  if (isNative) most = native!;
+  if (!Number.isFinite(most) || most >= SHARPER * best.detail) return undefined;
+  return { ...best, most: Math.round(most), ...(isNative ? { native: true } : {}) };
 }
 
 /** Where an input's file is on disk (in the tree, or in the shared media store). */

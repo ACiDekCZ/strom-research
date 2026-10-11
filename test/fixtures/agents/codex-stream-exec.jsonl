@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"0199aaaa-bbbb-7ccc-8ddd-000000000002"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"command_execution","command":"bash -lc 'strom brief'","aggregated_output":"brief","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"bash -lc 'strom media view B0001:57-60 --half both'","aggregated_output":"views","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"Snímky 57–60 přečteny, další dávka."}}
+{"type":"turn.completed","usage":{"input_tokens":7012000,"cached_input_tokens":6800000,"output_tokens":41000}}

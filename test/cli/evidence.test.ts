@@ -147,8 +147,9 @@ test("conflicts, hypotheses and lessons", opts, async () => {
   await w.ok(["hypothesis", "add", "Kdo byl otec?", "--about", "P1", "--variant", "A: Josef z čp. 12", "--variant", "B: Josef z čp. 31"]);
   await w.ok(["hypothesis", "argue", "H1", "A", "--for", "S1 jmenuje čp. 12"]);
   assert.match((await w.ok(["hypothesis", "show", "H1"])).out, /A: Josef z čp\. 12\n\s+\+ S1 jmenuje čp\. 12/);
+  // a rule longer than one holds: its start the rule, the rest its detail (K3), never an error
   const long = "x".repeat(201);
-  assert.equal((await w.run(["lesson", "add", long])).code, 2);
+  assert.match((await w.ok(["lesson", "add", long, "--dry-run"])).out, /the rule was 201 characters/);
   await w.ok(["lesson", "add", "Folio = 2 × snímek + 1", "--on", "B1"]);
   await w.ok(["task", "add", "Otec", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]);
   assert.match((await w.ok(["task", "show", "T1"])).out, /lessons for these record sets\n\s+K0001 Folio = 2 × snímek \+ 1/);

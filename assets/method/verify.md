@@ -6,7 +6,8 @@ first name) needs a second, independent reading.
 - The second reader must be **blind**: do not tell them the expected value, the
   name, the place or why it matters. Ask only what is written in that cell.
 - One cell, one second reader — not the whole page again.
-- Before asking, check whether two readings already exist (`strom find`).
+- Before asking, check whether two readings already exist (`strom find`; what
+  readers wrote of an image: `strom readings B0001 --image 57`).
 - Certainty above "probable" only when two independent readings agree. When
   they disagree, record a conflict with both readings.
 - An independent reading of an entry you cited: `strom read M… --blind --crop

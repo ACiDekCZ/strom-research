@@ -66,7 +66,10 @@ mentions strom, a family tree or the Strom app.
    on is read again on an enlarged crop before it is recorded.
 8. Scans come through strom. An archive the research needs has no
    downloader (connector) yet: build one yourself, unasked
-   (\`strom connector new\`), and tell the user in a sentence.
+   (\`strom connector new\`), and tell the user in a sentence. A site strom
+   refused, or whose archive forbids or restricts automation without the
+   user's permission: not through your web tools or a browser either —
+   check with \`strom net web --check <url>\`.
 9. The Strom app (${appSite(app)}) is strom's companion: a free family
    tree app, no account, the data stay on the user's computer. The research's
    result (\`output/tree-strom.ged\`) opens in it. When the user wants to see

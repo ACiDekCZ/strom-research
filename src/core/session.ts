@@ -4,18 +4,23 @@
 // its own on a task of its own: the current session of an agent strom started
 // lives in .strom/session-<worker>.json (STROM_WORKER, set by strom chat), of
 // any other in .strom/session.json (local state, not evidence), or in
-// STROM_SESSION (set by `strom run`).
+// STROM_SESSION (set by `strom run`). An agent may hold one session in each
+// research (two conversations of the desktop app, neither started by strom):
+// each research's session has its own pointer, .strom/sessions/<worker>~<G…>.json,
+// and a command finds its own by what it names (a task, a session, a research).
 
 import fs from "node:fs";
 import path from "node:path";
 import { UsageError } from "./errors.ts";
 import type { Session, Task } from "./model.ts";
 import { now, VERSION, type Tree } from "./tree.ts";
-import { makeNote } from "./actions.ts";
+import { makeNote, makeNotes } from "./actions.ts";
 import type { Env } from "./paths.ts";
 import { detectAgent } from "./which.ts";
-import { finishAsked, finishFile } from "./clock.ts";
+import { finishAsked, finishByLimit, finishFile, timeSaidFile } from "./clock.ts";
 import { isLiveWorker, isWorkerId } from "./workers.ts";
+import { readCodexConfig } from "../agents/effort.ts";
+import { clearSessionWait, permissionWait, waitingForDecision } from "./archivewait.ts";
 
 function currentFile(tree: Tree, env: Env = tree.env): string {
   const w = env.STROM_WORKER;
@@ -47,27 +52,95 @@ export function abandonedSessions(tree: Tree): Session[] {
   return openSessions(tree).filter((s) => s.worker && !isLiveWorker(tree.root, s.worker));
 }
 
-/** The open session of this tree, if any. */
-export function currentSession(tree: Tree, env: Env): Session | undefined {
-  let id = env.STROM_SESSION;
-  if (!id) {
-    try {
-      id = (JSON.parse(fs.readFileSync(currentFile(tree, env), "utf8")) as { id?: string }).id;
-    } catch {
-      return undefined;
-    }
-  }
-  const s = id ? tree.get<Session>(id) : undefined;
-  return s?.state === "open" ? s : undefined;
+/** The folder of the pointers of each research's session. */
+function researchPointers(tree: Tree): string {
+  return path.join(tree.root, ".strom", "sessions");
 }
 
-export function setCurrent(tree: Tree, id: string | undefined): void {
+/** This agent's pointer to its session in one research ("~" is no letter of a worker's name). */
+function researchFile(tree: Tree, research: string, env: Env = tree.env): string {
+  const w = env.STROM_WORKER;
+  return path.join(researchPointers(tree), `${isWorkerId(w) ? w : ""}~${research}.json`);
+}
+
+function pointerId(file: string): string | undefined {
+  try {
+    return (JSON.parse(fs.readFileSync(file, "utf8")) as { id?: string }).id;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The open sessions this agent's pointers name: the one pointer of an older strom, and one per research. */
+export function ownSessions(tree: Tree, env: Env): Session[] {
+  const w = env.STROM_WORKER;
+  const prefix = `${isWorkerId(w) ? w : ""}~`;
+  let names: string[] = [];
+  try {
+    names = fs.readdirSync(researchPointers(tree)).filter((n) => n.startsWith(prefix) && n.endsWith(".json"));
+  } catch {
+    // none yet
+  }
+  const ids = [pointerId(currentFile(tree, env)), ...names.map((n) => pointerId(path.join(researchPointers(tree), n)))];
+  const out: Session[] = [];
+  for (const id of ids) {
+    const s = id ? tree.get<Session>(id) : undefined;
+    if (s?.type === "session" && s.state === "open" && !out.includes(s)) out.push(s);
+  }
+  return out.sort((a, b) => a.started.localeCompare(b.started));
+}
+
+/** Of several sessions, the one the IDs a command names belong to: the session, its research, its task. */
+function sessionOf(tree: Tree, sessions: Session[], refs: string[]): Session | undefined {
+  for (const ref of refs) {
+    const r = ref.toUpperCase();
+    const task = /^T\d+$/.test(r) ? tree.get<Task>(r) : undefined;
+    const hits = sessions.filter((s) => s.id === r || s.research === r || (task && (s.task === task.id || (!!task.research && s.research === task.research))));
+    if (hits.length === 1) return hits[0];
+  }
+  return undefined;
+}
+
+/**
+ * The open session of this agent: STROM_SESSION, else its pointers — with one in each of several researches, the one
+ * of what the command names (`refs`: T…, N…, G…), else the one started last.
+ */
+export function currentSession(tree: Tree, env: Env, refs: string[] = []): Session | undefined {
+  if (env.STROM_SESSION) {
+    const s = tree.get<Session>(env.STROM_SESSION);
+    return s?.state === "open" ? s : undefined;
+  }
+  const own = ownSessions(tree, env);
+  if (own.length <= 1) return own[0];
+  return sessionOf(tree, own, refs) ?? own.at(-1);
+}
+
+/** Several sessions of this agent and nothing the command names to tell which: the ones to choose from. */
+export function whichSession(tree: Tree, env: Env, refs: string[] = []): Session[] | undefined {
+  if (env.STROM_SESSION) return undefined;
+  const own = ownSessions(tree, env);
+  return own.length > 1 && !sessionOf(tree, own, refs) ? own : undefined;
+}
+
+/**
+ * Point this agent at a session (its research's pointer, and the one pointer an older strom reads), or forget one:
+ * only the pointers that name it.
+ */
+export function setCurrent(tree: Tree, id: string | undefined, forget?: Session): void {
   if (tree.dryRun) return;
   const file = currentFile(tree);
-  if (id === undefined) fs.rmSync(file, { force: true });
-  else {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, JSON.stringify({ id, at: now() }) + "\n");
+  if (id === undefined) {
+    if (!forget || pointerId(file) === forget.id) fs.rmSync(file, { force: true });
+    if (forget?.research && pointerId(researchFile(tree, forget.research)) === forget.id) fs.rmSync(researchFile(tree, forget.research), { force: true });
+    return;
+  }
+  const line = JSON.stringify({ id, at: now() }) + "\n";
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, line);
+  const research = tree.get<Session>(id)?.research;
+  if (research) {
+    fs.mkdirSync(researchPointers(tree), { recursive: true });
+    fs.writeFileSync(researchFile(tree, research), line);
   }
 }
 
@@ -76,10 +149,12 @@ export function openSessions(tree: Tree): Session[] {
 }
 
 /** Start a session on a task (the task goes to "doing"). One open session per agent; one agent per task. */
-export function startSession(tree: Tree, opts: { task?: Task; research?: string; runner?: string; model?: string }): Session {
+export function startSession(tree: Tree, opts: { task?: Task; research?: string; runner?: string; model?: string; effort?: string }): Session {
   return tree.withTreeLock(() => {
     const me = holderOf(tree.env, opts.runner);
-    const busy = openSessions(tree).filter((s) => holder(s) === me && (!opts.research || !s.research || s.research === opts.research));
+    // one open session per agent in each research (each has its own pointer); a session of no research is the agent's only one
+    const research = opts.research ?? opts.task?.research;
+    const busy = openSessions(tree).filter((s) => holder(s) === me && (!research || !s.research || s.research === research));
     if (busy.length)
       throw new UsageError(`session ${busy[0]!.id} is still open${busy[0]!.task ? ` on ${busy[0]!.task}` : ""}`, {
         hint: `finish it: strom session close --summary "…" --next "…"   (or, if it died: strom session close ${busy[0]!.id} --interrupted)`,
@@ -93,6 +168,8 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
     const agent = detectAgent(tree.env) ?? (opts.runner && opts.runner !== "script" ? opts.runner : undefined);
     // the model strom started the agent with (strom run, strom chat): what it read with, for a later review
     const model = opts.model ?? tree.env.STROM_MODEL?.trim();
+    // the reasoning effort it ran with: strom's (the person's model.effort), else what Codex's own config says (read only)
+    const effort = opts.effort ?? (tree.env.STROM_MODEL_EFFORT?.trim() || (agent === "codex" ? readCodexConfig(tree.env).effort : undefined));
     const t = now();
     const s: Session = {
       id: tree.allocate("N"),
@@ -108,12 +185,15 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
       ...(isWorkerId(tree.env.STROM_WORKER) ? { worker: tree.env.STROM_WORKER } : {}),
       ...(agent ? { agent } : {}),
       ...(model ? { model } : {}),
+      ...(effort ? { effort } : {}),
       strom: VERSION,
     };
     tree.put(s, { op: "session.start", targets: [s.id, ...(task ? [task.id] : [])], summary: `${s.id} session started${task ? ` on ${task.id}` : ""}` });
     tree.actor = s.id;
     if (task && task.state !== "doing") {
-      const doing = { ...task, state: "doing" as const, updated: now() };
+      // taken up: what kept it aside goes (a parked task's date and reason)
+      const { parkedUntil: _until, parkedReason: _reason, awaitsPermission: _decision, ...rest } = task;
+      const doing = { ...rest, state: "doing" as const, updated: now() };
       tree.put(doing, { op: "task.start", targets: [doing.id, s.id], summary: `${doing.id} start` });
     }
     setCurrent(tree, s.id);
@@ -123,7 +203,7 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
 
 export function sessionNote(tree: Tree, s: Session, text: string): Session {
   return tree.withTreeLock(() => {
-    const next = { ...s, notes: [...s.notes, makeNote(tree, text)], updated: now() };
+    const next = { ...s, notes: [...s.notes, ...makeNotes(tree, text)], updated: now() };
     tree.put(next, { op: "session.note", targets: [s.id], summary: `${s.id} note: ${text.slice(0, 60)}` });
     return next;
   });
@@ -151,8 +231,17 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
         throw new UsageError(`task ${task.id} is still in progress`, {
           hint: `close it first: strom task done ${task.id} --result "…" | task park | task wait — or keep it for the next session: --continue`,
         });
-      const back: Task = { ...task, state: "open", notes: [...task.notes, makeNote(tree, `${input.interrupted ? "interrupted" : "continued"} in ${s.id}: ${input.next || "(no handover)"}`.slice(0, 500))], updated: now() };
-      tree.put(back, { op: "task.continue", targets: [task.id, s.id], summary: `${task.id} back to the queue` });
+      const note = makeNote(tree, `${input.interrupted ? "interrupted" : "continued"} in ${s.id}: ${input.next || "(no handover)"}`.slice(0, 500));
+      // a fetch of this session met an archive's question the person has not answered yet: the task waits for the
+      // decision (woken by it, core/archivewait.ts), not back in the queue to ask again and again
+      const decision = permissionWait(tree, task, s.id);
+      if (decision) {
+        const waits: Task = { ...waitingForDecision(tree, task, decision), notes: [...task.notes, note], updated: now() };
+        tree.put(waits, { op: "task.wait", targets: [task.id, s.id], summary: `${task.id} waits for the person's decision on ${decision.hosts.join(", ")}` });
+      } else {
+        const back: Task = { ...task, state: "open", notes: [...task.notes, note], updated: now() };
+        tree.put(back, { op: "task.continue", targets: [task.id, s.id], summary: `${task.id} back to the queue` });
+      }
     }
     const closed: Session = {
       ...s,
@@ -163,15 +252,20 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
       ...(input.next.trim() ? { next: input.next.trim() } : {}),
       ...(input.metrics ? { metrics: input.metrics } : {}),
       // asked to finish by the user (strom session finish): theirs, and a run stops after it
-      ...(input.endedBy ? { endedBy: input.endedBy } : finishAsked(tree.root, s.id) ? { endedBy: "user" as const } : {}),
+      ...(input.endedBy ? { endedBy: input.endedBy } : finishAsked(tree.root, s.id) && !finishByLimit(tree.root, s.id) ? { endedBy: "user" as const } : {}),
     };
     tree.put(closed, { op: "session.close", targets: [s.id], summary: `${s.id} ${closed.state}: ${(input.summary || "no summary").slice(0, 80)}` });
     // Only the session this agent calls its current one is forgotten — not another agent's.
-    if (currentSession(tree, tree.env)?.id === s.id) setCurrent(tree, undefined);
+    setCurrent(tree, undefined, s);
     return closed;
   });
   // asked to finish (strom session finish): done
-  if (!tree.dryRun) fs.rmSync(finishFile(tree.root, closed.id), { force: true });
+  if (!tree.dryRun) {
+    fs.rmSync(finishFile(tree.root, closed.id), { force: true });
+    clearSessionWait(tree.root, closed.id);
+    // the time it was told (core/clock.ts timeLine) and an early close said once: gone with it
+    for (const f of [timeSaidFile(tree.root, closed.id), timeSaidFile(tree.root, closed.id).replace(/\.json$/, ".close")]) fs.rmSync(f, { force: true });
+  }
   return closed;
 }
 
@@ -184,9 +278,53 @@ export function recentSessions(tree: Tree, research?: string, n = 2): Session[] 
     .slice(0, n);
 }
 
-/** What the agent's sessions of a month ("2026-09", by when they started) cost: how many, the dollars known (a session stopped before it said: its known part). */
-export function monthSpend(tree: Tree, month: string): { month: string; sessions: number; amount: number } {
+/**
+ * What the agent's sessions of a month ("2026-09", by when they started) cost: how many, the dollars known (a session
+ * stopped before it said: its known part) — the readers they started included, and their part apart.
+ */
+export function monthSpend(tree: Tree, month: string): { month: string; sessions: number; amount: number; readers?: number } {
   const of = tree.list<Session>("session").filter((s) => s.started.slice(0, 7) === month);
-  const amount = of.reduce((sum, s) => sum + (s.metrics?.costUsd ?? 0), 0);
-  return { month, sessions: of.length, amount: Math.round(amount * 100) / 100 };
+  const amount = of.reduce((sum, s) => sum + (sessionCost(s.metrics) ?? 0), 0);
+  const readers = of.reduce((sum, s) => sum + (s.metrics?.readersUsd ?? 0), 0);
+  return { month, sessions: of.length, amount: cents(amount), ...(readers > 0 ? { readers: cents(readers) } : {}) };
+}
+
+const cents = (usd: number) => Math.round(usd * 100) / 100;
+
+/** What a session cost in all: the agent's own and the readers it started (undefined: nothing known). */
+export function sessionCost(m: Session["metrics"]): number | undefined {
+  if (m?.costUsd === undefined && m?.readersUsd === undefined) return undefined;
+  return cents((m.costUsd ?? 0) + (m.readersUsd ?? 0));
+}
+
+/** More was spent than the session's cost says: the agent or a reader stopped before it said. */
+export function costPartial(m: Session["metrics"]): boolean {
+  return !!(m?.costPartial || m?.readersPartial);
+}
+
+/** The metrics of a session the agent reported, keeping what its readers cost (strom recorded that, not the agent). */
+export function withReaders(reported: NonNullable<Session["metrics"]>, had: Session["metrics"]): NonNullable<Session["metrics"]> {
+  const { readersUsd, readers, readersPartial } = had ?? {};
+  return { ...reported, ...(readersUsd !== undefined ? { readersUsd } : {}), ...(readers !== undefined ? { readers } : {}), ...(readersPartial ? { readersPartial } : {}) };
+}
+
+/**
+ * Readers started from a session (strom read, clips, transcripts — the agent's command): what they cost is added to
+ * that session, kept apart from the agent's own. No session open (the user's own command): nothing. The session's ID.
+ */
+export function addReaders(tree: Tree, env: Env, refs: string[], spent: { usd: number; runs: number; partial: boolean }): string | undefined {
+  if (tree.dryRun || spent.runs <= 0) return undefined;
+  return tree.withTreeLock(() => {
+    const s = currentSession(tree, env, refs);
+    if (!s) return undefined;
+    const m = s.metrics ?? {};
+    const metrics = {
+      ...m,
+      readersUsd: cents((m.readersUsd ?? 0) + spent.usd),
+      readers: (m.readers ?? 0) + spent.runs,
+      ...(spent.partial || m.readersPartial ? { readersPartial: true } : {}),
+    };
+    tree.put({ ...s, metrics, updated: now() }, { op: "session.readers", targets: [s.id], summary: `${s.id} readers: ${spent.runs} · $${spent.usd.toFixed(2)}` });
+    return s.id;
+  });
 }

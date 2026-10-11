@@ -12,16 +12,17 @@ import { lines, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import type { Clip, Family, Media, Person, Source } from "../core/model.ts";
 import { normId, requireRecord, update } from "../core/records.ts";
-import { makeView, VIEW_MAX } from "../core/views.ts";
+import { makeView } from "../core/views.ts";
 import { clipText, MAX_CLIPS, regionText } from "../core/media.ts";
 import { withMargin } from "../core/excerpt.ts";
-import { batches } from "../core/reader.ts";
+import { batches, READER_MINUTES_HELP } from "../core/reader.ts";
 import { checkPrompt, locatePrompt, parseChecked, parseLocated, widen, type CheckJob, type Checked, type ClipJob, type Located } from "../core/clipfinder.ts";
 import { displayName } from "../core/people.ts";
 import { readers } from "./readers.ts";
 import { verifyFast } from "../core/integrity.ts";
 import { pool } from "./read.ts";
 import type { Tree } from "../core/tree.ts";
+import { addReaders } from "../core/session.ts";
 
 /** Entries per reader: each is one image (sometimes two) the reader looks at. */
 const PER_READER = 10;
@@ -63,7 +64,7 @@ register({
     { name: "batch", type: "string", value: "<n>", description: `entries per reader (default ${PER_READER})` },
     { name: "parallel", type: "string", value: "<n>", description: "readers at the same time (default 3)" },
     { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision — it reads the handwriting to find the entry)" },
-    { name: "minutes", type: "string", value: "<n>", description: "time limit of one reader (default 15)" },
+    { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP },
   ],
   examples: ["strom clips --dry-run", "strom clips --recordset B0001 --limit 20", "strom clips S0001 S0002"],
   run: async (ctx: Context, { args, opts }) => {
@@ -103,7 +104,7 @@ register({
       };
 
     const r0 = readers(ctx, tree, shared, "clips", "find", opts);
-    const { model, parallel, reportsDir, failed, progress } = r0;
+    const { model, parallel, reportsDir, failed, progress, viewMax } = r0;
     const reader = r0.read;
 
     // 1. Find: each image whole, with a grid, and what the entry says.
@@ -119,7 +120,7 @@ register({
         words: s.transcript ? truncate(s.transcript.replace(/\s+/g, " "), 400) : undefined,
         images: s.media!.flatMap((id) => {
           const m = imageOf(id);
-          return m ? [{ media: m.id, view: makeView(tree, path.join(shared, m.file), m.id, { grid: true, max: VIEW_MAX }).file }] : [];
+          return m ? [{ media: m.id, view: makeView(tree, path.join(shared, m.file), m.id, { grid: true, max: viewMax }, { reader: true }).file }] : [];
         }),
       }));
       progress(`▶ finding ${k + 1}/${groups.length}: ${group.map((s) => s.id).join(" ")}`);
@@ -141,7 +142,7 @@ register({
           media: l.media,
           title: s.title,
           words: s.transcript ? truncate(s.transcript.replace(/\s+/g, " "), 400) : undefined,
-          view: makeView(tree, path.join(shared, m.file), m.id, { crop: regionText(withMargin(l.region)) }).file,
+          view: makeView(tree, path.join(shared, m.file), m.id, { crop: regionText(withMargin(l.region)), max: viewMax }, { reader: true }).file,
         };
       });
       const checkGroups = batches(checks, size);
@@ -169,6 +170,8 @@ register({
     }
     const passed = new Set(verdicts.filter((v) => v.verdict === "ok").map((v) => `${v.source} ${v.media}`));
 
+    // what the readers cost goes to the session that started them (apart from the agent's own)
+    addReaders(tree, ctx.env, ctx.refs, { usd: r0.cost(), runs: r0.runs(), partial: r0.partial() });
     // 3. What passed becomes the source's clips.
     const clipsOf = new Map<string, Clip[]>();
     for (const l of hits) if (passed.has(`${l.source} ${l.media}`)) clipsOf.set(l.source, [...(clipsOf.get(l.source) ?? []), { media: l.media, region: l.region }].slice(0, MAX_CLIPS));

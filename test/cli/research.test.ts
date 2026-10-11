@@ -58,7 +58,7 @@ test("every write is committed automatically with a readable message", opts, asy
   w.cleanup();
 });
 
-test("method rules: proven needs a citation, notes are short, dates are validated", opts, async () => {
+test("method rules: proven needs a citation, long notes kept as several, dates are validated", opts, async () => {
   const w = new World();
   await w.withTree();
   await family(w);
@@ -66,7 +66,8 @@ test("method rules: proven needs a citation, notes are short, dates are validate
   assert.equal(proven.code, 2);
   assert.match(proven.err, /needs a citation/);
   assert.match(proven.err, /→ /);
-  assert.equal((await w.run(["note", "add", "P0001", "x".repeat(501)])).code, 2);
+  // a note over what one holds is kept whole as several (K3), never an error that gets it cut short
+  assert.match((await w.ok(["note", "add", "P0001", "x".repeat(501)])).out, /kept whole as 2 notes/);
   const bad = await w.run(["event", "add", "P0001", "DEAT", "--date", "31 FEB 1950"]);
   assert.equal(bad.code, 2);
   assert.match(bad.err, /GEDCOM form/);

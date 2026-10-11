@@ -7,7 +7,7 @@ import { RECORD_TYPES, type Conflict, type Family, type Person, type RecordType 
 import { recordRefs, validateRecord } from "./validate.ts";
 import { readJson, readJsonIfExists } from "./json.ts";
 import { Tree, prefixOf } from "./tree.ts";
-import { isBirthFamily } from "./people.ts";
+import { isBirthFamily, ownAncestors } from "./people.ts";
 
 export interface Finding {
   level: "error" | "warn";
@@ -63,6 +63,16 @@ export function check(tree: Tree): Finding[] {
       if (prev) out.push({ level: "error", code: "two-birth-families", id: c.person, message: `child of both ${prev} and ${f.id}` });
       else birthFamily.set(c.person, f.id);
     }
+
+  // 3b. nobody is their own ancestor (a merge or a link that closed a circle)
+  for (const circle of ownAncestors(tree))
+    out.push({
+      level: "error",
+      code: "own-ancestor",
+      id: circle[0],
+      message: circle.length === 1 ? `${circle[0]} is their own parent` : `their own ancestors: ${circle.join(" → ")} → ${circle[0]} (each a child of the next)`,
+      hint: `take out the link made by mistake: strom family edit <F…> --remove <who> --reason "…"`,
+    });
 
   // 4. event IDs are unique across the tree
   const eventOwner = new Map<string, string>();

@@ -1,0 +1,7 @@
+{"type":"step_start","timestamp":1760000000000,"sessionID":"ses_main0001","part":{"id":"prt_1","sessionID":"ses_main0001","type":"step-start"}}
+{"type":"tool_use","timestamp":1760000001000,"sessionID":"ses_main0001","part":{"id":"prt_2","sessionID":"ses_main0001","type":"tool","tool":"bash","state":{"status":"completed","input":{"command":"strom brief"},"output":"brief"}}}
+{"type":"step_finish","timestamp":1760000002000,"sessionID":"ses_main0001","part":{"id":"prt_3","sessionID":"ses_main0001","type":"step-finish","reason":"tool-calls","cost":0.0123,"tokens":{"input":1200,"output":80,"reasoning":20,"cache":{"read":15000,"write":3000}}}}
+{"type":"step_start","timestamp":1760000003000,"sessionID":"ses_reader0002","part":{"id":"prt_4","sessionID":"ses_reader0002","type":"step-start"}}
+{"type":"step_finish","timestamp":1760000004000,"sessionID":"ses_reader0002","part":{"id":"prt_5","sessionID":"ses_reader0002","type":"step-finish","reason":"stop","cost":0.004,"tokens":{"input":900,"output":40,"reasoning":0,"cache":{"read":0,"write":5000}}}}
+{"type":"text","timestamp":1760000005000,"sessionID":"ses_main0001","part":{"id":"prt_6","sessionID":"ses_main0001","type":"text","text":"Hotovo, nic nového v knize."}}
+{"type":"step_finish","timestamp":1760000006000,"sessionID":"ses_main0001","part":{"id":"prt_7","sessionID":"ses_main0001","type":"step-finish","reason":"stop","cost":0.002,"tokens":{"input":300,"output":25,"reasoning":0,"cache":{"read":18000,"write":0}}}}

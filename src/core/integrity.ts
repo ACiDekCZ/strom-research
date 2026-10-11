@@ -210,6 +210,20 @@ export function verifyFull(tree: Tree): Integrity {
   return { findings, tampered: [...tampered] };
 }
 
+/**
+ * Whether strom may write here unasked (a settle: nobody asked, nobody to ask): the tree sealed on this computer (not
+ * another computer's seal waiting for the person's adoption) and nothing changed outside strom. Never throws: no is
+ * "next time".
+ */
+export function writableUnasked(tree: Tree): boolean {
+  if (!tree.key) return false;
+  try {
+    return !verifyFast(tree).findings.some((f) => f.level === "error");
+  } catch {
+    return false;
+  }
+}
+
 /** Refuse to write on top of data that was changed outside strom. */
 export function assertIntact(tree: Tree): void {
   const { findings } = verifyFast(tree);

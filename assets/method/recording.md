@@ -1,8 +1,12 @@
 # Method: recording an entry
 
-Record a found entry in one batch: write the lines to a file in notes/, run
-`strom batch --file notes/<file> --dry-run`, fix what it reports, then run it
-without --dry-run. `#name` labels what a line creates, `@name` uses it later.
+Record a found entry in one batch: write the lines to a file in notes/ and run
+`strom batch --file notes/<file>` — all or nothing: when a line fails nothing is
+written and every failing line is said at once; fix them in the file with your
+file-editing tool, not with sed or another shell command (the tree's rules let
+the shell run strom, not edit files), run it again. `#name` labels what a line
+creates, `@name` uses it later; a found search comes after the source it found
+(`--found @s`).
 
     source add "Baptism of Jan Novák 1885" --kind baptism --recordset B0001 --clip B0001:57@0.05,0.40,0.45,0.18 --locator "pag. 112, entry 2" --language la --information primary --transcript @notes/entry.txt #s
     event add P0001 CHR --date "25 JUN 1885" --place "Týnec" --house 13 --cite @s --quote "baptizatus est" --with "godparent:Marie Dvořáková" --with "midwife:Anna Nová" --with "officiant:P. Josef Kříž" --status proven
@@ -21,7 +25,8 @@ without --dry-run. `#name` labels what a line creates, `@name` uses it later.
 - `--transcript` is the entry's words as they stand in it — its own language,
   spelling and abbreviations, line by line, unread letters `[?]`; the Strom app
   shows them next to the entry's image. Every entry read gets them.
-- A fact already in the tree gets the citation (`cite E…`), not a second fact —
+- A fact already in the tree gets the citation (`cite E…`, `--status` is a
+  fact's only — a name or a family cited takes none), not a second fact —
   and what the record adds to it: `event edit E… --age husband:27 --age wife:17
   --house 21 --with "witness:…" --with "officiant:…"` (filling in needs no reason).
 - The names a record gives go on the person: `name add` (a maiden name completes
@@ -67,7 +72,10 @@ without --dry-run. `#name` labels what a line creates, `@name` uses it later.
   person with a conflict only once something else proves it. What would decide
   it, if not at hand, is a task about it: `strom task add … --about X…` (or H…).
   `strom conflict resolve X… --resolution "…" --reasoning "…"` when the
-  evidence decides it. A decided
+  evidence decides it. What the user decided (in the Strom app, or from its
+  link) stands: an agent decides it again — or opens a conflict of that fact
+  again — only on a source the decision did not weigh (`--source S…`) and with
+  `--reason "…"`; the same record read again changes nothing. A decided
   hypothesis that a new record overturns is decided again (the earlier
   decision is kept): `strom hypothesis decide H… --decision "…" --reason "…"`.
   People named wrongly by the weaker record keep that name as a variant

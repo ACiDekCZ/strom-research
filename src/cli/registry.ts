@@ -17,6 +17,15 @@ export interface OptionDef {
   value?: string;
   /** Taken, but never shown: not in help, strom commands, the guide or a hint of the options. */
   hidden?: boolean;
+  /** Other names it is taken by (a mistake agents make often: --surnames for --surname); said once in help. */
+  aliases?: string[];
+  /**
+   * Names agents type meaning it that are not it (--timeout, a shell tool's milliseconds, for strom read --minutes):
+   * never taken as it — the unknown option points to it.
+   */
+  mistaken?: string[];
+  /** At most this many characters (said in help and under a mistake). */
+  max?: number;
 }
 
 export interface ArgDef {
@@ -24,6 +33,8 @@ export interface ArgDef {
   description: string;
   required?: boolean;
   variadic?: boolean;
+  /** At most this many characters (said in help and under a mistake). */
+  max?: number;
 }
 
 export const GROUPS = {
@@ -41,11 +52,19 @@ export const GROUPS = {
 
 export type Group = keyof typeof GROUPS;
 
+/** One word of a command line as typed: an argument, or an option with its value. */
+export type Typed = { arg: number } | { opt: string; value?: string };
+
 export interface Input {
   args: string[];
   opts: Record<string, string | boolean | string[] | undefined>;
   /** Arguments after a bare "--", for commands that pass them on (strom run). */
   extra?: string[];
+  /**
+   * The line as typed, in order: each argument (its index) and each option with its value — a command of several
+   * arguments only (strom media view B0001:2 --crop … B0001:3 --half right: each part of the image named before it).
+   */
+  seq?: Typed[];
 }
 
 export interface Result {
@@ -58,12 +77,19 @@ export interface Result {
 
 export interface CommandDef {
   path: string[];
+  /**
+   * Other words it is run by (what agents type for it: "lesson show" for strom show): no command of their own in help
+   * (one line "also: …"), listed as aliases in strom commands --json.
+   */
+  aliases?: string[][];
   summary: string;
   group: Group;
   description?: string;
   args?: ArgDef[];
   options?: OptionDef[];
   examples?: string[];
+  /** What the brief's command sheet says after it — a mistake agents make with it, in a few words. */
+  sheet?: string;
   /** Writes to the tree: gets --dry-run, is committed automatically. */
   writes?: boolean;
   /**
@@ -103,7 +129,8 @@ const registry: CommandDef[] = [];
 
 export function register(...defs: CommandDef[]): void {
   for (const def of defs) {
-    if (registry.some((c) => c.path.join(" ") === def.path.join(" "))) throw new Error(`duplicate command ${def.path.join(" ")}`);
+    const names = [def.path, ...(def.aliases ?? [])].map((p) => p.join(" "));
+    if (registry.some((c) => [c.path, ...(c.aliases ?? [])].some((p) => names.includes(p.join(" "))))) throw new Error(`duplicate command ${def.path.join(" ")}`);
     registry.push(def);
   }
 }
@@ -121,18 +148,24 @@ export function optionsOf(def: CommandDef): OptionDef[] {
 /** Longest registered command path matching the leading words. */
 export function match(words: string[]): { def: CommandDef; used: number } | undefined {
   let best: { def: CommandDef; used: number } | undefined;
-  for (const def of registry) {
-    const n = def.path.length;
-    if (n > words.length) continue;
-    if (n === 0 && words.length > 0) continue; // the root command only matches no words
-    if (def.path.every((w, i) => words[i] === w) && (!best || n > best.used)) best = { def, used: n };
-  }
+  for (const def of registry)
+    for (const path of [def.path, ...(def.aliases ?? [])]) {
+      const n = path.length;
+      if (n > words.length) continue;
+      if (n === 0 && words.length > 0) continue; // the root command only matches no words
+      if (path.every((w, i) => words[i] === w) && (!best || n > best.used)) best = { def, used: n };
+    }
   return best;
 }
 
 /** Command groups ("person") that have subcommands but no command of their own. */
 export function subcommandsOf(prefix: string[]): CommandDef[] {
   return registry.filter((c) => c.path.length > prefix.length && prefix.every((w, i) => c.path[i] === w));
+}
+
+/** An alias's words that begin with these (a group of aliases only: "lesson" has "lesson show" among them). */
+export function aliasExtends(prefix: string[]): boolean {
+  return registry.some((c) => (c.aliases ?? []).some((a) => a.length > prefix.length && prefix.every((w, i) => a[i] === w)));
 }
 
 export function usageLine(def: CommandDef): string {
@@ -171,6 +204,7 @@ export function describe(def: CommandDef, appUrl: ShownAppUrl): Record<string, u
   if (description) out.description = description;
   if (def.writes) out.writes = true;
   if (def.tree) out.needsTree = true;
+  if (def.aliases?.length) out.aliases = def.aliases.map((a) => a.join(" "));
   if (def.args?.length) out.args = def.args;
   const opts = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !o.hidden);
   if (opts.length)
@@ -178,6 +212,8 @@ export function describe(def: CommandDef, appUrl: ShownAppUrl): Record<string, u
       name: `--${o.name}`,
       ...(o.type === "boolean" ? { flag: true } : { value: o.value ?? "<value>" }),
       ...(o.multiple ? { repeatable: true } : {}),
+      ...(o.max ? { max: o.max } : {}),
+      ...(o.aliases?.length ? { aliases: o.aliases.map((a) => `--${a}`) } : {}),
       description: o.description,
     }));
   if (def.examples?.length) out.examples = def.examples;

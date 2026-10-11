@@ -31,11 +31,12 @@ test("the bridge says which links work here (none unless registered) and serves 
   try {
     const status = (await (await fetch(`${info.url}/status`)).json()) as { links: string[]; waiting: { id: string; at: string; person?: string }[]; queue: { id: string; person?: string }[] };
     assert.deepEqual(status.links, []);
-    // since when a task waits: the app shows it
-    assert.equal(status.waiting[0]?.id, "T0001");
-    assert.ok(Date.now() - Date.parse(status.waiting[0]!.at) < 60_000, status.waiting[0]?.at);
+    // since when a task waits: the app shows it (after the decisions — the story's new version — in the order of What waits)
+    const waits = status.waiting.find((x) => x.id === "T0001");
+    assert.ok(waits, JSON.stringify(status.waiting));
+    assert.ok(Date.now() - Date.parse(waits.at) < 60_000, waits.at);
     // the one person a task is about, for the app's badge on them; about two: none
-    assert.equal(status.waiting[0]?.person, "P0001");
+    assert.equal(waits.person, "P0001");
     const story = status.waiting.find((x) => (x as { kind?: string }).kind === "story") as Record<string, string> | undefined;
     assert.deepEqual(story && { id: story.id, person: story.person, partner: story.partner }, { id: "F0001", person: "P0001", partner: "P0002" }, JSON.stringify(status.waiting));
     assert.match(story!.what ?? "", /Nová verze vyprávění o Jan Novák & Marie Nováková/);
@@ -159,12 +160,18 @@ test("the app's menus through links, in the research's terminal: a task answered
   // a task that waits for the user: what it asks, the answer, the task back to the agent (and the time it waits since, for the app)
   await w.ok(["task", "add", "Kde jsou zapsány křty obce Týnec", "--level", "locate", "--where", "matriky farnosti", "--why", "křest Jana", "--done-when", "kniha nalezena"]);
   await w.ok(["task", "wait", "T0001", "--on", "Poslat odkaz na knihu narozených."]);
-  const answered = await open("task", "&task=T0001", ["https://archive.example.org/book/77", "n", ""]);
+  // the answer kept with the task, nothing more: no conversation offered (the agent takes it up in its next work)
+  const answered = await open("task", "&task=T0001", ["https://archive.example.org/book/77", ""]);
   assert.match(answered.out, / Kde jsou zapsány křty obce Týnec\n {4}Co udělat: Poslat odkaz na knihu narozených\./);
-  assert.match(answered.out, /✓ Úkol se vrátil agentovi i s odpovědí\./);
+  assert.match(answered.out, /Odpověď se uloží k úkolu, agent ji zpracuje při další práci\.\n[^\n]*Odpověď – odkaz/);
+  assert.match(answered.out, /✓ Odpověď se uloží k úkolu, agent ji zpracuje při další práci\./);
+  assert.doesNotMatch(answered.out, /Pokračovat s agentem hned\?/);
   const t1 = (await w.ok(["task", "show", "T0001", "--json"])).json.task;
   assert.equal(t1.state, "open");
-  assert.match(t1.notes.at(-1).text, /https:\/\/archive\.example\.org\/book\/77$/);
+  // the person's answer: a record of its own, apart from the notes (an agent writes those too)
+  assert.equal(t1.answers.at(-1).by, "person");
+  assert.equal(t1.answers.at(-1).answer, "https://archive.example.org/book/77");
+  assert.equal(t1.answers.at(-1).asked, "Poslat odkaz na knihu narozených.");
   assert.match((await open("task", "&task=T0001", [""])).out, /Tento úkol už nečeká/);
   // a person reviewed: said what it does, a no writes nothing, a yes the tasks
   const no = await open("review", "&person=P0001&scope=family", ["n", ""]);

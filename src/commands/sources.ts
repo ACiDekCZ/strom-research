@@ -4,8 +4,9 @@ import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
 import fs from "node:fs";
 import { commands, register, type CommandDef, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
+import { LIST_PAGE_MAX, lines, moreLine, paginate, shellArg, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
+import { ui } from "../cli/ui.ts";
 import {
   ACCESS,
   AUTOMATION,
@@ -23,13 +24,15 @@ import {
   type Source,
 } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, textOpt, update } from "../core/records.ts";
-import { makeNote, parseDate } from "../core/actions.ts";
+import { makeNote, makeNotes, parseDate } from "../core/actions.ts";
 import { calibrationLine, fitCalibration } from "../core/calibration.ts";
 import { foldText } from "../core/text.ts";
 import { clipNote, clipText, imageOfRef, MAX_CLIPS, transcriptNote } from "../core/media.ts";
 import { partRegion } from "../core/views.ts";
 import { formatName } from "../core/people.ts";
+import { yearsOption, yearsOverlap } from "../core/years.ts";
 import type { Tree } from "../core/tree.ts";
+import { levelWords } from "../core/archiveasks.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -124,7 +127,7 @@ function editFields<T extends Source | Repository | RecordSet | Place>(
       const overwritten = keys.filter((k) => k in evidence && old[k] !== undefined && old[k] !== evidence[k] && JSON.stringify(old[k]) !== JSON.stringify(changes[k]));
       if (overwritten.length && !reason)
         throw new UsageError(`changing ${overwritten.join(", ")} of ${id} needs --reason`, { hint: 'what a record says is evidence: e.g. --reason "re-read at full resolution"', code: "record.needs-reason", params: { id, fields: overwritten.map((k) => `--${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`).join(", ") } });
-      return { ...cur, ...changes, ...(note ? { notes: [...cur.notes, makeNote(tree, note)] } : {}) };
+      return { ...cur, ...changes, ...(note ? { notes: [...cur.notes, ...makeNotes(tree, note)] } : {}) };
     },
     { op: `${type}.edit`, summary: `${id} ${[...given.map(([k]) => k), ...(note ? ["note"] : [])].join(", ") || "edited"}`, reason },
   );
@@ -144,6 +147,9 @@ function matches(text: string | undefined, q: string): boolean {
 }
 
 // ── sources ────────────────────────────────────────────────────────────────
+
+/** A list longer than this ends with the filters that make it shorter. */
+const LONG_LIST = 30;
 
 register(
   {
@@ -316,7 +322,7 @@ register(
       { name: "region", type: "string", value: "<text>", description: "region it covers" },
       { name: "url", type: "string", value: "<url>", description: "website or portal" },
       { name: "terms", type: "string", value: "<text>", description: "terms of use in one sentence (+ link)" },
-      { name: "automation", type: "string", value: "<a>", description: "allowed, manual (browser only), forbidden, unknown (default)" },
+      { name: "automation", type: "string", value: "<a>", description: "allowed, manual (images by hand only — a person), forbidden (no automated request), unknown (default); an archive whose terms only restrict automation: strom allow archive <host> --level restricted" },
       { name: "note", type: "string", value: "<text>", description: "short note" },
       { name: "another", type: "boolean", description: "a different archive, though one here has its name or website" },
     ],
@@ -372,7 +378,7 @@ register(
       const text = lines(
         `${r.id} ${r.name}${r.country ? ` (${r.country}${r.region ? `, ${r.region}` : ""})` : ""}`,
         r.url ? `url         ${r.url}` : undefined,
-        `automation  ${r.automation}${r.automation === "forbidden" ? " — never download with tools" : r.automation === "manual" ? " — browser only" : ""}`,
+        `automation  ${r.automation}${r.automation === "forbidden" ? " — no automated request at all" : r.automation === "manual" ? " — the catalogue may be read; images by hand only (a person)" : ""}`,
         r.terms ? `terms       ${r.terms}` : undefined,
         sets.length ? `\nrecord sets\n${table(sets.map((b) => [`  ${b.id}`, b.title, b.years ?? "", b.access]))}` : undefined,
         ...r.notes.map((n) => `note        ${n.text}`),
@@ -396,7 +402,7 @@ register(
       { name: "repo", type: "string", value: "<R…>", description: "archive holding it" },
       { name: "call-number", type: "string", value: "<sig>", description: "signature / call number" },
       { name: "kinds", type: "string", value: "<list>", description: "record kinds, comma separated: baptism,marriage,burial — with index when it is or has an index" },
-      { name: "places", type: "string", value: "<list>", description: "places covered, comma separated" },
+      { name: "places", type: "string", value: "<list>", description: "places covered, comma separated", aliases: ["place"] },
       { name: "years", type: "string", value: "<from-to>", description: "e.g. 1784-1820" },
       { name: "access", type: "string", value: "<a>", description: `${ACCESS.join(", ")} (default unknown)` },
       { name: "url", type: "string", value: "<url>", description: "link to the images or catalog" },
@@ -408,8 +414,8 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
-      const years = str(opts.years);
-      if (years && !/^\d{3,4}(-\d{3,4})?$/.test(years)) throw new UsageError(`invalid --years "${years}"`, { hint: "use 1784 or 1784-1820" });
+      const said: string[] = [];
+      const years = yearsOption(str(opts.years), said, "1784-1820");
       const images = opts.images === undefined ? undefined : Number(opts.images);
       if (images !== undefined && (!Number.isInteger(images) || images < 1)) throw new UsageError("--images must be a positive number");
       const b = create<RecordSet>(
@@ -431,7 +437,7 @@ register(
         },
         (id) => `+${id} record set "${truncate(args[0]!, 60)}"`,
       );
-      return { text: written(tree), data: { recordset: b } };
+      return { text: lines(written(tree), ...said), data: { recordset: b } };
     },
   },
   {
@@ -440,14 +446,47 @@ register(
     group: "sources",
     tree: true,
     args: [{ name: "filter", description: "text in title, place or call number" }],
-    options: [{ name: "full", type: "boolean", description: "--json: whole records instead of one row each" }],
+    options: [
+      { name: "place", type: "string", value: "<name>", description: "only the books of this place (diacritics optional)" },
+      { name: "kind", type: "string", value: "<kind>", description: "only the books holding this kind of record (baptism, marriage, burial…)" },
+      { name: "years", type: "string", value: "<from-to>", description: "only the books whose years reach into these" },
+      { name: "repo", type: "string", value: "<R…>", description: "only the books of this archive" },
+      { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
+    ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       let all = tree.list<RecordSet>("recordset");
       if (args[0]) all = all.filter((b) => matches(b.title, args[0]!) || b.places.some((p) => matches(p, args[0]!)) || matches(b.callNumber, args[0]!));
+      // the filters agents look for (K14): a place, a kind of record, years, an archive
+      if (typeof opts.place === "string") all = all.filter((b) => b.places.some((p) => matches(p, String(opts.place))));
+      if (typeof opts.kind === "string") all = all.filter((b) => b.kinds.some((k) => matches(k, String(opts.kind))));
+      const years = yearsOption(opts.years, []);
+      if (years) all = all.filter((b) => yearsOverlap(b.years, years));
+      if (typeof opts.repo === "string") {
+        const repo = requireRecord(tree, String(opts.repo), "repository").id;
+        all = all.filter((b) => b.repository === repo);
+      }
+      // a long list ends with its filters: a book is found by them, never by searching the list (N0280)
+      const filters = [
+        args[0] ? undefined : "<text>",
+        opts.place === undefined ? "--place <name>" : undefined,
+        opts.kind === undefined ? "--kind <kind>" : undefined,
+        opts.years === undefined ? "--years <from-to>" : undefined,
+        opts.repo === undefined ? "--repo <R…>" : undefined,
+      ].filter(Boolean);
+      // A page at most (--limit, LIST_PAGE_MAX rows: under ~20 kB — an agent's tool keeps a longer output in a file and
+      // shows only its start, N0280, N0281); a long list says its filters first, where a cut output still shows them.
+      const page = paginate(all, Math.min(ctx.limit, LIST_PAGE_MAX), ctx.page);
+      const narrow = all.length > LONG_LIST && filters.length ? `${all.length} record sets — narrow: strom recordset list ${filters.join(" ")}` : undefined;
       return {
-        text: all.length ? table(all.map((b) => [b.id, truncate(b.title, 60), b.years ?? "", b.access, b.calibration.length ? "calibrated" : ""])) : "no record sets match",
-        data: { recordsets: opts.full ? all : all.map((b) => ({ id: b.id, title: b.title, years: b.years, access: b.access, places: b.places, calibrated: b.calibration.length > 0 })) },
+        text: all.length
+          ? lines(
+              narrow,
+              table(page.items.map((b) => [b.id, truncate(b.title, 60), b.years ?? "", b.access, b.calibration.length ? "calibrated" : ""])),
+              moreLine(page, ["strom recordset list", ...(args[0] ? [shellArg(args[0])] : []), ...(["place", "kind", "years", "repo"] as const).filter((k) => typeof opts[k] === "string").map((k) => `--${k} ${shellArg(String(opts[k]))}`)].join(" ")),
+            )
+          : "no record sets match",
+        data: { total: page.total, recordsets: opts.full ? page.items : page.items.map((b) => ({ id: b.id, title: b.title, years: b.years, access: b.access, places: b.places, calibrated: b.calibration.length > 0 })) },
       };
     },
   },
@@ -638,8 +677,15 @@ register(
       const tree = ctx.tree();
       if (!opts.kind || !opts.name) throw new UsageError("--kind and --name are required");
       const kind = oneOf(opts.kind, JURISDICTIONS, "kind", "other");
-      const from = opts.from === undefined ? undefined : Number(opts.from);
-      const to = opts.to === undefined ? undefined : Number(opts.to);
+      const year = (name: "from" | "to") => {
+        if (opts[name] === undefined) return undefined;
+        const y = Number(opts[name]);
+        if (!/^\s*\d{3,4}\s*$/.test(String(opts[name]))) throw new UsageError(`invalid --${name} "${String(opts[name])}"`, { hint: `a year: --${name} 1784` });
+        return y;
+      };
+      const from = year("from");
+      const to = year("to");
+      if (from !== undefined && to !== undefined && from > to) throw new UsageError(`--from ${from} is after --to ${to}`, { hint: `--from ${to} --to ${from}` });
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
       const recordsets = csvOpt(opts.recordset).map((b) => requireRecord<RecordSet>(tree, b, "recordset").id);
       const id = normId(args[0]!, "place");
@@ -741,6 +787,12 @@ register(
     examples: ['strom repo edit R0001 --automation forbidden --terms "no automated downloads (https://…/terms)"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
+      // an archive recorded milder than before (its terms allow more): the person's word — making it stricter is anybody's
+      const next = optOneOf(opts.automation, AUTOMATION, "automation");
+      const cur = next ? requireRecord<Repository>(tree, args[0]!, "repository") : undefined;
+      const strict = (x: string) => (x === "forbidden" ? 3 : x === "manual" ? 2 : 0);
+      if (cur && next && strict(next) < strict(cur.automation))
+        ctx.requireHuman(`Record ${cur.id} ${cur.name} as automation ${next} — milder than ${cur.automation}?`, `strom repo edit ${cur.id} --automation ${next}`, `repo:${cur.id}`, ui(ctx.uiLang(), "ui.archive.level.milder", { title: cur.name, level: levelWords(ctx.uiLang(), next), now: levelWords(ctx.uiLang(), cur.automation) }));
       const r = editFields<Repository>(
         tree,
         args[0]!,
@@ -772,8 +824,8 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
-      const years = str(opts.years);
-      if (years && !/^\d{3,4}(-\d{3,4})?$/.test(years)) throw new UsageError(`invalid --years "${years}"`, { hint: "use 1784 or 1784-1820" });
+      const said: string[] = [];
+      const years = yearsOption(str(opts.years), said, "1784-1820");
       const images = opts.images === undefined ? undefined : Number(opts.images);
       if (images !== undefined && (!Number.isInteger(images) || images < 1)) throw new UsageError("--images must be a positive number");
       const b = editFields<RecordSet>(
@@ -795,7 +847,7 @@ register(
         {},
         opts,
       );
-      return { text: written(tree), data: { recordset: b } };
+      return { text: lines(written(tree), ...said), data: { recordset: b } };
     },
   },
   {

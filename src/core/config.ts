@@ -11,12 +11,17 @@ import { readJsonIfExists, writeJson } from "./json.ts";
 import { detectLang, isValidLang } from "./lang.ts";
 import { UsageError } from "./errors.ts";
 import { DEFAULT_AGENT, PROFILES, TIERS, type Tier } from "../agents/profiles.ts";
+import { ALL_EFFORTS, EFFORTS, hasEffort, RECOMMENDED_EFFORT } from "../agents/effort.ts";
 import { EXCERPT_QUALITIES, EXCERPT_SCOPES, EXCERPTS_MAX_MB, STRATEGIES, type ExcerptQuality, type ExcerptScope, type Strategy, type TreeConfig } from "./model.ts";
 import { downloadsDir } from "./browser.ts";
 import { acquireLock } from "./lock.ts";
 import { defaultAppUrl, isAppVersion, isStromAppOrigin, STROM_APP_BETA_URL, STROM_APP_URL } from "./stromapp.ts";
 import { updateChannel } from "./update.ts";
+import { WEB_PER_HOST, WEB_SOFT } from "./metrics.ts";
 import type { BackupRecord } from "./backup.ts";
+import type { ViewCalibration } from "./viewsizes.ts";
+import type { KeyTuning } from "./tune.ts";
+import type { TuneAnswer } from "./tuneask.ts";
 
 export interface UserConfig {
   /** Strom home: default parent of trees and shared data. */
@@ -43,14 +48,18 @@ export interface UserConfig {
   stories?: string;
   /** The gate the agent working alone asks before each session (plugins/gates/<name>). */
   runGate?: string;
+  /** A person's pace for the images of restricted archives: "<seconds> <requests an hour>" (core/terms.ts humanPace). */
+  archivePace?: string;
   /** Hooks told of what is saved into a research (plugins/hooks/<name>), turned on by the user. */
   hooks?: string[];
-  /** Model per tier, per agent: { claude: { vision: "opus" } }. */
-  models?: Record<string, Partial<Record<Tier, string>>>;
+  /** Model per tier, per agent, and its reasoning effort (model.effort): { claude: { vision: "opus" }, codex: { effort: "high" } }. */
+  models?: Record<string, Partial<Record<Tier | "effort", string>>>;
   /** Size of the brief in tokens. */
   briefBudget?: number;
   /** Time limit of one `strom run` session in minutes. */
   runMinutes?: number;
+  /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost). */
+  webPerHost?: number;
   /** Order of the task queue: balanced (default), depth, priority. */
   queueStrategy?: string;
   /** Ask the user before a connector runs: off (default) or on. */
@@ -66,6 +75,8 @@ export interface UserConfig {
   /** Claude Code sessions strom starts with Remote Control: on, off (default). */
   agentRemote?: string;
   agentBrowser?: string;
+  /** The agent's personal add-ons in the sessions it works alone: off (default — the research's tools only) or on. */
+  agentAddons?: string;
   /** The Strom app on this computer: the user said so ("yes") or does not want to hear of it ("no"). */
   stromApp?: string;
   /** strom-research:// links from the Strom app: the person said yes (set up) or no (never asked again; strom link on changes it). */
@@ -98,6 +109,16 @@ export interface UserConfig {
   told?: Record<string, string>;
   /** The last answer to "watch the work live in the Strom app?" when the agent was set to work alone from the menu. */
   stromAppFollow?: "yes" | "no";
+  /** The sizes of scan views a calibration found, per agent and model ("claude opus"): strom media calibrate. */
+  viewSizes?: Record<string, ViewCalibration>;
+  /** Claude Code's transcripts of the sessions strom started read for the tuning of scan reading: on (default) or off. */
+  tuneTranscripts?: string;
+  /** What strom set by itself for reading scans, per agent and model ("claude opus"): core/tune.ts. */
+  tuning?: Record<string, KeyTuning>;
+  /** strom tunes the reading of scans by itself (only towards accuracy or fewer requests): on (default) or off. */
+  tuneAuto?: string;
+  /** A person's answers to the questions about the reading of scans of an agent and model (core/tuneask.ts): [key][kind]. */
+  tuneAnswers?: Record<string, Record<string, TuneAnswer>>;
 }
 
 /** A route chosen for a connector: when, and from where (a terminal, or a command without one — an agent or the app). */
@@ -137,7 +158,12 @@ export interface Flags {
   minutes?: string | undefined;
 }
 
-export const DEFAULT_BUDGET = 25_000;
+/**
+ * The brief's room in real tokens (`tokens()` of brief.ts). It was 25 000 when a token was counted as 3.5 characters,
+ * i.e. about 87 500 characters; a brief in a language with diacritics takes 1.6–1.9 characters a token, so the same
+ * room is about 55 000 — what is saved comes from a smaller brief, never from cutting one that used to fit (P3).
+ */
+export const DEFAULT_BUDGET = 55_000;
 export const DEFAULT_RUN_MINUTES = 60;
 
 /** One setting: where it can live and how it is checked. */
@@ -146,7 +172,7 @@ export interface SettingDef {
   env: string;
   /** Can a tree carry its own value (strom.json)? */
   tree: boolean;
-  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin";
+  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin" | "views" | "tuned" | "pace";
   /** The values a "choice" allows. */
   choices?: readonly string[];
   description: string;
@@ -170,10 +196,20 @@ export const SETTINGS: SettingDef[] = [
       cheap: "model for mechanical work",
     }[t],
   })),
+  // (kept per agent beside its models; checked against the agent's own levels where the agent is known) — read from
+  // the config files only (the user's or the tree's), no variable: a higher level uses up a plan's limits sooner, so
+  // raising it is the user's decision (as agent.addons on)
+  { key: "model.effort", env: "", tree: true, kind: "model", description: "reasoning effort of the agent's model in the sessions strom starts (Codex, Claude Code, Antigravity, Grok): high recommended — old handwriting read with the best setting; a plan's limit runs out sooner. Unset: the agent's own settings (Codex: its config.toml); only you raise it" },
   { key: "brief.budget", env: "STROM_BRIEF_BUDGET", tree: true, kind: "number", description: `size of the brief in tokens (default ${DEFAULT_BUDGET})` },
   { key: "run.minutes", env: "STROM_RUN_MINUTES", tree: true, kind: "number", description: `time limit of one \`strom run\` session (default ${DEFAULT_RUN_MINUTES})` },
+  // Read from the config files only (the user's or the tree's) — no variable: more requests to one server is the
+  // user's decision (as model.effort higher); lowering it is anyone's.
+  { key: "web.perHost", env: "", tree: true, kind: "number", description: `web requests to one site (its mirrors with it) in one session through an agent's own web fetch (default ${WEB_PER_HOST}; past ${WEB_SOFT} they go slower and the agent builds a connector): past it a run refuses and a conversation asks you, and more pages of that site go through strom fetch with a connector — only you raise it` },
   // Read from the config file only, changed by the user alone: the gate decides what working alone spends.
-  { key: "run.gate", env: "", tree: false, kind: "plugin", description: "a condition on the agent working alone: the gate (plugins/gates/<name>) strom asks before each session of strom run — go on, wait or stop; its name, then what it is given (strom gate list; e.g. claude-usage 10: the Claude subscription's daily ration, 10 points in hand) — only you set it" },
+  { key: "run.gate", env: "", tree: false, kind: "plugin", description: "a condition on the agent working alone: the gate (plugins/gates/<name>) strom asks before each session of strom run — go on, wait or stop; its name, then what it is given (strom gate list; e.g. claude-usage 10: the Claude subscription's daily ration, 10 points in hand; claude-usage 10 --cap 95: and never past 95 % of the week, before every session of every run, no “start anyway”) — only you set it" },
+  // Read from the config file only, changed by the user alone: how fast strom may take images of an archive whose
+  // terms restrict automation, once the user allowed it slowly (core/terms.ts).
+  { key: "archive.pace", env: "", tree: false, kind: "pace", description: "a person's pace for the images of an archive whose terms restrict automated access, once you allowed it slowly: seconds between two images, then requests to the archive an hour, its catalogue counted too (default \"10 120\"; auto: the default) — the service's own pace stays the slowest; one archive's own: strom allow host <host> --pace/--per-hour — only you set it" },
   { key: "queue.strategy", env: "STROM_QUEUE_STRATEGY", tree: true, kind: "choice", choices: STRATEGIES, description: "order of the task queue: balanced (default — nearest ancestors first, spread over the lines, nothing taken forever), depth (stay on one line), priority (strict priority)" },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
@@ -193,10 +229,19 @@ export const SETTINGS: SettingDef[] = [
   { key: "agent.where", env: "STROM_AGENT_WHERE", tree: false, kind: "choice", choices: ["app", "terminal"], description: "where you talk with the agent: app (its desktop app — the easiest), terminal (its CLI) — unset: the app when it is installed" },
   { key: "agent.browser", env: "", tree: true, kind: "choice", choices: ["archives", "always"], description: "browser tools (Claude in Chrome) for the Claude Code sessions strom starts: archives (default) — only in a research whose connectors fetch through the browser, for their sites; always — in every session, for the sites of the research's archives (a conversation asks about others) — only you turn it on" },
   { key: "agent.remote", env: "", tree: false, kind: "choice", choices: ["on", "off"], description: "the Claude Code sessions strom starts (strom run, strom chat in the terminal) with Remote Control: on — follow and steer them from claude.ai or the Claude app on your phone; off (default) — only you turn it on" },
+  // Read from the config files only (the user's or the tree's) — no variable: turning them on is the user's decision.
+  { key: "agent.addons", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the agent's personal add-ons (its skills, plugins, MCP servers, memory) when it works alone (strom run, the readers of strom read): off (default — it loads the research's tools only; the Strom app's connection and the browser work on) or on (as in a conversation, which loads them always) — Claude Code and Codex; Grok without what it takes in of the other agents (their skills, MCP servers, hooks) and its memory, its own skills and plugins kept (it has no switch for them); only you turn it on" },
   { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it) or archive (the data come from the Strom app, no agent; the setup wizard sets it when no agent is here) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
   { key: "app.browser", env: "STROM_APP_BROWSER", tree: false, kind: "choice", choices: ["chrome", "edge", "brave", "opera", "firefox", "chromium"], description: "the browser strom opens the Strom app in — the one its tree came from (strom keeps it), or yours: chrome, edge, brave, opera, firefox, chromium (another Chromium: Vivaldi, Arc). The Strom app installed from a browser always comes first (from this one when it is installed from several); without one, a tab of this browser — unset: of the default browser when the app reaches strom from it, else of the first such browser here" },
+  // Measured, never typed: strom media calibrate (a person starts it) keeps it per agent and model; unset: the defaults.
+  { key: "views.size", env: "", tree: false, kind: "views", description: "the size of the scan views for the research's agent and model: find (a whole image, to find an entry; default 1400 px) and read (a half, a crop, a reader's view; default what the model takes) — set by strom media calibrate, which a person starts; strom config unset views.size returns to the defaults" },
+  { key: "tune.transcripts", env: "STROM_TUNE_TRANSCRIPTS", tree: false, kind: "choice", choices: ["on", "off"], description: "the transcripts Claude Code keeps on this computer of the sessions strom started, read to tune how scans are read (the context cleared, files opened again, what each reader cost): on (default — only the tokens of each request, the names of the tools and the files read, never the conversation; nothing leaves this computer) or off (nothing read)" },
+  { key: "tune.auto", env: "STROM_TUNE_AUTO", tree: false, kind: "choice", choices: ["on", "off"], description: "strom tunes how scans are read by itself, from what it measured of the reading: on (default — only towards accuracy or fewer requests to an archive: a book read worse shown bigger, smaller batches, whole images first where an archive's limit was reached, no parts a portal has none sharper; each said with its reason, logged, back to the default once not needed) or off (nothing changed by itself, what it set not used)" },
+  // Measured and set by strom itself (tune.auto), never typed: shown with their reason; unset returns to the default.
+  { key: "reading.batch", env: "", tree: false, kind: "tuned", description: "how many scans are read in one batch (by a delegate, the agent itself, a reader of strom read) and how many views one call of strom media view gives — default about 6 scans, 24 views; strom makes it smaller by itself when the context clears or readers end without a result; strom config unset reading.batch returns to the default" },
+  { key: "reading.views", env: "", tree: false, kind: "tuned", description: "after how many views a reader stops and reports (the agent reading itself writes down and goes on) — default about 30; strom makes it smaller by itself from the context it measured; strom config unset reading.views returns to the default" },
   { key: "strom.app.url", env: "STROM_APP_URL", tree: false, kind: "url", description: "another copy of the Strom app to open instead of {appUrl} — e.g. its development (http://127.0.0.1:8080/); installed from a browser, that copy opens as its own app" },
 ];
 
@@ -204,6 +249,7 @@ export const SETTINGS: SettingDef[] = [
 const FIELDS: Record<string, string> = {
   "brief.budget": "briefBudget",
   "run.minutes": "runMinutes",
+  "web.perHost": "webPerHost",
   "gedcom.for": "gedcomFor",
   "strom.version": "stromVersion",
   "queue.strategy": "queueStrategy",
@@ -213,6 +259,7 @@ const FIELDS: Record<string, string> = {
   "agent.where": "agentWhere",
   "agent.remote": "agentRemote",
   "agent.browser": "agentBrowser",
+  "agent.addons": "agentAddons",
   "strom.app": "stromApp",
   "strom.app.url": "stromAppUrl",
   "app.browser": "appBrowser",
@@ -221,6 +268,9 @@ const FIELDS: Record<string, string> = {
   "excerpts.for": "excerptsFor",
   "excerpts.mb": "excerptsMb",
   "run.gate": "runGate",
+  "archive.pace": "archivePace",
+  "tune.transcripts": "tuneTranscripts",
+  "tune.auto": "tuneAuto",
 };
 
 /** Environment variables that are not settings but steer strom. */
@@ -309,11 +359,19 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
     }
     case "model":
       if (!v) throw new UsageError("the model name is empty");
-      return v;
+      if (def.key === "model.effort" && !ALL_EFFORTS.includes(v.toLowerCase())) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: `${RECOMMENDED_EFFORT} (recommended), ${ALL_EFFORTS.filter((e) => e !== RECOMMENDED_EFFORT).join(", ")}` });
+      return def.key === "model.effort" ? v.toLowerCase() : v;
     case "choice": {
       const c = def.key === "agent.permissions" ? (PERMISSION_ALIASES[v.toLowerCase()] ?? v.toLowerCase()) : v.toLowerCase();
       if (!def.choices?.includes(c)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: def.choices?.join(", ") });
       return c;
+    }
+    case "pace": {
+      // seconds between two images, then requests to the archive an hour (its catalogue counted too): "10 120" — or auto, the default
+      if (v.toLowerCase() === "auto") return "auto";
+      const m = /^(\d+(?:\.\d+)?)\s+(\d+)$/u.exec(v);
+      if (!m || Number(m[1]) < 0.25 || !(Number(m[2]) >= 1)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: 'seconds between two images (at least 0.25), then requests to the archive an hour, its catalogue counted too: "10 120" — or auto' });
+      return `${Number(m[1])} ${Number(m[2])}`;
     }
     case "plugin":
       // its name, then what it is given: "claude-usage 10"
@@ -330,16 +388,20 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       // as the app says it to the bridge (its header): its betas too
       if (!isAppVersion(v)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: "a version like 3.9.0 or 3.10.0-beta.6" });
       return v;
+    case "views":
+      throw new UsageError(`${def.key} is measured, not set: strom media calibrate`, { hint: "strom media calibrate (a person starts it: paid readings of the research's own records) · strom config unset views.size returns to the defaults" });
+    case "tuned":
+      throw new UsageError(`${def.key} is set by strom itself from the reading of scans, not typed`, { hint: `strom media calibrate --report says why · strom config unset ${def.key} returns to the default` });
     case "number": {
       const n = Number(v);
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
-      return def.key === "brief.budget" ? Math.round(n) : n;
+      return def.key === "brief.budget" || def.key === "web.perHost" ? Math.max(1, Math.round(n)) : n;
     }
   }
 }
 
 /** Where a setting is stored in the user config or in strom.json. */
-function readStored(store: UserConfig | TreeConfig | undefined, key: string, agent: string): string | number | undefined {
+export function readStored(store: UserConfig | TreeConfig | undefined, key: string, agent: string): string | number | undefined {
   if (!store) return undefined;
   if (key.startsWith("model.")) return store.models?.[agent]?.[key.slice(6) as Tier];
   const v = (store as Record<string, unknown>)[FIELDS[key] ?? key];
@@ -475,12 +537,31 @@ export class Settings {
       const r = this.resolve(`model.${t}`, tree, agent);
       if (r) out[t] = String(r.value);
     }
+    // Handwriting never with a weaker model than the research's: an agent with no reader of its own (all but Claude
+    // Code) reads with the model chosen for the research — never its own default (Antigravity's is a Flash one).
+    if (out.vision === undefined && out.lead !== undefined) out.vision = out.lead;
     return out;
   }
 
-  number(key: "brief.budget" | "run.minutes" | "excerpts.mb", tree: TreeConfig | undefined, fallback: number): number {
+  /**
+   * The reasoning effort the person chose for this agent's sessions (model.effort: tree > user, no variable), when the
+   * agent takes it — else none: the agent's own settings hold.
+   */
+  effort(agent: string, tree?: TreeConfig): Resolved<string> | undefined {
+    if (!hasEffort(agent)) return undefined;
+    const r = this.resolve("model.effort", tree, agent);
+    return r && EFFORTS[agent]!.includes(String(r.value)) ? { value: String(r.value), source: r.source } : undefined;
+  }
+
+  number(key: "brief.budget" | "run.minutes" | "excerpts.mb" | "web.perHost", tree: TreeConfig | undefined, fallback: number): number {
     const r = this.resolve(key, tree);
     return r ? Number(r.value) : fallback;
+  }
+
+  /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost: tree > user). */
+  webPerHost(tree?: TreeConfig): number {
+    const n = Math.round(this.number("web.perHost", tree, WEB_PER_HOST));
+    return Number.isFinite(n) && n >= 1 ? n : WEB_PER_HOST;
   }
 
   /** How the task queue is ordered (core/queue.ts). */
@@ -507,6 +588,24 @@ export class Settings {
   /** Claude Code sessions strom starts with Remote Control (agent.remote: on). */
   agentRemote(): boolean {
     return this.resolve("agent.remote")?.value === "on";
+  }
+
+  /**
+   * The agent working alone (strom run, readers) with its personal add-ons — skills, plugins, MCP servers, memory —
+   * as in a conversation (agent.addons on); off by default: the research's tools only.
+   */
+  agentAddons(tree?: TreeConfig): boolean {
+    return this.resolve("agent.addons", tree)?.value === "on";
+  }
+
+  /** Claude Code's transcripts of the sessions strom started read for tuning (core/transcripts.ts): on unless the user said off. */
+  tuneTranscripts(): boolean {
+    return this.resolve("tune.transcripts")?.value !== "off";
+  }
+
+  /** strom tunes the reading of scans by itself (core/tune.ts): on unless the user said off. */
+  tuneAuto(): boolean {
+    return this.resolve("tune.auto")?.value !== "off";
   }
 
   /** The browser the Strom app is opened in, if the person (or the tree's coming from the app) said. */

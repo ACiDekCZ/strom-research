@@ -1,6 +1,7 @@
 # Method: proving a link (parents, marriage)
 
-1. **Premise:** `strom searched B… --years …` and `strom task show T…` — if the
+1. **Premise:** the brief's *Already known* and the task's notes (`strom
+   searched B… --years …` only for a book or years it does not list) — if the
    range was already covered completely, do not repeat it; say so and close.
 2. **Index before book.** Use an index to find the page, then read the entry in
    the register itself. An index entry alone is a lead — and so is its absence:

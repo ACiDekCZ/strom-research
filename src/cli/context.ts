@@ -17,7 +17,7 @@ import { readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
 import { currentSession } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
-import { canShowDialog, systemDialog, WAIT_SECONDS, type DialogText } from "../core/dialog.ts";
+import { canShowDialog, systemDialog, WAIT_SECONDS, type ChoiceText, type DialogText } from "../core/dialog.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 
 export interface IO {
@@ -32,6 +32,8 @@ export interface IO {
   stdin?: NodeJS.ReadableStream;
   /** Test hook: the answer of the window of a consent (true yes, false no, undefined no window). */
   dialog?: (text: DialogText) => boolean | undefined;
+  /** Test hook: the answer of a window with choices (the key chosen, null none — later, Esc, no answer —, undefined no window). */
+  choice?: (text: ChoiceText) => string | null | undefined;
 }
 
 export interface KnownTree {
@@ -51,6 +53,8 @@ export class Context {
   readonly limit: number;
   readonly page: number;
   dryRun = false;
+  /** The record IDs the command names (T…, N…, G…): which of an agent's sessions in several researches is its. */
+  refs: string[] = [];
   private opened: Tree | undefined;
   /**
    * The backup before another channel or an older version could not be made (cli/backups.ts): no research is brought
@@ -217,7 +221,13 @@ export class Context {
       if (answer === false) throw new StromError(ui(lang, "ui.dialog.refused"), { hint: `the user said no to: ${question} — do not ask again unless they want to` });
     }
     // a person (a script, no terminal) reads it in their language; an agent the English it goes by
-    throw new NeedsConsentError([{ key, kind: "consent", question: `${question}${agent ? " (an agent cannot answer this)" : ""}`, set }], agent ? undefined : says);
+    // a run nobody watches: nobody to say yes before it ends — a task for it, for the user to see, and on another way
+    const run = this.env.STROM_NONINTERACTIVE === "1" && !!this.env.STROM_SESSION;
+    const q = (t: string) => `"${t.replace(/["\\$`]/g, "")}"`;
+    const task = run
+      ? `nobody watches this run to say yes: add a task for it and go on another way — strom task add ${q(`The user's consent: ${set}`)} --level locate --where ${q(set)} --why ${q(question)} --done-when ${q(`the user ran ${set} in their own terminal`)}, then strom task wait <its T…> --on "<for the user, impersonal, in the research language: run ${set} in a terminal>"; never go round it`
+      : undefined;
+    throw new NeedsConsentError([{ key, kind: "consent", question: `${question}${agent ? " (an agent cannot answer this)" : ""}`, set }], agent ? undefined : says, task);
   }
 
   /**
@@ -437,7 +447,7 @@ export class Context {
     // Inside an open session every write is logged under the session's ID;
     // an agent writing outside a session is logged as "agent", never as the user.
     // What the bridge writes for the Strom app (STROM_FOR_APP) is the person's in the app: the user's.
-    const session = this.env.STROM_FOR_APP === "1" ? undefined : currentSession(this.opened, this.env);
+    const session = this.env.STROM_FOR_APP === "1" ? undefined : currentSession(this.opened, this.env, this.refs);
     if (session) this.opened.actor = session.id;
     else if (isAgent(this.env) && this.env.STROM_FOR_APP !== "1") this.opened.actor = "agent";
     return this.opened;

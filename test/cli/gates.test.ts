@@ -36,7 +36,7 @@ test("a gate that says wait past --until ends the run; one that fails stops it �
   const failed = await w.run(["run", "--agent", "script", "--loop", "--json"]);
   assert.equal(failed.code, 1);
   assert.equal(failed.json.stop, "gate.error");
-  assert.match(failed.json.stopped, /neodpověděla, jak má — exit status 7/);
+  assert.match(failed.json.stopped, /neodpověděla, jak má — skončila s kódem 7/, "strom's own words in the research language");
   // words instead of JSON are the reason
   const said = await w.ok(["gate", "test", "--json"]);
   assert.deepEqual(said.json, { gate: "zkouska", verdict: "go", reason: "not JSON, just words" });
@@ -74,5 +74,28 @@ test("tasks started by an agent or a script: nobody to ask there — an agent ne
   assert.equal(agent.code, 4);
   assert.match(agent.err + agent.out, /an agent cannot answer this/);
   assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0001.json")));
+  w.cleanup();
+});
+
+test("strom gate test says its answer in the research's language: go on, wait until, stop with its cap, an error — no English line in a Czech tree", opts, async () => {
+  const w = await world([
+    { code: 0 },
+    { code: 1, say: { reason: "týden je plný", wait: 7200 } },
+    { code: 2, say: { reason: "strop dosažen", hard: true } },
+    { code: 7 },
+    { code: 2, say: { reason: "Woche voll", hard: true } },
+  ]);
+  const said = async (...more: string[]) => {
+    const r = await w.run(["gate", "test", "zkouska", ...more]);
+    return r.out;
+  };
+  assert.match(await said(), /^zkouska: pokračovat\n$/);
+  assert.match(await said(), /^zkouska: počkat do .+ — týden je plný\n$/);
+  assert.match(await said(), /^zkouska: zastavit — strop dosažen \(strop: pevné zastavení, žádné „přesto začít“\)\n$/);
+  const error = await said();
+  assert.match(error, /^zkouska: chyba – běh by se zastavil/);
+  for (const out of [error]) assert.doesNotMatch(out, /go on|wait until|a run would stop|hard stop/);
+  // the same in German
+  assert.match(await said("--lang", "de"), /^zkouska: anhalten — Woche voll \(Obergrenze: ein fester Halt, kein „trotzdem starten“\)\n$/);
   w.cleanup();
 });

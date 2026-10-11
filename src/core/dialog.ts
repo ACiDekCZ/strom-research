@@ -89,6 +89,86 @@ export function systemDialog(text: DialogText, env: Env, platform: NodeJS.Platfo
   return undefined;
 }
 
+/** A question with choices: the main one first, at most two, besides `later` (nothing decided). */
+export interface ChoiceText {
+  title: string;
+  question: string;
+  choices: { key: string; label: string }[];
+  /** The button that decides nothing (Esc, closing the window and no answer in time do the same). */
+  later: string;
+  /** Windows (its buttons are Yes, No, Cancel): the line that says which is which. */
+  keys?: string;
+}
+
+/**
+ * The program and arguments of a window with choices: the first choice — the recommended one — is the button Enter
+ * presses; Esc (and closing the window) presses `later`. macOS: three buttons, the recommended one the default, `later`
+ * the cancel button; Windows: Yes / No / Cancel (Yes the default, Cancel Esc's), said in the text which is which;
+ * Linux: zenity's OK (the default) with the second choice an extra button and `later` its cancel, kdialog's Yes / No /
+ * Cancel with their labels (Yes the default).
+ */
+export function choiceCommand(text: ChoiceText, platform: NodeJS.Platform, env: Env = {}): { cmd: string; args: string[] } | undefined {
+  const [first, second] = text.choices;
+  if (!first) return undefined;
+  if (platform === "darwin") {
+    const buttons = [text.later, ...(second ? [second.label] : []), first.label].map(appleString).join(", ");
+    const script =
+      `display dialog ${appleString(text.question)} with title ${appleString(text.title)} buttons {${buttons}} ` +
+      `default button ${appleString(first.label)} cancel button ${appleString(text.later)} with icon caution giving up after ${WAIT_SECONDS}`;
+    return { cmd: "osascript", args: ["-e", script] };
+  }
+  if (platform === "win32") {
+    const q = text.keys ? `${text.question}\n\n${text.keys}` : text.question;
+    const ps = `${WIN_OWNER}$r = [System.Windows.Forms.MessageBox]::Show($f, ${psString(q)}, ${psString(text.title)}, '${second ? "YesNoCancel" : "OKCancel"}', 'Warning', 'Button1'); $f.Dispose(); Write-Output $r`;
+    return { cmd: "powershell.exe", args: ["-NoProfile", "-NonInteractive", "-Command", ps] };
+  }
+  if (which("zenity", env)) return { cmd: "zenity", args: ["--question", "--title", text.title, "--text", text.question, "--ok-label", first.label, "--cancel-label", text.later, ...(second ? ["--extra-button", second.label] : []), "--timeout", String(WAIT_SECONDS)] };
+  if (which("kdialog", env))
+    return second
+      ? { cmd: "kdialog", args: ["--title", text.title, "--yesnocancel", text.question, "--yes-label", first.label, "--no-label", second.label, "--cancel-label", text.later] }
+      : { cmd: "kdialog", args: ["--title", text.title, "--yesno", text.question, "--yes-label", first.label, "--no-label", text.later] };
+  return undefined;
+}
+
+/**
+ * Ask in a window with choices: the key of the choice made; null when none was — later, Esc, the window closed, no
+ * answer in time (none of them is an answer: nothing is decided); undefined when this computer cannot show one.
+ * Enter takes the first choice, the recommended one (choiceCommand).
+ */
+export function systemChoice(text: ChoiceText, env: Env, platform: NodeJS.Platform = process.platform): string | null | undefined {
+  if (env.STROM_NO_DIALOG === "1") return undefined;
+  const [first, second] = text.choices;
+  if (!first) return undefined;
+  const run = (cmd: string, args: string[]) =>
+    spawnSync(cmd, args, { encoding: "utf8", timeout: (WAIT_SECONDS + 10) * 1000, windowsHide: false, env: env as NodeJS.ProcessEnv });
+  const timedOut = (e: Error | undefined) => (e as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT";
+  const byLabel = (label: string) => text.choices.find((c) => c.label === label)?.key ?? null;
+  if (platform !== "darwin" && platform !== "win32" && !env.DISPLAY && !env.WAYLAND_DISPLAY) return undefined;
+  const command = choiceCommand(text, platform, env);
+  if (!command) return undefined;
+  if (platform === "darwin") {
+    const r = run(command.cmd, command.args);
+    if (r.error) return timedOut(r.error) ? null : undefined;
+    // the cancel button (Esc) ends with an error (-128): nothing chosen
+    if (r.status !== 0 || r.stdout.includes("gave up:true")) return null;
+    const m = /button returned:(.*?)(?:, gave up:\w+)?\s*$/su.exec(r.stdout);
+    return m ? byLabel(m[1]!) : null;
+  }
+  const r = run(command.cmd, command.args);
+  if (r.error) return timedOut(r.error) ? null : undefined;
+  if (platform === "win32") {
+    if (r.status !== 0) return undefined;
+    const a = r.stdout.trim();
+    return a === "Yes" || a === "OK" ? first.key : a === "No" && second ? second.key : null;
+  }
+  if (command.cmd === "zenity") {
+    if (r.status === 0) return first.key;
+    // the extra button: its label on stdout; later, Esc or no answer in time (5): nothing
+    return second && r.stdout.trim() === second.label ? second.key : null;
+  }
+  return r.status === 0 ? first.key : r.status === 1 && second ? second.key : null;
+}
+
 /**
  * Say something in a window (one button): what a link from the Strom app could not do, with no terminal to say it
  * in. False when this computer cannot show one.

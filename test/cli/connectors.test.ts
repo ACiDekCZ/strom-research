@@ -21,6 +21,7 @@ import { fenceKeepsNetOff, sandboxedRun } from "../../src/core/connector.ts";
 import { encodeJpeg } from "../../src/image/jpeg-encode.ts";
 import { decodeJpeg } from "../../src/image/jpeg-decode.ts";
 import { blank } from "../../src/image/image.ts";
+import { removeLogin, saveLogin } from "../../src/core/logins.ts";
 import { opts, scans, pauses, TILE, archive, world, program, runInTab } from "./connectors.helpers.ts";
 import type { Archive } from "./connectors.helpers.ts";
 
@@ -74,6 +75,212 @@ test("connector new: in the plugins folder, next to the contract, kept out of ev
     }
     assert.equal(fs.readFileSync(contract, "utf8"), "an older contract");
   }
+  w.cleanup();
+});
+
+// A live run left a connector that downloads nothing (the portal guards its files with a token) in the plugins folder.
+test("connector discard: one started in the session at work that serves nothing is taken away by its agent; any other stays the user's", opts, async () => {
+  const w = new World();
+  await w.withTree("Dvořákovi");
+  await w.ok(["research", "new", "Předci Kryštofa", "--new-person", "Kryštof /Žďárský/", "--sex", "M", "--born", "1802"]);
+  await w.ok(["task", "add", "Kde jsou matriky Žďáru", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
+  // one made before the session: not this session's
+  await w.ok(["connector", "new", "drivejsi", "--url", "https://old.example.org"]);
+  await w.ok(["session", "start", "T1"]);
+  await w.ok(["connector", "new", "zdarsky-archiv", "--url", "https://digi.example.org", "--title", "Archiv Žďár"]);
+  const before = await w.run(["connector", "discard", "drivejsi"]);
+  assert.equal(before.code, 2);
+  assert.match(before.err, /drivejsi was not started in the session at work — taking it away is the user's[\s\S]*strom connector remove drivejsi/);
+  assert.ok(fs.existsSync(pluginDir(w, "drivejsi")));
+  assert.equal((await w.run(["connector", "discard", "nic-takoveho"])).code, 2);
+  // the user's login for it: theirs to take away
+  saveLogin(w.env, "zdarsky-archiv", { dir: pluginDir(w, "zdarsky-archiv"), hosts: ["digi.example.org"], values: { user: "u", password: "p" }, at: new Date().toISOString() });
+  const login = await w.run(["connector", "discard", "zdarsky-archiv"]);
+  assert.equal(login.code, 2);
+  assert.match(login.err, /the user saved a login for zdarsky-archiv — taking it away is theirs/);
+  removeLogin(w.env, "zdarsky-archiv");
+  const r = await w.ok(["connector", "discard", "zdarsky-archiv"]);
+  assert.match(r.out, /connector zdarsky-archiv taken away[\s\S]*strom lesson add "…" --on R…/);
+  assert.ok(!fs.existsSync(pluginDir(w, "zdarsky-archiv")));
+  assert.doesNotMatch((await w.ok(["connector", "list"])).out, /zdarsky-archiv/);
+  // a connector of an earlier session: after it closed, its agent no longer takes it away
+  await w.ok(["connector", "new", "dalsi", "--url", "https://next.example.org"]);
+  await w.ok(["session", "close", "--continue", "--summary", "hledáno", "--next", "dál"]);
+  await w.ok(["session", "start", "T1"]);
+  assert.equal((await w.run(["connector", "discard", "dalsi"])).code, 2);
+  assert.ok(fs.existsSync(pluginDir(w, "dalsi")));
+  // the agent knows when: the discovery brief and the guide
+  assert.match(fs.readFileSync(path.join(pluginDir(w, "dalsi"), "DISCOVERY.md"), "utf8"), /can neither fetch nor find anything[\s\S]*does not stay in the plugins folder[\s\S]*strom lesson add[\s\S]*strom connector discard dalsi[\s\S]*One that finds books but fetches no images stays/);
+  assert.match((await w.ok(["guide"])).out, /strom connector discard <name> {7}one you started this session that can neither fetch nor find/);
+  w.cleanup();
+});
+
+// A marker of strom connector new must never point at somebody else's or an older folder of the same name.
+test("connector new takes over nothing in the plugins folder: a folder without a connector, a file, a link, the same name in other capitals", opts, async () => {
+  const w = new World();
+  await w.withTree("Dvořákovi");
+  await w.ok(["research", "new", "Předci Kryštofa", "--new-person", "Kryštof /Žďárský/", "--sex", "M", "--born", "1802"]);
+  await w.ok(["task", "add", "Kde jsou matriky Žďáru", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
+  await w.ok(["session", "start", "T1"]);
+  await w.ok(["connector", "list"]); // the plugins folder made
+  const plugins = path.join(w.home, "shared", "plugins", "connectors");
+  const elsewhere = path.join(w.dir, "jinde");
+  fs.mkdirSync(elsewhere);
+  fs.writeFileSync(path.join(elsewhere, "cizi.txt"), "x");
+  fs.mkdirSync(path.join(plugins, "prazdna")); // copied in half, or somebody's notes: no connector.json
+  fs.writeFileSync(path.join(plugins, "soubor"), "x");
+  fs.mkdirSync(path.join(plugins, "Velka"));
+  const links = process.platform !== "win32";
+  if (links) {
+    fs.symlinkSync(elsewhere, path.join(plugins, "odkaz"));
+    fs.symlinkSync(path.join(w.dir, "nikde"), path.join(plugins, "mrtvy")); // a link to nothing
+  }
+  for (const name of ["prazdna", "soubor", "velka", ...(links ? ["odkaz", "mrtvy"] : [])]) {
+    const r = await w.run(["connector", "new", name, "--url", "https://digi.example.org"]);
+    assert.equal(r.code, 2, `${name}: ${r.out}${r.err}`);
+    assert.match(r.err, new RegExp(`is there already — a new connector never takes over what is in the plugins folder[\\s\\S]*another name: strom connector new ${name}-2 --url https://digi.example.org/`), name);
+    assert.ok(!fs.existsSync(path.join(w.cwd, ".strom", "connectors-made", `${name}.json`)), `${name}: no marker`);
+  }
+  assert.deepEqual(fs.readdirSync(plugins).filter((n) => !/\./.test(n)).sort(), ["Velka", "prazdna", "soubor", ...(links ? ["mrtvy", "odkaz"] : [])].sort(), "nothing made beside them");
+  assert.deepEqual(fs.readdirSync(path.join(plugins, "prazdna")), []);
+  assert.deepEqual(fs.readdirSync(elsewhere), ["cizi.txt"]);
+  if (links) assert.equal(fs.readlinkSync(path.join(plugins, "mrtvy")), path.join(w.dir, "nikde"));
+  // a name with accents is no connector's name, in either form of its letters: the one to use is said
+  for (const name of ["státní".normalize("NFC"), "státní".normalize("NFD")]) {
+    const r = await w.run(["connector", "new", name, "--url", "https://digi.example.org"]);
+    assert.equal(r.code, 2);
+    assert.match(r.err, /lowercase letters, digits and dashes[\s\S]*e\.g\. statni/);
+  }
+  // another name is fine
+  await w.ok(["connector", "new", "prazdna-2", "--url", "https://digi.example.org"]);
+  assert.ok(fs.existsSync(path.join(w.cwd, ".strom", "connectors-made", "prazdna-2.json")));
+  w.cleanup();
+});
+
+test("connector new for a site that has a connector: its note says discard only where discard takes it away, else the user's strom connector remove", opts, async () => {
+  const w = new World();
+  await w.withTree("Dvořákovi");
+  await w.ok(["research", "new", "Předci Kryštofa", "--new-person", "Kryštof /Žďárský/", "--sex", "M", "--born", "1802"]);
+  await w.ok(["task", "add", "Kde jsou matriky Žďáru", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
+  await w.ok(["connector", "new", "archiv", "--url", "https://archiv-example.org/"]);
+  // no session at work: discard would refuse — the note names the user's remove
+  const outside = (await w.ok(["connector", "new", "archiv-zrcadlo", "--url", "https://www.archiv-example.org/"])).out;
+  assert.match(outside, /note: the connector archiv is here already for archiv-example\.org .*else take it away: the user, in their terminal: strom connector remove archiv-zrcadlo/);
+  assert.doesNotMatch(outside, /connector discard/);
+  assert.equal((await w.run(["connector", "discard", "archiv-zrcadlo"])).code, 2, "discard refuses it indeed");
+  // started in the session at work: the note's discard takes it away
+  await w.ok(["session", "start", "T1"]);
+  const inside = (await w.ok(["connector", "new", "archiv-druhy", "--url", "https://data.archiv-example.org/"])).out;
+  assert.match(inside, /else take it away: strom connector discard archiv-druhy/);
+  await w.ok(["connector", "discard", "archiv-druhy"]);
+  assert.ok(!fs.existsSync(pluginDir(w, "archiv-druhy")));
+  w.cleanup();
+});
+
+test("connector discard takes away only the very folder its session made, of this research", opts, async () => {
+  const w = new World();
+  await w.withTree("Dvořákovi");
+  await w.ok(["research", "new", "Předci Kryštofa", "--new-person", "Kryštof /Žďárský/", "--sex", "M", "--born", "1802"]);
+  await w.ok(["task", "add", "Kde jsou matriky Žďáru", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
+  await w.ok(["session", "start", "T1"]);
+  // a name is a folder's name and nothing more
+  for (const name of ["../connectors", "a/b", "a\\b", ".", "..", ".skryty", "Velka"]) {
+    const r = await w.run(["connector", "discard", name]);
+    assert.equal(r.code, 2, name);
+    assert.match(r.err, /is not a connector's name: lowercase letters, digits and dashes/, name);
+  }
+  assert.ok(fs.existsSync(path.join(w.home, "shared", "plugins", "connectors", "README.md")));
+  const made = (name: string) => path.join(w.cwd, ".strom", "connectors-made", `${name}.json`);
+  // a folder put in the place of the one it made (removed by the user, another one copied in)
+  await w.ok(["connector", "new", "nahrazeny", "--url", "https://a.example.org"]);
+  fs.rmSync(pluginDir(w, "nahrazeny"), { recursive: true });
+  fs.mkdirSync(pluginDir(w, "nahrazeny"));
+  fs.writeFileSync(path.join(pluginDir(w, "nahrazeny"), "connector.json"), "{}");
+  const replaced = await w.run(["connector", "discard", "nahrazeny"]);
+  assert.equal(replaced.code, 2);
+  assert.match(replaced.err, /the folder of nahrazeny is not the one this session made — taking it away is the user's[\s\S]*strom connector remove nahrazeny/);
+  assert.ok(fs.existsSync(path.join(pluginDir(w, "nahrazeny"), "connector.json")));
+  // its folder moved out and a link left in its place: what the link leads to is never taken
+  if (process.platform !== "win32") {
+    await w.ok(["connector", "new", "odkazany", "--url", "https://b.example.org"]);
+    const out = path.join(w.dir, "venku");
+    fs.renameSync(pluginDir(w, "odkazany"), out);
+    fs.symlinkSync(out, pluginDir(w, "odkazany"));
+    const link = await w.run(["connector", "discard", "odkazany"]);
+    assert.equal(link.code, 2);
+    assert.match(link.err, /the folder of odkazany is not the one this session made/);
+    assert.ok(fs.existsSync(path.join(out, "connector.json")) && fs.lstatSync(pluginDir(w, "odkazany")).isSymbolicLink());
+  }
+  // a marker of another research (its .strom copied over), or of another direction of this one, names no session here
+  await w.ok(["connector", "new", "cizi-znacka", "--url", "https://c.example.org"]);
+  const mark = readJsonFile(made("cizi-znacka"));
+  assert.equal(mark.session, "N0001");
+  assert.equal(mark.research, "G0001");
+  assert.equal(mark.tree, readJsonFile(path.join(w.cwd, "strom.json")).id);
+  fs.writeFileSync(made("cizi-znacka"), JSON.stringify({ ...mark, tree: "jiny-strom" }));
+  assert.equal((await w.run(["connector", "discard", "cizi-znacka"])).code, 2);
+  fs.writeFileSync(made("cizi-znacka"), JSON.stringify({ ...mark, research: "G0009" }));
+  assert.equal((await w.run(["connector", "discard", "cizi-znacka"])).code, 2);
+  fs.writeFileSync(made("cizi-znacka"), JSON.stringify({ session: mark.session, at: mark.at })); // a marker that says no folder
+  assert.equal((await w.run(["connector", "discard", "cizi-znacka"])).code, 2);
+  assert.ok(fs.existsSync(pluginDir(w, "cizi-znacka")));
+  fs.writeFileSync(made("cizi-znacka"), JSON.stringify(mark));
+  await w.ok(["connector", "discard", "cizi-znacka"]);
+  assert.ok(!fs.existsSync(pluginDir(w, "cizi-znacka")) && !fs.existsSync(made("cizi-znacka")));
+  // made outside a session, the name of one made in it before: the old marker goes with it
+  await w.ok(["connector", "new", "znovu", "--url", "https://d.example.org"]);
+  await w.ok(["session", "close", "--continue", "--summary", "hledáno", "--next", "dál"]);
+  fs.rmSync(pluginDir(w, "znovu"), { recursive: true });
+  await w.ok(["connector", "new", "znovu", "--url", "https://d.example.org"]);
+  assert.ok(!fs.existsSync(made("znovu")));
+  w.cleanup();
+});
+
+test("connector discard: one used meanwhile by another session or another research stays the user's", opts, async () => {
+  const w = new World();
+  await w.withTree("Dvořákovi");
+  const a = await archive();
+  await w.ok(["research", "new", "Předci Kryštofa", "--new-person", "Kryštof /Žďárský/", "--sex", "M", "--born", "1802"]);
+  for (const what of ["Kde jsou matriky Žďáru", "Kde jsou matriky Týnce"]) await w.ok(["task", "add", what, "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
+  const A = { STROM_WORKER: "claude-a" };
+  const B = { STROM_WORKER: "codex-b" };
+  await w.ok(["session", "start", "T1"], { env: A }); // N0001
+  w.env.STROM_WORKER = A.STROM_WORKER;
+  const names = ["jen-moje", "stahuje-jiny", "zkouseny-jinym", "citovany-jinym", "v-jinem-vyzkumu", "merene-jinde"];
+  for (const name of names) await fakeConnector(w, name, a.base);
+  delete w.env.STROM_WORKER;
+  for (const name of names) assert.equal(readJsonFile(path.join(w.cwd, ".strom", "connectors-made", `${name}.json`)).session, "N0001");
+  // the session's own use takes nothing from it
+  await w.ok(["connector", "test", "jen-moje", "--find", "Týnec"], { env: A });
+  await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`], { env: A }); // B0001
+  await w.ok(["fetch", "citovany-jinym", "5359", "--images", "2", "--recordset", "B1"], { env: A });
+  // another session of this research: images fetched with it, a run of it, a source citing what it fetched
+  await w.ok(["session", "start", "T2"], { env: B }); // N0002
+  await w.ok(["fetch", "stahuje-jiny", "5359", "--images", "1", "--recordset", "B1"], { env: B });
+  await w.ok(["connector", "test", "zkouseny-jinym", "--find", "Týnec"], { env: B });
+  await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--recordset", "B1", "--media", "B1:2"], { env: B });
+  // another research on this computer: images fetched with it, a run of it
+  await w.ok(["init", "Druzí"]);
+  const other = w.treeDir("Druzí");
+  await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`], { cwd: other });
+  await w.ok(["fetch", "v-jinem-vyzkumu", "5359", "--images", "3", "--recordset", "B1"], { cwd: other });
+  await w.ok(["connector", "test", "merene-jinde", "--find", "Týnec"], { cwd: other });
+  const refused: [string, RegExp][] = [
+    ["stahuje-jiny", /session N0002 of this research \(media\.\S+ M\d+\)/],
+    ["zkouseny-jinym", /session N0002 of this research \(a run of it measured/],
+    ["citovany-jinym", /session N0002 of this research \(source\.\S+ S\d+\)/],
+    ["v-jinem-vyzkumu", /the research "Druzí" \(1 image fetched\)/],
+    ["merene-jinde", /the research "Druzí" \(1 run of it measured\)/],
+  ];
+  for (const [name, why] of refused) {
+    const r = await w.run(["connector", "discard", name], { env: A });
+    assert.equal(r.code, 2, `${name}: ${r.out}`);
+    assert.match(r.err, new RegExp(`${name} was used meanwhile by [\\s\\S]*${why.source}[\\s\\S]*taking it away is the user's[\\s\\S]*the user, in their terminal: strom connector remove ${name}`), name);
+    assert.ok(fs.existsSync(path.join(pluginDir(w, name), "connector.json")), name);
+  }
+  await w.ok(["connector", "discard", "jen-moje"], { env: A });
+  assert.ok(!fs.existsSync(pluginDir(w, "jen-moje")));
+  await a.close();
   w.cleanup();
 });
 
@@ -145,9 +352,9 @@ test("consent: only the user, on a terminal — never --yes, --json or an agent'
   assert.match(c.connectors.zkusebni.hash, /^[0-9a-f]{64}$/);
   assert.ok(c.hosts["127.0.0.1"]);
   assert.match((await w.ok(["allow", "connector", "zkusebni"], { tty: true })).out, /allowed already/);
-  assert.match((await w.ok(["consents"])).out, /connectors\n  zkusebni[\s\S]*hosts \(automated access\)\n  127\.0\.0\.1/);
+  assert.match((await w.ok(["consents"])).out, /stahovače\n  zkusebni[\s\S]*servery \(automatický přístup\)\n  127\.0\.0\.1/);
   // taking it back
-  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--revoke"], { tty: true })).out, /consent taken back/);
+  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--revoke"], { tty: true })).out, /127\.0\.0\.1: svolení odvoláno – žádný stahovač se tam teď nedostane/);
   assert.equal((await w.run(["connector", "test", "zkusebni", "--find", "Týnec"])).code, 4);
   assert.match((await w.ok(["allow", "connector", "zkusebni", "--revoke"], { tty: true })).out, /consent taken back — it does not run now/);
   assert.match((await w.ok(["connector", "list"])).out, /zkusebni\s.*needs a consent/);
@@ -162,7 +369,7 @@ test("consents off (the default): a connector runs at once — code that goes ro
   assert.deepEqual((await w.ok(["config", "get", "connectors.consent", "--json"])).json, { key: "connectors.consent", value: "off", source: "default" });
   assert.match((await w.ok(["connector", "test", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/);
   assert.match((await w.ok(["connector", "list"])).out, /zkusebni\s.*automation allowed\s+ready\n/);
-  assert.match((await w.ok(["consents"])).out, /^consents: off — connectors run without asking \(paced by strom, only to their hosts\)/);
+  assert.match((await w.ok(["consents"])).out, /^souhlasy: vypnuto – stahovače běží bez ptaní \(tempo hlídá strom, jen ke svým serverům\)/);
   assert.match((await w.ok(["allow", "connector", "zkusebni"])).out, /consents are off: connector zkusebni runs without asking — paced by strom, only to 127\.0\.0\.1/);
   // code that reaches the network itself: the user's yes, for exactly this code
   fs.appendFileSync(path.join(dir, "connector.ts"), "\nconst sneak = await fetch('https://elsewhere.example/');\n");
@@ -341,6 +548,21 @@ test("an agent outside the research's folder: reading goes on, a connector and t
   await a.close();
 });
 
+test("fetch --images takes a list (a book sampled): only those images asked for and registered", opts, async () => {
+  const { w, a } = await world();
+  await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`]); // B0001
+  const dry = await w.ok(["fetch", "zkusebni", "5359", "--images", "3,1", "--recordset", "B1", "--dry-run"]);
+  assert.match(dry.out, /would fetch images 1, 3 of book 5359/);
+  const r = await w.ok(["fetch", "zkusebni", "5359", "--images", "1,3", "--recordset", "B1"]);
+  assert.match(r.out, /2 image\(s\) of B0001 \(images 1, 3\) fetched and registered/);
+  assert.deepEqual(a.hits.filter((h) => h.includes("/img/")).sort(), ["/img/5359/1.jpg", "/img/5359/3.jpg"]);
+  // what strom says back is taken as it is said (an en dash, a space after the comma); nothing new here
+  assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1–1, 3", "--recordset", "B1"])).out, /registered already — nothing fetched/);
+  assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "1,x"])).code, 2);
+  w.cleanup();
+  await a.close();
+});
+
 test("connector test: a few requests, the books found, what to register them with — files in its .test folder", opts, async () => {
   const { w, a, dir } = await world();
   const r = await w.ok(["connector", "test", "zkusebni", "--find", "Týnec nad Labem", "--years", "1780-1850"]);
@@ -373,18 +595,21 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   await w.ok(["research", "new", "X", "--new-person", "Jan /Novák/"]);
   await w.ok(["task", "add", "Křest", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
   // the brief knows the book's archive has a connector the user allowed
-  assert.match((await w.ok(["brief", "T1"])).out, /no images here yet — connector zkusebni fetches the ones you need: strom fetch zkusebni <book> --images <from-to> --recordset B0001/);
+  // (its book unknown yet: how to find it)
+  assert.match((await w.ok(["brief", "T1"])).out, /no images here yet — the connector fetches the ones you need\n {4}fetch: zkusebni <book: its ID on the portal — strom fetch zkusebni --find "<place>" lists them> — strom fetch zkusebni <book> --images <from-to> --recordset B0001\n/);
   await w.ok(["task", "wait", "T1", "--on", "images 1–3 of B0001"]);
   const dry = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1", "--dry-run"]);
   assert.match(dry.out, /dry run: would fetch images 1–3 of book 5359 as images of B0001 through zkusebni — nothing was fetched/);
   assert.deepEqual(a.hits, [], "a dry run never contacts the archive");
   pauses.length = 0;
   const r = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1"]);
-  assert.match(r.err, /3 image\(s\) through zkusebni: at least 4 s at its pace \(one request per image, ≥2 s apart\)/);
+  assert.match(r.err, /3 image\(s\) through zkusebni: at least 3 request\(s\) to 127\.0\.0\.1, about 4 s at its pace \(≥2 s apart\)\n/);
+  assert.doesNotMatch(r.err, /hourly cap/, "no cap: none said");
   assert.match(r.out, /fetch: 3 request\(s\)/);
   assert.match(r.out, /3 image\(s\) of B0001 \(images 1–3\) fetched and registered/);
   assert.match(r.out, /back in the queue \(they waited for these images\): T0001/);
-  assert.equal(pauses.length, 2, "no pause before the first request, one before each next");
+  assert.equal(a.hits[0], "/robots.txt", "the archive's robots.txt first, read by strom itself (once a day)");
+  assert.equal(pauses.length, 3, "no pause before the first request (its robots.txt), one before each next");
   assert.ok(pauses.every((p) => p > DEFAULT_PACE.minIntervalMs - 500), pauses.join(","));
   const m = (await w.ok(["media", "show", "B1:2", "--json"])).json.media;
   assert.equal(m.url, `${a.base}/img/5359/2.jpg`);
@@ -392,6 +617,17 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   assert.equal(m.image, 2);
   assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
   assert.deepEqual(fs.readdirSync(path.join(w.cwd, ".strom", "fetch")), [], "the work folder is gone");
+  // the brief: the book known from its images, in the form fetch takes it; another book of the archive by its address
+  assert.match((await w.ok(["brief", "T1"])).out, /\n {4}images registered \(3\): 1–3 · [^\n]*\n {4}weak scans \(long side 400 px\): a negative on them is weak — [^\n]*\n {4}fetch: zkusebni 5359 — strom fetch zkusebni 5359 --images <from-to> --recordset B0001\n/);
+  await w.ok(["recordset", "add", "Týnec Z 1784–1820", "--kinds", "burial", "--url", `${a.base}/book/6012`]); // B0002
+  await w.ok(["recordset", "add", "Týnec, katalog", "--kinds", "index", "--url", `${a.base}/catalog?place=T%C3%BDnec`]); // B0003
+  await w.ok(["task", "add", "Pohřeb", "--level", "link", "--where", "B2", "--where", "B3", "--why", "a", "--done-when", "b"]); // T2
+  const t2 = (await w.ok(["brief", "T2"])).out;
+  assert.match(t2, /\n {4}no images here yet — the connector fetches the ones you need\n {4}fetch: zkusebni 6012 — strom fetch zkusebni 6012 --images <from-to> --recordset B0002\n/);
+  // an address of another shape: no book guessed — and the whole command said once
+  assert.match(t2, /\n {4}fetch: zkusebni <book: its ID on the portal — strom fetch zkusebni --find "<place>" lists them>\n/);
+  // the sheet names the connector of the task's books
+  assert.match(t2, /\n {2}connectors of these places: zkusebni — books of a place: strom fetch <connector> --find "<place>" --years <from-to>\n/);
   // again: nothing new
   const hits = a.hits.length;
   assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1"])).out, /images 1–3 of B0001 are registered already — nothing fetched/);
@@ -417,4 +653,78 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   assert.equal((await w.run(["fetch", "zkusebni", "5359", "--images", "1-1001"])).code, 2, "not more than a thousand at once");
   w.cleanup();
   await a.close();
+});
+
+// A live run: a connector built for one page of a general website, then discarded, left its host in the person's
+// archives as a restricted archive.
+test("connector discard and remove take away what only the connector brought into the person's archives — never the person's decision", opts, async () => {
+  const w = new World();
+  await w.withTree("Dvořákovi");
+  try {
+    const archives = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "archives.json"));
+    await w.ok(["research", "new", "Předci Kryštofa", "--new-person", "Kryštof /Žďárský/", "--sex", "M", "--born", "1802"]);
+    await w.ok(["task", "add", "Křest Kryštofa", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
+    await w.ok(["recordset", "add", "Kniha N", "--url", "https://archive.example.org/book/5359"]); // B0001
+    await w.ok(["session", "start", "T1"]);
+    await fakeConnector(w, "jedna-stranka", "", { automation: "restricted", terms: "https://archive.example.org/terms" }, { confirm: false });
+    assert.equal((await w.run(["fetch", "jedna-stranka", "5359", "--images", "1", "--recordset", "B1"])).code, 4);
+    assert.ok(archives().archives["archive.example.org"], "its first fetch made the entry");
+    await w.ok(["connector", "discard", "jedna-stranka"]);
+    assert.equal(archives().archives["archive.example.org"], undefined, "nothing of it left");
+    assert.deepEqual(archives().pending.filter((p: { kind: string }) => p.kind === "permission"), []);
+    // the person decided for the host: kept, whoever takes the connector away
+    await fakeConnector(w, "druha", "", { automation: "restricted", terms: "https://archive.example.org/terms" }, { confirm: false });
+    assert.equal((await w.run(["fetch", "druha", "5359", "--images", "1", "--recordset", "B1"])).code, 4);
+    await w.ok(["allow", "archive", "archive.example.org", "--way", "manual"], { tty: true });
+    await w.ok(["connector", "discard", "druha"]);
+    assert.equal(archives().archives["archive.example.org"]?.way, "manual");
+    // removed by the user: the same (the level its own reading made goes; the one before it would stay)
+    await fakeConnector(w, "treti", "", { automation: "forbidden" }, { confirm: false });
+    await w.ok(["allow", "archive", "archive.example.org", "--revoke"], { tty: true });
+    assert.equal((await w.run(["fetch", "treti", "5359", "--images", "1", "--recordset", "B1"])).code, 2);
+    assert.equal(archives().archives["archive.example.org"]?.floorConnector, "treti");
+    await w.ok(["connector", "remove", "treti"], { tty: true, answers: ["y"] });
+    assert.equal(archives().archives["archive.example.org"], undefined);
+  } finally {
+    w.cleanup();
+  }
+});
+
+// A review: a connector that read the archive as forbidden went away, an agent made another for the host and
+// discarded it — and the forbidden strom had kept was gone with it. Only the person makes a level milder.
+test("connector discard keeps a level strom kept before the connector was made — what only it brought goes", opts, async () => {
+  const w = new World();
+  await w.withTree("Dvořákovi");
+  try {
+    const archives = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "archives.json"));
+    const fetch = async (name: string) => (await w.run(["fetch", name, "5359", "--images", "1", "--recordset", "B1"])).code;
+    await w.ok(["research", "new", "Předci Kryštofa", "--new-person", "Kryštof /Žďárský/", "--sex", "M", "--born", "1802"]);
+    await w.ok(["task", "add", "Křest Kryštofa", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
+    await w.ok(["recordset", "add", "Kniha N", "--url", "https://archive.example.org/book/5359"]); // B0001
+    await w.ok(["session", "start", "T1"]);
+    // a connector of its own, forbidden by its reading: discarded, what it brought goes
+    await fakeConnector(w, "zakazany", "", { automation: "forbidden" }, { confirm: false });
+    assert.equal(await fetch("zakazany"), 2);
+    assert.equal(archives().archives["archive.example.org"]?.floor, "forbidden");
+    assert.equal(archives().archives["archive.example.org"]?.floorConnector, "zakazany");
+    await w.ok(["connector", "discard", "zakazany"]);
+    assert.equal(archives().archives["archive.example.org"], undefined, "its own level goes with it");
+    // another one reads it forbidden, then its folder disappears
+    await fakeConnector(w, "puvodni", "", { automation: "forbidden" }, { confirm: false });
+    assert.equal(await fetch("puvodni"), 2);
+    assert.equal(archives().archives["archive.example.org"]?.floor, "forbidden");
+    fs.rmSync(pluginDir(w, "puvodni"), { recursive: true, force: true });
+    // the agent makes one of its own for the host: the level holds, and holds after it is discarded
+    await fakeConnector(w, "agentb", "", { automation: "allowed" }, { confirm: false });
+    assert.equal(await fetch("agentb"), 2);
+    await w.ok(["connector", "discard", "agentb"]);
+    assert.equal(archives().archives["archive.example.org"]?.floor, "forbidden", "the level strom saw before it stays");
+    await fakeConnector(w, "dalsi", "", { automation: "allowed" }, { confirm: false });
+    assert.equal(await fetch("dalsi"), 2, "still forbidden — never a question to the person instead");
+    // removed by the user: a level from before the connector stays too
+    await w.ok(["connector", "remove", "dalsi"], { tty: true, answers: ["y"] });
+    assert.equal(archives().archives["archive.example.org"]?.floor, "forbidden");
+  } finally {
+    w.cleanup();
+  }
 });

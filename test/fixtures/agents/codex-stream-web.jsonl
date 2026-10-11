@@ -1,0 +1,9 @@
+{"type":"thread.started","thread_id":"0199aaaa-bbbb-7ccc-8ddd-eeeeeeeeee0b"}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_0","type":"web_search","query":"","action":{"type":"other"}}}
+{"type":"item.completed","item":{"id":"item_0","type":"web_search","query":"Týnec farnost dějiny","action":{"type":"search","query":"Týnec farnost dějiny","queries":["Týnec farnost dějiny"]}}}
+{"type":"item.completed","item":{"id":"item_1","type":"web_search","query":"https://obec.example/historie","action":{"type":"open_page","url":"https://obec.example/historie"}}}
+{"type":"item.completed","item":{"id":"item_2","type":"web_search","query":"mlýn","action":{"type":"find_in_page","url":"https://obec.example/historie","pattern":"mlýn"}}}
+{"type":"item.completed","item":{"id":"item_3","type":"web_search","query":"Dvořák mlynář"}}
+{"type":"item.completed","item":{"id":"item_4","type":"agent_message","text":"Hotovo."}}
+{"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":0,"output_tokens":50}}

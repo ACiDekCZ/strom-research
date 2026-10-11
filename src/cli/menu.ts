@@ -12,6 +12,10 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
+
+/** A line as a sentence: its first letter capital (a catalog's text that also stands inside a line). */
+const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { BACKUP_SAID_DAYS, lastBackup } from "../core/backup.ts";
 import { lastBackupLine } from "./backups.ts";
@@ -19,7 +23,7 @@ import { diskVersion } from "../core/self.ts";
 import { liveHolder } from "../core/lock.ts";
 import { reviveLive } from "../core/live.ts";
 import { newerVersion } from "../core/update.ts";
-import { taskQueue, waitingForUser } from "../commands/tasks.ts";
+import { taskQueue } from "../commands/tasks.ts";
 import { humanTask } from "../commands/browse.ts";
 import { loadGate } from "../core/gate.ts";
 import { lacksImages } from "../core/queue.ts";
@@ -38,15 +42,15 @@ import { packPlan } from "../core/pack.ts";
 import { expandHome, isolated } from "../core/paths.ts";
 import { offerAgent } from "./fixes.ts";
 import { addToResearch } from "./menu-research.ts";
-import { waitingForYou } from "./menu-waiting.ts";
+import { waitingForYou, waitingHere } from "./menu-waiting.ts";
+import { permissionWaitingLines } from "../core/archiveasks.ts";
 import { settingsMenu } from "./menu-settings.ts";
 import { mainPerson } from "../core/kin.ts";
 import { findAgent } from "../core/which.ts";
 import { agentsHere, waysHere, whereToTalk, type Way } from "../core/apps.ts";
 import { chooseWay, wayName } from "./ways.ts";
 import { PROFILES } from "../agents/profiles.ts";
-import { forStory, storiesToApprove } from "../core/stories.ts";
-import { receivedPending } from "../core/sync.ts";
+import { forStory } from "../core/stories.ts";
 import { isArchive } from "../core/mode.ts";
 import { switchTo } from "./menu-mode.ts";
 import { appMarkFromInstall, linkScheme } from "../core/links.ts";
@@ -159,8 +163,9 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
           // its next start brings it back
         }
       }
-      // the tasks that wait for the person, and the new versions of the stories they approved
-      const waiting = waitingForUser(tree).length + storiesToApprove(tree).length + receivedPending(root).length;
+      // what waits for the person: the same list What waits shows (each thing once — a task that waits for an archive's
+      // decision is one of its question's)
+      const waiting = waitingHere(ctx, tree).length;
       const started = tree.list<Research>("research").length > 0;
       out(t("ui.menu.tree", { name: tree.config.name, persons: tree.countLive("person") }));
       // No agent yet (none installed, or not the one chosen): the research waits for it, and item 1 gets one.
@@ -170,9 +175,15 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       if (archive) out(t("ui.menu.archive"));
       else if (!ready) out(t(agentsHere(ctx.env).length ? "ui.menu.noagent.chosen" : "ui.menu.noagent"));
       if (waiting) out(t("ui.menu.waiting", { count: waiting }));
+      // an archive's images wait for the person's decision: one line, only until it is answered
+      // (since when, and the tasks that stand on it, once it waits long or holds up much)
+      for (const line of permissionWaitingLines(tree, lang)) out(line);
       // much kept beside the research that can go (an older strom never tidied it): said, freed in the settings
       const disk = tidyPlan(tree);
       if (disk.frees >= TIDY_SAID) out(t("ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) }));
+      // the scan views tuned before, but for another agent or model: offered again (the settings), never run unasked
+      const offer = !archive && ready ? calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root) : undefined;
+      if (offer) out(sentence(t("ui.views.offer", { before: calibrationLabel(offer.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(offer.now, t("ui.settings.model.own")) })));
       const runs = runsAtWork(root).length;
       if (runs) out(t(runs > 1 ? "ui.menu.working.more" : "ui.menu.working", { n: runs }));
       items.push(
@@ -340,7 +351,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       // Several trees and none chosen: pick one first.
       items.push({ key: "1", label: t("ui.menu.trees"), act: async () => pickTree(ctx, run, lang) });
     }
-    // The settings of this computer (with the check); at most nine: the newer strom is taken in the settings, the line above says where.
+    // The settings of this computer (with maintenance); at most nine: the newer strom is taken in the settings' maintenance, the line above says where.
     const settings: Item = { key: "8", label: t(ctx.archiveHere() ? "ui.menu.settings.archive" : "ui.menu.settings"), act: async () => settingsMenu(ctx, run, lang, root, newer) };
     items.push(settings);
     // Only with several agents here: last, so that it moves no other number.
