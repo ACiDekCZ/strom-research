@@ -1477,7 +1477,7 @@ export interface SyncConflict {
   family?: string;
   fact?: string;
   /**
-   * One the app decides by side (POST /conflict/<X…>, conflict.decide): both sides' values in the research's language
+   * One the app offers to decide by side (the link conflict&do=decide&take=; never through the bridge): both sides' values in the research's language
    * (an empty one empty: a title taken off), a sex also as M, F or U.
    */
   take?: true;

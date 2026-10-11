@@ -36,6 +36,10 @@ import { currentSession } from "../core/session.ts";
 import { webDomain } from "../core/metrics.ts";
 import { permissionWait } from "../core/archivewait.ts";
 import type { Repository } from "../core/model.ts";
+import { WAIT_KINDS } from "../core/model.ts";
+import { SENDABLE, waitKindOf, waitState } from "../core/waitkind.ts";
+import { requestNote } from "../core/waiting.ts";
+import { addressesPerson } from "../core/impersonal.ts";
 
 
 function written(tree: Tree): string {
@@ -191,7 +195,8 @@ export function decisionLines(tree: Tree, filter: (t: Task) => boolean = () => t
 }
 
 function taskLine(t: Task): string[] {
-  return [t.id, `p${t.priority}`, t.level, t.state === "open" ? "" : `[${t.state}]`, truncate(t.what, 70)];
+  const state = t.state === "waiting" ? `[waiting ${waitKindOf(t)}${t.sent ? " sent" : ""}]` : `[${t.state}]`;
+  return [t.id, `p${t.priority}`, t.level, t.state === "open" ? "" : state, truncate(t.what, 70)];
 }
 
 /** Why a task was put aside: on the task, or — parked by an older strom — in the history. */
@@ -210,6 +215,8 @@ export function parkedWhy(tree: Tree, t: Task): string | undefined {
 }
 
 function taskDetail(tree: Tree, t: Task): string {
+  // the request's text: the file it was given, else the one its words name (a task that waited before it could say so)
+  const request = t.state === "waiting" ? requestNote(tree, t) : undefined;
   const where = t.where.map((w) => {
     const b = /^B\d{4,}$/.test(w) ? tree.get<RecordSet>(w) : undefined;
     return b ? `${b.id} ${b.title}${b.url ? ` · ${b.url}` : ""}` : w;
@@ -229,8 +236,14 @@ function taskDetail(tree: Tree, t: Task): string {
     lessons.length ? "\nlessons for these record sets\n" + lessons.map((l) => `  ${l.id} ${l.rule}`).join("\n") : undefined,
     ...t.notes.map((n) => `note   ${n.text}`),
     t.awaitsCheck ? `check  the person checks ${t.awaitsCheck.url}: ${t.awaitsCheck.ask}` : undefined,
+    t.state === "waiting" ? `waits  ${waitSaid(tree, t)}` : undefined,
+    t.state === "waiting" && t.wait?.to ? `to     ${t.wait.to}` : undefined,
+    request ? `text   ${request}` : undefined,
+    t.state === "waiting" && t.wait?.url ? `url    ${t.wait.url}` : undefined,
     // the person's own answers (only theirs: strom task wake --answer/--check), apart from the notes
     ...(t.answers ?? []).map((a) => `person ${a.at.slice(0, 10)} answered${a.check ? ` ${a.check}` : ""}${a.answer ? `: ${a.answer}` : ""} (asked: ${truncate(a.asked, 80)})`),
+    // the files that came for what it waited for: only that they came (strom intake --answers, the Strom app)
+    ...(t.files ?? []).map((f) => `file   ${f.at.slice(0, 10)} ${f.input} came (${f.by}; asked: ${truncate(f.asked, 80)})`),
   );
 }
 
@@ -312,9 +325,14 @@ function stateChange(tree: Tree, ref: string, state: Task["state"], fields: Part
       delete next.waitingOn;
       delete next.awaits;
       delete next.awaitsCheck;
+      delete next.wait;
+      delete next.sent;
     } else {
+      // set waiting (again): what it waits for now, nothing of an earlier wait — a request sent went with it
       if (!fields.awaits) delete next.awaits;
       if (!fields.awaitsCheck) delete next.awaitsCheck;
+      if (!fields.wait) delete next.wait;
+      if (!fields.sent) delete next.sent;
     }
     return next;
   }, { op: `task.${verb}`, summary: `${id} ${verb}${fields.result ? `: ${truncate(fields.result, 60)}` : ""}`, reason });
@@ -372,6 +390,70 @@ function checkUrl(ctx: Context, tree: Tree, id: string, raw: string): string {
       { hint: `then strom task wait ${id} --check ${u.href} --on "<what the user checks there — impersonal, in the research language>"`, code: "task.check-search" },
     );
   return u.href;
+}
+
+/** The options that say what a waiting task waits for (task wait, task edit). */
+const WAIT_OPTIONS = [
+  { name: "kind", type: "string", value: WAIT_KINDS.join("|"), description: "what it waits for: letter (a request by post or e-mail — a registry office, an archive), family (a question to the family), web (a site to look at), other" },
+  { name: "to", type: "string", value: "<whom>", description: "whom it waits on, as the user names them: the registry office, the archive, the family (impersonal)", max: 300 },
+  { name: "request", type: "string", value: "notes/<file>.md", description: "the request's text, saved in the tree's notes/ first (the letter, the question to the family)" },
+  { name: "url", type: "string", value: "<URL>", description: "the site it is about (http or https)" },
+] as const;
+
+/**
+ * A text the person reads (what a task waits for, whom): impersonal, never speaking as the agent — refused, with how to
+ * write it, when it clearly addresses them (core/impersonal.ts).
+ */
+function impersonal(tree: Tree, flag: string, text: string): string {
+  const word = addressesPerson(text, tree.lang);
+  if (word)
+    throw new UsageError(
+      `${flag} speaks to the user ("${word}"): they read it in strom's menu and the Strom app, where nothing addresses them nor speaks as the agent — say what is needed and from whom, impersonal, in the research language`,
+      { hint: `e.g. --on "reply of the registry office of <place> to the request of <date>", --on "images 40–45 of the baptisms to be saved from <link>"`, code: "task.addresses", params: { flag, word } },
+    );
+  return text.trim();
+}
+
+/** What --kind, --to, --request and --url say of a wait, checked; undefined: none given. */
+function waitOptions(tree: Tree, id: string, opts: Record<string, unknown>, has: { images?: boolean; check?: boolean } = {}): NonNullable<Task["wait"]> | undefined {
+  const wait: NonNullable<Task["wait"]> = {};
+  if (opts.kind !== undefined) {
+    const k = String(opts.kind).trim().toLowerCase();
+    if (has.images || has.check)
+      throw new UsageError(`--kind: --${has.images ? "images" : "check"} says the kind itself (${has.images ? "images the user saves by hand" : "a site only the user checks"})`, { hint: `leave out --kind` });
+    if (!(WAIT_KINDS as readonly string[]).includes(k)) throw new UsageError(`--kind is one of ${WAIT_KINDS.join(", ")} — not "${opts.kind}"`, { hint: "images saved by hand: --images B…:<numbers>; a site only the user checks: --check <URL>" });
+    wait.kind = k as NonNullable<Task["wait"]>["kind"];
+  }
+  if (typeof opts.to === "string" && opts.to.trim()) wait.to = impersonal(tree, "--to", opts.to).slice(0, 300);
+  if (opts.request !== undefined) {
+    const raw = String(opts.request).trim();
+    const parts = raw.split(/[\\/]+/);
+    // a path of the tree's notes/, as given (never normalized): no absolute path, no way out of notes/
+    if (!raw || path.isAbsolute(raw) || /^[A-Za-z]:/.test(raw) || parts[0] !== "notes" || parts.length < 2 || parts.some((p) => p === ".." || p === "."))
+      throw new UsageError(`--request takes a file of the tree's notes/, as notes/<file>.md — not "${raw}"`, { hint: `save the request's text first (notes/request-<what>.md), then strom task wait ${id} … --request notes/request-<what>.md` });
+    let file = false;
+    try {
+      file = fs.statSync(path.join(tree.root, ...parts)).isFile();
+    } catch {
+      file = false;
+    }
+    if (!file) throw new UsageError(`--request: no file ${raw} in this tree`, { hint: `save the request's text there first, then name it again`, code: "task.request-missing" });
+    wait.note = parts.join("/");
+  }
+  if (opts.url !== undefined) {
+    if (has.check) throw new UsageError("--url with --check: --check carries the site's address itself", { hint: "leave out --url" });
+    const raw = String(opts.url).trim();
+    if (!URL.canParse(raw) || !/^https?:$/.test(new URL(raw).protocol)) throw new UsageError(`--url takes an http(s) address — not "${raw}"`);
+    wait.url = new URL(raw).href;
+  }
+  return Object.keys(wait).length ? wait : undefined;
+}
+
+/** What a waiting task says of its wait, in a line: its kind, where it is dealt with, sent or not. */
+function waitSaid(tree: Tree, t: Task): string | undefined {
+  const w = waitState(tree, t);
+  if (!w) return undefined;
+  return `${w.waitKind} · ${w.group.name} (${w.group.key}) · ${w.phase === "sent" ? `sent ${w.sentAt!.slice(0, 10)}` : SENDABLE.includes(w.waitKind) ? "not sent yet" : "with the user"}`;
 }
 
 register(
@@ -558,7 +640,14 @@ register(
           held ? `${held} more wait out of the queue: about people nothing links to the tree yet (strom task list --off-tree)` : undefined,
           !opts.state && !opts["off-tree"] && !opts.about ? decisionLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
         ),
-        data: { total: page.total, tasks: opts.full ? page.items : page.items.map((t) => ({ id: t.id, priority: t.priority, level: t.level, state: t.state, what: t.what, subject: t.subject, ...(why.has(t.id) ? { why: why.get(t.id) } : {}) })) },
+        data: {
+          total: page.total,
+          tasks: page.items.map((t) => ({
+            ...(opts.full ? t : { id: t.id, priority: t.priority, level: t.level, state: t.state, what: t.what, subject: t.subject, ...(t.wait ? { wait: t.wait } : {}) }),
+            ...(why.has(t.id) ? { why: why.get(t.id) } : {}),
+            ...waitState(tree, t),
+          })),
+        },
       };
     },
   },
@@ -571,7 +660,8 @@ register(
     run(ctx, { args }) {
       const tree = ctx.tree();
       const t = requireRecord<Task>(tree, args[0]!, "task");
-      return { text: taskDetail(tree, t), data: { task: t } };
+      const note = t.state === "waiting" ? requestNote(tree, t) : undefined;
+      return { text: taskDetail(tree, t), data: { task: t, ...waitState(tree, t), ...(t.state === "waiting" && t.wait ? { wait: t.wait } : {}), ...(note ? { note } : {}) } };
     },
   },
   {
@@ -580,7 +670,9 @@ register(
     group: "tasks",
     tree: true,
     writes: true,
-    description: "--where and --about replace the old values (repeat them for several). A task written before its books were\nknown is pointed at them here — that is how a locate task hands over to a link task.",
+    description:
+      "--where and --about replace the old values (repeat them for several). A task written before its books were\nknown is pointed at them here — that is how a locate task hands over to a link task.\n" +
+      "A waiting task: --on, --kind, --to, --request, --url change what it waits for (as strom task wait says them) —\nhow a task set waiting before gets its kind and whom it waits on.",
     args: [{ name: "task", description: "task ID", required: true }],
     options: [
       { name: "what", type: "string", value: "<text>", description: "what to find" },
@@ -590,8 +682,14 @@ register(
       { name: "priority", type: "string", value: "1-5", description: "priority" },
       { name: "about", type: "string", multiple: true, value: "<who>", description: "person/record the task is about, also a conflict X… or hypothesis H… it decides (repeatable; replaces)" },
       { name: "note", type: "string", value: "<text>", description: "add a short note (what a later finding means for this task)" },
+      { name: "on", type: "string", value: "<for the user: impersonal, research language>", description: "a waiting task: what it waits for, for the user" },
+      ...WAIT_OPTIONS.map((o) => ({ ...o, description: `a waiting task: ${o.description}` })),
     ],
-    examples: ["strom task edit T0001 --where B0001 --priority 4", 'strom task edit T0001 --note "the baptism of the son names the bride\'s father"'],
+    examples: [
+      "strom task edit T0001 --where B0001 --priority 4",
+      'strom task edit T0001 --note "the baptism of the son names the bride\'s father"',
+      'strom task edit T0003 --kind letter --to "the registry office of Lhota"',
+    ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const id = normId(args[0]!, "task");
@@ -608,12 +706,28 @@ register(
         change.priority = held.priority;
       }
       if (listOpt(opts.about).length) change.subject = subjects(tree, listOpt(opts.about));
+      // what a waiting task waits for: only a waiting task's
+      const waitAsked = ["on", "kind", "to", "request", "url"].filter((k) => opts[k] !== undefined);
+      if (waitAsked.length) {
+        const before = requireRecord<Task>(tree, id, "task");
+        if (before.state !== "waiting")
+          throw new UsageError(`${id} does not wait (it is ${before.state}) — --${waitAsked.join(", --")} say what a waiting task waits for`, {
+            hint: `set it waiting: strom task wait ${id} --on "<what it waits for, impersonal>" --kind ${WAIT_KINDS.join("|")}`,
+            code: "task.not-waiting",
+          });
+        if (typeof opts.on === "string" && opts.on.trim()) {
+          change.waitingOn = impersonal(tree, "--on", opts.on);
+          if (before.awaitsCheck) change.awaitsCheck = { ...before.awaitsCheck, ask: change.waitingOn };
+        }
+        const w = waitOptions(tree, id, opts, { images: !!before.awaits, check: !!before.awaitsCheck });
+        if (w) change.wait = { ...before.wait, ...w };
+      }
       const note = typeof opts.note === "string" ? makeNotes(tree, opts.note) : undefined;
       const fields = [...Object.keys(change), ...(note ? ["note"] : [])];
       if (!fields.length) throw new UsageError("nothing to change", { hint: `e.g. strom task edit ${id} --where B0001` });
       const t = update<Task>(tree, id, "task", (t) => ({ ...t, ...change, ...(note ? { notes: [...t.notes, ...note] } : {}) }), {
         op: "task.edit",
-        summary: `${id} ${fields.map((f) => (f === "doneWhen" ? "done-when" : f === "subject" ? "about" : f)).join(", ")}${change.where ? ` → ${truncate(change.where.join("; "), 50)}` : ""}`,
+        summary: `${id} ${fields.map((f) => (f === "doneWhen" ? "done-when" : f === "subject" ? "about" : f === "waitingOn" ? "on" : f)).join(", ")}${change.where ? ` → ${truncate(change.where.join("; "), 50)}` : ""}`,
         reason: opts.reason as string | undefined,
       });
       return { text: lines(written(tree), held?.line, change.subject ? offTreeLine(tree, t) : undefined), data: { task: t, ...(held?.lowered ? { priorityLowered: held.lowered } : {}) } };
@@ -764,27 +878,36 @@ register(
       "--check <URL>: the user looks at a site strom and your web tools may not read (it refused strom, or its terms\n" +
       "forbid or restrict automation) — only after another way to the same records was tried and the blocked way recorded\n" +
       "in this session (strom search add … --note \"<host>: …\"); --on says what to check there. They answer in strom's\n" +
-      "menu: works (the book and its images are there), view (only to be viewed there), no — the task comes back with it.",
+      "menu: works (the book and its images are there), view (only to be viewed there), no — the task comes back with it.\n" +
+      "Anything else: --kind says what it waits for — letter (a request by post or e-mail to a registry office or an\n" +
+      "archive), family (a question to the family), web (a site the user looks at), other; --to whom (as the user names\n" +
+      "them), --request the request's text saved in the tree's notes/ first, --url the site. The menu groups what waits by\n" +
+      "them. Once the user says the request went out: strom task sent <task> (the task still waits for the reply).\n" +
+      "Set waiting again, it waits for that alone: what was said of an earlier wait, and that it was sent, go.",
     args: [{ name: "task", description: "task ID", required: true }],
     options: [
       // the sheet of a brief shows the placeholder: how to write it, where the agent writes it (a live run: "Otevřete …")
       { name: "on", type: "string", value: "<for the user: impersonal, research language>", description: "what it waits for, for the user: which book, its link, which images" },
       { name: "images", type: "string", value: "<B…:n-m>", description: "the images the user saves by hand, numbered as the portal's viewer counts them (B0001:40-69, B0001:9,12)" },
       { name: "check", type: "string", value: "<URL>", description: "a site for the user to check (one strom may not read): only after another way was tried and the blocked way recorded (strom search add)" },
+      ...WAIT_OPTIONS,
     ],
     examples: [
       'strom task wait T0002 --on "reply of the archive to the request of 21 Sep"',
+      'strom task wait T0002 --on "reply of the registry office of Lhota to the request of 21 Sep" --kind letter --to "the registry office of Lhota" --request notes/request-lhota.md',
       'strom task wait T0002 --images B0001:40-45 --on "images 40–45 of the baptisms of Týnec 1784–1820 (https://archive.example.org/book/5359)"',
       'strom task wait T0002 --check https://archive.example.org/book/5359 --on "whether the baptisms of 1784–1820 are there, with their images"',
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (!opts.on) throw new UsageError("--on is required", { hint: 'e.g. --on "reply of the archive to the request of 21 Sep"' });
+      const on = impersonal(tree, "--on", String(opts.on));
+      const wait = waitOptions(tree, normId(args[0]!, "task"), opts, { images: opts.images !== undefined, check: opts.check !== undefined });
       let awaits: Task["awaits"];
       let awaitsCheck: Task["awaitsCheck"];
       let b: RecordSet | undefined;
       if (opts.check !== undefined && opts.images !== undefined) throw new UsageError("--check or --images, not both: the check first; the images by hand after the user's answer");
-      if (opts.check !== undefined) awaitsCheck = { url: checkUrl(ctx, tree, normId(args[0]!, "task"), String(opts.check)), ask: String(opts.on) };
+      if (opts.check !== undefined) awaitsCheck = { url: checkUrl(ctx, tree, normId(args[0]!, "task"), String(opts.check)), ask: on };
       if (opts.images !== undefined) {
         const m = /^\s*([Bb]\d+)\s*:\s*(.+)$/.exec(String(opts.images));
         const nums = m ? parseImageList(m[2]!) : undefined;
@@ -795,9 +918,15 @@ register(
       const id = normId(args[0]!, "task");
       const task = tree.get<Task>(id);
       const where = b && task && !task.where.includes(b.id) ? { where: [...task.where, b.id] } : {};
-      const t = stateChange(tree, args[0]!, "waiting", { waitingOn: String(opts.on), ...(awaits ? { awaits } : {}), ...(awaitsCheck ? { awaitsCheck } : {}), ...(awaitsCheck ? {} : decisionAwaited(ctx, tree, args[0]!)), ...where }, undefined, "wait");
+      const t = stateChange(tree, args[0]!, "waiting", { waitingOn: on, ...(wait ? { wait } : {}), ...(awaits ? { awaits } : {}), ...(awaitsCheck ? { awaitsCheck } : {}), ...(awaitsCheck ? {} : decisionAwaited(ctx, tree, args[0]!)), ...where }, undefined, "wait");
       if (awaitsCheck) return { text: lines(written(tree), `the user checks ${awaitsCheck.url} (strom's menu, What waits; the Strom app): the task comes back with their answer — meanwhile other work`), data: { task: t } };
-      if (!awaits) return { text: written(tree), data: { task: t } };
+      if (!awaits) {
+        const sendable = SENDABLE.includes(waitKindOf(t));
+        return {
+          text: lines(written(tree), `waits  ${waitSaid(tree, t)}`, sendable ? `once the user says the request went out: strom task sent ${t.id} — the task still waits for the reply` : undefined),
+          data: { task: t, ...waitState(tree, t) },
+        };
+      }
       // the folder is there before the user looks for it
       const s = ctx.settings.shared()?.value;
       const dir = s ? path.join(s, "inbox", awaits.folder) : undefined;
@@ -810,6 +939,71 @@ register(
         ),
         data: { task: t, folder: dir },
       };
+    },
+  },
+  {
+    path: ["task", "sent"],
+    summary: "The request a waiting task waits on went out (a letter mailed, the family asked) — the task still waits",
+    group: "tasks",
+    tree: true,
+    writes: true,
+    description:
+      "Only when the user said it was sent: the menu then shows the task as sent, waiting for the reply, apart from what\n" +
+      "is still to be sent. Not an answer and not a wake — the task waits until the reply comes (strom task wake).\n" +
+      "For a task that waits for a letter, the family or other (strom task wait --kind); --undo takes it back. Several\n" +
+      "tasks (one e-mail for a place): each checked first, all written at once.",
+    args: [{ name: "tasks", description: "task IDs", variadic: true }],
+    options: [{ name: "undo", type: "boolean", description: "it was not sent after all" }],
+    examples: ["strom task sent T0003", "strom task sent T0003 --undo"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      if (!args.length) throw new UsageError("give the task (T…)", { hint: "strom task list --state waiting" });
+      const ids = [...new Set(args.map((a) => normId(a, "task")))];
+      const undo = !!opts.undo;
+      const r = tree.withTreeLock((): { task: Task; same: boolean }[] => {
+        const all = ids.map((id) => {
+          const before = requireRecord<Task>(tree, id, "task");
+          if (before.state !== "waiting")
+            throw new UsageError(`${id} does not wait (it is ${before.state}) — strom task sent is for a request a waiting task waits on`, {
+              hint: `first strom task wait ${id} --on "<what it waits for>" --kind letter|family|other`,
+              code: "task.not-waiting",
+              params: { task: id },
+            });
+          const kind = waitKindOf(before);
+          if (!SENDABLE.includes(kind))
+            throw new UsageError(`${id} waits for ${kind === "images" ? "images the user saves by hand" : kind === "check" ? "the user's check of a site" : kind === "permission" ? "the user's decision about an archive" : "a site the user looks at"} (kind ${kind}) — nothing is sent there`, {
+              hint: `a request by post, e-mail or to the family: strom task edit ${id} --kind letter|family|other`,
+              code: "task.not-sendable",
+              params: { kind, task: id },
+            });
+          return before;
+        });
+        return all.map((before) => {
+          // said again: nothing to change, said so (no error: the same word twice)
+          if (undo ? !before.sent : before.sent) return { task: before, same: true };
+          const after = update<Task>(
+            tree,
+            before.id,
+            "task",
+            (x) => {
+              const { sent: _s, ...rest } = x;
+              return undo ? rest : { ...rest, sent: { at: now(), by: tree.actor } };
+            },
+            { op: undo ? "task.unsent" : "task.sent", summary: `${before.id} ${undo ? "not sent after all" : "request sent"}`, reason: opts.reason as string | undefined },
+          );
+          return { task: after, same: false };
+        });
+      });
+      const marked = r.filter((x) => !x.same).map((x) => x.task.id);
+      const same = r
+        .filter((x) => x.same)
+        .map((x) => (undo ? `${x.task.id} was not marked sent — nothing changed` : `${x.task.id} was marked sent on ${x.task.sent!.at.slice(0, 10)} already — nothing changed`));
+      const text = lines(marked.length ? written(tree) : undefined, ...same, undo ? undefined : `${ids.join(", ")} still wait${ids.length === 1 ? "s" : ""} for the reply — when it comes: strom task wake ${ids.length === 1 ? ids[0] : "<task>"} (the user's answer: --answer)`);
+      if (r.length === 1) {
+        const t = r[0]!.task;
+        return { text, data: { task: t, changed: !r[0]!.same, marked, ...waitState(tree, t) } };
+      }
+      return { text, data: { tasks: r.map((x) => ({ id: x.task.id, changed: !x.same, ...waitState(tree, x.task) })), marked } };
     },
   },
   {

@@ -12,6 +12,7 @@ import path from "node:path";
 import { register } from "../cli/registry.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import type { Context } from "../cli/context.ts";
+import { addressesPerson } from "../core/impersonal.ts";
 import { lines, shellArg, table, truncate } from "../cli/format.ts";
 import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
 import type { Person, RecordSet, Research, Session, Task } from "../core/model.ts";
@@ -224,6 +225,16 @@ register(
       if (opts.done !== undefined && !done) throw new UsageError("--done needs the task's result", { hint: 'e.g. --done "baptism found: parents Josef and Marie" — or not found, where it was searched completely' });
       if (done && (opts.continue || opts.interrupted)) throw new UsageError("--done closes the task: not with --continue or --interrupted");
       if (!done && csvOpt(opts.produced).length) throw new UsageError("--produced goes with --done", { hint: `strom task done ${s.task ?? "T…"} --result "…" --produced S…` });
+      // what the user reads of the session (the menu, the Strom app, the run's output): never addressed to them (N0292,
+      // N0295) — only what clearly addresses them; nothing written before
+      for (const [flag, text] of [["--done", done], ["--summary", opts.summary], ["--next", opts.next]] as const) {
+        const word = typeof text === "string" ? addressesPerson(text, tree.lang, { clear: true }) : undefined;
+        if (word)
+          throw new UsageError(
+            `${flag} speaks to the user ("${word}"): they read it in strom's menu, the Strom app and the run's output, where nothing addresses them — say what was found and what waits, impersonal, in the research language`,
+            { hint: `e.g. ${flag} "baptism found: parents Josef and Marie; the reply of the registry office waits" — a step only the user can take: strom task wait T… --on "…"`, code: "session.addresses", params: { flag, word } },
+          );
+      }
       // other tasks the session's work fulfilled as well (N0185: a task offered again after another session did it)
       const also = csvOpt(opts["also-done"]).map((x) => normId(x, "task"));
       const alsoResult = done ?? String(opts.summary ?? "").trim();
@@ -247,11 +258,23 @@ register(
       if (early && !(typeof opts.reason === "string" && opts.reason.trim()) && !fs.existsSync(said)) {
         fs.mkdirSync(path.dirname(said), { recursive: true });
         fs.writeFileSync(said, new Date().toISOString() + "\n");
+        // the task done over a place still open: said by what is open — the time is no reason here (N0287)
+        if (unverified.length) {
+          const first = unverified[0]!;
+          const ref = `${first.recordset}:${first.image}`;
+          throw new UsageError(
+            `not closed — the result passes over ${unverified.length === 1 ? "a place" : "places"} readers found unclear and nobody has looked at closer since: ${unverified.slice(0, 5).map((u) => `${u.recordset}:${u.image} ("${u.said}")`).join(", ")}`,
+            {
+              hint: lines(
+                `look at it: strom media view ${ref} --half both (or --crop x,y,w,h on the entry), then close again`,
+                `the result does not rest on that place: the same command again closes it, or --reason "what decides it without that place"`,
+              ),
+              code: "session.early-close",
+            },
+          );
+        }
         throw new UsageError(`not closed — ${early}`, {
-          hint: lines(
-            unverified.length ? `readers found ${unverified.map((u) => `${u.recordset}:${u.image}`).slice(0, 5).join(", ")} unclear and nobody looked closer since: strom media view ${unverified[0]!.recordset}:${unverified[0]!.image} --half both` : undefined,
-            `the context full or another reason to stop: the same command again closes it (or with --reason "…")`,
-          ),
+          hint: `the context full or another reason to stop: the same command again closes it (or with --reason "…")`,
           code: "session.early-close",
         });
       }

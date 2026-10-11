@@ -134,6 +134,21 @@ export function batches<T>(items: T[], size = BATCH, views: (item: T) => number 
   return out;
 }
 
+/**
+ * The last line of a report's head while its reader writes: each block goes in its place with the line after it again,
+ * so a reader never has to retype the question (a long line written from memory: an edit that fails, N0292). Taken out
+ * of the report when the reader ends; never a block's.
+ */
+export const NEXT_BLOCK = "<!-- next image block -->";
+
+/** A report without the line its reader added each block at. */
+export function withoutNextBlock(text: string): string {
+  return text
+    .split("\n")
+    .filter((l) => l.trim() !== NEXT_BLOCK)
+    .join("\n");
+}
+
 export function readerPrompt(o: { question: string; images: ReaderImage[]; report: string; lang: string; context?: string | undefined; blind?: boolean }): string {
   return `You are a READER for a genealogical research. You are not the researcher: you do not decide
 anything and you do not write anywhere except your report file. Do not run any commands.
@@ -155,7 +170,11 @@ ${o.images.some((i) => i.halves) ? "A double page comes as its two halves, each 
 
 THE REPORT
 Write your report to ${o.report} AS YOU GO — after every image, not at the end. Its first lines are
-strom's: keep them as they are and write below them.
+strom's, the last of them this line:
+${NEXT_BLOCK}
+Add each image block with one edit of the file: replace that line with your block followed by the same
+line, so that it stays the last one. Never type out the question or any other line of strom's (a long
+line written from memory does not match), and never write the whole file again.
 For every image, this block (in ${o.lang === "en" ? "English" : `the research language (${o.lang})`}; transcriptions in the language of the record;
 the words "Image", "result", "found", "nothing", "unclear", "entries", "illegible", "hand", "certainty", "pages",
 "gaps", "section" and "done" stay in English — strom reads them):
@@ -210,7 +229,7 @@ export function saysNothing(v: string): boolean {
  */
 export function parseReport(text: string): Finding[] {
   const out: Finding[] = [];
-  const blocks = text.split(/^##\s+/m).slice(1);
+  const blocks = withoutNextBlock(text).split(/^##\s+/m).slice(1);
   for (const b of blocks) {
     const [head = "", ...body] = b.split("\n");
     const media = /\b(M\d{4,})\b/.exec(head)?.[1];

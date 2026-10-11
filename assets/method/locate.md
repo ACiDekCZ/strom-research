@@ -5,7 +5,8 @@ Before anything can be proven, know where the records are.
 1. Place and time decide the jurisdiction. Record it: `strom place add …` and
    `strom place jurisdiction L… --kind parish|civil|manor|district --from --to`.
    Borders, parishes and names changed; a village may belong to different
-   parishes in different centuries.
+   parishes in different centuries. A place only read uncertainly (readers
+   disagree, `[?]`) gives no parish or book until it is settled.
 2. Find the holding archive or portal and the concrete book or collection:
    `strom repo add …` (record its terms of use and whether automated download
    is allowed), `strom recordset add … --places --years --kinds --access --url`.
@@ -23,7 +24,7 @@ Before anything can be proven, know where the records are.
    the page of one book — never walk its record numbers one after another
    (archives block that). A catalogue you cannot read (an app, a login): ask
    the user — the archive, the village, the years, the kind of book — with
-   `strom task wait T… --on "…"`.
+   `strom task wait T… --on "…" --kind web --url <the catalogue>`.
 5. Record where you looked, also what gave nothing: `strom search add "<what>"
    --method web|catalog --result found|negative --task T…` — the next session
    must not search the same catalogues again.

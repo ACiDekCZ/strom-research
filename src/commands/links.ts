@@ -166,6 +166,12 @@ async function inTerminal(ctx: Context, link: TreeLink) {
         if (!(await waitingTask(ctx, run, treeLang, root, link.task))) return said("ui.link.notask");
         return end(true);
       }
+      if (link.do === "chat" || link.do === "note" || link.do === "folder" || link.do === "sent" || link.do === "file") {
+        const { waitingDo } = await import("../cli/menu-links.ts");
+        const done = await waitingDo(ctx, run, treeLang, root, link.task, link.do, agent);
+        // the conversation is the agent's (a terminal of its own, or its desktop app): nothing to wait for here
+        return link.do === "chat" && done ? { text: "", data: { done, action: link.action, tree: root } } : end(done);
+      }
       if (link.do) {
         const { taskDo } = await import("../cli/menu-links.ts");
         return end(await taskDo(ctx, run, treeLang, root, link.task, link.do));
@@ -329,6 +335,11 @@ register(
       "strom-research://review?tree=<id>&person=P0012&scope=person|family|line — the person reviewed (strom review).\n" +
       "strom-research://research?tree=<id>&person=P0012&direction=ancestors|descendants — a new direction (research new).\n" +
       "strom-research://task?…&task=T0007&do=park|drop|wake — the task put aside, given up, back in the queue (the reason asked).\n" +
+      "strom-research://task?…&task=T0007&do=chat|note|folder|sent — a task that waits: a conversation about it and the tasks\n" +
+      "  waiting at the same place (strom chat --task), its request's text or its folder of images opened (nothing written),\n" +
+      "  its request marked sent on the user's word (strom task sent).\n" +
+      "strom-research://task?…&task=T0007&do=file — a file that came for a waiting task (dragged into the terminal, a short\n" +
+      "  note): strom intake <file> --answers T0007, the task back in the queue.\n" +
       "strom-research://conflict?tree=<id>&id=X0007&do=decide|agent — decided by the user (which claim, why) or left to the agent;\n" +
       "  &take=user|research — the side picked in the app: only confirmed, and why.\n" +
       "strom-research://story?tree=<id>&person=P0012[&partner=P0013]&do=final|keep — the story approved (strom story approve), of a couple with partner=.\n" +

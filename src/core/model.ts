@@ -391,6 +391,20 @@ export interface PersonAnswer {
   via?: "terminal" | "window";
 }
 
+/** A file that came for what a task waited for (Task.files). */
+export interface TaskFile {
+  /** The input it became (I…), or the image of a source the research had of the same content (M…). */
+  input: string;
+  /** Who handed it over: "user" (a terminal), "app" (the Strom app through the bridge), "agent", a session. */
+  by: string;
+  /** What the task asked (its waitingOn then). */
+  asked: string;
+  at: string;
+}
+
+/** What a task waits for, as the agent says it (strom task wait --kind; core/waitkind.ts reads the rest). */
+export const WAIT_KINDS = ["letter", "family", "web", "other"] as const;
+
 export const TASK_LEVELS = ["intake", "locate", "link", "verify", "enrich", "request", "narrate"] as const;
 export const TASK_STATES = ["open", "doing", "done", "parked", "waiting", "dropped"] as const;
 
@@ -429,10 +443,28 @@ export interface Task extends BaseRecord {
    */
   awaitsPermission?: { hosts: string[]; since: string; title?: string };
   /**
+   * What it waits for, as the agent says it (strom task wait --kind/--to/--request/--url): a letter (by post or e-mail),
+   * the family, a site, other; whom (an office, an archive, the family); the request's text saved in the tree's notes/;
+   * the site. Optional: what a task waits for is otherwise read from its words (core/waitkind.ts). Gone when it waits
+   * no more.
+   */
+  wait?: { kind?: (typeof WAIT_KINDS)[number]; to?: string; note?: string; url?: string };
+  /**
+   * The request it waits on went out (strom task sent): the letter mailed, the family asked — when, by whom. Not a
+   * consent, not a wake: the task still waits. Gone when it waits no more, or is set waiting again.
+   */
+  sent?: { at: string; by: string };
+  /**
    * What the person answered for it (strom task wake --answer/--check, only by the person: their terminal, a window of
    * the system, strom's menu) — kept apart from the notes, which an agent writes too.
    */
   answers?: PersonAnswer[];
+  /**
+   * Files that came for what it waited for (strom intake --answers, the Strom app's file to a task): each an input of
+   * the research (or the image it had of that content), who handed it over (the user, the app, an agent), what the task
+   * asked then. Not the person's words: only that the file came. Optional: an older strom keeps it and ignores it.
+   */
+  files?: TaskFile[];
   result?: string;
   produced?: string[];
   origin: string;

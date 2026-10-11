@@ -141,7 +141,9 @@ export function permissionWait(tree: Tree, t: Task, session: string | undefined,
 
 /** The task as it waits for the person's decision (the text the person reads, in the research language). */
 export function waitingForDecision(tree: Tree, t: Task, w: NonNullable<Task["awaitsPermission"]>): Task {
-  return { ...t, state: "waiting", awaitsPermission: w, waitingOn: phrase(tree.lang, "archive.wait", { title: w.title ?? w.hosts[0]! }) };
+  // a new wait: what the agent said of an earlier one (its kind, whom, sent) is not this one's
+  const { wait: _w, sent: _s, ...rest } = t;
+  return { ...rest, state: "waiting", awaitsPermission: w, waitingOn: phrase(tree.lang, "archive.wait", { title: w.title ?? w.hosts[0]! }) };
 }
 
 // ── waking ───────────────────────────────────────────────────────────────────
@@ -216,7 +218,7 @@ export function wakeForArchive(env: Env, roots: string[], host: string, o: { sha
             if (!r.woken.length) return r;
             for (const id of r.woken) {
               const t = tree.get<Task>(id)!;
-              const { waitingOn: _w, awaits: _a, awaitsPermission: _p, parkedUntil: _u, parkedReason: _r, ...rest } = t;
+              const { waitingOn: _w, awaits: _a, awaitsPermission: _p, parkedUntil: _u, parkedReason: _r, wait: _k, sent: _s, ...rest } = t;
               tree.put({ ...rest, state: "open", updated: now() } as Task, { op: "task.wake", targets: [id], summary: `${id} wake: the person decided the images of ${host}` });
             }
             tree.commit(`Tasks back in the queue: the person decided the images of ${host} (${r.woken.join(", ")})`);

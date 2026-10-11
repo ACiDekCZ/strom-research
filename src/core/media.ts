@@ -68,6 +68,9 @@ const MIME: Record<string, string> = {
   ".m4a": "audio/mp4",
 };
 
+/** The files strom takes as images of a book (strom media add, the inbox of images saved by hand). */
+export const IMAGE_FILE_EXT: ReadonlySet<string> = new Set([".jpg", ".jpeg", ".png", ".tif", ".tiff", ".gif", ".webp", ".heic", ".jp2", ".bmp"]);
+
 export function mimeOf(file: string): string {
   return MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream";
 }

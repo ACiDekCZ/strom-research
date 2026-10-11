@@ -52,6 +52,7 @@ async function seeded(): Promise<World> {
   fs.writeFileSync(path.join(w.cwd, "zapis.txt"), "Joannes filius Josephi\n");
   fs.mkdirSync(path.join(w.cwd, "notes"), { recursive: true });
   fs.writeFileSync(path.join(w.cwd, "notes", "story-P0001.md"), "Jan byl mlynář v Týnci.\n");
+  fs.writeFileSync(path.join(w.cwd, "notes", "request-lhota.md"), "Žádost o opis křestního zápisu.\n"); // task wait --request
   fs.writeFileSync(path.join(w.cwd, "inputs", "rodokmen.md"), "Jan Novák, Lhota čp. 12\n"); // a text the user gave (strom grep)
   fs.writeFileSync(path.join(w.cwd, "krest-1885.txt"), 'person add "Karel /Novák/" --sex M #karel\nnote add @karel "z křestního zápisu"\n');
   fs.writeFileSync(path.join(w.cwd, "strom-export.json"), JSON.stringify({ persons: {}, partnerships: {} }));
@@ -95,6 +96,10 @@ async function seeded(): Promise<World> {
   await w.ok(["search", "add", "Kniha oddaných Týnec", "--method", "web", "--result", "inconclusive", "--note", "archive.example.org refused automated access; tried instead: the parish"]); // Q0002
   await w.ok(["task", "add", "Ověřit knihu oddaných", "--level", "locate", "--where", "archiv", "--why", "sňatek", "--done-when", "kniha ověřena"]); // T0004
   await w.ok(["task", "wait", "T0004", "--check", "https://archive.example.org/book/5359", "--on", "zda je kniha oddaných 1784–1820 vidět i se snímky"]);
+  // a letter that waits for the registry office's reply, which came as a file (intake --answers)
+  await w.ok(["task", "add", "Opis křtu z matriky", "--level", "request", "--where", "matrika", "--why", "křest", "--done-when", "opis"]); // T0005
+  await w.ok(["task", "wait", "T0005", "--on", "Odpověď matriky na žádost o opis.", "--kind", "letter"]);
+  fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "reply.pdf"), "%PDF-1.4\n%%EOF\n");
   // a hypothesis about whose son Josef Víšek was, one variant saying what it would connect (hypothesis link --remove)
   await w.ok(["hypothesis", "add", "Čí syn byl Josef?", "--about", "P0006", "--variant", "A: sourozenec Antonína", "--variant", "B: syn Josefa a Marie"]); // H0001
   await w.ok(["hypothesis", "link", "H0001", "A", "--siblings", "P0004", "P0006"]);

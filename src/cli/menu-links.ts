@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "./context.ts";
 import { outOfAnswers, translator, type Run } from "./menu-parts.ts";
-import { directionTasks, offerChat, setDirection } from "./menu-research.ts";
+import { askPaths, directionTasks, offerChat, setDirection } from "./menu-research.ts";
 import { humanCost, humanDay, humanTask, humanWhen } from "./human.ts";
 import { lines, truncate } from "./format.ts";
 import { isArchive } from "../core/mode.ts";
@@ -39,6 +39,10 @@ import { forgetTree } from "../commands/trees.ts";
 import { archiveQuestions } from "../core/archiveasks.ts";
 import { bareHost, listConnectors } from "../core/connector.ts";
 import { decideArchive } from "./menu-archives.ts";
+import { inboxOf, requestFile, sameGroup } from "../core/waiting.ts";
+import { SENDABLE, waitGroupOf, waitKindOf } from "../core/waitkind.ts";
+import { openForUser } from "../core/open.ts";
+import { fileRefused } from "../core/taskfiles.ts";
 
 /** What the Strom app asks, said before anything is done; true when the person goes on. */
 export async function asks(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true): Promise<boolean> {
@@ -78,6 +82,74 @@ export async function taskDo(ctx: Context, run: Run, lang: string, root: string,
   }
   if ((await run(["task", what, id, ...reason], true)) !== 0) return false;
   out(ctx, t(`ui.link.task.${what}.done`));
+  return true;
+}
+
+/**
+ * What a link of the Strom app does with a task that waits: a conversation about it and what waits with it at the same
+ * place (said and asked first: the agent costs), its request's text or its folder of images opened (nothing written),
+ * its request marked sent on the person's word (Enter: no). True: done.
+ *
+ * `menu`: the same chosen in the menu's What waits — the person picked it there, nothing said as the app's: a
+ * conversation starts at once, sent is asked in a line of its own (Enter: no).
+ */
+export async function waitingDo(ctx: Context, run: Run, lang: string, root: string, id: string, what: "chat" | "note" | "folder" | "sent" | "file", agent: string, menu = false): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const task = tree.get<Task>(id);
+  if (!task || task.type !== "task" || task.retracted) return stop(ctx, t("ui.link.task.none", { task: id }));
+  if (task.state !== "waiting") return stop(ctx, t("ui.link.notask"));
+  const shown = humanTask(tree, task.what, lang);
+  if (what === "chat") {
+    if (menu) return (await run(["chat", "--task", task.id])) === 0;
+    const more = sameGroup(tree, task, ctx.settings.shared()?.value).length;
+    const said = `${t("ui.link.what.task.chat", { agent, what: shown })}${more ? t("ui.link.what.task.chat.more", { n: more }) : ""}`;
+    if (!(await asks(ctx, lang, root, said, t("ui.link.cost")))) return false;
+    return (await run(["chat", "--task", task.id])) === 0;
+  }
+  if (what === "note") {
+    const file = requestFile(tree, task);
+    if (!file) return stop(ctx, t("ui.link.note.none", { task: task.id }));
+    openForUser(file, ctx.env);
+    out(ctx, t("ui.link.note.opened", { file: ctx.display(file) }));
+    return true;
+  }
+  if (what === "folder") {
+    const inbox = inboxOf(ctx.settings.shared()?.value, task);
+    if (!inbox) return stop(ctx, t("ui.link.folder.none", { task: task.id }));
+    openForUser(inbox.dir, ctx.env);
+    out(ctx, t("ui.waiting.opened", { dir: ctx.display(inbox.dir) }));
+    return true;
+  }
+  // a file that came for it: dragged in, a short note — an input of its people, the task back in the queue (Enter or 0
+  // at the file, 0 at the note: nothing written)
+  if (what === "file") {
+    if (fileRefused(task, task.id)) return stop(ctx, t("ui.link.file.cannot", { task: task.id }));
+    if (!menu) {
+      out(ctx, t("ui.link.asks", { what: t("ui.link.what.task.file", { what: shown }), name: tree.config.name }));
+      if (task.waitingOn) out(ctx, ` ${t("ui.waiting.do", { what: task.waitingOn })}`);
+    }
+    const paths = await askPaths(ctx, lang, root);
+    if (!paths?.length) return false;
+    const note = (await ctx.ask(t("ui.link.file.note"))).trim();
+    if (note === "0") return false;
+    if ((await run(["intake", ...paths, `--answers=${task.id}`, ...(note ? [`--note=${note}`] : [])], true)) !== 0) return false;
+    out(ctx, t("ui.link.task.file.done"));
+    return true;
+  }
+  // sent: a fact the person gives, never a consent — the task still waits for the reply
+  if (!SENDABLE.includes(waitKindOf(task))) return stop(ctx, t("ui.link.sent.cannot", { task: task.id }));
+  if (task.sent) return stop(ctx, t("ui.link.sent.already", { task: task.id, day: humanDay(task.sent.at, lang) }));
+  const group = waitGroupOf(tree, task, lang);
+  const to = task.wait?.to?.trim() || (group.kind === "office" || group.kind === "family" ? group.name : undefined);
+  if (menu) {
+    if (!(await ctx.confirm(t("ui.wait.sent.sure", { to: to ? ` (${to})` : "" }), false))) return false;
+  } else {
+    if (task.waitingOn) out(ctx, ` ${t("ui.waiting.do", { what: task.waitingOn })}`);
+    if (!(await asks(ctx, lang, root, t("ui.link.what.task.sent", { what: shown, to: to ? ` (${to})` : "" }), undefined, false))) return false;
+  }
+  if ((await run(["task", "sent", task.id], true)) !== 0) return false;
+  out(ctx, t("ui.link.task.sent.done"));
   return true;
 }
 

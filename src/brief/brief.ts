@@ -809,6 +809,21 @@ function archiveLine(tree: Tree, b: RecordSet, repo: Repository | undefined, sha
 }
 
 /**
+ * The files that came for what the task waited for (Task.files: strom intake --answers, the Strom app's file to the
+ * task) — that they came, never the person's words: read each as the task's next step.
+ */
+function filesCame(task: Task): string[] {
+  const all = task.files ?? [];
+  if (!all.length) return [];
+  const who = (by: string) => (by === "app" ? "from the Strom app" : by === "user" ? "from the user" : `by ${by}`);
+  return [
+    ...all.slice(-5).map((f) => `file came (${f.at.slice(0, 10)}, ${who(f.by)}; asked: ${f.asked}): ${f.input} — strom ${f.input.startsWith("M") ? "media show" : "input show"} ${f.input}`),
+    all.length > 5 ? `(files: the last 5 of ${all.length} — all: strom task show ${task.id})` : "",
+    "read what came first: it is what the task waited for (what it says is recorded as from any material; strom input done <I…> once used)",
+  ].filter(Boolean);
+}
+
+/**
  * What the person answered for the task (Task.answers: only theirs, through strom task wake --answer/--check in their
  * terminal, a window or strom's menu) — apart from the notes, which anybody writes — and the way on from a check.
  */
@@ -902,7 +917,11 @@ export function buildBrief(
       research?.question ? `Research question: ${research.question}` : "",
       ...(research?.notes ?? []).slice(-3).map((n) => `From the user: ${n.text}`),
       `Research language: ${langName(lang)} — ${alone ? "" : "talk to the user and "}write notes, tasks and summaries in ${langName(lang)}; transcripts stay in the original language.`,
-      alone ? "Working alone (strom run): nobody reads this session live — nothing in it is said to the user, its last words neither." : "",
+      // the user may read a run afterwards (its output, its log): every word in the research language, impersonal (N0288,
+      // N0292, N0295: a last message in English, "it waits for you")
+      alone
+        ? `Working alone (strom run): nobody answers here, but the user may read this session afterwards (the run's output, its log) — every message of yours, the last one too, in ${langName(lang)}, about the work and never addressed to the user ("waits for a check", never "waits for you"); a step only the user can take goes into strom task wait.`
+        : "",
       STROM_ONLY,
       webRule(new Settings(tree.env, {}).webPerHost(tree.config)),
       opts.deadline !== undefined ? briefClock(opts.deadline) : "",
@@ -934,6 +953,7 @@ export function buildBrief(
         ...task.notes.slice(-3).map((n) => `note:  ${n.text}`),
         task.notes.length > 3 ? `(notes: the last 3 of ${task.notes.length} — all: strom task show ${task.id})` : "",
         ...personAnswers(tree, task),
+        ...filesCame(task),
       ].filter(Boolean).join("\n"),
     });
 
@@ -1330,12 +1350,12 @@ export function buildBrief(
       // there are impersonal, so is what it shows of the agent's
       alone
         ? // working alone: every task starts in a fresh session by itself; nobody reads a closing message
-          "- the summary: plain words of the research for the record (menu, Strom app), never addressed to the user, no advice (/clear, starting anything); after strom session close you are done: no closing message"
+          `- the summary: plain words of the research for the record (menu, Strom app), never addressed to the user, no advice (/clear, starting anything); after strom session close you are done: a last message of one line at most, in ${langName(lang)}, never addressed to the user`
         : "- the user reads the summary (menu, Strom app): plain words, never addressed to them",
       // nobody answers a question in a run: what only the user can decide waits for them where they look (the menu's
       // What waits for you, the Strom app), their answer comes back on the task (strom task wake --answer)
       alone && task
-        ? `- a decision or a step only the user can take: strom task wait ${task.id} --on "<the question, impersonal, in the research language>" — they see it in the menu and the Strom app; a question in the summary gets no answer`
+        ? `- a decision or a step only the user can take: strom task wait ${task.id} --on "<the question, impersonal, in the research language>" — they see it in the menu and the Strom app; a question in the summary gets no answer; its kind: --kind letter|family|web|other`
         : "",
       "- a command you need: strom help <command> (short, with examples) — the full guide: strom guide",
     ].filter(Boolean).join("\n"),

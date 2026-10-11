@@ -108,6 +108,15 @@ conclusion so the next researcher can follow it.
   another way, or say what was refused.
 - **Stay within the task.** New questions become new tasks (`strom task add`,
   with where and done-when), not detours.
+<!-- for locate request -->
+- **What waits for the user is a sentence they read** (`strom task wait T…
+  --on "…"`: strom's menu, the Strom app): impersonal, in the research
+  language, what is needed and from whom — never addressed to them, never in
+  your voice. Say its kind (`--kind letter|family|web|other`) and, when known,
+  whom it waits on (`--to`), the request's text saved in notes/ (`--request
+  notes/<file>.md`), the site (`--url`); `strom task sent T…` only once the
+  user says the request went out.
+<!-- end -->
 <!-- for link verify enrich intake locate -->
   A new task whose images are not here
   gets them now: through the archive's connector (built first when it has

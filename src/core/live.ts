@@ -26,10 +26,17 @@
 //                          -Region, -Note): streamed to disk, its hash checked, kept outside git
 //                          (strom media original) — of a source an image, else material of people with an intake task;
 //                          X-Strom-Batch, -Path (and -Zip: 1, a ZIP unpacked here): one file of a batch
+//                          X-Strom-Task: T… — a file for what a waiting task waits for: an input of its people
+//                          handed to it, the task back in the queue (strom media original --task)
 //   POST <token>/batch/<id>/done   the batch is whole ({name, files, person, note}): its files become sorting tasks
 //                          (a batch nobody closes is closed a day after its last file)
-//   POST <token>/conflict/<X…>   the person decides a conflict of their edit in the app by side ({"do": "decide",
-//                          "take": "user" | "research", "note"?}): strom conflict resolve --take, written as the user's
+//   POST <token>/waiting/<T…>   a request of a waiting task sent ({"do": "sent" | "unsent"}): strom task sent [--undo],
+//                          the user's — a fact the person gives, never an answer or a decision; the task still waits
+//   POST <token>/group/<key>    the same for one place of What waits ({"do": "sent"}: each of its requests still to be
+//                          sent; {"do": "unsent", "tasks": [T…]}: only those, when they are of it and sent)
+//   GET <token>/group/<key>/note   the request texts of that place's tasks joined for one e-mail ({text, notes, tasks})
+//   POST <token>/conflict/<X…>   refused (403 decide.link): a conflict is the person's to decide in the terminal, through
+//                          the link conflict&do=decide — the bridge cannot tell the app from an agent on this computer
 //   GET <token>/adopt      a new research waits for a tree of the app: its mark, name, until when; transfer: true when
 //                          the tree comes from a browser the app cannot reach strom from; existing: true when it goes
 //                          into a research made before, its tree never came (POST /adopt hands it over)
@@ -68,11 +75,11 @@ import crypto from "node:crypto";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import type { Env } from "./paths.ts";
 import { withoutAgentMarks } from "./which.ts";
-import { newerTree, Tree, TREE_FILE, typeOfId, VERSION, type Op } from "./tree.ts";
+import { newerTree, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
 import { readJsonIfExists } from "./json.ts";
 import { changeLines, type ChangeKind } from "./changelog.ts";
 import { directionOf, scopes, type Scope } from "./directions.ts";
-import { ancestorGenerations, displayName } from "./people.ts";
+import { ancestorGenerations } from "./people.ts";
 import { phrase } from "./phrases.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { excerptSettings, planExcerpts } from "./excerpt.ts";
@@ -102,13 +109,12 @@ import { Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
 import { diskVersion, stromLauncher } from "./self.ts";
-import type { AnyRecord, Conflict, Family, Input, Person, Session, Source, Task, TreeConfig } from "./model.ts";
-import { CHECK_ANSWERS } from "./model.ts";
-import { sidesOf } from "./conflicts.ts";
+import type { Input, Session, Source, Task, TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
 import { foldText } from "./text.ts";
-import { storiesToApprove } from "./stories.ts";
-import { archiveWaitingItems } from "./archiveasks.ts";
+import { requestTexts, waitingFor } from "./waiting.ts";
+import { fileRefused } from "./taskfiles.ts";
+import { SENDABLE, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts";
 import { agentsHere } from "./apps.ts";
 
 export interface LiveInfo {
@@ -160,7 +166,7 @@ function said(lang: string, key: keyof typeof CODES, params: Record<string, stri
  * - `app.only` 403 — not from the Strom app's pages
  * - `media.bad-sha` 400 — the address names no SHA-256
  * - `media.bad-header` 400 {header} — a header that is not what it should be (X-Strom-Person, -Source, -Batch, -Zip,
- *   -Path, -Name, -Note)
+ *   -Path, -Name, -Note, -Task)
  * - `media.bad-region` 400 {region} — X-Strom-Region is no part of an image
  * - `media.no-person` 404 {person} — no such person in the research; `media.no-source` 404 {source} — no such source
  * - `media.no-shared` 500 — the research has no shared folder for files (strom setup)
@@ -176,15 +182,18 @@ function said(lang: string, key: keyof typeof CODES, params: Record<string, stri
  * - `batch.closed` 409 {batch} — the batch is closed already: send the rest as a new batch
  * - `batch.full-files` 413 {batch, files}; `batch.full-bytes` 413 {batch, gb} — the most a batch takes
  * - `batch.none` 404 {batch} — POST /batch/<id>/done: no such batch here; `batch.bad-body` 400 — its body no JSON
+ * - `waiting.none` 409 {id} — X-Strom-Task: the task waits no more; `waiting.no-file` 409 {id} — it waits for the
+ *   person's check of a site or decision about an archive (the app offers the inbox folder then)
  *
- * A decision of the person (POST /conflict/<X…>): 200 {decided, take, head, written, person?, family?}, else
- * - `app.only` 403; `decide.bad-body` 400 — no JSON {"do": "decide", …}; `conflict.bad-take` 400 — take not user|research
- * - `conflict.none` 404 {id} — no such conflict; `conflict.no-edit` 422 {id} — not one the app decides by side
- * - `conflict.decided` 409 {id} (and resolution, take, at, by, in) — decided already (a terminal, an agent, the app)
- * - `research.busy` 503 (and Retry-After, `retry`) — a send or an adoption is being written, another decision, another
- *   strom holding the research: ask again in a moment
- * - `locked` 423 (and reasonCode, reasonParams) — a newer strom wrote the research: this one never writes it
- * - `decide.failed` 500 — went wrong (the English sentence says why)
+ * A request marked sent (POST /waiting/<T…>, /group/<key>): 200 {sent | unsent: [the tasks it marked], head, task?,
+ * phase?, group?}, else
+ * - `app.only` 403; `waiting.bad-body` 400 — no JSON {"do": "sent" | "unsent"} (a group's unsent: with its "tasks")
+ * - `waiting.none` 404 {id} — no task that waits; `group.none` 404 {group} — nothing waits at that place (also GET
+ *   /group/<key>/note); `waiting.not-sendable` 409 {id, kind} — it waits for no request to send
+ * - `research.busy` 503 (and Retry-After, `retry`); `locked` 423; `waiting.failed` 500
+ *
+ * A decision of a conflict (POST /conflict/<X…>): always `decide.link` 403 {id}, nothing read or written — the person
+ * decides it in the terminal, through the link conflict&do=decide (the bridge cannot tell the app from an agent here).
  */
 function refusal(error: string, code: string, params: Record<string, string> = {}): { error: string; code: string; text: string; params?: Record<string, string> } {
   return { error, code, text: error, ...(Object.keys(params).length ? { params } : {}) };
@@ -637,7 +646,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "conflict.decide", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -780,30 +789,6 @@ function researchOf(tree: Tree, t: Task, all: Scope[]): { research?: string } {
 function personOf(t: Task | undefined): { person?: string } {
   const people = (t?.subject ?? []).filter((id) => /^P\d{1,7}$/.test(id));
   return people.length === 1 ? { person: people[0]! } : {};
-}
-
-/** The new versions of approved stories, as items of `waiting`: whose (a couple's: person and partner), since when. */
-function storiesWaiting(tree: Tree): Record<string, unknown>[] {
-  return storiesToApprove(tree).flatMap((s) => {
-    const rec = tree.get<Person | Family>(s.id);
-    if (!rec) return [];
-    const people = rec.type === "family" ? rec.partners : [rec.id];
-    const name = (id: string) => {
-      const p = tree.get<Person>(id);
-      return p ? displayName(p) : id;
-    };
-    return [
-      {
-        kind: "story",
-        id: rec.id,
-        what: ui(tree.lang, "ui.waiting.story", { who: people.map(name).join(" & ") }),
-        on: "",
-        at: s.at,
-        ...(people[0] ? { person: people[0] } : {}),
-        ...(people[1] ? { partner: people[1] } : {}),
-      },
-    ];
-  });
 }
 
 /** Who works, as the user reads it: "Claude Code on its own", "Codex conversation" in the research language. */
@@ -1041,6 +1026,8 @@ function accepts(tree: Tree, settings: Settings, env: Env): Record<string, unkno
           types: ORIGINAL_TYPES.map((t) => ({ mime: t.mime, ext: t.ext })),
           region: true,
           tasks: mode === "archive" ? "parked" : "open",
+          // a file to a task that waits for one (X-Strom-Task): an archive has none
+          task: mode !== "archive",
           batch: { ...batchLimits(env), zip: true },
           estimate: batchEstimate(tree),
         }
@@ -1085,8 +1072,6 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
   }
   const tree = Tree.open(root, env);
   const settings = new Settings(env, {});
-  // an archive asks the person nothing: none waits (put aside at its next write, settleArchive)
-  const waiting = isArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting");
   const newer = knownNewerVersion(settings, env);
   const intake = lastIntake(root, tree);
   const last = tip(root);
@@ -1118,24 +1103,16 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
     researches: directions(tree, all, next, atWork.filter((w) => !w.paused).map((w) => w.research)),
     working: atWork,
     open: openSessions(tree).map((s) => ({ id: s.id, task: s.task, started: s.started })),
-    // since when it waits: its last change is the one that made it wait
-    waiting: [
-      ...waiting.map((t) => ({
-        id: t.id,
-        what: t.what,
-        on: t.waitingOn ?? "",
-        at: t.updated,
-        // a check of a site only the person sees: its link and the answers (given in the terminal its link opens: task&do=check)
-        ...(t.awaitsCheck ? { kind: "check", url: t.awaitsCheck.url, choices: [...CHECK_ANSWERS] } : {}),
-        ...personOf(t),
-        ...researchOf(tree, t, all),
-      })),
-      // a new version of an approved story, as the menu counts it — for an app that shows it (the _DRAFT gate)
-      ...(appShowsStoryDrafts(settings, version) ? storiesWaiting(tree) : []),
-      // an archive's images that wait for the person's decision, the connectors taken over to confirm (none in an
-      // archive): the app shows them, the person decides in the terminal its link opens (archive&host=)
-      ...archiveWaitingItems(tree, settings.shared()?.value, () => settings.agent(tree.config).value === "claude" && agentsHere(env).some((a) => a.id === "claude" && a.cli)),
-    ],
+    // what waits for the person, ordered and grouped by the place where it is dealt with (core/waiting.ts): the tasks,
+    // a new version of an approved story (for an app that shows it: the _DRAFT gate), an archive's images that wait for
+    // the person's decision and the connectors taken over (none in an archive) — the person decides in the terminal a
+    // link opens (archive&host=, task&do=)
+    waiting: waitingFor(tree, {
+      shared: settings.shared()?.value,
+      claude: () => settings.agent(tree.config).value === "claude" && agentsHere(env).some((a) => a.id === "claude" && a.cli),
+      stories: appShowsStoryDrafts(settings, version),
+      scopes: all,
+    }).map((w) => w.item),
     links: links(env),
     ...linkSchemeOf(env),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
@@ -1388,7 +1365,22 @@ export function serveLive(root: string, env: Env): Promise<void> {
       return;
     }
     if (req.method === "POST" && t === token && what === "conflict" && sub && !act) {
-      decideFor(req, res, origin, "conflict", decodeURIComponent(sub), conflictDecision);
+      // the bridge cannot tell the app from an agent on this computer (the secret is in the research's folder, an Origin
+      // is a header any program sets): a conflict is the person's to decide, in the terminal its link opens — refused
+      // before anything is read or opened
+      req.resume();
+      const id = decoded(sub).slice(0, 32);
+      res
+        .writeHead(403, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" })
+        .end(JSON.stringify(refusal(`a conflict is decided in the terminal, through the link strom-research://conflict?…&id=${id}&do=decide — not through the bridge`, "decide.link", { id })));
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "waiting" && sub && !act) {
+      writeFor(req, res, origin, waitingWrite(decoded(sub)));
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "group" && sub && !act) {
+      writeFor(req, res, origin, groupWrite(decoded(sub)));
       return;
     }
     if (req.method !== "GET" || t !== token) {
@@ -1448,6 +1440,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
         const json = (code: number, body: unknown) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
         if ((q.has("person") && !/^P\d{1,9}$/.test(person)) || (q.has("batch") && !BATCH_ID.test(batch))) json(400, { error: "?person=P… (a person of the research), ?batch=<the batch's mark>" });
         else json(200, material(Tree.open(root, env), new Settings(env, {}).shared()?.value, { ...(person ? { person } : {}), ...(batch ? { batch } : {}) }));
+      } else if (what === "group" && act === "note") {
+        // the request texts of one place, for one e-mail: read only
+        const got = groupNote(decoded(sub));
+        res.writeHead(got.code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(got.body));
       } else if (what === "status") {
         // what is answered is made first: a read that fails can still answer 500
         const text = JSON.stringify(status(root, env, version));
@@ -1833,6 +1829,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
     let region: string | undefined;
     let batch: string | undefined;
     let where: string | undefined;
+    let forTask: string | undefined;
     const zip = header("x-strom-zip") === "1";
     const tree = Tree.open(root, env);
     // the header read when it failed (its value not URI-encoded too): said by its name
@@ -1857,12 +1854,23 @@ export function serveLive(root: string, env: Env): Promise<void> {
       at = "X-Strom-Region";
       region = header("x-strom-region")?.trim();
       parseRegion(region);
+      at = "X-Strom-Task";
+      const task = header("x-strom-task")?.trim();
+      if (task !== undefined && !/^[Tt]\d{1,9}$/.test(task)) throw new Error("X-Strom-Task: the ID of a task of the research that waits (T…)");
+      if (task && (batch || source)) throw new Error("X-Strom-Task: a file for a task comes in no batch and is no image of a source");
+      forTask = task ? normId(task, "task") : undefined;
       meta = checkOriginalMeta(tree, { persons, source });
     } catch (e) {
       // a person or a source the research has not got: 404, its JSON body telling it from an address that is no bridge's
       const m = (e as Error).message;
       const coded = e instanceof StromError && e.code ? refusal(m, e.code, e.params ?? {}) : refusal(m, "media.bad-header", { header: at });
       return refuse(/^no (person|source)/.test(m) ? 404 : 400, coded);
+    }
+    // a file for a task (its "Add a file"): only for a task that waits for one — else refused before anything is kept
+    // (the app offers the inbox folder then)
+    if (forTask) {
+      const no = fileRefused(tree.get<Task>(forTask), forTask);
+      if (no) return refuse(409, refusal(no.message, no.code === "task.no-file" ? "waiting.no-file" : "waiting.none", { id: forTask }));
     }
     const settings = new Settings(env, {});
     const shared = settings.shared()?.value;
@@ -1881,7 +1889,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
       if (full) return refuse(413, { ...refusal(full.text, full.code, full.params), batch });
     }
     // the same content: only said (an image of another source given again is taken as one more of that source)
-    const known = zip ? undefined : knownOriginal(tree, shared, sha);
+    // (a file for a task comes whole even when the research has it: handed to the task as that content)
+    const known = zip || forTask ? undefined : knownOriginal(tree, shared, sha);
     const onSource = !batch && !!meta.source && known?.kind === "media" && !tree.get<Source>(meta.source)?.media?.includes(known.id);
     if (known && !onSource) {
       if (open) noteBatch(root, open, { known: known.id });
@@ -1982,6 +1991,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
             ...(region ? ["--region", region] : []),
             ...(note ? [`--note=${note}`] : []),
             ...(batch ? ["--batch", batch, ...(where ? [`--path=${where}`] : []), ...(zip ? ["--zip"] : [])] : []),
+            ...(forTask ? ["--task", forTask] : []),
             "--json",
           ],
           { cwd: root, env: forApp(env, root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
@@ -2011,6 +2021,9 @@ export function serveLive(root: string, env: Env): Promise<void> {
           noteLive(root, `an original was not taken (exit ${code}): ${why}`);
           // the research busy (another strom holding it longer than a writer waits): the app sends it again later
           if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 30 });
+          // the task waits no more (answered meanwhile in the terminal)
+          if (forTask && typeof data.code === "string" && ["task.none", "task.not-waiting", "task.no-file"].includes(data.code))
+            return reply(409, refusal(why, data.code === "task.no-file" ? "waiting.no-file" : "waiting.none", { id: forTask }));
           reply(/not a kind of file/.test(why) ? 415 : /cut short|too small/.test(why) ? 422 : /the most one takes/.test(why) ? 413 : /closed already/.test(why) ? 409 : 400, refusalOf(why, data, "media.refused"));
         });
       }));
@@ -2087,30 +2100,32 @@ export function serveLive(root: string, env: Env): Promise<void> {
   };
 
   /**
-   * A decision of the person in the app (POST /conflict/<X…>; one route of each kind — a hypothesis's later shares
-   * this): checked here, then written by a strom of its own as the user's (forApp: the command the terminal runs, its
-   * lock, its log and commit), one at a time and never while a send or an adoption is written — then busy (503 +
-   * Retry-After, research.busy: what the bridge says of an original or a batch the research cannot take now). Every
-   * kind answers alike: 200 {decided, head, written, …}; its refusals by their codes (`<kind>.none` 404, `<kind>.decided`
-   * 409, …), the research a newer strom wrote 423 `locked`, not from the app's pages 403 `app.only`.
+   * What the person writes from the app (POST /waiting/<T…>, /group/<key>: a request marked sent — a fact, never a
+   * decision or a consent, which only the terminal takes): checked here, then written by a strom of its own as the
+   * user's (forApp: the command the terminal runs, its lock, its log and commit), one at a time and never while a send or
+   * an adoption is written — then busy (503 + Retry-After, research.busy: what the bridge says of an original or a batch
+   * the research cannot take now). Its refusals by their codes; the research a newer strom wrote 423 `locked`, not from
+   * the app's pages 403 `app.only`, a body that is no JSON object 400 `waiting.bad-body`.
    */
-  let deciding: string | undefined;
-  const DECIDE_RETRY_S = 5;
-  interface Decision {
-    /** What the body asks, checked against the record as it is now: the command to run, else the refusal. */
-    ask(tree: Tree, rec: AnyRecord, body: Record<string, unknown>): { args: string[] } | { code: number; body: Record<string, unknown> };
+  let personWriting: string | undefined;
+  const WRITE_RETRY_S = 5;
+  interface AppWrite {
+    /** What it is (said in live.log). */
+    what: string;
+    /** What the body asks, checked against the research as it is now: the command to run, else the answer. */
+    ask(tree: Tree, body: Record<string, unknown>): { args: string[] } | { code: number; body: Record<string, unknown> };
     /** The answer once written (the command's --json data, the research's head after it). */
-    done(tree: Tree, id: string, data: Record<string, unknown>, head: string): Record<string, unknown>;
-    /** The command's refusal (its --json code) as the app is told it; none: 500 decide.failed. */
-    refused(tree: Tree, id: string, code: string, why: string): { code: number; body: Record<string, unknown> } | undefined;
+    done(tree: Tree, data: Record<string, unknown>, head: string): Record<string, unknown>;
+    /** The command's refusal (its --json code) as the app is told it; none: 500 `waiting.failed`. */
+    refused(tree: Tree, code: string, why: string): { code: number; body: Record<string, unknown> } | undefined;
   }
-  const decideFor = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, kind: "conflict", raw: string, how: Decision) => {
+  const writeFor = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, how: AppWrite) => {
     const reply = (code: number, body: Record<string, unknown>) => {
-      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": String(body.retry ?? DECIDE_RETRY_S) } : {}) }).end(JSON.stringify(body));
+      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": String(body.retry ?? WRITE_RETRY_S) } : {}) }).end(JSON.stringify(body));
     };
     if (!origin) {
       req.resume();
-      return reply(403, refusal("only the Strom app may decide here", "app.only"));
+      return reply(403, refusal("only the Strom app may write here", "app.only"));
     }
     let text = "";
     let over = false;
@@ -2130,16 +2145,12 @@ export function serveLive(root: string, env: Env): Promise<void> {
       } catch {
         over = true;
       }
-      if (over || body.do !== "decide") return reply(400, refusal(`the body: JSON {"do": "decide", …}`, "decide.bad-body"));
-      const id = /^[A-Za-z]\d{1,9}$/.test(raw) ? normId(raw) : "";
-      const tree = Tree.open(root, env);
-      const rec = id && typeOfId(id) === kind ? tree.get<AnyRecord>(id) : undefined;
-      if (!rec || rec.type !== kind) return reply(404, refusal(`no ${kind} ${raw.slice(0, 32)} in this research`, `${kind}.none`, { id: raw.slice(0, 32) }));
-      const asked = how.ask(tree, rec, body);
+      if (over) return reply(400, refusal(`the body: a JSON object {"do": …}`, "waiting.bad-body"));
+      const asked = how.ask(Tree.open(root, env), body);
       if ("code" in asked) return reply(asked.code, asked.body);
-      // a send or an adoption being written, another decision: asked again in a moment
-      if (writing || adopting || deciding) return reply(503, { ...refusal("the research is busy — ask again in a moment", "research.busy"), retry: DECIDE_RETRY_S });
-      deciding = id;
+      // a send or an adoption being written, another write of the person's: asked again in a moment
+      if (writing || adopting || personWriting) return reply(503, { ...refusal("the research is busy — ask again in a moment", "research.busy"), retry: WRITE_RETRY_S });
+      personWriting = how.what;
       const { command, args } = stromLauncher();
       const child = spawn(command, [...args, ...asked.args, "--json"], { cwd: root, env: forApp(env, root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
       track(child);
@@ -2148,11 +2159,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
       child.stdout.on("data", (d: Buffer) => (out += d.toString("utf8")));
       child.stderr.on("data", (d: Buffer) => (err += d.toString("utf8")));
       child.on("error", (e) => {
-        deciding = undefined;
-        reply(500, refusal(errorText(e), "decide.failed"));
+        personWriting = undefined;
+        reply(500, refusal(errorText(e), "waiting.failed"));
       });
       child.on("close", (code) => {
-        deciding = undefined;
+        personWriting = undefined;
         if (code === null) return;
         let data: Record<string, unknown> = {};
         try {
@@ -2161,63 +2172,98 @@ export function serveLive(root: string, env: Env): Promise<void> {
           // said by the exit code
         }
         const now = Tree.open(root, env);
-        if (code === 0) return reply(200, how.done(now, id, data, head(root)));
+        if (code === 0) return reply(200, how.done(now, data, head(root)));
         const why = String(data.message ?? err.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? `exit ${code}`);
-        noteLive(root, `${id} was not decided (exit ${code}): ${why}`);
+        noteLive(root, `${how.what} was not written (exit ${code}): ${why}`);
         // the research busy (another strom holding it longer than a writer waits)
-        if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: DECIDE_RETRY_S });
-        const known = typeof data.code === "string" ? how.refused(now, id, data.code, why) : undefined;
-        reply(known?.code ?? 500, known?.body ?? { ...refusal(why, "decide.failed"), ...(typeof data.code === "string" ? { reasonCode: data.code } : {}) });
+        if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: WRITE_RETRY_S });
+        const known = typeof data.code === "string" ? how.refused(now, data.code, why) : undefined;
+        reply(known?.code ?? 500, known?.body ?? { ...refusal(why, "waiting.failed"), ...(typeof data.code === "string" ? { reasonCode: data.code } : {}) });
       });
     }));
   };
 
-  /** Whose a conflict is, as the app finds it: its person (a couple's: its first partner) and its family. */
-  const conflictOwners = (tree: Tree, c: Conflict): { person?: string; family?: string } => {
-    const person = c.subject.find((s) => s.startsWith("P"));
-    const family = c.subject.find((s) => s.startsWith("F"));
-    const partner = person ?? (family ? tree.get<Family>(family)?.partners[0] : undefined);
-    return { ...(partner ? { person: partner } : {}), ...(family ? { family } : {}) };
+  /** A part of the address, decoded (one that is not URI-encoded: none). */
+  const decoded = (part: string | undefined): string => {
+    try {
+      return decodeURIComponent(part ?? "");
+    } catch {
+      return "";
+    }
   };
-  /** A conflict decided already: what was decided, which side, when and by whom. */
-  const decidedAnswer = (c: Conflict) => ({
-    ...refusal(`${c.id} is decided already: ${c.resolution ?? ""}`, "conflict.decided", { id: c.id }),
-    resolution: c.resolution ?? "",
-    ...(c.taken ? { take: c.taken } : {}),
-    ...(c.decidedAt ? { at: c.decidedAt } : {}),
-    ...(c.decidedBy ? { by: c.decidedBy } : {}),
-    ...(c.decidedIn ? { in: c.decidedIn } : {}),
-  });
-  /** POST /conflict/<X…> {"do": "decide", "take": "user" | "research", "note"?}: strom conflict resolve --take, the user's. */
-  const conflictDecision: Decision = {
-    ask(tree, rec, body) {
-      const c = rec as Conflict;
-      if (c.state !== "open") return { code: 409, body: decidedAnswer(c) };
-      if (!sidesOf(c)) return { code: 422, body: refusal(`${c.id} is no conflict of an edit in the Strom app the app decides by side`, "conflict.no-edit", { id: c.id }) };
-      if (body.take !== "user" && body.take !== "research") return { code: 400, body: refusal(`"take" is "user" or "research"`, "conflict.bad-take") };
-      if (body.note !== undefined && typeof body.note !== "string") return { code: 400, body: refusal(`"note" is text`, "decide.bad-body") };
-      // the person's note: one line of text, 200 characters at most (the rest cut)
-      const note = [...String(body.note ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim()].slice(0, 200).join("").trim();
-      const decided = phrase(tree.lang, "conflict.app.decided");
-      const reasoning = note ? phrase(tree.lang, "conflict.app.noted", { decided, note }) : decided;
-      return { args: ["conflict", "resolve", c.id, `--take=${body.take}`, `--reasoning=${reasoning}`] };
-    },
-    done(tree, id, data) {
-      const c = tree.get<Conflict>(id)!;
-      return {
-        decided: id,
-        take: c.taken ?? data.taken,
-        head: head(root),
-        written: typeof data.written === "string" ? data.written : `${id} decided: the research's value kept`,
-        ...conflictOwners(tree, c),
-      };
-    },
-    refused(tree, id, code, why) {
-      const c = tree.get<Conflict>(id);
-      if (c && ["conflict.decided", "conflict.taken", "conflict.user-decided"].includes(code)) return { code: 409, body: decidedAnswer(c) };
-      if (code === "conflict.no-edit") return { code: 422, body: refusal(why, "conflict.no-edit", { id }) };
-      return undefined;
-    },
+  /** The items of one place of What waits (group.key), as /status says them. */
+  const groupItems = (tree: Tree, key: string) => waitingFor(tree, { shared: new Settings(env, {}).shared()?.value, stories: false }).filter((w) => w.item.group.key === key);
+  /** A sent or not sent from the app: "sent" or "unsent", else none. */
+  const sentWord = (body: Record<string, unknown>): "sent" | "unsent" | undefined => (body.do === "sent" || body.do === "unsent" ? body.do : undefined);
+  /** The command's refusal of a request marked sent, as the app is told it. */
+  const sentRefused = (code: string, why: string, id: string): { code: number; body: Record<string, unknown> } | undefined =>
+    code === "task.not-waiting" || code === "task.none"
+      ? { code: 404, body: refusal(why, "waiting.none", { id }) }
+      : code === "task.not-sendable"
+        ? { code: 409, body: refusal(why, "waiting.not-sendable", { id }) }
+        : undefined;
+
+  /** POST /waiting/<T…> {"do": "sent" | "unsent"}: strom task sent T… [--undo], the user's — a fact, not a decision. */
+  const waitingWrite = (raw: string): AppWrite => {
+    const id = /^[Tt]\d{1,9}$/.test(raw) ? normId(raw, "task") : raw.slice(0, 32);
+    let said: "sent" | "unsent" = "sent";
+    return {
+      what: `${id} sent`,
+      ask(tree, body) {
+        const word = sentWord(body);
+        if (!word) return { code: 400, body: refusal(`the body: JSON {"do": "sent" | "unsent"}`, "waiting.bad-body") };
+        said = word;
+        const t = /^T\d+$/.test(id) ? tree.get<Task>(id) : undefined;
+        if (!t || t.type !== "task" || t.retracted || t.state !== "waiting") return { code: 404, body: refusal(`${id} is no task that waits`, "waiting.none", { id }) };
+        const kind = waitKindOf(t);
+        if (!SENDABLE.includes(kind)) return { code: 409, body: refusal(`${id} waits for no request to send (kind ${kind})`, "waiting.not-sendable", { id, kind }) };
+        return { args: ["task", "sent", id, ...(word === "unsent" ? ["--undo"] : [])] };
+      },
+      done(tree, data, head) {
+        const t = tree.get<Task>(id);
+        const marked = Array.isArray(data.marked) ? data.marked.map(String) : [];
+        return { [said]: marked, task: id, ...(t ? { phase: waitPhaseOf(t) } : {}), head };
+      },
+      refused: (_tree, code, why) => sentRefused(code, why, id),
+    };
+  };
+
+  /**
+   * POST /group/<key> {"do": "sent"} — every item of the place still to be sent (a letter, the family, other) marked
+   * sent: {sent: [those it marked], head}; {"do": "unsent", "tasks": [T…]} — only those of them that are of the place and
+   * sent taken back (never "the last send" made out of the state: the app sends back the list the sent answered).
+   */
+  const groupWrite = (key: string): AppWrite => {
+    let said: "sent" | "unsent" = "sent";
+    return {
+      what: `${key.slice(0, 60)} sent`,
+      ask(tree, body) {
+        const word = sentWord(body);
+        const listed = Array.isArray(body.tasks) ? body.tasks.filter((x): x is string => typeof x === "string" && /^[Tt]\d{1,9}$/.test(x)).map((x) => normId(x, "task")) : [];
+        if (!word || (word === "unsent" && !listed.length)) return { code: 400, body: refusal(`the body: JSON {"do": "sent"} or {"do": "unsent", "tasks": ["T…"]}`, "waiting.bad-body") };
+        said = word;
+        const items = groupItems(tree, key);
+        if (!key || !items.length) return { code: 404, body: refusal(`nothing waits at ${key.slice(0, 80) || "that place"}`, "group.none", { group: key.slice(0, 80) }) };
+        const ids = items
+          .filter((w) => w.task && SENDABLE.includes(w.item.kind as WaitKind) && (word === "sent" ? w.item.phase === "todo" : w.item.phase === "sent" && listed.includes(w.task.id)))
+          .map((w) => w.task!.id);
+        if (!ids.length) return { code: 200, body: { [word]: [], group: key, head: head(root) } };
+        return { args: ["task", "sent", ...ids, ...(word === "unsent" ? ["--undo"] : [])] };
+      },
+      done(_tree, data, head) {
+        const marked = Array.isArray(data.marked) ? data.marked.map(String) : [];
+        return { [said]: marked, group: key, head };
+      },
+      refused: (_tree, code, why) => sentRefused(code, why, key.slice(0, 80)),
+    };
+  };
+
+  /** GET /group/<key>/note: the request texts of the place's waiting tasks joined for one e-mail — each file once. */
+  const groupNote = (key: string): { code: number; body: Record<string, unknown> } => {
+    const tree = Tree.open(root, env);
+    const items = key ? groupItems(tree, key) : [];
+    if (!items.length) return { code: 404, body: refusal(`nothing waits at ${key.slice(0, 80) || "that place"}`, "group.none", { group: key.slice(0, 80) }) };
+    return { code: 200, body: { ...requestTexts(tree, items.filter((w) => w.task).map((w) => w.task!)) } };
   };
 
   /** The app sends nothing (unchanged, the user said no, no tree of this research): strom sync --app stops waiting. */

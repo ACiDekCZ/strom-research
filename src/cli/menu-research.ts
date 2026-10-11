@@ -113,7 +113,7 @@ export async function offerChat(ctx: Context, run: Run, lang: string, root: stri
 }
 
 /** Paths typed or dropped in, each one there and none of strom's own; asked again until they are, nothing (Enter, 0): undefined. */
-async function askPaths(ctx: Context, lang: string, root: string): Promise<string[] | undefined> {
+export async function askPaths(ctx: Context, lang: string, root: string): Promise<string[] | undefined> {
   const t = translator(lang);
   const own = [root, ctx.settings.home()?.value].filter((d): d is string => Boolean(d));
   const inside = (p: string, dir: string) => {

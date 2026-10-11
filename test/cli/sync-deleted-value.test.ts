@@ -182,7 +182,7 @@ test("B-1: a file that names no state it stands on (no _STROM_HEAD) takes nothin
   w.cleanup();
 });
 
-test("B-1 through the bridge: the send answers the conflict with its sides; the app takes the user's side", bridged, async () => {
+test("B-1 through the bridge: the send answers the conflict with its sides; the bridge decides nothing, the person takes the user's side in the terminal its link opens", bridged, async () => {
   const { w, given } = await world();
   await w.ok(["config", "set", "strom.app.url", "https://beta.stromapp.info/run/"]);
   const info = (await w.ok(["live", "start", "--json"])).json;
@@ -196,7 +196,11 @@ test("B-1 through the bridge: the send answers the conflict with its sides; the 
       [["DEAT", true, { user: "Žďár nad Sázavou", research: "23. 10. 1865, Žďár nad Sázavou" }]],
     );
     const d = await post(`${info.url}/conflict/${sb.conflicts[0].id}`, JSON.stringify({ do: "decide", take: "user" }), { ...app, "Content-Type": "application/json" });
-    assert.equal(d.status, 200, d.body);
+    assert.deepEqual([d.status, JSON.parse(d.body).code], [403, "decide.link"]);
+    assert.deepEqual((await facts(w, "P1", "DEAT")).filter((e) => !e.retracted).map((e) => [e.date, e.place]), [["23 OCT 1865", "Žďár nad Sázavou"]]);
+    const tree = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id as string;
+    const link = await w.run(["link", "open", `strom-research://conflict?tree=${tree}&id=${sb.conflicts[0].id}&do=decide&take=user`], { tty: true, answers: ["a", "Podle matriky zemřelých", ""] });
+    assert.equal(link.code, 0, link.out + link.err);
     assert.deepEqual((await facts(w, "P1", "DEAT")).filter((e) => !e.retracted).map((e) => [e.date, e.place]), [[undefined, "Žďár nad Sázavou"]]);
   } finally {
     await w.ok(["live", "stop"]);

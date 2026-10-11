@@ -399,7 +399,8 @@ export function appShowsHypothesisLinks(settings: Settings, version?: string): b
 
 /**
  * The Strom app decides a conflict of the user's edit by side (the app's spec docs/ZADANI_VYZKUM_rozpory-v-aplikaci.md,
- * phase 1): 2 _STROM_TAKE Y under each open one it may (a fact's value, a name, a title, a sex — never a child's
+ * phase 1; the side picked in the app, decided in the terminal through the link conflict&do=decide&take=, never through
+ * the bridge): 2 _STROM_TAKE Y under each open one it may (a fact's value, a name, a title, a sex — never a child's
  * parents), 3 _STROM_SIDE user|research under each of its values (2 VAL, empty when the side's value is), a sex also
  * as 3 _STROM_RAW M|F|U. Not released yet; another copy of the app (its beta, its development: strom.app.url) is taken
  * as current, so it can be built. An app of unknown version: today's, once released (3.10.1 only skips the tags).

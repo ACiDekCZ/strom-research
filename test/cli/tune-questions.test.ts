@@ -191,8 +191,8 @@ test("at a person's terminal each question is asked in turn: Enter takes the rec
   const o = await w.ok([], { env: { CLAUDECODE: "1" } });
   assert.match(o.out, /otázky ke čtení čekají na rozhodnutí člověka \(2\): strom media calibrate --questions/, o.out);
   assert.equal((await w.ok(["--json"], { env: { CLAUDECODE: "1" } })).json.tune.questions, 2);
-  // the menu: What waits counts them and answers one (Enter: the recommended), then back
-  const menu = await w.ok(["menu"], { tty: true, answers: ["3", "1", "", "0", "0"] });
+  // the menu: What waits counts them and answers one (its place · the first · Enter: the recommended), then back
+  const menu = await w.ok(["menu"], { tty: true, answers: ["3", "1", "1", "", "0", "0", "0"] });
   assert.match(menu.out, /Co čeká \(2\)/, menu.out);
   assert.match(menu.out, /Otázka ke čtení snímků: /, menu.out);
   assert.match(menu.out, /✓ Odpověď uložena: /, menu.out);

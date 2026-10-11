@@ -14,69 +14,20 @@ import { Tree } from "../core/tree.ts";
 import { isArchive } from "../core/mode.ts";
 import { bareHost, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
 import { claimOf, loadArchives, rank, type ArchiveLevel, type Claim, type PendingQuestion, type Way } from "../core/terms.ts";
-import { archiveQuestions, connectorFor, levelWords, tasksStanding, tasksWaitingOn, termsText, waysOffered, wokenLines } from "../core/archiveasks.ts";
+import { connectorFor, levelWords, tasksStanding, tasksWaitingOn, termsText, waysOffered, wokenLines } from "../core/archiveasks.ts";
 import { wakeForArchive } from "../core/archivewait.ts";
-import { archivesOverview, levelsOf, paceFor } from "../commands/archives.ts";
+import { archivesOverview, capWords, levelsOf, paceFor } from "../commands/archives.ts";
 import type { Pace } from "../core/net.ts";
 
 type T = ReturnType<typeof translator>;
 
-/** A pace in the person's words: "one image at most every 10 s, at most 120 an hour". */
+/** A pace in the person's words: "one image at most every 10 s, at most 120 requests … an hour" — or no hourly cap. */
 export function paceWords(lang: string, p: Pace | { minIntervalMs: number; perHour: number | null }): string {
-  const n = p.perHour === null || !Number.isFinite(p.perHour) ? "∞" : p.perHour;
-  return ui(lang, "ui.archive.pace", { seconds: secondsIn(lang, p.minIntervalMs), n });
+  return ui(lang, "ui.archive.pace", { seconds: secondsIn(lang, p.minIntervalMs), cap: capWords(lang, p.perHour, true) });
 }
 
 function connectorsHere(ctx: Context): Connector[] {
   return listConnectors(ctx.settings.shared()?.value, ctx.env);
-}
-
-/** The question's lines in What waits: the archive, its terms (strom's quote, or the connector's reading), the tasks. */
-function permissionLines(ctx: Context, t: T, lang: string, tree: Tree | undefined, q: PendingQuestion): string[] {
-  const tasks = tree ? tasksStanding(tree, q) : [];
-  return [
-    `    ${termsText(lang, ctx.env, q)}`,
-    ...(tasks.length ? [`    ${t("ui.archive.item.tasks", { ids: tasks.join(", ") })}`] : []),
-    // since when it waits (the first time asked) and how many times a command needed it
-    `    ${t("ui.archive.item.since", { date: humanDay(q.at, lang), tries: q.tries ?? 1 })}`,
-  ];
-}
-
-/** A question the menu can put: its archive named (a permission, a milder reading), the connectors taken over. */
-const answerable = (q: PendingQuestion) => (q.kind === "takeover" ? !!q.connectors?.length : !!q.host && (q.kind === "permission" || !!q.connector));
-
-/** One question in What waits: its text, the label of its item, what choosing it does. */
-export function archiveItems(ctx: Context, run: Run, lang: string, root: string, start: number, max: number): { text: string[]; items: Item[]; count: number } {
-  const t = translator(lang);
-  const tree = Tree.open(root, ctx.env);
-  const qs = archiveQuestions(tree).filter(answerable);
-  const text: string[] = [];
-  const items: Item[] = [];
-  const connectors = qs.length ? connectorsHere(ctx) : [];
-  for (const q of qs) {
-    if (items.length >= max) break;
-    const k = start + items.length + 1;
-    if (q.kind === "permission" && q.host) {
-      const title = q.title ?? q.host;
-      text.push("", ` ${k}. ${t("ui.archive.item", { title, host: q.host })}`, ...permissionLines(ctx, t, lang, tree, q));
-      items.push({ key: String(k), label: t("ui.archive.item.read", { k, title }), act: async () => void (await decideArchive(ctx, run, lang, root, q.host!, q)) });
-    } else if (q.kind === "takeover" && q.connectors?.length) {
-      const names = q.connectors.map((n) => connectors.find((c) => c.name === n)?.manifest.title ?? n);
-      text.push("", ` ${k}. ${t("ui.archive.takeover.item", { n: names.length, names: names.join(", ") })}`);
-      items.push({ key: String(k), label: t("ui.archive.takeover.read", { k }), act: () => decideTakeover(ctx, run, lang, q) });
-    } else if (q.kind === "milder" && q.host && q.connector) {
-      const c = connectors.find((x) => x.name === q.connector);
-      const title = c?.manifest.title ?? q.title ?? q.connector;
-      text.push("", ` ${k}. ${t("ui.archive.milder.item", { title, host: q.host, to: levelWords(lang, q.to ?? "allowed"), from: levelWords(lang, q.from ?? "restricted") })}`);
-      items.push({ key: String(k), label: t("ui.archive.milder.read", { k, title }), act: () => decideMilder(ctx, run, lang, q, title) });
-    }
-  }
-  return { text, items, count: qs.length };
-}
-
-/** How many questions about archives wait with this research (none in an archive). */
-export function archiveQuestionCount(tree: Tree): number {
-  return archiveQuestions(tree).filter(answerable).length;
 }
 
 /** Every research on this computer, the one worked on first: a decision about an archive is the person's for all. */
@@ -89,11 +40,19 @@ function levelHere(ctx: Context, c: Connector, host: string): ArchiveLevel | und
   return levelsOf(ctx, c, true).find((a) => a.host === host);
 }
 
+/** Can a downloader give images at all — directly (fetch, part) or through the browser (locate)? Else they go only by hand. */
+function givesImages(c: Connector): boolean {
+  const can = c.manifest.can;
+  const routes = routesOf(c);
+  return (routes.includes("direct") && (can.includes("fetch") || can.includes("part"))) || (routes.includes("browser") && (can.includes("locate") || can.includes("fetch")));
+}
+
 /**
  * One archive: what its terms say and the ways to get its images — a question that waited (What waits, a link), or
  * the person's look at it in the settings (the current way suggested, its permission to be forgotten). True: decided.
+ * `all`: the archive's hosts (its downloader's, the same state on each) — said once, decided for all of them.
  */
-export async function decideArchive(ctx: Context, run: Run, lang: string, root: string | undefined, host: string, q?: PendingQuestion): Promise<boolean> {
+export async function decideArchive(ctx: Context, run: Run, lang: string, root: string | undefined, host: string, q?: PendingQuestion, all?: string[]): Promise<boolean> {
   const t = translator(lang);
   const out = (line = "") => ctx.io.stdout(line + "\n");
   const c = connectorFor(connectorsHere(ctx), host, q?.connector);
@@ -104,11 +63,16 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
   const a = levelHere(ctx, c, host);
   const title = a?.title ?? q?.title ?? c.manifest.title ?? host;
   const tree = root ? Tree.open(root, ctx.env) : undefined;
+  const hosts = all && all.length > 1 ? all : [host];
+  // the command's target: the downloader for all its hosts at once, else the host
+  const target = hosts.length > 1 ? c.name : host;
   out("");
-  out(` ${t("ui.archive.item", { title, host })}`);
+  out(` ${t("ui.archive.item", { title, host: hosts.join(", ") })}`);
   out(`    ${termsText(lang, ctx.env, { host, ...(a?.quote ? { quote: a.quote } : q?.quote ? { quote: q.quote } : {}), ...(a?.terms ?? q?.terms ? { terms: (a?.terms ?? q?.terms)! } : {}), ...(a?.quoteBy ? { quoteBy: a.quoteBy } : q?.quoteBy ? { quoteBy: q.quoteBy } : {}) })}`);
-  const tasks = tree && !isArchive(tree) ? (q?.kind === "permission" ? tasksStanding(tree, q) : tasksWaitingOn(tree, host).map((x) => x.id)) : [];
+  const tasks = tree && !isArchive(tree) ? (q?.kind === "permission" ? tasksStanding(tree, q) : [...new Set(hosts.flatMap((h) => tasksWaitingOn(tree, h).map((x) => x.id)))]) : [];
   if (tasks.length) out(`    ${t("ui.archive.item.tasks", { ids: tasks.join(", ") })}`);
+  // a question that waits: since when (the first time asked) and how many times a command needed it
+  if (q?.kind === "permission") out(`    ${t("ui.archive.item.since", { date: humanDay(q.at, lang), tries: q.tries ?? 1 })}`);
   // a server that refused strom's client: its answer, not the archive's terms — only the person lifts it (--unblock)
   if (a?.level === "forbidden" && a.refused && !a.refused.unreadable) {
     const h = a.refused.host;
@@ -116,9 +80,10 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
     await pause(ctx, lang);
     return false;
   }
-  // a level no permission opens (by hand only, nothing at all): said, and who lifts it
+  // a level no permission opens (by hand only, nothing at all): said, and who lifts it — only where lifting it would
+  // open a way (its downloader gives images, the archive refuses strom nothing); else the images go by hand
   if (a && (a.level === "manual" || a.level === "forbidden")) {
-    out(`    ${t("ui.archive.closed", { title, level: levelWords(lang, a.level, false, a.from), host })}`);
+    out(`    ${t(givesImages(c) && !a.refused ? "ui.archive.closed" : "ui.archive.closed.hand", { title, level: levelWords(lang, a.level, false, a.from), host: target })}`);
     await pause(ctx, lang);
     return false;
   }
@@ -133,7 +98,7 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
   const now = a?.permission;
   const choices: { label: string; way?: Way }[] = ways.map((w) => ({
     way: w,
-    label: t(w === "slow" ? "ui.archive.way.slow" : w === "browser" ? "ui.archive.way.browser" : "ui.archive.way.manual", { seconds: secondsIn(lang, slow.minIntervalMs), n: Number.isFinite(slow.perHour) ? slow.perHour : "∞" }),
+    label: t(w === "slow" ? "ui.archive.way.slow" : w === "browser" ? "ui.archive.way.browser" : "ui.archive.way.manual", { seconds: secondsIn(lang, slow.minIntervalMs), cap: capWords(lang, slow.perHour) }),
   }));
   if (now) choices.push({ label: t("ui.archive.way.revoke") });
   // what holds now is suggested (Enter keeps it); a question nobody answered yet: 0, nothing changes
@@ -142,13 +107,13 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
   if (i === undefined || (now && choices[i]!.way === now)) return false;
   const chosen = choices[i]!.way;
   if (!chosen) {
-    if ((await run(["allow", "archive", host, "--revoke"], true)) !== 0) return false;
+    if ((await run(["allow", "archive", target, "--revoke"], true)) !== 0) return false;
     out(t("ui.archive.revoked", { title }));
     return true;
   }
   // what the decision does to the tasks that waited (the command wakes them, in every research here): said after it
-  const plan = wakeForArchive(ctx.env, rootsHere(ctx, root), host, { ...(ctx.settings.shared()?.value ? { shared: ctx.settings.shared()!.value } : {}), way: chosen, dry: true });
-  if ((await run(["allow", "archive", host, "--way", chosen], true)) !== 0) return false;
+  const plan = hosts.flatMap((h) => wakeForArchive(ctx.env, rootsHere(ctx, root), h, { ...(ctx.settings.shared()?.value ? { shared: ctx.settings.shared()!.value } : {}), way: chosen, dry: true }));
+  if ((await run(["allow", "archive", target, "--way", chosen], true)) !== 0) return false;
   // the connector's route follows the way chosen: through the browser, or straight through strom
   const via = routeOf(ctx.env, c).via;
   if (chosen === "browser" && via !== "browser") await run(["connector", "use", c.name, "--via", "browser"], true);
@@ -159,7 +124,7 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
 }
 
 /** The connectors taken over from an older strom: confirmed all at once, or gone through one by one. */
-async function decideTakeover(ctx: Context, run: Run, lang: string, q: PendingQuestion): Promise<void> {
+export async function decideTakeover(ctx: Context, run: Run, lang: string, q: PendingQuestion): Promise<void> {
   const t = translator(lang);
   const out = (line = "") => ctx.io.stdout(line + "\n");
   const all = connectorsHere(ctx).filter((c) => q.connectors?.includes(c.name));
@@ -196,7 +161,7 @@ async function decideTakeover(ctx: Context, run: Run, lang: string, q: PendingQu
 }
 
 /** A connector that says now an archive allows more than strom keeps: accepted, or kept as it is. */
-async function decideMilder(ctx: Context, run: Run, lang: string, q: PendingQuestion, title: string): Promise<void> {
+export async function decideMilder(ctx: Context, run: Run, lang: string, q: PendingQuestion, title: string): Promise<void> {
   const t = translator(lang);
   const out = (line = "") => ctx.io.stdout(line + "\n");
   const c = connectorsHere(ctx).find((x) => x.name === q.connector);
@@ -220,39 +185,68 @@ export function browserOnlyHere(ctx: Context, c: Connector): boolean {
   return archivesOverview(ctx).some((r) => r.connector === c.name && r.browserOnly && r.level !== "manual" && r.level !== "forbidden");
 }
 
-/** What holds for a downloader's archive, on its line in the settings: its level, the person's way and since when, the pace. */
-export function archiveState(ctx: Context, lang: string, c: Connector): string {
+/**
+ * What holds for a downloader's archive, on its line in the settings: its level, the person's way and since when, the
+ * pace — once for all its hosts where they are the same (`host`: that host alone).
+ */
+export function archiveState(ctx: Context, lang: string, c: Connector, host?: string): string {
   const t = translator(lang);
-  const rows = archivesOverview(ctx).filter((r) => r.connector === c.name);
+  const rows = archivesOverview(ctx).filter((r) => r.connector === c.name && (!host || r.host === host));
   const store = loadArchives(ctx.env).archives;
-  return rows
-    .map((r) => {
-      const rec = store[r.host];
-      const level = r.level as Claim;
-      const closed = level === "manual" || level === "forbidden";
-      // only a person's browser goes to the archive (its robots.txt, strom's known terms): said so — through the browser
-      // where the downloader can go that way, else by hand only; never "directly" (that is not the way here)
-      const only = !closed && !r.way && r.browserOnly ? onlyBrowser(t, c, !!r.robots) : undefined;
-      const way = only ?? (!closed && r.way ? t("ui.archives.state.way", { way: t(`ui.archive.is.${r.way}` as UIKey), date: rec?.at ? humanDay(rec.at, lang) : "–" }) : levelWords(lang, level, !!r.robots, r.from));
-      const pace = !closed && r.way !== "manual" && (level === "allowed" || r.way) ? `; ${paceWords(lang, r.pace)}` : "";
-      return `${rows.length > 1 ? `${r.host}: ` : ""}${way}${pace}`;
-    })
-    .join(" · ");
+  const said = rows.map((r) => {
+    const rec = store[r.host];
+    const level = r.level as Claim;
+    const closed = level === "manual" || level === "forbidden";
+    // only a person's browser goes to the archive (its robots.txt, strom's known terms): said so — through the browser
+    // where the downloader can go that way, else by hand only; never "directly" (that is not the way here)
+    const only = !closed && !r.way && r.browserOnly ? onlyBrowser(t, c, !!r.robots) : undefined;
+    const way = only ?? (!closed && r.way ? t("ui.archives.state.way", { way: t(`ui.archive.is.${r.way}` as UIKey), date: rec?.at ? humanDay(rec.at, lang) : "–" }) : levelWords(lang, level, !!r.robots, r.from));
+    const pace = !closed && r.way !== "manual" && (level === "allowed" || r.way) ? `; ${paceWords(lang, r.pace)}` : "";
+    return { host: r.host, text: `${way}${pace}` };
+  });
+  // said once where every host of the archive is the same, per host only where they differ
+  return said.every((x) => x.text === said[0]!.text) ? (said[0]?.text ?? "") : said.map((x) => `${x.host}: ${x.text}`).join(" · ");
+}
+
+/** Each host of a downloader with what holds for it. */
+function hostStates(ctx: Context, lang: string, c: Connector): { host: string; text: string }[] {
+  return [...new Set(archivesOverview(ctx).filter((r) => r.connector === c.name).map((r) => r.host))].map((host) => ({ host, text: archiveState(ctx, lang, c, host) }));
 }
 
 /** Settings → Archives → permissions: each archive of a downloader here, then the same choices as in What waits. */
 export async function archivePermissions(ctx: Context, run: Run, lang: string, root: string | undefined): Promise<void> {
   const t = translator(lang);
+  const pending = (hosts: string[]) => loadArchives(ctx.env).pending.find((p) => p.kind === "permission" && hosts.includes(p.host ?? ""));
   await subMenu(ctx, lang, () => {
     const rows = archivesOverview(ctx);
-    const hosts = [...new Map(rows.map((r) => [r.host, r])).values()];
     const connectors = connectorsHere(ctx);
-    const items: Item[] = hosts.slice(0, 9).map((r, k) => {
-      const c = connectors.find((x) => x.name === r.connector);
+    // one line per archive (its downloader) with its hosts inside it — a host two downloaders reach under the first
+    const seen = new Set<string>();
+    const archives: { c: Connector; hosts: string[] }[] = [];
+    for (const name of [...new Set(rows.map((r) => r.connector))]) {
+      const c = connectors.find((x) => x.name === name);
+      const hosts = [...new Set(rows.filter((r) => r.connector === name && !seen.has(r.host)).map((r) => r.host))];
+      if (!c || !hosts.length) continue;
+      for (const h of hosts) seen.add(h);
+      archives.push({ c, hosts });
+    }
+    const items: Item[] = archives.slice(0, 9).map(({ c, hosts }, k) => {
+      const states = hostStates(ctx, lang, c).filter((x) => hosts.includes(x.host));
+      const same = states.every((x) => x.text === states[0]?.text);
+      const title = c.manifest.title ?? c.name;
       return {
         key: String(k + 1),
-        label: `${c?.manifest.title ?? r.connector} (${r.host}) – ${c ? archiveState(ctx, lang, c) : levelWords(lang, r.level as Claim, !!r.robots, r.from)}`,
-        act: async () => void (await decideArchive(ctx, run, lang, root, r.host, loadArchives(ctx.env).pending.find((p) => p.kind === "permission" && p.host === r.host))),
+        label: `${title} (${hosts.join(", ")}) – ${same ? (states[0]?.text ?? "") : states.map((x) => `${x.host}: ${x.text}`).join(" · ")}`,
+        act: async () => {
+          // the same on every host: decided for the archive at once; else for the host the person picks
+          if (same || hosts.length === 1) {
+            const q = pending(hosts);
+            return void (await decideArchive(ctx, run, lang, root, q?.host ?? hosts[0]!, q, hosts));
+          }
+          const i = await ctx.choose(title, states.map((x) => ({ label: `${x.host} – ${x.text}` })), states.length, { back: t("ui.browse.back") });
+          if (i === undefined) return;
+          await decideArchive(ctx, run, lang, root, states[i]!.host, pending([states[i]!.host]));
+        },
       };
     });
     return { title: t(items.length ? "ui.archives.permissions.title" : "ui.archives.empty"), items };

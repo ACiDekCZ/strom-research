@@ -22,6 +22,7 @@ import type { Tree } from "../core/tree.ts";
 import { amendInput, checkOriginalMeta } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
 import { SORT_KINDS, type Source } from "../core/model.ts";
+import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
 
 function kindOf(file: string, text?: string): Input["kind"] {
   const ext = path.extname(file).toLowerCase();
@@ -92,7 +93,10 @@ register(
     description:
       "Every file is registered unchanged as an input (duplicates skipped) and gets an intake task.\n" +
       `Files up to ${MAX_IN_TREE / 1024 / 1024} MB are kept in the tree (and its history); bigger ones in shared/media.\n` +
-      "Family trees are imported at once — every person and fact as a lead citing that tree.",
+      "Family trees are imported at once — every person and fact as a lead citing that tree.\n" +
+      "--answers T…: the files came for what that waiting task waits for (a reply, a document asked for): inputs of its\n" +
+      "people, handed to the task, which goes back into the queue — no intake task of their own. Only that the files came\n" +
+      "is written, never words as the user's (their answer in words: strom task wake T… --answer).",
     args: [{ name: "paths", description: "files or folders", variadic: true }],
     options: [
       { name: "text", type: "string", value: "<text>", description: "what the user tells you, as an input of its own" },
@@ -100,13 +104,28 @@ register(
       { name: "documents", type: "boolean", description: `a folder with more than ${BOOK_OF_SCANS} images really is family documents (not scans of a book)` },
       { name: "research", type: "string", value: "<G…>", description: "the research it is for (default: the only active one)" },
       { name: "person", type: "string", multiple: true, value: "<P…>", description: "the person it is of, as the user says (repeatable): its task is shown with them" },
+      { name: "answers", type: "string", value: "<T…>", description: "the files came for what this waiting task waits for: handed to it, the task back in the queue (no intake task)" },
+      { name: "note", type: "string", value: "<text>", description: "what the user says of the files, kept with them (a sentence)" },
     ],
-    examples: ['strom intake ~/Downloads/rodina', "strom intake strom-export.json", 'strom intake --text "Děda Jan, narozen asi 1905 v Týnci, byl mlynář"', "strom intake ~/Downloads/rodina/dopis.txt --research G0001"],
+    examples: [
+      'strom intake ~/Downloads/rodina',
+      "strom intake strom-export.json",
+      'strom intake --text "Děda Jan, narozen asi 1905 v Týnci, byl mlynář"',
+      "strom intake ~/Downloads/rodina/dopis.txt --research G0001",
+      'strom intake ~/Downloads/reply.pdf --answers T0005 --note "the reply of the registry office"',
+    ],
     run(ctx: Context, { args, opts }) {
       const tree = ctx.tree();
       if (args.length === 0 && !opts.text) throw new UsageError("give files/folders or --text");
-      const research = researchFor(tree, opts.research);
-      const persons = checkOriginalMeta(tree, { persons: (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).map((p) => String(p).trim().toUpperCase()) }).persons;
+      // files for what a waiting task waits for: the task's people, handed to it — never words as the user's
+      const answers = typeof opts.answers === "string" ? opts.answers.trim() : undefined;
+      if (answers !== undefined && typeof opts.text === "string")
+        throw new UsageError("--answers takes files — the user's answer in words is theirs alone", { hint: `strom task wake ${answers || "T…"} --answer "…" (the user, in their terminal or strom's menu)` });
+      if (answers !== undefined && !args.length) throw new UsageError("give the files that came for the task", { hint: `strom intake <file> --answers ${answers || "T…"}` });
+      const forTask = answers !== undefined ? taskForFile(tree, answers) : undefined;
+      const note = typeof opts.note === "string" ? opts.note.replace(/[\p{Cc}]/gu, " ").trim().slice(0, 500) || undefined : undefined;
+      const research = forTask?.research ?? researchFor(tree, opts.research);
+      const persons = checkOriginalMeta(tree, { persons: [...(forTask ? taskPeople(tree, forTask) : []), ...(Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).map((p) => String(p).trim().toUpperCase())] }).persons;
       // Files per argument: a folder becomes one intake task, not one per file.
       const groups = args.map((a) => {
         const p = ctx.resolvePath(a);
@@ -120,10 +139,13 @@ register(
           });
         return { folder: folder ? path.basename(p) : undefined, files };
       });
-      const known = new Set(tree.list<Input>("input").map((i) => i.sha).filter(Boolean));
+      const known = new Map(tree.list<Input>("input").filter((i) => i.sha).map((i) => [i.sha!, i.id]));
       const report: string[] = [];
       const added: Input[] = [];
+      /** What came for the task: the new inputs, and those the research had of the same content. */
+      const handed: string[] = [];
       let skipped = 0;
+      let task: Task | undefined;
       tree.withTreeLock(() => {
         for (const group of groups) {
         const plain: Input[] = [];
@@ -131,9 +153,9 @@ register(
           const sha = fileSha256(file);
           if (known.has(sha)) {
             skipped++;
+            if (forTask) handed.push(known.get(sha)!);
             continue;
           }
-          known.add(sha);
           const size = fs.statSync(file).size;
           const isText = size < 50 * 1024 * 1024 && [".ged", ".json", ".txt", ".md", ".csv"].includes(path.extname(file).toLowerCase());
           const text = isText ? fs.readFileSync(file, "utf8") : undefined;
@@ -151,9 +173,10 @@ register(
           const input = create<Input>(
             tree,
             "input",
-            { name: path.basename(file), file: stored, sha, size, mime: mimeOf(file), from: ctx.display(file), kind, state: "new", ...(persons.length ? { persons } : {}) },
+            { name: path.basename(file), file: stored, sha, size, mime: mimeOf(file), from: ctx.display(file), kind, state: "new", ...(persons.length ? { persons } : {}), ...(note ? { note } : {}) },
             (iid) => `+${iid} input ${kind} "${truncate(path.basename(file), 50)}"`,
           );
+          known.set(sha, input.id);
           let imported: ImportResult | undefined;
           if (kind === "tree" && !opts["no-import"] && text !== undefined) {
             imported = path.extname(file).toLowerCase() === ".ged"
@@ -171,12 +194,19 @@ register(
             const dupes = likelyDuplicates(tree, tree.list<Person>("person").filter((p) => p.refs?.some((r) => r.system === system)).map((p) => p.id));
             if (dupes.length) report.push(`  probably already in the tree: ${dupes.map((d) => `${d.person.id}≈${d.same.id}`).join(", ")} (the review task lists them)`);
           }
-          // A family tree gets its own review task; the other files of a folder share one.
-          if (kind === "tree" || !group.folder) intakeTask(tree, input, research, imported, persons);
+          // A family tree gets its own review task; the other files of a folder share one — files for a task: none
+          if (forTask) handed.push(input.id);
+          else if (kind === "tree" || !group.folder) intakeTask(tree, input, research, imported, persons);
           else plain.push(input);
           added.push(input);
         }
         if (plain.length) groupTask(tree, plain, research, undefined, group.folder, persons);
+        }
+        if (forTask) {
+          // the same content again: what is said of it now (the task's people, the note) added — no task of its own
+          for (const id of handed.filter((h) => !added.some((i) => i.id === h)))
+            if (id.startsWith("I")) amendInput(tree, id, { persons, note }, { again: false, app: false });
+          task = handFiles(tree, forTask.id, handed, fileBy(tree, ctx.env));
         }
         if (typeof opts.text === "string" && opts.text.trim()) {
           const input = create<Input>(tree, "input", { name: truncate(opts.text, 60), text: opts.text.trim(), kind: "text", state: "new", from: "user", ...(persons.length ? { persons } : {}) }, (iid) => `+${iid} input text`);
@@ -189,8 +219,9 @@ register(
         added.length ? table(added.map((i) => [`  ${i.id}`, i.kind, truncate(i.name, 60)])) : undefined,
         ...report,
         tree.written.some((o) => o.op === "task.add") ? `\n${tree.written.filter((o) => o.op === "task.add").length} intake task(s) created → strom task next` : undefined,
+        task ? `${task.id} got ${[...new Set(handed)].join(", ")} and is back in the queue — the file is read as its next step (no intake task)` : undefined,
       );
-      return { text, data: { inputs: added, skipped } };
+      return { text, data: { inputs: added, skipped, ...(task ? { task: task.id, handed: [...new Set(handed)], state: task.state } : {}) } };
     },
   },
   {

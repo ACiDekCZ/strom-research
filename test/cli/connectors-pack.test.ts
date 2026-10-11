@@ -204,7 +204,7 @@ test("the pace of a host: strom's pause and no cap made up — the user's own, s
   assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu \(vlastní tempo\)/);
   assert.match((await w.ok(["connector", "show", "zkusebni"])).out, /pace\s+at least 0\.5 s apart, at most 3000 an hour — yours for the host/);
   const back = await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--per-hour", "auto"], { tty: true });
-  assert.match(back.out, /127\.0\.0\.1: nejméně 2 s mezi dvěma požadavky, bez hodinového limitu – zase tempo služby/);
+  assert.match(back.out, /127\.0\.0\.1: nejméně 2 s mezi dvěma požadavky, bez hodinového stropu – zase tempo služby/);
   assert.match((await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--lang", "en"], { tty: true })).out, /127\.0\.0\.1: at least 2 s between two requests, no hourly cap – the service's pace again/);
   w.cleanup();
   await a.close();

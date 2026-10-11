@@ -13,7 +13,6 @@ import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
-import { questionsWaiting } from "../core/tuneask.ts";
 
 /** A line as a sentence: its first letter capital (a catalog's text that also stands inside a line). */
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -24,7 +23,7 @@ import { diskVersion } from "../core/self.ts";
 import { liveHolder } from "../core/lock.ts";
 import { reviveLive } from "../core/live.ts";
 import { newerVersion } from "../core/update.ts";
-import { taskQueue, waitingForUser } from "../commands/tasks.ts";
+import { taskQueue } from "../commands/tasks.ts";
 import { humanTask } from "../commands/browse.ts";
 import { loadGate } from "../core/gate.ts";
 import { lacksImages } from "../core/queue.ts";
@@ -43,8 +42,7 @@ import { packPlan } from "../core/pack.ts";
 import { expandHome, isolated } from "../core/paths.ts";
 import { offerAgent } from "./fixes.ts";
 import { addToResearch } from "./menu-research.ts";
-import { waitingForYou } from "./menu-waiting.ts";
-import { archiveQuestionCount } from "./menu-archives.ts";
+import { waitingForYou, waitingHere } from "./menu-waiting.ts";
 import { permissionWaitingLines } from "../core/archiveasks.ts";
 import { settingsMenu } from "./menu-settings.ts";
 import { mainPerson } from "../core/kin.ts";
@@ -52,8 +50,7 @@ import { findAgent } from "../core/which.ts";
 import { agentsHere, waysHere, whereToTalk, type Way } from "../core/apps.ts";
 import { chooseWay, wayName } from "./ways.ts";
 import { PROFILES } from "../agents/profiles.ts";
-import { forStory, storiesToApprove } from "../core/stories.ts";
-import { receivedPending } from "../core/sync.ts";
+import { forStory } from "../core/stories.ts";
 import { isArchive } from "../core/mode.ts";
 import { switchTo } from "./menu-mode.ts";
 import { appMarkFromInstall, linkScheme } from "../core/links.ts";
@@ -166,8 +163,9 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
           // its next start brings it back
         }
       }
-      // the tasks that wait for the person, and the new versions of the stories they approved
-      const waiting = waitingForUser(tree).length + storiesToApprove(tree).length + receivedPending(root).length + questionsWaiting(tree, ctx.settings) + archiveQuestionCount(tree);
+      // what waits for the person: the same list What waits shows (each thing once — a task that waits for an archive's
+      // decision is one of its question's)
+      const waiting = waitingHere(ctx, tree).length;
       const started = tree.list<Research>("research").length > 0;
       out(t("ui.menu.tree", { name: tree.config.name, persons: tree.countLive("person") }));
       // No agent yet (none installed, or not the one chosen): the research waits for it, and item 1 gets one.

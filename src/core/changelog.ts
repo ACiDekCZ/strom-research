@@ -45,6 +45,8 @@ const SAID: Record<string, PhraseKey> = {
   "task.wait": "log.task.wait",
   "task.wake": "log.task.wake",
   "task.edit": "log.task.edit",
+  "task.sent": "log.task.sent",
+  "task.unsent": "log.task.unsent",
   "session.start": "log.session.start",
   "session.close": "log.session.close",
   "lesson.add": "log.lesson.add",
@@ -364,6 +366,11 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
         say(phrase(lang, "log.input.sync", { name: name(first) }));
         continue;
       }
+    }
+    // a file that came for a task: only that it came, never words as the person's
+    if (o.op === "task.file") {
+      say(phrase(lang, "log.task.file", { name: name(first), inputs: o.targets.slice(1).join(", ") }));
+      continue;
     }
     const key = SAID[o.op];
     say(key ? phrase(lang, key, { who: who(first), name: name(first) }) : changed(o));

@@ -46,11 +46,13 @@ async function asked(): Promise<World> {
 test("What waits: the archive's question after the app's sends, counted, said above the menu and in the orientation; 0 changes nothing; slowly: the tasks back in the queue — the one whose image is in its folder stays", opts, async () => {
   const w = await asked();
   try {
-    const before = await menu(w, ["3", "1", "0", "0", "0"]);
+    // 3 · 1 the archive's place (its question and the tasks of its images) · 1 the question · 0 · 0 · 0 · 0
+    const before = await menu(w, ["3", "1", "1", "0", "0", "0", "0"]);
     assert.match(before.out, /^Čeká rozhodnutí o stahování z archivu Testovací archiv$/m, "the line above the menu");
     assert.match(before.out, /Co čeká \(3\)/, "counted with the tasks");
-    assert.match(before.out, / 1\. Stahování snímků z archivu Testovací archiv \(archive\.example\.org\)\n {4}Podmínky podle stahovače: Snímky jen jednotlivě, standardními prostředky prohlížeče\. \(https:\/\/archive\.example\.org\/terms\)\n {4}Čekají na to úkoly: T0001, T0002/);
-    assert.match(before.out, / 2\. Křest 1/, "the tasks after it");
+    assert.match(before.out, /\n 1 {2}Testovací archiv · 3 {3}svolení archivu 1 · snímky 2\n/, "the question at its archive's place");
+    assert.match(before.out, /\n {3}1 {2}Stahování snímků z archivu Testovací archiv \(archive\.exampl… · svolení archivu · od [^\n]+\n {3}2 {2}Křest 1 · snímky · priorita 3\n/, "the tasks after it");
+    assert.match(before.out, /\n Stahování snímků z archivu Testovací archiv \(archive\.example\.org\)\n {4}Podmínky podle stahovače: Snímky jen jednotlivě, standardními prostředky prohlížeče\. \(https:\/\/archive\.example\.org\/terms\)\n {4}Čekají na to úkoly: T0001, T0002\n {4}Čeká od [^\n]+ · pokusy o stažení: 1\n/);
     assert.match(before.out, /Tempo snímků pomalu: jeden snímek nejvýš za 10 s, nejvýš 120 požadavků za hodinu včetně katalogu – změnit jde jen příkazem: strom allow host archive\.example\.org/);
     assert.match(before.out, /Testovací archiv – jak získávat snímky\?\n {3}1 {2}Pomalu, lidským tempem[^\n]*\n {3}2 {2}Jen ručně[^\n]*\n {3}0 {2}Zpět – nic se nemění\nVybrat \[0\]/, "0 suggested, no browser for a downloader without its route");
     assert.equal(store(w).archives["archive.example.org"]?.way, undefined, "0: nothing changed");
@@ -69,8 +71,8 @@ test("What waits: the archive's question after the app's sends, counted, said ab
     assert.match(agent.out + agent.err, /Allow Testovací archiv \(archive\.example\.org\): images slowly, at a person's pace\?/);
     assert.doesNotMatch(agent.out + agent.err, /images of/i);
 
-    // the person allows it slowly: 3 · 1 · 1
-    const yes = await menu(w, ["3", "1", "1", "0", "0"]);
+    // the person allows it slowly: 3 · 1 · 1 · 1
+    const yes = await menu(w, ["3", "1", "1", "1", "0", "0", "0"]);
     assert.match(yes.out, /✓ Testovací archiv: snímky pomalu, lidským tempem\. Změnit: nastavení → Archivy\./);
     assert.match(yes.out, /T0002: ve složce už jsou snímky \(1\) – výzkum je zaeviduje a úkol se vrátí sám\./);
     assert.match(yes.out, /Úkoly T0001 se vracejí do fronty\./);
@@ -89,7 +91,7 @@ test("What waits: the archive's question after the app's sends, counted, said ab
 test("by hand only: the tasks keep waiting; Settings → Archives: each downloader's state and pace read only, its permission with the current way suggested, forgotten", opts, async () => {
   const w = await asked();
   try {
-    const manual = await menu(w, ["3", "1", "2", "0", "0"]);
+    const manual = await menu(w, ["3", "1", "1", "2", "0", "0", "0"]);
     assert.match(manual.out, /✓ Testovací archiv: snímky jen ručně\./);
     assert.match(manual.out, /Úkoly T0001, T0002 dál čekají na snímky uložené ručně\./);
     assert.equal((await task(w, "T0001")).state, "waiting");
@@ -120,7 +122,7 @@ test("a decision forgotten brings back no old question: nothing waits above the 
   const w = await asked();
   try {
     // decided in What waits (slowly), then forgotten in Settings → Archives
-    await menu(w, ["3", "1", "1", "0", "0"]);
+    await menu(w, ["3", "1", "1", "1", "0", "0", "0"]);
     const look = await menu(w, ["8", "4", "0", "0", "0"]);
     const key = /(\d) {2}Svolení ke stahování z archivů/.exec(look.out)?.[1];
     assert.ok(key, look.out);
@@ -185,9 +187,23 @@ test("the Strom app: /status waiting kind permission with its terms, tasks and c
         quote: "Snímky jen jednotlivě, standardními prostředky prohlížeče.",
         tasks: ["T0001", "T0002"],
         choices: ["slow", "manual"],
+        // what waits, grouped (feature waiting.groups): the archive's place, a decision, nothing a link of a task does
+        section: "decide",
+        group: { key: "host:archive.example.org", name: "Testovací archiv", kind: "web" },
+        phase: "todo",
+        actions: [],
+        order: 0,
       });
-      // the tasks as before
-      assert.ok(status.waiting.some((x) => x.id === "T0001" && x.kind === undefined));
+      // the tasks that wait for its images saved by hand: in its tasks, and each an item of its own once (saved by hand
+      // or talked about whatever the question), at the archive's place under its name
+      const byHand = status.waiting.filter((x) => x.id === "T0001" || x.id === "T0002") as unknown as { id: string; kind: string; group: { key: string; name: string } }[];
+      assert.deepEqual(
+        byHand.map((x) => [x.id, x.kind, x.group.key, x.group.name]),
+        [
+          ["T0001", "images", "host:archive.example.org", "Testovací archiv"],
+          ["T0002", "images", "host:archive.example.org", "Testovací archiv"],
+        ],
+      );
     } finally {
       await w.ok(["live", "stop"]);
     }
@@ -253,7 +269,7 @@ test("the connectors taken over from an older strom: one item, confirmed all at 
     await w.ok(["consents"]);
     const look = await menu(w, ["3", "1", "0", "0", "0"]);
     assert.match(look.out, /Co čeká \(1\)/);
-    assert.match(look.out, / 1\. Potvrdit úrovně stahovačů převzatých z dřívější verze \(2\): Druhý archiv, Testovací archiv/);
+    assert.match(look.out, /\n 1 {2}[^\n]+ · 1 {3}Potvrdit úrovně stahovačů převzatých z dřívější verze \(2\): …\n/);
     assert.match(look.out, /• Testovací archiv \(archive\.example\.org\): podle podmínek dovoleno/);
     assert.ok(store(w).pending.some((p: { kind: string }) => p.kind === "takeover"), "0: still waits");
     // the window of an agent's --accept says the levels in words, never their codes (the person says no here)
@@ -391,5 +407,84 @@ test("an archive that allows strom its images: only stricter in the settings (by
     assert.doesNotMatch((await fetchOne()).err, /does not allow|nepovoluje|ručně/);
   } finally {
     w.cleanup();
+  }
+});
+
+/** A downloader of the test archive whose connector.json is changed so (its hosts, what it can). */
+async function downloader(w: World, policy: Record<string, unknown>, change: Record<string, unknown> = {}): Promise<void> {
+  const dir = await fakeConnector(w, "zkusebni", "", policy, { confirm: false });
+  const file = path.join(dir, "connector.json");
+  fs.writeFileSync(file, JSON.stringify({ ...readJsonFile(file), ...change }, null, 2));
+  await w.ok(["allow", "archive", "zkusebni", "--accept"], { tty: true });
+}
+
+/** Settings → Archives → the permissions → the first archive, then back out. */
+async function firstArchive(w: World, then: string[] = ["0"]): Promise<string> {
+  const look = await menu(w, ["8", "4", "0", "0", "0"]);
+  const key = /(\d) {2}Svolení ke stahování z archivů/.exec(look.out)?.[1];
+  assert.ok(key, look.out);
+  return (await menu(w, ["8", "4", key!, "1", ...then, "0", "0", "0", "0"])).out;
+}
+
+test("Settings → Archives: raising an archive's level is said only where it would open a way — a downloader that gives no images, the images by hand into the task's folder", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  try {
+    // its terms allow images by hand only and its downloader only finds and lists: the images go by hand, nothing to raise
+    await downloader(w, { automation: "manual" }, { can: ["find", "list"] });
+    const out = await firstArchive(w, [""]);
+    assert.match(out, /Testovací archiv: snímky jen ručně \(podmínky automatické stahování nedovolují\)\. Snímky jdou jen ručně: uložit je v prohlížeči do složky úkolu ve schránce \(inbox\)\./);
+    assert.doesNotMatch(out, /--level restricted/);
+    // in English too
+    const look = await w.run([], { tty: true, answers: ["8", "4", "0", "0", "0"], env: { STROM_LANG: "en" } });
+    const key = /(\d) {2}Permissions for downloading from archives/.exec(look.out)?.[1];
+    assert.ok(key, look.out);
+    const en = await w.run([], { tty: true, answers: ["8", "4", key!, "1", "", "0", "0", "0", "0"], env: { STROM_LANG: "en" } });
+    assert.match(en.out, /Its images go only by hand: saved in the browser into the task's folder in the inbox\./);
+  } finally {
+    w.cleanup();
+  }
+  const v = new World();
+  await v.withTree();
+  try {
+    // a downloader that fetches images, made stricter by a command: lifting it would open a way — said how
+    await downloader(v, { automation: "restricted" });
+    await v.ok(["allow", "archive", "zkusebni", "--level", "manual"]);
+    const out = await firstArchive(v, [""]);
+    assert.match(out, /Svolení to nezmění; úroveň zvedne jen příkaz: strom allow archive archive\.example\.org --level restricted/);
+    assert.doesNotMatch(out, /Snímky jdou jen ručně/);
+  } finally {
+    v.cleanup();
+  }
+});
+
+test("Settings → Archives: an archive of several hosts on one line, its state said once where the hosts agree, decided for all of them; no hourly cap said in words, never ∞", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  try {
+    await downloader(w, { automation: "restricted" }, { hosts: ["archive.example.org", "img.example.org"] });
+    const look = await menu(w, ["8", "4", "0", "0", "0"]);
+    assert.match(look.out, /• Testovací archiv — snímky přímo, strom hlídá tempo; podmínky automatické stahování omezují – snímky jen se svolením\n/u, "said once, no host before it");
+    const key = /(\d) {2}Svolení ke stahování z archivů/.exec(look.out)?.[1];
+    const one = await menu(w, ["8", "4", key!, "1", "1", "0", "0", "0", "0"]);
+    assert.match(one.out, /\n {3}1 {2}Testovací archiv \(archive\.example\.org, img\.example\.org\) – podmínky automatické stahování omezují – snímky jen se svolením\n {3}0 /u, "one line for the archive");
+    assert.match(one.out, /Stahování snímků z archivu Testovací archiv \(archive\.example\.org, img\.example\.org\)/u);
+    const archives = store(w).archives;
+    assert.deepEqual([archives["archive.example.org"]?.way, archives["img.example.org"]?.way], ["slow", "slow"], "decided for both hosts");
+  } finally {
+    w.cleanup();
+  }
+  const v = new World();
+  await v.withTree();
+  try {
+    // allowed by its terms, the service's pace with no hourly cap
+    await downloader(v, { automation: "allowed" });
+    for (const [lang, words] of [["cs", "bez hodinového stropu"], ["de", "ohne Stundenobergrenze"], ["en", "no hourly cap"]]) {
+      const r = await v.run([], { tty: true, answers: ["8", "4", "0", "0", "0"], env: { STROM_LANG: lang! } });
+      assert.match(r.out, new RegExp(`• Testovací archiv — [^\\n]*${words}`, "u"), `${lang}: ${r.out}`);
+      assert.doesNotMatch(r.out, /∞/u);
+    }
+  } finally {
+    v.cleanup();
   }
 });

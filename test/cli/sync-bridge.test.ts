@@ -150,7 +150,7 @@ test("the menu shows a tree the app sent among what waits: what it brings, then 
   // 3 what waits · 1 the tree from the app · 3 throw it away · why · Enter · 0 · 0
   const menu = await w.run(["menu"], { tty: true, answers: ["3", "1", "3", "omylem", "", "0", "0"] });
   assert.match(menu.out, /Co čeká \(1\)/);
-  assert.match(menu.out, /1\. Aplikace Strom poslala strom \([^)]*\): změn k zapsání do výzkumu nebo k zahození: 8/);
+  assert.match(menu.out, /\n 1 {2}Aplikace Strom · 1 {3}Aplikace Strom poslala strom \([^)]*\): změn/);
   assert.match(menu.out, /z-aplikace|strom-app-.*\.ged: změn proti výzkumu: 8/);
   assert.match(menu.out, /Zahozeno: stromů z aplikace Strom 1/);
   const { receivedAll } = await import("../../src/core/sync.ts");

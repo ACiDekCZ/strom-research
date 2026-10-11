@@ -28,6 +28,8 @@ export interface Reading {
   stem: string;
   question?: string | undefined;
   context?: string | undefined;
+  /** A blind reading (strom read --blind: "Blind: yes" in its head) — a check of what the researcher read. */
+  blind?: boolean;
   reports: string[];
   blocks: Block[];
   mtime: number;
@@ -63,7 +65,7 @@ export function loadReadings(tree: Tree): Reading[] {
     const stem = /^(.*)-\d+$/.exec(name)?.[1] ?? name;
     const head = text.split(/^##\s/m)[0] ?? "";
     const book = /^# Reading ([Bb]\d+)-/.exec(head)?.[1]?.toUpperCase();
-    const r = byStem.get(stem) ?? { stem, question: headLine(head, "Question"), context: headLine(head, "Context"), reports: [], blocks: [], mtime: 0 };
+    const r = byStem.get(stem) ?? { stem, question: headLine(head, "Question"), context: headLine(head, "Context"), ...(/^yes$/i.test(headLine(head, "Blind") ?? "") ? { blind: true } : {}), reports: [], blocks: [], mtime: 0 };
     r.reports.push(name);
     r.mtime = Math.max(r.mtime, fs.statSync(full).mtimeMs);
     for (const f of parseReport(text)) {
@@ -203,9 +205,17 @@ export interface OpenUnclear {
 /** The kinds of view that look at a place closer than a whole image: a page of a spread, a crop, a part of a grid. */
 const CLOSER = new Set(["half", "crop", "split"]);
 
-/** Of the views journal, when each image (book:image) was looked at closer — a half, a crop, a part: the times. */
-function closerViews(root: string): Map<string, number[]> {
-  const out = new Map<string, number[]>();
+/** A closer view of an image: when, of which copy (M…) and where on it, and whether a reader of strom made it. */
+interface CloserView {
+  at: number;
+  key?: string | undefined;
+  region?: { x: number; y: number; w: number; h: number } | undefined;
+  reader: boolean;
+}
+
+/** Of the views journal, the closer views of each image (book:image) — a half, a crop, a part. */
+function closerViews(root: string): Map<string, CloserView[]> {
+  const out = new Map<string, CloserView[]>();
   let text = "";
   try {
     text = fs.readFileSync(path.join(root, ".strom", "views", "views.jsonl"), "utf8");
@@ -215,15 +225,32 @@ function closerViews(root: string): Map<string, number[]> {
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
     try {
-      const v = JSON.parse(line) as { at?: string; rs?: string; img?: number; kind?: string };
+      const v = JSON.parse(line) as { at?: string; key?: string; rs?: string; img?: number; kind?: string; region?: CloserView["region"]; reader?: number };
       if (!v.rs || v.img === undefined || !v.kind || !CLOSER.has(v.kind) || !v.at) continue;
       const k = `${v.rs}:${v.img}`;
-      out.set(k, [...(out.get(k) ?? []), Date.parse(v.at)]);
+      out.set(k, [...(out.get(k) ?? []), { at: Date.parse(v.at), key: v.key, region: v.region, reader: v.reader === 1 }]);
     } catch {
       // a line cut short: left out
     }
   }
   return out;
+}
+
+const overlaps = (a: NonNullable<CloserView["region"]>, b: NonNullable<CloserView["region"]>) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/**
+ * Whether the researcher looked closer at the place a blind reading came back unclear on before it was read: a view of
+ * their own (not a reader's) of that image since `since`, before the report — where the readers' views of the same copy
+ * say which part they read, one of them overlapping it. The blind reading was then a check of the researcher's look,
+ * and its "unclear" no place nobody looked at.
+ */
+function lookedBefore(views: CloserView[], since: number, report: number): boolean {
+  const own = views.filter((v) => !v.reader && v.at >= since && v.at <= report);
+  return own.some((o) => {
+    const read = views.filter((v) => v.reader && v.at >= o.at && v.at <= report && v.key === o.key && v.region);
+    return !o.region || !read.length || read.some((r) => overlaps(o.region!, r.region!));
+  });
 }
 
 /**
@@ -248,7 +275,9 @@ export function openUnclear(tree: Tree, recordsets: string[], pages: string | un
     return written.get(report)!;
   };
   // every block of the range, the latest of each image last
-  const blocks = loadReadings(tree)
+  const readings = loadReadings(tree);
+  const blind = new Set(readings.filter((r) => r.blind).flatMap((r) => r.reports));
+  const blocks = readings
     .flatMap((r) => r.blocks)
     .filter((b) => b.recordset && books.has(b.recordset) && b.num !== undefined && (!ranges || within(b.num, ranges)))
     .sort((a, b) => at(a.report) - at(b.report));
@@ -258,7 +287,10 @@ export function openUnclear(tree: Tree, recordsets: string[], pages: string | un
   const out: OpenUnclear[] = [];
   for (const [key, b] of latest) {
     if (b.result !== "unclear" || at(b.report) < since) continue;
-    if ((closer.get(key) ?? []).some((t) => t > at(b.report))) continue;
+    const views = closer.get(key) ?? [];
+    if (views.some((v) => v.at > at(b.report))) continue;
+    // a blind check of a place the researcher had looked at closer before it: no place nobody looked at
+    if (blind.has(b.report) && lookedBefore(views, since, at(b.report))) continue;
     out.push({ recordset: b.recordset!, image: b.num!, media: b.media, report: b.report, at: at(b.report), said: truncate((b.entries ?? b.illegible ?? []).join(" · ") || b.text.split("\n").slice(1).join(" "), 160) });
   }
   return out.sort((a, b) => a.recordset.localeCompare(b.recordset) || a.image - b.image);

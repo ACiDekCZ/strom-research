@@ -105,11 +105,79 @@ test("session close --done over places a reader found unclear, with most of the 
     );
     const said = await w.run(done, { env });
     assert.equal(said.code, 2, said.err);
-    assert.match(said.err, /not closed — 49 min left/);
-    assert.match(said.err, /readers found B0001:2 unclear and nobody looked closer since: strom media view B0001:2 --half both/);
+    assert.match(said.err, /not closed — the result passes over a place readers found unclear and nobody has looked at closer since: B0001:2 \("okraj — „…ský“, nečitelné"\)/);
+    assert.doesNotMatch(said.err, /min left|time is short/, "the time is no reason for a task done");
+    assert.match(said.err, /look at it: strom media view B0001:2 --half both/);
+    assert.match(said.err, /the result does not rest on that place: the same command again closes it, or --reason "what decides it without that place"/);
     await w.ok(["media", "view", "B1:2", "--half", "both"], { env });
     await w.ok(done, { env });
     assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "done");
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("session close --done after a blind check of a place the agent had looked at closer before it: the look counts — a reading not blind, or a look elsewhere on the image, does not", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Dvořákovi");
+    await w.ok(["research", "new", "Předci", "--new-person", "Kryštof /Žďárský/", "--sex", "M", "--born", "1850"]);
+    await w.ok(["recordset", "add", "Lhota N 1840–1860", "--kinds", "baptism", "--years", "1840-1860"]);
+    const scans = path.join(w.dir, "scans");
+    fs.mkdirSync(scans);
+    for (const f of ["s0001.jpg", "s0002.jpg"]) fs.copyFileSync(path.join(fixtures, f), path.join(scans, f));
+    await w.ok(["media", "add", scans, "--recordset", "B1"]);
+    await w.ok(["task", "add", "Křest Kryštofa", "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
+    const env = runEnv(50);
+    const done = ["session", "close", "--done", "zápis přečten", "--next", "jiná fara"];
+    const dir = path.join(w.cwd, "notes", "readings");
+    fs.mkdirSync(dir, { recursive: true });
+    const journal = path.join(w.cwd, ".strom", "views", "views.jsonl");
+    let n = 0;
+    const report = (blind: boolean) => {
+      n++;
+      fs.writeFileSync(
+        path.join(dir, `${new Date().toISOString().slice(0, 10)}-M0002-${n}-1.md`),
+        ["# Reading M0002 · batch 1 of 1", "Question: Řádek rejstříku, příjmení", ...(blind ? ["Blind: yes"] : []), "", "## Image 2 · M0002", "result: unclear", "entries: řádek 3 — „Šm…“, nejisté", ""].join("\n"),
+      );
+    };
+    /** As strom read --crop records its reader's view: the part of the image it read. */
+    const readerView = (region: { x: number; y: number; w: number; h: number }) =>
+      fs.appendFileSync(journal, JSON.stringify({ at: new Date().toISOString(), key: "M0002", rs: "B0001", img: 2, kind: "crop", region, reader: 1 }) + "\n");
+    const lastRegion = () => JSON.parse(fs.readFileSync(journal, "utf8").trim().split("\n").at(-1)!).region as { x: number; y: number; w: number; h: number };
+
+    // the agent's own look at the entry, then a blind check of the same place: the check's "unclear" is no open place
+    await w.ok(["session", "start", "T1"]);
+    await w.ok(["media", "view", "B1:2", "--crop", "0.5,0.1,0.3,0.1"], { env });
+    readerView(lastRegion());
+    await new Promise((r) => setTimeout(r, 20));
+    report(true);
+    const closed = await w.run(done, { env });
+    assert.equal(closed.code, 0, closed.err);
+    assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "done");
+
+    // a reading that is no blind check, after the same look: still open
+    await w.ok(["task", "add", "Křest Kryštofa znovu", "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
+    await w.ok(["session", "start", "T2"]);
+    await w.ok(["media", "view", "B1:2", "--crop", "0.5,0.1,0.3,0.1"], { env });
+    await new Promise((r) => setTimeout(r, 20));
+    report(false);
+    const notBlind = await w.run(done, { env });
+    assert.equal(notBlind.code, 2, notBlind.err);
+    assert.match(notBlind.err, /readers found unclear and nobody has looked at closer since: B0001:2/);
+    await w.ok([...done, "--reason", "řádek přečten jinde"], { env });
+
+    // a blind check of another part of the image than the agent looked at: still open
+    await w.ok(["task", "add", "Křest Kryštofa potřetí", "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
+    await w.ok(["session", "start", "T3"]);
+    await w.ok(["media", "view", "B1:2", "--crop", "0.0,0.0,0.2,0.1"], { env });
+    const own = lastRegion();
+    readerView({ x: own.x + own.w + 10, y: own.y + own.h + 10, w: 50, h: 20 });
+    await new Promise((r) => setTimeout(r, 20));
+    report(true);
+    const elsewhere = await w.run(done, { env });
+    assert.equal(elsewhere.code, 2, elsewhere.err);
+    assert.match(elsewhere.err, /nobody has looked at closer since: B0001:2/);
   } finally {
     w.cleanup();
   }

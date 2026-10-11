@@ -262,6 +262,14 @@ function termsLine(lang: string, a: ArchiveLevel): string {
   return ui(lang, "ui.archive.terms.none");
 }
 
+/**
+ * An hourly cap in the person's words: "at most 120 requests to the archive an hour, its catalogue counted too" (`short`:
+ * "at most 120 requests an hour, the catalogue too"), or "no hourly cap".
+ */
+export function capWords(lang: string, perHour: number | null | undefined, short = false): string {
+  return typeof perHour === "number" && Number.isFinite(perHour) && perHour > 0 ? ui(lang, short ? "ui.archive.cap.short" : "ui.archive.cap", { n: perHour }) : ui(lang, "ui.pace.nocap");
+}
+
 /** The question of a permission, in the person's language: the archive, its terms, the pace, how to change it. */
 export function permissionText(ctx: Context, a: ArchiveLevel, way: "slow" | "browser", c?: Connector): string {
   const lang = ctx.uiLang();
@@ -269,7 +277,7 @@ export function permissionText(ctx: Context, a: ArchiveLevel, way: "slow" | "bro
   return [
     ui(lang, "ui.archive.name", { title: a.title ?? a.host, host: a.host }),
     termsLine(lang, a),
-    ui(lang, way === "browser" ? "ui.archive.ask.browser" : "ui.archive.ask.slow", { seconds: secondsIn(lang, p.minIntervalMs), n: Number.isFinite(p.perHour) ? p.perHour : "∞" }),
+    ui(lang, way === "browser" ? "ui.archive.ask.browser" : "ui.archive.ask.slow", { seconds: secondsIn(lang, p.minIntervalMs), cap: capWords(lang, p.perHour) }),
     ui(lang, "ui.archive.ask.change", { host: a.host }),
   ].join("\n\n");
 }
@@ -339,7 +347,7 @@ async function askPerson(ctx: Context, c: Connector, missing: ArchiveLevel[], wa
   // the person in their own terminal: the choice right here, the ways the menu offers (Enter: later, nothing changes)
   if (ctx.interactive && !agentRuns(ctx)) {
     ctx.io.stdout(`\n${question}\n`);
-    const labels = ways.map((w) => ({ label: ui(lang, w === "slow" ? "ui.archive.way.slow" : w === "browser" ? "ui.archive.way.browser" : "ui.archive.way.manual", { seconds: secondsIn(lang, p.minIntervalMs), n: Number.isFinite(p.perHour) ? p.perHour : "∞" }) }));
+    const labels = ways.map((w) => ({ label: ui(lang, w === "slow" ? "ui.archive.way.slow" : w === "browser" ? "ui.archive.way.browser" : "ui.archive.way.manual", { seconds: secondsIn(lang, p.minIntervalMs), cap: capWords(lang, p.perHour) }) }));
     const i = await ctx.choose(ui(lang, "ui.archive.choose", { title: a.title ?? a.host }), labels, labels.length, { back: ui(lang, "ui.archive.way.later") });
     if (i !== undefined && ways[i]) {
       const chosen = ways[i]!;

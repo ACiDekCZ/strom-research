@@ -75,12 +75,18 @@ conversation opened anywhere, a bot on its own server)
   (or task wait T… --on "…"), then strom session close --summary "…" --next "…"
   What a task waits for (strom task wait T… --on "…") the user reads in strom's menu and the Strom app:
   write it in the research language, impersonal — what is needed, never addressed to them ("Images
-  40–45 of the baptisms to be saved from <link>", not "Open … and save …").
+  40–45 of the baptisms to be saved from <link>", not "Open … and save …"), nor in your voice ("please",
+  "I will then…"). Say its kind (--kind letter|family|web|other) and, when known, whom it waits on (--to),
+  the request's text saved in notes/ (--request notes/<file>.md), the site (--url); strom task sent T…
+  once the user says the request went out (the task still waits for the reply).
+  A conversation that begins with a waiting task (strom chat --task T…: the user picked it in the menu
+  or the Strom app) leads the user through it and the tasks waiting at the same place: strom guide waiting.
   then, in a conversation, tell the user what was found (strom person card …) and what comes next
   (strom plan), and ask before the next session; working alone (strom run) nobody reads the session
   live and the summary is what they read (plain words of the research for the record, never addressed
   to them) — nothing more after it, no advice to clear the context (/clear) or to start anything,
-  nothing said to the user; nobody answers a question there: what only the user can decide waits for
+  nothing said to the user: every message there, the last one too, in the research language and
+  impersonal (they may read the run afterwards); nobody answers a question there: what only the user can decide waits for
   them (strom task wait T… --on "<the question, impersonal>": the menu's What waits for you, the Strom
   app; their answer comes back on the task). The next step is strom's queue: what the user wants instead becomes a
   task first (strom task add …, or strom research new …) — never search outside a session and its task.

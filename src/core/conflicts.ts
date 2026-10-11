@@ -33,7 +33,7 @@ export function claimOf(c: Conflict, side: "user" | "research"): Claim | undefin
 const BY_SIDE = new Set(["NAME", "SEX", "NPFX", "NSFX"]);
 
 /**
- * The two sides of a conflict of the user's edit the Strom app decides by side (conflict.decide): a fact's value (date,
+ * The two sides of a conflict of the user's edit the Strom app decides by side (the link conflict&do=decide&take=): a fact's value (date,
  * place, value — not its details or the people it names, which carry no edit), a name, a title before or after it, a
  * sex. None for a child's parents (FAMC), a conflict between sources, or one without both sides.
  */

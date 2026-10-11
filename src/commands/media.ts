@@ -12,7 +12,7 @@ import { lines, moreLine, paginate, runs, shellArg, table, truncate } from "../c
 import { UsageError } from "../core/errors.ts";
 import type { Input, Media, RecordSet, Region, Source, Task } from "../core/model.ts";
 import { makeNote } from "../core/actions.ts";
-import { clipText, collectFiles, coveringPart, fileSha256, findImage, imageNumbers, imageOfRef, imageRange, inboxFolders, inputPath, isWhole, mimeOf, onlyParts, otherCopies, parseImageList, regionText, sharperPart, storeShared, wholeSizeOf } from "../core/media.ts";
+import { clipText, collectFiles, coveringPart, fileSha256, findImage, imageNumbers, imageOfRef, imageRange, IMAGE_FILE_EXT, inboxFolders, inputPath, isWhole, mimeOf, onlyParts, otherCopies, parseImageList, regionText, sharperPart, storeShared, wholeSizeOf } from "../core/media.ts";
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { imageOf, pageOf } from "../core/calibration.ts";
@@ -29,8 +29,9 @@ import { currentSession } from "../core/session.ts";
 import { originalMax, parseRegion, takeOriginal } from "../core/originals.ts";
 import { batchFull, batchPath, batchRoom, noteBatch, openBatch, type Batch } from "../core/batches.ts";
 import { readEntry, readZip, type ZipEntry } from "../core/zip.ts";
+import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
 
-const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".tif", ".tiff", ".gif", ".webp", ".heic", ".jp2", ".bmp"]);
+const IMAGE_EXT = IMAGE_FILE_EXT;
 
 /** The first bytes of a file — enough for the image size, without reading a 20 MB scan. */
 /** One image to register: the file, its number in the book, where it is from. */
@@ -120,7 +121,7 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
       const missing = t.awaits?.recordset === recordset ? (parseImageList(t.awaits.images) ?? []).filter((n) => !have.has(n)) : [];
       const note = `${added.length} image(s) of ${recordset} registered${t.awaits ? ` (it waited for images ${t.awaits.images}${missing.length ? `; still missing: ${runs(missing)}` : ""})` : ""}`;
       update<Task>(tree, t.id, "task", (x) => {
-        const { awaits: _, ...rest } = x;
+        const { awaits: _, wait: _w, sent: _s, ...rest } = x;
         return { ...rest, state: "open", notes: [...x.notes, makeNote(tree, note)] };
       }, {
         op: "task.wake",
@@ -1038,6 +1039,8 @@ register({
     "within a while shares one). The same content again: only said. In an archive the tasks wait put aside.\n" +
     "--batch: one file of a batch (its path in it with --path): an input with no task of its own — the batch's tasks come\n" +
     "when it is closed (strom input batch done). --zip: a ZIP of a batch, unpacked file by file (a ZIP in it is only said).\n" +
+    "--task: the file came for what that waiting task waits for (X-Strom-Task): an input of its people handed to it, the\n" +
+    "task back in the queue, no intake task (strom intake --answers).\n" +
     "Material of the family on this computer goes in with strom intake.",
   args: [{ name: "file", description: "the received file (it is moved)", required: true }],
   options: [
@@ -1050,6 +1053,7 @@ register({
     { name: "batch", type: "string", value: "<id>", description: "the batch of the app it comes in" },
     { name: "path", type: "string", value: "<path>", description: "its path in the batch (Babička/Dopisy/1946.jpg)" },
     { name: "zip", type: "boolean", description: "a ZIP of the batch: unpacked, each file taken" },
+    { name: "task", type: "string", value: "<T…>", description: "the waiting task it came for: handed to it, the task back in the queue" },
   ],
   examples: ["strom media original ~/Downloads/dopis.png --name dopis.png --person P0001"],
   run(ctx, { args, opts }) {
@@ -1064,6 +1068,18 @@ register({
     const batch = typeof opts.batch === "string" ? opts.batch : undefined;
     const where = batchPath(typeof opts.path === "string" ? opts.path : undefined) ?? batchPath(name) ?? name;
     if (opts.zip && !batch) throw new UsageError("a ZIP comes in a batch", { hint: "--batch <id>", code: "batch.zip-alone" });
+    const forTask = typeof opts.task === "string" ? opts.task : undefined;
+    if (forTask !== undefined && (batch || typeof opts.source === "string")) throw new UsageError("a file for a task is no image of a source and comes in no batch", { hint: "--task alone, with --person, --note" });
+    if (forTask !== undefined) {
+      const task = taskForFile(tree, forTask);
+      persons.push(...taskPeople(tree, task));
+      const got = tree.withTreeLock(() => {
+        const one = takeOriginal(tree, shared, file, sha, { name, persons: [...new Set(persons)], note: typeof opts.note === "string" ? opts.note : undefined, task: true });
+        const t = handFiles(tree, task.id, [one.input ?? one.known!], fileBy(tree, ctx.env));
+        return { ...one, task: t.id, handed: one.input ?? one.known!, state: t.state };
+      });
+      return { text: lines(...tree.written.map((o) => o.summary)), data: got };
+    }
     const got = tree.withTreeLock(() => {
       if (!batch)
         return takeOriginal(tree, shared, file, sha, {

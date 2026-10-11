@@ -6,6 +6,14 @@ name sends the research to the wrong village. **A name or place the next
 search depends on** (a surname, a birthplace, a parish) is read again on a
 crop at full resolution before it is recorded; what stays unsure is recorded
 as unsure and said so. "Illegible" beats a guess.
+<!-- for link verify enrich -->
+**A place read uncertainly is a lead, not a place** (readers differ, a `[?]`,
+nothing else confirms it): no parish, book or task follows from it until it
+is settled — your own look at the crop, the book's index, a gazetteer or
+cadastre (a village's parish from them, never from today's municipality).
+Still unsure: `strom hypothesis add` with the readings as variants, and a
+task that tests it (`--about H…`), never one naming the place as settled.
+<!-- end -->
 
 Look at as few pixels as the question needs and write down what you saw at
 once: after about 30 views write down what you found before you open more, and

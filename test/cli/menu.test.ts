@@ -211,19 +211,23 @@ test("the menu: what waits for the person — what to do for each, the folder fo
   await w.ok(["task", "add", "Křest Jana", "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis"]); // T2
   await w.ok(["task", "wait", "T1", "--on", "V badatelně archivu najít knihu narozených pro Týnec a poslat odkaz na ni."]);
   await w.ok(["task", "wait", "T2", "--images", "B1:9-10", "--on", "snímky 9–10 knihy Žďár"]);
-  // 3 what waits · 2 open the folder of the images · 1 answer the first · the link · not with the agent now · 0 back · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["3", "2", "1", "https://archive.example.org/book/77", "n", "0", "0"] });
-  assert.match(r.out, /Agent potřebuje \(2\):\n\n 1\. Kde jsou zapsány křty obce Týnec\n {4}Co udělat: V badatelně archivu najít knihu narozených pro Týnec a poslat odkaz na ni\./);
-  assert.match(r.out, / 2\. Křest Jana\n {4}Uložit ručně: snímky 9–10 z Žďár N 1784–1820 · https:\/\/archive\.example\.org\/book\/5359\n {4}uložit je do .+inbox\/B0001 Žďár N 1784–1820\//);
-  assert.match(r.out, /1 {2}Odpovědět k 1: Kde jsou zapsány křty obce Týnec\n {3}2 {2}Otevřít složku pro snímky k 2/);
-  assert.match(r.out, /✓ Úkol se vrátil agentovi i s odpovědí\./);
+  // 3 what waits · 2 the place of the images (one thing: its detail at once) · 2 its folder · 0 back · 1 the other ·
+  // 1 an answer · the link (kept with the task: no conversation offered) · 0 back · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["3", "2", "2", "0", "1", "1", "https://archive.example.org/book/77", "0", "0"] });
+  assert.match(r.out, /\nCo čeká · k vyřízení 2\n {2}s snímky 1 · w web 1\n 1 {2}Ostatní · 1 {15}Kde jsou zapsány křty obce Týnec\n 2 {2}archive\.example\.org · 1 {3}Křest Jana\n číslo = skupina · s\/w filtr · 0 zpět\n/);
+  assert.match(r.out, /\n T0002 · snímky · priorita 3\n Křest Jana\n {4}Čeká na: snímky 9–10 knihy Žďár\n {4}Kde: archive\.example\.org\n {4}Čeká od [^\n]+\n {4}Uložit ručně: snímky 9–10 z Žďár N 1784–1820 · https:\/\/archive\.example\.org\/book\/5359\n {4}uložit je do .+inbox\/B0001 Žďár N 1784–1820\/\n/);
+  assert.match(r.out, /\n {3}1 {2}Otevřít archiv\n {3}2 {2}Otevřít složku \(uloženo 0\/2\)\n {3}3 {2}Nejde to – napsat proč\n {3}4 {2}Rozhovor s agentem\n {3}0 {2}Zpět\n/);
+  assert.match(r.out, /Složka: .+inbox\/B0001 Žďár N 1784–1820 – až tam snímky budou/);
+  assert.match(r.out, /\n T0001 · web · priorita 3\n Kde jsou zapsány křty obce Týnec\n {4}Čeká na: V badatelně archivu najít knihu narozených pro Týnec a poslat odkaz na ni\.\n[^]*?\n {3}1 {2}Odpovědět textem\n {3}2 {2}Rozhovor s agentem\n {3}0 {2}Zpět\n/);
+  assert.match(r.out, /✓ Odpověď se uloží k úkolu, agent ji zpracuje při další práci\./);
+  assert.doesNotMatch(r.out, /Pokračovat s agentem hned\?/);
   const t1 = (await w.ok(["task", "show", "T1", "--json"])).json.task;
   assert.equal(t1.state, "open");
   // the person's answer: a record of its own, with what it asked — never a note
   assert.deepEqual({ ...t1.answers.at(-1), at: undefined }, { by: "person", asked: "V badatelně archivu najít knihu narozených pro Týnec a poslat odkaz na ni.", answer: "https://archive.example.org/book/77", at: undefined, via: "terminal" });
   assert.equal(t1.notes.length, 0);
   // what is left: the images only
-  assert.match(r.out, /Agent potřebuje \(1\):\n\n 1\. Křest Jana/);
+  assert.match(r.out, /\nCo čeká · k vyřízení 1\n {2}s snímky 1\n 1 {2}archive\.example\.org · 1 {3}Křest Jana\n/);
   w.cleanup();
 });
 
@@ -262,7 +266,8 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
   // a long answer to what waits is asked again, shorter
   await w.ok(["task", "add", "Kde je kniha", "--level", "locate", "--where", "archiv", "--why", "křest", "--done-when", "odkaz"]);
   await w.ok(["task", "wait", "T1", "--on", "poslat odkaz na knihu"]);
-  const long = await w.ok([], { tty: true, answers: ["3", "1", "x".repeat(301), "https://archive.example.org/book/1", "n", "0", "0"] });
+  // 3 · 1 the one thing · 2 an answer (1 marks its request sent) · too long · shorter · 0 · 0
+  const long = await w.ok([], { tty: true, answers: ["3", "1", "2", "x".repeat(301), "https://archive.example.org/book/1", "0", "0"] });
   assert.match(long.out, /Na odpověď sem je to dlouhé \(nejvýš 300 znaků\)/);
   assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
   w.cleanup();
@@ -470,7 +475,7 @@ test("a story the person approved is locked: written again, the new version wait
   // the menu: it waits for the person; they keep the old one (3 what waits · 1 the story · 2 keep · 0 · 0)
   const kept = await w.ok([], { tty: true, answers: ["3", "1", "2", "0", "0"] });
   assert.match(kept.out, /Čeká: 1/);
-  assert.match(kept.out, /1\. Nová verze vyprávění o Jan Novák \[P0001\] – schválené zůstává až do rozhodnutí/);
+  assert.match(kept.out, /\n 1 {2}Příběhy · 1 {3}Nová verze vyprávění o Jan Novák – schválené zůstává až do …\n/);
   assert.match(kept.out, /Nová verze vyprávění o Jan Novák \[P0001\] \(\d{4}-\d{2}-\d{2}\) – schválené zůstává až do rozhodnutí:\n\nJan byl mlynář v Týnci\./);
   assert.match(kept.out, /✓ Schválené vyprávění zůstává, nová verze je pryč/);
   st = await story();

@@ -61,8 +61,12 @@ export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
 export const LINK_DIRECTIONS = ["ancestors", "descendants"] as const;
-/** What a link does with a task: put it aside, give it up, back into the queue (none: answer it). */
-export const LINK_TASK_DOS = ["park", "drop", "wake", "check"] as const;
+/**
+ * What a link does with a task: put it aside, give it up, back into the queue, the person's check of a site; one that
+ * waits: a conversation about it (and what waits with it), its request's text or its folder of images opened, its
+ * request marked sent, a file that came for it (none: answer it).
+ */
+export const LINK_TASK_DOS = ["park", "drop", "wake", "check", "chat", "note", "folder", "sent", "file"] as const;
 /** What a link does with a direction of the research (strom research pause|done|resume). */
 export const LINK_DIRECTION_DOS = ["pause", "done", "resume"] as const;
 /** A tree the app sent that waits in the research's inbox: shown, then written or thrown away on the person's word. */

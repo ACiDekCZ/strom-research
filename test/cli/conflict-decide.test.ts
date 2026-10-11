@@ -1,14 +1,16 @@
 // A conflict of the user's edit decided from the Strom app by side (conflict.decide, the app's
 // ZADANI_VYZKUM_rozpory-v-aplikaci.md, phase 1): the Strom file says which conflicts the app may decide and each value's
-// side (_STROM_TAKE, _STROM_SIDE, _STROM_RAW — an empty side empty), /sync says them too; the bridge decides one as the
-// user's (POST /conflict/<X…>), the same as strom conflict resolve --take; a decided conflict is not decided over, and
-// what the user decided stands against an agent that has no new source.
+// side (_STROM_TAKE, _STROM_SIDE, _STROM_RAW — an empty side empty), /sync says them too; the person decides one in the
+// terminal its link opens (conflict&do=decide&take=), the same as strom conflict resolve --take — never through the
+// bridge, which cannot tell the app from an agent on this computer (POST /conflict/<X…>: 403 decide.link, nothing
+// written); a decided conflict is not decided over, and what the user decided stands against an agent that has no new
+// source.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
@@ -122,7 +124,7 @@ test("a Strom file carrying the sides comes back through strom sync as no change
   w.cleanup();
 });
 
-test("the gate: the beta and the development copy of the app at once; stromapp.info from the version that decides; the bridge says conflict.decide", opts, async () => {
+test("the gate: the beta and the development copy of the app at once; stromapp.info from the version that decides; the bridge no longer says conflict.decide", opts, async () => {
   const w = new World();
   await w.withTree();
   const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
@@ -131,7 +133,7 @@ test("the gate: the beta and the development copy of the app at once; stromapp.i
   assert.equal(appDecidesConflicts(beta, "3.10.1"), true);
   assert.equal(appDecidesConflicts(prod, "3.10.1"), APP_DECIDES_CONFLICTS !== undefined && APP_DECIDES_CONFLICTS <= "3.10.1");
   assert.equal(appDecidesConflicts(prod), APP_DECIDES_CONFLICTS !== undefined, "an app of unknown version: today's, once released");
-  assert.ok((BRIDGE_FEATURES as readonly string[]).includes("conflict.decide"));
+  assert.ok(!(BRIDGE_FEATURES as readonly string[]).includes("conflict.decide"), "the app decides through the link");
   w.cleanup();
 });
 
@@ -213,142 +215,55 @@ test("review: a record the user decided against is no mention to read again", op
   w.cleanup();
 });
 
-test("the bridge decides a conflict as the user's: take user written, take research a commit of the decision; refused: decided, none, not by side, not the app's pages, a bad body", bridged, async () => {
+test("the bridge decides no conflict: POST /conflict with the secret and the app's Origin answers 403 decide.link and writes nothing; /status lacks conflict.decide; the link decides it", bridged, async () => {
   const { w, sent } = await world();
   await w.ok(["sync", sent, "--apply"]);
   await w.ok(["config", "set", "strom.app.url", "https://beta.stromapp.info/run/"]);
   const info = (await w.ok(["live", "start", "--json"])).json;
+  const id = readJsonFile(path.join(w.cwd, "strom.json")).id as string;
   try {
-    const decide = (id: string, body: unknown, headers: Record<string, string> = app) => post(`${info.url}/conflict/${id}`, JSON.stringify(body), headers);
+    const decide = (x: string, body: string, headers: Record<string, string> = app) => post(`${info.url}/conflict/${x}`, body, headers);
     const status = JSON.parse((await get(`${info.url}/status?poll=1`)).body);
-    assert.ok(status.features.includes("conflict.decide"));
-    const head0 = status.headAt;
-
-    // the user's value, with a note: written as the user's, through the app
-    const u = await decide("X0002", { do: "decide", take: "user", note: "Podle rodinné bible." });
-    assert.equal(u.status, 200, u.body);
-    const ub = JSON.parse(u.body);
-    assert.deepEqual({ ...ub, head: undefined, written: undefined }, { decided: "X0002", take: "user", head: undefined, written: undefined, person: "P0001" });
-    assert.match(ub.head, /^[0-9a-f]{40}$/);
-    assert.match(ub.written, /^E\d{4} withdrawn, E\d{4} the user's: /);
-    assert.deepEqual((await facts(w, "P1", "CHR")).map((e) => [e.date, e.status]), [["4 MAR 1885", "possible"]]);
-    const x2 = await conflict(w, "X2");
-    assert.deepEqual([x2.decidedBy, x2.decidedIn, x2.taken, x2.reasoning], ["user", "app", "user", "rozhodnutí uživatele v aplikaci Strom: Podle rodinné bible."]);
-    // the log says it as the user's, not an agent's
-    assert.ok(fs.readdirSync(path.join(w.cwd, "data", "ops"), { recursive: true }).some((f) => /user-|\/user/.test(String(f)) || String(f).startsWith("user")));
-
-    // again: decided already — what, which side, when, by whom
-    const again = await decide("X2", { do: "decide", take: "research" });
-    assert.equal(again.status, 409);
-    const ab = JSON.parse(again.body);
-    assert.deepEqual([ab.code, ab.resolution, ab.take, ab.by, ab.in, typeof ab.at], ["conflict.decided", "4. 3. 1885, Kamenice", "user", "user", "app", "string"]);
-
-    // the research's value: nothing of the fact written — the decision is (data/conflicts): a new head
-    const before = JSON.parse((await get(`${info.url}/status?poll=1`)).body);
-    const r = await decide("X0006", { do: "decide", take: "research" });
-    assert.equal(r.status, 200, r.body);
-    const rb = JSON.parse(r.body);
-    assert.deepEqual([rb.decided, rb.take, rb.person, rb.family], ["X0006", "research", "P0001", "F0001"]);
-    assert.notEqual(rb.head, ub.head, "a commit of the decision");
-    assert.ok(before.headAt >= head0);
-    // the next Strom file: decided, the fact the research's
-    const ged = (await get(`${info.url}/tree.ged`)).body;
-    assert.match(conflictOf(ged, "P0001", "X0006"), /^2 TYPE MARR\n2 TITL .*\n2 STAT decided\n2 VAL 5\. 2\. 1910, Týnec\n/);
-    assert.match(ged, /\n1 MARR\n2 DATE 5 FEB 1910\n/);
-    assert.match(conflictOf(ged, "P0001", "X0002"), /^2 TYPE CHR\n2 TITL .*\n2 STAT decided\n/);
-    assert.match(block(ged, "P0001"), /\n1 BAPM\n2 DATE 4 MAR 1885\n|\n1 CHR\n2 DATE 4 MAR 1885\n/);
-
-    // the empty side and the sex through the bridge
-    assert.equal((await decide("X3", { do: "decide", take: "user" })).status, 200);
-    assert.equal(((await w.ok(["person", "show", "P1", "--json"])).json.person as Person).names[0]!.prefix, undefined);
-    assert.equal((await decide("X4", { do: "decide", take: "research" })).status, 200);
-    assert.equal(((await w.ok(["person", "show", "P1", "--json"])).json.person as Person).sex, "M");
-
-    // refused
-    assert.equal(JSON.parse((await decide("X0099", { do: "decide", take: "user" })).body).code, "conflict.none");
-    assert.equal((await decide("X0099", { do: "decide", take: "user" })).status, 404);
-    assert.equal((await decide("P0001", { do: "decide", take: "user" })).status, 404);
-    const sources = await decide("X1", { do: "decide", take: "user" });
-    assert.deepEqual([sources.status, JSON.parse(sources.body).code], [422, "conflict.no-edit"]);
-    const take = await decide("X5", { do: "decide", take: "both" });
-    assert.deepEqual([take.status, JSON.parse(take.body).code], [400, "conflict.bad-take"]);
-    const bad = await post(`${info.url}/conflict/X5`, "hello", app);
-    assert.deepEqual([bad.status, JSON.parse(bad.body).code], [400, "decide.bad-body"]);
-    assert.equal((await decide("X5", { do: "reopen" })).status, 400);
-    const foreign = await decide("X5", { do: "decide", take: "user" }, { "Content-Type": "application/json" });
-    assert.deepEqual([foreign.status, JSON.parse(foreign.body).code], [403, "app.only"]);
-    assert.equal((await conflict(w, "X5")).state, "open", "nothing decided by a refusal");
-    // a long note: 200 characters at most
-    assert.equal((await decide("X5", { do: "decide", take: "user", note: "á".repeat(300) })).status, 200);
-    assert.equal([...(await conflict(w, "X5")).reasoning!].length, "rozhodnutí uživatele v aplikaci Strom: ".length + 200);
-    assert.equal(((await w.ok(["person", "show", "P2", "--json"])).json.person as Person).names[0]!.surname, "Dvořáčková");
-    assert.match((await w.ok(["check"])).out, /^ok/);
-  } finally {
-    await w.ok(["live", "stop"]);
-    w.cleanup();
-  }
-});
-
-test("the bridge: busy while a send is being written or another strom holds the research (503, Retry-After); a newer strom's research locked (423)", bridged, async () => {
-  const { w, sent } = await world();
-  await w.ok(["sync", sent, "--apply"]);
-  Object.assign(w.env, { STROM_SYNC_ANSWER_MS: "300", STROM_LOCK_WAIT_MS: "3000", STROM_SYNC_RETRY_MS: "300" });
-  const info = (await w.ok(["live", "start", "--json"])).json;
-  const lock = path.join(w.cwd, ".strom", "tree.lock");
-  try {
-    const decide = (id: string, take: string) => post(`${info.url}/conflict/${id}`, JSON.stringify({ do: "decide", take }), app);
-    fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, host: os.hostname(), at: new Date().toISOString(), owner: "a test" }));
-    // the research held by another strom: the decision waits as a writer does, then busy — nothing decided
-    const held = await decide("X2", "user");
-    assert.equal(held.status, 503, held.body);
-    assert.equal(JSON.parse(held.body).code, "research.busy");
-    assert.equal(JSON.parse(held.body).retry, 5);
-    assert.equal((await conflict(w, "X2")).state, "open");
-    // a send the bridge writes (waiting for the research): a decision meanwhile is busy at once
-    const given = path.join(w.dir, "given2.ged");
-    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", given]);
-    const send = await post(`${info.url}/sync`, fs.readFileSync(given, "utf8").replace(/(1 NAME Anna \/[^\n]*\n(?:[2-9].*\n)*)/, "$11 OCCU švadlena\n"), app);
-    assert.equal(send.status, 202, send.body);
-    const busy = await decide("X2", "user");
-    assert.equal(busy.status, 503, busy.body);
-    assert.equal(JSON.parse(busy.body).code, "research.busy");
-    // free again: the send written in its turn, then the decision
-    fs.rmSync(lock);
-    let free = await decide("X2", "user");
-    for (let i = 0; i < 100 && free.status === 503; i++) {
-      await new Promise((r) => setTimeout(r, 200));
-      free = await decide("X2", "user");
+    assert.ok(!status.features.includes("conflict.decide"));
+    const headNow = () => execFileSync("git", ["rev-parse", "HEAD"], { cwd: w.cwd, encoding: "utf8" });
+    const head = headNow();
+    const conflicts = async () => JSON.stringify(await Promise.all(["X1", "X2", "X3", "X4", "X5", "X6"].map((x) => conflict(w, x))));
+    const before = await conflicts();
+    // any body (a decision as the app sent it, none, not JSON), any conflict: refused before anything is read
+    for (const [x, body] of [["X0002", JSON.stringify({ do: "decide", take: "user", note: "Podle rodinné bible." })], ["X6", JSON.stringify({ do: "decide", take: "research" })], ["X0099", "{}"], ["X5", "hello"]] as const) {
+      const r = await decide(x, body);
+      assert.equal(r.status, 403, r.body);
+      const rb = JSON.parse(r.body);
+      assert.equal(rb.code, "decide.link");
+      assert.match(rb.text, /conflict&do=decide|conflict\?…&id=/);
     }
-    assert.equal(free.status, 200, free.body);
-    // a research a newer strom wrote: locked, nothing written
-    const cfg = readJsonFile(path.join(w.cwd, "strom.json"));
-    fs.writeFileSync(path.join(w.cwd, "strom.json"), JSON.stringify({ ...cfg, schema: cfg.schema + 1, migratedWith: "9.0.0" }, null, 2));
-    const locked = await decide("X3", "user");
-    assert.equal(locked.status, 423, locked.body);
-    assert.equal(JSON.parse(locked.body).code, "locked");
-    fs.writeFileSync(path.join(w.cwd, "strom.json"), JSON.stringify(cfg, null, 2));
+    // not the app's pages: the same
+    assert.equal(JSON.parse((await decide("X2", JSON.stringify({ do: "decide", take: "user" }), { "Content-Type": "application/json" })).body).code, "decide.link");
+    assert.equal(await conflicts(), before, "nothing decided");
+    assert.equal(headNow(), head, "no commit");
+    // the person decides it in the terminal the link opens
+    const link = await w.run(["link", "open", `strom-research://conflict?tree=${id}&id=X0002&do=decide&take=user`], { tty: true, answers: ["a", "Podle rodinné bible", ""] });
+    assert.equal(link.code, 0, link.out + link.err);
+    const x2 = await conflict(w, "X2");
+    assert.deepEqual([x2.state, x2.taken, x2.decidedBy], ["resolved", "user", "user"]);
+    assert.deepEqual((await facts(w, "P1", "CHR")).map((e) => [e.date, e.status]), [["4 MAR 1885", "possible"]]);
   } finally {
-    fs.rmSync(lock, { force: true });
     await w.ok(["live", "stop"]);
     w.cleanup();
   }
 });
 
-test("an archive: the bridge decides its old conflicts too — take user and take research, written as in a research", bridged, async () => {
+test("an archive: the bridge decides its old conflicts no more either — 403 decide.link, nothing written", bridged, async () => {
   const { w, sent } = await world();
   await w.ok(["sync", sent, "--apply"]);
   await w.ok(["mode", "archive"], { tty: true });
   const info = (await w.ok(["live", "start", "--json"])).json;
   try {
-    const decide = (id: string, take: string) => post(`${info.url}/conflict/${id}`, JSON.stringify({ do: "decide", take }), app);
-    const u = await decide("X2", "user");
-    assert.equal(u.status, 200, u.body);
-    assert.deepEqual((await facts(w, "P1", "CHR")).map((e) => [e.date, e.status]), [["4 MAR 1885", "possible"]]);
-    const r = await decide("X6", "research");
-    assert.equal(r.status, 200, r.body);
-    assert.equal((await conflict(w, "X6")).state, "resolved");
-    assert.equal((await conflict(w, "X6")).taken, "research");
-    assert.match((await w.ok(["check"])).out, /^ok/);
+    for (const [x, take] of [["X2", "user"], ["X6", "research"]]) {
+      const r = await post(`${info.url}/conflict/${x}`, JSON.stringify({ do: "decide", take }), app);
+      assert.deepEqual([r.status, JSON.parse(r.body).code], [403, "decide.link"]);
+      assert.equal((await conflict(w, x!)).state, "open");
+    }
   } finally {
     await w.ok(["live", "stop"]);
     w.cleanup();

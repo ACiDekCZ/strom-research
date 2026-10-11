@@ -17,7 +17,7 @@ import { cropOf, halves, makeView, parseCrop, readInHalves, tiles, type ViewMeta
 import { IMAGE_MAX, IMAGE_MAX_LARGE } from "../agents/images.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
 import { currentSession } from "../core/session.ts";
-import { BATCH, BATCH_MAX, batches, parseReport, READER_MINUTES_HELP, readerPrompt, readerSettings, viewCount, type Finding, type ReaderImage } from "../core/reader.ts";
+import { BATCH, BATCH_MAX, batches, NEXT_BLOCK, parseReport, READER_MINUTES_HELP, readerPrompt, readerSettings, viewCount, withoutNextBlock, type Finding, type ReaderImage } from "../core/reader.ts";
 import { imageSize } from "../image/index.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { which, withoutAgentMarks } from "../core/which.ts";
@@ -285,7 +285,8 @@ register({
       const settingsFile = path.join(own, "reader-settings.json");
       fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(group.flatMap((g) => [g.view, ...(g.parts ?? []).map((p) => p.view)]), report, permissionPath), null, 2));
       const context = typeof opts.context === "string" && opts.context.trim() ? `Context: ${opts.context.trim().replace(/\s*\n\s*/g, " ")}\n` : "";
-      const head = `# Reading ${label} · batch ${k + 1} of ${groups.length}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}\n`;
+      // a blind reading says so in its head: its "unclear" over a place the researcher looked at before is a check
+      const head = `# Reading ${label} · batch ${k + 1} of ${groups.length}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}${opts.blind ? "Blind: yes\n" : ""}\n${NEXT_BLOCK}\n`;
       fs.writeFileSync(report, head);
       const prompt = readerPrompt({ question, images: group, report, lang: tree.lang, context: opts.context as string | undefined, blind: Boolean(opts.blind) });
       progress(`▶ reader ${k + 1}/${groups.length}: ${group.length} images (${runs(group.map((g) => g.image ?? 0))})${views > group.length ? ` · ${views} views` : ""} · at most ${minutes} min${limit.from === "learned" ? " (earlier readers of this agent and model needed more)" : ""}`);
@@ -312,7 +313,9 @@ register({
       // A reader that wrote its report whole, without strom's head (in the research language, found live): the head
       // back on top — strom readings finds a reading by it.
       let text = fs.readFileSync(report, "utf8");
-      if (!text.startsWith("# Reading")) fs.writeFileSync(report, (text = `${head}${text}`));
+      if (!text.startsWith("# Reading")) text = `${head}${text}`;
+      // the line each block was added at: not part of the report once its reader ended
+      fs.writeFileSync(report, (text = withoutNextBlock(text)));
       // A reader that answered but did not write: keep its answer as the report.
       if (r.outcome === "error" && !/^##\s/m.test(text) && refusedBySandbox(r.text)) {
         refused = true;

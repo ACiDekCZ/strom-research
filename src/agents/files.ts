@@ -73,6 +73,10 @@ the researcher; \`strom\` is your only way to read and change the research.
     either — check with \`strom net web --check <url>\`. Another way to the
     same records first; a task for the user (\`strom task wait T… --check
     <url> --on "…"\`) only if the source stays necessary.
+    What a task waits for (\`--on\`) is a sentence the user reads in strom's
+    menu: impersonal, what is needed and from whom, never addressed to them;
+    say its kind (\`--kind letter|family|web|other\`) and, when known,
+    \`--to\`, \`--request notes/<file>.md\`, \`--url\`.
 11. What strom or this tree denies you (a command, a site, a file) stays
     denied: never offer the user to change your permissions or settings,
     strom's or the tree's, to get round it — go another way, or say what was
@@ -102,7 +106,7 @@ says how it ends.)
     there, strom says how the user clears your context (Claude Code: /clear)
     — nothing is lost, strom keeps it all; suggest it in a sentence, go on
     here if they prefer. Working alone (strom run) each task starts fresh by
-    itself and nobody reads a closing message: no such advice there;
+    itself and its closing message gives no such advice;
   - what only they can do: when strom needs their consent it opens a window
     on their screen — tell them to answer it, you cannot; images a portal gives
     only by hand — strom says which ones and where to save them.
@@ -129,7 +133,9 @@ says how it ends.)
   would take — tell them, write it on their yes (\`--apply\`); a sync is
   undone with \`strom sync undo I…\`. Straight from the app: \`strom sync --app\`.
 - **What waits for them** (\`strom\` shows it): tell them plainly what to do
-  and where, one thing at a time.
+  and where, one thing at a time. A conversation that begins with a task that
+  waits for them (they picked it in the menu or the Strom app): \`strom guide
+  waiting\` says how to lead it.
 - **Results and the Strom app**: \`output/tree-strom.ged\` is the family tree
   for the Strom app (${appSite(app)}) — strom's companion: a free family
   tree app, no account, their data stay on their computer; it shows the tree,

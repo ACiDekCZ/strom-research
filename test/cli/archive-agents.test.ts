@@ -275,9 +275,18 @@ test("task wait --check: only after another way — the blocked way recorded in 
     await w.ok(["live", "stop"]);
   }
   await w.ok(["session", "close", "--continue", "--summary", "čeká na kontrolu", "--next", "kontrola"], agent);
-  // the person in What waits: the question, its link — 2 only to be viewed there, a note, not on with the agent now
-  const menu = await w.run([], { tty: true, answers: ["3", "1", "2", "Kniha je tam, snímky jen v prohlížeči.", "n", "0", "0"] });
-  assert.match(menu.out, / 1\. Křest Jana\n {4}Ověřit na odkazu: Je kniha narozených Týnec 1784–1820 vidět i se snímky\?\n {4}https:\/\/refusing\.example\.org\/book\/5359/);
+  // the person in What waits: the question, its link — 2 only to be viewed there, a note; the answer kept with the
+  // task, no conversation offered (the agent takes it up in its next work). What is there is picked by its number:
+  // Enter goes back with nothing written (a place of one check opens it at once — two Enters wrote "it works")
+  const enter = await w.run([], { tty: true, answers: ["3", "1", "", "", "0"] });
+  assert.match(enter.out, /Co tam je\?\n[^]*?\n {3}0 {2}Zpět\n[^\n]*\[0\]/u);
+  t = (await w.ok(["task", "show", "T0001", "--json"])).json.task;
+  assert.deepEqual([t.state, t.answers], ["waiting", undefined], enter.out);
+  const menu =await w.run([], { tty: true, answers: ["3", "1", "2", "Kniha je tam, snímky jen v prohlížeči.", "0", "0"] });
+  assert.match(menu.out, /✓ Odpověď se uloží k úkolu, agent ji zpracuje při další práci\./);
+  assert.doesNotMatch(menu.out, /Pokračovat s agentem hned\?/);
+  assert.match(menu.out, /\n 1 {2}refusing\.example\.org · 1 {3}Křest Jana\n/);
+  assert.match(menu.out, /\n Křest Jana\n\n Ověřit na odkazu: Je kniha narozených Týnec 1784–1820 vidět i se snímky\?\n {4}https:\/\/refusing\.example\.org\/book\/5359\n {4}Web nepouští automatické nástroje – vidí ho jen člověk\.\n/);
   assert.match(menu.out, /Co tam je\?\n {3}1 {2}Jde to – kniha i snímky jsou vidět\n {3}2 {2}Jen prohlížet\n {3}3 {2}Nejde to\n {3}0 {2}Zpět/);
   t = (await w.ok(["task", "show", "T0001", "--json"])).json.task;
   assert.equal(t.state, "open");
@@ -312,7 +321,8 @@ test("task wake --answer is the person's: an agent's without a window — exit 4
   await w.ok(["search", "add", "Kniha", "--method", "web", "--result", "inconclusive", "--task", "T0001", "--note", "closed.example.org refused automated access"]);
   await w.ok(["task", "wait", "T0001", "--check", "https://closed.example.org/book/1", "--on", "Je kniha vidět?"]);
   const id = Tree.open(w.cwd, w.env).config.id;
-  const link = await w.run(["link", "open", `strom-research://task?tree=${id}&task=T0001&do=check`], { tty: true, answers: ["3", "", "n", ""] });
+  const link = await w.run(["link", "open", `strom-research://task?tree=${id}&task=T0001&do=check`], { tty: true, answers: ["3", "", ""] });
+  assert.doesNotMatch(link.out, /Pokračovat s agentem hned\?/);
   assert.match(link.out, /Ověřit na odkazu: Je kniha vidět\?/);
   t = (await w.ok(["task", "show", "T0001", "--json"])).json.task;
   assert.deepEqual([t.state, t.answers.at(-1).check], ["open", "no"]);

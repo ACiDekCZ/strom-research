@@ -20,7 +20,7 @@ const LEVELS: Record<string, string[]> = {
   enrich: [...ALL, ...SCANS, ...ENTRY, "hypothesis add", "task wait"],
   locate: [...ALL, "place add", "place jurisdiction", "repo add", "recordset add", "fetch", "task edit", "task wait"],
   intake: [...ALL, "input sort", "input skip", "media view", ...ENTRY.filter((c) => c !== "event edit"), "person merge", "recordset add", "conflict add"],
-  request: [...ALL, "task wait"],
+  request: [...ALL, "task wait", "task sent"],
   narrate: ["task add", "note add", "story set"],
   // a task that links hypotheses to the tree (METHOD_LINKS): it reads the hypotheses and their people, and links
   links: ["hypothesis show", "hypothesis link", "hypothesis argue", "hypothesis variant", "person show", "family show", "task add", "note add", "search add"],
@@ -36,6 +36,8 @@ const RARE: Record<string, string[]> = {
   "source edit": ["translation", "media"],
   "recordset add": ["images"],
   grep: ["regex", "files"],
+  // what a waiting task waits for is said when it is set waiting (task wait); edit fills it for an older one
+  "task edit": ["on", "kind", "to", "request", "url"],
 };
 /** Where a source is cited — written once as +cite, the same in every command that takes all of it. */
 const CITE = ["cite", "locator", "quote", "information"];

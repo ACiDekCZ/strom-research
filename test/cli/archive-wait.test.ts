@@ -98,8 +98,8 @@ test("strom run: a session that met the question hands its task over as waiting 
     // the next run: never the same task again (nothing else to do: no session at all)
     const again = (await w.ok(["run", "--agent", "script", "--json"])).json;
     assert.ok(!again.sessions.some((s: { task: string }) => s.task === "T0001"));
-    // the menu's What waits: the question with its tasks, since when and the tries
-    const menu = await w.run([], { tty: true, answers: ["3", "0", "0", "0"] });
+    // the menu's What waits: the question at its archive's place; opened, its tasks, since when and the tries
+    const menu = await w.run([], { tty: true, answers: ["3", "1", "0", "0", "0"] });
     assert.match(menu.out, /Čekají na to úkoly: T0001\n {4}Čeká od [^\n]+ · pokusy o stažení: 1/);
     // the person decides in the menu: the task comes back
     const yes = await w.run([], { tty: true, answers: ["3", "1", "1", "0", "0"] });

@@ -13,6 +13,7 @@ import type { Context } from "../cli/context.ts";
 import { helpAs } from "../cli/help.ts";
 import { lines, table } from "../cli/format.ts";
 import { guideText } from "./guide.ts";
+import { assetPath, methodPage, readAsset } from "../core/assets.ts";
 import { langName } from "../core/lang.ts";
 import { placeholders, ui, type UIKey } from "../cli/ui.ts";
 import { VERSION } from "../core/tree.ts";
@@ -268,12 +269,25 @@ register(
     path: ["guide"],
     summary: "How to do research with strom — read this first (for agents)",
     group: "start",
-    run(ctx) {
+    description: "With a topic, one page of the method: waiting — a conversation that begins with a task that waits for the user.",
+    args: [{ name: "topic", description: "a page of the method: waiting, core, locate, link, verify, enrich, request, intake, narrate, reading, recording" }],
+    examples: ["strom guide", "strom guide waiting"],
+    run(ctx, { args }) {
       const lang = ctx.hasTree() ? ctx.tree().lang : ctx.settings.home() ? ctx.settings.lang().value : undefined;
       // an archive: what it holds and who switches research on — nothing of an agent's work (Milan's decision, 2026-10-03)
       if (ctx.hasTree() && isArchive(ctx.tree())) {
         const said = ui(ctx.tree().lang, "ui.guide.archive");
         return { text: said, data: { guide: said, lang, archive: true } };
+      }
+      const topic = args[0]?.trim();
+      if (topic) {
+        const page = /^[a-z]+$/u.test(topic) ? readAsset("method", `${topic}.md`) : undefined;
+        if (!page) {
+          const pages = fs.readdirSync(assetPath("method")).filter((f) => f.endsWith(".md")).map((f) => f.slice(0, -3)).sort();
+          throw new UsageError(`no page "${topic}" in the method`, { hint: `strom guide ${pages.includes("waiting") ? "waiting" : pages[0]} — pages: ${pages.join(", ")}` });
+        }
+        const text = methodPage(page, undefined).trim();
+        return { text, data: { guide: text, topic, lang } };
       }
       const text = guideText(lang, appUrlShown(ctx.settings).url, ctx.settings.webPerHost(ctx.hasTree() ? ctx.tree().config : undefined));
       return { text, data: { guide: text, lang } };

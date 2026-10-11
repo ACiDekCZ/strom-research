@@ -16,6 +16,7 @@ import {
   TASK_LEVELS,
   TASK_STATES,
   VARIANT_LINK_KINDS,
+  WAIT_KINDS,
   type RecordType,
 } from "./model.ts";
 import { normalizeDate } from "./gdate.ts";
@@ -125,7 +126,10 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     awaits: { t: "object", of: { recordset: R("recordset", true), images: S({ req: true, max: 200 }), folder: S({ req: true, max: 200 }) } },
     awaitsCheck: { t: "object", of: { url: S({ req: true, max: 2000 }), ask: S({ req: true }) } },
     awaitsPermission: { t: "object", of: { hosts: { t: "strings", req: true, min: 1 }, since: S({ req: true }), title: S({ max: 300 }) } },
+    wait: { t: "object", of: { kind: S({ enum: WAIT_KINDS }), to: S({ max: 300 }), note: S({ max: 500 }), url: S({ max: 2000 }) } },
+    sent: { t: "object", of: { at: S({ req: true }), by: S({ req: true }) } },
     answers: { t: "array", of: { by: S({ req: true, enum: ["person"] }), asked: S({ req: true }), url: S({ max: 2000 }), check: S({ enum: CHECK_ANSWERS }), answer: S({ max: 500 }), at: S({ req: true }), via: S({ enum: ["terminal", "window"] }) } },
+    files: { t: "array", of: { input: R(["input", "media"], true), by: S({ req: true, max: 100 }), asked: S({ req: true }), at: S({ req: true }) } },
     result: S({ max: 1000 }),
     produced: { t: "strings" },
     origin: S({ req: true }),
