@@ -114,8 +114,10 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
     }
   });
   const woken: string[] = [];
+  // a task that waits for images of a book is woken by that book alone, whatever other books it names
+  const wakes = (t: Task, b: string) => (t.awaits ? t.awaits.recordset === b : t.where.includes(b) || (t.waitingOn ?? "").includes(b));
   if (recordset && added.length)
-    for (const t of tree.list<Task>("task").filter((t) => t.state === "waiting" && (t.where.includes(recordset) || (t.waitingOn ?? "").includes(recordset)))) {
+    for (const t of tree.list<Task>("task").filter((t) => t.state === "waiting" && wakes(t, recordset))) {
       // what it asked for and what is still missing, for the session that takes it up
       const have = new Set(tree.list<Media>("media").filter((m) => m.recordset === recordset).map((m) => m.image)); // a part counts: it was asked for too
       const missing = t.awaits?.recordset === recordset ? (parseImageList(t.awaits.images) ?? []).filter((n) => !have.has(n)) : [];

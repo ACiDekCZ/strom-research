@@ -133,6 +133,8 @@ test("the gate: the beta and the development copy of the app at once; stromapp.i
   assert.equal(appDecidesConflicts(beta, "3.10.1"), true);
   assert.equal(appDecidesConflicts(prod, "3.10.1"), APP_DECIDES_CONFLICTS !== undefined && APP_DECIDES_CONFLICTS <= "3.10.1");
   assert.equal(appDecidesConflicts(prod), APP_DECIDES_CONFLICTS !== undefined, "an app of unknown version: today's, once released");
+  assert.equal(APP_DECIDES_CONFLICTS, "3.11.0", "stromapp.info decides from 3.11.0");
+  assert.deepEqual([appDecidesConflicts(prod, "3.11.0"), appDecidesConflicts(prod, "3.12.1"), appDecidesConflicts(prod, "3.10.9")], [true, true, false]);
   assert.ok(!(BRIDGE_FEATURES as readonly string[]).includes("conflict.decide"), "the app decides through the link");
   w.cleanup();
 });

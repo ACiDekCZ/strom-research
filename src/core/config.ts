@@ -60,6 +60,8 @@ export interface UserConfig {
   runMinutes?: number;
   /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost). */
   webPerHost?: number;
+  /** Readers of strom read at the same time (read.parallel). */
+  readParallel?: number;
   /** Order of the task queue: balanced (default), depth, priority. */
   queueStrategy?: string;
   /** Ask the user before a connector runs: off (default) or on. */
@@ -165,6 +167,9 @@ export interface Flags {
  */
 export const DEFAULT_BUDGET = 55_000;
 export const DEFAULT_RUN_MINUTES = 60;
+/** Readers of strom read at the same time: the default, and the most one research may set (each reader is an agent process). */
+export const DEFAULT_READ_PARALLEL = 5;
+export const READ_PARALLEL_MAX = 10;
 
 /** One setting: where it can live and how it is checked. */
 export interface SettingDef {
@@ -202,6 +207,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "model.effort", env: "", tree: true, kind: "model", description: "reasoning effort of the agent's model in the sessions strom starts (Codex, Claude Code, Antigravity, Grok): high recommended — old handwriting read with the best setting; a plan's limit runs out sooner. Unset: the agent's own settings (Codex: its config.toml); only you raise it" },
   { key: "brief.budget", env: "STROM_BRIEF_BUDGET", tree: true, kind: "number", description: `size of the brief in tokens (default ${DEFAULT_BUDGET})` },
   { key: "run.minutes", env: "STROM_RUN_MINUTES", tree: true, kind: "number", description: `time limit of one \`strom run\` session (default ${DEFAULT_RUN_MINUTES})` },
+  { key: "read.parallel", env: "", tree: true, kind: "number", description: `readers of \`strom read\` at the same time, 1 to ${READ_PARALLEL_MAX} (default ${DEFAULT_READ_PARALLEL}): --parallel of the command, else the tree's, else yours — the same readers and requests, only sooner; fewer when the agent's usage runs out too fast` },
   // Read from the config files only (the user's or the tree's) — no variable: more requests to one server is the
   // user's decision (as model.effort higher); lowering it is anyone's.
   { key: "web.perHost", env: "", tree: true, kind: "number", description: `web requests to one site (its mirrors with it) in one session through an agent's own web fetch (default ${WEB_PER_HOST}; past ${WEB_SOFT} they go slower and the agent builds a connector): past it a run refuses and a conversation asks you, and more pages of that site go through strom fetch with a connector — only you raise it` },
@@ -249,6 +255,7 @@ export const SETTINGS: SettingDef[] = [
 const FIELDS: Record<string, string> = {
   "brief.budget": "briefBudget",
   "run.minutes": "runMinutes",
+  "read.parallel": "readParallel",
   "web.perHost": "webPerHost",
   "gedcom.for": "gedcomFor",
   "strom.version": "stromVersion",
@@ -395,6 +402,7 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
     case "number": {
       const n = Number(v);
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
+      if (def.key === "read.parallel" && (!Number.isInteger(n) || n > READ_PARALLEL_MAX)) throw new UsageError(`${def.key} is a whole number from 1 to ${READ_PARALLEL_MAX}`, { hint: `readers at the same time — strom config set read.parallel ${DEFAULT_READ_PARALLEL}` });
       return def.key === "brief.budget" || def.key === "web.perHost" ? Math.max(1, Math.round(n)) : n;
     }
   }
@@ -553,9 +561,15 @@ export class Settings {
     return r && EFFORTS[agent]!.includes(String(r.value)) ? { value: String(r.value), source: r.source } : undefined;
   }
 
-  number(key: "brief.budget" | "run.minutes" | "excerpts.mb" | "web.perHost", tree: TreeConfig | undefined, fallback: number): number {
+  number(key: "brief.budget" | "run.minutes" | "excerpts.mb" | "web.perHost" | "read.parallel", tree: TreeConfig | undefined, fallback: number): number {
     const r = this.resolve(key, tree);
     return r ? Number(r.value) : fallback;
+  }
+
+  /** Readers of strom read at the same time (read.parallel: tree > user, else DEFAULT_READ_PARALLEL); a stored value out of range is brought into it. */
+  readParallel(tree?: TreeConfig): number {
+    const n = Math.round(this.number("read.parallel", tree, DEFAULT_READ_PARALLEL));
+    return Number.isFinite(n) ? Math.min(READ_PARALLEL_MAX, Math.max(1, n)) : DEFAULT_READ_PARALLEL;
   }
 
   /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost: tree > user). */

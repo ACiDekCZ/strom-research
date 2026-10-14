@@ -114,7 +114,7 @@ test("a conflict of the user's edit as the Strom app shows it: both values in th
   await w.ok(["sync", file, "--apply"]);
   await w.ok(["export", "gedcom"]);
   const out = fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8");
-  assert.match(out, /1 _STROM_CONFLICT X0001\n2 TYPE BIRT\n2 TITL Jan Novák: Narození — 14\. 1\. 1931, Dolní Lhota, čp\. 12 × 15\. 1\. 1931, Dolní Lhota, čp\. 12\n2 STAT open\n2 VAL 14\. 1\. 1931, Dolní Lhota, čp\. 12\n3 SOUR @S0001@\n2 VAL 15\. 1\. 1931, Dolní Lhota, čp\. 12\n/);
+  assert.match(out, /1 _STROM_CONFLICT X0001\n2 TYPE BIRT\n2 TITL Jan Novák: Narození — 14\. 1\. 1931, Dolní Lhota, čp\. 12 × 15\. 1\. 1931, Dolní Lhota, čp\. 12\n2 STAT open\n2 _STROM_TAKE Y\n2 VAL 14\. 1\. 1931, Dolní Lhota, čp\. 12\n3 SOUR @S0001@\n3 _STROM_SIDE research\n2 VAL 15\. 1\. 1931, Dolní Lhota, čp\. 12\n3 _STROM_SIDE user\n/);
   assert.doesNotMatch(out, /JAN 1931,|house 12/);
   const show = (await w.ok(["conflict", "show", "X1"])).out;
   assert.match(show, /tvrzení {2}S0001: 14\. 1\. 1931, Dolní Lhota, čp\. 12\ntvrzení {2}S0002: 15\. 1\. 1931, Dolní Lhota, čp\. 12/);

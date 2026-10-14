@@ -192,6 +192,9 @@ test("the gate: the beta and the development copy of the app at once; stromapp.i
   assert.equal(appShowsHypothesisLinks(prod, "3.8.2"), false, "an older app: nothing");
   assert.equal(appShowsHypothesisLinks(prod), APP_SHOWS_HYPOTHESIS_LINKS !== undefined, "an app of unknown version: today's, once released");
   assert.equal(appShowsHypothesisLinks(prod, "99.0.0"), APP_SHOWS_HYPOTHESIS_LINKS !== undefined, "none before it is released");
+  assert.equal(APP_SHOWS_HYPOTHESIS_LINKS, "3.11.0", "stromapp.info shows them from 3.11.0");
+  assert.equal(appShowsHypothesisLinks(prod, "3.11.0"), true);
+  assert.equal(appShowsHypothesisLinks(prod, "3.10.9"), false);
   // through strom export: the beta's file has it, production's not before the release
   const out = path.join(w.dir, "beta.ged");
   await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", out], { env: { STROM_APP_URL: "https://beta.stromapp.info/run/" } });

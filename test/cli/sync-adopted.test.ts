@@ -173,7 +173,7 @@ test("a sync taken back: the people it brought are withdrawn, and what a person 
   assert.equal((await w.ok(["--json"])).json.tree.persons, 0);
   assert.equal((await w.ok(["trees", "--json"])).json.trees[0].persons, 0);
   // the list of the trees in the person's language too
-  assert.match((await w.ok(["trees"])).out, /^Dvořákovi\s+cs\s+osob: 0\s+směrů výzkumu: 0\s/m);
+  assert.match((await w.ok(["trees"])).out, /^Dvořákovi\s+cs\s+osob: 0\s+linií výzkumu: 0\s/m);
   const none = await w.run(["trees", "use", "Neexistuje X"]);
   assert.equal(none.err, "chyba: žádný rodokmen „Neexistuje X“ tu není\n→ rodokmeny, které tu jsou: strom trees\n");
   assert.deepEqual((await w.run(["trees", "use", "Neexistuje X", "--json"])).json, { status: "error", message: 'no tree "Neexistuje X"', hint: "strom trees", code: "tree.unknown", params: { name: "Neexistuje X" } });

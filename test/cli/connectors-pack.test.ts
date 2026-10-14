@@ -182,7 +182,7 @@ done();
   assert.match((await w.ok(["media", "list"])).out, /M0001\s+B0001:1\s+800×600/);
   // another book of the portal gives the same scans: not registered as its images, and said so
   await w.ok(["recordset", "add", "Jiná kniha", "--kinds", "burial"]); // B0002
-  const clash = await w.ok(["fetch", "zkusebni", "tiles", "--images", "1", "--recordset", "B2"]);
+  const clash = await w.ok(["fetch", "zkusebni", "tiles", "--images", "1", "--recordset", "B2", "--again", "the portal names it another book"]);
   assert.match(clash.out, /1 already registered\n⚠ B0002:1 is the same file as M0001 \(B0001:1\) — not registered again: the portal may have given another book's image/);
   assert.equal((await w.ok(["media", "list", "--json"])).json.total, 2);
   // a tile left out: a gap, not an image

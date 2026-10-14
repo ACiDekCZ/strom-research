@@ -78,7 +78,7 @@ test("an archive says nothing of an agent or AI anywhere a person or the app loo
   // status in the research's language too (found on Windows)
   const status = said.find(([label]) => label === "strom status")![1];
   assert.match(status, /^Osoby: 2 · rodiny: 1$/m, status);
-  assert.doesNotMatch(status, /persons|recent|check {2}|směry/, status);
+  assert.doesNotMatch(status, /persons|recent|check {2}|linie výzkumu/, status);
   // sync with no file: in the research's language
   const which = await w.run(["sync"]);
   assert.match(which.err, /^chyba: který rodokmen\? soubor, nebo --app/m, which.err);

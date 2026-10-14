@@ -33,6 +33,7 @@ import { formatName } from "../core/people.ts";
 import { yearsOption, yearsOverlap } from "../core/years.ts";
 import type { Tree } from "../core/tree.ts";
 import { levelWords } from "../core/archiveasks.ts";
+import { bookUrlKey, sameBooks, sameBookText } from "../core/samebook.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -136,6 +137,25 @@ function editFields<T extends Source | Repository | RecordSet | Place>(
 /** The options of an add command, for its edit: all optional, no defaults. */
 function editOptions(options: CommandDef["options"], extra: NonNullable<CommandDef["options"]> = []): NonNullable<CommandDef["options"]> {
   return [...extra, ...(options ?? []).map((o) => ({ ...o, description: o.description.replace(/\s*\(default[^)]*\)/, "") }))];
+}
+
+/**
+ * A book registered twice is fetched twice (every image asked of the archive again): a link another book of the
+ * research has is refused, pointing to that book — unless --again says why this is another book (then kept on it).
+ */
+function sameLink(tree: Tree, url: string | undefined, again: string | undefined, said: string[], self?: string): RecordSet["duplicates"] {
+  const same = url ? sameBooks(tree, { url }, self).filter((x) => x.by === "url") : [];
+  if (!same.length) {
+    if (again) said.push("--again: no other book of the research has this link — nothing to explain");
+    return undefined;
+  }
+  const first = same[0]!.book.id;
+  if (!again)
+    throw new UsageError(`this link is the book ${same.map(sameBookText).join(", ")} of the research already — the same book is never registered twice`, {
+      hint: `read it: strom read ${first} --images <from-to> · its images not here yet: strom fetch <connector> <book> --images <from-to> --recordset ${first} · another book at the same link (another film): --again "<why>"`,
+    });
+  said.push(`registered beside ${same.map((x) => x.book.id).join(", ")} (the same link): ${again}`);
+  return { of: same.map((x) => x.book.id), reason: again };
 }
 
 function readText(ctx: Context) {
@@ -409,12 +429,14 @@ register(
       { name: "images", type: "string", value: "<n>", description: "number of images" },
       { name: "layout", type: "string", value: "<text>", description: "how pages are laid out (columns, two years per page, …)" },
       { name: "note", type: "string", value: "<text>", description: "short note" },
+      { name: "again", type: "string", value: "<reason>", description: "register it although a book of the research has the same link: why it is another book (another film, another copy)" },
     ],
     examples: ['strom recordset add "Týnec nad Labem 17, N 1861-1869" --repo R0001 --kinds baptism --places "Týnec nad Labem,Bělušice" --years 1861-1869 --access online-free --url https://…'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
       const said: string[] = [];
+      const duplicates = sameLink(tree, str(opts.url), str(opts.again), said);
       const years = yearsOption(str(opts.years), said, "1784-1820");
       const images = opts.images === undefined ? undefined : Number(opts.images);
       if (images !== undefined && (!Number.isInteger(images) || images < 1)) throw new UsageError("--images must be a positive number");
@@ -434,6 +456,7 @@ register(
           calibration: [],
           layout: str(opts.layout),
           note: str(opts.note),
+          duplicates,
         },
         (id) => `+${id} record set "${truncate(args[0]!, 60)}"`,
       );
@@ -828,6 +851,11 @@ register(
       const years = yearsOption(str(opts.years), said, "1784-1820");
       const images = opts.images === undefined ? undefined : Number(opts.images);
       if (images !== undefined && (!Number.isInteger(images) || images < 1)) throw new UsageError("--images must be a positive number");
+      const cur = requireRecord<RecordSet>(tree, args[0]!, "recordset");
+      // a link changed is checked; --again alone explains the link the book has
+      const url = str(opts.url);
+      const changed = url !== undefined && bookUrlKey(url) !== bookUrlKey(cur.url ?? "");
+      const duplicates = sameLink(tree, changed ? url : str(opts.again) ? cur.url : undefined, str(opts.again), said, cur.id);
       const b = editFields<RecordSet>(
         tree,
         args[0]!,
@@ -846,6 +874,7 @@ register(
         },
         {},
         opts,
+        (cur) => (duplicates ? { duplicates: { of: [...new Set([...(cur.duplicates?.of ?? []), ...duplicates.of])], reason: duplicates.reason } } : {}),
       );
       return { text: lines(written(tree), ...said), data: { recordset: b } };
     },

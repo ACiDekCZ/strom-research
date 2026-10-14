@@ -254,7 +254,7 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
   // the same research twice: said, nothing made
   await w.ok(["research", "new", "Předci Jana", "--new-person", "Jan /Novák/", "--sex", "M"]);
   const twice = await w.ok([], { tty: true, answers: ["4", "2", "1", "1", "Jan", "0", "0"] });
-  assert.match(twice.out, /Takový výzkum už je: „Předci Jana“/);
+  assert.match(twice.out, /Taková linie výzkumu už je: „Předci Jana“/);
   assert.equal((await w.ok(["research", "list", "--json"])).json.researches.length, 1);
   // claude-usage takes a number of points; a tree with a time of its own gets the change
   await w.ok(["config", "set", "run.minutes", "45", "--for-tree"]);

@@ -108,7 +108,7 @@ test("what the research knows of a person, for an app that shows it: its conflic
   assert.match(ged, /^1 _STROM_ASOF \d{4}-\d{2}-\d{2}$/m);
   assert.match(ged, /1 _STROM_CONFLICT X0001\n2 TYPE BIRT\n2 TITL Rok narození Jana\n2 STAT open\n2 VAL 12 MAR 1865\n3 SOUR @S0001@\n2 VAL 1866\n3 SOUR @S0002@\n/);
   // the hypothesis by its ID, which an app that shows where the tree ends names it by (_STROM_EDGE)
-  assert.match(ged, /1 _STROM_HYPO H0001\n2 TITL Otec: Václav, nebo Josef\?\n2 NOTE A: Václav Novák, mlynář\n3 CONT B: Josef Novák, sedlák\n/);
+  assert.match(ged, /1 _STROM_HYPO H0001\n2 TITL Otec: Václav, nebo Josef\?\n2 STAT open\n2 NOTE A: Václav Novák, mlynář\n3 CONT B: Josef Novák, sedlák\n/);
   assert.match(ged, /1 _STROM_SEARCHED\n2 TITL Sňatek Jana\n2 DATE FROM 1885 TO 1895\n2 RESN none\n2 _AT \d{4}-\d{2}-\d{2}\n/);
   assert.deepEqual(validateGedcom(ged).filter((f) => f.level === "error"), []);
   // decided: which, and a conflict of no known fact named by its title

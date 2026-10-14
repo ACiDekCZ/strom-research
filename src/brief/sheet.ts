@@ -30,11 +30,12 @@ const RARE: Record<string, string[]> = {
   "search add": ["by"],
   "task add": ["research", "anyway"],
   "media view": ["scale", "max", "grey", "png", "image"],
-  read: ["context", "batch", "parallel", "model", "minutes", "max"],
-  fetch: ["take", "result"],
+  read: ["context", "batch", "model", "minutes", "max"],
+  // a book the research has already: the refusal says --again where it applies
+  fetch: ["take", "result", "again"],
   "source add": ["translation", "media"],
   "source edit": ["translation", "media"],
-  "recordset add": ["images"],
+  "recordset add": ["images", "again"],
   grep: ["regex", "files"],
   // what a waiting task waits for is said when it is set waiting (task wait); edit fills it for an older one
   "task edit": ["on", "kind", "to", "request", "url"],

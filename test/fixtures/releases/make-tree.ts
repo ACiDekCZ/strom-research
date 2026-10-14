@@ -70,7 +70,9 @@ strom("story", "set", "P1", "--text", "Jan Novák byl pokřtěn roku 1905 v Týn
 strom("export", "gedcom");
 strom("check");
 
-// Packed without the machine's extras (macOS resource forks), the paths relative to the folder.
+// Packed without the machine's extras (macOS resource forks) and without strom's commands for this computer
+// (.strom/bin: its Node and its code by their paths here), the paths relative to the folder.
+fs.rmSync(path.join(cwd, ".strom", "bin"), { recursive: true, force: true });
 const out = path.join(import.meta.dirname, `${version}.tar.gz`);
 const tar = spawnSync("tar", ["-czf", out, "home", "config"], { cwd: dir, env: { ...process.env, COPYFILE_DISABLE: "1" } });
 if (tar.status !== 0) throw new Error(`tar: ${tar.stderr}`);

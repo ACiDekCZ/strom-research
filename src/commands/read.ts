@@ -9,6 +9,7 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, runs } from "../cli/format.ts";
 import { StromError, UsageError } from "../core/errors.ts";
+import { DEFAULT_READ_PARALLEL, READ_PARALLEL_MAX } from "../core/config.ts";
 import type { Media, RecordSet, Task } from "../core/model.ts";
 import { normId, requireRecord } from "../core/records.ts";
 import { pageOf } from "../core/calibration.ts";
@@ -104,7 +105,7 @@ register({
     { name: "contrast", type: "boolean", description: "more contrast (faded ink)" },
     { name: "max", type: "string", value: "<px>", description: `size of the views (default: what the readers' model takes, ${IMAGE_MAX} or ${IMAGE_MAX_LARGE}); smaller = cheaper browsing` },
     { name: "batch", type: "string", value: "<n>", description: `views per reader — a double page in halves is two (default ${BATCH}, fewer where strom tuned the reading of this agent and model: strom config get reading.batch; at most ${BATCH_MAX})` },
-    { name: "parallel", type: "string", value: "<n>", description: "readers at the same time (default 3)" },
+    { name: "parallel", type: "string", value: "<n>", description: `readers at the same time, 1 to ${READ_PARALLEL_MAX} (default ${DEFAULT_READ_PARALLEL}, or the setting read.parallel: strom config set read.parallel <n>)` },
     { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision — never weaker for handwriting)" },
     { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP, mistaken: ["timeout", "time", "time-limit", "max-minutes"] },
     { name: "no-index", type: "boolean", description: `browse the images although an index of the book's parish and years is known (read already, or of no use here) — from ${INDEX_FIRST_DEFAULT} images on (the person's answer: strom media calibrate --questions) strom names the index first, and a session of strom run needs this to go on` },
@@ -187,7 +188,9 @@ register({
     // a reader's batch: smaller where the readers of this agent and model lost their context (core/tune.ts, A2)
     const size = opts.batch === undefined ? readingOf(ctx.settings.config, sizes.key, { since, on: tuningOn(ctx.settings), root: tree.root }).readerBatch : Number(opts.batch);
     if (!Number.isInteger(size) || size < 1) throw new UsageError("--batch must be a positive number");
-    const parallel = opts.parallel === undefined ? 3 : Math.max(1, Number(opts.parallel) || 1);
+    // readers at the same time: --parallel, else read.parallel (the tree's, else the user's), else DEFAULT_READ_PARALLEL
+    const parallel = opts.parallel === undefined ? ctx.settings.readParallel(tree.config) : Number(opts.parallel);
+    if (!Number.isInteger(parallel) || parallel < 1 || parallel > READ_PARALLEL_MAX) throw new UsageError(`--parallel is a whole number from 1 to ${READ_PARALLEL_MAX}`, { hint: `readers at the same time (default ${DEFAULT_READ_PARALLEL}; strom config set read.parallel <n> keeps another)` });
     // a reader's time limit: by hand, else by what it is given and what the readers before it needed (readerLimit)
     const minutesSaid = opts.minutes === undefined ? undefined : Number(opts.minutes);
     if (minutesSaid !== undefined && !(minutesSaid > 0)) throw new UsageError(`invalid --minutes "${String(opts.minutes)}"`, { hint: "the minutes one reader may take, e.g. 10" });

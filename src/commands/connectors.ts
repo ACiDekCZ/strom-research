@@ -20,7 +20,8 @@ import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import { deadlineOf, REMIND_MS } from "../core/clock.ts";
 import { isAgent } from "../core/which.ts";
 import { RECORD_TYPES, type Media, type RecordSet, type Region, type Repository, type Search, type Source, type Task } from "../core/model.ts";
-import { requireRecord } from "../core/records.ts";
+import { requireRecord, update } from "../core/records.ts";
+import { sameBooks, sameBookText } from "../core/samebook.ts";
 import { guardIndexFirst } from "../core/indexfirst.ts";
 import { readable } from "../core/text.ts";
 import { findImage, isWhole, partHere, regionText, SHARPER, type PartHere } from "../core/media.ts";
@@ -599,18 +600,37 @@ function netWords(ctx: Context, c: Connector, levels: ArchiveLevel[]): { robotsP
 const BOOKS_IN_FULL = 3;
 const BOOKS_SHOWN = 30;
 
-function bookLines(r: RunReport, c: Connector, listOne: string): string[] {
+function bookLines(r: RunReport, c: Connector, listOne: string, tree?: Tree): string[] {
   // a connector that fetches nothing (the terms forbid it, or it only finds): the images come by hand
   const fetches = !byHandOnly(c) && c.manifest.can.some((x) => x === "fetch" || x === "locate");
+  // a book the research has already (its link, or images fetched from it): read there, never registered again
+  const known = (b: FoundBook) => (tree ? sameBooks(tree, { ...(b.url ? { url: b.url } : {}), connector: c.name, ...(b.id !== undefined ? { book: String(b.id) } : {}) }) : []);
   const line = (b: FoundBook) => `${b.title}${b.callNumber ? ` (${b.callNumber})` : ""}${b.years ? ` · ${b.years}` : ""}${b.kinds?.length ? ` · ${b.kinds.join(",")}` : ""}${b.images ? ` · ${b.images} images` : ""}`;
+  const here = (b: FoundBook) => {
+    const same = known(b);
+    return same.length ? ` · already in the research as ${same.map(sameBookText).join(", ")}` : "";
+  };
   if (r.books.length > BOOKS_IN_FULL)
     return [
-      ...r.books.slice(0, BOOKS_SHOWN).map((b) => `  ${b.id ? `${b.id}  ` : ""}${line(b)}`),
+      ...r.books.slice(0, BOOKS_SHOWN).map((b) => `  ${b.id ? `${b.id}  ` : ""}${line(b)}${here(b)}`),
       r.books.length > BOOKS_SHOWN ? `  … ${r.books.length - BOOKS_SHOWN} more — narrow it with --years, or read them all with --json` : undefined,
       `  one of them, with the command to register it: ${listOne}`,
     ].filter((l): l is string => l !== undefined);
-  return r.books.map((b) =>
-    [
+  return r.books.map((b) => {
+    const same = known(b);
+    if (same.length) {
+      const first = same[0]!;
+      return [
+        `  ${line(b)}`,
+        b.url ? `    ${b.url}` : undefined,
+        `    already in the research as ${same.map(sameBookText).join(", ")} — never registered again`,
+        `    read it: strom read ${first.book.id} --images <from-to>`,
+        fetches && b.id ? `    its images not here yet: strom fetch ${c.name} ${shellArg(b.id)} --images <from-to> --recordset ${first.book.id}` : undefined,
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+    return [
       `  ${line(b)}`,
       b.url ? `    ${b.url}` : undefined,
       `    strom recordset add ${shellArg(b.title)}${b.callNumber ? ` --call-number ${shellArg(b.callNumber)}` : ""}${b.kinds?.length ? ` --kinds ${b.kinds.join(",")}` : ""}${b.places?.length ? ` --places ${shellArg(b.places.join(","))}` : ""}${b.years ? ` --years ${b.years}` : ""}${b.url ? ` --url ${shellArg(b.url)}` : ""} --access online-free`,
@@ -621,8 +641,8 @@ function bookLines(r: RunReport, c: Connector, listOne: string): string[] {
           : undefined,
     ]
       .filter(Boolean)
-      .join("\n"),
-  );
+      .join("\n");
+  });
 }
 
 function parseImages(v: unknown, max = 1000): number[] | undefined {
@@ -1359,6 +1379,7 @@ register(
       { name: "list", type: "boolean", description: "describe the book (title, images)" },
       { name: "take", type: "boolean", description: "through the browser: take over what it downloaded (checked, registered)" },
       { name: "result", type: "string", value: "<line>", description: "with --take: the line the browser script returned (strom-result …)" },
+      { name: "again", type: "string", value: "<reason>", description: "fetch although a book of the research is this book (the same link, or its images came from it): why — into --recordset, another book (kept on it); without it, into the inbox" },
       { name: "no-index", type: "boolean", description: "fetch the images although an index of the book's parish and years is known (read already, or of no use here) — a session of strom run needs it from as many images on as strom read --no-index says" },
     ],
     examples: [
@@ -1393,6 +1414,7 @@ register(
             ? partRequest(tree, c, args[1], opts)
             : { cmd: "fetch", book: need(args[1], "the book"), images: parseImages(opts.images, perHour) ?? needImages() };
       const recordset = opts.recordset ? requireRecord<RecordSet>(tree, String(opts.recordset), "recordset").id : undefined;
+      if (request.cmd === "fetch") sameBookFirst(ctx, c, request, recordset, typeof opts.again === "string" ? opts.again.trim() || undefined : undefined);
       return fetchWith(ctx, c, request, recordset, Boolean(opts["no-index"]));
     },
   },
@@ -1986,6 +2008,41 @@ function fromStore(ctx: Context, c: Connector, request: Extract<ConnectorRequest
   };
 }
 
+/**
+ * A book the research has under another ID is never fetched again (B0389 = B0169: every image asked of the archive
+ * twice, found by its hash only after): before any request, the book of the same link, or whose images came from this
+ * book of the connector, is named — fetch into it, read it. --again with a reason fetches into --recordset all the
+ * same and keeps why on it (the same book never asked again).
+ */
+function sameBookFirst(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" }>, recordset: string | undefined, again: string | undefined): void {
+  const tree = ctx.tree();
+  const target = recordset ? tree.get<RecordSet>(recordset) : undefined;
+  // the book registered first is fetched into as before: only one registered before the target makes it a copy
+  const before = (b: RecordSet) => !target || b.created.localeCompare(target.created) < 0 || (b.created === target.created && b.id < target.id);
+  const same = sameBooks(tree, { ...(target?.url ? { url: target.url } : {}), connector: c.name, book: String(request.book) }, recordset).filter((x) => before(x.book));
+  if (!same.length) return;
+  const first = same[0]!.book.id;
+  const imgs = imagesArg(request.images);
+  if (!recordset) {
+    if (again) return;
+    throw new UsageError(`book ${request.book} of ${c.name} is ${same.map(sameBookText).join(", ")} in the research — nothing fetched`, {
+      hint: `its images: strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imgs} --recordset ${first} (only those not here are asked for) · read it: strom read ${first} --images ${imgs} · into the inbox all the same: --again "<why>"`,
+    });
+  }
+  if (!again)
+    throw new UsageError(`${recordset} is the same book as ${same.map(sameBookText).join(", ")} (${same[0]!.by === "url" ? "the same link" : `its images came from book ${request.book} of ${c.name}`}) — nothing fetched`, {
+      hint: `fetch into it: strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imgs} --recordset ${first} (only the images not here are asked for) · read it: strom read ${first} --images ${imgs} · ${recordset} is another book (another film): --again "<why>"`,
+    });
+  if (tree.dryRun) return;
+  update<RecordSet>(
+    tree,
+    recordset,
+    "recordset",
+    (cur) => ({ ...cur, duplicates: { of: [...new Set([...(cur.duplicates?.of ?? []), ...same.map((x) => x.book.id)])], reason: again } }),
+    { op: "recordset.edit", summary: `${recordset} duplicates (beside ${same.map((x) => x.book.id).join(", ")})`, reason: again },
+  );
+}
+
 /** strom fetch, once the request is known: checked against the archive's terms, then through strom or the user's browser. */
 async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, recordset: string | undefined, noIndex = false, again = false): Promise<Result> {
   const tree = ctx.tree();
@@ -2070,7 +2127,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     fs.rmSync(workDir, { recursive: true, force: true });
     const wait = later(r, "the same command");
     return {
-      text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`)].join("\n") : advice ?? (r.stopped ? "no books — the run stopped before any came" : "no books found"), r.books.length ? advice : undefined, wait.line, near),
+      text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`, tree)].join("\n") : advice ?? (r.stopped ? "no books — the run stopped before any came" : "no books found"), r.books.length ? advice : undefined, wait.line, near),
       data: r,
       ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.books.length ? { exitCode: 1 } : {}),
     };

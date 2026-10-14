@@ -381,11 +381,11 @@ export function appShowsFactStatus(settings: Settings, version?: string): boolea
  * The Strom app shows what each variant of an open hypothesis would connect (the app's spec
  * docs/ZADANI_VYZKUM_nejista-spojeni.md, phase 1): 2 _VAR under each 1 _STROM_HYPO with its claim (3 TITL), its links
  * (3 _LINK child|same|partners|siblings with 4 _PERS, _FAM, _PAR) and sources (3 SOUR), and where the tree ends the
- * parents a variant names but nobody linked (2 _END named). Not released yet; another copy of the app (its beta, its
- * development: strom.app.url) is taken as current, so it can be built. An app of unknown version: today's, once
- * released (an older one only skips the tags).
+ * parents a variant names but nobody linked (2 _END named). From 3.11.0 (2026-10-11); another copy of the app (its
+ * beta, its development: strom.app.url) is taken as current. An app of unknown version: today's (an older one only
+ * skips the tags).
  */
-export const APP_SHOWS_HYPOTHESIS_LINKS: string | undefined = undefined;
+export const APP_SHOWS_HYPOTHESIS_LINKS: string | undefined = "3.11.0";
 
 export function appShowsHypothesisLinks(settings: Settings, version?: string): boolean {
   if (anotherCopy(settings)) return true;
@@ -402,10 +402,10 @@ export function appShowsHypothesisLinks(settings: Settings, version?: string): b
  * phase 1; the side picked in the app, decided in the terminal through the link conflict&do=decide&take=, never through
  * the bridge): 2 _STROM_TAKE Y under each open one it may (a fact's value, a name, a title, a sex — never a child's
  * parents), 3 _STROM_SIDE user|research under each of its values (2 VAL, empty when the side's value is), a sex also
- * as 3 _STROM_RAW M|F|U. Not released yet; another copy of the app (its beta, its development: strom.app.url) is taken
- * as current, so it can be built. An app of unknown version: today's, once released (3.10.1 only skips the tags).
+ * as 3 _STROM_RAW M|F|U. From 3.11.0 (2026-10-11); another copy of the app (its beta, its development: strom.app.url)
+ * is taken as current. An app of unknown version: today's (3.10.1 only skips the tags).
  */
-export const APP_DECIDES_CONFLICTS: string | undefined = undefined;
+export const APP_DECIDES_CONFLICTS: string | undefined = "3.11.0";
 
 export function appDecidesConflicts(settings: Settings, version?: string): boolean {
   if (anotherCopy(settings)) return true;

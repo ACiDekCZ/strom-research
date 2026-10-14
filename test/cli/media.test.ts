@@ -291,6 +291,28 @@ test("images the user saves by hand: the folder is made and shown with the link,
   w.cleanup();
 });
 
+test("a task waiting for images of one book is not woken by images of another book it names", opts, async () => {
+  const { w, scans } = await world();
+  await w.ok(["research", "new", "X", "--new-person", "Jan /Novák/"]);
+  await w.ok(["recordset", "add", "Žďár N 1784–1820", "--url", "https://archive.example.org/book/5359"]); // B2
+  await w.ok(["task", "add", "Křest", "--level", "link", "--where", "B1", "--why", "a", "--done-when", "b"]); // T1
+  await w.ok(["task", "wait", "T1", "--images", "B2:9-10", "--on", "snímky 9–10 knihy Žďár"]);
+  assert.ok((await w.ok(["task", "show", "T1", "--json"])).json.task.where.includes("B0001"));
+  const other = await w.ok(["media", "add", scans, "--recordset", "B1"]);
+  assert.doesNotMatch(other.out, /back in the queue/);
+  const still = (await w.ok(["task", "show", "T1", "--json"])).json.task;
+  assert.equal(still.state, "waiting");
+  assert.deepEqual(still.awaits?.recordset, "B0002");
+  assert.equal(still.notes.length, 0);
+  // its own book wakes it
+  const img = path.join(w.home, "own");
+  fs.mkdirSync(img);
+  fs.copyFileSync(path.join(fixtures, "grey.jpg"), path.join(img, "9.jpg"));
+  assert.match((await w.ok(["media", "add", path.join(img, "9.jpg"), "--recordset", "B2", "--image", "9"])).out, /back in the queue \(they waited for these images\): T0001/);
+  assert.equal((await w.ok(["task", "show", "T1", "--json"])).json.task.state, "open");
+  w.cleanup();
+});
+
 test("calibration: the page of an image, the image of a page", opts, async () => {
   const { w, scans } = await world();
   await w.ok(["media", "add", scans, "--recordset", "B1"]);
