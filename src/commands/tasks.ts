@@ -29,7 +29,7 @@ import { storiesToApprove } from "../core/stories.ts";
 import { permissionsWaiting, permissionWaitingLines } from "../core/archiveasks.ts";
 import { receivedPending } from "../core/sync.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
-import { isArchive } from "../core/mode.ts";
+import { actsAsArchive } from "../core/state.ts";
 import { othersAtWork } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
 import { currentSession } from "../core/session.ts";
@@ -99,7 +99,7 @@ function defaultResearch(tree: Tree, ref: unknown, subject: string[] = []): stri
 export function waitingForUser(tree: Tree): { id: string; what: string; on: string }[] {
   return tree
     .list<Task>("task")
-    .filter((t) => t.state === "waiting" && !isArchive(tree))
+    .filter((t) => t.state === "waiting" && !actsAsArchive(tree))
     .map((t) => ({ id: t.id, what: t.what, on: t.waitingOn ?? "" }));
 }
 
@@ -108,7 +108,7 @@ export function waitingForUser(tree: Tree): { id: string; what: string; on: stri
  * the book's link and the folder they go into: facts, while the request itself is in their language.
  */
 export function waitingLines(tree: Tree, where: { shared?: string; display?: (p: string) => string } = {}, max = 5): string | undefined {
-  const w = isArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting");
+  const w = actsAsArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting");
   // the new versions of stories the user approved: they decide (the lock)
   const stories = storiesToApprove(tree).map((s) => s.id);
   const storyLine = stories.length ? `  ${ui(tree.lang, "ui.wait.stories", { ids: stories.join(" ") })}` : undefined;

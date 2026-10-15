@@ -326,7 +326,11 @@ test("an archive: switched by the person, its tasks put aside and back; no agent
   assert.ok(open().some((t) => t.heldBy === "archive"));
   assert.match((await w.ok(["mode"])).out, /Tento výzkum je archiv/);
   // no agent works on it
-  for (const cmd of [["chat", "--print"], ["session", "start"], ["run"]]) assert.match((await w.run(cmd)).err, /this research is an archive/);
+  for (const cmd of [["chat", "--print"], ["session", "start"], ["run"]]) {
+    const r = await w.run(cmd);
+    assert.match(r.err, /Tento výzkum je archiv: data přicházejí z aplikace Strom a nic se nezkoumá/);
+    assert.equal(r.code, 2);
+  }
   // a new task waits put aside
   await w.ok(["intake", "--text", "Babička Anna pekla"]);
   assert.ok(open().every((t) => t.state !== "open"));

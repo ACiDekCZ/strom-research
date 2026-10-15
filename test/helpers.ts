@@ -44,12 +44,18 @@ export class World {
     this.dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom test ěš "));
     const home = path.join(this.dir, "user home");
     fs.mkdirSync(home, { recursive: true });
+    // The research's agent here, the same on every computer: a stand-in Claude Code first on PATH (never the real one
+    // of the computer the tests run on); a test of a computer with no agent sets PATH of its own.
+    const agents = path.join(this.dir, "agents");
+    fs.mkdirSync(agents);
+    if (process.platform === "win32") fs.writeFileSync(path.join(agents, "claude.cmd"), "@exit /b 0\r\n");
+    else fs.writeFileSync(path.join(agents, "claude"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
     this.env = {
       HOME: home,
       USERPROFILE: home,
       STROM_CONFIG_DIR: path.join(this.dir, "config"),
       LANG: "cs_CZ.UTF-8",
-      PATH: process.env.PATH ?? "",
+      PATH: [agents, process.env.PATH ?? ""].join(path.delimiter),
       // what Node compiled stays compiled for the strom processes a test starts (test/setup.ts)
       ...(process.env.NODE_COMPILE_CACHE ? { NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE } : {}),
       // No windows, no browser, no installers from a test.

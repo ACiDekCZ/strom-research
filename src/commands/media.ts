@@ -9,7 +9,7 @@ import path from "node:path";
 import { register, type Typed } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, runs, shellArg, table, truncate } from "../cli/format.ts";
-import { UsageError } from "../core/errors.ts";
+import { notFound, UsageError } from "../core/errors.ts";
 import type { Input, Media, RecordSet, Region, Source, Task } from "../core/model.ts";
 import { makeNote } from "../core/actions.ts";
 import { clipText, collectFiles, coveringPart, fileSha256, findImage, imageNumbers, imageOfRef, imageRange, IMAGE_FILE_EXT, inboxFolders, inputPath, isWhole, mimeOf, onlyParts, otherCopies, parseImageList, regionText, sharperPart, storeShared, wholeSizeOf } from "../core/media.ts";
@@ -691,7 +691,7 @@ register(
         }
       }
       if (paths.length === 0) throw new UsageError("give files or folders, or --inbox");
-      for (const p of paths) if (!fs.existsSync(p)) throw new UsageError(`no such file or folder: ${ctx.display(p)}`);
+      for (const p of paths) if (!fs.existsSync(p)) throw notFound(ctx.display(p));
       const nameOf = (f: string) => names.get(f) ?? f;
       const files = collectFiles(paths).filter((f) => IMAGE_EXT.has(path.extname(f).toLowerCase()));
       // numbers are read per folder: one download names its files one way

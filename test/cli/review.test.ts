@@ -137,7 +137,7 @@ test("a missing @file is a plain error, not a stack trace", opts, async () => {
   const w = await world();
   const r = await w.run(["source", "add", "X", "--transcript", "@chybi.txt"]);
   assert.equal(r.code, 2);
-  assert.match(r.err, /no such file or folder: .*chybi\.txt/);
+  assert.match(r.err, /nenalezeno: .*chybi\.txt/, "said in the research language");
   assert.doesNotMatch(r.err, /--debug/);
   w.cleanup();
 });

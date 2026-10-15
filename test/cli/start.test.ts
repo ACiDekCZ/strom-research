@@ -235,7 +235,7 @@ test("the agent's desktop app: found, chosen once, opened in the tree folder wit
   w.env.PATH = pathWith(w, ["claude"]);
   w.env.STROM_APP_DIRS = appsWith(w, ["Claude.app", "ChatGPT.app"]);
   // language, folder, the agent and where (Enter = Claude's app), model, stories, level, no shortcut
-  const r = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "n"] });
+  const r = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "n"] });
   assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {3}1 {2}Claude – aplikace \(nejjednodušší\)\n {3}2 {2}Claude Code – v terminálu \(pro zkušenější\)\n {3}3 {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\nVybrat \[1\]/);
   assert.match(r.out, /✓ AI agent: Claude – aplikace/);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
@@ -270,7 +270,7 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   w.env.PATH = pathWith(w, ["codex"]);
   w.env.STROM_APP_DIRS = appsWith(w, ["Claude.app", "Codex.app"]);
   // language, folder, Codex in the terminal, its model, stories, level, no shortcut
-  const r = await w.ok(["setup"], { answers: ["cs", "", "3", "", "", "", "", "n"] });
+  const r = await w.ok(["setup"], { answers: ["cs", "", "", "3", "", "", "", "", "n"] });
   // (its list of models asked for: the CLI started for that alone)
   fs.rmSync(path.join(w.dir, "codex.calls"), { force: true });
   assert.match(r.out, /Který AI agent a kde s ním mluvit\?\n {3}1 {2}Claude – aplikace \(nejjednodušší\)\n {3}2 {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\n {3}3 {2}OpenAI Codex CLI – v terminálu \(pro zkušenější\)\nVybrat \[1\]/);
@@ -312,13 +312,13 @@ test("the app or the terminal: each a line of the agents' list, the app suggeste
   const a = new World();
   a.env.PATH = pathWith(a, []);
   a.env.STROM_APP_DIRS = appsWith(a, ["Claude.app", "Codex.app"]);
-  const o = await a.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "n"] });
+  const o = await a.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "n"] });
   assert.match(o.out, /\n {3}1 {2}Claude – aplikace \(nejjednodušší\)\n {3}2 {2}ChatGPT \(Codex\) – aplikace \(nejjednodušší\)\nVybrat \[1\]/);
   assert.doesNotMatch(/mluvit\?\n([^]*?)Vybrat/.exec(o.out)![1]!, /Claude Code|Codex CLI|terminál/, "no CLI here: none named");
   a.cleanup();
   const one = new World();
   one.env.PATH = pathWith(one, ["grok"]);
-  const g = await one.ok(["setup"], { answers: ["cs", "", "", "", "n"] });
+  const g = await one.ok(["setup"], { answers: ["cs", "", "", "", "", "n"] });
   assert.doesNotMatch(g.out, /kde s ním mluvit/);
   assert.match(g.out, /✓ AI agent: Grok Build – v terminálu/);
   one.cleanup();
@@ -737,11 +737,11 @@ test("the Strom app offered gently: the wizard asks once, the menu says what it 
   w.env.PATH = pathWith(w, ["claude"]);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   // language, folder, model, its effort, stories, level, no shortcut — then the Strom app: not now
-  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "n", "2"] });
+  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "n", "2"] });
   assert.match(s.out, /Aplikace Strom \(zdarma, v prohlížeči\) ukáže výzkum jako rodokmen[\s\S]*1 {2}Ano – nainstalovat ji teď/);
   assert.equal(cfg().stromApp, "yes");
   // Again: the answer pre-filled; no — never mentioned after.
-  await w.ok(["setup"], { answers: ["", "", "", "0", "", "", "", "n", "3"] });
+  await w.ok(["setup"], { answers: ["", "", "", "", "0", "", "", "", "n", "3"] });
   assert.equal(cfg().stromApp, "no");
   await w.ok(["init", "Novákovi"]);
   const none = await w.ok([], { tty: true, answers: ["0"] });

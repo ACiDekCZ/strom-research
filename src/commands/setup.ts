@@ -82,12 +82,27 @@ register({
     "shortcut. Without a terminal (an agent): pass the values or --yes to accept the suggestions.\n" +
     "Trees and shared data (scans, catalog) live under one home by default; --shared/--trees separate them.\n" +
     "Either way the installed agents learn about strom in any folder (strom agents install).",
-  options: [{ name: "where", type: "string", value: "<app|terminal>", description: "where the user talks with the agent: its desktop app or the terminal (agent.where; asked in the wizard)" }],
+  options: [
+    { name: "where", type: "string", value: "<app|terminal>", description: "where the user talks with the agent: its desktop app or the terminal (agent.where; asked in the wizard)" },
+    { name: "research", type: "boolean", description: "the wizard for research being switched on (the menu): the agent's steps asked in an archive too", hidden: true },
+  ],
   examples: ["strom setup", "strom setup --yes --lang cs", "strom setup --yes --where terminal", 'strom setup --home "~/Documents/Strom" --shared "/Volumes/Big/strom-shared" --lang cs'],
   run: async (ctx, { opts }) => {
     const s = ctx.settings;
     if (ctx.interactive && !isAgent(ctx.env)) {
-      const r = await setupWizard(ctx);
+      const r = await setupWizard(ctx, { research: Boolean(opts.research) });
+      // run in an archive (the Strom app's link to the research's settings too): research offered beside it
+      let root: string | undefined;
+      try {
+        root = opts.research ? undefined : ctx.locateTree();
+      } catch {
+        // no tree to say
+      }
+      if (root) {
+        const { main } = await import("../cli/main.ts");
+        const { offerResearch } = await import("../cli/menu-mode.ts");
+        await offerResearch(ctx, (argv, quiet) => main(argv, quiet ? { ...ctx.io, stdout: () => undefined } : ctx.io, ctx.env, root), root);
+      }
       return { text: "", data: { ...r, trees: s.trees()!.value, shared: s.shared()!.value, config: configFile(ctx.env) } };
     }
     const cfg = s.config;

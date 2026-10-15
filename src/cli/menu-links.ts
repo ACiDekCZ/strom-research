@@ -12,6 +12,8 @@ import { askPaths, directionTasks, offerChat, setDirection } from "./menu-resear
 import { humanCost, humanDay, humanTask, humanWhen } from "./human.ts";
 import { lines, truncate } from "./format.ts";
 import { isArchive } from "../core/mode.ts";
+import type { UIKey } from "./ui.ts";
+import { actsAsArchive } from "../core/state.ts";
 import { Tree } from "../core/tree.ts";
 import type { Conflict, Family, Person, Research, Session, Source, Task } from "../core/model.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
@@ -309,7 +311,7 @@ export async function undoSending(ctx: Context, run: Run, lang: string, root: st
   const preview = Tree.open(root, ctx.env);
   preview.dryRun = true;
   preview.withTreeLock(() => undoSync(preview, input));
-  const ops = isArchive(preview) ? preview.written.filter((o) => !o.op.startsWith("task.")) : preview.written;
+  const ops = actsAsArchive(preview) ? preview.written.filter((o) => !o.op.startsWith("task.")) : preview.written;
   // what it is now beside what it goes back to (found on Mac: only the value it would have again)
   const said = changeLines(preview, ops, "", lang, Tree.open(root, ctx.env)).map((l) => `  ${l.text}`);
   const when = humanWhen(input.created, lang);
@@ -338,8 +340,8 @@ async function fromFile(ctx: Context, run: Run, root: string, name: string, file
   const sources = tree.list<Source>("source").filter((s) => !s.retracted && s.kind !== "family-tree").length;
   // a tree with no people yet (C1): handed over all the same — the research linked, its people come by the app's sends
   if (tree.countLive("person") === 0) out(ctx, t("ui.link.new.taken.empty", { name }));
-  else out(ctx, t(isArchive(tree) ? "ui.link.new.taken.archive" : "ui.link.new.taken", { name, persons: tree.countLive("person"), families: tree.countLive("family"), sources }));
-  if (isArchive(tree)) out(ctx, t("ui.link.new.archive"));
+  else out(ctx, t(takenKey(tree), { name, persons: tree.countLive("person"), families: tree.countLive("family"), sources }));
+  if (actsAsArchive(tree)) out(ctx, t(isArchive(tree) ? "ui.link.new.archive" : "ui.link.new.waiting"));
   else await offerChat(ctx, run, tree.lang, root, t("ui.link.new.chat"), t("ui.link.new.say"));
   return true;
 }
@@ -445,8 +447,8 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
       } else if (outOfAnswers(ctx)) return false;
     } else {
       step = 3;
-      // no agent here: an archive, nothing asked (N9: the setup run before an agent left, its research mode kept)
-      if (!root && ways.length === 0) archive = true;
+      // no agent here: nothing asked, nothing stored — the research waits for an agent, kept as an archive meanwhile
+      // (an archive only by the person's choice, the setting mode); once one is installed it goes on as research
       if (root || setUp || ways.length === 0 || ctx.settings.config.mode === "archive") continue;
       const pick = suggestedWay(ways, mine, ctx.settings.agentWhere());
       const k = await ctx.choose(t("ui.setup.fromapp"), [{ label: t("ui.setup.fromapp.archive") }, { label: t("ui.setup.fromapp.agent", { agent: PROFILES[ways[pick]!.agent]!.name }) }], 1, { back: t("ui.browse.back") });
@@ -565,7 +567,7 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
   const sources = tree.list<Source>("source").filter((s) => !s.retracted && s.kind !== "family-tree").length;
   // a tree with no people yet (C1): handed over all the same — the research linked, its people come by the app's sends
   if (tree.countLive("person") === 0) out(ctx, t("ui.link.new.taken.empty", { name }));
-  else out(ctx, t(isArchive(tree) ? "ui.link.new.taken.archive" : "ui.link.new.taken", { name, persons: tree.countLive("person"), families: tree.countLive("family"), sources }));
+  else out(ctx, t(takenKey(tree), { name, persons: tree.countLive("person"), families: tree.countLive("family"), sources }));
   // the research as it is now back into the app's window: the same tree, now of the research (not opened: its address
   // said) — an app from 3.9.0 loads it itself right after the hand-over, so nothing is opened a second time (N12: a
   // second tab asking to load the research's version)
@@ -578,8 +580,12 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
     else out(ctx, shown.opened ? t("ui.link.new.back") : t("ui.app.url", { url: shown.url ?? "" }));
   }
   // an archive (no agent): what is next is the app's; else the first conversation offered
-  if (isArchive(tree)) out(ctx, t("ui.link.new.archive"));
+  if (actsAsArchive(tree)) out(ctx, t(isArchive(tree) ? "ui.link.new.archive" : "ui.link.new.waiting"));
   else await offerChat(ctx, run, lang, root, t("ui.link.new.chat"), t("ui.link.new.say"));
   return true;
 }
 
+/** What the tree taken in became: a research, an archive (nothing of an agent said), or a research waiting for its agent. */
+function takenKey(tree: Tree): UIKey {
+  return isArchive(tree) ? "ui.link.new.taken.archive" : actsAsArchive(tree) ? "ui.link.new.taken.waiting" : "ui.link.new.taken";
+}

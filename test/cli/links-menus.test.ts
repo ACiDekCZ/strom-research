@@ -191,7 +191,7 @@ test("a tree of the app becomes a new research: named, the app hands it to the b
   w.cleanup();
 });
 
-test("installed from the Strom app (the line it shows carries its tree's mark): the setup keeps it as an archive, then that tree becomes the research", { skip: !hasGit || process.platform === "win32" }, async () => {
+test("installed from the Strom app (the line it shows carries its tree's mark): the research waits for an agent, kept as an archive, and that tree becomes it", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   // no agent on this computer, nothing set up yet; the installer started strom with the app's mark
   w.env.PATH = [path.dirname(process.execPath), "/usr/bin", "/bin"].join(path.delimiter);
@@ -230,17 +230,22 @@ test("installed from the Strom app (the line it shows carries its tree's mark): 
     assert.match(ids.persons["@I1@"]!, /^P\d{4}$/);
     assert.deepEqual(Object.keys(ids.sources), ["@S1@"]);
     const r = await flow;
-    assert.match(r.out, /Bez agenta je nový výzkum archiv|Without an agent, a new research is an archive/);
-    assert.match(r.out, /osob 2, rodin 1, pramenů 1 – jako vodítka; co doloží záznamy, najde agent, až bude zapnutý\./);
+    // no agent here: the research waits for one, kept as an archive meanwhile — nothing stored for it (no mode archive)
+    assert.match(r.out, /Výzkum čeká na AI agenta: dokud na počítači žádný není, data z aplikace Strom se ukládají jako v archivu\./);
+    assert.match(r.out, /osob 2, rodin 1, pramenů 1 – jako vodítka; co doloží záznamy, najde agent, až bude na počítači\./);
     // not opened here (the tests open nothing, no browser): how it gets back into the app said
-    assert.match(r.out, /pramenů 1 – jako vodítka; co doloží záznamy, najde agent, až bude zapnutý\.\n.*Dvořákovi\/output\/tree-strom\.ged/);
+    assert.match(r.out, /pramenů 1 – jako vodítka; co doloží záznamy, najde agent, až bude na počítači\.\n.*Dvořákovi\/output\/tree-strom\.ged/);
     const sources = (await w.ok(["source", "list", "--json"], { cwd: root })).json.sources as { title: string; transcript?: string }[];
     assert.ok(sources.some((s) => s.title === "Křest – Karel Dvořák"), JSON.stringify(sources));
     const karel = (await w.ok(["person", "list", "--json"], { cwd: root })).json.persons.find((p: { name: string }) => /Karel/.test(p.name));
     const birth = (await w.ok(["person", "show", karel.id, "--json"], { cwd: root })).json.person.events.find((e: { kind: string }) => e.kind === "BIRT");
     assert.equal(birth.place, "Týnec");
-    assert.match(r.out, /Je to archiv: co se zadá v aplikaci Strom|It is an archive: what is entered in the Strom app/);
-    assert.equal(JSON.parse(fs.readFileSync(path.join(root, "strom.json"), "utf8")).mode, "archive");
+    // waiting for its agent, never "it is an archive"
+    assert.match(r.out, /Výzkum čeká na AI agenta, který na tomto počítači není: do té doby drží, co přijde z aplikace Strom, jako archiv\./);
+    assert.doesNotMatch(r.out, /Je to archiv|It is an archive/);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root, "strom.json"), "utf8")).mode, undefined);
+    assert.deepEqual((await w.ok(["mode", "--json"], { cwd: root })).json, { mode: "research", state: "waiting" });
+    assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).mode, undefined, "new researches: as the person chooses");
     assert.equal((await w.ok(["person", "list", "--json"], { cwd: root })).json.total, 2);
     assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).stromApp, "yes", "who came from the app wants it");
     // …from its beta (the line carried its address): that copy is the one strom opens from now on

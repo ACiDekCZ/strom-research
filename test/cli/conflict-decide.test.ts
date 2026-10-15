@@ -287,7 +287,8 @@ test("the link with the side picked in the app: only confirmed and why — that 
   assert.match(res.out, /převzít hodnotu výzkumu: 3\. 3\. 1885, Kamenice/);
   assert.equal((await conflict(w, "X2")).taken, "research");
   const wrong = await open("&id=X0004&take=both", [""]);
-  assert.match(wrong.out + wrong.err, /unknown take "both"/);
+  assert.match(wrong.out + wrong.err, /nešel použít – některá jeho část chybí nebo nesedí/);
+  assert.doesNotMatch(wrong.out + wrong.err, /unknown take/, "no English reason in the person's sentence");
   assert.equal((await conflict(w, "X4")).state, "open");
   w.cleanup();
 });

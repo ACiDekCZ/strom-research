@@ -21,7 +21,7 @@ import { claudeInChrome, CLAUDE_IN_CHROME_URL } from "../core/browser.ts";
 import { ADDON_SWITCHES, PROFILES } from "../agents/profiles.ts";
 import { loadLogins } from "../core/logins.ts";
 import { claudeRemoteAtStartup } from "../agents/global.ts";
-import { chooseMode } from "./menu-mode.ts";
+import { chooseMode, modeState } from "./menu-mode.ts";
 import { agentsHere } from "../core/apps.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
@@ -43,7 +43,7 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
       // Each item keeps its number (fixed): what shows only sometimes leaves a gap where it is not — the numbers a person
       // knows never move. An archive: nothing of an agent — working alone, the downloaders, the tuning of the scans,
       // Remote Control not shown.
-      const archive = ctx.archiveHere();
+      const archive = ctx.actsAsArchive();
       // the model the agent does the research with (every agent: its strong ones offered) — not in an archive, nor
       // while the research's agent is not on this computer (nothing of an agent the person does not use)
       const agent = ctx.settings.agent(tree).value;
@@ -78,13 +78,15 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
         },
         ...(archive ? [] : [{ key: "4", label: t("ui.settings.archives"), act: async () => archives(ctx, run, lang, shared, root) }]),
       ];
-      // the research of the tree worked on: with an agent, or only an archive of the data from the Strom app
-      if (root)
-        items.push({
-          key: "5",
-          label: t("ui.settings.mode", { state: t(tree?.mode === "archive" ? "ui.mode.archive" : "ui.mode.research") }),
-          act: async () => chooseMode(ctx, run, lang, root),
-        });
+      // the research of the tree worked on: with an agent (or waiting for one), or only an archive of the data from the
+      // Strom app — and what a new research on this computer is (no tree yet: that one alone)
+      items.push({
+        key: "5",
+        label: root
+          ? t("ui.settings.mode", { state: t(modeState(ctx, root)) })
+          : t("ui.settings.newmode", { state: t(ctx.settings.config.mode === "archive" ? "ui.mode.archive" : "ui.mode.research") }),
+        act: async () => chooseMode(ctx, run, lang, root),
+      });
       // the size of the scan views tuned for this agent and model on the research's own records (paid: the person's yes
       // after the cost is said) — shown where the model can be chosen
       if (root && modelShown) {

@@ -25,6 +25,7 @@ import { openInNewTerminal } from "../core/shortcut.ts";
 import { systemNotice } from "../core/dialog.ts";
 import { configDir, noLinks } from "../core/paths.ts";
 import { startLive } from "../core/live.ts";
+import { stateOf } from "../core/state.ts";
 
 /** The researches here with this id — a copy of a research folder has its id too; the current one first. */
 function researchesWithId(ctx: Context, id: string): { name: string; root: string }[] {
@@ -107,6 +108,23 @@ function aboutConflict(root: string, ctx: Context, id: string): string | undefin
 
 type TreeLink = Exclude<Link, { action: "menu" | "excerpt" | "media" | "new" }>;
 
+/**
+ * What a link asks of an agent — a conversation, tasks written for it — refused where nobody researches (an archive, a
+ * research waiting for its agent): one sentence, before anything is asked or written (no cost, no tasks put aside at
+ * once). An archive's says where research is switched on, nothing of an agent.
+ */
+function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; values: Record<string, string>; state: string } | undefined {
+  const forAgent =
+    link.action === "chat" || link.action === "review" || link.action === "research" || (link.action === "conflict" && link.do === "agent") || (link.action === "task" && link.do === "chat");
+  if (!forAgent) return undefined;
+  const tree = Tree.open(root, ctx.env);
+  const state = stateOf(tree);
+  if (state === "research") return undefined;
+  if (state === "archive") return { key: "ui.archive.refuse", values: {}, state };
+  const agent = ctx.settings.agent(tree.config).value;
+  return { key: "ui.waiting.refuse", values: { agent: PROFILES[agent]?.name ?? agent }, state };
+}
+
 /** What a link asks, in this terminal: which copy of the research, then as the menu does it. */
 async function inTerminal(ctx: Context, link: TreeLink) {
   const lang = ctx.uiLang();
@@ -129,6 +147,12 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     ctx.io.stdout(ui(treeLang, key, values) + "\n");
     return end(false);
   };
+  const refused = refusedHere(ctx, root, link);
+  if (refused) {
+    ctx.io.stdout(ui(treeLang, refused.key, refused.values) + "\n");
+    await pause(ctx, treeLang, "ui.enter.close");
+    return { text: "", data: { done: false, action: link.action, tree: root, refused: refused.state } };
+  }
   const agent = PROFILES[ctx.settings.agent(tree.config).value]?.name ?? ctx.settings.agent(tree.config).value;
   switch (link.action) {
     case "send": {
@@ -365,7 +389,7 @@ register(
         link = parseLink(args[0], linkScheme(ctx.env));
       } catch (e) {
         if (!(e instanceof LinkError)) throw e;
-        return say(ctx, "ui.link.bad", { why: e.message });
+        return say(ctx, "ui.link.bad", {}, { why: e.message });
       }
       if (link.action === "menu") {
         const where = ctx.settings.home()?.value ?? configDir(ctx.env);
@@ -406,6 +430,9 @@ register(
         if (ctx.io.tty) return inTerminal(ctx, link);
         const copies = researchesWithId(ctx, link.tree);
         if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
+        // asked of an agent where nobody researches: said in a window, no terminal opened
+        const refused = refusedHere(ctx, copies[0]!.root, link);
+        if (refused) return say(ctx, refused.key, refused.values, { action: link.action, tree: copies[0]!.root, refused: refused.state });
         const quiet = await withoutTerminal(ctx, link, copies[0]!.root);
         if (quiet) return quiet;
         const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], copies[0]!.root, ctx.env);

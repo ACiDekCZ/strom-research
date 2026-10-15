@@ -2,16 +2,27 @@
 // lines round it. Big inputs (an old research's protocols, a transcribed register) are searched in one call, never
 // read in pieces (core/grep.ts).
 
+import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import { lines, moreLine, paginate, shellArg } from "../cli/format.ts";
-import { UsageError } from "../core/errors.ts";
+import { notFound, UsageError } from "../core/errors.ts";
 import type { Input } from "../core/model.ts";
 import { listOpt, requireRecord } from "../core/records.ts";
 import { GREP_DEFAULT, GREP_FOLDERS, GREP_MAX_HITS, grepFiles, grepLines, grepMatcher, grepTargets } from "../core/grep.ts";
 import { foldText } from "../core/text.ts";
 
 const MAX_CONTEXT = 20;
+
+/** Whether a path is there at all — a symbolic link too (grepTargets refuses it with its reason). */
+function exists(p: string): boolean {
+  try {
+    fs.lstatSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 register({
   path: ["grep"],
@@ -64,11 +75,20 @@ register({
       if (!input.file?.startsWith("inputs/")) throw new UsageError(`${input.id} has no file in inputs/ to search`, { hint: `strom input show ${input.id}` });
       return input.file;
     });
+    // a path that is not there, wherever it points (a folder of the research's own aside: grep.in.missing) — said as
+    // any path not found, never taken for a saved listing
+    const at = (w: string) => {
+      const p = w.startsWith("~") ? path.join(ctx.env.HOME ?? "", w.slice(1)) : w;
+      return path.isAbsolute(p) ? p : path.resolve(tree.root, p);
+    };
+    const own = (w: string) => !path.isAbsolute(w) && !w.startsWith("~") && (GREP_FOLDERS as readonly string[]).includes(w.trim().replace(/\\/g, "/").split("/")[0]!);
+    const missing = wanted.find((w) => w !== "all" && w.trim() && !own(w) && !exists(at(w)));
+    if (missing) throw notFound(missing);
     // a file outside the research: what an agent's tool saved of a long output of strom (N0280, N0281) — strom's own
     // filters find it in one short call, never a search through a saved listing
     const outside = wanted.find((w) => {
-      const p = w.startsWith("~") ? path.join(ctx.env.HOME ?? "", w.slice(1)) : w;
-      if (!path.isAbsolute(p)) return false;
+      const p = at(w);
+      if (!path.isAbsolute(w) && !w.startsWith("~")) return false;
       const rel = path.relative(tree.root, p);
       return rel.startsWith("..") || path.isAbsolute(rel);
     });
@@ -76,9 +96,10 @@ register({
       throw new UsageError(`--in ${outside}: a file outside the research — a saved listing of strom: run it again with its own filter`, {
         hint: `strom recordset list ${shellArg(patterns[0]!)} | --place <name> | --years <from-to> | --repo <R…> · strom task list --about <who> · strom find ${shellArg(patterns[0]!)}`,
         code: "grep.outside",
+        params: { where: outside },
       });
-    const { targets, error } = grepTargets(tree.root, wanted);
-    if (error) throw new UsageError(error, { hint: `strom grep ${patterns.map(shellArg).join(" ")} --in ${GREP_FOLDERS.join("|")}|all` });
+    const { targets, error, code, params } = grepTargets(tree.root, wanted);
+    if (error) throw new UsageError(error, { ...(code ? { code, params } : {}), hint: `strom grep ${patterns.map(shellArg).join(" ")} --in ${GREP_FOLDERS.join("|")}|all` });
     let match: (line: string) => number;
     try {
       match = grepMatcher(patterns, regex, !!opts.all);

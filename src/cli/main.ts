@@ -6,7 +6,7 @@ import { takeOverConnectors } from "../core/terms.ts";
 import { notePersonFolder } from "../core/trust.ts";
 import { netTrust } from "../core/net.ts";
 import { connectorsDir, listConnectors } from "../core/connector.ts";
-import { Cancelled, EXIT, StromError, UsageError } from "../core/errors.ts";
+import { Cancelled, EXIT, notFound, StromError, UsageError } from "../core/errors.ts";
 import { ownCommand, type Env } from "../core/paths.ts";
 import { Context, type IO } from "./context.ts";
 import { commands, match, type CommandDef, type Result } from "./registry.ts";
@@ -59,7 +59,7 @@ function systemError(e: NodeJS.ErrnoException): StromError | undefined {
   const where = e.path ? `: ${e.path}` : "";
   switch (e.code) {
     case "ENOENT":
-      return new UsageError(`no such file or folder${where}`, { hint: "check the path (relative paths start in the current folder)" });
+      return e.path ? notFound(e.path) : new UsageError("no such file or folder", { hint: "check the path (relative paths start in the current folder)" });
     case "EACCES":
     case "EPERM":
       return new UsageError(`no permission to use${where}`, { hint: "a folder with the right to write in it", code: "fs.no-permission", params: { where } });

@@ -38,8 +38,10 @@ export interface UserConfig {
   currentTree?: string;
   /** Default AI agent: claude, codex, antigravity, opencode, grok. */
   agent?: string;
-  /** What a new research is: an archive (the setup wizard with no agent here), else one with an agent. */
+  /** What a new research is: an archive (the person's own choice: the setup wizard, the settings, strom config set mode), else one with an agent. */
   mode?: "archive";
+  /** The agent whose steps of the setup wizard were asked (its model, where to talk, what it may do alone…). */
+  agentAsked?: string;
   /** Which GEDCOM files to write: both (default), standard, strom. */
   gedcomFor?: string;
   /** The Strom app version the Strom GEDCOM is for. */
@@ -237,7 +239,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "agent.remote", env: "", tree: false, kind: "choice", choices: ["on", "off"], description: "the Claude Code sessions strom starts (strom run, strom chat in the terminal) with Remote Control: on — follow and steer them from claude.ai or the Claude app on your phone; off (default) — only you turn it on" },
   // Read from the config files only (the user's or the tree's) — no variable: turning them on is the user's decision.
   { key: "agent.addons", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the agent's personal add-ons (its skills, plugins, MCP servers, memory) when it works alone (strom run, the readers of strom read): off (default — it loads the research's tools only; the Strom app's connection and the browser work on) or on (as in a conversation, which loads them always) — Claude Code and Codex; Grok without what it takes in of the other agents (their skills, MCP servers, hooks) and its memory, its own skills and plugins kept (it has no switch for them); only you turn it on" },
-  { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it) or archive (the data come from the Strom app, no agent; the setup wizard sets it when no agent is here) — a research's own: strom mode" },
+  { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it; while none is here it waits for one, kept as an archive) or archive (the data come from the Strom app, no agent — the person's choice: the setup wizard asks it with an agent here, the menu's settings) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
   { key: "app.browser", env: "STROM_APP_BROWSER", tree: false, kind: "choice", choices: ["chrome", "edge", "brave", "opera", "firefox", "chromium"], description: "the browser strom opens the Strom app in — the one its tree came from (strom keeps it), or yours: chrome, edge, brave, opera, firefox, chromium (another Chromium: Vivaldi, Arc). The Strom app installed from a browser always comes first (from this one when it is installed from several); without one, a tab of this browser — unset: of the default browser when the app reaches strom from it, else of the first such browser here" },

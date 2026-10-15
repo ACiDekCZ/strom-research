@@ -460,7 +460,7 @@ test("installed from the app with an agent here: the research with it suggested,
   w.cleanup();
 });
 
-test("installed from the app with no agent here: an archive, nothing asked — also when the setup was run while an agent was here (N9)", opts, async () => {
+test("installed from the app with no agent here: nothing asked, nothing stored — the research waits for its agent, kept as an archive meanwhile; also when the setup was run while an agent was here (N9)", opts, async () => {
   const w = new World();
   const bin = path.join(w.dir, "bin");
   fs.mkdirSync(bin, { recursive: true });
@@ -474,7 +474,8 @@ test("installed from the app with no agent here: an archive, nothing asked — a
   const r = await w.run(["link", "open", `strom-research://new?app=${TOKEN}`], { tty: true, answers: ["Dvořákovi", "", ""] });
   assert.doesNotMatch(r.out, /Jak má výzkum tento rodokmen vést\?/, "nothing asked");
   const root = w.treeDir("Dvořákovi");
-  assert.equal(readJsonFile(path.join(root, "strom.json")).mode, "archive");
+  assert.equal(readJsonFile(path.join(root, "strom.json")).mode, undefined, "no archive stored for the agent's absence (K1.3)");
+  assert.deepEqual((await w.ok(["mode", "--json"], { cwd: root })).json, { mode: "research", state: "waiting" });
   await w.run(["live", "stop"], { cwd: root });
   w.cleanup();
 });

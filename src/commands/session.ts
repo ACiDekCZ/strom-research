@@ -57,7 +57,7 @@ import { Tree } from "../core/tree.ts";
 import { agentBrowser, sessionBrowser, treeBrowserConnectors } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { reviewProposals } from "../core/review.ts";
-import { refuseInArchive } from "../core/mode.ts";
+import { refuseInArchive } from "../core/state.ts";
 import { usageOpt, webOpt } from "../core/metrics.ts";
 import { calibrationKey, viewModel } from "../core/viewsizes.ts";
 
@@ -133,7 +133,7 @@ register(
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      refuseInArchive(tree, "strom session start");
+      refuseInArchive(tree, "strom session start", detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value);
       const research = researchOf(tree, opts.research);
       // The next task nobody else is working on (other agents may be at work in this tree).
       const others = othersAtWork(tree).tasks;
@@ -736,7 +736,7 @@ register({
   ],
   examples: ["strom run", "strom run --max 3 --until 23:00", "strom run --loop", "strom run --task T0003,T0007", "strom run --interactive", "strom run --agent codex", "strom run --minutes 30 -- --add-dir ~/Scans"],
   run: async (ctx: Context, { opts, extra }) => {
-    refuseInArchive(ctx.tree(), "strom run");
+    refuseInArchive(ctx.tree(), "strom run", ctx.settings.agent(ctx.tree().config).value);
     ctx.confirmElsewhere(
       "Start the agent working alone on this research — asked by an agent outside the research's folder?",
       "strom run",

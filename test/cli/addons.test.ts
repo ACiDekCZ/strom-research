@@ -197,11 +197,11 @@ test("the setup wizard asks it for Claude Code and Codex, the suggested answer w
   const w = await world();
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   // run again: language, folder, model, its effort (0), stories, level kept (Enter) · the add-ons: 2 (with them) · no shortcut
-  const r = await w.ok(["setup"], { tty: true, answers: ["", "", "", "0", "", "", "2", "n"] });
+  const r = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "0", "", "", "2", "n"] });
   assert.match(r.out, /Bez osobních doplňků agenta \(skilly, pluginy, MCP servery\)\?\nAgent při samostatné práci načte jen nástroje výzkumu\.[^\n]*\n {3}1 {2}Ano \(doporučeno\)\n {3}2 {2}Ne – i při samostatné práci s doplňky\n {3}0 {2}Nechat, jak je\nVybrat \[1\]/);
   assert.equal(cfg().agentAddons, "on");
   // again: what is now suggested; Enter keeps it
-  const again = await w.ok(["setup"], { tty: true, answers: ["", "", "", "0", "", "", "", "n"] });
+  const again = await w.ok(["setup"], { tty: true, answers: ["", "", "", "", "0", "", "", "", "n"] });
   assert.match(again.out, /Nechat, jak je\nVybrat \[2\]/);
   assert.equal(cfg().agentAddons, "on");
   w.cleanup();

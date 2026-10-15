@@ -24,6 +24,7 @@ import { mb, setTidyOn, tidy, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { EXIT } from "../core/errors.ts";
 import { atWork } from "../core/relocate.ts";
 import { MODES, isArchive, modeOf, switchMode, type Mode } from "../core/mode.ts";
+import { stateOf } from "../core/state.ts";
 import { liveWorkers, runsAtWork } from "../core/workers.ts";
 import { moveToTrash } from "../core/trash.ts";
 import { history, stopLive } from "../core/live.ts";
@@ -324,7 +325,9 @@ register({
   tree: true,
   writes: true,
   description:
-    "research: an agent works on it (conversations, working alone, tasks). archive: the user enters the data in the Strom\n" +
+    "research: an agent works on it (conversations, working alone, tasks); while its agent is not on this computer it\n" +
+    "waits for it, kept as an archive (each sync written at once, no task made, its tasks kept) — nothing switched or\n" +
+    "written: once the agent is here it is research again. archive: the user enters the data in the Strom\n" +
     "app and the research keeps them — each sync written at once as the user's word, what the app no longer has withdrawn\n" +
     "with the reason (strom sync undo takes it back), the sources, the history; no agent works on it, its tasks wait put\n" +
     "aside. Switching is the user's decision (a window of the system when an agent asks): to an archive, the open tasks are\n" +
@@ -335,10 +338,13 @@ register({
     const tree = ctx.tree();
     const lang = tree.lang;
     const now = modeOf(tree);
-    if (!args[0]) return { text: ui(lang, now === "archive" ? "ui.mode.is.archive" : "ui.mode.is.research"), data: { mode: now } };
+    // a research whose agent is not on this computer waits for it, kept as an archive meanwhile (nothing written)
+    const state = stateOf(tree);
+    const isNow = ui(lang, state === "archive" ? "ui.mode.is.archive" : state === "waiting" ? "ui.mode.is.waiting" : "ui.mode.is.research");
+    if (!args[0]) return { text: isNow, data: { mode: now, state } };
     const to = args[0].toLowerCase();
     if (!(MODES as readonly string[]).includes(to)) throw new UsageError(`a research is research or archive, not "${args[0]}"`, { hint: "strom mode archive · strom mode research" });
-    if (to === now) return { text: ui(lang, now === "archive" ? "ui.mode.is.archive" : "ui.mode.is.research"), data: { mode: now, changed: false } };
+    if (to === now) return { text: isNow, data: { mode: now, state, changed: false } };
     // nobody's work is cut short: a session at work finishes first
     if (to === "archive" && (liveWorkers(tree.root).length > 0 || runsAtWork(tree.root).length > 0))
       throw new UsageError("somebody is at work on this research: an archive only once they finished", { hint: "strom session finish (the agent writes down what it found and closes), then strom mode archive" });

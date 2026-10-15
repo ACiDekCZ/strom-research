@@ -73,6 +73,20 @@ function Undo-Misread($s) {
   $out.ToString()
 }
 function T($en, $czech, $german) { Undo-Misread $(if ($lang -eq 'cs') { $czech } elseif ($lang -eq 'de') { $german } else { $en }) }
+# An error ends the installation with its sentence. Started from Win+R (powershell -c "irm … | iex") the window would
+# close at once and take the sentence with it: it stays open until Enter — only when somebody can press it (input not
+# redirected); never `exit`, which would close a PowerShell the line was pasted into.
+trap {
+  Write-Host ''
+  Write-Host $_.Exception.Message -ForegroundColor Red
+  $typed = $false
+  try { $typed = -not [Console]::IsInputRedirected } catch { $typed = $false }
+  if ($typed) {
+    Write-Host (T 'The installation did not finish. Enter closes the window.' 'Instalace se nedokončila. Enter zavře okno.' 'Die Installation wurde nicht abgeschlossen. Enter schließt das Fenster.')
+    try { [void][Console]::ReadLine() } catch { }
+  }
+  break
+}
 
 $isolated = $env:STROM_ISOLATED -eq '1'
 # a second installation's own command (strom-next), in a folder of its own on the user's PATH

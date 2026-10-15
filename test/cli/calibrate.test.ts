@@ -233,6 +233,6 @@ test("tuned before for another model: offered again in the orientation, the menu
   await w.ok(["mode", "archive"], { tty: true, answers: ["a"] });
   for (const out of [(await w.ok([])).out, (await w.run(["doctor"])).out, (await w.ok([], { tty: true, answers: ["8", "0", "0"] })).out])
     assert.doesNotMatch(out, /čtení snímků|calibrate/i, out);
-  assert.match((await w.run(["media", "calibrate"])).err, /archive/);
+  assert.match((await w.run(["media", "calibrate"])).err, /Tento výzkum je archiv/);
   w.cleanup();
 });

@@ -59,7 +59,10 @@ export async function fixGit(ctx: Context, out: (line: string) => void): Promise
   return Boolean(v);
 }
 
-/** No agent on this computer: install Claude Code, show the page about agents, or later. Only a person here decides. */
+/**
+ * No agent on this computer: install Claude Code, show the page about agents, or only an archive for now (nothing
+ * changes: a research waits for its agent, kept as an archive). Only a person here decides.
+ */
 export async function offerAgent(ctx: Context, out: (line: string) => void): Promise<void> {
   const lang = ctx.uiLang();
   out(ui(lang, "ui.setup.agent.none"));
@@ -67,9 +70,13 @@ export async function offerAgent(ctx: Context, out: (line: string) => void): Pro
     out(ui(lang, "ui.setup.agent.manual", { url: researchUrl(lang, "agents") }));
     return;
   }
-  const how = await ctx.choose(ui(lang, "ui.choose"), [{ label: ui(lang, "ui.setup.agent.install") }, { label: ui(lang, "ui.setup.agent.guide") }, { label: ui(lang, "ui.setup.agent.later") }], 0);
+  const how = await ctx.choose(ui(lang, "ui.choose"), [{ label: ui(lang, "ui.setup.agent.install") }, { label: ui(lang, "ui.setup.agent.guide") }, { label: ui(lang, "ui.setup.agent.archive") }], 0);
   if (how === 0) {
     runInstaller(claudeInstaller(), ctx.env);
     if (agentsHere(ctx.env).some((a) => a.id === "claude")) out(ui(lang, "ui.setup.agent.login"));
-  } else if (how === 1) openForUser(researchUrl(lang, "agents"), ctx.env);
+  } else if (how === 1) {
+    // the page, and its address in case no browser opens
+    openForUser(researchUrl(lang, "agents"), ctx.env);
+    out(ui(lang, "ui.setup.agent.manual", { url: researchUrl(lang, "agents") }));
+  }
 }

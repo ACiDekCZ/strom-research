@@ -84,7 +84,8 @@ import { phrase } from "./phrases.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { excerptSettings, planExcerpts } from "./excerpt.ts";
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
-import { isArchive, modeOf, settleArchive } from "./mode.ts";
+import { modeOf, settleArchive } from "./mode.ts";
+import { actsAsArchive, stateOf } from "./state.ts";
 import { settleHypothesisLinks } from "./hypolinks.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
@@ -646,7 +647,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1012,11 +1013,14 @@ function lastIntake(root: string, tree: Tree): { id: string; at: string; state: 
  */
 function accepts(tree: Tree, settings: Settings, env: Env): Record<string, unknown> {
   const mode = modeOf(tree);
+  const state = stateOf(tree);
   const shared = settings.shared()?.value;
   const free = shared ? freeBytes(shared) : undefined;
   return {
     mode,
-    sync: { auto: mode === "archive" ? "mirror" : settings.syncReview(tree.config) ? "off" : "write" },
+    // a research whose agent is not on this computer waits for it, kept as an archive meanwhile (its mode stays)
+    ...(state === "waiting" ? { agentHere: false } : {}),
+    sync: { auto: state !== "research" ? "mirror" : settings.syncReview(tree.config) ? "off" : "write" },
     sources: true,
     verified: true,
     media: shared
@@ -1076,10 +1080,14 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
   const intake = lastIntake(root, tree);
   const last = tip(root);
   const all = scopes(tree);
-  const next = rankTasks(tree, tree.list<Task>("task"), settings.strategy(tree.config)).map((r) => r.task);
-  const atWork = working(root, tree, all);
+  // an archive, or a research waiting for its agent (none on this computer): nobody works on it — no agent, no
+  // directions, nobody at work, nothing waiting for the person, no queue, nothing spent (Milan's decisions,
+  // 2026-10-03 and 2026-10-15); what waits for the agent says so (accepts.agentHere)
+  const archive = actsAsArchive(tree);
+  const next = archive ? [] : rankTasks(tree, tree.list<Task>("task"), settings.strategy(tree.config)).map((r) => r.task);
+  const atWork = archive ? [] : working(root, tree, all);
   // where the research is on this computer, and the agent that works on it (an archive: none)
-  const agent = isArchive(tree) ? undefined : settings.agent(tree.config).value;
+  const agent = archive ? undefined : settings.agent(tree.config).value;
   const where = settings.agentWhere();
   // a newer strom on disk than this bridge runs (it starts again with it in a moment): for the app to say so
   const disk = diskVersion(env);
@@ -1100,14 +1108,14 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
     ...recentOf(root, env, last.head),
     persons: tree.countLive("person"),
     families: tree.count("family"),
-    researches: directions(tree, all, next, atWork.filter((w) => !w.paused).map((w) => w.research)),
+    researches: archive ? [] : directions(tree, all, next, atWork.filter((w) => !w.paused).map((w) => w.research)),
     working: atWork,
-    open: openSessions(tree).map((s) => ({ id: s.id, task: s.task, started: s.started })),
+    open: archive ? [] : openSessions(tree).map((s) => ({ id: s.id, task: s.task, started: s.started })),
     // what waits for the person, ordered and grouped by the place where it is dealt with (core/waiting.ts): the tasks,
     // a new version of an approved story (for an app that shows it: the _DRAFT gate), an archive's images that wait for
     // the person's decision and the connectors taken over (none in an archive) — the person decides in the terminal a
     // link opens (archive&host=, task&do=)
-    waiting: waitingFor(tree, {
+    waiting: archive ? [] : waitingFor(tree, {
       shared: settings.shared()?.value,
       claude: () => settings.agent(tree.config).value === "claude" && agentsHere(env).some((a) => a.id === "claude" && a.cli),
       stories: appShowsStoryDrafts(settings, version),
@@ -1116,9 +1124,9 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
     links: links(env),
     ...linkSchemeOf(env),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
-    ...(isArchive(tree) ? { queue: [], queueMore: 0 } : queue(tree, next, all)),
+    ...(archive ? { queue: [], queueMore: 0 } : queue(tree, next, all)),
     ...(newer ? { update: { version: newer } } : {}),
-    ...(isArchive(tree) ? {} : { spend: { ...monthSpend(tree, new Date().toISOString().slice(0, 7)), currency: "USD" } }),
+    ...(archive ? {} : { spend: { ...monthSpend(tree, new Date().toISOString().slice(0, 7)), currency: "USD" } }),
     ...(intake ? { lastIntake: intake } : {}),
     accepts: accepts(tree, settings, env),
     inbox: { trees: inboxTrees(root, env), material: materialWaiting(tree) },
@@ -1492,7 +1500,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
   const writesAtOnce = () => {
     try {
       const tree = Tree.open(root, env);
-      return isArchive(tree) || !new Settings(env, {}).syncReview(tree.config);
+      return actsAsArchive(tree) || !new Settings(env, {}).syncReview(tree.config);
     } catch {
       return false;
     }
@@ -1705,7 +1713,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       told(200, { ok: true, changes: 0, file: path.basename(got.file), inbox: false, head: head(root), conflicts: [], intake: got.intake });
       return;
     }
-    if (isArchive(tree) || !new Settings(env, {}).syncReview(tree.config)) {
+    if (actsAsArchive(tree) || !new Settings(env, {}).syncReview(tree.config)) {
       write(got, told);
       return;
     }

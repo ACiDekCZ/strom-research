@@ -65,7 +65,7 @@ test("the menu: material from the family — a folder dragged in, what the perso
   assert.equal((await w.ok(["input", "list", "--json"])).json.inputs.length, 3, "nothing taken in");
   // a path that is not there is asked again
   const missing = await w.ok([], { tty: true, answers: ["4", "1", "1", "/nikde/nic", "0", "0", "0"] });
-  assert.match(missing.out, /Nenašel jsem: \/nikde\/nic/);
+  assert.match(missing.out, /Nenalezeno: \/nikde\/nic/);
   assert.doesNotMatch(missing.out, /Enter vrátí do nabídky/, "0 goes back at once: nothing to read, no Enter");
   w.cleanup();
 });
@@ -152,10 +152,12 @@ test("the settings: at most nine items and 0, each at a number of its own — wh
   assert.deepEqual(numbersUnder(codex.out, title), [1, 2, 3, 4, 5, 6, 8, 9, 0], codex.out);
   assert.match(codex.out, /Čekám jedno z čísel: 1, 2, 3, 4, 5, 6, 8, 9, 0\./);
   assert.doesNotMatch(codex.out, /Remote Control/);
-  // no agent of the research on this computer: no model, no tuning — 6 and 7 gaps, 8 and 9 where they were
+  // no agent of the research on this computer: it waits for one, kept as an archive — the archive's settings, 8 and 9
+  // where they were; the item of the mode says it waits
   fs.rmSync(path.join(w.dir, "bin", "codex"));
   const none = await w.ok([], { tty: true, answers: ["8", "0", "0"] });
-  assert.deepEqual(numbersUnder(none.out, title), [1, 2, 3, 4, 5, 8, 9, 0], none.out);
+  assert.deepEqual(numbersUnder(none.out, title), [1, 3, 5, 8, 9, 0], none.out);
+  assert.match(none.out, / 5 {2}Výzkum, nebo jen archiv: výzkum, čeká na AI agenta na tomto počítači\n/);
   // an archive: nothing of an agent — 2, 4, 6, 7 gaps, typed 2 refused
   await w.ok(["agents", "use", "claude"]);
   await w.ok(["mode", "archive"], { tty: true, answers: ["a"] });
@@ -172,14 +174,15 @@ test("the settings: at most nine items and 0, each at a number of its own — wh
   w.cleanup();
 });
 
-test("the menu without an AI agent: said, item 1 gets one, nothing offered that needs it — nothing of Claude's; the numbers stay", unix, async () => {
+test("the menu without an AI agent: the research waits for it, kept as an archive — item 1 gets one, item 2 keeps it only an archive, nothing offered that needs it, nothing of Claude's; the numbers stay", unix, async () => {
   const w = await world();
   fs.rmSync(path.join(w.dir, "bin", "claude"));
-  // 1 get an agent: 3 later · Enter · 2 working alone: said · Enter · 4 add · 1 material · 2 what is known · the text · 0 · 8 settings · 0 · 0
-  const r = await w.ok([], { tty: true, answers: ["1", "3", "", "2", "", "4", "1", "2", "Babička Anna pocházela z Kolína.", "0", "8", "0", "0"] });
-  assert.match(r.out, /Na počítači zatím není žádný AI agent – výzkum dělá on\. Volba 1 ho nainstaluje\./);
-  assert.match(r.out, / 1 {2}Nainstalovat nebo vybrat AI agenta\n {3}2 {2}Nechat agenta pracovat samotného\n {3}3 {2}Co čeká/, "the same numbers as with an agent");
-  assert.match(r.out, /Agent se do toho pustí, až bude na počítači/);
+  // 1 get an agent: 3 later · Enter · 4 add to the archive · 1 material · 2 what is known · the text · 0 · 8 settings · 0 · 0
+  const r = await w.ok([], { tty: true, answers: ["1", "3", "", "4", "1", "2", "Babička Anna pocházela z Kolína.", "0", "8", "0", "0"] });
+  assert.match(r.out, /Výzkum čeká na AI agenta: dokud na počítači žádný není, data z aplikace Strom se ukládají jako v archivu\./);
+  assert.match(r.out, / 1 {2}Nainstalovat nebo vybrat AI agenta\n {3}2 {2}Nechat jen jako archiv: ukládat data z aplikace Strom\n {3}3 {2}Co čeká/, "the same numbers as with an agent");
+  assert.doesNotMatch(r.out, /Nechat agenta pracovat samotného|Tento výzkum pracuje s agentem/);
+  assert.match(r.out, /✓ Uloženo do výzkumu: 1\. Agent to projde, až bude na počítači\./);
   // Claude Code is named only where it is recommended to install
   assert.doesNotMatch(r.out.replace(/.*Nainstalovat Claude Code hned.*\n/u, ""), /Remote Control|Claude|Začít na něm s agentem|Projít to s agentem/);
   assert.equal((await w.ok(["input", "list", "--json"])).json.inputs.length, 1, "the material is in, for the agent to come");
@@ -398,7 +401,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   const consents = path.join(w.env.STROM_CONFIG_DIR!, "consents.json");
   fs.writeFileSync(consents, JSON.stringify({ connectors: { zkouska: { dir: path.join(old, "shared", "plugins", "connectors", "zkouska"), hash: "x", hosts: [], at: "2026-01-01" } }, hosts: {} }));
   // 0 for the folder keeps it
-  await w.ok(["setup"], { tty: true, answers: ["", "0", "0", "0", "0", "0", "0", "n", "0"] });
+  await w.ok(["setup"], { tty: true, answers: ["", "0", "0", "0", "0", "0", "0", "0", "n", "0"] });
   assert.equal(config().home, old);
   assert.ok(!fs.existsSync(path.join(w.cwd, "0")) && !fs.existsSync(path.join(w.dir, "0")));
   // moved from the menu's settings into a folder Finder has been in: the menu goes on, with the tree where it is now
@@ -406,7 +409,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   fs.mkdirSync(target);
   fs.writeFileSync(path.join(target, ".DS_Store"), "");
   // 8 settings · 1 the setup · Enter: everything, step by step · …
-  const r = await w.ok([], { tty: true, answers: ["8", "1", "", "", target, "", "0", "0", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["8", "1", "", "", target, "", "0", "0", "0", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
   assert.match(r.out, /✓ Výzkum je teď ve složce .*Nové místo\./);
   assert.match(r.out, /Novákovi – přehled výzkumu/, "the menu goes on, the tree opened where it is now");
   assert.doesNotMatch(r.out + r.err, /not a Strom tree|error:/);

@@ -3,13 +3,13 @@
 
 import { fileURLToPath } from "node:url";
 import type { Context } from "./context.ts";
+import { agentHere } from "../core/state.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
 import { Cancelled } from "../core/errors.ts";
 import type { Person, TreeConfig } from "../core/model.ts";
 import { findPersons, label } from "../core/people.ts";
 import { agentsHere } from "../core/apps.ts";
-import { AGENTS } from "../core/which.ts";
 
 /** Runs a strom command; quiet: its output (meant for agents) is not shown, errors are. */
 export type Run = (argv: string[], quiet?: boolean) => Promise<number>;
@@ -132,9 +132,9 @@ export function translator(lang: string) {
 
 /** Is the agent of the research on this computer — its CLI or its desktop app? Without it, nothing is offered to start with it. */
 export function agentReady(ctx: Context, tree: TreeConfig | undefined): boolean {
-  const agent = ctx.settings.agent(tree).value;
-  // an agent strom does not look for (a script of the user's) is theirs to have
-  return !AGENTS.some((a) => a.id === agent) || agentsHere(ctx.env).some((a) => a.id === agent);
+  // the same answer the research's state gives (core/state.ts): an agent strom does not look for (a script of the
+  // user's) is theirs to have
+  return agentHere(ctx.settings.agent(tree).value, ctx.env);
 }
 
 /** Claude Code is the agent of the research and on this computer: only then does the menu speak of what is Claude's (Remote Control, its usage). */

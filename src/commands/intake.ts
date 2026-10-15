@@ -10,7 +10,7 @@ import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
-import { UsageError } from "../core/errors.ts";
+import { notFound, UsageError } from "../core/errors.ts";
 import type { Input, Person, Research, Task } from "../core/model.ts";
 import { likelyDuplicates } from "../core/people.ts";
 import { collectFiles, fileSha256, inputPath, MAX_IN_TREE, mimeOf, storeShared } from "../core/media.ts";
@@ -22,6 +22,9 @@ import type { Tree } from "../core/tree.ts";
 import { amendInput, checkOriginalMeta } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
 import { SORT_KINDS, type Source } from "../core/model.ts";
+import { actsAsArchive } from "../core/state.ts";
+import { isArchive } from "../core/mode.ts";
+import { ui } from "../cli/ui.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
 
 function kindOf(file: string, text?: string): Input["kind"] {
@@ -129,7 +132,7 @@ register(
       // Files per argument: a folder becomes one intake task, not one per file.
       const groups = args.map((a) => {
         const p = ctx.resolvePath(a);
-        if (!fs.existsSync(p)) throw new UsageError(`no such file or folder: ${a}`);
+        if (!fs.existsSync(p)) throw notFound(a);
         const folder = fs.statSync(p).isDirectory();
         const files = collectFiles([p]);
         const images = files.filter((f) => IMAGE_EXT.has(path.extname(f).toLowerCase())).length;
@@ -214,11 +217,18 @@ register(
           added.push(input);
         }
       });
+      // where nobody researches (an archive, a research waiting for its agent): said to the person, in the research's
+      // language — kept, no task to take next (an archive's waits put aside until research is switched on)
+      const quiet = actsAsArchive(tree);
       const text = lines(
-        `${added.length} input(s) registered${skipped ? `, ${skipped} already known (same content)` : ""}`,
+        quiet
+          ? added.length
+            ? `${ui(tree.lang, isArchive(tree) ? "ui.intake.done.archive" : "ui.intake.done.waiting", { n: added.length })}${skipped ? ` ${ui(tree.lang, "ui.intake.same", { n: skipped })}` : ""}`
+            : ui(tree.lang, "ui.intake.known")
+          : `${added.length} input(s) registered${skipped ? `, ${skipped} already known (same content)` : ""}`,
         added.length ? table(added.map((i) => [`  ${i.id}`, i.kind, truncate(i.name, 60)])) : undefined,
         ...report,
-        tree.written.some((o) => o.op === "task.add") ? `\n${tree.written.filter((o) => o.op === "task.add").length} intake task(s) created → strom task next` : undefined,
+        !quiet && tree.written.some((o) => o.op === "task.add") ? `\n${tree.written.filter((o) => o.op === "task.add").length} intake task(s) created → strom task next` : undefined,
         task ? `${task.id} got ${[...new Set(handed)].join(", ")} and is back in the queue — the file is read as its next step (no intake task)` : undefined,
       );
       return { text, data: { inputs: added, skipped, ...(task ? { task: task.id, handed: [...new Set(handed)], state: task.state } : {}) } };
@@ -330,10 +340,10 @@ register(
     tree: true,
     run(ctx) {
       const tree = ctx.tree();
-      const all = batchStatus(tree) as { id: string; name?: string; state: string; files: number; known: number; refused: number; sorted: number; tasks: string[] }[];
+      const all = batchStatus(tree) as { id: string; name?: string; state: string; files: number; known: number; refused: number; sorted: number; kept?: boolean; tasks: string[] }[];
       return {
         text: all.length
-          ? table(all.map((b) => [b.id.slice(0, 12), b.state, `${b.sorted}/${b.files} sorted`, b.known ? `${b.known} known` : "", b.refused ? `${b.refused} refused` : "", truncate(b.name ?? "", 40), b.tasks.join(" ")]))
+          ? table(all.map((b) => [b.id.slice(0, 12), b.state, b.kept ? `${b.files} kept` : `${b.sorted}/${b.files} sorted`, b.known ? `${b.known} known` : "", b.refused ? `${b.refused} refused` : "", truncate(b.name ?? "", 40), b.tasks.join(" ")]))
           : "no batch from the Strom app",
         data: { batches: all },
       };

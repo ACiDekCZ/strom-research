@@ -18,7 +18,7 @@ import { create, update } from "../core/records.ts";
 import { safeFolderName } from "../core/text.ts";
 import { humanAge } from "../core/age.ts";
 import { now, Tree } from "../core/tree.ts";
-import { isArchive } from "../core/mode.ts";
+import { actsAsArchive } from "../core/state.ts";
 import { applySync, discardReceived, nothingSince, withoutImages, planSync, readTreeFile, receivedAll, receivedPending, receivedSince, receivedOf, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput } from "../core/sync.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { startLive } from "../core/live.ts";
@@ -37,7 +37,7 @@ import { isAgent } from "../core/which.ts";
  */
 function opsFor(ctx: Context, tree: Tree): string[] {
   // an archive's tasks wait put aside for research to come: not said
-  const ops = isArchive(tree) ? tree.written.filter((o) => !o.op.startsWith("task.")) : tree.written;
+  const ops = actsAsArchive(tree) ? tree.written.filter((o) => !o.op.startsWith("task.")) : tree.written;
   return ctx.interactive && !isAgent(ctx.env) ? [] : changeLines(tree, ops, "", tree.lang).map((l) => l.text);
 }
 
@@ -160,7 +160,7 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
           ? "ui.sync.do.reading"
           : `ui.sync.do.${c.action}`;
   // an archive: nobody reads a record there, nor is an agent told — said without it
-  const said = isArchive(tree) && `${does}.archive` in UI ? `${does}.archive` : does;
+  const said = actsAsArchive(tree) && `${does}.archive` in UI ? `${does}.archive` : does;
   return `${ui(lang, key as UIKey, v)} → ${ui(lang, said as UIKey)}`;
 }
 
@@ -176,7 +176,7 @@ function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang
     ...plan.changes.map((c) => `  ${changeLine(tree, c, incoming, lang)}`),
     "",
     // an archive mirrors the app whatever the setting says (planSync)
-    isArchive(tree) ? ui(lang, "ui.sync.edits.archive") : ui(lang, "ui.sync.edits", { mode: ui(lang, edits === "user" ? "ui.sync.mode.user" : "ui.sync.mode.conflict") }),
+    actsAsArchive(tree) ? ui(lang, "ui.sync.edits.archive") : ui(lang, "ui.sync.edits", { mode: ui(lang, edits === "user" ? "ui.sync.mode.user" : "ui.sync.mode.conflict") }),
     ui(lang, "ui.sync.next", { file: shown }),
   );
 }
@@ -203,7 +203,7 @@ async function fromApp(ctx: Context, tree: Tree, lang: string): Promise<{ file?:
   // a strom.app.url that is no address of the app: refused before the bridge starts — no address built on it (B1-c)
   stromAppUrl(ctx.settings);
   // what the app sends the bridge writes at once (unless the user reviews each send): what came of it is said, not shown to write
-  const atOnce = isArchive(tree) || !ctx.settings.syncReview(tree.config);
+  const atOnce = actsAsArchive(tree) || !ctx.settings.syncReview(tree.config);
   const info = startLive(root, ctx.env, { current: true });
   if (!info) throw new StromError("the bridge did not start", { hint: "strom live serve shows why" });
   const url = sendAppUrl(info.url, ctx.settings);

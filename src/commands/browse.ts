@@ -20,6 +20,7 @@ export { humanTask };
 import { lacksImages } from "../core/queue.ts";
 import { forStory } from "../core/stories.ts";
 import { isArchive } from "../core/mode.ts";
+import { actsAsArchive, stateOf } from "../core/state.ts";
 import { rankedQueue, waitingForUser } from "./tasks.ts";
 import { readTuneLog, type TuneLogEntry } from "../core/tune.ts";
 import { calibrationLabel } from "../core/viewsizes.ts";
@@ -129,8 +130,8 @@ register(
         if (s.oldest) out.push(ui(lang, "ui.stats.oldest", { name: whoText(s.oldest) }));
       }
       // an archive: nobody works on it — no tasks, no sessions said
-      if (!isArchive(tree)) out.push("", ui(lang, "ui.stats.tasks", s.tasks));
-      if (s.sessions.count && !isArchive(tree))
+      if (!actsAsArchive(tree)) out.push("", ui(lang, "ui.stats.tasks", s.tasks));
+      if (s.sessions.count && !actsAsArchive(tree))
         out.push(
           ui(lang, "ui.stats.sessions", { n: s.sessions.count, last: humanDay(s.sessions.last!, lang) }) +
             (s.sessions.costUsd ? ui(lang, "ui.stats.cost", { cost: humanCost(s.sessions.costUsd, lang) }) : "") +
@@ -203,6 +204,8 @@ register(
       const tree = ctx.tree();
       const lang = ctx.uiLang();
       if (isArchive(tree)) return { text: ui(lang, "ui.plan.archive", { name: tree.config.name }), data: { archive: true, tasks: [] } };
+      // its agent not on this computer: nothing planned until it is (the tasks stay where they are)
+      if (stateOf(tree) === "waiting") return { text: ui(lang, "ui.plan.waitagent", { name: tree.config.name }), data: { waiting: true, tasks: [] } };
       const count = positive(opts.count, "count", 10, 200);
       // The order of a conversation (the story's turn is only for working alone).
       const queue = rankedQueue(tree, { strategy: ctx.settings.strategy(tree.config) }).map((r) => r.task);
@@ -254,7 +257,7 @@ register(
         return { text: ui(lang, "ui.recent.nothing", { since }), data: { days, ...r } };
       const out: (string | undefined)[] = [
         ui(lang, "ui.recent.title", { since }),
-        ui(lang, ctx.archiveHere() ? "ui.recent.counts.archive" : "ui.recent.counts", { persons: r.persons.length, facts: r.facts.length - refined, refined, sources: r.sources.length, stories: r.stories.length, done: r.tasksDone }),
+        ui(lang, ctx.actsAsArchive() ? "ui.recent.counts.archive" : "ui.recent.counts", { persons: r.persons.length, facts: r.facts.length - refined, refined, sources: r.sources.length, stories: r.stories.length, done: r.tasksDone }),
       ];
       if (r.persons.length) out.push("", ui(lang, "ui.recent.persons"), ...r.persons.slice(0, RECENT_ROWS).map((p) => `  ${whoText(p)}`), more(r.persons.length - RECENT_ROWS, lang));
       if (r.facts.length)
