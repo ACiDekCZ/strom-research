@@ -15,7 +15,7 @@ import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import type { Family, Person, Source } from "../core/model.ts";
 import { fileSha256, MAX_IN_TREE, mimeOf } from "../core/media.ts";
 import { create, update } from "../core/records.ts";
-import { safeFolderName } from "../core/text.ts";
+import { decodeText, safeFolderName } from "../core/text.ts";
 import { humanAge } from "../core/age.ts";
 import { now, Tree } from "../core/tree.ts";
 import { actsAsArchive } from "../core/state.ts";
@@ -374,7 +374,7 @@ register(
           fs.mkdirSync(path.join(tree.root, "inputs"), { recursive: true });
           // kept as the document the source cites — without the images in it (the research's own excerpts, back from
           // the app: megabytes in the history for nothing)
-          fs.writeFileSync(path.join(tree.root, stored), withoutImages(fs.readFileSync(file, "utf8")));
+          fs.writeFileSync(path.join(tree.root, stored), withoutImages(decodeText(fs.readFileSync(file))));
         }
         const made = create<SyncInput>(
           tree,

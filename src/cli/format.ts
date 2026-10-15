@@ -1,6 +1,8 @@
 // Compact, token-efficient text output: aligned columns, one row per record,
 // no box drawing, IDs first.
 
+import { ui } from "./ui.ts";
+
 export function table(rows: string[][], opts: { header?: string[]; gap?: number } = {}): string {
   const all = opts.header ? [opts.header, ...rows] : rows;
   if (all.length === 0) return "";
@@ -37,11 +39,12 @@ export function paginate<T>(items: T[], limit: number, page: number): Page<T> {
  */
 export const LIST_PAGE_MAX = 100;
 
-/** Footer telling the caller how to see more. */
-export function moreLine(page: Page<unknown>, command: string): string {
+/** Footer telling the caller how to see more — in the research's language where the listing is (lang), else English. */
+export function moreLine(page: Page<unknown>, command: string, lang?: string): string {
   if (page.page >= page.pages) return "";
   const left = page.total - page.page * page.limit;
-  return `… ${left} more: ${command} --page ${page.page + 1}`;
+  const next = `${command} --page ${page.page + 1}`;
+  return lang ? ui(lang, "ui.list.more", { n: String(left), command: next }) : `… ${left} more: ${next}`;
 }
 
 export function truncate(text: string, max: number): string {

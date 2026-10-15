@@ -1,9 +1,13 @@
-# Strom Research — for AI agents
+# Strom Research — for AI agents (beta channel)
 
 The user wants to research their family history with you, using strom: a
 program that makes you a careful genealogical researcher (parish registers,
 archives, evidence, a family tree for the Strom app). Talk to the user in
 their language.
+
+This is the beta channel of strom: its newest versions to try before they are
+released. The installers below are run with STROM_CHANNEL=beta, and
+`strom update` then stays on the beta (`strom update --channel stable` goes back).
 
 1. Check whether strom is installed: run `strom --version`. strom and the
    research live on the computer where it is installed. If you work on a
@@ -16,19 +20,19 @@ their language.
    this computer from the project's GitHub release, checks it against the
    release's SHASUMS256.txt, puts it into the user's own folder (no admin
    rights) and adds that folder to PATH. Source:
-   https://github.com/ACiDekCZ/strom-research/tree/main/install
+   https://github.com/ACiDekCZ/strom-research/tree/beta/install
    - Windows (PowerShell):
-     `Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/ACiDekCZ/strom-research/main/install/install.ps1 -OutFile "$env:TEMP\strom-install.ps1"`,
+     `Invoke-WebRequest -UseBasicParsing https://raw.githubusercontent.com/ACiDekCZ/strom-research/beta/install/install.ps1 -OutFile "$env:TEMP\strom-install.ps1"`,
      read the file, then
-     `Get-Content -Raw -Encoding UTF8 "$env:TEMP\strom-install.ps1" | iex`
+     `$env:STROM_CHANNEL='beta'; Get-Content -Raw -Encoding UTF8 "$env:TEMP\strom-install.ps1" | iex`
      (read as UTF-8: Windows PowerShell 5.1 would take the file in another code page)
    - macOS, Linux:
-     `curl -fsSL https://raw.githubusercontent.com/ACiDekCZ/strom-research/main/install/install.sh -o /tmp/strom-install.sh`,
-     read the file, then `sh /tmp/strom-install.sh`
+     `curl -fsSL https://raw.githubusercontent.com/ACiDekCZ/strom-research/beta/install/install.sh -o /tmp/strom-install.sh`,
+     read the file, then `STROM_CHANNEL=beta sh /tmp/strom-install.sh`
    If your own safety checks stop a step, do not work around them: show the
    user the command, say what it does, and let them allow it or run it
    themselves in a terminal. (People use the one-line forms:
-   `powershell -ExecutionPolicy Bypass -c "irm https://stromapp.info/research/install.ps1 | iex"` on Windows, `curl -fsSL https://raw.githubusercontent.com/ACiDekCZ/strom-research/main/install/install.sh | sh`
+   `$env:STROM_CHANNEL='beta'; irm https://raw.githubusercontent.com/ACiDekCZ/strom-research/beta/install/install.ps1 | iex` in PowerShell on Windows, `curl -fsSL https://raw.githubusercontent.com/ACiDekCZ/strom-research/beta/install/install.sh | STROM_CHANNEL=beta sh`
    elsewhere.) The installer prints the full path of strom; use that path
    until a new terminal has it on PATH.
 3. Run `strom`. It says where things stand and what to do next — follow it.

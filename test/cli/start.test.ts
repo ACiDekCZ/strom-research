@@ -914,7 +914,7 @@ test("the live bridge does not end because of one error, says what happened in i
     // Stopped (for good) and started again: its port, a new secret — the app needs the new address.
     // live stop waits until the bridge has ended
     await w.ok(["live", "stop"]);
-    assert.match(fs.readFileSync(log, "utf8"), /stop asked: strom live stop\n.*ended: SIGTERM\n.*its secret dropped \(strom live stop\)/);
+    assert.match(fs.readFileSync(log, "utf8"), /stop asked: strom live stop\n.*ended: strom live stop\n.*its secret dropped \(strom live stop\)/);
     const again = (await w.ok(["live", "start", "--json"])).json;
     assert.equal(again.port, first.port);
     assert.notEqual(again.token, first.token);

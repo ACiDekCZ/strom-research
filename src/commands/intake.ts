@@ -17,7 +17,7 @@ import { collectFiles, fileSha256, inputPath, MAX_IN_TREE, mimeOf, storeShared }
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { phrase } from "../core/phrases.ts";
 import { importGedcom, importStromJson, isStromJson, type ImportResult } from "../core/import.ts";
-import { safeFolderName } from "../core/text.ts";
+import { decodeText, safeFolderName } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
 import { amendInput, checkOriginalMeta } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
@@ -142,6 +142,9 @@ register(
           });
         return { folder: folder ? path.basename(p) : undefined, files };
       });
+      // where nobody researches (an archive, a research waiting for its agent): said to the person, in the research's
+      // language — kept, no task to take next (an archive's waits put aside until research is switched on)
+      const quiet = actsAsArchive(tree);
       const known = new Map(tree.list<Input>("input").filter((i) => i.sha).map((i) => [i.sha!, i.id]));
       const report: string[] = [];
       const added: Input[] = [];
@@ -161,7 +164,8 @@ register(
           }
           const size = fs.statSync(file).size;
           const isText = size < 50 * 1024 * 1024 && [".ged", ".json", ".txt", ".md", ".csv"].includes(path.extname(file).toLowerCase());
-          const text = isText ? fs.readFileSync(file, "utf8") : undefined;
+          // as whatever saved it: a BOM (Notepad, PowerShell 5) or UTF-16 is still the same family tree
+          const text = isText ? decodeText(fs.readFileSync(file)) : undefined;
           const kind = kindOf(file, text);
           const id = tree.peekId("I");
           let stored: string;
@@ -189,13 +193,20 @@ register(
               op: "input.imported",
               summary: `${input.id} imported: ${imported.persons} persons, ${imported.families} families${imported.matched ? `, ${imported.matched} matched` : ""}`,
             });
-            report.push(`  ${input.id} tree: ${imported.persons} persons, ${imported.families} families, ${imported.events} facts as leads${imported.matched ? `, ${imported.matched} matched to existing` : ""}${imported.problems.length ? ` (${imported.problems.length} unreadable lines)` : ""}`);
-            if (imported.extended.length) report.push(`  added to what we have (leads — check them): ${imported.extended.slice(0, 6).join(" · ")}${imported.extended.length > 6 ? " …" : ""}`);
-            // the research's own tree coming back: sync sees what was changed in it too, not only what was added
-            if (imported.matched && imported.matched >= imported.persons) report.push(`  it is this research's tree coming back: strom sync "${ctx.display(file)}" shows what was changed in it too`);
-            const system = `gedcom:${sha.slice(0, 12)}`;
-            const dupes = likelyDuplicates(tree, tree.list<Person>("person").filter((p) => p.refs?.some((r) => r.system === system)).map((p) => p.id));
-            if (dupes.length) report.push(`  probably already in the tree: ${dupes.map((d) => `${d.person.id}≈${d.same.id}`).join(", ")} (the review task lists them)`);
+            const back = imported.matched && imported.matched >= imported.persons;
+            if (quiet) {
+              // where nobody researches the person reads it, in the research's language: the tree is in it (no review talk)
+              report.push(`  ${ui(tree.lang, "ui.intake.tree", { id: input.id, persons: imported.persons, families: imported.families, events: imported.events, source: imported.source })}${imported.matched ? ui(tree.lang, "ui.intake.tree.matched", { n: imported.matched }) : ""}`);
+              if (back) report.push(`  ${ui(tree.lang, "ui.intake.tree.back", { file: ctx.display(file) })}`);
+            } else {
+              report.push(`  ${input.id} tree: ${imported.persons} persons, ${imported.families} families, ${imported.events} facts as leads${imported.matched ? `, ${imported.matched} matched to existing` : ""}${imported.problems.length ? ` (${imported.problems.length} unreadable lines)` : ""}`);
+              if (imported.extended.length) report.push(`  added to what we have (leads — check them): ${imported.extended.slice(0, 6).join(" · ")}${imported.extended.length > 6 ? " …" : ""}`);
+              // the research's own tree coming back: sync sees what was changed in it too, not only what was added
+              if (back) report.push(`  it is this research's tree coming back: strom sync "${ctx.display(file)}" shows what was changed in it too`);
+              const system = `gedcom:${sha.slice(0, 12)}`;
+              const dupes = likelyDuplicates(tree, tree.list<Person>("person").filter((p) => p.refs?.some((r) => r.system === system)).map((p) => p.id));
+              if (dupes.length) report.push(`  probably already in the tree: ${dupes.map((d) => `${d.person.id}≈${d.same.id}`).join(", ")} (the review task lists them)`);
+            }
           }
           // A family tree gets its own review task; the other files of a folder share one — files for a task: none
           if (forTask) handed.push(input.id);
@@ -217,9 +228,6 @@ register(
           added.push(input);
         }
       });
-      // where nobody researches (an archive, a research waiting for its agent): said to the person, in the research's
-      // language — kept, no task to take next (an archive's waits put aside until research is switched on)
-      const quiet = actsAsArchive(tree);
       const text = lines(
         quiet
           ? added.length

@@ -32,7 +32,9 @@ import { humanWhen } from "../cli/human.ts";
 import { onlyItsFiles, packPlan } from "../core/pack.ts";
 import { defaultPackFile, packTree } from "./pack.ts";
 import { archiveWaitingItems } from "../core/archiveasks.ts";
-import { claudeHere } from "../cli/menu-parts.ts";
+import { agentReady, claudeHere } from "../cli/menu-parts.ts";
+import { agentFirst, agentStepsSkipped } from "../cli/menu-mode.ts";
+import { isAgent } from "../core/which.ts";
 
 register({
   path: ["init"],
@@ -79,12 +81,14 @@ register({
     ctx.adopt(tree);
     // in the research's language, also when an agent runs it (found on Mac: English to a Czech research)
     const t = (k: UIKey, v: Record<string, string> = {}) => ui(lang, k, v);
+    const waiting = mode !== "archive" && stateOf(tree) === "waiting";
     const text = lines(
       t("ui.init.created", { name, path: ctx.display(root) }),
       t(langR.source === "detected" ? "ui.init.lang.detected" : "ui.init.lang", { lang: langName(lang, lang), code: lang }),
-      mode === "archive" ? t("ui.init.archive") : undefined,
+      mode === "archive" ? t("ui.init.archive") : waiting ? t("ui.why.waitagent.human") : undefined,
       "",
-      t("ui.init.next", { command: mode === "archive" ? "strom app" : placeholders(lang, `strom research new "<research name>" --new-person "<Given /Surname/>" --born "<date>" --born-place "<place>"`) }),
+      // waiting for its agent: no direction to start (it would be refused) — the menu installs the agent
+      t("ui.init.next", { command: mode === "archive" ? "strom app" : waiting ? "strom" : placeholders(lang, `strom research new "<research name>" --new-person "<Given /Surname/>" --born "<date>" --born-place "<place>"`) }),
     );
     return { text, data: { name, root, lang, mode } };
   },
@@ -334,7 +338,7 @@ register({
     "put aside (never while somebody works on it); back, they come back to the queue. Nothing is deleted.",
   args: [{ name: "mode", description: "research or archive (none: say which it is)" }],
   examples: ["strom mode", "strom mode research"],
-  run(ctx, { args }) {
+  async run(ctx, { args }) {
     const tree = ctx.tree();
     const lang = tree.lang;
     const now = modeOf(tree);
@@ -348,6 +352,18 @@ register({
     // nobody's work is cut short: a session at work finishes first
     if (to === "archive" && (liveWorkers(tree.root).length > 0 || runsAtWork(tree.root).length > 0))
       throw new UsageError("somebody is at work on this research: an archive only once they finished", { hint: "strom session finish (the agent writes down what it found and closes), then strom mode archive" });
+    // research on with no agent here, as the menu's "switch research on": the agent first — a person at the terminal
+    // gets one offered; none got (or nobody here to get one), the archive stays as it was, nothing written, said why
+    let asked: boolean | undefined;
+    if (to === "research" && !agentReady(ctx, tree.config)) {
+      const later = { text: ui(lang, "ui.mode.later"), data: { mode: now, state, changed: false, agentHere: false } };
+      if (!ctx.interactive || isAgent(ctx.env) || tree.dryRun) return later;
+      const { main } = await import("../cli/main.ts");
+      const run = (argv: string[], quiet?: boolean) => main(argv, quiet ? { ...ctx.io, stdout: () => undefined } : ctx.io, ctx.env, tree.root);
+      const got = await agentFirst(ctx, run, lang, tree.root);
+      if (!got.ready) return { ...later, text: "" };
+      asked = got.asked;
+    }
     ctx.requireHuman(
       to === "archive" ? "Make this research an archive (its tasks put aside)?" : "Switch research on (the tasks put aside back in the queue)?",
       `strom mode ${to}`,
@@ -364,6 +380,15 @@ register({
     if (to === "research" && !tree.dryRun)
       for (const t of globalTargets(ctx.env).filter((x) => agentsHere(ctx.env).some((a) => a.id === x.agent))) installGlobal(t);
     if (files.length && !tree.dryRun) tree.withTreeLock(() => tree.commit(`Agent instructions: ${files.join(", ")}`, files));
+    // the agent got here just now, its steps of the setup never asked: offered, as the menu does
+    if (asked === false && agentStepsSkipped(ctx)) {
+      ctx.io.stdout(ui(lang, "ui.mode.now.research", { n: moved.length }) + "\n");
+      if (await ctx.confirm(ui(lang, "ui.mode.setup"), true)) {
+        const { main } = await import("../cli/main.ts");
+        await main(["setup", "--research"], ctx.io, ctx.env, tree.root);
+      }
+      return { text: "", data: { mode: to, changed: true, tasks: moved } };
+    }
     return {
       // the sentence in the research's language (found on Windows: "T0001 put aside: the research is an archive")
       text: ui(lang, to === "archive" ? "ui.mode.now.archive" : "ui.mode.now.research", { n: moved.length }),

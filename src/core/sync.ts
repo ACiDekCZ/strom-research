@@ -32,7 +32,7 @@ import { fromFlexDate, houseOf, importDate, readGedName, readGedSex, stromAppFil
 import { humanAge, normalizeAge } from "./age.ts";
 import { dateYears } from "./gdate.ts";
 import { create, update } from "./records.ts";
-import { foldText, safeFolderName } from "./text.ts";
+import { decodeText, foldText, safeFolderName } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { eventName, humanDate } from "../cli/human.ts";
@@ -1111,7 +1111,7 @@ export function readStromJson(data: unknown): Snapshot {
 
 /** A file coming back: GEDCOM or the Strom app's JSON; empty or unreadable throws. */
 export function readTreeFile(file: string): Snapshot {
-  const text = fs.readFileSync(file, "utf8");
+  const text = decodeText(fs.readFileSync(file));
   if (!text.trim()) throw new UsageError(`${path.basename(file)} is empty`, { code: "tree.empty", params: { file: path.basename(file) } });
   let snap: Snapshot;
   if (/^﻿?\s*[{[]/.test(text)) {

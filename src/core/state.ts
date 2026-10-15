@@ -48,14 +48,16 @@ export function actsAsArchive(tree: { config: TreeConfig; env: Env; root?: strin
 /**
  * Work of an agent refused where nobody researches: an archive (nothing of an agent said: where research is switched
  * on), or a research waiting for its agent when the agent asked for is not here either (`strom run --agent` of another
- * one here goes on). One sentence in the research's language, a code for a program (the Strom app says it in its own).
+ * one here goes on). One sentence in the research's language (ui.error.archive, ui.error.agent.missing), the command for a
+ * terminal after it; the English and a code for a program and an agent (the Strom app says it in its own).
  */
 export function refuseInArchive(tree: { config: TreeConfig; env: Env; root?: string; lang: string }, what: string, agent?: string): void {
   const state = stateOf(tree);
   if (state === "research") return;
   if (state === "archive")
-    throw new UsageError(ui(tree.lang, "ui.archive.refuse"), { code: "archive", params: { what }, hint: "strom mode research (the person: strom's menu, its first item)" });
+    throw new UsageError(ui("en", "ui.archive.refuse"), { code: "archive", params: { what }, hint: "strom mode research (the person: strom's menu, its first item)" });
   const named = agent ?? new Settings(tree.env, {}).agent(tree.config).value;
   if (agentHere(named, tree.env)) return;
-  throw new UsageError(ui(tree.lang, "ui.waiting.refuse", { agent: PROFILES[named]?.name ?? named }), { code: "agent.missing", params: { what, agent: named }, hint: "strom setup (the person installs or chooses the agent: strom's menu, its first item)" });
+  const name = PROFILES[named]?.name ?? named;
+  throw new UsageError(ui("en", "ui.waiting.refuse", { agent: name }), { code: "agent.missing", params: { what, agent: named, name }, hint: "strom setup (the person installs or chooses the agent: strom's menu, its first item)" });
 }

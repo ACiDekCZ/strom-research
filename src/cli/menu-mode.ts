@@ -24,16 +24,9 @@ export async function switchTo(ctx: Context, run: Run, lang: string, root: strin
   if (modeOf(tree) === to) return;
   let asked = false;
   if (to === "research" && !agentReady(ctx, tree.config)) {
-    out(t("ui.mode.agent.get"));
-    if (agentsHere(ctx.env).length) {
-      await run(["setup", "--research"]);
-      asked = true;
-    } else await offerAgent(ctx, out);
-    ctx.settings.reload();
-    if (!agentReady(ctx, Tree.open(root, ctx.env).config)) {
-      out(t("ui.mode.later"));
-      return pause(ctx, lang);
-    }
+    const got = await agentFirst(ctx, run, lang, root);
+    if (!got.ready) return pause(ctx, lang);
+    asked = got.asked;
   }
   if (!(await ctx.confirm(t(to === "archive" ? "ui.consent.mode.archive" : "ui.consent.mode.research", { name: tree.config.name }), false))) return;
   const held = () => Tree.open(root, ctx.env).list<Task>("task").filter((x) => x.heldBy === "archive").length;
@@ -48,8 +41,28 @@ export async function switchTo(ctx: Context, run: Run, lang: string, root: strin
   await pause(ctx, lang);
 }
 
+/**
+ * Research switched on where the research's agent is not here: the agent first — the wizard when another one is here,
+ * else the one offered. None got: a sentence says the archive stays as it was (the caller writes nothing). `asked`: the
+ * wizard's agent steps were asked just now.
+ */
+export async function agentFirst(ctx: Context, run: Run, lang: string, root: string): Promise<{ ready: boolean; asked: boolean }> {
+  const t = translator(lang);
+  const out = (line: string) => ctx.io.stdout(line + "\n");
+  out(t("ui.mode.agent.get"));
+  let asked = false;
+  if (agentsHere(ctx.env).length) {
+    await run(["setup", "--research"]);
+    asked = true;
+  } else await offerAgent(ctx, out);
+  ctx.settings.reload();
+  if (agentReady(ctx, Tree.open(root, ctx.env).config)) return { ready: true, asked };
+  out(t("ui.mode.later"));
+  return { ready: false, asked };
+}
+
 /** The setup's steps of an agent never asked on this computer (stories: asked with them by every wizard before these). */
-function agentStepsSkipped(ctx: Context): boolean {
+export function agentStepsSkipped(ctx: Context): boolean {
   ctx.settings.reload();
   const c = ctx.settings.config;
   return !c.agentAsked && c.stories === undefined;

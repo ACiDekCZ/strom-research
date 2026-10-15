@@ -132,3 +132,21 @@ export function safeFolderName(name: string): string {
   if (cleaned === "" || reserved.test(cleaned) || cleaned.toLowerCase() === "shared") return `${cleaned || "tree"}-1`;
   return cleaned;
 }
+
+/**
+ * A text file's bytes as text, whatever saved it: UTF-8 with or without a BOM (Notepad, PowerShell 5's
+ * `-Encoding UTF8`), UTF-16 LE or BE by its BOM (PowerShell's `-Encoding Unicode`), or without one when it opens with
+ * two characters of ASCII (a GEDCOM's "0 ", a JSON's "{"). The BOM is never part of the text.
+ */
+export function decodeText(buf: Uint8Array): string {
+  const b = Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength);
+  const le = (from: number) => b.subarray(from, from + ((b.length - from) & ~1)).toString("utf16le");
+  const be = (from: number) => Buffer.from(b.subarray(from, from + ((b.length - from) & ~1))).swap16().toString("utf16le");
+  if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) return b.subarray(3).toString("utf8");
+  if (b[0] === 0xff && b[1] === 0xfe) return le(2);
+  if (b[0] === 0xfe && b[1] === 0xff) return be(2);
+  const ascii = (x: number | undefined) => x !== undefined && x > 0 && x < 0x80;
+  if (b.length >= 4 && ascii(b[0]) && b[1] === 0 && ascii(b[2]) && b[3] === 0) return le(0);
+  if (b.length >= 4 && b[0] === 0 && ascii(b[1]) && b[2] === 0 && ascii(b[3])) return be(0);
+  return b.toString("utf8").replace(/^﻿/, "");
+}

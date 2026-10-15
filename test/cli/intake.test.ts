@@ -227,3 +227,44 @@ test("T08: a family tree's names — the name's own parts first, what stands for
   assert.ok(people[3].notes.some((n: { text: string }) => n.text.normalize("NFC") === "Mrtvě narozený"), "the description is kept in a note");
   w.cleanup();
 });
+
+test("REFN: two researches both have a P0001 — another research's tree is a foreign tree, never matched by the shape of its IDs", opts, async () => {
+  const w = new World();
+  await w.withTree("Novákovi");
+  const a = w.cwd;
+  await w.ok(["person", "add", "Jan /Novák/", "--born", "1905"], { cwd: a });
+  await w.ok(["person", "add", "Josef /Novák/"], { cwd: a });
+  await w.ok(["family", "add", "--partner", "P2", "--child", "P1"], { cwd: a });
+  const fromA = path.join(w.dir, "novakovi-strom.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", fromA], { cwd: a });
+  const plainA = path.join(w.dir, "novakovi.ged");
+  await w.ok(["export", "gedcom", "--for", "standard", "--out", plainA], { cwd: a });
+  await w.ok(["init", "Svobodovi"]);
+  const b = w.treeDir("Svobodovi");
+  // the same name at P0001 too: the research the file names decides, not the name
+  await w.ok(["person", "add", "Jan /Novák/", "--born", "1931"], { cwd: b });
+  await w.ok(["person", "add", "Marie /Svobodová/"], { cwd: b });
+  const take = async (file: string) => {
+    const r = await w.ok(["intake", file], { cwd: b });
+    assert.doesNotMatch(r.out, /strom sync|tohoto výzkumu|this research's tree|matched|spárován/i, `${path.basename(file)}: ${r.out}`);
+    const ids = (await w.ok(["input", "list", "--json"], { cwd: b })).json.inputs.map((i: any) => i.id);
+    return readJsonFile(path.join(b, "data", "inputs", `${ids.at(-1)}.json`)).imported;
+  };
+  assert.deepEqual(await take(fromA), { persons: 2, families: 1, sources: 1 }, "another research's Strom file: its people taken in as new");
+  assert.deepEqual(await take(plainA), { persons: 2, families: 1, sources: 1 }, "no research named: one name alike of two is no tree of ours");
+  const app = path.join(w.dir, "aplikace.ged");
+  fs.copyFileSync(path.join(import.meta.dirname, "..", "fixtures", "app", "3.9.0.ged"), app);
+  assert.equal((await take(app)).persons, 3, "the app's file of another tree: none of its REFNs ours");
+  const json = path.join(w.dir, "aplikace.json");
+  fs.writeFileSync(json, JSON.stringify({ research: { id: "jiny-vyzkum" }, persons: { p_a: { id: "p_a", firstName: "Jan", lastName: "Novák", refn: "P0001" } }, partnerships: {} }));
+  assert.equal((await take(json)).persons, 1, "the app's JSON of another research: P0001 not ours");
+  const p1 = (await w.ok(["person", "show", "P1", "--json"], { cwd: b })).json.person;
+  assert.equal(p1.events.length, 1, "nothing of the other trees added to our P0001");
+  // this research's own file coming back is still matched by its IDs, whatever the names
+  const own = path.join(w.dir, "svobodovi-strom.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", own], { cwd: b });
+  fs.writeFileSync(own, fs.readFileSync(own, "utf8").replace("1 NAME Marie /Svobodová/", "1 NAME Mařenka /Svobodová/"));
+  const back = await w.ok(["intake", own], { cwd: b });
+  assert.match(back.out, /strom sync/, back.out);
+  w.cleanup();
+});
