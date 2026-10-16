@@ -361,20 +361,34 @@ register(
   },
   {
     path: ["searched"],
-    summary: "Has anyone looked there already? (by record set, person, place or surname)",
+    summary: "Has anyone looked there already? (by record set, person, task, place or surname)",
     group: "analysis",
     tree: true,
     description: "Check this BEFORE searching: repeating a finished search is the most common waste.",
-    args: [{ name: "what", description: "B0001, P0001, a place name or a surname", required: true }],
-    options: [{ name: "years", type: "string", value: "<from-to>", description: "only searches overlapping these years" }],
-    examples: ["strom searched B0001 --years 1903-1907", "strom searched Novák", "strom searched P0001"],
+    args: [{ name: "what", description: "B0001, P0001, T0001, a place name or a surname", required: true, unless: ["surname", "task"] }],
+    options: [
+      { name: "years", type: "string", value: "<from-to>", description: "only searches overlapping these years" },
+      { name: "surname", type: "string", multiple: true, value: "<name>", description: "only searches for this surname (repeatable: any of them; diacritics optional)", aliases: ["surnames"] },
+      { name: "task", type: "string", value: "<T…>", description: "only searches done for this task" },
+    ],
+    examples: ["strom searched B0001 --years 1903-1907", "strom searched Novák", "strom searched P0001", "strom searched B0001 --surname Novák --task T0001"],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const q = args[0]!.trim();
+      const surnames = csvOpt(opts.surname).map((x) => x.trim()).filter(Boolean);
+      const task = typeof opts.task === "string" ? requireRecord(tree, opts.task, "task").id : undefined;
+      const bySurname = (s: Search) => !surnames.length || (s.scope.surnames ?? []).some((x) => surnames.some((y) => foldText(x) === foldText(y) || sameFamilyName(x, y)));
+      const byTask = (s: Search) => !task || s.task === task;
+      const q = (args[0] ?? "").trim();
       const id = normId(q);
       let match: (s: Search) => boolean;
       let what = q;
-      if (typeOfId(id) === "recordset") {
+      if (!q) {
+        what = [...(surnames.length ? [surnames.join(", ")] : []), ...(task ? [task] : [])].join(" · ");
+        match = () => true;
+      } else if (typeOfId(id) === "task") {
+        what = requireRecord(tree, id, "task").id;
+        match = (s) => s.task === what;
+      } else if (typeOfId(id) === "recordset") {
         what = requireRecord(tree, id, "recordset").id;
         match = (s) => s.recordsets.includes(id);
       }
@@ -396,7 +410,8 @@ register(
       }
       const said: string[] = [];
       const years = yearsOption(opts.years, said);
-      const hits = tree.list<Search>("search").filter((s) => match(s) && yearsOverlap(s.scope.years, years));
+      const hits = tree.list<Search>("search").filter((s) => match(s) && bySurname(s) && byTask(s) && yearsOverlap(s.scope.years, years));
+      if (q) what = [what, ...(surnames.length ? [`surname ${surnames.join(", ")}`] : []), ...(task ? [`for ${task}`] : [])].join(" · ");
       const negative = hits.filter((s) => s.result === "negative").length;
       // a negative of an index is the index's: the book itself not searched in vain by it
       const ofIndex = hits.filter((s) => s.result === "negative" && s.method === "index").length;

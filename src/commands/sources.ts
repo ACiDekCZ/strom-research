@@ -253,7 +253,7 @@ register(
     summary: "List sources (filter by text, kind, recordset)",
     group: "sources",
     tree: true,
-    args: [{ name: "filter", description: "text in title, locator or transcript" }],
+    args: [{ name: "filter", description: "text in title, locator or transcript", mistaken: ["find", "search", "text"] }],
     options: [
       { name: "kind", type: "string", value: "<kind>", description: "only this kind" },
       { name: "recordset", type: "string", value: "<B…>", description: "only from this recordset" },
@@ -410,6 +410,69 @@ register(
 
 // ── record sets ────────────────────────────────────────────────────────────
 
+/** The registered images of a record set (N0216: found by a trial fetch, "registered already — nothing fetched"). */
+export interface ImagesHere {
+  /** Image numbers with a whole image (each once). */
+  registered: number;
+  /** Their numbers, as ranges [from, to]. */
+  ranges: [number, number][];
+  /** Numbers with only parts of the image (a half, a detail): no whole image to read. */
+  partsOnly: [number, number][];
+  /** Numbers with more than one whole copy (the sharpest is the image). */
+  copies: [number, number][];
+  /** Images of the record set registered without a number. */
+  unnumbered: number;
+}
+
+function asRanges(nums: number[]): [number, number][] {
+  const s = [...new Set(nums)].sort((a, b) => a - b);
+  const out: [number, number][] = [];
+  for (const n of s) {
+    const last = out.at(-1);
+    if (last && n === last[1] + 1) last[1] = n;
+    else out.push([n, n]);
+  }
+  return out;
+}
+
+export function imagesHere(tree: Tree, recordset: string): ImagesHere {
+  const whole = new Map<number, number>();
+  const parts = new Set<number>();
+  let unnumbered = 0;
+  for (const m of tree.list<Media>("media")) {
+    if (m.recordset !== recordset || m.retracted) continue;
+    if (m.image === undefined) unnumbered++;
+    else if (m.part) parts.add(m.image);
+    else whole.set(m.image, (whole.get(m.image) ?? 0) + 1);
+  }
+  return {
+    registered: whole.size,
+    ranges: asRanges([...whole.keys()]),
+    partsOnly: asRanges([...parts].filter((n) => !whole.has(n))),
+    copies: asRanges([...whole].filter(([, k]) => k > 1).map(([n]) => n)),
+    unnumbered,
+  };
+}
+
+/** Ranges said: "4–19, 21–42"; more than `most` of them cut, with how to see them all. */
+function rangesText(r: [number, number][], most: number, all: string): string {
+  const said = r.slice(0, most).map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(", ");
+  return r.length > most ? `${said}, … (${r.length} ranges: ${all})` : said;
+}
+
+const IMAGE_RANGES_SHOWN = 12;
+
+function imagesLines(h: ImagesHere, b: RecordSet, full: boolean): string[] {
+  const most = full ? Infinity : IMAGE_RANGES_SHOWN;
+  const all = `strom recordset show ${b.id} --images`;
+  const count = (n: [number, number][]) => n.reduce((k, [a, z]) => k + z - a + 1, 0);
+  const out = [h.registered ? `images      ${h.registered}${b.images ? ` of ${b.images}` : ""} registered — ${rangesText(h.ranges, most, all)}` : "images      none registered whole"];
+  if (h.partsOnly.length) out.push(`            only in parts (no whole image to read): ${count(h.partsOnly)} — ${rangesText(h.partsOnly, most, all)}`);
+  if (h.copies.length) out.push(`            in several copies (the sharpest is the image): ${count(h.copies)} — ${rangesText(h.copies, most, all)}`);
+  if (h.unnumbered) out.push(`            without an image number: ${h.unnumbered}`);
+  return out;
+}
+
 register(
   {
     path: ["recordset", "add"],
@@ -468,7 +531,7 @@ register(
     summary: "Books and collections known in this tree",
     group: "sources",
     tree: true,
-    args: [{ name: "filter", description: "text in title, place or call number" }],
+    args: [{ name: "filter", description: "text in title, place or call number", mistaken: ["find", "search", "text"] }],
     options: [
       { name: "place", type: "string", value: "<name>", description: "only the books of this place (diacritics optional)" },
       { name: "kind", type: "string", value: "<kind>", description: "only the books holding this kind of record (baptism, marriage, burial…)" },
@@ -519,22 +582,25 @@ register(
     group: "sources",
     tree: true,
     args: [{ name: "recordset", description: "record set ID (B0001)", required: true }],
-    run(ctx, { args }) {
+    options: [{ name: "images", type: "boolean", description: "the registered images in full: every range, those only in parts, those in several copies" }],
+    run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const b = requireRecord<RecordSet>(tree, args[0]!, "recordset");
       const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
+      const here = imagesHere(tree, b.id);
       const text = lines(
         `${b.id} ${b.title}`,
         repo ? `in          ${repo.id} ${repo.name}${b.callNumber ? ` · ${b.callNumber}` : ""} · automation ${repo.automation}` : b.callNumber ? `call number ${b.callNumber}` : undefined,
         `covers      ${[b.kinds.join(", "), b.places.join(", "), b.years].filter(Boolean).join(" · ") || "(not described)"}`,
         `access      ${b.access}${b.url ? ` · ${b.url}` : ""}${b.images ? ` · ${b.images} images` : ""}`,
+        ...imagesLines(here, b, opts.images === true),
         b.layout ? `layout      ${b.layout}` : undefined,
         calibrationLine(b),
         ...b.notes.map((n) => `note        ${n.text}`),
         "",
         `searched in it: strom searched ${b.id}`,
       );
-      return { text, data: { recordset: b, calibration: fitCalibration(b.calibration) } };
+      return { text, data: { recordset: b, calibration: fitCalibration(b.calibration), images: here } };
     },
   },
   {

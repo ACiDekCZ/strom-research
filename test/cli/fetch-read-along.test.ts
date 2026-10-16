@@ -6,6 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { spawn, spawnSync } from "node:child_process";
@@ -19,7 +20,7 @@ const CLI = path.join(import.meta.dirname, "..", "..", "src", "cli.ts");
  * An archive whose book has as many images as asked, each its own file — answered after `delay` ms; from image
  * `refuseFrom` on 403, image `sameAs[0]` the very file of image `sameAs[1]` (a placeholder).
  */
-async function bookArchive(o: { delay?: number; refuseFrom?: number; sameAs?: [number, number] } = {}): Promise<{ base: string; hits: string[]; close: () => Promise<void> }> {
+async function bookArchive(o: { delay?: number; refuseFrom?: number; sameAs?: [number, number]; holdFrom?: { image: number; until: string } } = {}): Promise<{ base: string; hits: string[]; close: () => Promise<void> }> {
   const scan = fs.readFileSync(path.join(scans, "s0001.jpg"));
   const hits: string[] = [];
   const s = http.createServer((req, res) => {
@@ -27,13 +28,16 @@ async function bookArchive(o: { delay?: number; refuseFrom?: number; sameAs?: [n
     hits.push(u.pathname);
     const img = /^\/img\/5359\/(\d+)\.jpg$/.exec(u.pathname);
     if (!img) return void res.writeHead(404).end();
-    setTimeout(() => {
+    const answer = () => {
       const n = Number(img[1]);
+      // images from holdFrom.image wait until its file is there (a reader began): no race with the reader's start
+      if (o.holdFrom && n >= o.holdFrom.image && !fs.existsSync(o.holdFrom.until)) return void setTimeout(answer, 20);
       if (o.refuseFrom !== undefined && n >= o.refuseFrom) return void res.writeHead(403).end("forbidden");
       const note = Buffer.from(`image ${o.sameAs && n === o.sameAs[0] ? o.sameAs[1] : n}`);
       const com = Buffer.from([0xff, 0xfe, 0, note.length + 2]);
       res.writeHead(200, { "content-type": "image/jpeg" }).end(Buffer.concat([scan.subarray(0, 2), com, note, scan.subarray(2)]));
-    }, o.delay ?? 0);
+    };
+    setTimeout(answer, o.delay ?? 0);
   });
   await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
   s.unref();
@@ -197,7 +201,7 @@ test("--until-found while the book is fetched: no reader after the find, the ima
  * A reader that finds image 3 and reports only once the fetch of the book is where `until` says: ended (no mark),
  * or at least `registered` of its images registered — so the fetch registers more while it reads.
  */
-function findingReader(w: World, until: { ended: true } | { registered: number }): string {
+function findingReader(w: World, until: { ended: true } | { registered: number }, began?: string): string {
   const file = path.join(w.dir, "reader-found-late.mjs");
   const marks = path.join(w.cwd, ".strom", "fetch");
   fs.writeFileSync(
@@ -205,6 +209,7 @@ function findingReader(w: World, until: { ended: true } | { registered: number }
     `import fs from "node:fs";\nimport path from "node:path";\nconst p = process.env.STROM_PROMPT ?? "";\nconst got = [...p.matchAll(/^- (M\\d{4}) · image (\\d+)/gm)];\n` +
       `const report = /Write your report to (.+?) AS YOU GO/.exec(p)[1];\n` +
       `const active = () => { try { return fs.readdirSync(${JSON.stringify(marks)}).filter((f) => f.startsWith("active-")).map((f) => { try { return JSON.parse(fs.readFileSync(path.join(${JSON.stringify(marks)}, f), "utf8")); } catch { return { registered: 0 }; } }); } catch { return []; } };\n` +
+      (began ? `fs.writeFileSync(${JSON.stringify(began)}, "");\n` : "") +
       `const until = ${JSON.stringify(until)};\n` +
       `for (let i = 0; i < 400; i++) { const a = active(); if (until.ended ? !a.length : a.some((m) => m.registered >= until.registered)) break; await new Promise((r) => setTimeout(r, 25)); }\n` +
       `for (const m of got) fs.appendFileSync(report, "## Image " + m[2] + " · " + m[1] + "\\nresult: " + (m[2] === "3" ? "found\\nentries: Jan Novák" : "nothing") + "\\n\\n");\n`,
@@ -213,9 +218,10 @@ function findingReader(w: World, until: { ended: true } | { registered: number }
 }
 
 test("--until-found behind a fetch that ended early: the images it registered meanwhile said as not read, never to fetch again", opts, async () => {
-  const a = await bookArchive({ delay: 50, refuseFrom: 16 });
+  const began = path.join(os.tmpdir(), `strom-reader-began-${process.pid}-${Date.now()}`);
+  const a = await bookArchive({ delay: 50, refuseFrom: 16, holdFrom: { image: 11, until: began } });
   const w = await setUp(a);
-  w.env.STROM_RUNNER_SCRIPT = findingReader(w, { ended: true });
+  w.env.STROM_RUNNER_SCRIPT = findingReader(w, { ended: true }, began);
   const fetch = w.run(["fetch", "zkusebni", "5359", "--images", "1-30", "--recordset", "B1"]);
   await begun(w);
   const read = await w.ok(["read", "B1", "--images", "1-30", "--question", "The baptism of Jan Novák", "--agent", "script", "--batch", "10", "--parallel", "1", "--no-index", "--until-found"]);
@@ -224,6 +230,7 @@ test("--until-found behind a fetch that ended early: the images it registered me
   assert.match(read.out, /^NOT read: images 11–30 — a reader found it, no more began \(--until-found\); 11–15 registered, not read; the fetch ended before 16–30 came \(strom fetch zkusebni 5359 --images 16-30 --recordset B0001\); read them if the find proves not to be the one: strom read B0001 --images 11-30 …; no negative of them$/m);
   assert.match(read.out, /--pages 1-10 --method page-by-page --by reader --result partial/);
   assert.equal((await w.ok(["media", "list", "--recordset", "B1", "--json"])).json.total, 15);
+  fs.rmSync(began, { force: true });
   w.cleanup();
   await a.close();
 });

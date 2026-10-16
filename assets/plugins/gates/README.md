@@ -110,9 +110,19 @@ usage is at least the number you give it behind the week gone:
     strom config set run.gate "claude-usage 10"     gone − used ≥ 10
 
 Without a number: 0 — no faster than the week goes; 14: about a day in hand.
-Not enough in hand: it waits until the week has caught up (past the reset: the
-new week's share). A used-up session: until it resets. Another agent than
-Claude Code: it lets the work go on.
+
+Early in the week the number grows with it: at least half the week gone, the
+full number from twice it on (at 15: from 30 % gone). Right after the reset a
+session starts at once, and the first day uses at most half of its share.
+In the week's last 2 hours what is left would go with the reset: a session
+starts when the room left (to 100 %, or to the cap) holds one — counted high,
+10 points.
+
+Not enough in hand: it waits until the first of — the week has caught up, the
+week's last 2 hours (with room for a session), the reset itself (a new week
+starts at once); never past the reset. Every answer says when the week resets
+("weekly reset in 1.7 h"). A used-up session: until it resets. Another agent
+than Claude Code: it lets the work go on.
 
 **A cap** — your own hard stop for the week:
 

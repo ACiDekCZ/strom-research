@@ -363,7 +363,7 @@ test("agents see images only through views; the brief says which images a record
 
 test("strom read: batches of at most ten, reports in notes/readings, the finds and a search to record", opts, async () => {
   const { w } = await world();
-  // 23 images of one book → three readers (10 + 10 + 3)
+  // 23 images of one book → three readers, as even as they can be (8 + 8 + 7)
   const many = path.join(w.dir, "many");
   fs.mkdirSync(many);
   for (let i = 1; i <= 23; i++) {
@@ -375,7 +375,7 @@ test("strom read: batches of at most ten, reports in notes/readings, the finds a
   const r = await w.run(["read", "B1", "--images", "1-23", "--question", "Křty Víšek 1860–1864", "--agent", "script", "--json"]);
   assert.equal(r.code, 0, r.out + r.err);
   assert.equal(r.json.reports.length, 3);
-  assert.deepEqual(r.json.found.map((f: any) => f.image), [1, 11, 21]);
+  assert.deepEqual(r.json.found.map((f: any) => f.image), [1, 9, 17]);
   assert.deepEqual(r.json.missing, []);
   const report = fs.readFileSync(r.json.reports[0], "utf8");
   assert.match(report, /^# Reading B0001-1-23 · batch 1 of 3\nQuestion: Křty Víšek 1860–1864/);
@@ -466,10 +466,10 @@ test("strom read: a double page in halves only where reading closely matters (bl
   const views = fs.readFileSync(path.join(w.cwd, ".strom", "views", "views.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((v) => v.key === "M0001" && v.region.x + v.region.w <= 1200 && v.region.w < 1200);
   assert.deepEqual(views.slice(0, 2).map((v) => v.region), [{ x: 0, y: 0, w: 648, h: 800 }, { x: 552, y: 0, w: 648, h: 800 }]);
   // a reader takes views, not images: the halves are two of its four
-  assert.equal(blind.r.json.reports.length, 2, "spread + two images, then the last one");
+  assert.equal(blind.r.json.reports.length, 2, "five views by four: the spread + one image, then the other two (even)");
   assert.equal(blind.r.json.halves, 1);
-  assert.deepEqual(blind.r.json.found.map((f: { image: number }) => f.image), [1, 4], "image numbers as before");
-  assert.match((await w.run(["read", "B1", "--images", "1-3", "--question", "x", "--max", "600", "--blind", "--agent", "script"])).out, /^read 3 images \(1 double pages as their halves: blind reading\) in 1 batch\(es\)/m);
+  assert.deepEqual(blind.r.json.found.map((f: { image: number }) => f.image), [1, 3], "image numbers as before");
+  assert.match((await w.run(["read", "B1", "--images", "1-3", "--question", "x", "--max", "600", "--blind", "--agent", "script"])).out, /^read 3 images \(1 double page as its halves: blind reading\) in 1 batch\(es\)/m);
   // --whole: one view of each image, also blind
   assert.match((await read("--blind", "--whole")).prompt, /^- M0001 · image 1: .+\.jpg$/m);
 
@@ -478,7 +478,7 @@ test("strom read: a double page in halves only where reading closely matters (bl
   const again = await read();
   assert.match(again.prompt, /^- M0001 · image 1 — a double page in two halves:/m);
   assert.match(again.prompt, /^- M0004 · image 4: .+\.jpg$/m, "unclear, but a near-square spread: whole");
-  assert.match((await w.run(["read", "B1", "--images", "1-2", "--question", "x", "--max", "600", "--agent", "script"])).out, /^read 2 images \(1 double pages as their halves: unclear before\)/m);
+  assert.match((await w.run(["read", "B1", "--images", "1-2", "--question", "x", "--max", "600", "--agent", "script"])).out, /^read 2 images \(1 double page as its halves: unclear before\)/m);
   fs.rmSync(path.join(w.cwd, "notes", "readings", "2000-01-01-B1-1-4-1.md"));
 
   // --half both: halves anyway; --half left|right: that page, with the strip past the gutter

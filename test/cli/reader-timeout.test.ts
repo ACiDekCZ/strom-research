@@ -63,9 +63,12 @@ test("strom read: a reader stuck on one crop is stopped at its limit and strom r
     w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "quick-reader.mjs");
     fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, 'const p = process.env.STROM_PROMPT ?? "";\nfor (const m of p.matchAll(/^- (M\\d{4}) · image (\\d+)/gm)) console.log("## Image " + m[2] + " · " + m[1] + "\\nresult: nothing\\n");\n');
     const crop = await w.ok(["read", "B1:2", "--crop", "0.1,0.2,0.3,0.2", "--question", "Křest Jana Nováka", "--agent", "script"]);
-    assert.match(crop.out, new RegExp(`▶ reader 1/1: 1 images \\(2\\) · at most ${readerMinutes(1)} min`));
+    assert.match(crop.out, new RegExp(`▶ reader 1/1: 1 image \\(2\\) · at most ${readerMinutes(1)} min`));
     const two = await w.ok(["read", "B1", "--images", "1-2", "--whole", "--question", "Křty Nováků", "--agent", "script"]);
     assert.match(two.out, new RegExp(`▶ reader 1/1: 2 images \\(1–2\\) · at most ${readerMinutes(2)} min`));
+    // counted as English says it: one image, two images (never "1 images")
+    assert.match(crop.out, /^read 1 image in /m);
+    assert.match(two.out, /^read 2 images in /m);
   } finally {
     for (const pid of fs.existsSync(pids) ? fs.readFileSync(pids, "utf8").trim().split("\n") : [])
       try {
@@ -112,14 +115,14 @@ test("strom read: the next reader of the same agent and model gets the time earl
     const records = () => fs.readFileSync(file, "utf8").trim().split("\n").map((l) => JSON.parse(l));
     const read = (more: string[] = []) => w.ok(["read", "B1:1", "--crop", "0.1,0.2,0.3,0.2", "--question", "Křest Jana Nováka (Ткач)", "--agent", "script", ...more]);
     const first = await read();
-    assert.match(first.out, new RegExp(`▶ reader 1/1: 1 images \\(1\\) · at most ${readerMinutes(1)} min\\n`), "no history: the formula");
+    assert.match(first.out, new RegExp(`▶ reader 1/1: 1 image \\(1\\) · at most ${readerMinutes(1)} min\\n`), "no history: the formula");
     const r0 = records().at(-1)!;
     assert.deepEqual([r0.minutes, r0.minutesFrom, typeof r0.wallMs], [readerMinutes(1), "default", "number"]);
     // a reader of this agent and model stopped at its limit, another agent's that needed the whole ceiling
     fs.appendFileSync(file, JSON.stringify({ at: new Date().toISOString(), by: "user", reader: "read-x-1", kind: "read", agent: "script", key: r0.key, views: 1, outcome: "timeout", minutes: 6, wallMs: 362_000 }) + "\n");
     fs.appendFileSync(file, JSON.stringify({ at: new Date().toISOString(), by: "user", reader: "read-y-1", kind: "read", agent: "other", key: "другой агент", views: 1, outcome: "timeout", minutes: 15, wallMs: 905_000 }) + "\n");
     const next = await read();
-    assert.match(next.out, /▶ reader 1\/1: 1 images \(1\) · at most 13 min \(earlier readers of this agent and model needed more\)/);
+    assert.match(next.out, /▶ reader 1\/1: 1 image \(1\) · at most 13 min \(earlier readers of this agent and model needed more\)/);
     assert.deepEqual([records().at(-1)!.minutes, records().at(-1)!.minutesFrom], [13, "learned"]);
     // by hand: what it says
     const said = await read(["--minutes", "7"]);

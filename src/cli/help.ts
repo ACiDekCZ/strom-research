@@ -1,7 +1,7 @@
 // Help text generated from the registry. Short by design: examples first,
 // then arguments and options.
 
-import { GROUPS, GLOBAL_OPTIONS, WRITE_OPTIONS, commands, descriptionOf, match, subcommandsOf, usageLine, type CommandDef, type OptionDef } from "./registry.ts";
+import { GROUPS, GROUP_ALIASES, GLOBAL_OPTIONS, WRITE_OPTIONS, aliasGroup, commands, descriptionOf, match, subcommandsOf, usageLine, type CommandDef, type OptionDef } from "./registry.ts";
 import { table } from "./format.ts";
 import type { ShownAppUrl } from "../core/stromapp.ts";
 import { suggest } from "./execute.ts";
@@ -75,12 +75,14 @@ export function groupHelp(prefix: string[], archive = false): string {
     return summary === undefined ? [] : [[`  ${c.path.join(" ")}`, summary]];
   });
   if (!subs.length) return `strom ${prefix.join(" ")}: not in an archive (research is switched on by the user: strom mode research)`;
+  const also = prefix.length === 1 ? Object.entries(GROUP_ALIASES).filter(([, g]) => g === prefix[0]).map(([a]) => `strom ${a} <command>`) : [];
   return [
     `strom ${prefix.join(" ")} <command>`,
     "",
     table(subs),
     "",
     `Details: strom help ${prefix.join(" ")} <command>`,
+    ...(also.length ? [`Also: ${also.join(" · ")}`] : []),
   ].join("\n");
 }
 
@@ -129,6 +131,8 @@ export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl):
   const found = match(words);
   if (found && found.used === words.length) return commandHelp(found.def, archive, appUrl);
   if (subcommandsOf(words).length > 0) return groupHelp(words, archive);
+  const real = aliasGroup(words);
+  if (real) return groupHelp(real, archive);
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
   const near = suggest(words.join(" "), all.filter((c) => c.split(" ").length === words.length));
   return `unknown command "${words.join(" ")}"${near.length ? ` — similar command: ${near.map((c) => `strom help ${c}`).join(" · ")}` : ""}\nall commands: strom help`;
@@ -217,6 +221,8 @@ export function helpAs(input: string[], as: HelpAs): string {
   const found = match(words);
   if (found && found.used === words.length) return humanCommand(found.def, as);
   if (subcommandsOf(words).length > 0) return humanGroup(words, as);
+  const real = aliasGroup(words);
+  if (real) return humanGroup(real, as);
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
   const near = suggest(words.join(" "), all.filter((c) => c.split(" ").length === words.length));
   return [ui(as.lang, "ui.help.unknown", { cmd: words.join(" ") }), ...near.map((c) => `  strom help ${c} --human`)].join("\n");

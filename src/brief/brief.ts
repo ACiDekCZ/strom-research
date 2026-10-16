@@ -23,7 +23,7 @@ import { byHandOnly, listConnectors, missingConsents, readyConnectors, routeOf, 
 import { clock, hostAllowed, hostState, REFUSED_FOREVER } from "../core/net.ts";
 import { archiveLevel, type PendingQuestion } from "../core/terms.ts";
 import { onHost, permissionQuestions, setHosts } from "../core/archivewait.ts";
-import { runs, shellArg } from "../cli/format.ts";
+import { runs, runsArg, shellArg } from "../cli/format.ts";
 import { commandSheet } from "./sheet.ts";
 import { foldText } from "../core/text.ts";
 import { subjectPeople } from "../core/records.ts";
@@ -698,11 +698,11 @@ function fetchingLines(root: string): string[] {
   const active = activeFetches(root);
   const out = active.map(
     (m) =>
-      `- ${m.recordset}: ${m.registered}/${m.images.length} images registered (${m.background ? `in the background${m.task ? `, for ${m.task}` : ""}` : "in the foreground"}) — strom read ${m.recordset} --images ${runs(m.images)} reads them as they come; not fetched again`,
+      `- ${m.recordset}: ${m.registered}/${m.images.length} images registered (${m.background ? `in the background${m.task ? `, for ${m.task}` : ""}` : "in the foreground"}) — strom read ${m.recordset} --images ${runsArg(m.images)} reads them as they come; not fetched again`,
   );
   for (const e of endedFetches(root))
     if (e.missed.length && !active.some((m) => m.recordset === e.recordset))
-      out.push(`- ${e.recordset}: a fetch in the background ended with images ${runs(e.missed)} not fetched${e.stopped ? ` (stopped: ${e.stopped})` : ""} — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runs(e.missed)} --recordset ${e.recordset} if they are needed`);
+      out.push(`- ${e.recordset}: a fetch in the background ended with images ${runs(e.missed)} not fetched${e.stopped ? ` (stopped: ${e.stopped})` : ""} — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset} if they are needed`);
   return out;
 }
 

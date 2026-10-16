@@ -362,9 +362,13 @@ test("each agent gets delegation rules for its kind; models per tier are configu
   assert.match(claude, /handwriting.*`strom-scan-reader`, on your own model — never cheaper/);
   assert.match(claude, /About six scans \(images B…:n\) per delegate, four views each/);
   // AGENTS.md is read by every agent — the same whichever is the default, since several may work
-  // here side by side: nothing Claude-specific, reading rules for those without subagents.
+  // here side by side: nothing Claude-specific, reading rules for those without subagents — a range browsed by strom
+  // read for every agent, also one with sub-agents of its own (they cost about three times as much on a range).
   let agents = fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8");
-  assert.doesNotMatch(agents, /Delegating work|strom read/);
+  assert.doesNotMatch(agents, /Delegating work/);
+  assert.match(agents, /Browsing a book, an index or a range of images goes to `strom read`\n\(`strom read B0001 --images 40-69 --question "…"`\), also for an agent with\nsub-agents of its own/);
+  assert.match(claude, /`strom read` and not subagents of your own for a range: about a third of\n {2}their cost on the same images, every reading kept/);
+  assert.match(claude, /\| browsing handwriting: a book, an index, a range of images \| `strom read` \(its readers on the model for handwriting\) — not a subagent of yours \|/);
   assert.match(agents, /no pipes/);
   assert.match(agents, /Reading scans \(Codex, Antigravity, OpenCode, Grok\)/);
   assert.match(agents, /batches of about six/);

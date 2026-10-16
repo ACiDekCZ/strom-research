@@ -261,12 +261,11 @@ register(
         // the task done over a place still open: said by what is open — the time is no reason here (N0287)
         if (unverified.length) {
           const first = unverified[0]!;
-          const ref = `${first.recordset}:${first.image}`;
           throw new UsageError(
             `not closed — the result passes over ${unverified.length === 1 ? "a place" : "places"} readers found unclear and nobody has looked at closer since: ${unverified.slice(0, 5).map((u) => `${u.recordset}:${u.image} ("${u.said}")`).join(", ")}`,
             {
               hint: lines(
-                `look at it: strom media view ${ref} --half both (or --crop x,y,w,h on the entry), then close again`,
+                `look at it: ${first.look} (or --crop x,y,w,h on the entry), then close again`,
                 `the result does not rest on that place: the same command again closes it, or --reason "what decides it without that place"`,
               ),
               code: "session.early-close",

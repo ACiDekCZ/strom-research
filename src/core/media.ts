@@ -10,6 +10,7 @@ import { UsageError } from "./errors.ts";
 import type { Input, Media, Region, Source } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { safeFolderName } from "./text.ts";
+import { runsArg } from "../cli/format.ts";
 
 export const MAX_IN_TREE = 20 * 1024 * 1024;
 
@@ -125,21 +126,33 @@ const RANGE = /^(\d+)(?:\s*(?:[-–]|\.\.\.?)\s*(\d+))?$/u;
 export const IMAGE_RANGE_MAX = 200;
 
 /**
- * An option's image numbers as typed — a number, a range (35-38, 35..38) or a list of them (35,37-38): a range from the
- * higher number or of more than IMAGE_RANGE_MAX images is said, never guessed.
+ * An option's image numbers as typed — a number, a range (35-38, 35–38, 35..38, spaces around the dash) or a list of
+ * them (35,37-38, as strom says them back: "35, 37–38"): a range from the higher number or of more than
+ * IMAGE_RANGE_MAX images is said, never guessed. `reading`: IMAGE_RANGE_MAX holds for the whole list (strom read: one
+ * reading), said with the list split in two.
  */
-export function imageRange(v: string, opt = "--image"): number[] {
+export function imageRange(v: string, opt = "--image", o: { reading?: boolean } = {}): number[] {
   const out = new Set<number>();
-  for (const p of String(v).split(",").map((x) => x.trim())) {
+  const parts = String(v).split(",").map((x) => x.trim());
+  // an empty piece (a trailing comma, "5,,7") is no number: left out; nothing at all is said
+  if (!parts.some(Boolean)) throw new UsageError(`invalid ${opt} "${v}"`, { hint: `an image number, a range or a list: ${opt} 35, ${opt} 35-38, ${opt} 35-38,41` });
+  const tooMany = (n: number, first: string, rest: string) =>
+    new UsageError(`${opt} ${String(v).trim()}: ${n} images — at most ${IMAGE_RANGE_MAX} in one reading`, { hint: `${opt} ${first}, then ${opt} ${rest} — recording what the first gave before the next` });
+  for (const p of parts.filter(Boolean)) {
     const m = RANGE.exec(p);
-    if (!m) throw new UsageError(`invalid ${opt} "${v}"`, { hint: `an image number or a range: ${opt} 35, ${opt} 35-38` });
+    if (!m) throw new UsageError(`invalid ${opt} "${v}"`, { hint: `an image number, a range or a list: ${opt} 35, ${opt} 35-38, ${opt} 35-38,41` });
     const a = Number(m[1]);
     const z = Number(m[2] ?? m[1]);
     if (z < a) throw new UsageError(`${opt} ${p}: a range from the lower number`, { hint: `${opt} ${z}-${a}` });
-    if (z - a + 1 > IMAGE_RANGE_MAX) throw new UsageError(`${opt} ${p}: ${z - a + 1} images — at most ${IMAGE_RANGE_MAX} in a range`, { hint: "a narrower range" });
+    if (z - a + 1 > IMAGE_RANGE_MAX) {
+      if (o.reading) throw tooMany(z - a + 1, `${a}-${a + IMAGE_RANGE_MAX - 1}`, z === a + IMAGE_RANGE_MAX ? `${z}` : `${a + IMAGE_RANGE_MAX}-${z}`);
+      throw new UsageError(`${opt} ${p}: ${z - a + 1} images — at most ${IMAGE_RANGE_MAX} in a range`, { hint: "a narrower range" });
+    }
     for (let n = a; n <= z; n++) out.add(n);
   }
-  return [...out].sort((x, y) => x - y);
+  const nums = [...out].sort((x, y) => x - y);
+  if (o.reading && nums.length > IMAGE_RANGE_MAX) throw tooMany(nums.length, runsArg(nums.slice(0, IMAGE_RANGE_MAX)), runsArg(nums.slice(IMAGE_RANGE_MAX)));
+  return nums;
 }
 
 /** A list of image numbers as people write it: "9", "9-12", "9–12, 15" → [9, 10, 11, 12, 15]; undefined if it is not one. */

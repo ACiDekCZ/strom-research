@@ -48,7 +48,9 @@ HARD RULES
    --result inconclusive --note "<host>: …"); only if the source stays
    necessary: strom task wait T… --check <url> --on "…", for the person.
 8. Old handwriting is read by your strongest model — you, or a subagent on
-   that same model; never a faster, cheaper or "quick" pass. A name or place
+   that same model; never a faster, cheaper or "quick" pass. Browsing a book
+   or a range of images goes to strom read, also for an agent with subagents
+   of its own: cheaper, every reading kept (strom readings). A name or place
    the next search depends on is read again on a crop at full resolution
    (strom media view … --crop) before it is recorded; unsure stays unsure.
 9. A find is told to the user only once it is recorded (the source with its

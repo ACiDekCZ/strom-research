@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.15.0
 
-*In Vorbereitung: die Betas bis 1.15.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.15.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
 
 *Gehört zur Strom-App 3.12.0.*
 
@@ -27,9 +27,15 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   und nur sie gelten als durchsucht.
 - **Stammbäume aus anderen Programmen.** Eine GEDCOM-Datei mit Byte-Order-Mark oder in UTF-16 (so speichern sie manche
   Windows-Programme) wird als Stammbaum gelesen; der Stammbaum einer anderen Forschung wird als fremder übernommen.
-- **Die Live-Ansicht endet sauber** auf jedem System, auch unter Windows, und die Strom-App erfährt, dass sie endete.
-- **Ein strom pro Installation.** Ein anderer strom auf demselben Computer (aus npm oder aus den Quellen gebaut)
-  übernimmt nie die Links der Strom-App oder den Update-Kanal.
+- **Sauber auf einem Computer.** Die Live-Ansicht endet sauber auf jedem System, auch unter Windows, und die Strom-App
+  erfährt, dass sie endete. Ein anderer strom auf demselben Computer (aus npm oder aus den Quellen gebaut) übernimmt nie
+  die Links der Strom-App oder den Update-Kanal.
+- **Korrekturen aus echten Forschungen.** Die tägliche Ration des Alleinarbeitens lässt eine neue Woche sofort
+  beginnen, nutzt in den letzten zwei Stunden der Woche, was übrig ist, statt über die Erneuerung hinaus zu warten,
+  und sagt, wann sich die Woche erneuert. Ein Alter als Bruch (½ Jahr, 1 1/2 Jahre, ein halbes Jahr) wird gelesen, und
+  eine Liste von Bildern (`strom read --images 5-19,21-39`) wird so gelesen, wie sie angegeben ist. Ein Buch lädt die
+  Sitzung, die es liest, nie im Voraus für eine spätere; `strom fetch --recordset` findet das Buch selbst; Zahlen und
+  Befehle werden so genannt, wie sie geschrieben werden.
 - **Was ist neu.** Nach `strom update` und bei `strom --version` ein Link zu dieser Übersicht in der Sprache der
   Forschung. Die Strom-App zeigt die Punkte einer neuen Forschungsversion in ihrem Fenster „Was ist neu“.
 

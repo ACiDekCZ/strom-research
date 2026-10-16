@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 import { UsageError } from "../core/errors.ts";
 import { ALL_PREFIXES } from "../core/model.ts";
 import { shellArg } from "./format.ts";
-import { GLOBAL_OPTIONS, aliasExtends, commands, match, optionsOf, subcommandsOf, usageLine, WRITE_OPTIONS, type CommandDef, type Input, type OptionDef, type Typed } from "./registry.ts";
+import { GLOBAL_OPTIONS, aliasExtends, aliasGroup, commands, match, optionsOf, subcommandsOf, usageLine, WRITE_OPTIONS, type CommandDef, type Input, type OptionDef, type Typed } from "./registry.ts";
 
 const VALUE_GLOBALS = new Set(GLOBAL_OPTIONS.filter((o) => o.type === "string").map((o) => `--${o.name}`));
 
@@ -58,12 +58,28 @@ function distance(a: string, b: string): number {
   return d[a.length]![b.length]!;
 }
 
+/**
+ * How many typos a word of this many letters may hold and still be meant: one in a short word, two in a longer one,
+ * a few more in a command of several words — never so many that another word is offered (--whole is no --home).
+ */
+function typos(letters: number): number {
+  return letters <= 6 ? 1 : letters <= 14 ? 2 : Math.floor(letters / 5);
+}
+
 /** The closest candidates to `input` (a prefix, or a few typos), best first — only the best ones. */
 export function suggest(input: string, candidates: string[]): string[] {
-  const q = input.toLowerCase();
+  // an option's dashes are no letters of it: "--bron" is "bron"
+  const bare = (s: string) => s.toLowerCase().replace(/^-+/u, "");
+  const q = bare(input);
+  if (!q) return [];
   const scored = candidates
-    .map((c) => ({ c, d: c.startsWith(q) || q.startsWith(c) ? 0.5 : distance(q, c.toLowerCase()) }))
-    .filter((x) => x.d <= Math.max(2, Math.floor(q.length / 3)))
+    .map((c) => {
+      const b = bare(c);
+      // a prefix of at least three letters ("--surnamez" for --surname, "person ad" for person add)
+      const prefix = Math.min(b.length, q.length) >= 3 && (b.startsWith(q) || q.startsWith(b));
+      return { c, d: prefix ? 0.5 : distance(q, b) };
+    })
+    .filter((x) => x.d <= typos([...q].length))
     .sort((a, b) => a.d - b.d || a.c.length - b.c.length);
   const best = scored[0]?.d;
   return [...new Set(scored.filter((x) => x.d <= (best ?? 0) + 0.5).map((x) => x.c))].slice(0, 3);
@@ -87,10 +103,13 @@ export function resolveCommand(argv: string[]): Resolved {
     return { def: found.def, rest };
   }
   // A group ("person") with a wrong or missing subcommand.
-  const group = found ? [...found.def.path, ...leftover] : words;
+  const typedGroup = found ? [...found.def.path, ...leftover] : words;
+  // another name of a group (strom book → strom recordset): that group
+  const group = aliasGroup(typedGroup) ?? typedGroup;
   if (group.length && subcommandsOf(group).length) {
     if (!extra.length) throw new GroupOnly(group);
-    throw unknownCommand([...group, extra[0]!]);
+    // said as typed (strom book B1, never "strom recordset B1"), looked up in the group it stands for
+    throw unknownCommand([...group, extra[0]!], [...typedGroup, extra[0]!]);
   }
   throw unknownCommand([...words, ...extra].slice(0, Math.max(words.length + 1, 2)));
 }
@@ -104,15 +123,22 @@ export class GroupOnly extends Error {
   }
 }
 
-function unknownCommand(words: string[]): UsageError {
-  const typed = words.join(" ");
+/**
+ * An unknown command, said as typed (`said`: another name of a group — strom book … — when `words` name the group it
+ * stands for) with the commands near it; a group's ID after it (strom book B1) offers the group's show.
+ */
+function unknownCommand(words: string[], said = words): UsageError {
+  const typed = said.join(" ");
   const all = commands().filter((c) => c.path.length > 0).map((c) => c.path.join(" "));
   // A known group narrows the choice ("person ad" → "person add", not "lesson add").
   const inGroup = all.filter((c) => c.startsWith(`${words[0]} `));
   const same = (inGroup.length ? inGroup : all).filter((c) => c.split(" ").length === words.length);
-  const hits = suggest(typed, same.length ? same : all);
-  const more = hits.length ? hits : suggest(words[0] ?? "", [...new Set(all.map((c) => c.split(" ")[0]!))]);
-  const near = more.map((c) => `strom ${c}`).join(" · ");
+  const hits = suggest(words.join(" "), same.length ? same : all);
+  const show = !hits.length && words.length === 2 && /^\p{Lu}\p{N}+$/u.test(words[1]!) && inGroup.includes(`${words[0]} show`) ? `${said[0]} show ${said[1]}` : undefined;
+  const more = show ? [show] : hits.length ? hits : suggest(words[0] ?? "", [...new Set(all.map((c) => c.split(" ")[0]!))]);
+  // in the words typed: the group's other name kept (strom book show, not strom recordset show)
+  const asTyped = (c: string) => (said[0] !== words[0] && c.split(" ")[0] === words[0] ? [said[0], ...c.split(" ").slice(1)].join(" ") : c);
+  const near = more.map((c) => `strom ${asTyped(c)}`).join(" · ");
   return new UsageError(`unknown command "strom ${typed}"`, {
     hint: more.length ? `similar command: ${near}` : "strom help   (all commands)",
     ...(more.length ? { code: "command.near", params: { cmd: typed, near } } : { code: "command.unknown", params: { cmd: typed } }),
@@ -273,8 +299,8 @@ export function parseOptions(def: CommandDef, rest: string[], program = "strom")
     const own = [...(def.options ?? []), ...(def.writes ? optionsOf(def).filter((o) => o.name === "dry-run" || o.name === "reason") : [])].filter((o) => !o.hidden).map((o) => `--${o.name}`);
     if (e.code === "ERR_PARSE_ARGS_UNKNOWN_OPTION") {
       // "strom brief --task T0003": the task is an argument there, not an option
-      const arg = def.args?.find((a) => `--${a.name}` === opt);
-      if (arg) throw new UsageError(`${opt.slice(2)} is an argument of ${cmd}, not an option`, { hint: `strom ${def.path.join(" ")} <${arg.name}>`, code: "option.is-arg", params: { opt, cmd, arg: arg.name }, usage });
+      const arg = def.args?.find((a) => `--${a.name}` === opt || a.mistaken?.includes(opt.replace(/^-+/u, "")));
+      if (arg) throw new UsageError(`--${arg.name}` === opt ? `${opt.slice(2)} is an argument of ${cmd}, not an option` : `${opt} is no option of ${cmd}: <${arg.name}> is its argument`, { hint: `strom ${def.path.join(" ")} <${arg.name}>`, code: "option.is-arg", params: { opt, cmd, arg: arg.name }, usage });
       // a status asked of a name or a family (N0191): it is a fact's only — said as cite says it (the person's
       // language: the plain unknown option, its code kept)
       if (opt === "--status" && (def.path[0] === "name" || def.path[0] === "family"))

@@ -12,6 +12,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { opts, scans } from "./connectors.helpers.ts";
 import { World, fakeConnector } from "../helpers.ts";
 import { enterWorker } from "../../src/core/workers.ts";
+import { readImages } from "../../src/commands/read.ts";
 
 /** The processes the tests started in the background: none may outlive them. */
 const started = new Set<number>();
@@ -127,7 +128,7 @@ test("--background: a strom of its own fetches while the command ends; --status 
     started.add(pid);
     assert.ok(Date.now() - t0 < 15_000, "the command ends once the fetch began");
     assert.match(start.out, /fetching 12 image\(s\) of B0001 \(images 1–12\) in the background — pid \d+, for T0001/);
-    assert.match(start.out, /strom read B0001 --images 1–12/);
+    assert.match(start.out, /strom read B0001 --images 1-12 /);
     assert.ok(alive(pid), "the fetch goes on after the command ended");
     // how far it is: the book, its images, whose
     const now = await w.ok(["fetch", "--status"]);
@@ -146,6 +147,64 @@ test("--background: a strom of its own fetches while the command ends; --status 
     const journal = fs.readFileSync(path.join(w.cwd, ".strom", "metrics", "fetch.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
     assert.ok(journal.some((f) => f.bg === true && f.rs === "B0001" && f.got.length === 12), JSON.stringify(journal));
     await w.ok(["check"]);
+  } finally {
+    w.cleanup();
+    await a.close();
+  }
+});
+
+test("--background in a Czech research: its log, which the agent reads, is English throughout — the count too", opts, async () => {
+  const a = await bookArchive();
+  const w = await setUp(a);
+  w.env.STROM_LANG = "cs";
+  try {
+    await w.ok(["session", "start", "T1"]);
+    const start = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-20", "--recordset", "B1", "--background", "--json"]);
+    const pid = start.json.pid as number;
+    started.add(pid);
+    await until("the fetch ended", async () => !alive(pid) && !!(await endedOf(w, pid)));
+    const log = fs.readFileSync(start.json.log as string, "utf8");
+    assert.match(log, /^20 image\(s\) through zkusebni: /m, log);
+    const count = log.split("\n").filter((l) => /^ {2}· \d+\/20 /.test(l));
+    assert.deepEqual(count, [2, 4, 6, 8, 10, 12, 14, 16, 18].map((n) => `  · ${n}/20 images`), log);
+    assert.doesNotMatch(log, /snímk|chyba/, log);
+    // a fetch in the foreground stays in the research language: the person follows it
+    const fg = await w.ok(["fetch", "zkusebni", "5359", "--images", "21-40", "--recordset", "B1"]);
+    assert.match(fg.err, /^ {2}· 2\/20 snímků$/m, fg.err);
+  } finally {
+    w.cleanup();
+    await a.close();
+  }
+});
+
+test("--background of a list with gaps: every command it says with the images is one word of the shell that strom read takes back", opts, async () => {
+  const a = await bookArchive({ delay: 800 });
+  const w = await setUp(a);
+  const asked = [1, 2, 3, 5, 7, 8, 9];
+  // the images a hint names after --images, as strom read reads them (its own parser)
+  const named = (text: string, before: RegExp): number[] => {
+    const m = new RegExp(`${before.source} --images (\\S+)( |$)`, "mu").exec(text);
+    assert.ok(m, `${before.source} --images … in:\n${text}`);
+    return readImages(m[1]!);
+  };
+  try {
+    await w.ok(["session", "start", "T1"]);
+    const start = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3,5,7-9", "--recordset", "B1", "--background"]);
+    started.add(Number(/pid (\d+)/.exec(start.out)?.[1]));
+    assert.deepEqual(named(start.out, /read them as they come: strom read B0001/), asked, start.out);
+    // the same images again: nothing fetched, the reading said
+    const twice = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3,5,7-9", "--recordset", "B1", "--background"]);
+    assert.deepEqual(named(twice.out, /nothing fetched — strom read B0001/), asked, twice.out);
+    // the brief while it works
+    const brief = await w.ok(["brief", "T1"]);
+    if (/B0001: \d+\/7 images registered/.test(brief.out)) assert.deepEqual(named(brief.out, /strom read B0001/), asked, brief.out);
+    // stopped: what was not fetched, said as a command of one word
+    const stop = await w.ok(["fetch", "--stop", "B1"]);
+    if (/not fetched: images/.test(stop.out)) {
+      const missed = named(stop.out, /\(strom fetch zkusebni 5359/);
+      assert.ok(missed.length && missed.every((n) => asked.includes(n)), stop.out);
+      assert.deepEqual(named((await w.ok(["brief", "T1"])).out, /strom fetch zkusebni 5359/), missed);
+    }
   } finally {
     w.cleanup();
     await a.close();
@@ -378,6 +437,44 @@ test("a stop of the process while git commits a batch: the batch committed, the 
     assert.doesNotMatch(said, /failed/, said);
     assert.match(said, /interrupted: images .+ not fetched — the same command fetches them/, said);
     await w.ok(["check"]);
+  } finally {
+    w.cleanup();
+    await a.close();
+  }
+});
+
+test("--background is for the task the agent works on: --task, else the one task this session worked on that names the book — its marks, its output, its measure", opts, async () => {
+  const a = await bookArchive();
+  const w = await setUp(a);
+  try {
+    // the session's task names no book; the task the agent works on, added in the session, names this one
+    await w.ok(["task", "add", "Křest Marie", "--level", "locate", "--where", "Týnec", "--why", "zkouška", "--done-when", "hotovo"]); // T0002
+    await w.ok(["session", "start", "T2"]);
+    await w.ok(["task", "add", "Křest Josefa", "--level", "locate", "--where", "Křty B0001 (Týnec)", "--why", "zkouška", "--done-when", "hotovo"]); // T0003
+    // no book given: the book of B0001 from its images fetched before
+    await w.ok(["fetch", "zkusebni", "5359", "--images", "1", "--recordset", "B1"]);
+    const start = await w.ok(["fetch", "zkusebni", "--images", "2-4", "--recordset", "B1", "--background"]);
+    const pid = Number(/pid (\d+)/.exec(start.out)?.[1]);
+    started.add(pid);
+    assert.match(start.out, /fetching 3 image\(s\) of B0001 \(images 2–4\) in the background — pid \d+, for T0003/);
+    assert.match(start.out, /for T0003: the one task this session worked on that names B0001 \(the session's own: T0002\) — for another one: --task T…/);
+    await until("the fetch ended", async () => !alive(pid) && !!(await endedOf(w, pid)));
+    assert.equal(((await endedOf(w, pid)) as { task?: string }).task, "T0003");
+    const ended = JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "fetch", `ended-B0001.${pid}.json`), "utf8")) as { task?: string; session?: string };
+    assert.equal(ended.task, "T0003");
+    assert.equal(ended.session, "N0001");
+    const journal = fs.readFileSync(path.join(w.cwd, ".strom", "metrics", "fetch.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+    assert.ok(journal.some((f) => f.bg === true && f.task === "T0003"), JSON.stringify(journal));
+    // --task: that one, said plainly (no guess said); while it fetches, its mark says it
+    const given = await w.ok(["fetch", "zkusebni", "5359", "--images", "5-12", "--recordset", "B1", "--background", "--task", "T1"]);
+    const second = Number(/pid (\d+)/.exec(given.out)?.[1]);
+    started.add(second);
+    assert.match(given.out, /in the background — pid \d+, for T0001/);
+    assert.doesNotMatch(given.out, /the one task this session worked on/);
+    const active = (await status(w)).active.find((m) => m.pid === second);
+    if (active) assert.equal(active.task, "T0001");
+    await until("the second fetch ended", async () => !alive(second) && !!(await endedOf(w, second)));
+    assert.equal(((await endedOf(w, second)) as { task?: string }).task, "T0001");
   } finally {
     w.cleanup();
     await a.close();

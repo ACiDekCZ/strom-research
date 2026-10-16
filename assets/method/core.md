@@ -104,7 +104,8 @@ conclusion so the next researcher can follow it.
   usual (about ±5 around the target, an index in batches) — fewer turns.
   `strom read` may follow a fetch at work: sooner, never more images.
   Images you will read later in the session: `--background` fetches them
-  while you work on, `strom read` reads them as they come.
+  while you work on, `strom read` reads them as they come. Nothing for a
+  later session: the session that reads a book fetches it.
 <!-- end -->
 - **What strom or the tree denies stays denied.** Never offer the user to
   change your permissions or settings, strom's or the tree's, to get round it:

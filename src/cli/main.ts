@@ -31,6 +31,7 @@ import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishLimitLine, finishOf, timeLine } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
+import { backgroundOf } from "../core/fetching.ts";
 import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, severalRecords, splitPassthrough, usageOf } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
 import { catalog, localized, sayCommandAs } from "../core/phrases.ts";
@@ -380,7 +381,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     let lang: string | undefined;
     try {
       // an unknown command or option has no context yet: the person's language all the same
-      lang = (ran ?? Context.fromOptions({ env, cwd, io, json, values: {} })).uiLang();
+      // …but a fetch in the background writes into its log, which the agent reads: English, as the rest of it
+      if (!backgroundOf(env)) lang = (ran ?? Context.fromOptions({ env, cwd, io, json, values: {} })).uiLang();
     } catch {
       // no language to say it in: English
     }

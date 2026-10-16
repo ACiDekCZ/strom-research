@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.15.0
 
-*In preparation: the betas up to 1.15.0-beta.6. The section is complete with the release.*
+*In preparation: the betas up to 1.15.0-beta.7. The section is complete with the release.*
 
 *Goes with the Strom app 3.12.0.*
 
@@ -25,9 +25,14 @@ The changes of each version in short. The full notes and the install lines are o
   (`strom read --until-found`): the images read are said exactly, and only they count as searched.
 - **Family trees from other programs.** A GEDCOM file saved with a byte order mark or in UTF-16 (as some Windows
   programs save it) is read as a family tree; a family tree of another research is taken in as a foreign one.
-- **The live view ends cleanly** on every system, Windows too, and the Strom app learns that it ended.
-- **One strom per installation.** Another strom on the same computer (from npm, or built from the sources) never takes
-  over the links of the Strom app or the update channel.
+- **Cleaner on one computer.** The live view ends cleanly on every system, Windows too, and the Strom app learns that
+  it ended. Another strom on the same computer (from npm, or built from the sources) never takes over the links of the
+  Strom app or the update channel.
+- **Fixes from real researches.** The daily ration of working alone lets a new week begin at once, uses what is left
+  in the week's last two hours instead of waiting past the reset, and says when the week resets. Ages written as
+  fractions (½ roku, 1 1/2 years, ein halbes Jahr) are read, and a list of images (`strom read --images 5-19,21-39`)
+  is read as given. A book is fetched by the session that reads it, never ahead for a later one;
+  `strom fetch --recordset` finds the book itself; counts and commands are said as typed.
 - **What's new.** After `strom update` and with `strom --version`, a link to this list in the research language. The
   Strom app shows the points of a new research version in its own “What's new” window.
 

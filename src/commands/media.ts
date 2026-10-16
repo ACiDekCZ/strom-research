@@ -914,6 +914,7 @@ register(
       { name: "image", type: "string", multiple: true, value: "<n>", description: "image number(s) with a record set ID: 57, 57-60, 57..60" },
       { name: "page", type: "string", multiple: true, value: "<n>", description: "page(s) or folio(s), with a calibrated record set ID: 112, 112 113, 112-115" },
       { name: "png", type: "boolean", description: "lossless PNG instead of JPEG" },
+      { name: "whole", type: "boolean", description: "the image whole — as without --crop, --half or --split (a view to find an entry on)" },
     ],
     examples: [
       "strom media view B0001:2 --grid",
@@ -926,6 +927,11 @@ register(
       "strom media view B0001 --page 112 113 --split 2x2",
     ],
     run(ctx, { args, opts, seq }) {
+      // the whole image is what a view is without a part of it (strom read --whole: each image in one view)
+      if (opts.whole === true) {
+        const part = ["crop", "half", "split"].find((o) => opts[o] !== undefined && listOf(opts[o]).length);
+        if (part) throw new UsageError(`--whole is the image whole: no --${part} with it`, { hint: `the whole image: strom media view ${args.join(" ")}; a part of it: --${part} without --whole` });
+      }
       const tree = ctx.tree();
       const shared = sharedDir(ctx);
       const all = tree.list<Media>("media");

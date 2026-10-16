@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.15.0
 
-*Připravuje se: bety do 1.15.0-beta.6. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.15.0-beta.7. Oddíl bude úplný s vydáním.*
 
 *Patří k aplikaci Strom 3.12.0.*
 
@@ -25,9 +25,14 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   přečtené snímky jsou řečeny přesně a jen ty se počítají jako prohledané.
 - **Rodokmeny z jiných programů.** Soubor GEDCOM uložený se značkou BOM nebo v UTF-16 (tak ho ukládají některé programy
   ve Windows) se čte jako rodokmen; rodokmen jiného výzkumu se převezme jako cizí.
-- **Živé sledování končí čistě** na každém systému, i ve Windows, a aplikace Strom se dozví, že skončilo.
-- **Jeden strom na instalaci.** Jiný strom na stejném počítači (z npm nebo sestavený ze zdrojů) nikdy nepřevezme odkazy
-  aplikace Strom ani kanál aktualizací.
+- **Čistě na jednom počítači.** Živé sledování končí čistě na každém systému, i ve Windows, a aplikace Strom se dozví,
+  že skončilo. Jiný strom na stejném počítači (z npm nebo sestavený ze zdrojů) nikdy nepřevezme odkazy aplikace Strom
+  ani kanál aktualizací.
+- **Opravy ze skutečných výzkumů.** Denní příděl práce o samotě pustí nový týden hned, v posledních dvou hodinách
+  týdne využije, co zbývá, místo čekání přes obnovení, a říká, kdy se týden obnoví. Věk zapsaný zlomkem (½ roku, 1 1/2
+  léta, půl roku) se přečte a seznam snímků (`strom read --images 5-19,21-39`) se čte tak, jak je zadaný. Knihu
+  stahuje sezení, které ji čte, nikdy předem pro pozdější; `strom fetch --recordset` najde knihu sám; počty a příkazy
+  jsou řečeny tak, jak se píšou.
 - **Co je nového.** Po `strom update` a u `strom --version` odkaz na tento přehled v jazyce výzkumu. Aplikace Strom
   ukazuje body nové verze výzkumu ve svém okně „Co je nového“.
 

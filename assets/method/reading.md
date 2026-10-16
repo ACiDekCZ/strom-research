@@ -51,7 +51,8 @@ never open again a view cleared from your context — your notes hold it.
 - **Browsing a book or a range is a reader's job**: `strom read B0001
   --images 40-69 --question "…"` (small script: `--half both`) — readers in
   batches of ten, each with the full question, their reports in
-  notes/readings/. It ends with what they found, compact: the found and
+  notes/readings/. For every agent, also one with subagents of its own: a
+  third of their cost, every reading kept. It ends with what they found, compact: the found and
   unclear entries whole, what was illegible where nothing was found (a
   possible match often hides there — look at it), the gaps in the book.
   Later: `strom readings` (`--match <surname>`, `--list`; one image's block:

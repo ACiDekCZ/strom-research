@@ -52,6 +52,11 @@ export function truncate(text: string, max: number): string {
   return [...one].length <= max ? one : [...one].slice(0, max - 1).join("") + "…";
 }
 
+/** A count with its noun as English says it: "1 image", "2 images" (`many` where the plural is not one more s). */
+export function counted(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 export function lines(...parts: (string | undefined | false)[]): string {
   return parts.filter((p): p is string => typeof p === "string").join("\n");
 }
@@ -67,6 +72,14 @@ export function runs(nums: number[]): string {
     i = j + 1;
   }
   return out.join(", ");
+}
+
+/**
+ * Runs of numbers as a command takes them, one word of the shell: [1, 2, 3, 7] → "1-3,7" (no spaces, no en dash — a
+ * hint copied as runs() says it for a person, "1–3, 7", would be three arguments).
+ */
+export function runsArg(nums: number[]): string {
+  return runs(nums).replace(/–/g, "-").replace(/,\s*/g, ",");
 }
 
 /** A number as a language writes it (1,4 in Czech, 1.4 in English); a language Intl does not know: English. */

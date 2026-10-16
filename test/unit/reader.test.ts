@@ -92,9 +92,19 @@ test("a double page in halves: the prompt says so, one block per image, and a re
   assert.deepEqual(parseReport("## Image 57 · M0057\nresult: found\nentries: levá strana, 2. zápis: …\npages: 113–114\n").map((f) => [f.number, f.image, f.pages]), [[57, "M0057", "113–114"]]);
   const one = (n: number): ReaderImage => ({ id: `M${n}`, view: "/v.jpg" });
   const items: ReaderImage[] = [one(1), spread, one(2), spread, spread, one(3)];
-  assert.deepEqual(batches(items, 4, viewCount).map((b) => b.reduce((n, i) => n + viewCount(i), 0)), [4, 4, 1]);
+  assert.deepEqual(batches(items, 4, viewCount).map((b) => b.reduce((n, i) => n + viewCount(i), 0)), [3, 3, 3], "as few batches as four views each take, as even as they can be");
+  assert.deepEqual(batches(items, 4, viewCount, { even: false }).map((b) => b.reduce((n, i) => n + viewCount(i), 0)), [4, 4, 1], "filled in order: while more images come");
   assert.deepEqual(batches(items, 1, viewCount).length, 6, "an image of more views than a batch takes is one batch");
   assert.deepEqual(batches([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]], "one view each: as before");
+  // never a reader for the one or two images left over: 11 by ten are 6 and 5, 39 stay 10, 10, 10 and 9
+  const n = (k: number) => Array.from({ length: k }, (_, i) => i + 1);
+  assert.deepEqual(batches(n(11), 10).map((b) => b.length), [6, 5]);
+  assert.deepEqual(batches(n(12), 10).map((b) => b.length), [6, 6]);
+  assert.deepEqual(batches(n(21), 10).map((b) => b.length), [7, 7, 7]);
+  assert.deepEqual(batches(n(39), 10).map((b) => b.length), [10, 10, 10, 9]);
+  assert.deepEqual(batches(n(10), 10).map((b) => b.length), [10]);
+  assert.deepEqual(batches(n(11), 10).flat(), n(11), "in order, each once");
+  assert.deepEqual(batches(n(11), 10, () => 1, { even: false }).map((b) => b.length), [10, 1]);
 });
 
 test("the reader's prompt asks for possible matches as unclear and for the gaps of the book", () => {

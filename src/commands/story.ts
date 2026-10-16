@@ -4,11 +4,11 @@
 
 import fs from "node:fs";
 import { register } from "../cli/registry.ts";
-import { lines } from "../cli/format.ts";
+import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { approveStory, discardStoryDraft, setStory, findEventOwner } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
 import { csvOpt, normId, textOpt } from "../core/records.ts";
-import { resolvePerson } from "../core/people.ts";
+import { displayName, lifespan, resolvePerson } from "../core/people.ts";
 import type { Family, Person, Source } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import { foldText } from "../core/text.ts";
@@ -124,6 +124,43 @@ register(
       const tree = ctx.tree();
       const rec = discardStoryDraft(tree, owner(tree, args[0]!));
       return { text: lines(...tree.written.map((o) => o.summary)), data: { story: rec.story } };
+    },
+  },
+  {
+    path: ["story", "list"],
+    summary: "The stories written: whose, approved or a draft, a new version waiting for the user",
+    group: "people",
+    tree: true,
+    options: [{ name: "draft", type: "boolean", description: "only those waiting for the user: drafts and new versions of approved ones" }],
+    examples: ["strom story list", "strom story list --draft"],
+    run(ctx, { opts }) {
+      const tree = ctx.tree();
+      const people = tree.list<Person>("person").filter((p) => !p.retracted && p.story);
+      const families = tree.list<Family>("family").filter((f) => !f.retracted && f.story);
+      const nameOf = (id: string) => {
+        const p = tree.get<Person>(id);
+        return p ? displayName(p) : id;
+      };
+      const all = [
+        ...people.map((p) => ({ id: p.id, whose: `${displayName(p)}${lifespan(p) ? ` ${lifespan(p)}` : ""}`, story: p.story! })),
+        ...families.map((f) => ({ id: f.id, whose: f.partners.map(nameOf).join(" & ") || f.id, story: f.story! })),
+      ].filter((x) => !opts.draft || x.story.status === "draft" || !!x.story.draft);
+      const page = paginate(all, ctx.limit, ctx.page);
+      const rows = page.items.map((x) => [
+        x.id,
+        truncate(x.whose, 50),
+        x.story.status,
+        x.story.at.slice(0, 10),
+        x.story.draft ? "new version waits" : "",
+        x.story.title ? truncate(x.story.title, 40) : "",
+      ]);
+      return {
+        text: all.length ? lines(table(rows), moreLine(page, `strom story list${opts.draft ? " --draft" : ""}`) || undefined, "one of them: strom story show <P…|F…>") : opts.draft ? "no story waits for the user" : "no stories yet",
+        data: {
+          total: page.total,
+          stories: page.items.map((x) => ({ id: x.id, whose: x.whose, status: x.story.status, at: x.story.at, ...(x.story.title ? { title: x.story.title } : {}), ...(x.story.draft ? { draft: { at: x.story.draft.at } } : {}), facts: x.story.facts.length })),
+        },
+      };
     },
   },
   {

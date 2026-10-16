@@ -152,7 +152,7 @@ export function parseAge(v: string, whose = ""): string {
   const age = normalizeAge(v);
   if (!age)
     throw new UsageError(`cannot read the age "${v}"${whose ? ` of ${whose}` : ""}`, {
-      hint: 'give it as years/months/days: "27", "27 let", "27y 3m", "3 months", "<1y", INFANT, STILLBORN — the exact words go in --quote',
+      hint: 'give it as years/months/days: "27", "27 let", "27y 3m", "3 months", "½ roku", "1 1/2 years", "<1y", INFANT, STILLBORN — the exact words go in --quote',
     });
   return age;
 }
