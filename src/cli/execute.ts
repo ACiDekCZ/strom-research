@@ -347,9 +347,9 @@ export function severalRecords(def: CommandDef, args: string[]): boolean {
 }
 
 /** Required and surplus positional arguments; `fix`: the line as it is meant (parseOptions), said under a surplus one. */
-export function checkArgs(def: CommandDef, args: string[], fix?: string, program = "strom"): void {
+export function checkArgs(def: CommandDef, args: string[], fix?: string, program = "strom", opts: Input["opts"] = {}): void {
   const declared = def.args ?? [];
-  const required = declared.filter((a) => a.required);
+  const required = declared.filter((a) => a.required && !a.unless?.some((o) => opts[o] !== undefined && opts[o] !== false));
   if (args.length < required.length) {
     const missing = required[args.length]!;
     throw new UsageError(`missing <${missing.name}>: ${missing.description}`, { hint: `strom help ${def.path.join(" ")}`, code: "arg.missing", params: { arg: missing.name, cmd: def.path.join(" ") }, usage: usageOf(def) });

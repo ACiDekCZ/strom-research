@@ -250,6 +250,7 @@
   "ui.tune.book.weak": "zápory na slabých skenech {n} z {of}",
   "ui.tune.book.requests": "požadavky {n}",
   "ui.tune.book.unread": "staženo a nepřečteno {n} z {of}",
+  "ui.tune.book.background": "na pozadí: nepřečteno {n} z {of}",
   "ui.tune.hosts": "Archivy:",
   "ui.tune.host": "  {host}: sezení {sessions} · požadavky {requests} ({perSession} na sezení, {perImage} na snímek) · čekání {wait} min · limit vyčerpán {later}×",
   "ui.tune.web": "Webové nástroje agenta:",

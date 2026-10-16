@@ -399,6 +399,11 @@ export interface ArchiveLevel {
   from: LevelSource[];
   /** The person's permission for the images, if any. */
   permission?: Way;
+  /**
+   * The level rests on terms nobody has read yet: a connector that found none (or one the person has not confirmed),
+   * and the floor strom kept of that same reading — restricted as a floor, still not terms that restrict.
+   */
+  termsUnknown?: true;
   /** The archive as a person names it: strom's known terms, the tree's archive, the connector's title. */
   title?: string;
   /** Where its terms are, and the sentence quoted (strom's known terms first, else the connector's reading). */
@@ -544,6 +549,9 @@ export function archiveLevel(env: Env, input: LevelInput): ArchiveLevel {
   // the person's permission: from settings verified as theirs; their "by hand" from every place (stricter is anybody's)
   const permission: Way | undefined = rec.way === "manual" || other.way === "manual" ? "manual" : trust.verified ? rec.way : undefined;
   const by = [...new Set(from.filter((f) => rank(f.level) === rank(level) && (rank(level) > 0 || f.level === "allowed")).map((f) => f.by))];
+  // the floor kept of this connector's own reading (not one it read restricted once), of no other place
+  const floorOfIt = !!c && rec.floorBy === "strom" && rec.floorConnector === c.name && rec.seen?.[c.name]?.level !== "restricted" && !other.floor;
+  const termsUnknown = rank(level) === rank("unknown") && from.filter((f) => rank(f.level) === rank(level)).every((f) => f.level === "unknown" || (f.by === "floor" && floorOfIt));
   if (!input.readOnly) {
     // what strom saw is kept: the floor made stricter, a stricter reading of the connector, a milder one asked about
     const stricter = rank(live) > rank(rec.floor ?? "allowed") && rank(live) > 0;
@@ -574,6 +582,7 @@ export function archiveLevel(env: Env, input: LevelInput): ArchiveLevel {
     host,
     level,
     from: by,
+    ...(termsUnknown ? { termsUnknown: true as const } : {}),
     ...(permission ? { permission } : {}),
     ...(!trust.verified ? { unverified: trust.why ?? "the settings are not verified as the person's" } : {}),
     title: known?.name ?? t?.repo.name ?? c?.manifest.title ?? host,

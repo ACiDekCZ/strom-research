@@ -250,6 +250,7 @@
   "ui.tune.book.weak": "Negativbefunde auf schwachen Scans {n} von {of}",
   "ui.tune.book.requests": "Anfragen {n}",
   "ui.tune.book.unread": "geladen und nie gelesen {n} von {of}",
+  "ui.tune.book.background": "im Hintergrund: nie gelesen {n} von {of}",
   "ui.tune.hosts": "Archive:",
   "ui.tune.host": "  {host}: Sitzungen {sessions} · Anfragen {requests} ({perSession} pro Sitzung, {perImage} pro Bild) · gewartet {wait} min · Limit erschöpft {later}×",
   "ui.tune.web": "Eigene Webwerkzeuge des Agenten:",

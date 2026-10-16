@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.15.0
 
-*In preparation: the betas up to 1.15.0-beta.5. The section is complete with the release.*
+*In preparation: the betas up to 1.15.0-beta.6. The section is complete with the release.*
 
 *Goes with the Strom app 3.12.0.*
 
@@ -18,13 +18,18 @@ The changes of each version in short. The full notes and the install lines are o
 - **One book of an archive, fetched once.** A book already in the research is named instead of being registered and
   fetched again, so an archive is never asked twice for the same images.
 - **Faster reading.** Five readers read the scans at the same time (the setting `read.parallel`, 1 to 10), and a long
-  download says how far it is ("40/109 images"). Nothing more is asked of an archive.
+  download says how far it is ("40/109 images"). The readers begin while a book is still downloading: its images are
+  registered ten at a time, and what did not come is said exactly; Ctrl-C keeps what came. An archive gets the same
+  requests at the same pace. A book can also be fetched in the background while the agent works on (`strom fetch
+  --background`), never from an archive that allows only a person's pace. A search for one entry can stop at the find
+  (`strom read --until-found`): the images read are said exactly, and only they count as searched.
 - **Family trees from other programs.** A GEDCOM file saved with a byte order mark or in UTF-16 (as some Windows
   programs save it) is read as a family tree; a family tree of another research is taken in as a foreign one.
 - **The live view ends cleanly** on every system, Windows too, and the Strom app learns that it ended.
 - **One strom per installation.** Another strom on the same computer (from npm, or built from the sources) never takes
   over the links of the Strom app or the update channel.
-- **What's new.** After `strom update` and with `strom --version`, a link to this list in the research language.
+- **What's new.** After `strom update` and with `strom --version`, a link to this list in the research language. The
+  Strom app shows the points of a new research version in its own “What's new” window.
 
 ## 1.14.0
 

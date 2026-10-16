@@ -26,7 +26,7 @@ import { loadUserConfig, Settings, type RouteChoice } from "./config.ts";
 import { readJsonIfExists, writeJson } from "./json.ts";
 import { readAsset } from "./assets.ts";
 import { foldText } from "./text.ts";
-import { CookieJar, hostAllowed, hostState, NetError, paceOf, paceText, politeRequest, type NetVerdict, type Pace, type RefusedKind, type ServicePace } from "./net.ts";
+import { CookieJar, hostAllowed, hostState, NetError, paceOf, paceText, politeRequest, releaseForeground, type NetVerdict, type Pace, type RefusedKind, type ServicePace } from "./net.ts";
 import { loginOf, redactor } from "./logins.ts";
 import type { Media, RecordSet, Region, Repository, Source, Task } from "./model.ts";
 import { HYPOTHESIS_LINKS_ORIGIN } from "./hypolinks.ts";
@@ -857,8 +857,10 @@ export interface RunOptions {
   /** At most this many requests (a test run). */
   maxRequests?: number;
   onLog?: (line: string) => void;
-  /** An image taken in, checked (cmd fetch, part): how many this run has now — for a count as they come. */
-  onImage?: (got: number) => void;
+  /** An image taken in, checked (cmd fetch, part): how many this run has now — for a count as they come — and the image. */
+  onImage?: (got: number, image: FetchedImage) => void;
+  /** Aborted (the person's Ctrl-C): the connector is stopped, what it gave until then is in the report. */
+  signal?: AbortSignal;
   /** browser.pages: the pages the browser got; a request without one stops the run (report.needs). */
   pages?: (r: PageRequest) => PageAnswer | undefined;
   fetchImpl?: typeof fetch;
@@ -879,6 +881,9 @@ export interface RunOptions {
   robotsPermitFor?: (host: string) => Pace | undefined;
   /** What strom read and decided of a host (its robots.txt, a refusal): kept beside the person's settings (core/terms.ts). */
   onVerdict?: (v: NetVerdict) => void;
+  /** strom fetch --background: its requests wait while a fetch in the foreground asks the same host (onYield told). */
+  background?: boolean;
+  onYield?: (waiting: boolean) => void;
 }
 
 /** A minimal environment: the connector gets no secrets of the shell that runs strom. */
@@ -964,6 +969,10 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
     report.stopped ??= why;
     child.kill();
   };
+  if (opts.signal) {
+    if (opts.signal.aborted) stop("interrupted");
+    else opts.signal.addEventListener("abort", () => stop("interrupted"), { once: true });
+  }
   send({ interface: c.manifest.interface, ...request, ...(login ? { login: true } : {}) });
   const lines = readline.createInterface({ input: child.stdout });
   let queue = Promise.resolve();
@@ -1037,7 +1046,7 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
         // the part it got, when the portal cut it a little differently; else the part asked for
         report.images.push({ ...im, file, region: regionOf(got) ?? request.region });
       } else report.images.push({ ...im, file });
-      opts.onImage?.(report.images.length);
+      opts.onImage?.(report.images.length, report.images[report.images.length - 1]!);
       return;
     }
     if (msg.http && typeof msg.http === "object") {
@@ -1120,6 +1129,9 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
           run: asked,
           login: !!c.manifest.login,
           ...(opts.onVerdict ? { onVerdict: opts.onVerdict } : {}),
+          lane: opts.background ? "background" : "foreground",
+          ...(opts.onYield ? { onYield: opts.onYield } : {}),
+          ...(opts.signal ? { stop: opts.signal } : {}),
           method: method as "GET" | "POST" | "HEAD",
           headers,
           ...(body !== undefined ? { body } : {}),
@@ -1175,6 +1187,8 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
   const code = await exited;
   await queue;
   lines.close();
+  // its hosts let go: a fetch in the background goes on at once
+  if (!opts.background) releaseForeground();
   if (code && !report.stopped) report.stopped = `the connector ended with code ${code}${stderr.trim() ? `: ${stderr.trim().split("\n").slice(-3).join(" | ")}` : ""}`;
   return report;
 }

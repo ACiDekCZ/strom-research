@@ -102,6 +102,9 @@ conclusion so the next researcher can follow it.
   number by one or two images, never a batch of ten; an entry: its image ±1
   (it may run over a page). An archive that allows automation: batches as
   usual (about ±5 around the target, an index in batches) — fewer turns.
+  `strom read` may follow a fetch at work: sooner, never more images.
+  Images you will read later in the session: `--background` fetches them
+  while you work on, `strom read` reads them as they come.
 <!-- end -->
 - **What strom or the tree denies stays denied.** Never offer the user to
   change your permissions or settings, strom's or the tree's, to get round it:

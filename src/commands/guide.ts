@@ -159,7 +159,7 @@ SEARCHING
                                        session close and strom place list --off-map say which are still off it
   strom connector list                 connectors: they find books and fetch scans
   strom fetch <connector> --find "<place>" --years 1780-1850
-  strom fetch <connector> <book> --images 40-69 --recordset B0001    registered at once
+  strom fetch <connector> <book> --images 40-69 --recordset B0001    registered as they come
   strom connector use <connector> --via browser    only when the user asks: images through their own
                                        browser (strom fetch then says what to do; --via direct: back)
   strom connector new <name> --url <portal>    an archive you need has none: build it (its DISCOVERY.md)

@@ -204,6 +204,7 @@ function report(ctx: Context, tree: Tree, askedKey: string, whoAsked: string): {
       b.weakNegatives ? t("ui.tune.book.weak", { n: b.weakNegatives, of: b.negatives }) : undefined,
       b.requests ? t("ui.tune.book.requests", { n: b.requests }) : undefined,
       b.unread ? t("ui.tune.book.unread", { n: b.unread, of: b.fetched }) : undefined,
+      b.background ? t("ui.tune.book.background", { n: b.background.unread, of: b.background.fetched }) : undefined,
     ]
       .filter(Boolean)
       .join(" · "),

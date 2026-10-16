@@ -9,7 +9,10 @@
   "files": [
     "dist",
     "assets",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md",
+    "CHANGELOG.cs.md",
+    "CHANGELOG.de.md"
   ],
   "engines": {
     "node": ">=22.18"

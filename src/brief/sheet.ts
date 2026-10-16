@@ -31,8 +31,8 @@ const RARE: Record<string, string[]> = {
   "task add": ["research", "anyway"],
   "media view": ["scale", "max", "grey", "png", "image"],
   read: ["context", "batch", "model", "minutes", "max"],
-  // a book the research has already: the refusal says --again where it applies
-  fetch: ["take", "result", "again"],
+  // a book the research has already: the refusal says --again where it applies; --status and --stop: the method and the brief name them
+  fetch: ["take", "result", "again", "status", "stop"],
   "source add": ["translation", "media"],
   "source edit": ["translation", "media"],
   "recordset add": ["images", "again"],

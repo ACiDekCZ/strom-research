@@ -233,6 +233,7 @@ export const UI = {
   "ui.tune.book.weak": "negatives on weak scans {n} of {of}",
   "ui.tune.book.requests": "requests {n}",
   "ui.tune.book.unread": "fetched and never read {n} of {of}",
+  "ui.tune.book.background": "in the background: never read {n} of {of}",
   "ui.tune.hosts": "Archives:",
   "ui.tune.host": "  {host}: sessions {sessions} · requests {requests} ({perSession} per session, {perImage} per image) · waited {wait} min · limit used up {later}×",
   "ui.tune.web": "The agent's own web tools:",

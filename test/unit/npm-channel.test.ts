@@ -113,3 +113,11 @@ test("the publish line names the tarball as a path, never what npm takes for a G
   assert.equal(publishLine(abs), `npm publish ${abs} --tag beta`);
   assert.equal(publishLine("my out/x.tgz"), 'npm publish "./my out/x.tgz" --tag beta');
 });
+
+test("the npm package carries the changelogs (what is new in the installed version, offline: the bridge's /whats-new)", { skip: !hasNpm }, () => {
+  const r = spawnSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: ROOT, encoding: "utf8", shell: process.platform === "win32" });
+  assert.equal(r.status, 0, r.stderr);
+  const files = (JSON.parse(r.stdout)[0].files as { path: string }[]).map((f) => f.path);
+  for (const f of ["CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md", "LICENSE", "README.md", "package.json"]) assert.ok(files.includes(f), f);
+  assert.deepEqual(files.filter((f) => !/^(dist|assets)\//.test(f)).sort(), ["CHANGELOG.cs.md", "CHANGELOG.de.md", "CHANGELOG.md", "LICENSE", "README.md", "package.json"], "nothing else of the sources");
+});

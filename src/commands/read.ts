@@ -34,6 +34,8 @@ import { guardIndexFirst, INDEX_FIRST_DEFAULT } from "../core/indexfirst.ts";
 import { bookViewSizes, readingOf, treeTuning, tuningOn } from "../core/tune.ts";
 import { claimStem, readerAgent, readerDesk, refuseReadersInSandbox } from "./readers.ts";
 import { noReaderHere, refusedBySandbox } from "../core/sandbox.ts";
+import { activeFetches } from "../core/fetching.ts";
+import { finishOf } from "../core/clock.ts";
 
 /**
  * Of an image registered only in parts, the part a crop of the whole image (fractions or pixels of it) is on, and the
@@ -63,18 +65,45 @@ function range(v: string): [number, number] {
   return [lo, hi];
 }
 
-export async function pool<T, R>(items: T[], size: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
+/** Items run `size` at a time, in order; once `stop()` says so no more begin (those at work finish): the results of those begun. */
+export async function pool<T, R>(items: T[], size: number, fn: (item: T, i: number) => Promise<R>, stop?: () => boolean): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let next = 0;
   const worker = async () => {
-    while (next < items.length) {
+    while (next < items.length && !stop?.()) {
       const i = next++;
       results[i] = await fn(items[i]!, i);
     }
   };
   await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
+  return stop ? results.slice(0, next) : results;
+}
+
+/**
+ * pool() over items that come while it works: each worker takes the next one as soon as there is one (next() waits for
+ * it, one caller at a time); undefined ends it. The results in the order the items came.
+ */
+export async function streamPool<T, R>(size: number, next: () => Promise<T | undefined>, fn: (item: T, i: number) => Promise<R>, stop?: () => boolean): Promise<R[]> {
+  const results: R[] = [];
+  let count = 0;
+  let turn: Promise<T | undefined> = Promise.resolve(undefined);
+  const take = () => (turn = turn.then(() => (stop?.() ? undefined : next())));
+  const worker = async () => {
+    for (;;) {
+      const item = await take();
+      if (item === undefined) return;
+      const i = count++;
+      results[i] = await fn(item, i);
+    }
+  };
+  await Promise.all(Array.from({ length: size }, worker));
   return results;
 }
+
+/** How often strom read looks whether a fetch of its book at work registered more images. */
+const FETCH_LOOK_MS = 1000;
+/** How often strom read --until-found looks into the reports of the readers at work for a find. */
+const FIND_LOOK_MS = 1000;
 
 register({
   path: ["read"],
@@ -92,6 +121,11 @@ register({
     "A blind reading, a reading in a verify task and an image a reader found unclear before get a double page as its\n" +
     "two halves, overlapping at the gutter — each page sharper (two views: a reader takes fewer images). Otherwise a\n" +
     "spread is read whole. --half both for halves anyway, --whole for one view.\n" +
+    "A book strom fetch is fetching now can be read at once: readers begin on the images registered (a batch of\n" +
+    "10 at a time) and the rest is waited for; images the fetch ended before are said exactly, never read.\n" +
+    "--until-found, for ONE particular entry (a baptism, a marriage): once a reader reports a find no more readers begin\n" +
+    "(those at work finish); the images read are said exactly and only they are searched (--result partial), never\n" +
+    "the whole range. Not for every entry of a place or a surname, nor where a namesake may come after the find.\n" +
     "It waits for its readers (often ten minutes or more): run it in the foreground and let it finish.",
   args: [{ name: "images", description: "a record set (with --images), or images: M… or B…:<image>", variadic: true, required: true }],
   options: [
@@ -108,10 +142,12 @@ register({
     { name: "parallel", type: "string", value: "<n>", description: `readers at the same time, 1 to ${READ_PARALLEL_MAX} (default ${DEFAULT_READ_PARALLEL}, or the setting read.parallel: strom config set read.parallel <n>)` },
     { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision — never weaker for handwriting)" },
     { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP, mistaken: ["timeout", "time", "time-limit", "max-minutes"] },
+    { name: "until-found", type: "boolean", description: "no more readers once one reports a find (those at work finish) — only for ONE particular entry, never for every entry of a place or a surname, nor where a namesake may follow; only the images read are searched (--result partial)" },
     { name: "no-index", type: "boolean", description: `browse the images although an index of the book's parish and years is known (read already, or of no use here) — from ${INDEX_FIRST_DEFAULT} images on (the person's answer: strom media calibrate --questions) strom names the index first, and a session of strom run needs this to go on` },
   ],
   examples: [
     'strom read B0001 --images 40-69 --question "Every baptism of the surname Novák (Nowak, Nowack) in 1820–1824: the child, date, house, both parents and their parents"',
+    'strom read B0001 --images 40-69 --until-found --question "The baptism of Jan Novák, born about 1822 in house 12, son of Josef: the entry whole"',
     'strom read B0001:2 --blind --crop 0.05,0.40,0.45,0.18 --question "Transcribe this entry completely; mark what is uncertain with [?]"',
   ],
   run: async (ctx: Context, { args, opts }) => {
@@ -123,6 +159,8 @@ register({
     let label: string;
     // an image registered only in parts, named as an image of its book: the crop asked, in the part that covers it
     const partCrops = new Map<string, string>();
+    // the images of the book a fetch at work is still to register (core/fetching.ts): read as they come
+    let fetching: { book: RecordSet; lo: number; hi: number; coming: number[] } | undefined;
     if (args.length === 1 && /^[Bb]\d+$/.test(args[0]!)) {
       const b = requireRecord<RecordSet>(tree, args[0]!, "recordset");
       if (typeof opts.images !== "string") throw new UsageError("which images?", { hint: `--images 40-69 (strom media list --recordset ${b.id})` });
@@ -130,6 +168,8 @@ register({
       // each image once, as the sharpest copy of it
       const nums = [...new Set(all.filter((m) => m.recordset === b.id && !m.part && m.image !== undefined && m.image >= lo && m.image <= hi).map((m) => m.image!))];
       images = nums.sort((x, y) => x - y).map((n) => findImage(all, b.id, n)!);
+      const coming = [...new Set(activeFetches(tree.root, b.id).flatMap((f) => f.images))].filter((n) => n >= lo && n <= hi && !nums.includes(n)).sort((x, y) => x - y);
+      if (coming.length) fetching = { book: b, lo, hi, coming };
       // Images only in parts (a half, a detail): readers read whole images. A book with a connector gets them through
       // it (the connector of its images fetched before), never by hand (N0285: "media add" in a run nobody watches).
       const inParts: number[] = [];
@@ -137,7 +177,7 @@ register({
       const route = all.find((m) => m.recordset === b.id && !m.retracted && m.fetched)?.fetched;
       const whole = (which: string) => (route ? `strom fetch ${route.connector} ${route.book} --images ${which} --recordset ${b.id}` : `strom media add <folder> --recordset ${b.id}`);
       const partsSaid = inParts.length ? `registered only in parts (images ${runs(inParts)}): readers need whole images` : undefined;
-      if (images.length === 0) throw new UsageError(partsSaid ? `no whole ${lo === hi ? `image ${lo}` : `images ${lo}–${hi}`} of ${b.id}: ${partsSaid}` : `no registered images ${lo}–${hi} of ${b.id}`, { hint: whole(lo === hi ? `${lo}` : `${lo}-${hi}`) });
+      if (images.length === 0 && !fetching) throw new UsageError(partsSaid ? `no whole ${lo === hi ? `image ${lo}` : `images ${lo}–${hi}`} of ${b.id}: ${partsSaid}` : `no registered images ${lo}–${hi} of ${b.id}`, { hint: whole(lo === hi ? `${lo}` : `${lo}-${hi}`) });
       if (partsSaid) (ctx.json ? ctx.io.stderr : ctx.io.stdout)(`${b.id}: ${partsSaid}, these are not read → ${whole(runs(inParts).replace(/–/g, "-").replace(/,\s*/g, ","))}\n`);
       label = `${b.id}-${lo}-${hi}`;
       // a book browsed where an index of its parish is known and not searched for this: the index first (D3)
@@ -145,7 +185,7 @@ register({
         settings: ctx.settings,
         env: ctx.env,
         book: b,
-        n: images.length,
+        n: images.length + (fetching?.coming.length ?? 0),
         question,
         noIndex: Boolean(opts["no-index"]),
         command: `strom read ${b.id} --images ${lo}-${hi} …`,
@@ -168,6 +208,8 @@ register({
           return picked.part;
         }
         const m = imageOfRef(all, b.id, Number(at[2]));
+        if (!m && activeFetches(tree.root, b.id).some((f) => f.images.includes(Number(at[2]))))
+          throw new UsageError(`image ${at[2]} of ${b.id} is being fetched now (strom fetch at work), not registered yet`, { hint: `strom read ${b.id} --images ${at[2]}-${at[2]} … waits for it` });
         if (!m) throw new UsageError(`image ${at[2]} of ${b.id} is not registered`, { hint: `strom media list --recordset ${b.id}` });
         return m;
       });
@@ -227,7 +269,7 @@ register({
       pixels.set(v.file, v.width * v.height);
       return v;
     };
-    const prepared: ReaderImage[] = images.map((m) => {
+    const prepare = (m: Media): ReaderImage => {
       // this image's book: bigger where strom tuned it
       const max = capOf(m).cap;
       const b = m.recordset ? tree.get<RecordSet>(m.recordset) : undefined;
@@ -257,12 +299,58 @@ register({
       }
       const v = view(file, m, { half, max, contrast });
       return { id: m.id, image: m.image, page, view: v.file };
-    });
+    };
+    const prepared: ReaderImage[] = images.map(prepare);
     const progress = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
     // The same images read before: said, never refused (another question, a blind check).
     const earlier = earlierReadings(tree, images);
     for (const l of earlierLines(earlier)) progress(l);
-    const groups = batches(prepared, size, viewCount);
+    const groups = fetching ? [] : batches(prepared, size, viewCount);
+    // A fetch of the book at work: a reader begins as soon as a batch of its images is registered, the rest waits for
+    // them; what the fetch did not register before it ended is said exactly (never read, never a negative).
+    let taken = 0;
+    const nextGroup = async (): Promise<ReaderImage[] | undefined> => {
+      const f = fetching!;
+      const isPrepared = (n: number) => prepared.some((p) => p.image === n);
+      let seen = -1;
+      let ended = false;
+      for (;;) {
+        const live = activeFetches(tree.root, f.book.id);
+        const stillComing = new Set(live.flatMap((x) => x.images));
+        const left = f.coming.filter((n) => stillComing.has(n) && !isPrepared(n));
+        const registered = live.reduce((n, x) => n + x.registered, 0);
+        // what the fetch registered since (once more after it ended): read afresh, prepared as the others
+        if (registered !== seen || (!left.length && !ended)) {
+          seen = registered;
+          if (!left.length) ended = true;
+          tree.reread();
+          const now = tree.list<Media>("media");
+          for (const n of f.coming) {
+            if (isPrepared(n)) continue;
+            const m = findImage(now, f.book.id, n);
+            if (!m || m.part) continue;
+            images.push(m);
+            byMedia.set(m.id, m);
+            prepared.push(prepare(m));
+          }
+        }
+        // the session asked to finish, or a reader found it (--until-found): no new reader, what is not read is said
+        if ((ctx.env.STROM_SESSION && finishOf(tree.root, ctx.env.STROM_SESSION)) || stopped()) return undefined;
+        const rest = prepared.slice(taken);
+        const stillLeft = f.coming.filter((n) => stillComing.has(n) && !isPrepared(n));
+        const full = batches(rest, size, viewCount);
+        // a reader gets a whole batch while more come; what is left once nothing more comes
+        if (rest.length && (!stillLeft.length || full.length > 1 || full[0]!.reduce((n, g) => n + viewCount(g), 0) >= Math.min(BATCH_MAX, size))) {
+          const g = full[0]!;
+          taken += g.length;
+          groups.push(g);
+          return g;
+        }
+        if (!stillLeft.length) return undefined;
+        await new Promise((r) => setTimeout(r, FETCH_LOOK_MS));
+      }
+    };
+    if (fetching) progress(`… images ${runs(fetching.coming)} of ${fetching.book.id} are being fetched now (strom fetch at work): read as they are registered`);
     const day = new Date().toISOString().slice(0, 10);
     const reportsDir = path.join(tree.root, "notes", "readings");
     fs.mkdirSync(reportsDir, { recursive: true });
@@ -274,7 +362,29 @@ register({
     const stem = claimStem(tree.root, "read", `${day}-${label}`, (s) => fs.existsSync(path.join(reportsDir, `${s}-1.md`)));
     // a reader refused by a sandbox that does not say so (core/sandbox.ts): no more are started
     let refused = false;
-    const results = await pool(groups, parallel, async (group, k) => {
+    // --until-found: the first reader that reports a find (in its report as it goes, or when it ends) — no more begin
+    const untilFound = Boolean(opts["until-found"]);
+    let foundBy: number | undefined;
+    const atWork = new Map<number, string>();
+    const sawFind = (k: number, text: string) => {
+      if (foundBy === undefined && parseReport(text).some((f) => f.result === "found")) {
+        foundBy = k;
+        progress(`★ reader ${k + 1} reported a find (--until-found): no more readers begin, those at work finish`);
+      }
+    };
+    const look = untilFound
+      ? setInterval(() => {
+          for (const [k, report] of atWork) {
+            try {
+              sawFind(k, fs.readFileSync(report, "utf8"));
+            } catch {
+              // (a report being written: looked at again in a moment)
+            }
+          }
+        }, FIND_LOOK_MS)
+      : undefined;
+    const stopped = () => foundBy !== undefined;
+    const readGroup = async (group: ReaderImage[], k: number) => {
       const report = path.join(reportsDir, `${stem}-${k + 1}.md`);
       const views = group.reduce((n, g) => n + viewCount(g), 0);
       // its time limit: by hand, else by its views and what the readers of this agent and model before it needed
@@ -289,10 +399,11 @@ register({
       fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(group.flatMap((g) => [g.view, ...(g.parts ?? []).map((p) => p.view)]), report, permissionPath), null, 2));
       const context = typeof opts.context === "string" && opts.context.trim() ? `Context: ${opts.context.trim().replace(/\s*\n\s*/g, " ")}\n` : "";
       // a blind reading says so in its head: its "unclear" over a place the researcher looked at before is a check
-      const head = `# Reading ${label} · batch ${k + 1} of ${groups.length}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}${opts.blind ? "Blind: yes\n" : ""}\n${NEXT_BLOCK}\n`;
+      const head = `# Reading ${label} · batch ${k + 1}${fetching ? "" : ` of ${groups.length}`}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}${opts.blind ? "Blind: yes\n" : ""}\n${NEXT_BLOCK}\n`;
       fs.writeFileSync(report, head);
+      if (untilFound) atWork.set(k, report);
       const prompt = readerPrompt({ question, images: group, report, lang: tree.lang, context: opts.context as string | undefined, blind: Boolean(opts.blind) });
-      progress(`▶ reader ${k + 1}/${groups.length}: ${group.length} images (${runs(group.map((g) => g.image ?? 0))})${views > group.length ? ` · ${views} views` : ""} · at most ${minutes} min${limit.from === "learned" ? " (earlier readers of this agent and model needed more)" : ""}`);
+      progress(`▶ reader ${k + 1}${fetching ? "" : `/${groups.length}`}: ${group.length} images (${runs(group.map((g) => g.image ?? 0))})${views > group.length ? ` · ${views} views` : ""} · at most ${minutes} min${limit.from === "learned" ? " (earlier readers of this agent and model needed more)" : ""}`);
       const startedAt = Date.now();
       const { STROM_SESSION: _s, ...env } = ctx.env;
       const r = await runner.run({
@@ -313,6 +424,7 @@ register({
         ...usageOpt(tree, `read-${stem}-${k + 1}`, { agent: agentId, key: sizes.asked ?? sizes.key, ...(model ? { model } : {}), ...(effort ? { effort } : {}), reader: "read" }),
       });
       const ranMs = Date.now() - startedAt;
+      atWork.delete(k);
       // A reader that wrote its report whole, without strom's head (in the research language, found live): the head
       // back on top — strom readings finds a reading by it.
       let text = fs.readFileSync(report, "utf8");
@@ -327,6 +439,7 @@ register({
       }
       if (!/^##\s/m.test(text) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
       const findings = parseReport(fs.readFileSync(report, "utf8"));
+      if (untilFound && foundBy === undefined && findings.some((f) => f.result === "found")) sawFind(k, fs.readFileSync(report, "utf8"));
       // the reader as it went, for the measure of the reading of scans (core/metrics.ts)
       const groupViews = group.flatMap((g) => (g.parts?.length ? g.parts.map((p) => p.view) : [g.view]));
       // the size its views were made for and where it came from, as the views' own record says (images of books of
@@ -364,7 +477,48 @@ register({
       });
       progress(`■ reader ${k + 1}: ${r.outcome === "timeout" ? `stopped at its time limit (${minutes} min)` : r.outcome}${r.metrics.costUsd !== undefined ? ` · $${r.metrics.costUsd.toFixed(2)}` : ""} · ${findings.filter((f) => f.result === "found").length} with finds`);
       return { group, report, outcome: r.outcome, cost: r.metrics.costUsd, findings, minutes };
-    });
+    };
+    const stop = untilFound ? stopped : undefined;
+    const results = await (fetching ? streamPool(parallel, nextGroup, readGroup, stop) : pool(groups, parallel, readGroup, stop)).finally(() => clearInterval(look));
+    // stopped at a find: the images of the readers that never began — not read, never a negative of them
+    const skipped = foundBy !== undefined && !fetching ? groups.slice(results.length).flatMap((g) => g.map((p) => p.image ?? 0)) : [];
+    if (skipped.length) prepared.splice(0, prepared.length, ...results.flatMap((r) => r.group));
+    // of the images a fetch was to bring, those no reader read: the fetch ended before them, or the session finishes
+    const readNow = new Set(prepared.slice(0, taken).map((p) => p.image));
+    const notRead = fetching ? [...new Set([...fetching.coming, ...prepared.map((p) => p.image ?? 0)])].filter((n) => !readNow.has(n)).sort((x, y) => x - y) : skipped;
+    const notPrepared = fetching ? notRead.filter((n) => !prepared.some((p) => p.image === n)) : [];
+    // registered after the last reader began (no reader takes them once one found it): here, only not read — never
+    // said as not fetched, never fetched again
+    let registeredSince: number[] = [];
+    if (fetching && notPrepared.length) {
+      tree.reread();
+      const now = tree.list<Media>("media");
+      registeredSince = notPrepared.filter((n) => findImage(now, fetching!.book.id, n) !== undefined);
+    }
+    const unregistered = notPrepared.filter((n) => !registeredSince.includes(n));
+    if (fetching) prepared.splice(taken);
+    // stopped at a find with images left: only those read are searched (partial), never a negative of the rest
+    const atFind = foundBy !== undefined && notRead.length > 0;
+    const book = fetching?.book.id ?? images[0]?.recordset;
+    const asRange = (ns: number[]) => runs(ns).replace(/–/g, "-").replace(/,\s*/g, ",");
+    // what to run for the images not read: the fetch again for those it did not bring, the reading for the others
+    const route = fetching ? tree.list<Media>("media").find((m) => m.recordset === fetching!.book.id && !m.retracted && m.fetched)?.fetched : undefined;
+    const stillFetched = fetching && unregistered.length ? new Set(activeFetches(tree.root, fetching.book.id).flatMap((f) => f.images)) : new Set<number>();
+    const whyNot = (): string => {
+      const comingStill = unregistered.filter((n) => stillFetched.has(n));
+      const ended = unregistered.filter((n) => !stillFetched.has(n));
+      const said = [
+        atFind ? `a reader found it, no more began (--until-found)` : undefined,
+        registeredSince.length ? `${runs(registeredSince)} registered, not read` : undefined,
+        comingStill.length ? `${runs(comingStill)} still being fetched (strom fetch --status)` : undefined,
+        ended.length ? `the fetch ended before ${ended.length === notRead.length ? "they came" : `${runs(ended)} came`}${route ? ` (strom fetch ${route.connector} ${route.book} --images ${asRange(ended)} --recordset ${fetching!.book.id})` : ""}` : undefined,
+      ].filter(Boolean);
+      return said.length ? said.join("; ") : "the session finishes";
+    };
+    const notReadSaid = notRead.length
+      ? `NOT read: images ${runs(notRead)} — ${whyNot()}; read them ${atFind ? "if the find proves not to be the one" : "later"}: strom read ${book ?? "B…"} --images ${asRange(notRead)} …; no negative of them`
+      : undefined;
+    if (fetching && !prepared.length) throw new UsageError(`no images ${fetching.lo}–${fetching.hi} of ${fetching.book.id} read: ${notReadSaid ?? "none came"}`, { hint: route ? `strom fetch ${route.connector} ${route.book} --images ${fetching.lo}-${fetching.hi} --recordset ${fetching.book.id}` : `strom media list --recordset ${fetching.book.id}` });
 
     // refused by the sandbox: the reports never begun go, the agent hears what it does instead
     if (refused) {
@@ -402,6 +556,7 @@ register({
       unclear.length
         ? `unclear on: ${runs(unclear.map(numberOf))} — look at that place closer yourself (strom media view ${b ?? "B…"}:${numberOf(unclear[0]!)} --half both, --crop) or read again (a double page then comes in halves): no negative of the range before`
         : undefined,
+      notReadSaid,
       missing.length ? `NOT reported: ${runs(missing.map((m) => m.image ?? 0))} — read these again` : undefined,
       failed.length ? `readers that failed: ${failed.map((r) => `${runs(r.group.map((g) => g.image ?? 0))} (${r.outcome === "timeout" ? `stopped at its time limit, ${r.minutes} min` : r.outcome})`).join(", ")}` : undefined,
       late.length
@@ -416,7 +571,8 @@ register({
       `reports: ${results.length > 3 ? `${ctx.display(path.join(reportsDir, stem))}-1…${results.length}.md` : results.map((r) => ctx.display(r.report)).join(" · ")} — no need to open them: strom readings ${stem} (this again), strom readings ${b ?? stem} --image <n> (one image whole)`,
       "",
       "next: look at each find yourself (strom media view <M…> --crop …) before it becomes a source;",
-      `record the search: strom search add "${truncate(question, 50)}"${b ? ` --recordset ${b}` : ""} --pages ${runs(prepared.map((p) => p.image ?? 0)).replace(/–/g, "-")} --method page-by-page --by reader --result ${found.length ? "found" : unclear.length ? "inconclusive" : "negative"}${told.gaps.length ? ` --note ${shellArg(told.gaps.join("; "))}` : ""}`,
+      `record the search: strom search add "${truncate(question, 50)}"${b ? ` --recordset ${b}` : ""} --pages ${runs(prepared.map((p) => p.image ?? 0)).replace(/–/g, "-")} --method page-by-page --by reader --result ${atFind ? "partial" : found.length ? "found" : unclear.length ? "inconclusive" : "negative"}${told.gaps.length || atFind ? ` --note ${shellArg([...(atFind ? [`stopped at the find (--until-found): images ${runs(notRead)} not read`] : []), ...told.gaps].join("; "))}` : ""}`,
+      atFind ? "(stopped at the find: partial, only the images read — add --found S… once the find is a source; never a negative of the range)" : undefined,
       told.gaps.length ? "(the readers saw pages missing from the book: the note says so — what is not in the book was not searched)" : undefined,
     );
     return {
@@ -427,6 +583,10 @@ register({
         found: found.map((f) => ({ image: numberOf(f), media: byId.has(f.image) ? f.image : undefined })),
         unclear: unclear.map(numberOf),
         missing: missing.map((m) => m.id),
+        notRead: notRead.length ? notRead : undefined,
+        notFetched: unregistered.length ? unregistered : undefined,
+        // --until-found: the reader that found it stopped the reading (its batch), the images left unread
+        stoppedAtFind: atFind ? { batch: foundBy! + 1, notRead } : undefined,
         failed: failed.map((r) => ({ images: r.group.map((g) => g.id), outcome: r.outcome, ...(r.outcome === "timeout" ? { minutes: r.minutes } : {}) })),
         reports: results.map((r) => r.report),
         reading: stem,

@@ -63,6 +63,17 @@ after(() => {
   if (dir) fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test("a release carries the changelogs: in strom-app.tar.gz and a beta's npm tarball (the bridge's /whats-new reads them offline)", opts, () => {
+  const listed = (file: string) => spawnSync("tar", ["-tzf", file], { encoding: "utf8" }).stdout.split("\n");
+  const app = listed(path.join(rel.beta, "strom-app.tar.gz"));
+  const npm = fs.readdirSync(rel.beta).find((f) => f.endsWith(".tgz"));
+  for (const f of ["CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md"]) {
+    assert.ok(app.includes(`app/${f}`), `strom-app.tar.gz: ${f}`);
+    if (npm) assert.ok(listed(path.join(rel.beta, npm)).includes(`package/${f}`), `${npm}: ${f}`);
+  }
+  assert.ok(listed(path.join(rel.stable, "strom-app.tar.gz")).includes("app/CHANGELOG.cs.md"), "a release's too");
+});
+
 /** An isolated installation in a scratch folder: its HOME, settings, program — nothing of this computer's. */
 class Install {
   readonly root: string;
@@ -525,6 +536,12 @@ test("the Strom app's two copies against a stable and a beta strom (the beta a s
         const text = await ged.text();
         assert.match(text, /^(﻿)?0 HEAD/);
         assert.match(text, /1 NAME Pavel \/Šťastný\//);
+        // what is new, from the installed changelogs: a version they have no section of — no points, the address of
+        // the channel's branch, never an error
+        const news = await fetch(`${url}/whats-new?lang=cs&app=${app.version}`, { headers: { Origin: app.origin } });
+        assert.equal(news.status, 200);
+        assert.equal(news.headers.get("access-control-allow-origin"), app.origin);
+        assert.deepEqual(await news.json(), { version: isBeta ? BETA : STABLE, lang: "cs", url: `https://github.com/ACiDekCZ/strom-research/blob/${isBeta ? "beta" : "main"}/CHANGELOG.cs.md#${isBeta ? "910" : "900"}`, points: [] });
       }
       // a page of another site: not let in
       const other = await fetch(`${url}/status`, { headers: { Origin: "https://example.org" } });

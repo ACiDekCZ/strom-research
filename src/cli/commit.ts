@@ -23,7 +23,9 @@ export interface NotCommitted {
 /** Commit the changes of this command. Returns what blocked the commit, if anything did. */
 export function autoCommit(ctx: Context, def: CommandDef): NotCommitted | undefined {
   const tree = ctx.current();
-  if (!tree || tree.dryRun || tree.written.length === 0) return undefined;
+  // what an earlier commit of the same command holds already (strom fetch commits each batch of images) is not again
+  const ops = tree?.uncommitted() ?? [];
+  if (!tree || tree.dryRun || ops.length === 0) return undefined;
   // Incremental gate: records were validated when written; here only what
   // changed since the last commit is checked, so the cost stays flat.
   const snap = snapshot(tree);
@@ -39,16 +41,17 @@ export function autoCommit(ctx: Context, def: CommandDef): NotCommitted | undefi
       problems: errors.map((f) => ({ ...(f.id ? { id: f.id } : {}), ...(f.file ? { file: f.file } : {}), message: f.message })),
     };
   }
-  const message = commitMessage(tree.written.map((o) => o.summary), `strom ${def.path.join(" ")}`);
+  const message = commitMessage(ops.map((o) => o.summary), `strom ${def.path.join(" ")}`);
   // Only the files this command wrote, plus the free-form folders the agent
   // may edit — `git add` then never has to scan the whole data/ tree.
   const written = new Set<string>(["data/_counters.json"]);
-  for (const op of tree.written) for (const f of op.files) written.add(f.path);
+  for (const op of ops) for (const f of op.files) written.add(f.path);
   for (const f of tree.opsFilesTouched()) written.add(f);
   // an archive: no agent edits its free-form folders — a person's own file in notes/ is theirs, never swept into a
   // commit of something else (found on Windows: strom mode committed a file of the user's) — nor by the switch itself
   const free = isArchive(tree) || def.path[0] === "mode" ? ["inputs", "output"] : ["notes", "tools", "inputs", "output"];
   tree.withTreeLock(() => tree.commit(message, [...written, ...free]));
+  tree.markCommitted();
   tree.settle();
   return undefined;
 }

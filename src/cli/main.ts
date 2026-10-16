@@ -330,12 +330,13 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     const args = parsed.positionals;
     // several IDs to a show command of one record (person show P0001 P0002): each shown in turn, as strom show does
     const shows = severalRecords(def, args) ? match(["show"])?.def : undefined;
-    if (!shows) checkArgs(def, args, parsed.fix, own);
+    if (!shows) checkArgs(def, args, parsed.fix, own, parsed.values);
 
     if (def.writes && v["dry-run"]) ctx.dryRun = true;
     const work = async (): Promise<Result> => {
       // Never write on top of data that was changed outside strom.
-      if (def.writes && def.tree) assertIntact(ctx.tree());
+      // (a command that locks only while it writes looks under the lock too: another strom may be in the middle of a write)
+      if (def.writes && def.tree) def.lock === "sections" ? ctx.tree().withTreeLock(() => assertIntact(ctx.tree())) : assertIntact(ctx.tree());
       let result: Result;
       try {
         result = await (shows ?? def).run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}), ...(parsed.seq ? { seq: parsed.seq } : {}) });

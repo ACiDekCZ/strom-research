@@ -65,6 +65,13 @@ never open again a view cleared from your context — your notes hold it.
   and headings only, one surname's entries, one entry whole — and transcribes
   nothing else. Record each report as it comes back, before the next readers.
   Only the entries that will be cited need your own eyes, at full resolution.
+<!-- for link verify enrich -->
+- **`--until-found` only for ONE particular entry** (one person's baptism,
+  marriage or burial whose details you know): no more readers begin once one
+  reports it. Never for every entry of a place or surname, nor where a
+  namesake may follow. Record only the images it names as read, `--result
+  partial`; if the find is not the one, read the rest.
+<!-- end -->
 - **Report image by image, as you go**: the image and page, what was found (or
   nothing), what was illegible and where, the hand, how sure each name is.
 - **Cite the image, and where the entry is on it**: `strom source add …

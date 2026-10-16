@@ -283,6 +283,84 @@ export interface NetOptions {
   robotsPermit?: Pace;
   /** Told of what strom read and decided of a host (its robots.txt, a refusal) — to keep it beside the person's settings. */
   onVerdict?: (v: NetVerdict) => void;
+  /**
+   * A connector's run (strom fetch): in the foreground its requests go first — a fetch in the background (strom fetch
+   * --background) waits at the host while one in the foreground asks it, told by onYield (true: waits, false: goes on).
+   * None: neither (a probe, a robots.txt).
+   */
+  lane?: "foreground" | "background";
+  onYield?: (waiting: boolean) => void;
+  /** The run is stopped: a fetch in the background that waits for the foreground asks nothing more. */
+  stop?: AbortSignal;
+}
+
+/**
+ * A fetch in the foreground holds a host this long after its last request (a mark beside the host's state, renewed
+ * with each request, gone when its run ends): a fetch in the background asks the host nothing meanwhile — the person
+ * or the agent waits for the foreground, the background has time.
+ */
+export const FOREGROUND_HOLD_MS = 30_000;
+/** How often a fetch in the background looks whether the foreground let the host go. */
+const YIELD_LOOK_MS = 500;
+
+const foregroundMarks = new Set<string>();
+
+function foregroundMark(file: string, pid = process.pid): string {
+  return `${file}.fg-${pid}`;
+}
+
+function holdForeground(file: string): void {
+  const mark = foregroundMark(file);
+  try {
+    fs.writeFileSync(mark, "");
+    if (!foregroundMarks.size) process.once("exit", releaseForeground);
+    foregroundMarks.add(mark);
+  } catch {
+    // not marked: the background is not held back by this request
+  }
+}
+
+/** A connector's run in the foreground is over: its hosts are let go at once (not FOREGROUND_HOLD_MS later). */
+export function releaseForeground(): void {
+  for (const mark of foregroundMarks) fs.rmSync(mark, { force: true });
+  foregroundMarks.clear();
+}
+
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** Another strom fetches from the host in the foreground now (a mark of a live process, renewed lately). */
+function foregroundAtHost(file: string): boolean {
+  const base = `${path.basename(file)}.fg-`;
+  let names: string[];
+  try {
+    names = fs.readdirSync(path.dirname(file));
+  } catch {
+    return false;
+  }
+  let held = false;
+  for (const name of names) {
+    if (!name.startsWith(base)) continue;
+    const pid = Number(name.slice(base.length));
+    const mark = path.join(path.dirname(file), name);
+    if (!Number.isInteger(pid) || pid <= 0 || !pidAlive(pid)) {
+      fs.rmSync(mark, { force: true });
+      continue;
+    }
+    if (pid === process.pid) continue;
+    try {
+      if (Date.now() - fs.statSync(mark).mtimeMs < FOREGROUND_HOLD_MS) held = true;
+    } catch {
+      continue;
+    }
+  }
+  return held;
 }
 
 export interface NetResponse {
@@ -939,6 +1017,18 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
   let waitedOutside = 0;
 
   for (;;) {
+    // A fetch in the foreground first: the background waits while one asks this host (real time, never a test's clock).
+    if (opts.lane === "foreground") holdForeground(file);
+    else if (opts.lane === "background" && foregroundAtHost(file)) {
+      let told = 0;
+      while (foregroundAtHost(file)) {
+        if (opts.stop?.aborted) throw new NetError("http", host, "stopped while a fetch in the foreground asked the host");
+        // said now and then while it waits: a reader of the book knows it is alive
+        if (Date.now() - told >= FOREGROUND_HOLD_MS) (opts.onYield?.(true), (told = Date.now()));
+        await new Promise<void>((r) => setTimeout(r, YIELD_LOOK_MS));
+      }
+      opts.onYield?.(false);
+    }
     // One request at a time per host, across processes: the lock is held from the pause to the answer.
     const release = acquireLock(`${file}.lock`, { owner: "strom net", waitMs: 10 * 60_000, staleMs: 10 * 60_000 });
     let res: Response | undefined;

@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.15.0
 
-*In Vorbereitung: die Betas bis 1.15.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.15.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
 
 *Gehört zur Strom-App 3.12.0.*
 
@@ -19,14 +19,19 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Ein Buch eines Archivs, einmal geladen.** Ein Buch, das schon in der Forschung ist, wird genannt, statt neu
   eingetragen und wieder geladen zu werden – ein Archiv wird nie zweimal um dieselben Bilder gebeten.
 - **Schneller lesen.** Fünf Leser lesen die Scans gleichzeitig (die Einstellung `read.parallel`, 1 bis 10), und ein
-  langer Download zeigt, wie weit er ist („40/109 Bilder“). Ein Archiv bekommt nicht mehr Anfragen als bisher.
+  langer Download zeigt, wie weit er ist („40/109 Bilder“). Die Leser beginnen schon, während ein Buch lädt: seine
+  Bilder werden zu zehnt registriert, und was nicht kam, wird genau gesagt; Strg+C behält, was schon kam. Ein Archiv
+  bekommt dieselben Anfragen im selben Tempo wie bisher. Ein Buch kann auch im Hintergrund laden, während der Agent
+  weiterarbeitet (`strom fetch --background`), nie aus einem Archiv, das nur das Tempo eines Menschen erlaubt. Die
+  Suche nach einem Eintrag kann beim Fund enden (`strom read --until-found`): die gelesenen Bilder werden genau gesagt,
+  und nur sie gelten als durchsucht.
 - **Stammbäume aus anderen Programmen.** Eine GEDCOM-Datei mit Byte-Order-Mark oder in UTF-16 (so speichern sie manche
   Windows-Programme) wird als Stammbaum gelesen; der Stammbaum einer anderen Forschung wird als fremder übernommen.
 - **Die Live-Ansicht endet sauber** auf jedem System, auch unter Windows, und die Strom-App erfährt, dass sie endete.
 - **Ein strom pro Installation.** Ein anderer strom auf demselben Computer (aus npm oder aus den Quellen gebaut)
   übernimmt nie die Links der Strom-App oder den Update-Kanal.
 - **Was ist neu.** Nach `strom update` und bei `strom --version` ein Link zu dieser Übersicht in der Sprache der
-  Forschung.
+  Forschung. Die Strom-App zeigt die Punkte einer neuen Forschungsversion in ihrem Fenster „Was ist neu“.
 
 ## 1.14.0
 

@@ -32,6 +32,8 @@ export interface ArgDef {
   name: string;
   description: string;
   required?: boolean;
+  /** Not required with one of these options (strom fetch --status). */
+  unless?: string[];
   variadic?: boolean;
   /** At most this many characters (said in help and under a mistake). */
   max?: number;

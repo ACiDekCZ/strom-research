@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.15.0
 
-*Připravuje se: bety do 1.15.0-beta.5. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.15.0-beta.6. Oddíl bude úplný s vydáním.*
 
 *Patří k aplikaci Strom 3.12.0.*
 
@@ -18,13 +18,18 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Jedna kniha archivu se stahuje jednou.** Kniha, která už ve výzkumu je, se pojmenuje místo nového zápisu
   a stahování, takže archiv nikdy nedostane dvakrát žádost o tytéž snímky.
 - **Rychlejší čtení.** Snímky čte současně pět čtenářů (nastavení `read.parallel`, 1 až 10) a dlouhé stahování
-  ukazuje, kolik už je hotovo („40/109 snímků“). Archiv nedostane víc žádostí.
+  ukazuje, kolik už je hotovo („40/109 snímků“). Čtenáři začnou už během stahování knihy: snímky se registrují
+  po deseti a co nepřišlo, je řečeno přesně; Ctrl-C ponechá, co už přišlo. Archiv dostane stejné žádosti ve stejném
+  tempu. Kniha se může stahovat i na pozadí, zatímco agent pracuje dál (`strom fetch --background`), nikdy z archivu,
+  který dovoluje jen tempo člověka. Hledání jednoho zápisu může skončit u nálezu (`strom read --until-found`):
+  přečtené snímky jsou řečeny přesně a jen ty se počítají jako prohledané.
 - **Rodokmeny z jiných programů.** Soubor GEDCOM uložený se značkou BOM nebo v UTF-16 (tak ho ukládají některé programy
   ve Windows) se čte jako rodokmen; rodokmen jiného výzkumu se převezme jako cizí.
 - **Živé sledování končí čistě** na každém systému, i ve Windows, a aplikace Strom se dozví, že skončilo.
 - **Jeden strom na instalaci.** Jiný strom na stejném počítači (z npm nebo sestavený ze zdrojů) nikdy nepřevezme odkazy
   aplikace Strom ani kanál aktualizací.
-- **Co je nového.** Po `strom update` a u `strom --version` odkaz na tento přehled v jazyce výzkumu.
+- **Co je nového.** Po `strom update` a u `strom --version` odkaz na tento přehled v jazyce výzkumu. Aplikace Strom
+  ukazuje body nové verze výzkumu ve svém okně „Co je nového“.
 
 ## 1.14.0
 

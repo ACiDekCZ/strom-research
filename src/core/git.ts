@@ -6,7 +6,7 @@ import { execFile, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { StromError } from "./errors.ts";
+import { EXIT, StromError } from "./errors.ts";
 import type { Env } from "./paths.ts";
 import { configDir, isolated, userHome } from "./paths.ts";
 import { installation } from "./self.ts";
@@ -16,6 +16,8 @@ export interface GitResult {
   status: number;
   stdout: string;
   stderr: string;
+  /** The signal that ended git (the person's Ctrl-C reaches the whole group of processes, git too). */
+  signal?: NodeJS.Signals;
 }
 
 const GIT_ENV = {
@@ -78,7 +80,13 @@ export function runGit(cwd: string, args: string[], input?: string, extraEnv: Re
     throw gitTimedOut(args, r.error) ?? r.error;
   }
   if (PROFILE) process.stderr.write(`[git ${(performance.now() - t0).toFixed(0)}ms] ${args.slice(0, 3).join(" ")}\n`);
-  return { status: r.status ?? 1, stdout: r.stdout, stderr: r.stderr };
+  return { status: r.status ?? 1, stdout: r.stdout, stderr: r.stderr, ...(r.signal ? { signal: r.signal } : {}) };
+}
+
+/** A git the person's Ctrl-C (or a stop) ended: said as that, never as git failing (code git.interrupted). */
+function gitInterrupted(args: string[], r: GitResult): StromError | undefined {
+  if (r.signal !== "SIGINT" && r.signal !== "SIGTERM" && r.signal !== "SIGHUP") return undefined;
+  return new StromError(`git ${args[0]} interrupted (${r.signal})`, { code: "git.interrupted", exitCode: EXIT.cancelled });
 }
 
 /**
@@ -98,7 +106,7 @@ export function runGitLater(cwd: string, args: string[], timeoutMs = 60_000): Pr
 
 function git(cwd: string, args: string[], input?: string): string {
   const r = runGit(cwd, args, input);
-  if (r.status !== 0) throw new StromError(`git ${args[0]} failed: ${r.stderr.trim() || r.stdout.trim()}`);
+  if (r.status !== 0) throw gitInterrupted(args, r) ?? new StromError(`git ${args[0]} failed: ${r.stderr.trim() || r.stdout.trim()}`);
   return r.stdout;
 }
 
@@ -297,7 +305,7 @@ export function commitAll(
   if (parent && parent.tree === tree) return undefined;
   const full = seal ? `${message}\n\n${seal(tree)}\n` : `${message}\n`;
   const r = commitTree(dir, tree, parent?.hash, full);
-  if (r.status !== 0) throw new StromError(`git commit failed: ${r.stderr.trim()}`);
+  if (r.status !== 0) throw gitInterrupted(["commit-tree"], r) ?? new StromError(`git commit failed: ${r.stderr.trim()}`);
   const hash = r.stdout.trim();
   git(dir, ["update-ref", "HEAD", hash, ...(parent ? [parent.hash] : [])]);
   headCache.set(dir, { hash, tree, message: full });

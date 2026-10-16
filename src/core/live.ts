@@ -12,6 +12,8 @@
 //   GET <token>/images.ged the same (the address an older strom gave)
 //   GET <token>/log        what the research saved, newest first (each commit: when, what, for which task;
 //                          text: its lines as the user reads them, kinds: what each is about)
+//   GET <token>/whats-new  what is new in this strom (?lang=cs|en|de, else en): {version, lang, url, points} — the
+//                          running version's section of the changelog shipped with it; asking keeps no bridge running
 //   GET <token>/recent     what the research added in the last hours (?hours=1…168, 24 when not given): the people and
 //                          sources added, the commits — the same as /status recent (core/recent.ts)
 //   GET <token>/events     server-sent events: hello, change, working; end before the bridge ends ({reason: stopped |
@@ -104,6 +106,7 @@ import { monthSpend, openSessions } from "./session.ts";
 import { rankTasks } from "./queue.ts";
 import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion, updateChannel } from "./update.ts";
+import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
@@ -702,7 +705,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1378,8 +1381,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
 
   const answer = (req: http.IncomingMessage, res: http.ServerResponse) => {
     const [, t, what, sub, act] = (req.url ?? "").split("?")[0]!.split("/");
-    // the app asking now and then (?poll=1) keeps no bridge running; anything else does
-    if (!(req.method === "GET" && what === "status" && /[?&]poll=1(?:&|$)/.test(req.url ?? ""))) lastAsked = Date.now();
+    // the app asking now and then (?poll=1) or by itself what is new keeps no bridge running; anything else does
+    if (!(req.method === "GET" && ((what === "status" && /[?&]poll=1(?:&|$)/.test(req.url ?? "")) || what === "whats-new"))) lastAsked = Date.now();
     // the secret from a page that is no Strom app: replaced, this request answered as one without it (no data, no CORS)
     if (t === token && foreignOrigin(req.headers.origin, env)) {
       leaked(req, String(req.headers.origin), what);
@@ -1510,6 +1513,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
       } else if (what === "status") {
         // what is answered is made first: a read that fails can still answer 500
         const text = JSON.stringify(status(root, env, version));
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(text);
+      } else if (what === "whats-new") {
+        // what is new in this strom, from the changelog shipped with it (the app's window "What's new")
+        const lang = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("lang");
+        const text = JSON.stringify(whatsNew(VERSION, lang, updateChannel(env)));
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(text);
       } else if (what === "recent") {
         // what another window of hours added (the same as /status recent); worked out now, the bridge answers others meanwhile
