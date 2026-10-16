@@ -39,6 +39,8 @@ const CHILDREN: Record<string, string[]> = {
   "INDI._STROM_SEARCHED": ["TITL", "DATE", "RESN", "_AT"],
   "INDI._STROM_EDGE": ["_SCOPE", "_RESEARCH", "_GEN", "_END", "_NEXT", "_EST", "DATE", "_RECORDS", "_BOOK", "_COVERED", "_NORECORDS", "_TASK", "_TRIED", "_HYPO", "_CONFLICT", "_SEARCHES", "_SESSIONS", "_LAST"],
   "INDI._STROM_ISLAND": ["_HYPO", "_HELD"],
+  // one join of a hypothesis at the edge: the variants that name the person, the family off the tree it belongs to
+  "_STROM_EDGE._JOIN": ["_VAR", "_ISLAND", "_HELD"],
   // a value of a conflict the app decides by side: its side, a sex as M, F or U
   _STROM_VALUE: ["SOUR", "_STROM_SIDE", "_STROM_RAW"],
   "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE"],
@@ -93,6 +95,7 @@ function contextOf(anc: string[]): string | undefined {
   if (parent === "_VAR" && anc[1] === "_STROM_HYPO") return "_VAR";
   if (parent === "_LINK" && anc[2] === "_VAR") return "_LINK";
   if (parent === "_INTREE" && anc[2] === "_VAR") return "_INTREE";
+  if (parent === "_JOIN" && anc[1] === "_STROM_EDGE" && anc[2] === "_HYPO") return "_STROM_EDGE._JOIN";
   if (parent === "ADDR") return "ADDR";
   if (parent === "DATA" && anc[depth - 2] === "SOUR") return "CITATION.DATA";
   if (depth === 2) {

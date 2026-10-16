@@ -5,11 +5,20 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.16.0
+
+*In Vorbereitung: die Betas bis 1.16.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Jede Person am Rand des Stammbaums mit eigenen Varianten.** Wenn eine offene Hypothese den Stammbaum bei mehreren
+  Personen anschließt, trägt jede die Varianten, die sie nennen, und die Familie außerhalb des Stammbaums, zu der sie
+  gehört; so kann die Strom-App alle zeigen, nicht nur die erste.
+- **Der Rand des Stammbaums, Person für Person.** `strom edge --json` nennt jede Person, an die eine Hypothese
+  anschließt, mit den Varianten und der Familie jeder einzelnen.
+- **Forschungslinien auf Tschechisch.** Die tschechischen Texte sagen jetzt überall „linie výzkumu“ (Forschungslinien).
+
 ## 1.15.0
 
-*In Vorbereitung: die Betas bis 1.15.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
-
-*Gehört zur Strom-App 3.12.0.*
+*16.10.2026 · gehört zur Strom-App 3.12.0.*
 
 - **Ein Strom-Archiv nach Wahl, auch mit einem KI-Agenten.** Die Einrichtung fragt, ob neue Stammbäume Forschungen mit
   dem Agenten sind oder nur ein Strom-Archiv; in den Einstellungen lässt sich das für einen Stammbaum oder für die

@@ -1920,7 +1920,7 @@
   "ui.error.fs.no-permission": "chybí oprávnění{where}",
   "ui.error.fs.no-permission.hint": "vybrat složku, do které lze zapisovat",
   "ui.task.none": "Žádné úkoly.",
-  "ui.research.none": "Žádné směry výzkumu.",
+  "ui.research.none": "Žádné linie výzkumu.",
   "ui.person.none": "Žádné osoby.",
   "ui.person.nomatch": "Žádná osoba neodpovídá.",
   "ui.person.leadsonly": "jen vodítka",

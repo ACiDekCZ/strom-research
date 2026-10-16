@@ -5,11 +5,20 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.16.0
+
+*In preparation: the betas up to 1.16.0-beta.1. The section is complete with the release.*
+
+- **Each person where the tree ends, with its own variants.** When an open hypothesis joins the tree at several
+  people, each of them carries the variants that name it and the family off the tree it belongs to, so the Strom app
+  can show all of them, not only the first.
+- **Where the tree ends, person by person.** `strom edge --json` lists each person a hypothesis joins, with the
+  variants and the family of each one.
+- **Lines of research in Czech.** The Czech texts say „linie výzkumu“ (lines of research) everywhere now.
+
 ## 1.15.0
 
-*In preparation: the betas up to 1.15.0-beta.7. The section is complete with the release.*
-
-*Goes with the Strom app 3.12.0.*
+*2026-10-16 · goes with the Strom app 3.12.0.*
 
 - **A Strom archive by choice, with an AI agent too.** The setup asks whether new family trees are researches with the
   agent or only a Strom archive; the settings change it for one family tree or for the new ones.

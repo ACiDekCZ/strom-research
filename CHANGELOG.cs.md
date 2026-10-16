@@ -5,11 +5,20 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.16.0
+
+*Připravuje se: bety do 1.16.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Každá osoba na kraji stromu s vlastními variantami.** Když se otevřená hypotéza napojuje na strom u více osob,
+  každá nese varianty, které ji jmenují, a rodinu mimo strom, ke které patří; aplikace Strom tak může ukázat všechny,
+  ne jen první.
+- **Kraj stromu osobu po osobě.** `strom edge --json` vypíše každou osobu, na kterou hypotéza navazuje, s variantami
+  a rodinou každé z nich.
+- **Linie výzkumu.** České texty všude říkají „linie výzkumu“, nikde už „směry“.
+
 ## 1.15.0
 
-*Připravuje se: bety do 1.15.0-beta.7. Oddíl bude úplný s vydáním.*
-
-*Patří k aplikaci Strom 3.12.0.*
+*16. 10. 2026 · patří k aplikaci Strom 3.12.0.*
 
 - **Archiv Stromu podle volby, i s AI agentem.** Průvodce nastavením se ptá, zda nové rodokmeny budou výzkumem
   s agentem, nebo jen Archivem Stromu; v nastavení jde volbu změnit pro jeden rodokmen nebo pro nové.

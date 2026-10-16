@@ -114,7 +114,7 @@ test("edge: the hypothesis that would join a family nothing links to the tree �
   const ged = exportGedcom(tree, { for: "strom", research: true, edges: true }).text;
   assert.deepEqual(validateGedcom(ged), []);
   const block = (id: string) => ged.split(/\n(?=0 )/).find((r) => r.startsWith(`0 @${id}@ INDI`))!;
-  assert.match(block("P0004"), /\n1 _STROM_EDGE parents\n2 _SCOPE in\n2 _RESEARCH G0001\n2 _GEN 3\n2 _END unsearched\n2 _NEXT queued\n2 _EST 1790\n3 PLAC Lhota\n2 DATE FROM 1787 TO 1793\n2 _BOOK B0001\n3 TITL Lhota, narození 1784–1830\n3 DATE FROM 1784 TO 1830\n3 _ACCESS online-free\n2 _TASK T0002\n3 _LEVEL link\n3 STAT open\n3 TITL Křest Václava: otec Matouš\?\n3 _POS 1\n2 _HYPO H0001\n3 _JOIN P0005\n3 _ISLAND 2\n3 _HELD 1\n3 _TEST T0002\n/);
+  assert.match(block("P0004"), /\n1 _STROM_EDGE parents\n2 _SCOPE in\n2 _RESEARCH G0001\n2 _GEN 3\n2 _END unsearched\n2 _NEXT queued\n2 _EST 1790\n3 PLAC Lhota\n2 DATE FROM 1787 TO 1793\n2 _BOOK B0001\n3 TITL Lhota, narození 1784–1830\n3 DATE FROM 1784 TO 1830\n3 _ACCESS online-free\n2 _TASK T0002\n3 _LEVEL link\n3 STAT open\n3 TITL Křest Václava: otec Matouš\?\n3 _POS 1\n2 _HYPO H0001\n3 _JOIN P0005\n4 _ISLAND 2\n4 _HELD 1\n3 _ISLAND 2\n3 _HELD 1\n3 _TEST T0002\n/);
   assert.match(block("P0004"), /\n1 _STROM_HYPO H0001\n2 TITL Byl Matouš otcem Václava\?/);
   assert.match(block("P0006"), /\n1 _STROM_ISLAND 2\n2 _HYPO H0001\n3 _JOIN P0004\n2 _HELD 1\n/);
   // not for a file of any program, nor for an app that does not show them
@@ -234,7 +234,7 @@ test("edge: a hypothesis joins the family its variant names, though its subject 
   const ged = exportGedcom(Tree.open(w.cwd, w.env), { for: "strom", research: true, edges: true }).text;
   assert.deepEqual(validateGedcom(ged), []);
   const block = (id: string) => ged.split(/\n(?=0 )/).find((r) => r.startsWith(`0 @${id}@ INDI`))!;
-  assert.match(block("P0002"), /\n2 _HYPO H0001\n3 _JOIN P0003\n3 _JOIN P0004\n3 _ISLAND 2\n3 _HELD 1\n3 _TEST T0001\n/);
+  assert.match(block("P0002"), /\n2 _HYPO H0001\n3 _JOIN P0003\n4 _ISLAND 2\n4 _HELD 1\n3 _JOIN P0004\n4 _ISLAND 2\n4 _HELD 1\n3 _ISLAND 2\n3 _HELD 1\n3 _TEST T0001\n/);
   assert.match(block("P0003"), /\n1 _STROM_ISLAND 2\n2 _HYPO H0001\n3 _JOIN P0002\n/);
   for (const id of ["P0002", "P0003", "P0004"]) assert.match(block(id), /\n1 _STROM_HYPO H0001\n2 TITL Odkud pocházel Tomáš Kubát P0002\?/);
   assert.doesNotMatch(block("P0005"), /_STROM_HYPO/);
