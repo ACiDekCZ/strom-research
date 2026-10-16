@@ -445,7 +445,7 @@ test("installed from the Strom app with an agent here: the research with it is s
   a.env.STROM_FROM_APP = mark;
   // language, folder, how to keep it (Enter), model, stories, what the agent may do, no shortcut, no links
   const r = await a.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "n", "n"] });
-  assert.match(r.out, /Jak má výzkum tento rodokmen vést\?\n {3}1 {2}Jako archiv[^\n]*\n {3}2 {2}Jako výzkum s agentem Claude Code[^\n]*\(doporučeno\)\nVybrat \[2\]/);
+  assert.match(r.out, /Jak má výzkum tento rodokmen vést\?\n {3}1 {2}Jako Archiv Stromu[^\n]*\n {3}2 {2}Jako výzkum s agentem Claude Code[^\n]*\(doporučeno\)\nVybrat \[2\]/);
   assert.doesNotMatch(r.out, /Bez agenta je nový výzkum archiv/);
   assert.equal(config(a).mode, undefined);
   assert.equal(config(a).agent, "claude");
@@ -456,7 +456,7 @@ test("installed from the Strom app with an agent here: the research with it is s
   b.env.STROM_FROM_APP = mark;
   const s = await b.ok(["setup"], { answers: ["cs", "", "1", "n", "n"] });
   // the agent is here: nothing to install, the menu switches research on
-  assert.match(s.out, /Nový výzkum je archiv: .* Práce s agentem: první položka menu/);
+  assert.match(s.out, /Nový výzkum je Archiv Stromu: .* Práce s agentem: první položka menu/);
   assert.equal(config(b).mode, "archive");
   // run again: an archive is what it is now — suggested, kept on Enter
   const again = await b.ok(["setup"], { answers: ["", "", "", "n"] });

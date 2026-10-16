@@ -135,7 +135,7 @@ test("the settings: at most nine items and 0, each at a number of its own — wh
   assert.deepEqual(numbersUnder(all.out, title), [1, 2, 3, 4, 5, 6, 7, 8, 9, 0], all.out);
   assert.match(
     all.out,
-    / 1 {2}Jazyk, agent, model[^\n]*\n {3}2 {2}Samostatná práce agenta[^\n]*\n {3}3 {2}Zprávy o tom, co se uloží[^\n]*\n {3}4 {2}Archivy[^\n]*\n {3}5 {2}Výzkum, nebo jen archiv[^\n]*\n {3}6 {2}Vyladit čtení snímků[^\n]*\n {3}7 {2}Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): vypnuto\n {3}8 {2}Údržba: kontrola instalace, místo na disku\n {3}9 {2}Nápověda: příkazy pro člověka\n {3}0 {2}Zpět\n/,
+    / 1 {2}Jazyk, agent, model[^\n]*\n {3}2 {2}Samostatná práce agenta[^\n]*\n {3}3 {2}Zprávy o tom, co se uloží[^\n]*\n {3}4 {2}Archivy[^\n]*\n {3}5 {2}Výzkum, nebo jen Archiv Stromu[^\n]*\n {3}6 {2}Vyladit čtení snímků[^\n]*\n {3}7 {2}Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): vypnuto\n {3}8 {2}Údržba: kontrola instalace, místo na disku\n {3}9 {2}Nápověda: příkazy pro člověka\n {3}0 {2}Zpět\n/,
   );
   assert.doesNotMatch(all.out, /Model výzkumu|Kontrola instalace\n/, "the model in the setup, the check in maintenance");
   // maintenance: the check of the installation, disk space — the update only when one is out (a gap at 3)
@@ -157,7 +157,7 @@ test("the settings: at most nine items and 0, each at a number of its own — wh
   fs.rmSync(path.join(w.dir, "bin", "codex"));
   const none = await w.ok([], { tty: true, answers: ["8", "0", "0"] });
   assert.deepEqual(numbersUnder(none.out, title), [1, 3, 5, 8, 9, 0], none.out);
-  assert.match(none.out, / 5 {2}Výzkum, nebo jen archiv: výzkum, čeká na AI agenta na tomto počítači\n/);
+  assert.match(none.out, / 5 {2}Výzkum, nebo jen Archiv Stromu: výzkum, čeká na AI agenta na tomto počítači\n/);
   // an archive: nothing of an agent — 2, 4, 6, 7 gaps, typed 2 refused
   await w.ok(["agents", "use", "claude"]);
   await w.ok(["mode", "archive"], { tty: true, answers: ["a"] });
@@ -179,8 +179,8 @@ test("the menu without an AI agent: the research waits for it, kept as an archiv
   fs.rmSync(path.join(w.dir, "bin", "claude"));
   // 1 get an agent: 3 later · Enter · 4 add to the archive · 1 material · 2 what is known · the text · 0 · 8 settings · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["1", "3", "", "4", "1", "2", "Babička Anna pocházela z Kolína.", "0", "8", "0", "0"] });
-  assert.match(r.out, /Výzkum čeká na AI agenta: dokud na počítači žádný není, data z aplikace Strom se ukládají jako v archivu\./);
-  assert.match(r.out, / 1 {2}Nainstalovat nebo vybrat AI agenta\n {3}2 {2}Nechat jen jako archiv: ukládat data z aplikace Strom\n {3}3 {2}Co čeká/, "the same numbers as with an agent");
+  assert.match(r.out, /Výzkum čeká na AI agenta: dokud na počítači žádný není, data z aplikace Strom se ukládají jako v Archivu Stromu\./);
+  assert.match(r.out, / 1 {2}Nainstalovat nebo vybrat AI agenta\n {3}2 {2}Nechat jen jako Archiv Stromu: ukládat data z aplikace Strom\n {3}3 {2}Co čeká/, "the same numbers as with an agent");
   assert.doesNotMatch(r.out, /Nechat agenta pracovat samotného|Tento výzkum pracuje s agentem/);
   assert.match(r.out, /✓ Uloženo do výzkumu: 1\. Agent to projde, až bude na počítači\./);
   // Claude Code is named only where it is recommended to install
@@ -280,10 +280,10 @@ test("the settings: a research with an agent, or only an archive — switched th
   const w = await world();
   // 8 settings · 5 research or archive · 2 only an archive · yes · Enter · 0 back · 0 quit
   const r = await w.ok([], { tty: true, answers: ["8", "5", "2", "a", "", "0", "0"] });
-  assert.match(r.out, /5 {2}Výzkum, nebo jen archiv: výzkum: hledání v matrikách a archivech/);
-  assert.match(r.out, /Výzkum je teď archiv\./);
+  assert.match(r.out, /5 {2}Výzkum, nebo jen Archiv Stromu: výzkum: hledání v matrikách a archivech/);
+  assert.match(r.out, /Výzkum je teď Archiv Stromu\./);
   const menu = await w.ok([], { tty: true, answers: ["0"] });
-  assert.match(menu.out, /Archiv: data přicházejí z aplikace Strom\./);
+  assert.match(menu.out, /Archiv Stromu: data přicházejí z aplikace Strom\./);
   assert.match(menu.out, / 1 {2}Zapnout výzkum: hledání v matrikách a archivech\n {3}2 {2}Co nového přišlo\n {3}3 {2}Co čeká/);
   assert.doesNotMatch(menu.out, /agent/i, "nothing of an agent in an archive");
   // 1 switch work with an agent on · yes · Enter · 0 quit

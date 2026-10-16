@@ -857,6 +857,8 @@ export interface RunOptions {
   /** At most this many requests (a test run). */
   maxRequests?: number;
   onLog?: (line: string) => void;
+  /** An image taken in, checked (cmd fetch, part): how many this run has now — for a count as they come. */
+  onImage?: (got: number) => void;
   /** browser.pages: the pages the browser got; a request without one stops the run (report.needs). */
   pages?: (r: PageRequest) => PageAnswer | undefined;
   fetchImpl?: typeof fetch;
@@ -1035,6 +1037,7 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
         // the part it got, when the portal cut it a little differently; else the part asked for
         report.images.push({ ...im, file, region: regionOf(got) ?? request.region });
       } else report.images.push({ ...im, file });
+      opts.onImage?.(report.images.length);
       return;
     }
     if (msg.http && typeof msg.http === "object") {

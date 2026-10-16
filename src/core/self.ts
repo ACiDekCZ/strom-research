@@ -52,21 +52,28 @@ const here = fileURLToPath(import.meta.url);
 /** How this strom was installed (read once). */
 let cached: Installation | undefined;
 export function installation(): Installation {
-  if (cached) return cached;
-  if (here.endsWith(".ts")) return (cached = { kind: "source" });
+  return (cached ??= installationOf(here));
+}
+
+/** How the strom whose core/self module is `file` was installed (tests: a folder of their own). */
+export function installationOf(file: string): Installation {
+  if (file.endsWith(".ts")) return { kind: "source" };
   // …/app/dist/core/self.js
-  const app = path.resolve(path.dirname(here), "..", "..");
+  const app = path.resolve(path.dirname(file), "..", "..");
   const root = path.dirname(app);
+  // dist/ built in a checkout of the sources is the sources too, never npm's package (found 2026-10-15: one run of it
+  // took the person's links and the next link from the Strom app started it over the installed beta)
+  if (fs.existsSync(path.join(app, ".git"))) return { kind: "source" };
   try {
     if (path.basename(app) === "app") {
       const info = JSON.parse(fs.readFileSync(path.join(root, "install.json"), "utf8")) as { launchers?: string[]; node?: string; env?: Record<string, string>; channel?: unknown; command?: unknown };
       const env = info.env && typeof info.env === "object" ? info.env : undefined;
-      return (cached = { kind: "installed", root, launchers: info.launchers ?? [], ...(info.node ? { node: info.node } : {}), ...(env ? { env } : {}), ...(info.channel === "beta" ? { channel: "beta" as const } : {}), ...(typeof info.command === "string" ? { command: info.command } : {}) });
+      return { kind: "installed", root, launchers: info.launchers ?? [], ...(info.node ? { node: info.node } : {}), ...(env ? { env } : {}), ...(info.channel === "beta" ? { channel: "beta" as const } : {}), ...(typeof info.command === "string" ? { command: info.command } : {}) };
     }
   } catch {
     // not the installer's folder
   }
-  return (cached = { kind: "npm" });
+  return { kind: "npm" };
 }
 
 /**
@@ -307,16 +314,29 @@ export function writeShim(root: string, env: NodeJS.ProcessEnv = process.env, la
   return putShim(root, env, launcher).dir;
 }
 
+/** The entry script the research's shim runs (its last word before "$@"), undefined when there is none or it is not read. */
+export function shimScript(root: string): string | undefined {
+  try {
+    const line = /^exec (.*) "\$@"$/m.exec(fs.readFileSync(path.join(root, ".strom", "bin", "strom"), "utf8"))?.[1] ?? "";
+    const words = [...line.matchAll(/"([^"]*)"/g)].map((m) => m[1]!);
+    return words[words.length - 1];
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * The shim of a research written again for this installation (the first run of another strom: an older one's shim,
  * one whose mark went with the app/ an update replaced) — only where the research has one (.strom/bin), never in an
  * archive (no agent's files there), never an error. Whether anything was written.
  */
-export function refreshTreeShim(root: string, env: NodeJS.ProcessEnv = process.env, launcher: Launcher = stromLauncher()): boolean {
+export function refreshTreeShim(root: string, env: NodeJS.ProcessEnv = process.env, launcher: Launcher = stromLauncher(), inst: Installation = installation()): boolean {
   try {
     if (!fs.statSync(path.join(root, ".strom", "bin")).isDirectory()) return false;
     const config = JSON.parse(fs.readFileSync(path.join(root, "strom.json"), "utf8")) as { mode?: unknown };
     if (config.mode === "archive") return false;
+    // another installation's still here stays its own (its agents go on with the strom they were started with)
+    if (!mayTakeOver(shimScript(root), inst)) return false;
     return putShim(root, env, launcher).changed.length > 0;
   } catch {
     return false;
@@ -365,6 +385,42 @@ export function programFolder(inst: Installation = installation()): string | und
   if (inst.kind === "installed") return inst.root;
   if (inst.kind === "npm") return path.resolve(path.dirname(here), "..", "..");
   return undefined;
+}
+
+/** The folder this strom runs from: its program's folder (the installer's, npm's package), run from the sources the checkout. */
+export function ownFolder(inst: Installation = installation()): string {
+  return programFolder(inst) ?? path.resolve(path.dirname(here), "..", "..");
+}
+
+/** `script` (the entry script another strom's link or shim runs) lies in a checkout of strom's sources: src/cli.ts, a dist/ built there. */
+export function inCheckout(script: string): boolean {
+  return fs.existsSync(path.join(path.dirname(path.dirname(script)), ".git"));
+}
+
+/**
+ * Whether what another strom set up (the links, a research's shim) running `script` may be taken over quietly by this
+ * one: one of a strom no longer there, an older place of this very installation, or a run of strom's sources (never
+ * the person's own strom, taken back by it) — never another installation still on this computer (found 2026-10-15: a
+ * strom built in its checkout took the person's links, then the Strom app's next link started it over the beta
+ * installed). No script known: a strom no longer known.
+ */
+export function mayTakeOver(script: string | undefined, inst: Installation = installation()): boolean {
+  if (!script || !fs.existsSync(script)) return true;
+  if (holdsPath(ownFolder(inst), script)) return true;
+  return inst.kind !== "source" && inCheckout(script);
+}
+
+/**
+ * The settings are another installation's (the user config's `lastProgram`: the installer's strom that runs here, still
+ * on this computer) and this strom only a guest — npm's, a run of the sources with the person's settings: it switches
+ * nothing of theirs (no backup of another channel, no last version or channel, no links, shims or bridges taken). An
+ * installer's installation is the person's own: never a guest. The other installation's folder, else undefined.
+ */
+export function guestOf(lastProgram: string | undefined, inst: Installation = installation()): string | undefined {
+  if (!lastProgram || inst.kind === "installed") return undefined;
+  const own = ownFolder(inst);
+  if (holdsPath(own, lastProgram) || holdsPath(lastProgram, own)) return undefined;
+  return fs.existsSync(path.join(lastProgram, "install.json")) && fs.existsSync(path.join(lastProgram, "app")) ? lastProgram : undefined;
 }
 
 /**

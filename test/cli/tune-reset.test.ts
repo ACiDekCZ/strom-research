@@ -312,7 +312,7 @@ test("strom doctor: worse after a change of strom's — a reset recommended wher
   worse(w, root, { scope: "key", afterUnsure: 12 });
   await w.ok(["mode", "archive"], { tty: true, answers: ["a"] });
   assert.doesNotMatch((await w.run(["doctor"])).out, /po samoladění|calibrate/);
-  assert.match((await w.run(["media", "calibrate", "--reset", "--dry-run"])).err, /Tento výzkum je archiv/);
+  assert.match((await w.run(["media", "calibrate", "--reset", "--dry-run"])).err, /Tento výzkum je Archiv Stromu/);
   w.cleanup();
 });
 

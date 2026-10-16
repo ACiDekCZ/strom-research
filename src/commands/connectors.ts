@@ -2107,7 +2107,22 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   const t0 = Date.now();
   const pages = pagesOf(ctx, c);
   const meter = new FetchMeter();
-  const r = await runConnector(c, request, { env: ctx.env, workDir, netDir: netDir(ctx), onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...metered(meter), ...(pages ? { pages } : {}), ...pacing(ctx, c, gate.human), ...netWords(ctx, c, "levels" in gate ? gate.levels : []) });
+  const count = imageCount(ctx, request.cmd === "fetch" ? request.images.length : 0);
+  const waits = limitWait(ctx);
+  const r = await runConnector(c, request, {
+    env: ctx.env,
+    workDir,
+    netDir: netDir(ctx),
+    onLog: (l) => count.say(`  · ${l}\n`),
+    onImage: count.got,
+    waitMs: waits.waitMs,
+    onWait: (w) => (count.clear(), waits.onWait(w)),
+    ...metered(meter),
+    ...(pages ? { pages } : {}),
+    ...pacing(ctx, c, gate.human),
+    ...netWords(ctx, c, "levels" in gate ? gate.levels : []),
+  });
+  count.clear();
   refusalSaid(ctx, c, r.refused);
   // what the agent does after a refusal: another way first, the person's check only when the source stays necessary
   const advice = r.refused ? refusalAdvice(ctx, c, r.refused, request.cmd === "find" ? request.place : undefined) : undefined;
@@ -2188,6 +2203,51 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   // the images it got are registered; the rest when the archive takes requests again
   const wait = later(r, request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)}${recordset ? ` --recordset ${recordset}` : ""} — what is here already is not fetched again` : "the same command");
   return { text: lines(describeRun(r, request.cmd), text, advice, wait.line, near), data, ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.images.length ? { exitCode: 1 } : {}) };
+}
+
+/** A fetch of fewer images says nothing as they come: at the archive's pace it is over soon, its end says it all. */
+const COUNT_FROM_TTY = 10;
+/** Where nobody watches, a line at each tenth: from this many images on a tenth is more than one image. */
+const COUNT_FROM = 20;
+
+/**
+ * The images of a long fetch counted as they come ("40/109 images", in the research language), where its output said
+ * nothing until the end. At a terminal one line written over after each image and cleared before anything else is
+ * said, so nothing of it stays. Where nobody watches it — an agent reads the output, often only when the command ends,
+ * or a log keeps it — a line at each tenth of the images: at most 9 whatever the count (an agent pays for each line it
+ * reads, a line per image of a book of hundreds would bury the rest), counted, not timed, so the same fetch always
+ * says the same; the archive's pace makes each tenth a while anyway. The last image says nothing: the summary follows.
+ * On stderr — stdout carries the result, with --json nothing but it. Counted from what strom took in: it asks the
+ * archive nothing and changes no pace.
+ */
+function imageCount(ctx: Context, total: number): { got: (n: number) => void; say: (s: string) => void; clear: () => void } {
+  const tty = ctx.io.tty;
+  const on = total >= (tty ? COUNT_FROM_TTY : COUNT_FROM);
+  const text = (n: number) => ui(ctx.uiLang(), "ui.fetch.progress", { n, total });
+  let shown = 0; // the length of the line written over (a terminal)
+  let tenth = 0; // the last tenth said (no terminal)
+  const clear = () => {
+    if (!shown) return;
+    ctx.io.stderr(`\r${" ".repeat(shown)}\r`);
+    shown = 0;
+  };
+  return {
+    got: (n) => {
+      if (!on || n >= total) return;
+      if (tty) {
+        const t = text(n);
+        ctx.io.stderr(`\r${t}${" ".repeat(Math.max(0, shown - t.length))}`);
+        shown = Math.max(shown, t.length);
+        return;
+      }
+      const now = Math.floor((n * 10) / total);
+      if (now <= tenth) return;
+      tenth = now;
+      ctx.io.stderr(`  · ${text(n)}\n`);
+    },
+    say: (s) => (clear(), ctx.io.stderr(s)),
+    clear,
+  };
 }
 
 async function planBrowser(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" | "part" }>, recordset: string | undefined, human: Map<string, Pace> = new Map(), levels: ArchiveLevel[] = []): Promise<Result> {

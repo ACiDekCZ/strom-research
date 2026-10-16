@@ -26,7 +26,7 @@ import { isAgent } from "../core/which.ts";
 import { appUrlShown, noticeStromApp } from "../core/stromapp.ts";
 import { lastChannelOf, pendingTransition, updateChannel } from "../core/update.ts";
 import { backupBefore, backupSaid } from "./backups.ts";
-import { installation, refreshTreeShim } from "../core/self.ts";
+import { guestOf, installation, ownFolder, refreshTreeShim } from "../core/self.ts";
 import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishLimitLine, finishOf, timeLine } from "../core/clock.ts";
@@ -224,6 +224,9 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // sources against the person's own settings either (only with settings of its own, STROM_CONFIG_DIR: a test, a
     // live test): a candidate being made is no update (found 2026-10-04: the test suite claimed one in the developer's)
     const fromSources = installation().kind === "source" && !env.STROM_CONFIG_DIR;
+    // …nor in a strom that is a guest of another installation's settings (npm's beside the installer's, the sources
+    // with the person's settings): what the installer's strom set up stays its own — its channel, its links, its shims
+    const guest = guestOf(ctx.settings.config.lastProgram);
     // Another channel than last time, or an older version than the last one (back from a beta): every research and the
     // settings are backed up first — before this strom opens any of them, before any migration (Milan, 2026-10-07:
     // "přechod beta ↔ produkce nikdy nepřijde o data"). Made once (strom update made it already, or another strom of
@@ -233,7 +236,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // subagent call) does none of a new version's first run: it answers within the hook's time and changes nothing
     // outside the research's measurements
     const hook = (command === "net web" || command === "agents delegate") && v.hook === true;
-    const pending = fromSources || hook ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
+    const pending = fromSources || hook || guest ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
     if (pending && ctx.settings.home()) {
       try {
         const made = backupBefore(ctx, pending);
@@ -248,7 +251,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     if (ctx.backupFailed && (def.writes || STARTS_WORK.has(def.path.join(" ")))) throw ctx.backupFailed;
     const lastChannel = lastChannelOf(ctx.settings.config);
     const otherChannel = !!lastChannel && lastChannel !== channelNow;
-    if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook) {
+    if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook && !guest) {
       // the connectors here when this strom first runs: taken over as they are — they run as before, the person
       // confirms them once (core/terms.ts); a strom new on this computer takes over none (every connector is new)
       try {
@@ -297,6 +300,16 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         } catch {
           // its next session brings it back (reviveLive)
         }
+      }
+    }
+    // the folder of the program that runs with these settings (from a strom that ran here before it was kept, once):
+    // another installation that runs here later is their guest
+    if (ctx.settings.home() && !ctx.backupFailed && env.STROM_SPAWNED !== "1" && !fromSources && !hook && !guest && ctx.settings.config.lastProgram !== ownFolder()) {
+      try {
+        ctx.settings.config.lastProgram = ownFolder();
+        ctx.settings.save();
+      } catch {
+        // kept next time
       }
     }
     const args = parsed.positionals;

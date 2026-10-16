@@ -224,7 +224,7 @@ test("a tree from Safari with no browser here the app reaches strom from: a down
   // the page (not opened in a test: its address), then looked for again — still none
   assert.match(r.out, /https:\/\/www\.google\.com\/chrome\//);
   assert.match(r.out, /Po instalaci prohlížeče \(toto okno zatím nechat otevřené\): Enter pokračuje/);
-  assert.match(r.out, /Aplikace v Safari se k výzkumu nepřipojí: nic z aplikace nepůjde živě – ani výzkum, ani archiv\..*fotky touto cestou nejdou\..*strom app/s);
+  assert.match(r.out, /Aplikace v Safari se k výzkumu nepřipojí: nic z aplikace nepůjde živě – ani výzkum, ani Archiv Stromu\..*fotky touto cestou nejdou\..*strom app/s);
   assert.match(r.out, /Plné spojení je jen přes Chrome, Edge, Brave nebo Firefox: po instalaci některého z nich strom app/);
   assert.match(r.out, /✓ Rodokmen je ve výzkumu „Novákovi \{domov\}“: osob 2, rodin 1/);
   const root = w.treeDir("Novákovi {domov}");
@@ -447,7 +447,7 @@ test("installed from the app with an agent here: the research with it suggested,
   assert.notEqual(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).mode, "archive", "an agent here: research");
   // the name, the language, then 0 at the question: back to the language — then an archive
   const r = await w.run(["link", "open", `strom-research://new?app=${TOKEN}`], { tty: true, answers: ["Dvořákovi", "", "0", "", "1", ""] });
-  const asked = r.out.match(/Spuštěno z aplikace Strom\. Jak má výzkum tento rodokmen vést\?\n\s+1\s+Jako archiv: .*\n\s+2\s+Jako výzkum s agentem OpenAI Codex CLI: .*\(doporučeno\)\n\s+0\s+Zpět/g) ?? [];
+  const asked = r.out.match(/Spuštěno z aplikace Strom\. Jak má výzkum tento rodokmen vést\?\n\s+1\s+Jako Archiv Stromu: .*\n\s+2\s+Jako výzkum s agentem OpenAI Codex CLI: .*\(doporučeno\)\n\s+0\s+Zpět/g) ?? [];
   assert.equal(asked.length, 2, "asked again after the step back");
   assert.equal((r.out.match(/Jazyk \(cs, en, de, pl, …\)/g) ?? []).length, 2, "0 went back to the language");
   const root = w.treeDir("Dvořákovi");

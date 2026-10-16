@@ -107,6 +107,8 @@ export interface UserConfig {
   lastVersion?: string;
   /** The channel of that strom (beta, stable): another one than last time is a change of channel. */
   lastChannel?: "beta" | "stable";
+  /** The folder of that strom's program (core/self.ts ownFolder): another installation running here is its guest. */
+  lastProgram?: string;
   /** The backups made before another channel or an older version (core/backup.ts), the newest last. */
   backups?: BackupRecord[];
   /** What an agent in a conversation was told to tell the user once — the stories, the Strom app, asking about the tree — and when. */

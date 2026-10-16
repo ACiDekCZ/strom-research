@@ -324,7 +324,7 @@ register({
 
 register({
   path: ["mode"],
-  summary: "A research with an agent, or only an archive of the data from the Strom app: show it, or switch (the user alone)",
+  summary: "A research with an agent, or only a Strom archive of the data from the Strom app: show it, or switch (the user alone)",
   group: "research",
   tree: true,
   writes: true,
@@ -365,7 +365,7 @@ register({
       asked = got.asked;
     }
     ctx.requireHuman(
-      to === "archive" ? "Make this research an archive (its tasks put aside)?" : "Switch research on (the tasks put aside back in the queue)?",
+      to === "archive" ? "Make this research a Strom archive (its tasks put aside)?" : "Switch research on (the tasks put aside back in the queue)?",
       `strom mode ${to}`,
       "mode",
       ui(lang, to === "archive" ? "ui.consent.mode.archive" : "ui.consent.mode.research", { name: tree.config.name }),

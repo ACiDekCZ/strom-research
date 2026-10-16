@@ -26,7 +26,7 @@ import path from "node:path";
 import { execFile, spawnSync } from "node:child_process";
 import type { Env } from "./paths.ts";
 import { noLinks, ownSuffix, userHome } from "./paths.ts";
-import { stromLauncher } from "./self.ts";
+import { holdsPath, installation, mayTakeOver, ownFolder, stromLauncher, type Installation } from "./self.ts";
 import { ICON } from "./shortcut.ts";
 import { browserKind, type BrowserKind } from "./chromium.ts";
 
@@ -534,9 +534,25 @@ export function registerLinks(env: Env, platform: NodeJS.Platform = process.plat
  * After an update: the links lead to this strom again — only where strom set them up on this person's yes (`said`,
  * the user config's `links`); another installation's (one key for all on Windows) is never taken quietly.
  */
-export function refreshLinks(said: string | undefined, env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): boolean {
+export function refreshLinks(said: string | undefined, env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys, inst: Installation = installation()): boolean {
   if (said !== "yes" || noLinks(env) || !linkFiles(env, platform, run).length || linkHandlerState(env, platform, run) === "ours") return false;
+  if (!linksTakeable(env, platform, run, inst)) return false;
   return registerLinks(env, platform, run);
+}
+
+/**
+ * May this strom set the links up again without asking: nothing of strom's there, this strom's own, one of a strom no
+ * longer there, an older place of this very installation with the same settings folder, or a run of strom's sources —
+ * never another installation still on this computer (`mayTakeOver`): it keeps them, strom doctor and strom link status
+ * say where they lead, strom link on (the person's) takes them.
+ */
+export function linksTakeable(env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys, inst: Installation = installation()): boolean {
+  const owner = linkOwner(env, platform, run);
+  if (owner.owner !== "other") return true;
+  if (!mayTakeOver(owner.program, inst)) return false;
+  // this installation with another settings folder is another strom's researches: kept (Windows names none)
+  const mine = !!owner.program && holdsPath(ownFolder(inst), owner.program);
+  return !mine || platform === "win32" || (owner.config ?? "") === (env.STROM_CONFIG_DIR ?? "");
 }
 
 /** What strom put there for the links (for strom uninstall): the applet, the registry key or the entry. */
@@ -554,7 +570,7 @@ export function linkFiles(env: Env, platform: NodeJS.Platform = process.platform
  * Whose the registration is: this strom's, another strom's still on this computer (another installation — on Windows
  * one key for all), one of a strom no longer there (its program gone: stale), or none.
  */
-export function linkOwner(env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): { owner: "ours" | "other" | "stale" | "none"; program?: string } {
+export function linkOwner(env: Env, platform: NodeJS.Platform = process.platform, run: Sys = sys): { owner: "ours" | "other" | "stale" | "none"; program?: string; config?: string } {
   if (!linkFiles(env, platform, run).length) return { owner: "none" };
   const argv = handlerArgv(env, platform);
   // what it runs: the words before "link open", the files among them
@@ -562,7 +578,9 @@ export function linkOwner(env: Env, platform: NodeJS.Platform = process.platform
     if (ours) return { owner: "ours" as const };
     const files = words.slice(0, Math.max(0, words.indexOf("link"))).filter((w) => (platform === "win32" ? path.win32 : path.posix).isAbsolute(w) && !w.includes("="));
     const program = files[files.length - 1];
-    return { owner: files.every((f) => fs.existsSync(f)) && files.length ? ("other" as const) : ("stale" as const), ...(program ? { program } : {}) };
+    // the settings folder it was set up with (macOS, Linux: env STROM_CONFIG_DIR=…)
+    const config = words.find((w) => w.startsWith("STROM_CONFIG_DIR="))?.slice("STROM_CONFIG_DIR=".length);
+    return { owner: files.every((f) => fs.existsSync(f)) && files.length ? ("other" as const) : ("stale" as const), ...(program ? { program } : {}), ...(config ? { config } : {}) };
   };
   if (platform === "darwin") {
     let words: string[] = [];
@@ -581,6 +599,18 @@ export function linkOwner(env: Env, platform: NodeJS.Platform = process.platform
   const exec = /^Exec=(.*)$/m.exec(text)?.[1] ?? "";
   const words = [...exec.matchAll(/"((?:[^"\\]|\\.)*)"|(\S+)/g)].map((m) => (m[1] ?? m[2]!).replace(/\\(.)/g, "$1"));
   return whose(words, text === linuxDesktopEntry(argv, linkScheme(env), handlerName(env)));
+}
+
+/**
+ * What strom doctor and strom link status say of links that do not lead here: another strom still on this computer
+ * by its program (strom link on takes them, the person's), else the plain state.
+ */
+export function linkStateText(state: HandlerState, env: Env, display: (p: string) => string = (p) => p, platform: NodeJS.Platform = process.platform, run: Sys = sys): { key: "ui.doc.links.elsewhere" | `ui.doc.links.${HandlerState}`; where?: string } {
+  if (state === "other") {
+    const owner = linkOwner(env, platform, run);
+    if (owner.owner === "other" && owner.program) return { key: "ui.doc.links.elsewhere", where: display(owner.program) };
+  }
+  return { key: `ui.doc.links.${state}` };
 }
 
 /** Take the scheme off again (strom link off, strom uninstall); true when nothing of strom's is left for it. */

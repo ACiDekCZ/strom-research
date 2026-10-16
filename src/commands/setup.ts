@@ -37,7 +37,7 @@ import { HUMAN_PACE } from "../core/net.ts";
 import { appOpensLinks, appUrlSetting, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
 import { isInstalled } from "../agents/global.ts";
 import { offerLinks, shortcutName } from "../cli/wizard.ts";
-import { linkHandlerState, linkScheme } from "../core/links.ts";
+import { linkHandlerState, linkScheme, linkStateText } from "../core/links.ts";
 import type { UIKey } from "../cli/ui.ts";
 
 import { globalTargets, installGlobal } from "../agents/global.ts";
@@ -412,7 +412,10 @@ function diagnose(ctx: Context): Check[] {
     const links = linkHandlerState(ctx.env);
     if (noLinks(ctx.env)) add("links", "ok", t("ui.doc.links.isolated"));
     else if (links === "ours") add("links", "ok", t("ui.doc.links.ours"));
-    else add("links", "warn", t(`ui.doc.links.${links}` as UIKey), FIX, "links");
+    else {
+      const said = linkStateText(links, ctx.env, (p) => ctx.display(p));
+      add("links", "warn", t(said.key as UIKey, said.where ? { where: said.where } : {}), FIX, "links");
+    }
   }
 
   const locked = lockedTree(ctx);

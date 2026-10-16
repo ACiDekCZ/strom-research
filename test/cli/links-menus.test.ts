@@ -231,7 +231,7 @@ test("installed from the Strom app (the line it shows carries its tree's mark): 
     assert.deepEqual(Object.keys(ids.sources), ["@S1@"]);
     const r = await flow;
     // no agent here: the research waits for one, kept as an archive meanwhile — nothing stored for it (no mode archive)
-    assert.match(r.out, /Výzkum čeká na AI agenta: dokud na počítači žádný není, data z aplikace Strom se ukládají jako v archivu\./);
+    assert.match(r.out, /Výzkum čeká na AI agenta: dokud na počítači žádný není, data z aplikace Strom se ukládají jako v Archivu Stromu\./);
     assert.match(r.out, /osob 2, rodin 1, pramenů 1 – jako vodítka; co doloží záznamy, najde agent, až bude na počítači\./);
     // not opened here (the tests open nothing, no browser): how it gets back into the app said
     assert.match(r.out, /pramenů 1 – jako vodítka; co doloží záznamy, najde agent, až bude na počítači\.\n.*Dvořákovi\/output\/tree-strom\.ged/);
@@ -241,7 +241,7 @@ test("installed from the Strom app (the line it shows carries its tree's mark): 
     const birth = (await w.ok(["person", "show", karel.id, "--json"], { cwd: root })).json.person.events.find((e: { kind: string }) => e.kind === "BIRT");
     assert.equal(birth.place, "Týnec");
     // waiting for its agent, never "it is an archive"
-    assert.match(r.out, /Výzkum čeká na AI agenta, který na tomto počítači není: do té doby drží, co přijde z aplikace Strom, jako archiv\./);
+    assert.match(r.out, /Výzkum čeká na AI agenta, který na tomto počítači není: do té doby drží, co přijde z aplikace Strom, jako Archiv Stromu\./);
     assert.doesNotMatch(r.out, /Je to archiv|It is an archive/);
     assert.equal(JSON.parse(fs.readFileSync(path.join(root, "strom.json"), "utf8")).mode, undefined);
     assert.deepEqual((await w.ok(["mode", "--json"], { cwd: root })).json, { mode: "research", state: "waiting" });

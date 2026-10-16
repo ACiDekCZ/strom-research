@@ -26,9 +26,9 @@ const stored = (root: string) => (readJsonFile(path.join(root, "strom.json")) as
 const ENGLISH = /the person|its first item|strom run|to go on|no tasks|persons|families|as leads/;
 
 const LANGS = [
-  { lang: "cs", archive: /^chyba: Tento výzkum je archiv: data přicházejí z aplikace Strom a nic se nezkoumá\. Výzkum se zapíná v menu, první položka\.$/m, waiting: /^chyba: Výzkum čeká na AI agenta \(Claude Code\), který na tomto počítači není/m, hint: /^→ nebo v terminálu: strom (mode research|setup)$/m },
-  { lang: "en", archive: /^error: This research is an archive: its data come from the Strom app and nothing is researched\. Research is switched on in the menu, its first item\.$/m, waiting: /^error: The research waits for its AI agent \(Claude Code\), which is not on this computer/m, hint: /^→ strom (mode research|setup)\b/m },
-  { lang: "de", archive: /^Fehler: Diese Forschung ist ein Archiv: die Daten kommen aus der Strom-App, und nichts wird erforscht\./m, waiting: /^Fehler: Die Forschung wartet auf ihren KI-Agenten \(Claude Code\)/m, hint: /^→ oder im Terminal: strom (mode research|setup)$/m },
+  { lang: "cs", archive: /^chyba: Tento výzkum je Archiv Stromu: data přicházejí z aplikace Strom a nic se nezkoumá\. Výzkum se zapíná v menu, první položka\.$/m, waiting: /^chyba: Výzkum čeká na AI agenta \(Claude Code\), který na tomto počítači není/m, hint: /^→ nebo v terminálu: strom (mode research|setup)$/m },
+  { lang: "en", archive: /^error: This research is a Strom archive: its data come from the Strom app and nothing is researched\. Research is switched on in the menu, its first item\.$/m, waiting: /^error: The research waits for its AI agent \(Claude Code\), which is not on this computer/m, hint: /^→ strom (mode research|setup)\b/m },
+  { lang: "de", archive: /^Fehler: Diese Forschung ist ein Strom-Archiv: die Daten kommen aus der Strom-App, und nichts wird erforscht\./m, waiting: /^Fehler: Die Forschung wartet auf ihren KI-Agenten \(Claude Code\)/m, hint: /^→ oder im Terminal: strom (mode research|setup)$/m },
 ] as const;
 
 test("S2 strom review and strom research new in an archive and a research waiting for its agent: refused in one sentence (cs, en, de) — no direction, no task, no commit, nothing of strom run", opts, async () => {
@@ -58,7 +58,7 @@ test("S2 strom review and strom research new in an archive and a research waitin
       // a program and an agent: the code and the English with the agent's hint
       const j = await w.run(["review", "P0001", "--json"], { cwd });
       assert.equal(j.json?.code, name === "Archiv" ? "archive" : "agent.missing", j.out);
-      assert.match(j.json?.message ?? "", name === "Archiv" ? /^This research is an archive/ : /^The research waits for its AI agent/, j.out);
+      assert.match(j.json?.message ?? "", name === "Archiv" ? /^This research is a Strom archive/ : /^The research waits for its AI agent/, j.out);
     }
     // the conversation's refusal: its hint in the person's language too (found: "(the person: strom's menu, its first item)")
     const c = await w.run(["chat", "--print"], { cwd: w.treeDir("Archiv") });
@@ -81,9 +81,9 @@ test("S2 a research whose agent is here: review and research new as before", opt
 
 test("N1 strom mode research in an archive with no agent here: the agent offered first; none got — the archive as it was, nothing written or committed, a sentence says why", opts, async () => {
   for (const [lang, later] of [
-    ["cs", /^Archiv zůstává beze změny: výzkum jde zapnout, až bude na počítači AI agent\.$/m],
-    ["en", /^The archive stays as it was: research can be switched on once an AI agent is on this computer\.$/m],
-    ["de", /^Das Archiv bleibt, wie es war: die Forschung lässt sich einschalten, sobald ein KI-Agent auf dem Computer ist\.$/m],
+    ["cs", /^Archiv Stromu zůstává beze změny: výzkum jde zapnout, až bude na počítači AI agent\.$/m],
+    ["en", /^The Strom archive stays as it was: research can be switched on once an AI agent is on this computer\.$/m],
+    ["de", /^Das Strom-Archiv bleibt, wie es war: die Forschung lässt sich einschalten, sobald ein KI-Agent auf dem Computer ist\.$/m],
   ] as const) {
     const w = new World();
     noAgent(w);
@@ -109,9 +109,9 @@ test("N1 strom mode research in an archive with no agent here: the agent offered
 
 test("S3 an archive's tasks in the research's language: no tasks, a task put aside — no English inside, no wake to go on", opts, async () => {
   for (const [lang, none, held] of [
-    ["cs", /^Žádné úkoly\.$/m, /^odloženo: výzkum je archiv/m],
-    ["en", /^No tasks\.$/m, /^kept for later: the research is an archive/m],
-    ["de", /^Keine Aufgaben\.$/m, /^zurückgestellt: die Forschung ist ein Archiv/m],
+    ["cs", /^Žádné úkoly\.$/m, /^odloženo: výzkum je Archiv Stromu/m],
+    ["en", /^No tasks\.$/m, /^kept for later: the research is a Strom archive/m],
+    ["de", /^Keine Aufgaben\.$/m, /^zurückgestellt: die Forschung ist ein Strom-Archiv/m],
   ] as const) {
     const w = new World();
     w.env.STROM_LANG = lang;

@@ -59,8 +59,8 @@ const LINKS = (id: string) => [
 test("K4.1 the app's links that ask an agent (chat, review, research, conflict&do=agent): refused at once in one sentence — in a terminal and with none — nothing asked, no task, no commit", opts, async () => {
   const { archive, waiting } = await trees();
   for (const [w, label, sentence] of [
-    [archive, "archive", /^Tento výzkum je archiv: data přicházejí z aplikace Strom a nic se nezkoumá\. Výzkum se zapíná v menu, první položka\.$/m],
-    [waiting, "waiting", /^Výzkum čeká na AI agenta \(Claude Code\), který na tomto počítači není: do té doby drží data z aplikace Strom jako archiv\./m],
+    [archive, "archive", /^Tento výzkum je Archiv Stromu: data přicházejí z aplikace Strom a nic se nezkoumá\. Výzkum se zapíná v menu, první položka\.$/m],
+    [waiting, "waiting", /^Výzkum čeká na AI agenta \(Claude Code\), který na tomto počítači není: do té doby drží data z aplikace Strom jako Archiv Stromu\./m],
   ] as const) {
     const before = { tasks: tasks(w), commits: commits(w.cwd) };
     for (const link of LINKS(treeId(w.cwd))) {
@@ -92,9 +92,9 @@ test("K4.1 a link of an agent in a research whose agent is here: not refused", o
 
 test("K4.2 the refusal of an archive in Czech, English and German; a research waiting for its agent names the agent; neither falls back to English", opts, async () => {
   const cases = [
-    ["cs", /Tento výzkum je archiv: data přicházejí z aplikace Strom/, /Výzkum čeká na AI agenta \(Claude Code\)/],
-    ["en", /This research is an archive: its data come from the Strom app and nothing is researched\./, /The research waits for its AI agent \(Claude Code\), which is not on this computer/],
-    ["de", /Diese Forschung ist ein Archiv: die Daten kommen aus der Strom-App/, /Die Forschung wartet auf ihren KI-Agenten \(Claude Code\)/],
+    ["cs", /Tento výzkum je Archiv Stromu: data přicházejí z aplikace Strom/, /Výzkum čeká na AI agenta \(Claude Code\)/],
+    ["en", /This research is a Strom archive: its data come from the Strom app and nothing is researched\./, /The research waits for its AI agent \(Claude Code\), which is not on this computer/],
+    ["de", /Diese Forschung ist ein Strom-Archiv: die Daten kommen aus der Strom-App/, /Die Forschung wartet auf ihren KI-Agenten \(Claude Code\)/],
   ] as const;
   for (const [lang, archived, waits] of cases) {
     const w = new World();
@@ -122,22 +122,22 @@ test("K4.3 material in an archive: kept, said so — no conversation offered, no
   const { archive, waiting } = await trees();
   // the menu: 4 add · 1 material · 2 what is known · the words · Enter back · 0
   const m = await archive.ok([], { tty: true, answers: ["4", "1", "2", "Děda Josef byl mlynář v Týnci", "", "0"] });
-  assert.match(m.out, /✓ Uloženo do archivu: 1\. Projde se, až se zapne výzkum\./, m.out);
+  assert.match(m.out, /✓ Uloženo do Archivu Stromu: 1\. Projde se, až se zapne výzkum\./, m.out);
   assert.doesNotMatch(m.out, /Agent to projde|Pustit se do toho s agentem/, m.out);
-  const after = m.out.slice(m.out.indexOf("Uloženo do archivu"));
+  const after = m.out.slice(m.out.indexOf("Uloženo do Archivu Stromu"));
   assert.doesNotMatch(after, NO_AI, after);
   // its task put aside: it waits for research switched on, nothing lost
   const t = Tree.open(archive.cwd, archive.env).list<Task>("task").filter((x) => x.level === "intake");
   assert.ok(t.length && t.every((x) => x.heldBy === "archive"), JSON.stringify(t));
   // the command
   const c = await archive.ok(["intake", "--text", "Babička Anna pekla chleba"]);
-  assert.match(c.out, /^✓ Uloženo do archivu: 1\. Projde se, až se zapne výzkum\.$/m, c.out);
+  assert.match(c.out, /^✓ Uloženo do Archivu Stromu: 1\. Projde se, až se zapne výzkum\.$/m, c.out);
   assert.doesNotMatch(c.out, /task next|intake task/, c.out);
   assert.doesNotMatch(c.out, NO_AI, c.out);
   // a file, then the same file again: nothing new, said so
   const letter = path.join(archive.dir, "dopis.txt");
   fs.writeFileSync(letter, "Milá sestro, Josef se oženil v Týnci.\n");
-  assert.match((await archive.ok(["intake", letter])).out, /Uloženo do archivu: 1/);
+  assert.match((await archive.ok(["intake", letter])).out, /Uloženo do Archivu Stromu: 1/);
   const again = await archive.ok(["intake", letter]);
   assert.match(again.out, /^Tyhle podklady už ve výzkumu jsou – nic nepřibylo\.$/m, again.out);
   assert.doesNotMatch(again.out, /task next|intake task/, again.out);
@@ -160,7 +160,7 @@ test("K4.3 the menu of an empty archive: Add to the archive is material only; th
   await w.ok(["init", "Archiv", "--mode", "archive"]);
   w.cwd = w.treeDir("Archiv");
   const r = await w.ok([], { tty: true, answers: ["0"] });
-  assert.match(r.out, / 4 {2}Přidat do archivu: podklady\n/, r.out);
+  assert.match(r.out, / 4 {2}Přidat do Archivu Stromu: podklady\n/, r.out);
   assert.doesNotMatch(r.out, /sledovaný živě/, r.out);
   assert.doesNotMatch(r.out, NO_AI, r.out);
   w.cleanup();
@@ -173,7 +173,7 @@ test("K4.4 the setup with no agent: impersonal, install the agent or only an arc
   const r = await w.run(["setup"], { tty: true, answers: ["", "", "", "3", "", "", "", "", "", "", ""] });
   assert.match(r.out, /Na tomto počítači není AI agent – výzkum v matrikách a archivech se dělá s ním\./, r.out);
   assert.match(r.out, /Nainstalovat Claude Code hned/, r.out);
-  assert.match(r.out, /Zatím jen archiv/, r.out);
+  assert.match(r.out, /Zatím jen Archiv Stromu/, r.out);
   assert.doesNotMatch(r.out, /Nenašel jsem|Později|znovu spustit/, r.out);
   // no person to answer: the way to install said, nothing more
   const q = await w.run(["setup", "--yes"]);
@@ -269,7 +269,7 @@ test("A4 strom setup in an archive offers research: kept an archive (Enter), or 
   await w.ok(["init", "Archiv", "--mode", "archive"]);
   w.cwd = w.treeDir("Archiv");
   const keep = await w.run(["setup"], { tty: true, answers: Array(20).fill("") });
-  assert.match(keep.out, /„Archiv“ je archiv\. Nechat ho tak, nebo zapnout výzkum\?/, keep.out);
+  assert.match(keep.out, /„Archiv“ je Archiv Stromu\. Nechat ho tak, nebo zapnout výzkum\?/, keep.out);
   assert.equal((readJsonFile(path.join(w.cwd, "strom.json")) as { mode?: string }).mode, "archive", "Enter keeps it");
   // the person's yes: language, folder, the app, its links (the shortcut is there now) · 2 switch research on · a yes ·
   // the agent's steps: no

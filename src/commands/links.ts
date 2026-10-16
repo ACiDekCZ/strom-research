@@ -12,7 +12,7 @@ import { ui, type UIKey } from "../cli/ui.ts";
 import { readJsonIfExists } from "../core/json.ts";
 import type { Conflict, Person, Research, Source, Task, TreeConfig } from "../core/model.ts";
 import { Tree } from "../core/tree.ts";
-import { LinkError, linkHandlerState, linkScheme, linkText, parseLink, registerLinks, unregisterLinks, type Link } from "../core/links.ts";
+import { LinkError, linkHandlerState, linkScheme, linkStateText, linkText, parseLink, registerLinks, unregisterLinks, type Link } from "../core/links.ts";
 import { displayName, lifespan } from "../core/people.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { whereToTalk } from "../core/apps.ts";
@@ -489,7 +489,11 @@ register(
     run(ctx) {
       const state = linkHandlerState(ctx.env);
       const lang = ctx.uiLang();
-      return { text: lines(`${ui(lang, "ui.doc.links")}: ${ui(lang, `ui.doc.links.${state}` as UIKey)}`, state === "ours" ? undefined : "→ strom link on"), data: { state, scheme: linkScheme(ctx.env) } };
+      const said = linkStateText(state, ctx.env, (p) => ctx.display(p));
+      return {
+        text: lines(`${ui(lang, "ui.doc.links")}: ${ui(lang, said.key as UIKey, said.where ? { where: said.where } : {})}`, state === "ours" ? undefined : "→ strom link on"),
+        data: { state, scheme: linkScheme(ctx.env), ...(said.where ? { program: said.where } : {}) },
+      };
     },
   },
 );

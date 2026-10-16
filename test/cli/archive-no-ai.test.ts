@@ -39,7 +39,7 @@ test("an archive says nothing of an agent or AI anywhere a person or the app loo
   const plan = await look("sync plan", ["sync", file]);
   assert.equal(plan.code, 0, plan.err);
   // an archive mirrors the app: never "a conflict for you to decide"
-  assert.match(plan.out, /^Archiv: úpravy z aplikace platí, co v aplikaci už není, se odvolá s důvodem$/m);
+  assert.match(plan.out, /^Archiv Stromu: úpravy z aplikace platí, co v aplikaci už není, se odvolá s důvodem$/m);
   assert.doesNotMatch(plan.out, /dokud .*výzkum/);
   assert.equal((await look("sync apply", ["sync", file, "--apply"])).code, 0);
   // nothing put aside for an agent: no task to read what the user transcribed
@@ -109,14 +109,14 @@ test("research switched on, the agents' files come; an archive again, strom's ow
   // a person's own file in notes/: never swept into the switch's commit (found on Windows)
   fs.writeFileSync(path.join(w.cwd, "notes", "moje.txt"), "Babička říkala…\n");
   const switched = await w.ok(["mode", "archive"], { tty: true });
-  assert.match(switched.out, /^Výzkum je teď archiv\./m, switched.out);
+  assert.match(switched.out, /^Výzkum je teď Archiv Stromu\./m, switched.out);
   assert.doesNotMatch(switched.out, /put aside|the research is/, switched.out);
   for (const f of ["AGENTS.md", "opencode.json", ".claude", ".grok"]) assert.ok(!fs.existsSync(path.join(w.cwd, f)), f);
   assert.match(fs.readFileSync(path.join(w.cwd, "CLAUDE.md"), "utf8"), /Moje poznámka/, "a person's notes stay");
   await w.ok(["mode", "research"], { tty: true });
   // the switches in the history: in the research's language (found on Windows: "the research is an archive")
   const hist = (await w.ok(["history"])).out;
-  assert.match(hist, /Výzkum je teď archiv/, hist);
+  assert.match(hist, /Výzkum je teď Archiv Stromu/, hist);
   assert.match(hist, /Výzkum je znovu zapnutý/, hist);
   assert.doesNotMatch(hist, /the research|with an agent/, hist);
   for (const f of ["AGENTS.md", "opencode.json", path.join(".claude", "settings.json")]) assert.ok(fs.existsSync(path.join(w.cwd, f)), f);

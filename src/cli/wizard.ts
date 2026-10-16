@@ -20,7 +20,7 @@ import { globalTargets, installGlobal } from "../agents/global.ts";
 import { appCopyOfInstall, appOpensLinks, defaultAppUrl, noticeStromApp, researchUrl, STROM_APP_URL, stromAppState, appUrlSetting } from "../core/stromapp.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut } from "../core/shortcut.ts";
-import { appMarkFromInstall, linkFiles, linkHandlerState, linkOwner, registerLinks, type Sys } from "../core/links.ts";
+import { appMarkFromInstall, linkFiles, linkHandlerState, linkOwner, linksTakeable, registerLinks, type Sys } from "../core/links.ts";
 import { configDir, desktopDir, isolated, noLinks } from "../core/paths.ts";
 import { ensureShared } from "../commands/setup.ts";
 import { moveHome, planMove, repointSettings, sameFolder } from "../core/relocate.ts";
@@ -291,7 +291,8 @@ export async function settleInstall(ctx: Context, lang: string): Promise<void> {
   }
   await offerShortcut(ctx, lang, out);
   if (noLinks(ctx.env) || stromAppState(s) === "no" || !appOpensLinks(s) || linkHandlerState(ctx.env) === "ours") return;
-  if (s.config.links === "yes") {
+  // set up before on this person's yes, and nothing of another installation's there: set up again quietly
+  if (s.config.links === "yes" && linksTakeable(ctx.env)) {
     let done = false;
     try {
       done = registerLinks(ctx.env);
@@ -359,7 +360,7 @@ export async function offerLinks(ctx: Context, lang: string, opts: { ask?: boole
   const said = ctx.settings.config.links;
   // set up before on this person's yes: set up again quietly (after an update). Set up by another strom (another
   // installation, its own settings — found on Windows: one key for all) is not this one's to take: asked
-  const made = linkFiles(...sys).length > 0 && said === "yes";
+  const made = linkFiles(...sys).length > 0 && said === "yes" && linksTakeable(...sys);
   if (!made) {
     if (said === "no" && opts.ask === false) return;
     // another installation of strom has them: said, and no suggested (Enter keeps them where they lead)

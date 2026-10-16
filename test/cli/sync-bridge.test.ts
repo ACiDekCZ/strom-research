@@ -321,21 +321,21 @@ test("an archive: switched by the person, its tasks put aside and back; no agent
   // the person's decision: an agent (no terminal) cannot make it
   assert.equal((await w.run(["mode", "archive"], {})).code, 4);
   const sw = await w.ok(["mode", "archive"], { tty: true });
-  assert.match(sw.out, /Výzkum je teď archiv\. Odložených úkolů: 1/);
+  assert.match(sw.out, /Výzkum je teď Archiv Stromu\. Odložených úkolů: 1/);
   assert.ok(open().every((t) => t.state !== "open"));
   assert.ok(open().some((t) => t.heldBy === "archive"));
-  assert.match((await w.ok(["mode"])).out, /Tento výzkum je archiv/);
+  assert.match((await w.ok(["mode"])).out, /Tento výzkum je Archiv Stromu/);
   // no agent works on it
   for (const cmd of [["chat", "--print"], ["session", "start"], ["run"]]) {
     const r = await w.run(cmd);
-    assert.match(r.err, /Tento výzkum je archiv: data přicházejí z aplikace Strom a nic se nezkoumá/);
+    assert.match(r.err, /Tento výzkum je Archiv Stromu: data přicházejí z aplikace Strom a nic se nezkoumá/);
     assert.equal(r.code, 2);
   }
   // a new task waits put aside
   await w.ok(["intake", "--text", "Babička Anna pekla"]);
   assert.ok(open().every((t) => t.state !== "open"));
   // the orientation says so
-  assert.match((await w.ok([])).out, /archiv — data přicházejí z aplikace Strom/);
+  assert.match((await w.ok([])).out, /Archiv Stromu — data přicházejí z aplikace Strom/);
 
   // what the app sends: mirrored at once
   const info = (await w.ok(["live", "start", "--json"])).json;
@@ -377,9 +377,9 @@ test("a new research as an archive: strom init --mode archive, or the setup wiza
   const w = new World();
   await w.ok(["setup", "--yes"]);
   const r = await w.ok(["init", "Archiv", "--mode", "archive"]);
-  assert.match(r.out, /archiv: data přicházejí z aplikace Strom/);
+  assert.match(r.out, /Archiv Stromu: data přicházejí z aplikace Strom/);
   w.cwd = w.treeDir("Archiv");
-  assert.match((await w.ok(["mode"])).out, /archive|archiv/);
+  assert.match((await w.ok(["mode"])).out, /Archiv Stromu/);
   await w.ok(["config", "set", "mode", "archive"]);
   await w.ok(["init", "Druhý"]);
   w.cwd = w.treeDir("Druhý");
