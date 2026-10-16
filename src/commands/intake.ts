@@ -10,18 +10,21 @@ import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
-import { UsageError } from "../core/errors.ts";
+import { notFound, UsageError } from "../core/errors.ts";
 import type { Input, Person, Research, Task } from "../core/model.ts";
 import { likelyDuplicates } from "../core/people.ts";
 import { collectFiles, fileSha256, inputPath, MAX_IN_TREE, mimeOf, storeShared } from "../core/media.ts";
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { phrase } from "../core/phrases.ts";
 import { importGedcom, importStromJson, isStromJson, type ImportResult } from "../core/import.ts";
-import { safeFolderName } from "../core/text.ts";
+import { decodeText, safeFolderName } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
 import { amendInput, checkOriginalMeta } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
 import { SORT_KINDS, type Source } from "../core/model.ts";
+import { actsAsArchive } from "../core/state.ts";
+import { isArchive } from "../core/mode.ts";
+import { ui } from "../cli/ui.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
 
 function kindOf(file: string, text?: string): Input["kind"] {
@@ -129,7 +132,7 @@ register(
       // Files per argument: a folder becomes one intake task, not one per file.
       const groups = args.map((a) => {
         const p = ctx.resolvePath(a);
-        if (!fs.existsSync(p)) throw new UsageError(`no such file or folder: ${a}`);
+        if (!fs.existsSync(p)) throw notFound(a);
         const folder = fs.statSync(p).isDirectory();
         const files = collectFiles([p]);
         const images = files.filter((f) => IMAGE_EXT.has(path.extname(f).toLowerCase())).length;
@@ -139,6 +142,9 @@ register(
           });
         return { folder: folder ? path.basename(p) : undefined, files };
       });
+      // where nobody researches (an archive, a research waiting for its agent): said to the person, in the research's
+      // language — kept, no task to take next (an archive's waits put aside until research is switched on)
+      const quiet = actsAsArchive(tree);
       const known = new Map(tree.list<Input>("input").filter((i) => i.sha).map((i) => [i.sha!, i.id]));
       const report: string[] = [];
       const added: Input[] = [];
@@ -158,7 +164,8 @@ register(
           }
           const size = fs.statSync(file).size;
           const isText = size < 50 * 1024 * 1024 && [".ged", ".json", ".txt", ".md", ".csv"].includes(path.extname(file).toLowerCase());
-          const text = isText ? fs.readFileSync(file, "utf8") : undefined;
+          // as whatever saved it: a BOM (Notepad, PowerShell 5) or UTF-16 is still the same family tree
+          const text = isText ? decodeText(fs.readFileSync(file)) : undefined;
           const kind = kindOf(file, text);
           const id = tree.peekId("I");
           let stored: string;
@@ -186,13 +193,20 @@ register(
               op: "input.imported",
               summary: `${input.id} imported: ${imported.persons} persons, ${imported.families} families${imported.matched ? `, ${imported.matched} matched` : ""}`,
             });
-            report.push(`  ${input.id} tree: ${imported.persons} persons, ${imported.families} families, ${imported.events} facts as leads${imported.matched ? `, ${imported.matched} matched to existing` : ""}${imported.problems.length ? ` (${imported.problems.length} unreadable lines)` : ""}`);
-            if (imported.extended.length) report.push(`  added to what we have (leads — check them): ${imported.extended.slice(0, 6).join(" · ")}${imported.extended.length > 6 ? " …" : ""}`);
-            // the research's own tree coming back: sync sees what was changed in it too, not only what was added
-            if (imported.matched && imported.matched >= imported.persons) report.push(`  it is this research's tree coming back: strom sync "${ctx.display(file)}" shows what was changed in it too`);
-            const system = `gedcom:${sha.slice(0, 12)}`;
-            const dupes = likelyDuplicates(tree, tree.list<Person>("person").filter((p) => p.refs?.some((r) => r.system === system)).map((p) => p.id));
-            if (dupes.length) report.push(`  probably already in the tree: ${dupes.map((d) => `${d.person.id}≈${d.same.id}`).join(", ")} (the review task lists them)`);
+            const back = imported.matched && imported.matched >= imported.persons;
+            if (quiet) {
+              // where nobody researches the person reads it, in the research's language: the tree is in it (no review talk)
+              report.push(`  ${ui(tree.lang, "ui.intake.tree", { id: input.id, persons: imported.persons, families: imported.families, events: imported.events, source: imported.source })}${imported.matched ? ui(tree.lang, "ui.intake.tree.matched", { n: imported.matched }) : ""}`);
+              if (back) report.push(`  ${ui(tree.lang, "ui.intake.tree.back", { file: ctx.display(file) })}`);
+            } else {
+              report.push(`  ${input.id} tree: ${imported.persons} persons, ${imported.families} families, ${imported.events} facts as leads${imported.matched ? `, ${imported.matched} matched to existing` : ""}${imported.problems.length ? ` (${imported.problems.length} unreadable lines)` : ""}`);
+              if (imported.extended.length) report.push(`  added to what we have (leads — check them): ${imported.extended.slice(0, 6).join(" · ")}${imported.extended.length > 6 ? " …" : ""}`);
+              // the research's own tree coming back: sync sees what was changed in it too, not only what was added
+              if (back) report.push(`  it is this research's tree coming back: strom sync "${ctx.display(file)}" shows what was changed in it too`);
+              const system = `gedcom:${sha.slice(0, 12)}`;
+              const dupes = likelyDuplicates(tree, tree.list<Person>("person").filter((p) => p.refs?.some((r) => r.system === system)).map((p) => p.id));
+              if (dupes.length) report.push(`  probably already in the tree: ${dupes.map((d) => `${d.person.id}≈${d.same.id}`).join(", ")} (the review task lists them)`);
+            }
           }
           // A family tree gets its own review task; the other files of a folder share one — files for a task: none
           if (forTask) handed.push(input.id);
@@ -215,10 +229,14 @@ register(
         }
       });
       const text = lines(
-        `${added.length} input(s) registered${skipped ? `, ${skipped} already known (same content)` : ""}`,
+        quiet
+          ? added.length
+            ? `${ui(tree.lang, isArchive(tree) ? "ui.intake.done.archive" : "ui.intake.done.waiting", { n: added.length })}${skipped ? ` ${ui(tree.lang, "ui.intake.same", { n: skipped })}` : ""}`
+            : ui(tree.lang, "ui.intake.known")
+          : `${added.length} input(s) registered${skipped ? `, ${skipped} already known (same content)` : ""}`,
         added.length ? table(added.map((i) => [`  ${i.id}`, i.kind, truncate(i.name, 60)])) : undefined,
         ...report,
-        tree.written.some((o) => o.op === "task.add") ? `\n${tree.written.filter((o) => o.op === "task.add").length} intake task(s) created → strom task next` : undefined,
+        !quiet && tree.written.some((o) => o.op === "task.add") ? `\n${tree.written.filter((o) => o.op === "task.add").length} intake task(s) created → strom task next` : undefined,
         task ? `${task.id} got ${[...new Set(handed)].join(", ")} and is back in the queue — the file is read as its next step (no intake task)` : undefined,
       );
       return { text, data: { inputs: added, skipped, ...(task ? { task: task.id, handed: [...new Set(handed)], state: task.state } : {}) } };
@@ -330,10 +348,10 @@ register(
     tree: true,
     run(ctx) {
       const tree = ctx.tree();
-      const all = batchStatus(tree) as { id: string; name?: string; state: string; files: number; known: number; refused: number; sorted: number; tasks: string[] }[];
+      const all = batchStatus(tree) as { id: string; name?: string; state: string; files: number; known: number; refused: number; sorted: number; kept?: boolean; tasks: string[] }[];
       return {
         text: all.length
-          ? table(all.map((b) => [b.id.slice(0, 12), b.state, `${b.sorted}/${b.files} sorted`, b.known ? `${b.known} known` : "", b.refused ? `${b.refused} refused` : "", truncate(b.name ?? "", 40), b.tasks.join(" ")]))
+          ? table(all.map((b) => [b.id.slice(0, 12), b.state, b.kept ? `${b.files} kept` : `${b.sorted}/${b.files} sorted`, b.known ? `${b.known} known` : "", b.refused ? `${b.refused} refused` : "", truncate(b.name ?? "", 40), b.tasks.join(" ")]))
           : "no batch from the Strom app",
         data: { batches: all },
       };

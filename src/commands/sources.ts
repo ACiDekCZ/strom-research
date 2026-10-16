@@ -33,6 +33,7 @@ import { formatName } from "../core/people.ts";
 import { yearsOption, yearsOverlap } from "../core/years.ts";
 import type { Tree } from "../core/tree.ts";
 import { levelWords } from "../core/archiveasks.ts";
+import { bookUrlKey, sameBooks, sameBookText } from "../core/samebook.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -138,6 +139,25 @@ function editOptions(options: CommandDef["options"], extra: NonNullable<CommandD
   return [...extra, ...(options ?? []).map((o) => ({ ...o, description: o.description.replace(/\s*\(default[^)]*\)/, "") }))];
 }
 
+/**
+ * A book registered twice is fetched twice (every image asked of the archive again): a link another book of the
+ * research has is refused, pointing to that book — unless --again says why this is another book (then kept on it).
+ */
+function sameLink(tree: Tree, url: string | undefined, again: string | undefined, said: string[], self?: string): RecordSet["duplicates"] {
+  const same = url ? sameBooks(tree, { url }, self).filter((x) => x.by === "url") : [];
+  if (!same.length) {
+    if (again) said.push("--again: no other book of the research has this link — nothing to explain");
+    return undefined;
+  }
+  const first = same[0]!.book.id;
+  if (!again)
+    throw new UsageError(`this link is the book ${same.map(sameBookText).join(", ")} of the research already — the same book is never registered twice`, {
+      hint: `read it: strom read ${first} --images <from-to> · its images not here yet: strom fetch <connector> <book> --images <from-to> --recordset ${first} · another book at the same link (another film): --again "<why>"`,
+    });
+  said.push(`registered beside ${same.map((x) => x.book.id).join(", ")} (the same link): ${again}`);
+  return { of: same.map((x) => x.book.id), reason: again };
+}
+
 function readText(ctx: Context) {
   return (p: string) => fs.readFileSync(ctx.resolvePath(p), "utf8");
 }
@@ -233,7 +253,7 @@ register(
     summary: "List sources (filter by text, kind, recordset)",
     group: "sources",
     tree: true,
-    args: [{ name: "filter", description: "text in title, locator or transcript" }],
+    args: [{ name: "filter", description: "text in title, locator or transcript", mistaken: ["find", "search", "text"] }],
     options: [
       { name: "kind", type: "string", value: "<kind>", description: "only this kind" },
       { name: "recordset", type: "string", value: "<B…>", description: "only from this recordset" },
@@ -390,6 +410,69 @@ register(
 
 // ── record sets ────────────────────────────────────────────────────────────
 
+/** The registered images of a record set (N0216: found by a trial fetch, "registered already — nothing fetched"). */
+export interface ImagesHere {
+  /** Image numbers with a whole image (each once). */
+  registered: number;
+  /** Their numbers, as ranges [from, to]. */
+  ranges: [number, number][];
+  /** Numbers with only parts of the image (a half, a detail): no whole image to read. */
+  partsOnly: [number, number][];
+  /** Numbers with more than one whole copy (the sharpest is the image). */
+  copies: [number, number][];
+  /** Images of the record set registered without a number. */
+  unnumbered: number;
+}
+
+function asRanges(nums: number[]): [number, number][] {
+  const s = [...new Set(nums)].sort((a, b) => a - b);
+  const out: [number, number][] = [];
+  for (const n of s) {
+    const last = out.at(-1);
+    if (last && n === last[1] + 1) last[1] = n;
+    else out.push([n, n]);
+  }
+  return out;
+}
+
+export function imagesHere(tree: Tree, recordset: string): ImagesHere {
+  const whole = new Map<number, number>();
+  const parts = new Set<number>();
+  let unnumbered = 0;
+  for (const m of tree.list<Media>("media")) {
+    if (m.recordset !== recordset || m.retracted) continue;
+    if (m.image === undefined) unnumbered++;
+    else if (m.part) parts.add(m.image);
+    else whole.set(m.image, (whole.get(m.image) ?? 0) + 1);
+  }
+  return {
+    registered: whole.size,
+    ranges: asRanges([...whole.keys()]),
+    partsOnly: asRanges([...parts].filter((n) => !whole.has(n))),
+    copies: asRanges([...whole].filter(([, k]) => k > 1).map(([n]) => n)),
+    unnumbered,
+  };
+}
+
+/** Ranges said: "4–19, 21–42"; more than `most` of them cut, with how to see them all. */
+function rangesText(r: [number, number][], most: number, all: string): string {
+  const said = r.slice(0, most).map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(", ");
+  return r.length > most ? `${said}, … (${r.length} ranges: ${all})` : said;
+}
+
+const IMAGE_RANGES_SHOWN = 12;
+
+function imagesLines(h: ImagesHere, b: RecordSet, full: boolean): string[] {
+  const most = full ? Infinity : IMAGE_RANGES_SHOWN;
+  const all = `strom recordset show ${b.id} --images`;
+  const count = (n: [number, number][]) => n.reduce((k, [a, z]) => k + z - a + 1, 0);
+  const out = [h.registered ? `images      ${h.registered}${b.images ? ` of ${b.images}` : ""} registered — ${rangesText(h.ranges, most, all)}` : "images      none registered whole"];
+  if (h.partsOnly.length) out.push(`            only in parts (no whole image to read): ${count(h.partsOnly)} — ${rangesText(h.partsOnly, most, all)}`);
+  if (h.copies.length) out.push(`            in several copies (the sharpest is the image): ${count(h.copies)} — ${rangesText(h.copies, most, all)}`);
+  if (h.unnumbered) out.push(`            without an image number: ${h.unnumbered}`);
+  return out;
+}
+
 register(
   {
     path: ["recordset", "add"],
@@ -409,12 +492,14 @@ register(
       { name: "images", type: "string", value: "<n>", description: "number of images" },
       { name: "layout", type: "string", value: "<text>", description: "how pages are laid out (columns, two years per page, …)" },
       { name: "note", type: "string", value: "<text>", description: "short note" },
+      { name: "again", type: "string", value: "<reason>", description: "register it although a book of the research has the same link: why it is another book (another film, another copy)" },
     ],
     examples: ['strom recordset add "Týnec nad Labem 17, N 1861-1869" --repo R0001 --kinds baptism --places "Týnec nad Labem,Bělušice" --years 1861-1869 --access online-free --url https://…'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
       const said: string[] = [];
+      const duplicates = sameLink(tree, str(opts.url), str(opts.again), said);
       const years = yearsOption(str(opts.years), said, "1784-1820");
       const images = opts.images === undefined ? undefined : Number(opts.images);
       if (images !== undefined && (!Number.isInteger(images) || images < 1)) throw new UsageError("--images must be a positive number");
@@ -434,6 +519,7 @@ register(
           calibration: [],
           layout: str(opts.layout),
           note: str(opts.note),
+          duplicates,
         },
         (id) => `+${id} record set "${truncate(args[0]!, 60)}"`,
       );
@@ -445,7 +531,7 @@ register(
     summary: "Books and collections known in this tree",
     group: "sources",
     tree: true,
-    args: [{ name: "filter", description: "text in title, place or call number" }],
+    args: [{ name: "filter", description: "text in title, place or call number", mistaken: ["find", "search", "text"] }],
     options: [
       { name: "place", type: "string", value: "<name>", description: "only the books of this place (diacritics optional)" },
       { name: "kind", type: "string", value: "<kind>", description: "only the books holding this kind of record (baptism, marriage, burial…)" },
@@ -496,22 +582,25 @@ register(
     group: "sources",
     tree: true,
     args: [{ name: "recordset", description: "record set ID (B0001)", required: true }],
-    run(ctx, { args }) {
+    options: [{ name: "images", type: "boolean", description: "the registered images in full: every range, those only in parts, those in several copies" }],
+    run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const b = requireRecord<RecordSet>(tree, args[0]!, "recordset");
       const repo = b.repository ? tree.get<Repository>(b.repository) : undefined;
+      const here = imagesHere(tree, b.id);
       const text = lines(
         `${b.id} ${b.title}`,
         repo ? `in          ${repo.id} ${repo.name}${b.callNumber ? ` · ${b.callNumber}` : ""} · automation ${repo.automation}` : b.callNumber ? `call number ${b.callNumber}` : undefined,
         `covers      ${[b.kinds.join(", "), b.places.join(", "), b.years].filter(Boolean).join(" · ") || "(not described)"}`,
         `access      ${b.access}${b.url ? ` · ${b.url}` : ""}${b.images ? ` · ${b.images} images` : ""}`,
+        ...imagesLines(here, b, opts.images === true),
         b.layout ? `layout      ${b.layout}` : undefined,
         calibrationLine(b),
         ...b.notes.map((n) => `note        ${n.text}`),
         "",
         `searched in it: strom searched ${b.id}`,
       );
-      return { text, data: { recordset: b, calibration: fitCalibration(b.calibration) } };
+      return { text, data: { recordset: b, calibration: fitCalibration(b.calibration), images: here } };
     },
   },
   {
@@ -828,6 +917,11 @@ register(
       const years = yearsOption(str(opts.years), said, "1784-1820");
       const images = opts.images === undefined ? undefined : Number(opts.images);
       if (images !== undefined && (!Number.isInteger(images) || images < 1)) throw new UsageError("--images must be a positive number");
+      const cur = requireRecord<RecordSet>(tree, args[0]!, "recordset");
+      // a link changed is checked; --again alone explains the link the book has
+      const url = str(opts.url);
+      const changed = url !== undefined && bookUrlKey(url) !== bookUrlKey(cur.url ?? "");
+      const duplicates = sameLink(tree, changed ? url : str(opts.again) ? cur.url : undefined, str(opts.again), said, cur.id);
       const b = editFields<RecordSet>(
         tree,
         args[0]!,
@@ -846,6 +940,7 @@ register(
         },
         {},
         opts,
+        (cur) => (duplicates ? { duplicates: { of: [...new Set([...(cur.duplicates?.of ?? []), ...duplicates.of])], reason: duplicates.reason } } : {}),
       );
       return { text: lines(written(tree), ...said), data: { recordset: b } };
     },

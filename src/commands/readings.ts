@@ -14,6 +14,7 @@ import { imageRange } from "../core/media.ts";
 import { parseReport, type Finding } from "../core/reader.ts";
 import { foldText } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
+import { REDUCED_BELOW, viewRegion } from "../core/views.ts";
 
 export interface Block extends Finding {
   /** The report it is in (its file name without .md). */
@@ -200,7 +201,16 @@ export interface OpenUnclear {
   at: number;
   /** What the reader wrote of it: the entry where it stands, else what was illegible. */
   said: string;
+  /** The page of a double page the reader said it stands on, when what it wrote says one for sure. */
+  side?: Side | undefined;
+  /** A closer view since that was not close enough: reduced (its scale in %), or of the other page. */
+  short?: { reduced: number } | { shown: Side } | undefined;
+  /** The view that looks there closely enough: "strom media view B0001:65 --half right --split 1x2". */
+  look: string;
 }
+
+type Side = "left" | "right";
+type Box = { x: number; y: number; w: number; h: number };
 
 /** The kinds of view that look at a place closer than a whole image: a page of a spread, a crop, a part of a grid. */
 const CLOSER = new Set(["half", "crop", "split"]);
@@ -209,8 +219,13 @@ const CLOSER = new Set(["half", "crop", "split"]);
 interface CloserView {
   at: number;
   key?: string | undefined;
-  region?: { x: number; y: number; w: number; h: number } | undefined;
+  region?: Box | undefined;
   reader: boolean;
+  /** Result pixels per original pixel, the longest side it was made for, the whole image's size (a record may lack them). */
+  scale?: number | undefined;
+  cap?: number | undefined;
+  W?: number | undefined;
+  H?: number | undefined;
 }
 
 /** Of the views journal, the closer views of each image (book:image) — a half, a crop, a part. */
@@ -225,10 +240,11 @@ function closerViews(root: string): Map<string, CloserView[]> {
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
     try {
-      const v = JSON.parse(line) as { at?: string; key?: string; rs?: string; img?: number; kind?: string; region?: CloserView["region"]; reader?: number };
+      const v = JSON.parse(line) as { at?: string; key?: string; rs?: string; img?: number; kind?: string; region?: CloserView["region"]; reader?: number; scale?: unknown; cap?: unknown; W?: unknown; H?: unknown };
       if (!v.rs || v.img === undefined || !v.kind || !CLOSER.has(v.kind) || !v.at) continue;
       const k = `${v.rs}:${v.img}`;
-      out.set(k, [...(out.get(k) ?? []), { at: Date.parse(v.at), key: v.key, region: v.region, reader: v.reader === 1 }]);
+      const num = (n: unknown) => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : undefined);
+      out.set(k, [...(out.get(k) ?? []), { at: Date.parse(v.at), key: v.key, region: v.region, reader: v.reader === 1, scale: num(v.scale), cap: num(v.cap), W: num(v.W), H: num(v.H) }]);
     } catch {
       // a line cut short: left out
     }
@@ -253,11 +269,82 @@ function lookedBefore(views: CloserView[], since: number, report: number): boole
   });
 }
 
+const NOT_LETTER = "[^\\p{L}\\p{M}\\p{N}]";
+/**
+ * A page of a double page as readers write it (folded: no accents, lower case), in the languages strom speaks and its
+ * neighbours': "right page", "left-hand side", "pravá strana", "levém okraji", "rechte Seite", "rechts", "lewa strona".
+ * Only a side word next to a word of a page, half or margin (German "links"/"rechts" alone): "right" alone, "vpravo",
+ * a column are no page for sure.
+ */
+const SIDE_WORDS: Record<Side, RegExp> = {
+  left: new RegExp(`(?:^|${NOT_LETTER})(?:left(?:[- ]hand)? (?:page|side|half|margin)|lev\\p{L}{0,3} (?:stran|polovin|okraj)|lew\\p{L}{0,3} (?:stron|polow|margines)|link\\p{L}{0,2} (?:seite|halfte|rand)|links(?:$|${NOT_LETTER}))`, "u"),
+  right: new RegExp(`(?:^|${NOT_LETTER})(?:right(?:[- ]hand)? (?:page|side|half|margin)|prav\\p{L}{0,3} (?:stran|polovin|okraj)|praw\\p{L}{0,3} (?:stron|polow|margines)|recht\\p{L}{0,2} (?:seite|halfte|rand)|rechts(?:$|${NOT_LETTER}))`, "u"),
+};
+
+/** The page an unclear block says its entries stand on — one side for sure, else none (both, or no word of a page). */
+export function sideOf(b: Pick<Finding, "entries" | "illegible">): Side | undefined {
+  const text = foldText([...(b.entries ?? []), ...(b.illegible ?? [])].join(" · "));
+  const said = (["left", "right"] as const).filter((s) => SIDE_WORDS[s].test(text));
+  return said.length === 1 ? said[0] : undefined;
+}
+
+/** A view reduced below the part of the scan it shows (a record without its scale: as it always counted, not reduced). */
+const reduced = (v: CloserView) => v.scale !== undefined && v.scale < REDUCED_BELOW;
+
+/** How much of a page of the image a view's part shows: at least half of the part on that page, or half of the page. */
+function covers(v: CloserView, side: Side | undefined): boolean {
+  if (!side || !v.region || !v.W) return true;
+  const [a, b] = side === "left" ? [0, v.W / 2] : [v.W / 2, v.W];
+  const o = Math.max(0, Math.min(v.region.x + v.region.w, b) - Math.max(v.region.x, a));
+  return o >= v.region.w / 2 || o >= (b - a) / 2;
+}
+
+/** The page a view's part mostly shows. */
+const shownSide = (v: CloserView): Side => (v.region && v.W && v.region.x + v.region.w / 2 >= v.W / 2 ? "right" : "left");
+
+/**
+ * The view that looks at an unclear place closely enough: the page the reader named (else the part a reduced view
+ * showed, else both pages), split into parts small enough to come at full size where a reduced view says how big a
+ * view of this agent gets.
+ */
+function lookCommand(ref: string, side: Side | undefined, short: CloserView | undefined): string {
+  const W = short?.W;
+  const H = short?.H;
+  const full = (r: Box | undefined) => !!r && !!W && !!H && Math.abs(r.x) <= 1 && Math.abs(r.y) <= 1 && Math.abs(r.w - W) <= 1 && Math.abs(r.h - H) <= 1;
+  let part = side ? `--half ${side}` : "--half both";
+  let region: Box | undefined = side && W && H ? viewRegion({ half: side }, W, H) : undefined;
+  if (!side && short && reduced(short) && short.region && W && H && !full(short.region)) {
+    region = short.region;
+    const r = short.region;
+    const half = (["left", "right"] as const).find((h) => {
+      const x = viewRegion({ half: h }, W, H);
+      return Math.abs(x.x - r.x) <= 1 && Math.abs(x.w - r.w) <= 1 && r.y <= 1 && Math.abs(r.h - H) <= 1;
+    });
+    const f = (n: number) => n.toFixed(2);
+    part = half ? `--half ${half}` : `--crop ${f(r.x / W)},${f(r.y / H)},${f(r.w / W)},${f(r.h / H)}`;
+  }
+  // a part of at most the size a view of this agent gets is shown at full size
+  const cap = short && reduced(short) ? (short.cap ?? (short.region ? short.scale! * Math.max(short.region.w, short.region.h) : undefined)) : undefined;
+  if (region && cap) {
+    const count = (len: number) => {
+      for (let n = 1; n < 6; n++) if ((n === 1 ? len : len * (1 / n + SPLIT_OVERLAP)) <= cap) return n;
+      return 6;
+    };
+    const [c, r] = [count(region.w), count(region.h)];
+    if (c * r > 1) part += ` --split ${c}x${r}`;
+  }
+  return `strom media view ${ref} ${part}`;
+}
+
+/** What --split adds to each part (commands/media.ts). */
+const SPLIT_OVERLAP = 0.06;
+
 /**
  * The images of a searched range (its record sets, its pages where it names them) that a reader of strom read reported
  * unclear since `since` (ms) and that are still open: nobody looked at them closer after the report (a half, a crop or
- * a part of the image) and no later reading of them came to found or nothing. A negative search over them is not
- * recorded until they are.
+ * a part of the image — at full size, not reduced; on the page the reader said the entry stands on, where it says one)
+ * and no later reading of them came to found or nothing. A negative search over them is not recorded until they are.
+ * A view recorded without its scale or part (an older strom) counts as it always did.
  */
 export function openUnclear(tree: Tree, recordsets: string[], pages: string | undefined, since: number): OpenUnclear[] {
   if (!recordsets.length) return [];
@@ -288,10 +375,26 @@ export function openUnclear(tree: Tree, recordsets: string[], pages: string | un
   for (const [key, b] of latest) {
     if (b.result !== "unclear" || at(b.report) < since) continue;
     const views = closer.get(key) ?? [];
-    if (views.some((v) => v.at > at(b.report))) continue;
+    const after = views.filter((v) => v.at > at(b.report));
+    const side = sideOf(b);
+    if (after.some((v) => !reduced(v) && covers(v, side))) continue;
     // a blind check of a place the researcher had looked at closer before it: no place nobody looked at
     if (blind.has(b.report) && lookedBefore(views, since, at(b.report))) continue;
-    out.push({ recordset: b.recordset!, image: b.num!, media: b.media, report: b.report, at: at(b.report), said: truncate((b.entries ?? b.illegible ?? []).join(" · ") || b.text.split("\n").slice(1).join(" "), 160) });
+    // the look that was not enough: of the page, reduced — else of the other page
+    const there = after.filter((v) => covers(v, side));
+    const last = (there.length ? there : after).at(-1);
+    const short = !last ? undefined : there.length ? { reduced: Math.round(last.scale! * 100) } : { shown: shownSide(last) };
+    out.push({
+      recordset: b.recordset!,
+      image: b.num!,
+      media: b.media,
+      report: b.report,
+      at: at(b.report),
+      said: truncate((b.entries ?? b.illegible ?? []).join(" · ") || b.text.split("\n").slice(1).join(" "), 160),
+      ...(side ? { side } : {}),
+      ...(short ? { short } : {}),
+      look: lookCommand(`${b.recordset}:${b.num}`, side, last),
+    });
   }
   return out.sort((a, b) => a.recordset.localeCompare(b.recordset) || a.image - b.image);
 }
@@ -308,12 +411,17 @@ export function refuseNegativeOverUnclear(tree: Tree, s: { recordsets: string[];
   const open = openUnclear(tree, s.recordsets, s.pages, since);
   if (!open.length) return;
   const first = open[0]!;
-  const ref = `${first.recordset}:${first.image}`;
+  const short = first.short;
+  const why = !short
+    ? "nobody looked closer since — a negative search of the range waits for that look"
+    : "reduced" in short
+      ? `the view of image ${first.image} since was reduced (${short.reduced} %) — a negative search of the range waits for a look at full size`
+      : `the view of image ${first.image} since showed the ${short.shown} page; the unclear entry is on the ${first.side} page — a negative search of the range waits for a look there`;
   throw new UsageError(
-    `a reader found ${open.length === 1 ? `image ${first.image} of ${first.recordset}` : `images ${runs(open.map((o) => o.image))} of ${first.recordset}`} unclear (strom readings ${first.recordset} --image ${first.image}: "${first.said}") and nobody looked closer since — a negative search of the range waits for that look`,
+    `a reader found ${open.length === 1 ? `image ${first.image} of ${first.recordset}` : `images ${runs(open.map((o) => o.image))} of ${first.recordset}`} unclear (strom readings ${first.recordset} --image ${first.image}: "${first.said}") and ${why}`,
     {
       hint: lines(
-        `look at that place closer: strom media view ${ref} --half both (or --grid, then --crop x,y,w,h on the entry); then record the search`,
+        `${short && "reduced" in short ? "open the unclear place at full size" : "look at that place closer"}: ${first.look} (or --grid, then --crop x,y,w,h on the entry); then record the search`,
         `or record the range as it stands: --result inconclusive --note "image ${first.image} unclear: <what>" (or --result partial, the pages read clearly in --pages)`,
       ),
     },

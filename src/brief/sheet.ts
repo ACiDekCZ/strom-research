@@ -29,12 +29,14 @@ const LEVELS: Record<string, string[]> = {
 const RARE: Record<string, string[]> = {
   "search add": ["by"],
   "task add": ["research", "anyway"],
-  "media view": ["scale", "max", "grey", "png", "image"],
-  read: ["context", "batch", "parallel", "model", "minutes", "max"],
-  fetch: ["take", "result"],
+  "media view": ["scale", "max", "grey", "png", "image", "whole"],
+  read: ["context", "batch", "model", "minutes", "max"],
+  // a book the research has already: the refusal says --again where it applies; --status and --stop: the method and the brief name them;
+  // --task: strom takes the task the agent works on where it is plain, and says --task where it took one
+  fetch: ["take", "result", "again", "status", "stop", "task"],
   "source add": ["translation", "media"],
   "source edit": ["translation", "media"],
-  "recordset add": ["images"],
+  "recordset add": ["images", "again"],
   grep: ["regex", "files"],
   // what a waiting task waits for is said when it is set waiting (task wait); edit fills it for an older one
   "task edit": ["on", "kind", "to", "request", "url"],

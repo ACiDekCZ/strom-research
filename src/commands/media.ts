@@ -9,7 +9,7 @@ import path from "node:path";
 import { register, type Typed } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, runs, shellArg, table, truncate } from "../cli/format.ts";
-import { UsageError } from "../core/errors.ts";
+import { notFound, UsageError } from "../core/errors.ts";
 import type { Input, Media, RecordSet, Region, Source, Task } from "../core/model.ts";
 import { makeNote } from "../core/actions.ts";
 import { clipText, collectFiles, coveringPart, fileSha256, findImage, imageNumbers, imageOfRef, imageRange, IMAGE_FILE_EXT, inboxFolders, inputPath, isWhole, mimeOf, onlyParts, otherCopies, parseImageList, regionText, sharperPart, storeShared, wholeSizeOf } from "../core/media.ts";
@@ -49,7 +49,7 @@ export interface NewImage {
  * Register images of a record set: stored once by content, each with its number
  * and provenance. Tasks that waited for images of the book go back into the queue.
  */
-export function registerImages(tree: Tree, shared: string, items: NewImage[], recordset: string | undefined): { added: Media[]; again: string[]; restored: string[]; woken: string[]; clashes: string[]; copies: string[] } {
+export function registerImages(tree: Tree, shared: string, items: NewImage[], recordset: string | undefined, opts: { wake?: boolean } = {}): { added: Media[]; again: string[]; restored: string[]; woken: string[]; clashes: string[]; copies: string[] } {
   // a withdrawn image is no longer known: its file can be registered again, where it belongs
   const known = new Map(tree.list<Media>("media").filter((m) => !m.retracted).map((m) => [m.sha, m]));
   const added: Media[] = [];
@@ -113,13 +113,22 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
       }
     }
   });
+  // a fetch registering its images in batches wakes the tasks once, when it is over (wakeWaiting)
+  const woken = recordset && opts.wake !== false ? wakeWaiting(tree, recordset, added.length) : [];
+  return { added, again, restored, woken, clashes, copies };
+}
+
+/** Tasks that waited for images of a book back in the queue, now that this many of them are registered. */
+export function wakeWaiting(tree: Tree, recordset: string, count: number): string[] {
   const woken: string[] = [];
-  if (recordset && added.length)
-    for (const t of tree.list<Task>("task").filter((t) => t.state === "waiting" && (t.where.includes(recordset) || (t.waitingOn ?? "").includes(recordset)))) {
+  // a task that waits for images of a book is woken by that book alone, whatever other books it names
+  const wakes = (t: Task, b: string) => (t.awaits ? t.awaits.recordset === b : t.where.includes(b) || (t.waitingOn ?? "").includes(b));
+  if (count)
+    for (const t of tree.list<Task>("task").filter((t) => t.state === "waiting" && wakes(t, recordset))) {
       // what it asked for and what is still missing, for the session that takes it up
       const have = new Set(tree.list<Media>("media").filter((m) => m.recordset === recordset).map((m) => m.image)); // a part counts: it was asked for too
       const missing = t.awaits?.recordset === recordset ? (parseImageList(t.awaits.images) ?? []).filter((n) => !have.has(n)) : [];
-      const note = `${added.length} image(s) of ${recordset} registered${t.awaits ? ` (it waited for images ${t.awaits.images}${missing.length ? `; still missing: ${runs(missing)}` : ""})` : ""}`;
+      const note = `${count} image(s) of ${recordset} registered${t.awaits ? ` (it waited for images ${t.awaits.images}${missing.length ? `; still missing: ${runs(missing)}` : ""})` : ""}`;
       update<Task>(tree, t.id, "task", (x) => {
         const { awaits: _, wait: _w, sent: _s, ...rest } = x;
         return { ...rest, state: "open", notes: [...x.notes, makeNote(tree, note)] };
@@ -129,7 +138,7 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
       });
       woken.push(t.id);
     }
-  return { added, again, restored, woken, clashes, copies };
+  return woken;
 }
 
 function sharedDir(ctx: Context): string {
@@ -689,7 +698,7 @@ register(
         }
       }
       if (paths.length === 0) throw new UsageError("give files or folders, or --inbox");
-      for (const p of paths) if (!fs.existsSync(p)) throw new UsageError(`no such file or folder: ${ctx.display(p)}`);
+      for (const p of paths) if (!fs.existsSync(p)) throw notFound(ctx.display(p));
       const nameOf = (f: string) => names.get(f) ?? f;
       const files = collectFiles(paths).filter((f) => IMAGE_EXT.has(path.extname(f).toLowerCase()));
       // numbers are read per folder: one download names its files one way
@@ -905,6 +914,7 @@ register(
       { name: "image", type: "string", multiple: true, value: "<n>", description: "image number(s) with a record set ID: 57, 57-60, 57..60" },
       { name: "page", type: "string", multiple: true, value: "<n>", description: "page(s) or folio(s), with a calibrated record set ID: 112, 112 113, 112-115" },
       { name: "png", type: "boolean", description: "lossless PNG instead of JPEG" },
+      { name: "whole", type: "boolean", description: "the image whole — as without --crop, --half or --split (a view to find an entry on)" },
     ],
     examples: [
       "strom media view B0001:2 --grid",
@@ -917,6 +927,11 @@ register(
       "strom media view B0001 --page 112 113 --split 2x2",
     ],
     run(ctx, { args, opts, seq }) {
+      // the whole image is what a view is without a part of it (strom read --whole: each image in one view)
+      if (opts.whole === true) {
+        const part = ["crop", "half", "split"].find((o) => opts[o] !== undefined && listOf(opts[o]).length);
+        if (part) throw new UsageError(`--whole is the image whole: no --${part} with it`, { hint: `the whole image: strom media view ${args.join(" ")}; a part of it: --${part} without --whole` });
+      }
       const tree = ctx.tree();
       const shared = sharedDir(ctx);
       const all = tree.list<Media>("media");

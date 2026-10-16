@@ -256,6 +256,10 @@ export interface BookCounts {
   pending: number;
   /** Fetched before strom kept its views' record, and nothing of the research shows it read: whether read not known. */
   unjudged?: number;
+  /** Of `fetched`, `unread` and `pending`, those strom fetch --background fetched (M11 for them apart). */
+  bgFetched?: number;
+  bgUnread?: number;
+  bgPending?: number;
   requests: number;
   noSharper: number;
 }
@@ -271,6 +275,10 @@ export interface HostCounts {
   pending: number;
   /** Fetched before strom kept its views' record, and nothing of the research shows it read: whether read not known. */
   unjudged?: number;
+  /** Of `fetched`, `unread` and `pending`, those strom fetch --background fetched (M11 for them apart). */
+  bgFetched?: number;
+  bgUnread?: number;
+  bgPending?: number;
 }
 
 export interface Unit {
@@ -930,6 +938,13 @@ export function computeUnits(tree: Tree, o: ComputeOptions): Unit[] {
         else unread++;
       }
     const fetched = f.cmd === "part" ? 0 : got.length;
+    // a fetch in the background (strom fetch --background): its images counted apart too — fetched ahead, unread more often
+    const bg = (c: { bgFetched?: number; bgUnread?: number; bgPending?: number }) => {
+      if (f.bg !== true || !fetched) return;
+      c.bgFetched = (c.bgFetched ?? 0) + fetched;
+      if (unread) c.bgUnread = (c.bgUnread ?? 0) + unread;
+      if (pending) c.bgPending = (c.bgPending ?? 0) + pending;
+    };
     const names = Object.keys(hosts);
     for (const [i, h] of names.entries()) {
       const hc = hostOf(u, h);
@@ -942,6 +957,7 @@ export function computeUnits(tree: Tree, o: ComputeOptions): Unit[] {
         hc.unread += unread;
         hc.pending += pending;
         if (unjudged) hc.unjudged = (hc.unjudged ?? 0) + unjudged;
+        bg(hc);
         if (later) hc.later++;
       }
     }
@@ -953,6 +969,7 @@ export function computeUnits(tree: Tree, o: ComputeOptions): Unit[] {
       b.unread += unread;
       b.pending += pending;
       if (unjudged) b.unjudged = (b.unjudged ?? 0) + unjudged;
+      bg(b);
       if (f.noSharper) b.noSharper++;
     }
   }
@@ -1589,7 +1606,22 @@ export interface BookSummary {
   fetched: number;
   unread: number;
   unreadShare?: number;
+  /** What strom fetch --background fetched of it, and left unread (M11 apart). */
+  background?: BackgroundCounts;
   signals: Metric[];
+}
+
+export interface BackgroundCounts {
+  fetched: number;
+  unread: number;
+  unreadShare?: number;
+}
+
+/** The images strom fetch --background fetched, and of those decided (read or not, past the days to read them) the unread. */
+function backgroundCounts(c: { bgFetched?: number; bgUnread?: number; bgPending?: number }): { background?: BackgroundCounts } {
+  if (!c.bgFetched) return {};
+  const decided = c.bgFetched - (c.bgPending ?? 0);
+  return { background: { fetched: c.bgFetched, unread: c.bgUnread ?? 0, ...(decided > 0 ? { unreadShare: round((c.bgUnread ?? 0) / decided, 3) } : {}) } };
 }
 
 export interface HostSummary {
@@ -1604,6 +1636,7 @@ export interface HostSummary {
   fetched: number;
   unread: number;
   unreadShare?: number;
+  background?: BackgroundCounts;
   signals: Metric[];
 }
 
@@ -1917,6 +1950,7 @@ export function summarize(group: Group, o: SummaryOptions = {}): KeyReport {
       fetched: c.fetched,
       unread: c.unread,
       ...(share !== undefined ? { unreadShare: round(share, 3) } : {}),
+      ...backgroundCounts(c),
       signals: sig,
     });
   }
@@ -1963,6 +1997,7 @@ export function summarize(group: Group, o: SummaryOptions = {}): KeyReport {
       fetched: c.fetched,
       unread: c.unread,
       ...(share !== undefined ? { unreadShare: round(share, 3) } : {}),
+      ...backgroundCounts(c),
       signals: sig,
     });
   }

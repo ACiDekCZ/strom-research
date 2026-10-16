@@ -124,6 +124,17 @@ test("short errors: a similar command, unknown options, --version, a quoted two-
   assert.match(cs.err, /neznámý příkaz „strom person ad“\n→ podobný příkaz: strom person add\n/);
   assert.match((await w.run(["brief", "--task", "T0003"])).err, /--task se u strom brief píše jako argument, ne jako volba\n→ strom brief <úkol>/);
   assert.match((await w.ok(["--version"])).out, /^strom \d+\.\d+\.\d+/);
+  // then what is new in it: the changelog of the research language (another one: English), on the channel's branch;
+  // --json the version alone
+  const { VERSION } = await import("../../src/core/tree.ts");
+  const anchor = VERSION.split("-")[0]!.replace(/\D/g, "");
+  const changelog = "https://github.com/ACiDekCZ/strom-research/blob";
+  for (const [lang, line] of [["cs", `Co je nového: ${changelog}/main/CHANGELOG.cs.md`], ["de", `Was ist neu: ${changelog}/main/CHANGELOG.de.md`], ["en", `What's new: ${changelog}/main/CHANGELOG.md`], ["pl", `What's new: ${changelog}/main/CHANGELOG.md`]]) {
+    assert.equal((await w.ok(["--version"], { env: { STROM_LANG: lang! } })).out, `strom ${VERSION}\n${line}#${anchor}\n`, lang);
+  }
+  assert.equal((await w.ok(["person", "add", "--version"], { env: { STROM_LANG: "de" } })).out, `strom ${VERSION}\nWas ist neu: ${changelog}/main/CHANGELOG.de.md#${anchor}\n`);
+  assert.equal((await w.ok(["--version"], { env: { STROM_CHANNEL: "beta", STROM_LANG: "cs" } })).out, `strom ${VERSION}\nCo je nového: ${changelog}/beta/CHANGELOG.cs.md#${anchor}\n`);
+  assert.equal((await w.ok(["--version", "--json"])).out.trim(), JSON.stringify({ version: VERSION }));
   assert.match((await w.ok(["help", "research new"], { tty: true })).out, /^strom research new <name>/);
   const unknown = await w.ok(["help", "research nwe"], { tty: true });
   assert.match(unknown.out, /strom help research new/);
@@ -137,7 +148,7 @@ test("a missing @file is a plain error, not a stack trace", opts, async () => {
   const w = await world();
   const r = await w.run(["source", "add", "X", "--transcript", "@chybi.txt"]);
   assert.equal(r.code, 2);
-  assert.match(r.err, /no such file or folder: .*chybi\.txt/);
+  assert.match(r.err, /nenalezeno: .*chybi\.txt/, "said in the research language");
   assert.doesNotMatch(r.err, /--debug/);
   w.cleanup();
 });

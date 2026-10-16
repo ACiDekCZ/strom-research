@@ -156,7 +156,7 @@ test("the setup wizard: several agents — the user picks; full needs a second y
   w.env.PATH = pathWith(w, ["claude", "codex"]);
   // language, folder, agent 2 (Codex in the terminal), its model: 3 the agent's own (a word on the model), its effort 1
   // (high), no stories, level 3 (full) — then "no" to the warning, no shortcut
-  const r = await w.ok(["setup"], { answers: ["en", "", "2", "3", "1", "2", "3", "n", "", "n"] });
+  const r = await w.ok(["setup"], { answers: ["en", "", "", "2", "3", "1", "2", "3", "n", "", "n"] });
   assert.match(r.out, /Which model should do the research in OpenAI Codex CLI\?/);
   assert.match(r.out, /Which AI agent, and where to talk with it\?\n {3}1 {2}Claude Code — in the terminal \(for experienced users\)\n {3}2 {2}OpenAI Codex CLI — in the terminal/);
   assert.match(r.out, /The research needs a strong model .* in OpenAI Codex CLI, choose its best model/);
@@ -171,13 +171,14 @@ test("the setup wizard: several agents — the user picks; full needs a second y
   w.cleanup();
 });
 
-test("the setup wizard: no agent — install one, the guide, or later", { skip: !hasGit || process.platform === "win32" }, async () => {
+test("the setup wizard: no agent — install one, the guide, or only an archive for now; said impersonally", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   w.env.PATH = pathWith(w, []);
   // language, folder, "show me which agents there are", level, no shortcut
   const r = await w.ok(["setup"], { answers: ["cs", "", "2", "", "n"] });
-  assert.match(r.out, /Nenašel jsem žádného AI agenta/);
-  assert.match(r.out, /Nainstalovat AI agenta \(jak: https:\/\/stromapp\.info\/research\/\?lang=cs#agents\)/);
+  assert.match(r.out, /Na tomto počítači není AI agent – výzkum v matrikách a archivech se dělá s ním\./);
+  assert.match(r.out, /AI agent se instaluje podle návodu: https:\/\/stromapp\.info\/research\/\?lang=cs#agents/);
+  assert.doesNotMatch(r.out, /Nenašel jsem|znovu spustit/);
   assert.doesNotMatch(r.out, /Který model/, "no agent: no model question");
   w.cleanup();
 });
@@ -361,9 +362,13 @@ test("each agent gets delegation rules for its kind; models per tier are configu
   assert.match(claude, /handwriting.*`strom-scan-reader`, on your own model — never cheaper/);
   assert.match(claude, /About six scans \(images B…:n\) per delegate, four views each/);
   // AGENTS.md is read by every agent — the same whichever is the default, since several may work
-  // here side by side: nothing Claude-specific, reading rules for those without subagents.
+  // here side by side: nothing Claude-specific, reading rules for those without subagents — a range browsed by strom
+  // read for every agent, also one with sub-agents of its own (they cost about three times as much on a range).
   let agents = fs.readFileSync(path.join(w.cwd, "AGENTS.md"), "utf8");
-  assert.doesNotMatch(agents, /Delegating work|strom read/);
+  assert.doesNotMatch(agents, /Delegating work/);
+  assert.match(agents, /Browsing a book, an index or a range of images goes to `strom read`\n\(`strom read B0001 --images 40-69 --question "…"`\), also for an agent with\nsub-agents of its own/);
+  assert.match(claude, /`strom read` and not subagents of your own for a range: about a third of\n {2}their cost on the same images, every reading kept/);
+  assert.match(claude, /\| browsing handwriting: a book, an index, a range of images \| `strom read` \(its readers on the model for handwriting\) — not a subagent of yours \|/);
   assert.match(agents, /no pipes/);
   assert.match(agents, /Reading scans \(Codex, Antigravity, OpenCode, Grok\)/);
   assert.match(agents, /batches of about six/);
@@ -444,7 +449,7 @@ test("installed from the Strom app with an agent here: the research with it is s
   a.env.STROM_FROM_APP = mark;
   // language, folder, how to keep it (Enter), model, stories, what the agent may do, no shortcut, no links
   const r = await a.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "n", "n"] });
-  assert.match(r.out, /Jak má výzkum tento rodokmen vést\?\n {3}1 {2}Jako archiv[^\n]*\n {3}2 {2}Jako výzkum s agentem Claude Code[^\n]*\(doporučeno\)\nVybrat \[2\]/);
+  assert.match(r.out, /Jak má výzkum tento rodokmen vést\?\n {3}1 {2}Jako Archiv Stromu[^\n]*\n {3}2 {2}Jako výzkum s agentem Claude Code[^\n]*\(doporučeno\)\nVybrat \[2\]/);
   assert.doesNotMatch(r.out, /Bez agenta je nový výzkum archiv/);
   assert.equal(config(a).mode, undefined);
   assert.equal(config(a).agent, "claude");
@@ -455,7 +460,7 @@ test("installed from the Strom app with an agent here: the research with it is s
   b.env.STROM_FROM_APP = mark;
   const s = await b.ok(["setup"], { answers: ["cs", "", "1", "n", "n"] });
   // the agent is here: nothing to install, the menu switches research on
-  assert.match(s.out, /Nový výzkum je archiv: .* Práce s agentem: první položka menu/);
+  assert.match(s.out, /Nový výzkum je Archiv Stromu: .* Práce s agentem: první položka menu/);
   assert.equal(config(b).mode, "archive");
   // run again: an archive is what it is now — suggested, kept on Enter
   const again = await b.ok(["setup"], { answers: ["", "", "", "n"] });
@@ -562,7 +567,8 @@ test("a question in a window is said to wait there only when a window is shown: 
   fs.mkdirSync(release);
   fs.writeFileSync(path.join(release, "VERSION"), "99.0.0\n");
   fs.writeFileSync(path.join(release, "NODE_VERSION"), "26.9.0\n");
-  const env = { ...w.env, STROM_DOWNLOAD_BASE: `file://${release}`, STROM_NODE_BASE: `file://${path.join(w.dir, "no-node")}`, STROM_UPDATES: "check" };
+  // an installed strom reads the person's real home (never $HOME): isolated, it lists nothing in their settings
+  const env = { ...w.env, STROM_DOWNLOAD_BASE: `file://${release}`, STROM_NODE_BASE: `file://${path.join(w.dir, "no-node")}`, STROM_UPDATES: "check", STROM_ISOLATED: "1" };
   for (const lang of ["cs", "en", "de"]) {
     const r = spawnSync(process.execPath, [path.join(app, "dist", "cli.js"), "update", "--json", "--lang", lang], { cwd: tree, env: env as NodeJS.ProcessEnv, encoding: "utf8" });
     assert.equal(r.status, 4, r.stdout + r.stderr);

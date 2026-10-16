@@ -23,7 +23,7 @@ import { byHandOnly, listConnectors, missingConsents, readyConnectors, routeOf, 
 import { clock, hostAllowed, hostState, REFUSED_FOREVER } from "../core/net.ts";
 import { archiveLevel, type PendingQuestion } from "../core/terms.ts";
 import { onHost, permissionQuestions, setHosts } from "../core/archivewait.ts";
-import { runs, shellArg } from "../cli/format.ts";
+import { runs, runsArg, shellArg } from "../cli/format.ts";
 import { commandSheet } from "./sheet.ts";
 import { foldText } from "../core/text.ts";
 import { subjectPeople } from "../core/records.ts";
@@ -43,6 +43,7 @@ import { ENRICH_PAGES, STORY_SOURCES_ORIGIN } from "../core/stories.ts";
 import { sandboxOf, WITHOUT_READERS, type Sandbox } from "../core/sandbox.ts";
 import { WEB_SOFT } from "../core/metrics.ts";
 import { indexBriefLines } from "../core/indexfirst.ts";
+import { activeFetches, endedFetches } from "../core/fetching.ts";
 
 /** What strom tuned for the session's agent and model (core/tune.ts), as at the session's start: it holds for all of it. */
 interface BriefTuning {
@@ -692,6 +693,19 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
   ].filter(Boolean);
 }
 
+/** The fetches at work for the research (each book: how far), and those in the background that ended lately with images left. */
+function fetchingLines(root: string): string[] {
+  const active = activeFetches(root);
+  const out = active.map(
+    (m) =>
+      `- ${m.recordset}: ${m.registered}/${m.images.length} images registered (${m.background ? `in the background${m.task ? `, for ${m.task}` : ""}` : "in the foreground"}) — strom read ${m.recordset} --images ${runsArg(m.images)} reads them as they come; not fetched again`,
+  );
+  for (const e of endedFetches(root))
+    if (e.missed.length && !active.some((m) => m.recordset === e.recordset))
+      out.push(`- ${e.recordset}: a fetch in the background ended with images ${runs(e.missed)} not fetched${e.stopped ? ` (stopped: ${e.stopped})` : ""} — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset} if they are needed`);
+  return out;
+}
+
 /** What the user put in the shared inbox, waiting to be registered — by folder (one download each). */
 function inboxLines(shared: string | undefined): { files: number; lines: string[] } {
   if (!shared) return { files: 0, lines: [] };
@@ -1256,6 +1270,16 @@ export function buildBrief(
         '  strom recordset add "<title>" --repo R… --call-number <sig> --kinds baptism --places <places> --years <from-to>',
         '  strom media add --inbox "<folder>" --recordset B…   · a document (certificate, letter): strom intake <file>',
       ].join("\n"),
+    });
+
+  // 7c. images being fetched for the research now (strom fetch --background of an earlier session, or another strom),
+  // and what fetches in the background left unfetched lately: read as they come, never fetched twice
+  const fetching = fetchingLines(tree.root);
+  if (fetching.length)
+    sections.push({
+      name: "fetching",
+      pointer: "strom fetch --status",
+      text: ["## Images being fetched now (strom fetch --status)", ...fetching].join("\n"),
     });
 
   // 8. method for this kind of task

@@ -40,7 +40,10 @@ export const DESKTOP_APPS: Record<string, DesktopApp> = {
   opencode: { agent: "opencode", name: "OpenCode", scheme: "opencode", mac: ["OpenCode.app"], link: (f, m) => `opencode://new?cwd=${q(f)}&q=${q(m)}` },
 };
 
-const seen = new Map<string, boolean>();
+// looked at again after a while: a bridge that runs for days sees an app installed meanwhile (a research waiting for its
+// agent goes on by itself)
+const seen = new Map<string, { found: boolean; at: number }>();
+const SEEN_MS = 60_000;
 
 /** Is this agent's desktop app on this computer? (STROM_APP_DIRS: folders to look in instead — tests.) */
 export function hasDesktopApp(agent: string, env: Env, platform: NodeJS.Platform = process.platform): boolean {
@@ -48,7 +51,7 @@ export function hasDesktopApp(agent: string, env: Env, platform: NodeJS.Platform
   if (!app) return false;
   const key = `${agent}|${platform}|${env.STROM_APP_DIRS ?? ""}|${env.HOME ?? env.USERPROFILE ?? ""}`;
   const known = seen.get(key);
-  if (known !== undefined) return known;
+  if (known && Date.now() - known.at < SEEN_MS) return known.found;
   let found = false;
   if (env.STROM_APP_DIRS !== undefined) found = env.STROM_APP_DIRS.split(path.delimiter).some((d) => d && app.mac.some((n) => fs.existsSync(path.join(d, n))));
   else if (platform === "darwin") found = ["/Applications", path.join(userHome(env), "Applications")].some((d) => app.mac.some((n) => fs.existsSync(path.join(d, n))));
@@ -62,7 +65,7 @@ export function hasDesktopApp(agent: string, env: Env, platform: NodeJS.Platform
       found = r.status === 0 && Boolean(r.stdout?.trim());
     }
   }
-  seen.set(key, found);
+  seen.set(key, { found, at: Date.now() });
   return found;
 }
 

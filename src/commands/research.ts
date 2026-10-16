@@ -8,7 +8,7 @@ import { applyFrontier, researchProposals } from "./session.ts";
 import { frontier } from "../core/frontier.ts";
 import { DEATH_AFTER_YEARS, livingBorn, unprovenPeople } from "../core/review.ts";
 import { parkedWhy } from "./tasks.ts";
-import { ui, type UIKey } from "../cli/ui.ts";
+import { placeholders, ui, type UIKey } from "../cli/ui.ts";
 import { phrase } from "../core/phrases.ts";
 import { UsageError } from "../core/errors.ts";
 import { REVIEW_SCOPES, type Person, type Research, type Session, type Task } from "../core/model.ts";
@@ -17,7 +17,8 @@ import { foldText } from "../core/text.ts";
 import { now, type Tree } from "../core/tree.ts";
 import { directionOf, scopes } from "../core/directions.ts";
 import { otherKind, otherKindHint, update } from "../core/records.ts";
-import { isAgent } from "../core/which.ts";
+import { detectAgent, isAgent } from "../core/which.ts";
+import { actsAsArchive, refuseInArchive } from "../core/state.ts";
 import { costPartial, sessionCost } from "../core/session.ts";
 
 function int(v: unknown, name: string): number | undefined {
@@ -77,6 +78,8 @@ register(
     ],
     run(ctx: Context, { args, opts }) {
       const tree = ctx.tree();
+      // a direction is the agent's work: refused where nobody researches (an archive, a research waiting for its agent)
+      refuseInArchive(tree, "strom research new", detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value);
       if (!opts.person === !opts["new-person"]) throw new UsageError("give exactly one of --person <who> or --new-person <name>");
       let focus: Person;
       if (opts["new-person"]) {
@@ -116,7 +119,12 @@ register(
     run(ctx, { opts }) {
       const tree = ctx.tree();
       const all = tree.list<Research>("research").filter((r) => !opts.state || r.state === opts.state);
-      if (all.length === 0) return { text: 'no researches yet → strom research new "<name>" --new-person "<Given /Surname/>"', data: { researches: [] } };
+      // in the research's language; an archive (or one waiting for its agent) is told of no direction it would refuse
+      if (all.length === 0)
+        return {
+          text: `${ui(tree.lang, "ui.research.none")}${actsAsArchive(tree) ? "" : ` → ${placeholders(tree.lang, 'strom research new "<research name>" --new-person "<Given /Surname/>"')}`}`,
+          data: { researches: [] },
+        };
       return { text: table(all.map((r) => researchLine(tree, r))), data: { researches: all } };
     },
   },
@@ -255,6 +263,8 @@ register({
   ],
   async run(ctx: Context, { args, opts }) {
     const tree = ctx.tree();
+    // its tasks are the agent's work: refused where nobody researches, before anything is asked or written
+    refuseInArchive(tree, "strom review", detectAgent(ctx.env) ?? ctx.settings.agent(tree.config).value);
     const unproven = !!opts.unproven;
     if (unproven && args.length) throw new UsageError("--unproven reviews the people without a record — no person with it", { hint: "strom review --unproven · or strom review <person>" });
     if (!unproven && !args.length) throw new UsageError("whom? a person, several, or --unproven", { hint: "strom review P0001 · strom review P0001 P0002 · strom review --unproven" });

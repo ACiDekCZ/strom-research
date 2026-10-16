@@ -114,7 +114,8 @@ async function main(): Promise<void> {
   const stage = path.join(OUT, "app");
   fs.mkdirSync(stage, { recursive: true });
   for (const [from, top] of [[DIST, "dist"], [path.join(ROOT, "assets"), "assets"]] as const) fs.cpSync(from, path.join(stage, top), { recursive: true, filter: (f) => path.basename(f) !== ".DS_Store" });
-  for (const f of ["package.json", "LICENSE", "README.md"]) fs.copyFileSync(path.join(ROOT, f), path.join(stage, f));
+  // the changelogs too: what is new in this version, offline (the bridge's /whats-new)
+  for (const f of ["package.json", "LICENSE", "README.md", "CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md"]) fs.copyFileSync(path.join(ROOT, f), path.join(stage, f));
   // a candidate: its own version in what is built (the code says it, strom update compares it), the sources as they are
   if (version !== released) {
     const pkg = path.join(stage, "package.json");

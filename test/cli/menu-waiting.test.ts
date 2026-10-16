@@ -302,6 +302,8 @@ test("a place: sent for the whole group only where a request goes out (an office
   fs.mkdirSync(bin);
   const git = spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim();
   if (git) fs.symlinkSync(git, path.join(bin, "git"));
+  // the research's agent here (none: the research waits for it, kept as an archive — nothing waits for the person)
+  fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   w.env.PATH = bin;
   await w.withTree("Dvořákovi");
   await w.ok(["person", "add", "Václav /Schaniel/"]); // P0001
@@ -320,7 +322,7 @@ test("a place: sent for the whole group only where a request goes out (an office
   // 3 · 2 the archive's site · 0 · 1 the office · 0 · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["3", "2", "0", "1", "0", "0", "0"] });
   const site = r.out.slice(r.out.indexOf("\nDigitální archiv Lhota · k vyřízení 2\n"));
-  assert.match(site, /^\nDigitální archiv Lhota · k vyřízení 2\n {3}1 {2}Rejstřík 1 · jiné · priorita 3\n {3}2 {2}Rejstřík 2 · jiné · priorita 3\n {3}0 {2}Zpět\n/u, "no sent for the whole group");
+  assert.match(site, /^\nDigitální archiv Lhota · k vyřízení 2\n {3}1 {2}Rejstřík 1 · jiné · priorita 3\n {3}2 {2}Rejstřík 2 · jiné · priorita 3\n {3}3 {2}Rozhovor s agentem k celé skupině\n {3}0 {2}Zpět\n/u, "no sent for the whole group");
   assert.match(r.out, placeLine(1, "MěÚ Lhota", 2, "dopis k odeslání"));
   assert.match(
     r.out,

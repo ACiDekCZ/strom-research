@@ -30,6 +30,7 @@ import type { Person, Research, Session } from "../core/model.ts";
 import { liveWorkers, runAlive } from "../core/workers.ts";
 import { label } from "../core/people.ts";
 import { isArchive } from "../core/mode.ts";
+import { actsAsArchive, stateOf } from "../core/state.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
 import { questionsWaiting } from "../core/tuneask.ts";
 import { connectorFor, permissionsWaiting, tasksStanding, waysOffered } from "../core/archiveasks.ts";
@@ -128,9 +129,9 @@ function orientation(ctx: Context): Orientation {
     const other = readByOtherModels(tree, vision);
     if (other.facts) base.reread = { ...other, model: vision };
   }
-  const views = isArchive(tree) ? undefined : calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root);
+  const views = actsAsArchive(tree) ? undefined : calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root);
   if (views) base.views = views;
-  const questions = isArchive(tree) ? 0 : questionsWaiting(tree, ctx.settings);
+  const questions = actsAsArchive(tree) ? 0 : questionsWaiting(tree, ctx.settings);
   if (questions) base.tune = { questions, command: "strom media calibrate --questions" };
   const asked = permissionsWaiting(tree);
   if (asked.length) {
@@ -170,6 +171,8 @@ function orientation(ctx: Context): Orientation {
   if (base.tree.errors > 0) base.next = { why: t("ui.why.check"), command: "strom check" };
   // an archive: no agent works on it — the data come from the Strom app; only the person switches work with an agent on
   else if (isArchive(tree)) base.next = human ? { why: t("ui.why.archive.human"), command: "strom" } : { why: t("ui.why.archive.agent"), command: "strom sync --inbox" };
+  // its agent not on this computer: the research waits for it, kept as an archive meanwhile — no session, no queue
+  else if (stateOf(tree) === "waiting") base.next = human ? { why: t("ui.why.waitagent.human"), command: "strom" } : { why: t("ui.why.waitagent.agent"), command: "strom sync --inbox" };
   else if (elsewhere) base.next = { why: t("ui.why.handover"), command: "strom chat" };
   else if (open && human && open.runner && !runAlive(tree.root, open)) base.next = { why: t("ui.why.runleft", { id: open.id }), command: "strom run" };
   else if (open && human && open.runner) base.next = { why: t("ui.why.running", { id: open.id }), command: "strom status" };
@@ -206,7 +209,7 @@ register(
       const row = (label: string, value: string) => `${label.padEnd(width)}${value}`;
       // an archive: nothing of an agent or AI (Milan's decision, 2026-10-03) — what the agent is told of stories,
       // questions and readings again is research
-      const archive = ctx.hasTree() && isArchive(ctx.tree());
+      const archive = ctx.hasTree() && actsAsArchive(ctx.tree());
       const disk = ctx.hasTree() ? tidyPlan(ctx.tree()) : undefined;
       const check = o.tree ? `${o.tree.errors ? t("ui.o.errors", { n: o.tree.errors }) : t("ui.o.ok")}${o.tree.warnings ? `, ${t("ui.o.warnings", { n: o.tree.warnings })}` : ""}` : "";
       const text = lines(
@@ -237,7 +240,7 @@ register(
                     ),
                   )
                 : undefined,
-              archive ? row(t("ui.o.mode"), t("ui.o.mode.archive")) : undefined,
+              archive ? row(t("ui.o.mode"), t(isArchive(ctx.tree()) ? "ui.o.mode.archive" : "ui.o.mode.waiting")) : undefined,
               o.stories && !archive ? row(t("ui.o.stories"), t(`ui.o.stories.${o.stories}`)) : undefined,
               o.ask && !archive ? row(t("ui.o.ask"), t("ui.o.ask.tell")) : undefined,
               o.reread && !archive ? row(t("ui.o.reread"), t("ui.o.reread.offer", { n: o.reread.facts, models: o.reread.models.join(", "), model: o.reread.model })) : undefined,

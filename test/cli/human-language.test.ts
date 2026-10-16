@@ -156,3 +156,19 @@ test("an unknown option of strom itself (strom --bogus) is said in the research 
   assert.equal(j.json.code, "option.unknown.none");
   assert.equal(j.json.message, "unknown option --bogus for strom");
 });
+
+test("the word before an error is in the language of the words after it: an error strom says only in English keeps \"error:\" in a Czech or German research, never \"chyba:\" before English", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  for (const lang of ["cs", "de", "en"] as const) {
+    const r = await w.run(["hypothesis", "add", "Kdo byl otcem Šárky?", "--variant", "A: Jiří Dvořák"], { env: { STROM_LANG: lang } });
+    assert.equal(r.code, 2, `${lang}: ${r.err}`);
+    assert.match(r.err, /^error: a hypothesis needs at least two --variant$/m, `${lang}: ${r.err}`);
+    assert.doesNotMatch(r.err, /^(chyba|Fehler):/m, `${lang}: ${r.err}`);
+  }
+  // an error said in the research language: its word too
+  const cs = await w.run(["person", "show", "P0099"], { env: { STROM_LANG: "cs" } });
+  assert.match(cs.err, /^chyba: /, cs.err);
+  assert.doesNotMatch(cs.err.split("\n")[0]!, /no person|not found/, cs.err);
+  w.cleanup();
+});

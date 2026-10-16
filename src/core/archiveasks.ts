@@ -7,7 +7,7 @@
 import type { Tree } from "./tree.ts";
 import type { Task } from "./model.ts";
 import type { Env } from "./paths.ts";
-import { isArchive } from "./mode.ts";
+import { actsAsArchive } from "./state.ts";
 import { waitsOnHost, type Woken } from "./archivewait.ts";
 import { waitsForDecision } from "./queue.ts";
 export { savedInInbox } from "./archivewait.ts";
@@ -20,7 +20,7 @@ const ORDER: Record<PendingQuestion["kind"], number> = { permission: 0, takeover
 
 /** The questions shown with a research: the permissions first (they hold work up), then the takeover, then the rest. */
 export function archiveQuestions(tree: Tree): PendingQuestion[] {
-  if (isArchive(tree)) return [];
+  if (actsAsArchive(tree)) return [];
   return [...pendingQuestions(tree.env)].sort((a, b) => ORDER[a.kind] - ORDER[b.kind] || a.at.localeCompare(b.at));
 }
 

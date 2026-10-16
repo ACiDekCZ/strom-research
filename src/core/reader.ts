@@ -114,24 +114,37 @@ export interface Finding {
 /**
  * Split into batches of at most `size` views (never more than BATCH_MAX): what a reader opens stays in its context,
  * so a double page read as its two halves counts twice. An image of more views than that is a batch of its own.
+ * As few batches as that takes, and as even as they can be (11 images by ten: 6 and 5, never 10 and a reader for one
+ * image); `even: false` fills each to the full size in order (a batch taken while more images are still coming).
  */
-export function batches<T>(items: T[], size = BATCH, views: (item: T) => number = () => 1): T[][] {
+export function batches<T>(items: T[], size = BATCH, views: (item: T) => number = () => 1, o: { even?: boolean } = {}): T[][] {
   const n = Math.max(1, Math.min(BATCH_MAX, size));
-  const out: T[][] = [];
-  let open: T[] = [];
-  let count = 0;
-  for (const item of items) {
-    const v = Math.max(1, views(item));
-    if (open.length && count + v > n) {
-      out.push(open);
-      open = [];
-      count = 0;
+  const fill = (cap: number): T[][] => {
+    const out: T[][] = [];
+    let open: T[] = [];
+    let count = 0;
+    for (const item of items) {
+      const v = Math.max(1, views(item));
+      if (open.length && count + v > cap) {
+        out.push(open);
+        open = [];
+        count = 0;
+      }
+      open.push(item);
+      count += v;
     }
-    open.push(item);
-    count += v;
+    if (open.length) out.push(open);
+    return out;
+  };
+  const full = fill(n);
+  if (o.even === false || full.length < 2) return full;
+  // the smallest cap that needs no more batches than the full size does: the views spread evenly over them
+  const total = items.reduce((s, item) => s + Math.max(1, views(item)), 0);
+  for (let cap = Math.ceil(total / full.length); cap < n; cap++) {
+    const even = fill(cap);
+    if (even.length <= full.length) return even;
   }
-  if (open.length) out.push(open);
-  return out;
+  return full;
 }
 
 /**

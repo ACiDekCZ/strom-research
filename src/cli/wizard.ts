@@ -20,7 +20,7 @@ import { globalTargets, installGlobal } from "../agents/global.ts";
 import { appCopyOfInstall, appOpensLinks, defaultAppUrl, noticeStromApp, researchUrl, STROM_APP_URL, stromAppState, appUrlSetting } from "../core/stromapp.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut } from "../core/shortcut.ts";
-import { appMarkFromInstall, linkFiles, linkHandlerState, linkOwner, registerLinks, type Sys } from "../core/links.ts";
+import { appMarkFromInstall, linkFiles, linkHandlerState, linkOwner, linksTakeable, registerLinks, type Sys } from "../core/links.ts";
 import { configDir, desktopDir, isolated, noLinks } from "../core/paths.ts";
 import { ensureShared } from "../commands/setup.ts";
 import { moveHome, planMove, repointSettings, sameFolder } from "../core/relocate.ts";
@@ -45,7 +45,11 @@ function shortcutExists(ctx: Context, lang: string): boolean {
   return [`${name}.command`, `${name}.lnk`, `${name}.cmd`, "strom-research.desktop"].some((f) => fs.existsSync(path.join(dir, f)));
 }
 
-export async function setupWizard(ctx: Context): Promise<WizardResult> {
+/**
+ * The setup wizard. `research`: research is being switched on for the tree worked on (an archive still): the agent's
+ * steps asked as for a research, nothing asked of research or an archive (the person chose it).
+ */
+export async function setupWizard(ctx: Context, opts: { research?: boolean } = {}): Promise<WizardResult> {
   const s = ctx.settings;
   const cfg = s.config;
   const out = (line = "") => ctx.io.stdout(line + "\n");
@@ -107,7 +111,7 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
   const fromApp = !!appMarkFromInstall(ctx.env);
   // run again from an archive: nothing of an agent asked or said (Milan's decision, 2026-10-03) — what is set stays;
   // research is switched on in the menu (its first item)
-  const archived = !first && !fromApp && ctx.archiveHere();
+  const archived = !first && !fromApp && !opts.research && ctx.archiveHere();
   let here = agentsHere(ctx.env);
   let installed = here.map((a) => a.id);
   if (installed.length === 0 && !fromApp && !archived) {
@@ -115,14 +119,26 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
     here = agentsHere(ctx.env);
     installed = here.map((a) => a.id);
   }
-  // run again: what it is now suggested (an archive stays one on Enter)
-  const archiveFirst =
-    fromApp &&
-    (installed.length === 0 ||
-      (await ctx.choose(ui(lang, "ui.setup.fromapp"), [{ label: ui(lang, "ui.setup.fromapp.archive") }, { label: ui(lang, "ui.setup.fromapp.agent", { agent: PROFILES[installed.includes(cfg.agent ?? "") ? cfg.agent! : installed[0]!]!.name }) }], cfg.mode === "archive" ? 0 : 1)) === 0);
+  // With an agent here, research with it or only an archive — from the Strom app and at a terminal alike (Milan,
+  // 2026-10-15: "chtějí už pak jen ukládat data a nic nezkoumat"); run again: what it is now suggested (an archive
+  // stays one on Enter). Only the person's choice makes new researches archives: none here leaves it as it is (a
+  // research waits for its agent, kept as an archive meanwhile).
+  const agentName = () => PROFILES[installed.includes(cfg.agent ?? "") ? cfg.agent! : installed[0]!]!.name;
+  let archiveFirst = false;
+  let chosen = false;
+  // installed from the app with no agent here: nothing of one asked or said
+  const quiet = fromApp && installed.length === 0;
+  if (fromApp && installed.length)
+    archiveFirst =
+      (await ctx.choose(ui(lang, "ui.setup.fromapp"), [{ label: ui(lang, "ui.setup.fromapp.archive") }, { label: ui(lang, "ui.setup.fromapp.agent", { agent: agentName() }) }], cfg.mode === "archive" ? 0 : 1)) === 0;
+  else if (installed.length && !archived && !opts.research) {
+    const now = cfg.mode === "archive" ? 1 : 0;
+    archiveFirst = ((await ctx.choose(ui(lang, "ui.setup.newmode"), [{ label: ui(lang, "ui.setup.newmode.agent", { agent: agentName() }) }, { label: ui(lang, "ui.setup.newmode.archive") }], now, keep)) ?? now) === 1;
+    chosen = true;
+  }
   if (archiveFirst && installed.length) cfg.agent ??= installed[0];
   let agent: string | undefined;
-  if (!archiveFirst && !archived) {
+  if (!archiveFirst && !archived && !quiet) {
     // Each agent's app and its terminal a line of their own (the app first, the easiest, suggested): where the
     // conversation happens is seen and chosen — one way only: that one, nothing asked.
     const ways = waysHere(here);
@@ -137,16 +153,22 @@ export async function setupWizard(ctx: Context): Promise<WizardResult> {
   if (agent) {
     cfg.agent = agent;
     out(ui(lang, "ui.setup.agent.ok", { name: wayName(lang, { agent, where: whereToTalk(agent, cfg.agentWhere, ctx.env) }) }));
-  } else if (!archiveFirst && !archived) out(ui(lang, "ui.setup.agent.manual", { url: researchUrl(lang, "agents") }));
+  } else if (installed.length && !archiveFirst && !archived && !quiet) out(ui(lang, "ui.setup.agent.manual", { url: researchUrl(lang, "agents") }));
 
-  // 4b. No agent here: a research keeps the data from the Strom app as an archive (work with an agent switched on
-  // later, by the person: strom mode research); an agent here again: new researches work with it, on their yes.
+  // 4b. An archive chosen: new researches are archives. No agent here: nothing set — a research waits for its agent,
+  // kept as an archive meanwhile, and goes on by itself once one is installed. An agent here: research, as chosen (an
+  // archive set before, when research is being switched on: on the person's yes).
   if (archived) {
     // as it was
-  } else if (!agent) {
+  } else if (archiveFirst) {
     cfg.mode = "archive";
-    out(ui(lang, archiveFirst && installed.length ? "ui.setup.archive.chosen" : "ui.setup.archive"));
-  } else if (cfg.mode === "archive" && (fromApp || (await ctx.confirm(ui(lang, "ui.setup.archive.off"), true)))) delete cfg.mode;
+    out(ui(lang, "ui.setup.archive.chosen"));
+  } else if (!agent) {
+    if (!quiet) out(ui(lang, "ui.setup.archive"));
+  }
+  else if (cfg.mode === "archive" && (fromApp || chosen || (await ctx.confirm(ui(lang, "ui.setup.archive.off"), true)))) delete cfg.mode;
+  // the agent's steps below asked: switching research on later offers none of them again
+  if (agent) cfg.agentAsked = agent;
 
   // 5. The model — the one choice that matters for reading old hands — for every agent: Claude Code's Opus or Sonnet,
   // the strong ones of another agent's own list; kept for that agent (model.lead), used by every run, reader and
@@ -269,7 +291,8 @@ export async function settleInstall(ctx: Context, lang: string): Promise<void> {
   }
   await offerShortcut(ctx, lang, out);
   if (noLinks(ctx.env) || stromAppState(s) === "no" || !appOpensLinks(s) || linkHandlerState(ctx.env) === "ours") return;
-  if (s.config.links === "yes") {
+  // set up before on this person's yes, and nothing of another installation's there: set up again quietly
+  if (s.config.links === "yes" && linksTakeable(ctx.env)) {
     let done = false;
     try {
       done = registerLinks(ctx.env);
@@ -337,7 +360,7 @@ export async function offerLinks(ctx: Context, lang: string, opts: { ask?: boole
   const said = ctx.settings.config.links;
   // set up before on this person's yes: set up again quietly (after an update). Set up by another strom (another
   // installation, its own settings — found on Windows: one key for all) is not this one's to take: asked
-  const made = linkFiles(...sys).length > 0 && said === "yes";
+  const made = linkFiles(...sys).length > 0 && said === "yes" && linksTakeable(...sys);
   if (!made) {
     if (said === "no" && opts.ask === false) return;
     // another installation of strom has them: said, and no suggested (Enter keeps them where they lead)

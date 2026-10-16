@@ -38,8 +38,10 @@ export interface UserConfig {
   currentTree?: string;
   /** Default AI agent: claude, codex, antigravity, opencode, grok. */
   agent?: string;
-  /** What a new research is: an archive (the setup wizard with no agent here), else one with an agent. */
+  /** What a new research is: an archive (the person's own choice: the setup wizard, the settings, strom config set mode), else one with an agent. */
   mode?: "archive";
+  /** The agent whose steps of the setup wizard were asked (its model, where to talk, what it may do alone…). */
+  agentAsked?: string;
   /** Which GEDCOM files to write: both (default), standard, strom. */
   gedcomFor?: string;
   /** The Strom app version the Strom GEDCOM is for. */
@@ -60,6 +62,8 @@ export interface UserConfig {
   runMinutes?: number;
   /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost). */
   webPerHost?: number;
+  /** Readers of strom read at the same time (read.parallel). */
+  readParallel?: number;
   /** Order of the task queue: balanced (default), depth, priority. */
   queueStrategy?: string;
   /** Ask the user before a connector runs: off (default) or on. */
@@ -103,6 +107,8 @@ export interface UserConfig {
   lastVersion?: string;
   /** The channel of that strom (beta, stable): another one than last time is a change of channel. */
   lastChannel?: "beta" | "stable";
+  /** The folder of that strom's program (core/self.ts ownFolder): another installation running here is its guest. */
+  lastProgram?: string;
   /** The backups made before another channel or an older version (core/backup.ts), the newest last. */
   backups?: BackupRecord[];
   /** What an agent in a conversation was told to tell the user once — the stories, the Strom app, asking about the tree — and when. */
@@ -165,6 +171,9 @@ export interface Flags {
  */
 export const DEFAULT_BUDGET = 55_000;
 export const DEFAULT_RUN_MINUTES = 60;
+/** Readers of strom read at the same time: the default, and the most one research may set (each reader is an agent process). */
+export const DEFAULT_READ_PARALLEL = 5;
+export const READ_PARALLEL_MAX = 10;
 
 /** One setting: where it can live and how it is checked. */
 export interface SettingDef {
@@ -202,6 +211,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "model.effort", env: "", tree: true, kind: "model", description: "reasoning effort of the agent's model in the sessions strom starts (Codex, Claude Code, Antigravity, Grok): high recommended — old handwriting read with the best setting; a plan's limit runs out sooner. Unset: the agent's own settings (Codex: its config.toml); only you raise it" },
   { key: "brief.budget", env: "STROM_BRIEF_BUDGET", tree: true, kind: "number", description: `size of the brief in tokens (default ${DEFAULT_BUDGET})` },
   { key: "run.minutes", env: "STROM_RUN_MINUTES", tree: true, kind: "number", description: `time limit of one \`strom run\` session (default ${DEFAULT_RUN_MINUTES})` },
+  { key: "read.parallel", env: "", tree: true, kind: "number", description: `readers of \`strom read\` at the same time, 1 to ${READ_PARALLEL_MAX} (default ${DEFAULT_READ_PARALLEL}): --parallel of the command, else the tree's, else yours — the same readers and requests, only sooner; fewer when the agent's usage runs out too fast` },
   // Read from the config files only (the user's or the tree's) — no variable: more requests to one server is the
   // user's decision (as model.effort higher); lowering it is anyone's.
   { key: "web.perHost", env: "", tree: true, kind: "number", description: `web requests to one site (its mirrors with it) in one session through an agent's own web fetch (default ${WEB_PER_HOST}; past ${WEB_SOFT} they go slower and the agent builds a connector): past it a run refuses and a conversation asks you, and more pages of that site go through strom fetch with a connector — only you raise it` },
@@ -231,7 +241,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "agent.remote", env: "", tree: false, kind: "choice", choices: ["on", "off"], description: "the Claude Code sessions strom starts (strom run, strom chat in the terminal) with Remote Control: on — follow and steer them from claude.ai or the Claude app on your phone; off (default) — only you turn it on" },
   // Read from the config files only (the user's or the tree's) — no variable: turning them on is the user's decision.
   { key: "agent.addons", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the agent's personal add-ons (its skills, plugins, MCP servers, memory) when it works alone (strom run, the readers of strom read): off (default — it loads the research's tools only; the Strom app's connection and the browser work on) or on (as in a conversation, which loads them always) — Claude Code and Codex; Grok without what it takes in of the other agents (their skills, MCP servers, hooks) and its memory, its own skills and plugins kept (it has no switch for them); only you turn it on" },
-  { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it) or archive (the data come from the Strom app, no agent; the setup wizard sets it when no agent is here) — a research's own: strom mode" },
+  { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it; while none is here it waits for one, kept as an archive) or archive (the data come from the Strom app, no agent — the person's choice: the setup wizard asks it with an agent here, the menu's settings) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
   { key: "app.browser", env: "STROM_APP_BROWSER", tree: false, kind: "choice", choices: ["chrome", "edge", "brave", "opera", "firefox", "chromium"], description: "the browser strom opens the Strom app in — the one its tree came from (strom keeps it), or yours: chrome, edge, brave, opera, firefox, chromium (another Chromium: Vivaldi, Arc). The Strom app installed from a browser always comes first (from this one when it is installed from several); without one, a tab of this browser — unset: of the default browser when the app reaches strom from it, else of the first such browser here" },
@@ -249,6 +259,7 @@ export const SETTINGS: SettingDef[] = [
 const FIELDS: Record<string, string> = {
   "brief.budget": "briefBudget",
   "run.minutes": "runMinutes",
+  "read.parallel": "readParallel",
   "web.perHost": "webPerHost",
   "gedcom.for": "gedcomFor",
   "strom.version": "stromVersion",
@@ -395,6 +406,7 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
     case "number": {
       const n = Number(v);
       if (!Number.isFinite(n) || n <= 0) throw new UsageError(`${def.key} must be a positive number`);
+      if (def.key === "read.parallel" && (!Number.isInteger(n) || n > READ_PARALLEL_MAX)) throw new UsageError(`${def.key} is a whole number from 1 to ${READ_PARALLEL_MAX}`, { hint: `readers at the same time — strom config set read.parallel ${DEFAULT_READ_PARALLEL}` });
       return def.key === "brief.budget" || def.key === "web.perHost" ? Math.max(1, Math.round(n)) : n;
     }
   }
@@ -553,9 +565,15 @@ export class Settings {
     return r && EFFORTS[agent]!.includes(String(r.value)) ? { value: String(r.value), source: r.source } : undefined;
   }
 
-  number(key: "brief.budget" | "run.minutes" | "excerpts.mb" | "web.perHost", tree: TreeConfig | undefined, fallback: number): number {
+  number(key: "brief.budget" | "run.minutes" | "excerpts.mb" | "web.perHost" | "read.parallel", tree: TreeConfig | undefined, fallback: number): number {
     const r = this.resolve(key, tree);
     return r ? Number(r.value) : fallback;
+  }
+
+  /** Readers of strom read at the same time (read.parallel: tree > user, else DEFAULT_READ_PARALLEL); a stored value out of range is brought into it. */
+  readParallel(tree?: TreeConfig): number {
+    const n = Math.round(this.number("read.parallel", tree, DEFAULT_READ_PARALLEL));
+    return Number.isFinite(n) ? Math.min(READ_PARALLEL_MAX, Math.max(1, n)) : DEFAULT_READ_PARALLEL;
   }
 
   /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost: tree > user). */

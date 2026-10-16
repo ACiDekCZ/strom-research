@@ -6,10 +6,11 @@
 // longer has is withdrawn with the reason). Switched by the person alone
 // (strom mode), there and back: nothing is deleted, the tasks put aside come
 // back to the queue.
+//
+// A research whose agent is not on this computer waits for it, acting as an archive meanwhile: core/state.ts.
 
 import type { Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
-import { UsageError } from "./errors.ts";
 import { phrase } from "./phrases.ts";
 import { writableUnasked } from "./integrity.ts";
 
@@ -29,14 +30,6 @@ export function isArchive(tree: { config: { mode?: string } }): boolean {
 export function heldInArchive(tree: Tree, task: Record<string, unknown>): Record<string, unknown> {
   if (!isArchive(tree) || task.state !== "open") return task;
   return { ...task, state: "parked", heldBy: "archive", parkedReason: phrase(tree.lang, "archive.held") };
-}
-
-/** No agent works on an archive: said, with what the person does to change it. */
-export function refuseInArchive(tree: Tree, what: string): void {
-  if (!isArchive(tree)) return;
-  throw new UsageError(`this research is an archive: no agent works on it (${what})`, {
-    hint: "the user switches work with an agent on: strom mode research (the menu: Settings → research with an agent, or only an archive)",
-  });
 }
 
 /**

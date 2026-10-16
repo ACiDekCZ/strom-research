@@ -80,6 +80,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     images: { t: "number", int: true, min: 1 },
     calibration: { t: "array", req: true, of: { image: { t: "number", req: true, int: true, min: 1 }, page: S({ req: true }) } },
     layout: S({ max: 1000 }),
+    duplicates: { t: "object", of: { of: RS("recordset", 1), reason: S({ req: true, max: 1000 }) } },
   },
   place: {
     names: { t: "array", req: true, min: 1, of: { name: S({ req: true }), lang: S(), from: { t: "number", int: true }, to: { t: "number", int: true } } },

@@ -99,6 +99,22 @@ export function isNewer(a: string, b: string): boolean {
   return compareVersions(a, b) > 0;
 }
 
+/** The changelog of the project on GitHub: CHANGELOG.md (en), CHANGELOG.cs.md, CHANGELOG.de.md in the repository's root. */
+export const CHANGELOG_BASE = "https://github.com/ACiDekCZ/strom-research/blob";
+const CHANGELOG_LANGS = new Set(["cs", "de"]);
+
+/**
+ * What's new in a version: its section of the changelog in the person's language (another language: English), on the
+ * branch of the channel — main has the released versions only, beta the version being prepared. The section's anchor
+ * is the version without its prerelease part (`## 1.15.0` → #1150), the same from the first beta to the release.
+ */
+export function whatsNewUrl(version: string, channel: Channel, lang: string): string {
+  const code = lang.trim().toLowerCase().split(/[-_]/)[0] ?? "";
+  const file = CHANGELOG_LANGS.has(code) ? `CHANGELOG.${code}.md` : "CHANGELOG.md";
+  const anchor = (version.split(/[-+]/)[0] ?? version).replace(/\D/g, "");
+  return `${CHANGELOG_BASE}/${channel === "beta" ? "beta" : "main"}/${file}#${anchor}`;
+}
+
 /** Where the official Node comes from (nodejs.org's layout: <base>/v<version>/<archive>, SHASUMS256.txt beside). */
 export function nodeBase(env: Env): string {
   return (env.STROM_NODE_BASE ?? "").trim() || "https://nodejs.org/dist";

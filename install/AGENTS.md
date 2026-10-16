@@ -28,7 +28,7 @@ their language.
    If your own safety checks stop a step, do not work around them: show the
    user the command, say what it does, and let them allow it or run it
    themselves in a terminal. (People use the one-line forms:
-   `irm https://raw.githubusercontent.com/ACiDekCZ/strom-research/main/install/install.ps1 | iex` on Windows, `curl -fsSL https://raw.githubusercontent.com/ACiDekCZ/strom-research/main/install/install.sh | sh`
+   `powershell -ExecutionPolicy Bypass -c "irm https://stromapp.info/research/install.ps1 | iex"` on Windows, `curl -fsSL https://raw.githubusercontent.com/ACiDekCZ/strom-research/main/install/install.sh | sh`
    elsewhere.) The installer prints the full path of strom; use that path
    until a new terminal has it on PATH.
 3. Run `strom`. It says where things stand and what to do next — follow it.

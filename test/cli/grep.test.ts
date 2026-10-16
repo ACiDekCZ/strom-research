@@ -113,7 +113,8 @@ test("strom grep refuses what is not the research's text: data/, .strom, .git, o
   if (fs.existsSync(path.join(w.cwd, "inputs", "link.md"))) {
     const r = await w.run(["grep", "mlynar", "--in", "inputs/link.md"]);
     assert.equal(r.code, 2);
-    assert.match(r.err + r.out, /symbolic link/u);
+    assert.match(r.err + r.out, /symbolický odkaz – nesleduje se/u, "in the research's language");
+    assert.equal(JSON.parse((await w.run(["grep", "mlynar", "--in", "inputs/link.md", "--json"])).out).code, "grep.in.link");
     assert.equal((await w.run(["grep", "mlynar", "--in", "notes/away/outside.md"])).code, 2);
   }
   assert.equal((await w.run(["grep", "(", "--regex"])).code, 2);

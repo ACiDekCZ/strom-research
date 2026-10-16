@@ -214,7 +214,7 @@ test("the Strom app: /status waiting kind permission with its terms, tasks and c
     assert.doesNotMatch(unknown.out, /jak získávat snímky/);
     // not a host: refused before anything
     const bad = await w.run(["link", "open", `strom-research://archive?tree=${id}&host=x%3Brm`], { tty: true, answers: [""] });
-    assert.match(bad.out, /Tento odkaz z aplikace Strom nešel použít \(no archive named\)\. Nic se nestalo\./);
+    assert.match(bad.out, /Tento odkaz z aplikace Strom nešel použít – některá jeho část chybí nebo nesedí\. Nic se nestalo\./);
     // the question as in the menu; the answer is the person's here (0: nothing changes), never the link's
     const back = await w.run(["link", "open", `strom-research://archive?tree=${id}&host=archive.example.org&way=slow`], { tty: true, answers: ["0", ""] });
     assert.match(back.out, /Testovací archiv – jak získávat snímky\?/);

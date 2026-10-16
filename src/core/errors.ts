@@ -68,6 +68,13 @@ export class UsageError extends StromError {
   }
 }
 
+/**
+ * A file or folder that is not there, the same words wherever a path was given (a person's in their language: ui.error.fs.missing).
+ */
+export function notFound(where: string): UsageError {
+  return new UsageError(`no such file or folder: ${where}`, { hint: "check the path (relative paths start in the current folder)", code: "fs.missing", params: { path: where } });
+}
+
 export interface Candidate {
   id: string;
   label: string;

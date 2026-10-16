@@ -6,7 +6,7 @@ import { takeOverConnectors } from "../core/terms.ts";
 import { notePersonFolder } from "../core/trust.ts";
 import { netTrust } from "../core/net.ts";
 import { connectorsDir, listConnectors } from "../core/connector.ts";
-import { Cancelled, EXIT, StromError, UsageError } from "../core/errors.ts";
+import { Cancelled, EXIT, notFound, StromError, UsageError } from "../core/errors.ts";
 import { ownCommand, type Env } from "../core/paths.ts";
 import { Context, type IO } from "./context.ts";
 import { commands, match, type CommandDef, type Result } from "./registry.ts";
@@ -24,13 +24,14 @@ import { prependPath } from "../runners/runner.ts";
 import { shimDir } from "../commands/session.ts";
 import { isAgent } from "../core/which.ts";
 import { appUrlShown, noticeStromApp } from "../core/stromapp.ts";
-import { lastChannelOf, pendingTransition, updateChannel } from "../core/update.ts";
+import { lastChannelOf, pendingTransition, updateChannel, whatsNewUrl } from "../core/update.ts";
 import { backupBefore, backupSaid } from "./backups.ts";
-import { installation, refreshTreeShim } from "../core/self.ts";
+import { guestOf, installation, ownFolder, refreshTreeShim } from "../core/self.ts";
 import { refreshGlobal } from "../agents/global.ts";
 import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishLimitLine, finishOf, timeLine } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
+import { backgroundOf } from "../core/fetching.ts";
 import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, severalRecords, splitPassthrough, usageOf } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
 import { catalog, localized, sayCommandAs } from "../core/phrases.ts";
@@ -59,7 +60,7 @@ function systemError(e: NodeJS.ErrnoException): StromError | undefined {
   const where = e.path ? `: ${e.path}` : "";
   switch (e.code) {
     case "ENOENT":
-      return new UsageError(`no such file or folder${where}`, { hint: "check the path (relative paths start in the current folder)" });
+      return e.path ? notFound(e.path) : new UsageError("no such file or folder", { hint: "check the path (relative paths start in the current folder)" });
     case "EACCES":
     case "EPERM":
       return new UsageError(`no permission to use${where}`, { hint: "a folder with the right to write in it", code: "fs.no-permission", params: { where } });
@@ -131,6 +132,21 @@ function asOwnCommand(io: IO, name: string, json: boolean, argv: string[]): IO {
   return { ...io, stdout: (s) => io.stdout(json ? asCommandJson(s, name, words) : text(s)), stderr: (s) => io.stderr(text(s)) };
 }
 
+/**
+ * strom --version: the version on its first line (what a script reads), then where to read what is new in it — the
+ * changelog in the research language, on the branch of the installation's channel. --json gives the version alone.
+ */
+function versionSaid(env: Env, cwd: string, io: IO, values: Record<string, string | boolean | string[] | undefined> = {}): string {
+  const first = `strom ${VERSION}\n`;
+  try {
+    const lang = Context.fromOptions({ env, cwd, io, json: false, values }).uiLang();
+    return `${first}${ui(lang, "ui.update.whatsnew", { url: whatsNewUrl(VERSION, updateChannel(env), lang) })}\n`;
+  } catch {
+    // no settings to read: the version alone
+    return first;
+  }
+}
+
 export async function main(argv: string[], io: IO, env: Env, cwd: string): Promise<number> {
   const json = argv.includes("--json");
   const own = ownCommand(env);
@@ -152,7 +168,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // A person at a terminal gets the guided menu; an agent, a script or the app the orientation.
     if (argv.length === 0 && io.tty && !isAgent(env) && env.STROM_NONINTERACTIVE !== "1") argv = ["menu"];
     if (argv.length === 1 && (argv[0] === "--version" || argv[0] === "-v")) {
-      io.stdout(json ? toJson({ version: VERSION }) : `strom ${VERSION}\n`);
+      io.stdout(json ? toJson({ version: VERSION }) : versionSaid(env, cwd, io));
       return EXIT.ok;
     }
     let resolved;
@@ -179,7 +195,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       return EXIT.ok;
     }
     if (v.version) {
-      io.stdout(json ? toJson({ version: VERSION }) : `strom ${VERSION}\n`);
+      io.stdout(json ? toJson({ version: VERSION }) : versionSaid(env, cwd, io, v));
       return EXIT.ok;
     }
 
@@ -224,6 +240,9 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // sources against the person's own settings either (only with settings of its own, STROM_CONFIG_DIR: a test, a
     // live test): a candidate being made is no update (found 2026-10-04: the test suite claimed one in the developer's)
     const fromSources = installation().kind === "source" && !env.STROM_CONFIG_DIR;
+    // …nor in a strom that is a guest of another installation's settings (npm's beside the installer's, the sources
+    // with the person's settings): what the installer's strom set up stays its own — its channel, its links, its shims
+    const guest = guestOf(ctx.settings.config.lastProgram);
     // Another channel than last time, or an older version than the last one (back from a beta): every research and the
     // settings are backed up first — before this strom opens any of them, before any migration (Milan, 2026-10-07:
     // "přechod beta ↔ produkce nikdy nepřijde o data"). Made once (strom update made it already, or another strom of
@@ -233,7 +252,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // subagent call) does none of a new version's first run: it answers within the hook's time and changes nothing
     // outside the research's measurements
     const hook = (command === "net web" || command === "agents delegate") && v.hook === true;
-    const pending = fromSources || hook ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
+    const pending = fromSources || hook || guest ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
     if (pending && ctx.settings.home()) {
       try {
         const made = backupBefore(ctx, pending);
@@ -248,7 +267,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     if (ctx.backupFailed && (def.writes || STARTS_WORK.has(def.path.join(" ")))) throw ctx.backupFailed;
     const lastChannel = lastChannelOf(ctx.settings.config);
     const otherChannel = !!lastChannel && lastChannel !== channelNow;
-    if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook) {
+    if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook && !guest) {
       // the connectors here when this strom first runs: taken over as they are — they run as before, the person
       // confirms them once (core/terms.ts); a strom new on this computer takes over none (every connector is new)
       try {
@@ -299,15 +318,26 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         }
       }
     }
+    // the folder of the program that runs with these settings (from a strom that ran here before it was kept, once):
+    // another installation that runs here later is their guest
+    if (ctx.settings.home() && !ctx.backupFailed && env.STROM_SPAWNED !== "1" && !fromSources && !hook && !guest && ctx.settings.config.lastProgram !== ownFolder()) {
+      try {
+        ctx.settings.config.lastProgram = ownFolder();
+        ctx.settings.save();
+      } catch {
+        // kept next time
+      }
+    }
     const args = parsed.positionals;
     // several IDs to a show command of one record (person show P0001 P0002): each shown in turn, as strom show does
     const shows = severalRecords(def, args) ? match(["show"])?.def : undefined;
-    if (!shows) checkArgs(def, args, parsed.fix, own);
+    if (!shows) checkArgs(def, args, parsed.fix, own, parsed.values);
 
     if (def.writes && v["dry-run"]) ctx.dryRun = true;
     const work = async (): Promise<Result> => {
       // Never write on top of data that was changed outside strom.
-      if (def.writes && def.tree) assertIntact(ctx.tree());
+      // (a command that locks only while it writes looks under the lock too: another strom may be in the middle of a write)
+      if (def.writes && def.tree) def.lock === "sections" ? ctx.tree().withTreeLock(() => assertIntact(ctx.tree())) : assertIntact(ctx.tree());
       let result: Result;
       try {
         result = await (shows ?? def).run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}), ...(parsed.seq ? { seq: parsed.seq } : {}) });
@@ -351,7 +381,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     let lang: string | undefined;
     try {
       // an unknown command or option has no context yet: the person's language all the same
-      lang = (ran ?? Context.fromOptions({ env, cwd, io, json, values: {} })).uiLang();
+      // …but a fetch in the background writes into its log, which the agent reads: English, as the rest of it
+      if (!backgroundOf(env)) lang = (ran ?? Context.fromOptions({ env, cwd, io, json, values: {} })).uiLang();
     } catch {
       // no language to say it in: English
     }

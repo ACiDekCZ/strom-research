@@ -32,9 +32,13 @@ export interface ArgDef {
   name: string;
   description: string;
   required?: boolean;
+  /** Not required with one of these options (strom fetch --status). */
+  unless?: string[];
   variadic?: boolean;
   /** At most this many characters (said in help and under a mistake). */
   max?: number;
+  /** Options agents type meaning it (--find for strom recordset list <filter>): never taken — the error points to it. */
+  mistaken?: string[];
 }
 
 export const GROUPS = {
@@ -127,8 +131,17 @@ export const WRITE_OPTIONS: OptionDef[] = [
 
 const registry: CommandDef[] = [];
 
+/**
+ * Other names of a whole group (what agents type for it: "book show" for strom recordset show): each command of the
+ * group is taken by it too — an alias of its own, said in its help ("Also: strom book show") and in strom commands
+ * --json, never a command or group of its own in the overview.
+ */
+export const GROUP_ALIASES: Readonly<Record<string, string>> = { book: "recordset" };
+
 export function register(...defs: CommandDef[]): void {
-  for (const def of defs) {
+  for (const given of defs) {
+    const others = Object.entries(GROUP_ALIASES).filter(([, g]) => given.path.length > 1 && given.path[0] === g).map(([a]) => [a, ...given.path.slice(1)]);
+    const def = others.length ? { ...given, aliases: [...(given.aliases ?? []), ...others] } : given;
     const names = [def.path, ...(def.aliases ?? [])].map((p) => p.join(" "));
     if (registry.some((c) => [c.path, ...(c.aliases ?? [])].some((p) => names.includes(p.join(" "))))) throw new Error(`duplicate command ${def.path.join(" ")}`);
     registry.push(def);
@@ -166,6 +179,12 @@ export function subcommandsOf(prefix: string[]): CommandDef[] {
 /** An alias's words that begin with these (a group of aliases only: "lesson" has "lesson show" among them). */
 export function aliasExtends(prefix: string[]): boolean {
   return registry.some((c) => (c.aliases ?? []).some((a) => a.length > prefix.length && prefix.every((w, i) => a[i] === w)));
+}
+
+/** The group another name stands for, when the words are one ("book" → "recordset"), else nothing. */
+export function aliasGroup(prefix: string[]): string[] | undefined {
+  const real = prefix.length === 1 ? GROUP_ALIASES[prefix[0]!] : undefined;
+  return real && subcommandsOf([real]).length ? [real] : undefined;
 }
 
 export function usageLine(def: CommandDef): string {

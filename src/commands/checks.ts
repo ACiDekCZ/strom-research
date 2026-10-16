@@ -1,7 +1,7 @@
 // check · verify · guard · repair · seal adopt · history
 
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
-import { isArchive } from "../core/mode.ts";
+import { actsAsArchive } from "../core/state.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
@@ -54,7 +54,7 @@ register(
       // not an error — research to do: who rests on no record of their own
       const unproven = unprovenPeople(tree).filter((u) => !u.living).length;
       // an archive: what to research is no matter of it
-      if (!unproven || isArchive(tree)) return out;
+      if (!unproven || actsAsArchive(tree)) return out;
       return { ...out, text: lines(out.text, ui(tree.lang, "ui.check.unproven", { n: unproven })), data: { ...out.data, unproven } };
     },
   },

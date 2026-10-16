@@ -11,7 +11,7 @@ import type { Input, Person, Session, Task } from "./model.ts";
 import { create, update } from "./records.ts";
 import { makeNote } from "./actions.ts";
 import { phrase } from "./phrases.ts";
-import { isArchive } from "./mode.ts";
+import { actsAsArchive } from "./state.ts";
 import { UsageError } from "./errors.ts";
 import type { Env } from "./paths.ts";
 import type { Tree } from "./tree.ts";
@@ -224,11 +224,14 @@ export function idleBatches(root: string, now = Date.now()): string[] {
 /** The batches for the app (/status batches): each with how far it is sorted — the last 30 days', and any not sorted yet. */
 export function batchStatus(tree: Tree): Record<string, unknown>[] {
   const month = Date.now() - 30 * 24 * 60 * 60_000;
+  // In an archive (or a research waiting for its agent) a batch is kept as it came: nothing sorts it, so it is no
+  // batch "waiting to be sorted" — said as `kept`, and gone from the list after a month like a sorted one.
+  const kept = actsAsArchive(tree);
   const out: Record<string, unknown>[] = [];
   for (const b of listBatches(tree.root)) {
     const inputs = b.inputs.map((i) => tree.get<Input>(i)).filter((i): i is Input => !!i);
     const sorted = inputs.filter((i) => i.sorted || i.state !== "new").length;
-    if (Date.parse(b.updated) < month && sorted === inputs.length) continue;
+    if (Date.parse(b.updated) < month && (kept || sorted === inputs.length)) continue;
     const persons = [...new Set(inputs.flatMap((i) => [...(i.persons ?? []), ...(i.sorted?.persons ?? [])]))];
     out.push({
       id: b.id,
@@ -240,6 +243,7 @@ export function batchStatus(tree: Tree): Record<string, unknown>[] {
       refused: b.refused.length,
       ...(b.nested.length ? { nested: b.nested.length } : {}),
       sorted,
+      ...(kept ? { kept: true } : {}),
       persons,
       tasks: b.tasks ?? [],
     });
@@ -249,10 +253,10 @@ export function batchStatus(tree: Tree): Record<string, unknown>[] {
 
 /**
  * What sorting a batch costs, for the app to say before it is sent: a task takes about BATCH_TASK_FILES files; what one
- * costs is the research's own past intake sessions (three or more), else a typical one. In an archive nothing is sorted.
+ * costs is the research's own past intake sessions (three or more), else a typical one. In an archive (or a research waiting for its agent) nothing is sorted.
  */
 export function batchEstimate(tree: Tree): Record<string, unknown> | null {
-  if (isArchive(tree)) return null;
+  if (actsAsArchive(tree)) return null;
   const tasks = new Map(tree.list<Task>("task").map((t) => [t.id, t]));
   const costs = tree
     .list<Session>("session")

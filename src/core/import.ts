@@ -3,7 +3,8 @@
 // A family tree is somebody's conclusions, not a record: everything becomes
 // status "lead", citing one source "family tree <file>", and every person
 // keeps a reference to where it came from. Persons whose REFN is one of our
-// IDs (a tree coming back from the Strom app) are matched, not duplicated.
+// IDs in a tree of this research coming back from the Strom app are matched,
+// not duplicated — another research's IDs never (oursByRefn).
 
 import { eventKind, FAMILY_EVENT_KINDS, NOTE_MAX, type ChildLink, type ChildRelation, type Event, type ExternalRef, type Family, type Name, type Note, type Participant, type ParticipantRole, type Person, type Source } from "./model.ts";
 import { normalizeAge } from "./age.ts";
@@ -239,12 +240,11 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
 
     // IDs first, so that associations (a godparent's ASSO) point at the right person.
     const fresh = new Set<string>();
-    for (const r of individuals) {
-      const refn = val(r, "REFN");
-      // one of ours — merged into another since the export: that one
-      let ours = refn && /^P\d{4,}$/.test(refn) ? tree.get<Person>(refn) : undefined;
-      for (let hops = 0; ours?.mergedInto && hops < 10; hops++) ours = tree.get<Person>(ours.mergedInto);
-      if (ours && !ours.retracted) {
+    const treeId = val(records.find((x) => x.tag === "HEAD"), "_STROM_TREE")?.trim();
+    const ourPeople = oursByRefn(tree, treeId, individuals.map((r) => ({ refn: val(r, "REFN"), names: r.children.filter((c) => c.tag === "NAME").map((c) => c.value) })));
+    for (const [i, r] of individuals.entries()) {
+      const ours = ourPeople[i];
+      if (ours) {
         xrefToId.set(r.xref!, ours.id);
         result.matched++;
       } else {
@@ -503,6 +503,36 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
   return result;
 }
 
+/**
+ * Our people by the REFNs a family tree carries (a tree of this research coming back from the Strom app), in the order
+ * of its people. A file of this research (its _STROM_TREE) is ours by the IDs alone, whatever the names; another
+ * research's never — its P0001 is somebody else (found: the app's file of another tree matched by its IDs, "this
+ * research's tree coming back"); a file that names no research (the standard file, another program) only where most
+ * of the people its IDs name are alike by name — and then each by its name too. Merged since: the one it went into.
+ */
+function oursByRefn(tree: Tree, treeId: string | undefined, people: { refn?: string; names: string[] }[]): (Person | undefined)[] {
+  if (treeId && treeId !== tree.config.id) return people.map(() => undefined);
+  const found = people.map(({ refn }) => {
+    if (!refn || !/^P\d{4,}$/.test(refn.trim())) return undefined;
+    let ours = tree.get<Person>(refn.trim());
+    for (let hops = 0; ours?.mergedInto && hops < 10; hops++) ours = tree.get<Person>(ours.mergedInto);
+    return ours && ours.type === "person" && !ours.retracted ? ours : undefined;
+  });
+  if (treeId) return found;
+  // a word of the name in common, or the same name of a single letter or digit ("1", "J.")
+  const norm = (s: string) => foldText(s.replace(/\//g, " "));
+  const words = (s: string) => new Set(norm(s).split(" ").filter((w) => w.length > 1));
+  const alike = (ours: Person, names: string[]) =>
+    ours.names.some((n) => {
+      const mine = `${n.given} ${n.surname}`;
+      const w = words(mine);
+      return names.some((t) => (!!norm(t) && norm(t) === norm(mine)) || [...words(t)].some((x) => w.has(x)));
+    });
+  const named = found.map((ours, i) => (ours && alike(ours, people[i]!.names) ? ours : undefined));
+  const resolved = found.filter(Boolean).length;
+  return named.filter(Boolean).length * 2 > resolved ? named : people.map(() => undefined);
+}
+
 /** The title of the source an imported tree becomes, in the research language. */
 function importLabel(lang: string): string {
   return ({ cs: "Rodokmen", de: "Stammbaum", pl: "Drzewo genealogiczne", sk: "Rodokmeň" } as Record<string, string>)[lang] ?? "Family tree";
@@ -559,7 +589,7 @@ export function fromFlexDate(flex: string | undefined): string | undefined {
 
 export function importStromJson(
   tree: Tree,
-  data: { persons: Record<string, StromPerson>; partnerships: Record<string, StromPartnership> },
+  data: { persons: Record<string, StromPerson>; partnerships: Record<string, StromPartnership>; research?: { id?: string } },
   opts: { input: string; name: string },
 ): ImportResult {
   const result: ImportResult = { source: "", persons: 0, families: 0, matched: 0, events: 0, extended: [], problems: [] };
@@ -568,9 +598,12 @@ export function importStromJson(
     result.source = source.id;
     const idMap = new Map<string, string>();
     const cite = (sp: StromPerson, what: string) => [{ source: source.id, locator: `${sp.id} ${what}` }];
-    for (const sp of Object.values(data.persons)) {
-      if (sp.refn && /^P\d{4,}$/.test(sp.refn) && tree.get<Person>(sp.refn)) {
-        idMap.set(sp.id, sp.refn);
+    const all = Object.values(data.persons);
+    const ourPeople = oursByRefn(tree, data.research?.id, all.map((sp) => ({ refn: sp.refn, names: [[sp.firstName, sp.lastName].filter(Boolean).join(" "), ...(sp.nameVariants ?? [])] })));
+    for (const [i, sp] of all.entries()) {
+      const ours = ourPeople[i];
+      if (ours) {
+        idMap.set(sp.id, ours.id);
         result.matched++;
         continue;
       }

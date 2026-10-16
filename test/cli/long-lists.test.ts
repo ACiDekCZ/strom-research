@@ -4,6 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { LIST_PAGE_MAX } from "../../src/cli/format.ts";
@@ -54,10 +55,17 @@ test("grep --in a file outside the research — a listing an agent's tool saved:
   try {
     await w.withTree();
     const saved = path.join(w.dir, "tool-results", "b4n6jnyf4.txt");
+    fs.mkdirSync(path.dirname(saved), { recursive: true });
+    fs.writeFileSync(saved, "B0001 Křešín 1784–1800\n");
     const r = await w.run(["grep", "Křešín", "--in", saved]);
     assert.equal(r.code, 2);
-    assert.match(r.err, /--in .*b4n6jnyf4\.txt: a file outside the research — a saved listing of strom: run it again with its own filter/);
-    assert.match(r.err, /→ strom recordset list Křešín \| --place <name> \| --years <from-to> \| --repo <R…> · strom task list --about <who> · strom find Křešín/);
+    assert.match(r.err, /--in .*b4n6jnyf4\.txt: soubor mimo výzkum – uložený výpis příkazu strom: spustit znovu s vlastním filtrem/, "in the research's language");
+    assert.match(r.err, /→ strom recordset list Křešín \| --place <jméno> \| --years <from-to> \| --repo <R…> · strom task list --about <kdo> · strom find Křešín/);
+    // an agent's program reads the English and the code
+    const e = JSON.parse((await w.run(["grep", "Křešín", "--in", saved, "--json"])).out);
+    assert.equal(e.code, "grep.outside");
+    assert.match(e.message, /--in .*b4n6jnyf4\.txt: a file outside the research — a saved listing of strom: run it again with its own filter/);
+    assert.equal(e.hint, "strom recordset list Křešín | --place <name> | --years <from-to> | --repo <R…> · strom task list --about <who> · strom find Křešín");
     // a path inside the research's folders: as before
     assert.equal((await w.run(["grep", "x", "--in", "notes"])).code, 0);
   } finally {

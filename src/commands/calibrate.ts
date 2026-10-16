@@ -10,7 +10,8 @@ import { lines, numberIn, truncate } from "../cli/format.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import { StromError, UsageError } from "../core/errors.ts";
 import { which } from "../core/which.ts";
-import { isArchive, refuseInArchive } from "../core/mode.ts";
+import { isArchive } from "../core/mode.ts";
+import { refuseInArchive } from "../core/state.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { batches, BATCH, READER_MINUTES_HELP } from "../core/reader.ts";
 import { cropOf, halves, makeView, readInHalves } from "../core/views.ts";
@@ -203,6 +204,7 @@ function report(ctx: Context, tree: Tree, askedKey: string, whoAsked: string): {
       b.weakNegatives ? t("ui.tune.book.weak", { n: b.weakNegatives, of: b.negatives }) : undefined,
       b.requests ? t("ui.tune.book.requests", { n: b.requests }) : undefined,
       b.unread ? t("ui.tune.book.unread", { n: b.unread, of: b.fetched }) : undefined,
+      b.background ? t("ui.tune.book.background", { n: b.background.unread, of: b.background.fetched }) : undefined,
     ]
       .filter(Boolean)
       .join(" · "),
@@ -466,7 +468,7 @@ register({
     const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
     // an archive: nobody reads scans there, nothing is asked about it (and nothing of an agent said)
     if (isArchive(tree) && (opts.questions || typeof opts.answer === "string")) return { text: t("ui.waiting.none"), data: { questions: [] } };
-    refuseInArchive(tree, "strom media calibrate");
+    refuseInArchive(tree, "strom media calibrate", ctx.settings.agent(tree.config).value);
     const agent = ctx.settings.agent(tree.config).value;
     const model = viewModel(ctx.settings, agent, tree.config, typeof opts.model === "string" ? opts.model : undefined);
     const asked = calibrationKey(agent, model);

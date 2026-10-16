@@ -31,7 +31,7 @@ import { lastBackup } from "./backup.ts";
 export const TREE_FILE = "strom.json";
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
-export const VERSION = "1.14.0";
+export const VERSION = "1.15.0";
 
 export interface Op {
   at: string;
@@ -155,6 +155,8 @@ export class Tree {
   readonly notices: string[] = [];
   /** Of `written`, how many were told to onCommit already. */
   private told = 0;
+  /** Of `written`, how many a commit of this process holds already (a long command commits in parts: strom fetch). */
+  private committedTo = 0;
   /** Told of each commit with the operations it saved (the CLI tells the user's hooks: core/hooks.ts). */
   static onCommit: ((tree: Tree, ops: Op[], commit: string) => void) | undefined;
 
@@ -342,6 +344,7 @@ export class Tree {
     this.counters = sp.counters ? { ...sp.counters } : undefined;
     this.written.length = sp.written;
     this.told = Math.min(this.told, sp.written);
+    this.committedTo = Math.min(this.committedTo, sp.written);
     this.version++;
   }
 
@@ -368,6 +371,7 @@ export class Tree {
     this.counters = undefined;
     this.written.length = 0;
     this.told = 0;
+    this.committedTo = 0;
     this.version++;
     return restored;
   }
@@ -606,6 +610,21 @@ export class Tree {
       }
     }
     return hash;
+  }
+
+  /** The operations of this process no automatic commit holds yet (cli/commit.ts autoCommit). */
+  uncommitted(): Op[] {
+    return this.written.slice(this.committedTo);
+  }
+
+  /** Every operation written so far is in a commit (autoCommit, its pathspec covering all they wrote). */
+  markCommitted(): void {
+    this.committedTo = this.written.length;
+  }
+
+  /** Read the records afresh at the next look (outside the lock): what another process wrote since is seen. */
+  reread(): void {
+    if (this.lockDepth === 0) this.fresh();
   }
 
   /** Append a signed operation to the current log (inside withTreeLock). */

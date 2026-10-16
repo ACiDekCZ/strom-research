@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import { APP_URL_INVALID_SETTING, register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, secondsIn, table } from "../cli/format.ts";
-import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
+import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import type { Input, Media, TreeConfig } from "../core/model.ts";
 import { gitVersion } from "../core/git.ts";
@@ -27,7 +27,7 @@ import { mb, sharedMedia, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 /** So many bytes of the shared store no research here names: worth a warning. */
 const MEDIA_UNNAMED_SAID = 500 * 1024 * 1024;
 import { Tree, VERSION } from "../core/tree.ts";
-import { checked, installUpdate, isNewer, knownNewerVersion, lastChannelOf, latestRelease, newerNode, newerVersion, setInstallChannel, updateChannel, type Channel, type Updated } from "../core/update.ts";
+import { checked, installUpdate, isNewer, knownNewerVersion, lastChannelOf, latestRelease, newerNode, newerVersion, setInstallChannel, updateChannel, whatsNewUrl, type Channel, type Updated } from "../core/update.ts";
 import { configDir, defaultHome, desktopDir, isolated, noLinks, ownCommand } from "../core/paths.ts";
 import { backupBefore, backupSaid, lastBackupLine } from "../cli/backups.ts";
 import { BACKUP_SAID_DAYS, lastBackup, type BackupRecord } from "../core/backup.ts";
@@ -37,7 +37,7 @@ import { HUMAN_PACE } from "../core/net.ts";
 import { appOpensLinks, appUrlSetting, researchUrl, stromAppUrl, stromAppState } from "../core/stromapp.ts";
 import { isInstalled } from "../agents/global.ts";
 import { offerLinks, shortcutName } from "../cli/wizard.ts";
-import { linkHandlerState, linkScheme } from "../core/links.ts";
+import { linkHandlerState, linkScheme, linkStateText } from "../core/links.ts";
 import type { UIKey } from "../cli/ui.ts";
 
 import { globalTargets, installGlobal } from "../agents/global.ts";
@@ -82,12 +82,27 @@ register({
     "shortcut. Without a terminal (an agent): pass the values or --yes to accept the suggestions.\n" +
     "Trees and shared data (scans, catalog) live under one home by default; --shared/--trees separate them.\n" +
     "Either way the installed agents learn about strom in any folder (strom agents install).",
-  options: [{ name: "where", type: "string", value: "<app|terminal>", description: "where the user talks with the agent: its desktop app or the terminal (agent.where; asked in the wizard)" }],
+  options: [
+    { name: "where", type: "string", value: "<app|terminal>", description: "where the user talks with the agent: its desktop app or the terminal (agent.where; asked in the wizard)" },
+    { name: "research", type: "boolean", description: "the wizard for research being switched on (the menu): the agent's steps asked in an archive too", hidden: true },
+  ],
   examples: ["strom setup", "strom setup --yes --lang cs", "strom setup --yes --where terminal", 'strom setup --home "~/Documents/Strom" --shared "/Volumes/Big/strom-shared" --lang cs'],
   run: async (ctx, { opts }) => {
     const s = ctx.settings;
     if (ctx.interactive && !isAgent(ctx.env)) {
-      const r = await setupWizard(ctx);
+      const r = await setupWizard(ctx, { research: Boolean(opts.research) });
+      // run in an archive (the Strom app's link to the research's settings too): research offered beside it
+      let root: string | undefined;
+      try {
+        root = opts.research ? undefined : ctx.locateTree();
+      } catch {
+        // no tree to say
+      }
+      if (root) {
+        const { main } = await import("../cli/main.ts");
+        const { offerResearch } = await import("../cli/menu-mode.ts");
+        await offerResearch(ctx, (argv, quiet) => main(argv, quiet ? { ...ctx.io, stdout: () => undefined } : ctx.io, ctx.env, root), root);
+      }
       return { text: "", data: { ...r, trees: s.trees()!.value, shared: s.shared()!.value, config: configFile(ctx.env) } };
     }
     const cfg = s.config;
@@ -397,7 +412,10 @@ function diagnose(ctx: Context): Check[] {
     const links = linkHandlerState(ctx.env);
     if (noLinks(ctx.env)) add("links", "ok", t("ui.doc.links.isolated"));
     else if (links === "ours") add("links", "ok", t("ui.doc.links.ours"));
-    else add("links", "warn", t(`ui.doc.links.${links}` as UIKey), FIX, "links");
+    else {
+      const said = linkStateText(links, ctx.env, (p) => ctx.display(p));
+      add("links", "warn", t(said.key as UIKey, said.where ? { where: said.where } : {}), FIX, "links");
+    }
   }
 
   const locked = lockedTree(ctx);
@@ -627,7 +645,13 @@ register({
       if (r.status === 0) bridges++;
     }
     return {
-      text: lines(newer ? t("ui.update.done", { version: done.version, previous: VERSION }) : undefined, done.node ? t("ui.update.node.done", done.node) : undefined, bridges ? t("ui.update.bridges", { n: bridges }) : undefined),
+      text: lines(
+        newer ? t("ui.update.done", { version: done.version, previous: VERSION }) : undefined,
+        // what is new in the version installed: the changelog in the research language, on the branch of its channel
+        newer ? t("ui.update.whatsnew", { url: whatsNewUrl(done.version, channel, lang) }) : undefined,
+        done.node ? t("ui.update.node.done", done.node) : undefined,
+        bridges ? t("ui.update.bridges", { n: bridges }) : undefined,
+      ),
       data: { previous: VERSION, version: done.version, updated: true, ...(done.node ? { node: done.node } : {}), bridges, ...extra, ...(backup ? { backup: { path: backup.path, bytes: backup.bytes } } : {}) },
     };
   },
@@ -753,6 +777,7 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   if (def.key === "brief.budget") return { value: DEFAULT_BUDGET, source: "default" };
   if (def.key === "run.minutes") return { value: DEFAULT_RUN_MINUTES, source: "default" };
   if (def.key === "web.perHost") return { value: WEB_PER_HOST, source: "default" };
+  if (def.key === "read.parallel") return { value: DEFAULT_READ_PARALLEL, source: "default" };
   if (def.key === "connectors.consent") return { value: "off", source: "default" };
   if (def.key === "agent.addons") return { value: "off", source: "default" };
   if (def.key === "tune.transcripts") return { value: "on", source: "default" };

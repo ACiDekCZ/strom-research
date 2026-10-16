@@ -76,7 +76,7 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
   usage(10, 30);
   const go = await ask("claude-usage 10");
   assert.equal(go.verdict, "go");
-  assert.match(go.reason, /^týden: využito 30 %, uplynulo 4\d %, náskok 1\d \(potřeba aspoň 10\)$/);
+  assert.match(go.reason, /^týden: využito 30 %, uplynulo 4\d %, náskok 1\d \(potřeba aspoň 10\); týden se obnoví za [34],\d dne$/);
   assert.equal((await ask("claude-usage")).verdict, "go", "0 without a number: no faster than the week");
   // 20 in hand needed, ~12 there: wait until the week gone reaches 30 + 20 = 50 %
   const ahead = await ask("claude-usage 20");
@@ -86,11 +86,12 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
   // used past the week gone: it waits, with no number too
   usage(10, 60);
   assert.equal((await ask("claude-usage")).verdict, "wait");
-  // near the end of the week's budget: past the reset, the new week's share
+  // near the end of the week's budget, too little left for a session: until the reset — a new week starts at once
   usage(10, 95);
   const next = await ask("claude-usage 14");
-  // (to the millisecond: a share of a week is not a whole number of them)
-  assert.ok(Math.abs(Date.parse(next.until) - (week.getTime() + 0.14 * 7 * 86_400_000)) <= 1);
+  assert.equal(next.verdict, "wait");
+  // (to the millisecond: the reset is read back from a time in seconds and fractions)
+  assert.ok(Math.abs(Date.parse(next.until) - (week.getTime() + 60_000)) <= 1, next.until);
   // a used-up session: until it resets
   usage(100, 10);
   const full = await ask("claude-usage 10");

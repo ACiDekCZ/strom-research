@@ -20,6 +20,7 @@ import { appSendsChanges, stromAppState } from "../core/stromapp.ts";
 import { UNPROVEN_BATCH } from "../commands/research.ts";
 import { expandHome } from "../core/paths.ts";
 import { collectFiles } from "../core/media.ts";
+import { actsAsArchive } from "../core/state.ts";
 import { isArchive } from "../core/mode.ts";
 import { BOOK_OF_SCANS, IMAGE_EXT } from "../commands/intake.ts";
 
@@ -27,8 +28,8 @@ export async function addToResearch(ctx: Context, run: Run, lang: string, root: 
   const t = translator(lang);
   await subMenu(ctx, lang, () => {
     const tree = Tree.open(root, ctx.env);
-    // an archive: what comes in only — a new direction, a review, the directions are research
-    if (isArchive(tree)) {
+    // an archive (or a research waiting for its agent): what comes in only — a new direction, a review, the directions are research
+    if (actsAsArchive(tree)) {
       const items: Item[] = [{ key: "1", label: t("ui.more.intake"), act: async () => void (await addMaterial(ctx, run, lang, root)) }];
       if (tree.count("person") > 0) items.push({ key: "4", label: t(noApp(ctx) ? "ui.more.sync.noapp" : "ui.more.sync"), act: async () => void (await syncTree(ctx, run, lang, root)) });
       const undo = undoLast(ctx, run, lang, root, "5");
@@ -102,6 +103,9 @@ async function addMaterial(ctx: Context, run: Run, lang: string, root: string): 
   if ((await run(argv, true)) !== 0) return;
   const added = Tree.open(root, ctx.env).count("input") - before;
   if (!added) return void out(t("ui.intake.known"));
+  // an archive keeps it (its task put aside until research is switched on); waiting for its agent, for it once it is here
+  const kept = Tree.open(root, ctx.env);
+  if (actsAsArchive(kept)) return void out(t(isArchive(kept) ? "ui.intake.done.archive" : "ui.intake.done.waiting", { n: added }));
   out(t("ui.intake.done", { n: added }));
   await offerChat(ctx, run, lang, root, t("ui.intake.chat"), t("ui.intake.say"));
 }

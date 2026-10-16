@@ -81,6 +81,17 @@ export function liveWorkers(root: string): Worker[] {
   return out;
 }
 
+/** Is any agent strom started at work in the tree now (a conversation, a run)? Read only: nothing cleared away. */
+export function anyoneAtWork(root: string): boolean {
+  try {
+    return fs
+      .readdirSync(dir(root))
+      .some((f) => f.endsWith(".json") && !!liveHolder(path.join(dir(root), f), 7 * 24 * 3600_000));
+  } catch {
+    return false;
+  }
+}
+
 export function isLiveWorker(root: string, id: string): boolean {
   return !!liveHolder(path.join(dir(root), `${id}.json`), 7 * 24 * 3600_000);
 }

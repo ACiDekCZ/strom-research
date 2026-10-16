@@ -185,12 +185,12 @@ test("the app's menus through links, in the research's terminal: a task answered
   assert.match(made.out, /Aplikace Strom žádá: hledat předky osoby Jan Novák/);
   assert.ok((await w.ok(["research", "list", "--json"])).json.researches.some((r: { direction: string; focus: string }) => r.direction === "ancestors" && r.focus === "P0001"));
   const again = await open("research", "&person=P0001&direction=ancestors", [""]);
-  assert.match(again.out, /^Takový výzkum už je: „Předci: Jan Novák“ – agent v něm pokračuje\./, "the same direction again: only named, nothing asked");
+  assert.match(again.out, /^Taková linie výzkumu už je: „Předci: Jan Novák“ – agent v ní pokračuje\./, "the same direction again: only named, nothing asked");
   // …paused: taken up again, never made twice
   const ancestors = (await w.ok(["research", "list", "--json"])).json.researches.find((r: { direction: string }) => r.direction === "ancestors");
   await w.ok(["research", "pause", ancestors.id]);
   const resumed = await open("research", "&person=P0001&direction=ancestors", ["a", "a", ""]);
-  assert.match(resumed.out, /Takový výzkum už je, pozastavený: „Předci: Jan Novák“\. Spustit ho znovu\?[\s\S]*▶ „Předci: Jan Novák“ zase běží/);
+  assert.match(resumed.out, /Taková linie výzkumu už je, pozastavená: „Předci: Jan Novák“\. Spustit ji znovu\?[\s\S]*▶ „Předci: Jan Novák“ zase běží/);
   const after = (await w.ok(["research", "list", "--json"])).json.researches.filter((r: { direction: string }) => r.direction === "ancestors");
   assert.deepEqual(after.map((r: { state: string }) => r.state), ["active"]);
   // a person the research does not have; the agent costs — a no starts nothing

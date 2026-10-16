@@ -54,7 +54,7 @@ const rel = (root: string, file: string) => path.relative(root, file).split(path
  * inside one of them (tree-relative). Anything else — outside the tree, data/, .git, .strom, through a symbolic link —
  * is refused with the reason.
  */
-export function grepTargets(root: string, wanted: readonly string[]): { targets: string[]; error?: string } {
+export function grepTargets(root: string, wanted: readonly string[]): { targets: string[]; error?: string; code?: string; params?: Record<string, string> } {
   const out: string[] = [];
   for (const w of wanted.length ? wanted : GREP_DEFAULT) {
     const v = w.trim().replace(/\\/g, "/").replace(/\/+$/u, "");
@@ -63,10 +63,10 @@ export function grepTargets(root: string, wanted: readonly string[]): { targets:
       continue;
     }
     if (!v || path.isAbsolute(w) || /^\p{L}:/u.test(v) || v.split("/").some((p) => p === ".." || p === "."))
-      return { targets: [], error: `--in ${w}: a folder of the research (${GREP_FOLDERS.join(", ")}, all) or a path inside one, as from the tree's folder` };
+      return { targets: [], error: `--in ${w}: a folder of the research (${GREP_FOLDERS.join(", ")}, all) or a path inside one, as from the tree's folder`, code: "grep.in.path", params: { where: w, folders: GREP_FOLDERS.join(", ") } };
     const parts = v.split("/");
     if (!(GREP_FOLDERS as readonly string[]).includes(parts[0]!))
-      return { targets: [], error: `--in ${w}: only ${GREP_FOLDERS.map((f) => `${f}/`).join(", ")} are searched (data/ through strom find, the records' commands)` };
+      return { targets: [], error: `--in ${w}: only ${GREP_FOLDERS.map((f) => `${f}/`).join(", ")} are searched (data/ through strom find, the records' commands)`, code: "grep.in.only", params: { where: w, folders: GREP_FOLDERS.map((f) => `${f}/`).join(", ") } };
     // never through a symbolic link: each step from the tree's folder down is what it says it is
     let at = root;
     for (const p of parts) {
@@ -77,9 +77,9 @@ export function grepTargets(root: string, wanted: readonly string[]): { targets:
       } catch {
         // a folder of the research it does not have (yet): nothing in it
         if (parts.length === 1) break;
-        return { targets: [], error: `--in ${w}: no such file or folder in the research` };
+        return { targets: [], error: `--in ${w}: no such file or folder in the research`, code: "grep.in.missing", params: { where: w } };
       }
-      if (st.isSymbolicLink()) return { targets: [], error: `--in ${w}: a symbolic link — not followed` };
+      if (st.isSymbolicLink()) return { targets: [], error: `--in ${w}: a symbolic link — not followed`, code: "grep.in.link", params: { where: w } };
     }
     out.push(at);
   }

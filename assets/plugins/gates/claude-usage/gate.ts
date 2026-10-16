@@ -8,8 +8,19 @@
 // (a day is about 14.3 %) against the week's usage. With the number you give
 // it (strom config set run.gate "claude-usage 10") a session starts only while
 // usage is at least that many points behind the week gone: gone − used ≥ 10.
-// Without a number: 0 — no faster than the week goes. Else it waits until the
-// week has caught up (or past the reset); a full session: until it resets.
+// Without a number: 0 — no faster than the week goes.
+//
+// Early in the week the number grows with it: at least min(n, gone / 2) — right
+// after the reset (0 % gone, 0 % used) a session may start, and until 2·n % of
+// the week is gone usage may reach half of it; from there on the full number.
+// So the first day never spends the week (at most half its share), and a new
+// week is not idle for n % of it (a day and more at 15) for nothing.
+// Late in the week what is left goes with the reset: in its last END_WINDOW a
+// session starts when what is left (to 100 %, or to the cap) holds one session
+// (SESSION_POINTS).
+// Else it waits until the first of: the week has caught up, its last
+// END_WINDOW (with room for a session), its reset (a new week starts at once) —
+// never past the reset. A full session: until it resets.
 //
 // A cap (strom config set run.gate "claude-usage 15 --cap 95"): at 95 % of the
 // week used no session starts — the user's own hard stop, asked before every
@@ -28,15 +39,32 @@ const FRESH_MS = 15 * 60_000;
 /** Under a cap, a session at work is asked to finish at this much of the week. */
 const FINISH_AT = 0.99;
 const WEEK = 7 * DAY;
+/**
+ * The last stretch of the week in which what is left is spent rather than kept: about one session of `strom run`
+ * (60 minutes by default) with its wrap-up and the gate's next asking. What is not used by the reset is gone with
+ * it; what a person keeps in hand for their own work is missed for this long at most.
+ */
+const END_WINDOW = 2 * 3_600_000;
+/** What one session may take of the week, counted high (points of the week's %): the room it needs before the reset. */
+const SESSION_POINTS = 10;
+/** After the reset the gate asks again this much later, so the new week is what Claude Code says. */
+const AFTER_RESET = 60_000;
 const lang = (process.env.STROM_LANG ?? "en").slice(0, 2);
 
 const T: Record<string, Record<string, string>> = {
   en: {
     other: "the agent is not Claude Code — nothing to check",
     api: "Claude Code runs on an API key, not a subscription — no plan limits",
-    go: "week {used} % used, {gone} % gone, {behind} in hand (at least {min} needed)",
-    session: "the session is used up — until it resets",
-    week: "week {used} % used, {gone} % gone, {behind} in hand (at least {min} needed) — until the week catches up",
+    head: "week {used} % used, {gone} % gone, {behind} in hand (at least {min} needed{early})",
+    early: " — half the week gone, early in the week",
+    resetIn: "; weekly reset in {reset}",
+    catch: " — until the week catches up; weekly reset in {reset}",
+    last: " — until the last {window} before the weekly reset in {reset}",
+    reset: " — until the weekly reset in {reset}",
+    end: "week {used} % used, weekly reset in {reset} — the {room} % left is enough for a session",
+    session: "the session is used up — until it resets; weekly reset in {reset}",
+    hours: "{n} h",
+    days: "{n} days",
     bad: "the number must be 0 to 99, not \"{arg}\"",
     badcap: "the cap must be 1 to 100 (\"--cap 95\"), not \"{arg}\"",
     cap: "week {used} % used — the cap of {cap} % reached; it resets {resets}",
@@ -47,9 +75,16 @@ const T: Record<string, Record<string, string>> = {
   cs: {
     other: "agent není Claude Code — není co hlídat",
     api: "Claude Code běží na API klíči, ne na předplatném — žádné limity plánu",
-    go: "týden: využito {used} %, uplynulo {gone} %, náskok {behind} (potřeba aspoň {min})",
-    session: "sezení je vyčerpané — do jeho obnovení",
-    week: "týden: využito {used} %, uplynulo {gone} %, náskok {behind} (potřeba aspoň {min}) — dokud čas nedožene",
+    head: "týden: využito {used} %, uplynulo {gone} %, náskok {behind} (potřeba aspoň {min}{early})",
+    early: " – na začátku týdne polovina uplynulého",
+    resetIn: "; týden se obnoví za {reset}",
+    catch: " — dokud čas nedožene; týden se obnoví za {reset}",
+    last: " — do posledních {window} před obnovením týdne za {reset}",
+    reset: " — do obnovení týdne za {reset}",
+    end: "týden: využito {used} %, obnoví se za {reset} — zbylých {room} % stačí na sezení",
+    session: "sezení je vyčerpané — do jeho obnovení; týden se obnoví za {reset}",
+    hours: "{n} h",
+    days: "{n} dne",
     bad: "číslo musí být 0 až 99, ne \"{arg}\"",
     badcap: "strop musí být 1 až 100 (\"--cap 95\"), ne \"{arg}\"",
     cap: "týden: využito {used} % – strop {cap} % dosažen; obnoví se {resets}",
@@ -60,9 +95,16 @@ const T: Record<string, Record<string, string>> = {
   de: {
     other: "der Agent ist nicht Claude Code — nichts zu prüfen",
     api: "Claude Code läuft mit einem API-Schlüssel, nicht im Abo — keine Planlimits",
-    go: "Woche: {used} % genutzt, {gone} % vergangen, Vorsprung {behind} (mindestens {min} nötig)",
-    session: "die Sitzung ist aufgebraucht — bis sie zurückgesetzt wird",
-    week: "Woche: {used} % genutzt, {gone} % vergangen, Vorsprung {behind} (mindestens {min} nötig) — bis die Zeit aufholt",
+    head: "Woche: {used} % genutzt, {gone} % vergangen, Vorsprung {behind} (mindestens {min} nötig{early})",
+    early: " – am Wochenanfang die Hälfte des Vergangenen",
+    resetIn: "; Wochen-Reset in {reset}",
+    catch: " — bis die Zeit aufholt; Wochen-Reset in {reset}",
+    last: " — bis zu den letzten {window} vor dem Wochen-Reset in {reset}",
+    reset: " — bis zum Wochen-Reset in {reset}",
+    end: "Woche: {used} % genutzt, Wochen-Reset in {reset} — die übrigen {room} % reichen für eine Sitzung",
+    session: "die Sitzung ist aufgebraucht — bis sie zurückgesetzt wird; Wochen-Reset in {reset}",
+    hours: "{n} h",
+    days: "{n} Tagen",
     bad: "die Zahl muss 0 bis 99 sein, nicht \"{arg}\"",
     badcap: "die Obergrenze muss 1 bis 100 sein (\"--cap 95\"), nicht \"{arg}\"",
     cap: "Woche: {used} % genutzt – Obergrenze {cap} % erreicht; zurückgesetzt {resets}",
@@ -135,19 +177,39 @@ if (cap !== undefined && week.used >= cap)
   answer(2, say("cap", { used: Math.floor(week.used), cap, resets: week.resets.toLocaleString(lang, { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) }), undefined, true);
 
 const now = Date.now();
-const start = week.resets.getTime() - WEEK;
+const resets = week.resets.getTime();
+const start = resets - WEEK;
 const gone = Math.max(0, Math.min(100, ((now - start) / WEEK) * 100));
 const behind = gone - week.used;
-// shown rounded down: never "15 in hand (at least 15 needed)" for 14.6 — and gone − used stays what it says
-const v = { used: Math.floor(week.used), gone: Math.floor(gone), behind: Math.floor(behind), min };
-if (session && session.used >= 100) answer(1, say("session"), session.resets ? new Date(session.resets.getTime() + 60_000) : undefined);
-if (behind < min) {
-  // when the week gone reaches usage + the number; past the reset, the new week's number
-  let at = start + ((week.used + min) / 100) * WEEK;
-  if (at >= week.resets.getTime()) at = week.resets.getTime() + (min / 100) * WEEK;
-  answer(1, say("week", v), new Date(Math.max(at, now + 5 * 60_000)));
+// the number needed in hand: half the week gone early in the week, the full number from 2·n % gone on
+const need = Math.min(min, gone / 2);
+const early = need < min ? say("early") : "";
+const reset = inTime(resets - now);
+// shown rounded down: never "15 in hand (at least 15 needed)" for 14.6 — and gone − used stays what it says; the
+// need early in the week is a fraction: rounded down when it goes, up when it waits, so the two never seem to disagree
+const v = { used: Math.floor(week.used), gone: Math.floor(gone), behind: Math.floor(behind), early, reset };
+if (session && session.used >= 100) answer(1, say("session", { reset }), session.resets ? new Date(session.resets.getTime() + AFTER_RESET) : undefined);
+if (behind >= need) answer(0, say("head", { ...v, min: Math.floor(need) }) + say("resetIn", { reset }));
+// what is left before the reset: (to the cap, else to 100 %) enough for a session — in the week's last stretch it goes
+const room = (cap ?? 100) - week.used;
+const fits = room >= SESSION_POINTS;
+if (fits && resets - now <= END_WINDOW) answer(0, say("end", { used: v.used, reset, room: Math.floor(room) }));
+// else it waits for the first of: the week caught up (gone − used ≥ the need: used < n → gone = 2·used, else
+// used + n), the week's last stretch (with room for a session), the reset — a new week at 0 % goes at once, so
+// never past it
+const caught = start + ((week.used < min ? 2 * week.used : week.used + min) / 100) * WEEK;
+const last = fits ? resets - END_WINDOW : Infinity;
+const after = resets + AFTER_RESET;
+const at = Math.min(caught, last, after);
+const tail = at === caught ? say("catch", { reset }) : at === last ? say("last", { reset, window: say("hours", { n: END_WINDOW / 3_600_000 }) }) : say("reset", { reset });
+answer(1, say("head", { ...v, min: Math.ceil(need) }) + tail, new Date(Math.max(at, now + 5 * 60_000)));
+
+/** A stretch of time as a person reads it: hours to two days, then days — one decimal, in the research language. */
+function inTime(ms: number): string {
+  const h = Math.max(0, ms) / 3_600_000;
+  const n = (x: number) => x.toLocaleString(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return h < 48 ? say("hours", { n: n(h) }) : say("days", { n: n(h / 24) });
 }
-answer(0, say("go", v));
 
 /**
  * The limits Claude Code said in this run (strom passes them: [{kind, used 0–1, resetsAt, at}]), when the week's is

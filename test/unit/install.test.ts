@@ -597,3 +597,18 @@ test("strom uninstall with the research in the program's folder itself: the laun
   assert.ok(fs.statSync(path.join(v.root, "strom")).isDirectory());
   for (const y of [w, v]) fs.rmSync(y.dir, { recursive: true, force: true });
 });
+
+test("the Windows installer's error stays on the screen: a trap says it and waits for Enter only when somebody can press it (input not redirected), never exit", () => {
+  const ps1 = fs.readFileSync(path.join(import.meta.dirname, "..", "..", "install", "install.ps1"), "utf8");
+  const code = ps1.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+  const trap = code.match(/\ntrap \{[\s\S]*?\n\}\n/)?.[0] ?? "";
+  assert.ok(trap, "a trap at the script's level");
+  assert.match(trap, /\$_\.Exception\.Message/);
+  assert.match(trap, /\[Console\]::IsInputRedirected/);
+  assert.match(trap, /Enter zavře okno/);
+  assert.match(trap, /\bbreak\b/);
+  assert.doesNotMatch(code, /^\s*exit\b/m, "an exit would close a PowerShell the line was pasted into");
+  assert.ok(code.indexOf("function T(") < code.indexOf("\ntrap {"), "its sentence in the person's language");
+  const agents = fs.readFileSync(path.join(import.meta.dirname, "..", "..", "install", "AGENTS.md"), "utf8");
+  assert.match(agents, /powershell -ExecutionPolicy Bypass -c "irm https:\/\/stromapp\.info\/research\/install\.ps1 \| iex"/);
+});

@@ -44,7 +44,7 @@ import { phrase } from "../core/phrases.ts";
 
 import { imageSettings, writeGedcoms, writeTreeGed } from "./output.ts";
 import { shortcutName } from "../cli/wizard.ts";
-import { refuseInArchive } from "../core/mode.ts";
+import { refuseInArchive } from "../core/state.ts";
 
 /** Has the user trusted this folder in Claude Code already? (Its own record, read only.) */
 function claudeTrusts(root: string, env: Env): boolean {
@@ -153,7 +153,7 @@ register({
       throw new UsageError("strom chat opens a conversation for the user — you are in one already", { hint: "go on with strom here" });
     const tree = ctx.tree();
     assertIntact(tree);
-    refuseInArchive(tree, "strom chat");
+    refuseInArchive(tree, "strom chat", ctx.settings.agent(tree.config).value);
     const lang = tree.lang;
     const agent = ctx.settings.agent(tree.config).value;
     const profile = PROFILES[agent];

@@ -293,19 +293,21 @@ test("refreshTreeShim: a research's .strom/bin written again for this installati
   try {
     const env = { LOCALAPPDATA: inst.local };
     const launcher = { command: inst.node, args: [inst.cli] };
+    // this installation (the installer's folder the fake's Node and code lie in)
+    const own = { kind: "installed" as const, root: path.dirname(path.dirname(inst.dist)), launchers: [] };
     const research = path.join(trees, "Výzkum");
     fs.mkdirSync(path.join(research, ".strom", "bin"), { recursive: true });
     fs.writeFileSync(path.join(research, "strom.json"), JSON.stringify({ name: "Výzkum" }));
     fs.writeFileSync(path.join(research, ".strom", "bin", "strom.cmd"), '@echo off\r\n"%LOCALAPPDATA%\\old\\node.exe" %*\r\nexit /b\r\n');
-    assert.equal(refreshTreeShim(research, env, launcher), true);
+    assert.equal(refreshTreeShim(research, env, launcher, own), true);
     const text = fs.readFileSync(path.join(research, ".strom", "bin", "strom.cmd"), "utf8");
     assert.equal(text, shimCmd(inst.node, [inst.cli], env));
     assert.ok(text.includes(shimMarker(inst.cli)));
     assert.equal(fs.existsSync(path.join(inst.dist, shimMarker(inst.cli))), true);
-    assert.equal(refreshTreeShim(research, env, launcher), false, "as it is: nothing written");
+    assert.equal(refreshTreeShim(research, env, launcher, own), false, "as it is: nothing written");
     // the mark went with the app folder an update replaced: made again
     fs.rmSync(path.join(inst.dist, shimMarker(inst.cli)));
-    assert.equal(refreshTreeShim(research, env, launcher), false);
+    assert.equal(refreshTreeShim(research, env, launcher, own), false);
     assert.equal(fs.existsSync(path.join(inst.dist, shimMarker(inst.cli))), true);
     // no .strom/bin: none made
     const none = path.join(trees, "Bez");

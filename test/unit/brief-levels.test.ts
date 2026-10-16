@@ -47,6 +47,8 @@ test("method by level: a level gets the parts it uses, never the parts it does n
     // a range is browsed by strom read (in halves where the script is small), a subagent reads only crops of the
     // entries found — the same model, about a dollar or two less a run (found in a live run of beta.7)
     assert.ok(has(level, /\*\*Browsing a book or a range is a reader's job\*\*: `strom read B0001\n {2}--images 40-69 --question "…"` \(small script: `--half both`\)/), level);
+    // for every agent, also one with subagents of its own: its subagents on a range cost about three times as much
+    assert.ok(has(level, /notes\/readings\/\. For every agent, also one with subagents of its own: a\n {2}third of their cost, every reading kept\./), level);
     assert.ok(has(level, /A subagent \(strom-scan-reader, called without `model`\) reads only crops of the\n {2}entries found, about six scans each with the whole question — never a range\n {2}`strom read` can browse\./), level);
     // a reader writes down only what it is told to, and a reader's "unclear" holds a negative back
     assert.ok(has(level, /\*\*A reader is told exactly what to write down\*\* — page numbers\n {2}and headings only, one surname's entries, one entry whole — and transcribes\n {2}nothing else\./), level);
@@ -124,8 +126,9 @@ test("sheet by level: the writing commands a level uses, with their usage from t
   assert.match(link, /^ {2}--status is a fact's \(E…\) only, never a name's or a family's; proven only with a record of the time read directly \(--information primary\), else probable$/m);
   // the connectors after fetch
   assert.match(link, /\n {2}strom fetch <connector> \[book\] [^\n]*\n {2}connectors of these places: example-archive = Example Archive · others: other-archive — books of a place: strom fetch <connector> --find "<place>" --years <from-to>\n/);
-  // what a task hardly uses is left to strom help
-  assert.doesNotMatch(link, /--parallel|--minutes|--take|--png/);
+  // what a task hardly uses is left to strom help — but readers at the same time are said (one read of 40 used it)
+  assert.doesNotMatch(link, /--minutes|--take|--png/);
+  assert.match(line(link, "read"), /--parallel <n>/);
   // several parts of one image in one call, not a loop of the shell (refused in a run: turns lost)
   assert.match(line(link, "media view"), /several crops of an image: --crop … --crop … \(no loop\)/);
   assert.match(methodFor("link", EVERY), /At most 12 images and 24 views in one call: with 4 views an\n {2}image \(halves and crops\), 6 images a call\./);
@@ -181,8 +184,8 @@ test("the sheet says --reason wherever the command asks it: source edit, input s
 test("brief size by level: the method and the commands every session of a level carries stay within their budget", () => {
   // Characters of the method (every part a level can get) and the command sheet. 1.13.1 carried only the method:
   // link 16 083, verify 15 729, enrich 16 698, locate 5 690, intake 12 263, request 4 438, narrate 5 607 — the levels
-  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding), several crops in one call; --reason on the input commands that ask it (intake +23); grep --all and the crops of each image in one media view call (+20), the budget of a search beyond the registers one with the web rule (enrich); a site that refused strom or restricts automation: another way first, the person's check last (locate +310, link +210, verify +195, enrich +320: task wait --check, the method's lines); an index read before 30 images of a book are browsed (+11, link, verify, enrich +22); the time strom's to say, apart from a filling context (+101 each); images fetched as the archive allows — sparing on a restricted one, batches where automation is allowed (link, verify, enrich, locate +765) — and nothing denied got round through the agent's permissions (+184 each); what a task waits for said with its kind, whom, the request's text and the site (task wait --kind/--to/--request/--url: link, enrich +81; locate +602 with the method's rule of an impersonal --on; request +1 166 with task sent); a place read uncertainly a lead that decides no parish, book or task until settled (link, verify, enrich +449, locate +104). Each budget: the measured size rounded up to the next ten.
-  const BUDGET: Record<string, number> = { link: 25_340, verify: 24_090, enrich: 25_550, locate: 9_690, intake: 16_970, request: 4_438, narrate: 5_607 };
+  // that record entries carry more now, for the writing commands of the sheet (2.9 help calls a session before), and reading from a crop only (whole views are reduced for finding), several crops in one call; --reason on the input commands that ask it (intake +23); grep --all and the crops of each image in one media view call (+20), the budget of a search beyond the registers one with the web rule (enrich); a site that refused strom or restricts automation: another way first, the person's check last (locate +310, link +210, verify +195, enrich +320: task wait --check, the method's lines); an index read before 30 images of a book are browsed (+11, link, verify, enrich +22); the time strom's to say, apart from a filling context (+101 each); images fetched as the archive allows — sparing on a restricted one, batches where automation is allowed (link, verify, enrich, locate +765) — and nothing denied got round through the agent's permissions (+184 each); what a task waits for said with its kind, whom, the request's text and the site (task wait --kind/--to/--request/--url: link, enrich +81; locate +602 with the method's rule of an impersonal --on; request +1 166 with task sent); a place read uncertainly a lead that decides no parish, book or task until settled (link, verify, enrich +449, locate +104); readers at the same time said in the sheet (read --parallel: link, verify, enrich +15); a read that may follow a fetch at work, sooner and never more (link, verify, enrich, locate +70); images the session reads later fetched in the background (fetch --background and the method's line: link, verify, enrich, locate +145); a reading that stops at the find of one entry, and when never (read --until-found: link, verify, enrich +366); strom read the way to browse for every agent, also one with subagents of its own (link, verify, enrich, intake +95); nothing fetched for a later session, the session that reads a book fetches it (link, verify, enrich, locate +73). Each budget: the measured size rounded up to the next ten.
+  const BUDGET: Record<string, number> = { link: 26_100, verify: 24_850, enrich: 26_310, locate: 9_980, intake: 17_070, request: 4_438, narrate: 5_607 };
   for (const level of TASK_LEVELS) {
     const size = methodFor(level, EVERY).length + sheet(level).length;
     assert.ok(size <= BUDGET[level]!, `${level}: ${size} > ${BUDGET[level]}`);
@@ -212,6 +215,8 @@ test("method: images fetched as the archive allows — sparing on a restricted a
     // an archive that allows automation: batches as usual
     assert.match(m, /An archive that allows automation: batches as\s+usual \(about ±5 around the target, an index in batches\)/u, level);
     assert.match(m, /An image known exactly from another source[^]*start with it/u, level);
+    // nothing fetched ahead for a later session: the session that reads a book fetches it
+    assert.match(m, /Nothing for a\s+later session: the session that reads a book fetches it\./u, level);
   }
   assert.doesNotMatch(methodFor("link", ["by-hand"]), /Fetch only what you read/u, "no connector: nothing fetched");
   // never offered to the person: their settings or the agent's permissions changed to get round what is denied

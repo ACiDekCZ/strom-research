@@ -436,9 +436,40 @@ function withUserPart(file: string, generated: string): string {
   return generated;
 }
 
-/** strom's own files of the agents taken out of a tree (an archive): only those nobody else wrote in. */
+/** Nothing of strom's left in a JSON value. */
+const GONE = Symbol("gone");
+
+/**
+ * What is left of `cur` with strom's part (`ours`) taken out: what equals it goes, an object loses strom's keys, a list
+ * strom's items — what a person added or changed stays. Nothing left: GONE.
+ */
+function withoutOurs(cur: unknown, ours: unknown): unknown {
+  if (JSON.stringify(cur) === JSON.stringify(ours)) return GONE;
+  if (Array.isArray(cur) && Array.isArray(ours)) {
+    const theirs = cur.filter((x) => !ours.some((o) => JSON.stringify(o) === JSON.stringify(x)));
+    return theirs.length ? theirs : GONE;
+  }
+  if (cur && ours && typeof cur === "object" && typeof ours === "object" && !Array.isArray(cur) && !Array.isArray(ours)) {
+    const left: Record<string, unknown> = { ...(cur as Record<string, unknown>) };
+    for (const [k, v] of Object.entries(ours as Record<string, unknown>)) {
+      if (!(k in left)) continue;
+      const rest = withoutOurs(left[k], v);
+      if (rest === GONE) delete left[k];
+      else left[k] = rest;
+    }
+    return Object.keys(left).length ? left : GONE;
+  }
+  return cur;
+}
+
+/**
+ * strom's own files of the agents taken out of a tree (an archive): those nobody else wrote in; a JSON file a person
+ * changed loses only what strom wrote in it (an agent opened in the folder must not read strom's rules there); the
+ * shim the agents' hooks start (.strom/bin, never committed) goes too.
+ */
 function dropAgentFiles(tree: Tree): string[] {
   const gone: string[] = [];
+  if (!tree.dryRun) fs.rmSync(path.join(tree.root, ".strom", "bin"), { recursive: true, force: true });
   const generated: [string, string][] = [
     ["AGENTS.md", agentsMd(tree)],
     ["CLAUDE.md", claudeMd(tree)],
@@ -457,10 +488,24 @@ function dropAgentFiles(tree: Tree): string[] {
     } catch {
       continue;
     }
-    // a person's notes below the mark, or a file changed by hand: theirs, it stays
+    // a person's notes below the mark, or a file changed by hand: theirs, it stays — of a JSON one, what is not strom's
     const at = text.indexOf(MARKER);
     const ours = at >= 0 ? !text.slice(at + MARKER.length).trim() : text === content;
-    if (!ours) continue;
+    if (!ours && rel.endsWith(".json") && at < 0) {
+      let left: unknown;
+      try {
+        left = withoutOurs(JSON.parse(text), JSON.parse(content));
+      } catch {
+        continue; // not JSON a person could keep: theirs
+      }
+      if (left !== GONE) {
+        const next = JSON.stringify(left, null, 2) + "\n";
+        if (next === text) continue;
+        if (!tree.dryRun) writeFileAtomic(file, next);
+        gone.push(rel.split(path.sep).join("/"));
+        continue;
+      }
+    } else if (!ours) continue;
     if (!tree.dryRun) {
       fs.rmSync(file);
       for (let dir = path.dirname(file); dir !== tree.root && fs.readdirSync(dir).length === 0; dir = path.dirname(dir)) fs.rmdirSync(dir);

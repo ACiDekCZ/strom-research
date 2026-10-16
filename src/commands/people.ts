@@ -232,10 +232,12 @@ register(
         displayName(p),
         lifespan(p),
         gens ? `G${gens.get(p.id)}` : "",
-        `${p.events.length} ev`,
-        p.events.some((e) => e.status === "proven" || e.status === "probable") ? "" : "leads only",
+        ui(tree.lang, "ui.person.events", { n: String(p.events.length) }),
+        p.events.some((e) => e.status === "proven" || e.status === "probable") ? "" : ui(tree.lang, "ui.person.leadsonly"),
       ]);
-      const text = people.length === 0 ? "no people match" : lines(table(rows), moreLine(page, "strom person list"));
+      // in the research's language (the person follows it in the agent's session too)
+      const filtered = !!args[0] || !!opts.research;
+      const text = people.length === 0 ? ui(tree.lang, filtered ? "ui.person.nomatch" : "ui.person.none") : lines(table(rows), moreLine(page, "strom person list", tree.lang));
       return {
         text,
         data: {

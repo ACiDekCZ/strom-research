@@ -31,7 +31,7 @@ import { directionOf, scopes, type Scope } from "./directions.ts";
 import { collectFiles, IMAGE_FILE_EXT, parseImageList } from "./media.ts";
 import { displayName } from "./people.ts";
 import { phrase } from "./phrases.ts";
-import { isArchive } from "./mode.ts";
+import { actsAsArchive } from "./state.ts";
 import { ui } from "../cli/ui.ts";
 import { humanDay } from "../cli/human.ts";
 
@@ -268,10 +268,10 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     if (kind === "permission" && Array.isArray(x.tasks)) for (const id of x.tasks) standing.add(String(id));
     out.push({ ...(q ? { question: q } : {}), item: { ...(x as { id: string; what: string; on: string; at: string }), kind, section: "decide", group, phase: "todo", actions: [] } });
   }
-  // an archive asks the person nothing: none waits (put aside at its next write, settleArchive); a task that waits for
+  // an archive (a research waiting for its agent too) asks the person nothing: none waits (put aside at its next write, settleArchive); a task that waits for
   // an archive's permission whose question waits is one of the question's tasks, never an item of its own — one that
   // waits for images saved by hand stays an item
-  const tasks = isArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting" && !(t.awaitsPermission && !t.awaits && standing.has(t.id)));
+  const tasks = actsAsArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting" && !(t.awaitsPermission && !t.awaits && standing.has(t.id)));
   let all = o.scopes;
   for (const t of tasks) {
     const kind = waitKindOf(t);

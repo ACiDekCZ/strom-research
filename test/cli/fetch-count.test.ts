@@ -41,7 +41,7 @@ test("a part fetched with a page asked first and a redirect: the run says the re
   assert.match(first.err, /a part of image 1 through zkusebni: at least 1 request\(s\) to 127\.0\.0\.1/);
   // the next part: as the last one went
   const second = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "2", "--crop", "0,0.5,0.5,0.5"]);
-  assert.match(second.err, /a part of image 2 through zkusebni: about 3 request\(s\) to 127\.0\.0\.1 \(3 a part, as its last runs here went\), about \d+ s at its pace/);
+  assert.match(second.err, /a part of image 2 through zkusebni: about 3 request\(s\) to 127\.0\.0\.1 \(3 requests a part, as its last runs here went\), about \d+ s at its pace/);
   assert.match(second.out, /^part: 3 request\(s\)/m);
   assert.equal(counted() - before, 6);
   // whole images: one request each, as before — the estimate says at least that many

@@ -29,7 +29,7 @@ import { storiesToApprove } from "../core/stories.ts";
 import { permissionsWaiting, permissionWaitingLines } from "../core/archiveasks.ts";
 import { receivedPending } from "../core/sync.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
-import { isArchive } from "../core/mode.ts";
+import { actsAsArchive } from "../core/state.ts";
 import { othersAtWork } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
 import { currentSession } from "../core/session.ts";
@@ -99,7 +99,7 @@ function defaultResearch(tree: Tree, ref: unknown, subject: string[] = []): stri
 export function waitingForUser(tree: Tree): { id: string; what: string; on: string }[] {
   return tree
     .list<Task>("task")
-    .filter((t) => t.state === "waiting" && !isArchive(tree))
+    .filter((t) => t.state === "waiting" && !actsAsArchive(tree))
     .map((t) => ({ id: t.id, what: t.what, on: t.waitingOn ?? "" }));
 }
 
@@ -108,7 +108,7 @@ export function waitingForUser(tree: Tree): { id: string; what: string; on: stri
  * the book's link and the folder they go into: facts, while the request itself is in their language.
  */
 export function waitingLines(tree: Tree, where: { shared?: string; display?: (p: string) => string } = {}, max = 5): string | undefined {
-  const w = isArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting");
+  const w = actsAsArchive(tree) ? [] : tree.list<Task>("task").filter((t) => t.state === "waiting");
   // the new versions of stories the user approved: they decide (the lock)
   const stories = storiesToApprove(tree).map((s) => s.id);
   const storyLine = stories.length ? `  ${ui(tree.lang, "ui.wait.stories", { ids: stories.join(" ") })}` : undefined;
@@ -226,7 +226,8 @@ function taskDetail(tree: Tree, t: Task): string {
   return lines(
     `${t.id} ${t.what}`,
     `level ${t.level} · priority ${t.priority} · ${t.state}${t.research ? ` · research ${t.research}` : ""}${t.parkedUntil ? ` · parked until ${t.parkedUntil}` : ""}${t.waitingOn ? ` · waiting on ${t.waitingOn}` : ""}`,
-    t.state === "parked" ? `parked ${parkedWhy(tree, t) ?? "(no reason recorded)"} — strom task wake ${t.id} to go on` : undefined,
+    // put aside by the archive: its own sentence in the research's language (back when research is switched on, no wake)
+    t.state === "parked" ? (t.heldBy === "archive" && t.parkedReason ? t.parkedReason : `parked ${parkedWhy(tree, t) ?? "(no reason recorded)"} — strom task wake ${t.id} to go on`) : undefined,
     `where  ${where.join("\n       ")}`,
     `why    ${t.why}`,
     `done   ${t.doneWhen}`,
@@ -636,7 +637,7 @@ register(
       const held = !opts.state && !opts["off-tree"] && !opts.about ? tree.list<Task>("task").filter((t) => t.state === "open" && off(t)).length : 0;
       return {
         text: lines(
-          all.length ? lines(table(page.items.map(taskLine)), moreLine(page, "strom task list")) : "no tasks",
+          all.length ? lines(table(page.items.map(taskLine)), moreLine(page, "strom task list")) : ui(tree.lang, "ui.task.none"),
           held ? `${held} more wait out of the queue: about people nothing links to the tree yet (strom task list --off-tree)` : undefined,
           !opts.state && !opts["off-tree"] && !opts.about ? decisionLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
         ),

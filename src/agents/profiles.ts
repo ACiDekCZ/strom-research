@@ -65,6 +65,9 @@ function delegationRules(n: ReadingNumbers): string {
   return `- Browsing a book, an index or a range of images ("is our surname on this page?")
   goes to \`strom read\` (by halves: \`--half both\`); a delegate reads only crops
   of the entries found. Anything self-contained that returns little is delegated.
+  \`strom read\` and not subagents of your own for a range: about a third of
+  their cost on the same images, every reading kept (\`strom readings\`), the
+  places its readers found unclear held against a negative.
 - A delegate other than strom-scan-reader (text, print, a search) gets no brief:
   begin its prompt with this, word for word — "${DELEGATE_SHEET}"
 - About ${first} scans (images B…:n) per delegate, four views each (halves and
@@ -91,6 +94,13 @@ function delegationRules(n: ReadingNumbers): string {
 /** For agents that cannot pick a model for a subagent (Codex, Antigravity, OpenCode, Grok): read yourself, in small batches. */
 export function selfReading(n: ReadingNumbers = DEFAULT_READING_NUMBERS): string {
   return `## Reading scans (Codex, Antigravity, OpenCode, Grok)
+
+Browsing a book, an index or a range of images goes to \`strom read\`
+(\`strom read B0001 --images 40-69 --question "…"\`), also for an agent with
+sub-agents of its own: cheaper than reading the range in your context or by
+a sub-agent, every reading kept (\`strom readings\`), the places its readers
+found unclear held against a negative. Where strom says no reader can start
+here, and for the entries found:
 
 Read the images yourself, with your strongest model — never hand old
 handwriting to a faster or cheaper model, subagent or pass. Read them
@@ -142,7 +152,8 @@ comes back to you. Choose the model by the kind of work:
 
 | work | model |
 |---|---|
-| handwriting: registers, indexes, land books, any scan read closely | \`strom-scan-reader\`, ${m.vision ? `on \`${m.vision}\`` : "on your own model"} — never cheaper |
+| browsing handwriting: a book, an index, a range of images | \`strom read\` (its readers on the model for handwriting) — not a subagent of yours |
+| handwriting read closely: the entries found, a page of a land book | \`strom-scan-reader\`, ${m.vision ? `on \`${m.vision}\`` : "on your own model"} — never cheaper |
 | print and type: documents of the 20th century, catalogues, web pages, big text files (the lines \`strom grep\` found) | \`${m.text ?? "sonnet"}\` |
 | mechanical: downloads, renaming, counting | \`${m.cheap ?? "haiku"}\` |
 | a text in inputs/ or notes/ | nobody — \`strom grep\`, one call |

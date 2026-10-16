@@ -12,9 +12,13 @@
 //   GET <token>/images.ged the same (the address an older strom gave)
 //   GET <token>/log        what the research saved, newest first (each commit: when, what, for which task;
 //                          text: its lines as the user reads them, kinds: what each is about)
+//   GET <token>/whats-new  what is new in this strom (?lang=cs|en|de, else en): {version, lang, url, points} — the
+//                          running version's section of the changelog shipped with it; asking keeps no bridge running
 //   GET <token>/recent     what the research added in the last hours (?hours=1…168, 24 when not given): the people and
 //                          sources added, the commits — the same as /status recent (core/recent.ts)
-//   GET <token>/events     server-sent events: hello, change, working
+//   GET <token>/events     server-sent events: hello, change, working; end before the bridge ends ({reason: stopped |
+//                          restart | idle | gone | signal, back: another bridge at this address at once — absent: not
+//                          known, at}): strom live stop asks it through .strom/live-stop.json, the same on every system
 //   POST <token>/sync      the Strom app sends the user's edited tree back (?send=, or on its own): kept in the
 //                          inbox to be shown and written on the user's word (strom sync) — nothing of the
 //                          research changes; /status says what waits there (inbox) and how each send went (sends)
@@ -84,7 +88,8 @@ import { phrase } from "./phrases.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { excerptSettings, planExcerpts } from "./excerpt.ts";
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
-import { isArchive, modeOf, settleArchive } from "./mode.ts";
+import { modeOf, settleArchive } from "./mode.ts";
+import { actsAsArchive, stateOf } from "./state.ts";
 import { settleHypothesisLinks } from "./hypolinks.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
@@ -101,6 +106,7 @@ import { monthSpend, openSessions } from "./session.ts";
 import { rankTasks } from "./queue.ts";
 import { humanTask } from "../cli/human.ts";
 import { knownNewerVersion, updateChannel } from "./update.ts";
+import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
@@ -404,7 +410,7 @@ export function startLive(root: string, env: Env, opts: { current?: boolean; why
 }
 
 function startNow(root: string, env: Env, running: LiveInfo | undefined): LiveInfo | undefined {
-  if (running) stopLive(root, `a bridge of strom ${VERSION} is wanted (this one: ${running.version ?? "older"})`);
+  if (running) stopLive(root, `a bridge of strom ${VERSION} is wanted (this one: ${running.version ?? "older"})`, { back: true });
   fs.rmSync(liveFile(root), { force: true });
   const before = readLast(root);
   spawnBridge(root, env);
@@ -463,9 +469,9 @@ export function forgetLive(root: string): void {
 }
 
 /** Whether a process is a bridge of strom (its command says "live serve"): a number taken by another program is never stopped. */
-function isBridge(pid: number): boolean {
+function isBridge(pid: number, platform: NodeJS.Platform = process.platform): boolean {
   if (!alive(pid)) return false;
-  if (process.platform === "win32") return true;
+  if (platform === "win32") return true;
   const r = spawnSync("ps", ["-o", "stat=,command=", "-p", String(pid)], { encoding: "utf8", timeout: 10_000 });
   // ps not to be asked: the bridge's own note is what there is
   if (r.error || r.status === null) return true;
@@ -473,50 +479,102 @@ function isBridge(pid: number): boolean {
   return !out.startsWith("Z") && /\blive\s+serve\b/.test(out);
 }
 
+/** Where a bridge is asked to end: the same way on every system (a signal on Windows ends a process without a word). */
+export function liveStopFile(root: string): string {
+  return path.join(root, ".strom", "live-stop.json");
+}
+
+/** What a bridge is asked when it is to end: which bridge, why (into its log), whether another one comes at its address. */
+interface StopAsk {
+  pid: number;
+  why: string;
+  back?: boolean;
+}
+
+function readStopAsk(root: string): StopAsk | undefined {
+  try {
+    const ask = JSON.parse(fs.readFileSync(liveStopFile(root), "utf8")) as StopAsk;
+    return Number.isInteger(ask.pid) && typeof ask.why === "string" ? ask : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
- * End a bridge's process: asked to (SIGTERM — it closes as it should), and when it does not end within a while
- * (a bridge stuck on something) ended for good (SIGKILL). How it ended; "alive" when even that did not end it.
+ * End a bridge's process: asked to through its stop file (it says the end to the app, closes its streams and ends — the
+ * same on every system), else (a bridge of an older strom, or one stuck) by a signal: SIGTERM where a process hears it,
+ * and when it does not end within a while ended for good (SIGKILL; on Windows a signal is that at once). How it ended:
+ * "stopped" as it should, "killed" for good, "alive" when even that did not end it, "gone" when no bridge ran.
  */
-function endBridge(pid: number, root: string, waitMs = 3000): "stopped" | "killed" | "alive" | "gone" | "elsewhere" {
-  if (!isBridge(pid)) return "gone";
+export function endBridge(pid: number, root: string, opts: { waitMs?: number; askMs?: number; platform?: NodeJS.Platform; why?: string; back?: boolean } = {}): "stopped" | "killed" | "alive" | "gone" | "elsewhere" {
+  const platform = opts.platform ?? process.platform;
+  const waitMs = opts.waitMs ?? 3000;
+  if (!isBridge(pid, platform)) return "gone";
   // a bridge of another folder (a note copied with the research) is never ended for this tree
   if (bridgeElsewhere(pid, root)) return "elsewhere";
   // ended: no such process, or one that only waits for its parent to hear it ended (a zombie)
   const ended = () => {
     if (!alive(pid)) return true;
-    if (process.platform === "win32") return false;
+    if (platform === "win32") return false;
     const r = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], { encoding: "utf8", timeout: 5000 });
     return !r.error && (!(r.stdout ?? "").trim() || (r.stdout ?? "").trim().startsWith("Z"));
   };
-  const gone = (ms: number) => {
+  const gone = (ms: number, also: () => boolean = () => false) => {
     for (let t = 0; t < ms; t += 100) {
-      if (ended()) return true;
+      if (ended() || also()) return true;
       sleep(100);
     }
-    return ended();
+    return ended() || also();
   };
+  const file = liveStopFile(root);
+  const taken = () => readStopAsk(root)?.pid !== pid;
   try {
-    process.kill(pid, "SIGTERM");
-  } catch {
-    return "gone";
+    let asked = false;
+    try {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(`${file}.${process.pid}`, JSON.stringify({ pid, why: opts.why ?? "asked to end", ...(opts.back === undefined ? {} : { back: opts.back }) }));
+      fs.renameSync(`${file}.${process.pid}`, file);
+      asked = true;
+    } catch {
+      // its folder cannot be written: a signal is what there is
+    }
+    // heard: it takes the ask within a moment, then ends (its last streams closed)
+    if (asked && gone(opts.askMs ?? 1000, taken)) {
+      if (gone(waitMs + 1000)) return "stopped";
+    } else {
+      // not heard (a bridge of an older strom, one stuck): asked by a signal — on Windows that ends it at once, unheard
+      const signal = platform === "win32" ? "SIGKILL" : "SIGTERM";
+      try {
+        process.kill(pid, signal);
+      } catch (e) {
+        return (e as NodeJS.ErrnoException).code === "ESRCH" ? "stopped" : "alive";
+      }
+      if (gone(platform === "win32" ? 2000 : waitMs)) return platform === "win32" ? "killed" : "stopped";
+      if (platform === "win32") return "alive";
+    }
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch (e) {
+      return (e as NodeJS.ErrnoException).code === "ESRCH" ? "stopped" : "alive";
+    }
+    return gone(2000) ? "killed" : "alive";
+  } finally {
+    // an ask nobody took is not left for a bridge that comes later with that number
+    if (readStopAsk(root)?.pid === pid) fs.rmSync(file, { force: true });
   }
-  if (gone(waitMs)) return "stopped";
-  try {
-    process.kill(pid, "SIGKILL");
-  } catch {
-    return "stopped";
-  }
-  return gone(2000) ? "killed" : "alive";
 }
 
-/** Stop the bridge of a tree (why: into its log): how it went — "none" when none ran, "alive" when it could not be ended. */
-export function stopLive(root: string, why = "strom live stop"): "none" | "stopped" | "killed" | "alive" {
+/**
+ * Stop the bridge of a tree (why: into its log; back: another bridge comes at its address at once — the app following it
+ * goes on): how it went — "none" when none ran, "alive" when it could not be ended.
+ */
+export function stopLive(root: string, why = "strom live stop", opts: { back?: boolean } = {}): "none" | "stopped" | "killed" | "alive" {
   const info = liveRunning(root);
   if (!info) return "none";
   noteLive(root, `stop asked: ${why}`);
   const last = readLast(root);
   if (last?.pid === info.pid) writeLast(root, { ...last, ended: { at: new Date().toISOString(), reason: why } });
-  const how = endBridge(info.pid, root);
+  const how = endBridge(info.pid, root, { why, back: opts.back ?? false });
   if (how === "elsewhere") {
     noteLive(root, `a bridge of another folder (${info.pid}) is named in live.json: not ended, not this tree's`);
     fs.rmSync(liveFile(root), { force: true });
@@ -528,7 +586,8 @@ export function stopLive(root: string, why = "strom live stop"): "none" | "stopp
     return "alive";
   }
   fs.rmSync(liveFile(root), { force: true });
-  return how === "gone" ? "stopped" : how;
+  // no bridge of that number ran (it ended meanwhile, the number another program's): none was stopped
+  return how === "gone" ? "none" : how;
 }
 
 /**
@@ -646,7 +705,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1012,11 +1071,14 @@ function lastIntake(root: string, tree: Tree): { id: string; at: string; state: 
  */
 function accepts(tree: Tree, settings: Settings, env: Env): Record<string, unknown> {
   const mode = modeOf(tree);
+  const state = stateOf(tree);
   const shared = settings.shared()?.value;
   const free = shared ? freeBytes(shared) : undefined;
   return {
     mode,
-    sync: { auto: mode === "archive" ? "mirror" : settings.syncReview(tree.config) ? "off" : "write" },
+    // a research whose agent is not on this computer waits for it, kept as an archive meanwhile (its mode stays)
+    ...(state === "waiting" ? { agentHere: false } : {}),
+    sync: { auto: state !== "research" ? "mirror" : settings.syncReview(tree.config) ? "off" : "write" },
     sources: true,
     verified: true,
     media: shared
@@ -1076,10 +1138,14 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
   const intake = lastIntake(root, tree);
   const last = tip(root);
   const all = scopes(tree);
-  const next = rankTasks(tree, tree.list<Task>("task"), settings.strategy(tree.config)).map((r) => r.task);
-  const atWork = working(root, tree, all);
+  // an archive, or a research waiting for its agent (none on this computer): nobody works on it — no agent, no
+  // directions, nobody at work, nothing waiting for the person, no queue, nothing spent (Milan's decisions,
+  // 2026-10-03 and 2026-10-15); what waits for the agent says so (accepts.agentHere)
+  const archive = actsAsArchive(tree);
+  const next = archive ? [] : rankTasks(tree, tree.list<Task>("task"), settings.strategy(tree.config)).map((r) => r.task);
+  const atWork = archive ? [] : working(root, tree, all);
   // where the research is on this computer, and the agent that works on it (an archive: none)
-  const agent = isArchive(tree) ? undefined : settings.agent(tree.config).value;
+  const agent = archive ? undefined : settings.agent(tree.config).value;
   const where = settings.agentWhere();
   // a newer strom on disk than this bridge runs (it starts again with it in a moment): for the app to say so
   const disk = diskVersion(env);
@@ -1100,14 +1166,14 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
     ...recentOf(root, env, last.head),
     persons: tree.countLive("person"),
     families: tree.count("family"),
-    researches: directions(tree, all, next, atWork.filter((w) => !w.paused).map((w) => w.research)),
+    researches: archive ? [] : directions(tree, all, next, atWork.filter((w) => !w.paused).map((w) => w.research)),
     working: atWork,
-    open: openSessions(tree).map((s) => ({ id: s.id, task: s.task, started: s.started })),
+    open: archive ? [] : openSessions(tree).map((s) => ({ id: s.id, task: s.task, started: s.started })),
     // what waits for the person, ordered and grouped by the place where it is dealt with (core/waiting.ts): the tasks,
     // a new version of an approved story (for an app that shows it: the _DRAFT gate), an archive's images that wait for
     // the person's decision and the connectors taken over (none in an archive) — the person decides in the terminal a
     // link opens (archive&host=, task&do=)
-    waiting: waitingFor(tree, {
+    waiting: archive ? [] : waitingFor(tree, {
       shared: settings.shared()?.value,
       claude: () => settings.agent(tree.config).value === "claude" && agentsHere(env).some((a) => a.id === "claude" && a.cli),
       stories: appShowsStoryDrafts(settings, version),
@@ -1116,9 +1182,9 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
     links: links(env),
     ...linkSchemeOf(env),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
-    ...(isArchive(tree) ? { queue: [], queueMore: 0 } : queue(tree, next, all)),
+    ...(archive ? { queue: [], queueMore: 0 } : queue(tree, next, all)),
     ...(newer ? { update: { version: newer } } : {}),
-    ...(isArchive(tree) ? {} : { spend: { ...monthSpend(tree, new Date().toISOString().slice(0, 7)), currency: "USD" } }),
+    ...(archive ? {} : { spend: { ...monthSpend(tree, new Date().toISOString().slice(0, 7)), currency: "USD" } }),
     ...(intake ? { lastIntake: intake } : {}),
     accepts: accepts(tree, settings, env),
     inbox: { trees: inboxTrees(root, env), material: materialWaiting(tree) },
@@ -1315,8 +1381,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
 
   const answer = (req: http.IncomingMessage, res: http.ServerResponse) => {
     const [, t, what, sub, act] = (req.url ?? "").split("?")[0]!.split("/");
-    // the app asking now and then (?poll=1) keeps no bridge running; anything else does
-    if (!(req.method === "GET" && what === "status" && /[?&]poll=1(?:&|$)/.test(req.url ?? ""))) lastAsked = Date.now();
+    // the app asking now and then (?poll=1) or by itself what is new keeps no bridge running; anything else does
+    if (!(req.method === "GET" && ((what === "status" && /[?&]poll=1(?:&|$)/.test(req.url ?? "")) || what === "whats-new"))) lastAsked = Date.now();
     // the secret from a page that is no Strom app: replaced, this request answered as one without it (no data, no CORS)
     if (t === token && foreignOrigin(req.headers.origin, env)) {
       leaked(req, String(req.headers.origin), what);
@@ -1448,6 +1514,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
         // what is answered is made first: a read that fails can still answer 500
         const text = JSON.stringify(status(root, env, version));
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(text);
+      } else if (what === "whats-new") {
+        // what is new in this strom, from the changelog shipped with it (the app's window "What's new")
+        const lang = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("lang");
+        const text = JSON.stringify(whatsNew(VERSION, lang, updateChannel(env)));
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(text);
       } else if (what === "recent") {
         // what another window of hours added (the same as /status recent); worked out now, the bridge answers others meanwhile
         const said = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("hours");
@@ -1492,7 +1563,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
   const writesAtOnce = () => {
     try {
       const tree = Tree.open(root, env);
-      return isArchive(tree) || !new Settings(env, {}).syncReview(tree.config);
+      return actsAsArchive(tree) || !new Settings(env, {}).syncReview(tree.config);
     } catch {
       return false;
     }
@@ -1705,7 +1776,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       told(200, { ok: true, changes: 0, file: path.basename(got.file), inbox: false, head: head(root), conflicts: [], intake: got.intake });
       return;
     }
-    if (isArchive(tree) || !new Settings(env, {}).syncReview(tree.config)) {
+    if (actsAsArchive(tree) || !new Settings(env, {}).syncReview(tree.config)) {
       write(got, told);
       return;
     }
@@ -2302,7 +2373,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         // the bridge before this one still holds it (stuck, or ending just now): ended, its port taken again — the
         // app following the address goes on; a port another program holds: another one (the app needs ?live= again)
         const before = last && last.pid !== process.pid ? last.pid : undefined;
-        const ended = before && tries === 0 ? endBridge(before, root) : "gone";
+        const ended = before && tries === 0 ? endBridge(before, root, { why: `a new bridge (${process.pid}) takes port ${wanted}`, back: true }) : "gone";
         if (ended === "elsewhere") {
           // a bridge of another folder (its note copied with the research): never ended, never its address — a new one
           noteLive(root, `a bridge of another folder (${before}) holds port ${wanted}: not ended`);
@@ -2406,6 +2477,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
           return noteLive(root, `strom ${disk.version} is on disk but does not start (exit ${probe.status ?? probe.signal ?? "?"}${probe.stderr ? `: ${String(probe.stderr).trim().split("\n").pop()?.slice(0, 200)}` : ""}): this bridge (${runs}) goes on`);
         }
         noteLive(root, `strom ${disk.version} on disk: the bridge starts again with it (port ${port}, its token kept)`);
+        send("end", { reason: "restart", back: true, at: new Date().toISOString() });
         for (const st of streams) st.end();
         streams.clear();
         server.close();
@@ -2445,6 +2517,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
                   noteLive(root, `handed over to the bridge of strom ${disk.version} (${child.pid})`);
                   clearInterval(timer);
                   clearInterval(keepAlive);
+                  clearInterval(stopAsked);
                   return resolve();
                 }
                 if (Date.now() < until && child.exitCode === null) return void setTimeout(look, 250);
@@ -2465,7 +2538,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const timer = setInterval(() => {
         // its research gone (taken off the computer, a test's folder): nothing to follow — even while handing over
         // (found: bridges of a folder removed in the middle of it left running for hours)
-        if (!fs.existsSync(path.join(root, "strom.json"))) return stop("the research is no longer there");
+        if (!fs.existsSync(path.join(root, "strom.json"))) return stop("the research is no longer there", "gone", false);
         if (renewing) return;
         if (Date.now() - renewChecked > RENEW_MS) {
           renewChecked = Date.now();
@@ -2489,9 +2562,9 @@ export function serveLive(root: string, env: Env): Promise<void> {
           safe("keeping order", () => autoTidy(Tree.open(root, env)));
         }
         if (streams.size) lastAsked = Date.now();
-        if (Date.now() - lastAsked > idleMs) return stop("idle: nobody asked for a while");
+        if (Date.now() - lastAsked > idleMs) return stop("idle: nobody asked for a while", "idle", false);
         // its research gone (taken off the computer, a test's folder): nothing to follow
-        if (!fs.existsSync(path.join(root, "strom.json"))) return stop("the research is no longer there");
+        if (!fs.existsSync(path.join(root, "strom.json"))) return stop("the research is no longer there", "gone", false);
         if (!streams.size) return;
         safe("a tick", () => {
           const { head: h, at } = tip(root);
@@ -2512,9 +2585,21 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const keepAlive = setInterval(() => {
         for (const s of streams) s.write(": still here\n\n");
       }, 20_000);
-      const stop = (why: string) => {
+      // asked to end (strom live stop, a newer bridge wanted): the same on every system — a signal on Windows ends the
+      // process unheard, and the app following it would learn the end only when it gives up asking
+      const stopAsked = setInterval(() => {
+        const ask = readStopAsk(root);
+        if (ask?.pid !== process.pid) return;
+        fs.rmSync(liveStopFile(root), { force: true });
+        stop(ask.why, ask.back ? "restart" : "stopped", ask.back ?? false);
+      }, Number(env.STROM_LIVE_STOP_MS ?? 200));
+      // the end said to the app on its streams before they close: whether another bridge comes at this address (it goes
+      // on following) or none (following ends now); a signal from outside: not known (the app asks /status)
+      const stop = (why: string, reason: "stopped" | "restart" | "idle" | "gone" | "signal" = "stopped", back?: boolean) => {
         clearInterval(timer);
         clearInterval(keepAlive);
+        clearInterval(stopAsked);
+        send("end", { reason, ...(back === undefined ? {} : { back }), at: new Date().toISOString() });
         for (const s of streams) s.end();
         server.close();
         try {
@@ -2528,8 +2613,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
         noteLive(root, `ended: ${why}`);
         resolve();
       };
-      process.once("SIGTERM", () => stop("SIGTERM"));
-      process.once("SIGINT", () => stop("SIGINT"));
+      process.once("SIGTERM", () => stop("SIGTERM", "signal"));
+      process.once("SIGINT", () => stop("SIGINT", "signal"));
     });
   });
 }

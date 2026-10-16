@@ -48,14 +48,14 @@ test("the menu: Add to the research → the directions — each with how it goes
   const w = await world();
   // 4 add to the research · 5 the directions · 1 the first · 1 pause · 0 back
   const r = await w.ok([], { tty: true, answers: ["4", "5", "1", "1", "0", "0"] });
-  assert.match(r.out, /5 {2}Směry výzkumu: pozastavit, ukončit nebo znovu spustit/);
+  assert.match(r.out, /5 {2}Linie výzkumu: pozastavit, ukončit nebo znovu spustit/);
   assert.match(r.out, /1 {2}Předci Josefa – běží · úkoly: 1\n +2 {2}Kdo byla Anna\? – běží · úkoly: 1\n +0 {2}Zpět/);
-  assert.match(r.out, /⏸ „Předci Josefa“ je pozastavený: jeho úkoly \(1\) počkají, dokud se tady znovu nespustí\./);
+  assert.match(r.out, /⏸ „Předci Josefa“ je pozastavená: její úkoly \(1\) počkají, dokud se tady znovu nespustí\./);
   // a paused one: taken up again or ended
   const again = await w.ok([], { tty: true, answers: ["4", "5", "1", "1", "0", "0"] });
-  assert.match(again.out, /Předci Josefa – pozastavený · úkoly: 1/);
-  assert.match(again.out, /1 {2}Znovu spustit – jeho úkoly se vrátí do fronty\n +2 {2}Ukončit/);
-  assert.match(again.out, /▶ „Předci Josefa“ zase běží: jeho úkoly \(1\) jsou zpátky ve frontě\./);
+  assert.match(again.out, /Předci Josefa – pozastavená · úkoly: 1/);
+  assert.match(again.out, /1 {2}Znovu spustit – její úkoly se vrátí do fronty\n +2 {2}Ukončit/);
+  assert.match(again.out, /▶ „Předci Josefa“ zase běží: její úkoly \(1\) jsou zpátky ve frontě\./);
   // Enter goes back with nothing changed
   await w.ok([], { tty: true, answers: ["4", "5", "", "0"] });
   assert.equal((await w.ok(["research", "show", "G0001", "--json"])).json.research.state, "active");
@@ -91,10 +91,10 @@ test("the Strom app: each direction with how it goes (its tasks, why paused and 
   await w.ok(["session", "close", "--continue", "--summary", "Křest Josefa hledán v knize 1880–1890.", "--next", "Dál."]);
   // paused through the app's link: said, the reason asked and kept
   const paused = await link("direction?id=G0002&do=pause", ["a", "Matriky nejsou online", ""]);
-  assert.match(paused.out, /Aplikace Strom žádá: pozastavit směr „Kdo byla Anna\?“: jeho úkoly \(1\) počkají mimo frontu/);
-  assert.match(paused.out, /⏸ „Kdo byla Anna\?“ je pozastavený/);
-  assert.match((await link("direction?id=G0002&do=pause", [""])).out, /Směr „Kdo byla Anna\?“ už je pozastavený\. Nic se nestalo\./);
-  assert.match((await link("direction?id=G0009&do=done", [""])).out, /Směr G0009 v tomto výzkumu není/);
+  assert.match(paused.out, /Aplikace Strom žádá: pozastavit linii „Kdo byla Anna\?“: její úkoly \(1\) počkají mimo frontu/);
+  assert.match(paused.out, /⏸ „Kdo byla Anna\?“ je pozastavená/);
+  assert.match((await link("direction?id=G0002&do=pause", [""])).out, /Linie „Kdo byla Anna\?“ už je pozastavená\. Nic se nestalo\./);
+  assert.match((await link("direction?id=G0009&do=done", [""])).out, /Linie G0009 v tomto výzkumu není/);
   const info = (await w.ok(["live", "start", "--json"])).json;
   try {
     const status = (await (await fetch(`${info.url}/status`)).json()) as { links: string[]; researches: Record<string, unknown>[]; queue: { id: string; research?: string }[] };
@@ -119,6 +119,6 @@ test("the Strom app: each direction with how it goes (its tasks, why paused and 
   // taken up again; a conversation about one direction asks first (it costs)
   assert.match((await link("direction?id=G0002&do=resume", ["a", ""])).out, /▶ „Kdo byla Anna\?“ zase běží/);
   assert.equal((await w.ok(["research", "show", "G0002", "--json"])).json.research.state, "active");
-  assert.match((await link("chat?research=G0002", ["n"])).out, /Aplikace Strom žádá: rozhovor s agentem \(.*\) o směru „Kdo byla Anna\?“, jen jeho úkoly\./);
+  assert.match((await link("chat?research=G0002", ["n"])).out, /Aplikace Strom žádá: rozhovor s agentem \(.*\) o linii „Kdo byla Anna\?“, jen její úkoly\./);
   w.cleanup();
 });

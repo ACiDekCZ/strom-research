@@ -51,7 +51,8 @@ never open again a view cleared from your context — your notes hold it.
 - **Browsing a book or a range is a reader's job**: `strom read B0001
   --images 40-69 --question "…"` (small script: `--half both`) — readers in
   batches of ten, each with the full question, their reports in
-  notes/readings/. It ends with what they found, compact: the found and
+  notes/readings/. For every agent, also one with subagents of its own: a
+  third of their cost, every reading kept. It ends with what they found, compact: the found and
   unclear entries whole, what was illegible where nothing was found (a
   possible match often hides there — look at it), the gaps in the book.
   Later: `strom readings` (`--match <surname>`, `--list`; one image's block:
@@ -65,6 +66,13 @@ never open again a view cleared from your context — your notes hold it.
   and headings only, one surname's entries, one entry whole — and transcribes
   nothing else. Record each report as it comes back, before the next readers.
   Only the entries that will be cited need your own eyes, at full resolution.
+<!-- for link verify enrich -->
+- **`--until-found` only for ONE particular entry** (one person's baptism,
+  marriage or burial whose details you know): no more readers begin once one
+  reports it. Never for every entry of a place or surname, nor where a
+  namesake may follow. Record only the images it names as read, `--result
+  partial`; if the find is not the one, read the rest.
+<!-- end -->
 - **Report image by image, as you go**: the image and page, what was found (or
   nothing), what was illegible and where, the hand, how sure each name is.
 - **Cite the image, and where the entry is on it**: `strom source add …

@@ -267,9 +267,12 @@ export function viewLine(v: View): string {
   return `${v.width}×${v.height} px · ${part} of ${v.original.width}×${v.original.height} · ${Math.round(v.scale * 100)} %`;
 }
 
+/** Below this scale a view is reduced: smaller than the part of the scan it shows, small script no longer legible. */
+export const REDUCED_BELOW = 0.75;
+
 /** A view smaller than the part of the scan it shows (crop to read it), or bigger (no more detail than the scan has). */
 export function viewSize(v: View): "reduced" | "enlarged" | undefined {
-  return v.scale < 0.75 ? "reduced" : v.scale > 1.25 ? "enlarged" : undefined;
+  return v.scale < REDUCED_BELOW ? "reduced" : v.scale > 1.25 ? "enlarged" : undefined;
 }
 
 export const REDUCED_HINT = "crop the part you need to read it at full size (--crop x,y,w,h, --half left|right, --grid to find it)";

@@ -52,6 +52,7 @@ import { chooseWay, wayName } from "./ways.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { forStory } from "../core/stories.ts";
 import { isArchive } from "../core/mode.ts";
+import { actsAsArchive } from "../core/state.ts";
 import { switchTo } from "./menu-mode.ts";
 import { appMarkFromInstall, linkScheme } from "../core/links.ts";
 
@@ -168,12 +169,15 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       const waiting = waitingHere(ctx, tree).length;
       const started = tree.list<Research>("research").length > 0;
       out(t("ui.menu.tree", { name: tree.config.name, persons: tree.countLive("person") }));
-      // No agent yet (none installed, or not the one chosen): the research waits for it, and item 1 gets one.
+      // No agent yet (none installed, or not the one chosen): the research waits for it — kept as an archive meanwhile,
+      // item 1 gets one, item 2 keeps it an archive for good (nothing of the agent's work offered).
       const ready = agentReady(ctx, tree.config);
       // An archive: the data come from the Strom app, no agent — said instead
       const archive = isArchive(tree);
+      const waitAgent = !archive && !ready;
+      const current = ctx.settings.agent(tree.config).value;
       if (archive) out(t("ui.menu.archive"));
-      else if (!ready) out(t(agentsHere(ctx.env).length ? "ui.menu.noagent.chosen" : "ui.menu.noagent"));
+      else if (waitAgent) out(agentsHere(ctx.env).length ? t("ui.menu.waitagent.chosen", { agent: PROFILES[current]?.name ?? current }) : t("ui.menu.waitagent"));
       if (waiting) out(t("ui.menu.waiting", { count: waiting }));
       // an archive's images wait for the person's decision: one line, only until it is answered
       // (since when, and the tasks that stand on it, once it waits long or holds up much)
@@ -290,8 +294,9 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         {
           key: "4",
           // the Strom app named only for someone who has not said no to it
-          label: archive
-            ? t(stromAppState(ctx.settings) === "no" ? "ui.menu.more.archive.noapp" : "ui.menu.more.archive")
+          // with nobody in it yet, material is all an archive takes in (the app's edits come with its people)
+          label: archive || waitAgent
+            ? t(!tree.count("person") ? "ui.menu.more.archive.empty" : stromAppState(ctx.settings) === "no" ? "ui.menu.more.archive.noapp" : "ui.menu.more.archive")
             : t(stromAppState(ctx.settings) === "no" ? "ui.menu.more" : "ui.menu.more.app"),
           act: async () => addToResearch(ctx, run, lang, root!),
         },
@@ -302,7 +307,11 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         },
       );
       // An archive: no conversation, no agent working alone — work with an agent switched on instead, and what came lately
-      // (the numbers stay where a person knows them)
+      // (the numbers stay where a person knows them). Waiting for its agent: item 1 gets one, item 2 keeps it an archive.
+      if (waitAgent)
+        for (const [k, it] of items.entries()) {
+          if (it.key === "2") items[k] = { key: "2", label: t("ui.menu.keeparchive"), act: async () => switchTo(ctx, run, lang, root!, "archive") };
+        }
       if (archive)
         for (const [k, it] of items.entries()) {
           if (it.key === "1") items[k] = { key: "1", label: t("ui.menu.archive.agent"), act: async () => switchTo(ctx, run, lang, root!, "research") };
@@ -318,10 +327,9 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         }
       // Another agent on this computer, or the same one elsewhere (its app, its terminal): this conversation so (the
       // default stays).
-      const current = ctx.settings.agent(tree.config).value;
       const now: Way = { agent: current, where: whereToTalk(current, ctx.settings.agentWhere(), ctx.env) };
       const others = waysHere(agentsHere(ctx.env)).filter((w) => w.agent !== now.agent || w.where !== now.where);
-      other = !others.length || archive
+      other = !others.length || archive || waitAgent
         ? undefined
         : {
           key: "9",
@@ -341,10 +349,11 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         const hasApp = app !== "unknown" || Boolean(installedStromApp(ctx.env, process.platform, appUrlSetting(ctx.settings).url));
         appItem = {
           key: "7",
-          label: t(!hasApp ? "ui.menu.app.new" : atWork ? "ui.menu.app.watch" : "ui.menu.app"),
+          // followed live only where an agent works (an archive, a research waiting for its agent: looked through)
+          label: t(!hasApp ? (archive || waitAgent ? "ui.menu.app.new.archive" : "ui.menu.app.new") : atWork ? "ui.menu.app.watch" : "ui.menu.app"),
           act: async () => openStromApp(ctx, run, lang, hasApp),
         };
-        appTip = archive ? (!hasApp ? "ui.menu.app.tip.archive" : undefined) : !hasApp ? "ui.menu.app.tip" : atWork ? "ui.menu.app.live" : undefined;
+        appTip = archive || waitAgent ? (!hasApp ? "ui.menu.app.tip.archive" : undefined) : !hasApp ? "ui.menu.app.tip" : atWork ? "ui.menu.app.live" : undefined;
         items.push(appItem);
       }
     } else {
@@ -352,7 +361,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       items.push({ key: "1", label: t("ui.menu.trees"), act: async () => pickTree(ctx, run, lang) });
     }
     // The settings of this computer (with maintenance); at most nine: the newer strom is taken in the settings' maintenance, the line above says where.
-    const settings: Item = { key: "8", label: t(ctx.archiveHere() ? "ui.menu.settings.archive" : "ui.menu.settings"), act: async () => settingsMenu(ctx, run, lang, root, newer) };
+    const settings: Item = { key: "8", label: t(ctx.actsAsArchive() ? "ui.menu.settings.archive" : "ui.menu.settings"), act: async () => settingsMenu(ctx, run, lang, root, newer) };
     items.push(settings);
     // Only with several agents here: last, so that it moves no other number.
     if (other) items.push(other);
@@ -427,7 +436,7 @@ async function browse(ctx: Context, run: Run, lang: string, root: string): Promi
             { key: "1", label: t("ui.browse.stats"), act: async () => show(["stats"]) },
             { key: "2", label: t("ui.browse.recent"), act: async () => show(["recent"]) },
             // what the agent does next: not in an archive (nobody works on it)
-            ...(isArchive(tree) ? [] : [{ key: "2", label: t("ui.browse.plan"), act: async () => show(["plan"]) }]),
+            ...(actsAsArchive(tree) ? [] : [{ key: "2", label: t("ui.browse.plan"), act: async () => show(["plan"]) }]),
             {
               key: "3",
               label: t("ui.browse.card"),

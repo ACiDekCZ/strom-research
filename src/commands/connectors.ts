@@ -15,12 +15,13 @@ import { UI, ui, type UIKey } from "../cli/ui.ts";
 import { humanDay, humanWhen } from "../cli/human.ts";
 import { register, type Result } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, moreLine, numberIn, paginate, runs, secondsIn, shellArg, table } from "../cli/format.ts";
+import { counted, lines, moreLine, numberIn, paginate, runs, secondsIn, shellArg, table } from "../cli/format.ts";
 import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import { deadlineOf, REMIND_MS } from "../core/clock.ts";
 import { isAgent } from "../core/which.ts";
-import { RECORD_TYPES, type Media, type RecordSet, type Region, type Repository, type Search, type Source, type Task } from "../core/model.ts";
-import { requireRecord } from "../core/records.ts";
+import { RECORD_TYPES, type Media, type RecordSet, type Region, type Repository, type Search, type Session, type Source, type Task } from "../core/model.ts";
+import { normId, requireRecord, update } from "../core/records.ts";
+import { bookRoute, sameBooks, sameBookText } from "../core/samebook.ts";
 import { guardIndexFirst } from "../core/indexfirst.ts";
 import { readable } from "../core/text.ts";
 import { findImage, isWhole, partHere, regionText, SHARPER, type PartHere } from "../core/media.ts";
@@ -95,14 +96,24 @@ import {
   type Route,
   type RunReport,
 } from "../core/connector.ts";
-import { registerImages } from "./media.ts";
+import { registerImages, wakeWaiting } from "./media.ts";
+import { autoCommit } from "../cli/commit.ts";
+import type { CommandDef } from "../cli/registry.ts";
+import { activeFetches, askStop, BACKGROUND_ENV, backgroundLog, backgroundOf, endedFetches, FETCH_BATCH, isRunWorker, markEnded, markFetch, watchBackground, type ActiveFetch, type BackgroundOf, type EndedFetch } from "../core/fetching.ts";
+import { finishAsked } from "../core/clock.ts";
+import { isLiveWorker } from "../core/workers.ts";
+import { stromLauncher } from "../core/self.ts";
+import { spawn } from "node:child_process";
+import type { FetchedImage } from "../core/connector.ts";
+import { now } from "../core/tree.ts";
 import { FetchMeter, metricsDir, recordFetch, requestsPerImage, webDomain } from "../core/metrics.ts";
 import { siteConnector } from "../core/web.ts";
 import { allows, forgetConnector, grantWay, keyHost, latchedPace, liftRefusal, loadArchives, pendingQuestions, termsFor, type ArchiveLevel } from "../core/terms.ts";
 import { waitsOnHost } from "../core/archivewait.ts";
 import { waysOffered } from "../core/archiveasks.ts";
 import { archivesOverview, checkEnvironment, gateArchive, levelsOf, levelText, NeedsPermissionError, permissionText, robotsPermits, syncTrees, taskHere, verdictKeeper } from "./archives.ts";
-import { currentSession } from "../core/session.ts";
+import { currentSession, othersAtWork } from "../core/session.ts";
+import { opsLogsOf } from "../core/opslog.ts";
 
 /** Which session of the research started a connector (strom connector new): its agent may discard it in that session. */
 function madeMarker(root: string, name: string): string {
@@ -599,18 +610,37 @@ function netWords(ctx: Context, c: Connector, levels: ArchiveLevel[]): { robotsP
 const BOOKS_IN_FULL = 3;
 const BOOKS_SHOWN = 30;
 
-function bookLines(r: RunReport, c: Connector, listOne: string): string[] {
+function bookLines(r: RunReport, c: Connector, listOne: string, tree?: Tree): string[] {
   // a connector that fetches nothing (the terms forbid it, or it only finds): the images come by hand
   const fetches = !byHandOnly(c) && c.manifest.can.some((x) => x === "fetch" || x === "locate");
-  const line = (b: FoundBook) => `${b.title}${b.callNumber ? ` (${b.callNumber})` : ""}${b.years ? ` · ${b.years}` : ""}${b.kinds?.length ? ` · ${b.kinds.join(",")}` : ""}${b.images ? ` · ${b.images} images` : ""}`;
+  // a book the research has already (its link, or images fetched from it): read there, never registered again
+  const known = (b: FoundBook) => (tree ? sameBooks(tree, { ...(b.url ? { url: b.url } : {}), connector: c.name, ...(b.id !== undefined ? { book: String(b.id) } : {}) }) : []);
+  const line = (b: FoundBook) => `${b.title}${b.callNumber ? ` (${b.callNumber})` : ""}${b.years ? ` · ${b.years}` : ""}${b.kinds?.length ? ` · ${b.kinds.join(",")}` : ""}${b.images ? ` · ${counted(b.images, "image")}` : ""}`;
+  const here = (b: FoundBook) => {
+    const same = known(b);
+    return same.length ? ` · already in the research as ${same.map(sameBookText).join(", ")}` : "";
+  };
   if (r.books.length > BOOKS_IN_FULL)
     return [
-      ...r.books.slice(0, BOOKS_SHOWN).map((b) => `  ${b.id ? `${b.id}  ` : ""}${line(b)}`),
+      ...r.books.slice(0, BOOKS_SHOWN).map((b) => `  ${b.id ? `${b.id}  ` : ""}${line(b)}${here(b)}`),
       r.books.length > BOOKS_SHOWN ? `  … ${r.books.length - BOOKS_SHOWN} more — narrow it with --years, or read them all with --json` : undefined,
       `  one of them, with the command to register it: ${listOne}`,
     ].filter((l): l is string => l !== undefined);
-  return r.books.map((b) =>
-    [
+  return r.books.map((b) => {
+    const same = known(b);
+    if (same.length) {
+      const first = same[0]!;
+      return [
+        `  ${line(b)}`,
+        b.url ? `    ${b.url}` : undefined,
+        `    already in the research as ${same.map(sameBookText).join(", ")} — never registered again`,
+        `    read it: strom read ${first.book.id} --images <from-to>`,
+        fetches && b.id ? `    its images not here yet: strom fetch ${c.name} ${shellArg(b.id)} --images <from-to> --recordset ${first.book.id}` : undefined,
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+    return [
       `  ${line(b)}`,
       b.url ? `    ${b.url}` : undefined,
       `    strom recordset add ${shellArg(b.title)}${b.callNumber ? ` --call-number ${shellArg(b.callNumber)}` : ""}${b.kinds?.length ? ` --kinds ${b.kinds.join(",")}` : ""}${b.places?.length ? ` --places ${shellArg(b.places.join(","))}` : ""}${b.years ? ` --years ${b.years}` : ""}${b.url ? ` --url ${shellArg(b.url)}` : ""} --access online-free`,
@@ -621,8 +651,8 @@ function bookLines(r: RunReport, c: Connector, listOne: string): string[] {
           : undefined,
     ]
       .filter(Boolean)
-      .join("\n"),
-  );
+      .join("\n");
+  });
 }
 
 function parseImages(v: unknown, max = 1000): number[] | undefined {
@@ -691,7 +721,7 @@ function estimate(ctx: Context, c: Connector, images: number, part?: number, hum
   const left = capped ? Math.max(0, pace.perHour - recent.filter((t) => t > now - 3600_000).length) : Infinity;
   const pacing = `≥${pace.minIntervalMs / 1000} s apart${capped ? `, at most ${pace.perHour} an hour — ${left} left this hour` : ""}`;
   const waits = asks > left;
-  const learned = per !== undefined && asks > images ? ` (${nf(per)} ${part !== undefined ? "a part" : "an image"}, as its last runs here went)` : "";
+  const learned = per !== undefined && asks > images ? ` (${nf(per)} requests ${part !== undefined ? "a part" : "an image"}, as its last runs here went)` : "";
   return lines(
     `${part !== undefined ? `a part of image ${part}` : `${images} image(s)`} through ${c.name}: ${learned ? "about" : "at least"} ${asks} request(s) to ${host}${learned}, about ${span(asks)} at its pace (${pacing})`,
     waits
@@ -1330,24 +1360,36 @@ register(
       "Every request goes through strom's limiter: one at a time, paced, capped per hour; a refusal (401/403)\n" +
       "stops the run and leaves the archive alone for a day. An archive's hourly cap used up: strom waits for it by\n" +
       "itself (up to 30 min, never into a session's last 10) and says until when — no need to sleep and ask again;\n" +
-      "longer, it ends with exit 7 and the time to try again. With --recordset the images are registered at once;\n" +
+      "longer, it ends with exit 7 and the time to try again. With --recordset the images are registered as they\n" +
+      "come, 10 at a time (strom read of the book may begin meanwhile); Ctrl-C keeps what came, the same command\n" +
+      "fetches the rest;\n" +
       "without it they go into the inbox, a folder for the book.\n" +
       "It says first how many requests it asks of the archive and how long they take at the host's pace and hourly\n" +
       "cap: fetch whole images first (a request each) and a part only of an image whose entry needs it. From 80 %\n" +
       "of a host's hourly cap used it says after each fetch what is left of the hour and when the next frees.\n" +
       "--crop or --half fetches a part of one image, as sharp as the portal gives it (a connector that can: part),\n" +
-      "registered with the image; a view of the image then shows that place from it by itself. The book is\n" +
-      "known from images the connector fetched for the record set before. A part held here already — the same\n" +
-      "part, or a part or the whole image it lies in, as sharp as a new part could come — asks nothing: strom\n" +
-      "names it and the view to read the place in.\n" +
+      "registered with the image; a view of the image then shows that place from it by itself. Without the book,\n" +
+      "--recordset tells it: the book the connector fetched its images from before, or what its link says (a link\n" +
+      "alike another book's of the research); not known, strom says the command with the book to fill in.\n" +
+      "A part held here already — the same part, or a part or the whole image it lies in, as sharp as a new part\n" +
+      "could come — asks nothing: strom names it and the view to read the place in.\n" +
       "A connector set to fetch through your browser (strom connector use <c> --via browser) gives a plan instead:\n" +
       "the page to open, a script to run there that fetches the images at the archive's pace into the browser's\n" +
       "downloads folder, and --take, which takes them over from there, checked and registered.\n" +
       "A connector whose portal answers a real browser only (browser.pages: a bot check) has every page read\n" +
-      "there too: each run plans the page it needs next, --take gives it to the connector and goes on.",
+      "there too: each run plans the page it needs next, --take gives it to the connector and goes on.\n" +
+      "--background (with --recordset, in a session) fetches by a strom of its own while you work on — the images\n" +
+      "this session reads (never for a later one): strom read of the book reads them as they come. It belongs to\n" +
+      "your session and the task it is for (--task T…; without it the one task this session worked on that names\n" +
+      "the book, else the session's): it stops when the session is asked to finish or closes (in strom run: when\n" +
+      "the run ends), at strom fetch --stop, and never waits into a session's last minutes. A fetch in the\n" +
+      "foreground from the same archive goes first. Images another strom is fetching already are not fetched\n" +
+      "twice: a fetch in the foreground waits for them.\n" +
+      "An archive whose terms restrict automated access (images at a person's pace) is never fetched in the\n" +
+      "background. strom fetch --status says what is being fetched and what ended lately.",
     args: [
-      { name: "connector", description: "its name", required: true },
-      { name: "book", description: "the book, as the connector knows it (its ID on the portal)" },
+      { name: "connector", description: "its name (with --status or --stop: the record sets, none = all)", required: true, unless: ["status", "stop"] },
+      { name: "book", description: "the book, as the connector knows it (its ID on the portal); with --recordset it may be left out: the book its images came from through this connector, or its link tells" },
     ],
     options: [
       { name: "images", type: "string", value: "<n|from-to|list>", description: "which images of the book: n, from-to or a list (20,50,80)" },
@@ -1359,18 +1401,28 @@ register(
       { name: "list", type: "boolean", description: "describe the book (title, images)" },
       { name: "take", type: "boolean", description: "through the browser: take over what it downloaded (checked, registered)" },
       { name: "result", type: "string", value: "<line>", description: "with --take: the line the browser script returned (strom-result …)" },
+      { name: "again", type: "string", value: "<reason>", description: "fetch although a book of the research is this book (the same link, or its images came from it): why — into --recordset, another book (kept on it); without it, into the inbox" },
       { name: "no-index", type: "boolean", description: "fetch the images although an index of the book's parish and years is known (read already, or of no use here) — a session of strom run needs it from as many images on as strom read --no-index says" },
+      { name: "background", type: "boolean", description: "fetch by a strom of its own while you work on (with --recordset, in a session): strom read of the book reads the images as they come" },
+      { name: "task", type: "string", value: "<T…>", description: "the task the images are for (its fetches and their measure say it; default: the one task this session worked on that names the record set, else the session's task)" },
+      { name: "status", type: "boolean", description: "what is being fetched now (each book: images registered of those asked, whose, since when) and what ended lately" },
+      { name: "stop", type: "boolean", description: "stop the fetches in the background (of these record sets; none named: all of this research) — what came stays registered" },
     ],
     examples: [
       'strom fetch example-archive --find "Týnec" --years 1780-1850',
       "strom fetch example-archive 5359 --images 40-69 --recordset B0001",
+      "strom fetch example-archive 5359 --images 70-140 --recordset B0001 --background",
+      "strom fetch example-archive 5359 --images 141-180 --recordset B0001 --background --task T0002",
+      "strom fetch --status",
       "strom fetch example-archive 5359 --recordset B0001 --images 2 --crop 0.5,0.4,0.5,0.3",
       'strom fetch example-archive --take --result "strom-result 40:200:1843221 41:200:1790234"',
     ],
     run: async (ctx, { args, opts }) => {
+      if (opts.status) return fetchStatus(ctx, args);
+      if (opts.stop) return fetchStop(ctx, args);
       checkEnvironment(ctx);
       const tree = ctx.tree();
-      const c = findConnector(ctx.settings.shared()?.value, args[0]!);
+      const c = findConnector(ctx.settings.shared()?.value, need(args[0], "the connector"));
       if (opts.take) return takeOver(ctx, c, opts.result === undefined ? undefined : String(opts.result));
       // Through the browser, an agent needs browser tools — only a tree that works with this archive gives them.
       if (isAgent(ctx.env) && routeOf(ctx.env, c).via === "browser" && !treeBrowserConnectors(tree, ctx.settings.shared()?.value).some((x) => x.name === c.name)) {
@@ -1388,12 +1440,21 @@ register(
       const request: ConnectorRequest = opts.find
         ? requestOf(opts, false)
         : opts.list
-          ? { cmd: "list", book: need(args[1], "the book") }
+          ? { cmd: "list", book: bookOfFetch(ctx, c, args[1], opts) }
           : wantsPart
-            ? partRequest(tree, c, args[1], opts)
-            : { cmd: "fetch", book: need(args[1], "the book"), images: parseImages(opts.images, perHour) ?? needImages() };
+            ? partRequest(ctx, c, args[1], opts)
+            : { cmd: "fetch", book: bookOfFetch(ctx, c, args[1], opts), images: parseImages(opts.images, perHour) ?? needImages() };
       const recordset = opts.recordset ? requireRecord<RecordSet>(tree, String(opts.recordset), "recordset").id : undefined;
-      return fetchWith(ctx, c, request, recordset, Boolean(opts["no-index"]));
+      const again = typeof opts.again === "string" ? opts.again.trim() || undefined : undefined;
+      const task = opts.task === undefined ? undefined : requireRecord<Task>(tree, String(opts.task), "task").id;
+      if (task && (request.cmd === "find" || request.cmd === "list")) throw new UsageError("--task names whose images are fetched: with --images (and --recordset)");
+      if (request.cmd === "fetch") sameBookFirst(ctx, c, request, recordset, again);
+      if (opts.background) {
+        if (request.cmd !== "fetch" || !recordset)
+          throw new UsageError("--background fetches images of a book into a record set: --images and --recordset", { hint: `strom fetch ${c.name} <book> --images <from-to> --recordset B… --background` });
+        if (routeOf(ctx.env, c).via === "browser") throw new UsageError(`connector ${c.name} fetches through your browser: no fetch in the background — the plan of strom fetch without --background`);
+      }
+      return fetchWith(ctx, c, request, recordset, Boolean(opts["no-index"]), false, opts.background ? { again } : undefined, task);
     },
   },
   {
@@ -1643,19 +1704,53 @@ function needImages(): never {
   throw new UsageError("which images? --images 40-69", { hint: "strom fetch <connector> <book> --list tells how many there are" });
 }
 
-/** The part of an image --crop and --half name, in fractions of it (pixels: of the registered image). */
+/**
+ * The book a fetch is of: the one given, else — with --recordset — the book of that record set (core/samebook.ts
+ * bookRoute: the book its images came from through this connector, or what its link tells). Not known: why, and the
+ * whole command as it was given with the book in it.
+ */
+function bookOfFetch(ctx: Context, c: Connector, given: string | undefined, opts: Record<string, unknown>): string {
+  if (given) return given;
+  if (!opts.recordset) return need(given, "the book");
+  const tree = ctx.tree();
+  const b = requireRecord<RecordSet>(tree, String(opts.recordset), "recordset");
+  const route = bookRoute(tree, b.id, c.name);
+  if (route) {
+    ctx.io.stderr(`  · book ${route.book} of ${c.name}: the book of ${b.id} (${route.by === "images" ? "its images came from it" : `its link ${b.url}`})\n`);
+    return route.book;
+  }
+  // its images came through another connector: that one, with its book
+  const other = bookRoute(tree, b.id);
+  if (other && other.connector !== c.name)
+    throw new UsageError(`the images of ${b.id} came through connector ${other.connector} (its book ${other.book}), not ${c.name}`, {
+      hint: `${fetchCommand(other.connector, shellArg(other.book), b.id, opts)} · ${b.id} is another copy on ${c.name}'s portal: ${fetchCommand(c.name, "<book>", b.id, opts)}`,
+    });
+  const host = b.url && URL.canParse(b.url) ? new URL(b.url).hostname : undefined;
+  const elsewhere = host && !hostAllowed(host, c.manifest.hosts) ? listConnectors(shared(ctx), ctx.env).find((x) => x.name !== c.name && x.manifest.hosts.some((h) => hostAllowed(host, [h]))) : undefined;
+  const link = !b.url ? "it has no link" : host && !hostAllowed(host, c.manifest.hosts) ? `its link ${b.url} is not on ${c.name}'s portal (${c.manifest.hosts.join(", ")})${elsewhere ? ` — it is connector ${elsewhere.name}'s` : ""}` : `its link ${b.url} does not tell`;
+  throw new UsageError(`give the book: which book of ${c.name} ${b.id} is, strom does not know — no image of ${b.id} came through ${c.name}, and ${link}`, {
+    hint: `${fetchCommand(elsewhere?.name ?? c.name, "<book>", b.id, opts)} — <book> is its ID on the portal${b.url ? ` (in its link: ${b.url})` : ""}; strom fetch ${elsewhere?.name ?? c.name} --find <place> lists the books with their IDs`,
+  });
+}
+
+/** strom fetch as it was given, with the connector and the book (said as it is: "<book>" stays a placeholder). */
+function fetchCommand(connector: string, book: string, recordset: string, opts: Record<string, unknown>): string {
+  // a list (20,50,80) or a region (0.5,0.2,0.5,0.3) is one word to a shell as it is
+  const value = (name: string) => (typeof opts[name] === "string" ? ` --${name} ${/^[\p{N}.,-]+$/u.test(String(opts[name])) ? String(opts[name]) : shellArg(String(opts[name]))}` : "");
+  const flag = (name: string) => (opts[name] ? ` --${name}` : "");
+  return `strom fetch ${connector} ${book}${flag("list")}${value("images")} --recordset ${recordset}${value("crop")}${value("half")}${flag("background")}${value("task")}${flag("no-index")}${value("again")}`;
+}
+
 /** A part of one image, of the book the connector fetched this record set from before (or the one named). */
-function partRequest(tree: ReturnType<Context["tree"]>, c: Connector, book: string | undefined, opts: Record<string, unknown>): ConnectorRequest {
+function partRequest(ctx: Context, c: Connector, book: string | undefined, opts: Record<string, unknown>): ConnectorRequest {
+  const tree = ctx.tree();
   if (!opts.recordset) throw new UsageError("a part is registered with its image: give --recordset B…", { hint: `strom fetch ${c.name} --recordset B… --images <n> --crop x,y,w,h` });
   const recordset = requireRecord<RecordSet>(tree, String(opts.recordset), "recordset").id;
   const images = parseImages(opts.images, 1);
   if (!images) throw new UsageError("which image? --images <n> (one)", { hint: `strom fetch ${c.name} --recordset ${recordset} --images <n> --crop x,y,w,h` });
   const all = tree.list<Media>("media");
   const whole = findImage(all, recordset, images[0]!);
-  const known = all.find((m) => m.recordset === recordset && m.fetched?.connector === c.name)?.fetched?.book;
-  const b = book ?? known;
-  if (!b) throw new UsageError(`which book of ${c.name}? none of the images of ${recordset} came through it`, { hint: `strom fetch ${c.name} <book> --recordset ${recordset} --images ${images[0]} --crop x,y,w,h` });
-  return { cmd: "part", book: b, image: images[0]!, region: partRegion(opts, whole?.part ? undefined : whole) };
+  return { cmd: "part", book: bookOfFetch(ctx, c, book, opts), image: images[0]!, region: partRegion(opts, whole?.part ? undefined : whole) };
 }
 
 /**
@@ -1986,9 +2081,447 @@ function fromStore(ctx: Context, c: Connector, request: Extract<ConnectorRequest
   };
 }
 
-/** strom fetch, once the request is known: checked against the archive's terms, then through strom or the user's browser. */
-async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, recordset: string | undefined, noIndex = false, again = false): Promise<Result> {
+/**
+ * A book the research has under another ID is never fetched again (B0389 = B0169: every image asked of the archive
+ * twice, found by its hash only after): before any request, the book of the same link, or whose images came from this
+ * book of the connector, is named — fetch into it, read it. --again with a reason fetches into --recordset all the
+ * same and keeps why on it (the same book never asked again).
+ */
+function sameBookFirst(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" }>, recordset: string | undefined, again: string | undefined): void {
   const tree = ctx.tree();
+  const target = recordset ? tree.get<RecordSet>(recordset) : undefined;
+  // the book registered first is fetched into as before: only one registered before the target makes it a copy
+  const before = (b: RecordSet) => !target || b.created.localeCompare(target.created) < 0 || (b.created === target.created && b.id < target.id);
+  const same = sameBooks(tree, { ...(target?.url ? { url: target.url } : {}), connector: c.name, book: String(request.book) }, recordset).filter((x) => before(x.book));
+  if (!same.length) return;
+  const first = same[0]!.book.id;
+  const imgs = imagesArg(request.images);
+  if (!recordset) {
+    if (again) return;
+    throw new UsageError(`book ${request.book} of ${c.name} is ${same.map(sameBookText).join(", ")} in the research — nothing fetched`, {
+      hint: `its images: strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imgs} --recordset ${first} (only those not here are asked for) · read it: strom read ${first} --images ${imgs} · into the inbox all the same: --again "<why>"`,
+    });
+  }
+  if (!again)
+    throw new UsageError(`${recordset} is the same book as ${same.map(sameBookText).join(", ")} (${same[0]!.by === "url" ? "the same link" : `its images came from book ${request.book} of ${c.name}`}) — nothing fetched`, {
+      hint: `fetch into it: strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imgs} --recordset ${first} (only the images not here are asked for) · read it: strom read ${first} --images ${imgs} · ${recordset} is another book (another film): --again "<why>"`,
+    });
+  if (tree.dryRun) return;
+  update<RecordSet>(
+    tree,
+    recordset,
+    "recordset",
+    (cur) => ({ ...cur, duplicates: { of: [...new Set([...(cur.duplicates?.of ?? []), ...same.map((x) => x.book.id)])], reason: again } }),
+    { op: "recordset.edit", summary: `${recordset} duplicates (beside ${same.map((x) => x.book.id).join(", ")})`, reason: again },
+  );
+}
+
+/** What registering a fetch's images gave, batch after batch. */
+interface Registered {
+  added: Media[];
+  again: string[];
+  restored: string[];
+  woken: string[];
+  clashes: string[];
+  /** Registered in an earlier batch, then found to be the same file as a later image: a placeholder, withdrawn. */
+  withdrawn: string[];
+}
+
+/**
+ * The images of a book registered in batches as they come (FETCH_BATCH, one commit each), where they waited for the
+ * whole fetch: strom read of the same book begins on the first ones (core/fetching.ts, its mark says what is coming).
+ * Each batch is written whole under the tree's lock, and only then committed; the person's Ctrl-C (or a stop of the
+ * process) waits for the batch at work — signals are heard between JavaScript's turns, a batch is written in one —
+ * then registers what came and stops the connector: nothing half registered, nothing that came lost. A second Ctrl-C
+ * ends it at once (what is registered stays). The archive is asked nothing more or sooner: it only registers.
+ */
+function fetchBatches(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" }>, recordset: string, from: (file: string) => string, child?: BackgroundOf, task?: string) {
+  const tree = ctx.tree();
+  const fetched = { connector: c.name, book: request.book };
+  const session = child?.session ?? ctx.env.STROM_SESSION;
+  const mark = markFetch(tree.root, {
+    recordset,
+    connector: c.name,
+    book: String(request.book),
+    images: [...request.images],
+    ...(session ? { session } : {}),
+    ...(task ? { task } : {}),
+    ...(child ? { background: true, ...(child.worker ? { worker: child.worker } : {}) } : {}),
+  });
+  const acc: Registered = { added: [], again: [], restored: [], woken: [], clashes: [], withdrawn: [] };
+  const done = new Map<string, string | undefined>(); // the file of each image registered → its media (none: here already)
+  let pending: FetchedImage[] = [];
+  // the data would not commit (strom check): no more batches — the rest at the end, which says why, as before
+  let blocked = false;
+  const abort = new AbortController();
+  const register = (items: FetchedImage[]) => {
+    const res = registerImages(tree, shared(ctx), items.map((i) => ({ file: i.file, image: i.n, url: i.url, from: from(i.file), fetched })), recordset, { wake: false });
+    acc.added.push(...res.added);
+    acc.again.push(...res.again);
+    acc.restored.push(...res.restored);
+    acc.clashes.push(...res.clashes);
+    for (const i of items) done.set(i.file, res.added.find((m) => m.image === i.n)?.id);
+  };
+  const flush = () => {
+    if (blocked || !pending.length) return;
+    const items = pending;
+    pending = [];
+    try {
+      // a batch written and committed under one hold of the tree: another strom never sees it half written
+      tree.withTreeLock(() => {
+        register(items);
+        if (autoCommit(ctx, { path: ["fetch"] } as unknown as CommandDef)) blocked = true;
+      });
+    } catch (err) {
+      // the person's Ctrl-C reached git too (one group of processes): the batch is written, the command's own commit
+      // at its end takes it — the fetch stops as interrupted, never as strom failing
+      if ((err as StromError).code !== "git.interrupted") throw err;
+      blocked = true;
+      abort.abort();
+    }
+    mark.beat({ registered: done.size });
+  };
+  let heard = 0;
+  // why a fetch in the background stopped before its end (its watch: asked to stop, its session, its run)
+  let stopped: string | undefined;
+  const onSignal = () => {
+    if (++heard > 1) process.exit(EXIT.cancelled);
+    flush();
+    abort.abort();
+  };
+  const signals: NodeJS.Signals[] = process.platform === "win32" ? ["SIGINT"] : ["SIGINT", "SIGTERM", "SIGHUP"];
+  for (const sig of signals) process.on(sig, onSignal);
+  // a look every few seconds, never a signal: the same on Windows, and heard between batches as a signal is
+  const unwatch = child
+    ? watchBackground(
+        tree.root,
+        () => backgroundWhy(tree, ctx.env, child),
+        (why) => {
+          stopped = why;
+          flush();
+          abort.abort();
+        },
+      )
+    : undefined;
+  return {
+    signal: abort.signal,
+    interrupted: () => abort.signal.aborted,
+    /** Why a fetch in the background stopped (undefined: it did not, or the person's Ctrl-C). */
+    stopped: () => stopped,
+    /** Waits while a fetch in the foreground asks the archive (true), goes on (false). */
+    yielding(w: boolean) {
+      mark.beat({ yielding: w });
+    },
+    /** Some batch is registered already. */
+    registered: () => done.size > 0,
+    took(im: FetchedImage) {
+      pending.push(im);
+      if (pending.length >= FETCH_BATCH && !blocked) flush();
+      else mark.beat();
+    },
+    waiting(until: number) {
+      mark.beat({ waitUntil: until });
+    },
+    /** The run is over: what it gave and no batch holds is registered; a placeholder an earlier batch took withdrawn. */
+    finish(images: FetchedImage[]): Registered {
+      const kept = new Set(images.map((i) => i.file));
+      const rest = images.filter((i) => !done.has(i.file));
+      pending = [];
+      if (rest.length) register(rest);
+      for (const [file, id] of done)
+        if (!kept.has(file) && id) {
+          update<Media>(tree, id, "media", (x) => ({ ...x, retracted: { at: now(), reason: "the portal gave the same file for another image of the book: a placeholder, not this scan" } }), {
+            op: "media.retract",
+            summary: `${id} retracted: the same file as another image of ${recordset} (a placeholder)`,
+          });
+          acc.withdrawn.push(id);
+        }
+      acc.woken = wakeWaiting(tree, recordset, acc.added.length);
+      mark.beat({ registered: done.size });
+      return acc;
+    },
+    end() {
+      unwatch?.();
+      for (const sig of signals) process.off(sig, onSignal);
+      mark.end();
+    },
+  };
+}
+
+/**
+ * Why a fetch in the background stops now (undefined: it goes on): its session asked to finish, closed (outside a
+ * run — in a run it goes on while the run works: the images were the agent's choice), the run or the conversation it
+ * was started in ended, or the session's last minutes reached outside a run.
+ */
+function backgroundWhy(tree: Tree, env: Context["env"], of: BackgroundOf): string | undefined {
+  if (finishAsked(tree.root, of.session)) return `its session ${of.session} is asked to finish`;
+  let open = true;
+  try {
+    open = (JSON.parse(fs.readFileSync(tree.recordPath("session", of.session), "utf8")) as { state?: string }).state === "open";
+  } catch {
+    open = false;
+  }
+  const run = isRunWorker(of.worker);
+  if (of.worker && !isLiveWorker(tree.root, of.worker)) return run ? "the run it was started in ended" : "the conversation it was started in ended";
+  if (!open && !run) return `its session ${of.session} closed`;
+  const deadline = deadlineOf(env);
+  if (open && !run && deadline !== undefined && Date.now() > deadline - REMIND_MS) return `its session's last ${Math.round(REMIND_MS / 60_000)} minutes`;
+  return undefined;
+}
+
+/** Whose a fetch at work is, for people and agents: in the background for a task, or in the foreground. */
+function fetchWhose(m: ActiveFetch): string {
+  const whose = [m.task ? `for ${m.task}` : undefined, m.session ? `session ${m.session}` : undefined].filter(Boolean).join(", ");
+  return `${m.background ? "in the background" : "in the foreground"}${whose ? ` ${whose}` : ""}, ${m.registered}/${m.images.length} registered`;
+}
+
+/**
+ * The task a fetch is for: --task, else the session's task when it names the record set — else the one task this
+ * session worked on (its operations name it: a task it added or edited, a search it recorded for it) that names the
+ * record set and nobody else holds; two or none: the session's task, as before (never a guess between them).
+ */
+function fetchTask(tree: Tree, s: Session | undefined, recordset: string | undefined, given?: string): { task?: string; guessed?: true } {
+  if (given) return { task: given };
+  if (!s) return {};
+  const own = s.task ? tree.get<Task>(s.task) : undefined;
+  const asBefore = s.task ? { task: s.task } : {};
+  if (!recordset || (own && taskNamesBook(tree, own, recordset))) return asBefore;
+  const busy = othersAtWork(tree, tree.env).tasks;
+  const worked = workedOn(tree, s.id);
+  const named = tree.list<Task>("task").filter((t) => !t.retracted && t.id !== s.task && (t.state === "open" || t.state === "doing") && !busy.has(t.id) && worked.has(t.id) && taskNamesBook(tree, t, recordset));
+  return named.length === 1 ? { task: named[0]!.id, guessed: true } : asBefore;
+}
+
+/** The records of the research an ID in a text names (B0001, S12, M0003 — a whole ID, never a part of a word). */
+const ID_IN_TEXT = /(?<![\p{L}\p{M}\p{N}])([BMS]\d+)(?![\p{L}\p{M}\p{N}])/gu;
+
+/** Does a task's place of search name the record set: the book itself, a source of it, an image of it. */
+function taskNamesBook(tree: Tree, t: Task, recordset: string): boolean {
+  for (const w of t.where)
+    for (const m of w.normalize("NFC").matchAll(ID_IN_TEXT)) {
+      const id = normId(m[1]!);
+      if (id === recordset) return true;
+      const r = id.startsWith("S") ? tree.get<Source>(id) : id.startsWith("M") ? tree.get<Media>(id) : undefined;
+      if (r && "recordset" in r && r.recordset === recordset) return true;
+    }
+  return false;
+}
+
+/** The tasks a session's operations name: those it added or edited, and those its searches were recorded for. */
+function workedOn(tree: Tree, session: string): Set<string> {
+  const out = new Set<string>();
+  for (const file of opsLogsOf(tree.dataDir, session)) {
+    let text = "";
+    try {
+      text = fs.readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    for (const line of text.split("\n")) {
+      if (!line.trim()) continue;
+      let targets: unknown;
+      try {
+        targets = (JSON.parse(line) as { targets?: unknown }).targets;
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(targets)) continue;
+      for (const id of targets) {
+        if (typeof id !== "string") continue;
+        if (id.startsWith("T")) out.add(id);
+        else if (id.startsWith("Q")) {
+          const task = tree.get<Search>(id)?.task;
+          if (task) out.add(task);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** The session (and its task, its worker) a fetch in the background belongs to; none: refused with what to do. */
+function backgroundOwner(ctx: Context, recordset: string | undefined, given: string | undefined): BackgroundOf & { guessed?: true } {
+  const tree = ctx.tree();
+  const s = currentSession(tree, ctx.env);
+  if (!s)
+    throw new UsageError("--background belongs to a session: no session is open", {
+      hint: "strom session start T… first — or fetch in the foreground (without --background)",
+    });
+  if (finishAsked(tree.root, s.id)) throw new UsageError(`session ${s.id} is asked to finish: nothing new starts in it`, { hint: "write down what was found and close the session" });
+  const worker = ctx.env.STROM_WORKER;
+  // its last minutes outside a run: a fetch in the background would stop at once (backgroundWhy) — never begun
+  const deadline = deadlineOf(ctx.env);
+  if (!isRunWorker(worker) && deadline !== undefined && Date.now() > deadline - REMIND_MS)
+    throw new UsageError(`session ${s.id} is in its last ${Math.round(REMIND_MS / 60_000)} minutes: nothing new starts in the background`, { hint: "write down what was found and close the session" });
+  const { task, guessed } = fetchTask(tree, s, recordset, given);
+  return { session: s.id, ...(task ? { task } : {}), ...(guessed ? { guessed } : {}), ...(worker && isLiveWorker(tree.root, worker) ? { worker } : {}) };
+}
+
+/** How long the command that starts a fetch in the background waits for it to begin (its mark), or to end soon. */
+const BACKGROUND_START_MS = 15_000;
+
+/**
+ * strom fetch --background: everything checked here (the terms, the images registered and being fetched, the
+ * consents, the login, what it asks of the archive), then a strom of its own fetches — a process apart, so the end of
+ * the agent's turn does not stop it — and this command ends once it began, saying how to follow it.
+ */
+async function startBackground(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" }>, recordset: string, owner: BackgroundOf & { guessed?: true }, noIndex: boolean, again: string | undefined): Promise<Result> {
+  const tree = ctx.tree();
+  const log = backgroundLog(tree.root, recordset);
+  fs.mkdirSync(path.dirname(log), { recursive: true });
+  const out = fs.openSync(log, "a");
+  const { command, args } = stromLauncher();
+  const argv = [
+    ...args,
+    "fetch",
+    c.name,
+    String(request.book),
+    "--images",
+    imagesArg(request.images),
+    "--recordset",
+    recordset,
+    ...(noIndex ? ["--no-index"] : []),
+    ...(again ? ["--again", again] : []),
+  ];
+  const env: NodeJS.ProcessEnv = {
+    ...(ctx.env as NodeJS.ProcessEnv),
+    [BACKGROUND_ENV]: JSON.stringify(owner),
+    STROM_SESSION: owner.session,
+    STROM_TREE: tree.root,
+    STROM_NONINTERACTIVE: "1",
+    STROM_NO_DIALOG: "1",
+    STROM_SPAWNED: "1",
+  };
+  const child = spawn(command, argv, { cwd: tree.root, env, detached: true, stdio: ["ignore", out, out], windowsHide: true });
+  fs.closeSync(out);
+  let exit: number | null | undefined;
+  child.on("exit", (code) => (exit = code ?? 1));
+  child.on("error", () => (exit = 1));
+  child.unref();
+  const pid = child.pid ?? 0;
+  const by = Date.now() + BACKGROUND_START_MS;
+  let began = false;
+  while (Date.now() < by && exit === undefined) {
+    if (activeFetches(tree.root, recordset).some((m) => m.pid === pid)) {
+      began = true;
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  const tail = () => {
+    try {
+      return fs.readFileSync(log, "utf8").trim().split("\n").slice(-6).join("\n");
+    } catch {
+      return "";
+    }
+  };
+  if (!began) {
+    // ended before it began (nothing to fetch, refused): what it said is the answer
+    if (exit === undefined) exit = await new Promise<number>((r) => (child.exitCode !== null ? r(child.exitCode) : child.once("exit", (code) => r(code ?? 1))));
+    const said = tail();
+    return { text: lines(`the fetch in the background ended at once (exit ${exit})${said ? ":" : ""}`, said ? said.split("\n").map((l) => `  ${l}`).join("\n") : undefined, `its log: ${ctx.display(log)}`), data: { pid, exitCode: exit, log }, exitCode: exit === 0 ? 0 : exit ?? 1 };
+  }
+  const n = request.images.length;
+  return {
+    text: lines(
+      `fetching ${n} image(s) of ${recordset} (images ${runs(request.images)}) in the background — pid ${pid}, for ${owner.task ?? `session ${owner.session}`}`,
+      `  read them as they come: strom read ${recordset} --images ${imagesArg(request.images)} · what came: strom fetch --status · stop it: strom fetch --stop ${recordset}`,
+      `  it stops when the session is asked to finish or closes${isRunWorker(owner.worker) ? " (in this run: when the run ends)" : ""}; what came stays registered`,
+      owner.guessed ? `  for ${owner.task}: the one task this session worked on that names ${recordset}${currentSession(tree, ctx.env)?.task ? ` (the session's own: ${currentSession(tree, ctx.env)!.task})` : ""} — for another one: --task T…` : undefined,
+    ),
+    data: { pid, recordset, images: request.images, session: owner.session, ...(owner.task ? { task: owner.task } : {}), log },
+  };
+}
+
+/** A fetch in the foreground whose images another strom is fetching already: waits for them (Ctrl-C stops waiting). */
+async function joinFetch(ctx: Context, recordset: string, joined: { images: number[]; by: ActiveFetch[] }, said: string): Promise<Result> {
+  const tree = ctx.tree();
+  ctx.io.stderr(`  · ${said}: strom waits for them\n`);
+  const want = new Set(joined.images);
+  const here = () => {
+    tree.reread();
+    return new Set(tree.list<Media>("media").filter((m) => m.recordset === recordset && !m.part && !m.retracted && m.image !== undefined && want.has(m.image)).map((m) => m.image!));
+  };
+  for (;;) {
+    const got = here();
+    const coming = new Set(activeFetches(tree.root, recordset).filter((m) => m.pid !== process.pid).flatMap((m) => m.images));
+    const left = joined.images.filter((n) => !got.has(n));
+    if (!left.length || !left.some((n) => coming.has(n))) {
+      const nums = joined.images.filter((n) => got.has(n));
+      return {
+        text: lines(
+          nums.length ? `${nums.length} image(s) of ${recordset} (images ${runs(nums)}) came by the other fetch — nothing asked twice` : undefined,
+          left.length ? `images ${runs(left)} did not come (the other fetch ended before): strom fetch … --images ${imagesArg(left)} --recordset ${recordset} fetches them` : undefined,
+        ),
+        data: { added: [], joined: nums, ...(left.length ? { missed: left } : {}) },
+        ...(left.length ? { exitCode: 1 } : {}),
+      };
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+
+/** One line of a fetch at work, for strom fetch --status. */
+function activeLine(m: ActiveFetch): string {
+  const since = m.since ? ` · since ${clock(Date.parse(m.since))}` : "";
+  const state = m.waitUntil && m.waitUntil > Date.now() ? ` · waits for the archive's limit until ${clock(m.waitUntil)}` : m.yielding ? " · waits while a fetch in the foreground asks the archive" : "";
+  return `${m.recordset} (${m.connector} ${m.book}): ${m.registered}/${m.images.length} images registered · ${m.background ? `in the background${m.task ? ` for ${m.task}` : ""}${m.session ? ` (session ${m.session})` : ""}` : "in the foreground"}${since}${state} · pid ${m.pid}`;
+}
+
+function endedLine(e: EndedFetch): string {
+  return `${e.recordset} (${e.connector} ${e.book}): ${e.registered.length}/${e.images.length} images registered${e.registered.length ? ` (images ${runs(e.registered)})` : ""} · ended ${clock(Date.parse(e.at))}${e.stopped ? ` — stopped: ${e.stopped}` : e.exitCode ? ` — exit ${e.exitCode}` : ""}${e.missed.length ? ` · not fetched: images ${runs(e.missed)} (strom fetch ${e.connector} ${shellArg(e.book)} --images ${imagesArg(e.missed)} --recordset ${e.recordset})` : ""}`;
+}
+
+/** strom fetch --status: what is being fetched for this research now, and the fetches in the background that ended lately. */
+function fetchStatus(ctx: Context, names: string[]): Result {
+  const tree = ctx.tree();
+  const ids = names.map((n) => requireRecord<RecordSet>(tree, n, "recordset").id);
+  const pick = <T extends { recordset: string }>(xs: T[]) => (ids.length ? xs.filter((x) => ids.includes(x.recordset)) : xs);
+  const active = pick(activeFetches(tree.root));
+  const ended = pick(endedFetches(tree.root)).filter((e) => !active.some((m) => m.pid === e.pid));
+  return {
+    text: lines(
+      active.length ? ["being fetched:", ...active.map((m) => `  ${activeLine(m)}`)].join("\n") : "nothing is being fetched now",
+      ended.length ? ["ended lately (in the background):", ...ended.slice(0, 10).map((e) => `  ${endedLine(e)}`)].join("\n") : undefined,
+      active.some((m) => m.background) ? "read what came: strom read B… --images … (it waits for the rest) · stop: strom fetch --stop B…" : undefined,
+    ),
+    data: { active, ended },
+  };
+}
+
+/** strom fetch --stop: the fetches in the background of these record sets (none: all) asked to stop; waits until they did. */
+async function fetchStop(ctx: Context, names: string[]): Promise<Result> {
+  const tree = ctx.tree();
+  const ids = names.map((n) => requireRecord<RecordSet>(tree, n, "recordset").id);
+  const mine = activeFetches(tree.root).filter((m) => m.background && (!ids.length || ids.includes(m.recordset)));
+  if (!mine.length) return { text: `no fetch in the background${ids.length ? ` of ${ids.join(" ")}` : ""} — nothing to stop`, data: { stopped: [] } };
+  for (const m of mine) askStop(tree.root, m.pid, "strom fetch --stop");
+  const by = Date.now() + BACKGROUND_START_MS * 2;
+  let left = mine;
+  while (left.length && Date.now() < by) {
+    await new Promise((r) => setTimeout(r, 200));
+    const live = new Set(activeFetches(tree.root).map((m) => m.pid));
+    left = left.filter((m) => live.has(m.pid));
+  }
+  const ended = endedFetches(tree.root);
+  const said = mine.filter((m) => !left.includes(m)).map((m) => ended.find((e) => e.pid === m.pid)).filter((e): e is EndedFetch => !!e);
+  return {
+    text: lines(
+      ...said.map((e) => `stopped ${endedLine(e)}`),
+      ...left.map((m) => `still stopping (it registers what came first): ${activeLine(m)} — strom fetch --status`),
+    ),
+    data: { stopped: said, stopping: left.map((m) => m.pid) },
+  };
+}
+
+/** strom fetch, once the request is known: checked against the archive's terms, then through strom or the user's browser. */
+async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, recordset: string | undefined, noIndex = false, again = false, background?: { again?: string | undefined }, task?: string): Promise<Result> {
+  const tree = ctx.tree();
+  // strom fetch --background: the agent's command starts a strom of its own (the child), which fetches
+  const child = request.cmd === "fetch" && recordset ? backgroundOf(ctx.env) : undefined;
+  const owner = background && !child ? backgroundOwner(ctx, recordset, task) : undefined;
+  // whose a fetch in the foreground is: the task it is for (its mark and its measure say it)
+  const forTask = child ? child.task : owner ? owner.task : fetchTask(tree, currentSession(tree, ctx.env), recordset, task).task;
   const via = routeOf(ctx.env, c).via;
   const images = request.cmd === "fetch" || request.cmd === "part";
   const route = images && via === "browser" ? "browser" : "direct";
@@ -2015,6 +2548,33 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
       say: (l) => ctx.io.stderr(l + "\n"),
     });
   }
+  // an archive at a person's pace is never fetched in the background (its permission is for a person's pace, watched)
+  if (background || child) {
+    const slow = levelsOf(ctx, c, true).filter((a) => a.level !== "allowed");
+    if (slow.length)
+      // said as strom knows them: terms not known yet (a connector nobody confirmed) are not terms that restrict
+      throw new StromError(`${slow.map((a) => `${a.title ?? a.host} (${levelText(a)}): ${a.termsUnknown ? "its terms are not known yet, taken as restricting automated access" : "its terms restrict automated access"}`).join("; ")} — images only at a person's pace, never in the background`, {
+        hint: `fetch them in the foreground: strom fetch ${c.name} ${"book" in request ? shellArg(String(request.book)) : "<book>"}${wanted ? ` --images ${wanted}` : ""}${recordset ? ` --recordset ${recordset}` : ""} (without --background)`,
+        code: "fetch.background.restricted",
+      });
+  }
+  // images another strom is fetching for the book now are not asked for twice: a fetch in the foreground waits for them
+  let joined: { images: number[]; by: ActiveFetch[] } | undefined;
+  if (recordset && request.cmd === "fetch") {
+    const others = activeFetches(tree.root, recordset).filter((m) => m.pid !== process.pid);
+    const coming = new Set(others.flatMap((m) => m.images));
+    const theirs = request.images.filter((n) => coming.has(n));
+    if (theirs.length) {
+      joined = { images: theirs, by: others.filter((m) => m.images.some((n) => theirs.includes(n))) };
+      request.images = request.images.filter((n) => !coming.has(n));
+      const said = `images ${runs(theirs)} of ${recordset} are being fetched already (${joined.by.map(fetchWhose).join("; ")})`;
+      if (background || child) {
+        if (!request.images.length) return { text: lines(said, `nothing fetched — strom read ${recordset} --images ${imagesArg(theirs)} reads them as they come; strom fetch --status`), data: { added: [], coming: theirs } };
+        ctx.io.stderr(`  · ${said}: not fetched twice\n`);
+      } else if (!request.images.length) return joinFetch(ctx, recordset, joined, said);
+      else ctx.io.stderr(`  · ${said}: strom fetches the rest, then waits for them\n`);
+    }
+  }
   if (recordset && request.cmd === "part") {
     // what is here already of that place, as sharp as a new part could be: answered from it, no request
     const here = (m: Media) => fs.existsSync(path.join(shared(ctx), m.file));
@@ -2026,7 +2586,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   const gate = tree.dryRun ? { human: new Map<string, Pace>() } : await gateArchive(ctx, c, { activity: images ? "images" : "catalogue", route, ...(wanted ? { images: wanted } : {}), ...(book ? { book } : {}), reroute: !again });
   // the person chose the other way at its question (through the browser, or slowly straight through strom): the
   // connector's route follows it, and the fetch goes that way
-  if ("rerouted" in gate && gate.rerouted) return fetchWith(ctx, c, request, recordset, noIndex, true);
+  if ("rerouted" in gate && gate.rerouted) return fetchWith(ctx, c, request, recordset, noIndex, true, background, task);
   if (tree.dryRun) {
     // a dry run never contacts the archive, nor asks for consent
     const what =
@@ -2046,91 +2606,198 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   if (request.cmd === "fetch") ctx.io.stderr(estimate(ctx, c, request.images.length, undefined, gate.human) + "\n");
   if (request.cmd === "part") ctx.io.stderr(estimate(ctx, c, 1, request.image, gate.human) + "\n");
   if (gate.human.size) ctx.io.stderr(`  · ${[...gate.human.keys()].join(", ")}: its terms restrict automated access — images at a person's pace, as the user allowed (strom allow archive)\n`);
+  if (owner && request.cmd === "fetch" && recordset) return startBackground(ctx, c, request, recordset, owner, noIndex, background?.again);
   const workDir = path.join(tree.root, ".strom", "fetch", `${c.name}-${Date.now()}`);
   const t0 = Date.now();
   const pages = pagesOf(ctx, c);
   const meter = new FetchMeter();
-  const r = await runConnector(c, request, { env: ctx.env, workDir, netDir: netDir(ctx), onLog: (l) => ctx.io.stderr(`  · ${l}\n`), ...limitWait(ctx), ...metered(meter), ...(pages ? { pages } : {}), ...pacing(ctx, c, gate.human), ...netWords(ctx, c, "levels" in gate ? gate.levels : []) });
-  refusalSaid(ctx, c, r.refused);
-  // what the agent does after a refusal: another way first, the person's check only when the source stays necessary
-  const advice = r.refused ? refusalAdvice(ctx, c, r.refused, request.cmd === "find" ? request.place : undefined) : undefined;
-  // a host near its hourly cap: said to the agent, and to the person once at each share reached
-  const near = capSaid(ctx, c, new Map([...meter.hosts].map(([h, l]) => [h, l.requests])), gate.human);
-  // what it asked of the archive (a part's gain once it is registered, below)
-  const asked = request.cmd === "fetch" ? { asked: request.images } : request.cmd === "part" ? { img: request.image, part: request.region } : {};
-  const run = { via, cmd: request.cmd, ...("book" in request ? { book: request.book } : {}), ...(recordset ? { rs: recordset } : {}), ...asked };
-  if (request.cmd !== "part") measure(ctx, c, meter, run, r);
-  if (r.needs) {
-    fs.rmSync(workDir, { recursive: true, force: true });
-    if (request.cmd === "part") measure(ctx, c, meter, run, r);
-    return planPages(ctx, c, r.needs, { cmd: "fetch", request: { ...request }, ...(recordset ? { recordset } : {}) }, `strom fetch ${c.name} (${request.cmd})`, lines(describeRun(r, request.cmd), near));
-  }
-  const took = `${Math.round((Date.now() - t0) / 1000)} s`;
-  if (request.cmd === "find" || request.cmd === "list") {
-    fs.rmSync(workDir, { recursive: true, force: true });
-    const wait = later(r, "the same command");
-    return {
-      text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`)].join("\n") : advice ?? (r.stopped ? "no books — the run stopped before any came" : "no books found"), r.books.length ? advice : undefined, wait.line, near),
-      data: r,
-      ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.books.length ? { exitCode: 1 } : {}),
-    };
-  }
+  const count = imageCount(ctx, request.cmd === "fetch" ? request.images.length : 0);
+  const waits = limitWait(ctx);
   const from = (f: string) => `connector ${c.name} · ${path.basename(f)}`;
-  const fetched = { connector: c.name, book: request.book };
-  let text: string;
-  let data: Record<string, unknown> = { ...r };
-  if (request.cmd === "part") {
-    const res = registerImages(tree, shared(ctx), r.images.map((i) => ({ file: i.file, image: i.n, url: i.url, from: from(i.file), part: i.region, fetched })), recordset);
-    fs.rmSync(workDir, { recursive: true, force: true });
-    const m = res.added[0];
-    const whole = recordset ? findImage(tree.list<Media>("media").filter((x) => !x.part), recordset, request.image) : undefined;
-    const gain = m?.width && m.part && whole?.width ? m.width / m.part.w / whole.width : undefined;
-    measure(ctx, c, meter, { ...run, ...(gain !== undefined ? { gain: Math.round(gain * 100) / 100, ...(gain < SHARPER ? { noSharper: true } : {}) } : {}), ...(m ? { media: [m.id] } : {}) }, r);
-    text = m
-      ? lines(
-          `part ${regionText(m.part!)} of image ${request.image} of ${recordset} fetched and registered: ${m.id}${m.width ? ` · ${m.width}×${m.height} px` : ""}${gain ? ` · ${gain.toFixed(1)}× the detail of the whole image` : ""} · ${took}`,
-          gain !== undefined && gain < SHARPER ? "  no sharper than the whole image: the portal gives no more detail than that" : undefined,
-          `look at it: strom media view ${recordset}:${request.image} --crop ${regionText(m.part!)} (a view of the image uses the part by itself)`,
-        )
-      : res.again.length && whole && res.again.includes(whole.id) && r.images.every((i) => isWhole(i.region))
+  // the images of a book registered as they come, in batches: a reader of the book begins on the first ones
+  const batches = request.cmd === "fetch" && recordset ? fetchBatches(ctx, c, request, recordset, from, child, forTask) : undefined;
+  let endCode: number | undefined;
+  try {
+    const r = await runConnector(c, request, {
+      env: ctx.env,
+      workDir,
+      netDir: netDir(ctx),
+      onLog: (l) => count.say(`  · ${l}\n`),
+      onImage: (n, im) => (count.got(n), batches?.took(im)),
+      waitMs: waits.waitMs,
+      onWait: (w) => (count.clear(), batches?.waiting(w.until), waits.onWait(w)),
+      ...metered(meter),
+      ...(pages ? { pages } : {}),
+      ...pacing(ctx, c, gate.human),
+      ...netWords(ctx, c, "levels" in gate ? gate.levels : []),
+      ...(batches ? { signal: batches.signal } : {}),
+      ...(child ? { background: true, onYield: (w: boolean) => batches?.yielding(w) } : {}),
+    });
+    count.clear();
+    refusalSaid(ctx, c, r.refused);
+    // what the agent does after a refusal: another way first, the person's check only when the source stays necessary
+    const advice = r.refused ? refusalAdvice(ctx, c, r.refused, request.cmd === "find" ? request.place : undefined) : undefined;
+    // a host near its hourly cap: said to the agent, and to the person once at each share reached
+    const near = capSaid(ctx, c, new Map([...meter.hosts].map(([h, l]) => [h, l.requests])), gate.human);
+    // what it asked of the archive (a part's gain once it is registered, below)
+    const asked = request.cmd === "fetch" ? { asked: request.images } : request.cmd === "part" ? { img: request.image, part: request.region } : {};
+    const run = { via, cmd: request.cmd, ...("book" in request ? { book: request.book } : {}), ...(recordset ? { rs: recordset } : {}), ...asked, ...(child ? { bg: true } : {}), ...(forTask ? { task: forTask } : {}) };
+    if (request.cmd !== "part") measure(ctx, c, meter, run, r);
+    if (r.needs) {
+      fs.rmSync(workDir, { recursive: true, force: true });
+      if (request.cmd === "part") measure(ctx, c, meter, run, r);
+      return planPages(ctx, c, r.needs, { cmd: "fetch", request: { ...request }, ...(recordset ? { recordset } : {}) }, `strom fetch ${c.name} (${request.cmd})`, lines(describeRun(r, request.cmd), near));
+    }
+    const took = `${Math.round((Date.now() - t0) / 1000)} s`;
+    if (request.cmd === "find" || request.cmd === "list") {
+      fs.rmSync(workDir, { recursive: true, force: true });
+      const wait = later(r, "the same command");
+      return {
+        text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`, tree)].join("\n") : advice ?? (r.stopped ? "no books — the run stopped before any came" : "no books found"), r.books.length ? advice : undefined, wait.line, near),
+        data: r,
+        ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.books.length ? { exitCode: 1 } : {}),
+      };
+    }
+    const fetched = { connector: c.name, book: request.book };
+    let text: string;
+    let data: Record<string, unknown> = { ...r };
+    if (request.cmd === "part") {
+      const res = registerImages(tree, shared(ctx), r.images.map((i) => ({ file: i.file, image: i.n, url: i.url, from: from(i.file), part: i.region, fetched })), recordset);
+      fs.rmSync(workDir, { recursive: true, force: true });
+      const m = res.added[0];
+      const whole = recordset ? findImage(tree.list<Media>("media").filter((x) => !x.part), recordset, request.image) : undefined;
+      const gain = m?.width && m.part && whole?.width ? m.width / m.part.w / whole.width : undefined;
+      measure(ctx, c, meter, { ...run, ...(gain !== undefined ? { gain: Math.round(gain * 100) / 100, ...(gain < SHARPER ? { noSharper: true } : {}) } : {}), ...(m ? { media: [m.id] } : {}) }, r);
+      text = m
         ? lines(
-            `the portal's sharpest of image ${request.image} is the whole scan, registered already: ${whole.id}${whole.width ? ` · ${whole.width}×${whole.height} px` : ""} — no part needed`,
-            `look at it: strom media view ${recordset}:${request.image} --crop ${regionText(request.region)}`,
+            `part ${regionText(m.part!)} of image ${request.image} of ${recordset} fetched and registered: ${m.id}${m.width ? ` · ${m.width}×${m.height} px` : ""}${gain ? ` · ${gain.toFixed(1)}× the detail of the whole image` : ""} · ${took}`,
+            gain !== undefined && gain < SHARPER ? "  no sharper than the whole image: the portal gives no more detail than that" : undefined,
+            `look at it: strom media view ${recordset}:${request.image} --crop ${regionText(m.part!)} (a view of the image uses the part by itself)`,
           )
-        : res.restored.length
-        ? `part ${regionText(request.region)} of image ${request.image} of ${recordset} fetched again and put back (its file was not here; the same scan): ${res.restored.join(" ")} · ${took}`
-        : res.again.length
-        ? lines(`that part is registered already: ${res.again.join(" ")}`, ...res.clashes.map((x) => `⚠ ${x}`))
-        : "no part fetched";
-    data = { ...data, added: res.added.map((x) => ({ id: x.id, image: x.image, part: x.part })), again: res.again };
-  } else if (recordset && r.images.length) {
-    const res = registerImages(tree, shared(ctx), r.images.map((i) => ({ file: i.file, image: i.n, url: i.url, from: from(i.file), fetched })), recordset);
-    const nums = res.added.map((m) => m.image).filter((n): n is number => n !== undefined);
-    text = lines(
-      res.added.length || !res.restored.length ? `${res.added.length} image(s) of ${recordset}${nums.length ? ` (images ${runs(nums)})` : ""} fetched and registered · ${took}` : undefined,
-      res.restored.length ? `${res.restored.length} image(s) of ${recordset} fetched again and put back (their file was not here; the same scan): ${res.restored.slice(0, 5).join(" ")}${res.restored.length > 5 ? " …" : ""} · ${took}` : undefined,
-      res.again.length ? `${res.again.length} already registered` : undefined,
-      ...res.clashes.slice(0, 10).map((x) => `⚠ ${x}`),
-      res.woken.length ? `back in the queue (they waited for these images): ${res.woken.join(" ")}` : undefined,
-    );
-    data = { ...data, added: res.added.map((m) => ({ id: m.id, image: m.image })), again: res.again, restored: res.restored, woken: res.woken, clashes: res.clashes };
-    fs.rmSync(workDir, { recursive: true, force: true });
-  } else if (r.images.length) {
-    // into the inbox, one folder for the book: the usual way from there
-    const folder = `${c.name} ${String(request.book).replace(/[^\p{L}\p{M}\p{N}._-]+/gu, "_")}`;
-    const inbox = path.join(shared(ctx), "inbox", folder);
-    fs.mkdirSync(inbox, { recursive: true });
-    for (const i of r.images) fs.renameSync(i.file, path.join(inbox, path.basename(i.file)));
-    fs.rmSync(workDir, { recursive: true, force: true });
-    text = lines(`${r.images.length} image(s) fetched into the inbox: ${folder}/ · ${took}`, `register them: strom media add --inbox ${shellArg(folder)} --recordset B…`);
-    data = { ...data, inbox: folder };
-  } else {
-    fs.rmSync(workDir, { recursive: true, force: true });
-    text = "no images fetched";
+        : res.again.length && whole && res.again.includes(whole.id) && r.images.every((i) => isWhole(i.region))
+          ? lines(
+              `the portal's sharpest of image ${request.image} is the whole scan, registered already: ${whole.id}${whole.width ? ` · ${whole.width}×${whole.height} px` : ""} — no part needed`,
+              `look at it: strom media view ${recordset}:${request.image} --crop ${regionText(request.region)}`,
+            )
+          : res.restored.length
+          ? `part ${regionText(request.region)} of image ${request.image} of ${recordset} fetched again and put back (its file was not here; the same scan): ${res.restored.join(" ")} · ${took}`
+          : res.again.length
+          ? lines(`that part is registered already: ${res.again.join(" ")}`, ...res.clashes.map((x) => `⚠ ${x}`))
+          : "no part fetched";
+      data = { ...data, added: res.added.map((x) => ({ id: x.id, image: x.image, part: x.part })), again: res.again };
+    } else if (recordset && batches && (r.images.length || batches.registered() || batches.interrupted())) {
+      const res = batches.finish(r.images);
+      // an image an earlier batch registered and a later one found to be a placeholder is no image fetched
+      const added = res.added.filter((m) => !res.withdrawn.includes(m.id));
+      const nums = added.map((m) => m.image).filter((n): n is number => n !== undefined);
+      // what it asked for and did not get (the person's Ctrl-C): said exactly, the same command fetches it
+      const got = new Set([...r.images.map((i) => i.n), ...tree.list<Media>("media").filter((m) => m.recordset === recordset && !m.part && !m.retracted).map((m) => m.image)]);
+      const missed = request.cmd === "fetch" && (batches.interrupted() || child) ? request.images.filter((n) => !got.has(n)) : [];
+      const stopped = batches.stopped();
+      text = lines(
+        added.length || !res.restored.length ? `${added.length} image(s) of ${recordset}${nums.length ? ` (images ${runs(nums)})` : ""} fetched and registered · ${took}` : undefined,
+        res.restored.length ? `${res.restored.length} image(s) of ${recordset} fetched again and put back (their file was not here; the same scan): ${res.restored.slice(0, 5).join(" ")}${res.restored.length > 5 ? " …" : ""} · ${took}` : undefined,
+        res.again.length ? `${res.again.length} already registered` : undefined,
+        ...res.clashes.slice(0, 10).map((x) => `⚠ ${x}`),
+        res.withdrawn.length ? `withdrawn again (the portal gave the same file for a later image — a placeholder, not a scan): ${res.withdrawn.join(" ")}` : undefined,
+        missed.length ? `${stopped ? `stopped (${stopped})` : batches.interrupted() ? "interrupted" : "not fetched"}: images ${runs(missed)} not fetched — the same command fetches them (what is here is not asked for again)` : undefined,
+        res.woken.length ? `back in the queue (they waited for these images): ${res.woken.join(" ")}` : undefined,
+      );
+      data = { ...data, added: added.map((m) => ({ id: m.id, image: m.image })), again: res.again, restored: res.restored, woken: res.woken, clashes: res.clashes, ...(res.withdrawn.length ? { withdrawn: res.withdrawn } : {}), ...(missed.length ? { interrupted: batches.interrupted(), missed } : {}), ...(stopped ? { stopped } : {}) };
+      fs.rmSync(workDir, { recursive: true, force: true });
+    } else if (r.images.length) {
+      // into the inbox, one folder for the book: the usual way from there
+      const folder = `${c.name} ${String(request.book).replace(/[^\p{L}\p{M}\p{N}._-]+/gu, "_")}`;
+      const inbox = path.join(shared(ctx), "inbox", folder);
+      fs.mkdirSync(inbox, { recursive: true });
+      for (const i of r.images) fs.renameSync(i.file, path.join(inbox, path.basename(i.file)));
+      fs.rmSync(workDir, { recursive: true, force: true });
+      text = lines(`${r.images.length} image(s) fetched into the inbox: ${folder}/ · ${took}`, `register them: strom media add --inbox ${shellArg(folder)} --recordset B…`);
+      data = { ...data, inbox: folder };
+    } else {
+      fs.rmSync(workDir, { recursive: true, force: true });
+      text = "no images fetched";
+    }
+    // the images it got are registered; the rest when the archive takes requests again
+    const wait = later(r, request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)}${recordset ? ` --recordset ${recordset}` : ""} — what is here already is not fetched again` : "the same command");
+    // images another strom was fetching: waited for once this one's are here (the foreground)
+    const after = joined && !batches?.interrupted() && recordset ? await joinFetch(ctx, recordset, joined, `images ${runs(joined.images)} of ${recordset}: the other fetch`) : undefined;
+    const code = wait.exitCode ? wait.exitCode : batches?.stopped() ? 0 : batches?.interrupted() ? EXIT.cancelled : r.stopped && !r.images.length ? 1 : after?.exitCode;
+    endCode = code ?? 0;
+    return { text: lines(describeRun(r, request.cmd), text, advice, wait.line, near, after?.text), data: { ...data, ...(after ? { joined: after.data } : {}) }, ...(code ? { exitCode: code } : {}) };
+  } finally {
+    // a fetch in the background says how it ended (strom fetch --status, the next brief) before its mark goes
+    if (child && recordset && request.cmd === "fetch") {
+      const asked = request.images;
+      tree.reread();
+      const have = new Set(tree.list<Media>("media").filter((m) => m.recordset === recordset && !m.part && !m.retracted).map((m) => m.image));
+      const stopped = batches?.stopped();
+      markEnded(tree.root, {
+        pid: process.pid,
+        recordset,
+        connector: c.name,
+        book: String(request.book),
+        images: asked,
+        registered: asked.filter((n) => have.has(n)),
+        missed: asked.filter((n) => !have.has(n)),
+        ...(stopped ? { stopped } : {}),
+        at: new Date().toISOString(),
+        since: new Date(t0).toISOString(),
+        session: child.session,
+        ...(child.task ? { task: child.task } : {}),
+        exitCode: endCode ?? 1,
+      });
+    }
+    batches?.end();
   }
-  // the images it got are registered; the rest when the archive takes requests again
-  const wait = later(r, request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)}${recordset ? ` --recordset ${recordset}` : ""} — what is here already is not fetched again` : "the same command");
-  return { text: lines(describeRun(r, request.cmd), text, advice, wait.line, near), data, ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.images.length ? { exitCode: 1 } : {}) };
+}
+
+/** A fetch of fewer images says nothing as they come: at the archive's pace it is over soon, its end says it all. */
+const COUNT_FROM_TTY = 10;
+/** Where nobody watches, a line at each tenth: from this many images on a tenth is more than one image. */
+const COUNT_FROM = 20;
+
+/**
+ * The images of a long fetch counted as they come ("40/109 images", in the research language), where its output said
+ * nothing until the end. At a terminal one line written over after each image and cleared before anything else is
+ * said, so nothing of it stays. Where nobody watches it — an agent reads the output, often only when the command ends,
+ * or a log keeps it — a line at each tenth of the images: at most 9 whatever the count (an agent pays for each line it
+ * reads, a line per image of a book of hundreds would bury the rest), counted, not timed, so the same fetch always
+ * says the same; the archive's pace makes each tenth a while anyway. The last image says nothing: the summary follows.
+ * On stderr — stdout carries the result, with --json nothing but it. In the background (its log) in English.
+ * Counted from what strom took in: it asks the archive nothing and changes no pace.
+ */
+function imageCount(ctx: Context, total: number): { got: (n: number) => void; say: (s: string) => void; clear: () => void } {
+  const tty = ctx.io.tty;
+  const on = total >= (tty ? COUNT_FROM_TTY : COUNT_FROM);
+  // a fetch in the background writes into its log, which the agent reads (strom fetch --status, its tail): English,
+  // as the rest of the log; a fetch in the foreground in the research language, for the person following it
+  const lang = backgroundOf(ctx.env) ? "en" : ctx.uiLang();
+  const text = (n: number) => ui(lang, "ui.fetch.progress", { n, total });
+  let shown = 0; // the length of the line written over (a terminal)
+  let tenth = 0; // the last tenth said (no terminal)
+  const clear = () => {
+    if (!shown) return;
+    ctx.io.stderr(`\r${" ".repeat(shown)}\r`);
+    shown = 0;
+  };
+  return {
+    got: (n) => {
+      if (!on || n >= total) return;
+      if (tty) {
+        const t = text(n);
+        ctx.io.stderr(`\r${t}${" ".repeat(Math.max(0, shown - t.length))}`);
+        shown = Math.max(shown, t.length);
+        return;
+      }
+      const now = Math.floor((n * 10) / total);
+      if (now <= tenth) return;
+      tenth = now;
+      ctx.io.stderr(`  · ${text(n)}\n`);
+    },
+    say: (s) => (clear(), ctx.io.stderr(s)),
+    clear,
+  };
 }
 
 async function planBrowser(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" | "part" }>, recordset: string | undefined, human: Map<string, Pace> = new Map(), levels: ArchiveLevel[] = []): Promise<Result> {

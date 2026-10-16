@@ -219,7 +219,7 @@ test("tuned before for another model: offered again in the orientation, the menu
   const menu = await w.ok([], { tty: true, answers: ["8", "0", "0"] });
   assert.match(menu.out, /Čtení snímků bylo vyladěno pro Claude Code · sonnet/);
   // at its own number (6), Remote Control 7 after it
-  assert.match(menu.out, / 5 {2}Výzkum, nebo jen archiv[^\n]*\n {3}6 {2}Vyladit čtení snímků \(zatím vyladěno pro jiný model\)\n {3}7 {2}Remote Control v aplikaci Claude[^\n]*\n/);
+  assert.match(menu.out, / 5 {2}Výzkum, nebo jen Archiv Stromu[^\n]*\n {3}6 {2}Vyladit čtení snímků \(zatím vyladěno pro jiný model\)\n {3}7 {2}Remote Control v aplikaci Claude[^\n]*\n/);
   assert.ok(!fs.existsSync(path.join(w.cwd, ".strom", "calibrate")), "offered, never run");
   // once tuned for the model of the research: no offer, the date said
   cfg.viewSizes["claude opus"] = { find: 1400, read: 2000, at: "2026-10-09", sample: 6, sizes: [1400, 1568, 2000], clear: { find: true, read: true } };
@@ -233,6 +233,6 @@ test("tuned before for another model: offered again in the orientation, the menu
   await w.ok(["mode", "archive"], { tty: true, answers: ["a"] });
   for (const out of [(await w.ok([])).out, (await w.run(["doctor"])).out, (await w.ok([], { tty: true, answers: ["8", "0", "0"] })).out])
     assert.doesNotMatch(out, /čtení snímků|calibrate/i, out);
-  assert.match((await w.run(["media", "calibrate"])).err, /archive/);
+  assert.match((await w.run(["media", "calibrate"])).err, /Tento výzkum je Archiv Stromu/);
   w.cleanup();
 });

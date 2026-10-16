@@ -63,6 +63,17 @@ after(() => {
   if (dir) fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test("a release carries the changelogs: in strom-app.tar.gz and a beta's npm tarball (the bridge's /whats-new reads them offline)", opts, () => {
+  const listed = (file: string) => spawnSync("tar", ["-tzf", file], { encoding: "utf8" }).stdout.split("\n");
+  const app = listed(path.join(rel.beta, "strom-app.tar.gz"));
+  const npm = fs.readdirSync(rel.beta).find((f) => f.endsWith(".tgz"));
+  for (const f of ["CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md"]) {
+    assert.ok(app.includes(`app/${f}`), `strom-app.tar.gz: ${f}`);
+    if (npm) assert.ok(listed(path.join(rel.beta, npm)).includes(`package/${f}`), `${npm}: ${f}`);
+  }
+  assert.ok(listed(path.join(rel.stable, "strom-app.tar.gz")).includes("app/CHANGELOG.cs.md"), "a release's too");
+});
+
 /** An isolated installation in a scratch folder: its HOME, settings, program — nothing of this computer's. */
 class Install {
   readonly root: string;
@@ -195,6 +206,9 @@ test("stable → beta → stable on an isolated installation: each switch backed
   inst.install("stable");
   assert.equal(inst.version(), STABLE);
   assert.equal(inst.info().channel, undefined);
+  // what is new in it: the released changelog (main), the section of its version
+  assert.equal(inst.ok(["--version"]).out, `strom ${STABLE}\nWhat's new: https://github.com/ACiDekCZ/strom-research/blob/main/CHANGELOG.md#900\n`);
+  assert.deepEqual(inst.ok(["--version", "--json"]).json, { version: STABLE }, "a program reads the version alone");
   inst.ok(["setup", "--yes"]);
   // its research folder inside its own settings folder — never the program's, which strom uninstall takes away
   assert.equal(inst.config().home, path.join(inst.cfg, "Strom research"));
@@ -259,8 +273,11 @@ test("stable → beta → stable on an isolated installation: each switch backed
   assert.deepEqual(models(), chosen, "the models kept back on the stable");
   assert.ok((c.persons as any).persons.some((p: any) => p.name === "Marie Nováková"));
 
-  // there and back again: each trip its own backup (the research written on in between)
-  inst.switchTo("beta");
+  // there and back again: each trip its own backup (the research written on in between); a person's update says what
+  // is new in the version it installed — the beta's changelog, in the research's language, the version being prepared
+  const again = inst.ok(["update", "--channel", "beta", "--yes"], { env: { STROM_RELEASES_API: rel.list, STROM_RELEASE_DOWNLOAD: `file://${rel.download}`, STROM_LANG: "de" } });
+  assert.match(again.out, /\nWas ist neu: https:\/\/github\.com\/ACiDekCZ\/strom-research\/blob\/beta\/CHANGELOG\.de\.md#910\n/);
+  assert.equal(inst.ok(["--version"], { cwd: tree, env: { STROM_LANG: "cs" } }).out, `strom ${BETA}\nCo je nového: https://github.com/ACiDekCZ/strom-research/blob/beta/CHANGELOG.cs.md#910\n`);
   assert.equal(inst.config().backups.length, 3);
   inst.ok(["person", "add", "Karel /Novák/"], at);
   // the beta's bridge, followed by the app, says its channel
@@ -519,6 +536,12 @@ test("the Strom app's two copies against a stable and a beta strom (the beta a s
         const text = await ged.text();
         assert.match(text, /^(﻿)?0 HEAD/);
         assert.match(text, /1 NAME Pavel \/Šťastný\//);
+        // what is new, from the installed changelogs: a version they have no section of — no points, the address of
+        // the channel's branch, never an error
+        const news = await fetch(`${url}/whats-new?lang=cs&app=${app.version}`, { headers: { Origin: app.origin } });
+        assert.equal(news.status, 200);
+        assert.equal(news.headers.get("access-control-allow-origin"), app.origin);
+        assert.deepEqual(await news.json(), { version: isBeta ? BETA : STABLE, lang: "cs", url: `https://github.com/ACiDekCZ/strom-research/blob/${isBeta ? "beta" : "main"}/CHANGELOG.cs.md#${isBeta ? "910" : "900"}`, points: [] });
       }
       // a page of another site: not let in
       const other = await fetch(`${url}/status`, { headers: { Origin: "https://example.org" } });

@@ -213,7 +213,7 @@ export function webGate(o: { env: Env; tree?: Tree; url: string; shared: string 
       a.level === "manual" || a.permission === "manual"
         ? `its images by hand only: strom task wait ${o.task ?? "T…"} --images B…:<numbers> --on "<the book, its link, which images — impersonal, in the research language>"`
         : `its images through strom fetch with its connector, at a person's pace once the person allowed it (strom fetch asks them), else by hand: strom task wait ${o.task ?? "T…"} --images B…:<numbers> --on "…"`;
-    return out({ allow: false, why: "images", reason: `strom: ${name} — ${a.level === "unknown" ? "its terms are not known" : a.level === "manual" ? "its terms allow its images by hand only" : "its terms restrict automated downloading"}: no image of it through your web tools; ${way}. Its pages stay open to the web fetch tool.` });
+    return out({ allow: false, why: "images", reason: `strom: ${name} — ${a.level === "unknown" || a.termsUnknown ? "its terms are not known" : a.level === "manual" ? "its terms allow its images by hand only" : "its terms restrict automated downloading"}: no image of it through your web tools; ${way}. Its pages stay open to the web fetch tool.` });
   }
   let blocked: WebGate["blocked"];
   try {

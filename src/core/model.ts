@@ -324,6 +324,8 @@ export interface RecordSet extends BaseRecord {
   calibration: Calibration[];
   /** How the pages are laid out; what a reader must know. */
   layout?: string;
+  /** Registered knowingly beside these books of the same link or the same book of a connector, and why. */
+  duplicates?: { of: string[]; reason: string };
   notes: Note[];
 }
 
@@ -708,6 +710,8 @@ export interface TreeConfig {
   runMinutes?: number;
   /** Web requests to one server in one session through an agent's own web fetch before strom refuses or asks (web.perHost). */
   webPerHost?: number;
+  /** Readers of strom read at the same time (read.parallel). */
+  readParallel?: number;
   /** Order of the task queue: balanced (default), depth, priority. */
   queueStrategy?: string;
   /** Stories of the ancestors: yes or no (overrides the user's). */

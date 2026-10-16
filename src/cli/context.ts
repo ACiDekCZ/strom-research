@@ -17,6 +17,7 @@ import { readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
 import { currentSession } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
+import { treeAgentHere } from "../core/state.ts";
 import { canShowDialog, systemDialog, WAIT_SECONDS, type ChoiceText, type DialogText } from "../core/dialog.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 
@@ -196,6 +197,21 @@ export class Context {
       // no tree to say
     }
     return this.settings.config.mode === "archive";
+  }
+
+  /**
+   * Shown as an archive here: an archive, or the research worked on waiting for its agent (not on this computer) —
+   * nothing offered that needs the agent (its working alone, the downloaders), the way to the agent offered instead.
+   */
+  actsAsArchive(): boolean {
+    if (this.archiveHere()) return true;
+    try {
+      const root = this.locateTree();
+      if (root) return !treeAgentHere(readJsonIfExists<TreeConfig>(path.join(root, "strom.json")), this.env);
+    } catch {
+      // no tree to say
+    }
+    return false;
   }
 
   /**

@@ -32,7 +32,7 @@ import { fromFlexDate, houseOf, importDate, readGedName, readGedSex, stromAppFil
 import { humanAge, normalizeAge } from "./age.ts";
 import { dateYears } from "./gdate.ts";
 import { create, update } from "./records.ts";
-import { foldText, safeFolderName } from "./text.ts";
+import { decodeText, foldText, safeFolderName } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { eventName, humanDate } from "../cli/human.ts";
@@ -40,7 +40,7 @@ import { ui } from "../cli/ui.ts";
 import { StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
-import { isArchive } from "./mode.ts";
+import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
 import { APP_DATA_SEX_UNKNOWN, isAppVersion } from "./stromapp.ts";
 import { cleanTitle, familiesAsPartner, formatName, foundTitles, gedcomTitledName, primaryName, titledName } from "./people.ts";
@@ -1111,7 +1111,7 @@ export function readStromJson(data: unknown): Snapshot {
 
 /** A file coming back: GEDCOM or the Strom app's JSON; empty or unreadable throws. */
 export function readTreeFile(file: string): Snapshot {
-  const text = fs.readFileSync(file, "utf8");
+  const text = decodeText(fs.readFileSync(file));
   if (!text.trim()) throw new UsageError(`${path.basename(file)} is empty`, { code: "tree.empty", params: { file: path.basename(file) } });
   let snap: Snapshot;
   if (/^﻿?\s*[{[]/.test(text)) {
@@ -2137,8 +2137,8 @@ const famKey = (partners: string[]) => [...partners].sort().join("+");
  * becomes. Without a base only additions are taken; differences wait to be picked.
  */
 export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "user", opts: { force?: boolean; takenBack?: false; sent?: boolean } = {}): Plan {
-  // an archive mirrors the app: the user's word wins, what the app no longer has is withdrawn (with the reason)
-  const mirror = isArchive(tree);
+  // an archive (or a research waiting for its agent) mirrors the app: the user's word wins, what the app no longer has is withdrawn (with the reason)
+  const mirror = actsAsArchive(tree);
   if (mirror) edits = "user";
   // what this tree of the app had when it last sent: an archive takes away only that (none sent yet: what it was given)
   const seen = mirror && incoming.appTree ? readSeen(tree.root, incoming.appTree) : undefined;
@@ -3971,7 +3971,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
   // one task per person to read for themselves what the user transcribed or read again — none in an archive: nobody
   // reads there (switched to research, its reviews propose what to read)
   const open = tree.list<Task>("task").filter((t) => t.origin === VERIFY_ORIGIN && ["open", "doing", "parked", "waiting"].includes(t.state));
-  for (const [person, srcs] of isArchive(tree) ? [] : verify) {
+  for (const [person, srcs] of actsAsArchive(tree) ? [] : verify) {
     const p = tree.get<Person>(person);
     if (!p || p.retracted || open.some((t) => t.subject.includes(person))) continue;
     // the person and the records by their IDs: shown, they are named (twice found on Windows: "Karel Dvořák [Karel Dvořák

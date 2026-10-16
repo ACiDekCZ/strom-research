@@ -644,7 +644,9 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   await w.ok(["media", "view", "B1:2"]);
   assert.match((await w.ok(["check"])).out, /^ok/);
   // without a record set: into the inbox, a folder for the book
-  const inbox = await w.ok(["fetch", "zkusebni", "5359", "--images", "2-3"]);
+  // a book of the research: never fetched into the inbox again, unless said why
+  assert.match((await w.run(["fetch", "zkusebni", "5359", "--images", "2-3"])).err, /book 5359 of zkusebni is B0001 \(3 images here\) in the research — nothing fetched/);
+  const inbox = await w.ok(["fetch", "zkusebni", "5359", "--images", "2-3", "--again", "to compare the two scans"]);
   assert.match(inbox.out, /2 image\(s\) fetched into the inbox: zkusebni 5359\/[\s\S]*strom media add --inbox "zkusebni 5359" --recordset B…/);
   assert.deepEqual(fs.readdirSync(path.join(w.home, "shared", "inbox", "zkusebni 5359")).sort(), ["s0002.jpg", "s0003.jpg"]);
   // finding books writes nothing

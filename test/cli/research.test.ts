@@ -121,7 +121,7 @@ test("listings are paged with a follow-up command", opts, async () => {
   await w.withTree();
   for (let i = 1; i <= 5; i++) await w.ok(["person", "add", `Syn${i} /Novák/`]);
   const r = await w.ok(["person", "list", "--limit", "2"]);
-  assert.match(r.out, /… 3 more: strom person list --page 2/);
+  assert.match(r.out, /… dalších 3: strom person list --page 2/, "in the research's language");
   const last = (await w.ok(["person", "list", "--limit", "2", "--page", "3", "--json"])).json;
   assert.equal(last.persons.length, 1);
   w.cleanup();

@@ -370,7 +370,16 @@ test("an excerpt in full: the clip with more round it, not made smaller; unknown
   assert.match((await w.ok(["link", "open", link("c0000000000")])).out, /Tento výřez pramene S0001 už ve výzkumu není/);
   assert.match((await w.ok(["link", "open", link(mark, "S0099")])).out, /už ve výzkumu není/);
   assert.match((await w.ok(["link", "open", link(mark, "S0001", "11111111-2222-3333-4444-555555555555")])).out, /Výzkum, pro který odkaz je, na tomto počítači není/);
-  assert.match((await w.ok(["link", "open", "strom-research://format?tree=x"])).out, /Tento odkaz z aplikace Strom nešel použít \(no research named\)/);
+  // a link that cannot be used: one sentence in the person's language, the English reason only in the data
+  const wrong = await w.ok(["link", "open", "strom-research://format?tree=x"]);
+  assert.match(wrong.out, /Tento odkaz z aplikace Strom nešel použít – některá jeho část chybí nebo nesedí\. Nic se nestalo\./);
+  assert.doesNotMatch(wrong.out, /named/);
+  assert.equal((await w.ok(["link", "open", "strom-research://format?tree=x", "--json"])).json.why, "no research named");
+  for (const [lang, said] of [["en", /could not be used: a part of it is missing or not right\./], ["de", /ließ sich nicht verwenden – ein Teil davon fehlt oder stimmt nicht\./]] as const) {
+    const other = await w.ok(["link", "open", `strom-research://task?tree=${"0".repeat(8)}-0000-4000-8000-${"0".repeat(12)}&task=T1;rm`], { env: { STROM_LANG: lang } });
+    assert.match(other.out, said);
+    assert.doesNotMatch(other.out, /named/);
+  }
   // the scan is not on this computer: its page in the online archive
   const shared = (await w.ok(["config", "get", "shared", "--json"])).json.value as string;
   for (const f of fs.readdirSync(path.join(w.cwd, ".strom", "excerpts"))) fs.rmSync(path.join(w.cwd, ".strom", "excerpts", f));
