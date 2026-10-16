@@ -563,7 +563,8 @@ test("a question in a window is said to wait there only when a window is shown: 
   fs.mkdirSync(release);
   fs.writeFileSync(path.join(release, "VERSION"), "99.0.0\n");
   fs.writeFileSync(path.join(release, "NODE_VERSION"), "26.9.0\n");
-  const env = { ...w.env, STROM_DOWNLOAD_BASE: `file://${release}`, STROM_NODE_BASE: `file://${path.join(w.dir, "no-node")}`, STROM_UPDATES: "check" };
+  // an installed strom reads the person's real home (never $HOME): isolated, it lists nothing in their settings
+  const env = { ...w.env, STROM_DOWNLOAD_BASE: `file://${release}`, STROM_NODE_BASE: `file://${path.join(w.dir, "no-node")}`, STROM_UPDATES: "check", STROM_ISOLATED: "1" };
   for (const lang of ["cs", "en", "de"]) {
     const r = spawnSync(process.execPath, [path.join(app, "dist", "cli.js"), "update", "--json", "--lang", lang], { cwd: tree, env: env as NodeJS.ProcessEnv, encoding: "utf8" });
     assert.equal(r.status, 4, r.stdout + r.stderr);

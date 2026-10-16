@@ -39,7 +39,7 @@ const strom = (...args: string[]): string => {
   if (r.status !== 0) throw new Error(`strom ${args.join(" ")} → ${r.status}\n${r.stdout}\n${r.stderr}`);
   return r.stdout;
 };
-const version = strom("--version").trim().replace(/^strom /, "");
+const version = strom("--version").trim().split("\n")[0]!.replace(/^strom /, "");
 
 strom("setup", "--yes", "--lang", "cs");
 strom("init", "Novákovi");

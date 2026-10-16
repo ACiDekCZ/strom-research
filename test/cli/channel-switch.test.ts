@@ -195,6 +195,9 @@ test("stable → beta → stable on an isolated installation: each switch backed
   inst.install("stable");
   assert.equal(inst.version(), STABLE);
   assert.equal(inst.info().channel, undefined);
+  // what is new in it: the released changelog (main), the section of its version
+  assert.equal(inst.ok(["--version"]).out, `strom ${STABLE}\nWhat's new: https://github.com/ACiDekCZ/strom-research/blob/main/CHANGELOG.md#900\n`);
+  assert.deepEqual(inst.ok(["--version", "--json"]).json, { version: STABLE }, "a program reads the version alone");
   inst.ok(["setup", "--yes"]);
   // its research folder inside its own settings folder — never the program's, which strom uninstall takes away
   assert.equal(inst.config().home, path.join(inst.cfg, "Strom research"));
@@ -259,8 +262,11 @@ test("stable → beta → stable on an isolated installation: each switch backed
   assert.deepEqual(models(), chosen, "the models kept back on the stable");
   assert.ok((c.persons as any).persons.some((p: any) => p.name === "Marie Nováková"));
 
-  // there and back again: each trip its own backup (the research written on in between)
-  inst.switchTo("beta");
+  // there and back again: each trip its own backup (the research written on in between); a person's update says what
+  // is new in the version it installed — the beta's changelog, in the research's language, the version being prepared
+  const again = inst.ok(["update", "--channel", "beta", "--yes"], { env: { STROM_RELEASES_API: rel.list, STROM_RELEASE_DOWNLOAD: `file://${rel.download}`, STROM_LANG: "de" } });
+  assert.match(again.out, /\nWas ist neu: https:\/\/github\.com\/ACiDekCZ\/strom-research\/blob\/beta\/CHANGELOG\.de\.md#910\n/);
+  assert.equal(inst.ok(["--version"], { cwd: tree, env: { STROM_LANG: "cs" } }).out, `strom ${BETA}\nCo je nového: https://github.com/ACiDekCZ/strom-research/blob/beta/CHANGELOG.cs.md#910\n`);
   assert.equal(inst.config().backups.length, 3);
   inst.ok(["person", "add", "Karel /Novák/"], at);
   // the beta's bridge, followed by the app, says its channel

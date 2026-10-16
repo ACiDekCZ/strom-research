@@ -754,6 +754,7 @@
   "ui.update.downloading": "strom {version} wird heruntergeladen…",
   "ui.update.failed": "Die Aktualisierung hat nicht geklappt: {detail}. strom bleibt, wie er war.",
   "ui.update.done": "✓ strom ist aktualisiert: {previous} → {version}.",
+  "ui.update.whatsnew": "Was ist neu: {url}",
   "ui.update.restart": "strom ist aktualisiert — dieses Menü läuft aber noch in der alten Version. Nach einem Neustart von strom (oder der Verknüpfung „{shortcut}“) läuft die neue Version.",
   "ui.o.update": "Update",
   "ui.o.update.new": "{version} ist da (diese ist {current}) – sag es dem Benutzer; strom update installiert sie mit seiner Zustimmung",

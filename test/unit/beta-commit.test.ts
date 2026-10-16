@@ -7,7 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { AGENTS_FILE, betaAgents, betaCommit } from "../../scripts/beta-commit.ts";
+import { AGENTS_FILE, betaAgents, betaChangelog, betaCommit, CHANGELOGS } from "../../scripts/beta-commit.ts";
 import { hasGit } from "../helpers.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
@@ -37,6 +37,16 @@ test("the agents' text changed so that a line is not found, or a stable run is l
   assert.throws(() => betaAgents(main + "\nOr: `irm https://example.org/install.ps1 | iex`\n"), /without STROM_CHANNEL=beta/);
 });
 
+test("the changelogs of the beta: the section of the version being prepared says so in its language; no section, or two: the beta stops", () => {
+  const log = "# What's new\n\n## 1.15.0\n\n*Goes with the app.*\n\n- One.\n\n## 1.14.0\n\n- Old.\n";
+  const [file, note] = CHANGELOGS.find(([f]) => f === "CHANGELOG.cs.md")!;
+  assert.equal(betaChangelog(log, file, note, "1.15.0-beta.5"), "# What's new\n\n## 1.15.0\n\n*Připravuje se: bety do 1.15.0-beta.5. Oddíl bude úplný s vydáním.*\n\n*Goes with the app.*\n\n- One.\n\n## 1.14.0\n\n- Old.\n");
+  assert.throws(() => betaChangelog(log, file, note, "1.16.0-beta.1"), /CHANGELOG\.cs\.md: no section "## 1\.16\.0"/);
+  assert.throws(() => betaChangelog(log.replace("## 1.14.0", "## 1.15.0"), file, note, "1.15.0-beta.1"), /more than one section/);
+  // "## 1.15.0" only: never "## 1.15.01" or "## 1x15x0"
+  assert.throws(() => betaChangelog("## 1.15.01\n## 1x15x0\n", file, note, "1.15.0-beta.1"), /no section/);
+});
+
 test("the beta's commit: HEAD's tree with the beta's agents' text, its parent the base, nothing else changed — the working tree, index and branches untouched", { skip: !hasGit }, () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), "strom-beta-commit-"));
   const git = (...args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.org", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.org" } }).trim();
@@ -48,6 +58,8 @@ test("the beta's commit: HEAD's tree with the beta's agents' text, its parent th
     fs.mkdirSync(path.join(repo, "install"));
     fs.writeFileSync(path.join(repo, AGENTS_FILE), main);
     fs.writeFileSync(path.join(repo, "README.md"), "Ahoj — Grüße — Привет\n");
+    const logs = Object.fromEntries(CHANGELOGS.map(([file]) => [file, `# ${file}\n\n## 1.15.0\n\n- Nové — Neu — Новое.\n`]));
+    for (const [file, text] of Object.entries(logs)) fs.writeFileSync(path.join(repo, file), text);
     git("add", ".");
     git("commit", "-q", "-m", "one");
     const base = git("rev-parse", "HEAD");
@@ -57,8 +69,10 @@ test("the beta's commit: HEAD's tree with the beta's agents' text, its parent th
     const head = git("rev-parse", "HEAD");
     const c = betaCommit(repo, "1.15.0-beta.2", base);
     assert.equal(git("log", "-1", "--format=%P|%s", c), `${base}|Strom Research 1.15.0-beta.2`);
-    assert.equal(git("diff", "--name-only", c, "HEAD"), AGENTS_FILE);
+    assert.deepEqual(git("diff", "--name-only", c, "HEAD").split("\n").sort(), [AGENTS_FILE, ...CHANGELOGS.map(([file]) => file)].sort());
     assert.equal(git("show", `${c}:${AGENTS_FILE}`) + "\n", betaAgents(main));
+    for (const [file, note] of CHANGELOGS) assert.equal(git("show", `${c}:${file}`) + "\n", betaChangelog(logs[file]!, file, note, "1.15.0-beta.2"));
+    assert.match(git("show", `${c}:CHANGELOG.de.md`), /^## 1\.15\.0\n\n\*In Vorbereitung: die Betas bis 1\.15\.0-beta\.2\./m);
     assert.equal(git("show", `${c}:README.md`), "two");
     // nothing of the repository moved
     assert.equal(git("rev-parse", "HEAD"), head);
@@ -67,6 +81,8 @@ test("the beta's commit: HEAD's tree with the beta's agents' text, its parent th
     assert.equal(fs.readFileSync(path.join(repo, AGENTS_FILE), "utf8"), main);
     assert.throws(() => betaCommit(repo, "1.15.0", base), /not a beta/);
     assert.throws(() => betaCommit(repo, "1.15.0-rc.1", base), /not a beta/);
+    // a beta of a version the changelogs have no section for: no commit
+    assert.throws(() => betaCommit(repo, "1.16.0-beta.1", base), /CHANGELOG\.md: no section "## 1\.16\.0"/);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

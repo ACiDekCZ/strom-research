@@ -1,0 +1,46 @@
+# Was ist neu in Strom Ahnenforschung
+
+[English](CHANGELOG.md) · [Čeština](CHANGELOG.cs.md) · Deutsch
+
+Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
+[GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
+
+## 1.15.0
+
+*In Vorbereitung: die Betas bis 1.15.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+
+*Gehört zur Strom-App 3.12.0.*
+
+- **Ein Strom-Archiv nach Wahl, auch mit einem KI-Agenten.** Die Einrichtung fragt, ob neue Stammbäume Forschungen mit
+  dem Agenten sind oder nur ein Strom-Archiv; in den Einstellungen lässt sich das für einen Stammbaum oder für die
+  neuen ändern.
+- **Eine Forschung wartet auf ihren Agenten.** Ein Stammbaum, dessen KI-Agent nicht auf diesem Computer ist, speichert,
+  was die Strom-App sendet, wie ein Strom-Archiv. Sobald der Agent installiert ist, geht die Forschung von selbst weiter.
+- **Ein Buch eines Archivs, einmal geladen.** Ein Buch, das schon in der Forschung ist, wird genannt, statt neu
+  eingetragen und wieder geladen zu werden – ein Archiv wird nie zweimal um dieselben Bilder gebeten.
+- **Schneller lesen.** Fünf Leser lesen die Scans gleichzeitig (die Einstellung `read.parallel`, 1 bis 10), und ein
+  langer Download zeigt, wie weit er ist („40/109 Bilder“). Ein Archiv bekommt nicht mehr Anfragen als bisher.
+- **Stammbäume aus anderen Programmen.** Eine GEDCOM-Datei mit Byte-Order-Mark oder in UTF-16 (so speichern sie manche
+  Windows-Programme) wird als Stammbaum gelesen; der Stammbaum einer anderen Forschung wird als fremder übernommen.
+- **Die Live-Ansicht endet sauber** auf jedem System, auch unter Windows, und die Strom-App erfährt, dass sie endete.
+- **Ein strom pro Installation.** Ein anderer strom auf demselben Computer (aus npm oder aus den Quellen gebaut)
+  übernimmt nie die Links der Strom-App oder den Update-Kanal.
+- **Was ist neu.** Nach `strom update` und bei `strom --version` ein Link zu dieser Übersicht in der Sprache der
+  Forschung.
+
+## 1.14.0
+
+*11.10.2026 · gehört zur Strom-App 3.11.0.*
+
+- **Die Bedingungen jedes Archivs.** strom hält sich daran, wie weit jedes Archiv automatischen Zugriff erlaubt:
+  erlaubt, eingeschränkt, nur von Hand oder gar nicht. Wo die Bedingungen unklar sind, entscheidet einmal der Mensch.
+  Eine Ablehnung pausiert ein Archiv für einen Tag.
+- **Was wartet, nach Orten.** Die Dinge für den Menschen sind nach Art sortiert und danach gruppiert, wo sie erledigt
+  werden: ein Archiv, ein Amt, die Familie, eine Website. Ein Brief oder eine Frage lässt sich als verschickt markieren.
+- **Alte Handschrift lesen.** Scans in der Größe, die jede Ansicht braucht, ein Leser der Scans auf dem Modell, das der
+  Mensch gewählt hat, und das Lesen abgestimmt auf die eigenen belegten Einträge der Forschung.
+- **Mit der Strom-App 3.11.0.** Ein Widerspruch zwischen einer Änderung in der App und einem Eintrag wird in der App
+  entschieden; Hypothesen zeigen, was jede Variante verbinden würde.
+- **Kleinere Unterlagen für den Agenten, die mehr wissen**, und der Denkaufwand ist die Wahl des Menschen
+  (`model.effort`).
+- **`strom grep`** durchsucht die Unterlagen, Notizen und Ausgaben der Forschung, auch über Akzente hinweg.

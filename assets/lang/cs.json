@@ -754,6 +754,7 @@
   "ui.update.downloading": "Stahuji strom {version}…",
   "ui.update.failed": "Aktualizace se nepovedla: {detail}. strom zůstává, jak byl.",
   "ui.update.done": "✓ strom je aktualizovaný: {previous} → {version}.",
+  "ui.update.whatsnew": "Co je nového: {url}",
   "ui.update.restart": "strom je aktualizovaný — tahle nabídka ale ještě běží ve staré verzi. Po novém spuštění stromu (nebo zástupce „{shortcut}“) poběží nová verze.",
   "ui.o.update": "aktualizace",
   "ui.o.update.new": "vyšla {version} (tato je {current}) – řekni to uživateli; strom update ji s jeho souhlasem nainstaluje",

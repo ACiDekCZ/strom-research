@@ -27,7 +27,7 @@ import { mb, sharedMedia, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 /** So many bytes of the shared store no research here names: worth a warning. */
 const MEDIA_UNNAMED_SAID = 500 * 1024 * 1024;
 import { Tree, VERSION } from "../core/tree.ts";
-import { checked, installUpdate, isNewer, knownNewerVersion, lastChannelOf, latestRelease, newerNode, newerVersion, setInstallChannel, updateChannel, type Channel, type Updated } from "../core/update.ts";
+import { checked, installUpdate, isNewer, knownNewerVersion, lastChannelOf, latestRelease, newerNode, newerVersion, setInstallChannel, updateChannel, whatsNewUrl, type Channel, type Updated } from "../core/update.ts";
 import { configDir, defaultHome, desktopDir, isolated, noLinks, ownCommand } from "../core/paths.ts";
 import { backupBefore, backupSaid, lastBackupLine } from "../cli/backups.ts";
 import { BACKUP_SAID_DAYS, lastBackup, type BackupRecord } from "../core/backup.ts";
@@ -645,7 +645,13 @@ register({
       if (r.status === 0) bridges++;
     }
     return {
-      text: lines(newer ? t("ui.update.done", { version: done.version, previous: VERSION }) : undefined, done.node ? t("ui.update.node.done", done.node) : undefined, bridges ? t("ui.update.bridges", { n: bridges }) : undefined),
+      text: lines(
+        newer ? t("ui.update.done", { version: done.version, previous: VERSION }) : undefined,
+        // what is new in the version installed: the changelog in the research language, on the branch of its channel
+        newer ? t("ui.update.whatsnew", { url: whatsNewUrl(done.version, channel, lang) }) : undefined,
+        done.node ? t("ui.update.node.done", done.node) : undefined,
+        bridges ? t("ui.update.bridges", { n: bridges }) : undefined,
+      ),
       data: { previous: VERSION, version: done.version, updated: true, ...(done.node ? { node: done.node } : {}), bridges, ...extra, ...(backup ? { backup: { path: backup.path, bytes: backup.bytes } } : {}) },
     };
   },

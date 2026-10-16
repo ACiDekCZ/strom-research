@@ -687,6 +687,7 @@ export const UI = {
   "ui.update.downloading": "Downloading strom {version}…",
   "ui.update.failed": "The update did not work: {detail}. strom stays as it was.",
   "ui.update.done": "✓ strom is updated: {previous} → {version}.",
+  "ui.update.whatsnew": "What's new: {url}",
   "ui.update.restart": "strom is updated — this menu still runs the old version. Start strom again (or the shortcut \"{shortcut}\"), and the new version is at work.",
   "ui.o.update": "update",
   "ui.o.update.new": "{version} is out (this is {current}) — tell the user; strom update installs it with their yes",

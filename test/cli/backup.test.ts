@@ -242,7 +242,8 @@ test("strom update --channel stable: the running strom backs every research up b
   fs.writeFileSync(path.join(release, "VERSION"), "1.0.0\n");
   fs.writeFileSync(path.join(release, "NODE_VERSION"), "26.9.0\n");
   setConfig(w, { lastVersion: VERSION, lastChannel: "beta" });
-  const env = { ...w.env, STROM_DOWNLOAD_BASE: `file://${release}`, STROM_NODE_BASE: `file://${path.join(w.dir, "no-node")}`, STROM_UPDATES: "check" };
+  // an installed strom reads the person's real home (never $HOME): isolated, it lists nothing in their settings
+  const env = { ...w.env, STROM_DOWNLOAD_BASE: `file://${release}`, STROM_NODE_BASE: `file://${path.join(w.dir, "no-node")}`, STROM_UPDATES: "check", STROM_ISOLATED: "1" };
   const run = (args: string[], extra: Record<string, string> = {}) => spawnSync(process.execPath, [path.join(app, "dist", "cli.js"), ...args], { cwd: tree, env: { ...env, ...extra } as NodeJS.ProcessEnv, encoding: "utf8" });
   // no room for it: nothing installed
   fs.chmodSync(w.home, 0o555);

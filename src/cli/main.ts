@@ -24,7 +24,7 @@ import { prependPath } from "../runners/runner.ts";
 import { shimDir } from "../commands/session.ts";
 import { isAgent } from "../core/which.ts";
 import { appUrlShown, noticeStromApp } from "../core/stromapp.ts";
-import { lastChannelOf, pendingTransition, updateChannel } from "../core/update.ts";
+import { lastChannelOf, pendingTransition, updateChannel, whatsNewUrl } from "../core/update.ts";
 import { backupBefore, backupSaid } from "./backups.ts";
 import { guestOf, installation, ownFolder, refreshTreeShim } from "../core/self.ts";
 import { refreshGlobal } from "../agents/global.ts";
@@ -131,6 +131,21 @@ function asOwnCommand(io: IO, name: string, json: boolean, argv: string[]): IO {
   return { ...io, stdout: (s) => io.stdout(json ? asCommandJson(s, name, words) : text(s)), stderr: (s) => io.stderr(text(s)) };
 }
 
+/**
+ * strom --version: the version on its first line (what a script reads), then where to read what is new in it — the
+ * changelog in the research language, on the branch of the installation's channel. --json gives the version alone.
+ */
+function versionSaid(env: Env, cwd: string, io: IO, values: Record<string, string | boolean | string[] | undefined> = {}): string {
+  const first = `strom ${VERSION}\n`;
+  try {
+    const lang = Context.fromOptions({ env, cwd, io, json: false, values }).uiLang();
+    return `${first}${ui(lang, "ui.update.whatsnew", { url: whatsNewUrl(VERSION, updateChannel(env), lang) })}\n`;
+  } catch {
+    // no settings to read: the version alone
+    return first;
+  }
+}
+
 export async function main(argv: string[], io: IO, env: Env, cwd: string): Promise<number> {
   const json = argv.includes("--json");
   const own = ownCommand(env);
@@ -152,7 +167,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // A person at a terminal gets the guided menu; an agent, a script or the app the orientation.
     if (argv.length === 0 && io.tty && !isAgent(env) && env.STROM_NONINTERACTIVE !== "1") argv = ["menu"];
     if (argv.length === 1 && (argv[0] === "--version" || argv[0] === "-v")) {
-      io.stdout(json ? toJson({ version: VERSION }) : `strom ${VERSION}\n`);
+      io.stdout(json ? toJson({ version: VERSION }) : versionSaid(env, cwd, io));
       return EXIT.ok;
     }
     let resolved;
@@ -179,7 +194,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       return EXIT.ok;
     }
     if (v.version) {
-      io.stdout(json ? toJson({ version: VERSION }) : `strom ${VERSION}\n`);
+      io.stdout(json ? toJson({ version: VERSION }) : versionSaid(env, cwd, io, v));
       return EXIT.ok;
     }
 
