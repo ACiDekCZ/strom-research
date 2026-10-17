@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.16.0
 
-*Připravuje se: bety do 1.16.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.16.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **Terminál pro okna výzkumu (macOS).** Co aplikace Strom otevírá v terminálu a rozhovor předaný do nového okna
   se může otevírat v iTerm2 místo v terminálu systému: první položka nastavení, průvodce, když jsou tu oba, nebo
@@ -24,6 +24,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   v aplikaci; jméno doložené záznamem zůstává. `strom intake` čte `_MARNM` jiných programů jako jméno po sňatku.
   Výzkum založený dřív z takového rodokmenu (MyHeritage, Legacy, PAF) je doplní ze souboru, který má uložený:
   `strom input names I…` je ukáže, `--apply` přidá jen tato jména s citací importu, `--undo` je vezme zpět.
+- **Jeden archiv, jedna otázka.** Když obrazy jednoho archivu přicházejí z více adres (jeho web, album, server
+  obrazů), svolení archivu se žádá jednou a platí pro všechny, ne adresu po adrese.
 - **Linie výzkumu.** České texty všude říkají „linie výzkumu“, nikde už „směry“.
 
 ## 1.15.0

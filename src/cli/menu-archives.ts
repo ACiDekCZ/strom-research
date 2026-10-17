@@ -13,7 +13,7 @@ import { humanDay } from "./human.ts";
 import { Tree } from "../core/tree.ts";
 import { isArchive } from "../core/mode.ts";
 import { bareHost, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
-import { claimOf, loadArchives, rank, type ArchiveLevel, type Claim, type PendingQuestion, type Way } from "../core/terms.ts";
+import { claimOf, loadArchives, pendingQuestions, questionHosts, rank, type ArchiveLevel, type Claim, type PendingQuestion, type Way } from "../core/terms.ts";
 import { connectorFor, levelWords, tasksStanding, tasksWaitingOn, termsText, waysOffered, wokenLines } from "../core/archiveasks.ts";
 import { wakeForArchive } from "../core/archivewait.ts";
 import { archivesOverview, capWords, levelsOf, paceFor } from "../commands/archives.ts";
@@ -64,8 +64,9 @@ export async function decideArchive(ctx: Context, run: Run, lang: string, root: 
   const title = a?.title ?? q?.title ?? c.manifest.title ?? host;
   const tree = root ? Tree.open(root, ctx.env) : undefined;
   const hosts = all && all.length > 1 ? all : [host];
-  // the command's target: the downloader for all its hosts at once, else the host
-  const target = hosts.length > 1 ? c.name : host;
+  // the command's target: the downloader for all its hosts at once, else the host — with every host of its question
+  // (strom allow archive decides a question of one archive for all its hosts)
+  const target = hosts.length > 1 && hosts.some((h) => !q?.archiveHosts?.includes(h)) ? c.name : host;
   out("");
   out(` ${t("ui.archive.item", { title, host: hosts.join(", ") })}`);
   out(`    ${termsText(lang, ctx.env, { host, ...(a?.quote ? { quote: a.quote } : q?.quote ? { quote: q.quote } : {}), ...(a?.terms ?? q?.terms ? { terms: (a?.terms ?? q?.terms)! } : {}), ...(a?.quoteBy ? { quoteBy: a.quoteBy } : q?.quoteBy ? { quoteBy: q.quoteBy } : {}) })}`);
@@ -216,7 +217,7 @@ function hostStates(ctx: Context, lang: string, c: Connector): { host: string; t
 /** Settings → Archives → permissions: each archive of a downloader here, then the same choices as in What waits. */
 export async function archivePermissions(ctx: Context, run: Run, lang: string, root: string | undefined): Promise<void> {
   const t = translator(lang);
-  const pending = (hosts: string[]) => loadArchives(ctx.env).pending.find((p) => p.kind === "permission" && hosts.includes(p.host ?? ""));
+  const pending = (hosts: string[]) => pendingQuestions(ctx.env).find((p) => p.kind === "permission" && questionHosts(p).some((h) => hosts.includes(h)));
   await subMenu(ctx, lang, () => {
     const rows = archivesOverview(ctx);
     const connectors = connectorsHere(ctx);

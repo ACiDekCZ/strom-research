@@ -138,7 +138,7 @@ function orientation(ctx: Context): Orientation {
     // the ways as the menu and the bridge offer them (a site only a browser goes to, a bot check: never slowly)
     const connectors = listConnectors(ctx.settings.shared()?.value, ctx.env);
     const claude = claudeHere(ctx, tree.config);
-    base.permissions = asked.map((q) => ({ host: q.host!, title: q.title ?? q.host!, ...(q.connector ? { connector: q.connector } : {}), since: q.at, tries: q.tries ?? 1, tasks: tasksStanding(tree, q), command: `strom allow archive ${q.host} --way ${waysOffered(connectorFor(connectors, q.host!, q.connector), claude, q.way, !!q.browserOnly).join("|")}` }));
+    base.permissions = asked.map((q) => ({ host: q.host!, ...(q.archiveHosts ? { hosts: q.archiveHosts } : {}), title: q.title ?? q.host!, ...(q.connector ? { connector: q.connector } : {}), since: q.at, tries: q.tries ?? 1, tasks: tasksStanding(tree, q), command: `strom allow archive ${q.host} --way ${waysOffered(connectorFor(connectors, q.host!, q.connector), claude, q.way, !!q.browserOnly).join("|")}` }));
   }
   const stories = ctx.settings.stories(tree.config);
   base.stories = !stories.on ? "off" : stories.said || told.stories ? "on" : "tell";

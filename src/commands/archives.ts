@@ -38,6 +38,7 @@ import {
   LEVELS,
   loadArchives,
   pendingQuestions,
+  questionHosts,
   rank,
   settlePending,
   revokeWay,
@@ -508,7 +509,10 @@ export function syncTrees(ctx: Context): string[] {
   return synced;
 }
 
-/** The hosts a name stands for: a connector's (its name), else the connector hosts on that host or site — never wider. */
+/**
+ * The hosts a name stands for: a connector's (its name), else the connector hosts on that host or site — never wider,
+ * but for the other hosts of one archive whose question waits with it (one archive, one decision).
+ */
 function targetHosts(ctx: Context, target: string): { hosts: string[]; connectors: Connector[] } {
   const all = listConnectors(shared(ctx), ctx.env);
   const byName = all.find((c) => c.name === target);
@@ -518,6 +522,11 @@ function targetHosts(ctx: Context, target: string): { hosts: string[]; connector
   const hosts = [...new Set(connectors.flatMap((c) => c.manifest.hosts.map(bareHost).filter((h) => hostAllowed(h, [given]) || hostAllowed(given, [h]))))];
   if (!hosts.length)
     throw new UsageError(`no connector reaches ${given}`, { hint: all.length ? `connectors: ${all.map((c) => `${c.name} (${c.manifest.hosts.join(", ")})`).join(", ")}` : "none yet: strom connector list" });
+  const reached = new Set(connectors.flatMap((c) => c.manifest.hosts.map(bareHost)));
+  for (const q of pendingQuestions(ctx.env)) {
+    const its = questionHosts(q);
+    if (q.kind === "permission" && its.some((h) => hosts.includes(h))) for (const h of its) if (reached.has(h) && !hosts.includes(h)) hosts.push(h);
+  }
   return { hosts, connectors };
 }
 

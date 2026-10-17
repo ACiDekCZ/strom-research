@@ -412,7 +412,7 @@ async function decide(ctx: Context, run: Run, lang: string, root: string, w: Wai
   const tree = Tree.open(root, ctx.env);
   if (w.story) return void (await decideStory(ctx, run, lang, root, w.story, storyOf(tree, w.story)));
   const q = w.question;
-  if (q?.kind === "permission" && q.host) return void (await decideArchive(ctx, run, lang, root, q.host, q));
+  if (q?.kind === "permission" && q.host) return void (await decideArchive(ctx, run, lang, root, q.host, q, q.archiveHosts));
   if (q?.kind === "takeover") return decideTakeover(ctx, run, lang, q);
   if (q?.kind === "milder" && q.connector) {
     const c = listConnectors(ctx.settings.shared()?.value, ctx.env).find((x) => x.name === q.connector);
