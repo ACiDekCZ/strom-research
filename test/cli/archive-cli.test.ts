@@ -160,7 +160,7 @@ test("P4 a family tree taken in by an archive: its people are in it at once, sai
 
 test("N2/N3 an archive and a research waiting for its agent advise no direction they would refuse; research list and person list (its next page too) in the research's language", opts, async () => {
   const SAID = {
-    cs: { none: "Žádné směry výzkumu.", people: "Žádné osoby.", nomatch: "Žádná osoba neodpovídá.", leads: /údaje: 1\s+jen vodítka/, more: /^… dalších 1: strom person list --page 2$/m },
+    cs: { none: "Žádné linie výzkumu.", people: "Žádné osoby.", nomatch: "Žádná osoba neodpovídá.", leads: /údaje: 1\s+jen vodítka/, more: /^… dalších 1: strom person list --page 2$/m },
     de: { none: "Keine Forschungsrichtungen.", people: "Keine Personen.", nomatch: "Keine Person passt.", leads: /Angaben: 1\s+nur Hinweise/, more: /^… 1 weitere: strom person list --page 2$/m },
   } as const;
   for (const lang of ["cs", "de"] as const) {
@@ -194,6 +194,6 @@ test("N2/N3 an archive and a research waiting for its agent advise no direction 
   const w = new World();
   w.env.STROM_LANG = "cs";
   await w.withTree();
-  assert.match((await w.ok(["research", "list"])).out, /^Žádné směry výzkumu\. → strom research new "<[^>]+>" --new-person/);
+  assert.match((await w.ok(["research", "list"])).out, /^Žádné linie výzkumu\. → strom research new "<[^>]+>" --new-person/);
   w.cleanup();
 });

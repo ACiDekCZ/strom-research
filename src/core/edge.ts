@@ -67,8 +67,13 @@ export interface EdgeHypothesis {
    * on the other side (of the tree, the people off it; off it, the people of the tree it would join them to).
    */
   joins: string[];
-  /** The family off the tree it would join (an edge on the tree): how many people, how many tasks about them wait for it. */
+  /** The family off the tree it would join (an edge on the tree): how many people, how many tasks about them wait for it — that of the first join. */
   island?: { people: number; held: number };
+  /**
+   * Each join on its own, in the order of `joins`: the variants that name the person, and (an edge on the tree) the
+   * family off the tree the person belongs to. A variant may name several of them (both parents), several variants one.
+   */
+  each?: { person: string; variants?: string[]; island?: { people: number; held: number } }[];
   /** The variants that would make the join: their links, or their claims by ID, name the people off the tree. */
   variants?: string[];
   /** The open tasks that test it. */
@@ -370,12 +375,18 @@ export function treeEdges(tree: Tree, opts: { named?: boolean } = {}): { edges: 
       const isle = joins.length && onTree ? isles.get(joins[0]!) : undefined;
       // the variants that would make the join: those that name the people off the tree
       const variants = joins.length ? joiningVariants(tree, h, onTree ? joins : (isles.get(p.id)?.people ?? [p.id])) : [];
+      const each = joins.map((j) => {
+        const named = joiningVariants(tree, h, [j]);
+        const own = onTree ? isles.get(j) : undefined;
+        return { person: j, ...(named.length ? { variants: named } : {}), ...(own ? { island: { people: own.people.length, held: own.held } } : {}) };
+      });
       return {
         id: h.id,
         question: h.question,
         joins,
         ...(isle ? { island: { people: isle.people.length, held: isle.held } } : {}),
         ...(variants.length ? { variants } : {}),
+        ...(each.length ? { each } : {}),
         // a task about it, or one whose words name it ("the baptism … (H0007 B)")
         tests: tasks.filter((t) => LIVE.has(t.state) && (t.subject.includes(h.id) || namesId(t.what, h.id))).map((t) => t.id),
       };

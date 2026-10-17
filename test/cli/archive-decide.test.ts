@@ -488,3 +488,60 @@ test("Settings → Archives: an archive of several hosts on one line, its state 
     v.cleanup();
   }
 });
+
+test("one archive of several hosts (its album, its site, an image server) asked by one fetch: one question everywhere, said since the first time with its tasks once, and one decision for all of its hosts", opts, async () => {
+  const hosts = ["obec.fotoalba.example.org", "www.fotoalba.example.org", "img42.fotoalba.example.org"];
+  const world = async (): Promise<World> => {
+    const w = new World();
+    await w.withTree();
+    await downloader(w, { automation: "restricted", terms: "https://www.fotoalba.example.org/podminky" }, { hosts });
+    await w.ok(["recordset", "add", "Fotoalbum obce Vymyšlenov", "--url", "https://obec.fotoalba.example.org/album/7"]); // B0001
+    await w.ok(["task", "add", "Fotografie školy", "--level", "locate", "--where", "Vymyšlenov", "--why", "a", "--done-when", "b"]);
+    await w.ok(["task", "wait", "T0001", "--images", "B0001:1-2", "--on", "snímky 1–2 alba"]);
+    const r = await w.run(["fetch", "zkusebni", "7", "--images", "1-2", "--recordset", "B1", "--json"]);
+    assert.equal(r.code, 4, r.out + r.err);
+    // each host keeps its own question in the file, as an older strom wrote and reads them
+    assert.deepEqual(store(w).pending.filter((p: { kind: string }) => p.kind === "permission").map((p: { host: string }) => p.host).sort(), [...hosts].sort());
+    return w;
+  };
+  const w = await world();
+  try {
+    // as an older strom left them: asked at different times, a task of another research on one of them
+    const file = path.join(w.env.STROM_CONFIG_DIR!, "archives.json");
+    const s = readJsonFile(file);
+    const first = new Date(Date.now() - 10 * 86_400_000).toISOString();
+    s.pending[1].at = first;
+    const here = { tree: readJsonFile(path.join(w.cwd, "strom.json")).id, task: "T0001" };
+    for (const p of s.pending) p.tasks = [here];
+    s.pending[2].tasks.push({ tree: "another-research", task: "T0042" });
+    fs.writeFileSync(file, JSON.stringify(s, null, 2));
+    const above = (await menu(w, ["0"])).out;
+    assert.equal(above.match(/čeká rozhodnutí o stahování z archivu Testovací archiv/giu)?.length, 1, above);
+    assert.match(above, /Už od [^\n]+ čeká rozhodnutí o stahování z archivu Testovací archiv[^\n]*úkoly: 2/u, "since the first time, its task here once and the other research's");
+    assert.equal((await w.ok(["--json"])).json.permissions.length, 1);
+    const json = (await w.ok(["status", "--json"])).json.archiveQuestions;
+    assert.equal(json.length, 1);
+    assert.deepEqual([json[0].host, json[0].since, json[0].tasks, [...json[0].hosts].sort()], [s.pending[1].host, first, ["T0001"], [...hosts].sort()]);
+    assert.equal((await w.ok(["allow", "archive", "--json"])).json.pending.length, 1);
+
+    // decided once in What waits (slowly): every host of the archive, the task back in the queue
+    const yes = await menu(w, ["3", "1", "1", "1", "0", "0", "0"]);
+    assert.match(yes.out, /Stahování snímků z archivu Testovací archiv \(www\.fotoalba\.example\.org, obec\.fotoalba\.example\.org, img42\.fotoalba\.example\.org\)/u);
+    assert.match(yes.out, /✓ Testovací archiv: snímky pomalu, lidským tempem\./u);
+    assert.deepEqual(hosts.map((h) => store(w).archives[h]?.way), ["slow", "slow", "slow"]);
+    assert.deepEqual(store(w).pending.filter((p: { kind: string }) => p.kind === "permission"), [], "every host's question gone");
+    assert.equal((await task(w, "T0001")).state, "open");
+    assert.doesNotMatch((await menu(w, ["0"])).out, /čeká rozhodnutí o stahování/iu);
+  } finally {
+    w.cleanup();
+  }
+  // the person decides it for one of its hosts by the command (the agent's hint names one): all of them
+  const v = await world();
+  try {
+    await v.ok(["allow", "archive", "img42.fotoalba.example.org", "--way", "manual"], { tty: true });
+    assert.deepEqual(hosts.map((h) => store(v).archives[h]?.way), ["manual", "manual", "manual"]);
+    assert.deepEqual(store(v).pending.filter((p: { kind: string }) => p.kind === "permission"), []);
+  } finally {
+    v.cleanup();
+  }
+});

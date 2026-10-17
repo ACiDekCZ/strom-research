@@ -11,12 +11,12 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { notFound, UsageError } from "../core/errors.ts";
-import type { Input, Person, Research, Task } from "../core/model.ts";
-import { likelyDuplicates } from "../core/people.ts";
+import type { Input, Name, Person, Research, Task } from "../core/model.ts";
 import { collectFiles, fileSha256, inputPath, MAX_IN_TREE, mimeOf, storeShared } from "../core/media.ts";
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { phrase } from "../core/phrases.ts";
-import { importGedcom, importStromJson, isStromJson, type ImportResult } from "../core/import.ts";
+import { addMarriedNames, importedTree, importGedcom, importStromJson, isStromJson, marriedNamesPlan, undoMarriedNames, type ImportResult } from "../core/import.ts";
+import { gedcomName, likelyDuplicates } from "../core/people.ts";
 import { decodeText, safeFolderName } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
 import { amendInput, checkOriginalMeta } from "../core/originals.ts";
@@ -160,6 +160,12 @@ register(
           if (known.has(sha)) {
             skipped++;
             if (forTask) handed.push(known.get(sha)!);
+            // a family tree imported before strom read its married names (_MARNM): said how they come in
+            const had = tree.get<Input>(known.get(sha)!);
+            if (!quiet && had && !importedTree(had)) {
+              const missing = marriedNamesPlan(tree, had, decodeText(fs.readFileSync(file))).add.length;
+              if (missing) report.push(`  ${had.id}: ${missing} married name(s) it gives were left out when it was imported → strom input names ${had.id}`);
+            }
             continue;
           }
           const size = fs.statSync(file).size;
@@ -339,6 +345,79 @@ register(
       const persons = (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).flatMap((p) => String(p).split(",")).map((p) => p.trim().toUpperCase()).filter(Boolean);
       const got = tree.withTreeLock(() => amendInput(tree, id, { persons, note: typeof opts.note === "string" ? opts.note : undefined }));
       return { text: tree.written.length ? lines(...tree.written.map((o) => o.summary)) : `${id}: nothing new`, data: got };
+    },
+  },
+  {
+    path: ["input", "names"],
+    summary: "The married names (_MARNM) of a family tree imported before strom read them: shown, --apply adds them",
+    group: "inputs",
+    tree: true,
+    writes: true,
+    description:
+      "strom before 1.16 left out the married names other programs write as _MARNM (MyHeritage, Legacy, PAF). This reads\n" +
+      "the file the research was started from again — the input it keeps — and finds the people imported from it by the\n" +
+      "IDs the import kept (nobody else). Only names of the married kind are added, beside the name each person is shown\n" +
+      "by, citing the import's source; a person who has the name already stays as they are; people of the file not in the\n" +
+      "research are only listed. Without --apply only shown; --apply is one commit; --undo takes back what it added.\n" +
+      "Another export of the tree (another file) is not paired: give the input the research has (strom input list).",
+    args: [{ name: "input", description: "the imported family tree: its input (I…), or the same file", required: true }],
+    options: [
+      { name: "apply", type: "boolean", description: "add them (without: only show)" },
+      { name: "undo", type: "boolean", description: "take back the married names it added from this input" },
+    ],
+    examples: ["strom input names I0004", "strom input names ~/Downloads/rodokmen.ged --apply", "strom input names I0004 --undo"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const arg = args[0]!;
+      const inputs = tree.list<Input>("input");
+      let input = /^I?\d+$/i.test(arg.trim()) ? inputs.find((i) => i.id === normId(arg, "input")) : undefined;
+      if (!input) {
+        const p = ctx.resolvePath(arg);
+        if (!fs.existsSync(p) || !fs.statSync(p).isFile()) {
+          // an input's ID this research does not have (a file of that name neither)
+          if (/^I?\d+$/i.test(arg.trim()))
+            throw new UsageError(`no input ${normId(arg, "input")} in this research`, { hint: "strom input list", code: "input.names.missing", params: { input: normId(arg, "input") } });
+          throw notFound(arg);
+        }
+        const sha = fileSha256(p);
+        input = inputs.find((i) => i.sha === sha);
+        if (!input)
+          throw new UsageError(`${ctx.display(p)} is not a family tree this research was started from (another file, another export)`, {
+            hint: "the research keeps the file it imported: strom input list — then strom input names I…",
+            code: "input.names.other-file",
+          });
+      }
+      const why = importedTree(input);
+      if (why) throw new UsageError(why, { hint: "strom input list — a family tree imported from GEDCOM (kind tree)", code: "input.names.not-imported", params: { input: input.id } });
+      const name = (id: string) => {
+        const p = tree.get<Person>(id);
+        return p?.names[0] ? gedcomName(p.names[0]).replace(/\//g, "").replace(/\s+/g, " ").trim() : id;
+      };
+      if (opts.undo) {
+        const gone = undoMarriedNames(tree, input);
+        return {
+          text: gone.length ? lines(...gone.map((g) => `  ${g.person} ${name(g.person)}: − ${gedcomName(g.name)}`), `${gone.length} married name(s) from ${input.id} taken back`) : `${input.id}: no married name of it to take back`,
+          data: { input: input.id, undone: gone.map((g) => ({ person: g.person, name: gedcomName(g.name) })) },
+        };
+      }
+      const file = inputPath(tree, input);
+      if (!file || !fs.existsSync(file)) throw new UsageError(`the file of ${input.id} is not here (${input.file ?? "none"})`, { hint: `strom input show ${input.id}`, code: "input.names.no-file", params: { input: input.id } });
+      const plan = marriedNamesPlan(tree, input, decodeText(fs.readFileSync(file)));
+      if (opts.apply && plan.add.length) addMarriedNames(tree, plan);
+      const done = !!opts.apply && !tree.dryRun;
+      const text = lines(
+        `${input.id} ${input.name}: ${plan.add.length} married name(s) ${done ? "added" : "to add"}, ${plan.have.length} already there, ${plan.unpaired.length} person(s) of the file not in the research`,
+        ...plan.add.map((a) => `  ${a.person} ${name(a.person)}: + ${gedcomName(a.name)} (married)`),
+        plan.unpaired.length ? "not in the research (nothing added):" : undefined,
+        ...plan.unpaired.map((u) => `  ${u.xref} ${u.name.replace(/\//g, "").replace(/\s+/g, " ").trim()}: ${u.married.map(gedcomName).join(", ")}`),
+        plan.add.length && !opts.apply ? `\nadd them: strom input names ${input.id} --apply` : undefined,
+        done && plan.add.length ? `take them back: strom input names ${input.id} --undo` : undefined,
+      );
+      const row = (a: { person: string; xref: string; name: Name }) => ({ person: a.person, xref: a.xref, name: gedcomName(a.name) });
+      return {
+        text,
+        data: { input: input.id, source: plan.source, applied: done, add: plan.add.map(row), have: plan.have.map(row), unpaired: plan.unpaired.map((u) => ({ xref: u.xref, name: u.name, married: u.married.map(gedcomName) })) },
+      };
     },
   },
   {

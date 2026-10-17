@@ -146,8 +146,12 @@ test("the Strom file: each variant of an open hypothesis with its claim, links a
   for (const id of ["P0003", "P0004", "P0005"]) assert.match(block(ged, id), /\n1 _STROM_HYPO H0001\n/);
   // where the tree ends above Tomáš: the parents a variant names, nobody tests it — the user decides
   assert.match(block(ged, "P0002"), /\n1 _STROM_EDGE parents\n(?:[2-9].*\n)*?2 _END named\n2 _NEXT decide\n/);
-  // the joins at the edge and on the families off the tree name the variant that would make them
-  assert.match(block(ged, "P0002"), /\n2 _HYPO H0001\n3 _JOIN P0005\n3 _JOIN P0003\n3 _JOIN P0004\n3 _VAR A\n3 _VAR B\n/);
+  // the joins at the edge and on the families off the tree name the variant that would make them; at the edge each
+  // join on its own too — a variant may name two (the couple), and the numbers of the hypothesis are the first join's
+  assert.match(
+    block(ged, "P0002"),
+    /\n2 _HYPO H0001\n3 _JOIN P0005\n4 _VAR A\n4 _ISLAND 1\n4 _HELD 0\n3 _JOIN P0003\n4 _VAR B\n4 _ISLAND 2\n4 _HELD 0\n3 _JOIN P0004\n4 _VAR B\n4 _ISLAND 2\n4 _HELD 0\n3 _VAR A\n3 _VAR B\n3 _ISLAND 1\n3 _HELD 0\n/,
+  );
   assert.match(block(ged, "P0003"), /\n1 _STROM_ISLAND 2\n2 _HYPO H0001\n3 _JOIN P0002\n3 _VAR B\n/);
   assert.match(block(ged, "P0005"), /\n1 _STROM_ISLAND 1\n2 _HYPO H0001\n3 _JOIN P0002\n3 _VAR A(\n|$)/);
 
@@ -279,7 +283,7 @@ test("once links say what a hypothesis would connect, a person its claim names o
   assert.deepEqual(hypothesisPeople(tree, tree.get<Hypothesis>("H0002")!).sort(), ["P0002", "P0003", "P0004"]);
   const ged = exportGedcom(tree, { for: "strom", research: true, edges: true, hypothesisLinks: true }).text;
   assert.doesNotMatch(block(ged, "P0005"), /_STROM_HYPO H0002|_HYPO H0002/);
-  assert.match(block(ged, "P0002"), /\n2 _HYPO H0002\n3 _JOIN P0003\n3 _JOIN P0004\n3 _VAR B\n/);
+  assert.match(block(ged, "P0002"), /\n2 _HYPO H0002\n3 _JOIN P0003\n4 _VAR B\n4 _ISLAND 2\n4 _HELD 0\n3 _JOIN P0004\n4 _VAR B\n4 _ISLAND 2\n4 _HELD 0\n3 _VAR B\n/);
   const e = (await w.ok(["edge", "P2", "P5", "--json"])).json.edges as { person: string; edge: { hypotheses: { id: string; joins: string[] }[] } | null; island: { hypotheses: { id: string }[] } | null }[];
   assert.deepEqual(e[0]!.edge!.hypotheses.find((h) => h.id === "H0002")!.joins, ["P0003", "P0004"]);
   assert.ok(!e[1]!.island?.hypotheses.some((h) => h.id === "H0002"), "no join through the person of the context");

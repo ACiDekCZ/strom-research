@@ -232,6 +232,11 @@ export interface PendingQuestion {
   tasks?: { tree: string; task: string }[];
   /** permission: how many times a command needed it. */
   tries?: number;
+  /**
+   * permission: the hosts of one archive its question is for (read so, never written: each host keeps its own question
+   * in the file, as every strom before wrote it) — `host` is the one asked first. Only where there are several.
+   */
+  archiveHosts?: string[];
   last?: string;
   /** takeover: the connectors taken over (those strom's known terms do not know). */
   connectors?: string[];
@@ -301,11 +306,75 @@ export function updateArchives(env: Env, change: (s: ArchivesStore) => void): bo
  * know (a list grown since covers more) — none left, no question.
  */
 export function pendingQuestions(env: Env): PendingQuestion[] {
-  return loadArchives(env).pending.flatMap((q) => {
-    if (q.kind !== "takeover" || !q.hosts) return [q];
-    const left = (q.connectors ?? []).filter((n) => !q.hosts?.[n] || !coveredByTerms(env, q.hosts[n]!));
-    return left.length ? [{ ...q, connectors: left }] : [];
-  });
+  return oneArchive(
+    loadArchives(env).pending.flatMap((q) => {
+      if (q.kind !== "takeover" || !q.hosts) return [q];
+      const left = (q.connectors ?? []).filter((n) => !q.hosts?.[n] || !coveredByTerms(env, q.hosts[n]!));
+      return left.length ? [{ ...q, connectors: left }] : [];
+    }),
+  );
+}
+
+/** The hosts a question is for: those of its archive, else its own. */
+export function questionHosts(q: Pick<PendingQuestion, "host" | "archiveHosts">): string[] {
+  return q.archiveHosts?.length ? q.archiveHosts : q.host ? [q.host] : [];
+}
+
+/**
+ * The questions about the images of one archive — its hosts (the site's pages, its image servers) asked one by one,
+ * the same connector, site and terms — read as one: since the first time asked, the tasks of them all (each once), the
+ * ways every host may go. Each host keeps its own question in the file (an older strom reads them as before).
+ */
+function oneArchive(qs: PendingQuestion[]): PendingQuestion[] {
+  const groups = new Map<string, PendingQuestion[]>();
+  const out: (PendingQuestion | PendingQuestion[])[] = [];
+  for (const q of qs) {
+    if (q.kind !== "permission" || !q.host) {
+      out.push(q);
+      continue;
+    }
+    const key = JSON.stringify([q.connector ?? "", webDomain(q.host), q.terms ?? ""]);
+    const g = groups.get(key);
+    if (g) g.push(q);
+    else {
+      const fresh = [q];
+      groups.set(key, fresh);
+      out.push(fresh);
+    }
+  }
+  return out.map((x) => (Array.isArray(x) ? (x.length === 1 ? x[0]! : merged(x)) : x));
+}
+
+function merged(qs: PendingQuestion[]): PendingQuestion {
+  const all = [...qs].sort((a, b) => a.at.localeCompare(b.at));
+  const first = all[0]!;
+  const latest = (f: (q: PendingQuestion) => string | undefined) => all.map(f).filter((x): x is string => !!x).sort().at(-1);
+  const tasks: { tree: string; task: string }[] = [];
+  for (const q of all) for (const t of q.tasks ?? (q.tree && q.task ? [{ tree: q.tree, task: q.task }] : [])) if (!tasks.some((x) => x.tree === t.tree && x.task === t.task)) tasks.push(t);
+  const lastAsked = [...all].sort((a, b) => (a.last ?? a.at).localeCompare(b.last ?? b.at)).at(-1)!;
+  const browserOnly = all.some((q) => q.browserOnly);
+  const choices = all.every((q) => q.choices) ? first.choices!.filter((w) => all.every((q) => q.choices!.includes(w)) && !(browserOnly && w === "slow")) : undefined;
+  const title = all.find((q) => q.title)?.title;
+  const level = all.some((q) => q.level) ? strictest(...all.map((q) => q.level)) : undefined;
+  const way = browserOnly ? "browser" : first.way;
+  const window = latest((q) => q.window);
+  const last = latest((q) => q.last);
+  return {
+    ...first,
+    archiveHosts: [...new Set(all.map((q) => q.host!))],
+    ...(title ? { title } : {}),
+    ...(level ? { level } : {}),
+    ...(way ? { way } : {}),
+    ...(choices ? { choices: choices.includes("manual") ? choices : [...choices, "manual"] } : {}),
+    ...(browserOnly ? { browserOnly } : {}),
+    ...(window ? { window } : {}),
+    ...(lastAsked.tree ? { tree: lastAsked.tree } : {}),
+    ...(lastAsked.task ? { task: lastAsked.task } : {}),
+    ...(tasks.length ? { tasks } : {}),
+    // one command asks all the archive's hosts at once: the most any host was needed
+    tries: Math.max(...all.map((q) => q.tries ?? 1)),
+    ...(last && last > first.at ? { last } : {}),
+  };
 }
 
 export function dropPending(s: ArchivesStore, key: string): void {

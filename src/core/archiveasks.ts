@@ -11,7 +11,7 @@ import { actsAsArchive } from "./state.ts";
 import { waitsOnHost, type Woken } from "./archivewait.ts";
 import { waitsForDecision } from "./queue.ts";
 export { savedInInbox } from "./archivewait.ts";
-import { claimOf, pendingQuestions, termsFor, type Claim, type PendingQuestion, type Way } from "./terms.ts";
+import { claimOf, pendingQuestions, questionHosts, termsFor, type Claim, type PendingQuestion, type Way } from "./terms.ts";
 import { bareHost, listConnectors, routesOf, type Connector } from "./connector.ts";
 import { ui } from "../cli/ui.ts";
 import { humanDay } from "../cli/human.ts";
@@ -60,7 +60,7 @@ export function tasksWaitingOn(tree: Tree, host: string): Task[] {
  * those the queue holds back for it, and those a fetch needed it for (still to be done) — their IDs.
  */
 export function tasksStanding(tree: Tree, q: PendingQuestion): string[] {
-  const ids = new Set(tasksWaitingOn(tree, q.host!).map((t) => t.id));
+  const ids = new Set(questionHosts(q).flatMap((h) => tasksWaitingOn(tree, h).map((t) => t.id)));
   const held = waitsForDecision(tree, [q]);
   for (const t of tree.list<Task>("task")) if (t.state === "open" && held(t)) ids.add(t.id);
   for (const x of q.tasks ?? (q.tree && q.task ? [{ tree: q.tree, task: q.task }] : [])) {
@@ -172,12 +172,13 @@ export function archiveWaitingItems(tree: Tree, shared: string | undefined, clau
         {
           kind: "permission",
           id: q.key,
-          what: ui(lang, "ui.archive.item", { title, host: q.host }),
+          what: ui(lang, "ui.archive.item", { title, host: questionHosts(q).join(", ") }),
           on: termsText(lang, tree.env, q),
           at: q.at,
           since: q.at,
           tries: q.tries ?? 1,
           host: q.host,
+          ...(q.archiveHosts ? { hosts: q.archiveHosts } : {}),
           title,
           ...(q.terms ? { terms: q.terms } : {}),
           ...(q.quote ? { quote: q.quote } : {}),

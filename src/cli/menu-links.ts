@@ -39,6 +39,7 @@ import { foldText, safeFolderName } from "../core/text.ts";
 import { StromError } from "../core/errors.ts";
 import { forgetTree } from "../commands/trees.ts";
 import { archiveQuestions } from "../core/archiveasks.ts";
+import { questionHosts } from "../core/terms.ts";
 import { bareHost, listConnectors } from "../core/connector.ts";
 import { decideArchive } from "./menu-archives.ts";
 import { inboxOf, requestFile, sameGroup } from "../core/waiting.ts";
@@ -163,10 +164,10 @@ export async function archiveAsked(ctx: Context, run: Run, lang: string, root: s
   const t = translator(lang);
   const tree = Tree.open(root, ctx.env);
   if (isArchive(tree)) return stop(ctx, t("ui.link.archive.none"));
-  const q = archiveQuestions(tree).find((p) => p.kind === "permission" && p.host === host);
+  const q = archiveQuestions(tree).find((p) => p.kind === "permission" && questionHosts(p).includes(host));
   const known = q ? true : listConnectors(ctx.settings.shared()?.value, ctx.env).some((c) => c.manifest.hosts.map(bareHost).includes(host));
   if (!known) return stop(ctx, t("ui.link.archive.none"));
-  return decideArchive(ctx, run, lang, root, host, q);
+  return decideArchive(ctx, run, lang, root, host, q, q?.archiveHosts);
 }
 
 /** A direction of the research paused, ended (each with the person's reason, if they give one) or taken up again. */

@@ -13,6 +13,8 @@ import { gitVersion } from "../core/git.ts";
 import { fixGit, offerAgent } from "./fixes.ts";
 import { agentsHere, suggestedWay, waysHere, whereToTalk } from "../core/apps.ts";
 import { chooseWay, wayName } from "./ways.ts";
+import { chooseTerminal, suggestedTerminal } from "./terminals.ts";
+import { terminalsHere } from "../core/terminal.ts";
 import { chooseEffort, chooseModel } from "./model-choice.ts";
 import { ADDON_SWITCHES, PROFILES } from "../agents/profiles.ts";
 import { writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
@@ -235,6 +237,18 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
   // after. Installed from the app: the app and its copy kept, the links — as when the setup is not run (settleFromApp)
   if (fromApp) await settleFromApp(ctx, lang);
   else if (stromAppState(s) !== "no" && appOpensLinks(s)) await offerLinks(ctx, lang);
+
+  // 10. The terminal for the research's windows (a link from the Strom app, a conversation handed over): asked only on a
+  // Mac with more than one — the one the setup runs in suggested (run again: the one chosen); this computer's alone
+  if (process.platform === "darwin" && terminalsHere(ctx.env).length > 1) {
+    const now = s.terminal() ?? "system";
+    const picked = await chooseTerminal(ctx, lang, suggestedTerminal(ctx), keep);
+    if (picked !== undefined && picked !== now) {
+      if (picked === "system") delete cfg.terminal;
+      else cfg.terminal = picked;
+      s.save();
+    }
+  }
 
   out();
   out(`${ui(lang, "ui.setup.done")}  (${langName(lang, lang)} · ${ctx.display(home)})`);

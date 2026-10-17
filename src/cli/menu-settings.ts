@@ -26,6 +26,7 @@ import { agentsHere } from "../core/apps.ts";
 import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
 import { archivePermissions, archiveState, browserOnlyHere } from "./menu-archives.ts";
+import { chooseTerminal, terminalState } from "./terminals.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -53,17 +54,20 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
           key: "1",
           label: t(archive ? "ui.settings.wizard.archive" : "ui.settings.wizard"),
           act: async () => {
-            // the setup's model step alone, or the whole setup (Enter); 0 back with nothing changed
+            // the setup's model step alone, the terminal for the research's windows, or the whole setup (Enter); 0 back
+            // with nothing changed (the menu has nine items: these are steps of the setup)
+            const parts: { label: string; act: () => Promise<void> }[] = [];
             if (modelShown) {
               const kept = ctx.settings.resolve("model.lead", tree, agent);
-              const i = await ctx.choose(
-                t("ui.settings.wizard.what"),
-                [{ label: t("ui.settings.wizard.all") }, { label: t("ui.settings.model", { agent: PROFILES[agent]!.name, model: kept ? String(kept.value) : t("ui.settings.model.own") }) }],
-                0,
-                { back: t("ui.browse.back") },
-              );
+              parts.push({ label: t("ui.settings.model", { agent: PROFILES[agent]!.name, model: kept ? String(kept.value) : t("ui.settings.model.own") }), act: () => modelStep(ctx, run, lang, agent, tree) });
+            }
+            // macOS: the terminal chosen here; Windows: the system decides it, said where
+            if (process.platform === "darwin" || process.platform === "win32")
+              parts.push({ label: t(archive ? "ui.settings.terminal.archive" : "ui.settings.terminal", { state: terminalState(ctx, lang) }), act: () => terminalStep(ctx, run, lang) });
+            if (parts.length) {
+              const i = await ctx.choose(t("ui.settings.wizard.what"), [{ label: t("ui.settings.wizard.all") }, ...parts.map((p) => ({ label: p.label }))], 0, { back: t("ui.browse.back") });
               if (i === undefined) return;
-              if (i === 1) return void (await modelStep(ctx, run, lang, agent, tree));
+              if (i > 0) return void (await parts[i - 1]!.act());
             }
             // After the wizard the menu starts afresh: the research may be in another folder now.
             await run(["setup"]);
@@ -141,6 +145,18 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
     },
     { fixed: true },
   );
+}
+
+/** The terminal for the research's windows: picked among those here (0 back, nothing changed); Windows: where the system decides it. */
+async function terminalStep(ctx: Context, run: Run, lang: string): Promise<void> {
+  if (process.platform === "win32") {
+    ctx.io.stdout(translator(lang)("ui.terminal.windows") + "\n");
+    return pause(ctx, lang);
+  }
+  const now = ctx.settings.terminal() ?? "system";
+  const picked = await chooseTerminal(ctx, lang, now, { back: translator(lang)("ui.browse.back") });
+  if (picked === undefined || picked === now) return;
+  await run(picked === "system" ? ["config", "unset", "terminal"] : ["config", "set", "terminal", picked], true);
 }
 
 /** Maintenance: the check of the installation, what strom keeps beside the research (disk space), the newer strom when one is out. */

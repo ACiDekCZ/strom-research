@@ -131,7 +131,9 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
       ? "ui.sync.place.located"
       : c.kind === "fact.part"
         ? `ui.sync.fact.part${!c.part ? ".gone" : c.wasPart && c.wasPart.role !== c.part.role ? ".role" : c.wasPart ? ".link" : ""}`
-        : `ui.sync.${c.kind}`;
+        : c.kind === "name.new" && c.married
+          ? "ui.sync.name.married"
+          : `ui.sync.${c.kind}`;
   // the app's sources and what a fact takes from them: said what becomes of them (a reading of a record, or a lead)
   const does =
     c.kept
@@ -144,6 +146,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
       ? "ui.sync.do.parents"
       : c.kind === "name.changed" && c.action === "user"
       ? "ui.sync.do.name.user"
+      : c.kind === "name.gone"
+      ? `ui.sync.do.name.${c.action === "remove" ? "gone" : "kept"}`
       : c.kind === "name.title" && (c.action === "add" || c.action === "user")
       ? `ui.sync.do.title${c.action === "user" ? ".user" : ""}`
       : c.kind === "note.changed" && c.action !== "pick"

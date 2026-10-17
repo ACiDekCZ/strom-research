@@ -28,7 +28,7 @@ import { phrase } from "./phrases.ts";
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, retractEvent, retractPerson } from "./actions.ts";
 import { exportGedcom, REFN_TYPE } from "../gedcom/export.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
-import { fromFlexDate, houseOf, importDate, readGedName, readGedSex, stromAppFile } from "./import.ts";
+import { fromFlexDate, houseOf, importDate, marnmNames, readGedName, readGedSex, stromAppFile } from "./import.ts";
 import { humanAge, normalizeAge } from "./age.ts";
 import { dateYears } from "./gdate.ts";
 import { create, update } from "./records.ts";
@@ -43,7 +43,7 @@ import { now, Tree, typeOfId } from "./tree.ts";
 import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
 import { APP_DATA_SEX_UNKNOWN, isAppVersion } from "./stromapp.ts";
-import { cleanTitle, familiesAsPartner, formatName, foundTitles, gedcomTitledName, primaryName, titledName } from "./people.ts";
+import { cleanTitle, familiesAsPartner, formatName, foundTitles, gedcomTitledName, parseName, primaryName, sameName as sameWords, titledName } from "./people.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
 
@@ -116,6 +116,11 @@ export interface SPerson {
   said: string;
   /** The sources of the person themselves (the Strom app's sources of a person; the research's citations of their names). */
   cites?: SCite[];
+  /**
+   * The names of `names` after a marriage, beside the one they are shown by (NAME + TYPE married, _MARNM; the Strom app's
+   * marriedSurname from its spec 010): the last one is the one now. Never `names[0]`.
+   */
+  married?: string[];
   /** A husband (HUSB) in a family of the file: the sex the Strom app gives someone of none (male, else female). */
   husb?: true;
   /**
@@ -673,9 +678,16 @@ export function readGedcom(text: string): Snapshot {
     const titles = named[0] ? titlesFrom(named[0].name.prefix, named[0].name.suffix) : undefined;
     // (the research's own person: no name at all, as the research writes it — never another name, never a rename);
     // what stands for no name ("N/A /Chrpa/", "N.N.") is the research's "?" (T08)
-    const names = named
-      .filter(({ nameless }) => !(ours && nameless))
-      .map(({ name, nameless }, i) => (nameless ? "? //" : gedcomTitledName(i === 0 && titles ? { given: name.given, surname: name.surname } : name)));
+    const kept = named.filter(({ nameless }) => !(ours && nameless));
+    const names = kept.map(({ name, nameless }, i) => (nameless ? "? //" : gedcomTitledName(i === 0 && titles ? { given: name.given, surname: name.surname } : name)));
+    // the names after a marriage (TYPE married; another program's _MARNM, a name of its own), never the one shown
+    const married = names.filter((_, i) => i > 0 && kept[i]!.name.kind === "married");
+    for (const m of names.length ? marnmNames(r, (n) => readGedName(n, fromApp).name.given) : []) {
+      const line = gedcomTitledName(m);
+      if (names.some((n) => nameKey(n) === nameKey(line))) continue;
+      names.push(line);
+      married.push(line);
+    }
     // a placeholder of the Strom app (an unknown parent drawn in the tree): nobody
     if (!ours && !names.length) continue;
     const facts = gedFacts(r, undefined, read);
@@ -696,6 +708,7 @@ export function readGedcom(text: string): Snapshot {
       said: allNotes(r, noteText),
       ...(cites.length ? { cites } : {}),
       ...(titles ? { titles } : {}),
+      ...(married.length ? { married } : {}),
     });
   }
   // how a child belongs to a family (the child's FAMC + PEDI: adopted, foster, step): none said is birth
@@ -826,6 +839,8 @@ interface AppPerson {
   refnType?: string;
   isPlaceholder?: boolean;
   nameVariants?: string[];
+  /** The surname after the (last) marriage (spec 010): with the person's first name, a name of the married kind. */
+  marriedSurname?: string;
   birthAddress?: string;
   deathCause?: string;
   deathAge?: string;
@@ -976,10 +991,16 @@ export function readStromJson(data: unknown): Snapshot {
     }
     const cites = citesOf(p.sourceIds);
     const titles = titlesFrom(p.titleBefore, p.titleAfter);
+    // the surname after the marriage (spec 010) with the person's first name: a name of the married kind, after the one
+    // shown and before the other forms (as the app's GEDCOM gives it)
+    const marriedSurname = typeof p.marriedSurname === "string" ? p.marriedSurname.replace(/[/\s]+/g, " ").trim() : "";
+    const married = marriedSurname ? `${p.firstName ?? ""} /${marriedSurname}/`.trim() : undefined;
+    const names = [name, ...(married ? [married] : []), ...(p.nameVariants ?? [])].filter((n) => n.replace(/[/?\s]/g, ""));
     persons.set(key, {
       key,
       ...(titles ? { titles } : {}),
-      names: [name, ...(p.nameVariants ?? [])].filter((n) => n.replace(/[/?\s]/g, "")),
+      names: names.filter((n, i) => n !== married || names.findIndex((m) => nameKey(m) === nameKey(n)) === i),
+      ...(married && names.findIndex((n) => nameKey(n) === nameKey(married)) > 0 ? { married: [married] } : {}),
       // the sex left unknown a value like the others (U01): the app's gender unknown from its data version 12, the
       // research's unknown standing beside its stand-in (research.sexU) before it; else male and female only — a gender
       // missing says nothing of it (B5-d)
@@ -1998,6 +2019,7 @@ export type ChangeKind =
   | "fact.detail"
   | "name.new"
   | "name.changed"
+  | "name.gone"
   | "name.title"
   | "sex.changed"
   | "note.new"
@@ -2045,6 +2067,8 @@ export interface Change {
   was?: SFact;
   /** name.changed: the name the person is shown by in the research (the file's new one is `text`). */
   wasName?: string;
+  /** name.new: a name after a marriage (spec 010): added of the married kind. */
+  married?: true;
   /** name.title: which title of the name the person is shown by, and the research's (the file's is `text`, "" none). */
   title?: { part: "before" | "after"; was: string };
   text?: string;
@@ -2425,6 +2449,42 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     }
   };
 
+  /**
+   * The names after a marriage (spec 010; the Strom app keeps one, the last, with its own first name): the same by its
+   * surname — "Marie /Nováková/" of the app is the research's "Maria /Nováková/". One the research lacks is added of
+   * the married kind (a name of the research the file now says is one after a marriage: that kind); one the app was
+   * given and no longer has (taken off, or changed: the new one added) goes where only the user's edits or other
+   * family trees gave it, a record's stays (said) — never the name they are shown by.
+   */
+  const marriedDiff = (id: string, name: string, p: SPerson, o: SPerson, b: SPerson | undefined) => {
+    const surname = (n: string) => exact(/\/([^/]*)\//.exec(n)?.[1] ?? "");
+    const same = (n: string, list: string[]) => list.some((m) => nameKey(m) === nameKey(n) || (!!surname(n) && surname(m) === surname(n)));
+    const person = tree.get<Person>(id);
+    if (!person) return;
+    const ofResearch = (n: string) => person.names.find((m) => nameKey(gedcomName(m)) === nameKey(n));
+    const shown = o.names[0] ?? "";
+    for (const n of p.married ?? []) {
+      if (same(n, o.married ?? [])) continue;
+      const has = ofResearch(n);
+      if (has) {
+        // the research's own words of another kind: the file says they are a name after a marriage
+        if (!has.kind && nameKey(n) !== nameKey(shown)) push({ kind: "name.new", action: "add", person: id, name, text: n, married: true });
+        continue;
+      }
+      // the research took it off since the app was given it: that stays
+      if (b && (b.married ?? []).some((m) => nameKey(m) === nameKey(n))) continue;
+      push({ kind: "name.new", action: "add", person: id, name, text: n, married: true });
+    }
+    if (!b || partial) return;
+    for (const g of b.married ?? []) {
+      // still in the file (as a name after a marriage by its surname, or as another form), or no longer the research's
+      if (p.names.some((n) => nameKey(n) === nameKey(g)) || same(g, p.married ?? [])) continue;
+      const mine = ofResearch(g);
+      if (!mine || mine.kind !== "married" || nameKey(g) === nameKey(shown)) continue;
+      push({ kind: "name.gone", action: nameBacked(tree, mine) ? "report" : "remove", person: id, name, text: gedcomName(mine) });
+    }
+  };
+
   // people
   for (const [key, p] of incoming.persons) {
     const name = p.names[0] ?? "?";
@@ -2432,7 +2492,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       push({ kind: "person.new", action: "add", person: key, name });
       factsDiff({ person: key, name }, p.facts, [], undefined, false);
       citesDiff({ person: key, name }, p.cites, undefined, undefined);
-      for (const n of p.names.slice(1)) push({ kind: "name.new", action: "add", person: key, name, text: n });
+      for (const n of p.names.slice(1)) push({ kind: "name.new", action: "add", person: key, name, text: n, ...(p.married?.includes(n) ? { married: true as const } : {}) });
       for (const t of p.notes) push({ kind: "note.new", action: "add", person: key, name, text: t });
       continue;
     }
@@ -2458,7 +2518,9 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       const shown = primaryName(tree.get<Person>(id)!);
       push({ kind: "name.changed", action: renamed && !nameBacked(tree, shown) ? "correct" : edits === "user" ? "user" : "conflict", person: id, name, text: now, wasName: mine });
     }
-    for (const n of p.names) if (!((renamed || both) && n === now) && !ourNames.has(nameKey(n)) && !baseNames.has(nameKey(n))) push({ kind: "name.new", action: "add", person: id, name, text: n });
+    const theirMarried = new Set(p.married ?? []);
+    for (const n of p.names) if (!theirMarried.has(n) && !((renamed || both) && n === now) && !ourNames.has(nameKey(n)) && !baseNames.has(nameKey(n))) push({ kind: "name.new", action: "add", person: id, name, text: n });
+    marriedDiff(id, name, p, o, b);
     // the titles of the name they are shown by (T07), each apart and never as a change of the name itself: the user's
     // edit where the file's differs from what the app was given — one the name lacks added, a lead's corrected, a
     // record's name the user's to decide (or their word: sync.edits user, an archive); the research's changed since
@@ -3743,9 +3805,27 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
         }
         case "name.new": {
           if (!owner || !c.text) break;
+          // a name of the research the file says is one after a marriage: of that kind now, citing the sync (undo: as it was)
+          const had = c.married ? tree.get<Person>(owner)?.names.find((n) => sameWords(n, parseName(c.text!))) : undefined;
           // beside the name the person is shown by, always last: what the app shows does not move
-          const { name } = addName(tree, owner, { name: c.text, citation: cite("name"), other: true });
-          applied.push({ do: "name.add", id: owner, before: exact(`${name.given}|${name.surname}`) });
+          const { name } = addName(tree, owner, { name: c.text, citation: cite("name"), other: true, ...(c.married ? { kind: "married" } : {}) });
+          if (had) applied.push({ do: "name.edit", id: owner, before: JSON.stringify({ name: had, now: exact(`${name.given}|${name.surname}`) }) });
+          else applied.push({ do: "name.add", id: owner, before: exact(`${name.given}|${name.surname}`) });
+          break;
+        }
+        case "name.gone": {
+          // a name after a marriage taken off in the app that only the user's edits or other family trees gave: off,
+          // where it stood kept for an undo (a record's stays: only said)
+          const p = owner && c.action === "remove" && c.text ? tree.get<Person>(owner) : undefined;
+          const at = p ? p.names.findIndex((n) => n.kind === "married" && n !== primaryName(p) && nameKey(gedcomName(n)) === nameKey(c.text!) && !nameBacked(tree, n)) : -1;
+          if (!p || at < 0) break;
+          const gone = p.names[at]!;
+          update<Person>(tree, p.id, "person", (x) => ({ ...x, names: x.names.filter((_, i) => i !== at) }), {
+            op: "name.remove",
+            summary: `${p.id} name ${gedcomName(gone)} removed: ${phrase(tree.lang, "archive.removed")}`,
+            reason: `${phrase(tree.lang, "archive.removed")}: ${reason}`,
+          });
+          applied.push({ do: "name.drop", id: p.id, before: JSON.stringify({ name: gone, at }) });
           break;
         }
         case "name.changed": {

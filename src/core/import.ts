@@ -6,13 +6,14 @@
 // IDs in a tree of this research coming back from the Strom app are matched,
 // not duplicated — another research's IDs never (oursByRefn).
 
-import { eventKind, FAMILY_EVENT_KINDS, NOTE_MAX, type ChildLink, type ChildRelation, type Event, type ExternalRef, type Family, type Name, type Note, type Participant, type ParticipantRole, type Person, type Source } from "./model.ts";
+import { eventKind, FAMILY_EVENT_KINDS, NOTE_MAX, type ChildLink, type ChildRelation, type Event, type ExternalRef, type Family, type Input, type Name, type Note, type Participant, type ParticipantRole, type Person, type Source } from "./model.ts";
 import { normalizeAge } from "./age.ts";
 import { foldText } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { validateRecord } from "./validate.ts";
 import { normalizeDate } from "./gdate.ts";
-import { appNoSurname, cleanTitle, noName, notAName, parseName, sameName, surnameAfterGiven, withoutTitles } from "./people.ts";
+import { appNoSurname, cleanTitle, gedcomName, noName, notAName, parseName, sameName, surnameAfterGiven, withoutTitles } from "./people.ts";
+import { update } from "./records.ts";
 import { now, type Tree } from "./tree.ts";
 import { appUnknownIsNoSurname, appWritesSexUnknown } from "./stromapp.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
@@ -210,6 +211,32 @@ export function readGedName(n: GedNode, file: { app: boolean; unknownIsNoSurname
   return { name, nameless };
 }
 
+/**
+ * The married names a file gives as _MARNM (Legacy, PAF and other programs): under a NAME (2 _MARNM) of that name's
+ * given name, under the person (1 _MARNM) of their first name's. A value with slashes is a whole name, else a surname.
+ * Read the same way by strom intake and strom sync.
+ */
+export function marnmNames(r: GedNode, givenOf: (n: GedNode) => string): Name[] {
+  const out: Name[] = [];
+  const add = (value: string, given: string) => {
+    const v = value.replace(/\s+/g, " ").trim();
+    if (!v) return;
+    const n = v.includes("/") ? parseName(v) : { given: "", surname: v };
+    const name: Name = { given: n.given || given, surname: n.surname, kind: "married" };
+    if ((name.given || name.surname) && !out.some((x) => sameName(x, name))) out.push(name);
+  };
+  const names = children(r, "NAME");
+  for (const n of names) for (const m of children(n, "_MARNM")) add(m.value, givenOf(n));
+  for (const m of children(r, "_MARNM")) add(m.value, names[0] ? givenOf(names[0]) : "");
+  return out;
+}
+
+/** The married names (_MARNM) of a person of a file as strom intake takes them: with the given name of their NAME (none for what stands in place of a name). */
+function importedMarnm(r: GedNode, file: GedFile): Name[] {
+  const given = (n: GedNode) => (notAName(readGedName(n, file).name.given) ? "" : readGedName(n, file).name.given.replace(/\//g, "|"));
+  return marnmNames(r, given);
+}
+
 export function importGedcom(tree: Tree, text: string, opts: { input: string; name: string; sha: string }): ImportResult {
   const { records, problems } = parseGedcomText(text);
   /** A file of the Strom app (its HEAD: 1 SOUR STROM): its own ways of writing are read as it means them. */
@@ -353,8 +380,8 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
       return true;
     };
 
-    const namesOf = (r: GedNode): Name[] =>
-      children(r, "NAME")
+    const namesOf = (r: GedNode): Name[] => {
+      const names = children(r, "NAME")
         .map((n) => {
           const found = readGedName(n, fromApp).name;
           // a word that describes the person in place of a name (stillborn, son): the name is "?", the word goes to a note
@@ -363,6 +390,9 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
           return { ...found, given: found.given.replace(/\//g, "|"), surname: found.surname.replace(/\//g, "|") };
         })
         .map((n) => (n.given || n.surname ? n : { ...n, given: "?", surname: "" }));
+      // a married name other programs give apart (_MARNM): a name of the married kind, unless the person has it already
+      return [...names, ...importedMarnm(r, fromApp).filter((m) => !names.some((n) => sameName(n, m)))];
+    };
 
     /** The Strom app keeps what a birth or death entry adds in the person's note ("Úmrtí: Věk: 61 let"): back to the fact; the other lines are returned. */
     const factNotes = (r: GedNode, personEvents: Event[]): string[] => {
@@ -510,6 +540,113 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
  * research's tree coming back"); a file that names no research (the standard file, another program) only where most
  * of the people its IDs name are alike by name — and then each by its name too. Merged since: the one it went into.
  */
+// ── the married names an earlier import left out ─────────────────────────────
+//
+// strom before 1.16 read no _MARNM (MyHeritage, Legacy, PAF): a research started from such a file lacks the names
+// after a marriage. Taken in again from the very file it was started from (its input), by the IDs the import kept
+// (refs gedcom:<sha> + the file's xref) — nobody else, nothing but these names.
+
+/** Where a married name taken in later cites the import: the person's xref in the file and the tag. */
+const MARNM_LOCATOR = " _MARNM";
+
+export interface MarriedNamesPlan {
+  input: string;
+  /** The import's source: what the names cite. */
+  source: string;
+  /** Names to add: of the married kind, beside the name the person is shown by. */
+  add: { person: string; xref: string; name: Name }[];
+  /** The person has the name already (of any kind): nothing changes. */
+  have: { person: string; xref: string; name: Name }[];
+  /** People of the file with a married name nobody of the research came from (not imported, withdrawn). */
+  unpaired: { xref: string; name: string; married: Name[] }[];
+}
+
+/** The input a family tree was imported from (a GEDCOM file kept by the research), else why not. */
+export function importedTree(input: Input): string | undefined {
+  if (input.kind !== "tree" || !input.sha || !/\.ged$/i.test(input.name)) return `${input.id} is not a GEDCOM family tree`;
+  if (!input.source || !input.imported) return `${input.id} was not imported (strom intake --no-import)`;
+  return undefined;
+}
+
+/** What the input's file gives as married names (_MARNM) that the people imported from it lack. */
+export function marriedNamesPlan(tree: Tree, input: Input, text: string): MarriedNamesPlan {
+  const { records } = parseGedcomText(text);
+  const file = stromAppFile(records.find((r) => r.tag === "HEAD"));
+  const system = `gedcom:${input.sha!.slice(0, 12)}`;
+  // the people the import made of the file (or added to): by the xref it kept; one merged since is the one it went into
+  const byXref = new Map<string, Person>();
+  for (const p of tree.list<Person>("person")) for (const r of p.refs ?? []) if (r.system === system) byXref.set(r.id, p);
+  const live = (p: Person | undefined): Person | undefined => {
+    for (let i = 0; p && i < 20; i++) {
+      if (!p.mergedInto) return p.retracted ? undefined : p;
+      p = tree.get<Person>(p.mergedInto);
+    }
+    return undefined;
+  };
+  const plan: MarriedNamesPlan = { input: input.id, source: input.source!, add: [], have: [], unpaired: [] };
+  for (const r of records.filter((x) => x.tag === "INDI" && x.xref)) {
+    // NFC as every record (a file may write a name decomposed)
+    const married = importedMarnm(r, file).map((n) => ({ ...n, given: n.given.normalize("NFC"), surname: n.surname.normalize("NFC") }));
+    if (!married.length) continue;
+    const p = live(byXref.get(r.xref!));
+    if (!p) {
+      plan.unpaired.push({ xref: r.xref!, name: (children(r, "NAME")[0]?.value ?? "?").replace(/\s+/g, " ").trim(), married });
+      continue;
+    }
+    for (const name of married) {
+      const had = p.names.some((n) => sameName(n, name)) || plan.add.some((a) => a.person === p.id && sameName(a.name, name));
+      (had ? plan.have : plan.add).push({ person: p.id, xref: r.xref!, name });
+    }
+  }
+  return plan;
+}
+
+/** Add the names of a plan: each of the married kind, last, citing the import (the person's xref and _MARNM). */
+export function addMarriedNames(tree: Tree, plan: MarriedNamesPlan): void {
+  tree.withTreeLock(() => {
+    for (const a of plan.add) {
+      const name: Name = { ...a.name, citations: [{ source: plan.source, locator: `${a.xref.replace(/@/g, "")}${MARNM_LOCATOR}` }] };
+      update<Person>(tree, a.person, "person", (p) => (p.names.some((n) => sameName(n, name)) ? p : { ...p, names: [...p.names, name] }), {
+        op: "person.name",
+        summary: `${a.person} name ${gedcomName(name)} (married) ← ${plan.source}`,
+        reason: `the married name ${plan.input} gives (_MARNM), left out when it was imported`,
+      });
+    }
+  });
+}
+
+/** Take back what addMarriedNames added from this input: the names citing its import there (another citation kept: only this one goes). */
+export function undoMarriedNames(tree: Tree, inputRec: Input): { person: string; name: Name }[] {
+  const source = inputRec.source;
+  const ours = (c: { source: string; locator?: string }) => c.source === source && !!c.locator?.endsWith(MARNM_LOCATOR);
+  const gone: { person: string; name: Name }[] = [];
+  if (!source) return gone;
+  tree.withTreeLock(() => {
+    for (const p of tree.list<Person>("person")) {
+      const at = p.names.flatMap((n, i) => (i > 0 && n.kind === "married" && n.citations?.some(ours) ? [i] : []));
+      if (!at.length) continue;
+      const hit = at.map((i) => p.names[i]!);
+      update<Person>(
+        tree,
+        p.id,
+        "person",
+        (x) => ({
+          ...x,
+          names: x.names.flatMap((n, i) => {
+            if (!at.includes(i)) return [n];
+            // cited by something else too: only this citation goes
+            const rest = (n.citations ?? []).filter((c) => !ours(c));
+            return rest.length ? [{ ...n, citations: rest }] : [];
+          }),
+        }),
+        { op: "name.remove", summary: `${p.id} name ${hit.map(gedcomName).join(", ")} taken back`, reason: `the married names taken in from ${inputRec.id} taken back` },
+      );
+      for (const n of hit) gone.push({ person: p.id, name: n });
+    }
+  });
+  return gone;
+}
+
 function oursByRefn(tree: Tree, treeId: string | undefined, people: { refn?: string; names: string[] }[]): (Person | undefined)[] {
   if (treeId && treeId !== tree.config.id) return people.map(() => undefined);
   const found = people.map(({ refn }) => {

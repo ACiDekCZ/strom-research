@@ -716,7 +716,16 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const id of e.tried) w.line(2, "_TRIED", id);
     for (const h of e.hypotheses) {
       w.line(2, "_HYPO", h.id);
-      for (const j of h.joins) w.line(3, "_JOIN", j);
+      for (const j of h.each ?? []) {
+        w.line(3, "_JOIN", j.person);
+        // each join on its own: the variants that name the person, the family off the tree it belongs to (an older app
+        // passes level 4 by and takes the numbers of the hypothesis, those of the first join)
+        if (opts.hypothesisLinks) for (const v of j.variants ?? []) w.line(4, "_VAR", v);
+        if (j.island) {
+          w.line(4, "_ISLAND", String(j.island.people));
+          w.line(4, "_HELD", String(j.island.held));
+        }
+      }
       // which variant would make the join (an app that shows what a hypothesis would connect)
       if (opts.hypothesisLinks) for (const v of h.variants ?? []) w.line(3, "_VAR", v);
       if (h.island) {

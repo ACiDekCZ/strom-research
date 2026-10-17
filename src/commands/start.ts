@@ -192,9 +192,14 @@ register({
     // In a terminal: a new window, not a conversation inside this one.
     if (agentHere && !opts.print) {
       const say = about ? ["--task", about.id] : said ? ["--say", said] : [];
-      const opened = openInNewTerminal(["chat", "--agent", agent, "--where", "terminal", ...say], tree.root, ctx.env);
+      // in the terminal the person chose (this computer's setting), said in the research's language
+      const terminal = ctx.settings.terminal();
+      const opened = openInNewTerminal(["chat", "--agent", agent, "--where", "terminal", ...say], tree.root, ctx.env, process.platform, { ...(terminal ? { terminal } : {}), lang });
       if (opened === "recent") return { text: ui(lang, "ui.chat.handover.recent", { agent: profile.name }), data: { agent, handover: "recent", cwd: tree.root } };
-      return { text: ui(lang, opened ? "ui.chat.handover" : "ui.chat.handover.failed", { agent: profile.name }), data: { agent, handover: opened ? "window" : "none", cwd: tree.root } };
+      return {
+        text: ui(lang, opened ? "ui.chat.handover" : "ui.chat.handover.failed", { agent: profile.name }),
+        data: { agent, handover: opened ? "window" : "none", cwd: tree.root, ...(opened === "fallback" ? { terminal: "fallback" } : {}) },
+      };
     }
     const base = {
       root: tree.root,

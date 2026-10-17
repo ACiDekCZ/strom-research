@@ -54,6 +54,17 @@ function keepAnswer(ctx: Context, answer: "yes" | "no"): void {
   ctx.settings.save();
 }
 
+/** The window a link opens: in the terminal the person chose (this computer's setting, never the link's), said in their language. */
+function windowOf(ctx: Context): { terminal?: string; lang: string } {
+  const terminal = ctx.settings.terminal();
+  return { ...(terminal ? { terminal } : {}), lang: ctx.uiLang() };
+}
+
+/** The chosen terminal not here: the window opened in the system's (said in it). */
+function fellBack(opened: boolean | "recent" | "fallback"): { terminal?: "fallback" } {
+  return opened === "fallback" ? { terminal: "fallback" } : {};
+}
+
 /** macOS: the terminal program this runs in, by its mark (TERM_PROGRAM). */
 const TERMINALS: Record<string, string> = { Apple_Terminal: "Terminal", "iTerm.app": "iTerm", WezTerm: "WezTerm", ghostty: "Ghostty" };
 
@@ -394,8 +405,8 @@ register(
       if (link.action === "menu") {
         const where = ctx.settings.home()?.value ?? configDir(ctx.env);
         fs.mkdirSync(where, { recursive: true });
-        openInNewTerminal([], where, ctx.env);
-        return { text: "", data: { done: true, action: "menu" } };
+        const opened = openInNewTerminal([], where, ctx.env, process.platform, windowOf(ctx));
+        return { text: "", data: { done: true, action: "menu", ...fellBack(opened) } };
       }
       // a tree of the app becomes a research: always in a terminal (it asks the name, waits for the app)
       if (link.action === "new") {
@@ -408,8 +419,9 @@ register(
         }
         const where = ctx.settings.home()?.value ?? configDir(ctx.env);
         fs.mkdirSync(where, { recursive: true });
-        if (openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], where, ctx.env) === false) return say(ctx, "ui.link.noterminal.new");
-        return { text: "", data: { done: true, action: "new" } };
+        const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], where, ctx.env, process.platform, windowOf(ctx));
+        if (opened === false) return say(ctx, "ui.link.noterminal.new");
+        return { text: "", data: { done: true, action: "new", ...fellBack(opened) } };
       }
       if (link.action === "media") {
         // an original the app sent: the file itself, in the viewer of the system; nothing written
@@ -435,12 +447,12 @@ register(
         if (refused) return say(ctx, refused.key, refused.values, { action: link.action, tree: copies[0]!.root, refused: refused.state });
         const quiet = await withoutTerminal(ctx, link, copies[0]!.root);
         if (quiet) return quiet;
-        const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], copies[0]!.root, ctx.env);
+        const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], copies[0]!.root, ctx.env, process.platform, windowOf(ctx));
         if (opened === false)
           return link.action === "send"
             ? say(ctx, "ui.link.noterminal", { item: `${ui(ctx.uiLang(), "ui.more.title")} → ${ui(ctx.uiLang(), "ui.more.sync")}` })
             : say(ctx, "ui.link.noterminal.any", { name: copies[0]!.name });
-        return { text: "", data: { done: true, action: link.action, tree: copies[0]!.root } };
+        return { text: "", data: { done: true, action: link.action, tree: copies[0]!.root, ...fellBack(opened) } };
       }
       const got = excerptOf(ctx, link);
       if ("file" in got) {

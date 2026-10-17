@@ -5,6 +5,32 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.16.0
+
+*17.10.2026 · gehört zur Strom-App 3.13.0.*
+
+- **Das Terminal für die Fenster der Forschung (macOS).** Was die Strom-App in einem Terminal öffnet, und ein an ein
+  neues Fenster übergebenes Gespräch, kann sich in iTerm2 statt im Terminal des Systems öffnen: der erste Punkt der
+  Einstellungen, die Einrichtung, wenn beide da sind, oder `strom config set terminal iterm2`. Ein nicht installiertes
+  Terminal fällt auf das des Systems zurück und sagt es im Fenster; `strom doctor` nennt das gewählte. Unter Windows
+  bestimmt es das System.
+- **Jede Person am Rand des Stammbaums mit eigenen Varianten.** Wenn eine offene Hypothese den Stammbaum bei mehreren
+  Personen anschließt, trägt jede die Varianten, die sie nennen, und die Familie außerhalb des Stammbaums, zu der sie
+  gehört; so kann die Strom-App alle zeigen, nicht nur die erste.
+- **Der Rand des Stammbaums, Person für Person.** `strom edge --json` nennt jede Person, an die eine Hypothese
+  anschließt, mit den Varianten und der Familie jeder einzelnen.
+- **Der Familienname nach der Heirat, in beide Richtungen mit der Strom-App.** Ein Name nach der Heirat, den die
+  Strom-App zurückschickt, kommt als Name nach der Heirat an, nie als Umbenennung oder als weitere Form des
+  Geburtsnamens; derselbe Familienname ist derselbe Name, mit welchem Vornamen auch immer. In der App geändert oder
+  entfernt, geht der alte dort, wo ihn nur Änderungen in der App gaben; einer, den ein Eintrag belegt, bleibt.
+  `strom intake` liest `_MARNM` anderer Programme als Namen nach der Heirat. Eine Forschung, die früher aus so einem
+  Stammbaum begonnen wurde (MyHeritage, Legacy, PAF), bekommt sie aus der Datei, die sie aufbewahrt:
+  `strom input names I…` zeigt sie, `--apply` fügt nur diese Namen hinzu, mit dem Import als Quelle, `--undo` nimmt
+  sie zurück.
+- **Ein Archiv, eine Frage.** Kommen die Bilder eines Archivs von mehreren Adressen (seine Seite, ein Album, ein
+  Bildserver), wird die Erlaubnis des Archivs einmal erfragt und gilt für alle, nicht Adresse für Adresse.
+- **Forschungslinien auf Tschechisch.** Die tschechischen Texte sagen jetzt überall „linie výzkumu“ (Forschungslinien).
+
 ## 1.15.0
 
 *16.10.2026 · gehört zur Strom-App 3.12.0.*
