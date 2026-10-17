@@ -210,6 +210,26 @@ export function readGedName(n: GedNode, file: { app: boolean; unknownIsNoSurname
   return { name, nameless };
 }
 
+/**
+ * The married names a file gives as _MARNM (Legacy, PAF and other programs): under a NAME (2 _MARNM) of that name's
+ * given name, under the person (1 _MARNM) of their first name's. A value with slashes is a whole name, else a surname.
+ * Read the same way by strom intake and strom sync.
+ */
+export function marnmNames(r: GedNode, givenOf: (n: GedNode) => string): Name[] {
+  const out: Name[] = [];
+  const add = (value: string, given: string) => {
+    const v = value.replace(/\s+/g, " ").trim();
+    if (!v) return;
+    const n = v.includes("/") ? parseName(v) : { given: "", surname: v };
+    const name: Name = { given: n.given || given, surname: n.surname, kind: "married" };
+    if ((name.given || name.surname) && !out.some((x) => sameName(x, name))) out.push(name);
+  };
+  const names = children(r, "NAME");
+  for (const n of names) for (const m of children(n, "_MARNM")) add(m.value, givenOf(n));
+  for (const m of children(r, "_MARNM")) add(m.value, names[0] ? givenOf(names[0]) : "");
+  return out;
+}
+
 export function importGedcom(tree: Tree, text: string, opts: { input: string; name: string; sha: string }): ImportResult {
   const { records, problems } = parseGedcomText(text);
   /** A file of the Strom app (its HEAD: 1 SOUR STROM): its own ways of writing are read as it means them. */
@@ -353,8 +373,8 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
       return true;
     };
 
-    const namesOf = (r: GedNode): Name[] =>
-      children(r, "NAME")
+    const namesOf = (r: GedNode): Name[] => {
+      const names = children(r, "NAME")
         .map((n) => {
           const found = readGedName(n, fromApp).name;
           // a word that describes the person in place of a name (stillborn, son): the name is "?", the word goes to a note
@@ -363,6 +383,10 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
           return { ...found, given: found.given.replace(/\//g, "|"), surname: found.surname.replace(/\//g, "|") };
         })
         .map((n) => (n.given || n.surname ? n : { ...n, given: "?", surname: "" }));
+      // a married name other programs give apart (_MARNM): a name of the married kind, unless the person has it already
+      const given = (n: GedNode) => (notAName(readGedName(n, fromApp).name.given) ? "" : readGedName(n, fromApp).name.given.replace(/\//g, "|"));
+      return [...names, ...marnmNames(r, given).filter((m) => !names.some((n) => sameName(n, m)))];
+    };
 
     /** The Strom app keeps what a birth or death entry adds in the person's note ("Úmrtí: Věk: 61 let"): back to the fact; the other lines are returned. */
     const factNotes = (r: GedNode, personEvents: Event[]): string[] => {

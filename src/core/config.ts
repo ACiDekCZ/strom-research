@@ -18,6 +18,7 @@ import { acquireLock } from "./lock.ts";
 import { defaultAppUrl, isAppVersion, isStromAppOrigin, STROM_APP_BETA_URL, STROM_APP_URL } from "./stromapp.ts";
 import { updateChannel } from "./update.ts";
 import { WEB_PER_HOST, WEB_SOFT } from "./metrics.ts";
+import { TERMINAL_CHOICES, terminalChoices } from "./terminal.ts";
 import type { BackupRecord } from "./backup.ts";
 import type { ViewCalibration } from "./viewsizes.ts";
 import type { KeyTuning } from "./tune.ts";
@@ -91,6 +92,8 @@ export interface UserConfig {
   stromAppUrl?: string;
   /** The browser the Strom app is opened in (the one it came from, or the person's choice): chrome, edge, … */
   appBrowser?: string;
+  /** The terminal strom opens its windows in (macOS): system (default), terminal, iterm2 — this computer's alone. */
+  terminal?: string;
   /** Look for new versions of strom: check (default, at most once a day) or off. */
   updates?: string;
   /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */
@@ -245,6 +248,9 @@ export const SETTINGS: SettingDef[] = [
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
   { key: "app.browser", env: "STROM_APP_BROWSER", tree: false, kind: "choice", choices: ["chrome", "edge", "brave", "opera", "firefox", "chromium"], description: "the browser strom opens the Strom app in — the one its tree came from (strom keeps it), or yours: chrome, edge, brave, opera, firefox, chromium (another Chromium: Vivaldi, Arc). The Strom app installed from a browser always comes first (from this one when it is installed from several); without one, a tab of this browser — unset: of the default browser when the app reaches strom from it, else of the first such browser here" },
+  // This computer's alone (never a research's strom.json: a research is packed and shared, its folder would choose the
+  // program that runs) and never from a link; fixed values only, each a fixed bundle ID (core/terminal.ts).
+  { key: "terminal", env: "STROM_TERMINAL", tree: false, kind: "choice", choices: TERMINAL_CHOICES, description: "the terminal strom opens its windows in (a link from the Strom app, a conversation handed over): system (default: what opens .command files), terminal, iterm2 — macOS; one not installed: the system's (said in the window). Windows: the system's default terminal application decides" },
   // Measured, never typed: strom media calibrate (a person starts it) keeps it per agent and model; unset: the defaults.
   { key: "views.size", env: "", tree: false, kind: "views", description: "the size of the scan views for the research's agent and model: find (a whole image, to find an entry; default 1400 px) and read (a half, a crop, a reader's view; default what the model takes) — set by strom media calibrate, which a person starts; strom config unset views.size returns to the defaults" },
   { key: "tune.transcripts", env: "STROM_TUNE_TRANSCRIPTS", tree: false, kind: "choice", choices: ["on", "off"], description: "the transcripts Claude Code keeps on this computer of the sessions strom started, read to tune how scans are read (the context cleared, files opened again, what each reader cost): on (default — only the tokens of each request, the names of the tools and the files read, never the conversation; nothing leaves this computer) or off (nothing read)" },
@@ -374,7 +380,9 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       return def.key === "model.effort" ? v.toLowerCase() : v;
     case "choice": {
       const c = def.key === "agent.permissions" ? (PERMISSION_ALIASES[v.toLowerCase()] ?? v.toLowerCase()) : v.toLowerCase();
-      if (!def.choices?.includes(c)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: def.choices?.join(", ") });
+      // the terminal: what this system takes (macOS its terminals, elsewhere the system's alone)
+      const choices = def.key === "terminal" ? terminalChoices() : def.choices;
+      if (!choices?.includes(c)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: choices?.join(", ") });
       return c;
     }
     case "pace": {
@@ -630,6 +638,21 @@ export class Settings {
   appBrowser(): string | undefined {
     const r = this.resolve("app.browser");
     return r ? String(r.value) : undefined;
+  }
+
+  /**
+   * The terminal strom opens its windows in, if the person chose one (env, else the config; never a tree's). A value of
+   * the config this system does not take (written by hand, by a newer strom, on another system) counts as the system's.
+   */
+  terminal(platform: NodeJS.Platform = process.platform): string | undefined {
+    const r = this.resolve("terminal");
+    return r && r.value !== "system" && terminalChoices(platform).includes(String(r.value)) ? String(r.value) : undefined;
+  }
+
+  /** The terminal in the config this system does not take (doctor says it, with the way back): none when it takes it. */
+  terminalUnknown(platform: NodeJS.Platform = process.platform): string | undefined {
+    const v = readStored(this.config, "terminal", "");
+    return v !== undefined && !this.env.STROM_TERMINAL && !this.flagOf("terminal") && !terminalChoices(platform).includes(String(v)) ? String(v) : undefined;
   }
 
   /** Where the user wants to talk with the agent, if they said (env, else the config); see whereToTalk. */

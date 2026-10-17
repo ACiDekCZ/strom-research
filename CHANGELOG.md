@@ -7,13 +7,21 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.16.0
 
-*In preparation: the betas up to 1.16.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.16.0-beta.2. The section is complete with the release.*
 
+- **The terminal for the research's windows (macOS).** What the Strom app opens in a terminal, and a conversation
+  handed over to a new window, can open in iTerm2 instead of the system's terminal: the settings' first item, the
+  setup when both are here, or `strom config set terminal iterm2`. A terminal not installed falls back to the
+  system's and says so in the window; `strom doctor` names the one chosen. On Windows the system decides it.
 - **Each person where the tree ends, with its own variants.** When an open hypothesis joins the tree at several
   people, each of them carries the variants that name it and the family off the tree it belongs to, so the Strom app
   can show all of them, not only the first.
 - **Where the tree ends, person by person.** `strom edge --json` lists each person a hypothesis joins, with the
   variants and the family of each one.
+- **The surname after a marriage, both ways with the Strom app.** A name after a marriage the Strom app sends back
+  comes in as a name of the married kind, never as a rename or another form of the birth name; the same surname is
+  the same name whatever first name goes with it. Changed or taken off in the app, the old one goes where only edits
+  in the app gave it; one a record gives stays. `strom intake` reads `_MARNM` of other programs as a married name.
 - **Lines of research in Czech.** The Czech texts say „linie výzkumu“ (lines of research) everywhere now.
 
 ## 1.15.0

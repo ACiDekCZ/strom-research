@@ -1,5 +1,7 @@
 // setup · doctor · config — the environment around the trees.
 
+import { terminalHere } from "../core/terminal.ts";
+import { terminalName, terminalState } from "../cli/terminals.ts";
 import { refusedHosts } from "../core/terms.ts";
 import { gitSize, lastCompacted } from "../core/history.ts";
 import fs from "node:fs";
@@ -407,6 +409,16 @@ function diagnose(ctx: Context): Check[] {
         ? t("ui.doc.appurl.env.fix", { web: appWebPages(ctx.env) })
         : placeholders(lang, "strom config set strom.app.url <address> · strom config unset strom.app.url"),
     );
+  // The terminal strom opens its windows in (a link from the Strom app, a conversation handed over): the one chosen
+  // (macOS), gone: said with the way back to the system's; Windows: the system decides it. A value this system does not
+  // take (by hand, a newer strom's, another system's) counts as the system's: said with the way back too
+  const unknownTerm = ctx.settings.terminalUnknown();
+  if (unknownTerm !== undefined) add("terminal", "warn", t("ui.doc.terminal.unknown", { value: unknownTerm.replace(/\p{Cc}/gu, "").slice(0, 40) }), "strom config unset terminal");
+  else if (process.platform === "darwin") {
+    const term = ctx.settings.terminal();
+    if (term && !terminalHere(term, ctx.env)) add("terminal", "warn", t("ui.doc.terminal.missing", { name: terminalName(lang, term) }), "strom config unset terminal");
+    else add("terminal", "ok", terminalState(ctx, lang));
+  } else if (process.platform === "win32") add("terminal", "ok", t("ui.terminal.windows"));
   // …and whether it may start the research here (strom-research:// links): only while the app is wanted
   if (app !== "no" && appOpensLinks(ctx.settings)) {
     const links = linkHandlerState(ctx.env);

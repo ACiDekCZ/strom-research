@@ -11,6 +11,8 @@ import { configDir, desktopDir, userHome } from "./paths.ts";
 import { stromLauncher } from "./self.ts";
 import { isAgentMark } from "./which.ts";
 import { assetPath } from "./assets.ts";
+import { macTerminal } from "./terminal.ts";
+import { ui, type UIKey } from "../cli/ui.ts";
 
 /** Strom Research's icon, as each system takes it. */
 export const ICON = { png: assetPath("icon", "icon-512.png"), ico: assetPath("icon", "icon.ico") };
@@ -104,7 +106,17 @@ export function createShortcut(name: string, env: Env, platform: NodeJS.Platform
 /** One handover window at a time: another asked within this long is not opened. */
 export const HANDOVER_GAP_MS = 15_000;
 
-export function openInNewTerminal(argv: string[], cwd: string, env: Env, platform: NodeJS.Platform = process.platform): boolean | "recent" {
+/**
+ * `terminal`: the one the person chose (core/terminal.ts; macOS) — opened by its bundle ID; not installed: the system's,
+ * the window saying so first in `lang` ("fallback").
+ */
+export function openInNewTerminal(
+  argv: string[],
+  cwd: string,
+  env: Env,
+  platform: NodeJS.Platform = process.platform,
+  opts: { terminal?: string; lang?: string } = {},
+): boolean | "recent" | "fallback" {
   if (env.STROM_NO_OPEN === "1") return false;
   const { command, args } = stromLauncher();
   const skip = new Set(["STROM_WORKER", "STROM_SESSION", "STROM_NONINTERACTIVE", "STROM_HANDOVER"]);
@@ -132,6 +144,21 @@ export function openInNewTerminal(argv: string[], cwd: string, env: Env, platfor
   const body = ["#!/bin/sh", 'rm -f -- "$0"', ...(marks.length ? [`unset ${marks.join(" ")}`] : []), ...own.map(([k, v]) => `export ${k}=${q(v)}`), "export STROM_HANDOVER=1", `cd ${q(cwd)}`, `exec ${[command, ...args, ...argv].map(q).join(" ")}`, ""];
   fs.writeFileSync(file, body.join("\n"), { mode: 0o755 });
   fs.chmodSync(file, 0o755);
+  // macOS, a terminal chosen: opened by its bundle ID (LaunchServices, as a double-click: no permission asked); not
+  // installed (open says so), the system's — the window says it first, then goes on
+  const chosen = macTerminal(opts.terminal, platform);
+  if (chosen) {
+    const r = spawnSync("open", ["-b", chosen.id, file], { stdio: "ignore", timeout: 15_000, env: env as NodeJS.ProcessEnv });
+    if (r.status === 0 || (r.status === null && (r.error as NodeJS.ErrnoException | undefined)?.code !== "ENOENT")) return true;
+    if (r.status === null) return false; // no open here
+    const lang = opts.lang ?? "en";
+    const said = ui(lang, "ui.terminal.missing", { name: ui(lang, `ui.terminal.name.${opts.terminal}` as UIKey) });
+    fs.writeFileSync(file, [body[0], body[1], `printf '%s\\n\\n' ${q(said)}`, ...body.slice(2)].join("\n"), { mode: 0o755 });
+    const o = spawn("open", [file], { detached: true, stdio: "ignore", env: env as NodeJS.ProcessEnv });
+    o.on("error", () => undefined);
+    o.unref();
+    return "fallback";
+  }
   // macOS: a .command file opens in Terminal. Linux: the desktop's terminal, when there is one.
   const how: [string, string[]][] =
     platform === "darwin"
