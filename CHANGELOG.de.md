@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.16.0
 
-*In Vorbereitung: die Betas bis 1.16.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.16.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Das Terminal für die Fenster der Forschung (macOS).** Was die Strom-App in einem Terminal öffnet, und ein an ein
   neues Fenster übergebenes Gespräch, kann sich in iTerm2 statt im Terminal des Systems öffnen: der erste Punkt der
@@ -23,7 +23,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Strom-App zurückschickt, kommt als Name nach der Heirat an, nie als Umbenennung oder als weitere Form des
   Geburtsnamens; derselbe Familienname ist derselbe Name, mit welchem Vornamen auch immer. In der App geändert oder
   entfernt, geht der alte dort, wo ihn nur Änderungen in der App gaben; einer, den ein Eintrag belegt, bleibt.
-  `strom intake` liest `_MARNM` anderer Programme als Namen nach der Heirat.
+  `strom intake` liest `_MARNM` anderer Programme als Namen nach der Heirat. Eine Forschung, die früher aus so einem
+  Stammbaum begonnen wurde (MyHeritage, Legacy, PAF), bekommt sie aus der Datei, die sie aufbewahrt:
+  `strom input names I…` zeigt sie, `--apply` fügt nur diese Namen hinzu, mit dem Import als Quelle, `--undo` nimmt
+  sie zurück.
 - **Forschungslinien auf Tschechisch.** Die tschechischen Texte sagen jetzt überall „linie výzkumu“ (Forschungslinien).
 
 ## 1.15.0

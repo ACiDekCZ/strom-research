@@ -103,6 +103,10 @@ async function seeded(): Promise<World> {
   // a hypothesis about whose son Josef Víšek was, one variant saying what it would connect (hypothesis link --remove)
   await w.ok(["hypothesis", "add", "Čí syn byl Josef?", "--about", "P0006", "--variant", "A: sourozenec Antonína", "--variant", "B: syn Josefa a Marie"]); // H0001
   await w.ok(["hypothesis", "link", "H0001", "A", "--siblings", "P0004", "P0006"]);
+  // a family tree of another program imported (I0004), its married name (_MARNM) to take in again (input names)
+  const ged = ["0 HEAD", "1 SOUR MYHERITAGE", "0 @I1@ INDI", "1 NAME Ludmila /Kopecká/", "2 _MARNM Horká", "1 SEX F", "0 TRLR", ""].join("\n");
+  fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "rodokmen.ged"), ged);
+  await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "rodokmen.ged")]);
   return w;
 }
 

@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.16.0
 
-*In preparation: the betas up to 1.16.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.16.0-beta.3. The section is complete with the release.*
 
 - **The terminal for the research's windows (macOS).** What the Strom app opens in a terminal, and a conversation
   handed over to a new window, can open in iTerm2 instead of the system's terminal: the settings' first item, the
@@ -22,6 +22,8 @@ The changes of each version in short. The full notes and the install lines are o
   comes in as a name of the married kind, never as a rename or another form of the birth name; the same surname is
   the same name whatever first name goes with it. Changed or taken off in the app, the old one goes where only edits
   in the app gave it; one a record gives stays. `strom intake` reads `_MARNM` of other programs as a married name.
+  A research started earlier from such a family tree (MyHeritage, Legacy, PAF) gets them from the file it keeps:
+  `strom input names I…` shows them, `--apply` adds only these names, citing the import, `--undo` takes them back.
 - **Lines of research in Czech.** The Czech texts say „linie výzkumu“ (lines of research) everywhere now.
 
 ## 1.15.0
