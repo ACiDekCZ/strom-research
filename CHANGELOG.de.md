@@ -5,9 +5,15 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.17.0
+
+*In Vorbereitung: die Betas bis 1.17.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Noch nichts Neues in der Nutzung.** Bisher hat sich nur geändert, wie strom gebaut und veröffentlicht wird.
+
 ## 1.16.0
 
-*In Vorbereitung: die Betas bis 1.16.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*17.10.2026 · gehört zur Strom-App 3.13.0.*
 
 - **Das Terminal für die Fenster der Forschung (macOS).** Was die Strom-App in einem Terminal öffnet, und ein an ein
   neues Fenster übergebenes Gespräch, kann sich in iTerm2 statt im Terminal des Systems öffnen: der erste Punkt der

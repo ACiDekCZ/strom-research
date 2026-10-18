@@ -5,9 +5,15 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.17.0
+
+*In preparation: the betas up to 1.17.0-beta.1. The section is complete with the release.*
+
+- **Nothing new in use yet.** So far only the way strom is built and published has changed.
+
 ## 1.16.0
 
-*In preparation: the betas up to 1.16.0-beta.4. The section is complete with the release.*
+*2026-10-17 · goes with the Strom app 3.13.0.*
 
 - **The terminal for the research's windows (macOS).** What the Strom app opens in a terminal, and a conversation
   handed over to a new window, can open in iTerm2 instead of the system's terminal: the settings' first item, the

@@ -5,9 +5,15 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.17.0
+
+*Připravuje se: bety do 1.17.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Zatím nic nového v používání.** Zatím se změnilo jen to, jak se strom sestavuje a vydává.
+
 ## 1.16.0
 
-*Připravuje se: bety do 1.16.0-beta.4. Oddíl bude úplný s vydáním.*
+*17. 10. 2026 · patří k aplikaci Strom 3.13.0.*
 
 - **Terminál pro okna výzkumu (macOS).** Co aplikace Strom otevírá v terminálu a rozhovor předaný do nového okna
   se může otevírat v iTerm2 místo v terminálu systému: první položka nastavení, průvodce, když jsou tu oba, nebo

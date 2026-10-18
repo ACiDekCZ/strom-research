@@ -8,6 +8,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import zlib from "node:zlib";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -67,6 +68,64 @@ export function packForNpm(stage: string, out: string): string {
   if (path.basename(file) !== tarballName(pkg.version) || !fs.existsSync(file)) throw new Error(`npm pack: ${file} not made`);
   return file;
 }
+
+/** The numbers of X.Y.Z, for comparing. */
+const triple = (version: string) => version.split("-")[0]!.split(".").map(Number) as [number, number, number];
+const newer = (a: number[], b: number[]) => a[0]! - b[0]! || a[1]! - b[1]! || a[2]! - b[2]!;
+
+/**
+ * The beta a pushed tag publishes (`.github/workflows/npm-beta.yml`): vX.Y.Z-beta.N, never a release or anything else.
+ * The sources at the tag keep their own version (the release before, or the candidate X.Y.Z-rc.N being made): the beta is
+ * newer than a release there, of the same X.Y.Z or newer than a candidate.
+ */
+export function betaOfTag(tag: string, sources: string): string | { refused: string } {
+  const version = tag.startsWith("v") ? tag.slice(1) : "";
+  if (releaseKind(version) !== "beta") return { refused: `${tag}: not a beta's tag (vX.Y.Z-beta.N): nothing is published here — a release goes out by hand` };
+  const own = releaseKind(sources);
+  if (typeof own === "object") return { refused: `package.json: ${own.refused}` };
+  const by = newer(triple(version), triple(sources));
+  if (by < 0 || (by === 0 && own === "release")) return { refused: `${version} is not newer than the sources' ${sources}` };
+  return version;
+}
+
+/** The files of a beta's npm tarball beside dist/ and assets/ (npm adds package.json; `files` and README.md, LICENSE). */
+const PACKAGE_FILES = ["package.json", "LICENSE", "README.md", "CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md"];
+
+/** The entries of a .tar.gz, read from its headers (ustar: the prefix, then the name), with their contents. */
+export function tarEntries(file: string): { name: string; data: Buffer }[] {
+  const tar = zlib.gunzipSync(fs.readFileSync(file));
+  const entries: { name: string; data: Buffer }[] = [];
+  const text = (at: number, len: number) => tar.subarray(at, at + len).toString("utf8").replace(/\0.*$/s, "");
+  for (let at = 0; at + 512 <= tar.length; ) {
+    const name = text(at, 100);
+    if (!name) break;
+    const prefix = text(at + 345, 155);
+    const size = parseInt(text(at + 124, 12).trim() || "0", 8);
+    entries.push({ name: prefix ? `${prefix}/${name}` : name, data: tar.subarray(at + 512, at + 512 + size) });
+    at += 512 + Math.ceil(size / 512) * 512;
+  }
+  return entries;
+}
+
+/** Why a beta's npm tarball is not what goes out — its version, `publishConfig.tag` beta, the package's files only — else undefined. */
+export function tarballRefusal(file: string, version: string): string | undefined {
+  const entries = tarEntries(file);
+  const pkg = entries.find((e) => e.name === "package/package.json");
+  if (!pkg) return `${path.basename(file)}: no package/package.json`;
+  const json = JSON.parse(pkg.data.toString("utf8"));
+  if (json.name !== "strom-research") return `${path.basename(file)}: the package is ${json.name}, not strom-research`;
+  if (json.version !== version) return `${path.basename(file)}: version ${json.version}, not ${version}`;
+  if (json.publishConfig?.tag !== "beta") return `${path.basename(file)}: publishConfig.tag is ${json.publishConfig?.tag ?? "missing"}, not beta`;
+  const names = entries.map((e) => e.name.replace(/^package\//, ""));
+  const odd = names.filter((n) => !/^(dist|assets)\//.test(n) && !PACKAGE_FILES.includes(n));
+  if (odd.length) return `${path.basename(file)}: files beyond the package's: ${odd.join(", ")}`;
+  const missing = PACKAGE_FILES.filter((f) => !names.includes(f));
+  if (missing.length || !names.includes("dist/cli.js")) return `${path.basename(file)}: missing ${[...missing, ...(names.includes("dist/cli.js") ? [] : ["dist/cli.js"])].join(", ")}`;
+  return undefined;
+}
+
+/** npm 11.5.1 or newer: the first that publishes through trusted publishing (OIDC). */
+export const npmPublishesTrusted = (npm: string) => newer(triple(npm.trim()), [11, 5, 1]) >= 0;
 
 // prepublishOnly: `node scripts/npm-channel.ts`
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

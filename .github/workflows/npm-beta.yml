@@ -1,0 +1,79 @@
+# A beta's tag (vX.Y.Z-beta.N, pushed by the beta release) puts its npm package out under the tag beta, through npm's
+# trusted publishing (OIDC: no token, no secret; npm adds the provenance itself). A release's tag (vX.Y.Z) never runs
+# here — a release goes to npm by hand. The package is built as the beta's own: `npm run release -- --version
+# X.Y.Z-beta.N` (scripts/build-release.ts), the same tarball as release-beta/strom-research-X.Y.Z-beta.N.tgz.
+# Run again for a beta npm has already: green, nothing published.
+name: npm beta
+
+on:
+  push:
+    tags: ["v*-beta.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-beta
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.beta.outputs.version }}
+      published: ${{ steps.beta.outputs.published }}
+      latest: ${{ steps.beta.outputs.latest }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: The beta of the tag
+        id: beta
+        run: node scripts/npm-beta-ci.ts prepare "$GITHUB_REF_NAME"
+
+  publish:
+    needs: check
+    if: needs.check.outputs.published == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      LATEST: ${{ needs.check.outputs.latest }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: npm for trusted publishing (11.5.1 or newer)
+        run: |
+          node scripts/npm-beta-ci.ts npm || npm install -g npm@11
+          node scripts/npm-beta-ci.ts npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      # the unit and GEDCOM tests: the whole suite ran before the tag was made (the beta release's checks)
+      - run: npm run test:quick
+      - name: Build the beta
+        run: npm run release -- --version "$VERSION" --out release-beta
+      - name: The package
+        run: |
+          node scripts/npm-beta-ci.ts tarball "release-beta/strom-research-$VERSION.tgz" "$VERSION"
+          npm pack --dry-run --ignore-scripts "./release-beta/strom-research-$VERSION.tgz"
+          sha256sum "release-beta/strom-research-$VERSION.tgz"
+      - name: Publish under the tag beta
+        run: npm publish "./release-beta/strom-research-$VERSION.tgz" --tag beta --access public
+      - name: On npm, latest untouched
+        run: |
+          node scripts/npm-beta-ci.ts after "$VERSION" "$LATEST"
+          npm view strom-research dist-tags --prefer-online

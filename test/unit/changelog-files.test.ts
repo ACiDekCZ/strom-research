@@ -9,7 +9,7 @@ import path from "node:path";
 import { whatsNewUrl } from "../../src/core/update.ts";
 import { VERSION } from "../../src/core/tree.ts";
 import { addressesPerson } from "../../src/core/impersonal.ts";
-import { CHANGELOGS } from "../../scripts/beta-commit.ts";
+import { CHANGELOGS, betaChangelog } from "../../scripts/beta-commit.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const FILES: [lang: string, file: string][] = [
@@ -45,23 +45,47 @@ function sections(text: string): Map<string, string[]> {
   return out;
 }
 
-test("the changelogs: a section for this version in each language, the same versions in the same order, 3–8 points each, the same number in every language", () => {
-  const read = FILES.map(([lang, file]) => ({ lang, file, text: fs.readFileSync(path.join(ROOT, file), "utf8"), s: sections(fs.readFileSync(path.join(ROOT, file), "utf8")) }));
+/** The beta commit's note in a changelog (scripts/beta-commit.ts), whatever the beta's version: the branch beta only. */
+function withoutBetaNote(text: string, note: (version: string) => string): string {
+  const [before, after] = note("\0").split("\0").map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return text.replace(new RegExp(`${before}\\d+\\.\\d+\\.\\d+-beta\\.\\d+${after}`, "g"), "");
+}
+
+/** The checks of the three changelogs (en first): on main, and as the branch beta's commit gives them. */
+function checkChangelogs(texts: string[], where: string): void {
+  const read = FILES.map(([lang, file], i) => ({ lang, file, text: texts[i]!, s: sections(texts[i]!) }));
   const en = read[0]!;
   const base = VERSION.split("-")[0]!;
-  assert.ok(en.s.has(base), `CHANGELOG.md has no section "## ${base}"`);
+  assert.ok(en.s.has(base), `${where}: CHANGELOG.md has no section "## ${base}"`);
+  const newer = (v: string) => v.split(".").map(Number).reduce((d, n, i) => d || n - Number(base.split(".")[i]), 0) > 0;
   for (const r of read) {
-    assert.deepEqual([...r.s.keys()], [...en.s.keys()], `${r.file}: the versions of CHANGELOG.md`);
+    assert.deepEqual([...r.s.keys()], [...en.s.keys()], `${where} ${r.file}: the versions of CHANGELOG.md`);
     for (const [version, points] of r.s) {
-      assert.match(version, /^\d+\.\d+\.\d+$/, `${r.file}: "## ${version}" — a released version, its anchor stable`);
-      assert.ok(points.length >= 3 && points.length <= 8, `${r.file} ${version}: ${points.length} points`);
-      assert.equal(points.length, en.s.get(version)!.length, `${r.file} ${version}: as many points as in English`);
-      for (const p of points) assert.equal(addressesPerson(p, r.lang), undefined, `${r.file} ${version}: "${p}" addresses the person`);
+      assert.match(version, /^\d+\.\d+\.\d+$/, `${where} ${r.file}: "## ${version}" — a released version, its anchor stable`);
+      // the version being prepared (newer than the sources') grows with its betas: 3–8 points by its release
+      assert.ok(points.length >= (newer(version) ? 1 : 3) && points.length <= 8, `${where} ${r.file} ${version}: ${points.length} points`);
+      assert.equal(points.length, en.s.get(version)!.length, `${where} ${r.file} ${version}: as many points as in English`);
+      for (const p of points) assert.equal(addressesPerson(p, r.lang), undefined, `${where} ${r.file} ${version}: "${p}" addresses the person`);
     }
     // nothing of an assistant as an author, nothing of a beta on main (the branch beta's commit adds its note)
-    assert.doesNotMatch(r.text, /Claude|Anthropic|Co-Authored|Generated with|beta/i, r.file);
+    const note = CHANGELOGS.find(([file]) => file === r.file)![1];
+    assert.doesNotMatch(withoutBetaNote(r.text, note), /Claude|Anthropic|Co-Authored|Generated with|beta/i, `${where} ${r.file}`);
     // each links the other two
-    for (const [, other] of FILES) if (other !== r.file) assert.ok(r.text.includes(`(${other})`), `${r.file} links ${other}`);
+    for (const [, other] of FILES) if (other !== r.file) assert.ok(r.text.includes(`(${other})`), `${where} ${r.file} links ${other}`);
   }
+}
+
+test("the changelogs: a section for this version in each language, the same versions in the same order, 3–8 points each (the version being prepared: 1–8), the same number in every language", () => {
+  checkChangelogs(FILES.map(([, file]) => fs.readFileSync(path.join(ROOT, file), "utf8")), "main");
   assert.deepEqual(CHANGELOGS.map(([file]) => file), FILES.map(([, file]) => file), "the branch beta's commit notes the same files");
+});
+
+test("the changelogs as the branch beta's commit gives them pass the same checks (the tag's workflow runs them before npm)", () => {
+  const texts = FILES.map(([, file]) => fs.readFileSync(path.join(ROOT, file), "utf8"));
+  const newest = sections(texts[0]!).keys().next().value!;
+  const beta = texts.map((text, i) => betaChangelog(text, CHANGELOGS[i]![0], CHANGELOGS[i]![1], `${newest}-beta.3`));
+  assert.match(beta[0]!, /betas up to/);
+  checkChangelogs(beta, "beta");
+  // the note is let through only as the commit writes it
+  assert.throws(() => checkChangelogs([beta[0]!.replace("betas up to", "beta builds up to"), beta[1]!, beta[2]!], "beta"), /beta/);
 });

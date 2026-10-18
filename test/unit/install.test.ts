@@ -17,6 +17,7 @@ import { insideProgram, replacedHolding, withInstallEnv } from "../../src/core/s
 import { desktopDir, documentsDir, tarProgram } from "../../src/core/paths.ts";
 import { globalTargets } from "../../src/agents/global.ts";
 import { registerLinks } from "../../src/core/links.ts";
+import { isBetaAgents } from "../../scripts/beta-commit.ts";
 
 const unix = { skip: process.platform === "win32" };
 
@@ -610,5 +611,7 @@ test("the Windows installer's error stays on the screen: a trap says it and wait
   assert.doesNotMatch(code, /^\s*exit\b/m, "an exit would close a PowerShell the line was pasted into");
   assert.ok(code.indexOf("function T(") < code.indexOf("\ntrap {"), "its sentence in the person's language");
   const agents = fs.readFileSync(path.join(import.meta.dirname, "..", "..", "install", "AGENTS.md"), "utf8");
-  assert.match(agents, /powershell -ExecutionPolicy Bypass -c "irm https:\/\/stromapp\.info\/research\/install\.ps1 \| iex"/);
+  // the branch beta's tree (the tag's workflow tests it) gives the beta's line
+  if (isBetaAgents(agents)) assert.match(agents, /`\$env:STROM_CHANNEL='beta'; irm https:\/\/raw\.githubusercontent\.com\/ACiDekCZ\/strom-research\/beta\/install\/install\.ps1 \| iex`/);
+  else assert.match(agents, /powershell -ExecutionPolicy Bypass -c "irm https:\/\/stromapp\.info\/research\/install\.ps1 \| iex"/);
 });
