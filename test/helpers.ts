@@ -189,6 +189,23 @@ export function readJsonFile(file: string): any {
 }
 
 /**
+ * A stand-in agent named `command` on a PATH of its own: it prints the file FAKE_STREAM names and ends. Its Windows
+ * launcher (`<command>.cmd`) names no folder: cmd reads a batch file's lines in the console's code page (852, …), so
+ * a folder with "ě" written into it is another folder there (found on Windows: Cannot find module '…─Ť…'). The script
+ * is the one beside it (%~dp0, as npm's own launchers say it) and Node comes from FAKE_NODE — cmd expands both in
+ * Unicode, so the folder keeps its diacritics.
+ */
+export function agentStandIn(dir: string, command: string): Record<string, string> {
+  const bin = path.join(dir, "bin");
+  fs.mkdirSync(bin, { recursive: true });
+  const script = path.join(bin, "agent.mjs");
+  fs.writeFileSync(script, 'import fs from "node:fs";\nprocess.stdout.write(fs.readFileSync(process.env.FAKE_STREAM, "utf8"));\n');
+  fs.writeFileSync(path.join(bin, command), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, `${command}.cmd`), `@"%FAKE_NODE%" "%~dp0agent.mjs" %*\r\n`);
+  return { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir, USERPROFILE: dir, FAKE_NODE: process.execPath };
+}
+
+/**
  * A connector for tests, in the plugins folder (<shared>/plugins/connectors/<name>), with the real SDK.
  * With `base` it talks to a local server (/catalog, /book/<id>, /img/<book>/<n>.jpg);
  * without it, it answers from memory and never asks for a URL.

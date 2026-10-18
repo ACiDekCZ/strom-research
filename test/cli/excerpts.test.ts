@@ -104,7 +104,9 @@ test("the Strom file carries the entries cut out of their scans by default; it s
   assert.equal(small.json.images.level, "smaller", "made smaller first");
   assert.deepEqual(small.json.images.dropped, ["S0001"], "then left out");
   assert.doesNotMatch(fs.readFileSync(file, "utf8"), /OBJE/);
-  assert.match((await w.ok(["export", "gedcom", "--images-max-mb", "0.001"])).out, /WARNING made smaller to fit the limit of 0\.001 MB: smaller instead of normal[\s\S]*WARNING left out to fit/);
+  // said to an agent in English, to a person in the research's language
+  assert.match((await w.ok(["export", "gedcom", "--images-max-mb", "0.001"], { env: { CLAUDECODE: "1" } })).out, /WARNING made smaller to fit the limit of 0\.001 MB: smaller instead of normal[\s\S]*WARNING left out to fit[^\n]*: 1 source \(S0001\)/);
+  assert.match((await w.ok(["export", "gedcom", "--images-max-mb", "0.001"])).out, /POZOR: zmenšeno, aby se vešlo do limitu 0\.001 MB: smaller místo normal[\s\S]*POZOR: vynecháno[^\n]*: 1 pramen \(S0001\)/);
   assert.match((await w.run(["export", "gedcom", "--images", "--for", "standard"])).err, /images go into the file for the Strom app only/);
   // after a session, new excerpts are made for a while at most: none made yet and no time → the next export
   fs.rmSync(path.join(w.cwd, ".strom", "excerpts"), { recursive: true });

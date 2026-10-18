@@ -34,6 +34,8 @@ test("Linux: zenity's OK (its default) the recommended one, later its cancel; kd
       const bin = path.join(dir, tool);
       fs.mkdirSync(bin);
       fs.writeFileSync(path.join(bin, tool), "#!/bin/sh\n", { mode: 0o755 });
+      // (on a Windows host, where Linux is only simulated, PATH is searched as Windows searches it: <tool>.cmd)
+      fs.writeFileSync(path.join(bin, `${tool}.cmd`), "@exit /b 0\r\n");
       const c = choiceCommand(text, "linux", { PATH: bin })!;
       assert.equal(c.cmd, tool);
       if (tool === "zenity") {

@@ -207,3 +207,59 @@ test("the word before an error is in the language of the words after it: an erro
   assert.doesNotMatch(cs.err.split("\n")[0]!, /no person|not found/, cs.err);
   w.cleanup();
 });
+
+test("person list --unproven, the summary of export gedcom and check's counter warning: the research's language for a person, English for an agent; English counts 1 source, 2 sources (found on Windows in a Czech research)", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Jiří /Dvořák/", "--sex", "M"]); // P1, no record
+  await w.ok(["person", "add", "Анна /Иванова/", "--sex", "F"]); // P2
+  const s = (await w.ok(["source", "add", "Křest Anny 1870", "--kind", "baptism", "--locator", "fol. 3", "--json"])).json;
+  await w.ok(["event", "add", "P2", "CHR", "--date", "1870", "--cite", (s.id ?? s.source?.id) as string]);
+  const agent = { CLAUDECODE: "1" };
+  const said: { cmd: string; text: string }[] = [];
+  const person = async (args: string[]) => {
+    const r = await w.ok(args);
+    said.push({ cmd: args.join(" "), text: r.out });
+    return r.out;
+  };
+
+  // the list strom check points a person to
+  const list = await person(["person", "list", "--unproven"]);
+  assert.match(list, /^Bez vlastního záznamu: 1 — jmenuje je jiný záznam: 0 · jen vodítka: 0 · bez záznamu: 1\n/, list);
+  assert.match(list, /P0001 +Jiří Dvořák +bez záznamu +bez poznámky, odkud je/);
+  assert.match(list, /\núkoly pro ně: strom review --unproven/);
+  const listAgent = (await w.ok(["person", "list", "--unproven"], { env: agent })).out;
+  assert.match(listAgent, /^1 without a record of their own — named in a record: 0 · leads only: 0 · no record: 1\n/, listAgent);
+  assert.match(listAgent, /P0001 +Jiří Dvořák +no record +no note where from/);
+  assert.match(listAgent, /\ntasks for them: strom review --unproven/);
+
+  // what an export wrote, its counts in the language's forms
+  const ged = await person(["export", "gedcom", "--for", "standard"]);
+  assert.match(ged, /\(standardní, pro jakýkoli program\) — 2 osoby · 0 rodin · 1 údaj · 1 pramen\n {2}platný GEDCOM 5\.5\.1/, ged);
+  const gedAgent = (await w.ok(["export", "gedcom", "--for", "standard"], { env: agent })).out;
+  assert.match(gedAgent, /\(standard, any program\) — 2 persons · 0 families · 1 fact · 1 source\n {2}valid GEDCOM 5\.5\.1/, gedAgent);
+  // the research written since: committed
+  await w.ok(["person", "add", "Marie /Dvořáková/", "--sex", "F"]);
+  assert.match(await person(["export", "gedcom", "--for", "standard"]), /\nzapsáno do historie$/m);
+  await w.ok(["person", "add", "Petr /Dvořák/", "--sex", "M"]);
+  assert.match((await w.ok(["export", "gedcom", "--for", "standard"], { env: agent })).out, /\ncommitted$/m);
+
+  // a counter behind the IDs on disk (a write a held file stopped on Windows): a warning, said in the language
+  const counters = path.join(w.cwd, "data", "_counters.json");
+  fs.writeFileSync(counters, JSON.stringify({ ...JSON.parse(fs.readFileSync(counters, "utf8")), P: 1 }));
+  const check = (await w.run(["check"])).out;
+  said.push({ cmd: "check", text: check });
+  assert.match(check, /counter +P0002 +počítadlo P zaostává za existujícími čísly \(srovná se samo při příštím zápisu\)/, check);
+  const checkAgent = (await w.run(["check"], { env: agent })).out;
+  assert.match(checkAgent, /counter +P0002 +counter P is behind existing IDs \(it self-heals on next write\)/, checkAgent);
+  const json = (await w.run(["check", "--json"])).json;
+  assert.equal(json.findings.find((f: { code: string }) => f.code === "counter").message, "counter P is behind existing IDs (it self-heals on next write)");
+  assert.deepEqual(englishLines(said, "cs"), []);
+
+  // English: 1 source, 2 sources — never "1 sources"
+  await w.ok(["lang", "en"]);
+  assert.match((await w.ok(["export", "gedcom", "--for", "standard"])).out, / — 4 persons · 0 families · 1 fact · 1 source\n/);
+  await w.ok(["source", "add", "Křest Jiřího 1868", "--kind", "baptism", "--locator", "fol. 2"]);
+  assert.match((await w.ok(["export", "gedcom", "--for", "standard"])).out, / — 4 persons · 0 families · 1 fact · 2 sources\n/);
+  w.cleanup();
+});

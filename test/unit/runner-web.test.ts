@@ -13,27 +13,17 @@ import { codexRunner } from "../../src/runners/codex.ts";
 import { opencodeRunner } from "../../src/runners/opencode.ts";
 import { grokRunner } from "../../src/runners/grok.ts";
 import { antigravityRunner } from "../../src/runners/antigravity.ts";
+import { agentStandIn } from "../helpers.ts";
 import type { Runner, RunResult } from "../../src/runners/runner.ts";
 import { recordAgentWeb, webHost, webOpt, type AgentWeb } from "../../src/core/metrics.ts";
 
 const fixtures = path.join(import.meta.dirname, "..", "fixtures", "agents");
 
-/** A stand-in agent named `command` on a PATH of its own: it prints the stream of the file and ends. */
-function standIn(dir: string, command: string): Record<string, string> {
-  const bin = path.join(dir, "bin");
-  fs.mkdirSync(bin, { recursive: true });
-  const script = path.join(bin, "agent.mjs");
-  fs.writeFileSync(script, 'import fs from "node:fs";\nprocess.stdout.write(fs.readFileSync(process.env.FAKE_STREAM, "utf8"));\n');
-  fs.writeFileSync(path.join(bin, command), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
-  fs.writeFileSync(path.join(bin, `${command}.cmd`), `@"${process.execPath}" "${script}" %*\r\n`);
-  return { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir, USERPROFILE: dir };
-}
-
 /** What a runner passed on of its agent's web tools, and the lines of fetch.jsonl they made in a research's folder. */
 async function heardWeb(runner: Runner, command: string, stream: string): Promise<{ got: AgentWeb[]; lines: Record<string, unknown>[]; r: RunResult }> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom web ě "));
   try {
-    const env = { ...standIn(dir, command), FAKE_STREAM: stream };
+    const env = { ...agentStandIn(dir, command), FAKE_STREAM: stream };
     const got: AgentWeb[] = [];
     const tree = { root: path.join(dir, "Dvořákovi"), config: {} };
     const write = webOpt(tree, { session: "N0007", key: `${runner.id} model-w`, agent: runner.id }).onWeb!;

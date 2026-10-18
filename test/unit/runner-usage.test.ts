@@ -14,27 +14,30 @@ import { codexRunner } from "../../src/runners/codex.ts";
 import { opencodeRunner } from "../../src/runners/opencode.ts";
 import { grokRunner } from "../../src/runners/grok.ts";
 import { antigravityRunner, readEvent } from "../../src/runners/antigravity.ts";
+import { agentStandIn } from "../helpers.ts";
 import type { Runner, RunResult, UsageSample } from "../../src/runners/runner.ts";
 import { usageFileName, usageRecorder } from "../../src/core/metrics.ts";
 import { clearsOf } from "../../src/core/readstats.ts";
 
 const fixtures = path.join(import.meta.dirname, "..", "fixtures", "agents");
 
-/** A stand-in agent named `command` on a PATH of its own: it prints the stream of the fixture and ends. */
-function standIn(dir: string, command: string): Record<string, string> {
-  const bin = path.join(dir, "bin");
-  fs.mkdirSync(bin, { recursive: true });
-  const script = path.join(bin, "agent.mjs");
-  fs.writeFileSync(script, 'import fs from "node:fs";\nprocess.stdout.write(fs.readFileSync(process.env.FAKE_STREAM, "utf8"));\n');
-  fs.writeFileSync(path.join(bin, command), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
-  fs.writeFileSync(path.join(bin, `${command}.cmd`), `@"${process.execPath}" "${script}" %*\r\n`);
-  return { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir, USERPROFILE: dir };
-}
+test("the stand-in's Windows launcher names no folder: cmd reads its lines in the console's code page, not UTF-8", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom usage ě "));
+  try {
+    const env = agentStandIn(dir, "codex");
+    const text = fs.readFileSync(path.join(dir, "bin", "codex.cmd"), "utf8");
+    assert.ok(!/[^\x00-\x7f]/u.test(text), `ASCII only: ${text}`);
+    assert.ok(!text.includes(dir) && text.includes("%~dp0agent.mjs") && text.includes("%FAKE_NODE%"));
+    assert.equal(env.FAKE_NODE, process.execPath);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 async function ran(runner: Runner, command: string, fixture: string): Promise<{ got: UsageSample[]; r: RunResult }> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom usage ě "));
   try {
-    const env = { ...standIn(dir, command), FAKE_STREAM: path.join(fixtures, fixture) };
+    const env = { ...agentStandIn(dir, command), FAKE_STREAM: path.join(fixtures, fixture) };
     const got: UsageSample[] = [];
     const r = await runner.run({ cwd: dir, prompt: "Brief — Příliš žluťoučký kůň", kickoff: "k", env, logFile: path.join(dir, "runs", "N0001.log"), onUsage: (u) => got.push(u) });
     assert.equal(r.exitCode, 0, `${runner.id}: ${r.text}`);
@@ -125,7 +128,7 @@ test("Codex: its stream names no model — the one strom started it with, else i
     const home = path.join(dir, "codex");
     fs.mkdirSync(home);
     fs.writeFileSync(path.join(home, "config.toml"), 'model = "gpt-model-config"\nprofile = "fast"\n[profiles.fast]\nmodel = "gpt-model-profile"\n');
-    const env = { ...standIn(dir, "codex"), FAKE_STREAM: path.join(fixtures, "codex-stream.jsonl"), CODEX_HOME: home };
+    const env = { ...agentStandIn(dir, "codex"), FAKE_STREAM: path.join(fixtures, "codex-stream.jsonl"), CODEX_HOME: home };
     const run = async (o: { model?: string; extraArgs?: string[] }) => {
       const got: UsageSample[] = [];
       const r = await codexRunner.run({ cwd: dir, prompt: "Brief", kickoff: "k", env, logFile: path.join(dir, "runs", "N0001.log"), onUsage: (u) => got.push(u), ...o });

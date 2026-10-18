@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.17.0
 
-*In preparation: the betas up to 1.17.0-beta.4. The section is complete with the release.*
+*In preparation: the betas up to 1.17.0-beta.5. The section is complete with the release.*
 
 - **What hypotheses would connect, first.** The tasks to fill in what the variants of an open hypothesis would
   connect go first in the queue — also in an existing research after the update — so the Strom app can show those
@@ -18,8 +18,13 @@ The changes of each version in short. The full notes and the install lines are o
   duplicates, married names, tasks) is said in the language of the research.
 - **Counts as the language says them.** Texts count in the forms of their language: 1 task, 2 tasks, 5 tasks — in
   Czech 1 úkol, 2 úkoly, 5 úkolů, in German 1 Änderung, 2 Änderungen — instead of "task(s)".
+- **More in the research's language.** The people without a record of their own (`strom person list --unproven`,
+  where `strom check` points), what `strom export gedcom` wrote and a counter warning of `strom check` are said in
+  the research's language, their counts too.
 - **Saving on Windows waits for an antivirus.** A file written while an antivirus or the search indexer briefly holds
-  it is saved after a short wait instead of failing.
+  it is saved — or read — after a short wait instead of failing. A file held longer stops the command as a whole,
+  with nothing of it half saved, and the message says another program holds the file and the command can simply run
+  again.
 - **Errors for an agent in English.** What an agent reads is English whatever the research's language; a person at
   the terminal or in the menu reads it in the research's language as before.
 

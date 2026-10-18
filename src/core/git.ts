@@ -387,6 +387,19 @@ export function changes(dir: string, pathspec: string[] = []): Change[] {
   return list;
 }
 
+/**
+ * Take these paths out of what is staged, back to HEAD (a command taken back after its git add, its commit not made:
+ * nothing it wrote stays staged, seen as changed outside strom). Best effort: what fails stays as git left it.
+ */
+export function unstage(dir: string, paths: string[]): void {
+  if (paths.length === 0 || !hasHead(dir)) return;
+  try {
+    runGit(dir, ["reset", "-q", "--pathspec-from-file=-", "--pathspec-file-nul"], paths.map((p) => p.replace(/\\/g, "/")).join("\0") + "\0");
+  } catch {
+    // git gone or ended: the next command's check says what is left
+  }
+}
+
 /** File content at a revision, or undefined if it did not exist there. */
 export function showFile(dir: string, rev: string, file: string): string | undefined {
   const r = runGit(dir, ["show", `${rev}:${file.replace(/\\/g, "/")}`]);

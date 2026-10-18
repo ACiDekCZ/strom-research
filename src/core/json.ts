@@ -48,27 +48,55 @@ const RENAME_FIRST_WAIT = 25;
 /** What another program holding the target (an antivirus, the search indexer, a backup) makes a rename fail with. */
 const HELD = new Set(["EPERM", "EBUSY", "EACCES"]);
 
+/** An error of a file another program held past the waits (cli/main.ts says so in plain words): the file it was about. */
+export interface HeldError extends NodeJS.ErrnoException {
+  heldFile?: string;
+}
+
 /**
- * fs.renameSync, again for a while on Windows when the target is held: an antivirus or the indexer that has the file
- * open for a moment makes the rename fail with EPERM, EBUSY or EACCES. The waits grow (25, 50, 100 … ms) up to
- * RENAME_PATIENCE in all, then the last error is thrown. Waiting is synchronous (Atomics.wait: the thread sleeps, no
- * busy loop). Elsewhere a rename is not held by an open file: these codes mean a lasting refusal, thrown at once.
+ * fn, again for a while on Windows when a file it uses is held: an antivirus, the indexer or a sync tool that has the
+ * file open for a moment makes a rename, a read or a removal fail with EPERM, EBUSY or EACCES. The waits grow (25, 50,
+ * 100 … ms) up to RENAME_PATIENCE in all, then the last error is thrown, marked with the file another program held.
+ * Waiting is synchronous (Atomics.wait: the thread sleeps, no busy loop). Elsewhere a file is not held by an open one:
+ * these codes mean a lasting refusal, thrown at once (EBUSY marked all the same: it says the file is in use).
  */
-export function renameRetrying(from: string, to: string, platform: NodeJS.Platform = process.platform): void {
+function retryingHeld<T>(file: string, platform: NodeJS.Platform, fn: () => T): T {
   let wait = RENAME_FIRST_WAIT;
   let left = platform === "win32" ? RENAME_PATIENCE : 0;
   for (;;) {
     try {
-      fs.renameSync(from, to);
-      return;
+      return fn();
     } catch (err) {
-      if (left <= 0 || !HELD.has((err as NodeJS.ErrnoException).code ?? "")) throw err;
+      const code = (err as NodeJS.ErrnoException).code ?? "";
+      if (!HELD.has(code)) throw err;
+      if (left <= 0) {
+        if (platform === "win32" || code === "EBUSY") (err as HeldError).heldFile = file;
+        throw err;
+      }
       const ms = Math.min(wait, left);
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
       left -= ms;
       wait *= 2;
     }
   }
+}
+
+/** fs.renameSync, again for a while on Windows when the target is held (retryingHeld). */
+export function renameRetrying(from: string, to: string, platform: NodeJS.Platform = process.platform): void {
+  retryingHeld(to, platform, () => fs.renameSync(from, to));
+}
+
+/**
+ * fs.readFileSync, again for a while on Windows when another program holds the file without letting it be read
+ * (found on Windows: _counters.json held, a person added failed at once with Node's bare EBUSY).
+ */
+export function readFileRetrying(file: string, platform: NodeJS.Platform = process.platform): Buffer {
+  return retryingHeld(file, platform, () => fs.readFileSync(file));
+}
+
+/** fs.rmSync (force), again for a while on Windows when another program holds the file. */
+export function removeRetrying(file: string, platform: NodeJS.Platform = process.platform): void {
+  retryingHeld(file, platform, () => fs.rmSync(file, { force: true }));
 }
 
 /** Write via a temp file in the same directory and rename: never a half file. */
@@ -90,7 +118,7 @@ export function writeJson(file: string, value: unknown): void {
 }
 
 export function readJson<T = unknown>(file: string): T {
-  const text = fs.readFileSync(file, "utf8");
+  const text = readFileRetrying(file).toString("utf8");
   try {
     return JSON.parse(text) as T;
   } catch (err) {

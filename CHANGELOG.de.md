@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.17.0
 
-*In Vorbereitung: die Betas bis 1.17.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.17.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Zuerst, was Hypothesen verbinden würden.** Die Aufgaben, zu ergänzen, was die Varianten einer offenen Hypothese
   verbinden würden, kommen in der Warteschlange zuerst — auch in einer bestehenden Forschung nach dem Update —, so
@@ -18,8 +18,13 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Duplikate, Namen nach der Heirat, Aufgaben), wird in der Sprache der Forschung gesagt.
 - **Zahlen so, wie die Sprache sie sagt.** Texte zählen in den Formen ihrer Sprache: 1 Änderung, 2 Änderungen —
   englisch 1 task, 2 tasks, tschechisch 1 úkol, 2 úkoly, 5 úkolů — statt „Änderung(en)“.
+- **Mehr in der Sprache der Forschung.** Die Personen ohne eigenen Eintrag (`strom person list --unproven`, worauf
+  `strom check` verweist), was `strom export gedcom` geschrieben hat, und eine Zählerwarnung von `strom check` stehen
+  in der Sprache der Forschung, samt ihren Zahlen.
 - **Speichern unter Windows wartet auf den Virenschutz.** Eine Datei, die ein Virenschutz oder die Suchindizierung
-  kurz festhält, wird nach kurzem Warten gespeichert, statt dass das Schreiben scheitert.
+  kurz festhält, wird nach kurzem Warten gespeichert – oder gelesen –, statt dass das Schreiben scheitert. Eine länger
+  festgehaltene Datei hält den Befehl als Ganzes an, nichts davon bleibt halb gespeichert, und die Meldung sagt, dass
+  ein anderes Programm die Datei hält und der Befehl einfach noch einmal laufen kann.
 - **Fehler für einen Agenten auf Englisch.** Was ein Agent liest, ist Englisch, in welcher Sprache die Forschung auch
   ist; ein Mensch am Terminal oder im Menü liest es wie bisher in der Sprache der Forschung.
 

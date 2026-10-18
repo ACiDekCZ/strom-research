@@ -52,7 +52,9 @@ test("the downloads folder: ~/Downloads, or the one the Linux desktop names in t
   assert.equal(downloadsDir({ HOME: home }, "linux"), path.join(home, "Downloads"));
   fs.mkdirSync(path.join(home, ".config"));
   fs.writeFileSync(path.join(home, ".config", "user-dirs.dirs"), 'XDG_DESKTOP_DIR="$HOME/Plocha"\nXDG_DOWNLOAD_DIR="$HOME/Stažené"\n');
-  assert.equal(downloadsDir({ HOME: home }, "linux"), path.join(home, "Stažené"));
+  // (the desktop's "$HOME/Stažené" keeps its "/": on a Windows host, where this Linux case is only simulated, the two
+  // separators are the same folder)
+  assert.equal(path.normalize(downloadsDir({ HOME: home }, "linux")), path.join(home, "Stažené"));
   fs.rmSync(home, { recursive: true, force: true });
 });
 

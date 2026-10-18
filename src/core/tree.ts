@@ -13,7 +13,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { readJson, readJsonIfExists, writeJson, appendJsonLine, writeFileAtomic, renameRetrying } from "./json.ts";
+import { readJson, readJsonIfExists, writeJson, appendJsonLine, writeFileAtomic, renameRetrying, readFileRetrying, removeRetrying, type HeldError } from "./json.ts";
 import { acquireLock, withLock } from "./lock.ts";
 
 /** How long a writer waits for the tree while another one works (a long intake, a batch). */
@@ -286,19 +286,9 @@ export class Tree {
   /** Record a file's current content before this command changes it. */
   remember(file: string): void {
     // the content before the line of a batch at work (savepoint): what its failure puts back
-    if (this.lineUndo && !this.lineUndo.has(file)) {
-      try {
-        this.lineUndo.set(file, fs.readFileSync(file));
-      } catch {
-        this.lineUndo.set(file, null);
-      }
-    }
+    if (this.lineUndo && !this.lineUndo.has(file)) this.lineUndo.set(file, contentBefore(file));
     if (this.undo.has(file)) return;
-    try {
-      this.undo.set(file, fs.readFileSync(file));
-    } catch {
-      this.undo.set(file, null);
-    }
+    this.undo.set(file, contentBefore(file));
   }
 
   /** What changed since the savepoint at work: the content of each file before it. */
@@ -351,16 +341,33 @@ export class Tree {
   /** Undo every change this command made — a failed command leaves nothing behind. */
   rollback(): string[] {
     const restored: string[] = [];
+    // every file put back that can be, a held one waited for (Windows: an antivirus, a sync tool): the first that could
+    // not be is thrown once the others are back
+    let failed: unknown;
     for (const [file, content] of this.undo) {
-      if (content === null) fs.rmSync(file, { force: true });
-      // renamed into place like every write: a folder's stamp (core/mediaindex.ts) sees the change
-      else {
-        const tmp = `${file}.${process.pid}.undo.tmp`;
-        fs.writeFileSync(tmp, content);
-        renameRetrying(tmp, file);
+      try {
+        if (content === null) removeRetrying(file);
+        // a file the command never got to change (found on Windows: _counters.json held by another program, its write
+        // failed — writing it back would fail the same way and leave the rest behind)
+        else if (sameContent(file, content)) continue;
+        // renamed into place like every write: a folder's stamp (core/mediaindex.ts) sees the change
+        else {
+          const tmp = `${file}.${process.pid}.undo.tmp`;
+          fs.writeFileSync(tmp, content);
+          try {
+            renameRetrying(tmp, file);
+          } catch (e) {
+            fs.rmSync(tmp, { force: true });
+            throw e;
+          }
+        }
+        restored.push(this.relative(file));
+      } catch (e) {
+        failed ??= e;
       }
-      restored.push(this.relative(file));
     }
+    // what a commit that did not happen staged (its git add done): back to HEAD, nothing seen as changed outside strom
+    if (restored.length && !this.dryRun) git.unstage(this.root, restored);
     this.undo.clear();
     this.lineUndo = undefined;
     this.cache.clear();
@@ -373,6 +380,7 @@ export class Tree {
     this.told = 0;
     this.committedTo = 0;
     this.version++;
+    if (failed) throw failed;
     return restored;
   }
 
@@ -418,7 +426,9 @@ export class Tree {
           let rec: AnyRecord;
           try {
             rec = settledRecord(readJson<AnyRecord>(path.join(dir, f)));
-          } catch {
+          } catch (e) {
+            // one another program holds past the waits (Windows): no list without it — said as that, the command stopped
+            if ((e as HeldError).heldFile) throw e;
             continue; // unreadable record: reported by `strom check`
           }
           map.set(rec.id, rec);
@@ -739,4 +749,24 @@ function composed(value: unknown, key = ""): unknown {
   if (Array.isArray(value)) return value.map((v) => composed(v));
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, composed(v, k)]));
   return value;
+}
+
+/** A file's content before a command changes it, null when there is none — a file that cannot be read stops the command. */
+function contentBefore(file: string): Buffer | null {
+  try {
+    return readFileRetrying(file);
+  } catch (e) {
+    // never taken for a file that is not there: undoing would remove it (Windows: one another program holds)
+    if ((e as NodeJS.ErrnoException).code === "ENOENT" || (e as NodeJS.ErrnoException).code === "ENOTDIR") return null;
+    throw e;
+  }
+}
+
+/** The file holds this content now (read as it can be; a file that cannot be read is not the same). */
+function sameContent(file: string, content: Buffer): boolean {
+  try {
+    return fs.readFileSync(file).equals(content);
+  } catch {
+    return false;
+  }
 }

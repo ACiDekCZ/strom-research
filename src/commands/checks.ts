@@ -17,17 +17,30 @@ import * as git from "../core/git.ts";
 import { ui } from "../cli/ui.ts";
 import { history } from "../core/live.ts";
 import { humanWhen } from "../cli/human.ts";
+import { isAgent } from "../core/which.ts";
 import type { Tree } from "../core/tree.ts";
 
-/** Findings as a table (strom's own words: what to run), the sum in the research's language when given. */
-export function report(findings: Finding[], okText: string, lang?: string) {
+/**
+ * A finding a person may meet with nothing gone wrong, said in their language (found on Windows: "counter P is behind
+ * existing IDs" in a Czech research, after a write a held file stopped); the rest stay strom's own words.
+ */
+function said(f: Finding, lang: string | undefined): string {
+  if (lang && f.code === "counter" && f.id) return ui(lang, "ui.check.counter", { prefix: f.id.charAt(0) });
+  return f.message;
+}
+
+/**
+ * Findings as a table (strom's own words: what to run), the sum in the research's language when given; `person`: a
+ * person reads it, so what they may meet is said in that language too (an agent and --json read the English).
+ */
+export function report(findings: Finding[], okText: string, lang?: string, person = false) {
   const errors = findings.filter((f) => f.level === "error");
   const sum = { errors: errors.length, warnings: findings.length - errors.length };
   const text =
     findings.length === 0
       ? okText
       : lines(
-          table(findings.map((f) => [f.level === "error" ? "ERROR" : "warn", f.code, f.id ?? f.file ?? "", f.message, f.hint ? `→ ${f.hint}` : ""])),
+          table(findings.map((f) => [f.level === "error" ? "ERROR" : "warn", f.code, f.id ?? f.file ?? "", said(f, person ? lang : undefined), f.hint ? `→ ${f.hint}` : ""])),
           "",
           lang ? ui(lang, "ui.check.found", sum) : `${counted(sum.errors, "error")}, ${counted(sum.warnings, "warning")}`,
         );
@@ -43,8 +56,9 @@ register(
     tree: true,
     run(ctx) {
       const tree = ctx.tree();
-      // its verdict and sum in the research's language: the person follows it in the agent's session too
-      const checked = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree)], ui(tree.lang, "ui.check.ok"), tree.lang);
+      // its verdict and sum in the research's language: the person follows it in the agent's session too; a warning
+      // a person may meet, in it where a person runs it
+      const checked = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree)], ui(tree.lang, "ui.check.ok"), tree.lang, !isAgent(ctx.env));
       // much kept beside the research that can go (an older strom never tidied it): a sentence, in the research's language
       const disk = tidyPlan(tree);
       const out =

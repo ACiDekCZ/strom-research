@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.17.0
 
-*Připravuje se: bety do 1.17.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.17.0-beta.5. Oddíl bude úplný s vydáním.*
 
 - **Nejdřív, co by hypotézy spojovaly.** Úkoly doplnit, co by spojovaly verze otevřené hypotézy, jdou ve frontě
   první — i ve stávajícím výzkumu po aktualizaci —, takže aplikace Strom brzy ukáže tyto vazby.
@@ -17,8 +17,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   jména po sňatku, úkoly), se vypíše v jazyce výzkumu.
 - **Počty tak, jak je říká jazyk.** Texty počítají v tvarech svého jazyka: 1 úkol, 2 úkoly, 5 úkolů — anglicky
   1 task, 2 tasks, německy 1 Änderung, 2 Änderungen — místo „úkol(ů)“.
+- **Víc v jazyce výzkumu.** Osoby bez vlastního záznamu (`strom person list --unproven`, kam odkazuje
+  `strom check`), co zapsal `strom export gedcom`, a varování počítadla ve `strom check` jsou v jazyce výzkumu,
+  i s počty.
 - **Ukládání na Windows počká na antivir.** Soubor, který antivir nebo indexování vyhledávání na chvíli drží, se po
-  krátkém čekání uloží, místo aby zápis selhal.
+  krátkém čekání uloží – nebo přečte –, místo aby zápis selhal. Soubor držený déle zastaví příkaz celý, nic z něj
+  nezůstane uložené napůl a hláška říká, že soubor drží jiný program a příkaz jde prostě spustit znovu.
 - **Chyby pro agenta anglicky.** Co čte agent, je anglicky, ať je výzkum v jakémkoli jazyce; člověk u terminálu nebo
   v nabídce to čte v jazyce výzkumu jako dosud.
 

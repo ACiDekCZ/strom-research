@@ -1,13 +1,14 @@
 // A file written whole (a temporary file renamed into place) on Windows, where an antivirus or the search indexer
 // holding the target for a moment makes the rename fail with EPERM, EBUSY or EACCES: tried again for a while, then
-// the error; the temporary file never left behind. Elsewhere and for any other error: no second try.
+// the error; the temporary file never left behind. Elsewhere and for any other error: no second try. A record read
+// the same way (a file held without letting it be read); what fails after the waits is marked with the held file.
 
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { RENAME_PATIENCE, renameRetrying, writeFileAtomic } from "../../src/core/json.ts";
+import { RENAME_PATIENCE, readFileRetrying, readJson, renameRetrying, writeFileAtomic, type HeldError } from "../../src/core/json.ts";
 
 const realRename = fs.renameSync;
 
@@ -93,4 +94,60 @@ test("macOS and Linux: EPERM is a lasting refusal there, thrown at once", (t) =>
     assert.equal(calls(), 1, platform);
     t.mock.restoreAll();
   }
+});
+
+/** fs.readFileSync failing with these codes first for `file` (the last one for good when `forever`), then reading. */
+function failingRead(t: TestContext, file: string, codes: string[], forever = false) {
+  const realRead = fs.readFileSync;
+  let calls = 0;
+  t.mock.method(fs, "readFileSync", (f: fs.PathOrFileDescriptor, ...rest: unknown[]) => {
+    if (String(f) === file) {
+      const code = codes[Math.min(calls, codes.length - 1)];
+      calls++;
+      if (calls <= codes.length || forever) throw Object.assign(new Error(`${code}: resource busy or locked, open`), { code });
+    }
+    return (realRead as (...a: unknown[]) => unknown)(f, ...rest);
+  });
+  return () => calls;
+}
+
+test("Windows: a record held so it cannot be read (EBUSY) is read once it is free", (t) => {
+  const dir = folder(t);
+  const file = path.join(dir, "_counters.json");
+  fs.writeFileSync(file, '{"P":3}\n');
+  asWindows(t);
+  const calls = failingRead(t, file, ["EBUSY", "EPERM"]);
+  assert.deepEqual(readJson(file), { P: 3 });
+  assert.equal(calls(), 3);
+});
+
+test("Windows: a record held for good fails after the waits, marked with the file another program holds", (t) => {
+  const dir = folder(t);
+  const file = path.join(dir, "_counters.json");
+  fs.writeFileSync(file, "{}\n");
+  asWindows(t);
+  failingRead(t, file, ["EBUSY"], true);
+  const start = Date.now();
+  assert.throws(() => readFileRetrying(file), (e: HeldError) => e.code === "EBUSY" && e.heldFile === file);
+  assert.ok(Date.now() - start >= RENAME_PATIENCE - 100);
+});
+
+test("Windows: a rename held for good is marked with its target, not the temporary file", (t) => {
+  const dir = folder(t);
+  const file = path.join(dir, "strom.json");
+  asWindows(t);
+  failingRename(t, ["EPERM"], true);
+  assert.throws(() => writeFileAtomic(file, "{}\n"), (e: HeldError) => e.code === "EPERM" && e.heldFile === file);
+});
+
+test("macOS and Linux: EPERM on a read is no held file (thrown at once, unmarked); EBUSY is one", (t) => {
+  const dir = folder(t);
+  const file = path.join(dir, "a.json");
+  fs.writeFileSync(file, "{}\n");
+  const calls = failingRead(t, file, ["EPERM"], true);
+  assert.throws(() => readFileRetrying(file, "darwin"), (e: HeldError) => e.code === "EPERM" && e.heldFile === undefined);
+  assert.equal(calls(), 1);
+  t.mock.restoreAll();
+  failingRead(t, file, ["EBUSY"], true);
+  assert.throws(() => readFileRetrying(file, "linux"), (e: HeldError) => e.code === "EBUSY" && e.heldFile === file);
 });

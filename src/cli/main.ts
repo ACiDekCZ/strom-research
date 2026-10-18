@@ -15,6 +15,7 @@ import { groupHelpAs, helpAs } from "./help.ts";
 import { autoCommit } from "./commit.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { resetCache } from "../core/git.ts";
+import type { HeldError } from "../core/json.ts";
 import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { settleArchive } from "../core/mode.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "../core/hypolinks.ts";
@@ -56,8 +57,11 @@ function print(io: IO, ctx: Context | undefined, result: Result): void {
 }
 
 /** File-system errors in plain words (a missing @file, a folder without rights). */
-function systemError(e: NodeJS.ErrnoException): StromError | undefined {
+function systemError(e: HeldError): StromError | undefined {
   const where = e.path ? `: ${e.path}` : "";
+  // a file another program held past the waits (Windows: an antivirus, a sync tool, an editor) — no lack of rights:
+  // running it again does it (what the command wrote was taken back)
+  if (e.heldFile) return new StromError(`another program is holding ${e.heldFile} (an antivirus, a sync or backup tool, an editor)`, { hint: "run the same command again in a moment — nothing of it was saved", code: "fs.held", params: { file: e.heldFile } });
   switch (e.code) {
     case "ENOENT":
       return e.path ? notFound(e.path) : new UsageError("no such file or folder", { hint: "check the path (relative paths start in the current folder)" });
@@ -348,8 +352,12 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       // (a command that locks only while it writes looks under the lock too: another strom may be in the middle of a write)
       if (def.writes && def.tree) def.lock === "sections" ? ctx.tree().withTreeLock(() => assertIntact(ctx.tree())) : assertIntact(ctx.tree());
       let result: Result;
+      let blocked: ReturnType<typeof autoCommit>;
       try {
         result = await (shows ?? def).run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}), ...(parsed.seq ? { seq: parsed.seq } : {}) });
+        // its commit is part of it: one that fails (found on Windows: _counters.json held by another program, its IDs
+        // not written) takes back what the command wrote — a person or an agent running it again gets no second record
+        if (def.writes) blocked = autoCommit(ctx, def);
       } catch (err) {
         // A writing command is a transaction: on failure nothing it wrote remains.
         const t = def.writes ? ctx.current() : undefined;
@@ -362,14 +370,11 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         result.text = result.text ? `${result.text.replace(/\n+$/, "")}\n${notices.join("\n")}` : notices.join("\n");
         if (result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), notices: [...notices] };
       }
-      if (def.writes) {
-        const blocked = autoCommit(ctx, def);
-        if (blocked) {
-          // The agent must notice: an uncommitted write is not part of the research yet.
-          result.text = result.text ? `${result.text}\n${blocked.message}` : blocked.message;
-          result.data = { ...((result.data as object | undefined) ?? {}), status: "not-committed", problems: blocked.problems, hint: "strom check" };
-          result.exitCode = EXIT.error;
-        }
+      if (blocked) {
+        // The agent must notice: an uncommitted write is not part of the research yet.
+        result.text = result.text ? `${result.text}\n${blocked.message}` : blocked.message;
+        result.data = { ...((result.data as object | undefined) ?? {}), status: "not-committed", problems: blocked.problems, hint: "strom check" };
+        result.exitCode = EXIT.error;
       }
       return result;
     };

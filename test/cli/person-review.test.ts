@@ -106,7 +106,7 @@ test("review --reread: a second reading of what only another model read; session
   // the user reads with another model now: strom says so, and does nothing by itself
   await w.ok(["config", "set", "model.vision", "claude-opus-5-5"]);
   const o = await w.ok(["--lang", "en"]);
-  assert.match(o.out, /second reading\s+1 facts rest only on readings by another model \(claude-sonnet-4-5\); the user reads with claude-opus-5-5 now/);
+  assert.match(o.out, /second reading\s+1 fact rests only on readings by another model \(claude-sonnet-4-5\); the user reads with claude-opus-5-5 now/);
   assert.equal((await w.ok(["task", "list", "--json"])).json.tasks.length, 0, "nothing queued by itself");
 
   // without --reread no second reading; with it, the proven fact (the probable one is checked anyway)

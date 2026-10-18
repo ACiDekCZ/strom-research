@@ -38,7 +38,9 @@ test("under an agent: the default folder for the real home, a folder the person 
   const home = tmp();
   const env = { STROM_TEST_V2: "1", STROM_TEST_REAL_HOME: home, HOME: home, CLAUDECODE: "1" };
   const dflt = defaultSettingsDir(env, process.platform, source);
-  assert.equal(dflt, path.join(home, ".config", "strom"));
+  assert.equal(dflt, process.platform === "win32" ? path.join(home, "AppData", "Roaming", "strom") : path.join(home, ".config", "strom"));
+  assert.equal(defaultSettingsDir(env, "win32", source), path.join(home, "AppData", "Roaming", "strom"), "Windows: no APPDATA of anyone's, the real home's");
+  assert.equal(defaultSettingsDir({ ...env, APPDATA: tmp(), XDG_CONFIG_HOME: tmp() }, "linux", source), path.join(home, ".config", "strom"), "nor an XDG_CONFIG_HOME");
   assert.equal(settingsTrust({ ...env }, { inst: source }).verified, true, "no folder of its own: the default one");
   assert.equal(settingsTrust({ ...env, HOME: tmp() }, { inst: source }).verified, false, "a HOME of the agent's own");
   const own = tmp();

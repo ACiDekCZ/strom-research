@@ -111,7 +111,7 @@ export const PHRASES = {
   "batch.note": "The user's note to the batch: “{note}”.",
   "batch.book": "Many numbered images in one folder: probably the scans of a book — registered as images of its record set (strom media add --from-input I… --recordset B…), not read file by file.",
   "batch.done": "every file sorted (strom input sort I… --as source|document|photo|unrelated, with the person it is of) and what a record or document says recorded and cited as from any material — the images of a book registered as its images",
-  "intake.files": "Analyse {count} files from {folder} ({first}–{last})",
+  "intake.files": "Analyse {count, plural, one {# file} other {# files}} from {folder} ({first}–{last})",
   "intake.the.material": "the material",
   "intake.tree.imported": "Review imported tree {id} ({name})",
   "intake.tree.read": "Read the family tree {id} ({name}), not imported",
