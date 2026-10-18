@@ -97,7 +97,7 @@ test("a batch from the app: its files kept without tasks, a ZIP unpacked by the 
     assert.equal(first.level, "intake");
     assert.deepEqual(first.where, [a.input, b.input]);
     assert.ok(first.subject.includes("P0001"));
-    assert.match(first.what, /Roztřídit dávku „Krabice od babičky“ \(1\/3\) – Babička, souborů: 2/);
+    assert.match(first.what, /Roztřídit dávku „Krabice od babičky“ \(1\/3\) – Babička, 2 soubory/);
     // the user's note to the batch: kept with it, told in each of its tasks
     assert.match(first.why, /Poznámka uživatele k dávce: „Dopisy z války, hledat razítka pošty“\./);
     assert.equal(JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "batches", `${batch}.json`), "utf8")).note, "Dopisy z války, hledat razítka pošty");

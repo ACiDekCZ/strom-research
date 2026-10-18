@@ -13,7 +13,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { readJson, readJsonIfExists, writeJson, appendJsonLine, writeFileAtomic } from "./json.ts";
+import { readJson, readJsonIfExists, writeJson, appendJsonLine, writeFileAtomic, renameRetrying } from "./json.ts";
 import { acquireLock, withLock } from "./lock.ts";
 
 /** How long a writer waits for the tree while another one works (a long intake, a batch). */
@@ -357,7 +357,7 @@ export class Tree {
       else {
         const tmp = `${file}.${process.pid}.undo.tmp`;
         fs.writeFileSync(tmp, content);
-        fs.renameSync(tmp, file);
+        renameRetrying(tmp, file);
       }
       restored.push(this.relative(file));
     }

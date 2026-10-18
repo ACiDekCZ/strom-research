@@ -36,18 +36,18 @@ test("values with spaces not quoted: the error shows the line as it is meant, qu
   await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
   const t = await w.run(["task", "add", "Najít", "křest", "Jana", "--level", "verify"], AGENT);
   assert.equal(t.code, 2);
-  // (said in the research language, Czech here — the line is the same in any)
-  assert.match(t.err, /„křest“/);
-  assert.match(t.err, /→ správně: strom task add "Najít křest Jana" --level verify/);
+  // (an agent reads it in English, a Czech research too — the line is the same in any)
+  assert.match(t.err, /^error: unexpected argument "křest"$/m);
+  assert.match(t.err, /→ as meant: strom task add "Najít křest Jana" --level verify/);
   // the last argument takes the run of words; the ones before it stay
   const n = await w.run(["name", "add", "P0001", "Иван", "/Новак/", "--kind", "birth"], AGENT);
-  assert.match(n.err, /→ správně: strom name add P0001 "Иван \/Новак\/" --kind birth/);
+  assert.match(n.err, /→ as meant: strom name add P0001 "Иван \/Новак\/" --kind birth/);
   // words after an option of text: its value
   const s = await w.run(["search", "add", "Křty", "--note", "dvě", "slova", "--method", "index", "--result", "negative"], AGENT);
-  assert.match(s.err, /→ správně: strom search add Křty --note "dvě slova" --method index --result negative/);
+  assert.match(s.err, /→ as meant: strom search add Křty --note "dvě slova" --method index --result negative/);
   // IDs and words at once: each ID its option, the words quoted (decomposed accents too)
   const d = await w.run(["search", "add", "Křty".normalize("NFD"), "Nováků", "--found", "S0001", "S0002", "--method", "index", "--result", "found"], AGENT);
-  assert.match(d.err.normalize("NFC"), /→ správně: strom search add "Křty Nováků" --found S0001 --found S0002 --method index --result found/u);
+  assert.match(d.err.normalize("NFC"), /→ as meant: strom search add "Křty Nováků" --found S0001 --found S0002 --method index --result found/u);
   // a program reads the English, and the line
   const en = await w.run(["task", "add", "Najít", "křest", "--json"], AGENT);
   assert.equal(en.json.hint, 'as meant: strom task add "Najít křest" --json');

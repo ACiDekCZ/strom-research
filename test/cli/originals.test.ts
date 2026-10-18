@@ -114,7 +114,7 @@ test("originals from the app: material of a person an input outside git with one
     assert.equal(task.level, "intake");
     assert.deepEqual(task.where, [got.input, two.input]);
     assert.ok(task.subject.includes("P0001"));
-    assert.match(task.what, /aplikace Strom: 2 – Josef Novák \[P0001\]/);
+    assert.match(task.what, /^Rozebrat 2 soubory poslané z aplikace Strom – Josef Novák \[P0001\]/);
     // …said of again with more — another person, a new note of the user's: added to the input (its task still at hand)
     await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"]); // P2
     const again = json(await send(jpg, { "X-Strom-Person": "P0002", "X-Strom-Note": encodeURIComponent("psala ho Marie sestře") }));

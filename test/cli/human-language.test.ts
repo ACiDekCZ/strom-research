@@ -157,6 +157,41 @@ test("an unknown option of strom itself (strom --bogus) is said in the research 
   assert.equal(j.json.message, "unknown option --bogus for strom");
 });
 
+test("an error an agent reads is English whatever the research's language; a person reads it in the research's", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism"]); // B0001
+  // the mistakes found in an agent's session of a Czech research (an option a command has not, a second argument)
+  const mistakes = [
+    { args: ["recordset", "show", "B0001", "--bogus"], en: /^error: unknown option --bogus for strom recordset show\n→ options: /m, cs: /^chyba: neznámá volba --bogus u strom recordset show\n→ volby: /m },
+    { args: ["conflict", "list", "P0021"], en: /^error: unexpected argument "P0021"/m, cs: /^chyba: nečekaný argument „P0021“/m },
+    { args: ["person", "show", "P0099"], en: /^error: (no person|not found)/m, cs: /^chyba: /m },
+  ];
+  for (const agent of [{ CLAUDECODE: "1" }, { STROM_SESSION: "N0001" }, { CODEX_SANDBOX: "seatbelt" }] as Record<string, string>[]) {
+    for (const m of mistakes) {
+      const r = await w.run(m.args, { env: { STROM_LANG: "cs", ...agent } });
+      assert.notEqual(r.code, 0, m.args.join(" "));
+      assert.match(r.err, m.en, `${JSON.stringify(agent)} ${m.args.join(" ")}: ${r.err}`);
+      assert.doesNotMatch(r.err, /chyba|neznámá|nečekaný|→ .*[ěščřžýáíéůú]/u, `${JSON.stringify(agent)}: ${r.err}`);
+    }
+  }
+  // a person without an agent: the research's language, as ever (a terminal or not)
+  for (const tty of [false, true]) {
+    for (const m of mistakes) {
+      const r = await w.run(m.args, { env: { STROM_LANG: "cs" }, tty });
+      assert.match(r.err, m.cs, `tty ${tty} ${m.args.join(" ")}: ${r.err}`);
+    }
+  }
+  // a dry run's last line: English for an agent, the research's language for a person
+  const dry = ["person", "add", "Jan /Dvořák/", "--dry-run"];
+  assert.match((await w.ok(dry, { env: { STROM_LANG: "cs", CLAUDECODE: "1" } })).out, /^Dry run \(--dry-run\): nothing was written/m);
+  assert.match((await w.ok(dry, { env: { STROM_LANG: "cs" } })).out, /^Nanečisto \(--dry-run\): nic se nezapsalo/m);
+  // a program reads the English and the code, agent or not
+  const j = await w.run(["recordset", "show", "B0001", "--bogus", "--json"], { env: { STROM_LANG: "cs" } });
+  assert.equal(j.json.message, "unknown option --bogus for strom recordset show");
+  w.cleanup();
+});
+
 test("the word before an error is in the language of the words after it: an error strom says only in English keeps \"error:\" in a Czech or German research, never \"chyba:\" before English", opts, async () => {
   const w = new World();
   await w.withTree();

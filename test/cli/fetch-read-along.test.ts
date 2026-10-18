@@ -12,26 +12,32 @@ import http from "node:http";
 import { spawn, spawnSync } from "node:child_process";
 import type { AddressInfo } from "node:net";
 import { opts, pauses, scans } from "./connectors.helpers.ts";
-import { World, fakeConnector } from "../helpers.ts";
+import { World, fakeConnector, until } from "../helpers.ts";
 
 const CLI = path.join(import.meta.dirname, "..", "..", "src", "cli.ts");
 
 /**
  * An archive whose book has as many images as asked, each its own file — answered after `delay` ms; from image
- * `refuseFrom` on 403, image `sameAs[0]` the very file of image `sameAs[1]` (a placeholder).
+ * `refuseFrom` on 403, image `sameAs[0]` the very file of image `sameAs[1]` (a placeholder). `hold(n, until)`: the
+ * answers to image n and on wait until that file is there (a reader began, the test let them go) — where a test needs
+ * the fetch still at work, never a guess that it is still slow enough; a hold not let go in two minutes answers all
+ * the same (a test that waits in vain fails on what it checks, it never hangs).
  */
-async function bookArchive(o: { delay?: number; refuseFrom?: number; sameAs?: [number, number]; holdFrom?: { image: number; until: string } } = {}): Promise<{ base: string; hits: string[]; close: () => Promise<void> }> {
+async function bookArchive(o: { delay?: number; refuseFrom?: number; sameAs?: [number, number] } = {}): Promise<{ base: string; hits: string[]; hold: (image: number, until: string) => void; close: () => Promise<void> }> {
   const scan = fs.readFileSync(path.join(scans, "s0001.jpg"));
   const hits: string[] = [];
+  const holds: { image: number; until: string; open?: boolean }[] = [];
   const s = http.createServer((req, res) => {
     const u = new URL(req.url ?? "/", "http://x");
     hits.push(u.pathname);
     const img = /^\/img\/5359\/(\d+)\.jpg$/.exec(u.pathname);
     if (!img) return void res.writeHead(404).end();
+    const since = Date.now();
     const answer = () => {
       const n = Number(img[1]);
-      // images from holdFrom.image wait until its file is there (a reader began): no race with the reader's start
-      if (o.holdFrom && n >= o.holdFrom.image && !fs.existsSync(o.holdFrom.until)) return void setTimeout(answer, 20);
+      const h = holds.find((x) => !x.open && n >= x.image);
+      if (h && !fs.existsSync(h.until) && Date.now() - since < 120_000) return void setTimeout(answer, 20);
+      if (h) return void ((h.open = true), answer());
       if (o.refuseFrom !== undefined && n >= o.refuseFrom) return void res.writeHead(403).end("forbidden");
       const note = Buffer.from(`image ${o.sameAs && n === o.sameAs[0] ? o.sameAs[1] : n}`);
       const com = Buffer.from([0xff, 0xfe, 0, note.length + 2]);
@@ -41,11 +47,11 @@ async function bookArchive(o: { delay?: number; refuseFrom?: number; sameAs?: [n
   });
   await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
   s.unref();
-  return { base: `http://127.0.0.1:${(s.address() as AddressInfo).port}`, hits, close: () => new Promise<void>((r) => s.close(() => r())) };
+  return { base: `http://127.0.0.1:${(s.address() as AddressInfo).port}`, hits, hold: (image, until) => void holds.push({ image, until }), close: () => new Promise<void>((r) => s.close(() => r())) };
 }
 
 /** A reader that notes when it starts and which images it got, then answers each with nothing found. */
-function reader(w: World): { file: string; starts: () => { at: number; images: number[] }[] } {
+function reader(w: World): { file: string; log: string; starts: () => { at: number; images: number[] }[] } {
   const file = path.join(w.dir, "reader.mjs");
   const log = path.join(w.dir, "readers.jsonl");
   fs.writeFileSync(
@@ -56,7 +62,7 @@ function reader(w: World): { file: string; starts: () => { at: number; images: n
       `await new Promise((r) => setTimeout(r, 200));\n` +
       `for (const m of got) console.log("## Image " + m[2] + " · " + m[1] + "\\nresult: nothing\\n");\n`,
   );
-  return { file, starts: () => (fs.existsSync(log) ? fs.readFileSync(log, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []) };
+  return { file, log, starts: () => (fs.existsSync(log) ? fs.readFileSync(log, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []) };
 }
 
 async function setUp(archive: Awaited<ReturnType<typeof bookArchive>>): Promise<World> {
@@ -71,10 +77,9 @@ async function setUp(archive: Awaited<ReturnType<typeof bookArchive>>): Promise<
 const commits = (w: World) => Number(spawnSync("git", ["rev-list", "--count", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).stdout.trim());
 const marks = (w: World) => (fs.existsSync(path.join(w.cwd, ".strom", "fetch")) ? fs.readdirSync(path.join(w.cwd, ".strom", "fetch")).filter((f) => f.startsWith("active-")) : []);
 
-/** Wait until the fetch left its mark (it began), at most a few seconds. */
+/** Wait until the fetch left its mark (it began). */
 async function begun(w: World): Promise<void> {
-  for (let i = 0; i < 200 && !marks(w).length; i++) await new Promise((r) => setTimeout(r, 25));
-  assert.ok(marks(w).length, "the fetch leaves its mark");
+  await until("the fetch leaves its mark", () => marks(w).length > 0, { every: 25 });
 }
 
 test("fetch registers in batches of 10, one commit each: the same requests at the same pace; the mark gone at its end", opts, async () => {
@@ -101,7 +106,10 @@ test("fetch registers in batches of 10, one commit each: the same requests at th
   const other = (h: string[]) => h.filter((x) => !x.startsWith("/img/") && x !== "/robots.txt");
   assert.deepEqual(other(a.hits), other(fewHits), "the book's page asked as for a short fetch");
   assert.equal(fewPauses.length, 5);
-  assert.equal(pauses.length, 25, "a pause before each image, as before");
+  // a pause before each image, as before — but the pauses are not slept here, only the time a batch takes to register
+  // is real: when registering and committing a batch outlasts the pace (a busy computer), the next request is due
+  // already and rightly waits for nothing; so at most one pause fewer at each of the two batch boundaries
+  assert.ok(pauses.length >= 23 && pauses.length <= 25, `a pause before each image: ${pauses.length}`);
   // the limiter counts from the last request: the time a batch took to register is part of the next pause, never
   // a request sooner than the archive's pace allows
   const pace = Math.max(...fewPauses);
@@ -123,6 +131,8 @@ test("read of a book at fetch: begins on the first batch, waits for the rest, re
   const w = await setUp(a);
   const r = reader(w);
   w.env.STROM_RUNNER_SCRIPT = r.file;
+  // the second batch answered once the first reader began: the fetch is at work then, however slow the read starts
+  a.hold(11, r.log);
   const fetch = w.ok(["fetch", "zkusebni", "5359", "--images", "1-30", "--recordset", "B1"]).then((x) => ({ ...x, at: Date.now() }));
   await begun(w);
   // nothing registered yet: no error, the read waits for the images as they come
@@ -147,6 +157,8 @@ test("the fetch ends before the read's images came: what is not read said exactl
   const w = await setUp(a);
   const r = reader(w);
   w.env.STROM_RUNNER_SCRIPT = r.file;
+  // the second batch answered once the first reader began: the read meets the fetch at work, never one ended before
+  a.hold(11, r.log);
   const fetch = w.run(["fetch", "zkusebni", "5359", "--images", "1-30", "--recordset", "B1"]);
   await begun(w);
   const read = await w.ok(["read", "B1", "--images", "1-30", "--question", "Křty Nováků", "--agent", "script", "--batch", "10", "--no-index"]);
@@ -198,10 +210,11 @@ test("--until-found while the book is fetched: no reader after the find, the ima
 });
 
 /**
- * A reader that finds image 3 and reports only once the fetch of the book is where `until` says: ended (no mark),
- * or at least `registered` of its images registered — so the fetch registers more while it reads.
+ * A reader that finds image 3 and reports only once the fetch of the book is where `after` says: ended (no mark),
+ * or at least `registered` of its images registered — so the fetch registers more while it reads. It waits as long
+ * as that takes (at most two minutes: a test that waits in vain fails on what it checks, it never hangs).
  */
-function findingReader(w: World, until: { ended: true } | { registered: number }, began?: string): string {
+function findingReader(w: World, after: { ended: true } | { registered: number }, began?: string): string {
   const file = path.join(w.dir, "reader-found-late.mjs");
   const marks = path.join(w.cwd, ".strom", "fetch");
   fs.writeFileSync(
@@ -210,8 +223,8 @@ function findingReader(w: World, until: { ended: true } | { registered: number }
       `const report = /Write your report to (.+?) AS YOU GO/.exec(p)[1];\n` +
       `const active = () => { try { return fs.readdirSync(${JSON.stringify(marks)}).filter((f) => f.startsWith("active-")).map((f) => { try { return JSON.parse(fs.readFileSync(path.join(${JSON.stringify(marks)}, f), "utf8")); } catch { return { registered: 0 }; } }); } catch { return []; } };\n` +
       (began ? `fs.writeFileSync(${JSON.stringify(began)}, "");\n` : "") +
-      `const until = ${JSON.stringify(until)};\n` +
-      `for (let i = 0; i < 400; i++) { const a = active(); if (until.ended ? !a.length : a.some((m) => m.registered >= until.registered)) break; await new Promise((r) => setTimeout(r, 25)); }\n` +
+      `const after = ${JSON.stringify(after)};\n` +
+      `for (const by = Date.now() + 120000; Date.now() < by; ) { const a = active(); if (after.ended ? !a.length : a.some((m) => m.registered >= after.registered)) break; await new Promise((r) => setTimeout(r, 25)); }\n` +
       `for (const m of got) fs.appendFileSync(report, "## Image " + m[2] + " · " + m[1] + "\\nresult: " + (m[2] === "3" ? "found\\nentries: Jan Novák" : "nothing") + "\\n\\n");\n`,
   );
   return file;
@@ -219,7 +232,9 @@ function findingReader(w: World, until: { ended: true } | { registered: number }
 
 test("--until-found behind a fetch that ended early: the images it registered meanwhile said as not read, never to fetch again", opts, async () => {
   const began = path.join(os.tmpdir(), `strom-reader-began-${process.pid}-${Date.now()}`);
-  const a = await bookArchive({ delay: 50, refuseFrom: 16, holdFrom: { image: 11, until: began } });
+  const a = await bookArchive({ delay: 50, refuseFrom: 16 });
+  // images 11 and on wait until a reader began: no race with the reader's start
+  a.hold(11, began);
   const w = await setUp(a);
   w.env.STROM_RUNNER_SCRIPT = findingReader(w, { ended: true }, began);
   const fetch = w.run(["fetch", "zkusebni", "5359", "--images", "1-30", "--recordset", "B1"]);
@@ -239,9 +254,13 @@ test("--until-found behind a fetch still at work: the images registered meanwhil
   const a = await bookArchive({ delay: 300 });
   const w = await setUp(a);
   w.env.STROM_RUNNER_SCRIPT = findingReader(w, { registered: 20 });
+  // images 21 and on wait until the read ended: the fetch is still at work then, however slow the read
+  const go = path.join(w.dir, "go");
+  a.hold(21, go);
   const fetch = w.run(["fetch", "zkusebni", "5359", "--images", "1-30", "--recordset", "B1"]);
   await begun(w);
   const read = await w.ok(["read", "B1", "--images", "1-30", "--question", "The baptism of Jan Novák", "--agent", "script", "--batch", "10", "--parallel", "1", "--no-index", "--until-found"]);
+  fs.writeFileSync(go, "");
   await fetch;
   // 11–20 registered when the read ended: not among those still coming
   assert.match(read.out, /^NOT read: images 11–30 — a reader found it, no more began \(--until-found\); 11–20 registered, not read; 21–30 still being fetched \(strom fetch --status\); read them if the find/m);
@@ -253,9 +272,13 @@ test("--until-found behind a fetch still at work: the images registered meanwhil
 test("read of an image at fetch, by its number: said it comes, the way to wait for it", opts, async () => {
   const a = await bookArchive({ delay: 150 });
   const w = await setUp(a);
+  // image 12 waits until the read asked for it: still being fetched then, however slow the read
+  const go = path.join(w.dir, "go");
+  a.hold(12, go);
   const fetch = w.run(["fetch", "zkusebni", "5359", "--images", "1-12", "--recordset", "B1"]);
   await begun(w);
   const one = await w.run(["read", "B1:12", "--question", "Křty", "--agent", "script"]);
+  fs.writeFileSync(go, "");
   assert.equal(one.code, 2);
   assert.match(one.err, /image 12 of B0001 is being fetched now \(strom fetch at work\), not registered yet/);
   assert.match(one.err, /strom read B0001 --images 12-12 … waits for it/);
@@ -292,8 +315,8 @@ test("Ctrl-C of a fetch: what came registered and committed, the rest said, noth
   child.stdout.on("data", (d) => (out += d));
   child.stderr.on("data", (d) => (err += d));
   const exited = new Promise<number>((r) => child.on("close", (code) => r(code ?? -1)));
-  for (let i = 0; i < 600 && a.hits.filter((h) => h.startsWith("/img/")).length < 13; i++) await new Promise((r) => setTimeout(r, 25));
-  await new Promise((r) => setTimeout(r, 100)); // the 13th image taken in
+  // the 14th image asked: the 13th taken in (the connector asks for the next one after it said the last)
+  await until("the 14th image asked", () => a.hits.filter((h) => h.startsWith("/img/")).length >= 14, { every: 25, state: () => out + err });
   child.kill("SIGINT");
   const code = await exited;
   assert.equal(code, 130, `${out}${err}`);
@@ -321,16 +344,18 @@ test("Ctrl-C while git commits a batch: stopped as interrupted, the batch commit
   await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5"], { tty: true });
   const flag = path.join(w.dir, "in-add");
   const wrapper = path.join(w.dir, "git-slow.sh");
-  fs.writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = "add" ] && [ ! -e "${flag}.done" ]; then touch "${flag}" "${flag}.done"; sleep 5; fi\nexec "${real}" "$@"\n`, { mode: 0o755 });
+  // its add of the first batch waits until the test pressed Ctrl-C (at most a minute): it lands while it commits,
+  // however slow the computer
+  fs.writeFileSync(wrapper, `#!/bin/sh\nif [ "$1" = "add" ] && [ ! -e "${flag}.done" ]; then touch "${flag}" "${flag}.done"; i=0; while [ ! -e "${flag}.go" ] && [ $i -lt 600 ]; do sleep 0.1; i=$((i+1)); done; fi\nexec "${real}" "$@"\n`, { mode: 0o755 });
   const child = spawn(process.execPath, [CLI, "fetch", "zkusebni", "5359", "--images", "1-14", "--recordset", "B1"], { cwd: w.cwd, env: { ...w.env, STROM_GIT: wrapper }, stdio: ["ignore", "pipe", "pipe"], detached: true });
   let out = "";
   let err = "";
   child.stdout.on("data", (d) => (out += d));
   child.stderr.on("data", (d) => (err += d));
   const exited = new Promise<number>((r) => child.on("close", (code) => r(code ?? -1)));
-  for (let i = 0; i < 800 && !fs.existsSync(flag); i++) await new Promise((r) => setTimeout(r, 25));
-  assert.ok(fs.existsSync(flag), `git add of the first batch began: ${out}${err}`);
+  await until("git add of the first batch began", () => fs.existsSync(flag), { every: 25, state: () => out + err });
   process.kill(-child.pid!, "SIGINT");
+  fs.writeFileSync(`${flag}.go`, "");
   const code = await exited;
   assert.equal(code, 130, `${out}${err}`);
   assert.doesNotMatch(out + err, /failed/, out + err);

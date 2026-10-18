@@ -34,7 +34,7 @@ import { currentSession } from "../core/session.ts";
 import { backgroundOf } from "../core/fetching.ts";
 import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, severalRecords, splitPassthrough, usageOf } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
-import { catalog, localized, sayCommandAs } from "../core/phrases.ts";
+import { catalog, localized, placeholdersOf, sayCommandAs } from "../core/phrases.ts";
 import "../commands/index.ts";
 
 export { splitCommand } from "./execute.ts";
@@ -75,14 +75,17 @@ function systemError(e: NodeJS.ErrnoException): StromError | undefined {
 }
 
 /**
- * An error with a code, as a person reads it: in the research's language (the same words whatever ran it — found on
- * Windows: a Czech research refusing a file in English); the English message where the language has no text, or the
- * text needs what the error does not carry. A program reads the English and the code (--json).
+ * An error with a code, as a person reads it: in the research's language (found on Windows: a Czech research refusing
+ * a person's file in English); the English message where the language has no text, or the text needs what the error
+ * does not carry. The boundary (Milan, 2026-10-18): an error a person reads — a terminal, the menu, a script with no
+ * agent — is in the research's language; an error an agent reads (isAgent: an agent's shell or a session strom
+ * started, its fetch in the background too) is English, "error:" and its hint; a program reads the English and the
+ * code (--json).
  */
 function inLanguage(e: StromError, lang: string | undefined): { message: string; hint?: string; prefix?: string } {
   const key = `ui.error.${e.code}`;
   const own = (k: string) => (lang && e.code && k in UI && catalog(lang)[k] ? UI[k as UIKey] : undefined);
-  const fits = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].every((m) => e.params?.[m[1]!] !== undefined);
+  const fits = (text: string) => placeholdersOf(text).every((name) => e.params?.[name] !== undefined);
   const message = own(key);
   if (!message || !fits(message)) return { message: e.message, ...(e.hint ? { hint: e.hint } : {}) };
   const hintKey = `ui.error.${e.hintCode ?? e.code}.hint`;
@@ -374,9 +377,9 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // command has the tree to itself from its first read to its commit.
     const result = def.writes && def.tree && def.lock !== "sections" ? await ctx.tree().holdTreeLock(work) : await work();
     // a dry run says so, last, in the person's language — it reads as what would happen, never as done (found on
-    // Windows: "taken back" of a dry run, nothing told it apart)
+    // Windows: "taken back" of a dry run, nothing told it apart); an agent reads it in English, as the rest
     if (ctx.dryRun) {
-      const said = ui(ctx.uiLang(), "ui.dry.done");
+      const said = ui(isAgent(env) ? "en" : ctx.uiLang(), "ui.dry.done");
       result.text = result.text?.trim() ? `${result.text.replace(/\n+$/, "")}\n\n${said}` : said;
       if (result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), dryRun: true };
     }
@@ -386,9 +389,9 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
   } catch (err) {
     let lang: string | undefined;
     try {
-      // an unknown command or option has no context yet: the person's language all the same
-      // …but a fetch in the background writes into its log, which the agent reads: English, as the rest of it
-      if (!backgroundOf(env)) lang = (ran ?? Context.fromOptions({ env, cwd, io, json, values: {} })).uiLang();
+      // an unknown command or option has no context yet: the person's language all the same — an agent (its shell, a
+      // session strom started, a fetch in the background writing into the log the agent reads) the English it goes by
+      if (!backgroundOf(env) && !isAgent(env)) lang = (ran ?? Context.fromOptions({ env, cwd, io, json, values: {} })).uiLang();
     } catch {
       // no language to say it in: English
     }

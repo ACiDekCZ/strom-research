@@ -30,7 +30,7 @@ test("sync: shown first; the user's edits against what the research gave — a c
   await w.ok(["event", "add", "P1", "OCCU", "--value", "mlynář"]);
   const file = edited(ged, path.join(w.dir, "z-aplikace.ged"));
   const r = await w.ok(["sync", file]);
-  assert.match(r.out, /^z-aplikace\.ged: změn proti výzkumu: 8\nPorovnáno s tím, co výzkum dal aplikaci Strom/);
+  assert.match(r.out, /^z-aplikace\.ged: 8 změn proti výzkumu\nPorovnáno s tím, co výzkum dal aplikaci Strom/);
   assert.match(r.out, /Josef Novák \[P0001\]: křest změněno — 3\. 3\. 1885, Kamenice → 4\. 3\. 1885, Kamenice → rozpor k rozhodnutí/);
   assert.match(r.out, /Anna Dvořáková \[P0002\]: narození změněno — 1888 → 1889 → opraví vodítko výzkumu/);
   assert.match(r.out, /Anna Dvořáková \[P0002\]: nové — úmrtí 1960, Týnec → přidá se jako vodítko/);
@@ -42,7 +42,7 @@ test("sync: shown first; the user's edits against what the research gave — a c
   assert.equal((await w.ok(["person", "list", "--json"])).json.total, 3, "only shown");
 
   const done = await w.ok(["sync", file, "--apply"]);
-  assert.match(done.out, /Zapsáno změn z z-aplikace\.ged: 7 \(I0001\) — vrátit: strom sync undo I0001/);
+  assert.match(done.out, /Zapsáno 7 změn z z-aplikace\.ged \(I0001\) — vrátit: strom sync undo I0001/);
   const p1 = (await w.ok(["person", "show", "P1"])).out;
   assert.match(p1, /CHR\s+3 MAR 1885\s+Kamenice\s+\[probable\]/, "the record's fact stays");
   assert.match((await w.ok(["conflict", "list"])).out, /X0001\s+otevřený\s+Josef Novák: Křest — 3\. 3\. 1885, Kamenice × 4\. 3\. 1885, Kam/);
@@ -153,8 +153,8 @@ test("the menu: take in the edits from a file — shown, then written on the per
   const menu = await w.run(["menu"], { tty: true, answers: ["4", "4", "2", file, "1", "", "0", "0"] });
   assert.match(menu.out, /Odkud\?\n   1  Přímo z aplikace Strom \(pošle strom sama\)\n   2  Ze souboru \(\.ged, \.json\)/);
   assert.match(menu.out, /Načíst úpravy z aplikace Strom nebo z jiného rodokmenu \(\.ged, \.json\)/);
-  assert.match(menu.out, /z-aplikace\.ged: změn proti výzkumu: 8/);
-  assert.match(menu.out, /Zapsáno změn z z-aplikace\.ged: 7/);
+  assert.match(menu.out, /z-aplikace\.ged: 8 změn proti výzkumu/);
+  assert.match(menu.out, /Zapsáno 7 změn z z-aplikace\.ged/);
   assert.match(menu.out, /Otevřít výzkum znovu v aplikaci Strom/);
   assert.equal((await w.ok(["person", "list", "--json"])).json.total, 4);
   w.cleanup();

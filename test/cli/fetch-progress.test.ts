@@ -59,6 +59,9 @@ test("fetch of many images: counted at each tenth where nobody watches, at a ter
   assert.deepEqual(counted(cs.err), [2, 4, 6, 8, 10, 12, 14, 16, 18].map((n) => `  · ${n}/20 snímků`));
   const de = await w.ok(["fetch", "zkusebni", "5359", "--images", "86-105", "--recordset", "B1"], { env: { STROM_LANG: "de" } });
   assert.equal(counted(de.err)[0], "  · 2/20 Bilder");
+  // …but an agent reads it, in a Czech research too: English, as the rest of what it reads
+  const agent = await w.ok(["fetch", "zkusebni", "5359", "--images", "121-140", "--recordset", "B1"], { env: { STROM_LANG: "cs", CLAUDECODE: "1" } });
+  assert.deepEqual(counted(agent.err), [2, 4, 6, 8, 10, 12, 14, 16, 18].map((n) => `  · ${n}/20 images`));
 
   // a few images: nothing counted
   const few = await w.ok(["fetch", "zkusebni", "5359", "--images", "106-108", "--recordset", "B1"]);

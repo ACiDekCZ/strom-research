@@ -247,7 +247,7 @@ test("strom consents speaks the research language — each host, archive, level 
   const cs = (await w.ok(["consents"])).out;
   assert.match(cs, /^souhlasy: vypnuto – stahovače běží bez ptaní \(tempo hlídá strom, jen ke svým serverům\)/);
   // the refusal said once — why, its details in one parenthesis, then what strom does — and never "us"
-  assert.match(cs, /\nstahovače\n  \(žádné\)\nservery \(automatický přístup\)\n  127\.0\.0\.1 · ⛔ odmítl automatický přístup \(HTTP 403, \d{1,2}\. \d{1,2}\. \d\d:\d\d\) – znovu to strom zkusí až od \d{1,2}\. \d{1,2}\. \d\d:\d\d · požadavků za poslední hodinu: \d+ · /);
+  assert.match(cs, /\nstahovače\n  \(žádné\)\nservery \(automatický přístup\)\n  127\.0\.0\.1 · ⛔ odmítl automatický přístup \(HTTP 403, \d{1,2}\. \d{1,2}\. \d\d:\d\d\) – znovu to strom zkusí až od \d{1,2}\. \d{1,2}\. \d\d:\d\d · \d+ požadavky za poslední hodinu · /);
   assert.match(cs, /nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu \(vlastní tempo\)\narchivy \(co jejich podmínky stromu dovolují: dovoleno · omezeno · jen ručně · zakázáno; neznámé jako omezeno\)\n/);
   assert.match(cs, /\n  127\.0\.0\.1  zkusebni  dovoleno · tempo služby: nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu\n/);
   assert.doesNotMatch(cs, /0\.5 s/);

@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.17.0
 
-*In Vorbereitung: die Betas bis 1.17.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.17.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Zuerst, was Hypothesen verbinden würden.** Die Aufgaben, zu ergänzen, was die Varianten einer offenen Hypothese
   verbinden würden, kommen in der Warteschlange zuerst — auch in einer bestehenden Forschung nach dem Update —, so
@@ -16,6 +16,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   als unterbrochen gemeldet, mit dem, was gespeichert ist und was fehlt; sein Arbeitsordner wird entfernt.
 - **Neues Material in der Sprache der Forschung.** Was hereinkam (registriertes Material, was hinzukam, wahrscheinliche
   Duplikate, Namen nach der Heirat, Aufgaben), wird in der Sprache der Forschung gesagt.
+- **Zahlen so, wie die Sprache sie sagt.** Texte zählen in den Formen ihrer Sprache: 1 Änderung, 2 Änderungen —
+  englisch 1 task, 2 tasks, tschechisch 1 úkol, 2 úkoly, 5 úkolů — statt „Änderung(en)“.
+- **Speichern unter Windows wartet auf den Virenschutz.** Eine Datei, die ein Virenschutz oder die Suchindizierung
+  kurz festhält, wird nach kurzem Warten gespeichert, statt dass das Schreiben scheitert.
+- **Fehler für einen Agenten auf Englisch.** Was ein Agent liest, ist Englisch, in welcher Sprache die Forschung auch
+  ist; ein Mensch am Terminal oder im Menü liest es wie bisher in der Sprache der Forschung.
 
 ## 1.16.0
 

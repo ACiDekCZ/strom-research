@@ -42,6 +42,35 @@ export function stringifyCanonical(value: unknown): string {
   return JSON.stringify(canonicalize(value), null, 2) + "\n";
 }
 
+/** How long a rename on Windows waits in all for a file another program holds (ms), the waits growing. */
+export const RENAME_PATIENCE = 1500;
+const RENAME_FIRST_WAIT = 25;
+/** What another program holding the target (an antivirus, the search indexer, a backup) makes a rename fail with. */
+const HELD = new Set(["EPERM", "EBUSY", "EACCES"]);
+
+/**
+ * fs.renameSync, again for a while on Windows when the target is held: an antivirus or the indexer that has the file
+ * open for a moment makes the rename fail with EPERM, EBUSY or EACCES. The waits grow (25, 50, 100 … ms) up to
+ * RENAME_PATIENCE in all, then the last error is thrown. Waiting is synchronous (Atomics.wait: the thread sleeps, no
+ * busy loop). Elsewhere a rename is not held by an open file: these codes mean a lasting refusal, thrown at once.
+ */
+export function renameRetrying(from: string, to: string, platform: NodeJS.Platform = process.platform): void {
+  let wait = RENAME_FIRST_WAIT;
+  let left = platform === "win32" ? RENAME_PATIENCE : 0;
+  for (;;) {
+    try {
+      fs.renameSync(from, to);
+      return;
+    } catch (err) {
+      if (left <= 0 || !HELD.has((err as NodeJS.ErrnoException).code ?? "")) throw err;
+      const ms = Math.min(wait, left);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+      left -= ms;
+      wait *= 2;
+    }
+  }
+}
+
 /** Write via a temp file in the same directory and rename: never a half file. */
 export function writeFileAtomic(file: string, content: string): void {
   const dir = path.dirname(file);
@@ -49,7 +78,7 @@ export function writeFileAtomic(file: string, content: string): void {
   const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`);
   fs.writeFileSync(tmp, content, "utf8");
   try {
-    fs.renameSync(tmp, file);
+    renameRetrying(tmp, file);
   } catch (err) {
     fs.rmSync(tmp, { force: true });
     throw err;

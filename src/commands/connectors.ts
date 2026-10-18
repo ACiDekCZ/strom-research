@@ -2777,15 +2777,15 @@ const COUNT_FROM = 20;
  * or a log keeps it — a line at each tenth of the images: at most 9 whatever the count (an agent pays for each line it
  * reads, a line per image of a book of hundreds would bury the rest), counted, not timed, so the same fetch always
  * says the same; the archive's pace makes each tenth a while anyway. The last image says nothing: the summary follows.
- * On stderr — stdout carries the result, with --json nothing but it. In the background (its log) in English.
+ * On stderr — stdout carries the result, with --json nothing but it. An agent's (its fetch, its log in the background) in English.
  * Counted from what strom took in: it asks the archive nothing and changes no pace.
  */
 function imageCount(ctx: Context, total: number): { got: (n: number) => void; say: (s: string) => void; clear: () => void } {
   const tty = ctx.io.tty;
   const on = total >= (tty ? COUNT_FROM_TTY : COUNT_FROM);
-  // a fetch in the background writes into its log, which the agent reads (strom fetch --status, its tail): English,
-  // as the rest of the log; a fetch in the foreground in the research language, for the person following it
-  const lang = backgroundOf(ctx.env) ? "en" : ctx.uiLang();
+  // what an agent reads is English, as the rest of the output: a fetch it runs, and one in the background writing
+  // into its log (strom fetch --status, its tail); a fetch a person runs in the research language, for them to follow
+  const lang = backgroundOf(ctx.env) || isAgent(ctx.env) ? "en" : ctx.uiLang();
   const text = (n: number) => ui(lang, "ui.fetch.progress", { n, total });
   let shown = 0; // the length of the line written over (a terminal)
   let tenth = 0; // the last tenth said (no terminal)

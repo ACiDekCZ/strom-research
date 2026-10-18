@@ -159,6 +159,31 @@ export function shellWords(line: string): string[] {
   return out;
 }
 
+/**
+ * Wait until a condition holds, looked at every `every` ms: never a fixed time that a slow computer (process starts,
+ * git, a virus scanner) outruns. The limit is generous — it only ends a test that would never pass; past it the test
+ * fails with what it waited for and, given `state`, how things stood at the last look.
+ */
+export async function until(what: string, ok: () => boolean | Promise<boolean>, o: { ms?: number; every?: number; state?: () => unknown } = {}): Promise<void> {
+  const ms = o.ms ?? 120_000;
+  const by = Date.now() + ms;
+  for (;;) {
+    if (await ok()) return;
+    if (Date.now() >= by) break;
+    await new Promise((r) => setTimeout(r, o.every ?? 100));
+  }
+  let last = "";
+  if (o.state) {
+    try {
+      const s = await o.state();
+      last = `\nlast state: ${typeof s === "string" ? s : JSON.stringify(s)}`;
+    } catch (err) {
+      last = `\nlast state not read: ${(err as Error).message}`;
+    }
+  }
+  throw new Error(`waited ${ms} ms in vain: ${what}${last}`);
+}
+
 export function readJsonFile(file: string): any {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }

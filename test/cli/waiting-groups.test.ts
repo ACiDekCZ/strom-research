@@ -201,7 +201,7 @@ test("links task&do=chat|note|folder|sent: a conversation said and asked first, 
   assert.match((await open("&task=T0002&do=folder", [""])).out, /Úkol T0002 nečeká na ručně uložené snímky\. Nic se nestalo\./);
   // a conversation: said and asked first; a no starts nothing
   const no = await open("&task=T0001&do=chat", ["n", ""]);
-  assert.match(no.out, /Aplikace Strom žádá: rozhovor s agentem \(Claude Code\) o úkolu: Snímky křtů Lhota – i s dalšími úkoly, které čekají na stejném místě \(1\)\nVýzkum: Dvořákovi/u);
+  assert.match(no.out, /Aplikace Strom žádá: rozhovor s agentem \(Claude Code\) o úkolu: Snímky křtů Lhota – i s 1 dalším úkolem, který čeká na stejném místě\nVýzkum: Dvořákovi/u);
   assert.equal(head(), before, "nothing written");
   // a yes: the conversation in the agent's desktop app, with the task's first message
   const apps = path.join(w.dir, "apps");

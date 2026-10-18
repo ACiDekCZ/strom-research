@@ -65,7 +65,7 @@ test("strom input names: shown first, --apply adds only the married names citing
   assert.deepEqual(after.P0004!.names.map((n) => n.surname), ["Петрова", "Иванова"]);
   assert.deepEqual(after.P0001!.names.map((n) => [n.surname, n.kind]), [["Horáková", undefined], ["Šťastná", "married"]], "the merged person's name goes to the one kept");
   for (const id of ["P0003", "P0005", "P0006", "P0007"]) assert.deepEqual(after[id], JSON.parse(before)[id], `${id} as it was`);
-  assert.match((await w.ok(["check"])).out, /^ok|chyby: 0,/);
+  assert.match((await w.ok(["check"])).out, /^ok|(^|\n)0 chyb,/);
 
   assert.doesNotMatch((await w.ok(["intake", file])).out, /married name/, "nothing left out: nothing said");
   const again = (await w.ok(["input", "names", "I0001", "--apply", "--json"])).json;
@@ -75,7 +75,7 @@ test("strom input names: shown first, --apply adds only the married names citing
   const undone = (await w.ok(["input", "names", "I0001", "--undo", "--json"])).json;
   assert.equal(undone.undone.length, 3);
   for (const [id, p] of Object.entries(people(w))) assert.deepEqual(p.names, JSON.parse(before)[id].names, `${id}: its names as before`);
-  assert.match((await w.ok(["check"])).out, /^ok|chyby: 0,/);
+  assert.match((await w.ok(["check"])).out, /^ok|(^|\n)0 chyb,/);
   w.cleanup();
 });
 

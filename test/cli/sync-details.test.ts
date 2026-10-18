@@ -307,7 +307,7 @@ test("places on the map: a position the user corrected or set in the app is take
   assert.match(r.out, /1\. Kamenice: poloha na mapě 49\.1, 15\.2 → 49\.366571, 15\.041234 → výzkum převezme polohu z aplikace \(žádný zápis ji nedokládá\)/);
   assert.match(r.out, /2\. Týnec: poloha na mapě 50\.042, 15\.358 → výzkum převezme polohu z aplikace/);
   const done = await w.ok(["sync", file, "--apply"]);
-  assert.match(done.out, /Zapsáno změn z mapa\.ged: 2 \(I0001\)/);
+  assert.match(done.out, /Zapsány 2 změny z mapa\.ged \(I0001\)/);
   const places = (await w.ok(["place", "list", "--json"])).json;
   const at = (name: string) => places.places.find((p: { names: { name: string }[] }) => p.names[0]!.name === name)?.coords;
   assert.deepEqual(at("Kamenice"), { lat: 49.366571, lon: 15.041234 });

@@ -1,7 +1,11 @@
 // Texts strom itself writes into a research (the tasks it proposes: frontier,
 // intake) are in the research language, like everything the agent writes.
 // English is built in; a language adds assets/lang/<code>.json with the same
-// keys (any it leaves out stay English). {name} marks a value filled in.
+// keys (any it leaves out stay English). {name} marks a value filled in; a count
+// takes its language's forms: {n, plural, one {# task} other {# tasks}} (ICU's
+// plural: =0, zero, one, two, few, many, other — other always; # is the number).
+// A language may say a count with a plural where English does not, and the other
+// way round: the values a text takes stay those of the English one.
 
 import { readAsset } from "./assets.ts";
 
@@ -33,9 +37,9 @@ export const PHRASES = {
   "request.done": "a request is sent (strom task wait … --on \"<reply>\") or the user decides the line ends here",
 
   "story.what": "Write the story of {name}",
-  "story.more.what": "Add to the story of {name}: {count} new facts",
+  "story.more.what": "Add to the story of {name}: {count, plural, one {# new fact} other {# new facts}}",
   "story.where": "the facts recorded (strom person show {id})",
-  "story.why": "{count} facts from records tell the life (generation {generation} of {research}); the family reads it in the Strom app's family book",
+  "story.why": "{count, plural, one {# fact from records tells} other {# facts from records tell}} the life (generation {generation} of {research}); the family reads it in the Strom app's family book",
   "story.done": "strom story set {id} with every fact it rests on (--fact) — a draft until the user approves it",
   "story.sources.what": "Beyond the registers, for the story of {name}: newspapers, directories, military, land and court records, graves, the history of the place",
   "story.sources.where": "the digitised newspapers, books and archives of the country and time; the web (indexes and trees are leads only)",
@@ -94,7 +98,7 @@ export const PHRASES = {
 
   "transcript.read": "Transcript written by a reader ({model}) from the entry cut out of its scan and checked by a second reader ({date}, strom transcripts).",
 
-  "app.media.what": "Analyse {count} file(s) the user sent from the Strom app — {who} ({first}–{last})",
+  "app.media.what": "Analyse {count, plural, one {# file} other {# files}} the user sent from the Strom app — {who} ({first}–{last})",
   "app.media.nobody": "for the research",
   "app.media.why": "Originals from the user, sent from the Strom app (kept unchanged): find out what each is, whom it is about and what it can prove.",
   "app.scan.what": "Read the scan the user sent of {source} ({title})",
@@ -102,7 +106,7 @@ export const PHRASES = {
   "app.scan.done": "the entry read from the scan (strom read {media} --blind) and compared with {source}: they agree → noted on the source; they differ → a note with both readings and the facts on it checked",
   "batch.unnamed": "material from the Strom app",
   "batch.top": "its first level",
-  "batch.what": "Sort the batch “{name}” ({part}/{parts}): {count} file(s) of {folder} ({first}–{last})",
+  "batch.what": "Sort the batch “{name}” ({part}/{parts}): {count, plural, one {# file} other {# files}} of {folder} ({first}–{last})",
   "batch.why": "The user sent many files from the Strom app at once ({who}); they are kept unchanged outside the tree's history. First look over all of them cheaply (names, folders, a small view), then read what belongs to the family — what is not of the family is said so and nothing of it written.",
   "batch.note": "The user's note to the batch: “{note}”.",
   "batch.book": "Many numbered images in one folder: probably the scans of a book — registered as images of its record set (strom media add --from-input I… --recordset B…), not read file by file.",
@@ -114,7 +118,7 @@ export const PHRASES = {
   "intake.text": "Process text {id}",
   "intake.text.file": "Process text {id} ({name})",
   "intake.other": "Analyse {id} ({name})",
-  "intake.why.imported": "{persons} persons came in as leads{matched}: they guide the research, they prove nothing.",
+  "intake.why.imported": "{persons, plural, one {# person came} other {# persons came}} in as leads{matched}: they guide the research, they prove nothing.",
   "intake.why.matched": ", {matched} matched existing persons",
   "intake.why.read": "Registered without importing it: nothing of it is in the tree; what it says can guide the research, it proves nothing.",
   "intake.why": "Material from the user: find out who and what it is about, and what it can prove.",
@@ -273,18 +277,197 @@ export function sayCommandAs(name: string): void {
 }
 
 /**
- * A template with its {values} filled in (an unknown {name} stays as it is). {strom}, unless given: the command this
- * strom is started with — the program to start where a text names it alone ("Start again with: {strom}"), also in a
- * window of the system or a file, which no output of a command passes.
+ * A piece of a template: its words, a {value}, the number of the plural it stands in (#), or a plural — the subset of
+ * ICU MessageFormat translators know: {n, plural, =0 {no task} one {# task} other {# tasks}}. A branch is picked by an
+ * exact =N first, then by the language's plural category (Intl.PluralRules: cs one/few/many/other, en and de
+ * one/other), else other; a branch may hold {values} and plurals of its own.
  */
-export function fill(template: string, values: Record<string, string | number>): string {
-  return template.replace(/\{(\w+)\}/g, (m, name: string) => (name in values ? String(values[name]) : name === "strom" ? commandName : m));
+type Part = string | { value: string } | { hash: true } | { plural: string; branches: [string, Part[]][]; source: string };
+
+const SIMPLE = /\{(\w+)\}/y;
+const PLURAL = /\{(\w+)\s*,\s*plural\s*,/y;
+const SELECTOR = /\s*(=\d+(?:\.\d+)?|\w+)\s*\{/y;
+const CLOSE = /\s*\}/y;
+
+/** The pieces of a template from `at` to its end, or to the brace closing the branch it is in; null when malformed. */
+function parseParts(t: string, at: number, inBranch: boolean): { parts: Part[]; end: number } | null {
+  const parts: Part[] = [];
+  let text = "";
+  const flush = () => {
+    if (text) parts.push(text);
+    text = "";
+  };
+  let i = at;
+  while (i < t.length) {
+    const c = t[i]!;
+    if (c === "}" && inBranch) {
+      flush();
+      return { parts, end: i };
+    }
+    if (c === "#" && inBranch) {
+      flush();
+      parts.push({ hash: true });
+      i++;
+      continue;
+    }
+    if (c === "{") {
+      SIMPLE.lastIndex = i;
+      const simple = SIMPLE.exec(t);
+      if (simple) {
+        flush();
+        parts.push({ value: simple[1]! });
+        i = SIMPLE.lastIndex;
+        continue;
+      }
+      const plural = parsePlural(t, i);
+      if (plural) {
+        flush();
+        parts.push(plural.part);
+        i = plural.end;
+        continue;
+      }
+    }
+    text += c;
+    i++;
+  }
+  if (inBranch) return null;
+  flush();
+  return { parts, end: i };
 }
 
-/** A text of a language's catalog, or the English one where the catalog has none. */
+function parsePlural(t: string, at: number): { part: Part; end: number } | null {
+  PLURAL.lastIndex = at;
+  const head = PLURAL.exec(t);
+  if (!head) return null;
+  let i = PLURAL.lastIndex;
+  const branches: [string, Part[]][] = [];
+  for (;;) {
+    CLOSE.lastIndex = i;
+    if (CLOSE.exec(t)) {
+      i = CLOSE.lastIndex;
+      break;
+    }
+    SELECTOR.lastIndex = i;
+    const sel = SELECTOR.exec(t);
+    if (!sel) return null;
+    const body = parseParts(t, SELECTOR.lastIndex, true);
+    if (!body) return null;
+    branches.push([sel[1]!, body.parts]);
+    i = body.end + 1;
+  }
+  return branches.length ? { part: { plural: head[1]!, branches, source: t.slice(at, i) }, end: i } : null;
+}
+
+const parsed = new Map<string, Part[]>();
+function partsOf(template: string): Part[] {
+  let parts = parsed.get(template);
+  if (!parts) {
+    parts = parseParts(template, 0, false)!.parts;
+    if (parsed.size >= 4000) parsed.clear(); // the catalogs' texts, a few thousand: never more held
+    parsed.set(template, parts);
+  }
+  return parts;
+}
+
+const rules = new Map<string, Intl.PluralRules>();
+function pluralRules(lang: string): Intl.PluralRules {
+  let r = rules.get(lang);
+  if (!r) {
+    try {
+      r = new Intl.PluralRules(lang);
+    } catch {
+      r = new Intl.PluralRules("en"); // not a language tag: English, as its texts are
+    }
+    rules.set(lang, r);
+  }
+  return r;
+}
+
+/** A value as a number for a plural: a number, or a string that is one ("5", "1.5"); anything else is none. */
+function asNumber(v: string | number): number | undefined {
+  if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
+  return /^\s*-?\d+(?:\.\d+)?\s*$/.test(v) ? Number(v) : undefined;
+}
+
+function branchOf(branches: [string, Part[]][], n: number | undefined, lang: string): Part[] {
+  const pick = (sel: string) => branches.find(([s]) => s === sel)?.[1];
+  if (n !== undefined) {
+    const exact = branches.find(([s]) => s.startsWith("=") && Number(s.slice(1)) === n)?.[1];
+    if (exact) return exact;
+    const own = pick(pluralRules(lang).select(n));
+    if (own) return own;
+  }
+  return pick("other") ?? branches.at(-1)![1];
+}
+
+function render(parts: Part[], values: Record<string, string | number>, lang: string, hash: string | undefined): string {
+  let out = "";
+  for (const p of parts) {
+    if (typeof p === "string") out += p;
+    else if ("hash" in p) out += hash ?? "#";
+    else if ("value" in p) out += p.value in values ? String(values[p.value]) : p.value === "strom" ? commandName : `{${p.value}}`;
+    else if (!(p.plural in values)) out += p.source; // like an unknown {name}: as it is
+    else {
+      const v = values[p.plural]!;
+      out += render(branchOf(p.branches, asNumber(v), lang), values, lang, String(v));
+    }
+  }
+  return out;
+}
+
+/**
+ * A template with its {values} filled in (an unknown {name} stays as it is), each plural in the form `lang` says for
+ * its number (a value that is no number: other). {strom}, unless given: the command this strom is started with — the
+ * program to start where a text names it alone ("Start again with: {strom}"), also in a window of the system or a
+ * file, which no output of a command passes.
+ */
+export function fill(template: string, values: Record<string, string | number>, lang = "en"): string {
+  return render(partsOf(template), values, lang, undefined);
+}
+
+/** The names of the values a template takes — its {values} and the numbers of its plurals, each once, sorted. */
+export function placeholdersOf(template: string): string[] {
+  const names = new Set<string>();
+  const walk = (parts: Part[]) => {
+    for (const p of parts) {
+      if (typeof p === "string" || "hash" in p) continue;
+      if ("value" in p) names.add(p.value);
+      else {
+        names.add(p.plural);
+        for (const [, b] of p.branches) walk(b);
+      }
+    }
+  };
+  walk(partsOf(template));
+  return [...names].sort();
+}
+
+/** The plurals of a template: the value each counts and its branches' selectors (one, few, other, =0…). */
+export function pluralsOf(template: string): { name: string; selectors: string[] }[] {
+  const found: { name: string; selectors: string[] }[] = [];
+  const walk = (parts: Part[]) => {
+    for (const p of parts) {
+      if (typeof p !== "string" && "plural" in p) {
+        found.push({ name: p.plural, selectors: p.branches.map(([s]) => s) });
+        for (const [, b] of p.branches) walk(b);
+      }
+    }
+  };
+  walk(partsOf(template));
+  return found;
+}
+
+/** The words of a template with every branch of its plurals, without values or numbers — what a check of its words reads. */
+export function wordsOf(template: string): string {
+  const walk = (parts: Part[]): string =>
+    parts.map((p) => (typeof p === "string" ? p : "plural" in p ? p.branches.map(([, b]) => walk(b)).join(" / ") : "")).join("");
+  return walk(partsOf(template));
+}
+
+/** A text of a language's catalog, or the English one where the catalog has none (its plurals then English too). */
 export function localized(lang: string, key: string, english: string, values: Record<string, string | number> = {}): string {
   const own = catalog(lang)[key];
-  return fill(typeof own === "string" && own ? own : english, values);
+  return typeof own === "string" && own ? fill(own, values, lang) : fill(english, values, "en");
 }
 
 /** A text in the research language, its {values} filled in. */
