@@ -1,7 +1,8 @@
 // A headless agent that ends before it read its brief closes the pipe: the rest of the write fails with EPIPE, which
 // must never end strom itself (found 2026-10-07: "write EPIPE" at the script runner in a full npm test). Each runner
 // that writes the brief on stdin is given a child that exits at once, without reading, and a brief far larger than a
-// pipe's buffer (the script runner's also goes into its environment, STROM_PROMPT: within the system's limit).
+// pipe's buffer (the script runner's also goes into its environment, STROM_PROMPT: within the system's limit — Linux
+// takes one string of the environment up to 128 KiB, MAX_ARG_STRLEN; more is E2BIG at the spawn).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,6 +14,8 @@ import { codexRunner } from "../../src/runners/codex.ts";
 import { claudeRunner } from "../../src/runners/claude.ts";
 import type { Runner } from "../../src/runners/runner.ts";
 
+/** Above a pipe's buffer (64 KiB on Linux), below Linux's limit of one string of the environment (128 KiB). */
+const SCRIPT_BRIEF = 100 * 1024;
 const brief = (bytes: number) => `Brief — Příliš žluťoučký kůň, Пётр Иванов.\n${"x".repeat(bytes)}\n`;
 
 async function runOnce(runner: Runner, env: Record<string, string>, dir: string, prompt: string) {
@@ -34,7 +37,7 @@ test("a runner whose child exits at once without reading its brief: no EPIPE esc
   try {
     const script = path.join(dir, "exits.mjs");
     fs.writeFileSync(script, "process.exit(3);\n");
-    const { r, errors } = await runOnce(scriptRunner, { PATH: process.env.PATH ?? "", STROM_RUNNER_SCRIPT: script }, dir, brief(256 * 1024));
+    const { r, errors } = await runOnce(scriptRunner, { PATH: process.env.PATH ?? "", STROM_RUNNER_SCRIPT: script }, dir, brief(SCRIPT_BRIEF));
     assert.deepEqual(errors, []);
     assert.equal(r.exitCode, 3);
     assert.equal(r.outcome, "error");

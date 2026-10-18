@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.17.0
 
-*Připravuje se: bety do 1.17.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.17.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Zatím nic nového v používání.** Zatím se změnilo jen to, jak se strom sestavuje a vydává.
 

@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.17.0
 
-*In Vorbereitung: die Betas bis 1.17.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.17.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Noch nichts Neues in der Nutzung.** Bisher hat sich nur geändert, wie strom gebaut und veröffentlicht wird.
 

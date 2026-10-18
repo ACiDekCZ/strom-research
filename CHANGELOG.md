@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.17.0
 
-*In preparation: the betas up to 1.17.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.17.0-beta.2. The section is complete with the release.*
 
 - **Nothing new in use yet.** So far only the way strom is built and published has changed.
 
