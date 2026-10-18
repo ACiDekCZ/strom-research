@@ -16,6 +16,8 @@ import { fileURLToPath } from "node:url";
 import { betaOfTag, npmPublishesTrusted, releaseKind, tarballRefusal } from "./npm-channel.ts";
 
 const NAME = "strom-research";
+/** How many times `after` asks npm again for the new version, 20 s apart: up to 10 minutes. */
+export const AFTER_TRIES = 30;
 
 /** What npm knows of the package: its versions and dist-tags (asked anew, never from a cache). */
 export interface Registry {
@@ -76,10 +78,11 @@ function main(args: string[]): void {
     return;
   }
   if (step === "after" && a && b !== undefined) {
-    // the registry may show a new version a moment later: asked again a few times
+    // the registry shows a new version only once it is processed ("may take a few minutes", npm says; 1.17.0-beta.2
+    // took more than a minute): asked again every 20 s for up to 10 minutes
     let npm = registry();
-    for (let i = 0; i < 6 && !npm.versions.includes(a); i++) {
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10_000);
+    for (let i = 0; i < AFTER_TRIES && !npm.versions.includes(a); i++) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20_000);
       npm = registry();
     }
     if ((npm.tags.latest ?? "") !== b) fail(`npm's latest moved: ${b || "none"} → ${npm.tags.latest ?? "none"} — a person puts it back (npm dist-tag add ${NAME}@${b} latest)`);

@@ -4,8 +4,9 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 
 const CLI = path.join(import.meta.dirname, "..", "..", "src", "cli.ts");
@@ -82,5 +83,55 @@ test("two agents side by side: each its own session, never the same task", { ski
   leaveA();
   leaveB();
   assert.equal((await w.run(["check"])).code, 0);
+  w.cleanup();
+});
+
+test("a command that locks only while it writes checks its commit under the lock: another strom committing meanwhile is never taken as an edit outside strom", { skip: !hasGit || process.platform === "win32" ? "a git of the test's own between the two (POSIX shell; Windows: the same code)" : false, timeout: 120_000 }, async () => {
+  const w = new World();
+  await w.withTree();
+  const real = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+  const d = path.join(w.dir, "flags");
+  fs.mkdirSync(d);
+  const lock = path.join(w.cwd, ".strom", "tree.lock");
+  const wait = (flag: string) => `n=0; while [ ! -e "${d}/${flag}" ] && [ $n -lt 300 ]; do sleep 0.1; n=$((n+1)); done`;
+  // A (intake: it locks only while it writes): the status of its commit's check, once its input is written — taken
+  // again once B has staged its commit, and given back only when B has committed. Under its own lock it waits for nobody.
+  const gitA = path.join(w.dir, "git-a.sh");
+  fs.writeFileSync(gitA, `#!/bin/sh
+if [ "$1" = "status" ] && [ ! -e "${d}/a-done" ]; then
+  "${real}" "$@" > "${d}/status"; c=$?
+  if grep -q "data/inputs/" "${d}/status"; then
+    touch "${d}/a-done"
+    if ! grep -q '"pid":'"$PPID"'[,}]' "${lock}" 2>/dev/null; then
+      touch "${d}/a-wrote"
+      ${wait("b-added")}
+      "${real}" "$@" > "${d}/status"; c=$?
+      touch "${d}/a-status"
+      ${wait("b-committed")}
+    fi
+  fi
+  cat "${d}/status"; exit $c
+fi
+exec "${real}" "$@"
+`, { mode: 0o755 });
+  // B (a person added, the whole command under the lock): its commit staged, then held until A has looked
+  const gitB = path.join(w.dir, "git-b.sh");
+  fs.writeFileSync(gitB, `#!/bin/sh
+if [ "$1" = "write-tree" ] && [ -e "${d}/a-wrote" ]; then touch "${d}/b-added"; ${wait("a-status")}; fi
+if [ "$1" = "update-ref" ]; then "${real}" "$@"; c=$?; touch "${d}/b-committed"; exit $c; fi
+exec "${real}" "$@"
+`, { mode: 0o755 });
+  const a = strom(w, ["intake", "--text", "Děda Karel byl mlynář"], { STROM_GIT: gitA });
+  let aDone = false;
+  void a.then(() => (aDone = true));
+  for (let i = 0; i < 600 && !aDone && !fs.existsSync(path.join(d, "a-wrote")); i++) await new Promise((r) => setTimeout(r, 50));
+  const b = await strom(w, ["person", "add", "Josef /Novák/", "--sex", "M"], { STROM_GIT: gitB });
+  const ra = await a;
+  assert.equal(b.code, 0, b.out + b.err);
+  assert.equal(ra.code, 0, ra.out + ra.err);
+  assert.doesNotMatch(ra.out + ra.err, /NOT committed|outside strom/);
+  assert.equal(spawnSync("git", ["status", "--porcelain", "--", "data"], { cwd: w.cwd, encoding: "utf8" }).stdout, "", "all committed");
+  const v = await w.run(["verify"]);
+  assert.equal(v.code, 0, v.out + v.err);
   w.cleanup();
 });

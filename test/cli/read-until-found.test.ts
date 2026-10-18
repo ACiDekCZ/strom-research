@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { World, hasGit } from "../helpers.ts";
+import { World, hasGit, shellWords } from "../helpers.ts";
 
 const opts = { skip: !hasGit };
 const fixtures = path.join(import.meta.dirname, "..", "fixtures", "images");
@@ -71,7 +71,7 @@ test("--until-found: no reader begins after the find; the images read said exact
   w.env.STROM_RUNNER_SCRIPT = r.file;
   const res = await w.ok([...read, "--parallel", "1", "--until-found"]);
   assert.deepEqual(r.got(), [[1], [2]], "the readers of images 3 and 4 never began");
-  assert.match(res.out, /^read 2 images in 2 batch\(es\)/m);
+  assert.match(res.out, /^read 2 images in 2 batches/m);
   assert.match(res.out, /^found on: 2$/m);
   assert.match(res.out, /^NOT read: images 3–4 — a reader found it, no more began \(--until-found\); read them if the find proves not to be the one: strom read B0001 --images 3-4 …; no negative of them$/m);
   const line = /^record the search: (strom search add .*)$/m.exec(res.out)?.[1];
@@ -81,8 +81,12 @@ test("--until-found: no reader begins after the find; the images read said exact
   assert.match(res.out, /never a negative of the range/);
   assert.match(res.err + res.out, /★ reader 2 reported a find \(--until-found\): no more readers begin, those at work finish/);
   // the search as the reading gives it: partial, over the two images read
-  const add = spawnSync("sh", ["-c", line.replace(/^strom /, `"${process.execPath}" "${path.join(import.meta.dirname, "..", "..", "src", "cli.ts")}" `)], { cwd: w.cwd, env: w.env, encoding: "utf8" });
-  assert.equal(add.status, 0, add.stdout + add.stderr);
+  // run as it is printed, its words as a shell splits them — no sh, which Windows has not
+  assert.deepEqual(shellWords(`strom note add "Řekl \\"ano\\" za \\$5" 'a b' Žofie`), ["strom", "note", "add", 'Řekl "ano" za $5', "a b", "Žofie"]);
+  const said = shellWords(line);
+  assert.equal(said[0], "strom");
+  assert.ok(said.includes("stopped at the find (--until-found): images 3–4 not read"), said.join(" | "));
+  await w.ok(said.slice(1));
   const searches = (await w.ok(["search", "list", "--full", "--json"])).json.searches as { result: string; scope: { pages?: string }; note?: string }[];
   assert.equal(searches.length, 1);
   assert.equal(searches[0]!.result, "partial");

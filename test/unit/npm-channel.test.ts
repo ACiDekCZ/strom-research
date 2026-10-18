@@ -10,7 +10,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { spawnSync } from "node:child_process";
 import { betaOfTag, npmPublishesTrusted, packForNpm, publishLine, publishRefusal, releaseKind, tarballName, tarballRefusal } from "../../scripts/npm-channel.ts";
-import { readRegistry } from "../../scripts/npm-beta-ci.ts";
+import { AFTER_TRIES, readRegistry } from "../../scripts/npm-beta-ci.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const hasNpm = spawnSync("npm", ["--version"], { shell: process.platform === "win32" }).status === 0;
@@ -198,4 +198,10 @@ test("the workflow: a beta's tag only, trusted publishing (no token, no secret),
   assert.match(yml, /npm-beta-ci\.ts tarball/);
   assert.match(yml, /npm-beta-ci\.ts after "\$VERSION" "\$LATEST"/);
   assert.doesNotMatch(yml, /dist-tag (add|rm)/);
+  // after the publish npm takes minutes to show the version (1.17.0-beta.2: more than one): asked for 5+ minutes,
+  // within the publishing job's time with its build
+  const waits = AFTER_TRIES * 20;
+  assert.ok(waits >= 300, `${waits} s`);
+  const publishMinutes = Number(/publish:[\s\S]*?timeout-minutes: (\d+)/.exec(yml)?.[1]);
+  assert.ok(waits / 60 + 10 <= publishMinutes, `${waits} s of waiting within ${publishMinutes} min`);
 });

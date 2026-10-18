@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, truncate } from "../cli/format.ts";
+import { counted, lines, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import { EXCERPT_SCOPES, type ExcerptScope, type Input, type Media, type Source } from "../core/model.ts";
 import { normId, requireRecord, update } from "../core/records.ts";
@@ -96,11 +96,11 @@ register({
     if (!Number.isInteger(size) || size < 1) throw new UsageError("--batch must be a positive number");
     const groups = batches(todo, size);
     if (!todo.length)
-      return { text: lines("nothing to do: every entry cut out of its scan has its words", away.length ? `${away.length} source(s) on images not on this computer` : undefined), data: { sources: 0 } };
+      return { text: lines("nothing to do: every entry cut out of its scan has its words", away.length ? `${counted(away.length, "source")} on images not on this computer` : undefined), data: { sources: 0 } };
     if (tree.dryRun)
       return {
         text: lines(
-          `${todo.length} source(s) to transcribe from their cut-outs — ${groups.length} reader(s) to read them, as many to check`,
+          `${counted(todo.length, "source")} to transcribe from their cut-outs — ${counted(groups.length, "reader")} to read them, as many to check`,
           away.length ? `${away.length} more on images not on this computer` : undefined,
           "(dry run — no reader started)",
         ),
@@ -174,7 +174,7 @@ register({
     const missed = todo.filter((s) => !passed.has(s.id));
     return {
       text: lines(
-        `${passed.size} of ${todo.length} source(s) got their words${r0.model ? ` · ${r0.model}` : ""}${r0.cost() ? ` · $${r0.cost().toFixed(2)}` : ""}`,
+        `${passed.size} of ${counted(todo.length, "source")} got their words${r0.model ? ` · ${r0.model}` : ""}${r0.cost() ? ` · $${r0.cost().toFixed(2)}` : ""}`,
         verdicts.some((v) => v.verdict === "fixed") ? `the check corrected ${verdicts.filter((v) => v.verdict === "fixed").length} of them` : undefined,
         rejected.length ? `the check turned down: ${rejected.map((v) => `${v.source}${v.why ? ` (${truncate(v.why, 40)})` : ""}`).join(", ")}` : undefined,
         unread.length ? `not read (unreadable, or not this entry in the cut-out): ${unread.map((x) => `${x.source} ${x.result}`).slice(0, 20).join(", ")}` : undefined,

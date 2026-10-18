@@ -36,19 +36,19 @@ test("a part fetched with a page asked first and a redirect: the run says the re
   const first = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--crop", "0.5,0,0.5,0.5"]);
   assert.deepEqual(a.hits, ["/login", "/search-page", "/part/5359/1.jpg?r=0.5,0,0.5,0.5"]);
   assert.equal(counted() - before, 3, "the hourly counter takes each request to the host");
-  assert.match(first.out, /^part: 3 request\(s\) \(the connector asked 2; 1 more: redirects or retries\)$/m);
+  assert.match(first.out, /^part: 3 requests \(the connector asked 2; 1 more: redirects or retries\)$/m);
   // nothing measured of parts before: at least one
-  assert.match(first.err, /a part of image 1 through zkusebni: at least 1 request\(s\) to 127\.0\.0\.1/);
+  assert.match(first.err, /a part of image 1 through zkusebni: at least 1 request to 127\.0\.0\.1/);
   // the next part: as the last one went
   const second = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "2", "--crop", "0,0.5,0.5,0.5"]);
-  assert.match(second.err, /a part of image 2 through zkusebni: about 3 request\(s\) to 127\.0\.0\.1 \(3 requests a part, as its last runs here went\), about \d+ s at its pace/);
-  assert.match(second.out, /^part: 3 request\(s\)/m);
+  assert.match(second.err, /a part of image 2 through zkusebni: about 3 requests to 127\.0\.0\.1 \(3 requests a part, as its last runs here went\), about \d+ s at its pace/);
+  assert.match(second.out, /^part: 3 requests/m);
   assert.equal(counted() - before, 6);
   // whole images: one request each, as before — the estimate says at least that many
   a.hits.length = 0;
   const whole = await w.ok(["fetch", "zkusebni", "5359", "--images", "3", "--recordset", "B1"]);
-  assert.match(whole.err, /1 image\(s\) through zkusebni: at least 1 request\(s\) to 127\.0\.0\.1/);
-  assert.match(whole.out, /^fetch: 1 request\(s\)$/m);
+  assert.match(whole.err, /1 image through zkusebni: at least 1 request to 127\.0\.0\.1/);
+  assert.match(whole.out, /^fetch: 1 request$/m);
   assert.equal(counted() - before, 7);
   w.cleanup();
   await a.close();

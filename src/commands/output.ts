@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
-import { lines, table } from "../cli/format.ts";
+import { counted, lines, table } from "../cli/format.ts";
 import { exportGedcom, GED_PROFILES, type GedProfile } from "../gedcom/export.ts";
 import type { Context } from "../cli/context.ts";
 import { hasGedErrors, validateGedcom, type GedFinding } from "../gedcom/validate.ts";
@@ -121,15 +121,15 @@ const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 export function imagesLines(r: ExcerptReport, images: { for: ExcerptScope; mb: number }): string {
   const few = (ids: string[]) => `${ids.slice(0, 8).join(", ")}${ids.length > 8 ? ` … (${ids.length})` : ""}`;
   return lines(
-    `  ${r.excerpts} excerpt(s) of ${r.sources} source(s), ${mb(r.bytes)} · quality ${r.level}`,
+    `  ${counted(r.excerpts, "excerpt")} of ${counted(r.sources, "source")}, ${mb(r.bytes)} · quality ${r.level}`,
     r.level !== r.asked ? `  WARNING made smaller to fit the limit of ${images.mb} MB: ${r.level} instead of ${r.asked} — more room: --images-max-mb <n> (strom config set excerpts.mb <n>)` : undefined,
     r.dropped.length
-      ? `  WARNING left out to fit the limit of ${images.mb} MB, the farthest from the research first: ${r.dropped.length} source(s) (${few(r.dropped)}) — more room: --images-max-mb <n>`
+      ? `  WARNING left out to fit the limit of ${images.mb} MB, the farthest from the research first: ${counted(r.dropped.length, "source")} (${few(r.dropped)}) — more room: --images-max-mb <n>`
       : undefined,
-    r.outOfScope ? `  ${r.outOfScope} source(s) of people farther from the research than excerpts.for=${images.for} — all of them: --images-for all` : undefined,
+    r.outOfScope ? `  ${counted(r.outOfScope, "source")} of people farther from the research than excerpts.for=${images.for} — all of them: --images-for all` : undefined,
     r.missing.length ? `  the image is not on this computer: ${few(r.missing)}` : undefined,
     r.unclipped.length ? `  sources on images with no clip (where the entry is): ${few(r.unclipped)} — strom clips (readers find them)` : undefined,
-    r.later.length ? `  the images of ${r.later.length} source(s) are still being made: the next export has them (all now: strom export gedcom)` : undefined,
+    r.later.length ? `  the images of ${counted(r.later.length, "source")} are still being made: the next export has them (all now: strom export gedcom)` : undefined,
   );
 }
 
@@ -221,7 +221,7 @@ register(
           const s = r.stats;
           return lines(
             `${ctx.display(r.file)} (${r.for === "strom" ? `for the Strom app${r.images ? ", with images" : ""}` : "standard, any program"}) — ${s.persons} persons · ${s.families} families · ${s.events} facts · ${s.sources} sources${s.skipped ? ` · ${s.skipped} retracted/disproven left out` : ""}`,
-            `  valid GEDCOM 5.5.1${r.findings.length ? ` (${r.findings.length} warning(s))` : ""}`,
+            `  valid GEDCOM 5.5.1${r.findings.length ? ` (${counted(r.findings.length, "warning")})` : ""}`,
             r.images && r.imageSettings ? imagesLines(r.images, r.imageSettings) : undefined,
             r.findings.length ? findingRows(r.findings) : undefined,
           );
@@ -256,7 +256,7 @@ register(
       const findings = validateGedcom(fs.readFileSync(file, "utf8"), opts.for === "standard" ? { strict: true } : {});
       const errors = findings.filter((f) => f.level === "error").length;
       return {
-        text: findings.length ? lines(findingRows(findings), "", `${errors} error(s), ${findings.length - errors} warning(s)`) : "ok — valid GEDCOM 5.5.1",
+        text: findings.length ? lines(findingRows(findings), "", `${counted(errors, "error")}, ${counted(findings.length - errors, "warning")}`) : "ok — valid GEDCOM 5.5.1",
         data: { ok: errors === 0, findings },
         exitCode: errors ? 1 : 0,
       };

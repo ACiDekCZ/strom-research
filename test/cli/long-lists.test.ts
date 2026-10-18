@@ -22,7 +22,7 @@ test("recordset list: the filters first when long, a page of at most 100 rows un
     assert.equal(out[0], "130 record sets — narrow: strom recordset list <text> --place <name> --kind <kind> --years <from-to> --repo <R…>");
     assert.equal(LIST_PAGE_MAX, 100);
     assert.equal(out.length, 1 + 100 + 1);
-    assert.equal(out.at(-1), "… 30 more: strom recordset list --page 2");
+    assert.equal(out.at(-1), "… 30 more: strom recordset list --limit 100 --page 2");
     assert.ok(Buffer.byteLength(all.out) < 20_000, `${Buffer.byteLength(all.out)} B`);
     // by default a page of 50, the filters used carried to the next page
     const ves = (await w.ok(["recordset", "list", "Dolní", "--place", "dolni ves"])).out.trim().split("\n");

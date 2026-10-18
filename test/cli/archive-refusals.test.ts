@@ -292,7 +292,7 @@ test("a host that never let strom in refuses its first request: a day, strom's c
     s.refuse = new Set(["/img/5359/3.jpg"]);
     const r = await w.run(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1"]);
     assert.equal(r.code, 0, r.out + r.err);
-    assert.match(r.out, /2 image\(s\) of B0001 \(images 1–2\) fetched and registered/);
+    assert.match(r.out, /2 images of B0001 \(images 1–2\) fetched and registered/);
     assert.match(r.out, /127\.0\.0\.1 answered 403 — strom stops and leaves it alone for a day/);
     assert.match(r.out, /→ 127\.0\.0\.1 refused after strom's requests \(too many, or too fast for it\): leave it alone for a day — stop, never sooner\./);
     assert.match(r.out, /next: \(1\) another way/);

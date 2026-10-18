@@ -28,7 +28,7 @@ test("fetch: past the wait for an hourly cap — exit 7, the time and the comman
   robotsReadToday(w); // the hour counts the archive's requests: its robots.txt read today already
   capped(pluginDir(w, "zkusebni"));
   await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`]); // B0001
-  assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1-2", "--recordset", "B1"])).out, /2 image\(s\) of B0001 \(images 1–2\) fetched and registered/);
+  assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1-2", "--recordset", "B1"])).out, /2 images of B0001 \(images 1–2\) fetched and registered/);
   const r = await w.run(["fetch", "zkusebni", "5359", "--images", "3", "--recordset", "B1"]);
   assert.equal(r.code, 7, r.out + r.err);
   assert.match(r.out, /stopped: 2 requests to 127\.0\.0\.1 in the last hour — its hourly cap; try again at (\d{4}-\d\d-\d\d )?\d\d:\d\d/);
@@ -53,7 +53,7 @@ test("fetch: an hourly cap used up within its wait — said with the time, waite
     const r = await w.run(["fetch", "zkusebni", "5359", "--images", "3", "--recordset", "B1"]);
     assert.equal(r.code, 0, r.out + r.err);
     assert.match(r.err, /127\.0\.0\.1: its hourly cap is used up — strom waits until (\d{4}-\d\d-\d\d )?\d\d:\d\d \(20 min\), then goes on by itself \(it waits at most 30 min\); do not stop it/);
-    assert.match(r.out, /1 image\(s\) of B0001 \(images 3\) fetched and registered/);
+    assert.match(r.out, /1 image of B0001 \(images 3\) fetched and registered/);
     assert.ok(slept.some((ms) => ms > 19 * 60_000), slept.join(","));
     // a session of strom run with 15 minutes left: no wait into its last 10 — the time to try again instead
     clock += 2 * 60_000;
@@ -75,14 +75,15 @@ test("fetch: says beforehand how many requests it asks and how long at the host'
   capped(pluginDir(w, "zkusebni"));
   await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`]); // B0001
   const first = await w.ok(["fetch", "zkusebni", "5359", "--images", "1", "--recordset", "B1"]);
-  assert.match(first.err, /1 image\(s\) through zkusebni: at least 1 request\(s\) to 127\.0\.0\.1, about 0 s at its pace \(≥2 s apart, at most 2 an hour — 2 left this hour\)\n/);
+  assert.match(first.err, /1 image through zkusebni: at least 1 request to 127\.0\.0\.1, about 0 s at its pace \(≥2 s apart, at most 2 an hour — 2 left this hour\)\n/);
   assert.doesNotMatch(first.err, /holds the rest back/);
   // more than the cap leaves this hour: said, with the way round it — whole images first, a part only where needed
   const many = await w.run(["fetch", "zkusebni", "5359", "--images", "2-3", "--recordset", "B1"]);
-  assert.match(many.err, /2 image\(s\) through zkusebni: at least 2 request\(s\) to 127\.0\.0\.1, about (59|60) min at its pace \(≥2 s apart, at most 2 an hour — 1 left this hour\)\n {2}the hourly cap holds the rest back: fetch the whole images first \(a request each\) and a part only of an image whose entry needs it/);
+  assert.match(many.err, /2 images through zkusebni: at least 2 requests to 127\.0\.0\.1, about (59|60) min at its pace \(≥2 s apart, at most 2 an hour — 1 left this hour\)\n {2}the hourly cap holds the rest back: fetch the whole images first \(a request each\) and a part only of an image whose entry needs it/);
   // the method and the command's help say the order
   const method = fs.readFileSync(path.join(import.meta.dirname, "..", "..", "assets", "method", "reading.md"), "utf8");
-  assert.match(method, /Whole images first, a part only where entries need\n {2}it: an archive's hourly cap stops the rest\./);
+  // a checkout on Windows may have the file's lines end in CRLF (git's core.autocrlf): either way the same sentence
+  for (const text of [method, method.replace(/\r?\n/g, "\r\n")]) assert.match(text, /Whole images first, a part only where entries need\r?\n {2}it: an archive's hourly cap stops the rest\./);
   assert.match((await w.ok(["help", "fetch"])).out, /fetch whole images first \(a request each\) and a part only of an image whose entry needs it/);
   w.cleanup();
 });

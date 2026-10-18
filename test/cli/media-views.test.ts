@@ -38,7 +38,7 @@ test("media view: several images in one call — a range, several arguments, pag
   const w = await world();
   const r = await w.ok(["media", "view", "B1:1-3"]);
   const out = r.out.trim().split("\n");
-  assert.equal(out[0], "3 view(s) of 3 image(s) — open them all at once:");
+  assert.equal(out[0], "3 views of 3 images — open them all at once:");
   // a path, then its caption: the image as asked for, its ID
   assert.match(out[1]!, /\.strom[\\/]views[\\/]M0001-[0-9a-f]{10}\.jpg$/);
   assert.match(out[2]!, /^ {2}B0001:1 \(M0001\) · 1400×875 px · whole image of 3200×2000 · 44 % · reduced$/, "a whole image to find the entry on: 1400 px");
@@ -91,7 +91,7 @@ test("media view: several images in one call — a range, several arguments, pag
   assert.deepEqual(gone.json.views.map((v: { image: string }) => v.image), ["M0001", "M0003"]);
   assert.equal(gone.json.images, 2);
   assert.equal(gone.json.failed[0].ref, "B0001:2");
-  assert.match((await w.ok(["media", "view", "B1:1-3"])).out, /^2 view\(s\) of 2 image\(s\)[^]*^no view of B0001:2: the image file is missing: .+ → the shared folder may have moved: strom config where$/m);
+  assert.match((await w.ok(["media", "view", "B1:1-3"])).out, /^2 views of 2 images[^]*^no view of B0001:2: the image file is missing: .+ → the shared folder may have moved: strom config where$/m);
   assert.match((await w.run(["media", "view", "B1:2", "M0002"])).err, /the image file is missing/, "none to show: said as one image's is");
   fs.renameSync(`${file}.away`, file);
   // a number alone names no image
@@ -205,11 +205,11 @@ test("media view: at most 12 images and 24 views in one call, said with the call
   const before = fs.existsSync(path.join(w.cwd, ".strom", "views")) ? fs.readdirSync(path.join(w.cwd, ".strom", "views")).length : 0;
   const many = await w.run(["media", "view", "B1:1-13"]);
   assert.equal(many.code, 2);
-  assert.match(many.err, /13 image\(s\) — at most 12 images and 24 views in one call: every view stays in the context that opens it/);
-  assert.match(many.err, /12 image\(s\) now — write down what they gave before the next call: strom media view B0001:1-12/);
+  assert.match(many.err, /13 images — at most 12 images and 24 views in one call: every view stays in the context that opens it/);
+  assert.match(many.err, /12 images now — write down what they gave before the next call: strom media view B0001:1-12/);
   const views = await w.run(["media", "view", "B1:1-7", "--split", "2x2"]);
   assert.equal(views.code, 2);
-  assert.match(views.err, /7 image\(s\) × 4 views — at most 12 images and 24 views/);
+  assert.match(views.err, /7 images × 4 views — at most 12 images and 24 views/);
   assert.match(views.err, /strom media view B0001:1-6 --split 2x2/);
   const pages = await w.run(["media", "view", "B1", "--page", "1-13", "--half", "both"]);
   assert.match(pages.err, /strom media view B0001 --page 1-12 --half both/);

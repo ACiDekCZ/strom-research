@@ -49,11 +49,45 @@ export function withInstallEnv<T extends Record<string, string | undefined>>(env
 
 const here = fileURLToPath(import.meta.url);
 
-/** How this strom was installed (read once). */
-let cached: Installation | undefined;
-export function installation(): Installation {
-  return (cached ??= installationOf(here));
+/**
+ * How the strom whose core/self module is `file` was installed, read once — what it runs (its Node, its folder) stays
+ * what this process started with (replacedOnDisk compares with it); only its channel follows install.json, which a
+ * switch of channel rewrites while a long process runs (found: the bridge said beta after a switch to the releases,
+ * until it was started again).
+ */
+export function installationAt(file: string): () => Installation {
+  let cached: Installation | undefined;
+  let stamp: string | undefined;
+  const stampOf = (inst: Installation): string | undefined => {
+    if (inst.kind !== "installed" || !inst.root) return undefined;
+    try {
+      const st = fs.statSync(path.join(inst.root, "install.json"));
+      return `${st.mtimeMs}:${st.size}`;
+    } catch {
+      return undefined;
+    }
+  };
+  return () => {
+    if (!cached) {
+      stamp = stampOf((cached = installationOf(file)));
+      return cached;
+    }
+    const now = stampOf(cached);
+    if (now === undefined || now === stamp) return cached;
+    try {
+      const info = JSON.parse(fs.readFileSync(path.join(cached.root!, "install.json"), "utf8")) as { channel?: unknown };
+      const { channel: _was, ...rest } = cached;
+      cached = { ...rest, ...(info.channel === "beta" ? { channel: "beta" as const } : {}) };
+      stamp = now;
+    } catch {
+      // being written: the channel as it was, looked at again next time
+    }
+    return cached;
+  };
 }
+
+/** How this strom was installed (read once; its channel as install.json says it now). */
+export const installation: () => Installation = installationAt(here);
 
 /** How the strom whose core/self module is `file` was installed (tests: a folder of their own). */
 export function installationOf(file: string): Installation {

@@ -21,6 +21,7 @@ import { RECORD_TYPES } from "./model.ts";
 import { fileSha, fingerprint, verifyCommitSeal, verifyOp } from "./seal.ts";
 import type { Op, Tree } from "./tree.ts";
 import { StromError } from "./errors.ts";
+import { counted } from "../cli/format.ts";
 
 /** What changed since HEAD, with the committed versions — shared by verify and guard. */
 export interface Snapshot {
@@ -232,7 +233,7 @@ export function assertIntact(tree: Tree): void {
     tree.requireKey();
     return;
   }
-  throw new StromError(`data was changed outside strom (${errors.length} problem(s)) — refusing to write`, {
+  throw new StromError(`data was changed outside strom (${counted(errors.length, "problem")}) — refusing to write`, {
     hint: "strom verify   (details)\nstrom repair   (restore the last sealed state)",
     details: errors,
   });

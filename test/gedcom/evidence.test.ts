@@ -179,7 +179,7 @@ test("a foreign tree: nothing breaks the import, and what its author cited is ke
   const f = path.join(w.dir, "cizi.ged");
   fs.writeFileSync(f, FOREIGN);
   const r = await w.ok(["intake", f]);
-  assert.match(r.out, /2 persons, 1 families/);
+  assert.match(r.out, /osoby: 2 · rodiny: 1/);
   const people = (await w.ok(["person", "list", "--json", "--full"])).json.persons;
   const anna = people.find((p: any) => p.names.some((n: any) => n.given === "Anna"));
   assert.equal(anna.names[0].surname, "Dvořáková", "the birth name leads");

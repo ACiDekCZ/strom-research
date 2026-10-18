@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process";
 import { compareVersions, installUpdate, isNewer, knownNewerVersion, latestRelease, newestTag, nodeArchive, setInstallChannel, updateChannel } from "../../src/core/update.ts";
 import { Settings } from "../../src/core/config.ts";
 import { launchersToTake, notOurs, ownProcesses, uninstallPlan, windowsRemoval } from "../../src/core/uninstall.ts";
-import { insideProgram, replacedHolding, withInstallEnv } from "../../src/core/self.ts";
+import { insideProgram, installationAt, replacedHolding, withInstallEnv } from "../../src/core/self.ts";
 import { desktopDir, documentsDir, tarProgram } from "../../src/core/paths.ts";
 import { globalTargets } from "../../src/agents/global.ts";
 import { registerLinks } from "../../src/core/links.ts";
@@ -395,6 +395,34 @@ test("the channel: STROM_CHANNEL, then install.json, then a prerelease not run f
   assert.equal(updateChannel({}, { kind: "npm" }, "1.13.0"), "stable");
   assert.equal(updateChannel({}, { kind: "source" }, "1.13.0-rc.4"), "stable", "a candidate in the sources is no beta");
   assert.equal(updateChannel({ STROM_CHANNEL: "nonsense" }, { kind: "source" }, "1.13.0"), "stable");
+});
+
+test("a long process (the bridge) takes the channel as install.json says it now — a switch to the releases said at once; what it runs stays what it started with", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "strom-inst-ěš-"));
+  try {
+    fs.mkdirSync(path.join(root, "app", "dist", "core"), { recursive: true });
+    const info = path.join(root, "install.json");
+    fs.writeFileSync(info, JSON.stringify({ launchers: [], node: "24.1.0", channel: "beta" }));
+    const inst = installationAt(path.join(root, "app", "dist", "core", "self.js"));
+    assert.equal(inst().channel, "beta");
+    assert.equal(updateChannel({}, inst(), "1.17.0"), "beta");
+    // strom update --channel stable in another process: install.json rewritten, nothing else installed
+    setInstallChannel(root, "stable");
+    const later = new Date(Date.now() + 5000);
+    fs.utimesSync(info, later, later);
+    assert.equal(inst().channel, undefined);
+    assert.equal(updateChannel({}, inst(), "1.17.0"), "stable");
+    // back to the beta, and a newer Node written: the channel follows, the Node this process runs does not
+    fs.writeFileSync(info, JSON.stringify({ launchers: [], node: "26.0.0", channel: "beta" }));
+    const later2 = new Date(Date.now() + 10000);
+    fs.utimesSync(info, later2, later2);
+    assert.deepEqual([inst().channel, inst().node], ["beta", "24.1.0"]);
+    // being written (not JSON yet): the channel as it was
+    fs.writeFileSync(info, "{");
+    assert.equal(inst().channel, "beta");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 /** GitHub's list of releases, as its API gives it (the fields that matter, and some that must not). */

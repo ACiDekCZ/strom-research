@@ -38,13 +38,15 @@ export interface ActiveFetch {
   worker?: string;
   /** Waits while a fetch in the foreground asks the same host (theirs first). */
   yielding?: boolean;
+  /** Its work folder in .strom/fetch (a name, no path): taken away once its process is gone. */
+  work?: string;
 }
 
 function dir(root: string): string {
   return path.join(root, ".strom", "fetch");
 }
 
-function processAlive(pid: number): boolean {
+export function processAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
@@ -98,7 +100,48 @@ function alive(m: ActiveFetch, now: number): boolean {
   return now - Math.max(Number.isFinite(heard) ? heard : 0, m.waitUntil ?? 0) < FETCH_SILENT_MS;
 }
 
-/** The fetches of a book at work now (every book: none named); the mark of one that is gone is taken away. */
+/** A work folder of a fetch as its mark names it: a name in .strom/fetch of the connector's form, nothing else. */
+const WORK_NAME = /^[\p{L}\p{M}\p{N}._-]+-\d+$/u;
+
+/**
+ * A fetch of this computer whose mark is stale: its end written as interrupted (unless it wrote its own), its mark
+ * taken away, and — its process gone — its work folder too (only that one). What it registered is the research's to
+ * say (withRegistered): a process killed while it committed a batch had that batch written already. A process still
+ * there (silent, or its pid taken by another) keeps its folder: strom tidy takes it after a day.
+ */
+function gone(root: string, file: string, m: ActiveFetch): void {
+  const dead = !processAlive(m.pid);
+  if (!fs.existsSync(endedFile(root, m.recordset, m.pid))) {
+    markEnded(root, {
+      pid: m.pid,
+      recordset: m.recordset,
+      connector: m.connector,
+      book: m.book,
+      images: m.images,
+      registered: [],
+      missed: m.images,
+      interrupted: dead ? "gone" : "silent",
+      ...(m.background ? { background: true } : {}),
+      at: m.at,
+      ...(m.since ? { since: m.since } : {}),
+      ...(m.session ? { session: m.session } : {}),
+      ...(m.task ? { task: m.task } : {}),
+      exitCode: 1,
+    });
+  }
+  fs.rmSync(file, { force: true });
+  if (dead && m.work && WORK_NAME.test(m.work))
+    try {
+      fs.rmSync(path.join(dir(root), m.work), { recursive: true, force: true, maxRetries: 2 });
+    } catch {
+      // a file of it still open (Windows): strom tidy takes it later
+    }
+}
+
+/**
+ * The fetches of a book at work now (every book: none named); the mark of one that is gone is taken away, its end
+ * written as interrupted (strom fetch --status, the brief).
+ */
 export function activeFetches(root: string, recordset?: string, now = Date.now()): ActiveFetch[] {
   let names: string[];
   try {
@@ -118,7 +161,7 @@ export function activeFetches(root: string, recordset?: string, now = Date.now()
     }
     if ((recordset && m.recordset !== recordset) || !Array.isArray(m.images)) continue;
     if (alive(m, now)) out.push(m);
-    else if (m.host === os.hostname()) fs.rmSync(file, { force: true });
+    else if (m.host === os.hostname()) gone(root, file, m);
   }
   return out;
 }
@@ -219,6 +262,13 @@ export interface EndedFetch {
   missed: number[];
   /** Why it stopped before the end, if it did. */
   stopped?: string;
+  /**
+   * It ended without a word: its process is gone (killed, the computer stopped) or nothing was heard of it for
+   * FETCH_SILENT_MS — written by the strom that found its mark stale; `at` is the last sign of life.
+   */
+  interrupted?: "gone" | "silent";
+  /** A fetch in the background (an interrupted one may have been in the foreground). */
+  background?: boolean;
   at: string;
   since?: string;
   session?: string;
@@ -238,6 +288,14 @@ export function markEnded(root: string, ended: EndedFetch): void {
   } catch {
     // not kept: strom fetch --status only does not tell it
   }
+}
+
+/**
+ * Of an interrupted fetch, what it registered and what not as the research has it now (`has`: the images of its
+ * book registered); a fetch that wrote its own end said it already.
+ */
+export function withRegistered(e: EndedFetch, has: Set<number>): EndedFetch {
+  return e.interrupted ? { ...e, registered: e.images.filter((n) => has.has(n)), missed: e.images.filter((n) => !has.has(n)) } : e;
 }
 
 /** The fetches in the background ended lately (ENDED_SAID_MS), newest first; older ones are taken away. */

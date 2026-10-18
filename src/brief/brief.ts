@@ -43,7 +43,7 @@ import { ENRICH_PAGES, STORY_SOURCES_ORIGIN } from "../core/stories.ts";
 import { sandboxOf, WITHOUT_READERS, type Sandbox } from "../core/sandbox.ts";
 import { WEB_SOFT } from "../core/metrics.ts";
 import { indexBriefLines } from "../core/indexfirst.ts";
-import { activeFetches, endedFetches } from "../core/fetching.ts";
+import { activeFetches, endedFetches, withRegistered } from "../core/fetching.ts";
 
 /** What strom tuned for the session's agent and model (core/tune.ts), as at the session's start: it holds for all of it. */
 interface BriefTuning {
@@ -693,16 +693,24 @@ function imagesLines(tree: Tree, b: RecordSet, route: BookRoute | undefined, sha
   ].filter(Boolean);
 }
 
-/** The fetches at work for the research (each book: how far), and those in the background that ended lately with images left. */
-function fetchingLines(root: string): string[] {
+/** The fetches at work for the research (each book: how far), and those that ended lately with images left (in the background, or interrupted). */
+function fetchingLines(tree: Tree): string[] {
+  const root = tree.root;
   const active = activeFetches(root);
+  // an interrupted one: what it registered as the research has it
+  const has = (rs: string) => new Set(tree.list<Media>("media").filter((m) => m.recordset === rs && !m.part && !m.retracted && m.image !== undefined).map((m) => m.image!));
   const out = active.map(
     (m) =>
       `- ${m.recordset}: ${m.registered}/${m.images.length} images registered (${m.background ? `in the background${m.task ? `, for ${m.task}` : ""}` : "in the foreground"}) — strom read ${m.recordset} --images ${runsArg(m.images)} reads them as they come; not fetched again`,
   );
-  for (const e of endedFetches(root))
+  for (const e of endedFetches(root).map((x) => withRegistered(x, has(x.recordset))))
     if (e.missed.length && !active.some((m) => m.recordset === e.recordset))
-      out.push(`- ${e.recordset}: a fetch in the background ended with images ${runs(e.missed)} not fetched${e.stopped ? ` (stopped: ${e.stopped})` : ""} — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset} if they are needed`);
+      out.push(
+        e.interrupted
+          ? // its process ended without a word (killed, the computer stopped): what it registered stays
+            `- ${e.recordset}: a fetch ${e.background ? "in the background" : "in the foreground"} was interrupted (${e.interrupted === "gone" ? "its process ended without a word" : "nothing heard of it for long"}) with images ${runs(e.missed)} not fetched — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset}${e.background ? " --background" : ""} if they are needed (what is registered is not fetched again)`
+          : `- ${e.recordset}: a fetch in the background ended with images ${runs(e.missed)} not fetched${e.stopped ? ` (stopped: ${e.stopped})` : ""} — strom fetch ${e.connector} ${shellArg(e.book)} --images ${runsArg(e.missed)} --recordset ${e.recordset} if they are needed`,
+      );
   return out;
 }
 
@@ -1274,7 +1282,7 @@ export function buildBrief(
 
   // 7c. images being fetched for the research now (strom fetch --background of an earlier session, or another strom),
   // and what fetches in the background left unfetched lately: read as they come, never fetched twice
-  const fetching = fetchingLines(tree.root);
+  const fetching = fetchingLines(tree);
   if (fetching.length)
     sections.push({
       name: "fetching",

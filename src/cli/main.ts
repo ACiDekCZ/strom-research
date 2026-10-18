@@ -17,7 +17,7 @@ import { assertIntact } from "../core/integrity.ts";
 import { resetCache } from "../core/git.ts";
 import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { settleArchive } from "../core/mode.ts";
-import { settleHypothesisLinks } from "../core/hypolinks.ts";
+import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "../core/hypolinks.ts";
 import { liveRunning, reviveLive, startLive } from "../core/live.ts";
 import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
 import { prependPath } from "../runners/runner.ts";
@@ -298,7 +298,13 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         } catch {
           // another computer's seal, a tree at work: its next bridge or switch settles it
         }
-        // …and older hypotheses get the links of their variants their claims say beyond doubt, the rest a task (once)
+        // …and the tasks an older strom made to say those links come first in the queue (once), then older hypotheses get
+        // the links of their variants their claims say beyond doubt, the rest a task (once)
+        try {
+          raiseHypothesisLinkTasks(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start raises them
+        }
         try {
           settleHypothesisLinks(Tree.open(k.root, env));
         } catch {

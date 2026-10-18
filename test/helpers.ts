@@ -23,6 +23,17 @@ const isolatedHome = fs.mkdtempSync(path.join(os.tmpdir(), "strom-test-home-"));
 process.env.HOME = isolatedHome;
 process.env.USERPROFILE = isolatedHome;
 process.env.STROM_CONFIG_DIR = path.join(isolatedHome, "config");
+// Both gone when the process ends (read until then by anything a test starts) — a file held open (Windows) leaves
+// them, never failing the run (found 2026-10-16: tens of thousands left in the temp folder).
+process.on("exit", () => {
+  for (const left of [isolatedHome, gitGlobal]) {
+    try {
+      fs.rmSync(left, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 });
+    } catch {
+      // left for the system's own cleaning of its temp folder
+    }
+  }
+});
 // A test's archive is a server on this computer: connectors of tests name 127.0.0.1 / localhost as their hosts.
 process.env.STROM_TEST_HOSTS = "1";
 
@@ -136,6 +147,16 @@ export class World {
     // a bridge just stopped may still write its last line into the tree: tried again (ENOTEMPTY)
     fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
+}
+
+/**
+ * The words of a command line strom printed, as a shell splits them — with no shell (Windows has no sh): a word in
+ * double quotes with its backslash escapes (shellArg), in single quotes as it is, else up to the next space.
+ */
+export function shellWords(line: string): string[] {
+  const out: string[] = [];
+  for (const m of line.matchAll(/"((?:[^"\\]|\\.)*)"|'([^']*)'|(\S+)/gu)) out.push(m[1] !== undefined ? m[1].replace(/\\(.)/gu, "$1") : (m[2] ?? m[3]!));
+  return out;
 }
 
 export function readJsonFile(file: string): any {

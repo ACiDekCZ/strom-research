@@ -10,6 +10,7 @@
 import type { Family, Person, Place } from "./model.ts";
 import { foldText } from "./text.ts";
 import type { Tree } from "./tree.ts";
+import { counted } from "../cli/format.ts";
 
 export interface OffMap {
   /** The place as the facts write it. */
@@ -43,8 +44,8 @@ export function placesOffMap(tree: Tree): OffMap[] {
 /** One place off the map, and the command that puts it there. */
 export function offMapLine(m: OffMap): string {
   return m.place
-    ? `${m.name} (${m.events} fact(s), ${m.place.id}): strom place edit ${m.place.id} --lat … --lon …`
-    : `${m.name} (${m.events} fact(s), no place yet): strom place add "${m.name}" --kind … --lat … --lon …`;
+    ? `${m.name} (${counted(m.events, "fact")}, ${m.place.id}): strom place edit ${m.place.id} --lat … --lon …`
+    : `${m.name} (${counted(m.events, "fact")}, no place yet): strom place add "${m.name}" --kind … --lat … --lon …`;
 }
 
 /** What to do about them, in a line. */

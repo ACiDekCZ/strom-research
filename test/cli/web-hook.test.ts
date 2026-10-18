@@ -274,7 +274,7 @@ test("a web fetch recorded in fetch.jsonl and counted in the host's hour, paced;
   await w.ok(["session", "close", "--summary", "Prohledáno.", "--next", "Nic."], { env: inSession });
   const lastOne = (await w.ok(["net", "web", "--json"])).json;
   assert.deepEqual([lastOne.session, lastOne.open, lastOne.hosts, lastOne.searches], [sid, false, { "katalog-example.org": 12, "matriky-example.org": 15, "jiny-example.net": 1 }, 1]);
-  assert.match((await w.ok(["net", "web"])).out, new RegExp(`^${sid} \\(closed; no session open — the last one with web requests\\): 28 web request\\(s\\) to 3 server\\(s\\), 1 search\\(es\\)`));
+  assert.match((await w.ok(["net", "web"])).out, new RegExp(`^${sid} \\(closed; no session open — the last one with web requests\\): 28 web requests to 3 servers, 1 search`));
   assert.match((await w.ok(["net", "web", "--session", sid])).out, new RegExp(`^${sid} \\(closed\\): 28 web request`));
   w.cleanup();
 });

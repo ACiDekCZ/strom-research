@@ -7,9 +7,15 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.17.0
 
-*In Vorbereitung: die Betas bis 1.17.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.17.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
-- **Noch nichts Neues in der Nutzung.** Bisher hat sich nur geändert, wie strom gebaut und veröffentlicht wird.
+- **Zuerst, was Hypothesen verbinden würden.** Die Aufgaben, zu ergänzen, was die Varianten einer offenen Hypothese
+  verbinden würden, kommen in der Warteschlange zuerst — auch in einer bestehenden Forschung nach dem Update —, so
+  zeigt die Strom-App diese Verbindungen bald.
+- **Ein unterbrochener Download wird gemeldet und aufgeräumt.** Ein Download, dessen Prozess mittendrin endete, wird
+  als unterbrochen gemeldet, mit dem, was gespeichert ist und was fehlt; sein Arbeitsordner wird entfernt.
+- **Neues Material in der Sprache der Forschung.** Was hereinkam (registriertes Material, was hinzukam, wahrscheinliche
+  Duplikate, Namen nach der Heirat, Aufgaben), wird in der Sprache der Forschung gesagt.
 
 ## 1.16.0
 

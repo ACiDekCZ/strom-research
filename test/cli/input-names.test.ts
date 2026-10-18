@@ -51,12 +51,12 @@ test("strom input names: shown first, --apply adds only the married names citing
   assert.equal(JSON.stringify(people(w)), before, "nothing written without --apply");
 
   // the file taken in again: known already, and said how its married names come in
-  assert.match((await w.ok(["intake", file])).out, /I0001: 3 married name\(s\) it gives were left out when it was imported → strom input names I0001/);
+  assert.match((await w.ok(["intake", file])).out, /I0001: příjmení po sňatku, která uvádí a která se při převzetí vynechala: 3 → strom input names I0001/);
   // the same file names the same input
   assert.deepEqual(rows((await w.ok(["input", "names", file, "--json"])).json.add), rows(shown.add));
 
   const applied = await w.ok(["input", "names", "I0001", "--apply"]);
-  assert.match(applied.out, /3 married name\(s\) added, 1 already there, 1 person\(s\) of the file not in the research/);
+  assert.match(applied.out, /3 married names added, 1 already there, 1 person of the file not in the research/);
   const after = people(w);
   const married = after.P0002!.names.at(-1)!;
   assert.deepEqual([married.given, married.surname, married.kind], ["Marie", "Nováková".normalize("NFC"), "married"], "NFC as every record");

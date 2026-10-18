@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, table } from "../cli/format.ts";
+import { counted, lines, table } from "../cli/format.ts";
 import { AmbiguousError, StromError, UsageError } from "../core/errors.ts";
 
 /** A label: a word in any script ("anna", "šimon", "otec_2"), its accents composed or not. */
@@ -251,7 +251,7 @@ register({
     if (errors.length) throw manyWrong(errors, batch.length);
     const text = lines(
       table(report.flatMap((r) => r.summaries.map((s, i) => [i === 0 ? `${r.line}` : "", s, i === 0 && r.label ? `#${r.label}` : ""]))),
-      `${report.length} command(s) as one change`,
+      `${counted(report.length, "command")} as one change`,
     );
     return { text, data: { lines: report, labels: Object.fromEntries(labels) } };
   },

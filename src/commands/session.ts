@@ -13,7 +13,7 @@ import { register } from "../cli/registry.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import type { Context } from "../cli/context.ts";
 import { addressesPerson } from "../core/impersonal.ts";
-import { lines, shellArg, table, truncate } from "../cli/format.ts";
+import { counted, lines, shellArg, table, truncate } from "../cli/format.ts";
 import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
 import type { Person, RecordSet, Research, Session, Task } from "../core/model.ts";
 import { closeSession, costPartial, currentSession, openSessions, othersAtWork, sessionCost, sessionNote, startSession, whichSession, withReaders } from "../core/session.ts";
@@ -306,7 +306,7 @@ register(
           ...(finished?.said ?? []),
           ...alsoDone.flatMap((a) => a.said),
           ged ? `GEDCOM ${geds.map((g) => ctx.display(g.file)).join(" · ")}: ${ged.stats.persons} persons, ${ged.stats.families} families` : byRun ? "GEDCOM: exported by strom run when the session ends" : undefined,
-          newTasks.length ? `${newTasks.length} new task(s) from the research frontier` : undefined,
+          newTasks.length ? `${counted(newTasks.length, "new task")} from the research frontier` : undefined,
           offMap(tree),
           // In a conversation, the next task is best begun in a fresh context: all of this one is in strom.
           !s.runner && ctx.env.STROM_NONINTERACTIVE !== "1" ? freshContext(ctx, tree, s) : undefined,
@@ -1265,7 +1265,7 @@ function costText(m: Session["metrics"]): string {
   const said = `$${total.toFixed(2)}${partial ? "+" : ""}`;
   if (m?.readersUsd === undefined) return m?.costPartial && !m.costUsd ? "cost unknown" : said;
   const agent = unknown ? "agent unknown" : `agent $${(m.costUsd ?? 0).toFixed(2)}${m.costPartial ? "+" : ""}`;
-  return `${said} (${agent} + ${m.readers ?? 0} reader(s) $${m.readersUsd.toFixed(2)}${m.readersPartial ? "+" : ""})`;
+  return `${said} (${agent} + ${counted(m.readers ?? 0, "reader")} $${m.readersUsd.toFixed(2)}${m.readersPartial ? "+" : ""})`;
 }
 
 /** A session in --json with what it cost in all (totalUsd: the agent's own and its readers'; the stored costUsd is the agent's alone). */
@@ -1290,7 +1290,7 @@ function freshContext(ctx: Context, tree: Tree, s: Session): string {
   const how = CLEAR[detectAgent(ctx.env) ?? ""];
   return lines(
     "",
-    `next task: best in a fresh context${images ? ` — this session opened ${images} image(s), and they stay in yours` : ""}. Nothing is lost: strom keeps it all.`,
+    `next task: best in a fresh context${images ? ` — this session opened ${counted(images, "image")}, and they stay in yours` : ""}. Nothing is lost: strom keeps it all.`,
     `  Suggest it to the user in a sentence: ${how ? `typing ${how}` : "a new conversation"}, then \`strom\` goes on. A long queue: suggest letting the agent`,
     "  work on its own (strom's menu) — every task in a fresh session. If they would rather go on here, go on.",
   );

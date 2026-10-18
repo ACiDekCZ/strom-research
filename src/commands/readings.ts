@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
-import { lines, runs, shellArg, truncate } from "../cli/format.ts";
+import { counted, lines, runs, shellArg, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import type { Media, RecordSet, Search, Session } from "../core/model.ts";
 import { requireRecord } from "../core/records.ts";
@@ -167,7 +167,7 @@ function readingHead(r: Reading, blocks: Block[]): string[] {
   const books = [...new Set(blocks.map((b) => b.recordset).filter(Boolean))].join(" ");
   const nothing = blocks.filter((b) => b.result === "nothing").length;
   return [
-    `${r.stem} · ${r.reports.length} report(s)${books ? ` · ${books}` : ""} · images ${runs(blocks.map((b) => b.num ?? 0))} · found ${nums("found").length ? runs(nums("found")) : "none"}${nums("unclear").length ? ` · unclear ${runs(nums("unclear"))}` : ""} · nothing ${nothing}`,
+    `${r.stem} · ${counted(r.reports.length, "report")}${books ? ` · ${books}` : ""} · images ${runs(blocks.map((b) => b.num ?? 0))} · found ${nums("found").length ? runs(nums("found")) : "none"}${nums("unclear").length ? ` · unclear ${runs(nums("unclear"))}` : ""} · nothing ${nothing}`,
     r.question ? `question: ${truncate(r.question, 300)}` : undefined,
     r.context ? `context: ${truncate(r.context, 300)}` : undefined,
   ].filter((l): l is string => Boolean(l));

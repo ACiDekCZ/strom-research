@@ -3,7 +3,7 @@
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
-import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
+import { counted, lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import {
   LESSON_DETAIL_MAX,
@@ -43,6 +43,7 @@ import { childLink, LINK_HOW, linkHints, linkText, personsLink, recordedLinks, r
 import { yearsOption, yearsOverlap } from "../core/years.ts";
 import { searchedAs } from "../core/evidence.ts";
 import { refuseNegativeOverUnclear } from "./readings.ts";
+import { hypothesisPeople } from "../core/directions.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -92,6 +93,19 @@ function conflictConcerns(tree: Tree, id: string): (c: Conflict) => boolean {
     c.claims.some((cl) => cl.source !== undefined && ids.has(cl.source)) ||
     (c.edit !== undefined && (ids.has(c.edit.event) || (c.edit.cites ?? []).some((ci) => ids.has(ci.source)))) ||
     (c.parents !== undefined && [c.parents.child, c.parents.from, c.parents.to ?? "", ...c.parents.partners].some((s) => ids.has(s)));
+}
+
+/**
+ * Whether a hypothesis is about a person or family (strom hypothesis list --about): named in its subject, among the
+ * people it is about (hypothesisPeople: its subject's, those its variants would connect or name), or in what its
+ * variants' links have named; a person also through the families they are a partner of.
+ */
+function hypothesisConcerns(tree: Tree, id: string): (h: Hypothesis) => boolean {
+  const ids = new Set([id, ...(typeOfId(id) === "person" ? familiesAsPartner(tree, id).map((f) => f.id) : [])]);
+  return (h) =>
+    h.subject.some((s) => ids.has(s)) ||
+    hypothesisPeople(tree, h).some((p) => ids.has(p)) ||
+    h.variants.some((v) => (v.linked ?? []).some((x) => ids.has(x)) || (v.links ?? []).some((l) => l.kind === "child" && l.family !== undefined && ids.has(l.family)));
 }
 
 /** The tasks that work on a conflict or hypothesis (--about X…/H…). */
@@ -416,7 +430,7 @@ register(
       // a negative of an index is the index's: the book itself not searched in vain by it
       const ofIndex = hits.filter((s) => s.result === "negative" && s.method === "index").length;
       const text = hits.length
-        ? lines(`${hits.length} search(es) for ${what}${years ? ` in ${years}` : ""} — ${negative} negative${ofIndex ? ` (${ofIndex} in an index only — not the book searched in vain)` : ""}, ${hits.length - negative} with results`, table(hits.map(searchLine)))
+        ? lines(`${counted(hits.length, "search", "searches")} for ${what}${years ? ` in ${years}` : ""} — ${negative} negative${ofIndex ? ` (${ofIndex} in an index only — not the book searched in vain)` : ""}, ${hits.length - negative} with results`, table(hits.map(searchLine)))
         : `nothing searched yet for ${what}${years ? ` in ${years}` : ""}`;
       return { text: lines(text, ...said), data: { searches: hits } };
     },
@@ -801,21 +815,22 @@ register(
     options: [
       { name: "all", type: "boolean", description: "include decided and abandoned" },
       { name: "unlinked", type: "boolean", description: "only those no variant of which says what it would connect (strom hypothesis link), but those whose every variant naming people says what the tree records already" },
+      { name: "about", type: "string", value: "<P…|F…>", description: "only the hypotheses about this person or family: its subject, or the people and families its variants would connect" },
     ],
-    examples: ["strom hypothesis list", "strom hypothesis list --unlinked"],
+    examples: ["strom hypothesis list", "strom hypothesis list --unlinked", "strom hypothesis list --about P0001"],
     run(ctx, { opts }) {
       const tree = ctx.tree();
       // a hypothesis whose variants say only what the tree records already has nothing to link
       const linked = (h: Hypothesis) => h.variants.some((v) => v.links?.length) || (h.variants.some((v) => recordedLinks(tree, h, v).length) && !h.variants.some((v) => toLink(tree, h, v)));
-      const all = tree.list<Hypothesis>("hypothesis").filter((h) => (opts.all || h.state === "open") && !(opts.unlinked && linked(h)));
+      const about = typeof opts.about === "string" ? anyRefs(tree, [opts.about])[0]! : undefined;
+      const concerns = about ? hypothesisConcerns(tree, about) : undefined;
+      const all = tree.list<Hypothesis>("hypothesis").filter((h) => (opts.all || h.state === "open") && !(opts.unlinked && linked(h)) && (!concerns || concerns(h)));
       const links = (h: Hypothesis) => h.variants.reduce((n, v) => n + (v.links?.length ?? 0), 0);
       return {
         text: all.length
           ? table(all.map((h) => [h.id, h.state, truncate(h.question, 60), h.variants.map((v) => v.label).join("/"), links(h) ? `${links(h)} link${links(h) === 1 ? "" : "s"}` : ""]))
-          : opts.unlinked
-            ? "no open hypothesis without links"
-            : "no open hypotheses",
-        data: { hypotheses: all },
+          : `no ${opts.all ? "" : "open "}${opts.unlinked ? "hypothesis without links" : about ? "hypothesis" : "hypotheses"}${about ? ` about ${about} → all of them: strom hypothesis list${opts.all ? "" : " --all"}` : ""}`,
+        data: { ...(about ? { about } : {}), hypotheses: all },
       };
     },
   },

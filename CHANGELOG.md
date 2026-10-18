@@ -7,9 +7,15 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.17.0
 
-*In preparation: the betas up to 1.17.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.17.0-beta.3. The section is complete with the release.*
 
-- **Nothing new in use yet.** So far only the way strom is built and published has changed.
+- **What hypotheses would connect, first.** The tasks to fill in what the variants of an open hypothesis would
+  connect go first in the queue — also in an existing research after the update — so the Strom app can show those
+  links soon.
+- **An interrupted download is said and tidied.** A download whose process ended midway is reported as interrupted,
+  with what was saved and what is missing; its work folder is cleared away.
+- **New material reported in the research's language.** What came in (registered material, what was added, likely
+  duplicates, married names, tasks) is said in the language of the research.
 
 ## 1.16.0
 

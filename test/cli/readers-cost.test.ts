@@ -44,7 +44,7 @@ test("readers' cost: added to the session that started them, apart from the agen
   const shown = (await w.ok(["session", "show", "--json"])).json.session;
   assert.deepEqual([shown.metrics.readersUsd, shown.metrics.readers], [0.8, 2]);
   // a conversation's agent never says what it cost: only the readers' part is known, never "agent $0.00"
-  assert.match((await w.ok(["session", "show"])).out, /metrics .*\$0\.80\+ \(agent unknown \+ 2 reader\(s\) \$0\.80\)/);
+  assert.match((await w.ok(["session", "show"])).out, /metrics .*\$0\.80\+ \(agent unknown \+ 2 readers \$0\.80\)/);
   assert.equal((await w.ok(["session", "show", "--json"])).json.session.totalUsd, 0.8);
   assert.equal(git(w, ["status", "--porcelain", "--", "data"]), "", "committed");
   await w.ok(["session", "close", "--continue", "--summary", "nic", "--next", "dál"]);
@@ -96,8 +96,8 @@ test("a run's session: the agent's own and its readers' in one cost everywhere i
   assert.deepEqual([report.costUsd, report.agentUsd, report.readersUsd], [1.9, 1.5, 0.4], run.out);
   const listed = (await w.ok(["session", "list", "--json"])).json.sessions[0];
   assert.deepEqual([listed.metrics.costUsd, listed.metrics.readersUsd, listed.totalUsd], [1.5, 0.4, 1.9], "stored as it was, the whole beside it");
-  assert.match((await w.ok(["session", "list"])).out, /\$1\.90 \(agent \$1\.50 \+ 1 reader\(s\) \$0\.40\)/);
-  assert.match((await w.ok(["session", "show"])).out, /\$1\.90 \(agent \$1\.50 \+ 1 reader\(s\) \$0\.40\)/);
+  assert.match((await w.ok(["session", "list"])).out, /\$1\.90 \(agent \$1\.50 \+ 1 reader \$0\.40\)/);
+  assert.match((await w.ok(["session", "show"])).out, /\$1\.90 \(agent \$1\.50 \+ 1 reader \$0\.40\)/);
   const stats = (await w.ok(["stats", "--json"])).json.sessions;
   assert.deepEqual([stats.costUsd, stats.readersUsd], [1.9, 0.4]);
   assert.equal((await w.ok(["recent", "--json"])).json.sessions[0].costUsd, 1.9);

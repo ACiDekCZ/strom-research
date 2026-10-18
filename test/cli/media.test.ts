@@ -26,7 +26,7 @@ async function world(): Promise<{ w: World; scans: string }> {
 test("media add: images of a record set, numbered from their names, stored once by content", opts, async () => {
   const { w, scans } = await world();
   const r = await w.ok(["media", "add", scans, "--recordset", "B1", "--url", "https://example.org/detail/3614"]);
-  assert.match(r.out, /3 image\(s\) registered: M0001–M0003 of B0001 \(images 1–3\)/);
+  assert.match(r.out, /3 images registered: M0001–M0003 of B0001 \(images 1–3\)/);
   const m = readJsonFile(path.join(w.cwd, "data", "images", "M0002.json"));
   assert.equal(m.image, 2);
   assert.equal(m.width, 400);
@@ -45,7 +45,7 @@ test("media add --half / --crop: a part of an image saved on its own is register
   const half = path.join(w.dir, "s0001L.jpg");
   fs.copyFileSync(path.join(fixtures, "s0002.jpg"), half);
   const r = await w.ok(["media", "add", half, "--recordset", "B1", "--image", "1", "--half", "left"]);
-  assert.match(r.out, /1 image\(s\) registered: M0002 of B0001 \(images 1\)/);
+  assert.match(r.out, /1 image registered: M0002 of B0001 \(images 1\)/);
   assert.deepEqual(readJsonFile(path.join(w.cwd, "data", "images", "M0002.json")).part, { x: 0, y: 0, w: 0.5, h: 1 });
   assert.deepEqual((await w.ok(["media", "show", "B1:1", "--json"])).json.parts, ["M0002"]);
   const detail = path.join(w.dir, "detail.jpg");
@@ -116,7 +116,7 @@ test("a sharper copy of a whole image: it is the image; a view of an older copy 
   const img = decodeImage(new Uint8Array(fs.readFileSync(path.join(scans, "s0002.jpg"))));
   fs.writeFileSync(full, encodeImage(resize(img, 800, 600), "jpeg"));
   const r = await w.ok(["media", "add", full, "--recordset", "B1"]);
-  assert.match(r.out, /1 image\(s\) registered: M0004 of B0001 \(images 2\)/);
+  assert.match(r.out, /1 image registered: M0004 of B0001 \(images 2\)/);
   assert.match(r.out, /B0001:2 has 2 copies — M0004 800×600 is the sharpest: it is the image now; views of the others use it \(M0002 400×300\)/);
   assert.equal((await w.ok(["media", "show", "B1:2", "--json"])).json.media.id, "M0004", "the image is the sharpest copy");
   const older = await w.ok(["media", "show", "M0002"]);
@@ -161,17 +161,17 @@ test("media add --inbox: one folder, one record set; the image number is the par
   assert.match(mixed.err, /the inbox holds 2 downloads — one record set each/);
   assert.match(mixed.err, /strom media add --inbox "Týnec N 1871–1899" --recordset B…   \(3 files\)/);
   const r = await w.ok(["media", "add", "--inbox", "Týnec N 1871–1899".normalize("NFD"), "--recordset", "B2", "--from", "Archiv online"]);
-  assert.match(r.out, /3 image\(s\) registered: M0001–M0003 of B0002 \(images 140–142\)/);
+  assert.match(r.out, /3 images registered: M0001–M0003 of B0002 \(images 140–142\)/);
   assert.equal(readJsonFile(path.join(w.cwd, "data", "images", "M0002.json")).from, "Archiv online · CZ_000000001_00007_QX8R2MNP_00141_sign-4411.jpg", "the original name stays");
   assert.ok(!fs.existsSync(book), "the emptied folder is gone");
   assert.equal((await w.run(["media", "add", "--inbox", "../outside", "--recordset", "B1"])).code, 2);
   // "." takes the files lying in the inbox itself, never a folder beside them
   fs.copyFileSync(path.join(fixtures, "base420.jpg"), path.join(inbox, "s0009.jpg"));
   assert.match((await w.run(["media", "add", "--inbox", "--recordset", "B1"])).err, /strom media add --inbox \. --recordset B…   \(1 file\)/);
-  assert.match((await w.ok(["media", "add", "--inbox", ".", "--recordset", "B1"])).out, /1 image\(s\) registered: M0004 of B0001 \(images 9\)/);
+  assert.match((await w.ok(["media", "add", "--inbox", ".", "--recordset", "B1"])).out, /1 image registered: M0004 of B0001 \(images 9\)/);
   assert.ok(fs.existsSync(path.join(other, "s0114.jpg")));
   // the one download left needs no folder name
-  assert.match((await w.ok(["media", "add", "--inbox", "--recordset", "B1"])).out, /1 image\(s\) registered: M0005 of B0001 \(images 114\)/);
+  assert.match((await w.ok(["media", "add", "--inbox", "--recordset", "B1"])).out, /1 image registered: M0005 of B0001 \(images 114\)/);
   assert.deepEqual(fs.readdirSync(inbox), []);
   w.cleanup();
 });
@@ -277,16 +277,16 @@ test("images the user saves by hand: the folder is made and shown with the link,
   // a file without a number cannot be an image of the book
   fs.renameSync(path.join(dir, "kniha-00090.jpg"), path.join(dir, "9.jpg"));
   fs.renameSync(path.join(dir, "kniha-00100.jpg"), path.join(dir, "obrázek.jpg"));
-  assert.match((await w.run(["media", "add", "--inbox", folder])).err, /1 file\(s\) without an image number in the name: obrázek\.jpg/);
+  assert.match((await w.run(["media", "add", "--inbox", folder])).err, /1 file without an image number in the name: obrázek\.jpg/);
   // named by the number, a zoomed-in part too: the book comes from the folder
   fs.renameSync(path.join(dir, "obrázek.jpg"), path.join(dir, "9a.jpg"));
   const r = await w.ok(["media", "add", "--inbox", folder]);
-  assert.match(r.out, /2 image\(s\) registered: M0001–M0002 of B0002 \(images 9\)/);
+  assert.match(r.out, /2 images registered: M0001–M0002 of B0002 \(images 9\)/);
   assert.match(r.out, /back in the queue \(they waited for these images\): T0001/);
   const back = (await w.ok(["task", "show", "T1", "--json"])).json.task;
   assert.equal(back.state, "open");
   assert.equal(back.awaits, undefined);
-  assert.match(back.notes.at(-1).text, /2 image\(s\) of B0002 registered \(it waited for images 9–10; still missing: 10\)/);
+  assert.match(back.notes.at(-1).text, /2 images of B0002 registered \(it waited for images 9–10; still missing: 10\)/);
   assert.ok(!fs.existsSync(dir), "the emptied folder goes");
   w.cleanup();
 });
@@ -405,7 +405,7 @@ test("strom read: batches of at most ten, reports in notes/readings, the finds a
   assert.match(ownText, /^# Reading M0005 · batch 1 of 1\nQuestion: celý přepis\n/);
   assert.match(ownText, /# Čtení M0005[\s\S]*## Image 5 · M0005\nresult: found/);
   const stem = path.basename(own.json.reports[0], ".md").replace(/-1$/, "");
-  assert.match((await w.ok(["readings", stem])).out, new RegExp(`^${stem} · 1 report\\(s\\) · B0001 · images 5 · found 5`));
+  assert.match((await w.ok(["readings", stem])).out, new RegExp(`^${stem} · 1 report · B0001 · images 5 · found 5`));
   delete w.env.AGENT_MODE;
   assert.equal((await w.run(["read", "B1", "--images", "1-3", "--agent", "script"])).code, 2, "the question is required");
   w.cleanup();
@@ -469,7 +469,7 @@ test("strom read: a double page in halves only where reading closely matters (bl
   assert.equal(blind.r.json.reports.length, 2, "five views by four: the spread + one image, then the other two (even)");
   assert.equal(blind.r.json.halves, 1);
   assert.deepEqual(blind.r.json.found.map((f: { image: number }) => f.image), [1, 3], "image numbers as before");
-  assert.match((await w.run(["read", "B1", "--images", "1-3", "--question", "x", "--max", "600", "--blind", "--agent", "script"])).out, /^read 3 images \(1 double page as its halves: blind reading\) in 1 batch\(es\)/m);
+  assert.match((await w.run(["read", "B1", "--images", "1-3", "--question", "x", "--max", "600", "--blind", "--agent", "script"])).out, /^read 3 images \(1 double page as its halves: blind reading\) in 1 batch/m);
   // --whole: one view of each image, also blind
   assert.match((await read("--blind", "--whole")).prompt, /^- M0001 · image 1: .+\.jpg$/m);
 

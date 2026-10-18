@@ -138,7 +138,7 @@ test("older hypotheses: what a claim says beyond doubt is linked once, through s
   assert.notEqual(head(w), before);
   assert.match(log[0]!, /^Links of hypothesis variants filled in from their claims \(H0001 B: child P0002 of F0002, H0002 B: child P0002 of P0006 \+ P0007, .*\); the rest for the agent: T\d+ \(H0009, /);
   assert.equal(spawnSync("git", ["-C", w.cwd, "status", "--porcelain"], { encoding: "utf8" }).stdout, "");
-  assert.deepEqual(readJsonFile(path.join(w.cwd, "strom.json")).settled, ["hypothesis-links"]);
+  assert.deepEqual(readJsonFile(path.join(w.cwd, "strom.json")).settled, ["hypothesis-links", "hypothesis-links-first"]);
   // the person's history says it in the research's language, never the marker
   const history = JSON.stringify((await w.ok(["history", "--json"])).json);
   assert.doesNotMatch(history, /links of the hypotheses' variants filled in once/);
@@ -247,7 +247,7 @@ test("the first run of a newer strom fills them in; an archive: links written, i
     assert.deepEqual(get(a, "H0001").variants[1]!.links, [{ kind: "child", person: "P0002", parents: ["P0006", "P0007"] }]);
     const held = ourTasks(a);
     assert.deepEqual(held.map((t) => [t.subject, t.state, t.heldBy]), [[["H0002"], "parked", "archive"]]);
-    assert.match(fs.readFileSync(path.join(a.cwd, ".strom", "live.log"), "utf8"), /hypotheses: 1 variant link\(s\) filled in from their claims, 1 task\(s\) for the rest/);
+    assert.match(fs.readFileSync(path.join(a.cwd, ".strom", "live.log"), "utf8"), /hypotheses: 1 variant link filled in from their claims, 1 task for the rest/);
   } finally {
     await a.ok(["live", "stop"]);
   }

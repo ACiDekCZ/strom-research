@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, table } from "../cli/format.ts";
+import { counted, lines, table } from "../cli/format.ts";
 import { check, type Finding } from "../core/check.ts";
 import { guard } from "../core/guard.ts";
 import { unprovenPeople } from "../core/review.ts";
@@ -29,7 +29,7 @@ export function report(findings: Finding[], okText: string, lang?: string) {
       : lines(
           table(findings.map((f) => [f.level === "error" ? "ERROR" : "warn", f.code, f.id ?? f.file ?? "", f.message, f.hint ? `→ ${f.hint}` : ""])),
           "",
-          lang ? ui(lang, "ui.check.found", sum) : `${sum.errors} error(s), ${sum.warnings} warning(s)`,
+          lang ? ui(lang, "ui.check.found", sum) : `${counted(sum.errors, "error")}, ${counted(sum.warnings, "warning")}`,
         );
   return { text, data: { ok: errors.length === 0, findings }, exitCode: errors.length ? 1 : 0 };
 }
@@ -152,7 +152,7 @@ register(
               ...r.restored.map((f) => `restored  ${f}`),
               ...r.quarantined.map((f) => `removed   ${f}`),
               `sealed state: ${r.from.slice(0, 8)} · copies of replaced files: .strom/quarantine/`,
-              after.length ? `still ${after.length} problem(s) → strom verify` : undefined,
+              after.length ? `still ${counted(after.length, "problem")} → strom verify` : undefined,
             );
       return { text, data: { ...r, ok: after.length === 0 }, exitCode: after.length ? 1 : 0 };
     },

@@ -110,12 +110,16 @@ test("strom config set/get/unset terminal: values of this system only, the user'
   assert.equal((await w.run(["config", "set", "terminal", "/Applications/iTerm.app"])).code, 2);
   // never for one tree
   assert.notEqual((await w.run(["config", "set", "terminal", "system", "--for-tree"])).code, 0);
-  await w.ok(["config", "unset", "terminal"]);
-  assert.equal((await w.ok(["config", "get", "terminal", "--json"])).json.value, undefined);
+  // unset: what holds now said — the system's, the default (found: "terminal unset — now (unset) (unset)")
+  const unset = await w.ok(["config", "unset", "terminal"]);
+  assert.equal(unset.out.trim(), "terminal unset — now system (default)");
+  const got = (await w.ok(["config", "get", "terminal", "--json"])).json;
+  assert.deepEqual([got.value, got.source], ["system", "default"]);
   // a research's strom.json carrying it (a folder from someone else): ignored
   const file = path.join(w.cwd, "strom.json");
   fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, "utf8")), terminal: "iterm2" }, null, 2));
-  assert.equal((await w.ok(["config", "get", "terminal", "--json"])).json.value, undefined);
+  const kept = (await w.ok(["config", "get", "terminal", "--json"])).json;
+  assert.deepEqual([kept.value, kept.source], ["system", "default"]);
   w.cleanup();
 });
 

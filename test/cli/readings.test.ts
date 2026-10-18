@@ -26,7 +26,7 @@ test("strom readings: finds, unclear entries, possible matches in what was illeg
 
   const r = await w.ok(["readings"]);
   const out = r.out;
-  assert.match(out, /^2026-01-15-B0001-31-60 · 3 report\(s\) · B0001 · images 31–60 · found 33, 55 · unclear 46 · nothing 27\nquestion: Každé úmrtí s příjmením Dvořák/);
+  assert.match(out, /^2026-01-15-B0001-31-60 · 3 reports · B0001 · images 31–60 · found 33, 55 · unclear 46 · nothing 27\nquestion: Každé úmrtí s příjmením Dvořák/);
   assert.match(out, /^context: Rodina Dvořák z Horní Vsi/m);
   assert.match(out, /^ {2}33 \[found\] M0033 · p\. 65–66\n {4}levá strana, 3\. zápis shora: 14\. März 1849/m);
   assert.match(out, /^ {2}37 \[nothing\] illegible: pravá strana, 2\. zápis: muž, 67 let, dům N° 12 \(\?\), příjmení nečitelné/m, "a possible match in a block with nothing found");
@@ -61,15 +61,15 @@ test("strom readings: finds, unclear entries, possible matches in what was illeg
 
   // words in any spelling of accents, typed decomposed
   const m = await w.ok(["readings", "--match", "kolar".normalize("NFD"), "--match", "DOLNÍ VES".normalize("NFD"), "--images", "31-35,48-60"]);
-  assert.match(m.out, /^2026-01-15-B0001-31-60 · 3 report\(s\) · B0001 · images 31–35, 48–60 · found 33, 55 · nothing 16/);
+  assert.match(m.out, /^2026-01-15-B0001-31-60 · 3 reports · B0001 · images 31–35, 48–60 · found 33, 55 · nothing 16/);
   assert.match(m.out, /^ {2}32 \[nothing\] entries: .*Joannes Kolář/m);
   assert.match(m.out, /^ {2}48 \[nothing\] section: od levé strany nová část: Dolní Ves, rok 1853$/m);
   assert.match(m.out, /^ {2}55 \[found\]/m);
   assert.doesNotMatch(m.out, /^ {2}4[0-7] /m);
 
   // one report, a day, a list; --json
-  assert.match((await w.ok(["readings", "2026-01-15-B0001-31-60-2.md"])).out, /^2026-01-15-B0001-31-60 · 1 report\(s\) · B0001 · images 41–50 · found none · unclear 46 · nothing 9/);
-  assert.match((await w.ok(["readings", "--list"])).out, /^2026-01-15-B0001-31-60 · 3 report\(s\) · B0001 · images 31–60 .* · "Každé úmrtí/);
+  assert.match((await w.ok(["readings", "2026-01-15-B0001-31-60-2.md"])).out, /^2026-01-15-B0001-31-60 · 1 report · B0001 · images 41–50 · found none · unclear 46 · nothing 9/);
+  assert.match((await w.ok(["readings", "--list"])).out, /^2026-01-15-B0001-31-60 · 3 reports · B0001 · images 31–60 .* · "Každé úmrtí/);
   const bad = await w.run(["readings", "2025-12"]);
   assert.equal(bad.code, 2);
   assert.match(bad.out + bad.err, /strom readings --list/);
@@ -93,7 +93,7 @@ test("strom readings: a report whose head the reader wrote in the research langu
   // a reader of strom transcripts: no reading, whatever its blocks
   fs.writeFileSync(path.join(dir, "2026-01-21-transcripts-read-1.md"), "# Transcripts\n\n## Image 6 · M0006\nresult: found\n");
   const r = await w.ok(["readings", "2026-01-21-M0004"]);
-  assert.match(r.out, /^2026-01-21-M0004 · 1 report\(s\) · images 5 · found 5/);
+  assert.match(r.out, /^2026-01-21-M0004 · 1 report · images 5 · found 5/);
   assert.match(r.out.normalize("NFC"), /Иван · 7\. Mayi · dům 19/);
   assert.doesNotMatch((await w.ok(["readings", "--list"])).out, /transcripts/);
   // the start of a name that is none: the newest readings named, each a command to run

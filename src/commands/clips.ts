@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, truncate } from "../cli/format.ts";
+import { counted, lines, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
 import type { Clip, Family, Media, Person, Source } from "../core/model.ts";
 import { normId, requireRecord, update } from "../core/records.ts";
@@ -92,11 +92,11 @@ register({
     if (!Number.isInteger(size) || size < 1) throw new UsageError("--batch must be a positive number");
     const groups = batches(todo, size);
     if (!todo.length)
-      return { text: lines("nothing to do: every source on images has its clip", away.length ? `${away.length} source(s) on images not on this computer (or not JPEG/PNG)` : undefined), data: { sources: 0 } };
+      return { text: lines("nothing to do: every source on images has its clip", away.length ? `${counted(away.length, "source")} on images not on this computer (or not JPEG/PNG)` : undefined), data: { sources: 0 } };
     if (tree.dryRun)
       return {
         text: lines(
-          `${todo.length} source(s) to find on their images — ${groups.length} reader(s) to find them, as many to check`,
+          `${counted(todo.length, "source")} to find on their images — ${counted(groups.length, "reader")} to find them, as many to check`,
           away.length ? `${away.length} more on images not on this computer (or not JPEG/PNG)` : undefined,
           "(dry run — no reader started)",
         ),
@@ -186,7 +186,7 @@ register({
     const many = [...new Set(locs.filter((l) => l.result === "many").map((l) => l.source))];
     const missed = todo.filter((s) => !clipsOf.has(s.id));
     const text = lines(
-      `${clipsOf.size} of ${todo.length} source(s) got their clip${model ? ` · ${model}` : ""}${r0.cost() ? ` · $${r0.cost().toFixed(2)}` : ""}`,
+      `${clipsOf.size} of ${counted(todo.length, "source")} got their clip${model ? ` · ${model}` : ""}${r0.cost() ? ` · $${r0.cost().toFixed(2)}` : ""}`,
       many.length ? `not one entry but a search over many (no clip — a page of it would show nothing): ${many.join(", ")}` : undefined,
       rejected.length ? `the check turned down: ${rejected.map((v) => `${v.source} (${v.verdict}${v.why ? `: ${truncate(v.why, 40)}` : ""})`).join(", ")}` : undefined,
       missed.length ? `without a clip: ${missed.map((s) => s.id).slice(0, 20).join(", ")}${missed.length > 20 ? ` … (${missed.length})` : ""} — strom source edit S… --clip M…@x,y,w,h, or strom clips again` : undefined,

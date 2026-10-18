@@ -739,6 +739,25 @@ function readingKey(ctx: Context, tree: TreeConfig | undefined): string {
   return researchKey(ctx.settings, agent, tree, tree ? rootHere(ctx) : undefined);
 }
 
+/** The defaults of the settings read with one where nobody set them (the others have none: the agent's own, noticed, …). */
+const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | undefined) => string | number> = {
+  terminal: () => "system",
+  "queue.strategy": (s, tree) => s.strategy(tree),
+  "gedcom.for": () => "both",
+  stories: () => "yes",
+  "stories.sources": () => "yes",
+  "sync.edits": () => "conflict",
+  "sync.review": () => "off",
+  "excerpts.quality": (s, tree) => s.excerpts(tree).quality,
+  "excerpts.for": (s, tree) => s.excerpts(tree).for,
+  "excerpts.mb": (s, tree) => s.excerpts(tree).mb,
+  "agent.browser": () => "archives",
+  "agent.remote": () => "off",
+  mode: () => "research",
+  updates: () => "check",
+  "archive.pace": () => "auto",
+};
+
 /** Effective value of a setting, with the default filled in (views.size of one book: `recordset`). */
 function effective(ctx: Context, def: SettingDef, recordset?: string): { value: string | number | undefined; source: string; invalid?: true } {
   const s = ctx.settings;
@@ -796,6 +815,9 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   if (def.key === "tune.auto") return { value: "on", source: "default" };
   if (def.key === "browser.downloads") return { value: downloadsDir(ctx.env), source: "detected" };
   if (def.key === "agent.permissions") return { value: ctx.settings.agentPermissions(), source: ctx.settings.config.agentPermissions ? "config" : "default" };
+  // what holds while nobody set it (as each is read: core/config.ts) — config unset says it, never "(unset) (unset)"
+  const fallback = FALLBACKS[def.key]?.(s, tree);
+  if (fallback !== undefined) return { value: fallback, source: "default" };
   return { value: undefined, source: "unset" };
 }
 
@@ -1138,7 +1160,9 @@ register(
       if (opts["for-tree"]) setTreeSetting(ctx, def.key, undefined);
       else setUserSetting(ctx, def.key, undefined);
       const r = effective(ctx, def);
-      return { text: `${def.key} unset — now ${display(ctx, def, r.value)} (${r.source})`, data: { key: def.key, value: r.value, source: r.source } };
+      // a setting with no default: nothing holds now, said once (never "now (unset) (unset)")
+      const now = r.value === undefined ? "nothing set now" : `now ${display(ctx, def, r.value)} (${r.source})`;
+      return { text: `${def.key} unset — ${now}`, data: { key: def.key, value: r.value, source: r.source } };
     },
   },
 );

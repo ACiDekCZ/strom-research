@@ -59,7 +59,7 @@ test("batch: every failing line said at once, nothing written, the lines between
 
   // the batch fixed: written whole, one commit
   const ok = await w.ok(["batch", 'person add "Анна /Петрова/" --sex F #anna', "family add --partner P0001 --partner @anna"]);
-  assert.match(ok.out, /2 command\(s\) as one change/);
+  assert.match(ok.out, /2 commands as one change/);
   assert.equal(fs.existsSync(path.join(w.cwd, "data", "persons", "P0002.json")), true);
   w.cleanup();
 });

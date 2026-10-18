@@ -7,12 +7,14 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { opts, scans } from "./connectors.helpers.ts";
 import { World, fakeConnector } from "../helpers.ts";
 import { enterWorker } from "../../src/core/workers.ts";
 import { readImages } from "../../src/commands/read.ts";
+import { activeFetches, endedFetches, FETCH_SILENT_MS } from "../../src/core/fetching.ts";
 
 /** The processes the tests started in the background: none may outlive them. */
 const started = new Set<number>();
@@ -127,7 +129,7 @@ test("--background: a strom of its own fetches while the command ends; --status 
     const pid = Number(/pid (\d+)/.exec(start.out)?.[1]);
     started.add(pid);
     assert.ok(Date.now() - t0 < 15_000, "the command ends once the fetch began");
-    assert.match(start.out, /fetching 12 image\(s\) of B0001 \(images 1–12\) in the background — pid \d+, for T0001/);
+    assert.match(start.out, /fetching 12 images of B0001 \(images 1–12\) in the background — pid \d+, for T0001/);
     assert.match(start.out, /strom read B0001 --images 1-12 /);
     assert.ok(alive(pid), "the fetch goes on after the command ended");
     // how far it is: the book, its images, whose
@@ -164,7 +166,7 @@ test("--background in a Czech research: its log, which the agent reads, is Engli
     started.add(pid);
     await until("the fetch ended", async () => !alive(pid) && !!(await endedOf(w, pid)));
     const log = fs.readFileSync(start.json.log as string, "utf8");
-    assert.match(log, /^20 image\(s\) through zkusebni: /m, log);
+    assert.match(log, /^20 images through zkusebni: /m, log);
     const count = log.split("\n").filter((l) => /^ {2}· \d+\/20 /.test(l));
     assert.deepEqual(count, [2, 4, 6, 8, 10, 12, 14, 16, 18].map((n) => `  · ${n}/20 images`), log);
     assert.doesNotMatch(log, /snímk|chyba/, log);
@@ -322,6 +324,67 @@ test("--stop: what came registered and committed, the rest said exactly; --statu
   }
 });
 
+test("a fetch whose process is killed: --status and the brief say it interrupted, what came and how to go on; its work folder goes, nothing else", opts, async () => {
+  const a = await bookArchive({ delay: 150 });
+  const w = await setUp(a);
+  try {
+    await w.ok(["session", "start", "T1"]);
+    const pid = await background(w, "1-40");
+    await until("the first batch registered", async () => (await registered(w)).length >= 10);
+    const fetchDir = path.join(w.cwd, ".strom", "fetch");
+    const mark = fs.readdirSync(fetchDir).find((n) => n === `active-B0001.${pid}.json`);
+    assert.ok(mark, fs.readdirSync(fetchDir).join(" "));
+    const work = (JSON.parse(fs.readFileSync(path.join(fetchDir, mark), "utf8")) as { work?: string }).work;
+    assert.ok(work && fs.existsSync(path.join(fetchDir, work)), `its work folder named in its mark: ${work}`);
+    // another folder there (another fetch's, a folder strom tidy keeps a day) stays
+    fs.mkdirSync(path.join(fetchDir, "other-1"));
+    process.kill(pid, "SIGKILL");
+    await until("it is gone", () => !alive(pid), 20_000);
+    const text = (await w.ok(["fetch", "--status"])).out;
+    assert.match(text, /nothing is being fetched now\nended lately \(in the background\):\n {2}B0001 \(zkusebni 5359\): \d+\/40 images registered \(images 1–\d+\) · in the background, last heard \d\d:\d\d — interrupted: its process \(pid \d+\) ended without a word \(killed, or the computer stopped\) · not fetched: images \d+–40 \(strom fetch zkusebni 5359 --images \d+-40 --recordset B0001 --background — what is registered is not fetched again\)/, text);
+    const ended = (await endedOf(w, pid))!;
+    const here = await registered(w);
+    assert.ok(ended.registered.length >= 10 && ended.missed.length > 0, JSON.stringify(ended));
+    // what it registered as the research has it — a batch committed when it was killed counts too
+    assert.deepEqual(ended.registered, here);
+    assert.deepEqual([...ended.registered, ...ended.missed].sort((x, y) => x - y), range(1, 40));
+    assert.ok(!fs.existsSync(path.join(fetchDir, work)), "its work folder taken away");
+    assert.ok(!fs.existsSync(path.join(fetchDir, mark)), "its mark taken away");
+    assert.ok(fs.existsSync(path.join(fetchDir, "other-1")), "nothing else taken");
+    assert.match((await w.ok(["brief", "T1"])).out, /- B0001: a fetch in the background was interrupted \(its process ended without a word\) with images \d+–40 not fetched — strom fetch zkusebni 5359 --images \d+-40 --recordset B0001 --background if they are needed/);
+  } finally {
+    w.cleanup();
+    await a.close();
+  }
+});
+
+test("a stale mark of a fetch whose process still runs: its end said, its work folder kept; a folder outside its form never taken", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  try {
+    const fetchDir = path.join(w.cwd, ".strom", "fetch");
+    fs.mkdirSync(path.join(fetchDir, "zkusebni-1"), { recursive: true });
+    // alive (this process), heard of lately: at work
+    const mark = { pid: process.pid, host: os.hostname(), at: new Date().toISOString(), recordset: "B0001", connector: "zkusebni", book: "5359", images: [1, 2], registered: 0, work: "zkusebni-1" };
+    fs.writeFileSync(path.join(fetchDir, `active-B0001.${process.pid}.json`), JSON.stringify(mark));
+    assert.equal(activeFetches(w.cwd).length, 1);
+    // alive but silent for long (its pid perhaps another's now): its end said, its folder kept for strom tidy
+    fs.writeFileSync(path.join(fetchDir, `active-B0001.${process.pid}.json`), JSON.stringify({ ...mark, at: new Date(Date.now() - FETCH_SILENT_MS - 60_000).toISOString() }));
+    assert.equal(activeFetches(w.cwd).length, 0);
+    assert.ok(fs.existsSync(path.join(fetchDir, "zkusebni-1")), "the folder of a process still there stays");
+    assert.equal(endedFetches(w.cwd)[0]?.interrupted, "silent");
+    // a work folder named outside its own form is never taken
+    const dead = spawnSync(process.execPath, ["-e", "process.stdout.write(String(process.pid))"], { encoding: "utf8" });
+    const gonePid = Number(dead.stdout);
+    fs.writeFileSync(path.join(fetchDir, `active-B0001.${gonePid}.json`), JSON.stringify({ ...mark, pid: gonePid, work: ".." }));
+    assert.equal(activeFetches(w.cwd).length, 0);
+    assert.ok(fs.existsSync(fetchDir) && fs.existsSync(path.join(w.cwd, "strom.json")));
+    assert.equal(endedFetches(w.cwd).find((e) => e.pid === gonePid)?.interrupted, "gone");
+  } finally {
+    w.cleanup();
+  }
+});
+
 test("the session asked to finish stops it; a session closed outside a run stops it", opts, async () => {
   const a = await bookArchive({ delay: 150 });
   const w = await setUp(a);
@@ -397,7 +460,7 @@ test("a fetch in the foreground from the same archive goes first; images being f
     const fg = await w.ok(["fetch", "zkusebni", "5359", "--images", "20-30", "--recordset", "B1"]);
     // … and the background's images it asked too: waited for, never asked twice
     assert.match(fg.err, /images .+ of B0001 are being fetched already .*: strom fetches the rest, then waits for them/);
-    assert.match(fg.out, /image\(s\) of B0001 \(images .+\) came by the other fetch — nothing asked twice/);
+    assert.match(fg.out, /images? of B0001 \(images .+\) came by the other fetch — nothing asked twice/);
     await until("the background ended", () => !alive(pid));
     const img = a.hits.filter((h) => h.path.startsWith("/img/"));
     const asked = img.map((h) => Number(/(\d+)\.jpg$/.exec(h.path)![1]));
@@ -456,7 +519,7 @@ test("--background is for the task the agent works on: --task, else the one task
     const start = await w.ok(["fetch", "zkusebni", "--images", "2-4", "--recordset", "B1", "--background"]);
     const pid = Number(/pid (\d+)/.exec(start.out)?.[1]);
     started.add(pid);
-    assert.match(start.out, /fetching 3 image\(s\) of B0001 \(images 2–4\) in the background — pid \d+, for T0003/);
+    assert.match(start.out, /fetching 3 images of B0001 \(images 2–4\) in the background — pid \d+, for T0003/);
     assert.match(start.out, /for T0003: the one task this session worked on that names B0001 \(the session's own: T0002\) — for another one: --task T…/);
     await until("the fetch ended", async () => !alive(pid) && !!(await endedOf(w, pid)));
     assert.equal(((await endedOf(w, pid)) as { task?: string }).task, "T0003");

@@ -191,7 +191,7 @@ function sessionLog(root: string): void {
       usage("m2", 140000),
       usage("m2", 140100),
       JSON.stringify({ type: "assistant", message: { id: "m3", content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "strom fetch zkusebni 5359 --images 1-4 --recordset B1" } }], usage: { input_tokens: 5, cache_read_input_tokens: 30000, output_tokens: 3 } } }),
-      JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: "  · archiv.example: its hourly cap is used up — strom waits until 14:05 (12 min), then goes on by itself\nfetch: 4 request(s)" }] } }),
+      JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: "  · archiv.example: its hourly cap is used up — strom waits until 14:05 (12 min), then goes on by itself\n4 images through zkusebni: at least 4 requests to archiv.example, about 1 min at its pace\nfetch: 3 requests\npart: 1 request(s)" }] } }),
       // an image the agent looked at: a long line, never needed
       JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "r1", content: [{ type: "image", source: { data: "A".repeat(300_000) } }] }] } }),
       JSON.stringify({ type: "assistant", message: { id: "m5", content: [{ type: "tool_use", id: "t2", name: "Bash", input: { command: "strom fetch zkusebni 5359 --images 5-9 --recordset B1" } }], usage: { input_tokens: 5, cache_read_input_tokens: 31000, output_tokens: 3 } } }),

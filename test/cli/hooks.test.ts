@@ -92,7 +92,7 @@ test("a hook is the user's: an agent neither turns it on nor off; a broken hook 
 test("strom hook test: the hook run now on the last operations saved, or on one named — and what it printed", opts, async () => {
   const w = await world(["person.*"]);
   const r = await w.ok(["hook", "test", "zapis", "--last", "3"]);
-  assert.match(r.out, /zapis: \d operation\(s\) — ended well/);
+  assert.match(r.out, /zapis: \d operations? — ended well/);
   assert.match(r.out, /told of person\.add/);
   const one = await w.ok(["hook", "test", "zapis", "--op", "person.add", "--target", "P0001", "--json"]);
   assert.equal(one.json.status, 0);

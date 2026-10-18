@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, table } from "../cli/format.ts";
+import { counted, lines, table } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { StromError, UsageError } from "../core/errors.ts";
 import { readJsonLines } from "../core/json.ts";
@@ -139,7 +139,7 @@ register(
       const ok = !r.error && r.status === 0;
       return {
         text: lines(
-          `${hook.name}: ${events.length} operation(s) — ${ok ? "ended well" : `failed: ${r.error ?? `exit status ${r.status}`}`}`,
+          `${hook.name}: ${counted(events.length, "operation")} — ${ok ? "ended well" : `failed: ${r.error ?? `exit status ${r.status}`}`}`,
           r.output
             ? r.output
                 .split("\n")

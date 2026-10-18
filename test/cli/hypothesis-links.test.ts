@@ -289,3 +289,23 @@ test("once links say what a hypothesis would connect, a person its claim names o
   assert.ok(!e[1]!.island?.hypotheses.some((h) => h.id === "H0002"), "no join through the person of the context");
   w.cleanup();
 });
+
+test("hypothesis list --about: only those about a person or family — its subject, whom its variants would connect", opts, async () => {
+  const w = await world();
+  await w.ok(["hypothesis", "add", "Kdo byla matka Žofie?", "--about", "P5", "--variant", "A: neznámá", "--variant", "B: jiná"]); // H2
+  const about = async (who: string) => ((await w.ok(["hypothesis", "list", "--about", who, "--json"])).json.hypotheses as Hypothesis[]).map((h) => h.id);
+  assert.deepEqual(await about("P2"), ["H0001"]);
+  assert.deepEqual(await about("Žofie Kubátová".normalize("NFD")), ["H0002"], "a person by name too");
+  // nothing yet connects the couple to it: not about them
+  assert.deepEqual(await about("P3"), []);
+  const none = await w.ok(["hypothesis", "list", "--about", "P4"]);
+  assert.match(none.out, /^no open hypothesis about P0004 → all of them: strom hypothesis list --all$/m);
+  // once a variant says it would make Tomáš the couple's son: about them and their family
+  await w.ok(["hypothesis", "link", "H1", "B", "--child", "P2", "--of", "F2"]);
+  assert.deepEqual(await about("P3"), ["H0001"]);
+  assert.deepEqual(await about("F2"), ["H0001"]);
+  assert.deepEqual((await w.ok(["hypothesis", "list", "--about", "P4", "--json"])).json.about, "P0004");
+  assert.deepEqual(await about("P1"), [], "the son of the person it is about is not who it is about");
+  await fails(w, ["hypothesis", "list", "--about", "P99"], /no record P0099/);
+  w.cleanup();
+});

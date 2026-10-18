@@ -2,7 +2,7 @@
 // run it as a hook before each web fetch and search (--hook); without it, what this session asked of each server.
 
 import { register } from "../cli/registry.ts";
-import { lines } from "../cli/format.ts";
+import { counted, lines } from "../cli/format.ts";
 import { answerWebEvent, hookOutput, lastWebSession, webEvent, WEB_PER_HOST, WEB_SOFT, WEB_SOFT_GAP_MS, WEB_WAIT_MAX_MS } from "../core/web.ts";
 import { webDomain, webRequestsOf } from "../core/metrics.ts";
 import { currentSession } from "../core/session.ts";
@@ -91,7 +91,7 @@ register({
       : `the agent's session ${who.agentSession} (no strom session${named ? "" : "; the last one with web requests"})`;
     return {
       text: lines(
-        `${name}: ${hosts.reduce((n, [, c]) => n + c, 0)} web request(s) to ${hosts.length} server(s), ${seen.search} search(es)`,
+        `${name}: ${counted(hosts.reduce((n, [, c]) => n + c, 0), "web request")} to ${counted(hosts.length, "server")}, ${counted(seen.search, "search", "searches")}`,
         // by site, as the thresholds count (its hosts after it when it has more than one, or another name)
         ...domains.map(([d, c]) => {
           const its = hosts.filter(([h]) => webDomain(h) === d);

@@ -87,7 +87,7 @@ test("fetch registers in batches of 10, one commit each: the same requests at th
   const fewHits = a.hits.splice(0);
   const fewPauses = pauses.splice(0);
   assert.equal(commits(w) - before, 1);
-  assert.match(few.out, /^5 image\(s\) of B0001 \(images 1–5\) fetched and registered/m);
+  assert.match(few.out, /^5 images of B0001 \(images 1–5\) fetched and registered/m);
 
   // 25 images: three batches (10, 10, the last 5 with the command's own commit)
   before = commits(w);
@@ -275,7 +275,7 @@ test("a placeholder found past a batch: the image an earlier batch registered wi
   assert.deepEqual(live, [1, 2, 3, 4, 5, 6, 7, 8, 9], `${r.out}${r.err}`);
   assert.match(r.out, /^withdrawn again \(the portal gave the same file for a later image — a placeholder, not a scan\): M\d{4}$/m, r.out);
   // what it says it fetched leaves out the image withdrawn: nine images, not ten
-  assert.match(r.out, /^9 image\(s\) of B0001 \(images 1–9\) fetched and registered/m, r.out);
+  assert.match(r.out, /^9 images of B0001 \(images 1–9\) fetched and registered/m, r.out);
   await w.ok(["check"]);
   w.cleanup();
   await a.close();

@@ -41,7 +41,7 @@ async function tree(): Promise<World> {
 test("strom grep finds a text as it reads in inputs/ and notes/: any case, without accents, NFD, any script", opts, async () => {
   const w = await tree();
   const r = await w.ok(["grep", "mlynar"]);
-  assert.match(r.out, /^4 line\(s\) in 3 of 3 text file\(s\) of inputs\/, notes\/:/u);
+  assert.match(r.out, /^4 lines in 3 of 3 text files of inputs\/, notes\/:/u);
   assert.match(r.out, /\ninputs\/protokol\.md:1500: 1782 křest: Jan Mlynář, syn Václava, Lhota čp\. 12\n/u);
   assert.match(r.out, /\ninputs\/protokol\.md:2500: 1790 pohřeb: Anna MLYNÁŘOVÁ, Lhota\n/u);
   // shown composed (NFC), the Windows line end gone
@@ -61,10 +61,10 @@ test("strom grep: several texts, --context, --regex, --files, --in a folder, a f
   // several texts: a line with any of them
   assert.equal((await w.ok(["grep", "Шевчук", "pohřeb", "--json"])).json.total, 2);
   const any = await w.ok(["grep", "lhota", "mlynar"]);
-  assert.match(any.out, /^5 line\(s\) with any of the texts \(every one: --all\) in /u, "any, said");
+  assert.match(any.out, /^5 lines with any of the texts \(every one: --all\) in /u, "any, said");
   // --all: a line with every one of them, in any order — folded: no accents, decomposed, capitals
   const every = await w.ok(["grep", "LHOTA", "mlynář".normalize("NFD"), "--all"]);
-  assert.match(every.out, /^2 line\(s\) with every text in 1 of 3 text file\(s\)/u);
+  assert.match(every.out, /^2 lines with every text in 1 of 3 text files/u);
   assert.match(every.out, /\ninputs\/protokol\.md:1500: 1782 křest: Jan Mlynář/u);
   assert.match(every.out, /\ninputs\/protokol\.md:2500: 1790 pohřeb: Anna MLYNÁŘOVÁ, Lhota/u);
   assert.equal((await w.ok(["grep", "kmotr", "mlynar", "--all", "--json"])).json.total, 1, "the NFD line of zdroje.txt");
@@ -95,7 +95,7 @@ test("strom grep: several texts, --context, --regex, --files, --in a folder, a f
   const letter = inputs.find((i: any) => i.file?.startsWith("inputs/") && i.file.endsWith("dopis.txt"));
   assert.ok(letter, JSON.stringify(inputs));
   const one = await w.ok(["grep", "mlynar", "--in", letter.id]);
-  assert.match(one.out, new RegExp(`^1 line\\(s\\) in 1 of 1 text file\\(s\\) of ${letter.file.replace(/[.]/g, "\\.")}:\\n${letter.file.replace(/[.]/g, "\\.")}:2: Josef Mlynář psal z Lhoty\\.`, "u"));
+  assert.match(one.out, new RegExp(`^1 line in 1 of 1 text file of ${letter.file.replace(/[.]/g, "\\.")}:\\n${letter.file.replace(/[.]/g, "\\.")}:2: Josef Mlynář psal z Lhoty\\.`, "u"));
   const textOnly = inputs.find((i: any) => !i.file);
   if (textOnly) assert.equal((await w.run(["grep", "x", "--in", textOnly.id])).code, 2);
   w.cleanup();
@@ -122,15 +122,15 @@ test("strom grep refuses what is not the research's text: data/, .strom, .git, o
   assert.equal((await w.run(["grep", "   "])).code, 2);
   // nothing found: said, with the way to the records
   const none = await w.ok(["grep", "nikde-nic"]);
-  assert.match(none.out, /^not found in 3 text file\(s\) of inputs\/, notes\/\n→ the records: strom find <text>/u);
+  assert.match(none.out, /^not found in 3 text files of inputs\/, notes\/\n→ the records: strom find <text>/u);
   w.cleanup();
 });
 
 test("strom grep pages its lines and cuts a long line round its find", opts, async () => {
   const w = await tree();
   const r = await w.ok(["grep", "nic", "--in", "inputs/protokol.md", "--limit", "5"]);
-  assert.match(r.out, /^2998 line\(s\) in 1 of 1 text file\(s\) of inputs\/protokol\.md:\n/u);
-  assert.match(r.out, /\n… 2993 more: strom grep nic --in inputs\/protokol\.md --page 2\n$/u);
+  assert.match(r.out, /^2998 lines in 1 of 1 text file of inputs\/protokol\.md:\n/u);
+  assert.match(r.out, /\n… 2993 more: strom grep nic --in inputs\/protokol\.md --limit 5 --page 2\n$/u);
   assert.equal(r.out.split("\n").filter((l) => l.startsWith("inputs/")).length, 5);
   const long = "x".repeat(1000) + " Mlynář " + "y".repeat(1000);
   fs.writeFileSync(path.join(w.cwd, "notes", "long.md"), long + "\n");

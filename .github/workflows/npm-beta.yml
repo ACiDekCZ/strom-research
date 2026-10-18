@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       version: ${{ steps.beta.outputs.version }}
@@ -39,7 +39,7 @@ jobs:
   publish:
     needs: check
     if: needs.check.outputs.published == 'false'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read

@@ -7,9 +7,14 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.17.0
 
-*Připravuje se: bety do 1.17.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.17.0-beta.3. Oddíl bude úplný s vydáním.*
 
-- **Zatím nic nového v používání.** Zatím se změnilo jen to, jak se strom sestavuje a vydává.
+- **Nejdřív, co by hypotézy spojovaly.** Úkoly doplnit, co by spojovaly verze otevřené hypotézy, jdou ve frontě
+  první — i ve stávajícím výzkumu po aktualizaci —, takže aplikace Strom brzy ukáže tyto vazby.
+- **Přerušené stahování se ohlásí a uklidí.** Stahování, jehož proces skončil uprostřed, se ohlásí jako přerušené,
+  s tím, co se uložilo a co chybí; jeho pracovní složka se uklidí.
+- **Nový materiál v jazyce výzkumu.** Co přišlo (zaregistrovaný materiál, co přibylo, pravděpodobné duplicity,
+  jména po sňatku, úkoly), se vypíše v jazyce výzkumu.
 
 ## 1.16.0
 
