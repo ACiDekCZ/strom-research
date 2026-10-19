@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.18.0
 
-*Připravuje se: bety do 1.18.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.18.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Fotky z telefonu nastojato.** Fotka otočená podle údaje EXIF se čte tak, jak se má dívat, nastojato; místa na ní
   vyznačená (výřezy, poloviny dvoustrany, uložená část) jsou místa obrázku, jak se ukazuje. Fotka sama zůstává, jak
@@ -25,6 +25,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   nebo kabel — nikdy mobilní síť ani VPN). Telefon se jednou spáruje přes QR kód; jeho stránka pak fotí nebo vybírá
   z galerie a posílá fotky celé do stromu výzkumu, s poznámkou a osobou, kterou ukazují — stejně jako „Přidat
   materiály“ v aplikaci Strom. Fotka zůstává v telefonu, dokud ji počítač nemá, takže přerušené spojení nic neztratí.
+- **Výzkum sledovaný z telefonu.** Stránka telefonu ukazuje, co výzkum dělá — na čem se teď pracuje, co čeká na
+  rozhodnutí, posledních 24 hodin a poslední změny, obnovené každých 10 sekund, dokud je stránka na očích — jen
+  k podívání: v telefonu se nic neodpovídá, nespouští ani nerozhoduje. Nedostupný počítač stránka řekne i s posledními
+  údaji a jejich časem. Otevře strom, jehož QR kód ji spároval, a jde přidat na plochu jako ikona, která ji otevře
+  bez nového párování.
 - **Souhlas v jednom jazyce.** Souhlas, který dává jen člověk (rozbalení výzkumu, odebrání stromu, odmítnuté okno),
   zazní celý v jazyce výzkumu, nic z něj nezůstane anglicky.
 - **Odmítnutá aktualizace.** Když se `strom update` odmítne, řekne, že se nic nenainstalovalo a která verze zůstává,

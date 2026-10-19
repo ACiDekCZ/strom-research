@@ -147,6 +147,45 @@ person: p6 | witness | written=Nowak Thomas | given=Tomáš | surname=Novák
   ]);
 });
 
+test("nothing filled in: a surname of the other sex's form than the word written is left out, as of another family", () => {
+  const raw = parseDocReport(`## Entry e1 · page 1
+transcript: Josephi Novák | Thomae Novotný | Josefa Kaliny | Petra Sovy | Mariae Dvořák | Anna Svobodové | Anny Svobodové | Пётр Иванов
+person: p1 | father | written=Josephi Novák | given=Josef | surname=Nováková | sex=M
+person: p2 | father | written=Thomae Novotný | given=Tomáš | surname=Novotná | sex=M
+person: p3 | father | written=Josefa Kaliny | given=Josef | surname=Kalina | sex=M
+person: p4 | godparent | written=Petra Sovy | given=Petr | surname=Sova | sex=M
+person: p5 | mother | written=Mariae Dvořák | given=Marie | surname=Dvořáková | sex=F
+person: p6 | witness | written=Anna Svobodové | given=Anna | surname=Svoboda | sex=F
+person: p7 | witness | written=Anny Svobodové | given=Anna | surname=Svobodová | sex=F
+person: p8 | father | written=Пётр Иванов | given=Пётр | surname=Иванова | sex=M
+`).entries[0]!;
+  const { entry, checks } = checkEntry(raw, "e1");
+  // a woman's form for a man written in a man's (and in Cyrillic): no reading of the record; the word stays the
+  // surname's, so the given name is the others
+  assert.deepEqual(entry.persons.map((p) => [p.ref, p.given, p.surname]), [
+    ["p1", "Josef", undefined],
+    ["p2", "Tomáš", undefined],
+    ["p3", "Josef", "Kalina"],
+    ["p4", "Petr", "Sova"],
+    ["p5", "Marie", "Dvořáková"],
+    ["p6", "Anna", undefined],
+    ["p7", "Anna", "Svobodová"],
+    ["p8", "Пётр", undefined],
+  ]);
+  assert.deepEqual(checks, [
+    { entry: "e1", ref: "p1", what: 'surname "Nováková"', why: "not-in-transcript" },
+    { entry: "e1", ref: "p2", what: 'surname "Novotná"', why: "not-in-transcript" },
+    { entry: "e1", ref: "p6", what: 'surname "Svoboda"', why: "not-in-transcript" },
+    { entry: "e1", ref: "p8", what: 'surname "Иванова"', why: "not-in-transcript" },
+  ]);
+  // decomposed input: the same
+  const nfd = parseDocReport(`## Entry e1 · page 1\ntranscript: ${"Josephi Novák".normalize("NFD")}\nperson: p1 | father | written=Josephi Novák | given=Josef | surname=${"Nováková".normalize("NFD")} | sex=M\n`).entries[0]!;
+  assert.equal(checkEntry(nfd, "e1").entry.persons[0]!.surname, undefined);
+  // without a sex, nothing to tell apart: as before
+  const none = parseDocReport(`## Entry e1 · page 1\ntranscript: Josephi Novák\nperson: p1 | father | written=Josephi Novák | given=Josef | surname=Nováková\n`).entries[0]!;
+  assert.equal(checkEntry(none, "e1").entry.persons[0]!.surname, "Nováková");
+});
+
 test("a word of today's form of the written one: Latin and old spellings, any accent, any script", () => {
   const k = (s: string) => words(s)[0]!.key;
   for (const [today, written] of [["Josef", "Josephi"], ["Jan", "Joannes"], ["Marie", "Mariae"], ["Jakub", "Jacobus"], ["Kateřina", "Catharina"], ["Anna", "Annae"], ["Tomáš", "Thomas"], ["Johann", "Johannes"], ["Václav", "Václava"], ["Пётр", "Петра"]] as const)

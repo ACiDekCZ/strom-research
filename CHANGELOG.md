@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.18.0
 
-*In preparation: the betas up to 1.18.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.18.0-beta.3. The section is complete with the release.*
 
 - **Phone photos upright.** A photo turned by its EXIF orientation is read as it is meant to be seen, upright; the
   places marked on it (excerpts, the halves of a spread, a cut-out part) are of the picture as it is shown. The
@@ -26,6 +26,11 @@ The changes of each version in short. The full notes and the install lines are o
   page then takes photos or picks them from the gallery and sends them whole into a tree of the research, with a
   note and the person they show — as "Add materials" in the Strom app does. A photo stays on the phone until the
   computer has it, so a connection cut midway loses nothing.
+- **The research watched from a phone.** The phone's page shows what the research does — what is worked on now,
+  what waits for a decision, the last 24 hours and the latest changes, refreshed every 10 seconds while the page is
+  looked at — only to look at: nothing on the phone answers, starts or decides anything. A computer out of reach is
+  said, with the last data and their time. The page opens the tree whose QR code paired it, and it can be added to
+  the home screen as an icon that opens it without pairing again.
 - **A consent in one language.** A consent only a person gives (unpacking a research, removing a tree, a window said
   no to) is said whole in the research's language, nothing of it left in English.
 - **An update said no to.** When `strom update` is declined, it says nothing was installed and which version stays,

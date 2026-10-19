@@ -56,6 +56,39 @@ button{font:inherit;color:inherit}
 .down li{padding-left:18px;position:relative;color:var(--text-light);margin:4px 0}
 .down li::before{content:"○";position:absolute;left:0;color:var(--idle-ring)}
 
+/* what the research does: now, what waits, the last 24 hours, the progress */
+.cap{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-text);margin:0 0 10px}
+.lines li{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;padding:10px 0;border-top:1px solid var(--divider)}
+.lines li:first-child{border-top:0;padding-top:0}
+.lines li:last-child{padding-bottom:0}
+.glyph{width:26px;height:26px;border-radius:7px;background:var(--glyph-bg);color:var(--glyph-fg);display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1}
+.glyph.find{font-size:19px}
+.lines .name{font-size:15px;font-weight:600}
+.lines .task{font-size:14px;color:var(--text-light)}
+.since{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-faint);margin-top:3px}
+.since.pause{color:var(--warning-text)}
+.since .dot{width:7px;height:7px}
+.sq{width:8px;height:8px;border-radius:2px;background:var(--waiting-dot);flex:none}
+.ring{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--idle-ring);flex:none;display:inline-block}
+.idle-row{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;margin:0 0 4px}
+.waits li{display:grid;grid-template-columns:8px minmax(0,1fr);gap:10px;padding:8px 0;border-top:1px solid var(--divider)}
+.waits li:first-child{border-top:0;padding-top:0}
+.waits .wdot{width:8px;height:8px;border-radius:50%;background:var(--waiting-dot);margin-top:7px}
+.waits .what{font-size:14.5px;font-weight:500}
+.waits .on{font-size:13px;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#waitCard.none{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+#waitCard.none .cap,#waitCard.none p{margin:0}
+#waitWhere,#waitMore,#logMore{margin:10px 0 0}
+.day{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.day b{display:block;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.day span{font-size:12.5px;color:var(--text-light)}
+.log li{display:grid;grid-template-columns:42px minmax(0,1fr);gap:8px;padding:7px 6px;margin:0 -6px;border-radius:8px}
+.log time{font-size:13px;color:var(--text-faint);font-variant-numeric:tabular-nums;padding-top:1px}
+.log p{margin:0;font-size:14px}
+.log .more{font-size:13px;color:var(--text-faint)}
+.log li.fresh{background:var(--primary-soft)}
+.newpill{position:fixed;top:calc(72px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:7;border:0;border-radius:999px;background:var(--primary);color:var(--on-primary);padding:0 16px;min-height:36px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(20,16,8,.25)}
+
 /* the bar below: two buttons, the photos waiting above them */
 .bar{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;gap:10px;padding:12px 16px max(12px,env(safe-area-inset-bottom));background:var(--bg);max-width:560px;margin:0 auto}
 .bar .btn{flex:1}
@@ -113,3 +146,8 @@ button{font:inherit;color:inherit}
 .pick li .check{width:18px;color:var(--primary);font-weight:700;flex:none}
 .pick li .label{flex:1;min-width:0}
 .pill{font-size:12px;border-radius:10px;padding:2px 8px;background:var(--glyph-bg);color:var(--glyph-fg);flex:none}
+.pill.wait{background:var(--warning-soft);color:var(--warning-text);border:1px solid var(--warning-edge)}
+.marks{display:flex;align-items:center;gap:6px;flex:none;font-size:12.5px;color:var(--text-light)}
+.homerow{text-align:center;margin:4px 0}
+.linkbtn{background:none;border:0;color:var(--primary);font:inherit;font-size:14px;text-decoration:underline;text-underline-offset:3px;padding:10px;cursor:pointer}
+#homeCard p{margin:6px 0}

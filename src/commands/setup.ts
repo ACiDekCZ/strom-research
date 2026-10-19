@@ -64,6 +64,7 @@ import { checkGate, ensureGatesDir } from "../core/gate.ts";
 import { ensureHooksDir } from "../core/hooks.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL, downloadsDir } from "../core/browser.ts";
 import { browserConnectors, fenceKeepsNetOff, listConnectors } from "../core/connector.ts";
+import { appReadLimits } from "../core/live-read.ts";
 
 export const SHARED_DIRS = ["media", "catalog", "tools", "cache", "inbox"];
 
@@ -761,6 +762,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   mode: () => "research",
   updates: () => "check",
   "archive.pace": () => "auto",
+  "read.app": () => "auto",
 };
 
 /** Effective value of a setting, with the default filled in (views.size of one book: `recordset`). */
@@ -1057,6 +1059,14 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
       "archive.pace",
       ui(ctx.uiLang(), "ui.consent.archive.pace", { seconds: secondsIn(ctx.uiLang(), pace.minIntervalMs), n: pace.perHour }),
     );
+  }
+  // What the Strom app may spend on readings of documents: raised by the person alone, their yes in a terminal too
+  // (lowered by anyone).
+  if (key === "read.app") {
+    const was = appReadLimits(s.config.readApp);
+    const now = appReadLimits(typeof value === "string" ? value : undefined);
+    if (now.hour > was.hour || now.day > was.day)
+      if (!(await ctx.requireHumanYes(`Let the Strom app ask up to ${now.hour} readings of documents an hour and ${now.day} a day?`, value === undefined ? "strom config unset read.app" : `strom config set read.app "${value}"`, "read.app", ui(ctx.uiLang(), "ui.consent.read.app", { hour: now.hour, day: now.day })))) return false;
   }
   writeStored(s.config, key, s.agent(treeSettings(ctx)).value, value);
   s.save();

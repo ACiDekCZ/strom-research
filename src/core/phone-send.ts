@@ -1,8 +1,12 @@
 // What a paired phone's page asks of the phone's server (strom phone), each under /phone/ — the server checked the
 // phone's key and the address first:
 //
-//   GET  /phone/state              the trees it may send to ({id, name, archive}: never a path), heic (this computer
-//                                  converts HEIC: else the page asks the phone for JPEG), max (the largest file, MB)
+//   GET  /phone/state?tree=        the trees it may send to ({id, name, archive, working, waiting}: never a path), heic
+//                                  (this computer converts HEIC: else the page asks the phone for JPEG), max (the largest
+//                                  file, MB); of the tree asked, what it shows (phone-watch.ts): now, lastWorked, waiting,
+//                                  day, latest (a tree asked that is gone: 404 phone.tree-gone, as /phone/log)
+//   GET  /phone/log?tree=&limit=   the last changes the research saved, newest first ({changes: [{id, at, lines, more?}],
+//                                  more}), at most 20
 //   GET  /phone/people?tree=&q=    up to 8 people of the tree matching q (2 letters at least; case, accents and NFD
 //                                  aside): {id, name, birth, death, place}
 //   GET  /phone/media/<sha256>?tree=   is that content in the research already ({known: false} or {known, kind})
@@ -29,6 +33,7 @@ import { waysHere } from "./readable.ts";
 import { birthEvent, deathEvent, displayName, findPersons } from "./people.ts";
 import { yearLabel } from "./gdate.ts";
 import { foldText } from "./text.ts";
+import { LOG_PHONE, treeLog, treeMarks, treeOverview } from "./phone-watch.ts";
 import type { Person } from "./model.ts";
 
 /** How often the batches of a phone are looked at, and the parts of uploads cut short. */
@@ -99,14 +104,39 @@ export function phoneSend(env: Env, note: (text: string) => void): PhoneSend {
         if (foreign()) return refuse(403, refusal("only the phone's page asks", "phone.origin"));
         req.resume();
         heic ??= !!waysHere(env).heic;
-        const list = trees().flatMap((t) => {
+        const shown = url.searchParams.get("tree") ?? "";
+        const known = trees();
+        // a tree asked that is gone: as /phone/log answers it (the page asks again for the list alone)
+        if (shown && !known.some((t) => t.id === shown)) return gone();
+        let overview: Record<string, unknown> | undefined;
+        const list = known.flatMap((t) => {
           try {
-            return [{ id: t.id, name: t.name, archive: actsAsArchive(Tree.open(t.root, env)) }];
+            const tree = Tree.open(t.root, env);
+            const archive = actsAsArchive(tree);
+            let marks = { working: false, waiting: 0 };
+            // what it shows: a failure of it leaves the tree in the list (the page shows no more of it)
+            try {
+              if (t.id === shown) overview = { ...treeOverview(t.root, env) };
+              marks = treeMarks(t.root, env, tree);
+            } catch (e) {
+              note(`${t.name}: ${e instanceof Error ? e.message : String(e)}`);
+            }
+            return [{ id: t.id, name: t.name, archive, ...marks }];
           } catch {
             return [];
           }
         });
-        reply(200, { trees: list, heic, max: Math.floor(originalMax(env) / 1024 / 1024) });
+        reply(200, { trees: list, heic, max: Math.floor(originalMax(env) / 1024 / 1024), ...(overview ? { shown: overview } : {}) });
+      };
+
+    if (req.method === "GET" && p === "/phone/log")
+      return () => {
+        if (foreign()) return refuse(403, refusal("only the phone's page asks", "phone.origin"));
+        req.resume();
+        const t = treeOf();
+        if (!t) return gone();
+        const limit = Math.min(LOG_PHONE, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "", 10) || LOG_PHONE));
+        reply(200, treeLog(t.root, env, limit));
       };
 
     if (req.method === "GET" && p === "/phone/people")

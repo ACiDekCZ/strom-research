@@ -51,7 +51,14 @@ function qrLines(ctx: Context, s: PhoneState, address?: string): string {
   const url = address ? s.addresses.find((a) => a.url === address.replace(/\/+$/, ""))?.url : s.addresses[0]?.url;
   const addresses = s.addresses.map((a) => a.url).join(", ");
   if (!url) throw new StromError(`no address of the phone's server: ${address}`, { hint: `one of: ${addresses}`, code: "phone.address", params: { address: address ?? "", addresses } });
-  const { code, expiresAt } = pairCode(ctx.env);
+  // in a tree's folder: the page opens that tree once paired
+  let tree: string | undefined;
+  try {
+    tree = ctx.hasTree() ? ctx.tree().config.id : undefined;
+  } catch {
+    // a tree this strom cannot open: the page opens the one it chose
+  }
+  const { code, expiresAt } = pairCode(ctx.env, tree ? { tree } : {});
   const time = new Date(expiresAt).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
   return lines(
     qrTerminal(pairUrl(url, code, lang)),

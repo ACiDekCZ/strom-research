@@ -162,6 +162,8 @@ export interface OriginalMeta {
   path?: string | undefined;
   /** Sent from a paired phone (strom phone), not from the Strom app. */
   phone?: boolean | undefined;
+  /** Sent to be read at once (the app's "Read a document", X-Strom-Read): an input with no intake task — the reading is what it is for. */
+  read?: boolean | undefined;
 }
 
 export interface TakenOriginal {
@@ -220,7 +222,7 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
     if (!tree.dryRun) fs.rmSync(file, { force: true });
     // an input of the people: what is said of it now is added (in a batch the batch's tasks see to it)
     if (known.kind === "input" && !meta.batch) {
-      const a = amendInput(tree, known.id, { persons: meta.persons, note: meta.note }, { again: !meta.task });
+      const a = amendInput(tree, known.id, { persons: meta.persons, note: meta.note }, { again: !meta.task && !meta.read });
       return { known: known.id, ...(a.added.persons.length || a.added.note ? { added: a.added } : {}), ...(a.task ? { task: a.task } : {}) };
     }
     return { known: known.id };
@@ -320,7 +322,7 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
     meta.persons,
   );
   out.input = input.id;
-  if (!meta.batch && !meta.task) out.task = gatherTask(tree, input, meta.persons);
+  if (!meta.batch && !meta.task && !meta.read) out.task = gatherTask(tree, input, meta.persons);
   return out;
 }
 

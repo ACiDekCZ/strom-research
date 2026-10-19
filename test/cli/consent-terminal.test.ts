@@ -49,6 +49,13 @@ test("the settings that open the computer or spend: the person's yes in the term
     assert.ok(gate());
     await w.ok(["config", "unset", "run.gate"], { tty: true, answers: ["y"] });
     assert.ok(!gate());
+    // more readings the Strom app may ask: the person's yes; fewer asks nothing; a day under its hour refused
+    await asks(w, ["config", "set", "read.app", "30 90"], () => config(w).readApp === "30 90", /Povolit aplikaci Strom až 30 čtení[^\n]*\n[^\n]*Povolit\? \(a\/n\) \[n\]/, "a", { STROM_LANG: "cs" });
+    await w.ok(["config", "set", "read.app", "5 20"]);
+    assert.equal(config(w).readApp, "5 20");
+    const odd = await w.run(["config", "set", "read.app", "30 10"]);
+    assert.notEqual(odd.code, 0);
+    assert.equal(config(w).readApp, "5 20");
   } finally {
     w.cleanup();
   }

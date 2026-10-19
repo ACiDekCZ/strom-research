@@ -10,7 +10,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
-import { interfaceKind, lanAddresses, pageLang, pairCode, pairedPhones, pairExpires, pairPhone, pairUrl, phoneByKey, phoneConfig, phoneName, phonePage, privateIPv4, remoteAllowed, revivePhone, stopPhone, virtualInterface } from "../../src/core/phone.ts";
+import { forPhone } from "../../src/core/phone-watch.ts";
+import { claimHome, homeCode, interfaceKind, lanAddresses, pageLang, pairCode, pairedPhones, pairExpires, pairPhone, pairUrl, phoneByKey, phoneConfig, phoneName, phonePage, privateIPv4, remoteAllowed, revivePhone, stopPhone, virtualInterface } from "../../src/core/phone.ts";
 
 const MAC = "3c:22:fb:12:34:56";
 const nic = (address: string, family: "IPv4" | "IPv6" = "IPv4", internal = false, mac = MAC, netmask = "255.255.255.0") => ({ address, family, internal, netmask, mac, cidr: null }) as never;
@@ -137,6 +138,9 @@ test("the code to pair a phone: 128 bits, the same while it holds, taken once, g
     const left = Date.parse(one.expiresAt) - Date.now();
     assert.ok(left > 9 * 60_000 && left <= 10 * 60_000, String(left));
     assert.deepEqual(pairCode(env), one, "shown again: the same");
+    // shown by a tree's bridge or in its folder: the page opens that tree; the last shown counts, the code the same
+    assert.equal(pairCode(env, { tree: "tr_one" }).code, one.code);
+    assert.equal(pairCode(env, { tree: "tr_two" }).code, one.code);
     if (process.platform !== "win32") assert.equal(fs.statSync(path.join(dir, "phone-pair.json")).mode & 0o777, 0o600);
     assert.equal(pairUrl("http://192.168.1.23:47800", one.code, "cs"), `http://192.168.1.23:47800/pair?lang=cs#${one.code}`);
     // a wrong code: nothing, the right one still holds
@@ -145,6 +149,7 @@ test("the code to pair a phone: 128 bits, the same while it holds, taken once, g
     const ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
     const paired = pairPhone(env, one.code, { address: "http://127.0.0.1:47800", userAgent: ua, lang: "de" })!;
     assert.ok(paired);
+    assert.equal(paired.tree, "tr_two");
     assert.match(paired.phone.id, /^ph_[a-z2-7]{8}$/);
     assert.equal(paired.phone.name, "iPhone (Safari)");
     assert.match(paired.key, /^[A-Za-z0-9_-]{43}$/);
@@ -161,6 +166,9 @@ test("the code to pair a phone: 128 bits, the same while it holds, taken once, g
     const short = { ...env, STROM_PHONE_PAIR_MS: "50" };
     const two = pairCode(short);
     assert.notEqual(two.code, one.code);
+    pairCode(short, { tree: "tr_one" });
+    assert.equal(pairCode(short, {}).code, two.code, "shown with no tree: the code the same, no tree");
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, "phone-pair.json"), "utf8")).tree, undefined);
     const until = Date.now() + 120;
     while (Date.now() < until);
     assert.equal(pairExpires(short), undefined);
@@ -275,5 +283,96 @@ test("the phone's page fills its texts as the catalog writes them: a name, a plu
     assert.match(text, expect, `${lang} ${n}: ${text}`);
     assert.doesNotMatch(text, /[{}#]/);
     assert.match(t("gone", { name: "Ж", first: "Ö" }), /Ж[\s\S]*Ö/);
+  }
+});
+
+test("a text of the research for the phone: without the IDs of its records, any script", () => {
+  assert.equal(forPhone("Křest Anežky Dvořákové (1842) [P0012]"), "Křest Anežky Dvořákové (1842)");
+  assert.equal(forPhone("Ольга Жукова [P0003] a [F0001] rodina [S00042]."), "Ольга Жукова a rodina.");
+  assert.equal(forPhone("Kniha [1842] zůstává"), "Kniha [1842] zůstává", "a year in brackets stays");
+  assert.equal(forPhone("Ane\u0301zka [I0007]".normalize("NFD")), "Anézka".normalize("NFD"));
+});
+
+test("the icon on the home screen unpaired scans no QR code: the page says to open it in the browser and add the icon again, in each language", () => {
+  const src = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/phone.js"), "utf8");
+  assert.match(src, /if \(standalone\) \$\("unpairedHow"\)\.textContent = t\("unpaired\.howHome"\);/);
+  for (const [lang, browser] of [["en", /browser/], ["cs", /prohlížeči/], ["de", /Browser/]] as const) {
+    const T = JSON.parse(/<script id="texts" type="application\/json">([^<]*)<\/script>/.exec(phonePage(lang, "n"))![1]!) as Record<string, string>;
+    assert.match(T["unpaired.howHome"] ?? "", browser, lang);
+    assert.match(T["unpaired.howHome"]!, /Safari, Chrome/, lang);
+    assert.notEqual(T["unpaired.howHome"], T["unpaired.how"], lang);
+  }
+});
+
+test("a text of the research for the phone: no bare ID nor a list of them, no path of the research or of this computer, a link as its site alone; nothing left over", () => {
+  const nfd = (s: string) => s.normalize("NFD");
+  const cases: [string, string][] = [
+    // bare IDs of each kind, a list of them, a document read's
+    ["Odpovědět na dotaz farnosti T0608 a čekat", "Odpovědět na dotaz farnosti a čekat"],
+    ["Hypotézy H0005, H0010, H0012, … rozhodnout", "Hypotézy rozhodnout"],
+    ["Antwort des Archivs abwarten (T0400 und T0401; data/tasks/T0400.json)", "Antwort des Archivs abwarten"],
+    ["Rodina Novákových – H0020 – rozhodnout, zda zůstat", "Rodina Novákových – rozhodnout, zda zůstat"],
+    ["Viz dotaz (T0608) – čeká na odpověď", "Viz dotaz – čeká na odpověď"],
+    [nfd("Čtení D20261019153012-a1b2 Anežky dokončeno"), nfd("Čtení Anežky dokončeno")],
+    ["Опись X0003, Q0012 и K0002 проверить", "Опись проверить"],
+    [nfd("Rozhodnout H0003 či H0004 podle zápisu"), nfd("Rozhodnout podle zápisu")],
+    // paths: in the research, POSIX, the home's, Windows (both slashes), a share
+    [nfd("Odpovědět na dotaz T0608 (notes/T0608-dotaz-farnost-…md)"), nfd("Odpovědět na dotaz")],
+    ["Ответ архива [H0077] получен: ~/Documents/ответ.md", "Ответ архива получен"],
+    ["Snímky jsou stažené (C:\\Users\\Anežka\\Strom\\inputs\\kniha.pdf, I0004).", "Snímky jsou stažené."],
+    ["Brief an das Archiv \\\\server\\geteilt\\brief.docx und D:/Strom/x.jpg senden", "Brief an das Archiv und senden"],
+    ["Uloženo v /Users/nekdo/Documents/x.pdf, zbývá přečíst", "Uloženo v, zbývá přečíst"],
+    // links: the site alone, without www., a port, a login; what closes the sentence or a bracket stays
+    ["Snímky z https://www.archiv.example.org/kniha/123?page=4 jsou stažené", "Snímky z archiv.example.org jsou stažené"],
+    ["Napsat archivu (https://digi.example.cz/matriky/123) a počkat", "Napsat archivu (digi.example.cz) a počkat"],
+    ["siehe www.familysearch.example/ark:/61903/abc.", "siehe familysearch.example."],
+    ["Seite https://user@WWW.Archiv.Example.org:8080/x", "Seite archiv.example.org"],
+    ["Архив: https://архив.пример.рф/фонд/12, опись 3", "Архив: архив.пример.рф, опись 3"],
+    // nothing left: nothing
+    ["T0608", ""],
+    ["(notes/x.md, H0001)", ""],
+    // what is none of them stays as it is
+    ["1842/43, km/h, čp. 12/3, Ústí n./L., S. 12, T1, PSČ 12345 — Familie Müller (1842–1900)", "1842/43, km/h, čp. 12/3, Ústí n./L., S. 12, T1, PSČ 12345 — Familie Müller (1842–1900)"],
+    ["Ano/ne: zápis z 3. 4. 1842 v 10:30", "Ano/ne: zápis z 3. 4. 1842 v 10:30"],
+  ];
+  for (const [text, expect] of cases) assert.equal(forPhone(text), expect, text);
+  // what is left never has a doubled space, a bracket with nothing in it, nor a comma before a comma
+  for (const [text] of cases) assert.doesNotMatch(forPhone(text), /\s{2}|\(\s*\)|\[\s*\]|,\s*,|\s[,.;:]/u, text);
+});
+
+test("the icon on the home screen: a code of a paired phone, taken once for a key of its own of the same phone, gone at its time; only the newest holds", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-phone-"));
+  try {
+    const env = { STROM_CONFIG_DIR: dir, STROM_PHONE_TEST: "loopback" };
+    const paired = pairPhone(env, pairCode(env).code, { address: "http://127.0.0.1:47800" })!;
+    const one = homeCode(env, paired.phone);
+    assert.match(one.code, /^[A-Za-z0-9_-]{22}$/);
+    assert.ok(!fs.readFileSync(path.join(dir, "phone-home.json"), "utf8").includes(one.code), "never the code");
+    if (process.platform !== "win32") assert.equal(fs.statSync(path.join(dir, "phone-home.json")).mode & 0o777, 0o600);
+    // a newer code: the older one holds no more
+    const two = homeCode(env, paired.phone, "tr_one");
+    assert.equal(claimHome(env, one.code), undefined);
+    assert.equal(claimHome(env, "x"), undefined);
+    const icon = claimHome(env, two.code)!;
+    assert.equal(icon.phone.id, paired.phone.id);
+    assert.notEqual(icon.key, paired.key);
+    assert.equal(icon.tree, "tr_one", "the tree shown as it was added");
+    assert.equal(claimHome(env, two.code), undefined, "once alone");
+    assert.equal(phoneByKey(env, icon.key)?.id, paired.phone.id);
+    assert.equal(phoneByKey(env, paired.key)?.id, paired.phone.id, "the browser's key still holds");
+    assert.equal(pairedPhones(env).length, 1);
+    assert.ok(!fs.readFileSync(path.join(dir, "phones.json"), "utf8").includes(icon.key), "never the key");
+    // its time over: nothing
+    const three = homeCode(env, paired.phone);
+    const f = path.join(dir, "phone-home.json");
+    fs.writeFileSync(f, JSON.stringify({ ...JSON.parse(fs.readFileSync(f, "utf8")), expiresAt: new Date(Date.now() - 1000).toISOString() }));
+    assert.equal(claimHome(env, three.code), undefined);
+    // a phone taken off meanwhile: nothing
+    const four = homeCode(env, paired.phone);
+    fs.writeFileSync(path.join(dir, "phones.json"), JSON.stringify({ phones: [] }));
+    assert.equal(claimHome(env, four.code), undefined);
+    assert.equal(phoneByKey(env, icon.key), undefined);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

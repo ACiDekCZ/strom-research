@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.18.0
 
-*In Vorbereitung: die Betas bis 1.18.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.18.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Handyfotos aufrecht.** Ein Foto, das nach seiner EXIF-Ausrichtung gedreht ist, wird gelesen, wie es gesehen
   werden soll, aufrecht; die darauf markierten Stellen (Ausschnitte, die Hälften einer Doppelseite, ein gespeicherter
@@ -27,6 +27,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Seite fotografiert dann oder wählt aus der Galerie und schickt die Fotos ganz in einen Stammbaum der Forschung, mit
   einer Notiz und der Person, die sie zeigen — wie „Materialien hinzufügen“ in der Strom-App. Ein Foto bleibt auf dem
   Handy, bis der Computer es hat, so geht bei einer unterbrochenen Verbindung nichts verloren.
+- **Die Forschung vom Handy aus verfolgt.** Die Seite des Handys zeigt, was die Forschung tut — woran gerade
+  gearbeitet wird, was auf eine Entscheidung wartet, die letzten 24 Stunden und die letzten Änderungen, alle 10
+  Sekunden aufgefrischt, solange die Seite angesehen wird — nur zum Ansehen: auf dem Handy wird nichts beantwortet,
+  gestartet oder entschieden. Ein unerreichbarer Computer wird gesagt, mit den letzten Daten und ihrer Zeit. Die Seite
+  öffnet den Stammbaum, dessen QR-Code sie gekoppelt hat, und lässt sich als Symbol auf den Home-Bildschirm legen,
+  das sie ohne neues Koppeln öffnet.
 - **Eine Zustimmung in einer Sprache.** Eine Zustimmung, die nur ein Mensch gibt (eine Forschung entpacken, einen
   Stammbaum entfernen, ein abgelehntes Fenster), steht ganz in der Sprache der Forschung, nichts davon bleibt
   Englisch.

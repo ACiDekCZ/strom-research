@@ -76,6 +76,8 @@ export interface Incoming {
   task?: string | undefined;
   /** From a paired phone. */
   phone?: boolean;
+  /** To be read at once (X-Strom-Read): an input with no intake task. */
+  read?: boolean;
 }
 
 /** Answered with JSON — 503 is only "busy, send it again": always with when (Retry-After). */
@@ -127,7 +129,8 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
     // (found live: the app said "Sent" while the research took nothing)
     const had = known.kind === "input" && !batch ? tree.get<Input>(known.id) : undefined;
     const more = had && (f.persons.some((p) => !(had.persons ?? []).includes(p)) || (!!note?.trim() && !had.notes.some((n) => foldText(n.text) === foldText(note!.trim()))));
-    if (!more) return refuse(200, { known: known.id, kind: known.kind, ...(batch ? { batch } : {}) });
+    // (a file to read: what it is of goes with its reading, never into an intake task)
+    if (!more || f.read) return refuse(200, { known: known.id, kind: known.kind, ...(batch ? { batch } : {}) });
     req.resume();
     const { command, args } = stromLauncher();
     const child = spawn(command, [...args, "input", "amend", known.id, ...f.persons.flatMap((p) => ["--person", p]), ...(note ? [`--note=${note}`] : []), "--json"], {
@@ -220,6 +223,7 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
         ...(batch ? ["--batch", batch, ...(where ? [`--path=${where}`] : []), ...(zip ? ["--zip"] : [])] : []),
         ...(f.phone ? ["--phone"] : []),
         ...(f.task ? ["--task", f.task] : []),
+        ...(f.read ? ["--read"] : []),
         "--json",
       ];
       let child: ReturnType<typeof spawnPiped>;

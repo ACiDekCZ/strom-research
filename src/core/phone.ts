@@ -47,7 +47,8 @@ export interface PhoneConfig {
 
 /**
  * A phone paired (phones.json). `address`: the origin it was paired at; `keyHash`: the SHA-256 of the key its browser
- * keeps (the key itself is nowhere here); `lang`: the language of its page, said by the code it paired with.
+ * keeps (the key itself is nowhere here); `lang`: the language of its page, said by the code it paired with;
+ * `homeKeyHash`: the key of its icon on the home screen (an iPhone's web app keeps cookies of its own), gone with it.
  */
 export interface PairedPhone {
   id: string;
@@ -56,6 +57,7 @@ export interface PairedPhone {
   lastSeenAt?: string;
   address: string;
   keyHash?: string;
+  homeKeyHash?: string;
   lang?: string;
 }
 
@@ -175,6 +177,7 @@ export function pairedPhones(env: Env): PairedPhone[] {
         ...(isTime(r.lastSeenAt) ? { lastSeenAt: r.lastSeenAt } : {}),
         address: typeof r.address === "string" ? r.address : "",
         ...(typeof r.keyHash === "string" && /^[0-9a-f]{64}$/.test(r.keyHash) ? { keyHash: r.keyHash } : {}),
+        ...(typeof r.homeKeyHash === "string" && /^[0-9a-f]{64}$/.test(r.homeKeyHash) ? { homeKeyHash: r.homeKeyHash } : {}),
         ...(typeof r.lang === "string" && /^[a-z]{2,3}$/.test(r.lang) ? { lang: r.lang } : {}),
       },
     ];
@@ -633,6 +636,8 @@ interface PairFile {
   code: string;
   at: string;
   expiresAt: string;
+  /** The tree whose QR code was shown last (its bridge, or strom phone in its folder): the page opens it once paired. */
+  tree?: string;
 }
 
 function pairMs(env: Env): number {
@@ -651,21 +656,34 @@ export function pairExpires(env: Env): string | undefined {
   return readPair(env)?.expiresAt;
 }
 
-/** The code to pair a phone: the one that holds, else a new one (128 bits, PAIR_MS long, kept for strom's user alone). */
-export function pairCode(env: Env): { code: string; expiresAt: string } {
+/**
+ * The code to pair a phone: the one that holds, else a new one (128 bits, PAIR_MS long, kept for strom's user alone).
+ * `tree`: the tree whose QR code it is (the last one shown wins: the page opens it once paired).
+ */
+export function pairCode(env: Env, opts: { tree?: string } = {}): { code: string; expiresAt: string } {
   return withLock(file(env, "phone-pair.lock"), { owner: "the code to pair a phone" }, () => {
+    const f = file(env, "phone-pair.json");
+    const write = (p: PairFile) => {
+      writeJson(f, p);
+      try {
+        fs.chmodSync(f, 0o600);
+      } catch {
+        // Windows: the user's folder is theirs
+      }
+    };
     const now = readPair(env);
-    if (now) return { code: now.code, expiresAt: now.expiresAt };
+    if (now) {
+      // the last shown counts: one shown with no tree (outside a tree's folder) opens the tree the page chose
+      if (now.tree !== opts.tree) {
+        const { tree: _, ...code } = now;
+        write({ ...code, ...(opts.tree ? { tree: opts.tree } : {}) });
+      }
+      return { code: now.code, expiresAt: now.expiresAt };
+    }
     const code = crypto.randomBytes(16).toString("base64url");
     const at = new Date();
     const expiresAt = new Date(at.getTime() + pairMs(env)).toISOString();
-    const f = file(env, "phone-pair.json");
-    writeJson(f, { code, at: at.toISOString(), expiresAt });
-    try {
-      fs.chmodSync(f, 0o600);
-    } catch {
-      // Windows: the user's folder is theirs
-    }
+    write({ code, at: at.toISOString(), expiresAt, ...(opts.tree ? { tree: opts.tree } : {}) });
     notePhone(env, `a code to pair a phone made, it holds until ${expiresAt}`);
     return { code, expiresAt };
   });
@@ -705,14 +723,14 @@ export function phoneName(ua: string | undefined): string {
  * The code given back by a phone's page, taken once: right and holding — the phone paired (its key, only now and only
  * to it); anything else — none, and the code still holds for the phone it was shown to.
  */
-export function pairPhone(env: Env, code: string, info: { address: string; userAgent?: string; lang?: string }): { phone: PairedPhone; key: string } | undefined {
+export function pairPhone(env: Env, code: string, info: { address: string; userAgent?: string; lang?: string }): { phone: PairedPhone; key: string; tree?: string } | undefined {
   const taken = withLock(file(env, "phone-pair.lock"), { owner: "the code to pair a phone" }, () => {
     const p = readPair(env);
     const a = Buffer.from(p?.code ?? "");
     const b = Buffer.from(code);
-    if (!p || a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
+    if (!p || a.length !== b.length || !crypto.timingSafeEqual(a, b)) return undefined;
     forgetPairCode(env);
-    return true;
+    return { tree: p.tree };
   });
   if (!taken) return undefined;
   const key = crypto.randomBytes(32).toString("base64url");
@@ -727,14 +745,75 @@ export function pairPhone(env: Env, code: string, info: { address: string; userA
     return p;
   });
   notePhone(env, `the phone ${phone.id} (${phone.name || "no name"}) paired at ${phone.address}`);
-  return { phone, key };
+  return { phone, key, ...(taken.tree ? { tree: taken.tree } : {}) };
 }
 
 /** The phone paired with this key (none: not paired, or taken off since). */
 export function phoneByKey(env: Env, key: string | undefined): PairedPhone | undefined {
   if (!key || !/^[A-Za-z0-9_-]{43}$/.test(key)) return undefined;
   const h = keyHash(key);
-  return pairedPhones(env).find((p) => p.keyHash === h);
+  return pairedPhones(env).find((p) => p.keyHash === h || p.homeKeyHash === h);
+}
+
+/**
+ * The icon on the home screen. An iPhone opens it as a web app of its own that does not see Safari's cookie; the page
+ * puts this code into its address while it shows how to add the icon, and the icon, opened unpaired, gives it back for a
+ * key of its own of the same phone (homeKeyHash). One code at a time, HOME_MS long, taken once, kept as its hash alone,
+ * of a phone still paired.
+ */
+const HOME_MS = 10 * 60_000;
+
+interface HomeFile {
+  hash: string;
+  phone: string;
+  expiresAt: string;
+  /** The tree shown as the icon was added: the icon opens it (its web app has none of the browser's storage). */
+  tree?: string;
+}
+
+export function homeCode(env: Env, phone: PairedPhone, tree?: string): { code: string; expiresAt: string } {
+  const code = crypto.randomBytes(16).toString("base64url");
+  const expiresAt = new Date(Date.now() + HOME_MS).toISOString();
+  withLock(file(env, "phone-pair.lock"), { owner: "the code of a phone's icon" }, () => {
+    const f = file(env, "phone-home.json");
+    const shown = tree && /^[A-Za-z0-9_-]{1,64}$/.test(tree) ? { tree } : {};
+    writeJson(f, { hash: keyHash(code), phone: phone.id, expiresAt, ...shown } satisfies HomeFile);
+    try {
+      fs.chmodSync(f, 0o600);
+    } catch {
+      // Windows: the user's folder is theirs
+    }
+  });
+  notePhone(env, `a code for the icon of the phone ${phone.id} made, it holds until ${expiresAt}`);
+  return { code, expiresAt };
+}
+
+/** The code of an icon given back: right, holding and its phone still paired — a key of the icon's own (once alone). */
+export function claimHome(env: Env, code: string): { phone: PairedPhone; key: string; tree?: string } | undefined {
+  if (!/^[A-Za-z0-9_-]{22}$/.test(code)) return undefined;
+  const id = withLock(file(env, "phone-pair.lock"), { owner: "the code of a phone's icon" }, () => {
+    const f = file(env, "phone-home.json");
+    const h = readSafe<HomeFile>(f);
+    if (!h || typeof h.hash !== "string" || typeof h.phone !== "string" || !isTime(h.expiresAt)) return undefined;
+    const a = Buffer.from(h.hash);
+    const b = Buffer.from(keyHash(code));
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return undefined;
+    fs.rmSync(f, { force: true });
+    return Date.parse(h.expiresAt) > Date.now() ? { phone: h.phone, ...(typeof h.tree === "string" ? { tree: h.tree } : {}) } : undefined;
+  });
+  if (!id) return undefined;
+  const key = crypto.randomBytes(32).toString("base64url");
+  const phone = withLock(file(env, "phones.lock"), { owner: "the phones paired" }, () => {
+    const phones = pairedPhones(env);
+    const i = phones.findIndex((p) => p.id === id.phone);
+    if (i < 0) return undefined;
+    phones[i] = { ...phones[i]!, homeKeyHash: keyHash(key), lastSeenAt: new Date().toISOString() };
+    writePhones(env, phones);
+    return phones[i];
+  });
+  if (!phone) return undefined;
+  notePhone(env, `the phone ${phone.id} opened from its icon`);
+  return { phone, key, ...(id.tree ? { tree: id.tree } : {}) };
 }
 
 /** A paired phone seen now (written at most once a minute). */
@@ -967,6 +1046,53 @@ export function servePhone(env: Env): Promise<string> {
         sawPhone(env, phone);
         return answer(res, 200, said(phone));
       }
+      // the picture of the icon on the home screen (asked by the phone's system, paired or not)
+      if (req.method === "GET" && p === "/phone/icon.png") {
+        req.resume();
+        res.writeHead(200, { ...HEADERS, "Content-Type": "image/png", "Cache-Control": "max-age=86400" });
+        let icon = Buffer.alloc(0);
+        try {
+          icon = fs.readFileSync(assetPath("icon", "icon-256.png"));
+        } catch {
+          // no picture: the system draws one
+        }
+        return void res.end(icon);
+      }
+      if (req.method === "POST" && (p === "/pair" || p === "/home") && req.headers.origin !== undefined && req.headers.origin !== `http://${host}`) {
+        req.resume();
+        return answer(res, 403, { code: "phone.origin" });
+      }
+      // a code for the icon about to be added (the phone paired); the icon opened unpaired gives it back
+      if (req.method === "POST" && p === "/phone/home") {
+        req.resume();
+        if (!phone) return answer(res, 401, { code: "phone.unpaired" });
+        if (req.headers.origin !== `http://${host}`) return answer(res, 403, { code: "phone.origin" });
+        return answer(res, 200, homeCode(env, phone, url.searchParams.get("tree") ?? undefined));
+      }
+      if (req.method === "POST" && p === "/home") {
+        let body = "";
+        let big = false;
+        req.setEncoding("utf8");
+        req.on("data", (d: string) => {
+          if (body.length + d.length > 512) big = true;
+          else body += d;
+        });
+        req.on("end", () => {
+          if (big) return answer(res, 413, { code: "phone.large" });
+          let sent: { code?: unknown } = {};
+          try {
+            sent = (JSON.parse(body || "{}") as typeof sent) ?? {};
+          } catch {
+            // no code
+          }
+          const claimed = typeof sent.code === "string" ? claimHome(env, sent.code) : undefined;
+          if (!claimed) return answer(res, 410, { code: "phone.code" });
+          res.setHeader("Set-Cookie", `${phoneCookie(req.socket.localPort ?? port)}=${claimed.key}; Max-Age=${PHONE_KEY_DAYS * 86400}; Path=/; HttpOnly; SameSite=Strict`);
+          answer(res, 200, { ...said(claimed.phone), ...(claimed.tree ? { tree: claimed.tree } : {}) });
+        });
+        req.on("error", () => {});
+        return;
+      }
       if (req.method === "POST" && p === "/pair") {
         // its own page alone (another page cannot pair a phone with this computer)
         if (req.headers.origin !== undefined && req.headers.origin !== `http://${host}`) {
@@ -994,7 +1120,8 @@ export function servePhone(env: Env): Promise<string> {
           // a code wrong, used or too old: the same answer (nothing said of which)
           if (!paired) return answer(res, 410, { code: "phone.code" });
           res.setHeader("Set-Cookie", `${phoneCookie(req.socket.localPort ?? port)}=${paired.key}; Max-Age=${PHONE_KEY_DAYS * 86400}; Path=/; HttpOnly; SameSite=Strict`);
-          answer(res, 200, said(paired.phone));
+          // the tree whose QR code it was: the page opens it
+          answer(res, 200, { ...said(paired.phone), ...(paired.tree ? { tree: paired.tree } : {}) });
         });
         req.on("error", () => {});
         return;

@@ -1079,6 +1079,8 @@ register({
     "when it is closed (strom input batch done). --zip: a ZIP of a batch, unpacked file by file (a ZIP in it is only said).\n" +
     "--task: the file came for what that waiting task waits for (X-Strom-Task): an input of its people handed to it, the\n" +
     "task back in the queue, no intake task (strom intake --answers).\n" +
+    "--read: the file came to be read at once (the app's \"Read a document\", X-Strom-Read): an input, no intake task —\n" +
+    "the reading is what it is for (strom document read).\n" +
     "Material of the family on this computer goes in with strom intake.",
   args: [{ name: "file", description: "the received file (it is moved)", required: true }],
   options: [
@@ -1093,6 +1095,7 @@ register({
     { name: "zip", type: "boolean", description: "a ZIP of the batch: unpacked, each file taken" },
     { name: "task", type: "string", value: "<T…>", description: "the waiting task it came for: handed to it, the task back in the queue" },
     { name: "phone", type: "boolean", description: "sent from a paired phone (its server runs it): material of a phone's batch" },
+    { name: "read", type: "boolean", description: "sent to be read at once (strom document read): an input with no intake task" },
   ],
   examples: ["strom media original ~/Downloads/dopis.png --name dopis.png --person P0001"],
   run(ctx, { args, opts }) {
@@ -1109,6 +1112,7 @@ register({
     if (opts.zip && !batch) throw new UsageError("a ZIP comes in a batch", { hint: "--batch <id>", code: "batch.zip-alone" });
     const forTask = typeof opts.task === "string" ? opts.task : undefined;
     if (forTask !== undefined && (batch || typeof opts.source === "string")) throw new UsageError("a file for a task is no image of a source and comes in no batch", { hint: "--task alone, with --person, --note" });
+    if (opts.read && (batch || forTask !== undefined || typeof opts.source === "string")) throw new UsageError("a file to read is no image of a source, comes in no batch and for no task", { hint: "--read alone, with --person, --note" });
     if (forTask !== undefined) {
       const task = taskForFile(tree, forTask);
       persons.push(...taskPeople(tree, task));
@@ -1127,6 +1131,7 @@ register({
           source: typeof opts.source === "string" ? opts.source.toUpperCase() : undefined,
           region: parseRegion(typeof opts.region === "string" ? opts.region : undefined),
           note: typeof opts.note === "string" ? opts.note : undefined,
+          ...(opts.read ? { read: true } : {}),
         });
       let b = openBatch(tree.root, batch, opts.phone ? "phone" : undefined);
       if (!b.persons?.length && persons.length) b = { ...b, persons };

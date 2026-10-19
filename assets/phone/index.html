@@ -6,6 +6,8 @@
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="light dark">
 <title>Strom</title>
+<meta name="apple-mobile-web-app-title" content="Strom">
+<link rel="apple-touch-icon" href="/phone/icon.png">
 <style nonce="{{NONCE}}">{{STYLE}}</style>
 </head>
 <body>
@@ -48,9 +50,46 @@
     <p id="noTrees" class="quiet" hidden></p>
     <section id="pairedCard" class="card" hidden><h2 id="pairedTitle"></h2><p id="pairedText" class="quiet"></p></section>
     <section id="archiveCard" class="card" hidden><p id="archiveText" class="strong"></p><p id="archivePhotos" class="quiet"></p></section>
-    <!-- what the research does now, what waits, the last 24 hours and the progress: here (U4d) -->
-    <section id="overview" hidden></section>
+    <!-- what the research does now, what waits, the last 24 hours and the progress: to look at alone (nothing here
+         answers, starts or decides anything) -->
+    <div id="overview" hidden>
+      <section id="nowCard" class="card">
+        <h2 id="nowTitle" class="cap"></h2>
+        <ul id="nowLines" class="lines"></ul>
+        <div id="nowIdle" hidden><p class="idle-row"><span class="ring" aria-hidden="true"></span><span id="nowIdleText"></span></p><p id="nowIdleLast" class="quiet small"></p></div>
+      </section>
+      <section id="waitCard" class="card">
+        <h2 id="waitTitle" class="cap"></h2>
+        <p id="waitNone" class="quiet" hidden></p>
+        <ul id="waitList" class="waits"></ul>
+        <p id="waitMore" class="quiet small" hidden></p>
+        <p id="waitWhere" class="quiet small"></p>
+      </section>
+      <section id="dayCard" class="card" hidden>
+        <h2 id="dayTitle" class="cap"></h2>
+        <div class="day">
+          <div><b id="dayPeople"></b><span id="dayPeopleL"></span></div>
+          <div><b id="daySources"></b><span id="daySourcesL"></span></div>
+          <div><b id="daySaves"></b><span id="daySavesL"></span></div>
+        </div>
+      </section>
+      <section id="logCard" class="card">
+        <h2 id="logTitle" class="cap"></h2>
+        <p id="logNone" class="quiet" hidden></p>
+        <ul id="logList" class="log"></ul>
+        <p id="logMore" class="quiet small" hidden></p>
+      </section>
+    </div>
+    <p class="homerow"><button id="homeBtn" class="linkbtn" type="button" hidden></button></p>
+    <section id="homeCard" class="card" hidden>
+      <h2 id="homeTitle"></h2>
+      <p id="homeIos"></p>
+      <p id="homeAndroid"></p>
+      <p id="homeNote" class="quiet small"></p>
+      <p><button id="homeClose" class="btn outline small" type="button"></button></p>
+    </section>
   </div>
+  <button id="newPill" class="newpill" type="button" hidden></button>
   <button id="strip" class="strip" type="button" hidden><span class="strip-bar"><span id="stripFill"></span></span><span id="stripText"></span></button>
   <footer class="bar">
     <button id="photoBtn" class="btn primary" type="button"></button>

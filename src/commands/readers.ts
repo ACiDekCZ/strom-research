@@ -30,7 +30,7 @@ export interface Readers {
   stem: string;
   reportsDir: string;
   /** One reader: it looks at these views and writes its report; the report's text comes back. */
-  read: (name: string, views: string[], title: string, prompt: (report: string) => string, more?: ReadMore) => Promise<{ report: string; text: string; outcome: string; costUsd?: number; costPartial?: boolean }>;
+  read: (name: string, views: string[], title: string, prompt: (report: string) => string, more?: ReadMore) => Promise<{ report: string; text: string; outcome: string; costUsd?: number; costPartial?: boolean; resumeAt?: string }>;
   cost: () => number;
   /** How many readers ran, and whether one stopped before it said what it cost. */
   runs: () => number;
@@ -201,7 +201,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
     if (r.outcome !== "ok") failed.push(`${name} (${r.outcome === "error" && refusedBySandbox(r.text) ? "no reader can start in this sandbox" : r.outcome === "timeout" ? `stopped at its time limit, ${limit.minutes} min` : r.outcome})`);
     const written = fs.readFileSync(report, "utf8");
     if (!/^##\s/m.test(written) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
-    return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}), ...(r.metrics.costPartial ? { costPartial: true } : {}) };
+    return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}), ...(r.metrics.costPartial ? { costPartial: true } : {}), ...(r.resumeAt ? { resumeAt: r.resumeAt } : {}) };
   };
   return { model, viewMax: sizes.read, parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
 }

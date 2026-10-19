@@ -77,6 +77,10 @@
     if (text !== undefined) e.textContent = text;
     return e;
   };
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const query = new URLSearchParams(location.search);
+  const LANG_ASKED = /^[a-z]{2,3}$/.test(query.get("lang") || "") ? query.get("lang") : "";
+  const HOME = /^[A-Za-z0-9_-]{22}$/.test(query.get("home") || "") ? query.get("home") : "";
   const store = {
     get: (k) => {
       try {
@@ -157,6 +161,11 @@
     speed: 0,
     moving: false,
     asked: "", // a "discard?" asked where
+    shown: null, // what the tree shown does: now, lastWorked, waiting, day, latest
+    logTree: "", // the tree and its newest change the progress shows
+    logLatest: "",
+    newCount: 0, // changes added above while scrolled down
+    returning: false, // the page looked at again: the first answer after it awaited
   };
   const PENDING = new Set(["queued", "preparing", "sending", "offline"]);
   const FINAL = (i) => i.state === "error" && !i.retry;
@@ -213,7 +222,10 @@
   const refresh = () =>
     (refreshing ??= (async () => {
       S.asking = Date.now();
-      const r = await ask("/phone/state");
+      const asked = S.tree;
+      let r = await ask(`/phone/state?tree=${encodeURIComponent(asked)}`);
+      // the tree shown is gone from the computer: the trees there are (the page says so and opens the first)
+      if (r.status === 404 && asked) r = await ask("/phone/state");
       S.asking = 0;
       refreshing = null;
       if (r.status === 401) return unpaired();
@@ -225,6 +237,7 @@
       const wasDown = S.down || S.view !== "main";
       S.fails = 0;
       S.down = false;
+      S.returning = false;
       S.lastOk = Date.now();
       S.trees = Array.isArray(r.body.trees) ? r.body.trees : [];
       S.treesKnown = true;
@@ -242,11 +255,36 @@
           i.state = "queued";
           void saveItem(i);
         }
+      // what the tree shown does (another tree shown since it was asked: asked again for that one at once)
+      if (asked === S.tree) {
+        S.shown = r.body.shown || null;
+        if (S.shown && S.shown.latest && (S.logTree !== S.tree || S.logLatest !== S.shown.latest)) void loadLog(S.tree, S.shown.latest);
+      } else {
+        S.shown = null;
+        setTimeout(() => void refresh(), 0);
+      }
       // photos sent to a tree that is gone: nothing of them is here any more (the computer had them)
       for (const i of S.queue.filter((x) => !treeById(x.tree) && !x.blob)) forget(i);
       if (S.view !== "main") show("main");
       render();
       if (wasDown || !S.sending) pump();
+    })());
+
+  // the last changes of the tree shown, asked when its newest one is another
+  let logging = null;
+  const loadLog = (tree, latest) =>
+    (logging ??= (async () => {
+      const r = await ask(`/phone/log?tree=${encodeURIComponent(tree)}&limit=20`);
+      logging = null;
+      if (r.status !== 200 || !Array.isArray(r.body.changes)) return;
+      if (tree === S.tree) {
+        const first = S.logTree !== tree;
+        S.logTree = tree;
+        S.logLatest = latest;
+        drawLog(r.body.changes, !!r.body.more, !first);
+      }
+      // another tree picked meanwhile, or a newer change: asked again for it
+      if (S.shown && S.shown.latest && (S.logTree !== S.tree || S.logLatest !== S.shown.latest)) void loadLog(S.tree, S.shown.latest);
     })());
 
   // ── each photo: its SHA-256, in the research already?, sent ──────────────────────────────────────────────────────
@@ -572,7 +610,10 @@
     const tree = treeById(S.tree);
     $("noTrees").hidden = !S.treesKnown || S.trees.length > 0;
     $("archiveCard").hidden = !tree || !tree.archive;
-    $("pairedCard").hidden = !tree || tree.archive;
+    $("pairedCard").hidden = !tree || tree.archive || !!S.shown;
+    // the icon on the home screen: offered in the browser, not in the icon itself
+    $("homeBtn").hidden = standalone || !$("homeCard").hidden || !tree;
+    renderOverview();
     $("content").classList.toggle("stale", S.down);
     $("down").hidden = !S.down;
     if (S.down) $("downBody").textContent = t("down.body", { time: S.lastOk ? hhmm(S.lastOk) : "–" });
@@ -589,10 +630,155 @@
     $("treeName").textContent = tree ? tree.name : t("title");
     $("treeBtn").disabled = S.trees.length < 2 && !!tree;
     const dot = $("dot");
-    const slow = S.asking && Date.now() - S.asking > 3000;
+    const slow = S.asking && (S.returning || Date.now() - S.asking > 3000);
     dot.className = "dot" + (S.down ? " idle" : slow ? " slow" : "");
     const ago = Math.round((Date.now() - S.lastOk) / 1000);
-    $("statusText").textContent = S.down ? (S.lastOk ? t("last", { time: hhmm(S.lastOk) }) : "") : S.lastOk && ago < 60 ? t("ago.s", { n: Math.max(0, ago) }) : "";
+    $("statusText").textContent = S.down ? (S.lastOk ? t("last", { time: hhmm(S.lastOk) }) : "") : slow ? t("refreshing") : S.lastOk && ago < 60 ? t("ago.s", { n: Math.max(0, ago) }) : "";
+  };
+
+  // ── what the research does (to look at alone: nothing here answers, starts or decides anything) ──────────────────
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  // a time of today, else its day too
+  const atTime = (iso) => {
+    const d = new Date(iso);
+    return sameDay(d, new Date()) ? hhmm(d) : new Intl.DateTimeFormat(LANG, { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }).format(d);
+  };
+  const whenOf = (iso) => {
+    const d = new Date(iso);
+    const now = new Date();
+    if (sameDay(d, now)) return t("when.today", { time: hhmm(d) });
+    if (sameDay(d, new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))) return t("when.yesterday", { time: hhmm(d) });
+    return t("when.date", { date: new Intl.DateTimeFormat(LANG, { day: "numeric", month: "numeric", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) }).format(d) });
+  };
+  const count = (n) => new Intl.NumberFormat(LANG).format(n);
+  // each part drawn again only when what it shows changed
+  const drawn = {};
+  const changed = (key, value) => {
+    const j = JSON.stringify(value);
+    if (drawn[key] === j) return false;
+    drawn[key] = j;
+    return true;
+  };
+  const renderOverview = () => {
+    const tree = treeById(S.tree);
+    const o = S.shown;
+    $("overview").hidden = !tree || !o;
+    if (!tree || !o) return;
+    const archive = !!tree.archive;
+    $("nowCard").hidden = $("waitCard").hidden = archive;
+    const lines = Array.isArray(o.now) ? o.now : [];
+    if (!archive && changed("now", [lines, o.lastWorked, new Date().toDateString()])) {
+      $("nowTitle").textContent = lines.length > 1 ? t("now.lines", { n: lines.length }) : t("now");
+      $("nowLines").replaceChildren(
+        ...lines.map((l) => {
+          const li = el("li");
+          const glyph = el("span", "glyph" + (l.way === "up" || l.way === "down" ? "" : " find"), l.way === "up" ? "↑" : l.way === "down" ? "↓" : "⌕");
+          glyph.setAttribute("aria-hidden", "true");
+          const box = el("div");
+          box.append(el("div", "name", l.name));
+          if (l.task) box.append(el("div", "task", l.task));
+          const since = el("div", "since" + (l.paused ? " pause" : ""));
+          since.append(el("span", l.paused ? "sq" : "dot"), el("span", "", l.paused ? t("now.pause", { time: atTime(l.paused.until) }) : t("now.since", { time: atTime(l.since) })));
+          box.append(since);
+          li.append(glyph, box);
+          return li;
+        }),
+      );
+      $("nowLines").hidden = !lines.length;
+      $("nowIdle").hidden = lines.length > 0;
+      $("nowIdleLast").hidden = !o.lastWorked;
+      if (o.lastWorked) $("nowIdleLast").textContent = t("now.idleLast", { when: whenOf(o.lastWorked) });
+    }
+    const w = o.waiting && Array.isArray(o.waiting.items) ? o.waiting : { n: 0, items: [] };
+    if (!archive && changed("wait", w)) {
+      $("waitCard").classList.toggle("none", !w.n);
+      $("waitTitle").textContent = w.n ? t("waiting", { n: w.n }) : t("waiting.title");
+      $("waitNone").hidden = w.n > 0;
+      $("waitList").replaceChildren(
+        ...w.items.map((x) => {
+          const li = el("li");
+          const box = el("div");
+          box.append(el("div", "what", x.what));
+          if (x.on) box.append(el("div", "on", x.on));
+          li.append(el("span", "wdot"), box);
+          return li;
+        }),
+      );
+      $("waitList").hidden = !w.n;
+      $("waitMore").hidden = w.n <= w.items.length;
+      if (w.n > w.items.length) $("waitMore").textContent = t("waiting.more", { n: w.n - w.items.length });
+      $("waitWhere").hidden = !w.n;
+    }
+    $("dayCard").hidden = !o.day;
+    if (o.day && changed("day", o.day)) {
+      const plus = (n) => (n > 0 ? "+" : "") + count(n);
+      $("dayPeople").textContent = plus(o.day.persons);
+      $("dayPeopleL").textContent = t("day.people", { n: o.day.persons });
+      $("daySources").textContent = plus(o.day.sources);
+      $("daySourcesL").textContent = t("day.sources", { n: o.day.sources });
+      $("daySaves").textContent = count(o.day.saves);
+      $("daySavesL").textContent = t("day.saves", { n: o.day.saves });
+    }
+    $("logCard").hidden = S.logTree !== S.tree;
+  };
+
+  // the progress: the changes drawn kept by their id, a new one put on top (lit for 6 s); scrolled down, what is under
+  // the finger stays where it is and a pill says how many came above
+  const logItems = new Map();
+  const drawChange = (c) => {
+    const li = el("li");
+    const time = el("time", "", hhmm(Date.parse(c.at)));
+    time.dateTime = c.at;
+    const box = el("div");
+    for (const line of c.lines || []) box.append(el("p", "", line));
+    if (c.more) box.append(el("p", "more", t("log.lines", { n: c.more })));
+    li.append(time, box);
+    return li;
+  };
+  const drawLog = (changes, more, light) => {
+    const ul = $("logList");
+    if (!light) {
+      for (const li of logItems.values()) li.remove();
+      logItems.clear();
+      S.newCount = 0;
+    }
+    const keep = new Set(changes.map((c) => c.id));
+    for (const [id, li] of logItems)
+      if (!keep.has(id)) {
+        li.remove();
+        logItems.delete(id);
+      }
+    const y = window.scrollY;
+    const before = document.documentElement.scrollHeight;
+    let added = 0;
+    const items = changes.map((c) => {
+      let li = logItems.get(c.id);
+      if (!li) {
+        li = drawChange(c);
+        logItems.set(c.id, li);
+        if (light) {
+          added++;
+          li.classList.add("fresh");
+          const lit = li;
+          setTimeout(() => lit.classList.remove("fresh"), 6000);
+        }
+      }
+      return li;
+    });
+    ul.append(...items);
+    $("logNone").hidden = changes.length > 0;
+    $("logMore").hidden = !more;
+    render();
+    if (added && y > 0) {
+      window.scrollTo(0, y + document.documentElement.scrollHeight - before);
+      S.newCount += added;
+    }
+    renderPill();
+  };
+  const renderPill = () => {
+    if (window.scrollY <= 4) S.newCount = 0;
+    $("newPill").hidden = !S.newCount || S.view !== "main";
+    if (S.newCount) $("newPill").textContent = t("log.new", { n: S.newCount });
   };
 
   const renderStrip = () => {
@@ -769,7 +955,14 @@
       li.setAttribute("role", "button");
       li.tabIndex = 0;
       li.append(el("span", "check", tr.id === S.tree ? "✓" : ""), el("span", "label", tr.name));
-      if (tr.archive) li.append(el("span", "pill", t("mark.archive")));
+      const marks = el("span", "marks");
+      if (tr.archive) marks.append(el("span", "pill", t("mark.archive")));
+      else {
+        if (tr.working) marks.append(el("span", "dot"), el("span", "", t("mark.working")));
+        if (tr.waiting) marks.append(el("span", "pill wait", t("mark.waiting", { n: tr.waiting })));
+        if (!tr.working && !tr.waiting) marks.append(el("span", "ring"), el("span", "", t("mark.idle")));
+      }
+      li.append(marks);
       li.onclick = () => pickTree(tr.id);
       li.onkeydown = (e) => {
         if (e.key === "Enter" || e.key === " ") pickTree(tr.id);
@@ -785,6 +978,16 @@
   const pickTree = (id) => {
     const moving = S.moving;
     closeTrees();
+    if (S.tree !== id) {
+      S.shown = null;
+      S.logTree = "";
+      for (const li of logItems.values()) li.remove();
+      logItems.clear();
+      S.newCount = 0;
+      for (const k of Object.keys(drawn)) delete drawn[k];
+      S.tree = id;
+      void refresh();
+    }
     S.tree = id;
     S.gone = null;
     store.set("strom.phone.tree", id);
@@ -863,8 +1066,12 @@
     resumeForget: "forget", noteLabel: "field.note", personLabel: "field.person", lockNote: "lock", offlineNote: "offline.queue",
     doneNext: "commit.next", captureNote: "captureOnly", noPersonBtn: "field.noPerson", typingDone: "field.done", commitCancel: "commit.cancel",
     commitLater: "commit.later", switcherTitle: "switcher.title", pairedTitle: "paired.title", pairedText: "paired",
+    homeBtn: "home.button", homeTitle: "home.title", homeIos: "home.ios", homeAndroid: "home.android", homeNote: "home.note", homeClose: "close",
+    nowIdleText: "now.idle", waitNone: "waiting.none", waitWhere: "waiting.where", dayTitle: "day", logTitle: "log", logNone: "log.none", logMore: "log.more",
   };
   for (const [id, key] of Object.entries(texts)) $(id).textContent = t(key);
+  // the icon on the home screen scans no QR code: the browser pairs again, and the icon is added from there
+  if (standalone) $("unpairedHow").textContent = t("unpaired.howHome");
   $("person").placeholder = t("field.personPh");
   $("sheetClose").setAttribute("aria-label", t("collapse"));
   $("goneClose").setAttribute("aria-label", t("close"));
@@ -958,6 +1165,37 @@
     render();
   };
   $("doneNext").onclick = closeSheet;
+
+  // ── the icon on the home screen ──────────────────────────────────────────────────────────────────────────────────
+  // An iPhone opens it as a web app of its own that does not see this browser's cookie: while the help is shown, the
+  // address carries a code for it (one, for ten minutes, taken once); the icon opened unpaired gives it back for a key of
+  // its own. Android's icon opens the browser, paired already. The code leaves the address as the help closes, or at its
+  // time.
+  const homeAddress = (code) => "/" + (LANG_ASKED ? `?lang=${encodeURIComponent(LANG_ASKED)}` : "") + (code ? `${LANG_ASKED ? "&" : "?"}home=${code}` : "");
+  let homeTimer = 0;
+  const homeOff = () => {
+    clearTimeout(homeTimer);
+    history.replaceState(null, "", homeAddress(""));
+    $("homeCard").hidden = true;
+    render();
+  };
+  $("homeBtn").onclick = async () => {
+    $("homeCard").hidden = false;
+    render();
+    $("homeCard").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const r = await ask(`/phone/home?tree=${encodeURIComponent(S.tree)}`, { method: "POST" });
+    if (r.status !== 200 || typeof r.body.code !== "string" || $("homeCard").hidden) return;
+    history.replaceState(null, "", homeAddress(r.body.code));
+    clearTimeout(homeTimer);
+    homeTimer = setTimeout(homeOff, Math.max(0, Date.parse(r.body.expiresAt) - Date.now()));
+  };
+  $("homeClose").onclick = homeOff;
+  $("newPill").onclick = () => {
+    S.newCount = 0;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    renderPill();
+  };
+  window.addEventListener("scroll", () => S.newCount && window.scrollY <= 4 && renderPill(), { passive: true });
   // the keyboard: the sheet as high as what is seen of the page, its foot above the keyboard
   const vv = window.visualViewport;
   if (vv) {
@@ -977,7 +1215,11 @@
   }, 1000);
   const again = () => {
     if (document.visibilityState === "hidden") return;
-    if (S.view === "main") void refresh();
+    if (S.view === "main") {
+      S.returning = true;
+      renderHeader();
+      void refresh();
+    }
     else if (S.view === "unpaired") void whoami().then((w) => w === "paired" && void refresh());
   };
   document.addEventListener("visibilitychange", again);
@@ -1001,11 +1243,33 @@
     plain("unreachable");
   };
   const start = async (code) => {
-    if (!code) return enter(await whoami());
+    if (!code) {
+      const who = await whoami();
+      // the icon on the home screen opened for the first time: its code for a key of its own
+      if (who === "unpaired" && HOME) {
+        const r = await ask("/home", { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: JSON.stringify({ code: HOME }) });
+        if (r.status === 200) {
+          // the tree shown as the icon was added
+          if (typeof r.body.tree === "string" && r.body.tree) {
+            S.tree = r.body.tree;
+            store.set("strom.phone.tree", S.tree);
+          }
+          return refresh();
+        }
+      }
+      return enter(who);
+    }
     plain("pairing");
-    const lang = new URLSearchParams(location.search).get("lang") || "";
+    const lang = LANG_ASKED;
     const r = await ask("/pair", { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: JSON.stringify({ code, lang }) });
-    if (r.status === 200) return refresh();
+    if (r.status === 200) {
+      // the tree whose QR code it was (the Strom app's, or strom phone in its folder)
+      if (typeof r.body.tree === "string" && r.body.tree) {
+        S.tree = r.body.tree;
+        store.set("strom.phone.tree", S.tree);
+      }
+      return refresh();
+    }
     // the code used already, maybe by this phone (the page opened twice)
     const now = await whoami();
     if (now === "paired") return refresh();
@@ -1016,6 +1280,6 @@
   // the code is in the address after # alone (never sent to the server by the browser); taken out of the address at
   // once, so that neither the history nor a bookmark keeps it
   const code = location.pathname === "/pair" ? decodeURIComponent(location.hash.slice(1)) : "";
-  if (location.pathname === "/pair" || location.hash) history.replaceState(null, "", "/" + location.search);
+  if (location.pathname === "/pair" || location.hash || HOME) history.replaceState(null, "", homeAddress(""));
   void load().then(() => start(/^[A-Za-z0-9_-]{22}$/.test(code) ? code : ""));
 })();

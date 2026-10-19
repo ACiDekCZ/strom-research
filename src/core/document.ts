@@ -16,7 +16,7 @@ import path from "node:path";
 import { foldText } from "./text.ts";
 import { MONTHS, dateYears, normalizeDate } from "./gdate.ts";
 import { langName } from "./lang.ts";
-import { birthEvent, sameFamilyName } from "./people.ts";
+import { birthEvent, sameFamilyName, surnameForms } from "./people.ts";
 import type { Person, Place } from "./model.ts";
 import type { Tree } from "./tree.ts";
 
@@ -489,7 +489,48 @@ export function sameNameWord(today: string, written: string, near = true): boole
 
 /** A surname that is the written word: a form of one family name (Novák, Nováková, Nowak) or the same in its letters. */
 function sameSurnameWord(surname: string, key: string): boolean {
-  return sameFamilyName(surname, key) || sameNameWord(foldText(surname).replace(/[^\p{L}\p{M}\p{N}]+/gu, ""), key, false);
+  return sameFamilyName(surname, key) || sameNameWord(letters(surname), key, false);
+}
+
+function letters(s: string): string {
+  return foldText(s).replace(/[^\p{L}\p{M}\p{N}]+/gu, "");
+}
+
+/** The same word in its letters, old spellings as today's — no ending taken off (Novotná is not Novotný). */
+function sameWord(a: string, b: string): boolean {
+  return spelled(a) === spelled(b);
+}
+
+/**
+ * The man's forms of a woman's surname — one with a woman's ending a language tells apart (-ová, -owa, -ówna, -á,
+ * -ska, Cyrillic -ова, -ая): Krausová → Kraus, Novotná → Novotný; none for a surname of no such ending (Kalina, Sova).
+ */
+function mansForms(surname: string): string[] {
+  const n = surname.normalize("NFC").trim().toLowerCase();
+  const self = letters(surname);
+  if (!/^.{2,}(?:ov|ow)n?a$|(?:sk|ck|dzk)a$/u.test(self) && !/(?:á|(?:ов|ев|ёв|ин|ын)а|ая)$/u.test(n)) return [];
+  return [...surnameForms(surname)].filter((x) => x !== self);
+}
+
+/**
+ * A written word that is a woman's form of a surname (Krausová, Novákové, Novákovou, Nowakowa): its man's stem —
+ * not in Cyrillic, whose -ова is a man's genitive too (сын Петрова).
+ */
+function womansStem(key: string): string | undefined {
+  return /^(.{2,}?)(?:ova|ove|ovou|owa|owej|owny|owna|ovna|ovny)$/u.exec(key)?.[1];
+}
+
+/**
+ * A surname of the other sex's form than the written word gives the person — a woman's form for a man written in a
+ * man's (Krausová of "Kraus", a man), a man's for a woman written in a woman's (Novák of "Nováková", a woman): no
+ * reading of the record, left out as a surname of another family. A woman written in the man's form, as Latin
+ * registers write her (Dvořáková of "Dvořák"), is read so.
+ */
+function ofOtherSex(surname: string, key: string, sex: string | undefined): boolean {
+  if (sex === "M") return !sameWord(letters(surname), key) && mansForms(surname).some((m) => sameNameWord(m, key, false));
+  if (sex !== "F" || mansForms(surname).length) return false;
+  const stem = womansStem(key);
+  return !!stem && !sameWord(letters(surname), key) && (sameNameWord(letters(surname), stem, false) || sameFamilyName(surname, stem));
 }
 
 const EVENT_WORDS: Record<string, string> = {
@@ -529,7 +570,8 @@ export function gedcomDate(text: string): string | undefined {
 /**
  * A reader's entry as strom gives it on: each person's written name must stand in the transcript (folded — no
  * accents, no case — as words in a row), else the person is left out; its surname must be a form of one of those
- * words, else it is left out (a surname of another person, of the parish's head, of nowhere); its given name in
+ * words in the form of the person's sex, else it is left out (a surname of another person, of the parish's head, of
+ * nowhere, a woman's form for a man written in a man's); its given name in
  * today's form must be of the letters of the others, else the name is as written and the reader's form a lead
  * (today); a given name or a surname whose words the
  * transcript marks "[?]" is uncertain, one it marks "[...]" all through is left out (the reader cannot have read it);
@@ -558,14 +600,16 @@ export function checkEntry(raw: RawEntry, id: string, blind = false): { entry: D
     const uncertain = new Set<Uncertain>();
     // the surname: a written word it is a form of (the last such), else the last of two or more words, "[...]" ones
     // too; a surname no written word gives — one the reader took from elsewhere — is left out
+    // (a surname of the other sex's form than the word written: left out as well, the word still the surname's)
     const surname = p.fields.surname?.replace(/\[\?\]/gu, "").trim();
+    const sex = p.fields.sex?.trim().toUpperCase();
     let surnameAt = -1;
     if (surname) {
       surnameAt = span.findLastIndex((x) => !x.illegible && sameSurnameWord(surname, x.key));
       if (surnameAt < 0 && span.length >= 2 && span.at(-1)!.illegible) {
         checks.push({ entry: id, ref: p.ref, what: `surname "${surname}"`, why: "illegible" });
         surnameAt = span.length - 1;
-      } else if (surnameAt < 0) checks.push({ entry: id, ref: p.ref, what: `surname "${surname}"`, why: "not-in-transcript" });
+      } else if (surnameAt < 0 || ofOtherSex(surname, span[surnameAt]!.key, sex)) checks.push({ entry: id, ref: p.ref, what: `surname "${surname}"`, why: "not-in-transcript" });
       else {
         person.surname = surname;
         if (span[surnameAt]!.unsure || p.fields.surname!.includes("[?]")) uncertain.add("surname");
@@ -590,7 +634,6 @@ export function checkEntry(raw: RawEntry, id: string, blind = false): { entry: D
         if (givenWords.some((x) => x.unsure || x.illegible) || p.fields.given!.includes("[?]")) uncertain.add("given");
       }
     }
-    const sex = p.fields.sex?.toUpperCase();
     if (sex === "M" || sex === "F" || sex === "U") person.sex = sex;
     for (const f of ["age", "occupation", "residence"] as const) {
       const v = p.fields[f]?.trim();
@@ -860,6 +903,8 @@ export interface ReadReport {
   outcome?: string;
   usd?: number;
   partial?: boolean;
+  /** When the agent says its limit resets (a reader stopped by its usage limit). */
+  resets?: string;
 }
 
 export interface ReadState {
@@ -884,7 +929,44 @@ export interface ReadState {
   error?: string;
   model?: string;
   agent?: string;
+  /** Queued to be read later (strom document read --queue): only the blind reader, against the first one's reading. */
+  only?: "blind";
+  /** Read again (strom document again): the reading as it stood, back again when the new one is cancelled or gone. */
+  before?: ReadBefore;
 }
+
+/** What a reading read again was before: its state, version and readers (its reports stay in the list). */
+export type ReadBefore = Pick<ReadState, "state" | "version" | "readers" | "since" | "groups"> & Partial<Pick<ReadState, "why" | "error" | "only" | "model">>;
+
+const BEFORE_OPTIONAL = ["why", "error", "only", "model"] as const;
+
+/** A reading as it stands, kept to come back to when it is read again. */
+export function beforeOf(s: ReadState): ReadBefore {
+  const out: ReadBefore = { state: s.state, version: s.version, readers: s.readers, since: s.since, groups: s.groups };
+  for (const k of BEFORE_OPTIONAL) if (s[k] !== undefined) Object.assign(out, { [k]: s[k] });
+  return out;
+}
+
+/**
+ * A reading read again whose new reading was cancelled (or its process gone): the reading before, as it stood — its
+ * result is what it was; the reports of the new one stay in the list (their cost counted). None read again: undefined.
+ */
+export function backBefore(s: ReadState): ReadState | undefined {
+  if (!s.before) return undefined;
+  const out: ReadState = { ...s, ...s.before };
+  for (const k of BEFORE_OPTIONAL) if (s.before[k] === undefined) delete out[k];
+  delete out.pid;
+  delete out.before;
+  return out;
+}
+
+/** The version of a reading read again: past every report there is (one cancelled before kept its own). */
+export function nextVersion(s: ReadState): number {
+  return Math.max(s.version, ...s.reports.map((r) => r.version)) + 1;
+}
+
+/** Whoever asked a reading from the Strom app (its bridge). */
+export const APP_READ_FROM = "app:read";
 
 export function readsDir(root: string): string {
   return path.join(root, ".strom", "reads");

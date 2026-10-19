@@ -26,6 +26,9 @@ import { stamp } from "../core/net.ts";
 import { readers } from "./readers.ts";
 import {
   alive,
+  APP_READ_FROM,
+  backBefore,
+  beforeOf,
   buildResult,
   cancelPath,
   DOC_NEXT,
@@ -37,6 +40,7 @@ import {
   listReadings,
   loadState,
   newReadId,
+  nextVersion,
   parseRegion,
   READ_ID,
   reportPath,
@@ -71,10 +75,13 @@ function stateOf(tree: Tree, id: string): ReadState {
   throw new UsageError(`no reading ${id}`, { hint: "strom document list" });
 }
 
-/** A reading whose process is gone before it ended (stopped, the computer off): cancelled, with what its readers wrote. */
+/**
+ * A reading whose process is gone before it ended (stopped, the computer off): cancelled, with what its readers wrote —
+ * read again, the reading before as it stood. One queued to be read later (--queue: no process of its own yet) waits.
+ */
 function settled(tree: Tree, s: ReadState): ReadState {
-  if (FINAL_STATES.includes(s.state) || alive(s.pid)) return s;
-  const out: ReadState = { ...s, state: "cancelled", since: now(), error: "its process ended before the reading did" };
+  if (FINAL_STATES.includes(s.state) || alive(s.pid) || (s.state === "queued" && !s.pid)) return s;
+  const out: ReadState = backBefore(s) ?? { ...s, state: "cancelled", since: now(), error: "its process ended before the reading did" };
   saveState(tree.root, out);
   return out;
 }
@@ -165,7 +172,7 @@ function pagesOf(tree: Tree, records: { id: string; file: string; name: string; 
   for (const r of records) {
     const first = readableFile(tree.root, r.file, { env: tree.env });
     for (let p = 1; p <= first.pages; p++) {
-      if (pages.length >= DOC_PAGES) throw new UsageError(`more than ${DOC_PAGES} pages: one reading reads at most ${DOC_PAGES}`, { hint: "the pages of one document only, in parts: strom document read <file> … of its first pages, then of the next" });
+      if (pages.length >= DOC_PAGES) throw new UsageError(`more than ${DOC_PAGES} pages: one reading reads at most ${DOC_PAGES}`, { code: "read.pages", params: { pages: String(DOC_PAGES) }, hint: "the pages of one document only, in parts: strom document read <file> … of its first pages, then of the next" });
       const readable = p === 1 ? first : readableFile(tree.root, r.file, { env: tree.env, page: p });
       const size = shownSize(new Uint8Array(fs.readFileSync(readable.file)));
       const n = pages.length + 1;
@@ -282,7 +289,7 @@ async function readWith(ctx: Context, tree: Tree, s: ReadState, opts: Record<str
     }
     s = {
       ...s,
-      reports: s.reports.map((x) => (x.n === n ? { ...x, outcome: r.outcome, ...(r.costUsd !== undefined ? { usd: r.costUsd } : {}), ...(r.costPartial || r.costUsd === undefined ? { partial: true } : {}) } : x)),
+      reports: s.reports.map((x) => (x.n === n ? { ...x, outcome: r.outcome, ...(r.costUsd !== undefined ? { usd: r.costUsd } : {}), ...(r.costPartial || r.costUsd === undefined ? { partial: true } : {}), ...(r.resumeAt ? { resets: r.resumeAt } : {}) } : x)),
     };
     saveState(tree.root, s);
   };
@@ -298,22 +305,29 @@ async function readWith(ctx: Context, tree: Tree, s: ReadState, opts: Record<str
   }
   const cancelled = stop.signal.aborted || fs.existsSync(cancelPath(tree.root, s.id));
   fs.rmSync(cancelPath(tree.root, s.id), { force: true });
+  const ran = s.reports.filter((r) => r.version === s.version);
+  const spent = { usd: team.cost(), runs: team.runs(), partial: team.partial() };
+  // read again and cancelled: the reading before stands (what the new readers wrote stays, their cost counted)
+  const back = cancelled ? backBefore(s) : undefined;
+  if (back) return finish(ctx, tree, back, ran, spent, true);
   if (cancelled) s = { ...s, state: "cancelled", since: now() };
   else if (s.readers > 1) {
     s = { ...s, state: "checking", since: now() };
     saveState(tree.root, s);
   }
-  const ran = s.reports.filter((r) => r.version === s.version);
-  return finish(ctx, tree, s, ran, { usd: team.cost(), runs: team.runs(), partial: team.partial() });
+  return finish(ctx, tree, s, ran, spent);
 }
 
 /** The end of a reading: its state by its result, the result written, the reports and the result committed. */
-function finish(ctx: Context, tree: Tree, s: ReadState, ran: ReadState["reports"], spent?: { usd: number; runs: number; partial: boolean }): ReadState {
-  const draft = buildResult(tree, s);
-  const state = s.state === "cancelled" || s.state === "unreadable" ? s.state : endState(draft, ran.some((r) => r.outcome === "ok"));
-  const failedWhy = ran.find((r) => r.outcome && r.outcome !== "ok")?.outcome;
-  s = { ...s, state, since: now(), ...(state === "failed" && failedWhy ? { error: `the reader ${failedWhy === "timeout" ? "stopped at its time limit" : `ended: ${failedWhy}`}` } : {}) };
+function finish(ctx: Context, tree: Tree, s: ReadState, ran: ReadState["reports"], spent?: { usd: number; runs: number; partial: boolean }, back = false): ReadState {
+  if (!back) {
+    const draft = buildResult(tree, s);
+    const state = s.state === "cancelled" || s.state === "unreadable" ? s.state : endState(draft, ran.some((r) => r.outcome === "ok"));
+    const failedWhy = ran.find((r) => r.outcome && r.outcome !== "ok")?.outcome;
+    s = { ...s, state, since: now(), ...(state === "failed" && failedWhy ? { error: `the reader ${failedWhy === "timeout" ? "stopped at its time limit" : `ended: ${failedWhy}`}` } : {}) };
+  }
   delete s.pid;
+  delete s.before;
   saveState(tree.root, s);
   const result = buildResult(tree, s);
   fs.mkdirSync(path.dirname(resultPath(tree.root, s.id)), { recursive: true });
@@ -322,7 +336,7 @@ function finish(ctx: Context, tree: Tree, s: ReadState, ran: ReadState["reports"
     tree.withTreeLock(() => {
       const session = spent?.runs ? addReaders(tree, ctx.env, ctx.refs, { usd: spent.usd, runs: spent.runs, partial: spent.partial }) : undefined;
       const files = [resultPath(tree.root, s.id), ...s.reports.map((r) => reportPath(tree.root, s.id, r.n))].filter((f) => fs.existsSync(f)).map((f) => tree.relative(f));
-      tree.commit(`Reading of a document ${s.id}${s.version > 1 ? `, version ${s.version}` : ""}: ${s.state}${result.entries.length ? `, ${counted(result.entries.length, "entry", "entries")}` : ""}`, [...files, ...(session ? ["data"] : [])]);
+      tree.commit(`Reading of a document ${s.id}${back ? ", read again and cancelled" : ""}${s.version > 1 ? `, version ${s.version}` : ""}: ${s.state}${result.entries.length ? `, ${counted(result.entries.length, "entry", "entries")}` : ""}`, [...files, ...(session ? ["data"] : [])]);
     });
   return s;
 }
@@ -386,6 +400,43 @@ function exitOf(s: ReadState): number {
   return s.state === "failed" || s.state === "cancelled" ? 1 : 0;
 }
 
+/** A reading kept to be read later (--queue): said, nothing read. */
+function queuedSaid(ctx: Context, tree: Tree, s: ReadState) {
+  const result = buildResult(tree, s);
+  return { text: lines(`${s.id} · queued${s.version > 1 ? ` · version ${s.version}` : ""} · ${counted(s.pages.length, "page")} · ${counted(s.readers, "reader")}${s.only ? " (the blind one)" : ""}`, "", `next: strom document read ${s.id} reads it (the bridge of the Strom app reads its queue by itself) — strom document cancel ${s.id}`), data: result };
+}
+
+/** A queued reading cancelled before its readers began: nothing read; read again, the reading before stands as it was. */
+function cancelQueued(ctx: Context, tree: Tree, s: ReadState): ReadState {
+  const back = backBefore(s);
+  if (!back) return finish(ctx, tree, { ...s, state: "cancelled", since: now() }, []);
+  saveState(tree.root, back);
+  return back;
+}
+
+/** The options a queued reading was asked with: never given again when it is read. */
+const ASKED_OPTIONS = ["readers", "into", "region", "note", "person", "queue"];
+
+/** A reading queued (--queue) read now, as it was asked: its readers, language, pages; only the blind one when so queued. */
+async function readQueued(ctx: Context, tree: Tree, id: string, opts: Record<string, unknown>) {
+  const given = ASKED_OPTIONS.filter((o) => opts[o] !== undefined && opts[o] !== false);
+  if (given.length) throw new UsageError(`${id} is read as it was asked: --${given[0]} is not given again`, { hint: `strom document read ${id}${typeof opts.model === "string" ? ` --model ${opts.model}` : ""}` });
+  let s = stateOf(tree, id);
+  if (s.state !== "queued") throw new UsageError(`${id} is not queued (${s.state})`, { hint: FINAL_STATES.includes(s.state) ? `strom document show ${id} — read it anew: strom document again ${id}` : `strom document show ${id}` });
+  if (s.pid && s.pid !== process.pid && alive(s.pid)) throw new UsageError(`${id} is being read now`, { hint: `strom document show ${id}` });
+  // asked to stop before its reader started: cancelled, nothing read
+  if (fs.existsSync(cancelPath(tree.root, id))) {
+    fs.rmSync(cancelPath(tree.root, id), { force: true });
+    s = cancelQueued(ctx, tree, s);
+  } else {
+    s = { ...s, pid: process.pid };
+    saveState(tree.root, s);
+    s = await readNow(ctx, tree, s, opts, s.only);
+  }
+  const result = buildResult(tree, s);
+  return { text: said(ctx, result), data: result, exitCode: exitOf(s) };
+}
+
 // ── the commands ──────────────────────────────────────────────────────────────────────────────────────────────────
 
 register({
@@ -405,8 +456,10 @@ register({
     `glare, angle, cut, dark, small) — a page whose shorter side is below ${SMALL_PX} px is said small with no reader.\n` +
     `A file not in the research yet becomes an input of it (no task). At most ${DOC_PAGES} pages; HEIC and PDF are converted.\n` +
     "Nothing enters the tree by itself: look at it yourself and record a source as usual. It waits for its reader\n" +
-    "(a few minutes): run it in the foreground. The result: strom document show D…; again: strom document again D….",
-  args: [{ name: "files", description: "the document: a photo, scan or PDF, or its input I… or image M… (several: its pages, in order)", variadic: true, required: true }],
+    "(a few minutes): run it in the foreground. The result: strom document show D…; again: strom document again D….\n" +
+    "--queue: only kept to be read, nothing read now (the bridge of the Strom app reads its queue one at a time); a\n" +
+    "reading queued so is read by strom document read D… — as it was asked.",
+  args: [{ name: "files", description: "the document: a photo, scan or PDF, or its input I… or image M… (several: its pages, in order); or a reading queued: D…", variadic: true, required: true }],
   options: [
     { name: "readers", type: "string", value: "1|2", description: "readers: 1 (default), or 2 — the second blind, where they differ is said" },
     { name: "into", type: "string", value: "<code>", description: "the language of the translation and the explanations (default: the research's)" },
@@ -415,11 +468,13 @@ register({
     { name: "person", type: "string", multiple: true, value: "<P…>", description: "a person it is of, as the person says (repeatable)" },
     { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision — never weaker for handwriting)" },
     { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP, mistaken: ["timeout", "time", "time-limit", "max-minutes"] },
+    { name: "queue", type: "boolean", description: "keep it to be read later, read nothing now (strom document read D… reads it)" },
   ],
   examples: ["strom document read photo.jpg", "strom document read I0004 --readers 2", 'strom document read back.heic --note "the back of a photo"', "strom document read letter.pdf --into en"],
   run: async (ctx: Context, { args, opts }) => {
     const tree = ctx.tree();
     refuseInArchive(tree, "strom document read");
+    if (args.length === 1 && READ_ID.test(args[0]!.trim())) return readQueued(ctx, tree, args[0]!.trim(), opts);
     const asked = readersOf(opts.readers, 1);
     const into = typeof opts.into === "string" ? opts.into.trim().toLowerCase() : tree.lang;
     if (!isValidLang(into)) throw new UsageError(`invalid --into "${String(opts.into)}"`, { hint: "a language code: cs, de, en, pl …" });
@@ -442,8 +497,12 @@ register({
       }
     });
     const at = now();
-    let s: ReadState = { id, state: "queued", version: 1, readers: asked, lang: into, pages, groups: [], reports: [], ...(persons.length ? { persons } : {}), ...(note ? { note } : {}), at, since: at, ...(ctx.env.STROM_WORKER ? { from: ctx.env.STROM_WORKER } : {}) };
+    // whoever asked: the Strom app (its bridge runs this as the person's), else the agent's worker
+    const from = ctx.env.STROM_FOR_APP ? APP_READ_FROM : ctx.env.STROM_WORKER;
+    // queued to be read later: no process of its own until it is read; read now: this one's (never taken for gone)
+    let s: ReadState = { id, state: "queued", version: 1, readers: asked, lang: into, pages, groups: [], reports: [], ...(persons.length ? { persons } : {}), ...(note ? { note } : {}), at, since: at, ...(from ? { from } : {}), ...(opts.queue ? {} : { pid: process.pid }) };
     saveState(tree.root, s);
+    if (opts.queue) return queuedSaid(ctx, tree, s);
     s = await readNow(ctx, tree, s, opts);
     const result = buildResult(tree, s);
     return { text: said(ctx, result), data: result, exitCode: exitOf(s) };
@@ -458,12 +517,14 @@ register({
   description:
     "After one reader, --readers 2 adds the second, blind reader alone and compares the two (the first reading\n" +
     "stays). Otherwise the document is read anew (a failed or cancelled reading, a new try). Either way its version\n" +
-    "goes up by one; the reports before stay.",
+    "goes up by one; the reports before stay. Cancelled before it ends, the reading before stands as it was.\n" +
+    "--queue: only kept to be read (strom document read D… reads it).",
   args: [{ name: "reading", description: "the reading: D…", required: true }],
   options: [
     { name: "readers", type: "string", value: "1|2", description: "readers: as before, or 2 — after one, the blind second reader alone" },
     { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision)" },
     { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP, mistaken: ["timeout", "time", "time-limit", "max-minutes"] },
+    { name: "queue", type: "boolean", description: "keep it to be read later, read nothing now (strom document read D… reads it)" },
   ],
   examples: ["strom document again D20260101120000-ab12 --readers 2"],
   run: async (ctx: Context, { args, opts }) => {
@@ -474,9 +535,15 @@ register({
     const asked = readersOf(opts.readers, before.readers);
     // one reader read it to an end: only the blind one, against it
     const firstOk = before.state === "done" && before.readers === 1 && asked === 2 && before.reports.some((r) => r.version === before.version && !r.blind && r.outcome === "ok");
-    let s: ReadState = { ...before, state: "queued", version: before.version + 1, readers: asked, since: now() };
+    let s: ReadState = { ...before, state: "queued", version: nextVersion(before), readers: asked, since: now(), before: beforeOf(before), ...(opts.queue ? {} : { pid: process.pid }) };
     delete s.why;
     delete s.error;
+    delete s.only;
+    if (opts.queue) {
+      if (firstOk) s.only = "blind";
+      saveState(tree.root, s);
+      return queuedSaid(ctx, tree, s);
+    }
     saveState(tree.root, s);
     s = await readNow(ctx, tree, s, opts, firstOk ? "blind" : undefined);
     const result = buildResult(tree, s);
@@ -495,6 +562,12 @@ register({
     const tree = ctx.tree();
     const s = stateOf(tree, readId(args[0]));
     if (FINAL_STATES.includes(s.state)) return { text: `${s.id} is not being read (${s.state}): nothing to stop`, data: { id: s.id, state: s.state, cancelled: false } };
+    // queued, no reader started: cancelled now (its result written, nothing read)
+    if (s.state === "queued" && !alive(s.pid)) {
+      const done = cancelQueued(ctx, tree, s);
+      const kept = s.before ? ` — the reading before stands (${done.state}${done.version > 1 ? `, version ${done.version}` : ""})` : "";
+      return { text: `${s.id}: queued, cancelled — nothing was read${kept}`, data: { id: s.id, state: done.state, cancelled: true } };
+    }
     fs.mkdirSync(path.dirname(cancelPath(tree.root, s.id)), { recursive: true });
     fs.writeFileSync(cancelPath(tree.root, s.id), `${now()}\n`);
     return { text: `${s.id}: its readers are being stopped (strom document show ${s.id})`, data: { id: s.id, state: s.state, cancelled: true } };
