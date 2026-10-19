@@ -14,9 +14,10 @@ import type { Input, Media, RecordSet, Region, Source, Task } from "../core/mode
 import { makeNote } from "../core/actions.ts";
 import { clipText, collectFiles, coveringPart, fileSha256, findImage, imageNumbers, imageOfRef, imageRange, IMAGE_FILE_EXT, inboxFolders, inputPath, isWhole, mimeOf, onlyParts, otherCopies, parseImageList, regionText, sharperPart, storeShared, wholeSizeOf } from "../core/media.ts";
 import { create, normId, requireRecord, update } from "../core/records.ts";
-import { imageSizeOfFile } from "../image/index.ts";
+import { exifOrientation, imageSizeOfFile } from "../image/index.ts";
+import { fileToShown, shownToFile, turnsAcross } from "../image/image.ts";
 import { imageOf, pageOf } from "../core/calibration.ts";
-import { cropOf, describeView, ENLARGED_HINT, halves, makeView, OVERVIEW_HINT, parseCrop, partRegion, readInHalves, REDUCED_HINT, SHARPER_SCAN, viewLine, viewRegion, viewSize, type View, type ViewMeta, type ViewSpec } from "../core/views.ts";
+import { cropOf, describeView, ENLARGED_HINT, halves, makeView, mediaOrient, OVERVIEW_HINT, parseCrop, partRegion, readInHalves, REDUCED_HINT, SHARPER_SCAN, viewLine, viewRegion, viewSize, type View, type ViewMeta, type ViewSpec } from "../core/views.ts";
 import { IMAGE_MAX, IMAGE_MAX_LARGE, OVERVIEW_MAX } from "../agents/images.ts";
 import { viewSizesFor, type ViewSizes } from "../core/viewsizes.ts";
 import { PROFILES } from "../agents/profiles.ts";
@@ -152,7 +153,7 @@ function pageLabel(tree: Tree, m: Media): string {
 }
 
 /** "M0012", "B0001:57", "I0002" — or a record set with --image / --page. */
-function resolveTarget(tree: Tree, shared: string, ref: string, opts: Record<string, unknown>): { key: string; file: string; media?: Media } {
+function resolveTarget(tree: Tree, shared: string, ref: string, opts: Record<string, unknown>): { key: string; file: string; media?: Media; page?: number } {
   const at = /^([Bb]\d+):(\d+)$/.exec(ref.trim());
   if (at || /^[Bb]\d+$/.test(ref.trim())) {
     const b = requireRecord<RecordSet>(tree, at ? at[1]! : ref, "recordset");
@@ -166,12 +167,16 @@ function resolveTarget(tree: Tree, shared: string, ref: string, opts: Record<str
     if (!m) throw new UsageError(`image ${image} of ${b.id} is not registered`, { hint: `strom media list --recordset ${b.id} · strom media add <files> --recordset ${b.id}` });
     return { key: m.id, file: path.join(shared, m.file), media: m };
   }
-  const id = normId(ref);
+  // a page of a document the user gave: I0002:3
+  const paged = /^([Ii]\d+):(\d+)$/.exec(ref.trim());
+  const id = normId(paged ? paged[1]! : ref);
   if (id.startsWith("I")) {
     const i = requireRecord<Input>(tree, id, "input");
     const file = inputPath(tree, i);
     if (!file) throw new UsageError(`${i.id} has no file`);
-    return { key: i.id, file };
+    const page = paged ? Number(paged[2]) : undefined;
+    if (page !== undefined && page < 1) throw new UsageError(`no page ${page}`, { hint: `${i.id}:1 is its first page` });
+    return { key: i.id, file, ...(page !== undefined ? { page } : {}) };
   }
   const m = requireRecord<Media>(tree, id, "media");
   return { key: m.id, file: path.join(shared, m.file), media: m };
@@ -228,8 +233,10 @@ interface Target {
   key: string;
   file: string;
   media?: Media;
-  /** As the agent names it: B0001:57, M0012, I0002. */
+  /** As the agent names it: B0001:57, M0012, I0002, I0002:3 (page 3 of a document of pages). */
   ref: string;
+  /** The page of a document of several (a PDF), from 1. */
+  page?: number;
   /**
    * Named as an image of its record set (B0001:57) that is registered only in parts: a half or a crop is of the whole
    * image, shown from the part that covers it.
@@ -287,8 +294,10 @@ function partSpecs(t: Target, p: ViewPart, max: number, inHalves = false): { hal
   const ofParts = t.parts?.length ? wholeSizeOf(t.parts.find((x) => wholeSizeOf(x)) ?? t.parts[0]!) : undefined;
   const size = ofParts ?? (t.media?.width && t.media.height ? { width: t.media.width, height: t.media.height } : imageSizeOfFile(t.file));
   if (!size) return [{ half: p.half, crop: p.crop, label: p.label }]; // no image there: the view says why
-  const W = size.width;
-  const H = size.height;
+  // the boxes are of the picture as the view shows it: a photo turned a quarter by its EXIF has its sides swapped
+  const across = !ofParts && turnsAcross(exifOrientation(t.file));
+  const W = across ? size.height : size.width;
+  const H = across ? size.width : size.height;
   type Box = { x: number; y: number; w: number; h: number };
   let boxes: { box: Box; label?: string; note?: string }[];
   if (p.both) {
@@ -521,10 +530,10 @@ function resolveTargets(tree: Tree, shared: string, all: Media[], args: string[]
       t = { key: m.id, file: path.join(shared, m.file), media: m, ref: `${w.b.id}:${image}`, ...(parts.length ? { parts } : {}) };
     } else {
       const r = resolveTarget(tree, shared, w.ref, {});
-      t = { ...r, ref: r.media && !r.media.part && r.media.recordset && r.media.image !== undefined ? `${r.media.recordset}:${r.media.image}` : r.key };
+      t = { ...r, ref: r.media && !r.media.part && r.media.recordset && r.media.image !== undefined ? `${r.media.recordset}:${r.media.image}` : r.page ? `${r.key}:${r.page}` : r.key };
     }
-    if (seen.has(t.key)) continue;
-    seen.add(t.key);
+    if (seen.has(`${t.key}:${t.page ?? 1}`)) continue;
+    seen.add(`${t.key}:${t.page ?? 1}`);
     targets.push(t);
   }
   if (!targets.length && !several) {
@@ -555,24 +564,29 @@ function oneView(ctx: Context, tree: Tree, shared: string, all: Media[], target:
   let v: View | undefined;
   let sharper: { part: Media; gain: number } | undefined;
   if (t.media?.width && t.media.height && !t.media.part) {
-    const px = viewRegion(spec, t.media.width, t.media.height);
-    const s = sharperPart(all, t.media, { x: px.x / t.media.width, y: px.y / t.media.height, w: px.w / t.media.width, h: px.h / t.media.height });
+    // the place asked is of the picture shown (upright by its EXIF); parts are kept as the file lies
+    const o = mediaOrient(shared, t.media);
+    const [W, H] = turnsAcross(o) ? [t.media.height, t.media.width] : [t.media.width, t.media.height];
+    const px = viewRegion(spec, W, H);
+    const s = sharperPart(all, t.media, shownToFile({ x: px.x / W, y: px.y / H, w: px.w / W, h: px.h / H }, o));
     if (s) {
       sharper = s;
       shown = s.part;
       const whole = !s.part.part && !spec.crop && !spec.half;
-      v = makeView(tree, path.join(shared, s.part.file), s.part.id, { ...spec, half: undefined, crop: whole ? undefined : regionText(s.crop) }, meta);
+      v = makeView(tree, path.join(shared, s.part.file), s.part.id, { ...spec, half: undefined, crop: whole ? undefined : regionText(fileToShown(s.crop, mediaOrient(shared, s.part))) }, meta);
     }
   }
-  v ??= makeView(tree, t.file, t.key, spec, meta);
+  v ??= makeView(tree, t.file, t.key, t.page ? { ...spec, page: t.page } : spec, meta);
   const page = t.media ? pageLabel(tree, t.media) : "";
   // still too little detail: a connector that fetched the image may fetch this part of it sharper
   const base = shown?.part ?? { x: 0, y: 0, w: 1, h: 1 };
+  // what the view shows, as the picture lies in its file (a photo shown turned by its EXIF): where clips are kept
+  const inFile = shownToFile({ x: v.region.x / v.original.width, y: v.region.y / v.original.height, w: v.region.w / v.original.width, h: v.region.h / v.original.height }, v.orient);
   const inWhole: Region = {
-    x: base.x + (v.region.x / v.original.width) * base.w,
-    y: base.y + (v.region.y / v.original.height) * base.h,
-    w: (v.region.w / v.original.width) * base.w,
-    h: (v.region.h / v.original.height) * base.h,
+    x: base.x + inFile.x * base.w,
+    y: base.y + inFile.y * base.h,
+    w: inFile.w * base.w,
+    h: inFile.h * base.h,
   };
   const whole = t.media?.recordset !== undefined && t.media.image !== undefined ? findImage(all, t.media.recordset, t.media.image) : undefined;
   const from = whole?.fetched ? listConnectors(shared).find((c) => c.name === whole.fetched!.connector) : undefined;
@@ -581,12 +595,13 @@ function oneView(ctx: Context, tree: Tree, shared: string, all: Media[], target:
     canPart && !noSharper && v.scale > 1.25 && inWhole.w * inWhole.h < 0.9
       ? `strom fetch ${from.name} --recordset ${whole!.recordset} --images ${whole!.image} --crop ${regionText(inWhole)}`
       : undefined;
-  // The same part as a clip of the source read in it: of the whole image where it is registered.
+  // The same part as a clip of the source read in it: of the whole image where it is registered — as --clip takes it,
+  // of the picture as its view shows it (source add keeps it as the file lies)
   const clip =
     !t.media || (!spec.crop && !spec.half)
       ? undefined
       : whole && !whole.part
-        ? clipText({ media: whole.id, region: inWhole })
+        ? clipText({ media: whole.id, region: fileToShown(inWhole, mediaOrient(shared, whole)) })
         : clipText({ media: t.key, region: { x: v.region.x / v.original.width, y: v.region.y / v.original.height, w: v.region.w / v.original.width, h: v.region.h / v.original.height } });
   return { v, page, ...(t !== target ? { part: t.media! } : {}), ...(sharper ? { sharper } : {}), ...(fetchPart ? { fetchPart } : {}), ...(clip ? { clip } : {}) };
 }
@@ -734,7 +749,8 @@ register(
         const it = items[0]!;
         if (it.image === undefined) throw new UsageError("which image is it a part of? --image <n>", { hint: "strom media add <file> --recordset B… --image <n> --half left" });
         const whole = findImage(tree.list<Media>("media").filter((m) => !m.part), recordset, it.image);
-        (it as { part?: Region }).part = partRegion(opts, whole);
+        // of the whole image as its view shows it (upright by its EXIF)
+        (it as { part?: Region }).part = partRegion(opts, whole, mediaOrient(shared, whole));
       }
       if (recordset) {
         // an image of a book without its number cannot be cited — nor found again
@@ -900,7 +916,7 @@ register(
       "--half right; B0001 --image 2 --crop … B0001 --image 7 --crop …; B0001 2 --crop … 7 --crop …); parts after the\n" +
       "last image are of every image. At most\n" +
       `${VIEW_MAX_IMAGES} images and ${VIEW_MAX_VIEWS} views in one call: every view stays in the context that opens it.`,
-    args: [{ name: "image", description: "M0012, B0001:57 (record set:image), a range B0001:57-60, B0001 with --page, or an input I0002; several = several images", required: true, variadic: true }],
+    args: [{ name: "image", description: "M0012, B0001:57 (record set:image), a range B0001:57-60, B0001 with --page, an input I0002, or a page of an input document I0002:3 (a PDF; HEIC and PDF are converted for reading, the original kept); several = several images", required: true, variadic: true }],
     options: [
       { name: "crop", type: "string", multiple: true, value: "<x,y,w,h>", description: "part of the image: fractions (0.1,0.35,0.4,0.2) or pixels; repeated = several parts; after one image of several: of that image alone (--half, --split, --grid too)" },
       { name: "half", type: "string", multiple: true, value: "<side>", description: "left or right page of a double page (top, bottom); both = the two pages, overlapping at the gutter" },
@@ -925,6 +941,7 @@ register(
       "strom media view B0001:2 --crop 0.05,0.10,0.45,0.30 --crop 0.05,0.40,0.45,0.30",
       "strom media view B0001:2 --crop 0.05,0.10,0.45,0.30 B0001:3 --crop 0.50,0.60,0.45,0.20",
       "strom media view B0001 --page 112 113 --split 2x2",
+      "strom media view I0005:2 --half top",
     ],
     run(ctx, { args, opts, seq }) {
       // the whole image is what a view is without a part of it (strom read --whole: each image in one view)

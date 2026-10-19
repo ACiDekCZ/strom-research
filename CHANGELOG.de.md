@@ -5,9 +5,30 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.18.0
+
+*In Vorbereitung: die Betas bis 1.18.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Handyfotos aufrecht.** Ein Foto, das nach seiner EXIF-Ausrichtung gedreht ist, wird gelesen, wie es gesehen
+  werden soll, aufrecht; die darauf markierten Stellen (Ausschnitte, die Hälften einer Doppelseite, ein gespeicherter
+  Teil) sind die des Bildes, wie es gezeigt wird. Das Foto selbst bleibt, wie es war.
+- **HEIC-Fotos und PDF-Dokumente lesbar.** HEIC-Fotos vom Handy und die Seiten einer PDF werden zum Lesen in JPEG
+  umgewandelt — unter macOS, Windows und Linux —, das Original bleibt, wie es kam. Ein HEIC-Foto geht als
+  JPEG-Ausschnitt in die Strom-App.
+- **Gesagt, wenn ein Bild nicht umgewandelt werden kann.** Wo nichts auf dem Computer ein Foto oder eine PDF-Seite
+  umwandelt, sagt es ein Satz, auch was helfen würde, in der Sprache der Forschung.
+- **Umgewandelte Bilder in Ordnung gehalten.** `strom tidy` räumt umgewandelte Bilder nach 30 Tagen oder über 500 MB
+  weg; bei Bedarf entstehen sie neu.
+- **Eine Zustimmung in einer Sprache.** Eine Zustimmung, die nur ein Mensch gibt (eine Forschung entpacken, einen
+  Stammbaum entfernen, ein abgelehntes Fenster), steht ganz in der Sprache der Forschung, nichts davon bleibt
+  Englisch.
+- **Ein abgelehntes Update.** Wird `strom update` abgelehnt, sagt es, dass nichts installiert wurde und welche
+  Version bleibt, und endet mit einem Fehlercode; eine misslungene Installation wird auch in der Sprache der
+  Forschung gesagt.
+
 ## 1.17.0
 
-*In Vorbereitung: die Betas bis 1.17.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
+*19.10.2026 · gehört zur Strom-App 3.13.1.*
 
 - **Zuerst, was Hypothesen verbinden würden.** Die Aufgaben, zu ergänzen, was die Varianten einer offenen Hypothese
   verbinden würden, kommen in der Warteschlange zuerst — auch in einer bestehenden Forschung nach dem Update —, so

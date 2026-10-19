@@ -5,9 +5,27 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.18.0
+
+*Připravuje se: bety do 1.18.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Fotky z telefonu nastojato.** Fotka otočená podle údaje EXIF se čte tak, jak se má dívat, nastojato; místa na ní
+  vyznačená (výřezy, poloviny dvoustrany, uložená část) jsou místa obrázku, jak se ukazuje. Fotka sama zůstává, jak
+  byla.
+- **Fotky HEIC a dokumenty PDF jdou přečíst.** Fotky HEIC z telefonu a stránky PDF se pro čtení převádějí na JPEG —
+  na macOS, Windows i Linuxu — a originál zůstává, jak přišel. Fotka HEIC jde do aplikace Strom jako výřez JPEG.
+- **Řečeno, když obrázek převést nejde.** Kde fotku nebo stránku PDF na počítači nic nepřevede, řekne to jedna věta
+  i s tím, co by pomohlo, v jazyce výzkumu.
+- **Převedené obrázky v pořádku.** `strom tidy` převedené obrázky po 30 dnech nebo nad 500 MB uklidí; když jsou
+  potřeba, vzniknou znovu.
+- **Souhlas v jednom jazyce.** Souhlas, který dává jen člověk (rozbalení výzkumu, odebrání stromu, odmítnuté okno),
+  zazní celý v jazyce výzkumu, nic z něj nezůstane anglicky.
+- **Odmítnutá aktualizace.** Když se `strom update` odmítne, řekne, že se nic nenainstalovalo a která verze zůstává,
+  a skončí chybovým kódem; nepovedená instalace se řekne také v jazyce výzkumu.
+
 ## 1.17.0
 
-*Připravuje se: bety do 1.17.0-beta.6. Oddíl bude úplný s vydáním.*
+*19. 10. 2026 · patří k aplikaci Strom 3.13.1.*
 
 - **Nejdřív, co by hypotézy spojovaly.** Úkoly doplnit, co by spojovaly verze otevřené hypotézy, jdou ve frontě
   první — i ve stávajícím výzkumu po aktualizaci —, takže aplikace Strom brzy ukáže tyto vazby.

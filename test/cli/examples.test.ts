@@ -14,6 +14,8 @@ import { parseBatch } from "../../src/commands/batch.ts";
 import { guideText } from "../../src/commands/guide.ts";
 import { STROM_APP_URL } from "../../src/core/stromapp.ts";
 
+import { encodeImage } from "../../src/image/index.ts";
+import { makePdf } from "../image-samples.ts";
 const opts = { skip: !hasGit };
 
 /** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
@@ -107,6 +109,10 @@ async function seeded(): Promise<World> {
   const ged = ["0 HEAD", "1 SOUR MYHERITAGE", "0 @I1@ INDI", "1 NAME Ludmila /Kopecká/", "2 _MARNM Horká", "1 SEX F", "0 TRLR", ""].join("\n");
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "rodokmen.ged"), ged);
   await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "rodokmen.ged")]);
+  // a document the user gave as a PDF of two scanned pages (I0005), read page by page (media view I0005:2)
+  const scan = (grey: number) => ({ bytes: encodeImage({ width: 30, height: 40, channels: 3, data: new Uint8Array(30 * 40 * 3).fill(grey) }, "jpeg"), width: 30, height: 40 });
+  fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "dopis.pdf"), makePdf([{ jpeg: scan(60) }, { jpeg: scan(200) }]));
+  await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "dopis.pdf")]);
   return w;
 }
 

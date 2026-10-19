@@ -20,7 +20,8 @@ import { IMAGE_MAX, IMAGE_MAX_LARGE } from "../agents/images.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
 import { currentSession } from "../core/session.ts";
 import { BATCH, BATCH_MAX, batches, NEXT_BLOCK, parseReport, READER_MINUTES_HELP, readerPrompt, readerSettings, viewCount, withoutNextBlock, type Finding, type ReaderImage } from "../core/reader.ts";
-import { imageSize } from "../image/index.ts";
+import { exifOrientation, shownSize } from "../image/index.ts";
+import { turnsAcross } from "../image/image.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { which, withoutAgentMarks } from "../core/which.ts";
 import { permissionPath } from "../agents/files.ts";
@@ -298,13 +299,17 @@ register({
       const file = path.join(ctx.settings.shared()!.value, m.file);
       const page = m.page ?? (b && m.image !== undefined ? pageOf(b, m.image) : undefined);
       const contrast = Boolean(opts.contrast);
-      if (typeof opts.crop === "string" && m.width && m.height) {
+      // the image as a reader sees it: upright (a photo turned by its EXIF has its sides swapped)
+      const across = fs.existsSync(file) && turnsAcross(exifOrientation(file));
+      const W = across ? m.height : m.width;
+      const H = across ? m.width : m.height;
+      if (typeof opts.crop === "string" && W && H) {
         // a crop is read at full resolution — in overlapping parts when it is bigger than one look
-        const all = tiles(parseCrop(partCrops.get(m.id) ?? opts.crop, m.width, m.height), max);
+        const all = tiles(parseCrop(partCrops.get(m.id) ?? opts.crop, W, H), max);
         const parts = all.map((t) => ({ label: t.label, view: view(file, m, { crop: t.crop, max, contrast }, all.length > 1 ? "split" : "crop").file }));
         return { id: m.id, image: m.image, page, view: parts[0]!.view, ...(parts.length > 1 ? { parts } : {}) };
       }
-      const size = !opts.whole && fs.existsSync(file) ? (m.width && m.height ? { width: m.width, height: m.height } : imageSize(new Uint8Array(fs.readFileSync(file)))) : undefined;
+      const size = !opts.whole && fs.existsSync(file) ? (W && H ? { width: W, height: H } : shownSize(new Uint8Array(fs.readFileSync(file)))) : undefined;
       if (size && half) {
         // one page of a spread, with the strip past the gutter (a scan is seldom centred on it)
         const v = view(file, m, { crop: cropOf(halves(size.width, size.height)[half]), max, contrast }, "half");

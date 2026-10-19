@@ -97,7 +97,8 @@ register({
   async run(ctx, { args }) {
     const lang = ctx.uiLang();
     const src = ctx.resolvePath(args[0]!);
-    if (!ctx.interactive) throw new NeedsConsentError([{ key: "unpack", kind: "consent", question: ui(lang, "ui.unpack.person"), set: `strom unpack "${src}"` }]);
+    // the English an agent (and a program) goes by; a person (a script, a launcher) reads it in their language
+    if (!ctx.interactive) throw new NeedsConsentError([{ key: "unpack", kind: "consent", question: ui("en", "ui.unpack.person"), set: `strom unpack "${src}"` }], ui(lang, "ui.unpack.person"));
     // someone new to strom (a launcher of the package installed it just now): the setup wizard first
     if (!ctx.settings.home() && !isAgent(ctx.env)) {
       await setupWizard(ctx);

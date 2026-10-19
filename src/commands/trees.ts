@@ -148,7 +148,8 @@ register({
     const lang = ctx.uiLang();
     const probe = Context.fromOptions({ env: ctx.env, cwd: ctx.cwd, io: ctx.io, json: ctx.json, values: { tree: args[0]! } });
     const root = probe.locateTree()!;
-    if (!ctx.interactive) throw new NeedsConsentError([{ key: "remove", kind: "consent", question: ui(lang, "ui.remove.person"), set: `strom trees remove "${root}"` }]);
+    // the English an agent (and a program) goes by; a person (a script) reads it in their language
+    if (!ctx.interactive) throw new NeedsConsentError([{ key: "remove", kind: "consent", question: ui("en", "ui.remove.person"), set: `strom trees remove "${root}"` }], ui(lang, "ui.remove.person"));
     const tree = Tree.open(root, ctx.env);
     const name = tree.config.name;
     // the Strom app following it live is no work: its bridge only reads, and stops before the tree goes

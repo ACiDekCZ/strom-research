@@ -13,6 +13,8 @@ import { UsageError } from "../core/errors.ts";
 import type { Clip, Family, Media, Person, Source } from "../core/model.ts";
 import { normId, requireRecord, update } from "../core/records.ts";
 import { makeView } from "../core/views.ts";
+import { shownToFile } from "../image/image.ts";
+import { exifOrientation } from "../image/index.ts";
 import { clipText, MAX_CLIPS, regionText } from "../core/media.ts";
 import { withMargin } from "../core/excerpt.ts";
 import { batches, READER_MINUTES_HELP } from "../core/reader.ts";
@@ -173,8 +175,10 @@ register({
     // what the readers cost goes to the session that started them (apart from the agent's own)
     addReaders(tree, ctx.env, ctx.refs, { usd: r0.cost(), runs: r0.runs(), partial: r0.partial() });
     // 3. What passed becomes the source's clips.
+    // the readers saw each image upright; a clip is kept as the file lies (the app turns it as it turns the image)
     const clipsOf = new Map<string, Clip[]>();
-    for (const l of hits) if (passed.has(`${l.source} ${l.media}`)) clipsOf.set(l.source, [...(clipsOf.get(l.source) ?? []), { media: l.media, region: l.region }].slice(0, MAX_CLIPS));
+    const asFile = (l: (typeof hits)[number]) => shownToFile(l.region, exifOrientation(path.join(shared, all.get(l.media)!.file)));
+    for (const l of hits) if (passed.has(`${l.source} ${l.media}`)) clipsOf.set(l.source, [...(clipsOf.get(l.source) ?? []), { media: l.media, region: asFile(l) }].slice(0, MAX_CLIPS));
     for (const [id, clips] of clipsOf)
       update<Source>(tree, id, "source", (s) => ({ ...s, clips }), { op: "source.edit", summary: `${id} clips ${clips.map(clipText).join(" ")} (found by a reader, checked)` });
     // The reports are working notes of the research: committed with it.

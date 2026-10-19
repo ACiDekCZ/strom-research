@@ -15,8 +15,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { UsageError } from "./errors.ts";
 import { now, type Tree } from "./tree.ts";
-import { crop, grid, resize, rotate, stretch, toGrey, type RawImage } from "../image/image.ts";
-import { decodeImage, encodeImage, ImageFormatError, imageSize } from "../image/index.ts";
+import { crop, grid, resize, rotate, shownBoxToFile, shownToFile, stretch, toGrey, turnsAcross, upright, type RawImage } from "../image/image.ts";
+import { decodeImage, encodeImage, exifOrientation, exifOrientationOf, formatOf, ImageFormatError, imageSize } from "../image/index.ts";
+import { readableFile } from "./readable.ts";
 import type { Media, Region } from "./model.ts";
 import { IMAGE_MAX } from "../agents/images.ts";
 import { isWorkerId } from "./workers.ts";
@@ -42,6 +43,8 @@ export interface ViewSpec {
   grid?: boolean | undefined;
   rotate?: 90 | 180 | 270 | undefined;
   png?: boolean | undefined;
+  /** The page of a document of several (a PDF), from 1. */
+  page?: number | undefined;
 }
 
 export interface View {
@@ -54,6 +57,11 @@ export interface View {
   /** The part of the original shown, in original pixels. */
   region: { x: number; y: number; w: number; h: number };
   cached: boolean;
+  /**
+   * The EXIF orientation the picture was turned by (2–8): `original` and `region` are of the picture as it is shown,
+   * upright; a place kept of it (a clip) is kept as the picture lies in its file (image.ts shownToFile).
+   */
+  orient?: number;
 }
 
 export function parseCrop(spec: string, w: number, h: number): { x: number; y: number; w: number; h: number } {
@@ -183,10 +191,16 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
       hint: again ? `fetch it again from the archive (checked: the same scan): ${again} — or the shared folder moved: strom config where` : "the shared folder may have moved: strom config where",
     });
   }
-  const bytes = new Uint8Array(fs.readFileSync(source));
+  // a photo in HEIC, a page of a PDF: the JPEG made of it for reading (the original stays as it is)
+  const original = new Uint8Array(fs.readFileSync(source));
+  const kind = formatOf(original);
+  // anything but a JPEG or PNG (a HEIC photo, a PDF, no picture at all) and every page past the first: readableFile
+  // converts it, or says in the person's language why it cannot be read (read.type, read.page …)
+  const readable = (kind !== "jpeg" && kind !== "png") || (spec.page && spec.page !== 1) ? readableFile(tree.root, source, { env: tree.env, ...(spec.page ? { page: spec.page } : {}) }) : undefined;
+  const bytes = readable && readable.file !== source ? new Uint8Array(fs.readFileSync(readable.file)) : original;
   const size = imageSize(bytes);
   if (!size) {
-    // not JPEG/PNG: decodeImage says what to do
+    // a JPEG or PNG cut short: decodeImage says what to do
     try {
       decodeImage(bytes);
     } catch (err) {
@@ -194,8 +208,12 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
       throw err;
     }
   }
-  const W = size!.width;
-  const H = size!.height;
+  // a photo shown as its camera says it stands (EXIF): a reader never gets it on its side; everything of the view —
+  // its size, --half, --crop, the region it shows — is of the picture as shown
+  const o = formatOf(bytes) === "jpeg" ? exifOrientationOf(bytes) : undefined;
+  const orient = o && o !== 1 ? o : undefined;
+  const W = turnsAcross(orient) ? size!.height : size!.width;
+  const H = turnsAcross(orient) ? size!.width : size!.height;
   let region = viewRegion(spec, W, H);
   region = { x: Math.round(region.x), y: Math.round(region.y), w: Math.max(1, Math.round(region.w)), h: Math.max(1, Math.round(region.h)) };
   const long = Math.max(region.w, region.h);
@@ -212,7 +230,11 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
   const outH = Math.max(1, Math.round(region.h * scale));
   if (Math.max(outW, outH) > 6000) throw new UsageError(`the view would be ${outW}×${outH} px`, { hint: "crop a smaller part, or a smaller --scale" });
 
-  const sha = crypto.createHash("sha256").update(bytes).update(JSON.stringify({ region, scale, spec: { ...spec, crop: undefined, half: undefined, scale: undefined, max: undefined } })).digest("hex");
+  const sha = crypto
+    .createHash("sha256")
+    .update(bytes)
+    .update(JSON.stringify({ region, scale, spec: { ...spec, crop: undefined, half: undefined, scale: undefined, max: undefined, page: undefined }, ...(orient ? { upright: orient } : {}) }))
+    .digest("hex");
   const ext = spec.png ? "png" : "jpg";
   const dir = path.join(tree.root, ".strom", "views");
   const file = path.join(dir, `${key}-${sha.slice(0, 10)}.${ext}`);
@@ -220,7 +242,11 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
   let dims = { width: outW, height: outH };
   if (!cached) {
     let img: RawImage = decodeImage(bytes);
-    img = crop(img, region.x, region.y, region.w, region.h);
+    if (orient) {
+      // cut where the place lies in the file, then turned as shown
+      const f = shownBoxToFile(region, orient, W, H);
+      img = upright(crop(img, f.x, f.y, f.w, f.h), orient);
+    } else img = crop(img, region.x, region.y, region.w, region.h);
     if (spec.grey) img = toGrey(img);
     if (outW !== img.width || outH !== img.height) img = resize(img, outW, outH);
     if (spec.contrast) img = stretch(img);
@@ -252,13 +278,15 @@ export function makeView(tree: Tree, source: string, key: string, spec: ViewSpec
     cached,
     ...(meta.reader || tree.env.STROM_READER === "1" ? { reader: 1 } : {}),
     ...(isWorkerId(worker) ? { worker } : {}),
+    ...(orient ? { orient } : {}),
+    ...(spec.page && spec.page !== 1 ? { page: spec.page } : {}),
   };
   try {
     fs.appendFileSync(path.join(dir, "views.jsonl"), JSON.stringify(record) + "\n");
   } catch {
     // the record is no reason to fail the view
   }
-  return { file, ...dims, scale, original: { width: W, height: H }, region, cached };
+  return { file, ...dims, scale, original: { width: W, height: H }, region, cached, ...(orient ? { orient } : {}) };
 }
 
 /** What a view shows: "1000×1568 px · part 0,0 1200×2000 px of 2400×2000 · 78 %". */
@@ -295,8 +323,19 @@ export function describeView(v: View, display: (p: string) => string, fetchPart?
   return `${display(v.file)}\n${viewLine(v)}${hint}`;
 }
 
-/** A part of an image from --half / --crop (fractions, or pixels of the registered whole image). */
-export function partRegion(opts: Record<string, unknown>, whole?: Media): Region {
+/** The EXIF orientation a registered image is shown turned by (2–8), when its file is here; none for 1 or no file. */
+export function mediaOrient(shared: string | undefined, m: Media | undefined): number | undefined {
+  if (!shared || !m || !/^image\/jpeg$/.test(m.mime)) return undefined;
+  const o = exifOrientation(path.join(shared, m.file));
+  return o && o !== 1 ? o : undefined;
+}
+
+/**
+ * A part of an image as the agent names it (--half, --crop: fractions, or pixels of the registered image), of the
+ * picture as its views show it — upright, turned by its EXIF (`orient`) —, as fractions of the picture as it lies in
+ * its file: where clips and parts are kept.
+ */
+export function partRegion(opts: Record<string, unknown>, whole?: Media, orient?: number): Region {
   const half = opts.half === undefined ? undefined : String(opts.half);
   if (half !== undefined && !["left", "right", "top", "bottom"].includes(half)) throw new UsageError(`invalid --half "${half}"`, { hint: "left, right, top or bottom" });
   const crop = opts.crop === undefined ? undefined : String(opts.crop);
@@ -304,10 +343,11 @@ export function partRegion(opts: Record<string, unknown>, whole?: Media): Region
   if (pixels && !(whole?.width && whole.height))
     throw new UsageError("--crop in pixels needs the image registered (its size); give fractions of it", { hint: "--crop 0.5,0.2,0.5,0.3 — x, y, width, height as parts of the whole image" });
   // fractions are measured on a large image, so that halves come out exact
-  const [W, H] = pixels ? [whole!.width!, whole!.height!] : [1_000_000, 1_000_000];
+  // the registered size is the file's: a picture shown turned a quarter has its sides swapped
+  const [W, H] = pixels ? (turnsAcross(orient) ? [whole!.height!, whole!.width!] : [whole!.width!, whole!.height!]) : [1_000_000, 1_000_000];
   const px = viewRegion({ half: half as "left" | undefined, crop }, W, H);
   const f = (n: number) => Math.round(n * 10_000) / 10_000;
   const r = { x: f(px.x / W), y: f(px.y / H), w: f(px.w / W), h: f(px.h / H) };
   if (r.w * r.h > 0.95) throw new UsageError("that is the whole image", { hint: "without --crop and --half it is the image itself" });
-  return r;
+  return orient ? shownToFile(r, orient) : r;
 }

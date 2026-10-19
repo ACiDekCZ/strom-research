@@ -235,7 +235,10 @@ export class Context {
       this.io.stderr(`${ui(lang, "ui.dialog.waiting", { minutes: String(WAIT_SECONDS / 60), question: text.question })}\n`);
       const answer = this.io.dialog ? this.io.dialog(text) : systemDialog(text, this.env);
       if (answer === true) return "window";
-      if (answer === false) throw new StromError(ui(lang, "ui.dialog.refused"), { hint: `the user said no to: ${question} — do not ask again unless they want to` });
+      // said no: an agent reads the English and what not to do; a person (the app, a script) their language — nothing
+      // changed and how to ask again (printError: ui.error.consent.refused), never the agent's English under it
+      if (answer === false)
+        throw new StromError(ui("en", "ui.error.consent.refused"), { hint: `the user said no to: ${question} — do not ask again unless they want to`, code: "consent.refused", params: { set } });
     }
     // a person (a script, no terminal) reads it in their language; an agent the English it goes by
     // a run nobody watches: nobody to say yes before it ends — a task for it, for the user to see, and on another way

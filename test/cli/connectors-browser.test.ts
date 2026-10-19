@@ -386,7 +386,8 @@ test("the agent's permissions: browser tools only for the sites of connectors se
   w.env.CLAUDECODE = "1";
   const refused = await w.run(["config", "set", "agent.permissions", "full"], { dialog: false });
   assert.equal(refused.code, 1);
-  assert.match(refused.err, /Nepovoleno/, "in the user's language");
+  // the window asked the person in their language; the error the agent reads is English (main.ts inLanguage)
+  assert.match(refused.err, /error: not allowed — nothing was changed\n→ the user said no to: /, "the agent's English");
   assert.equal((await w.ok(["config", "get", "agent.permissions"])).out.trim(), "auto");
   delete w.env.CLAUDECODE;
   const no = await w.run(["config", "set", "agent.permissions", "full"], { tty: true, answers: ["n"] });

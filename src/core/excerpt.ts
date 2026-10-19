@@ -12,6 +12,7 @@ import type { Clip, ExcerptQuality, ExcerptScope, Family, Input, Media, Person, 
 import type { Tree } from "./tree.ts";
 import { clipText, inputPath, sharperPart } from "./media.ts";
 import { kinship } from "./kin.ts";
+import { readableFile } from "./readable.ts";
 import { Settings } from "./config.ts";
 import { crop, resize, toGrey, upright, type RawImage } from "../image/image.ts";
 import { decodeImage, encodeImage, exifOrientation, imageSize } from "../image/index.ts";
@@ -124,12 +125,21 @@ export function renderClip(
   return { media: m.id, from: src.id, ...out, url, clip: clipMark(clip), ...orient };
 }
 
-/** The image of a document the user gave (an input), when it is one: JPEG or PNG on this computer. */
+/**
+ * The image of a document the user gave (an input), when it is one: JPEG or PNG on this computer, or a HEIC photo
+ * this computer converts (the JPEG made of it; the original stays as it is).
+ */
 function inputImage(tree: Tree, id: string | undefined): { input: Input; file: string } | undefined {
   const input = id ? tree.get<Input>(id) : undefined;
   const file = input ? inputPath(tree, input) : undefined;
-  if (!input || !file || !(/^image\/(jpeg|png)$/.test(input.mime ?? "") || /\.(jpe?g|png)$/i.test(file)) || !fs.existsSync(file)) return undefined;
-  return { input, file };
+  if (!input || !file || !fs.existsSync(file)) return undefined;
+  if (/^image\/(jpeg|png)$/.test(input.mime ?? "") || /\.(jpe?g|png)$/i.test(file)) return { input, file };
+  if (!/^image\/hei[cf]$/.test(input.mime ?? "") && !/\.hei[cf]$/i.test(file)) return undefined;
+  try {
+    return { input, file: readableFile(tree.root, file, { env: tree.env }).file };
+  } catch {
+    return undefined;
+  }
 }
 
 /** A document the user gave as a scan (the source's input): the whole image is its excerpt (cached in .strom/excerpts). */

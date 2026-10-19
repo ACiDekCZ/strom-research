@@ -5,9 +5,28 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.18.0
+
+*In preparation: the betas up to 1.18.0-beta.1. The section is complete with the release.*
+
+- **Phone photos upright.** A photo turned by its EXIF orientation is read as it is meant to be seen, upright; the
+  places marked on it (excerpts, the halves of a spread, a cut-out part) are of the picture as it is shown. The
+  photo itself stays as it was.
+- **HEIC photos and PDF documents can be read.** HEIC photos from a phone and the pages of a PDF are converted to
+  JPEG for reading — on macOS, Windows and Linux — and the original is kept as it came. A HEIC photo goes to the
+  Strom app as a JPEG excerpt.
+- **Said when a picture cannot be converted.** Where nothing on the computer converts a photo or a PDF page, one
+  sentence says so and what would help, in the research's language.
+- **Converted pictures kept in order.** `strom tidy` clears the converted pictures away after 30 days or above
+  500 MB; they are made again when needed.
+- **A consent in one language.** A consent only a person gives (unpacking a research, removing a tree, a window said
+  no to) is said whole in the research's language, nothing of it left in English.
+- **An update said no to.** When `strom update` is declined, it says nothing was installed and which version stays,
+  and ends with an error code; a failed install is said in the research's language too.
+
 ## 1.17.0
 
-*In preparation: the betas up to 1.17.0-beta.6. The section is complete with the release.*
+*2026-10-19 · goes with the Strom app 3.13.1.*
 
 - **What hypotheses would connect, first.** The tasks to fill in what the variants of an open hypothesis would
   connect go first in the queue — also in an existing research after the update — so the Strom app can show those

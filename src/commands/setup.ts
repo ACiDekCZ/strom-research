@@ -51,7 +51,7 @@ import { agentSettingsLine, chooseEffort } from "../cli/model-choice.ts";
 import { calibrationKey, calibrationLabel, calibrationOffer, forgetCalibration, researchKey, sizesText, viewModel, viewSizesFor } from "../core/viewsizes.ts";
 import { bookTuned, bookViewSizes, forgetTuning, keyTuningOf, readingOf, selfTune, treeTuning, type KeyTuning, type Tuned } from "../core/tune.ts";
 import { loadAliases } from "../core/modelkey.ts";
-import { NeedsInputError, StromError, UsageError } from "../core/errors.ts";
+import { EXIT, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
 import { worsenings, type Worsening } from "../core/tunereset.ts";
 import { resetReading } from "../cli/tunereset.ts";
 import { loadRollup, manyWeb, type Unit } from "../core/readstats.ts";
@@ -630,10 +630,13 @@ register({
       : newer
         ? t("ui.update.sure", { version: newest, current: VERSION })
         : t("ui.update.node.sure", { from: inst.node ?? "?", to: node!.version });
+    const again = to ? `strom update --channel ${to}` : "strom update";
     if (isAgent(ctx.env) || !ctx.yes) {
+      // said no: said so, nothing installed and the version it stays at, and not ok (exit 1) — never a quiet 0 that
+      // reads as done (found: strom update --channel beta ended 0 at the old version, nobody knew why)
       if (!isAgent(ctx.env) && ctx.interactive) {
-        if (!(await ctx.confirm(question, true))) return { text: t("ui.update.later"), data: { current: VERSION, latest: newest, updated: false, ...extra } };
-      } else ctx.requireHuman(`update strom to ${newest}${to ? ` (--channel ${to})` : ""}`, to ? `strom update --channel ${to}` : "strom update", "update", question);
+        if (!(await ctx.confirm(question, true))) return { text: t("ui.update.later", { current: VERSION, command: again }), data: { current: VERSION, latest: newest, updated: false, refused: true, ...extra }, exitCode: EXIT.error };
+      } else ctx.requireHuman(`update strom to ${newest}${to ? ` (--channel ${to})` : ""}`, again, "update", question);
     }
     // Another channel, or an older version: every research and the settings backed up before anything is installed —
     // none made, nothing installed (Milan, 2026-10-07: "přechod beta ↔ produkce nikdy nepřijde o data")
@@ -644,7 +647,9 @@ register({
     try {
       done = await installUpdate(ctx.env, inst.root!, process.platform, { release: latest, keep: ctx.researchFolders(), ...(switching ? { channel: to! } : {}) });
     } catch (e) {
-      throw new StromError(t("ui.update.failed", { detail: (e as Error).message }), { hint: "strom update — or run the installer again" });
+      // the person's language for a person (ui.error.update.failed and its hint), the English for an agent and a program
+      const params = { detail: (e as Error).message, current: VERSION, command: again };
+      throw new StromError(ui("en", "ui.error.update.failed", params), { hint: ui("en", "ui.error.update.failed.hint", params), code: "update.failed", params });
     }
     // The agents learn what the new version tells them.
     const { command, args } = stromLauncher();

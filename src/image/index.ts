@@ -1,7 +1,7 @@
 // Reading and writing image files by their content, not their name.
 
 import fs from "node:fs";
-import type { RawImage } from "./image.ts";
+import { turnsAcross, type RawImage } from "./image.ts";
 import { decodeJpeg } from "./jpeg-decode.ts";
 import { encodeJpeg } from "./jpeg-encode.ts";
 import { decodePng, encodePng } from "./png.ts";
@@ -109,7 +109,8 @@ export function imageSizeOfFile(file: string): { width: number; height: number }
 
 /**
  * The orientation a JPEG's EXIF gives (1–8: how a viewer turns the picture as it lies in the file), undefined when it
- * gives none. strom itself works on the picture as it lies (views, clips, excerpts): the app turns what it shows.
+ * gives none. Views for readers are shown turned so (core/views.ts); clips, excerpts and parts are kept as the picture
+ * lies in its file (the app turns what it shows: _STROM_ORIENT).
  */
 export function exifOrientation(file: string): number | undefined {
   let fd: number | undefined;
@@ -117,7 +118,24 @@ export function exifOrientation(file: string): number | undefined {
     fd = fs.openSync(file, "r");
     const head = Buffer.alloc(128 * 1024);
     const n = fs.readSync(fd, head, 0, head.length, 0);
-    const b = head.subarray(0, n);
+    return exifOrientationOf(head.subarray(0, n));
+  } catch {
+    return undefined;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+/** The size of a picture as it is shown: a JPEG turned by its EXIF has its sides swapped. */
+export function shownSize(bytes: Uint8Array): { width: number; height: number } | undefined {
+  const s = imageSize(bytes);
+  return s && formatOf(bytes) === "jpeg" && turnsAcross(exifOrientationOf(bytes)) ? { width: s.height, height: s.width } : s;
+}
+
+/** exifOrientation of a JPEG's bytes (its beginning is enough: EXIF comes before the picture). */
+export function exifOrientationOf(bytes: Uint8Array): number | undefined {
+  try {
+    const b = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     if (b[0] !== 0xff || b[1] !== 0xd8) return undefined;
     let p = 2;
     while (p + 4 <= b.length && b[p] === 0xff) {
@@ -146,7 +164,25 @@ export function exifOrientation(file: string): number | undefined {
     return undefined;
   } catch {
     return undefined;
-  } finally {
-    if (fd !== undefined) fs.closeSync(fd);
   }
+}
+
+/** A JPEG without its EXIF (APP1 "Exif") segments: a picture whose orientation is said elsewhere, or by nobody. */
+export function withoutExif(bytes: Uint8Array): Uint8Array {
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return bytes;
+  const keep: Uint8Array[] = [bytes.subarray(0, 2)];
+  let p = 2;
+  let dropped = false;
+  while (p + 4 <= bytes.length && bytes[p] === 0xff) {
+    const marker = bytes[p + 1]!;
+    if (marker === 0xda || marker === 0xd9) break;
+    const len = (bytes[p + 2]! << 8) | bytes[p + 3]!;
+    const exif = marker === 0xe1 && Buffer.from(bytes.subarray(p + 4, p + 10)).toString("latin1") === "Exif\0\0";
+    if (exif) dropped = true;
+    else keep.push(bytes.subarray(p, p + 2 + len));
+    p += 2 + len;
+  }
+  if (!dropped) return bytes;
+  keep.push(bytes.subarray(p));
+  return new Uint8Array(Buffer.concat(keep));
 }
