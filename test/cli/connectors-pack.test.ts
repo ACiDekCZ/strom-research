@@ -196,16 +196,16 @@ test("the pace of a host: strom's pause and no cap made up — the user's own, s
   const { w, a } = await world();
   assert.match((await w.ok(["connector", "show", "zkusebni"])).out, /pace\s+at least 2 s apart, no hourly cap/);
   assert.equal((await w.run(["allow", "host", "127.0.0.1", "--pace", "1"])).code, 4, "the user's decision");
-  assert.equal((await w.run(["allow", "host", "127.0.0.1", "--pace", "0.1"], { tty: true })).code, 2, "not below the shortest pause");
-  const set = await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5", "--per-hour", "3000"], { tty: true });
+  assert.equal((await w.run(["allow", "host", "127.0.0.1", "--pace", "0.1"], { tty: true, answers: ["y"] })).code, 2, "not below the shortest pause");
+  const set = await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5", "--per-hour", "3000"], { tty: true, answers: ["y"] });
   // the person reads it in the research language, as strom allow archive says its decision
   // a decimal comma in Czech and German, as the language writes it; a point in English
   assert.match(set.out, /127\.0\.0\.1: nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu – vlastní tempo/);
   assert.match((await w.ok(["consents"])).out, /127\.0\.0\.1 · nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu \(vlastní tempo\)/);
   assert.match((await w.ok(["connector", "show", "zkusebni"])).out, /pace\s+at least 0\.5 s apart, at most 3000 an hour — yours for the host/);
-  const back = await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--per-hour", "auto"], { tty: true });
+  const back = await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--per-hour", "auto"], { tty: true, answers: ["y"] });
   assert.match(back.out, /127\.0\.0\.1: nejméně 2 s mezi dvěma požadavky, bez hodinového stropu – zase tempo služby/);
-  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--lang", "en"], { tty: true })).out, /127\.0\.0\.1: at least 2 s between two requests, no hourly cap – the service's pace again/);
+  assert.match((await w.ok(["allow", "host", "127.0.0.1", "--pace", "auto", "--lang", "en"], { tty: true, answers: ["y"] })).out, /127\.0\.0\.1: at least 2 s between two requests, no hourly cap – the service's pace again/);
   w.cleanup();
   await a.close();
 });
@@ -240,7 +240,7 @@ test("a refusal (403) stops the run and leaves the archive alone — until the u
 
 test("strom consents speaks the research language — each host, archive, level and pace in Czech and German, English as before, --json the same", opts, async () => {
   const { w, a } = await world();
-  await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5", "--per-hour", "3000"], { tty: true });
+  await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5", "--per-hour", "3000"], { tty: true, answers: ["y"] });
   assert.equal((await w.run(["fetch", "zkusebni", "zakazana", "--images", "1"])).code, 1, "a refusal (403): left alone for a day");
   const english = /consents: (on|off)|connectors run|refused us|left alone|at least|apart|an hour|hosts \(automated|archives \(what|the service's pace|take back|\(none\)|  allowed  /;
   // the research's language (Czech): every line, the date as the menu says it

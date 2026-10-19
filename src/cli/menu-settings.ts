@@ -27,6 +27,7 @@ import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
 import { archivePermissions, archiveState, browserOnlyHere } from "./menu-archives.ts";
 import { chooseTerminal, terminalState } from "./terminals.ts";
+import { phoneState } from "../core/phone.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -64,6 +65,8 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
             // macOS: the terminal chosen here; Windows: the system decides it, said where
             if (process.platform === "darwin" || process.platform === "win32")
               parts.push({ label: t(archive ? "ui.settings.terminal.archive" : "ui.settings.terminal", { state: terminalState(ctx, lang) }), act: () => terminalStep(ctx, run, lang) });
+            // the phone connection: this computer's, an archive's too (photos into it)
+            parts.push({ label: t("ui.settings.phone", { state: phoneLabel(ctx, lang) }), act: () => phoneStep(ctx, run, lang) });
             if (parts.length) {
               const i = await ctx.choose(t("ui.settings.wizard.what"), [{ label: t("ui.settings.wizard.all") }, ...parts.map((p) => ({ label: p.label }))], 0, { back: t("ui.browse.back") });
               if (i === undefined) return;
@@ -116,8 +119,9 @@ export async function settingsMenu(ctx: Context, run: Run, lang: string, root: s
           label: t("ui.settings.remote", { state: t(remote ? "ui.settings.remote.both" : own ? "ui.settings.remote.chats" : "ui.settings.off") }),
           act: async () => {
             ctx.io.stdout(t(own ? "ui.settings.remote.own" : "ui.settings.remote.about") + "\n");
-            if (await ctx.confirm(t(remote ? "ui.settings.remote.off" : own ? "ui.settings.remote.onalone" : "ui.settings.remote.on"), !remote))
-              await run(["config", "set", "agent.remote", remote ? "off" : "on"], true);
+            // on: the command asks the person's yes itself (Enter says no) — asked once
+            if (!remote) await run(["config", "set", "agent.remote", "on"], true);
+            else if (await ctx.confirm(t("ui.settings.remote.off"), false)) await run(["config", "set", "agent.remote", "off"], true);
           },
         });
       }
@@ -157,6 +161,35 @@ async function terminalStep(ctx: Context, run: Run, lang: string): Promise<void>
   const picked = await chooseTerminal(ctx, lang, now, { back: translator(lang)("ui.browse.back") });
   if (picked === undefined || picked === now) return;
   await run(picked === "system" ? ["config", "unset", "terminal"] : ["config", "set", "terminal", picked], true);
+}
+
+/** The phone connection as the settings say it: off, or on with the phones paired (an error: said as one). */
+function phoneLabel(ctx: Context, lang: string): string {
+  const t = translator(lang);
+  const s = phoneState(ctx.env);
+  if (s.state === "on") return t("ui.settings.phone.on", { n: s.phones.length });
+  if (s.state === "error") return t("ui.settings.phone.error");
+  return t("ui.settings.off");
+}
+
+/**
+ * The phone connection: off — turned on on a yes (the person's, in their terminal: strom phone on); on — turned off, or a
+ * phone taken off the paired ones; 0 back with nothing changed.
+ */
+async function phoneStep(ctx: Context, run: Run, lang: string): Promise<void> {
+  const t = translator(lang);
+  const s = phoneState(ctx.env);
+  if (s.state !== "on" && s.state !== "error") {
+    // strom phone on asks the person itself (Enter: no, nothing changed)
+    await run(["phone", "on"]);
+    await pause(ctx, lang);
+    return;
+  }
+  const i = await ctx.choose(t(s.state === "on" ? "ui.phone.on" : "ui.phone.error", { urls: s.addresses.map((a) => a.url).join(", "), why: t(`ui.phone.why.${s.error?.code ?? "bind-failed"}` as UIKey) }), [{ label: t("ui.phone.menu.off") }, ...s.phones.map((p) => ({ label: t("ui.phone.menu.remove", { name: p.name || p.id, date: p.pairedAt.slice(0, 10) }) }))], 0, { back: t("ui.browse.back") });
+  if (i === undefined) return;
+  if (i === 0) await run(["phone", "off"]);
+  else await run(["phone", "remove", s.phones[i - 1]!.id]);
+  await pause(ctx, lang);
 }
 
 /** Maintenance: the check of the installation, what strom keeps beside the research (disk space), the newer strom when one is out. */
@@ -349,8 +382,7 @@ async function hooks(ctx: Context, run: Run, lang: string, shared: string): Prom
       key: String(k + 1),
       label: t(on.has(h.name) ? "ui.hooks.on" : "ui.hooks.off", { name: h.manifest.title ?? h.name }),
       act: async () => {
-        // on: what it will be told, and a yes (off needs none)
-        if (!on.has(h.name) && !(await ctx.confirm(t("ui.consent.hook.on", { name: h.manifest.title ?? h.name }), false))) return;
+        // on: the command says what it will be told and asks a yes itself (off needs none)
         await run(["hook", on.has(h.name) ? "off" : "on", h.name], true);
       },
     }));
@@ -403,7 +435,9 @@ async function archives(ctx: Context, run: Run, lang: string, shared: string | u
         label: t("ui.archives.consent", { state: t(consent ? "ui.settings.on" : "ui.settings.off") }),
         act: async () => {
           out(t("ui.archives.consent.about"));
-          if (await ctx.confirm(t(consent ? "ui.archives.consent.off" : "ui.archives.consent.on"), false)) await run(["config", "set", "connectors.consent", consent ? "off" : "on"], true);
+          // off: the command asks the person's yes itself (Enter says no) — asked once
+          if (consent) await run(["config", "set", "connectors.consent", "off"], true);
+          else if (await ctx.confirm(t("ui.archives.consent.on"), false)) await run(["config", "set", "connectors.consent", "on"], true);
         },
       },
       // The browser for the agent in every session: Claude Code's alone, shown only when it does the research and is here.

@@ -514,8 +514,8 @@ register({
 
     // paid work: the person's yes — in their terminal (Enter says no), else a window of the system; nobody to ask: exit 4
     const says = t("ui.views.ask", est);
-    const where = ctx.requireHuman(`Tune the reading of scans for ${key}: ${planned.length} paid readings, about ${est.cost}?`, `strom media calibrate${typeof opts.model === "string" ? ` --model ${opts.model}` : ""}`, "media.calibrate", says);
-    if (where === "terminal" && !(await ctx.confirm(says, false))) return { text: t("ui.views.no"), data: { ran: false, ...sample } };
+    const where = await ctx.requireHumanYes(`Tune the reading of scans for ${key}: ${planned.length} paid readings, about ${est.cost}?`, `strom media calibrate${typeof opts.model === "string" ? ` --model ${opts.model}` : ""}`, "media.calibrate", says);
+    if (!where) return { text: t("ui.views.no"), data: { ran: false, ...sample } };
 
     const day = new Date().toISOString().slice(0, 10);
     const reportsDir = path.join(tree.root, ".strom", "calibrate", `${day}-${Date.now().toString(36)}`);

@@ -64,6 +64,34 @@ export function isTreeDir(dir: string): boolean {
   return fs.existsSync(path.join(dir, TREE_FILE));
 }
 
+/** A tree Strom knows on this computer. */
+export interface KnownTree {
+  name: string;
+  root: string;
+  lang: string;
+  /** Its random id (strom.json). */
+  id: string;
+  /** Its mode: an archive, else none. */
+  mode?: "archive";
+}
+
+/** All trees Strom knows about: folders in the trees dir plus remembered ones. */
+export function knownTreesIn(treesDir: string | undefined, extra: readonly string[] = []): KnownTree[] {
+  const roots = new Set<string>();
+  if (treesDir && fs.existsSync(treesDir))
+    for (const name of fs.readdirSync(treesDir)) {
+      const root = path.join(treesDir, name);
+      if (isTreeDir(root)) roots.add(root);
+    }
+  for (const e of extra) if (isTreeDir(e)) roots.add(e);
+  const out: KnownTree[] = [];
+  for (const root of [...roots].sort()) {
+    const cfg = readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE));
+    if (cfg) out.push({ name: cfg.name, root, lang: cfg.lang, id: cfg.id, ...(cfg.mode === "archive" ? { mode: "archive" as const } : {}) });
+  }
+  return out;
+}
+
 /** Walk up from `start` to the first folder containing strom.json. */
 export function findTreeUpwards(start: string): string | undefined {
   let dir = path.resolve(start);

@@ -111,6 +111,40 @@ for (const orient of [3, 6, 8])
     w.cleanup();
   });
 
+for (const orient of [6, 1])
+  test(`media add --crop|--half of a photo with EXIF orientation ${orient}: media list, media show and the same file given again say the part as the agent gave it`, opts, async () => {
+    const w = new World();
+    await w.withTree();
+    await w.ok(["recordset", "add", "Kniha zemřelých 1890-1900", "--kinds", "burial", "--places", "Žďár", "--years", "1890-1900"]);
+    const dir = path.join(w.dir, "díly");
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, "3.jpg"), jpegWithOrientation(halves(200, 100), orient));
+    await w.ok(["media", "add", path.join(dir, "3.jpg"), "--recordset", "B1", "--image", "3"]);
+    // two parts saved on their own (any pictures: their own files are cuts)
+    const cut = (grey: number, name: string) => {
+      const f = path.join(dir, name.normalize("NFD"));
+      fs.writeFileSync(f, encodeImage({ width: 40, height: 30, channels: 3, data: new Uint8Array(40 * 30 * 3).fill(grey) }, "jpeg", 92));
+      return f;
+    };
+    const strip = cut(60, "pruh řádku.jpg");
+    const top = cut(180, "horní půlka.jpg");
+    await w.ok(["media", "add", strip, "--recordset", "B1", "--image", "3", "--crop", "0.1,0.1,0.8,0.3"]);
+    await w.ok(["media", "add", top, "--recordset", "B1", "--image", "3", "--half", "top"]);
+    // kept as the file lies (a quarter turned for 6), as before
+    const kept = (await w.ok(["media", "show", "M0002", "--json"])).json.media.part;
+    assert.deepEqual(kept, orient === 6 ? { x: 0.1, y: 0.1, w: 0.3, h: 0.8 } : { x: 0.1, y: 0.1, w: 0.8, h: 0.3 });
+
+    const list = (await w.ok(["media", "list", "B1"])).out;
+    assert.match(list, /M0002 +B0001:3 +part 0\.1,0\.1,0\.8,0\.3/, list);
+    assert.match(list, /M0003 +B0001:3 +part 0,0,1,0\.5/, list);
+    assert.match((await w.ok(["media", "show", "M0002"])).out, /^M0002 part 0\.1,0\.1,0\.8,0\.3 of image 3 /m);
+    assert.match((await w.ok(["media", "show", "M0001"])).out, /M0002 0\.1,0\.1,0\.8,0\.3 .*· M0003 0,0,1,0\.5/);
+    // the same file as another part, given again as another place: both said as given
+    const again = (await w.ok(["media", "add", top, "--recordset", "B1", "--image", "3", "--crop", "0.1,0.1,0.8,0.3"])).out;
+    assert.match(again, /⚠ B0001:3 part 0\.1,0\.1,0\.8,0\.3 is the same file as M0003 \(B0001:3 part 0,0,1,0\.5\)/, again);
+    w.cleanup();
+  });
+
 test("media view: a PDF the user gave page by page (I0001:2) — a page of scans read without programs, past its end said; the original kept", opts, async () => {
   const w = new World();
   await w.withTree();

@@ -22,6 +22,7 @@ import { lastBackupLine } from "./backups.ts";
 import { diskVersion } from "../core/self.ts";
 import { liveHolder } from "../core/lock.ts";
 import { reviveLive } from "../core/live.ts";
+import { revivePhone } from "../core/phone.ts";
 import { newerVersion } from "../core/update.ts";
 import { taskQueue } from "../commands/tasks.ts";
 import { humanTask } from "../commands/browse.ts";
@@ -160,6 +161,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         revived.add(root);
         try {
           reviveLive(root, ctx.env);
+          revivePhone(ctx.env);
         } catch {
           // its next start brings it back
         }

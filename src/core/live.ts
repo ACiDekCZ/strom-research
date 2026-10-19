@@ -80,7 +80,6 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import type { Env } from "./paths.ts";
-import { withoutAgentMarks } from "./which.ts";
 import { newerTree, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
 import { readJsonIfExists } from "./json.ts";
 import { changeLines, type ChangeKind } from "./changelog.ts";
@@ -98,8 +97,8 @@ import { ui } from "../cli/ui.ts";
 import { EXIT, StromError } from "./errors.ts";
 import { acquireLock } from "./lock.ts";
 import { material } from "./material.ts";
-import { checkOriginalMeta, freeBytes, knownOriginal, materialWaiting, originalMax, ORIGINAL_RESERVE, ORIGINAL_TYPES, parseRegion } from "./originals.ts";
-import { BATCH_ID, batchEstimate, batchLimits, batchRoom, batchPath, batchStatus, idleBatches, noteBatch, openBatch, readBatch } from "./batches.ts";
+import { checkOriginalMeta, cleanIncoming, freeBytes, knownOriginal, materialWaiting, originalMax, ORIGINAL_RESERVE, ORIGINAL_TYPES, parseRegion } from "./originals.ts";
+import { BATCH_ID, batchEstimate, batchLimits, batchPath, batchStatus, idleBatches, readBatch } from "./batches.ts";
 
 /** New images for the app, made for at most so long when the tree changed (the rest the next time). */
 const LIVE_IMAGES_MS = 20_000;
@@ -116,10 +115,12 @@ import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appDecidesC
 import { Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
+import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
+import { qrSvg } from "./qr.ts";
 import { diskVersion, stromLauncher } from "./self.ts";
-import type { Input, Session, Source, Task, TreeConfig } from "./model.ts";
+import { closeBatchBy, forApp, receiveOriginal, refusal, refusalOf, type Receiver } from "./receive.ts";
+import type { Session, Source, Task, TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
-import { foldText } from "./text.ts";
 import { requestTexts, waitingFor } from "./waiting.ts";
 import { fileRefused } from "./taskfiles.ts";
 import { SENDABLE, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts";
@@ -168,9 +169,9 @@ function said(lang: string, key: keyof typeof CODES, params: Record<string, stri
   return { error: ui(lang, key, params), code: CODES[key], text: ui("en", key, params), ...(Object.keys(params).length ? { params } : {}) };
 }
 
-/**
- * An upload of the app refused (PUT /media/<sha256>, a batch's file, POST /batch/<id>/done, GET /media/<sha256>): the
- * English sentence (`error`, `text`) and its stable `code` with `params` for the app to say it in the person's
+/*
+ * The refusals (receive.ts refusal()). An upload of the app refused (PUT /media/<sha256>, a batch's file, POST
+ * /batch/<id>/done, GET /media/<sha256>): the English sentence (`error`, `text`) and its stable `code` with `params` for the app to say it in the person's
  * language (feature `media.codes`). Each code, its answer and its params:
  * - `app.only` 403 — not from the Strom app's pages
  * - `media.bad-sha` 400 — the address names no SHA-256
@@ -204,24 +205,6 @@ function said(lang: string, key: keyof typeof CODES, params: Record<string, stri
  * A decision of a conflict (POST /conflict/<X…>): always `decide.link` 403 {id}, nothing read or written — the person
  * decides it in the terminal, through the link conflict&do=decide (the bridge cannot tell the app from an agent here).
  */
-function refusal(error: string, code: string, params: Record<string, string> = {}): { error: string; code: string; text: string; params?: Record<string, string> } {
-  return { error, code, text: error, ...(Object.keys(params).length ? { params } : {}) };
-}
-/** What a strom of its own said as it failed (its --json: message, code, params): the code it gave, else `fallback`. */
-function refusalOf(why: string, data: { code?: unknown; params?: unknown }, fallback: string): ReturnType<typeof refusal> {
-  const params = data.params && typeof data.params === "object" ? Object.fromEntries(Object.entries(data.params as Record<string, unknown>).map(([k, v]) => [k, String(v)])) : {};
-  return refusal(why, typeof data.code === "string" && data.code ? data.code : fallback, params);
-}
-
-/**
- * The environment of a strom the bridge runs for the Strom app (a send written, the app's tree taken in, an original, a
- * batch closed): what it writes is the person's in the app — never logged as an agent's or a session's, whatever the
- * bridge was started from (an agent's shell, a session that revived it). No question asked.
- */
-export function forApp(env: Env, root: string): NodeJS.ProcessEnv {
-  const { STROM_SESSION: _s, STROM_WORKER: _w, ...rest } = withoutAgentMarks(env) as NodeJS.ProcessEnv;
-  return { ...rest, STROM_TREE: root, STROM_NONINTERACTIVE: "1", STROM_FOR_APP: "1", STROM_SPAWNED: "1" };
-}
 /** Where a running bridge of a tree is noted. */
 export function liveFile(root: string): string {
   return path.join(root, ".strom", "live.json");
@@ -727,7 +710,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1152,6 +1135,7 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
       locked: { code: refused.code, reason: refused.message, way: refused.hint, ...(refused.params ?? {}) },
       links: links(env),
       ...linkSchemeOf(env),
+      phone: phoneSummaryNow(env),
     };
   }
   const tree = Tree.open(root, env);
@@ -1212,7 +1196,16 @@ function status(root: string, env: Env, version?: string): Record<string, unknow
     inbox: { trees: inboxTrees(root, env), material: materialWaiting(tree) },
     sends: recentSends(root, tree),
     batches: batchStatus(tree),
+    // the phone connection, this computer's (an archive's too: the person sends photos into it)
+    phone: phoneSummaryNow(env),
   };
+}
+
+/** The phone connection for /status, looked at again at most every ten seconds (the app asks every minute, each bridge). */
+let phoneSummarySeen: { at: number; value: ReturnType<typeof phoneSummary> } | undefined;
+function phoneSummaryNow(env: Env): ReturnType<typeof phoneSummary> {
+  if (!phoneSummarySeen || Date.now() - phoneSummarySeen.at > 10_000) phoneSummarySeen = { at: Date.now(), value: phoneSummary(env) };
+  return phoneSummarySeen.value;
 }
 
 /** Run the bridge of the tree here, until idle or stopped. */
@@ -1243,6 +1236,15 @@ export function serveLive(root: string, env: Env): Promise<void> {
     if (done) noteLive(root, `hypotheses: ${counted(done.linked.length, "variant link")} filled in from their claims, ${counted(done.tasks.length, "task")} for the rest`);
   } catch (e) {
     noteLive(root, `the links of the hypotheses' variants not filled in now: ${errorText(e)}`);
+  }
+  // the phone connection on and its server gone (the computer started again): started again beside the bridge
+  try {
+    if (phoneConfig(env).on && !phoneRunning(env)) {
+      revivePhone(env);
+      noteLive(root, "the phone connection is on and its server was gone: started again");
+    }
+  } catch (e) {
+    noteLive(root, `the phone's server not started again now: ${errorText(e)}`);
   }
   // the address of the last bridge, so the app that followed it finds this one (its secret: none once it was ended for
   // good — a new one); replaced while it runs when a page that is no Strom app comes with it (leaked)
@@ -1286,6 +1288,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
       failed(req, res, e);
     }
   };
+  // what receives an original or closes a batch (receive.ts, shared with the phone's server)
+  const receiver: Receiver = { root, env, note: (text) => noteLive(root, text), track, head: () => head(root), safely };
 
   /**
    * What changes something (a send, an adoption, an original, a batch, the app saying nothing came): one line in the
@@ -1476,6 +1480,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     if (req.method === "POST" && t === token && what === "group" && sub && !act) {
       writeFor(req, res, origin, groupWrite(decoded(sub)));
+      return;
+    }
+    if ((req.method === "GET" || req.method === "POST") && t === token && what === "phone") {
+      phone(req, res, origin, sub, act);
       return;
     }
     if (req.method !== "GET" || t !== token) {
@@ -1972,200 +1980,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const no = fileRefused(tree.get<Task>(forTask), forTask);
       if (no) return refuse(409, refusal(no.message, no.code === "task.no-file" ? "waiting.no-file" : "waiting.none", { id: forTask }));
     }
-    const settings = new Settings(env, {});
-    const shared = settings.shared()?.value;
-    // not set up (no shared folder): sending again does not help — /status says accepts.media null
-    if (!shared) return refuse(500, refusal("the research has no shared folder for files (strom setup)", "media.no-shared"));
-    // a batch: open, with room for it
-    let open: ReturnType<typeof openBatch> | undefined;
-    const length = Number(header("content-length") ?? NaN);
-    if (batch) {
-      try {
-        open = openBatch(root, batch);
-      } catch (e) {
-        return refuse(409, { ...refusalOf((e as Error).message, e instanceof StromError ? e : {}, "batch.closed"), batch });
-      }
-      const full = batchRoom(open, Number.isFinite(length) ? length : 0, env);
-      if (full) return refuse(413, { ...refusal(full.text, full.code, full.params), batch });
-    }
-    // the same content: only said (an image of another source given again is taken as one more of that source)
-    // (a file for a task comes whole even when the research has it: handed to the task as that content)
-    const known = zip || forTask ? undefined : knownOriginal(tree, shared, sha);
-    const onSource = !batch && !!meta.source && known?.kind === "media" && !tree.get<Source>(meta.source)?.media?.includes(known.id);
-    if (known && !onSource) {
-      if (open) noteBatch(root, open, { known: known.id });
-      // an input of the people, said of again — people it lacks, a note it has not got: added by a strom of its own
-      // (found live: the app said "Sent" while the research took nothing)
-      const had = known.kind === "input" && !batch ? tree.get<Input>(known.id) : undefined;
-      const more = had && (meta.persons.some((p) => !(had.persons ?? []).includes(p)) || (!!note?.trim() && !had.notes.some((n) => foldText(n.text) === foldText(note!.trim()))));
-      if (!more) return refuse(200, { known: known.id, kind: known.kind, ...(batch ? { batch } : {}) });
-      req.resume();
-      const { command, args } = stromLauncher();
-      const child = spawn(command, [...args, "input", "amend", known.id, ...meta.persons.flatMap((p) => ["--person", p]), ...(note ? [`--note=${note}`] : []), "--json"], {
-        cwd: root,
-        env: forApp(env, root),
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-      });
-      track(child);
-      let stdout = "";
-      child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
-      child.stderr.resume();
-      child.on("error", () => reply(200, { known: known.id, kind: known.kind }));
-      child.on("close", (code) => {
-        let data: { added?: unknown; task?: unknown } = {};
-        try {
-          data = JSON.parse(stdout) as typeof data;
-        } catch {
-          // said by the exit code
-        }
-        if (code !== 0) noteLive(root, `what came again for ${known.id} was not added (exit ${code})`);
-        if (code === EXIT.locked) return reply(503, { ...refusal("the research is busy — send it again in a while", "research.busy"), retry: 30 });
-        reply(200, { known: known.id, kind: known.kind, ...(code === 0 && data.added ? { added: data.added } : {}), ...(code === 0 && data.task ? { task: data.task } : {}), ...(code === 0 ? { head: head(root) } : {}) });
-      });
-      return;
-    }
-    // a ZIP of a batch may be larger than one file (unpacked here, each of its files no larger than one): below 4 GB
-    const max = zip ? 4 * 1024 ** 3 - 1 : originalMax(env);
-    if (length > max) return refuse(413, { ...said(tree.lang, "ui.media.large", { mb: String(Math.round(max / 1024 / 1024)) }), max });
-    const free = freeBytes(shared);
-    if (free !== undefined && free - ORIGINAL_RESERVE < (Number.isFinite(length) ? length : max)) return refuse(507, { ...said(tree.lang, "ui.media.full"), free: Math.max(0, free - ORIGINAL_RESERVE) });
-    // beside the store, on its disk: moved into it whole
-    const dir = path.join(shared, "media", ".incoming");
-    fs.mkdirSync(dir, { recursive: true });
-    const part = path.join(dir, `${sha}-${crypto.randomBytes(4).toString("hex")}.part`);
-    const out = fs.createWriteStream(part);
-    const hash = crypto.createHash("sha256");
-    let size = 0;
-    let over = false;
-    const drop = () => fs.rmSync(part, { force: true });
-    req.on("data", (c: Buffer) => {
-      if (over) return;
-      size += c.length;
-      if (size > max) {
-        // larger than it said: answered, the rest thrown away as it comes
-        over = true;
-        out.destroy();
-        drop();
-        reply(413, { ...said(tree.lang, "ui.media.large", { mb: String(Math.round(max / 1024 / 1024)) }), max });
-        req.resume();
-        return;
-      }
-      hash.update(c);
-      if (!out.write(c)) {
-        req.pause();
-        out.once("drain", () => req.resume());
-      }
-    });
-    req.on("aborted", () => {
-      out.destroy();
-      drop();
-    });
-    req.on("error", (e) => {
-      noteLive(root, `an original from the app did not come whole: ${errorText(e)}`);
-      out.destroy();
-      drop();
-    });
-    out.on("error", (e) => {
-      over = true;
-      drop();
-      reply(/ENOSPC/.test(String(e)) ? 507 : 500, /ENOSPC/.test(String(e)) ? said(tree.lang, "ui.media.full") : { error: errorText(e), code: "media.failed", text: errorText(e) });
-      req.resume();
-    });
-    req.on("end", () => {
-      if (over) return;
-      out.end(() => safely(req, res, () => {
-        if (hash.digest("hex") !== sha) {
-          drop();
-          reply(409, refusal("the file is not the one its address names (its SHA-256 differs) — send it again", "media.sha-differs", { sha }));
-          return;
-        }
-        // taken by a strom of its own: its lock, its log and its commit
-        const { command, args } = stromLauncher();
-        const child = spawn(
-          command,
-          [
-            ...args, "media", "original", part, "--sha", sha, `--name=${name}`,
-            ...meta.persons.flatMap((p) => ["--person", p]),
-            ...(meta.source ? ["--source", meta.source] : []),
-            ...(region ? ["--region", region] : []),
-            ...(note ? [`--note=${note}`] : []),
-            ...(batch ? ["--batch", batch, ...(where ? [`--path=${where}`] : []), ...(zip ? ["--zip"] : [])] : []),
-            ...(forTask ? ["--task", forTask] : []),
-            "--json",
-          ],
-          { cwd: root, env: forApp(env, root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
-        );
-        track(child);
-        let stdout = "";
-        let stderr = "";
-        child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
-        child.stderr.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
-        child.on("error", (e) => {
-          drop();
-          reply(500, refusal(errorText(e), "media.failed"));
-        });
-        child.on("close", (code) => {
-          let data: Record<string, unknown> = {};
-          try {
-            data = JSON.parse(stdout) as Record<string, unknown>;
-          } catch {
-            // said by the exit code
-          }
-          if (code === 0) {
-            reply(200, { ...data, sha, bytes: size, head: head(root) });
-            return;
-          }
-          drop();
-          const why = String((data as { message?: unknown }).message ?? stderr.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? "the file was not taken");
-          noteLive(root, `an original was not taken (exit ${code}): ${why}`);
-          // the research busy (another strom holding it longer than a writer waits): the app sends it again later
-          if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 30 });
-          // the task waits no more (answered meanwhile in the terminal)
-          if (forTask && typeof data.code === "string" && ["task.none", "task.not-waiting", "task.no-file"].includes(data.code))
-            return reply(409, refusal(why, data.code === "task.no-file" ? "waiting.no-file" : "waiting.none", { id: forTask }));
-          reply(/not a kind of file/.test(why) ? 415 : /cut short|too small/.test(why) ? 422 : /the most one takes/.test(why) ? 413 : /closed already/.test(why) ? 409 : 400, refusalOf(why, data, "media.refused"));
-        });
-      }));
-    });
+    receiveOriginal(receiver, req, res, { sha, name, note, persons: meta.persons, source: meta.source, region, batch, where, zip, task: forTask });
   };
 
-  /** Close a batch by a strom of its own (strom input batch done): its files become sorting tasks. */
-  const closing = new Set<string>();
-  const closeBatchNow = (id: string, extra: string[], reply: (code: number, body: Record<string, unknown>) => void) => {
-    if (closing.has(id)) return reply(202, { pending: true, batch: id });
-    closing.add(id);
-    const { command, args } = stromLauncher();
-    const child = spawn(command, [...args, "input", "batch", "done", id, ...extra, "--json"], {
-      cwd: root,
-      env: forApp(env, root),
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
-    track(child);
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
-    child.stderr.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
-    child.on("error", (e) => {
-      closing.delete(id);
-      reply(500, { ...refusal(errorText(e), "media.failed"), batch: id });
-    });
-    child.on("close", (code) => {
-      closing.delete(id);
-      let data: Record<string, unknown> = {};
-      try {
-        data = JSON.parse(stdout) as Record<string, unknown>;
-      } catch {
-        // said by the exit code
-      }
-      if (code === 0) return reply(200, { ...data, head: head(root) });
-      const why = String(data.message ?? stderr.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? "the batch was not closed");
-      noteLive(root, `the batch ${id} was not closed (exit ${code}): ${why}`);
-      if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 30, batch: id });
-      reply(/no batch/.test(why) ? 404 : 400, { ...refusalOf(why, data, /no batch/.test(why) ? "batch.none" : "media.refused"), batch: id });
-    });
-  };
+  const closeBatchNow = (id: string, extra: string[], reply: (code: number, body: Record<string, unknown>) => void) => closeBatchBy(receiver, id, extra, reply);
 
   /** The app says a batch is whole: {name, files, person, note} — its files become sorting tasks (the note told in them). */
   const batchDone = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, id: string) => {
@@ -2291,6 +2109,113 @@ export function serveLive(root: string, env: Env): Promise<void> {
       return "";
     }
   };
+  /**
+   * The phone connection (core/phone.ts): this computer's, said the same by every bridge of it. GET phone — its state
+   * (its server started again when on and gone); GET phone/qr.svg — the code to pair a phone (409 `phone.off`). From the
+   * app's pages only: POST phone/on {"lang"} — the person asked in a window of the system, not waited for (`confirm`;
+   * none can be shown here: `off` with the error `no-dialog`); POST phone/off — by anyone, a window that waits closed;
+   * POST phone/remove/<id> (404 `phone.unknown`) and, a moment after, phone/restore/<id> (404 `phone.gone`).
+   */
+  const PHONE_EXPOSE = "X-Strom-Pair-Expires, X-Strom-Pair-Url";
+  const PHONE_RESTORE_MS = 15_000;
+  const phonesTakenOff = new Map<string, { phone: PairedPhone; at: number }>();
+  let phoneRevived = 0;
+  const phoneJson = (res: http.ServerResponse, code: number, body: unknown) => {
+    if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Expose-Headers": PHONE_EXPOSE }).end(JSON.stringify(body));
+  };
+  const phoneNow = async () => {
+    // on, its server gone: started again (once in ten seconds), a moment given to say its addresses
+    if (phoneConfig(env).on && !phoneRunning(env) && Date.now() - phoneRevived > 10_000) {
+      phoneRevived = Date.now();
+      revivePhone(env);
+      for (let i = 0; i < 20 && !phoneRunning(env); i++) await new Promise((r) => setTimeout(r, 100));
+    }
+    return { ...phoneState(env), ...phoneProbe(env) };
+  };
+  const phone = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, sub: string | undefined, act: string | undefined) => {
+    if (req.method === "GET") {
+      req.resume();
+      if (!sub) return void phoneNow().then((s) => phoneJson(res, 200, s), (e) => failed(req, res, e));
+      if (sub === "qr.svg" && !act) {
+        const s = phoneState(env);
+        if (s.state !== "on") return phoneJson(res, 409, refusal("the phone connection is off", "phone.off"));
+        if (!s.addresses.length) return phoneJson(res, 503, { ...refusal("the phone's server is starting: asked again in a moment", "phone.starting"), retry: 1 });
+        const q = new URL(req.url ?? "/", "http://127.0.0.1").searchParams;
+        // an address of the server now (a Wi-Fi's or a cable's), the first unless another is asked
+        const asked = q.get("address");
+        const address = asked ? s.addresses.find((a) => a.url === asked.replace(/\/+$/, ""))?.url : s.addresses[0]!.url;
+        if (!address) return phoneJson(res, 404, refusal(`no address of the phone's server: ${asked} (GET phone says them)`, "phone.address", { addresses: s.addresses.map((a) => a.url).join(" ") }));
+        const lang = q.get("lang")?.toLowerCase();
+        const { code, expiresAt } = pairCode(env);
+        noteLive(root, `the phone connection: a QR code to pair a phone shown (${address}, until ${expiresAt})`);
+        phoneSummarySeen = undefined;
+        res
+          .writeHead(200, {
+            "Content-Type": "image/svg+xml; charset=utf-8",
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+            "X-Strom-Pair-Expires": expiresAt,
+            "X-Strom-Pair-Url": address,
+            "Access-Control-Expose-Headers": PHONE_EXPOSE,
+          })
+          .end(qrSvg(pairUrl(address, code, lang && /^[a-z]{2,3}$/.test(lang) ? lang : undefined)));
+        return;
+      }
+      return phoneJson(res, 404, refusal("no such address of the phone", "phone.not-found"));
+    }
+    if (!origin) {
+      req.resume();
+      return phoneJson(res, 403, refusal("only the Strom app may ask this here", "app.only"));
+    }
+    let text = "";
+    req.on("data", (c: Buffer) => {
+      if (text.length < 4096) text += c.toString("utf8");
+    });
+    req.on("end", () => safely(req, res, () => {
+      phoneSummarySeen = undefined;
+      if (sub === "on" && !act) {
+        let lang: string | undefined;
+        try {
+          const said = (JSON.parse(text || "{}") as { lang?: unknown }).lang;
+          if (typeof said === "string" && /^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})?$/.test(said)) lang = said.slice(0, 2).toLowerCase();
+        } catch {
+          // the research's language
+        }
+        const how = askPhoneOn(env, lang ?? Tree.open(root, env).lang);
+        noteLive(root, `the phone connection: asked to turn it on — ${how === "confirm" ? "a window asks the person" : how === "on" ? "on already" : "no window can be shown here"}`);
+        if (how === "no-dialog") return phoneJson(res, 200, { ...phoneState(env), state: "off", error: { code: "no-dialog", detail: "no window of the system can be shown on this computer: strom phone on in a terminal" } });
+        return phoneJson(res, 200, phoneState(env));
+      }
+      if (sub === "off" && !act) {
+        const run = phoneRunning(env);
+        const how = stopPhone(env, "the Strom app", { waitMs: 0 });
+        if (run && how !== "none") endPhoneLater(env, run.pid);
+        noteLive(root, `the phone connection: turned off (${how === "none" ? "no server ran" : `its server ${run?.pid} ends`})`);
+        return phoneJson(res, 200, { ...phoneState(env), state: "off" });
+      }
+      if ((sub === "remove" || sub === "restore") && act) {
+        const id = decoded(act).slice(0, 40);
+        const now = Date.now();
+        for (const [k, v] of phonesTakenOff) if (now - v.at > PHONE_RESTORE_MS) phonesTakenOff.delete(k);
+        if (sub === "remove") {
+          const gone = removePhone(env, id);
+          if (!gone) return phoneJson(res, 404, refusal(`no paired phone ${id}`, "phone.unknown", { id }));
+          phonesTakenOff.set(id, { phone: gone, at: now });
+          noteLive(root, `the phone ${id} taken off the paired ones`);
+        } else {
+          const taken = phonesTakenOff.get(id);
+          if (!taken) return phoneJson(res, 404, refusal(`the phone ${id} cannot be put back now: pair it again`, "phone.gone", { id }));
+          phonesTakenOff.delete(id);
+          restorePhone(env, taken.phone);
+          noteLive(root, `the phone ${id} put back`);
+        }
+        return phoneJson(res, 200, { phones: phoneState(env).phones });
+      }
+      phoneJson(res, 404, refusal("no such address of the phone", "phone.not-found"));
+    }));
+  };
+
   /** The items of one place of What waits (group.key), as /status says them. */
   const groupItems = (tree: Tree, key: string) => waitingFor(tree, { shared: new Settings(env, {}).shared()?.value, stories: false }).filter((w) => w.item.group.key === key);
   /** A sent or not sent from the app: "sent" or "unsent", else none. */
@@ -2562,6 +2487,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         }, 100);
       };
       let batchesChecked = 0;
+      let incomingCleaned = 0;
       // the first a few minutes after it starts, then once a day
       let tidied = Date.now() - Number(env.STROM_TIDY_MS ?? 24 * 3600_000) + 5 * 60_000;
       const timer = setInterval(() => {
@@ -2574,16 +2500,23 @@ export function serveLive(root: string, env: Env): Promise<void> {
           const disk = diskVersion(env);
           if (disk && disk.version !== runs && disk.version !== tried && !busy()) return renew(disk);
         }
-        // a batch nobody said is whole: closed a day after its last file (looked at once a minute)
+        // a batch nobody said is whole: closed a day after its last file, a phone's an hour after (looked at once a minute)
         if (Date.now() - batchesChecked > Number(env.STROM_BATCH_CHECK_MS ?? 60_000)) {
           batchesChecked = Date.now();
           let idle: string[] = [];
           try {
-            idle = idleBatches(root);
+            idle = idleBatches(root, Date.now(), env);
           } catch (e) {
             noteLive(root, `the batches could not be looked at: ${errorText(e)}`);
           }
-          for (const id of idle) closeBatchNow(id, ["--idle"], () => noteLive(root, `the batch ${id} closed: no file came for a day`));
+          for (const id of idle) closeBatchNow(id, ["--idle"], (code) => noteLive(root, code === 200 ? `the batch ${id} closed: no file came for a while` : `the batch ${id} not closed now (${code})`));
+        }
+        // the files of uploads cut short a day ago (media/.incoming/*.part), once an hour
+        if (Date.now() - incomingCleaned > 3600_000) {
+          incomingCleaned = Date.now();
+          const shared = new Settings(env, {}).shared()?.value;
+          const gone = shared ? cleanIncoming(shared) : 0;
+          if (gone) noteLive(root, `${counted(gone, "upload")} cut short a day ago removed (media/.incoming)`);
         }
         // what strom keeps beside the research in order, once a day (a tree tidied once; never while a send is written)
         if (Date.now() - tidied > Number(env.STROM_TIDY_MS ?? 24 * 3600_000) && !busy()) {

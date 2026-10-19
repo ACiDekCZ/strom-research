@@ -18,6 +18,7 @@ import { NeedsConsentError, UsageError, StromError } from "../core/errors.ts";
 import type { Person, RecordSet, Research, Session, Task } from "../core/model.ts";
 import { closeSession, costPartial, currentSession, openSessions, othersAtWork, sessionCost, sessionNote, startSession, whichSession, withReaders } from "../core/session.ts";
 import { reviveLive } from "../core/live.ts";
+import { revivePhone } from "../core/phone.ts";
 import { buildBrief } from "../brief/brief.ts";
 import { sandboxOfRun } from "../core/sandbox.ts";
 import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../agents/effort.ts";
@@ -141,6 +142,7 @@ register(
       if (task && !["open", "doing", "parked"].includes(task.state)) throw new UsageError(`${task.id} is ${task.state}`);
       const s = startSession(tree, { ...(task ? { task } : {}), ...(research ? { research: research.id } : {}) });
       reviveLive(tree.root, ctx.env, { work: true });
+      revivePhone(ctx.env);
       const shared = ctx.settings.shared()?.value;
       const brief = buildBrief(tree, { ...(task ? { task } : {}), session: s, budget: ctx.settings.number("brief.budget", tree.config, DEFAULT_BUDGET), shared, browser: briefBrowser(tree, shared, s, task) });
       // a task the queue holds back, started by its ID: the agent hears why before it begins
@@ -773,7 +775,7 @@ register({
     const max = opts.max === undefined ? (picked.length ? picked.length : until || opts.loop ? Infinity : 1) : Number(opts.max);
     if (max !== Infinity && (!Number.isInteger(max) || max < 1)) throw new UsageError("--max must be a positive number");
     const minutes = ctx.settings.number("run.minutes", treeCfg, DEFAULT_RUN_MINUTES);
-    const gate = runGate(ctx, opts);
+    const gate = await runGate(ctx, opts);
     const budget = ctx.settings.number("brief.budget", treeCfg, DEFAULT_BUDGET);
     // Each run has a name of its own (as a conversation does): several work side by side, never on one task.
     const worker = `run-${process.pid}-${Date.now().toString(36)}`;
@@ -977,6 +979,7 @@ register({
         }
         // the Strom app followed the research and its bridge ended without a word, or idle: on its address again
         reviveLive(root, ctx.env, { work: true });
+        revivePhone(ctx.env);
         // The Strom app follows it from the first session on — not while the run still waits for its gate.
         if (opts.follow && !followed) {
           followed = true;
@@ -1186,20 +1189,28 @@ register({
 
 /**
  * The gate this run asks (run.gate, or --gate), or none (--no-gate). Going round the user's gate is the user's
- * decision: an agent asks them (a window of the system).
+ * decision: an agent asks them (a window of the system); in the person's own terminal their yes (Enter says no) — a
+ * terminal an agent opened round its markers goes round nothing by itself, nor does --yes there. A script of the
+ * person's (no terminal) as before.
  */
-function runGate(ctx: Context, opts: Record<string, unknown>): Gate | undefined {
+async function runGate(ctx: Context, opts: Record<string, unknown>): Promise<Gate | undefined> {
   const set = ctx.settings.runGate();
   const asked = typeof opts.gate === "string" ? opts.gate : undefined;
+  const consent = async (question: string, again: string, says: string) => {
+    // --yes or --json in the person's terminal answers nothing: a window, else needs-input — as every consent there
+    if (isAgent(ctx.env) || (ctx.io.tty && !ctx.interactive)) ctx.requireHuman(question, again, "run.gate", says);
+    else if (ctx.interactive && !(await ctx.humanYes(says)))
+      throw new StromError(ui("en", "ui.error.consent.refused"), { hint: `the user said no to: ${question}`, code: "consent.refused", params: { set: again } });
+  };
   if (opts["no-gate"]) {
-    if (set && isAgent(ctx.env)) ctx.requireHuman(`Let the agent work on its own without the gate "${set}"?`, "strom run --no-gate", "run.gate", ui(ctx.uiLang(), "ui.consent.gate.skip", { name: set }));
+    if (set) await consent(`Let the agent work on its own without the gate "${set}"?`, "strom run --no-gate", ui(ctx.uiLang(), "ui.consent.gate.skip", { name: set }));
     return undefined;
   }
   const name = asked ?? set;
   if (!name) return undefined;
   // a cap that is no cap: said before anybody is asked
   checkGateSpec(name);
-  if (asked && set && asked !== set && isAgent(ctx.env)) ctx.requireHuman(`Ask the gate "${asked}" instead of "${set}"?`, `strom run --gate ${asked}`, "run.gate", ui(ctx.uiLang(), "ui.consent.gate.set", { name: asked }));
+  if (asked && set && asked !== set) await consent(`Ask the gate "${asked}" instead of "${set}"?`, `strom run --gate ${asked}`, ui(ctx.uiLang(), "ui.consent.gate.set", { name: asked }));
   const shared = ctx.settings.shared()?.value;
   if (!shared) throw new StromError("no shared folder, so no gates", { hint: "strom setup" });
   ensureGatesDir(shared);

@@ -7,24 +7,36 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.18.0
 
-*In Vorbereitung: die Betas bis 1.18.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.18.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Handyfotos aufrecht.** Ein Foto, das nach seiner EXIF-Ausrichtung gedreht ist, wird gelesen, wie es gesehen
   werden soll, aufrecht; die darauf markierten Stellen (Ausschnitte, die Hälften einer Doppelseite, ein gespeicherter
   Teil) sind die des Bildes, wie es gezeigt wird. Das Foto selbst bleibt, wie es war.
 - **HEIC-Fotos und PDF-Dokumente lesbar.** HEIC-Fotos vom Handy und die Seiten einer PDF werden zum Lesen in JPEG
   umgewandelt — unter macOS, Windows und Linux —, das Original bleibt, wie es kam. Ein HEIC-Foto geht als
-  JPEG-Ausschnitt in die Strom-App.
-- **Gesagt, wenn ein Bild nicht umgewandelt werden kann.** Wo nichts auf dem Computer ein Foto oder eine PDF-Seite
-  umwandelt, sagt es ein Satz, auch was helfen würde, in der Sprache der Forschung.
-- **Umgewandelte Bilder in Ordnung gehalten.** `strom tidy` räumt umgewandelte Bilder nach 30 Tagen oder über 500 MB
-  weg; bei Bedarf entstehen sie neu.
+  JPEG-Ausschnitt in die Strom-App. Wo nichts auf dem Computer ein Bild umwandelt, sagt es ein Satz, auch was helfen
+  würde; `strom tidy` räumt umgewandelte Bilder nach 30 Tagen oder über 500 MB weg.
+- **Ein Dokument auf einmal gelesen.** `strom document read` liest ein Foto, einen Scan oder eine PDF eines
+  Dokuments — einen Matrikeleintrag, einen Brief, eine Urkunde, einen Grabstein, die Rückseite eines Fotos: die
+  Abschrift Wort für Wort, ihre Übersetzung, was alte Wörter und Abkürzungen bedeuten, und die genannten Personen,
+  samt wem im Stammbaum sie entsprechen können. Nichts wird ergänzt: ein Name, der nicht im Dokument steht, fällt
+  weg — auch ein Nachname, nie vom Vater oder aus einer anderen Familie genommen —, Unleserliches wird markiert; ein
+  zweiter Leser kann blind lesen. In den Stammbaum gelangt nichts von selbst.
+- **Fotos vom Handy.** `strom phone on`, das nur ein Mensch einschaltet, lässt ein Handy im Heimnetz (WLAN oder
+  Kabel — nie ein Mobilfunknetz oder ein VPN) zu diesem Computer. Das Handy wird einmal per QR-Code gekoppelt; seine
+  Seite fotografiert dann oder wählt aus der Galerie und schickt die Fotos ganz in einen Stammbaum der Forschung, mit
+  einer Notiz und der Person, die sie zeigen — wie „Materialien hinzufügen“ in der Strom-App. Ein Foto bleibt auf dem
+  Handy, bis der Computer es hat, so geht bei einer unterbrochenen Verbindung nichts verloren.
 - **Eine Zustimmung in einer Sprache.** Eine Zustimmung, die nur ein Mensch gibt (eine Forschung entpacken, einen
   Stammbaum entfernen, ein abgelehntes Fenster), steht ganz in der Sprache der Forschung, nichts davon bleibt
   Englisch.
 - **Ein abgelehntes Update.** Wird `strom update` abgelehnt, sagt es, dass nichts installiert wurde und welche
   Version bleibt, und endet mit einem Fehlercode; eine misslungene Installation wird auch in der Sprache der
   Forschung gesagt.
+- **Auch im Terminal gefragt.** Was den Computer nach außen öffnet, Geld kostet oder ein fremdes Programm startet –
+  Remote Control, Downloader ohne Rückfrage, die Bedingung für den Agenten allein, ein Hook, ein eigenes Tempo eines
+  Archivs, die Verbindung mit dem Telefon, das Abstimmen des Lesens – fragt auch im Terminal Ja oder Nein; Enter
+  heißt Nein, `--yes` antwortet nie dafür.
 
 ## 1.17.0
 

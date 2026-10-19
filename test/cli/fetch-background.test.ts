@@ -136,7 +136,7 @@ async function setUp(archive: { base: string }, policy?: Record<string, unknown>
   await fakeConnector(w, "zkusebni", archive.base, policy, connector);
   await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism"]);
   // the child fetches at a real pace: the person's own, short, for the test
-  await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5"], { tty: true });
+  await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5"], { tty: true, answers: ["y"] });
   await w.ok(["task", "add", "Křest Jana", "--level", "locate", "--where", "B1", "--why", "zkouška", "--done-when", "hotovo"]);
   return w;
 }

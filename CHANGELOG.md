@@ -7,22 +7,33 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.18.0
 
-*In preparation: the betas up to 1.18.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.18.0-beta.2. The section is complete with the release.*
 
 - **Phone photos upright.** A photo turned by its EXIF orientation is read as it is meant to be seen, upright; the
   places marked on it (excerpts, the halves of a spread, a cut-out part) are of the picture as it is shown. The
   photo itself stays as it was.
 - **HEIC photos and PDF documents can be read.** HEIC photos from a phone and the pages of a PDF are converted to
   JPEG for reading — on macOS, Windows and Linux — and the original is kept as it came. A HEIC photo goes to the
-  Strom app as a JPEG excerpt.
-- **Said when a picture cannot be converted.** Where nothing on the computer converts a photo or a PDF page, one
-  sentence says so and what would help, in the research's language.
-- **Converted pictures kept in order.** `strom tidy` clears the converted pictures away after 30 days or above
-  500 MB; they are made again when needed.
+  Strom app as a JPEG excerpt. Where nothing on the computer converts a picture, one sentence says so and what would
+  help; `strom tidy` clears the converted pictures away after 30 days or above 500 MB.
+- **One document read at once.** `strom document read` reads a photo, a scan or a PDF of one document — a register
+  entry, a letter, a deed, a gravestone, the back of a photo: the transcript word for word, its translation, what its
+  old words and abbreviations mean, and the people it names, with who of the tree they may be. Nothing is filled in:
+  a name the document does not have is left out — a surname too, never taken from a father or another family —,
+  what cannot be read is marked; a second reader can read it blind. Nothing of it enters the tree by itself.
+- **Photos from a phone.** `strom phone on`, turned on by the person alone, lets a phone on the home network (Wi-Fi
+  or a cable — never a mobile network or a VPN) reach this computer. The phone is paired once by its QR code; its
+  page then takes photos or picks them from the gallery and sends them whole into a tree of the research, with a
+  note and the person they show — as "Add materials" in the Strom app does. A photo stays on the phone until the
+  computer has it, so a connection cut midway loses nothing.
 - **A consent in one language.** A consent only a person gives (unpacking a research, removing a tree, a window said
   no to) is said whole in the research's language, nothing of it left in English.
 - **An update said no to.** When `strom update` is declined, it says nothing was installed and which version stays,
   and ends with an error code; a failed install is said in the research's language too.
+- **Asked in the terminal too.** What opens the computer outward, costs money or runs another's program — Remote
+  Control, downloaders without asking first, the condition of the agent working alone, a hook, an archive's own pace,
+  the phone connection, tuning the reading — asks yes or no in the terminal as well; Enter says no, `--yes` never
+  answers it.
 
 ## 1.17.0
 

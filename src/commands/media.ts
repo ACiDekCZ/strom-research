@@ -17,7 +17,7 @@ import { create, normId, requireRecord, update } from "../core/records.ts";
 import { exifOrientation, imageSizeOfFile } from "../image/index.ts";
 import { fileToShown, shownToFile, turnsAcross } from "../image/image.ts";
 import { imageOf, pageOf } from "../core/calibration.ts";
-import { cropOf, describeView, ENLARGED_HINT, halves, makeView, mediaOrient, OVERVIEW_HINT, parseCrop, partRegion, readInHalves, REDUCED_HINT, SHARPER_SCAN, viewLine, viewRegion, viewSize, type View, type ViewMeta, type ViewSpec } from "../core/views.ts";
+import { cropOf, describeView, ENLARGED_HINT, halves, makeView, mediaOrient, OVERVIEW_HINT, parseCrop, partRegion, partShown, readInHalves, REDUCED_HINT, SHARPER_SCAN, viewLine, viewRegion, viewSize, type View, type ViewMeta, type ViewSpec } from "../core/views.ts";
 import { IMAGE_MAX, IMAGE_MAX_LARGE, OVERVIEW_MAX } from "../agents/images.ts";
 import { viewSizesFor, type ViewSizes } from "../core/viewsizes.ts";
 import { PROFILES } from "../agents/profiles.ts";
@@ -72,11 +72,14 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
       if (k) {
         again.push(k.id);
         // the same scan as another image: a portal serving another book's images, or a file given the wrong number
-        const as = (m: { recordset?: string | undefined; image?: number | undefined; part?: Region | undefined }) => `${m.recordset ?? "no record set"}${m.image !== undefined ? `:${m.image}` : ""}${m.part ? ` part ${regionText(m.part)}` : ""}`;
+        // compared as kept; said as the agent gives it (a part of a photo turned by its EXIF: of the picture upright)
+        const as = (m: { recordset?: string | undefined; image?: number | undefined; part?: Region | undefined }, part = m.part) =>
+          `${m.recordset ?? "no record set"}${m.image !== undefined ? `:${m.image}` : ""}${part ? ` part ${regionText(part)}` : ""}`;
+        const said = (m: { recordset?: string | undefined; image?: number | undefined; part?: Region | undefined }) => as(m, partShown(shared, [...known.values()], m));
         // a portal whose sharpest part is the whole scan gives the image again: that is no clash
         const sameScan = k.recordset === recordset && k.image === it.image && isWhole(k.part) && isWhole(it.part);
         if (!sameScan && as(k) !== as({ recordset, image: it.image, part: it.part }))
-          clashes.push(`${as({ recordset, image: it.image, part: it.part })} is the same file as ${k.id} (${as(k)}) — not registered again: the portal may have given another book's image, or a number is wrong; check before citing either`);
+          clashes.push(`${said({ recordset, image: it.image, part: it.part })} is the same file as ${k.id} (${said(k)}) — not registered again: the portal may have given another book's image, or a number is wrong; check before citing either`);
         continue;
       }
       const stored = tree.dryRun ? it.file : storeShared(shared, it.file, sha);
@@ -98,7 +101,7 @@ export function registerImages(tree: Tree, shared: string, items: NewImage[], re
           fetched: it.fetched,
           accessed: new Date().toISOString().slice(0, 10),
         },
-        (id) => `+${id} ${it.part ? `part ${regionText(it.part)} of image` : "image"}${it.image !== undefined ? ` ${it.image}` : ""}${recordset ? ` of ${recordset}` : ""}`,
+        (id) => `+${id} ${it.part ? `part ${regionText(partShown(shared, [...known.values()], { recordset, image: it.image, part: it.part })!)} of image` : "image"}${it.image !== undefined ? ` ${it.image}` : ""}${recordset ? ` of ${recordset}` : ""}`,
         recordset ? [recordset] : [],
       );
       known.set(sha, m);
@@ -827,10 +830,13 @@ register(
       }
       all.sort((a, b) => (a.recordset ?? "").localeCompare(b.recordset ?? "") || (a.image ?? 0) - (b.image ?? 0) || Number(!!a.part) - Number(!!b.part));
       const page = paginate(all, ctx.limit, ctx.page);
+      // a part as --crop takes it: of the whole image as its view shows it (kept as the file lies: --json, as a record)
+      const shared = ctx.settings.shared()?.value;
+      const every = tree.list<Media>("media");
       return {
         text: all.length
           ? lines(
-              table(page.items.map((m) => [m.id, m.recordset ? `${m.recordset}:${m.image ?? "?"}` : "", m.part ? `part ${regionText(m.part)}` : "", pageLabel(tree, m), m.width ? `${m.width}×${m.height}` : "", `${Math.round(m.size / 1024)} kB`])),
+              table(page.items.map((m) => [m.id, m.recordset ? `${m.recordset}:${m.image ?? "?"}` : "", m.part ? `part ${regionText(partShown(shared, every, m)!)}` : "", pageLabel(tree, m), m.width ? `${m.width}×${m.height}` : "", `${Math.round(m.size / 1024)} kB`])),
               moreLine(page, "strom media list"),
             )
           : "no images registered → strom media add <folder> --recordset B…",
@@ -857,10 +863,10 @@ register(
       const image = copies.length && m.recordset && m.image !== undefined ? findImage(all, m.recordset, m.image) : undefined;
       return {
         text: lines(
-          `${m.id} ${m.part ? `part ${regionText(m.part)} of ` : ""}${b ? `image ${m.image ?? "?"} of ${b.id} ${b.title}` : "image"}${pageLabel(tree, m) ? ` · page ${pageLabel(tree, m)}` : ""}`,
+          `${m.id} ${m.part ? `part ${regionText(partShown(sharedDir(ctx), all, m)!)} of ` : ""}${b ? `image ${m.image ?? "?"} of ${b.id} ${b.title}` : "image"}${pageLabel(tree, m) ? ` · page ${pageLabel(tree, m)}` : ""}`,
           `${m.width ? `${m.width}×${m.height} px · ` : ""}${Math.round(m.size / 1024)} kB · ${m.mime}${m.from ? ` · from ${m.from}` : ""}${m.url ? ` · ${m.url}` : ""}`,
           m.retracted ? `RETRACTED ${m.retracted.at.slice(0, 10)}: ${m.retracted.reason} — no view, part or excerpt uses it` : undefined,
-          parts.length ? `parts of it, sharper (a view of the image uses them by itself): ${parts.map((p) => `${p.id} ${regionText(p.part!)}${p.width ? ` ${p.width}×${p.height}` : ""}`).join(" · ")}` : undefined,
+          parts.length ? `parts of it, sharper (a view of the image uses them by itself): ${parts.map((p) => `${p.id} ${regionText(partShown(sharedDir(ctx), all, p)!)}${p.width ? ` ${p.width}×${p.height}` : ""}`).join(" · ")}` : undefined,
           copies.length
             ? `other copies of the image: ${copies.map((c) => `${c.id}${c.width ? ` ${c.width}×${c.height}` : ""}`).join(" · ")} — the image is the sharpest (${image!.id}); a view of any copy uses it`
             : undefined,
@@ -1086,6 +1092,7 @@ register({
     { name: "path", type: "string", value: "<path>", description: "its path in the batch (Babička/Dopisy/1946.jpg)" },
     { name: "zip", type: "boolean", description: "a ZIP of the batch: unpacked, each file taken" },
     { name: "task", type: "string", value: "<T…>", description: "the waiting task it came for: handed to it, the task back in the queue" },
+    { name: "phone", type: "boolean", description: "sent from a paired phone (its server runs it): material of a phone's batch" },
   ],
   examples: ["strom media original ~/Downloads/dopis.png --name dopis.png --person P0001"],
   run(ctx, { args, opts }) {
@@ -1121,14 +1128,14 @@ register({
           region: parseRegion(typeof opts.region === "string" ? opts.region : undefined),
           note: typeof opts.note === "string" ? opts.note : undefined,
         });
-      let b = openBatch(tree.root, batch);
+      let b = openBatch(tree.root, batch, opts.phone ? "phone" : undefined);
       if (!b.persons?.length && persons.length) b = { ...b, persons };
       if (!opts.zip) {
         const size = fs.statSync(file).size;
         const full = batchRoom(b, size, ctx.env);
         if (full) throw new UsageError(full.text, { code: full.code, params: full.params });
         try {
-          const one = takeOriginal(tree, shared, file, sha, { name: path.basename(where), persons, batch, path: where, note: typeof opts.note === "string" ? opts.note : undefined });
+          const one = takeOriginal(tree, shared, file, sha, { name: path.basename(where), persons, batch, path: where, note: typeof opts.note === "string" ? opts.note : undefined, phone: !!opts.phone });
           noteBatch(tree.root, b, one.known ? { known: one.known } : { input: one.input!, bytes: size });
           return { ...one, batch };
         } catch (e) {

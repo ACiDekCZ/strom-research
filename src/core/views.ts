@@ -15,9 +15,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { UsageError } from "./errors.ts";
 import { now, type Tree } from "./tree.ts";
-import { crop, grid, resize, rotate, shownBoxToFile, shownToFile, stretch, toGrey, turnsAcross, upright, type RawImage } from "../image/image.ts";
+import { crop, fileToShown, grid, resize, rotate, shownBoxToFile, shownToFile, stretch, toGrey, turnsAcross, upright, type RawImage } from "../image/image.ts";
 import { decodeImage, encodeImage, exifOrientation, exifOrientationOf, formatOf, ImageFormatError, imageSize } from "../image/index.ts";
 import { readableFile } from "./readable.ts";
+import { findImage } from "./media.ts";
 import type { Media, Region } from "./model.ts";
 import { IMAGE_MAX } from "../agents/images.ts";
 import { isWorkerId } from "./workers.ts";
@@ -328,6 +329,17 @@ export function mediaOrient(shared: string | undefined, m: Media | undefined): n
   if (!shared || !m || !/^image\/jpeg$/.test(m.mime)) return undefined;
   const o = exifOrientation(path.join(shared, m.file));
   return o && o !== 1 ? o : undefined;
+}
+
+/**
+ * A part kept of an image (fractions of the whole image as it lies in its file), as the whole image's view shows it —
+ * upright by its EXIF —: as --crop and --half take it, so that what is said of a part is what the agent gives. The
+ * turn is the whole image's (the part's own file is a cut of it); no whole image here: as it is kept.
+ */
+export function partShown(shared: string | undefined, all: Media[], m: { recordset?: string | undefined; image?: number | undefined; part?: Region | undefined }): Region | undefined {
+  if (!m.part) return undefined;
+  const whole = m.recordset && m.image !== undefined ? findImage(all.filter((x) => !x.part), m.recordset, m.image) : undefined;
+  return fileToShown(m.part, mediaOrient(shared, whole));
 }
 
 /**

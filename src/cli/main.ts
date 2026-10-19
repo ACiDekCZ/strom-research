@@ -20,6 +20,7 @@ import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { settleArchive } from "../core/mode.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "../core/hypolinks.ts";
 import { liveRunning, reviveLive, startLive } from "../core/live.ts";
+import { revivePhone } from "../core/phone.ts";
 import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
 import { prependPath } from "../runners/runner.ts";
 import { shimDir } from "../commands/session.ts";
@@ -329,6 +330,13 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         } catch {
           // its next session brings it back (reviveLive)
         }
+      }
+      // …and the phone's server, when the connection is on (it starts again with this version by itself; one the
+      // installer ended to replace the program back)
+      try {
+        revivePhone(env);
+      } catch {
+        // its next bridge brings it back
       }
     }
     // the folder of the program that runs with these settings (from a strom that ran here before it was kept, once):

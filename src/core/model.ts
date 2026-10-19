@@ -583,6 +583,8 @@ export interface Input extends BaseRecord {
   path?: string;
   /** What it is, as whoever sorted the batch found (strom input sort): a record, a document, a photo, nothing of the family. */
   sorted?: { as: (typeof SORT_KINDS)[number]; persons?: string[]; source?: string; reason?: string; at: string; by: string };
+  /** The readings of it (strom document read): D… — their results in notes/readings/<D…>.json. */
+  read?: string[];
   notes: Note[];
 }
 

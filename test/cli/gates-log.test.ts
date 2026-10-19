@@ -15,7 +15,7 @@ const DAY = 24 * 3600_000;
 
 test("each answer of the gate is recorded: .strom/gate.log, the next session's log, one line of the run's output", opts, async () => {
   const w = await world([{ code: 0, say: { reason: "dost místa" } }, { code: 0 }, { code: 2, say: { reason: "týden je z 90 % pryč" } }]);
-  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   const r = await w.ok(["run", "--agent", "script", "--loop", "--json"]);
   assert.equal(r.json.sessions.length, 2);
   const log = fs.readFileSync(path.join(w.cwd, ".strom", "gate.log"), "utf8").trim().split("\n").map((l) => JSON.parse(l));
@@ -45,7 +45,7 @@ test("each answer of the gate is recorded: .strom/gate.log, the next session's l
 
 test("a wait past --until and a gate that fails are recorded with what the run did; a user's 'start anyway' too", opts, async () => {
   const w = await world([{ code: 1, say: { reason: "sezení je plné", wait: 7200 } }, { code: 7 }, { code: 1, say: { reason: "sezení je plné", wait: 7200 } }]);
-  await w.ok(["config", "set", "run.gate", "zkouska 10"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "zkouska 10"], { tty: true, answers: ["y"] });
   const soon = new Date(Date.now() + 60 * 60_000);
   const until = `${String(soon.getHours()).padStart(2, "0")}:${String(soon.getMinutes()).padStart(2, "0")}`;
   await w.ok(["run", "--agent", "script", "--loop", "--until", until, "--json"]);

@@ -142,8 +142,8 @@ test("the menu's settings: the setup's model step alone — the agent's strong o
   // 8 settings · 1 the setup: 2 only the model · 2 grok-4.6 · 0 · 0
   const r = await w.ok([], { tty: true, answers: ["8", "1", "2", "2", "0", "0"] });
   assert.match(r.out, / 1 {2}Jazyk, agent, model[^\n]*\n/);
-  // (macOS: the terminal for the research's windows beside it — a step of the setup, the settings have nine items)
-  assert.match(r.out, new RegExp(String.raw`Co nastavit\?\n {3}1 {2}Všechno, krok za krokem \(průvodce nastavením\)\n {3}2 {2}Jen model výzkumu \(Grok Build\): vlastní model agenta\n${process.platform === "darwin" ? " {3}3 {2}Terminál pro okna výzkumu \\(z aplikace Strom, předaný rozhovor\\): výchozí systému\\n" : ""} {3}0 {2}Zpět\nVybrat \[1\]`, "u"));
+  // (macOS: the terminal for the research's windows beside it — a step of the setup, the settings have nine items; the phone connection last)
+  assert.match(r.out, new RegExp(String.raw`Co nastavit\?\n {3}1 {2}Všechno, krok za krokem \(průvodce nastavením\)\n {3}2 {2}Jen model výzkumu \(Grok Build\): vlastní model agenta\n${process.platform === "darwin" ? " {3}3 {2}Terminál pro okna výzkumu \\(z aplikace Strom, předaný rozhovor\\): výchozí systému\\n" : ""} {3}\d {2}Propojení s telefonem [^\n]*: vypnuto\n {3}0 {2}Zpět\nVybrat \[1\]`, "u"));
   assert.match(r.out, /Který model má v Grok Build dělat výzkum\?[^\n]*\n {3}1 {2}grok-4\.7 \(doporučeno\)\n {3}2 {2}grok-4\.6\n {3}3 {2}Nechat na agentovi \(teď grok-4\.7\)\n {3}0 {2}Zpět\nVybrat \[3\]/);
   assert.doesNotMatch(r.out, /Jazyk \(|V jakém jazyce/, "only the model: no other step of the setup");
   assert.equal(config(w).models.grok.lead, "grok-4.6");

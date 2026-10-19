@@ -46,7 +46,7 @@ test("a hook the user turned on is told of what was saved — in the background,
   await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"]);
   await new Promise((r) => setTimeout(r, 500));
   assert.ok(!fs.existsSync(path.join(w.hook, "got.jsonl")), "not on: never started");
-  const on = await w.ok(["hook", "on", "zapis"], { tty: true });
+  const on = await w.ok(["hook", "on", "zapis"], { tty: true, answers: ["y"] });
   assert.match(on.out, /zapis: on — told of what is saved \(person\.add, family\.\*\)/);
   await w.ok(["person", "add", "Anna /Nováková/", "--sex", "F", "--born", "1912"]);
   const [first] = await got(w, 1);
@@ -77,7 +77,7 @@ test("a hook is the user's: an agent neither turns it on nor off; a broken hook 
   assert.equal(agent.code, 4);
   assert.match(agent.err + agent.out, /an agent cannot answer this/);
   delete w.env.CLAUDECODE;
-  await w.ok(["hook", "on", "zapis"], { tty: true });
+  await w.ok(["hook", "on", "zapis"], { tty: true, answers: ["y"] });
   const list = await w.ok(["hook", "list", "--json"]);
   assert.deepEqual(list.json.on, ["zapis"]);
   // broken: its program is gone — the research goes on

@@ -242,7 +242,7 @@ done();
   // the person allows it through the browser (in their own terminal; a test's own settings — R8)
   await w.ok(["allow", "archive", "zkusebni", "--way", "browser"], { tty: true });
   // …at the service's own pace for its images (the person's own pace for the host, as for an archive they know)
-  await w.ok(["allow", "host", "127.0.0.1", "--pace", "5"], { tty: true });
+  await w.ok(["allow", "host", "127.0.0.1", "--pace", "5"], { tty: true, answers: ["y"] });
 
   // find: the first page, planned in the limiter — nothing asked by strom itself
   const one = await w.ok(["fetch", "zkusebni", "--find", "Týnec", "--json"]);
@@ -392,7 +392,7 @@ test("the agent's permissions: browser tools only for the sites of connectors se
   delete w.env.CLAUDECODE;
   const no = await w.run(["config", "set", "agent.permissions", "full"], { tty: true, answers: ["n"] });
   assert.equal(no.code, 1);
-  assert.match(no.err, /Všechno: agent dělá bez ptaní všechno kromě toho, co zakazují oprávnění stromu/, "in the user's language");
+  assert.match(no.out, /Všechno: agent dělá bez ptaní všechno kromě toho, co zakazují oprávnění stromu/, "in the user's language");
   await w.ok(["config", "set", "agent.permissions", "full"], { tty: true, answers: ["y"] });
   const loose = await settings();
   for (const r of ["Edit(.claude/**)", "Edit(CLAUDE.md)", "Bash(curl:*)", "Bash(wget:*)", "Edit(data/**)", "Bash(git:*)"]) assert.ok(loose.deny.includes(r), r);

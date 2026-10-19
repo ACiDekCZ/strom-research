@@ -138,6 +138,8 @@ export function parseRegion(text: string | undefined): Region | undefined {
 
 /** Where an original came from (an input's `from`). */
 export const APP_FROM = "the Strom app";
+/** Where a photo sent from a paired phone came from (strom phone): material like the app's. */
+export const PHONE_FROM = "a phone";
 
 /** Where tasks for what the app sent come from: one intake task gathers what came for the same people within a while. */
 export const APP_MEDIA_ORIGIN = "app:media";
@@ -158,6 +160,8 @@ export interface OriginalMeta {
   /** A batch of the app it comes in, and its path there: an input with no task of its own (the batch's tasks come when it is closed). */
   batch?: string | undefined;
   path?: string | undefined;
+  /** Sent from a paired phone (strom phone), not from the Strom app. */
+  phone?: boolean | undefined;
 }
 
 export interface TakenOriginal {
@@ -304,7 +308,7 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
       sha,
       size,
       mime: type.mime,
-      from: APP_FROM,
+      from: meta.phone ? PHONE_FROM : APP_FROM,
       kind: type.kind,
       state: "new",
       ...(meta.persons.length ? { persons: meta.persons } : {}),
@@ -312,7 +316,7 @@ export function takeOriginal(tree: Tree, shared: string, file: string, sha: stri
       ...(meta.path ? { path: meta.path } : {}),
       ...(meta.note?.trim() ? { note: meta.note.trim().slice(0, 500) } : {}),
     } as never,
-    (id) => `+${id} input ${type.kind} "${name.slice(0, 50)}" (the Strom app)`,
+    (id) => `+${id} input ${type.kind} "${name.slice(0, 50)}" (${meta.phone ? "a phone" : "the Strom app"})`,
     meta.persons,
   );
   out.input = input.id;
@@ -412,7 +416,38 @@ export function amendInput(tree: Tree, id: string, more: { persons: string[]; no
   return out;
 }
 
-/** The originals from the app nobody has worked through yet: what waits in the research (the bridge's inbox.material). */
+/** The originals from the app (or a phone) nobody has worked through yet: what waits in the research (the bridge's inbox.material). */
 export function materialWaiting(tree: Tree): number {
-  return tree.list<Input>("input").filter((i) => i.state === "new" && i.from === APP_FROM).length;
+  return tree.list<Input>("input").filter((i) => i.state === "new" && (i.from === APP_FROM || i.from === PHONE_FROM)).length;
+}
+
+/** A file of an upload cut short is left in media/.incoming only when its strom ended under it: gone after so long. */
+export const INCOMING_KEEP_MS = 24 * 60 * 60_000;
+
+/**
+ * The files of uploads cut short (media/.incoming/*.part, a day old): removed — nothing else there, never a link, never
+ * what is younger (an upload may be on its way). Never fails; how many went.
+ */
+export function cleanIncoming(shared: string, now = Date.now()): number {
+  const dir = path.join(shared, "media", ".incoming");
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return 0;
+  }
+  let gone = 0;
+  for (const n of names) {
+    if (!n.endsWith(".part")) continue;
+    const f = path.join(dir, n);
+    try {
+      const s = fs.lstatSync(f);
+      if (!s.isFile() || now - s.mtimeMs < INCOMING_KEEP_MS) continue;
+      fs.rmSync(f, { force: true });
+      gone++;
+    } catch {
+      // gone meanwhile, or not ours to remove
+    }
+  }
+  return gone;
 }

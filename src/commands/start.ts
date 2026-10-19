@@ -30,6 +30,7 @@ import { fromWords } from "../cli/move.ts";
 import { finishMovedByFile, movedByFile } from "../core/transfer.ts";
 import { appWindow, openAppIn, replaceGone } from "../core/appbrowser.ts";
 import { endProcess, notOurs, ownProcesses, uninstallPlan, type Removal } from "../core/uninstall.ts";
+import { stopPhone } from "../core/phone.ts";
 import { newerTree, Tree, TREE_FILE } from "../core/tree.ts";
 import { readJsonIfExists } from "../core/json.ts";
 import type { Task, TreeConfig } from "../core/model.ts";
@@ -539,6 +540,12 @@ register(
         } catch {
           // its tree unreadable: its bridge, if any, is found below
         }
+      }
+      // the phone connection off: nothing of strom listens on the local network after it (its phones stay paired)
+      try {
+        stopPhone(ctx.env, "strom uninstall");
+      } catch {
+        // its server, if any, is found below
       }
       if (plan.program) for (const p of ownProcesses(plan.program).filter((p) => p.bridge)) endProcess(p.pid);
       const later: Removal[] = [];

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<title>Strom</title>
+<style nonce="{{NONCE}}">{{STYLE}}</style>
+</head>
+<body>
+<!-- pairing, a code that no longer holds, the computer not reached at the start -->
+<div id="plain" class="plain" hidden>
+  <div class="mark big">S<span>.</span></div>
+  <main class="card" aria-live="polite">
+    <h1 id="plainTitle"></h1>
+    <p id="plainText"></p>
+    <p><button id="plainRetry" class="btn outline" type="button" hidden></button></p>
+  </main>
+</div>
+
+<!-- not paired with this computer: nothing of the research, the photos still waiting kept -->
+<div id="unpaired" class="plain" hidden>
+  <div class="mark big">S<span>.</span></div>
+  <h1 id="unpairedTitle"></h1>
+  <p id="unpairedWhy" class="quiet"></p>
+  <p id="unpairedHow" class="box"></p>
+  <section id="unpairedQueue" class="card warn" hidden>
+    <p id="unpairedCount" class="strong"></p>
+    <p id="unpairedBody"></p>
+    <div class="keep"></div>
+  </section>
+</div>
+
+<div id="main" hidden>
+  <header class="top">
+    <div class="mark">S<span>.</span></div>
+    <button id="treeBtn" class="tree" type="button" aria-haspopup="dialog"><span id="treeName"></span><span class="caret" aria-hidden="true">▼</span></button>
+    <div class="status"><span id="dot" class="dot"></span><span id="statusText"></span></div>
+  </header>
+  <div id="goneBanner" class="banner" hidden><span id="goneText"></span><button id="goneClose" class="x" type="button">×</button></div>
+  <section id="down" class="card down" hidden>
+    <h2 id="downTitle"></h2>
+    <p id="downBody"></p>
+    <ul><li id="downC1"></li><li id="downC2"></li><li id="downC3"></li></ul>
+  </section>
+  <div id="content" class="content">
+    <p id="noTrees" class="quiet" hidden></p>
+    <section id="pairedCard" class="card" hidden><h2 id="pairedTitle"></h2><p id="pairedText" class="quiet"></p></section>
+    <section id="archiveCard" class="card" hidden><p id="archiveText" class="strong"></p><p id="archivePhotos" class="quiet"></p></section>
+    <!-- what the research does now, what waits, the last 24 hours and the progress: here (U4d) -->
+    <section id="overview" hidden></section>
+  </div>
+  <button id="strip" class="strip" type="button" hidden><span class="strip-bar"><span id="stripFill"></span></span><span id="stripText"></span></button>
+  <footer class="bar">
+    <button id="photoBtn" class="btn primary" type="button"></button>
+    <button id="galleryBtn" class="btn outline" type="button"></button>
+  </footer>
+</div>
+
+<input id="photoInput" class="vh" type="file" accept="image/*" capture="environment" tabindex="-1" aria-hidden="true">
+<input id="galleryInput" class="vh" type="file" accept="image/*" multiple tabindex="-1" aria-hidden="true">
+
+<!-- the photos to send: the note, the person, each photo and handing them over -->
+<div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+  <header class="sheet-head">
+    <div><h2 id="sheetTitle"></h2><p id="sheetTo" class="quiet"></p></div>
+    <button id="sheetClose" class="x" type="button">▼</button>
+  </header>
+  <div class="sheet-body">
+    <section id="resume" class="note" hidden><p id="resumeText" class="strong"></p><p id="resumeForget" class="quiet small"></p></section>
+    <section id="goneCard" class="card warn" hidden>
+      <p id="gonePhotos" class="strong"></p>
+      <button id="goneSend" class="btn primary small" type="button"></button>
+      <div class="keep"></div>
+    </section>
+    <label class="field"><span id="noteLabel"></span><input id="note" type="text" maxlength="200" autocomplete="off" enterkeyhint="done"></label>
+    <div class="field">
+      <label for="person" id="personLabel"></label>
+      <div id="personChip" class="chip" hidden><span id="personName"></span><button id="personClear" class="x" type="button">×</button></div>
+      <input id="person" type="search" autocomplete="off" enterkeyhint="search">
+      <ul id="people" class="people" hidden></ul>
+    </div>
+    <div id="total" class="total" hidden><p id="totalText"></p><span class="bar6"><span id="totalFill"></span></span></div>
+    <p id="lockNote" class="quiet small" hidden></p>
+    <p id="offlineNote" class="warn-text" hidden></p>
+    <p id="batchError" class="err" hidden></p>
+    <ul id="list" class="list"></ul>
+    <section id="doneBox" class="card done" hidden><p id="doneText" class="strong"></p><button id="doneNext" class="btn outline" type="button"></button></section>
+  </div>
+  <footer class="sheet-foot">
+    <p id="captureNote" class="quiet small" hidden></p>
+    <div id="photoRow" class="row">
+      <button id="morePhotoBtn" class="btn outline mid" type="button"></button>
+      <button id="moreGalleryBtn" class="btn outline mid" type="button"></button>
+    </div>
+    <div id="typingRow" class="row" hidden>
+      <button id="noPersonBtn" class="btn outline mid" type="button" hidden></button>
+      <button id="typingDone" class="btn outline mid" type="button"></button>
+    </div>
+    <button id="commitBtn" class="btn primary" type="button"></button>
+    <button id="commitCancel" class="btn link" type="button" hidden></button>
+    <p id="commitLater" class="quiet small" hidden></p>
+  </footer>
+</div>
+
+<!-- the trees of the research on this computer -->
+<div id="switcher" class="backdrop" hidden>
+  <div class="pick" role="dialog" aria-modal="true" aria-labelledby="switcherTitle">
+    <div class="grip" aria-hidden="true"></div>
+    <h2 id="switcherTitle"></h2>
+    <ul id="trees"></ul>
+  </div>
+</div>
+
+<script id="texts" type="application/json">{{TEXTS}}</script>
+<script nonce="{{NONCE}}">{{SCRIPT}}</script>
+</body>
+</html>

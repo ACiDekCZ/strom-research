@@ -64,6 +64,8 @@ GETTING STARTED (once)
   strom research new "<name>" --new-person "Josef /Novák/" --born "ABT 1885" --born-place "Kamenice nad Lipou"
   strom intake --text "<what the user told you, in their words>"
   strom intake <file or folder>        documents, photos, a GEDCOM or Strom tree
+  strom document read <photo or PDF>   one document of the user's read at once: its transcript, translation,
+                                       terms and people — tell the user; nothing of it enters the tree by itself
 
 THE WORK, STEP BY STEP (every agent — also one strom did not start: a
 conversation opened anywhere, a bot on its own server)

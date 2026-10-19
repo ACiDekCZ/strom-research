@@ -29,7 +29,7 @@ export interface Removal {
   remove(): boolean | "later";
 }
 
-/** A strom of this installation running now (not this one): a bridge, or one in another window. */
+/** A strom of this installation running now (not this one): a bridge (or the phone's server), or one in another window. */
 export interface OwnProcess {
   pid: number;
   /** strom's arguments ("live serve", "menu", "" for the menu). */
@@ -98,7 +98,7 @@ export function ownProcesses(root: string, platform: NodeJS.Platform = process.p
     .filter((l) => same(l.exe, node) && l.pid !== process.pid && l.pid !== process.ppid)
     .map((l) => {
       const args = (/cli\.js"?\s*(.*)$/.exec(l.command)?.[1] ?? "").trim();
-      return { pid: l.pid, args, bridge: /^live serve\b/.test(args) };
+      return { pid: l.pid, args, bridge: /^(live|phone) serve\b/.test(args) };
     });
 }
 

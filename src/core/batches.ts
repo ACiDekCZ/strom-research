@@ -25,6 +25,8 @@ export const APP_BATCH_ORIGIN = "app:batch";
 export const BATCH_TASK_FILES = 25;
 /** A batch nobody said is whole is closed with what came, so long after its last file. */
 export const BATCH_IDLE_MS = 24 * 60 * 60_000;
+/** A batch from a phone, so long after its last file (a phone's page is closed without handing it over easily). */
+export const PHONE_BATCH_IDLE_MS = 60 * 60_000;
 /** More images than this in one folder of a batch look like the scans of a book. */
 const BOOK_IMAGES = 20;
 
@@ -57,6 +59,10 @@ export interface Batch {
   tasks?: string[];
   /** The user's note to the whole batch (the app's "Note for the research"): told in each of its tasks. */
   note?: string;
+  /** Where it came from: a phone (strom phone); none: the Strom app. */
+  from?: "phone";
+  /** The batch a phone's files go on in once this one was closed (a file of its queue never refused for that). */
+  next?: string;
 }
 
 const dirOf = (root: string) => path.join(root, ".strom", "batches");
@@ -70,7 +76,7 @@ export function readBatch(root: string, id: string): Batch | undefined {
   }
 }
 
-function writeBatch(root: string, b: Batch): void {
+export function writeBatch(root: string, b: Batch): void {
   fs.mkdirSync(dirOf(root), { recursive: true });
   const f = fileOf(root, b.id);
   fs.writeFileSync(`${f}.${process.pid}`, JSON.stringify(b, null, 2));
@@ -103,12 +109,12 @@ export function batchPath(raw: string | undefined): string | undefined {
 }
 
 /** A batch to add to: made at its first file; one closed takes nothing more. */
-export function openBatch(root: string, id: string): Batch {
+export function openBatch(root: string, id: string, from?: "phone"): Batch {
   if (!BATCH_ID.test(id)) throw new UsageError(`not a batch: "${id.slice(0, 64)}"`, { code: "batch.bad-id", params: { batch: id.slice(0, 64) } });
   const b = readBatch(root, id);
   if (b?.done) throw new UsageError(`the batch ${id} is closed already`, { hint: "send the rest as a new batch", code: "batch.closed", params: { batch: id } });
   const t = new Date().toISOString();
-  return b ?? { id, created: t, updated: t, inputs: [], known: [], bytes: 0, refused: [], nested: [] };
+  return b ?? { id, created: t, updated: t, inputs: [], known: [], bytes: 0, refused: [], nested: [], ...(from ? { from } : {}) };
 }
 
 /** What came into a batch, noted (the caller holds the tree lock). */
@@ -157,9 +163,10 @@ const IMAGE = /^image\//;
 export function closeBatch(tree: Tree, id: string, opts: { name?: string | undefined; persons?: string[]; expected?: number | undefined; note?: string | undefined; why: "app" | "idle" }): Batch & { tasks: string[] } {
   const b = readBatch(tree.root, id);
   if (!b) throw new UsageError(`no batch ${id} here`, { hint: "strom input batch", code: "batch.none", params: { batch: id } });
-  if (b.done) return { ...b, tasks: b.tasks ?? [] };
+  if (b.done) return b.closed === "idle" && opts.why === "app" && b.from === "phone" ? handOverLate(tree, b, opts) : { ...b, tasks: b.tasks ?? [] };
   const lang = tree.lang;
-  const name = opts.name?.trim().slice(0, 120) || b.name || phrase(lang, "batch.unnamed");
+  const phone = b.from === "phone";
+  const name = opts.name?.trim().slice(0, 120) || b.name || phrase(lang, phone ? "batch.unnamed.phone" : "batch.unnamed");
   const persons = [...new Set([...(b.persons ?? []), ...(opts.persons ?? [])])];
   const note = opts.note?.replace(/[\p{Cc}]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, 500) || b.note;
   const inputs = b.inputs.map((i) => tree.get<Input>(i)).filter((i): i is Input => !!i && i.state === "new");
@@ -194,7 +201,7 @@ export function closeBatch(tree: Tree, id: string, opts: { name?: string | undef
         priority: 4,
         what,
         where: g.files.map((i) => i.id),
-        why: [phrase(lang, "batch.why", { name, who: whoText || phrase(lang, "app.media.nobody") }), g.book ? phrase(lang, "batch.book") : "", note ? phrase(lang, "batch.note", { note }) : ""].filter(Boolean).join(" "),
+        why: [phrase(lang, phone ? "batch.why.phone" : "batch.why", { name, who: whoText || phrase(lang, "app.media.nobody") }), g.book ? phrase(lang, "batch.book") : "", note ? phrase(lang, "batch.note", { note }) : ""].filter(Boolean).join(" "),
         doneWhen: phrase(lang, "batch.done"),
         subject: [...g.files.map((i) => i.id), ...who.map((p) => p.id)],
         state: "open",
@@ -214,11 +221,67 @@ export function closeBatch(tree: Tree, id: string, opts: { name?: string | undef
   return { ...done, tasks };
 }
 
-/** Batches nobody said are whole, a day after their last file. */
-export function idleBatches(root: string, now = Date.now()): string[] {
+/** How long a batch waits for its next file before it is closed (a phone's an hour, the app's a day). */
+export function batchIdleMs(b: Batch, env: Env = {}): number {
+  const set = Number(env.STROM_PHONE_BATCH_IDLE_MS);
+  return b.from === "phone" ? (Number.isFinite(set) && set > 0 ? set : PHONE_BATCH_IDLE_MS) : BATCH_IDLE_MS;
+}
+
+/** Batches nobody said are whole, a day after their last file (a phone's an hour). */
+/**
+ * A phone's batch closed an hour after its last file and handed over afterwards (its files went on in the next one): the
+ * note and the people of the handing over told in its tasks not taken up yet and on its files, as when it is closed.
+ */
+function handOverLate(tree: Tree, b: Batch, opts: { persons?: string[]; note?: string | undefined }): Batch & { tasks: string[] } {
+  const tasks = b.tasks ?? [];
+  const persons = (opts.persons ?? []).filter((p) => !(b.persons ?? []).includes(p));
+  const note = opts.note?.replace(/[\p{Cc}]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, 500);
+  const newNote = note && note !== b.note ? note : undefined;
+  if (!persons.length && !newNote) return { ...b, tasks };
+  const lang = tree.lang;
+  const who = persons.map((p) => tree.get<Person>(p)).filter((p): p is Person => !!p && !p.retracted);
+  const whoText = who.map((p) => `${[p.names[0]?.given, p.names[0]?.surname].filter(Boolean).join(" ")} [${p.id}]`).join(", ");
+  for (const id of tasks) {
+    const t = tree.get<Task>(id);
+    if (!t || t.state !== "open") continue;
+    const told = [whoText ? phrase(lang, "batch.who", { who: whoText }) : "", newNote ? phrase(lang, "batch.note", { note: newNote }) : ""].filter(Boolean).join(" ");
+    update<Task>(tree, id, "task", (x) => ({ ...x, why: [x.why, told].filter(Boolean).join(" "), subject: [...new Set([...(x.subject ?? []), ...who.map((p) => p.id)])] }), { op: "task.edit", summary: `${id}: the batch's note and people (a phone)` });
+  }
+  if (newNote)
+    for (const i of b.inputs.map((x) => tree.get<Input>(x)).filter((x): x is Input => !!x))
+      if (!i.notes.some((n) => n.text === newNote))
+        update<Input>(tree, i.id, "input", (x) => ({ ...x, notes: [...x.notes, makeNote(tree, newNote)] }), { op: "input.note", summary: `${i.id}: the batch's note (a phone)` });
+  const done: Batch = { ...b, ...(persons.length ? { persons: [...(b.persons ?? []), ...persons] } : {}), ...(newNote ? { note: newNote } : {}) };
+  writeBatch(tree.root, done);
+  return { ...done, tasks };
+}
+
+export function idleBatches(root: string, now = Date.now(), env: Env = {}): string[] {
   return listBatches(root)
-    .filter((b) => !b.done && now - Date.parse(b.updated) > BATCH_IDLE_MS)
+    .filter((b) => !b.done && now - Date.parse(b.updated) > batchIdleMs(b, env))
     .map((b) => b.id);
+}
+
+/**
+ * The batch a phone's file goes into: the one it names while open, else the one that took over from it — a batch closed
+ * meanwhile (an hour without a file, or handed over) is never an error to a phone's queue: a new one goes on after it,
+ * noted in the closed one, so that the same file sent again (its answer lost) comes to the same one. A mark of no batch
+ * here yet is that one (made at its first file).
+ */
+export function phoneBatch(root: string, id: string, fresh: () => string): string {
+  let at = id;
+  for (let hops = 0; hops < 100; hops++) {
+    const b = readBatch(root, at);
+    if (!b || !b.done) return at;
+    if (b.next) {
+      at = b.next;
+      continue;
+    }
+    const next = fresh();
+    writeBatch(root, { ...b, next });
+    return next;
+  }
+  return at;
 }
 
 /** The batches for the app (/status batches): each with how far it is sorted — the last 30 days', and any not sorted yet. */

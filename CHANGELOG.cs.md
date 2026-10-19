@@ -7,21 +7,31 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.18.0
 
-*Připravuje se: bety do 1.18.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.18.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Fotky z telefonu nastojato.** Fotka otočená podle údaje EXIF se čte tak, jak se má dívat, nastojato; místa na ní
   vyznačená (výřezy, poloviny dvoustrany, uložená část) jsou místa obrázku, jak se ukazuje. Fotka sama zůstává, jak
   byla.
 - **Fotky HEIC a dokumenty PDF jdou přečíst.** Fotky HEIC z telefonu a stránky PDF se pro čtení převádějí na JPEG —
   na macOS, Windows i Linuxu — a originál zůstává, jak přišel. Fotka HEIC jde do aplikace Strom jako výřez JPEG.
-- **Řečeno, když obrázek převést nejde.** Kde fotku nebo stránku PDF na počítači nic nepřevede, řekne to jedna věta
-  i s tím, co by pomohlo, v jazyce výzkumu.
-- **Převedené obrázky v pořádku.** `strom tidy` převedené obrázky po 30 dnech nebo nad 500 MB uklidí; když jsou
-  potřeba, vzniknou znovu.
+  Kde obrázek na počítači nic nepřevede, řekne to jedna věta i s tím, co by pomohlo; `strom tidy` převedené obrázky
+  po 30 dnech nebo nad 500 MB uklidí.
+- **Jeden dokument přečtený naráz.** `strom document read` přečte fotku, sken nebo PDF jednoho dokumentu — zápis
+  z matriky, dopis, listinu, náhrobek, rub fotky: přepis slovo od slova, překlad, význam starých slov a zkratek
+  a osoby, které jmenuje, i s tím, kdo ze stromu to může být. Nic se nedomýšlí: jméno, které v dokumentu není,
+  vypadne — i příjmení, nikdy se nebere od otce ani z jiné rodiny —, co nejde přečíst, je označené; druhý čtenář
+  může číst naslepo. Do stromu se z toho nic nezapíše samo.
+- **Fotky z telefonu.** `strom phone on`, které zapíná jen člověk, pustí k počítači telefon v domácí síti (Wi-Fi
+  nebo kabel — nikdy mobilní síť ani VPN). Telefon se jednou spáruje přes QR kód; jeho stránka pak fotí nebo vybírá
+  z galerie a posílá fotky celé do stromu výzkumu, s poznámkou a osobou, kterou ukazují — stejně jako „Přidat
+  materiály“ v aplikaci Strom. Fotka zůstává v telefonu, dokud ji počítač nemá, takže přerušené spojení nic neztratí.
 - **Souhlas v jednom jazyce.** Souhlas, který dává jen člověk (rozbalení výzkumu, odebrání stromu, odmítnuté okno),
   zazní celý v jazyce výzkumu, nic z něj nezůstane anglicky.
 - **Odmítnutá aktualizace.** Když se `strom update` odmítne, řekne, že se nic nenainstalovalo a která verze zůstává,
   a skončí chybovým kódem; nepovedená instalace se řekne také v jazyce výzkumu.
+- **Otázka i v terminálu.** Co otevírá počítač ven, stojí peníze nebo spouští cizí program – Remote Control,
+  stahovače bez ptaní, podmínka práce agenta o samotě, hook, vlastní tempo archivu, propojení s telefonem, ladění
+  čtení – se v terminálu ptá ano/ne; Enter znamená ne a `--yes` za člověka neodpoví.
 
 ## 1.17.0
 

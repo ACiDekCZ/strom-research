@@ -81,6 +81,8 @@ export class World {
       STROM_TRASH: path.join(this.dir, "trash"),
       // A test's archive is a server on this computer (127.0.0.1, localhost): its connectors may name it.
       STROM_TEST_HOSTS: "1",
+      // The phone's server of a test listens on the loopback alone, never on the computer's network.
+      STROM_PHONE_TEST: "loopback",
     };
     this.cwd = this.dir;
   }
@@ -143,6 +145,12 @@ export class World {
       } catch {
         // none running
       }
+    }
+    // the phone's server a test left running
+    try {
+      process.kill((JSON.parse(fs.readFileSync(path.join(this.env.STROM_CONFIG_DIR!, "phone-run.json"), "utf8")) as { pid: number }).pid, "SIGTERM");
+    } catch {
+      // none running
     }
     // a bridge just stopped may still write its last line into the tree: tried again (ENOTEMPTY)
     fs.rmSync(this.dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });

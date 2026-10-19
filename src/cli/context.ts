@@ -11,7 +11,7 @@ import { backupsDir } from "../core/backup.ts";
 import { insideProgram } from "../core/self.ts";
 import { Cancelled, NeedsConsentError, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
 import { migrate } from "../core/migrate.ts";
-import { Tree, findTreeUpwards, isTreeDir } from "../core/tree.ts";
+import { Tree, findTreeUpwards, isTreeDir, knownTreesIn } from "../core/tree.ts";
 import { SCHEMA_VERSION, type TreeConfig } from "../core/model.ts";
 import { readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
@@ -223,6 +223,7 @@ export class Context {
    * the user runs the command themselves. `says` is the question in the
    * user's language — all the window shows, so it holds any warning too.
    * `window: false` for what needs the user's terminal (typing a password).
+   * What opens the computer outward, costs or runs another's code asks their yes in the terminal too: requireHumanYes.
    */
   requireHuman(question: string, set: string, key: string, says?: string, opts: { window?: boolean } = {}): "terminal" | "window" {
     const agent = isAgent(this.env);
@@ -248,6 +249,30 @@ export class Context {
       ? `nobody watches this run to say yes: add a task for it and go on another way — strom task add ${q(`The user's consent: ${set}`)} --level locate --where ${q(set)} --why ${q(question)} --done-when ${q(`the user ran ${set} in their own terminal`)}, then strom task wait <its T…> --on "<for the user, impersonal, in the research language: run ${set} in a terminal>"; never go round it`
       : undefined;
     throw new NeedsConsentError([{ key, kind: "consent", question: `${question}${agent ? " (an agent cannot answer this)" : ""}`, set }], agent ? undefined : says, task);
+  }
+
+  /**
+   * The person's own yes in their terminal, for a consent that opens this computer outward, costs or runs another's
+   * code: a terminal an agent opened round its markers says nothing by the command being run in it. Enter says no.
+   * Asked only where requireHuman said "terminal" — `--yes`, `--json` or no terminal never come here (a window then,
+   * or needs-input). `text` in the person's language: a question is asked as it is; anything else is said first and
+   * `ask` (else "Allow?") asked after it.
+   */
+  async humanYes(text: string, ask?: string): Promise<boolean> {
+    // one prompt: the menu runs its commands with their output hidden, a question never
+    if (ask === undefined && /\?\s*$/u.test(text)) return this.confirm(text, false);
+    return this.confirm(`${text}\n${ask ?? ui(this.uiLang(), "ui.consent.yesno")}`, false);
+  }
+
+  /**
+   * requireHuman, and in the person's terminal their own yes too (humanYes): what opens this computer outward, costs
+   * or runs another's code. undefined: they said no there — nothing to change. `terminal`/`ask`: what the terminal
+   * says and asks, where it is not the window's `says`.
+   */
+  async requireHumanYes(question: string, set: string, key: string, says: string, opts: { window?: boolean; terminal?: string; ask?: string } = {}): Promise<"terminal" | "window" | undefined> {
+    const how = this.requireHuman(question, set, key, says, opts);
+    if (how === "window") return how;
+    return (await this.humanYes(opts.terminal ?? says, opts.ask)) ? how : undefined;
   }
 
   /**
@@ -403,20 +428,7 @@ export class Context {
 
   /** All trees Strom knows about: folders in the trees dir plus remembered ones. */
   knownTrees(): KnownTree[] {
-    const roots = new Set<string>();
-    const dir = this.treesDir();
-    if (dir && fs.existsSync(dir))
-      for (const name of fs.readdirSync(dir)) {
-        const root = path.join(dir, name);
-        if (isTreeDir(root)) roots.add(root);
-      }
-    for (const extra of this.settings.config.extraTrees ?? []) if (isTreeDir(extra)) roots.add(extra);
-    const out: KnownTree[] = [];
-    for (const root of [...roots].sort()) {
-      const cfg = readJsonIfExists<TreeConfig>(path.join(root, "strom.json"));
-      if (cfg) out.push({ name: cfg.name, root, lang: cfg.lang });
-    }
-    return out;
+    return knownTreesIn(this.treesDir(), this.settings.config.extraTrees ?? []).map(({ name, root, lang }) => ({ name, root, lang }));
   }
 
   /** Locate the tree: --tree > STROM_TREE > current folder upwards > `strom trees use` > the only known tree. */

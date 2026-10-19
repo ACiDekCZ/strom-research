@@ -19,7 +19,7 @@ import { makePdf } from "../image-samples.ts";
 const opts = { skip: !hasGit };
 
 /** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
-const NOT_RUN = new Set(["setup", "init", "run", "read", "seal adopt", "unpack", "trees remove", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test"]); // uninstall, update, unpack, trees remove: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests)
+const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test", "phone remove"]); // uninstall, update, unpack, trees remove: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired
 
 async function seeded(): Promise<World> {
   const w = new World();
@@ -113,6 +113,11 @@ async function seeded(): Promise<World> {
   const scan = (grey: number) => ({ bytes: encodeImage({ width: 30, height: 40, channels: 3, data: new Uint8Array(30 * 40 * 3).fill(grey) }, "jpeg"), width: 30, height: 40 });
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "dopis.pdf"), makePdf([{ jpeg: scan(60) }, { jpeg: scan(200) }]));
   await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "dopis.pdf")]);
+  // a reading of a document done (strom document show, cancel): its state as strom document read leaves it
+  const reads = path.join(w.cwd, ".strom", "reads");
+  fs.mkdirSync(reads, { recursive: true });
+  const at = "2026-01-01T12:00:00.000Z";
+  fs.writeFileSync(path.join(reads, "D20260101120000-ab12.json"), JSON.stringify({ id: "D20260101120000-ab12", state: "done", version: 1, readers: 1, lang: "cs", pages: [{ n: 1, file: "I0005", name: "dopis.pdf", page: 1 }], groups: [[1]], reports: [], at, since: at }));
   return w;
 }
 
@@ -127,8 +132,9 @@ test("every example in the help runs", opts, async () => {
       const argv = lines[0]!.argv;
       // Paths outside the test world are only checked for syntax.
       if (argv.some((a) => a.startsWith("/Volumes/"))) continue;
-      // the person's own answer (task wake --answer/--check): in their terminal — this test's own settings (R8)
-      const person = def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check");
+      // the person's own answer (task wake --answer/--check), the QR code to pair a phone (phone qr): in their terminal —
+      // this test's own settings (R8)
+      const person = (def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check")) || def.path.join(" ") === "phone qr";
       const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true } : {});
       if (r.code !== 0) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
     }
