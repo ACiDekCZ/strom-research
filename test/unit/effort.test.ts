@@ -55,7 +55,8 @@ test("Codex's config.toml: the top level, the profile it selects (which wins), q
 test("what a Codex session runs with, said: strom's setting, the run's own switch, config.toml, Codex's own default", () => {
   const { env, dir } = codexHome('model_reasoning_effort = "low"\n');
   try {
-    const shown = (p: string) => p.replace(dir, "~/.codex");
+    // (as the person reads it, with "/" on every system: C:\…\config.toml on Windows)
+    const shown = (p: string) => p.replace(dir, "~/.codex").split(path.sep).join("/");
     const unset = agentSettingsSaid(env, "codex", {});
     assert.deepEqual([unset.effort, unset.effortFrom, unset.modelFrom], ["low", "config", "default"]);
     assert.equal(agentSettingsLine("en", unset, shown), "Codex: model Codex's own default, reasoning effort low — from ~/.codex/config.toml");

@@ -151,7 +151,7 @@ test("a tree coming back from the Strom app is matched by REFN, not duplicated",
   ged = ged.replace(/(0 @([^@]+)@ FAM\r?\n(?:[1-9].*\r?\n)*)/, "$11 CHIL @X1@\n");
   fs.writeFileSync(back, ged);
   const again = await w.ok(["intake", back]);
-  assert.match(again.out, /added to what we have \(leads — check them\): P0001: DEAT 1970 · F0001: child P0003/);
+  assert.match(again.out, /Doplněno k tomu, co výzkum má \(vodítka, k ověření\): P0001: DEAT 1970 · F0001: child P0003/);
   const p1 = (await w.ok(["person", "show", "P1"])).out;
   assert.match(p1, /DEAT\s+1970\s+Týnec\s+\[lead\]/);
   assert.equal(p1.match(/BIRT/g)?.length, 1, "the birth we have is not doubled");
@@ -267,4 +267,29 @@ test("REFN: two researches both have a P0001 — another research's tree is a fo
   const back = await w.ok(["intake", own], { cwd: b });
   assert.match(back.out, /strom sync/, back.out);
   w.cleanup();
+});
+
+test("intake while the research happens: what came said in the research's language — whoever ran it, the agent too", opts, async () => {
+  for (const [lang, said, none] of [
+    ["cs", /^✓ Podklady zaevidované ve výzkumu: 2\.$[\s\S]*rodokmen převzat – osoby: 2 · rodiny: 1[\s\S]*^Úkoly k rozebrání podkladů: 2 → strom task next$/m, /registered|persons|families|facts as leads|intake task|input\(s\)/],
+    ["de", /^✓ Unterlagen in der Forschung erfasst: 2\.$[\s\S]*^Aufgaben zum Auswerten der Unterlagen: 2 → strom task next$/m, /registered|persons|families|facts as leads|intake task|input\(s\)/],
+    ["en", /^✓ Material registered in the research: 2\.$[\s\S]*family tree taken in – people: 2 · families: 1[\s\S]*^Tasks to go through the material: 2 → strom task next$/m, /input\(s\)|task\(s\)/],
+  ] as const) {
+    const w = new World();
+    w.env.STROM_LANG = lang;
+    await w.withTree();
+    try {
+      const file = path.join(w.dir, "rodokmen.ged".normalize("NFD"));
+      fs.writeFileSync(file, GED);
+      const r = await w.ok(["intake", file, "--text", "Děda Josef byl mlynář"], { env: { STROM_WORKER: "agent-1" } });
+      assert.match(r.out, said, r.out);
+      assert.doesNotMatch(r.out, none, r.out);
+      // the same file again: nothing new, said so
+      const again = await w.ok(["intake", file]);
+      assert.doesNotMatch(again.out, none, again.out);
+      assert.match(again.out, lang === "cs" ? /^Tyhle podklady už ve výzkumu jsou – nic nepřibylo\.$/m : lang === "de" ? /^Diese Unterlagen sind schon in der Forschung – nichts hinzugefügt\.$/m : /^This material is in the research already — nothing added\.$/m, again.out);
+    } finally {
+      w.cleanup();
+    }
+  }
 });

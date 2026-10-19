@@ -45,6 +45,17 @@ test("person list --unproven: how each stands, the living apart; strom check say
   w.cleanup();
 });
 
+test("strom check counts the people without a record as English says it: 1 person rests, 2 people rest", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["lang", "en"]);
+  await w.ok(["person", "add", "Jiří /Dvořák/", "--sex", "M"]);
+  assert.match((await w.ok(["check"])).out, /\nnote: 1 person rests on no record of their own → strom person list --unproven/);
+  await w.ok(["person", "add", "Анна /Иванова/", "--sex", "F"]);
+  assert.match((await w.ok(["check"])).out, /\nnote: 2 people rest on no record of their own → strom person list --unproven/);
+  w.cleanup();
+});
+
 test("review --unproven: a batch at a time, nothing twice, who is proved leaves; several people named: one review", opts, async () => {
   const w = await world();
   const first = await w.ok(["review", "--unproven", "--max", "2"]);
@@ -110,7 +121,7 @@ test("someone most likely alive is reviewed only when the person says so: a ques
   assert.match(no.out, /Nic se nepřidalo\./);
   assert.equal((await w.ok(["research", "list", "--json"])).json.researches.length, 0);
   // yes at the terminal, or --living: as for anyone
-  assert.match((await w.run(["review", "P4"], { tty: true, answers: ["a"] })).out, /P0004 Petr Malý \(\*1990\) — nových úkolů: 1/);
+  assert.match((await w.run(["review", "P4"], { tty: true, answers: ["a"] })).out, /P0004 Petr Malý \(\*1990\) — 1 nový úkol:/);
   assert.equal((await w.run(["review", "P4", "P3", "--living", "--dry-run"])).code, 0);
   w.cleanup();
 });

@@ -32,7 +32,7 @@ test("batch: a note with an e-mail keeps it; a file given as @file is read; a dr
     'note add @anna "dopis od petr@anna.cz"',
     'source add "Křest Anny" --kind baptism --transcript @anna #zapis',
   ]);
-  assert.match(b.out, /3 command\(s\) as one change/);
+  assert.match(b.out, /3 commands as one change/);
   const p = readJsonFile(path.join(w.cwd, "data", "persons", "P0001.json"));
   assert.equal(p.notes[0].text, "dopis od petr@anna.cz");
   const s = readJsonFile(path.join(w.cwd, "data", "sources", "S0001.json"));

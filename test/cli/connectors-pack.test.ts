@@ -99,7 +99,7 @@ done();
 `,
   );
   const r = await w.ok(["fetch", "zkusebni", "--find", "Dolní Lhota"]);
-  assert.match(r.out, /find \(\d+ s\): 3 request\(s\) \(the connector asked 2; 1 more: redirects or retries\)/, "the redirect is a request to the host too");
+  assert.match(r.out, /find \(\d+ s\): 3 requests \(the connector asked 2; 1 more: redirects or retries\)/, "the redirect is a request to the host too");
   assert.match(r.out, /Dolní Lhota N 1784–1820/);
   assert.deepEqual(a.hits, ["/robots.txt", "/login", "/search-page", "/search"], "its robots.txt (once a day), then the redirect followed by strom, with its cookie");
   // the next run starts without the cookie: the server wants a new session
@@ -178,7 +178,7 @@ done();
     assert.ok(Math.abs(px(whole, x, y) - px(src, x - c * 400, y - r * 300)) <= 12, `tile ${c}-${r} in its place`);
   }
   const reg = await w.ok(["fetch", "zkusebni", "tiles", "--images", "1-2", "--recordset", "B1"]);
-  assert.match(reg.out, /2 image\(s\)/);
+  assert.match(reg.out, /2 images/);
   assert.match((await w.ok(["media", "list"])).out, /M0001\s+B0001:1\s+800×600/);
   // another book of the portal gives the same scans: not registered as its images, and said so
   await w.ok(["recordset", "add", "Jiná kniha", "--kinds", "burial"]); // B0002
@@ -247,7 +247,7 @@ test("strom consents speaks the research language — each host, archive, level 
   const cs = (await w.ok(["consents"])).out;
   assert.match(cs, /^souhlasy: vypnuto – stahovače běží bez ptaní \(tempo hlídá strom, jen ke svým serverům\)/);
   // the refusal said once — why, its details in one parenthesis, then what strom does — and never "us"
-  assert.match(cs, /\nstahovače\n  \(žádné\)\nservery \(automatický přístup\)\n  127\.0\.0\.1 · ⛔ odmítl automatický přístup \(HTTP 403, \d{1,2}\. \d{1,2}\. \d\d:\d\d\) – znovu to strom zkusí až od \d{1,2}\. \d{1,2}\. \d\d:\d\d · požadavků za poslední hodinu: \d+ · /);
+  assert.match(cs, /\nstahovače\n  \(žádné\)\nservery \(automatický přístup\)\n  127\.0\.0\.1 · ⛔ odmítl automatický přístup \(HTTP 403, \d{1,2}\. \d{1,2}\. \d\d:\d\d\) – znovu to strom zkusí až od \d{1,2}\. \d{1,2}\. \d\d:\d\d · \d+ požadavky za poslední hodinu · /);
   assert.match(cs, /nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu \(vlastní tempo\)\narchivy \(co jejich podmínky stromu dovolují: dovoleno · omezeno · jen ručně · zakázáno; neznámé jako omezeno\)\n/);
   assert.match(cs, /\n  127\.0\.0\.1  zkusebni  dovoleno · tempo služby: nejméně 0,5 s mezi dvěma požadavky, nejvýš 3000 za hodinu\n/);
   assert.doesNotMatch(cs, /0\.5 s/);
@@ -485,7 +485,7 @@ test("connector grep: the saved answers searched, each hit with the text round i
   fs.writeFileSync(path.join(probe, "5"), `<a href="../img/Kniha_03__006.jpg">▼</a>\n<td>Kniha&nbsp;03</td><td>Kniha\n  03</td>\n`);
   fs.writeFileSync(path.join(probe, "s0001.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0x00, 0x4a, 0x70, 0x67, 0xff, 0xd9])); // "Jpg" inside, but an image
   const hit = await w.ok(["connector", "grep", "zkusebni", "ŽĎÁR", "--around", "12"]);
-  assert.match(hit.out, /^2 hit\(s\) in 1 file\(s\) of .*\.test:$/m);
+  assert.match(hit.out, /^2 hits in 1 file of .*\.test:$/m);
   assert.match(hit.out, /^probe\/SearchPage:2:372  \(2 hits\) …Místo 29", "Žďár - obec Žďár", "Москва"\]…$/m, "where it is, with the text round it");
   assert.equal((await w.ok(["connector", "grep", "zkusebni", "Žďár".normalize("NFD"), "--json"])).json.total, 2, "typed decomposed");
   assert.equal((await w.ok(["connector", "grep", "zkusebni", "москва", "--json"])).json.total, 1, "any script, any case");
@@ -497,10 +497,10 @@ test("connector grep: the saved answers searched, each hit with the text round i
   assert.equal((await w.run(["connector", "grep", "zkusebni", ".jpg", "--in", "6"])).code, 2);
   assert.equal((await w.run(["connector", "grep", "zkusebni", "[", "--regex"])).code, 2);
   const list = await w.ok(["connector", "grep", "zkusebni", "Místo", "--around", "8"]);
-  assert.match(list.out, /^30 hit\(s\) in 1 file\(s\)/, "every hit counted");
+  assert.match(list.out, /^30 hits in 1 file/, "every hit counted");
   assert.match(list.out, /^probe\/SearchPage:2:22  \(30 hits\) …ags = \["Místo 0", "Místo 1"/m, "hits close together: one stretch of text");
   assert.ok(list.out.trim().split("\n").length < 10, list.out);
-  assert.match((await w.ok(["connector", "grep", "zkusebni", "Místo", "--around", "0", "--limit", "10"])).out, /^… 20 more: strom connector grep zkusebni Místo --page 2$/m);
+  assert.match((await w.ok(["connector", "grep", "zkusebni", "Místo", "--around", "0", "--limit", "10"])).out, /^… 20 more: strom connector grep zkusebni Místo --limit 10 --page 2$/m);
   // a page's characters as references, a script's as escapes: found as they read, shown as the file has them
   fs.writeFileSync(
     path.join(probe, "napoveda"),
@@ -516,7 +516,7 @@ test("connector grep: the saved answers searched, each hit with the text round i
   assert.equal((await w.ok(["connector", "grep", "zkusebni", String.raw`https:\/\/img`, "--json"])).json.total, 1, "as the file has it: once, not twice");
   const jp2 = await w.ok(["connector", "grep", "zkusebni", String.raw`f=[^"]+\.jp2`, "--regex", "--json"]);
   assert.deepEqual(jp2.json.hits.map((h: { line: number; column: number }) => `${h.line}:${h.column}`), ["2:53"], "a pattern too, where the file has it");
-  assert.match((await w.ok(["connector", "grep", "zkusebni", "Brno"])).out, /^not found in 3 saved file\(s\) of /);
+  assert.match((await w.ok(["connector", "grep", "zkusebni", "Brno"])).out, /^not found in 3 saved files of /);
   assert.deepEqual(a.hits, [], "nothing is requested");
   w.cleanup();
   await a.close();
@@ -617,7 +617,7 @@ test("a part of an image, sharper: one request, registered with its image — a 
   // the upper right quarter: --half right, and its upper half
   const r = await w.ok(["fetch", "zkusebni", "--recordset", "B1", "--images", "1", "--half", "right", "--crop", "0,0,1,0.5"]);
   assert.deepEqual(a.hits, ["/part/5359/1.jpg?r=0.5,0,0.5,0.5"], "one request, for the part asked");
-  assert.match(r.out, /part: 1 request\(s\)/);
+  assert.match(r.out, /part: 1 request/);
   assert.match(r.out, /part 0\.5,0,0\.5,0\.5 of image 1 of B0001 fetched and registered: M0003 · 400×300 px · 2\.0× the detail of the whole image/);
   assert.match(r.out, /look at it: strom media view B0001:1 --crop 0\.5,0,0\.5,0\.5/);
   // the image is still the whole image; the part is with it

@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { configDir, type Env } from "./paths.ts";
-import { readJsonIfExists, stringifyCanonical } from "./json.ts";
+import { readJsonIfExists, renameRetrying, stringifyCanonical } from "./json.ts";
 
 export interface SavedLogin {
   /** The connector's folder it was saved for. */
@@ -39,7 +39,7 @@ function write(env: Env, all: Record<string, SavedLogin>): void {
   const tmp = path.join(path.dirname(file), `.logins.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`);
   fs.writeFileSync(tmp, stringifyCanonical(all), { encoding: "utf8", mode: 0o600 });
   try {
-    fs.renameSync(tmp, file);
+    renameRetrying(tmp, file);
   } catch (err) {
     fs.rmSync(tmp, { force: true });
     throw err;

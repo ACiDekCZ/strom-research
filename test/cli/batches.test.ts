@@ -97,7 +97,7 @@ test("a batch from the app: its files kept without tasks, a ZIP unpacked by the 
     assert.equal(first.level, "intake");
     assert.deepEqual(first.where, [a.input, b.input]);
     assert.ok(first.subject.includes("P0001"));
-    assert.match(first.what, /Roztřídit dávku „Krabice od babičky“ \(1\/3\) – Babička, souborů: 2/);
+    assert.match(first.what, /Roztřídit dávku „Krabice od babičky“ \(1\/3\) – Babička, 2 soubory/);
     // the user's note to the batch: kept with it, told in each of its tasks
     assert.match(first.why, /Poznámka uživatele k dávce: „Dopisy z války, hledat razítka pošty“\./);
     assert.equal(JSON.parse(fs.readFileSync(path.join(w.cwd, ".strom", "batches", `${batch}.json`), "utf8")).note, "Dopisy z války, hledat razítka pošty");
@@ -138,7 +138,7 @@ test("a batch from the app: its files kept without tasks, a ZIP unpacked by the 
     const inputs = (JSON.parse(fs.readFileSync(meta, "utf8")) as { inputs: string[] }).inputs;
     await w.ok(["recordset", "add", "Matrika Týnec 1"]); // B1
     const added = await w.ok(["media", "add", "--from-input", inputs.join(","), "--recordset", "B0001"]);
-    assert.match(added.out, /2 image\(s\) registered: M\d{4}–M\d{4} of B0001 \(images 12–13\)/);
+    assert.match(added.out, /2 images registered: M\d{4}–M\d{4} of B0001 \(images 12–13\)/);
     const one = (await w.ok(["input", "show", inputs[0]!, "--json"])).json.input;
     assert.equal(one.state, "processed");
     assert.equal(one.sorted.as, "source");

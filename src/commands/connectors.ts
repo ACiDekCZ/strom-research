@@ -99,7 +99,7 @@ import {
 import { registerImages, wakeWaiting } from "./media.ts";
 import { autoCommit } from "../cli/commit.ts";
 import type { CommandDef } from "../cli/registry.ts";
-import { activeFetches, askStop, BACKGROUND_ENV, backgroundLog, backgroundOf, endedFetches, FETCH_BATCH, isRunWorker, markEnded, markFetch, watchBackground, type ActiveFetch, type BackgroundOf, type EndedFetch } from "../core/fetching.ts";
+import { activeFetches, askStop, BACKGROUND_ENV, backgroundLog, backgroundOf, endedFetches, FETCH_BATCH, FETCH_SILENT_MS, isRunWorker, markEnded, markFetch, processAlive, watchBackground, withRegistered, type ActiveFetch, type BackgroundOf, type EndedFetch } from "../core/fetching.ts";
 import { finishAsked } from "../core/clock.ts";
 import { isLiveWorker } from "../core/workers.ts";
 import { stromLauncher } from "../core/self.ts";
@@ -466,7 +466,7 @@ function pixels(file: string): string {
 function describeRun(r: RunReport, what: string): string {
   const more = r.sent - r.requests;
   return lines(
-    `${what}: ${r.sent} request(s)${more > 0 ? ` (the connector asked ${r.requests}; ${more} more: redirects or retries)` : ""}${r.pages ? ` + ${r.pages} page(s) your browser got` : ""}${r.stopped ? ` · stopped: ${r.stopped}` : ""}`,
+    `${what}: ${counted(r.sent, "request")}${more > 0 ? ` (the connector asked ${r.requests}; ${more} more: redirects or retries)` : ""}${r.pages ? ` + ${counted(r.pages, "page")} your browser got` : ""}${r.stopped ? ` · stopped: ${r.stopped}` : ""}`,
     ...r.logs.slice(-10).map((l) => `  · ${l}`),
   );
 }
@@ -723,7 +723,7 @@ function estimate(ctx: Context, c: Connector, images: number, part?: number, hum
   const waits = asks > left;
   const learned = per !== undefined && asks > images ? ` (${nf(per)} requests ${part !== undefined ? "a part" : "an image"}, as its last runs here went)` : "";
   return lines(
-    `${part !== undefined ? `a part of image ${part}` : `${images} image(s)`} through ${c.name}: ${learned ? "about" : "at least"} ${asks} request(s) to ${host}${learned}, about ${span(asks)} at its pace (${pacing})`,
+    `${part !== undefined ? `a part of image ${part}` : counted(images, "image")} through ${c.name}: ${learned ? "about" : "at least"} ${counted(asks, "request")} to ${host}${learned}, about ${span(asks)} at its pace (${pacing})`,
     waits
       ? `  the hourly cap holds the rest back: fetch the whole images first (a request each) and a part only of an image whose entry needs it`
       : undefined,
@@ -1340,11 +1340,11 @@ register(
       return {
         text: hits.length
           ? lines(
-              `${total}${total >= 5000 ? "+" : ""} hit(s) in ${inFiles} file(s) of ${ctx.display(base)}:`,
+              `${total}${total >= 5000 ? "+" : ""} ${total === 1 ? "hit" : "hits"} in ${counted(inFiles, "file")} of ${ctx.display(base)}:`,
               ...page.items.map((h) => `${h.file}:${h.line}:${h.column}  ${h.hits > 1 ? `(${h.hits} hits) ` : ""}${h.text}`),
               moreLine(page, `strom connector grep ${c.name} ${shellArg(pattern)}${opts.regex ? " --regex" : ""}${opts.in !== undefined ? ` --in ${shellArg(String(opts.in))}` : ""}`) || undefined,
             )
-          : `not found in ${files.length} saved file(s) of ${ctx.display(base)}`,
+          : `not found in ${counted(files.length, "saved file")} of ${ctx.display(base)}`,
         data: { total, hits: page.items },
       };
     },
@@ -1985,7 +1985,7 @@ async function takePages(ctx: Context, c: Connector, plans: BrowserPlan[], resul
     else savePlan(tree.root, { ...plan, pages: left });
     if (!stop && !left.length && plan.resume) next ??= plan.resume;
   }
-  const head = lines(taken.length ? `page(s) taken over from your browser: ${taken.join("; ")}` : `no page taken over from ${ctx.display(dir)}`, ...notes.map((n) => `  ⚠ ${n}`));
+  const head = lines(taken.length ? `${taken.length === 1 ? "page" : "pages"} taken over from your browser: ${taken.join("; ")}` : `no page taken over from ${ctx.display(dir)}`, ...notes.map((n) => `  ⚠ ${n}`));
   if (!next) return { text: head, data: { taken, notes }, ...(taken.length ? {} : { exitCode: 1 }) };
   // go on with what the pages were planned for: the connector asks again, the pages it has come from what the browser got
   let then: Result;
@@ -2135,7 +2135,7 @@ interface Registered {
  * then registers what came and stops the connector: nothing half registered, nothing that came lost. A second Ctrl-C
  * ends it at once (what is registered stays). The archive is asked nothing more or sooner: it only registers.
  */
-function fetchBatches(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" }>, recordset: string, from: (file: string) => string, child?: BackgroundOf, task?: string) {
+function fetchBatches(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" }>, recordset: string, from: (file: string) => string, child?: BackgroundOf, task?: string, workDir?: string) {
   const tree = ctx.tree();
   const fetched = { connector: c.name, book: request.book };
   const session = child?.session ?? ctx.env.STROM_SESSION;
@@ -2147,6 +2147,8 @@ function fetchBatches(ctx: Context, c: Connector, request: Extract<ConnectorRequ
     ...(session ? { session } : {}),
     ...(task ? { task } : {}),
     ...(child ? { background: true, ...(child.worker ? { worker: child.worker } : {}) } : {}),
+    // a process that is gone (killed) leaves its work folder: the strom that finds its mark stale takes it away
+    ...(workDir ? { work: path.basename(workDir) } : {}),
   });
   const acc: Registered = { added: [], again: [], restored: [], woken: [], clashes: [], withdrawn: [] };
   const done = new Map<string, string | undefined>(); // the file of each image registered → its media (none: here already)
@@ -2424,7 +2426,7 @@ async function startBackground(ctx: Context, c: Connector, request: Extract<Conn
   const n = request.images.length;
   return {
     text: lines(
-      `fetching ${n} image(s) of ${recordset} (images ${runs(request.images)}) in the background — pid ${pid}, for ${owner.task ?? `session ${owner.session}`}`,
+      `fetching ${counted(n, "image")} of ${recordset} (images ${runs(request.images)}) in the background — pid ${pid}, for ${owner.task ?? `session ${owner.session}`}`,
       `  read them as they come: strom read ${recordset} --images ${imagesArg(request.images)} · what came: strom fetch --status · stop it: strom fetch --stop ${recordset}`,
       `  it stops when the session is asked to finish or closes${isRunWorker(owner.worker) ? " (in this run: when the run ends)" : ""}; what came stays registered`,
       owner.guessed ? `  for ${owner.task}: the one task this session worked on that names ${recordset}${currentSession(tree, ctx.env)?.task ? ` (the session's own: ${currentSession(tree, ctx.env)!.task})` : ""} — for another one: --task T…` : undefined,
@@ -2450,7 +2452,7 @@ async function joinFetch(ctx: Context, recordset: string, joined: { images: numb
       const nums = joined.images.filter((n) => got.has(n));
       return {
         text: lines(
-          nums.length ? `${nums.length} image(s) of ${recordset} (images ${runs(nums)}) came by the other fetch — nothing asked twice` : undefined,
+          nums.length ? `${counted(nums.length, "image")} of ${recordset} (images ${runs(nums)}) came by the other fetch — nothing asked twice` : undefined,
           left.length ? `images ${runs(left)} did not come (the other fetch ended before): strom fetch … --images ${imagesArg(left)} --recordset ${recordset} fetches them` : undefined,
         ),
         data: { added: [], joined: nums, ...(left.length ? { missed: left } : {}) },
@@ -2469,7 +2471,12 @@ function activeLine(m: ActiveFetch): string {
 }
 
 function endedLine(e: EndedFetch): string {
-  return `${e.recordset} (${e.connector} ${e.book}): ${e.registered.length}/${e.images.length} images registered${e.registered.length ? ` (images ${runs(e.registered)})` : ""} · ended ${clock(Date.parse(e.at))}${e.stopped ? ` — stopped: ${e.stopped}` : e.exitCode ? ` — exit ${e.exitCode}` : ""}${e.missed.length ? ` · not fetched: images ${runs(e.missed)} (strom fetch ${e.connector} ${shellArg(e.book)} --images ${imagesArg(e.missed)} --recordset ${e.recordset})` : ""}`;
+  // ended without a word (its process killed, the computer stopped): found so by a later strom, its last sign of life
+  const how = e.interrupted
+    ? ` · ${e.background ? "in the background" : "in the foreground"}, last heard ${clock(Date.parse(e.at))} — interrupted: ${e.interrupted === "gone" ? `its process (pid ${e.pid}) ended without a word (killed, or the computer stopped)` : `nothing heard of it for ${FETCH_SILENT_MS / 60_000} min (pid ${e.pid})`}`
+    : ` · ended ${clock(Date.parse(e.at))}${e.stopped ? ` — stopped: ${e.stopped}` : e.exitCode ? ` — exit ${e.exitCode}` : ""}`;
+  const again = `strom fetch ${e.connector} ${shellArg(e.book)} --images ${imagesArg(e.missed)} --recordset ${e.recordset}${e.interrupted && e.background ? " --background" : ""}`;
+  return `${e.recordset} (${e.connector} ${e.book}): ${e.registered.length}/${e.images.length} images registered${e.registered.length ? ` (images ${runs(e.registered)})` : ""}${how}${e.missed.length ? ` · not fetched: images ${runs(e.missed)} (${again}${e.interrupted ? " — what is registered is not fetched again" : ""})` : ""}`;
 }
 
 /** strom fetch --status: what is being fetched for this research now, and the fetches in the background that ended lately. */
@@ -2478,11 +2485,15 @@ function fetchStatus(ctx: Context, names: string[]): Result {
   const ids = names.map((n) => requireRecord<RecordSet>(tree, n, "recordset").id);
   const pick = <T extends { recordset: string }>(xs: T[]) => (ids.length ? xs.filter((x) => ids.includes(x.recordset)) : xs);
   const active = pick(activeFetches(tree.root));
-  const ended = pick(endedFetches(tree.root)).filter((e) => !active.some((m) => m.pid === e.pid));
+  // an interrupted one: what it registered as the research has it
+  const has = (rs: string) => new Set(tree.list<Media>("media").filter((m) => m.recordset === rs && !m.part && !m.retracted && m.image !== undefined).map((m) => m.image!));
+  const ended = pick(endedFetches(tree.root))
+    .filter((e) => !active.some((m) => m.pid === e.pid))
+    .map((e) => withRegistered(e, has(e.recordset)));
   return {
     text: lines(
       active.length ? ["being fetched:", ...active.map((m) => `  ${activeLine(m)}`)].join("\n") : "nothing is being fetched now",
-      ended.length ? ["ended lately (in the background):", ...ended.slice(0, 10).map((e) => `  ${endedLine(e)}`)].join("\n") : undefined,
+      ended.length ? [`ended lately${ended.some((e) => !e.background) ? "" : " (in the background)"}:`, ...ended.slice(0, 10).map((e) => `  ${endedLine(e)}`)].join("\n") : undefined,
       active.some((m) => m.background) ? "read what came: strom read B… --images … (it waits for the rest) · stop: strom fetch --stop B…" : undefined,
     ),
     data: { active, ended },
@@ -2500,8 +2511,9 @@ async function fetchStop(ctx: Context, names: string[]): Promise<Result> {
   let left = mine;
   while (left.length && Date.now() < by) {
     await new Promise((r) => setTimeout(r, 200));
+    // its mark goes before its process ends (found on Windows: a process ends slowly after it): stopped once both are
     const live = new Set(activeFetches(tree.root).map((m) => m.pid));
-    left = left.filter((m) => live.has(m.pid));
+    left = left.filter((m) => live.has(m.pid) || processAlive(m.pid));
   }
   const ended = endedFetches(tree.root);
   const said = mine.filter((m) => !left.includes(m)).map((m) => ended.find((e) => e.pid === m.pid)).filter((e): e is EndedFetch => !!e);
@@ -2615,7 +2627,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
   const waits = limitWait(ctx);
   const from = (f: string) => `connector ${c.name} · ${path.basename(f)}`;
   // the images of a book registered as they come, in batches: a reader of the book begins on the first ones
-  const batches = request.cmd === "fetch" && recordset ? fetchBatches(ctx, c, request, recordset, from, child, forTask) : undefined;
+  const batches = request.cmd === "fetch" && recordset ? fetchBatches(ctx, c, request, recordset, from, child, forTask, workDir) : undefined;
   let endCode: number | undefined;
   try {
     const r = await runConnector(c, request, {
@@ -2695,8 +2707,8 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
       const missed = request.cmd === "fetch" && (batches.interrupted() || child) ? request.images.filter((n) => !got.has(n)) : [];
       const stopped = batches.stopped();
       text = lines(
-        added.length || !res.restored.length ? `${added.length} image(s) of ${recordset}${nums.length ? ` (images ${runs(nums)})` : ""} fetched and registered · ${took}` : undefined,
-        res.restored.length ? `${res.restored.length} image(s) of ${recordset} fetched again and put back (their file was not here; the same scan): ${res.restored.slice(0, 5).join(" ")}${res.restored.length > 5 ? " …" : ""} · ${took}` : undefined,
+        added.length || !res.restored.length ? `${counted(added.length, "image")} of ${recordset}${nums.length ? ` (images ${runs(nums)})` : ""} fetched and registered · ${took}` : undefined,
+        res.restored.length ? `${counted(res.restored.length, "image")} of ${recordset} fetched again and put back (their file was not here; the same scan): ${res.restored.slice(0, 5).join(" ")}${res.restored.length > 5 ? " …" : ""} · ${took}` : undefined,
         res.again.length ? `${res.again.length} already registered` : undefined,
         ...res.clashes.slice(0, 10).map((x) => `⚠ ${x}`),
         res.withdrawn.length ? `withdrawn again (the portal gave the same file for a later image — a placeholder, not a scan): ${res.withdrawn.join(" ")}` : undefined,
@@ -2712,7 +2724,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
       fs.mkdirSync(inbox, { recursive: true });
       for (const i of r.images) fs.renameSync(i.file, path.join(inbox, path.basename(i.file)));
       fs.rmSync(workDir, { recursive: true, force: true });
-      text = lines(`${r.images.length} image(s) fetched into the inbox: ${folder}/ · ${took}`, `register them: strom media add --inbox ${shellArg(folder)} --recordset B…`);
+      text = lines(`${counted(r.images.length, "image")} fetched into the inbox: ${folder}/ · ${took}`, `register them: strom media add --inbox ${shellArg(folder)} --recordset B…`);
       data = { ...data, inbox: folder };
     } else {
       fs.rmSync(workDir, { recursive: true, force: true });
@@ -2741,6 +2753,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
         registered: asked.filter((n) => have.has(n)),
         missed: asked.filter((n) => !have.has(n)),
         ...(stopped ? { stopped } : {}),
+        background: true,
         at: new Date().toISOString(),
         since: new Date(t0).toISOString(),
         session: child.session,
@@ -2764,15 +2777,15 @@ const COUNT_FROM = 20;
  * or a log keeps it — a line at each tenth of the images: at most 9 whatever the count (an agent pays for each line it
  * reads, a line per image of a book of hundreds would bury the rest), counted, not timed, so the same fetch always
  * says the same; the archive's pace makes each tenth a while anyway. The last image says nothing: the summary follows.
- * On stderr — stdout carries the result, with --json nothing but it. In the background (its log) in English.
+ * On stderr — stdout carries the result, with --json nothing but it. An agent's (its fetch, its log in the background) in English.
  * Counted from what strom took in: it asks the archive nothing and changes no pace.
  */
 function imageCount(ctx: Context, total: number): { got: (n: number) => void; say: (s: string) => void; clear: () => void } {
   const tty = ctx.io.tty;
   const on = total >= (tty ? COUNT_FROM_TTY : COUNT_FROM);
-  // a fetch in the background writes into its log, which the agent reads (strom fetch --status, its tail): English,
-  // as the rest of the log; a fetch in the foreground in the research language, for the person following it
-  const lang = backgroundOf(ctx.env) ? "en" : ctx.uiLang();
+  // what an agent reads is English, as the rest of the output: a fetch it runs, and one in the background writing
+  // into its log (strom fetch --status, its tail); a fetch a person runs in the research language, for them to follow
+  const lang = backgroundOf(ctx.env) || isAgent(ctx.env) ? "en" : ctx.uiLang();
   const text = (n: number) => ui(lang, "ui.fetch.progress", { n, total });
   let shown = 0; // the length of the line written over (a terminal)
   let tenth = 0; // the last tenth said (no terminal)
@@ -2831,9 +2844,9 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
     return { text: lines(describeRun(r, "locate"), `nothing planned: ${err.message}`), data: r, exitCode: err.failure === "cap" && err.until !== undefined ? EXIT.later : 1 };
   }
   // the times kept for the browser count in the host's hour as strom's own requests: near its cap, said
-  const counted = new Map([...meter.hosts].map(([h, l]) => [h, l.requests]));
-  counted.set(first.hostname, (counted.get(first.hostname) ?? 0) + times.length);
-  const near = capSaid(ctx, c, counted, human);
+  const byHost = new Map([...meter.hosts].map(([h, l]) => [h, l.requests]));
+  byHost.set(first.hostname, (byHost.get(first.hostname) ?? 0) + times.length);
+  const near = capSaid(ctx, c, byHost, human);
   const items: PlanItem[] = here
     .slice(0, times.length - 1)
     .map((l, i) => ({ n: l.n, src: l.src, url: l.url ?? l.src, ...(l.page ? { page: l.page } : {}), ...(l.region ? { region: l.region } : {}), file: fileBase(c.name, request.book, l.n, part), at: times[i + 1]! }))
@@ -2856,7 +2869,7 @@ async function planBrowser(ctx: Context, c: Connector, request: Extract<Connecto
   return {
     text: lines(
       describeRun(r, "locate"),
-      `browser plan: ${part ? `part ${regionText(request.region)} of image ${request.image}` : `${items.length} image(s) (${runs(items.map((i) => i.n))})`} of book ${request.book} through your browser — about ${secs} s at the pace of ${first.hostname}`,
+      `browser plan: ${part ? `part ${regionText(request.region)} of image ${request.image}` : `${counted(items.length, "image")} (${runs(items.map((i) => i.n))})`} of book ${request.book} through your browser — about ${secs} s at the pace of ${first.hostname}`,
       `1. Open a new tab of your own at ${open}${open.endsWith("/robots.txt") ? " — a light page of the site: the script fetches the images from there" : ""}.`,
       '   The browser not connected, a login or a captcha on the way: stop and ask the user (strom task wait T… --on "…") — that is theirs to do.',
       "   (Not connected: Chrome must be running with the Claude extension; after a change of network the extension may need a click on its icon, or Chrome a restart.)",
@@ -2892,7 +2905,7 @@ async function takeOver(ctx: Context, c: Connector, result: string | undefined):
   if (!plans.length) return { text: `nothing of ${c.name} waits to be taken over — plan it first: strom fetch ${c.name} <book> --images <from-to> --recordset B…`, data: { taken: [] } };
   if (tree.dryRun) {
     const found = plans.flatMap((p) => p.items.filter((i) => findDownload(dir, i.file).file));
-    return { text: `dry run: would take over ${found.length} of ${plans.reduce((n, p) => n + p.items.length, 0)} planned image(s) from ${ctx.display(dir)} — nothing was changed`, data: { dryRun: true, found: found.map((i) => i.n) } };
+    return { text: `dry run: would take over ${found.length} of ${counted(plans.reduce((n, p) => n + p.items.length, 0), "planned image")} from ${ctx.display(dir)} — nothing was changed`, data: { dryRun: true, found: found.map((i) => i.n) } };
   }
   const notes: string[] = [];
   // what the archive said to the browser counts as if it had said it to strom
@@ -2968,7 +2981,7 @@ async function takeOver(ctx: Context, c: Connector, result: string | undefined):
   return {
     text: lines(
       taken.length
-        ? `${taken.length} image(s) taken over from ${ctx.display(dir)}${added.length ? `: registered ${added.map((a) => a.id).join(" ")}` : ""}${inboxed.length ? ` into the inbox: ${[...new Set(inboxed)].join(", ")}/ — register them: strom media add --inbox ${shellArg(inboxed[0]!)} --recordset B…` : ""}`
+        ? `${counted(taken.length, "image")} taken over from ${ctx.display(dir)}${added.length ? `: registered ${added.map((a) => a.id).join(" ")}` : ""}${inboxed.length ? ` into the inbox: ${[...new Set(inboxed)].join(", ")}/ — register them: strom media add --inbox ${shellArg(inboxed[0]!)} --recordset B…` : ""}`
         : `nothing taken over from ${ctx.display(dir)}`,
       again.length ? `  already registered: ${again.join(" ")}` : undefined,
       woken.length ? `  back in the queue (they waited for these images): ${woken.join(" ")}` : undefined,

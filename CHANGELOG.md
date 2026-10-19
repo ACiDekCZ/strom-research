@@ -5,6 +5,34 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.17.0
+
+*2026-10-19 · goes with the Strom app 3.13.1.*
+
+- **What hypotheses would connect, first.** The tasks to fill in what the variants of an open hypothesis would
+  connect go first in the queue — also in an existing research after the update — so the Strom app can show those
+  links soon.
+- **The Strom app's bridge runs while an agent works.** The bridge no longer ends after two quiet hours while an
+  agent works in the tree (a paused run too), so the Strom app sees the research at work even in a tree it does not
+  follow. A bridge that ended for quiet comes back at its address when work starts again; one stopped with
+  `strom live stop` stays stopped.
+- **An interrupted download is said and tidied.** A download whose process ended midway is reported as interrupted,
+  with what was saved and what is missing; its work folder is cleared away.
+- **New material reported in the research's language.** What came in (registered material, what was added, likely
+  duplicates, married names, tasks) is said in the language of the research.
+- **Counts as the language says them.** Texts count in the forms of their language: 1 task, 2 tasks, 5 tasks — in
+  Czech 1 úkol, 2 úkoly, 5 úkolů, in German 1 Änderung, 2 Änderungen — instead of "task(s)".
+- **More in the research's language.** The people without a record of their own (`strom person list --unproven`,
+  where `strom check` points), what `strom export gedcom` wrote and a counter warning of `strom check` are said in
+  the research's language, their counts too — the size and quality of the images as the language writes them (in
+  Czech 0,4 MB · kvalita běžná).
+- **Saving on Windows waits for an antivirus.** A file written while an antivirus or the search indexer briefly holds
+  it is saved — or read — after a short wait instead of failing. A file held longer stops the command as a whole,
+  with nothing of it half saved, and the message says another program holds the file and the command can simply run
+  again.
+- **Errors for an agent in English.** What an agent reads is English whatever the research's language; a person at
+  the terminal or in the menu reads it in the research's language as before.
+
 ## 1.16.0
 
 *2026-10-17 · goes with the Strom app 3.13.0.*

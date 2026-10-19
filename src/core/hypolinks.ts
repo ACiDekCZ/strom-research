@@ -433,6 +433,26 @@ export const HYPOTHESIS_LINKS_SETTLED = "hypothesis-links";
 export const HYPOTHESIS_LINKS_ORIGIN = "hypothesis:links";
 /** Hypotheses in one task: the work is short — reading the variants and a command each. */
 export const HYPOTHESIS_LINKS_BATCH = 10;
+/**
+ * The priority of such a task: the highest the queue knows. Until its links are said the Strom app shows each variant
+ * as "not linked yet", and the work is short — it comes first (core/queue.ts linksFirst), not after the research.
+ */
+export const HYPOTHESIS_LINKS_PRIORITY = 5;
+/** Sessions on such a task after which it no longer comes first by itself: nothing is taken forever. */
+export const HYPOTHESIS_LINKS_TRIES = 2;
+/**
+ * The marker in strom.json: the open tasks an older strom made (priority 2, behind the research) raised to the front
+ * once (an optional field: an older strom keeps it). A priority the person set after that stays theirs.
+ */
+export const HYPOTHESIS_LINKS_FIRST = "hypothesis-links-first";
+
+/**
+ * A task to say what the variants of hypotheses would connect that comes first in the queue: the priority strom gives
+ * it (a person who lowered it put it back among the rest), tried fewer than HYPOTHESIS_LINKS_TRIES times.
+ */
+export function linksFirst(t: Pick<Task, "origin" | "priority">, tried: number): boolean {
+  return t.origin === HYPOTHESIS_LINKS_ORIGIN && t.priority >= HYPOTHESIS_LINKS_PRIORITY && tried < HYPOTHESIS_LINKS_TRIES;
+}
 
 const PERSON_ID = /(?<![\p{L}\p{M}\p{N}])P\d{4,}(?![\p{L}\p{M}\p{N}])/gu;
 
@@ -482,10 +502,7 @@ export function settleHypothesisLinks(tree: Tree): SettledLinks | undefined {
   if (tree.dryRun) return undefined;
   if (tree.config.settled?.includes(HYPOTHESIS_LINKS_SETTLED)) return undefined;
   if (!olderHypotheses(tree).some((h) => h.variants.some((v) => toLink(tree, h, v)))) return undefined;
-  // somebody at work on it (an agent present, a run) or holding its lock: next time
-  if (liveWorkers(tree.root).length || runsAtWork(tree.root).length || liveHolder(path.join(tree.root, ".strom", "tree.lock"))) return undefined;
-  // another computer's seal (a copy, a research brought here): the person adopts it first — nothing written till then
-  if (!tree.key) return undefined;
+  if (!quiet(tree)) return undefined;
   let out: SettledLinks | undefined;
   tree.atomically(() => {
     // read afresh under the lock: another strom may have written it meanwhile
@@ -525,7 +542,7 @@ export function settleHypothesisLinks(tree: Tree): SettledLinks | undefined {
         "task",
         {
           level: "enrich",
-          priority: 2,
+          priority: HYPOTHESIS_LINKS_PRIORITY,
           what: phrase(tree.lang, "hypothesis.links.what", { list }),
           where: batch,
           why: phrase(tree.lang, "hypothesis.links.why"),
@@ -541,7 +558,8 @@ export function settleHypothesisLinks(tree: Tree): SettledLinks | undefined {
     if (!result.linked.length && !result.tasks.length) return;
     tree.updateConfig(
       (c) => {
-        c.settled = [...new Set([...(c.settled ?? []), HYPOTHESIS_LINKS_SETTLED])];
+        // its tasks come first already: nothing an older strom made to raise later
+        c.settled = [...new Set([...(c.settled ?? []), HYPOTHESIS_LINKS_SETTLED, HYPOTHESIS_LINKS_FIRST])];
       },
       { op: "tree.settle", summary: "the links of the hypotheses' variants filled in once" },
     );
@@ -553,6 +571,61 @@ export function settleHypothesisLinks(tree: Tree): SettledLinks | undefined {
         : `Links of hypothesis variants left to the agent: ${left}`,
     );
     out = result;
+  });
+  return out;
+}
+
+/** Nobody at work on the tree (an agent present, a run) or holding its lock, and its seal this computer's own. */
+function quiet(tree: Tree): boolean {
+  // somebody at work on it or holding its lock: next time
+  if (liveWorkers(tree.root).length || runsAtWork(tree.root).length || liveHolder(path.join(tree.root, ".strom", "tree.lock"))) return false;
+  // another computer's seal (a copy, a research brought here): the person adopts it first — nothing written till then
+  return !!tree.key;
+}
+
+/** Open tasks to say the variants' links an older strom made behind the research (priority 2); one a person lowered to 1 stays. */
+function behind(tree: Tree): Task[] {
+  return tree
+    .list<Task>("task")
+    .filter((t) => t.origin === HYPOTHESIS_LINKS_ORIGIN && (t.state === "open" || t.state === "doing") && t.priority >= 2 && t.priority < HYPOTHESIS_LINKS_PRIORITY);
+}
+
+/**
+ * Once per research: the open tasks to say what the variants would connect that an older strom made with priority 2 —
+ * behind hundreds of others, while the Strom app shows the variants "not linked yet" — raised to HYPOTHESIS_LINKS_PRIORITY,
+ * each logged with the reason, the marker in strom.json, in one commit. Done and put-aside ones (an archive's) stay as
+ * they are; none to raise: nothing written (looked at again next time — an archive's come back open when research is
+ * switched on). Skipped as settleHypothesisLinks is: somebody at work, another computer's seal, data changed outside
+ * strom, a dry run. The raised task IDs, else undefined.
+ */
+export function raiseHypothesisLinkTasks(tree: Tree): string[] | undefined {
+  if (tree.dryRun) return undefined;
+  if (tree.config.settled?.includes(HYPOTHESIS_LINKS_FIRST)) return undefined;
+  if (!behind(tree).length) return undefined;
+  if (!quiet(tree)) return undefined;
+  let out: string[] | undefined;
+  tree.atomically(() => {
+    if (!freshConfig(tree)) return;
+    if (tree.config.settled?.includes(HYPOTHESIS_LINKS_FIRST)) return;
+    if (!writableUnasked(tree)) return;
+    const raised: string[] = [];
+    for (const t of behind(tree)) {
+      update<Task>(tree, t.id, "task", (x) => ({ ...x, priority: HYPOTHESIS_LINKS_PRIORITY }), {
+        op: "task.edit",
+        summary: `${t.id} priority ${t.priority} → ${HYPOTHESIS_LINKS_PRIORITY}`,
+        reason: `strom ${VERSION}: the links of hypothesis variants come first — short work the Strom app waits for`,
+      });
+      raised.push(t.id);
+    }
+    if (!raised.length) return;
+    tree.updateConfig(
+      (c) => {
+        c.settled = [...new Set([...(c.settled ?? []), HYPOTHESIS_LINKS_FIRST])];
+      },
+      { op: "tree.settle", summary: "the tasks to say the hypotheses' links raised to the front once" },
+    );
+    tree.commit(`Tasks to say what the variants of hypotheses would connect first in the queue (${raised.join(", ")})`);
+    out = raised;
   });
   return out;
 }

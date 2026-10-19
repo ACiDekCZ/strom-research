@@ -8,9 +8,11 @@
 // their turn: after STORY_EVERY sessions without one, a story first. In a
 // conversation the user leads, and a story is written when they want it. Work
 // about people nothing links to the tree waits until the user asks for it or a
-// hypothesis joins them (core/kin.ts offTree). Work that needs images of an archive whose images wait for the person's
-// decision waits for it (core/archivewait.ts): a session spent on it finds nothing and asks again. Strategies (setting
-// queue.strategy): balanced (the default), depth (stay on the line of the last sessions), priority (strict priority).
+// hypothesis joins them (core/kin.ts offTree). A task to say what the variants of hypotheses would connect comes first
+// (core/hypolinks.ts linksFirst): short work, and the Strom app shows the variants "not linked yet" until it is done.
+// Work that needs images of an archive whose images wait for the person's decision waits for it (core/archivewait.ts):
+// a session spent on it finds nothing and asks again. Strategies (setting queue.strategy): balanced (the default),
+// depth (stay on the line of the last sessions), priority (strict priority).
 
 import type { Research, Session, Strategy, Task } from "./model.ts";
 import { parentsOf } from "./people.ts";
@@ -20,6 +22,7 @@ import { subjectPeople } from "./records.ts";
 import { directionOf, scopes } from "./directions.ts";
 import { offTree } from "./kin.ts";
 import { forStory } from "./stories.ts";
+import { HYPOTHESIS_LINKS_TRIES, linksFirst } from "./hypolinks.ts";
 import { setsWithImages } from "./mediaindex.ts";
 import { heldOn, permissionQuestions } from "./archivewait.ts";
 import type { PendingQuestion } from "./terms.ts";
@@ -151,8 +154,11 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
           : 2 * t.priority + intake - (gen - 1) - 2 * recent - 1.5 * tried;
     const blocked = lacksImages(tree, t, withImages);
     const storyTurn = storyDue && forStory(t);
+    // what the variants of hypotheses would connect: short work the Strom app waits for — before all else (core/hypolinks.ts)
+    const first = linksFirst(t, tried);
     const why = [
       t.state === "doing" ? "in progress" : undefined,
+      first ? `the hypotheses' links first: short, the Strom app waits for them (until tried ${HYPOTHESIS_LINKS_TRIES}×)` : undefined,
       storyTurn ? `a story's turn: none in the last ${STORY_EVERY} sessions` : undefined,
       blocked ? "needs images the user has to download" : undefined,
       `p${t.priority}`,
@@ -162,12 +168,14 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     ]
       .filter(Boolean)
       .join(" · ");
-    return { task: t, why, doing: t.state === "doing" ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen };
+    return { task: t, why, doing: t.state === "doing" ? 0 : 1, first: first ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen };
   });
   return rows
     .sort(
       (a, b) =>
         a.doing - b.doing ||
+        // the links of hypothesis variants before the research and a story's turn
+        a.first - b.first ||
         // a story's turn first (working alone); otherwise the stories after all the research
         a.story - b.story ||
         // work that can be done now comes before work that waits for the user's download

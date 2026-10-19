@@ -1,0 +1,99 @@
+# A pushed tag puts its npm package out, through npm's trusted publishing (OIDC: no token, no secret; npm adds the
+# provenance itself). The file keeps its name: npm's trusted publisher of strom-research names npm-beta.yml.
+#
+# - A beta's tag (vX.Y.Z-beta.N, pushed by the beta release): under the tag beta; npm's latest untouched.
+# - A release's tag (vX.Y.Z, pushed by the release; the version of the package.json at the tag): under latest, then
+#   npm's beta follows it when the release is newer than the beta (`npm install -g strom-research@beta` gets it).
+# - Any other tag (a candidate's -rc.N): not matched here, and refused by `prepare` all the same: nothing, green.
+#
+# The package is built as the release's own: `npm run release -- --version <version> --out <folder>`
+# (scripts/build-release.ts), the same tarball as release-beta/ or release/strom-research-<version>.tgz.
+# Run again for a version npm has already: green, nothing published.
+name: npm
+
+on:
+  push:
+    # GitHub's filter: * is anything but "/", [0-9]+ one digit or more; the whole tag name matches
+    tags: ["v*-beta.*", "v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      tag: ${{ steps.tag.outputs.tag }}
+      out: ${{ steps.tag.outputs.out }}
+      publish: ${{ steps.tag.outputs.publish }}
+      latest: ${{ steps.tag.outputs.latest }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - name: What the tag publishes
+        id: tag
+        run: node scripts/npm-beta-ci.ts prepare "$GITHUB_REF_NAME"
+
+  publish:
+    needs: check
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      NPM_TAG: ${{ needs.check.outputs.tag }}
+      OUT: ${{ needs.check.outputs.out }}
+      LATEST: ${{ needs.check.outputs.latest }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - name: npm for trusted publishing (11.5.1 or newer; a release, its dist-tag too 11.21.0)
+        run: |
+          node scripts/npm-beta-ci.ts npm "$NPM_TAG" || npm install -g npm@11
+          node scripts/npm-beta-ci.ts npm "$NPM_TAG"
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      # the unit and GEDCOM tests: the whole suite ran before the tag was made (the release's or the beta's checks)
+      - run: npm run test:quick
+      - name: Build the package
+        run: npm run release -- --version "$VERSION" --out "$OUT"
+      - name: The package
+        run: |
+          node scripts/npm-beta-ci.ts tarball "$OUT/strom-research-$VERSION.tgz" "$VERSION"
+          npm pack --dry-run --ignore-scripts "./$OUT/strom-research-$VERSION.tgz"
+          sha256sum "$OUT/strom-research-$VERSION.tgz"
+      - name: Publish a beta under the tag beta
+        if: env.NPM_TAG == 'beta'
+        run: npm publish "./release-beta/strom-research-$VERSION.tgz" --tag beta --access public
+      - name: Publish a release under the tag latest
+        if: env.NPM_TAG == 'latest'
+        run: npm publish "./release/strom-research-$VERSION.tgz" --tag latest --access public
+      - name: On npm, the version under its tag (a beta, latest untouched; a release, latest)
+        run: |
+          node scripts/npm-beta-ci.ts after "$VERSION" "$LATEST"
+          npm view strom-research dist-tags --prefer-online
+      - name: npm's beta follows the release
+        if: env.NPM_TAG == 'latest'
+        run: |
+          node scripts/npm-beta-ci.ts beta "$VERSION"
+          npm view strom-research dist-tags --prefer-online

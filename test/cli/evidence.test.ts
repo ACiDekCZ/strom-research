@@ -123,7 +123,7 @@ test("searches record negatives; searched answers 'was it looked at?'", opts, as
   await w.ok(["search", "add", "Křty Novák 1903–1907", "--recordset", "B1", "--years", "1903-1907", "--surname", "Novák", "--method", "page-by-page", "--result", "negative"]);
   assert.equal((await w.run(["search", "add", "x", "--method", "index", "--result", "found"])).code, 2); // found needs --found
   const hit = await w.ok(["searched", "B1", "--years", "1905-1910"]);
-  assert.match(hit.out, /1 search\(es\) for B0001 in 1905-1910 — 1 negative/);
+  assert.match(hit.out, /1 search for B0001 in 1905-1910 — 1 negative/);
   assert.match((await w.ok(["searched", "B1", "--years", "1910-1915"])).out, /nothing searched yet/);
   assert.match((await w.ok(["searched", "novak"])).out, /1 search/);
   assert.match((await w.ok(["searched", "P1"])).out, /1 search/);
@@ -188,11 +188,11 @@ test("the places of the facts on the map: those off it are listed, the most fact
   await w.ok(["place", "add", "Týnec nad Labem", "--lat", "50.042", "--lon", "15.358"]); // on the map
   await w.ok(["person", "add", "Anna /Nováková/", "--born", "1890", "--born-place", "Týnec nad Labem"]);
   const list = await w.ok(["place", "list", "--off-map"]);
-  assert.match(list.out, /^Lhota \(2 fact\(s\), L0001\): strom place edit L0001 --lat … --lon …\nBorovnice \(1 fact\(s\), no place yet\): strom place add "Borovnice" --kind … --lat … --lon …\nidentify each first/);
+  assert.match(list.out, /^Lhota \(2 facts, L0001\): strom place edit L0001 --lat … --lon …\nBorovnice \(1 fact, no place yet\): strom place add "Borovnice" --kind … --lat … --lon …\nidentify each first/);
   assert.match((await w.ok(["check"])).out, /^ok/, "not a fault of the evidence");
   await w.ok(["session", "start"]);
   const close = await w.ok(["session", "close", "--summary", "s", "--next", "n"]);
-  assert.match(close.out, /· for the map — places of facts without coordinates \(2\):\n {4}Lhota \(2 fact\(s\), L0001\)[\s\S]*identify each first/);
+  assert.match(close.out, /· for the map — places of facts without coordinates \(2\):\n {4}Lhota \(2 facts, L0001\)[\s\S]*identify each first/);
   // Not identified yet: it says why, and is left alone; identified: on the map, the why is gone.
   await w.ok(["place", "edit", "L1", "--unlocated", "který Lhota: zápis neuvádí faru"]);
   await w.ok(["place", "add", "Borovnice", "--kind", "village", "--lat", "50.117", "--lon", "13.87"]);

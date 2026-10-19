@@ -217,6 +217,28 @@ test("config set/get and env override", async () => {
   w.cleanup();
 });
 
+test("config unset says what holds now: a default where there is one, else once that nothing is set (never \"(unset) (unset)\")", async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  // the settings with nothing in their place: none but these (each read as "nobody said": the agent's own, noticed, …)
+  const none = ["model.vision", "model.text", "model.cheap", "model.effort", "run.gate", "main.person", "strom.version", "agent.where", "strom.app", "app.browser"];
+  const rows = (await w.ok(["config", "where", "--json"])).json.settings as { key: string; value?: unknown; source: string }[];
+  const unset = rows.filter((r) => r.value === undefined).map((r) => r.key);
+  assert.deepEqual(unset.filter((k) => !none.includes(k)), [], `a default missing in config where: ${unset.join(", ")}`);
+  for (const r of rows.filter((r) => r.value === undefined)) assert.equal(r.source, "unset", r.key);
+  // with a default: the default
+  await w.ok(["config", "set", "stories", "no"]);
+  assert.equal((await w.ok(["config", "unset", "stories"])).out.trim(), "stories unset — now yes (default)");
+  await w.ok(["config", "set", "excerpts.quality", "sharp"]);
+  assert.equal((await w.ok(["config", "unset", "excerpts.quality"])).out.trim(), "excerpts.quality unset — now normal (default)");
+  // without: said once
+  await w.ok(["config", "set", "agent.where", "terminal"]);
+  const where = await w.ok(["config", "unset", "agent.where"]);
+  assert.equal(where.out.trim(), "agent.where unset — nothing set now");
+  assert.doesNotMatch(where.out, /\(unset\)/u);
+  w.cleanup();
+});
+
 test("init creates a git-backed tree; orientation then shows it", { skip: !hasGit }, async () => {
   const w = new World();
   await w.ok(["setup", "--yes"]);

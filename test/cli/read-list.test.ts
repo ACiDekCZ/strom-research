@@ -82,7 +82,7 @@ test("strom read with a list: exactly its images read, the search over them; a l
     w.env.STROM_RUNNER_SCRIPT = r.file;
     const one = await w.ok(["read", "B1", "--images", "1, 3–4", ...question]);
     assert.deepEqual(r.got().flat(), [1, 3, 4], "image 2 is not in the list: not read");
-    assert.match(one.out, /^read 3 images in 1 batch\(es\)/m);
+    assert.match(one.out, /^read 3 images in 1 batch/m);
     // the search to record names the images read, one word of the shell
     assert.match(one.out, /--pages 1,3-4 --method page-by-page --by reader --result negative/);
     // as the shell gives a list copied with its spaces: "--images 1," "3–4"

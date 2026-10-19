@@ -22,15 +22,16 @@
 // dist/ of the sources another process may be running from).
 //
 // A beta (`--version X.Y.Z-beta.N`) also gets its npm tarball, <out>/strom-research-X.Y.Z-beta.N.tgz (what npm pack
-// would publish, the version stamped, `publishConfig.tag` beta), and the line that publishes it under the tag beta.
-// A candidate (`-rc.N`) gets none: it stays local. Any other prerelease is refused.
+// would publish, the version stamped, `publishConfig.tag` beta), and the line that publishes it under the tag beta;
+// a release its own, <out>/strom-research-X.Y.Z.tgz (no tag of its own: latest). Both are what
+// .github/workflows/npm-beta.yml publishes when the tag is pushed. A candidate (`-rc.N`) gets none: it stays local.
+// Any other prerelease is refused.
 
 import fs from "node:fs";
-import zlib from "node:zlib";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { releaseKind, packForNpm, publishLine } from "./npm-channel.ts";
+import { releaseKind, npmTagOf, packForNpm, publishLine, tarEntries } from "./npm-channel.ts";
 
 /** The Node line strom runs on (an LTS line, tested): installers and strom update take its newest release from nodejs.org. */
 export const NODE_LINE = "24";
@@ -49,22 +50,6 @@ function run(cmd: string, args: string[], opts: { cwd?: string } = {}): void {
   // macOS's tar would add its AppleDouble files (._dist, ._cli.js…) for the extended attributes: none
   const r = spawnSync(cmd, args, { stdio: "inherit", cwd: opts.cwd ?? ROOT, shell: process.platform === "win32", env: { ...process.env, COPYFILE_DISABLE: "1" } });
   if (r.status !== 0) throw new Error(`${cmd} ${args.join(" ")} failed (${r.status ?? r.error?.message})`);
-}
-
-/** The names in a .tar.gz, read from its headers (ustar: the prefix, then the name). */
-function tarNames(file: string): string[] {
-  const tar = zlib.gunzipSync(fs.readFileSync(file));
-  const names: string[] = [];
-  const text = (at: number, len: number) => tar.subarray(at, at + len).toString("utf8").replace(/\0.*$/s, "");
-  for (let at = 0; at + 512 <= tar.length; ) {
-    const name = text(at, 100);
-    if (!name) break;
-    const prefix = text(at + 345, 155);
-    names.push(prefix ? `${prefix}/${name}` : name);
-    const size = parseInt(text(at + 124, 12).trim() || "0", 8);
-    at += 512 + Math.ceil(size / 512) * 512;
-  }
-  return names;
 }
 
 const sha256 = (file: string) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
@@ -130,10 +115,12 @@ async function main(): Promise<void> {
   const packed = path.join(OUT, "strom-app.tar.gz");
   run("tar", ["-czf", packed, "app"], { cwd: OUT });
   // …and none came in (macOS's own tar hides them when it lists the archive: its headers read here)
-  if (tarNames(packed).some((n) => /(^|\/)\._/.test(n))) throw new Error(`${packed}: AppleDouble files (._*) in it`);
+  if (tarEntries(packed).some((e) => /(^|\/)\._/.test(e.name))) throw new Error(`${packed}: AppleDouble files (._*) in it`);
   console.log(`  ${shown(packed)} (${(fs.statSync(packed).size / 1e6).toFixed(1)} MB)`);
-  // a beta: npm's tarball of the same code (published by hand, under the tag beta)
-  const npmTarball = kind === "beta" ? packForNpm(stage, OUT) : undefined;
+  // a beta, a release: npm's tarball of the same code, under the tag beta or latest (published by
+  // .github/workflows/npm-beta.yml when its tag is pushed)
+  const npmTag = npmTagOf(version);
+  const npmTarball = npmTag ? packForNpm(stage, OUT) : undefined;
   if (npmTarball) console.log(`  ${shown(npmTarball)} (${(fs.statSync(npmTarball).size / 1e6).toFixed(1)} MB)`);
   fs.rmSync(stage, { recursive: true, force: true });
 
@@ -145,7 +132,7 @@ async function main(): Promise<void> {
   fs.writeFileSync(path.join(OUT, "NODE_VERSION"), `${NODE_LINE}\n`);
   if (process.argv.includes("--node-mirror")) await nodeMirror();
   console.log(`done — ${shown(OUT)}/ (${version})`);
-  if (npmTarball) console.log(`npm (by hand, in a terminal of your own): ${publishLine(shown(npmTarball))}`);
+  if (npmTarball && npmTag) console.log(`npm: the tag pushed publishes it (.github/workflows/npm-beta.yml); else by hand, in a terminal of your own: ${publishLine(shown(npmTarball), npmTag)}`);
 }
 
 main().catch((e) => {

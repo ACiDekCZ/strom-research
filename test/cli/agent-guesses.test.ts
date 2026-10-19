@@ -130,8 +130,8 @@ test("searched --surname / --task: only those searches — any script, accents a
     assert.deepEqual(await ids(["--task", "T2"]), [b, c]);
     assert.deepEqual(await ids(["T0002"]), [b, c], "a task as the what");
     assert.deepEqual(await ids(["B0001", "--surname", "Šťastný", "--task", "T0002", "--years", "1865"]), [c]);
-    assert.match((await w.ok(["searched", "--surname", "Šťastný", "--task", "T0001"])).out, /^1 search\(es\) for Šťastný · T0001 — 1 negative/);
-    assert.match((await w.ok(["searched", "B0001", "--surnames", "Петров"])).out, /^1 search\(es\) for B0001 · surname Петров/);
+    assert.match((await w.ok(["searched", "--surname", "Šťastný", "--task", "T0001"])).out, /^1 search for Šťastný · T0001 — 1 negative/);
+    assert.match((await w.ok(["searched", "B0001", "--surnames", "Петров"])).out, /^1 search for B0001 · surname Петров/);
     assert.equal((await w.run(["searched", "--task", "T0099"])).code, 2);
     const none = await w.run(["searched"]);
     assert.equal(none.code, 2);

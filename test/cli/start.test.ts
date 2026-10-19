@@ -16,6 +16,7 @@ import { webAppProfile } from "../../src/core/chromium.ts";
 import { installedStromApp, isStromName } from "../../src/core/stromapp.ts";
 import { createShortcut, openInNewTerminal } from "../../src/core/shortcut.ts";
 import { enterWorker } from "../../src/core/workers.ts";
+import { writeFileAtomic } from "../../src/core/json.ts";
 
 const unix = { skip: !hasGit || process.platform === "win32" };
 
@@ -807,6 +808,15 @@ test("the results: strom tells the agent to offer the Strom app when it is not i
 });
 
 /** A request to the bridge, as a page of some origin makes it. */
+/** Wait for a condition (never a fixed pause: a loaded machine is slower), failing after `ms`. */
+async function until(what: string, ok: () => boolean, ms = 20_000): Promise<void> {
+  const by = Date.now() + ms;
+  while (!ok()) {
+    if (Date.now() > by) assert.fail(`waited ${ms} ms in vain: ${what}`);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
 function ask(url: string, opts: { method?: string; headers?: Record<string, string> } = {}): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
   return new Promise((resolve, reject) => {
     const req = http.request(url, { method: opts.method ?? "GET", headers: opts.headers ?? {} }, (res) => {
@@ -892,19 +902,22 @@ test("the live bridge does not end because of one error, says what happened in i
     await new Promise((r) => events.on("response", (res) => res.once("data", r)));
     const config = path.join(w.cwd, "strom.json");
     const good = fs.readFileSync(config, "utf8");
-    // somebody comes to work meanwhile: the tick reads the tree for who it is (it reads it only when that changes)
-    fs.writeFileSync(config, good.slice(0, 20));
+    // somebody comes to work meanwhile: the tick reads the tree for who it is (it reads it only when that changes).
+    // Written whole (as strom writes it): a tick reading a file half written would fail with another error, said again.
+    writeFileAtomic(config, good.slice(0, 20));
     const leave = enterWorker(w.cwd, "chat-1", "Codex conversation");
-    await new Promise((r) => setTimeout(r, 500));
+    const logText = () => (fs.existsSync(log) ? fs.readFileSync(log, "utf8") : "");
+    // waited for, not slept on: under the load of the whole suite a tick of 100 ms comes later
+    await until("a tick failed on the broken tree", () => /a tick failed/u.test(logText()));
     const broken = await ask(`${first.url}/status`);
     assert.equal(broken.status, 500);
     assert.ok(JSON.parse(broken.body).error, "a short JSON");
-    fs.writeFileSync(config, good);
-    await new Promise((r) => setTimeout(r, 300));
+    writeFileAtomic(config, good);
+    await until("the tick works again", () => /works again/u.test(logText()));
     assert.equal((await ask(`${first.url}/status`)).status, 200, "it goes on");
     events.destroy();
     leave();
-    const said = fs.readFileSync(log, "utf8");
+    const said = logText();
     assert.match(said, /started: strom .*a new address/);
     assert.match(said, /a tick failed \(tried again\): .*\n\s+at /, "the error with its stack");
     assert.equal(said.match(/a tick failed/g)!.length, 1, "written once, not at every tick");

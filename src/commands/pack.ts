@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines } from "../cli/format.ts";
+import { counted, lines } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { NeedsConsentError, UsageError } from "../core/errors.ts";
 import { findPack, freeRoot, INSTALL_UNIX, INSTALL_WINDOWS, packPlan, unpack, writePack } from "../core/pack.ts";
@@ -64,7 +64,7 @@ register({
     if (ctx.dryRun) {
       const plan = packPlan(tree, shared, all);
       const bytes = plan.media.reduce((s, m) => s + m.size, 0);
-      return { text: `dry run: would pack "${tree.config.name}" with ${plan.media.length} image(s) (${mb(bytes)} MB) into ${ctx.display(out)} — nothing written`, data: { out, plan } };
+      return { text: `dry run: would pack "${tree.config.name}" with ${counted(plan.media.length, "image")} (${mb(bytes)} MB) into ${ctx.display(out)} — nothing written`, data: { out, plan } };
     }
     const r = packTree(tree, shared, out, all);
     const took = r.plan.media.reduce((s, m) => s + m.size, 0);

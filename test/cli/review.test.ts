@@ -191,7 +191,7 @@ test("batch: one call, one commit, labels, all or nothing", opts, async () => {
     "family add --partner P0001 --partner @anna --married 1910 --cite @zapis #svatba",
     'event add P0001 OCCU --value "rolník, syn rolníka" --cite @zapis --with "witness:Jan Dvořák"',
   ]);
-  assert.match(r.out, /4 command\(s\) as one change/);
+  assert.match(r.out, /4 commands as one change/);
   assert.match(r.out, /\+F0001 .* E0002 MARR 1910 \[probable\]/);
   const after = spawnSync("git", ["rev-list", "--count", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).stdout.trim();
   assert.equal(Number(after), Number(before) + 1, "one commit for the whole batch");

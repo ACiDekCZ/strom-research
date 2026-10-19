@@ -39,7 +39,7 @@ for (const archive of fs.existsSync(releases) ? fs.readdirSync(releases).filter(
     // What it recorded reads as it was written — brought forward first when its schema is older, said in the
     // research's language.
     const first = await w.ok(["check"]);
-    assert.match(first.out, /^ok — data souhlasí|\nchyby: 0,/, first.out);
+    assert.match(first.out, /^ok — data souhlasí|(^|\n)0 chyb,/, first.out);
     const brought = /^Data rodokmenu jsou převedená pro tuto verzi stromu \(operace každého uložení ve vlastním malém souboru; ve výzkumu se nic nezměnilo\)\.$/m;
     if (schema < SCHEMA_VERSION) assert.match(first.err, brought, first.err);
     else assert.doesNotMatch(first.err, brought, "the schema of today: nothing to bring forward");
@@ -66,7 +66,7 @@ for (const archive of fs.existsSync(releases) ? fs.readdirSync(releases).filter(
     await w.ok(["event", "add", "P1", "OCCU", "--value", "mlynář", "--cite", "S1"]);
     await w.ok(["session", "start", "T1"]);
     await w.ok(["session", "close", "--continue", "--summary", "kniha prošla", "--next", "oddavky v jiné farnosti"]);
-    assert.match((await w.ok(["check"])).out, /^ok — data souhlasí|\nchyby: 0,/);
+    assert.match((await w.ok(["check"])).out, /^ok — data souhlasí|(^|\n)0 chyb,/);
     const tree = Tree.open(w.cwd, w.env);
     assert.equal(tree.config.schema, SCHEMA_VERSION);
     assert.equal(tree.list<Person>("person").length, 4);

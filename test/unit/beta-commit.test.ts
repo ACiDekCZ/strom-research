@@ -7,13 +7,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { AGENTS_FILE, betaAgents, betaChangelog, betaCommit, CHANGELOGS } from "../../scripts/beta-commit.ts";
+import { AGENTS_FILE, betaAgents, betaChangelog, betaCommit, CHANGELOGS, isBetaAgents } from "../../scripts/beta-commit.ts";
 import { hasGit } from "../helpers.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const main = fs.readFileSync(path.join(ROOT, AGENTS_FILE), "utf8");
+// the branch beta's tree (the tag's workflow tests it) has the beta's text already: main's is checked on main
+const onBeta = isBetaAgents(main) && "the branch beta's tree: main's agents' text is checked on main";
 
-test("the agents' text of the beta: every installer from the branch beta and run with STROM_CHANNEL=beta; main's stays stable", () => {
+test("the agents' text of the beta: every installer from the branch beta and run with STROM_CHANNEL=beta; main's stays stable", { skip: onBeta }, () => {
   const beta = betaAgents(main);
   assert.doesNotMatch(beta, /strom-research\/(?:tree\/)?main\/install|stromapp\.info\/research\/install\./);
   assert.match(beta, /raw\.githubusercontent\.com\/ACiDekCZ\/strom-research\/beta\/install\/install\.ps1 -OutFile/);
@@ -29,9 +31,11 @@ test("the agents' text of the beta: every installer from the branch beta and run
   // main's own text: stable, nothing of a beta
   assert.doesNotMatch(main, /beta/i);
   assert.match(main, /strom-research\/main\/install\/install\.sh -o \/tmp\/strom-install\.sh/);
+  assert.equal(isBetaAgents(main), false);
+  assert.equal(isBetaAgents(beta), true);
 });
 
-test("the agents' text changed so that a line is not found, or a stable run is left: the beta stops", () => {
+test("the agents' text changed so that a line is not found, or a stable run is left: the beta stops", { skip: onBeta }, () => {
   assert.throws(() => betaAgents(main.replace("`sh /tmp/strom-install.sh`", "`bash /tmp/strom-install.sh`")), /not found: `sh \/tmp\/strom-install\.sh`/);
   assert.throws(() => betaAgents(main + "\nOr: `curl -fsSL https://stromapp.info/research/install.sh | sh`\n"), /production install address/);
   assert.throws(() => betaAgents(main + "\nOr: `irm https://example.org/install.ps1 | iex`\n"), /without STROM_CHANNEL=beta/);
@@ -47,7 +51,7 @@ test("the changelogs of the beta: the section of the version being prepared says
   assert.throws(() => betaChangelog("## 1.15.01\n## 1x15x0\n", file, note, "1.15.0-beta.1"), /no section/);
 });
 
-test("the beta's commit: HEAD's tree with the beta's agents' text, its parent the base, nothing else changed — the working tree, index and branches untouched", { skip: !hasGit }, () => {
+test("the beta's commit: HEAD's tree with the beta's agents' text, its parent the base, nothing else changed — the working tree, index and branches untouched", { skip: !hasGit || onBeta }, () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), "strom-beta-commit-"));
   const git = (...args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@example.org", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@example.org" } }).trim();
   try {

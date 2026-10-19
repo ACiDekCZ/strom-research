@@ -1,0 +1,20 @@
+# Text is kept with LF line endings in every checkout (Windows too): tests compare files byte for byte, the installers
+# and GEDCOM fixtures are read as they are. A test that needs CRLF makes it in its own code.
+* text=auto eol=lf
+
+# Binary: never converted, never diffed as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.gz binary
+*.tgz binary
+*.zip binary
+*.woff binary
+*.woff2 binary
+# raw pixels of the image fixtures (test/fixtures/images)
+*.rgb binary

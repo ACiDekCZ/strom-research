@@ -1,6 +1,6 @@
 {
   "name": "strom-research",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "description": "Genealogical research toolkit for AI coding agents",
   "type": "module",
   "bin": {
@@ -17,9 +17,18 @@
   "engines": {
     "node": ">=22.18"
   },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=24",
+      "onFail": "error"
+    }
+  },
   "scripts": {
     "strom": "node src/cli.ts",
+    "pretest": "node scripts/dev-node.ts",
     "test": "node --test --import ./test/setup.ts --test-global-setup=./test/global-setup.ts --test-timeout=240000 --test-reporter=dot \"test/**/*.test.ts\"",
+    "pretest:quick": "node scripts/dev-node.ts",
     "test:quick": "node --test --import ./test/setup.ts --test-global-setup=./test/global-setup.ts --test-timeout=240000 --test-reporter=dot \"test/unit/**/*.test.ts\" \"test/gedcom/**/*.test.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "tsc -p tsconfig.build.json",

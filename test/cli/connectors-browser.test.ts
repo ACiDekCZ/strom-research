@@ -153,7 +153,7 @@ test("through the browser: the connector says where the images are, strom plans 
   assert.ok(tab.waits.length >= 2 && tab.waits.every((ms) => ms > 0), "it waits for its times");
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 3);
   const took = await w.ok(["fetch", "zkusebni", "--take", "--result", tab.line]);
-  assert.match(took.out, /2 image\(s\) taken over from .*Stažené soubory: registered M0001 M0002/);
+  assert.match(took.out, /2 images taken over from .*Stažené soubory: registered M0001 M0002/);
   assert.match(took.out, /images 3: the browser fetched them but saved nothing here — Chrome lets a site download one file until the user allows automatic downloads/);
   assert.match(took.out, /strom fetch zkusebni 5359 --images 3 --recordset B0001/);
   assert.match(took.out, /back in the queue \(they waited for these images\): T0001/);
@@ -185,7 +185,7 @@ test("through the browser: the connector says where the images are, strom plans 
 
   // back to direct: strom fetches it itself
   await w.ok(["connector", "use", "zkusebni", "--via", "direct"]);
-  assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "3", "--recordset", "B1"])).out, /1 image\(s\) of B0001 \(images 3\) fetched and registered/);
+  assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "3", "--recordset", "B1"])).out, /1 image of B0001 \(images 3\) fetched and registered/);
   w.cleanup();
   await a.close();
 });
@@ -267,7 +267,7 @@ done();
   assert.match(t1.json.then.plan.pages[0].url, /page=2$/, "the next page, planned");
   const second = await runInTab(t1.json.then.script, a.base, downloads, { cookie: "passed=1" });
   const t2 = await w.ok(["fetch", "zkusebni", "--take", "--result", second.line]);
-  assert.match(t2.out, /find \(\d+ s\): 0 request\(s\) \+ 2 page\(s\) your browser got/);
+  assert.match(t2.out, /find \(\d+ s\): 0 requests \+ 2 pages your browser got/);
   assert.match(t2.out, /books \(2\):[\s\S]*5359[\s\S]*5360/);
   // what the browser got is there to read while the connector is built
   assert.ok(fs.readdirSync(path.join(dir, ".test", "probe", "browser")).some((f) => /^catalog-[0-9a-f]{16}\.json$/.test(f)));
@@ -288,7 +288,7 @@ done();
   // a page planned and never fetched (a run given up) does not hold back the images the browser saved
   await w.ok(["fetch", "zkusebni", "--find", "Lhota"]);
   const got = await w.ok(["fetch", "zkusebni", "--take"]);
-  assert.match(got.out, /2 image\(s\) taken over from .*: registered M0001 M0002/);
+  assert.match(got.out, /2 images taken over from .*: registered M0001 M0002/);
   assert.deepEqual(a.hits.filter((h) => h.startsWith("/g/")).sort(), ["/g/book/5359", "/g/catalog", "/g/catalog", "/g/catalog", "/g/img/5359/1.jpg", "/g/img/5359/2.jpg"].sort());
 
   // a refusal in the browser: the archive is left alone, as if strom had got it
@@ -322,7 +322,7 @@ test("the browser route in the manifest: needs locate; a portal whose terms forb
   const downloads = path.join(w.env.HOME!, "Downloads");
   fs.mkdirSync(downloads, { recursive: true });
   const tab = await runInTab(plan.script, a.base, downloads);
-  assert.match((await w.ok(["fetch", "zkusebni", "--take", "--result", tab.line])).out, /1 image\(s\) taken over from .* into the inbox: zkusebni 5359\/ — register them: strom media add --inbox "zkusebni 5359" --recordset B…/);
+  assert.match((await w.ok(["fetch", "zkusebni", "--take", "--result", tab.line])).out, /1 image taken over from .* into the inbox: zkusebni 5359\/ — register them: strom media add --inbox "zkusebni 5359" --recordset B…/);
   assert.deepEqual(fs.readdirSync(path.join(w.home, "shared", "inbox", "zkusebni 5359")), ["s0001.jpg"]);
   assert.match((await w.ok(["fetch", "zkusebni", "--take"])).out, /nothing of zkusebni waits to be taken over/);
   // a test says where the images are, fetching none

@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
-import { lines, table } from "../cli/format.ts";
+import { counted, lines, numberIn, table } from "../cli/format.ts";
 import { exportGedcom, GED_PROFILES, type GedProfile } from "../gedcom/export.ts";
 import type { Context } from "../cli/context.ts";
 import { hasGedErrors, validateGedcom, type GedFinding } from "../gedcom/validate.ts";
@@ -19,6 +19,8 @@ import { runGit, tracked } from "../core/git.ts";
 import { Settings } from "../core/config.ts";
 import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsSourceReads, appShowsFactStatus, appShowsStoryDrafts, appTurnsExcerpts } from "../core/stromapp.ts";
 import { EXCERPT_QUALITIES, EXCERPT_SCOPES, type ExcerptQuality, type ExcerptScope } from "../core/model.ts";
+import { ui } from "../cli/ui.ts";
+import { isAgent } from "../core/which.ts";
 
 function findingRows(f: GedFinding[]): string {
   return table(f.slice(0, 30).map((x) => [x.level === "error" ? "ERROR" : "warn", `line ${x.line}`, x.message]));
@@ -115,21 +117,27 @@ export function writeTreeGed(
   return { ...result, findings, file, for: opts.for, ...(images && set ? { images: images.report, imageSettings: set } : {}) };
 }
 
-const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+/** A size of images as the language writes it (0,4 MB in Czech, 0.4 MB in English). */
+const mbIn = (bytes: number, lang: string) => `${numberIn(lang, bytes / 1024 / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`;
 
-/** What an export with images took in and left out, and what to do about it — what strom decided itself is said as a warning. */
-export function imagesLines(r: ExcerptReport, images: { for: ExcerptScope; mb: number }): string {
+/** A quality of the images (excerpt.ts LEVELS) as the language says it; in English its name, the value excerpts.quality takes. */
+const QUALITY_WORDS = { sharp: "ui.export.quality.sharp", normal: "ui.export.quality.normal", small: "ui.export.quality.small", smaller: "ui.export.quality.smaller" } as const;
+export const qualityIn = (q: string, lang: string) => (Object.hasOwn(QUALITY_WORDS, q) ? ui(lang, QUALITY_WORDS[q as keyof typeof QUALITY_WORDS]) : q);
+
+/**
+ * What an export with images took in and left out, and what to do about it — what strom decided itself is said as a
+ * warning; in `lang` (a person's research language, else English).
+ */
+export function imagesLines(r: ExcerptReport, images: { for: ExcerptScope; mb: number }, lang = "en"): string {
   const few = (ids: string[]) => `${ids.slice(0, 8).join(", ")}${ids.length > 8 ? ` … (${ids.length})` : ""}`;
   return lines(
-    `  ${r.excerpts} excerpt(s) of ${r.sources} source(s), ${mb(r.bytes)} · quality ${r.level}`,
-    r.level !== r.asked ? `  WARNING made smaller to fit the limit of ${images.mb} MB: ${r.level} instead of ${r.asked} — more room: --images-max-mb <n> (strom config set excerpts.mb <n>)` : undefined,
-    r.dropped.length
-      ? `  WARNING left out to fit the limit of ${images.mb} MB, the farthest from the research first: ${r.dropped.length} source(s) (${few(r.dropped)}) — more room: --images-max-mb <n>`
-      : undefined,
-    r.outOfScope ? `  ${r.outOfScope} source(s) of people farther from the research than excerpts.for=${images.for} — all of them: --images-for all` : undefined,
-    r.missing.length ? `  the image is not on this computer: ${few(r.missing)}` : undefined,
-    r.unclipped.length ? `  sources on images with no clip (where the entry is): ${few(r.unclipped)} — strom clips (readers find them)` : undefined,
-    r.later.length ? `  the images of ${r.later.length} source(s) are still being made: the next export has them (all now: strom export gedcom)` : undefined,
+    ui(lang, "ui.export.images", { excerpts: r.excerpts, sources: r.sources, size: mbIn(r.bytes, lang), level: qualityIn(r.level, lang) }),
+    r.level !== r.asked ? ui(lang, "ui.export.images.smaller", { mb: numberIn(lang, images.mb, { maximumFractionDigits: 3, useGrouping: false }), level: qualityIn(r.level, lang), asked: qualityIn(r.asked, lang) }) : undefined,
+    r.dropped.length ? ui(lang, "ui.export.images.dropped", { mb: numberIn(lang, images.mb, { maximumFractionDigits: 3, useGrouping: false }), n: r.dropped.length, ids: few(r.dropped) }) : undefined,
+    r.outOfScope ? ui(lang, "ui.export.images.scope", { n: r.outOfScope, for: images.for }) : undefined,
+    r.missing.length ? ui(lang, "ui.export.images.missing", { ids: few(r.missing) }) : undefined,
+    r.unclipped.length ? ui(lang, "ui.export.images.unclipped", { ids: few(r.unclipped) }) : undefined,
+    r.later.length ? ui(lang, "ui.export.images.later", { n: r.later.length }) : undefined,
   );
 }
 
@@ -216,17 +224,22 @@ register(
         tree.withTreeLock(() => tree.commit(`Export ${inTree.map((r) => path.basename(r.file)).join(", ")}: ${s0.persons} persons, ${s0.families} families`, inTree.map((r) => tree.relative(r.file))));
         committed = true;
       }
+      // what was written, in the research's language where a person runs it (found on Windows: "6 persons · 1 sources",
+      // "committed" in a Czech research); an agent reads the English, --json the data
+      const lang = isAgent(ctx.env) ? "en" : tree.lang;
       const text = lines(
         ...results.map((r) => {
           const s = r.stats;
+          const forWhom = ui(lang, r.for === "strom" ? (r.images ? "ui.export.for.strom.images" : "ui.export.for.strom") : "ui.export.for.standard");
+          const skipped = s.skipped ? ui(lang, "ui.export.skipped", { n: s.skipped }) : "";
           return lines(
-            `${ctx.display(r.file)} (${r.for === "strom" ? `for the Strom app${r.images ? ", with images" : ""}` : "standard, any program"}) — ${s.persons} persons · ${s.families} families · ${s.events} facts · ${s.sources} sources${s.skipped ? ` · ${s.skipped} retracted/disproven left out` : ""}`,
-            `  valid GEDCOM 5.5.1${r.findings.length ? ` (${r.findings.length} warning(s))` : ""}`,
-            r.images && r.imageSettings ? imagesLines(r.images, r.imageSettings) : undefined,
+            ui(lang, "ui.export.file", { file: ctx.display(r.file), for: forWhom, persons: s.persons, families: s.families, facts: s.events, sources: s.sources, skipped }),
+            r.findings.length ? ui(lang, "ui.export.valid.warnings", { n: r.findings.length }) : ui(lang, "ui.export.valid"),
+            r.images && r.imageSettings ? imagesLines(r.images, r.imageSettings, lang) : undefined,
             r.findings.length ? findingRows(r.findings) : undefined,
           );
         }),
-        committed ? "committed" : undefined,
+        committed ? ui(lang, "ui.export.committed") : undefined,
       );
       const first = results[0]!;
       return {
@@ -256,7 +269,7 @@ register(
       const findings = validateGedcom(fs.readFileSync(file, "utf8"), opts.for === "standard" ? { strict: true } : {});
       const errors = findings.filter((f) => f.level === "error").length;
       return {
-        text: findings.length ? lines(findingRows(findings), "", `${errors} error(s), ${findings.length - errors} warning(s)`) : "ok — valid GEDCOM 5.5.1",
+        text: findings.length ? lines(findingRows(findings), "", `${counted(errors, "error")}, ${counted(findings.length - errors, "warning")}`) : "ok — valid GEDCOM 5.5.1",
         data: { ok: errors === 0, findings },
         exitCode: errors ? 1 : 0,
       };

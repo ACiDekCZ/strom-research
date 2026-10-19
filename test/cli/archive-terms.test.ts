@@ -76,7 +76,7 @@ test("a connector that worked before keeps working after the person's yes: a res
     assert.equal(store(w).pending.filter((p: { kind: string }) => p.kind === "permission").length, 0, "its question gone");
     pauses.length = 0;
     const got = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-2", "--recordset", "B1"]);
-    assert.match(got.out, /2 image\(s\) of B0001 \(images 1–2\) fetched and registered/);
+    assert.match(got.out, /2 images of B0001 \(images 1–2\) fetched and registered/);
     assert.deepEqual(imgHits(a.hits), ["/img/5359/1.jpg", "/img/5359/2.jpg"]);
     // a pause is the pace less the time since the request before it (real time passes, the sleep is the test's): slower
     // than the service's 5 s by far, with room for a slow machine

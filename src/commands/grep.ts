@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
-import { lines, moreLine, paginate, shellArg } from "../cli/format.ts";
+import { counted, lines, moreLine, paginate, shellArg } from "../cli/format.ts";
 import { notFound, UsageError } from "../core/errors.ts";
 import type { Input } from "../core/model.ts";
 import { listOpt, requireRecord } from "../core/records.ts";
@@ -120,13 +120,13 @@ register({
     const tooBig = found.tooBig.length ? `left out, over 64 MB: ${found.tooBig.join(", ")}` : undefined;
     if (!found.hits.length)
       return {
-        text: lines(`not found in ${found.searched} text file(s) of ${where}`, tooBig, "→ the records: strom find <text>"),
+        text: lines(`not found in ${counted(found.searched, "text file")} of ${where}`, tooBig, "→ the records: strom find <text>"),
         data: { total: 0, searched: found.searched, hits: [], ...(found.tooBig.length ? { tooBig: found.tooBig } : {}) },
       };
     const total = `${found.hits.length}${found.capped ? "+" : ""}`;
     // several texts: whether a line has any or every one of them, said (agents expect every one)
     const mode = patterns.length > 1 ? (opts.all ? " with every text" : " with any of the texts (every one: --all)") : "";
-    const head = `${total} line(s)${mode} in ${found.counts.size} of ${found.searched} text file(s) of ${where}${found.capped ? ` — stopped at ${GREP_MAX_HITS}: a narrower text or --in` : ""}`;
+    const head = `${total} ${found.hits.length === 1 ? "line" : "lines"}${mode} in ${found.counts.size} of ${counted(found.searched, "text file")} of ${where}${found.capped ? ` — stopped at ${GREP_MAX_HITS}: a narrower text or --in` : ""}`;
     if (opts.files) {
       const files = [...found.counts].map(([file, n]) => ({ file, lines: n }));
       const page = paginate(files, ctx.limit, ctx.page);

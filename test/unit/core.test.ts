@@ -49,9 +49,12 @@ test("macOS: the command line tools' git itself, not the stand-in /usr/bin/git; 
   const brew = path.join(dir, "brew", "bin");
   fs.mkdirSync(brew, { recursive: true });
   fs.writeFileSync(path.join(brew, "git"), "", { mode: 0o755 });
-  for (const platform of ["darwin", "linux"] as const) assert.equal(gitProgram({ PATH: `${brew}${path.delimiter}/usr/bin` }, platform), path.join(brew, "git"));
-  // Linux: /usr/bin/git is git itself
-  if (fs.existsSync("/usr/bin/git")) assert.equal(gitProgram({ PATH: "/usr/bin" }, "linux"), "/usr/bin/git");
+  // (a POSIX file's mode carries no execute bit on Windows: there this part of macOS and Linux cannot be simulated)
+  if (process.platform !== "win32") {
+    for (const platform of ["darwin", "linux"] as const) assert.equal(gitProgram({ PATH: `${brew}${path.delimiter}/usr/bin` }, platform), path.join(brew, "git"));
+    // Linux: /usr/bin/git is git itself
+    if (fs.existsSync("/usr/bin/git")) assert.equal(gitProgram({ PATH: "/usr/bin" }, "linux"), "/usr/bin/git");
+  }
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -126,9 +129,12 @@ test("paths: platform defaults", () => {
   assert.equal(configDir({ HOME: "/u" }, "darwin"), path.join("/u", ".config", "strom"));
   assert.equal(configDir({ APPDATA: "C:\\AppData" }, "win32"), path.join("C:\\AppData", "strom"));
   assert.equal(defaultHome({ HOME: "/u" }, "darwin"), path.join("/u", "Documents", "Strom"));
-  assert.equal(defaultHome({ HOME: "/u", STROM_DOCUMENTS: "~/Dokumenty" }, "darwin"), path.join("/u", "Dokumenty", "Strom"), "another Documents folder");
+  // (STROM_DOCUMENTS is resolved: on Windows /u gains the drive it is on)
+  assert.equal(defaultHome({ HOME: "/u", STROM_DOCUMENTS: "~/Dokumenty" }, "darwin"), path.resolve("/u", "Dokumenty", "Strom"), "another Documents folder");
   assert.equal(expandHome("~/Documents/Strom", { HOME: "/u" }), path.join("/u", "Documents/Strom"));
-  assert.equal(displayPath(path.join("/u", "x"), { HOME: "/u" }), path.join("~", "x"));
+  // a home as the system writes it (\u on Windows)
+  const home = path.normalize("/u");
+  assert.equal(displayPath(path.join(home, "x"), { HOME: home }), path.join("~", "x"));
 });
 
 test("names: GEDCOM slashes, plain names, folding", () => {

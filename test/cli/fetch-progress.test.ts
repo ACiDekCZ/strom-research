@@ -44,7 +44,7 @@ test("fetch of many images: counted at each tenth where nobody watches, at a ter
   assert.deepEqual(counted(plain.err), [4, 8, 12, 16, 20, 24, 28, 32, 36].map((n) => `  · ${n}/40 images`));
   assert.ok(!plain.out.includes("/40 images"), "the count stays off stdout");
   // the summary as before
-  assert.match(plain.out, /^40 image\(s\) of B0001 \(images 1–40\) fetched and registered · \d+ s$/m);
+  assert.match(plain.out, /^40 images of B0001 \(images 1–40\) fetched and registered · \d+ s$/m);
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 40, "the count asks the archive nothing");
 
   // --json: stdout is the JSON alone, the count on stderr
@@ -59,11 +59,14 @@ test("fetch of many images: counted at each tenth where nobody watches, at a ter
   assert.deepEqual(counted(cs.err), [2, 4, 6, 8, 10, 12, 14, 16, 18].map((n) => `  · ${n}/20 snímků`));
   const de = await w.ok(["fetch", "zkusebni", "5359", "--images", "86-105", "--recordset", "B1"], { env: { STROM_LANG: "de" } });
   assert.equal(counted(de.err)[0], "  · 2/20 Bilder");
+  // …but an agent reads it, in a Czech research too: English, as the rest of what it reads
+  const agent = await w.ok(["fetch", "zkusebni", "5359", "--images", "121-140", "--recordset", "B1"], { env: { STROM_LANG: "cs", CLAUDECODE: "1" } });
+  assert.deepEqual(counted(agent.err), [2, 4, 6, 8, 10, 12, 14, 16, 18].map((n) => `  · ${n}/20 images`));
 
   // a few images: nothing counted
   const few = await w.ok(["fetch", "zkusebni", "5359", "--images", "106-108", "--recordset", "B1"]);
   assert.deepEqual(counted(few.err), []);
-  assert.match(few.out, /^3 image\(s\) of B0001 \(images 106–108\) fetched and registered/m);
+  assert.match(few.out, /^3 images of B0001 \(images 106–108\) fetched and registered/m);
 
   // at a terminal: one line written over after each image, cleared before the summary — no line of it left
   const tty = await w.ok(["fetch", "zkusebni", "5359", "--images", "109-120", "--recordset", "B1"], { tty: true });
@@ -72,7 +75,7 @@ test("fetch of many images: counted at each tenth where nobody watches, at a ter
   const after = tty.err.slice(tty.err.lastIndexOf("/12 images"));
   assert.match(after, /^\/12 images *\r +\r$/, "the line cleared at the end");
   assert.equal(counted(tty.err.replace(/\r/g, "\n")).filter((l) => !l.startsWith("  · ")).length, 11);
-  assert.match(tty.out, /^12 image\(s\) of B0001 \(images 109–120\) fetched and registered/m);
+  assert.match(tty.out, /^12 images of B0001 \(images 109–120\) fetched and registered/m);
   w.cleanup();
   await a.close();
 });

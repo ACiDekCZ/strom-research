@@ -554,7 +554,7 @@ test("fetch --images takes a list (a book sampled): only those images asked for 
   const dry = await w.ok(["fetch", "zkusebni", "5359", "--images", "3,1", "--recordset", "B1", "--dry-run"]);
   assert.match(dry.out, /would fetch images 1, 3 of book 5359/);
   const r = await w.ok(["fetch", "zkusebni", "5359", "--images", "1,3", "--recordset", "B1"]);
-  assert.match(r.out, /2 image\(s\) of B0001 \(images 1, 3\) fetched and registered/);
+  assert.match(r.out, /2 images of B0001 \(images 1, 3\) fetched and registered/);
   assert.deepEqual(a.hits.filter((h) => h.includes("/img/")).sort(), ["/img/5359/1.jpg", "/img/5359/3.jpg"]);
   // what strom says back is taken as it is said (an en dash, a space after the comma); nothing new here
   assert.match((await w.ok(["fetch", "zkusebni", "5359", "--images", "1–1, 3", "--recordset", "B1"])).out, /registered already — nothing fetched/);
@@ -566,12 +566,12 @@ test("fetch --images takes a list (a book sampled): only those images asked for 
 test("connector test: a few requests, the books found, what to register them with — files in its .test folder", opts, async () => {
   const { w, a, dir } = await world();
   const r = await w.ok(["connector", "test", "zkusebni", "--find", "Týnec nad Labem", "--years", "1780-1850"]);
-  assert.match(r.out, /test find: 1 request\(s\)/);
+  assert.match(r.out, /test find: 1 request/);
   assert.match(r.out, /Týnec nad Labem N 1784–1820 \(17\) · 1784-1820 · baptism · 3 images/);
   assert.match(r.out, /strom recordset add "Týnec nad Labem N 1784–1820" --call-number 17 --kinds baptism --places "Týnec nad Labem" --years 1784-1820 --url https:\/\/archive\.example\.org\/5359 --access online-free/);
   assert.match(r.out, /then: strom fetch zkusebni 5359 --images <from-to> --recordset B…/);
   const f = await w.ok(["connector", "test", "zkusebni", "--fetch", "5359", "--images", "1-3", "--max", "2"]);
-  assert.match(f.out, /test fetch: 2 request\(s\) · stopped: the run's limit of 2 requests/);
+  assert.match(f.out, /test fetch: 2 requests · stopped: the run's limit of 2 requests/);
   assert.match(f.out, /images \(2\): 1=s0001\.jpg \d+ B 400×300 px, 2=s0002\.jpg/);
   assert.deepEqual(fs.readdirSync(path.join(dir, ".test")).sort(), ["s0001.jpg", "s0002.jpg"]);
   // many books: one line each, the first 30 — the rest in --json
@@ -603,10 +603,10 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   assert.deepEqual(a.hits, [], "a dry run never contacts the archive");
   pauses.length = 0;
   const r = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1"]);
-  assert.match(r.err, /3 image\(s\) through zkusebni: at least 3 request\(s\) to 127\.0\.0\.1, about 4 s at its pace \(≥2 s apart\)\n/);
+  assert.match(r.err, /3 images through zkusebni: at least 3 requests to 127\.0\.0\.1, about 4 s at its pace \(≥2 s apart\)\n/);
   assert.doesNotMatch(r.err, /hourly cap/, "no cap: none said");
-  assert.match(r.out, /fetch: 3 request\(s\)/);
-  assert.match(r.out, /3 image\(s\) of B0001 \(images 1–3\) fetched and registered/);
+  assert.match(r.out, /fetch: 3 requests/);
+  assert.match(r.out, /3 images of B0001 \(images 1–3\) fetched and registered/);
   assert.match(r.out, /back in the queue \(they waited for these images\): T0001/);
   assert.equal(a.hits[0], "/robots.txt", "the archive's robots.txt first, read by strom itself (once a day)");
   assert.equal(pauses.length, 3, "no pause before the first request (its robots.txt), one before each next");
@@ -637,7 +637,7 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   const gone = await w.run(["media", "view", "B1:2"]);
   assert.match(gone.err, /the image file is missing[\s\S]*fetch it again from the archive \(checked: the same scan\): strom fetch zkusebni 5359 --recordset B0001 --images 2/);
   const back = await w.ok(["fetch", "zkusebni", "5359", "--images", "1-3", "--recordset", "B1"]);
-  assert.match(back.out, /1 image\(s\) of B0001 fetched again and put back \(their file was not here; the same scan\): M0002/);
+  assert.match(back.out, /1 image of B0001 fetched again and put back \(their file was not here; the same scan\): M0002/);
   assert.doesNotMatch(back.out, /fetched and registered/);
   assert.equal(a.hits.length, hits + 1, "only the missing image asked for");
   assert.ok(fs.existsSync(path.join(w.home, "shared", m.file)));
@@ -647,7 +647,7 @@ test("fetch: paced, estimated, registered with where each image came from, and t
   // a book of the research: never fetched into the inbox again, unless said why
   assert.match((await w.run(["fetch", "zkusebni", "5359", "--images", "2-3"])).err, /book 5359 of zkusebni is B0001 \(3 images here\) in the research — nothing fetched/);
   const inbox = await w.ok(["fetch", "zkusebni", "5359", "--images", "2-3", "--again", "to compare the two scans"]);
-  assert.match(inbox.out, /2 image\(s\) fetched into the inbox: zkusebni 5359\/[\s\S]*strom media add --inbox "zkusebni 5359" --recordset B…/);
+  assert.match(inbox.out, /2 images fetched into the inbox: zkusebni 5359\/[\s\S]*strom media add --inbox "zkusebni 5359" --recordset B…/);
   assert.deepEqual(fs.readdirSync(path.join(w.home, "shared", "inbox", "zkusebni 5359")).sort(), ["s0002.jpg", "s0003.jpg"]);
   // finding books writes nothing
   assert.match((await w.ok(["fetch", "zkusebni", "--find", "Týnec"])).out, /Týnec N 1784–1820/);

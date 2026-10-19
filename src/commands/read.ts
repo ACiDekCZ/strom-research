@@ -573,7 +573,7 @@ register({
     const mine = loadReadings(tree).find((r) => r.stem === stem);
     const told = summary(mine?.blocks ?? [], { maxLines: 60, question });
     const text = lines(
-      `read ${counted(prepared.length, "image")}${spreads ? ` (${counted(spreads, "double page")} as ${spreads === 1 ? "its" : "their"} halves${why ? `: ${why}` : sides ? "" : ": unclear before"})` : ""} in ${results.length} batch(es)${model ? ` · ${model}` : ""}${cost ? ` · $${cost.toFixed(2)}` : ""}`,
+      `read ${counted(prepared.length, "image")}${spreads ? ` (${counted(spreads, "double page")} as ${spreads === 1 ? "its" : "their"} halves${why ? `: ${why}` : sides ? "" : ": unclear before"})` : ""} in ${counted(results.length, "batch", "batches")}${model ? ` · ${model}` : ""}${cost ? ` · $${cost.toFixed(2)}` : ""}`,
       `found on: ${found.length ? runs(found.map(numberOf)) : "none"}`,
       unclear.length
         ? `unclear on: ${runs(unclear.map(numberOf))} — look at that place closer yourself (strom media view ${b ?? "B…"}:${numberOf(unclear[0]!)} --half both, --crop) or read again (a double page then comes in halves): no negative of the range before`
@@ -589,7 +589,7 @@ register({
             .join(" · ")}${late.flatMap((r) => r.group).length > 3 ? " …" : ""} (or read again, with more time: --minutes <n>)`
         : undefined,
       ...told.lines,
-      told.more ? `  … ${told.more} more block(s): strom readings ${stem}` : undefined,
+      told.more ? `  … ${counted(told.more, "more block", "more blocks")}: strom readings ${stem}` : undefined,
       `reports: ${results.length > 3 ? `${ctx.display(path.join(reportsDir, stem))}-1…${results.length}.md` : results.map((r) => ctx.display(r.report)).join(" · ")} — no need to open them: strom readings ${stem} (this again), strom readings ${b ?? stem} --image <n> (one image whole)`,
       "",
       "next: look at each find yourself (strom media view <M…> --crop …) before it becomes a source;",

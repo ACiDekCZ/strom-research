@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
+import { counted, lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { notFound, UsageError } from "../core/errors.ts";
 import type { Input, Name, Person, Research, Task } from "../core/model.ts";
 import { collectFiles, fileSha256, inputPath, MAX_IN_TREE, mimeOf, storeShared } from "../core/media.ts";
@@ -164,7 +164,7 @@ register(
             const had = tree.get<Input>(known.get(sha)!);
             if (!quiet && had && !importedTree(had)) {
               const missing = marriedNamesPlan(tree, had, decodeText(fs.readFileSync(file))).add.length;
-              if (missing) report.push(`  ${had.id}: ${missing} married name(s) it gives were left out when it was imported → strom input names ${had.id}`);
+              if (missing) report.push(`  ${ui(tree.lang, "ui.intake.married", { id: had.id, n: missing })}`);
             }
             continue;
           }
@@ -200,18 +200,18 @@ register(
               summary: `${input.id} imported: ${imported.persons} persons, ${imported.families} families${imported.matched ? `, ${imported.matched} matched` : ""}`,
             });
             const back = imported.matched && imported.matched >= imported.persons;
-            if (quiet) {
-              // where nobody researches the person reads it, in the research's language: the tree is in it (no review talk)
-              report.push(`  ${ui(tree.lang, "ui.intake.tree", { id: input.id, persons: imported.persons, families: imported.families, events: imported.events, source: imported.source })}${imported.matched ? ui(tree.lang, "ui.intake.tree.matched", { n: imported.matched }) : ""}`);
-              if (back) report.push(`  ${ui(tree.lang, "ui.intake.tree.back", { file: ctx.display(file) })}`);
-            } else {
-              report.push(`  ${input.id} tree: ${imported.persons} persons, ${imported.families} families, ${imported.events} facts as leads${imported.matched ? `, ${imported.matched} matched to existing` : ""}${imported.problems.length ? ` (${imported.problems.length} unreadable lines)` : ""}`);
-              if (imported.extended.length) report.push(`  added to what we have (leads — check them): ${imported.extended.slice(0, 6).join(" · ")}${imported.extended.length > 6 ? " …" : ""}`);
-              // the research's own tree coming back: sync sees what was changed in it too, not only what was added
-              if (back) report.push(`  it is this research's tree coming back: strom sync "${ctx.display(file)}" shows what was changed in it too`);
+            // what the person reads while the research happens — whoever ran it, the agent too: the research's
+            // language (where nobody researches, without the review talk)
+            report.push(
+              `  ${ui(tree.lang, "ui.intake.tree", { id: input.id, persons: imported.persons, families: imported.families, events: imported.events, source: imported.source })}${imported.matched ? ui(tree.lang, "ui.intake.tree.matched", { n: imported.matched }) : ""}${!quiet && imported.problems.length ? ui(tree.lang, "ui.intake.tree.unreadable", { n: imported.problems.length }) : ""}`,
+            );
+            if (!quiet && imported.extended.length) report.push(`  ${ui(tree.lang, "ui.intake.extended", { list: `${imported.extended.slice(0, 6).join(" · ")}${imported.extended.length > 6 ? " …" : ""}` })}`);
+            // the research's own tree coming back: sync sees what was changed in it too, not only what was added
+            if (back) report.push(`  ${ui(tree.lang, "ui.intake.tree.back", { file: ctx.display(file) })}`);
+            if (!quiet) {
               const system = `gedcom:${sha.slice(0, 12)}`;
               const dupes = likelyDuplicates(tree, tree.list<Person>("person").filter((p) => p.refs?.some((r) => r.system === system)).map((p) => p.id));
-              if (dupes.length) report.push(`  probably already in the tree: ${dupes.map((d) => `${d.person.id}≈${d.same.id}`).join(", ")} (the review task lists them)`);
+              if (dupes.length) report.push(`  ${ui(tree.lang, "ui.intake.dupes", { list: dupes.map((d) => `${d.person.id}≈${d.same.id}`).join(", ") })}`);
             }
           }
           // A family tree gets its own review task; the other files of a folder share one — files for a task: none
@@ -234,16 +234,16 @@ register(
           added.push(input);
         }
       });
+      // what came, in the research's language: a person follows it, also where the agent ran it (in its session)
+      const tasks = tree.written.filter((o) => o.op === "task.add").length;
       const text = lines(
-        quiet
-          ? added.length
-            ? `${ui(tree.lang, isArchive(tree) ? "ui.intake.done.archive" : "ui.intake.done.waiting", { n: added.length })}${skipped ? ` ${ui(tree.lang, "ui.intake.same", { n: skipped })}` : ""}`
-            : ui(tree.lang, "ui.intake.known")
-          : `${added.length} input(s) registered${skipped ? `, ${skipped} already known (same content)` : ""}`,
+        added.length
+          ? `${ui(tree.lang, quiet ? (isArchive(tree) ? "ui.intake.done.archive" : "ui.intake.done.waiting") : "ui.intake.registered", { n: added.length })}${skipped ? ` ${ui(tree.lang, "ui.intake.same", { n: skipped })}` : ""}`
+          : ui(tree.lang, "ui.intake.known"),
         added.length ? table(added.map((i) => [`  ${i.id}`, i.kind, truncate(i.name, 60)])) : undefined,
         ...report,
-        !quiet && tree.written.some((o) => o.op === "task.add") ? `\n${tree.written.filter((o) => o.op === "task.add").length} intake task(s) created → strom task next` : undefined,
-        task ? `${task.id} got ${[...new Set(handed)].join(", ")} and is back in the queue — the file is read as its next step (no intake task)` : undefined,
+        !quiet && tasks ? `\n${ui(tree.lang, "ui.intake.tasks", { n: tasks })}` : undefined,
+        task ? ui(tree.lang, "ui.intake.handed", { task: task.id, inputs: [...new Set(handed)].join(", ") }) : undefined,
       );
       return { text, data: { inputs: added, skipped, ...(task ? { task: task.id, handed: [...new Set(handed)], state: task.state } : {}) } };
     },
@@ -396,7 +396,7 @@ register(
       if (opts.undo) {
         const gone = undoMarriedNames(tree, input);
         return {
-          text: gone.length ? lines(...gone.map((g) => `  ${g.person} ${name(g.person)}: − ${gedcomName(g.name)}`), `${gone.length} married name(s) from ${input.id} taken back`) : `${input.id}: no married name of it to take back`,
+          text: gone.length ? lines(...gone.map((g) => `  ${g.person} ${name(g.person)}: − ${gedcomName(g.name)}`), `${counted(gone.length, "married name")} from ${input.id} taken back`) : `${input.id}: no married name of it to take back`,
           data: { input: input.id, undone: gone.map((g) => ({ person: g.person, name: gedcomName(g.name) })) },
         };
       }
@@ -406,7 +406,7 @@ register(
       if (opts.apply && plan.add.length) addMarriedNames(tree, plan);
       const done = !!opts.apply && !tree.dryRun;
       const text = lines(
-        `${input.id} ${input.name}: ${plan.add.length} married name(s) ${done ? "added" : "to add"}, ${plan.have.length} already there, ${plan.unpaired.length} person(s) of the file not in the research`,
+        `${input.id} ${input.name}: ${counted(plan.add.length, "married name")} ${done ? "added" : "to add"}, ${plan.have.length} already there, ${counted(plan.unpaired.length, "person", "people")} of the file not in the research`,
         ...plan.add.map((a) => `  ${a.person} ${name(a.person)}: + ${gedcomName(a.name)} (married)`),
         plan.unpaired.length ? "not in the research (nothing added):" : undefined,
         ...plan.unpaired.map((u) => `  ${u.xref} ${u.name.replace(/\//g, "").replace(/\s+/g, " ").trim()}: ${u.married.map(gedcomName).join(", ")}`),
@@ -461,7 +461,7 @@ register(
       const persons = checkOriginalMeta(tree, { persons: (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).map((p) => String(p).trim().toUpperCase()) }).persons;
       const b = tree.withTreeLock(() => closeBatch(tree, id, { name: typeof opts.name === "string" ? opts.name : undefined, persons, expected: Number(opts.expected) || undefined, note: typeof opts.note === "string" ? opts.note : undefined, why: opts.idle ? "idle" : "app" }));
       const data = { batch: b.id, name: b.name, inputs: b.inputs.length, known: b.known.length, refused: b.refused.length, nested: b.nested, tasks: b.tasks };
-      return { text: lines(...tree.written.map((o) => o.summary), `${b.inputs.length} file(s) taken, ${b.known.length} known already, ${b.refused.length} refused — ${b.tasks.length} task(s) to sort them`), data };
+      return { text: lines(...tree.written.map((o) => o.summary), `${counted(b.inputs.length, "file")} taken, ${b.known.length} known already, ${b.refused.length} refused — ${counted(b.tasks.length, "task")} to sort them`), data };
     },
   },
   {

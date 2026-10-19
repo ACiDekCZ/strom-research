@@ -755,10 +755,17 @@ register(
   },
 );
 
-const UNPROVEN_KIND: Record<UnprovenKind, string> = { named: "named in a record", leads: "leads only", none: "no record" };
+const UNPROVEN_KIND: Record<UnprovenKind, UIKey> = { named: "ui.unproven.kind.named", leads: "ui.unproven.kind.leads", none: "ui.unproven.kind.none" };
 
-/** The people no record of their own proves: how each stands, the records that name them, the tasks already on them. */
+/**
+ * The people no record of their own proves: how each stands, the records that name them, the tasks already on them —
+ * in the research's language where a person runs it (strom check points them here; found on Windows: the list in
+ * English in a Czech research), the English an agent knows otherwise.
+ */
 function unprovenList(ctx: Context, tree: Tree, people: Person[], gens: Map<string, number> | undefined) {
+  const person = !isAgent(ctx.env);
+  const lang = person ? tree.lang : "en";
+  const t = (key: UIKey, values?: Record<string, string | number>) => ui(lang, key, values);
   const among = new Set(people.map((p) => p.id));
   const found = unprovenPeople(tree).filter((u) => among.has(u.person.id));
   // the living come apart: the family's to tell, no research of the registers
@@ -776,23 +783,23 @@ function unprovenList(ctx: Context, tree: Tree, people: Person[], gens: Map<stri
       displayName(u.person),
       lifespan(u.person),
       gens ? `G${gens.get(u.person.id)}` : "",
-      UNPROVEN_KIND[u.kind] + (u.sources.length ? `: ${u.sources.slice(0, 3).join(" ")}${u.sources.length > 3 ? " …" : ""}` : ""),
-      u.kind === "none" && !u.person.notes.length ? "no note where from" : "",
-      tasks.length ? `tasks ${tasks.slice(0, 2).join(" ")}${tasks.length > 2 ? " …" : ""}` : "",
+      t(UNPROVEN_KIND[u.kind]) + (u.sources.length ? `: ${u.sources.slice(0, 3).join(" ")}${u.sources.length > 3 ? " …" : ""}` : ""),
+      u.kind === "none" && !u.person.notes.length ? t("ui.unproven.nonote") : "",
+      tasks.length ? t("ui.unproven.list.tasks", { ids: `${tasks.slice(0, 2).join(" ")}${tasks.length > 2 ? " …" : ""}` }) : "",
     ];
   });
   const livingLine = living.length
-    ? `living, most likely (born less than ${DEATH_AFTER_YEARS} years ago, no death recorded) — not counted, no tasks: ${living.map((u) => `${u.person.id} ${displayName(u.person)}`).join(" · ")}`
+    ? t("ui.unproven.list.living", { years: DEATH_AFTER_YEARS, names: living.map((u) => `${u.person.id} ${displayName(u.person)}`).join(" · ") })
     : undefined;
   const text = !all.length
-    ? lines("everyone rests on a record of their own", livingLine)
+    ? lines(t("ui.unproven.list.all"), livingLine)
     : lines(
-        `${all.length} without a record of their own — named in a record: ${counts.named} · leads only: ${counts.leads} · no record: ${counts.none}`,
+        t("ui.unproven.list.head", { n: all.length, ...counts }),
         table(rows),
-        moreLine(page, "strom person list --unproven"),
+        moreLine(page, "strom person list --unproven", person ? lang : undefined),
         livingLine,
         "",
-        "tasks for them: strom review --unproven (a batch at a time) · strom review P… P… (these) · strom review P… (one)",
+        t("ui.unproven.list.next"),
       );
   return {
     text,

@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { register, type Typed } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, moreLine, paginate, runs, shellArg, table, truncate } from "../cli/format.ts";
+import { counted, lines, moreLine, paginate, runs, shellArg, table, truncate } from "../cli/format.ts";
 import { notFound, UsageError } from "../core/errors.ts";
 import type { Input, Media, RecordSet, Region, Source, Task } from "../core/model.ts";
 import { makeNote } from "../core/actions.ts";
@@ -128,7 +128,7 @@ export function wakeWaiting(tree: Tree, recordset: string, count: number): strin
       // what it asked for and what is still missing, for the session that takes it up
       const have = new Set(tree.list<Media>("media").filter((m) => m.recordset === recordset).map((m) => m.image)); // a part counts: it was asked for too
       const missing = t.awaits?.recordset === recordset ? (parseImageList(t.awaits.images) ?? []).filter((n) => !have.has(n)) : [];
-      const note = `${count} image(s) of ${recordset} registered${t.awaits ? ` (it waited for images ${t.awaits.images}${missing.length ? `; still missing: ${runs(missing)}` : ""})` : ""}`;
+      const note = `${counted(count, "image")} of ${recordset} registered${t.awaits ? ` (it waited for images ${t.awaits.images}${missing.length ? `; still missing: ${runs(missing)}` : ""})` : ""}`;
       update<Task>(tree, t.id, "task", (x) => {
         const { awaits: _, wait: _w, sent: _s, ...rest } = x;
         return { ...rest, state: "open", notes: [...x.notes, makeNote(tree, note)] };
@@ -491,11 +491,11 @@ function resolveTargets(tree: Tree, shared: string, all: Media[], args: string[]
     const k = Math.min(VIEW_MAX_IMAGES, Math.floor(maxViews / per));
     const same = [...listOf(opts.half).map((h) => `--half ${h}`), ...listOf(opts.crop).map((c) => `--crop ${c}`), ...(opts.split ? [`--split ${String(opts.split)}`] : [])].join(" ");
     throw new UsageError(
-      `${wants.length} image(s)${per > 1 ? ` × ${per} views` : ""} — at most ${VIEW_MAX_IMAGES} images and ${maxViews} views in one call: every view stays in the context that opens it${maxViews < VIEW_MAX_VIEWS ? ` (fewer than ${VIEW_MAX_VIEWS}: strom tuned it for this agent and model — strom config get reading.batch)` : ""}`,
+      `${counted(wants.length, "image")}${per > 1 ? ` × ${per} views` : ""} — at most ${VIEW_MAX_IMAGES} images and ${maxViews} views in one call: every view stays in the context that opens it${maxViews < VIEW_MAX_VIEWS ? ` (fewer than ${VIEW_MAX_VIEWS}: strom tuned it for this agent and model — strom config get reading.batch)` : ""}`,
       {
         hint: k < 1
           ? `fewer parts of each image (a --split of fewer parts, fewer --crop), at most ${maxViews} views`
-          : `${k} image(s) now — write down what they gave before the next call: strom media view ${refsText(wants.slice(0, k))}${same ? ` ${same}` : ""}`,
+          : `${counted(k, "image")} now — write down what they gave before the next call: strom media view ${refsText(wants.slice(0, k))}${same ? ` ${same}` : ""}`,
       },
     );
   }
@@ -740,7 +740,7 @@ register(
         // an image of a book without its number cannot be cited — nor found again
         const bare = items.filter((it) => it.image === undefined);
         if (bare.length)
-          throw new UsageError(`${bare.length} file(s) without an image number in the name: ${bare.slice(0, 5).map((it) => path.basename(it.file)).join(", ")}${bare.length > 5 ? " …" : ""}`, {
+          throw new UsageError(`${counted(bare.length, "file")} without an image number in the name: ${bare.slice(0, 5).map((it) => path.basename(it.file)).join(", ")}${bare.length > 5 ? " …" : ""}`, {
             hint: "name each by its number as the portal's viewer counts it (9.jpg), or --image <n> for one file, --first <n> for files in order",
           });
         // saved under the portal's own file name, a number can mean something else (×10, a call number)
@@ -766,9 +766,9 @@ register(
       const nums = added.map((m) => m.image).filter((n): n is number => n !== undefined);
       const text = lines(
         added.length
-          ? `${added.length} image(s) registered: ${added[0]!.id}${added.length > 1 ? `–${added.at(-1)!.id}` : ""}${recordset ? ` of ${recordset}` : ""}${nums.length ? ` (images ${runs(nums)})` : ""}`
+          ? `${counted(added.length, "image")} registered: ${added[0]!.id}${added.length > 1 ? `–${added.at(-1)!.id}` : ""}${recordset ? ` of ${recordset}` : ""}${nums.length ? ` (images ${runs(nums)})` : ""}`
           : restored.length ? undefined : "no new images",
-        restored.length ? `${restored.length} image(s) put back (their file was not here; the same scan): ${restored.slice(0, 5).join(" ")}${restored.length > 5 ? " …" : ""}` : undefined,
+        restored.length ? `${counted(restored.length, "image")} put back (their file was not here; the same scan): ${restored.slice(0, 5).join(" ")}${restored.length > 5 ? " …" : ""}` : undefined,
         again.length ? `${again.length} already registered (same content): ${again.slice(0, 5).join(" ")}${again.length > 5 ? " …" : ""}` : undefined,
         ...clashes.slice(0, 10).map((c) => `⚠ ${c}`),
         ...copies.slice(0, 10),
@@ -969,7 +969,7 @@ register(
         }
         const views = targets.reduce((n, t) => n + partsOf.get(t)!.reduce((m, p) => m + (p.both ? 2 : 1) * (p.split ? p.split[0] * p.split[1] : 1), 0), 0);
         if (targets.length > VIEW_MAX_IMAGES || views > reading.viewsPerCall)
-          throw new UsageError(`${targets.length} image(s), ${views} views — at most ${VIEW_MAX_IMAGES} images and ${reading.viewsPerCall} views in one call: every view stays in the context that opens it`, {
+          throw new UsageError(`${counted(targets.length, "image")}, ${counted(views, "view")} — at most ${VIEW_MAX_IMAGES} images and ${reading.viewsPerCall} views in one call: every view stays in the context that opens it`, {
             hint: "fewer images now — write down what they gave before the next call",
           });
       }
@@ -1020,7 +1020,7 @@ register(
       if (!made.length) throw first;
       const sizes = new Set(made.map((m) => viewSize(m.r.v)));
       const text = lines(
-        `${made.length} view(s) of ${targets.length - failed.length} image(s) — open them all at once:`,
+        `${counted(made.length, "view")} of ${counted(targets.length - failed.length, "image")} — open them all at once:`,
         ...made.flatMap(({ t, label, note, r }) => [
           ctx.display(r.v.file),
           `  ${[`${t.ref}${t.ref !== t.key ? ` (${t.key}${r.page ? `, page ${r.page}` : ""})` : r.page ? ` (page ${r.page})` : ""}`, label, note, viewLine(r.v), viewSize(r.v), r.clip ? `--clip ${r.clip}` : undefined].filter(Boolean).join(" · ")}`,

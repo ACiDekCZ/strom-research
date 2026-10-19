@@ -121,9 +121,17 @@ test("listings are paged with a follow-up command", opts, async () => {
   await w.withTree();
   for (let i = 1; i <= 5; i++) await w.ok(["person", "add", `Syn${i} /Novák/`]);
   const r = await w.ok(["person", "list", "--limit", "2"]);
-  assert.match(r.out, /… dalších 3: strom person list --page 2/, "in the research's language");
+  // the next page of the same size: the --limit goes along
+  assert.match(r.out, /… dalších 3: strom person list --limit 2 --page 2$/m, "in the research's language");
+  assert.match((await w.ok(["person", "list", "--limit", "2", "--page", "2"])).out, /… dalších 1: strom person list --limit 2 --page 3$/m);
   const last = (await w.ok(["person", "list", "--limit", "2", "--page", "3", "--json"])).json;
   assert.equal(last.persons.length, 1);
+  // a page past the last: the last one shown, and said so
+  const past = await w.ok(["person", "list", "--limit", "2", "--page", "99"]);
+  assert.match(past.out, /Syn5[\s\S]*^\(stránka 99 není: poslední je 3, zobrazená výše\)$/m);
+  assert.doesNotMatch(past.out, /Syn1/);
+  assert.match((await w.ok(["person", "list"])).out, /Syn5/);
+  assert.doesNotMatch((await w.ok(["person", "list"])).out, /strom person list|stránka/, "one page: no footer");
   w.cleanup();
 });
 

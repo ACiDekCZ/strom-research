@@ -1342,7 +1342,9 @@ export function fromLog(file: string, hostOfConnector: Map<string, string> = new
         const call = fetchCalls.get(b.tool_use_id)!;
         fetchCalls.delete(b.tool_use_id);
         const out = typeof b.content === "string" ? b.content : Array.isArray(b.content) ? (b.content as { text?: unknown }[]).map((x) => (typeof x.text === "string" ? x.text : "")).join("\n") : "";
-        const requests = [...out.matchAll(/(\d+) request\(s\)/g)].reduce((n, m) => n + Number(m[1]), 0);
+        // what each run sent, in its words of now ("fetch: 3 requests", "part: 1 request") and of before ("4 request(s)");
+        // the estimate before a fetch ("at least 4 requests to …") and a limit's stop ("stopped: 120 requests …") are no run's
+        const requests = [...out.matchAll(/(\d+) request\(s\)|(?<!stopped): (\d+) requests?(?![\p{L}\p{M}\p{N}])/gu)].reduce((n, m) => n + Number(m[1] ?? m[2]), 0);
         let host = hostOfConnector.get(call.connector) ?? call.connector;
         let waitMs = 0;
         for (const m of out.matchAll(/·\s+([^\s:]+): (?:its hourly cap is used up|it says its limit is used up)[^(]*\((\d+) min\)/g)) {

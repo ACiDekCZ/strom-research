@@ -23,6 +23,17 @@ const isolatedHome = fs.mkdtempSync(path.join(os.tmpdir(), "strom-test-home-"));
 process.env.HOME = isolatedHome;
 process.env.USERPROFILE = isolatedHome;
 process.env.STROM_CONFIG_DIR = path.join(isolatedHome, "config");
+// Both gone when the process ends (read until then by anything a test starts) — a file held open (Windows) leaves
+// them, never failing the run (found 2026-10-16: tens of thousands left in the temp folder).
+process.on("exit", () => {
+  for (const left of [isolatedHome, gitGlobal]) {
+    try {
+      fs.rmSync(left, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 });
+    } catch {
+      // left for the system's own cleaning of its temp folder
+    }
+  }
+});
 // A test's archive is a server on this computer: connectors of tests name 127.0.0.1 / localhost as their hosts.
 process.env.STROM_TEST_HOSTS = "1";
 
@@ -138,8 +149,60 @@ export class World {
   }
 }
 
+/**
+ * The words of a command line strom printed, as a shell splits them — with no shell (Windows has no sh): a word in
+ * double quotes with its backslash escapes (shellArg), in single quotes as it is, else up to the next space.
+ */
+export function shellWords(line: string): string[] {
+  const out: string[] = [];
+  for (const m of line.matchAll(/"((?:[^"\\]|\\.)*)"|'([^']*)'|(\S+)/gu)) out.push(m[1] !== undefined ? m[1].replace(/\\(.)/gu, "$1") : (m[2] ?? m[3]!));
+  return out;
+}
+
+/**
+ * Wait until a condition holds, looked at every `every` ms: never a fixed time that a slow computer (process starts,
+ * git, a virus scanner) outruns. The limit is generous — it only ends a test that would never pass; past it the test
+ * fails with what it waited for and, given `state`, how things stood at the last look.
+ */
+export async function until(what: string, ok: () => boolean | Promise<boolean>, o: { ms?: number; every?: number; state?: () => unknown } = {}): Promise<void> {
+  const ms = o.ms ?? 120_000;
+  const by = Date.now() + ms;
+  for (;;) {
+    if (await ok()) return;
+    if (Date.now() >= by) break;
+    await new Promise((r) => setTimeout(r, o.every ?? 100));
+  }
+  let last = "";
+  if (o.state) {
+    try {
+      const s = await o.state();
+      last = `\nlast state: ${typeof s === "string" ? s : JSON.stringify(s)}`;
+    } catch (err) {
+      last = `\nlast state not read: ${(err as Error).message}`;
+    }
+  }
+  throw new Error(`waited ${ms} ms in vain: ${what}${last}`);
+}
+
 export function readJsonFile(file: string): any {
   return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+
+/**
+ * A stand-in agent named `command` on a PATH of its own: it prints the file FAKE_STREAM names and ends. Its Windows
+ * launcher (`<command>.cmd`) names no folder: cmd reads a batch file's lines in the console's code page (852, …), so
+ * a folder with "ě" written into it is another folder there (found on Windows: Cannot find module '…─Ť…'). The script
+ * is the one beside it (%~dp0, as npm's own launchers say it) and Node comes from FAKE_NODE — cmd expands both in
+ * Unicode, so the folder keeps its diacritics.
+ */
+export function agentStandIn(dir: string, command: string): Record<string, string> {
+  const bin = path.join(dir, "bin");
+  fs.mkdirSync(bin, { recursive: true });
+  const script = path.join(bin, "agent.mjs");
+  fs.writeFileSync(script, 'import fs from "node:fs";\nprocess.stdout.write(fs.readFileSync(process.env.FAKE_STREAM, "utf8"));\n');
+  fs.writeFileSync(path.join(bin, command), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, `${command}.cmd`), `@"%FAKE_NODE%" "%~dp0agent.mjs" %*\r\n`);
+  return { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir, USERPROFILE: dir, FAKE_NODE: process.execPath };
 }
 
 /**

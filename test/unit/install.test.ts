@@ -13,10 +13,11 @@ import { spawnSync } from "node:child_process";
 import { compareVersions, installUpdate, isNewer, knownNewerVersion, latestRelease, newestTag, nodeArchive, setInstallChannel, updateChannel } from "../../src/core/update.ts";
 import { Settings } from "../../src/core/config.ts";
 import { launchersToTake, notOurs, ownProcesses, uninstallPlan, windowsRemoval } from "../../src/core/uninstall.ts";
-import { insideProgram, replacedHolding, withInstallEnv } from "../../src/core/self.ts";
+import { insideProgram, installationAt, replacedHolding, withInstallEnv } from "../../src/core/self.ts";
 import { desktopDir, documentsDir, tarProgram } from "../../src/core/paths.ts";
 import { globalTargets } from "../../src/agents/global.ts";
 import { registerLinks } from "../../src/core/links.ts";
+import { isBetaAgents } from "../../scripts/beta-commit.ts";
 
 const unix = { skip: process.platform === "win32" };
 
@@ -396,6 +397,34 @@ test("the channel: STROM_CHANNEL, then install.json, then a prerelease not run f
   assert.equal(updateChannel({ STROM_CHANNEL: "nonsense" }, { kind: "source" }, "1.13.0"), "stable");
 });
 
+test("a long process (the bridge) takes the channel as install.json says it now — a switch to the releases said at once; what it runs stays what it started with", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "strom-inst-ěš-"));
+  try {
+    fs.mkdirSync(path.join(root, "app", "dist", "core"), { recursive: true });
+    const info = path.join(root, "install.json");
+    fs.writeFileSync(info, JSON.stringify({ launchers: [], node: "24.1.0", channel: "beta" }));
+    const inst = installationAt(path.join(root, "app", "dist", "core", "self.js"));
+    assert.equal(inst().channel, "beta");
+    assert.equal(updateChannel({}, inst(), "1.17.0"), "beta");
+    // strom update --channel stable in another process: install.json rewritten, nothing else installed
+    setInstallChannel(root, "stable");
+    const later = new Date(Date.now() + 5000);
+    fs.utimesSync(info, later, later);
+    assert.equal(inst().channel, undefined);
+    assert.equal(updateChannel({}, inst(), "1.17.0"), "stable");
+    // back to the beta, and a newer Node written: the channel follows, the Node this process runs does not
+    fs.writeFileSync(info, JSON.stringify({ launchers: [], node: "26.0.0", channel: "beta" }));
+    const later2 = new Date(Date.now() + 10000);
+    fs.utimesSync(info, later2, later2);
+    assert.deepEqual([inst().channel, inst().node], ["beta", "24.1.0"]);
+    // being written (not JSON yet): the channel as it was
+    fs.writeFileSync(info, "{");
+    assert.equal(inst().channel, "beta");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 /** GitHub's list of releases, as its API gives it (the fields that matter, and some that must not). */
 const RELEASES_JSON = JSON.stringify([
   { url: "u", author: { login: "x", id: 1 }, tag_name: "v1.3.0-beta.2", name: "v1.3.0-beta.2", draft: false, prerelease: true, assets: [{ name: "VERSION" }], body: 'not "tag_name": "v9.9.9"' },
@@ -610,5 +639,7 @@ test("the Windows installer's error stays on the screen: a trap says it and wait
   assert.doesNotMatch(code, /^\s*exit\b/m, "an exit would close a PowerShell the line was pasted into");
   assert.ok(code.indexOf("function T(") < code.indexOf("\ntrap {"), "its sentence in the person's language");
   const agents = fs.readFileSync(path.join(import.meta.dirname, "..", "..", "install", "AGENTS.md"), "utf8");
-  assert.match(agents, /powershell -ExecutionPolicy Bypass -c "irm https:\/\/stromapp\.info\/research\/install\.ps1 \| iex"/);
+  // the branch beta's tree (the tag's workflow tests it) gives the beta's line
+  if (isBetaAgents(agents)) assert.match(agents, /`\$env:STROM_CHANNEL='beta'; irm https:\/\/raw\.githubusercontent\.com\/ACiDekCZ\/strom-research\/beta\/install\/install\.ps1 \| iex`/);
+  else assert.match(agents, /powershell -ExecutionPolicy Bypass -c "irm https:\/\/stromapp\.info\/research\/install\.ps1 \| iex"/);
 });

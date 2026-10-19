@@ -20,6 +20,7 @@ import { isAgent } from "../core/which.ts";
 import { treeAgentHere } from "../core/state.ts";
 import { canShowDialog, systemDialog, WAIT_SECONDS, type ChoiceText, type DialogText } from "../core/dialog.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
+import { DEFAULT_LIMIT } from "./format.ts";
 
 export interface IO {
   stdout: (s: string) => void;
@@ -81,7 +82,7 @@ export class Context {
     this.json = opts.json;
     this.yes = opts.yes;
     this.treeFlag = opts.tree;
-    this.limit = opts.limit ?? 50;
+    this.limit = opts.limit ?? DEFAULT_LIMIT;
     this.page = opts.page ?? 1;
   }
 

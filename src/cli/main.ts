@@ -15,9 +15,10 @@ import { groupHelpAs, helpAs } from "./help.ts";
 import { autoCommit } from "./commit.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { resetCache } from "../core/git.ts";
+import type { HeldError } from "../core/json.ts";
 import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { settleArchive } from "../core/mode.ts";
-import { settleHypothesisLinks } from "../core/hypolinks.ts";
+import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "../core/hypolinks.ts";
 import { liveRunning, reviveLive, startLive } from "../core/live.ts";
 import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
 import { prependPath } from "../runners/runner.ts";
@@ -34,7 +35,7 @@ import { currentSession } from "../core/session.ts";
 import { backgroundOf } from "../core/fetching.ts";
 import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, severalRecords, splitPassthrough, usageOf } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
-import { catalog, localized, sayCommandAs } from "../core/phrases.ts";
+import { catalog, localized, placeholdersOf, sayCommandAs } from "../core/phrases.ts";
 import "../commands/index.ts";
 
 export { splitCommand } from "./execute.ts";
@@ -56,8 +57,11 @@ function print(io: IO, ctx: Context | undefined, result: Result): void {
 }
 
 /** File-system errors in plain words (a missing @file, a folder without rights). */
-function systemError(e: NodeJS.ErrnoException): StromError | undefined {
+function systemError(e: HeldError): StromError | undefined {
   const where = e.path ? `: ${e.path}` : "";
+  // a file another program held past the waits (Windows: an antivirus, a sync tool, an editor) — no lack of rights:
+  // running it again does it (what the command wrote was taken back)
+  if (e.heldFile) return new StromError(`another program is holding ${e.heldFile} (an antivirus, a sync or backup tool, an editor)`, { hint: "run the same command again in a moment — nothing of it was saved", code: "fs.held", params: { file: e.heldFile } });
   switch (e.code) {
     case "ENOENT":
       return e.path ? notFound(e.path) : new UsageError("no such file or folder", { hint: "check the path (relative paths start in the current folder)" });
@@ -75,14 +79,17 @@ function systemError(e: NodeJS.ErrnoException): StromError | undefined {
 }
 
 /**
- * An error with a code, as a person reads it: in the research's language (the same words whatever ran it — found on
- * Windows: a Czech research refusing a file in English); the English message where the language has no text, or the
- * text needs what the error does not carry. A program reads the English and the code (--json).
+ * An error with a code, as a person reads it: in the research's language (found on Windows: a Czech research refusing
+ * a person's file in English); the English message where the language has no text, or the text needs what the error
+ * does not carry. The boundary (Milan, 2026-10-18): an error a person reads — a terminal, the menu, a script with no
+ * agent — is in the research's language; an error an agent reads (isAgent: an agent's shell or a session strom
+ * started, its fetch in the background too) is English, "error:" and its hint; a program reads the English and the
+ * code (--json).
  */
 function inLanguage(e: StromError, lang: string | undefined): { message: string; hint?: string; prefix?: string } {
   const key = `ui.error.${e.code}`;
   const own = (k: string) => (lang && e.code && k in UI && catalog(lang)[k] ? UI[k as UIKey] : undefined);
-  const fits = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].every((m) => e.params?.[m[1]!] !== undefined);
+  const fits = (text: string) => placeholdersOf(text).every((name) => e.params?.[name] !== undefined);
   const message = own(key);
   if (!message || !fits(message)) return { message: e.message, ...(e.hint ? { hint: e.hint } : {}) };
   const hintKey = `ui.error.${e.hintCode ?? e.code}.hint`;
@@ -298,7 +305,13 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         } catch {
           // another computer's seal, a tree at work: its next bridge or switch settles it
         }
-        // …and older hypotheses get the links of their variants their claims say beyond doubt, the rest a task (once)
+        // …and the tasks an older strom made to say those links come first in the queue (once), then older hypotheses get
+        // the links of their variants their claims say beyond doubt, the rest a task (once)
+        try {
+          raiseHypothesisLinkTasks(Tree.open(k.root, env));
+        } catch {
+          // another computer's seal, a tree at work: its bridge's start raises them
+        }
         try {
           settleHypothesisLinks(Tree.open(k.root, env));
         } catch {
@@ -339,8 +352,12 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       // (a command that locks only while it writes looks under the lock too: another strom may be in the middle of a write)
       if (def.writes && def.tree) def.lock === "sections" ? ctx.tree().withTreeLock(() => assertIntact(ctx.tree())) : assertIntact(ctx.tree());
       let result: Result;
+      let blocked: ReturnType<typeof autoCommit>;
       try {
         result = await (shows ?? def).run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}), ...(parsed.seq ? { seq: parsed.seq } : {}) });
+        // its commit is part of it: one that fails (found on Windows: _counters.json held by another program, its IDs
+        // not written) takes back what the command wrote — a person or an agent running it again gets no second record
+        if (def.writes) blocked = autoCommit(ctx, def);
       } catch (err) {
         // A writing command is a transaction: on failure nothing it wrote remains.
         const t = def.writes ? ctx.current() : undefined;
@@ -353,14 +370,11 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         result.text = result.text ? `${result.text.replace(/\n+$/, "")}\n${notices.join("\n")}` : notices.join("\n");
         if (result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), notices: [...notices] };
       }
-      if (def.writes) {
-        const blocked = autoCommit(ctx, def);
-        if (blocked) {
-          // The agent must notice: an uncommitted write is not part of the research yet.
-          result.text = result.text ? `${result.text}\n${blocked.message}` : blocked.message;
-          result.data = { ...((result.data as object | undefined) ?? {}), status: "not-committed", problems: blocked.problems, hint: "strom check" };
-          result.exitCode = EXIT.error;
-        }
+      if (blocked) {
+        // The agent must notice: an uncommitted write is not part of the research yet.
+        result.text = result.text ? `${result.text}\n${blocked.message}` : blocked.message;
+        result.data = { ...((result.data as object | undefined) ?? {}), status: "not-committed", problems: blocked.problems, hint: "strom check" };
+        result.exitCode = EXIT.error;
       }
       return result;
     };
@@ -368,9 +382,9 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // command has the tree to itself from its first read to its commit.
     const result = def.writes && def.tree && def.lock !== "sections" ? await ctx.tree().holdTreeLock(work) : await work();
     // a dry run says so, last, in the person's language — it reads as what would happen, never as done (found on
-    // Windows: "taken back" of a dry run, nothing told it apart)
+    // Windows: "taken back" of a dry run, nothing told it apart); an agent reads it in English, as the rest
     if (ctx.dryRun) {
-      const said = ui(ctx.uiLang(), "ui.dry.done");
+      const said = ui(isAgent(env) ? "en" : ctx.uiLang(), "ui.dry.done");
       result.text = result.text?.trim() ? `${result.text.replace(/\n+$/, "")}\n\n${said}` : said;
       if (result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), dryRun: true };
     }
@@ -380,9 +394,9 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
   } catch (err) {
     let lang: string | undefined;
     try {
-      // an unknown command or option has no context yet: the person's language all the same
-      // …but a fetch in the background writes into its log, which the agent reads: English, as the rest of it
-      if (!backgroundOf(env)) lang = (ran ?? Context.fromOptions({ env, cwd, io, json, values: {} })).uiLang();
+      // an unknown command or option has no context yet: the person's language all the same — an agent (its shell, a
+      // session strom started, a fetch in the background writing into the log the agent reads) the English it goes by
+      if (!backgroundOf(env) && !isAgent(env)) lang = (ran ?? Context.fromOptions({ env, cwd, io, json, values: {} })).uiLang();
     } catch {
       // no language to say it in: English
     }

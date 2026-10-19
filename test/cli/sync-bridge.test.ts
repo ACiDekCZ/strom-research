@@ -55,7 +55,7 @@ test("straight from the Strom app: it sends the tree to the bridge — only its 
     const r = await waiting;
     assert.equal(r.code, 0, r.err);
     assert.match(r.err, /https:\/\/beta\.stromapp\.info\/run\/\?send=http%3A%2F%2F127\.0\.0\.1/, "no browser here: the address to open");
-    assert.match(r.out, /^Aplikace Strom strom poslala\.\nstrom-app-.*\.ged: změn proti výzkumu: 8/);
+    assert.match(r.out, /^Aplikace Strom strom poslala\.\nstrom-app-.*\.ged: 8 změn proti výzkumu/);
     const got = r.out.match(/strom sync "?([^"\n]*strom-app-[^"\n]*\.ged)"? --apply/)?.[1];
     assert.ok(got, r.out);
     await w.ok(["sync", got!, "--apply"]);
@@ -111,7 +111,7 @@ test("the app sends on its own: the send waits in the inbox (/status inbox, send
     assert.equal(listed.length, 2);
     assert.match((await w.ok(["sync", "--inbox"])).out, /Stromy z aplikace Strom, které čekají na rozhodnutí: 2/);
     // the orientation tells the agent: the user decides
-    assert.match((await w.ok([])).out, /strom poslaný z aplikace Strom \(2, změn: 16\)/);
+    assert.match((await w.ok([])).out, /strom poslaný z aplikace Strom \(2, 16 změn\)/);
     // thrown away: the app hears it, with the user's words; nothing written
     await w.ok(["sync", "discard", other.intake, "--reason", "poslal jsem omylem"]);
     st = await status();
@@ -150,15 +150,15 @@ test("the menu shows a tree the app sent among what waits: what it brings, then 
   // 3 what waits · 1 the tree from the app · 3 throw it away · why · Enter · 0 · 0
   const menu = await w.run(["menu"], { tty: true, answers: ["3", "1", "3", "omylem", "", "0", "0"] });
   assert.match(menu.out, /Co čeká \(1\)/);
-  assert.match(menu.out, /\n 1 {2}Aplikace Strom · 1 {3}Aplikace Strom poslala strom \([^)]*\): změn/);
-  assert.match(menu.out, /z-aplikace|strom-app-.*\.ged: změn proti výzkumu: 8/);
-  assert.match(menu.out, /Zahozeno: stromů z aplikace Strom 1/);
+  assert.match(menu.out, /\n 1 {2}Aplikace Strom · 1 {3}Aplikace Strom poslala strom \([^)]*\): \d+ změn/);
+  assert.match(menu.out, /z-aplikace|strom-app-.*\.ged: 8 změn proti výzkumu/);
+  assert.match(menu.out, /Zahozeno: 1 strom z aplikace Strom\. Nic z něj se nezapsalo/);
   const { receivedAll } = await import("../../src/core/sync.ts");
   assert.deepEqual(receivedAll(root).map((r) => [r.intake, r.state, r.reason]), [[first.intake, "discarded", "omylem"]]);
   // again, written this time: 3 · 1 · 1 all · Enter · 0 · 0
   receiveTree(root, w.env, marked(text, "app-tree-a", "v2-bbb"));
   const again = await w.run(["menu"], { tty: true, answers: ["3", "1", "1", "", "0", "0"] });
-  assert.match(again.out, /Zapsáno změn z strom-app-.*\.ged: 7/);
+  assert.match(again.out, /Zapsáno 7 změn z strom-app-.*\.ged/);
   assert.equal((await w.ok(["person", "list", "--json"])).json.total, 4);
   w.cleanup();
 });

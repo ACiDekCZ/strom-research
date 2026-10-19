@@ -8,7 +8,7 @@ import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { ui } from "../cli/ui.ts";
-import { lines, secondsIn, shellArg, table } from "../cli/format.ts";
+import { counted, lines, secondsIn, shellArg, table } from "../cli/format.ts";
 import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import { isAgent } from "../core/which.ts";
 import { canShowDialog, systemChoice, WAIT_SECONDS, type ChoiceText } from "../core/dialog.ts";
@@ -599,7 +599,7 @@ register({
       return { text: `${hosts.join(", ")}: kept as before — ${milder.map((p) => `${p.connector} ${p.from}`).join(", ")}`, data: { hosts, kept: kept.map((c) => c.name) } };
     }
     if (opts.accept) {
-      ctx.requireHuman(`Accept what ${connectors.map((c) => c.name).join(", ")} say(s) of ${hosts.join(", ")} now (${connectors.map((c) => claimOf(c)).join(", ")}), its pace too?`, `strom allow archive ${target} --accept`, `archive:accept:${hosts.join(",")}`, ui(lang, "ui.archive.accept", { names: connectors.map((c) => `${c.manifest.title} (${levelWords(lang, claimOf(c))})`).join(", ") }));
+      ctx.requireHuman(`Accept what ${connectors.map((c) => c.name).join(", ")} ${connectors.length === 1 ? "says" : "say"} of ${hosts.join(", ")} now (${connectors.map((c) => claimOf(c)).join(", ")}), its pace too?`, `strom allow archive ${target} --accept`, `archive:accept:${hosts.join(",")}`, ui(lang, "ui.archive.accept", { names: connectors.map((c) => `${c.manifest.title} (${levelWords(lang, claimOf(c))})`).join(", ") }));
       acceptConnectors(ctx.env, connectors);
       return { text: `${hosts.join(", ")}: the connectors' readings accepted — ${connectors.map((c) => `${c.name} ${claimOf(c)}`).join(", ")}`, data: { hosts, accepted: connectors.map((c) => c.name) } };
     }

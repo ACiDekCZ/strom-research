@@ -118,7 +118,7 @@ test("an imported tree: the people already researched are pointed out, a wife un
   ].join("\n");
   fs.writeFileSync(path.join(w.dir, "tree.ged"), ged + "\n");
   const intake = await w.ok(["intake", path.join(w.dir, "tree.ged")]);
-  assert.match(intake.out, /probably already in the tree: P0004≈P0001, P0005≈P0002, P0006≈P0003/);
+  assert.match(intake.out, /Nejspíš už v rodokmenu: P0004≈P0001, P0005≈P0002, P0006≈P0003/);
   const brief = (await w.ok(["brief", "T1"])).out;
   assert.match(brief, /## Probably already in the tree \(I0001\)/);
   assert.match(brief, /P0006 Magdalena Víšková ≈ P0003 Magdalena Ševčíková → strom person merge P0003 P0006/);

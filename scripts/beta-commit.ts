@@ -41,6 +41,11 @@ const REWRITES: [string, string][] = [
   ["strom-research/tree/main/install", "strom-research/tree/beta/install"],
 ];
 
+/** The agents' text is already the branch beta's (its tree: the tag's workflow runs the tests there). */
+export function isBetaAgents(text: string): boolean {
+  return text.startsWith(REWRITES[0]![1]);
+}
+
 /** The agents' text of the branch main as the branch beta gives it; a line not found, or a stable one left: an error. */
 export function betaAgents(text: string): string {
   let out = text;

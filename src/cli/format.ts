@@ -25,12 +25,17 @@ export interface Page<T> {
   page: number;
   pages: number;
   limit: number;
+  /** A page past the last was asked for (the last is shown): which. */
+  asked?: number;
 }
+
+/** The rows of a page when --limit is not given. */
+export const DEFAULT_LIMIT = 50;
 
 export function paginate<T>(items: T[], limit: number, page: number): Page<T> {
   const pages = Math.max(1, Math.ceil(items.length / limit));
   const p = Math.min(Math.max(1, page), pages);
-  return { items: items.slice((p - 1) * limit, p * limit), total: items.length, page: p, pages, limit };
+  return { items: items.slice((p - 1) * limit, p * limit), total: items.length, page: p, pages, limit, ...(page > pages && items.length ? { asked: page } : {}) };
 }
 
 /**
@@ -41,9 +46,12 @@ export const LIST_PAGE_MAX = 100;
 
 /** Footer telling the caller how to see more — in the research's language where the listing is (lang), else English. */
 export function moreLine(page: Page<unknown>, command: string, lang?: string): string {
+  // a page past the last: the last one shown, and said so (found on Windows: --page 99 gave the last page silently)
+  if (page.asked) return lang ? ui(lang, "ui.list.past", { asked: String(page.asked), pages: String(page.pages) }) : `(no page ${page.asked}: the last is ${page.pages}, shown above)`;
   if (page.page >= page.pages) return "";
   const left = page.total - page.page * page.limit;
-  const next = `${command} --page ${page.page + 1}`;
+  // the next page of the same size: a --limit of its own goes along (found on Windows: --page 2 alone took 50 rows)
+  const next = `${command}${page.limit !== DEFAULT_LIMIT ? ` --limit ${page.limit}` : ""} --page ${page.page + 1}`;
   return lang ? ui(lang, "ui.list.more", { n: String(left), command: next }) : `… ${left} more: ${next}`;
 }
 

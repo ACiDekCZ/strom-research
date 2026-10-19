@@ -4,7 +4,8 @@
 // ?live=<address>, takes the tree's GEDCOM from it and hears what changes —
 // who is at work on what, what was recorded, what waits for the user. Nothing
 // leaves the computer. The bridge ends by itself when nobody has asked it
-// anything for a while (LIVE_IDLE_MS), or with strom live stop.
+// anything for a while (LIVE_IDLE_MS) and nobody works in the tree, or with
+// strom live stop.
 //
 //   GET <token>/status     the tree, its researches, who is at work, what waits; what the research takes from
 //                          the app (accepts). ?poll=1: the app asking now and then — the bridge's idle time goes on
@@ -57,7 +58,8 @@
 //
 // The secret: started again by itself — a newer strom on disk (live start
 // --current), one that ended without a word (reviveLive), the first run of a
-// newer strom bringing its bridges back, a start after it ended when idle — it
+// newer strom bringing its bridges back, a start after it ended when idle (a new
+// session too, when its secret is kept and the tree is no archive) — it
 // takes the address it had (.strom/live-last.json: its port while free, its
 // token), so the app following it goes on by itself. Ended for good (strom live
 // stop, strom uninstall) its secret is dropped: the next bridge gets a new one
@@ -88,9 +90,9 @@ import { phrase } from "./phrases.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { excerptSettings, planExcerpts } from "./excerpt.ts";
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
-import { modeOf, settleArchive } from "./mode.ts";
+import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, stateOf } from "./state.ts";
-import { settleHypothesisLinks } from "./hypolinks.ts";
+import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
 import { EXIT, StromError } from "./errors.ts";
@@ -101,7 +103,7 @@ import { BATCH_ID, batchEstimate, batchLimits, batchRoom, batchPath, batchStatus
 
 /** New images for the app, made for at most so long when the tree changed (the rest the next time). */
 const LIVE_IMAGES_MS = 20_000;
-import { liveWorkers, type Paused } from "./workers.ts";
+import { anyoneAtWork, liveWorkers, type Paused } from "./workers.ts";
 import { monthSpend, openSessions } from "./session.ts";
 import { rankTasks } from "./queue.ts";
 import { humanTask } from "../cli/human.ts";
@@ -122,6 +124,7 @@ import { requestTexts, waitingFor } from "./waiting.ts";
 import { fileRefused } from "./taskfiles.ts";
 import { SENDABLE, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts";
 import { agentsHere } from "./apps.ts";
+import { counted } from "../cli/format.ts";
 
 export interface LiveInfo {
   port: number;
@@ -590,15 +593,34 @@ export function stopLive(root: string, why = "strom live stop", opts: { back?: b
   return how === "gone" ? "none" : how;
 }
 
+/** Whether a bridge's end was its idle time running out (the reason it wrote: "idle: …"). */
+function endedIdle(last: LiveLast): boolean {
+  return /^idle\b/.test(last.ended?.reason ?? "");
+}
+
 /**
  * The bridge of a tree that ended without a word (a crash, killed) is started again — on its address, so the
- * Strom app following it goes on by itself. One that ended as it should (idle, stopped) stays so.
+ * Strom app following it goes on by itself. One that ended as it should (idle, stopped) stays so — but new work in the
+ * tree (work: a session starts) brings back one that ended idle, at its address, when the app was given it (its secret
+ * kept: never after strom live stop or uninstall) and the tree is no archive: the app watching the tree without
+ * following it (/status?poll=1) sees it at work again.
  */
-export function reviveLive(root: string, env: Env): LiveInfo | undefined {
+export function reviveLive(root: string, env: Env, opts: { work?: boolean } = {}): LiveInfo | undefined {
   const last = readLast(root);
-  if (!last || last.ended || alive(last.pid) || liveRunning(root)) return undefined;
-  const info = startLive(root, env, { why: `the bridge ${last.pid} ended without a word: started again` });
-  // one that does not come up is not tried at every session again
+  if (!last || alive(last.pid) || liveRunning(root)) return undefined;
+  if (last.ended) {
+    if (!opts.work || !last.token || !endedIdle(last)) return undefined;
+    try {
+      if (isArchive({ config: readJsonIfExists<{ mode?: string }>(path.join(root, TREE_FILE)) ?? {} })) return undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  const why = last.ended
+    ? `work in the tree again: the bridge ${last.pid} that ended idle started again at its address`
+    : `the bridge ${last.pid} ended without a word: started again`;
+  const info = startLive(root, env, { why });
+  // one that does not come up is not tried at every session again (each try waits for it some seconds)
   if (!info) writeLast(root, { ...last, ended: { at: new Date().toISOString(), reason: "did not start again" } });
   return info;
 }
@@ -1204,14 +1226,21 @@ export function serveLive(root: string, env: Env): Promise<void> {
   // an archive switched by an older strom: its tasks that wait put aside before the app asks (logged, with the reason)
   try {
     const held = settleArchive(Tree.open(root, env));
-    if (held.length) noteLive(root, `an archive: ${held.length} task(s) put aside (${held.join(", ")})`);
+    if (held.length) noteLive(root, `an archive: ${counted(held.length, "task")} put aside (${held.join(", ")})`);
   } catch (e) {
     noteLive(root, `an archive's tasks not put aside now: ${errorText(e)}`);
+  }
+  // the tasks an older strom made to say those links: first in the queue (once)
+  try {
+    const raised = raiseHypothesisLinkTasks(Tree.open(root, env));
+    if (raised) noteLive(root, `hypotheses: ${counted(raised.length, "task")} to say their variants' links first in the queue (${raised.join(", ")})`);
+  } catch (e) {
+    noteLive(root, `the tasks to say the hypotheses' links not raised now: ${errorText(e)}`);
   }
   // older hypotheses: the links of their variants their claims say beyond doubt, the rest a task for the agent (once)
   try {
     const done = settleHypothesisLinks(Tree.open(root, env));
-    if (done) noteLive(root, `hypotheses: ${done.linked.length} variant link(s) filled in from their claims, ${done.tasks.length} task(s) for the rest`);
+    if (done) noteLive(root, `hypotheses: ${counted(done.linked.length, "variant link")} filled in from their claims, ${counted(done.tasks.length, "task")} for the rest`);
   } catch (e) {
     noteLive(root, `the links of the hypotheses' variants not filled in now: ${errorText(e)}`);
   }
@@ -1611,7 +1640,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const busy = code === EXIT.locked;
       if (code !== 0) noteLive(root, `the send ${sent.intake} was not written (exit ${code}${busy ? ", the research busy: tried again later" : ""}): ${why}`);
       // the same file as a sync before (sent again unchanged): nothing new, the input it was then only named
-      else noteLive(root, `the send ${sent.intake} ${data.input && data.changes?.length ? `written: ${data.input}` : `brought nothing new${data.input ? ` (the same as ${data.input})` : ""}`}${data.skipped?.length ? `, ${data.skipped.length} change(s) left out` : ""}`);
+      else noteLive(root, `the send ${sent.intake} ${data.input && data.changes?.length ? `written: ${data.input}` : `brought nothing new${data.input ? ` (the same as ${data.input})` : ""}`}${data.skipped?.length ? `, ${counted(data.skipped.length, "change")} left out` : ""}`);
       if (code !== 0) {
         const r = failReceived(root, sent.intake, why, busy, { code: data.code, params: data.params });
         if (busy && r && (r.tries ?? 0) >= RETRIES) failReceived(root, sent.intake, `the research was busy ${RETRIES} times: ${why}`, false);
@@ -2561,7 +2590,9 @@ export function serveLive(root: string, env: Env): Promise<void> {
           tidied = Date.now();
           safe("keeping order", () => autoTidy(Tree.open(root, env)));
         }
-        if (streams.size) lastAsked = Date.now();
+        // the idle time runs only while nobody works in the tree (a run waiting for its gate works too): the app watching
+        // the tree without following it (/status?poll=1) still finds the bridge while an agent is at work
+        if (streams.size || anyoneAtWork(root)) lastAsked = Date.now();
         if (Date.now() - lastAsked > idleMs) return stop("idle: nobody asked for a while", "idle", false);
         // its research gone (taken off the computer, a test's folder): nothing to follow
         if (!fs.existsSync(path.join(root, "strom.json"))) return stop("the research is no longer there", "gone", false);
