@@ -7,11 +7,15 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.17.0
 
-*In Vorbereitung: die Betas bis 1.17.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.17.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Zuerst, was Hypothesen verbinden würden.** Die Aufgaben, zu ergänzen, was die Varianten einer offenen Hypothese
   verbinden würden, kommen in der Warteschlange zuerst — auch in einer bestehenden Forschung nach dem Update —, so
   zeigt die Strom-App diese Verbindungen bald.
+- **Die Brücke der Strom-App läuft, solange ein Agent arbeitet.** Die Brücke endet nicht mehr nach zwei ruhigen
+  Stunden, solange ein Agent im Stammbaum arbeitet (auch ein pausierter Lauf), so sieht die Strom-App die Forschung
+  bei der Arbeit auch in einem Stammbaum, dem sie gerade nicht folgt. Eine wegen Ruhe beendete Brücke kommt an ihrer
+  Adresse zurück, sobald die Arbeit wieder beginnt; eine mit `strom live stop` angehaltene bleibt angehalten.
 - **Ein unterbrochener Download wird gemeldet und aufgeräumt.** Ein Download, dessen Prozess mittendrin endete, wird
   als unterbrochen gemeldet, mit dem, was gespeichert ist und was fehlt; sein Arbeitsordner wird entfernt.
 - **Neues Material in der Sprache der Forschung.** Was hereinkam (registriertes Material, was hinzukam, wahrscheinliche
@@ -20,7 +24,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   englisch 1 task, 2 tasks, tschechisch 1 úkol, 2 úkoly, 5 úkolů — statt „Änderung(en)“.
 - **Mehr in der Sprache der Forschung.** Die Personen ohne eigenen Eintrag (`strom person list --unproven`, worauf
   `strom check` verweist), was `strom export gedcom` geschrieben hat, und eine Zählerwarnung von `strom check` stehen
-  in der Sprache der Forschung, samt ihren Zahlen.
+  in der Sprache der Forschung, samt ihren Zahlen – Größe und Qualität der Bilder so, wie die
+  Sprache sie schreibt (0,4 MB · Qualität normal).
 - **Speichern unter Windows wartet auf den Virenschutz.** Eine Datei, die ein Virenschutz oder die Suchindizierung
   kurz festhält, wird nach kurzem Warten gespeichert – oder gelesen –, statt dass das Schreiben scheitert. Eine länger
   festgehaltene Datei hält den Befehl als Ganzes an, nichts davon bleibt halb gespeichert, und die Meldung sagt, dass

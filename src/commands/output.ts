@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
-import { counted, lines, table } from "../cli/format.ts";
+import { counted, lines, numberIn, table } from "../cli/format.ts";
 import { exportGedcom, GED_PROFILES, type GedProfile } from "../gedcom/export.ts";
 import type { Context } from "../cli/context.ts";
 import { hasGedErrors, validateGedcom, type GedFinding } from "../gedcom/validate.ts";
@@ -117,7 +117,12 @@ export function writeTreeGed(
   return { ...result, findings, file, for: opts.for, ...(images && set ? { images: images.report, imageSettings: set } : {}) };
 }
 
-const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+/** A size of images as the language writes it (0,4 MB in Czech, 0.4 MB in English). */
+const mbIn = (bytes: number, lang: string) => `${numberIn(lang, bytes / 1024 / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`;
+
+/** A quality of the images (excerpt.ts LEVELS) as the language says it; in English its name, the value excerpts.quality takes. */
+const QUALITY_WORDS = { sharp: "ui.export.quality.sharp", normal: "ui.export.quality.normal", small: "ui.export.quality.small", smaller: "ui.export.quality.smaller" } as const;
+export const qualityIn = (q: string, lang: string) => (Object.hasOwn(QUALITY_WORDS, q) ? ui(lang, QUALITY_WORDS[q as keyof typeof QUALITY_WORDS]) : q);
 
 /**
  * What an export with images took in and left out, and what to do about it — what strom decided itself is said as a
@@ -126,9 +131,9 @@ const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 export function imagesLines(r: ExcerptReport, images: { for: ExcerptScope; mb: number }, lang = "en"): string {
   const few = (ids: string[]) => `${ids.slice(0, 8).join(", ")}${ids.length > 8 ? ` … (${ids.length})` : ""}`;
   return lines(
-    ui(lang, "ui.export.images", { excerpts: r.excerpts, sources: r.sources, size: mb(r.bytes), level: r.level }),
-    r.level !== r.asked ? ui(lang, "ui.export.images.smaller", { mb: images.mb, level: r.level, asked: r.asked }) : undefined,
-    r.dropped.length ? ui(lang, "ui.export.images.dropped", { mb: images.mb, n: r.dropped.length, ids: few(r.dropped) }) : undefined,
+    ui(lang, "ui.export.images", { excerpts: r.excerpts, sources: r.sources, size: mbIn(r.bytes, lang), level: qualityIn(r.level, lang) }),
+    r.level !== r.asked ? ui(lang, "ui.export.images.smaller", { mb: numberIn(lang, images.mb, { maximumFractionDigits: 3, useGrouping: false }), level: qualityIn(r.level, lang), asked: qualityIn(r.asked, lang) }) : undefined,
+    r.dropped.length ? ui(lang, "ui.export.images.dropped", { mb: numberIn(lang, images.mb, { maximumFractionDigits: 3, useGrouping: false }), n: r.dropped.length, ids: few(r.dropped) }) : undefined,
     r.outOfScope ? ui(lang, "ui.export.images.scope", { n: r.outOfScope, for: images.for }) : undefined,
     r.missing.length ? ui(lang, "ui.export.images.missing", { ids: few(r.missing) }) : undefined,
     r.unclipped.length ? ui(lang, "ui.export.images.unclipped", { ids: few(r.unclipped) }) : undefined,

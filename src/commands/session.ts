@@ -140,7 +140,7 @@ register(
       const task = args[0] ? requireRecord<Task>(tree, args[0], "task") : taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config) }).find((t) => !others.has(t.id));
       if (task && !["open", "doing", "parked"].includes(task.state)) throw new UsageError(`${task.id} is ${task.state}`);
       const s = startSession(tree, { ...(task ? { task } : {}), ...(research ? { research: research.id } : {}) });
-      reviveLive(tree.root, ctx.env);
+      reviveLive(tree.root, ctx.env, { work: true });
       const shared = ctx.settings.shared()?.value;
       const brief = buildBrief(tree, { ...(task ? { task } : {}), session: s, budget: ctx.settings.number("brief.budget", tree.config, DEFAULT_BUDGET), shared, browser: briefBrowser(tree, shared, s, task) });
       // a task the queue holds back, started by its ID: the agent hears why before it begins
@@ -975,8 +975,8 @@ register({
           }
           gateTrail.length = 0;
         }
-        // the Strom app followed the research and its bridge ended without a word: on its address again
-        reviveLive(root, ctx.env);
+        // the Strom app followed the research and its bridge ended without a word, or idle: on its address again
+        reviveLive(root, ctx.env, { work: true });
         // The Strom app follows it from the first session on — not while the run still waits for its gate.
         if (opts.follow && !followed) {
           followed = true;

@@ -106,7 +106,14 @@ test("the Strom file carries the entries cut out of their scans by default; it s
   assert.doesNotMatch(fs.readFileSync(file, "utf8"), /OBJE/);
   // said to an agent in English, to a person in the research's language
   assert.match((await w.ok(["export", "gedcom", "--images-max-mb", "0.001"], { env: { CLAUDECODE: "1" } })).out, /WARNING made smaller to fit the limit of 0\.001 MB: smaller instead of normal[\s\S]*WARNING left out to fit[^\n]*: 1 source \(S0001\)/);
-  assert.match((await w.ok(["export", "gedcom", "--images-max-mb", "0.001"])).out, /POZOR: zmenšeno, aby se vešlo do limitu 0\.001 MB: smaller místo normal[\s\S]*POZOR: vynecháno[^\n]*: 1 pramen \(S0001\)/);
+  assert.match((await w.ok(["export", "gedcom", "--images-max-mb", "0.001"])).out, /POZOR: zmenšeno, aby se vešlo do limitu 0,001 MB: kvalita nejnižší, nastavena běžná[\s\S]*POZOR: vynecháno[^\n]*: 1 pramen \(S0001\)/);
+  // the size with the language's decimal comma, the quality in its words (found on Windows: "0.0 MB · kvalita normal"); English for an agent
+  assert.match((await w.ok(["export", "gedcom"])).out, /\n {2}1 výřez z 1 pramene, \d+,\d MB · kvalita běžná\n/);
+  assert.match((await w.ok(["export", "gedcom"], { env: { CLAUDECODE: "1" } })).out, /\n {2}1 excerpt of 1 source, \d+\.\d MB · quality normal\n/);
+  await w.ok(["lang", "de"]);
+  assert.match((await w.ok(["export", "gedcom", "--images-max-mb", "0.001"])).out, /ACHTUNG: verkleinert, damit es in die Grenze von 0,001 MB passt: sehr niedrig statt normal/);
+  assert.match((await w.ok(["export", "gedcom", "--images-quality", "sharp"])).out, /\n {2}1 Ausschnitt aus 1 Quelle, \d+,\d MB · Qualität hoch\n/);
+  await w.ok(["lang", "cs"]);
   assert.match((await w.run(["export", "gedcom", "--images", "--for", "standard"])).err, /images go into the file for the Strom app only/);
   // after a session, new excerpts are made for a while at most: none made yet and no time → the next export
   fs.rmSync(path.join(w.cwd, ".strom", "excerpts"), { recursive: true });

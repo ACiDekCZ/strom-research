@@ -7,11 +7,15 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.17.0
 
-*In preparation: the betas up to 1.17.0-beta.5. The section is complete with the release.*
+*In preparation: the betas up to 1.17.0-beta.6. The section is complete with the release.*
 
 - **What hypotheses would connect, first.** The tasks to fill in what the variants of an open hypothesis would
   connect go first in the queue — also in an existing research after the update — so the Strom app can show those
   links soon.
+- **The Strom app's bridge runs while an agent works.** The bridge no longer ends after two quiet hours while an
+  agent works in the tree (a paused run too), so the Strom app sees the research at work even in a tree it does not
+  follow. A bridge that ended for quiet comes back at its address when work starts again; one stopped with
+  `strom live stop` stays stopped.
 - **An interrupted download is said and tidied.** A download whose process ended midway is reported as interrupted,
   with what was saved and what is missing; its work folder is cleared away.
 - **New material reported in the research's language.** What came in (registered material, what was added, likely
@@ -20,7 +24,8 @@ The changes of each version in short. The full notes and the install lines are o
   Czech 1 úkol, 2 úkoly, 5 úkolů, in German 1 Änderung, 2 Änderungen — instead of "task(s)".
 - **More in the research's language.** The people without a record of their own (`strom person list --unproven`,
   where `strom check` points), what `strom export gedcom` wrote and a counter warning of `strom check` are said in
-  the research's language, their counts too.
+  the research's language, their counts too — the size and quality of the images as the language writes them (in
+  Czech 0,4 MB · kvalita běžná).
 - **Saving on Windows waits for an antivirus.** A file written while an antivirus or the search indexer briefly holds
   it is saved — or read — after a short wait instead of failing. A file held longer stops the command as a whole,
   with nothing of it half saved, and the message says another program holds the file and the command can simply run

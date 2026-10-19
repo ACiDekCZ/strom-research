@@ -7,10 +7,14 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.17.0
 
-*Připravuje se: bety do 1.17.0-beta.5. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.17.0-beta.6. Oddíl bude úplný s vydáním.*
 
 - **Nejdřív, co by hypotézy spojovaly.** Úkoly doplnit, co by spojovaly verze otevřené hypotézy, jdou ve frontě
   první — i ve stávajícím výzkumu po aktualizaci —, takže aplikace Strom brzy ukáže tyto vazby.
+- **Most aplikace Strom běží, dokud pracuje agent.** Most už neskončí po dvou hodinách klidu, dokud ve stromu
+  pracuje agent (i pozastavený běh), takže aplikace Strom vidí výzkum v práci i u stromu, který právě nesleduje.
+  Most ukončený pro klid se vrátí na svou adresu, když práce znovu začne; most zastavený `strom live stop` zůstane
+  zastavený.
 - **Přerušené stahování se ohlásí a uklidí.** Stahování, jehož proces skončil uprostřed, se ohlásí jako přerušené,
   s tím, co se uložilo a co chybí; jeho pracovní složka se uklidí.
 - **Nový materiál v jazyce výzkumu.** Co přišlo (zaregistrovaný materiál, co přibylo, pravděpodobné duplicity,
@@ -19,7 +23,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   1 task, 2 tasks, německy 1 Änderung, 2 Änderungen — místo „úkol(ů)“.
 - **Víc v jazyce výzkumu.** Osoby bez vlastního záznamu (`strom person list --unproven`, kam odkazuje
   `strom check`), co zapsal `strom export gedcom`, a varování počítadla ve `strom check` jsou v jazyce výzkumu,
-  i s počty.
+  i s počty – velikost a kvalita obrázků tak, jak je píše jazyk výzkumu (0,4 MB · kvalita běžná).
 - **Ukládání na Windows počká na antivir.** Soubor, který antivir nebo indexování vyhledávání na chvíli drží, se po
   krátkém čekání uloží – nebo přečte –, místo aby zápis selhal. Soubor držený déle zastaví příkaz celý, nic z něj
   nezůstane uložené napůl a hláška říká, že soubor drží jiný program a příkaz jde prostě spustit znovu.

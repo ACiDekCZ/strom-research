@@ -8,7 +8,7 @@ import { configDir, userHome, type Env } from "../core/paths.ts";
 import { prependPath, spawnAgent } from "../runners/runner.ts";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, truncate } from "../cli/format.ts";
+import { lines, numberIn, truncate } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
 import { StromError, UsageError } from "../core/errors.ts";
 import { PROFILES } from "../agents/profiles.ts";
@@ -42,7 +42,7 @@ import { abandonedSessions, closeSession, openSessions } from "../core/session.t
 import { enterWorker, liveWorkers } from "../core/workers.ts";
 import { phrase } from "../core/phrases.ts";
 
-import { imageSettings, writeGedcoms, writeTreeGed } from "./output.ts";
+import { imageSettings, qualityIn, writeGedcoms, writeTreeGed } from "./output.ts";
 import { shortcutName } from "../cli/wizard.ts";
 import { refuseInArchive } from "../core/state.ts";
 
@@ -298,9 +298,9 @@ register(
         const withImages =
           r && set
             ? lines(
-                ui(lang, "ui.app.images", { n: String(r.excerpts), mb: (r.bytes / 1024 / 1024).toFixed(1) }),
-                r.level !== r.asked ? ui(lang, "ui.app.images.smaller", { limit: String(set.mb), level: r.level, asked: r.asked }) : undefined,
-                r.dropped.length ? ui(lang, "ui.app.images.left", { n: String(r.dropped.length), limit: String(set.mb) }) : undefined,
+                ui(lang, "ui.app.images", { n: String(r.excerpts), mb: numberIn(lang, r.bytes / 1024 / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }),
+                r.level !== r.asked ? ui(lang, "ui.app.images.smaller", { limit: numberIn(lang, set.mb, { maximumFractionDigits: 3, useGrouping: false }), level: qualityIn(r.level, lang), asked: qualityIn(r.asked, lang) }) : undefined,
+                r.dropped.length ? ui(lang, "ui.app.images.left", { n: String(r.dropped.length), limit: numberIn(lang, set.mb, { maximumFractionDigits: 3, useGrouping: false }) }) : undefined,
                 r.outOfScope ? ui(lang, "ui.app.images.scope", { n: String(r.outOfScope), for: set.for }) : undefined,
                 r.unclipped.length ? ui(lang, "ui.app.images.unclipped", { n: String(r.unclipped.length) }) : undefined,
               )
@@ -371,11 +371,13 @@ register(
     description:
       "A small web server on this computer only (127.0.0.1, a secret address), that only reads: the Strom app, opened with\n" +
       "strom app --live, takes the tree from it and hears what changes — who is at work on what, what was recorded, what\n" +
-      "waits for the user. It ends by itself when nobody asks it anything for two hours, or with strom live stop.\n" +
+      "waits for the user. It ends by itself when nobody asks it anything for two hours while nobody works in the tree,\n" +
+      "or with strom live stop.\n" +
       "One error does not end it (a read that fails is tried again); what it did and what went wrong is in .strom/live.log.\n" +
       "Started again by itself (strom updated, one that ended without a word or when idle) it takes the address it had\n" +
-      "(its port while free), so the app following it goes on by itself; one that ended without a word is started again\n" +
-      "when a session starts. Stopped with strom live stop, the next one gets a new secret address.",
+      "(its port while free), so the app following it goes on by itself; one that ended without a word or when idle is\n" +
+      "started again when a session starts (idle: only one the app was given, never in an archive). Stopped with strom\n" +
+      "live stop, the next one gets a new secret address.",
     examples: ["strom live", "strom live start", "strom live stop"],
     run(ctx) {
       const tree = bridgeTree(ctx);
