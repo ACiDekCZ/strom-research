@@ -84,7 +84,7 @@ function newReads(c: Change, incoming: Snapshot): boolean {
 }
 
 /** One change as the user reads it, with what strom does with it. */
-function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): string {
+function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, readings?: Plan["readings"]): string {
   const name = (key: string | undefined) => {
     if (!key) return "?";
     if (key.startsWith("x:")) return (incoming.persons.get(key)?.names[0] ?? key).replace(/\//g, "").replace(/\s+/g, " ").trim();
@@ -158,10 +158,15 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string): st
       ? "ui.sync.do.detail"
       : c.kind === "fact.part" && (c.action === "add" || c.action === "user")
         ? `ui.sync.do.part${c.action === "user" ? ".user" : ""}`
+      : c.kind === "source.new" && c.reading?.ok
+        ? `ui.sync.do.source.new.reading${c.reading.edited ? ".edited" : ""}`
       : c.kind.startsWith("source.") || c.kind === "fact.cite" || c.kind === "person.cite" || c.kind === "family.cite"
         ? `ui.sync.do.${c.kind}${c.reads || (c.kind === "source.new" && newReads(c, incoming)) ? ".read" : ""}`
         : c.kind === "fact.new" && c.reads
           ? "ui.sync.do.reading"
+        // a fact on an entry of the research's reading of a document: as sure as its readers read it
+        : c.kind === "fact.new" && c.fact?.cites?.some((x) => readings?.get(x.source)?.ok)
+          ? "ui.sync.do.reading.document"
           : `ui.sync.do.${c.action}`;
   // an archive: nobody reads a record there, nor is an agent told — said without it
   const said = actsAsArchive(tree) && `${does}.archive` in UI ? `${does}.archive` : does;
@@ -177,7 +182,7 @@ function planText(tree: Tree, plan: Plan, incoming: Snapshot, file: string, lang
     plan.partial ? ui(lang, "ui.sync.partial") : undefined,
     plan.identity.strangers.length ? ui(lang, "ui.sync.strangers", { ids: plan.identity.strangers.join(", ") }) : undefined,
     "",
-    ...plan.changes.map((c) => `  ${changeLine(tree, c, incoming, lang)}`),
+    ...plan.changes.map((c) => `  ${changeLine(tree, c, incoming, lang, plan.readings)}`),
     "",
     // an archive mirrors the app whatever the setting says (planSync)
     actsAsArchive(tree) ? ui(lang, "ui.sync.edits.archive") : ui(lang, "ui.sync.edits", { mode: ui(lang, edits === "user" ? "ui.sync.mode.user" : "ui.sync.mode.conflict") }),

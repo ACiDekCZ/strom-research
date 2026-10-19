@@ -277,10 +277,10 @@ test("the workflow npm-beta.yml: a beta's tag and a release's, trusted publishin
   // npm's beta follows a release in its own step, after latest is checked; the workflow itself moves no tag
   assert.match(yml, /npm-beta-ci\.ts after[\s\S]*if: env\.NPM_TAG == 'latest'\n\s+run: \|\n\s+node scripts\/npm-beta-ci\.ts beta "\$VERSION"/);
   assert.doesNotMatch(yml, /dist-tag (add|rm)/);
-  // after the publish npm takes minutes to show the version (1.17.0-beta.2: more than one): asked for 5+ minutes,
-  // within the publishing job's time with its build
+  // after the publish npm takes minutes to show the version (1.17.0-beta.2: more than one, 1.18.0-beta.3: about 13):
+  // asked for 20 minutes, within the publishing job's time with its build
   const waits = AFTER_TRIES * 20;
-  assert.ok(waits >= 300, `${waits} s`);
+  assert.ok(waits >= 1200, `${waits} s`);
   const publishMinutes = Number(/publish:[\s\S]*?timeout-minutes: (\d+)/.exec(yml)?.[1]);
   assert.ok(waits / 60 + 10 <= publishMinutes, `${waits} s of waiting within ${publishMinutes} min`);
 });

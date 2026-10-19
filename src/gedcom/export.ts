@@ -140,6 +140,11 @@ export interface ExportOptions {
    * when the side's is (a title taken off), a sex also as 3 _STROM_RAW M|F|U.
    */
   conflictSides?: boolean;
+  /**
+   * The Strom profile, for an app that opens a reading of a document from its source (APP_SHOWS_READINGS): a source
+   * made of a reading confirmed in the app carries 1 _STROM_READING D… with 2 _STROM_ENTRY e….
+   */
+  readings?: boolean;
 }
 
 export interface ExportResult {
@@ -460,6 +465,11 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (user || research) w.line(1, "_STROM_READ", user && research ? "both" : user ? "user" : "research");
     }
     if (opts.sourceReads && s.app?.verified) w.line(1, "_STROM_VERIFIED", "Y");
+    // the reading of a document the source is an entry of: the app opens its result there (its pages, translation)
+    if (opts.readings && s.reading) {
+      w.line(1, "_STROM_READING", s.reading);
+      if (s.readingEntry) w.line(2, "_STROM_ENTRY", s.readingEntry);
+    }
     for (const cut of opts.excerpts?.(s) ?? []) {
       const e = opts.turnsExcerpts ? cut : turned(cut);
       w.line(1, "OBJE");

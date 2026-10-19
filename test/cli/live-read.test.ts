@@ -183,10 +183,14 @@ test("a document read for the Strom app: sent with no intake task, asked, follow
     // the input says it was read
     assert.deepEqual((await w.ok(["input", "show", got.input, "--json"])).json.input.read, [id]);
 
-    // the event read: as it was queued, read, done
+    // the event read: as it was queued, read, done — in that order; a phase shorter than the bridge's tick may go
+    // unsent (queued straight to done), the last state always comes
     await until("the events", () => events.events.some((e) => e.event === "read" && e.data.id === id && e.data.state === "done"), { ms: 10_000 });
     const states = events.events.filter((e) => e.event === "read" && e.data.id === id).map((e) => e.data.state);
-    assert.ok(states.includes("reading"), states.join(","));
+    const order = ["queued", "reading", "done"];
+    assert.ok(states.every((s) => order.includes(s)), states.join(","));
+    assert.ok(states.every((s, i) => i === 0 || order.indexOf(states[i - 1]) <= order.indexOf(s)), states.join(","));
+    assert.equal(states.at(-1), "done", states.join(","));
 
     // again: the blind second reader alone
     const again = await post(`${url}/read/${id}/again`, { readers: 2 });

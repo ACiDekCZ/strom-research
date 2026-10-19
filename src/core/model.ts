@@ -277,6 +277,9 @@ export interface Source extends BaseRecord {
    * reading of the record (the app's "my transcripts are evidence" when it was sent, or "transcript verified").
    */
   app?: { read: boolean; verified?: boolean };
+  /** A reading of a document the person confirmed in the Strom app (strom document read): D…, and its entry (e1 …). */
+  reading?: string;
+  readingEntry?: string;
   notes: Note[];
 }
 

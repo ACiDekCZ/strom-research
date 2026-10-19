@@ -11,6 +11,8 @@ import { UsageError } from "../core/errors.ts";
 import type { Media, RecordSet, Search, Session } from "../core/model.ts";
 import { requireRecord } from "../core/records.ts";
 import { imageRange } from "../core/media.ts";
+import { listReadings, READ_ID } from "../core/document.ts";
+import { showReading } from "./document.ts";
 import { parseReport, type Finding } from "../core/reader.ts";
 import { foldText } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
@@ -462,19 +464,27 @@ register({
     "blocks with nothing found only what the reader could not read (a possible match is often there), the gaps in\n" +
     "the page numbering and the parts of the book they saw. One image's block word for word: --image N.\n" +
     "Default: the newest reading; with --images, --image or --match all of them. Nothing is written.",
-  args: [{ name: "which", description: "a record set (B…), or a reading: its report's name or the start of it (a day)" }],
+  args: [{ name: "which", description: "a record set (B…), a reading: its report's name or the start of it (a day), or a reading of a document (D…)" }],
   options: [
     { name: "images", type: "string", value: "<from-to>", description: "only these image numbers, e.g. 40-69 or 5-113,130-228" },
     { name: "image", type: "string", value: "<n>", description: "that image's whole block, word for word (a few: 35-38)" },
     { name: "match", type: "string", multiple: true, value: "<words>", description: "only blocks that mention it — any spelling of accents (repeatable: variants)" },
     { name: "list", type: "boolean", description: "the readings there are, one line each" },
   ],
-  examples: ["strom readings", "strom readings B0001 --images 40-69 --match Novák --match Nowak", "strom readings B0001 --image 57", "strom readings --list"],
+  examples: ["strom readings", "strom readings B0001 --images 40-69 --match Novák --match Nowak", "strom readings B0001 --image 57", "strom readings D20260101120000-ab12", "strom readings --list"],
   run(ctx, { args, opts }) {
     const tree = ctx.tree();
-    let all = loadReadings(tree);
-    if (all.length === 0) return { text: "no readings yet (strom read writes them into notes/readings)", data: { readings: [] } };
     const which = args[0]?.trim();
+    // a reading of a document (strom document read): its result, as strom document show says it
+    if (which && READ_ID.test(which)) return showReading(ctx, which);
+    let all = loadReadings(tree);
+    // the readings of documents, one line each, after those of the books (--list)
+    const documents = () => listReadings(tree.root).map((r) => ({ line: `${r.id} · document · ${r.state} · ${r.files.join(", ")} · ${counted(r.pages, "page")} — strom readings ${r.id}`, data: { id: r.id, state: r.state, files: r.files, pages: r.pages } }));
+    if (all.length === 0) {
+      const docs = opts.list ? documents() : [];
+      if (docs.length) return { text: lines(...docs.map((d) => d.line)), data: { readings: [], documents: docs.map((d) => d.data) } };
+      return { text: "no readings yet (strom read writes them into notes/readings)", data: { readings: [] } };
+    }
     let book: string | undefined;
     if (which && /^[Bb]\d+$/.test(which)) book = requireRecord<RecordSet>(tree, which, "recordset").id;
     else if (which) {
@@ -501,8 +511,9 @@ register({
     if (shown.length === 0) return { text: `no reader reported ${image !== undefined ? `image ${runs([...image])}` : "these images"}${book ? ` of ${book}` : ""} · strom readings --list`, data: { readings: [] } };
 
     if (opts.list) {
-      const text = lines(...shown.flatMap(({ r, blocks }) => readingHead(r, blocks)[0]!.concat(r.question ? ` · "${truncate(r.question, 60)}"` : "")));
-      return { text, data: { readings: shown.map(({ r, blocks }) => ({ stem: r.stem, question: r.question, reports: r.reports, images: blocks.map((b) => b.num) })) } };
+      const docs = which || ranges || image !== undefined || match.length ? [] : documents();
+      const text = lines(...shown.flatMap(({ r, blocks }) => readingHead(r, blocks)[0]!.concat(r.question ? ` · "${truncate(r.question, 60)}"` : "")), ...docs.map((d) => d.line));
+      return { text, data: { readings: shown.map(({ r, blocks }) => ({ stem: r.stem, question: r.question, reports: r.reports, images: blocks.map((b) => b.num) })), ...(docs.length ? { documents: docs.map((d) => d.data) } : {}) } };
     }
     if (image !== undefined) {
       const text = lines(...shown.flatMap(({ r, blocks }) => blocks.flatMap((b) => [`${b.report}${b.recordset ? ` · ${b.recordset}` : ""}${r.question ? ` · question: ${truncate(r.question, 120)}` : ""}`, `## ${b.text}`, ""])));

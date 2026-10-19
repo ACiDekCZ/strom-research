@@ -581,17 +581,19 @@ register({
   tree: true,
   args: [{ name: "reading", description: "the reading: D…", required: true }],
   examples: ["strom document show D20260101120000-ab12 --json"],
-  run: (ctx: Context, { args }) => {
-    const tree = ctx.tree();
-    const id = readId(args[0]);
-    const s = loadState(tree.root, id);
-    let result: ReadResult;
-    if (s) result = buildResult(tree, settled(tree, s));
-    else if (fs.existsSync(resultPath(tree.root, id))) result = JSON.parse(fs.readFileSync(resultPath(tree.root, id), "utf8")) as ReadResult;
-    else throw new UsageError(`no reading ${id}`, { hint: "strom document list" });
-    return { text: said(ctx, result), data: result };
-  },
+  run: (ctx: Context, { args }) => showReading(ctx, readId(args[0])),
 });
+
+/** A reading of a document as strom document show (and strom readings D…) says it: its result, or what its readers wrote so far. */
+export function showReading(ctx: Context, id: string): { text: string; data: ReadResult } {
+  const tree = ctx.tree();
+  const s = loadState(tree.root, id);
+  let result: ReadResult;
+  if (s) result = buildResult(tree, settled(tree, s));
+  else if (fs.existsSync(resultPath(tree.root, id))) result = JSON.parse(fs.readFileSync(resultPath(tree.root, id), "utf8")) as ReadResult;
+  else throw new UsageError(`no reading ${id}`, { hint: "strom document list" });
+  return { text: said(ctx, result), data: result };
+}
 
 register({
   path: ["document", "list"],

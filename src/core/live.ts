@@ -116,7 +116,7 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
 import { Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
@@ -725,7 +725,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1412,12 +1412,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const titles = appReadsTitles(new Settings(env, {}), version);
       const hypothesisLinks = appShowsHypothesisLinks(new Settings(env, {}), version);
       const conflictSides = appDecidesConflicts(new Settings(env, {}), version);
+      const readings = appShowsReadings(new Settings(env, {}), version);
       const offered = opens ? links(env) : [];
       ged = {
         head: h,
         links: offered.join(" "),
         version: version ?? "",
-        text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
+        text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
       };
     }
     res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);
@@ -1719,6 +1720,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
               : {}),
             // the changes the research could not write (the rest is written): what and why
             ...(data.skipped?.length ? { skipped: data.skipped } : {}),
+            // the sources that said they are an entry of a reading of a document (_STROM_READING): taken as the
+            // research's reading, or not (why: a stable code) and so the app's own source as any
+            ...(changes.some((c) => c.reading)
+              ? { readings: changes.filter((c) => c.reading).map((c) => ({ source: c.source!.startsWith("x:") ? `@${c.source!.slice(2)}@` : c.source!, read: c.reading!.id, ok: c.reading!.ok, ...(c.reading!.entry ? { entry: c.reading!.entry } : {}), ...(c.reading!.code ? { code: c.reading!.code } : {}), ...(c.reading!.edited ? { edited: true } : {}) })) }
+              : {}),
             head: head(root),
             ...(data.input ? { input: data.input } : {}),
             conflicts,
