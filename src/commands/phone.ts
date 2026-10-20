@@ -134,12 +134,12 @@ register(
       "The phone's camera opens the page of the phone's server on this computer and pairs it (the same Wi-Fi). The code\n" +
       "holds 10 minutes, for one phone; shown again meanwhile, the same code. Only in the user's own terminal — never\n" +
       "with --json or without a terminal: the code is a phone's way into the research (the Strom app shows it too:\n" +
-      "Research → Connect phone…). The page is in the research language.",
+      "Research → Other actions → Connect phone…). The page is in the research language.",
     options: [{ name: "address", type: "string", value: "<url>", description: "another address of this computer (strom phone says them), e.g. a cable's beside the Wi-Fi" }],
     examples: ["strom phone qr", "strom phone qr --address http://192.168.0.5:47800"],
     async run(ctx, { opts }) {
       const lang = ctx.uiLang();
-      if (!showsQr(ctx)) throw new StromError("the QR code to pair a phone is shown in the user's own terminal or in the Strom app, never to an agent", { hint: "the user runs strom phone qr in their terminal, or Research → Connect phone… in the Strom app", code: "phone.qr-terminal" });
+      if (!showsQr(ctx)) throw new StromError("the QR code to pair a phone is shown in the user's own terminal or in the Strom app, never to an agent", { hint: "the user runs strom phone qr in their terminal, or Research → Other actions → Connect phone… in the Strom app", code: "phone.qr-terminal" });
       const s = await withAddresses(ctx);
       if (s.state !== "on" || !s.addresses.length) return { text: s.state === "on" || s.state === "error" ? stateLines(lang, s) : ui(lang, "ui.phone.qr.off"), data: { state: s.state } };
       return { text: qrLines(ctx, s, typeof opts.address === "string" ? opts.address : undefined), data: { state: s.state } };
