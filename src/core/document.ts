@@ -137,13 +137,15 @@ term: <a word or abbreviation as written> = <what it means, in ${into}> (term | 
 `
 }person: <ref> | <role> | ${blind ? "" : `<the role in ${into}> | `}written=<the name exactly as it stands in the transcript> | given=<the given
   name in today's form> | surname=<the surname in today's form> | sex=M|F|U | age=<as written> | occupation=<…> |
-  residence=<…> — one line each person named; ref p1, p2, … in this entry; role: ${ROLES.join(", ")};
+  residence=<…> | region=x,y,w,h — one line each person named; ref p1, p2, … in this entry; role: ${ROLES.join(", ")};
   given and surname only turn the written name into today's form ("Joannes" → "Jan"): never a name the transcript
   does not have — no surname the entry does not write by the person (a child's is not taken from its father's);
   on a form (a certificate) whose fields hold a name apart, written= the words of its fields as written there;
-  a name you could not read stays out; leave out what the entry does not say
+  a name you could not read stays out; leave out what the entry does not say; region: where the person's name
+  stands — its line, or its field on a form — as the entry's region, of the page's whole view (tight, not the entry)
 event: <BIRT | BAPM | MARR | DEAT | BURI | RESI | EVEN> | date=<as on the record, in numbers: 3.4.1846, or a year> |
-  place=<the place as written> | persons=<ref>:<principal|father|mother|godparent|witness|groom|bride|deceased|other>,…
+  place=<the place as written> | persons=<ref>:<principal|father|mother|godparent|witness|groom|bride|deceased|other>,… |
+  region=x,y,w,h — where its date (and place) stand, as a person's region
 relation: parent <ref of the parent> <ref of the child>  — or —  spouse <ref> <ref>
 ${
   blind
@@ -176,11 +178,15 @@ export interface RawPerson {
   ref: string;
   role: string;
   roleText?: string;
+  /** Where its name stands on the page (of the view read, as the entry's region). */
+  region?: Region;
   fields: Record<string, string>;
 }
 
 export interface RawEvent {
   type: string;
+  /** Where its date and place stand on the page (of the view read, as the entry's region). */
+  region?: Region;
   fields: Record<string, string>;
 }
 
@@ -320,12 +326,18 @@ export function parseDocReport(text: string): DocReport {
       const ref = /^p\d+$/iu.test(parts[0]!.trim()) ? parts.shift()!.trim().toLowerCase() : `p${entry.persons.length + 1}`;
       const role = parts[0] && !parts[0].includes("=") ? parts.shift()!.trim().toLowerCase() : "other";
       const roleText = parts[0] && !parts[0].includes("=") ? parts.shift()!.trim() : undefined;
-      entry.persons.push({ ref, role, ...(roleText ? { roleText } : {}), fields: pairs(parts) });
+      const fields = pairs(parts);
+      const region = parseRegion(fields.region);
+      delete fields.region;
+      entry.persons.push({ ref, role, ...(roleText ? { roleText } : {}), ...(region ? { region } : {}), fields });
     }
     for (const e of fields.get("event") ?? []) {
       const parts = e.split(/\s*\|\s*/u);
       const type = parts[0] && !parts[0].includes("=") ? parts.shift()!.trim() : "EVEN";
-      entry.events.push({ type, fields: pairs(parts) });
+      const fields = pairs(parts);
+      const region = parseRegion(fields.region);
+      delete fields.region;
+      entry.events.push({ type, ...(region ? { region } : {}), fields });
     }
     for (const r of fields.get("relation") ?? []) {
       const w = r.split(/[\s,]+/u).filter(Boolean);
@@ -427,6 +439,8 @@ export interface DocPerson {
   residence?: string;
   uncertain?: Uncertain[];
   match?: { person: string; why: string[]; score: number }[];
+  /** Where its name stands on the page upright (fractions of it, from its top left): the app's picture of the person. */
+  region?: Region;
   /** For the Strom app alone (resultForApp): the role the blind reader gave this person, where it is another. */
   blindRole?: (typeof ROLES)[number];
 }
@@ -438,6 +452,8 @@ export interface DocEvent {
   place?: { text: string; known?: string };
   persons: { ref: string; role: string }[];
   uncertain?: Uncertain[];
+  /** Where its date and place stand on the page upright. */
+  region?: Region;
 }
 
 export interface DocEntry {
@@ -672,6 +688,8 @@ export function checkEntry(raw: RawEntry, id: string, blind = false, form = fals
       if (v.includes("[?]") || v.includes("[...]")) uncertain.add(f);
     }
     if (uncertain.size) person.uncertain = [...uncertain];
+    const region = partOf(p.region, raw.region);
+    if (region) person.region = region;
     persons.push(person);
   }
   const refs = new Set(persons.map((p) => p.ref));
@@ -697,6 +715,8 @@ export function checkEntry(raw: RawEntry, id: string, blind = false, form = fals
       if (refs.has(ref.toLowerCase())) ev.persons.push({ ref: ref.toLowerCase(), role: role.toLowerCase() });
     }
     if (uncertain.size) ev.uncertain = [...uncertain];
+    const region = partOf(e.region, raw.region);
+    if (region) ev.region = region;
     events.push(ev);
   }
   const relations: DocEntry["relations"] = [];
@@ -710,6 +730,24 @@ export function checkEntry(raw: RawEntry, id: string, blind = false, form = fals
   if (!blind && raw.translation) entry.translation = raw.translation;
   if (!blind && raw.terms.length) entry.glossary = raw.terms;
   return { entry, checks };
+}
+
+/** A name's or a date's line is no more than a quarter of the page. */
+const PART_AREA = 0.25;
+/** How far a part may lie out of its entry's region (a reader's regions are rough). */
+const PART_SLACK = 0.05;
+
+/**
+ * A person's or an event's region as a reader gave it, where it can be one: a part of the page no bigger than a
+ * quarter of it, that lies (roughly) in its entry's region; else none — the app shows the entry's region then.
+ */
+function partOf(r: Region | undefined, entry: Region | undefined): Region | undefined {
+  if (!r || r[2] * r[3] > PART_AREA) return undefined;
+  if (!entry) return r;
+  const [x, y, w, h] = [entry[0] - PART_SLACK, entry[1] - PART_SLACK, entry[2] + 2 * PART_SLACK, entry[3] + 2 * PART_SLACK];
+  const across = Math.min(r[0] + r[2], x + w) - Math.max(r[0], x);
+  const down = Math.min(r[1] + r[3], y + h) - Math.max(r[1], y);
+  return across > 0 && down > 0 ? r : undefined;
 }
 
 // ── two readers ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -803,6 +841,7 @@ export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: 
     used.set(e.page, k + 1);
     const b = other.get(e.page)?.[k];
     const variants: { field: string; at: string; other: string }[] = [];
+    const regions = new Map<DocPerson | DocEvent, Region>();
     if (!b) variants.push({ field: "entry", at: e.id, other: "" });
     else {
       for (const d of wordDiff(e.transcript, b.transcript)) variants.push({ field: "transcript", ...d });
@@ -815,6 +854,8 @@ export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: 
       const seen = new Map<string, number>();
       const fields = (p: DocPerson, q: DocPerson) => {
         for (const f of ["given", "surname"] as const) if (!same(p[f], q[f])) variants.push({ field: `${p.ref}.${f}`, at: p[f] ?? "", other: q[f] ?? "" });
+        // where the name stands: the first reader's, else the blind one's of the same person
+        if (!p.region && q.region) regions.set(p, q.region);
       };
       const alone: DocPerson[] = [];
       for (const p of e.persons) {
@@ -849,13 +890,15 @@ export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: 
           variants.push({ field: ev.type, at: ev.date?.text ?? ev.type, other: "" });
           continue;
         }
+        if (!ev.region && q.region) regions.set(ev, q.region);
         if ((ev.date?.gedcom ?? ev.date?.text) !== (q.date?.gedcom ?? q.date?.text) && !same(ev.date?.text, q.date?.text)) variants.push({ field: `${ev.type}.date`, at: ev.date?.text ?? "", other: q.date?.text ?? "" });
         if (!same(ev.place?.text, q.place?.text)) variants.push({ field: `${ev.type}.place`, at: ev.place?.text ?? "", other: q.place?.text ?? "" });
       }
     }
     const agree = variants.length ? "differ" : "same";
     if (variants.length) all = false;
-    return { ...e, agree, ...(variants.length ? { variants } : {}) } as DocEntry;
+    const placed = <T extends DocPerson | DocEvent>(x: T): T => (regions.has(x) ? { ...x, region: regions.get(x)! } : x);
+    return { ...e, persons: e.persons.map(placed), events: e.events.map(placed), agree, ...(variants.length ? { variants } : {}) } as DocEntry;
   });
   // entries only the blind reader has
   for (const [page, list] of other) if (list.length > (used.get(page) ?? 0)) all = false;
@@ -1196,7 +1239,11 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
         if (!blind) checks.push(...c.checks);
         // a region of a part asked (--region): of the whole page
         const page = s.pages.find((p) => p.n === e.page);
-        if (c.entry.region && page?.region) c.entry.region = within(page.region, c.entry.region);
+        if (page?.region) {
+          const part = page.region;
+          if (c.entry.region) c.entry.region = within(part, c.entry.region);
+          for (const x of [...c.entry.persons, ...c.entry.events]) if (x.region) x.region = within(part, x.region);
+        }
         out.push(c.entry);
       }
     });

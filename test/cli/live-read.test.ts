@@ -44,8 +44,9 @@ legible: yes
 region: 0.05,0.30,0.90,0.20
 transcript: 3. Aprilis 1846 | Joannes filius | Josephi Novák agricolae | in Lhota
 translation: 3. dubna 1846 Jan, syn Josefa Nováka, rolníka
-person: p1 | child | dítě | written=Joannes | given=Jan | sex=M
+person: p1 | child | dítě | written=Joannes | given=Jan | sex=M | region=0.06,0.34,0.20,0.03
 person: p2 | father | otec | written=Josephi Novák | given=Josef | surname=Novák | sex=M
+event: BAPM | date=3.4.1846 | place=Lhota | persons=p1:principal,p2:father | region=0.05,0.30,0.40,0.03
 relation: parent p2 p1
 
 ## Context
@@ -164,6 +165,9 @@ test("a document read for the Strom app: sent with no intake task, asked, follow
     const result = json(await request("GET", `${url}/read/${id}`));
     assert.equal(result.entries.length, 1);
     assert.equal(result.entries[0].persons[1].match[0].person, "P0001");
+    // where each person's name and the event stand: the app's picture of each (K2.1); none said, none given
+    assert.deepEqual(result.entries[0].persons.map((p: { region?: number[] }) => p.region), [[0.06, 0.34, 0.2, 0.03], undefined]);
+    assert.deepEqual(result.entries[0].events[0].region, [0.05, 0.3, 0.4, 0.03]);
     assert.deepEqual(result.persons, ["P0001"]);
     assert.equal(result.note, "rub fotky od tety");
     assert.equal(result.pages[0].image, `read/${id}/page/1.jpg`);

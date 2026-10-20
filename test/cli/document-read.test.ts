@@ -102,6 +102,8 @@ test("strom document read: transcript, translation, terms, people checked and ma
     assert.match(e.translation, /^3\. dubna 1846/);
     assert.deepEqual(e.glossary, [{ term: "agricola", meaning: "rolník", kind: "occupation" }]);
     assert.deepEqual(e.region, [0.05, 0.3, 0.9, 0.2]);
+    // a reader that says nowhere where a name stands (a strom before): no region of a person or an event
+    assert.ok([...e.persons, ...e.events].every((x: { region?: unknown }) => x.region === undefined));
     // nothing filled in: the witness the transcript has not is left out, the godparent's unread surname too
     assert.deepEqual(e.persons.map((p: { ref: string }) => p.ref), ["p1", "p2", "p3", "p4"]);
     assert.equal(e.persons[3].surname, undefined);
@@ -258,11 +260,11 @@ legible: yes
 ## Entry e1 · page 1
 region: 0.10,0.05,0.80,0.60
 transcript: Standesamt Lhota | Geburtsurkunde | Tag der Geburt 03-04-1950 | Ort der Geburt Lhota | Familienname LÖFFLER | Vornamen HANS JÜRGEN | Geschlecht M | Vater | Mutter | Familienname LÖFFLER | LÖFFLER | Vornamen WALTER | ERIKA MARIA | Ausgestellt am 12-05-2020 | Dr. Petra Zimmer${blind ? "" : " [?]"} | Standesbeamtin
-person: p1 | child | ${blind ? "" : "dítě | "}written=LÖFFLER HANS JÜRGEN | given=Hans Jürgen | surname=Löffler | sex=M
-person: p2 | father | ${blind ? "" : "otec | "}written=LÖFFLER WALTER | given=Walter | surname=Löffler | sex=M
-person: p3 | mother | ${blind ? "" : "matka | "}written=LÖFFLER ERIKA MARIA | given=Erika Maria | surname=Löffler | sex=F
+person: p1 | child | ${blind ? "" : "dítě | "}written=LÖFFLER HANS JÜRGEN | given=Hans Jürgen | surname=Löffler | sex=M | region=${blind ? "0.30,0.25,0.40,0.06" : "0.30,0.24,0.42,0.06"}
+person: p2 | father | ${blind ? "" : "otec | "}written=LÖFFLER WALTER | given=Walter | surname=Löffler | sex=M | region=${blind ? "0.12,0.40,0.35,0.06" : "0,0,1,0.9"}
+person: p3 | mother | ${blind ? "" : "matka | "}written=LÖFFLER ERIKA MARIA | given=Erika Maria | surname=Löffler | sex=F${blind ? "" : " | region=0.10,0.90,0.30,0.05"}
 ${blind ? "person: p4 | writer | written=Dr. Petra Zimmer | given=Petra | surname=Zimmer | sex=F" : "person: p4 | other | úřednice | written=Dr. Petra Zimmer [?] | given=Petra | sex=F | occupation=Standesbeamtin"}
-event: BIRT | date=3.4.1950 | place=Lhota | persons=p1:principal,p2:father,p3:mother
+event: BIRT | date=3.4.1950 | place=Lhota | persons=p1:principal,p2:father,p3:mother${blind ? " | region=0.12,0.15,0.50,0.05" : ""}
 relation: parent p2 p1
 relation: parent p3 p1
 
@@ -282,6 +284,10 @@ done: 1 entries`;
     assert.deepEqual(e.events[0].persons, [{ ref: "p1", role: "principal" }, { ref: "p2", role: "father" }, { ref: "p3", role: "mother" }]);
     assert.deepEqual(e.relations, [{ type: "parent", parent: "p2", child: "p1" }, { type: "parent", parent: "p3", child: "p1" }]);
     assert.deepEqual(d.checks, []);
+    // where each name and the birth stand (K2.1): the first reader's; one of half the page, or out of the entry, is
+    // none — the blind reader's of the same person then, else none (the app shows the entry's region)
+    assert.deepEqual(e.persons.map((p: { region?: number[] }) => p.region), [[0.3, 0.24, 0.42, 0.06], [0.12, 0.4, 0.35, 0.06], undefined, undefined]);
+    assert.deepEqual(e.events[0].region, [0.12, 0.15, 0.5, 0.05]);
     // the readers agree on the people of the form; the clerk's role and the surname only the blind one read are variants
     assert.deepEqual(e.variants, [
       { field: "p4.role", at: "other", other: "writer" },
@@ -305,7 +311,7 @@ test("strom document read of a PDF: its pages; a part of a page asked is said of
     const page = encodeImage(halves(1200, 1600), "jpeg", 90);
     const pdf = path.join(dir, "dopis.pdf");
     fs.writeFileSync(pdf, makePdf([{ jpeg: { bytes: page, width: 1200, height: 1600 } }, { jpeg: { bytes: page, width: 1200, height: 1600 } }]));
-    fs.writeFileSync(path.join(dir, "letter.md"), "## Document\nkind: letter\nlegible: yes\n\n## Entry e1 · page 2\nregion: 0,0,1,0.5\ntranscript: Liebe Anna\n\ndone: 1 entries");
+    fs.writeFileSync(path.join(dir, "letter.md"), "## Document\nkind: letter\nlegible: yes\n\n## Entry e1 · page 2\nregion: 0,0,1,0.5\ntranscript: Liebe Anna\nperson: p1 | addressee | written=Anna | given=Anna | sex=F | region=0.30,0.10,0.20,0.10\n\ndone: 1 entries");
     w.env.DOC_FIRST = path.join(dir, "letter.md");
     const d = (await w.ok(["document", "read", pdf, "--region", "2:0,0.5,1,0.5", "--into", "en", "--agent", "script", "--json"])).json;
     assert.equal(d.lang, "en");
@@ -313,6 +319,7 @@ test("strom document read of a PDF: its pages; a part of a page asked is said of
     assert.deepEqual(d.pages[1].region, [0, 0.5, 1, 0.5]);
     // the reader's region of the part, as a region of the page
     assert.deepEqual(d.entries[0].region, [0, 0.5, 1, 0.25]);
+    assert.deepEqual(d.entries[0].persons[0].region, [0.3, 0.55, 0.2, 0.05]);
     assert.match((await w.ok(["document", "show", d.id])).out, /strom media view I0001:2 --crop 0,0\.5,1,0\.25/);
   } finally {
     w.cleanup();
