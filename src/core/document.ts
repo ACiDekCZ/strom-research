@@ -965,6 +965,11 @@ export function nextVersion(s: ReadState): number {
   return Math.max(s.version, ...s.reports.map((r) => r.version)) + 1;
 }
 
+/** A file's name for a person: its last part, no control characters, at most 200 characters. */
+export function shownName(name: string): string {
+  return path.basename(name.normalize("NFC").replace(/[\\/]+/gu, "/")).replace(/[\p{Cc}]/gu, "").trim().slice(0, 200);
+}
+
 /** Whoever asked a reading from the Strom app (its bridge). */
 export const APP_READ_FROM = "app:read";
 

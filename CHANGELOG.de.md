@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.18.0
 
-*In Vorbereitung: die Betas bis 1.18.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.18.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Handyfotos aufrecht.** Ein Foto, das nach seiner EXIF-Ausrichtung gedreht ist, wird gelesen, wie es gesehen
   werden soll, aufrecht; die darauf markierten Stellen (Ausschnitte, die Hälften einer Doppelseite, ein gespeicherter
@@ -22,7 +22,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   samt wem im Stammbaum sie entsprechen können. Nichts wird ergänzt: ein Name, der nicht im Dokument steht, fällt
   weg — auch ein Nachname, nie vom Vater oder aus einer anderen Familie genommen —, Unleserliches wird markiert; ein
   zweiter Leser kann blind lesen. In den Stammbaum gelangt nichts von selbst. Ein schon gelesenes Dokument sagt es,
-  so wird es nicht versehentlich ein zweites Mal gelesen.
+  so wird es nicht versehentlich ein zweites Mal gelesen. Ein erneut gelesenes Dokument wird unter dem Namen seiner
+  Datei gezeigt, nie unter einem Code.
 - **Fotos vom Handy.** `strom phone on`, das nur ein Mensch einschaltet, lässt ein Handy im Heimnetz (WLAN oder
   Kabel — nie ein Mobilfunknetz oder ein VPN) zu diesem Computer. Das Handy wird einmal per QR-Code gekoppelt; seine
   Seite fotografiert dann oder wählt aus der Galerie und schickt die Fotos ganz in einen Stammbaum der Forschung, mit

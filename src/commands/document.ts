@@ -46,6 +46,7 @@ import {
   reportPath,
   resultPath,
   saveState,
+  shownName,
   SMALL_PX,
   withoutDocNext,
   type DocPageView,
@@ -107,6 +108,25 @@ function regionsOf(said: unknown): Map<number, Region> {
   return out;
 }
 
+/** --name [<file>:]<name>: the name each file is shown under in the reading (the first file's without a number). */
+function namesOf(said: unknown, files: number): Map<number, string> {
+  const out = new Map<number, string>();
+  for (const v of Array.isArray(said) ? said : said === undefined ? [] : [said]) {
+    const m = /^(\d{1,2}):(.*)$/su.exec(String(v));
+    const at = m && Number(m[1]) >= 1 && Number(m[1]) <= files ? Number(m[1]) : 1;
+    const name = shownName(m && at === Number(m[1]) ? m[2]! : String(v));
+    if (!name) throw new UsageError(`invalid --name "${String(v).slice(0, 60)}"`, { hint: 'the file\'s name as the person knows it: --name "back of the photo.jpg" (the second file\'s: --name 2:<name>)' });
+    out.set(at, name);
+  }
+  return out;
+}
+
+/** An image's name for a person: the file it came as (its `from`: "the Strom app: x.jpg", "portal · x.jpg"), else its ID — never its hash. */
+function mediaName(m: Media): string {
+  const last = m.from?.split(/: | · /u).at(-1)?.trim();
+  return (last && !last.includes(m.sha.slice(0, 12)) && shownName(last)) || m.id;
+}
+
 function readersOf(said: unknown, dflt: number): number {
   if (said === undefined) return dflt;
   const n = Number(said);
@@ -129,7 +149,7 @@ function filesOf(ctx: Context, tree: Tree, args: string[], persons: string[], no
       const id = normId(a.trim(), a.trim().toUpperCase().startsWith("M") ? "media" : "input");
       const file = fileOf(tree, shared, id);
       const rec = id.startsWith("M") ? requireRecord<Media>(tree, id, "media") : requireRecord<Input>(tree, id, "input");
-      records.push({ id, file, name: "name" in rec && rec.name ? rec.name : path.basename(file), ...(rec.sha ? { sha: rec.sha } : {}) });
+      records.push({ id, file, name: rec.type === "input" ? rec.name : mediaName(rec), ...(rec.sha ? { sha: rec.sha } : {}) });
       continue;
     }
     const p = ctx.resolvePath(a);
@@ -466,6 +486,7 @@ register({
     { name: "region", type: "string", multiple: true, value: "[<page>:]x,y,w,h", description: "read only this part of a page: fractions of it from its top left (repeatable, one per page)" },
     { name: "note", type: "string", value: "<text>", description: "what the person says the document is (\"the back of a photo\") — a description only, never names to find" },
     { name: "person", type: "string", multiple: true, value: "<P…>", description: "a person it is of, as the person says (repeatable)" },
+    { name: "name", type: "string", multiple: true, value: "[<file>:]<name>", description: "the name a file is shown under in the reading (default: its input's name, an image's original file name; repeatable, 2:<name> for the second file)" },
     { name: "model", type: "string", value: "<model>", description: "model of the readers (default: model.vision — never weaker for handwriting)" },
     { name: "minutes", type: "string", value: "<n>", description: READER_MINUTES_HELP, mistaken: ["timeout", "time", "time-limit", "max-minutes"] },
     { name: "queue", type: "boolean", description: "keep it to be read later, read nothing now (strom document read D… reads it)" },
@@ -487,6 +508,7 @@ register({
     tree.withTreeLock(() => {
       try {
         const { records, added } = filesOf(ctx, tree, args, persons, note);
+        for (const [at, name] of namesOf(opts.name, records.length)) records[at - 1]!.name = name;
         pages = pagesOf(tree, records, regions);
         for (const r of new Set(records.map((x) => x.id)))
           if (r.startsWith("I")) update<Input>(tree, r, "input", (i) => ({ ...i, read: [...(i.read ?? []), id] }), { op: "input.read", summary: `${r} read: ${id}` });

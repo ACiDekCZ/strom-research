@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.18.0
 
-*In preparation: the betas up to 1.18.0-beta.4. The section is complete with the release.*
+*In preparation: the betas up to 1.18.0-beta.5. The section is complete with the release.*
 
 - **Phone photos upright.** A photo turned by its EXIF orientation is read as it is meant to be seen, upright; the
   places marked on it (excerpts, the halves of a spread, a cut-out part) are of the picture as it is shown. The
@@ -21,7 +21,8 @@ The changes of each version in short. The full notes and the install lines are o
   old words and abbreviations mean, and the people it names, with who of the tree they may be. Nothing is filled in:
   a name the document does not have is left out — a surname too, never taken from a father or another family —,
   what cannot be read is marked; a second reader can read it blind. Nothing of it enters the tree by itself. A
-  document read already says so, so it is not read a second time by mistake.
+  document read already says so, so it is not read a second time by mistake. A document read again is shown under
+  the name of its file, never a code.
 - **Photos from a phone.** `strom phone on`, turned on by the person alone, lets a phone on the home network (Wi-Fi
   or a cable — never a mobile network or a VPN) reach this computer. The phone is paired once by its QR code; its
   page then takes photos or picks them from the gallery and sends them whole into a tree of the research, with a

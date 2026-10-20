@@ -262,6 +262,45 @@ test("readings of the app one at a time: three more queued, the next refused; on
   }
 });
 
+test("a file the research has already, sent to be read: its reading shown under the name it came with last, else its record's own — never its hash", opts, async () => {
+  const { w, url } = await setUp();
+  try {
+    await w.ok(["source", "add", "Křest", "--kind", "baptism"]); // S0001
+    const readName = async (photo: Uint8Array, h: Record<string, string>) => {
+      const sent = await request("PUT", `${url}/media/${sha(photo)}`, photo, { ...app, "X-Strom-Read": "1", ...h });
+      assert.equal(sent.status, 200, sent.body.toString());
+      const asked = await post(`${url}/read`, { files: [sha(photo)] });
+      assert.equal(asked.status, 202, asked.body.toString());
+      const id = json(asked).read as string;
+      await until("read", async () => json(await request("GET", `${url}/read/${id}`)).state === "done", { ms: 60_000 });
+      const status = json(await request("GET", `${url}/status`)).reads.find((r: { id: string }) => r.id === id).name;
+      const listed = json(await request("GET", `${url}/reads`)).reads.find((r: { id: string }) => r.id === id).name;
+      const page = json(await request("GET", `${url}/read/${id}`)).pages[0].name;
+      assert.deepEqual([listed, page], [status, status]);
+      return status as string;
+    };
+
+    // an image of a source the app sent before: known as that image (M…)
+    const scan = jpegWithOrientation(halves(1600, 1200), 1);
+    const first = await request("PUT", `${url}/media/${sha(scan)}`, scan, { ...app, "X-Strom-Name": encodeURIComponent("matrika strana 3.jpg"), "X-Strom-Source": "S0001" });
+    assert.match(json(first).media, /^M\d{4}$/, first.body.toString());
+    assert.equal(await readName(scan, { "X-Strom-Name": encodeURIComponent("Крещение Яна.jpg") }), "Крещение Яна.jpg");
+    assert.equal(await readName(scan, {}), "matrika strana 3.jpg", "no name now: the image's own, as it came first");
+
+    // an input sent to be read before (its name decomposed): read again under another name, then under none
+    const photo = jpegWithOrientation(halves(1200, 1600), 1);
+    assert.equal(await readName(photo, { "X-Strom-Name": encodeURIComponent("zápis křtu.jpg".normalize("NFD")) }), "zápis křtu.jpg");
+    assert.equal(await readName(photo, { "X-Strom-Name": encodeURIComponent("rub fotky.jpg") }), "rub fotky.jpg");
+    assert.equal(await readName(photo, {}), "zápis křtu.jpg", "no name now: the input's own");
+    // a name of nothing but slashes, control characters or spaces: no name (it read before as invalid --name, nothing read)
+    for (const odd of ["%2F", "%2F%2F", "%01", "%01%1F", "%20%20"]) assert.equal(await readName(photo, { "X-Strom-Name": odd }), "zápis křtu.jpg", odd);
+    assert.equal(await readName(photo, { "X-Strom-Name": encodeURIComponent("../a\u0001b/Крещение.jpg") }), "Крещение.jpg");
+  } finally {
+    await w.run(["live", "stop"]);
+    w.cleanup();
+  }
+});
+
 test("no reader here: accepts.read says why and nothing is asked; an archive reads nothing and says nothing of it", opts, async () => {
   const { w, url } = await setUp({ CODEX_SANDBOX: "seatbelt" });
   try {

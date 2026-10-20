@@ -18,7 +18,7 @@ import type { Env } from "./paths.ts";
 import { newerTree, Tree } from "./tree.ts";
 import type { Settings } from "./config.ts";
 import { actsAsArchive } from "./state.ts";
-import { APP_READ_FROM, alive, backBefore, buildResult, DOC_PAGES, FINAL_STATES, loadState, parseRegion, READ_ID, readsDir, reportPath, resultPath, saveState, statePath, type ReadResult, type ReadState, type ReadStateName } from "./document.ts";
+import { APP_READ_FROM, alive, backBefore, buildResult, DOC_PAGES, FINAL_STATES, loadState, parseRegion, READ_ID, readsDir, reportPath, resultPath, saveState, shownName, statePath, type ReadResult, type ReadState, type ReadStateName } from "./document.ts";
 import { knownOriginal } from "./originals.ts";
 import { readableTypes } from "./readable.ts";
 import { makeView } from "./views.ts";
@@ -352,6 +352,8 @@ export interface ReadBridge {
 
 type Refusal = ReturnType<typeof refusal>;
 const BODY_MAX = 16 * 1024;
+/** The names of files sent to be read kept until they are asked (the last ones). */
+const NAMES_KEPT = 200;
 
 /**
  * The readings of the app: POST /read, /read/<id>/again, /read/<id>/cancel; GET /read/<id>, /read/<id>/page/<n>.jpg,
@@ -365,11 +367,25 @@ export class AppReadings {
   private readonly starting = new Map<string, { at: number; tries: number }>();
   private readonly told = new Map<string, string>();
   private primed = false;
+  /** The name each file to read came under (X-Strom-Name of its last PUT): a file the research had already keeps its own. */
+  private readonly names = new Map<string, string>();
 
   private readonly b: ReadBridge;
   constructor(b: ReadBridge) {
     this.b = b;
     this.seen = new ReadingsSeen(b.root, b.env);
+  }
+
+  /** A file sent to be read (PUT /media with X-Strom-Read) under its name in the app: the reading of it shown so (sent with no name: its record's own). */
+  named(sha: string, name: string | undefined): void {
+    this.names.delete(sha);
+    // cleaned as strom document read --name cleans it: nothing left (only slashes, control characters) = no name
+    const shown = name && shownName(name);
+    if (shown) this.names.set(sha, shown);
+    for (const old of this.names.keys()) {
+      if (this.names.size <= NAMES_KEPT) break;
+      this.names.delete(old);
+    }
   }
 
   /** A reading of the app at work or queued (the bridge does not end idle meanwhile). */
@@ -549,6 +565,8 @@ export class AppReadings {
     }
     const shared = this.b.settings().shared()?.value;
     const records: string[] = [];
+    // each file under the name the app sent it with last, else its record's own (never its hash)
+    const names: string[] = [];
     const types = readableTypes(this.b.env);
     for (const f of files as string[]) {
       const sha = f.toLowerCase();
@@ -558,12 +576,14 @@ export class AppReadings {
       if (!types.includes(known.mime)) return { code: 415, body: refusal(`a reader reads no ${known.mime} here`, "read.type", { sha, mime: known.mime }) };
       if (known.bytes > READ_MAX_BYTES) return { code: 413, body: refusal(`larger than a reading takes (${READ_MAX_BYTES / 1024 / 1024} MB)`, "read.large", { sha, mb: String(READ_MAX_BYTES / 1024 / 1024) }) };
       records.push(known.id);
+      const name = this.names.get(sha);
+      if (name) names.push(`--name=${records.length}:${name}`);
     }
     const limited = this.limited();
     if (limited) return limited;
     return {
       what: "a reading",
-      args: ["document", "read", ...records, "--queue", "--readers", String(readers), "--into", lang, ...(person ? ["--person", person] : []), ...(note ? [`--note=${note}`] : []), ...(region ? [`--region=${region}`] : [])],
+      args: ["document", "read", ...records, "--queue", "--readers", String(readers), "--into", lang, ...(person ? ["--person", person] : []), ...(note ? [`--note=${note}`] : []), ...(region ? [`--region=${region}`] : []), ...names],
       asked: "read",
     };
   }

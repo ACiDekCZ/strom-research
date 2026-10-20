@@ -1971,6 +1971,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       return typeof v === "string" ? v : undefined;
     };
     let name: string;
+    let named: string | undefined;
     let note: string | undefined;
     let meta: { persons: string[]; source?: string };
     let region: string | undefined;
@@ -1990,7 +1991,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
       at = "X-Strom-Path";
       where = header("x-strom-path") ? batchPath(decodeURIComponent(header("x-strom-path")!)) : undefined;
       at = "X-Strom-Name";
-      name = decodeURIComponent(header("x-strom-name") ?? "") || sha.slice(0, 12);
+      named = decodeURIComponent(header("x-strom-name") ?? "").trim() || undefined;
+      name = named ?? sha.slice(0, 12);
       at = "X-Strom-Note";
       note = header("x-strom-note") ? decodeURIComponent(header("x-strom-note")!).slice(0, 500) : undefined;
       at = "X-Strom-Person";
@@ -2025,6 +2027,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const no = fileRefused(tree.get<Task>(forTask), forTask);
       if (no) return refuse(409, refusal(no.message, no.code === "task.no-file" ? "waiting.no-file" : "waiting.none", { id: forTask }));
     }
+    // a file to read: its reading shown under the name it came with now — also when the research had it already
+    if (read) reads.named(sha, named);
     receiveOriginal(receiver, req, res, { sha, name, note, persons: meta.persons, source: meta.source, region, batch, where, zip, task: forTask, ...(read ? { read } : {}) });
   };
 

@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.18.0
 
-*Připravuje se: bety do 1.18.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.18.0-beta.5. Oddíl bude úplný s vydáním.*
 
 - **Fotky z telefonu nastojato.** Fotka otočená podle údaje EXIF se čte tak, jak se má dívat, nastojato; místa na ní
   vyznačená (výřezy, poloviny dvoustrany, uložená část) jsou místa obrázku, jak se ukazuje. Fotka sama zůstává, jak
@@ -21,7 +21,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   a osoby, které jmenuje, i s tím, kdo ze stromu to může být. Nic se nedomýšlí: jméno, které v dokumentu není,
   vypadne — i příjmení, nikdy se nebere od otce ani z jiné rodiny —, co nejde přečíst, je označené; druhý čtenář
   může číst naslepo. Do stromu se z toho nic nezapíše samo. Dokument už přečtený to o sobě řekne, takže se omylem
-  nečte podruhé.
+  nečte podruhé. Dokument čtený znovu se ukazuje pod názvem svého souboru, nikdy pod kódem.
 - **Fotky z telefonu.** `strom phone on`, které zapíná jen člověk, pustí k počítači telefon v domácí síti (Wi-Fi
   nebo kabel — nikdy mobilní síť ani VPN). Telefon se jednou spáruje přes QR kód; jeho stránka pak fotí nebo vybírá
   z galerie a posílá fotky celé do stromu výzkumu, s poznámkou a osobou, kterou ukazují — stejně jako „Přidat
