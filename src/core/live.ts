@@ -12,7 +12,8 @@
 //   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*)
 //   GET <token>/images.ged the same (the address an older strom gave)
 //   GET <token>/log        what the research saved, newest first (each commit: when, what, for which task;
-//                          text: its lines as the user reads them, kinds: what each is about)
+//                          text: its lines as the user reads them, kinds: what each is about, sources: the S… each
+//                          names — only when one does)
 //   GET <token>/whats-new  what is new in this strom (?lang=cs|en|de, else en): {version, lang, url, points} — the
 //                          running version's section of the changelog shipped with it; asking keeps no bridge running
 //   GET <token>/recent     what the research added in the last hours (?hours=1…168, 24 when not given): the people and
@@ -26,6 +27,11 @@
 //   POST <token>/cancel    …or says it sends nothing ({"reason": "unchanged" | "cancelled" | "no-tree"})
 //   GET <token>/media/<sha256>   whether the research has a file of that content (an original the app would send);
 //                          ?file=1: the file itself (the original, for the app's viewer)
+//   GET <token>/excerpt/<S…>   a source's excerpts the file left out (_STROM_IMG_OMITTED), as the file would carry
+//                          them (?clip=<mark> one, ?level=sharp|normal|small|smaller, another the research's): JPEGs as data URLs with where
+//                          each is; what takes long is made over several asks (202 {later}, asked again)
+//   GET <token>/excerpts?missing=1   what the file left out that the app could load: each source, its marks, about how
+//                          large (nothing made to say it)
 //   GET <token>/material   the family's files the research keeps (core/material.ts), ?person=P… / ?batch=<id>
 //   PUT <token>/media/<sha256>   an original from the app, unchanged (the body; X-Strom-Name, -Person, -Source,
 //                          -Region, -Note): streamed to disk, its hash checked, kept outside git
@@ -92,7 +98,7 @@ import { directionOf, scopes, type Scope } from "./directions.ts";
 import { ancestorGenerations } from "./people.ts";
 import { phrase } from "./phrases.ts";
 import { exportGedcom } from "../gedcom/export.ts";
-import { excerptSettings, planExcerpts } from "./excerpt.ts";
+import { dataUrl, excerptLevel, excerptMarks, excerptSettings, excerptSizes, INPUT_MARK, LEVELS, planExcerpts, sourceExcerpts, turned, type ExcerptOmitted } from "./excerpt.ts";
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, stateOf } from "./state.ts";
@@ -107,6 +113,10 @@ import { BATCH_ID, batchEstimate, batchLimits, batchPath, batchStatus, idleBatch
 
 /** New images for the app, made for at most so long when the tree changed (the rest the next time). */
 const LIVE_IMAGES_MS = 20_000;
+/** How long the bridge makes the excerpts of one source the app asks for (/excerpt/<S>): the rest the next ask makes. */
+const EXCERPT_MS = 20_000;
+/** A source with more excerpts than this is answered without the pictures: the app asks for each (?clip=). */
+const EXCERPTS_AT_ONCE = 12;
 import { anyoneAtWork, liveWorkers, type Paused } from "./workers.ts";
 import { monthSpend, openSessions } from "./session.ts";
 import { rankTasks } from "./queue.ts";
@@ -116,7 +126,7 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
 import { Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
@@ -124,7 +134,7 @@ import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, 
 import { qrSvg } from "./qr.ts";
 import { diskVersion, stromLauncher } from "./self.ts";
 import { closeBatchBy, forApp, receiveOriginal, refusal, refusalOf, type Receiver } from "./receive.ts";
-import type { Session, Source, Task, TreeConfig } from "./model.ts";
+import type { Input, Media, Session, Source, Task, TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
 import { requestTexts, waitingFor } from "./waiting.ts";
 import { fileRefused } from "./taskfiles.ts";
@@ -763,7 +773,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -803,6 +813,15 @@ function taskTitle(tree: Tree, task: Task): string {
   return `${task.id} ${humanTask(tree, task.what, tree.lang)}`;
 }
 
+/**
+ * What a change not written is about besides a person or a family, for the app to put it to its line: a source (the
+ * research's S…, or the file's @xref@ of one the research does not have) and a place (its name as the file has it).
+ */
+export function notWrittenOf(c: Change): { source?: string; place?: string } {
+  const source = c.sourceId ?? (c.source ? (c.source.startsWith("x:") ? `@${c.source.slice(2)}@` : c.source) : undefined);
+  return { ...(source && c.kind.startsWith("source.") ? { source } : {}), ...(c.kind === "place.coords" && c.place?.name ? { place: c.place.name } : {}) };
+}
+
 /** The commits as the app reads them — what depends on the research now (names, tasks, directions) worked out afresh. */
 function rendered(tree: Tree, raws: RawCommit[]): HistoryEntry[] {
   const sessions = new Map(tree.list<Session>("session").map((s) => [s.id, s]));
@@ -827,7 +846,9 @@ function rendered(tree: Tree, raws: RawCommit[]): HistoryEntry[] {
     const lines = changeLines(tree, ops, subject.trim(), tree.lang);
     // the directions only when a session needs them (they cost)
     const research = s ? sessionResearch(tree, s, s.research ? [] : (all ??= scopes(tree))) : undefined;
-    return { head, at, what: saved(subject.trim(), body), text: lines.map((l) => l.text), kinds: lines.map((l) => l.kind), ...taskOf(s), ...(research ? { research } : {}) };
+    // the sources each line names, for the app to open them (only when one does)
+    const sources = lines.some((l) => l.sources?.length) ? { sources: lines.map((l) => l.sources ?? []) } : {};
+    return { head, at, what: saved(subject.trim(), body), text: lines.map((l) => l.text), kinds: lines.map((l) => l.kind), ...sources, ...taskOf(s), ...(research ? { research } : {}) };
   });
 }
 
@@ -837,6 +858,8 @@ export interface HistoryEntry {
   what: string[];
   text: string[];
   kinds: ChangeKind[];
+  /** The sources each line of `text` names (S…, as the research has them now): only when a line names one. */
+  sources?: string[][];
   task?: string;
   research?: string;
 }
@@ -1328,6 +1351,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
   const streams = new Set<http.ServerResponse>();
   let lastAsked = Date.now();
   let ged: { head: string; links: string; version: string; text: string } | undefined;
+  /** The excerpts the tree's file of that head leaves out, though the research has them (the same for every app): /excerpts. */
+  let left: { head: string; level: string; sources: { source: Source; omitted: ExcerptOmitted }[] } | undefined;
   let log: { head: string; text: string } | undefined;
   // what git said of each commit, kept: a new commit costs only itself (/log, the changes heard)
   const histories = new HistoryCache(root);
@@ -1429,6 +1454,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
 
   /** The tree for the app as it is now (at its head; made again for another head, version of the app or links). */
   const giveGed = (res: http.ServerResponse, version: string | undefined) => {
+    const h = makeGed(version);
+    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged!.text);
+  };
+  /** The tree for the app made for its head and version, when it is not made yet; its head. */
+  const makeGed = (version: string | undefined): string => {
     const h = head(root);
     // made again for another version of the app (two windows, two versions: each gets what it reads)
     if (!ged || ged.head !== h || ged.version !== (version ?? "") || ged.links !== (appOpensLinks(new Settings(env, {}), version) ? links(env).join(" ") : "")) {
@@ -1451,15 +1481,103 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const hypothesisLinks = appShowsHypothesisLinks(new Settings(env, {}), version);
       const conflictSides = appDecidesConflicts(new Settings(env, {}), version);
       const readings = appShowsReadings(new Settings(env, {}), version);
+      // …and why a source has no image though the research has one, for an app that says so and asks for it
+      const omitted = !!images && appShowsOmittedImages(new Settings(env, {}), version);
+      left = {
+        head: h,
+        level: set?.quality ?? LEVELS[1]!.name,
+        sources: images ? tree.list<Source>("source").flatMap((s) => (s.retracted ? [] : [{ source: s, omitted: images.omitted(s) }])).filter((x): x is { source: Source; omitted: ExcerptOmitted } => !!x.omitted) : [],
+      };
       const offered = opens ? links(env) : [];
       ged = {
         head: h,
         links: offered.join(" "),
         version: version ?? "",
-        text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
+        text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
       };
     }
-    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": h }).end(ged.text);
+    return h;
+  };
+
+  /**
+   * What the app would load to have every image of the research (/excerpts?missing=1): the sources whose excerpts the
+   * file of the head now leaves out, though the research has them (not those whose image is not here), each with the
+   * marks of its excerpts, how large they come (made ones exactly, the rest estimated) and whether all are made.
+   */
+  const giveLeft = (res: http.ServerResponse, version: string | undefined) => {
+    const h = head(root);
+    if (!left || left.head !== h) makeGed(version);
+    const now = left!;
+    const tree = Tree.open(root, env);
+    const shared = new Settings(env, {}).shared()?.value;
+    const level = excerptLevel(now.level) ?? LEVELS[1]!;
+    const media = tree.list<Media>("media");
+    const sources = !shared
+      ? []
+      : now.sources
+          .filter((x) => x.omitted.why !== "missing")
+          .map((x) => ({ x, size: excerptSizes(tree, shared, x.source, level, media) }))
+          .filter(({ size }) => size.clips.length)
+          .map(({ x, size }) => ({ source: x.source.id, why: x.omitted.why, clips: size.clips, bytes: size.bytes, ready: size.ready, ...(size.estimated ? { estimated: true } : {}) }));
+    const body = {
+      head: now.head,
+      level: level.name,
+      count: sources.length,
+      clips: sources.reduce((n, x) => n + x.clips.length, 0),
+      bytes: sources.reduce((n, x) => n + x.bytes, 0),
+      estimated: sources.some((x) => x.estimated),
+      sources,
+    };
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Strom-Head": now.head }).end(JSON.stringify(body));
+  };
+
+  /**
+   * One source's excerpts for the app (/excerpt/<S>[?clip=…&level=…]): as its file would carry them (turned for an app
+   * that does not turn them), at the research's quality or the one asked for, never made smaller for a limit. Made for
+   * EXCERPT_MS at most: the rest later (202, asked again — the made ones come from the cache).
+   */
+  const giveExcerpt = (req: http.IncomingMessage, res: http.ServerResponse, version: string | undefined, id: string) => {
+    const json = (code: number, body: unknown) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
+    const q = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
+    const clip = q.get("clip") ?? undefined;
+    if (!/^S\d{1,9}$/.test(id)) return void json(400, refusal("/excerpt/S… (a source of the research)", "source.id", { source: id.slice(0, 32) }));
+    if (clip !== undefined && clip !== INPUT_MARK && !/^c[0-9a-f]{10}$/.test(clip)) return void json(400, refusal("?clip=<the excerpt's mark, _STROM_CLIP>", "excerpt.mark", { clip: clip.slice(0, 32) }));
+    const tree = Tree.open(root, env);
+    const s = tree.get<Source>(id);
+    if (!s || s.type !== "source") return void json(404, refusal(`the research has no source ${id}`, "source.unknown", { source: id }));
+    if (s.retracted || s.mergedInto) {
+      // merged into another: where it went (that one as it is now)
+      let to = s.mergedInto ? tree.get<Source>(s.mergedInto) : undefined;
+      for (let hops = 0; to?.mergedInto && hops < 10; hops++) to = tree.get<Source>(to.mergedInto) ?? to;
+      return void json(410, { ...refusal(`the source ${id} was taken back`, "source.retracted", { source: id }), ...(to && !to.retracted ? { movedTo: to.id } : {}) });
+    }
+    const marks = excerptMarks(s);
+    if (clip && !marks.includes(clip)) return void json(404, refusal(`the source ${id} has no excerpt ${clip}`, "excerpt.unknown", { source: id, clip }));
+    const settings = new Settings(env, {});
+    // a level this strom does not know (a newer app's) is no refusal: the research's quality, said in the answer
+    const level = excerptLevel(q.get("level")) ?? excerptLevel(settings.excerpts(tree.config).quality) ?? LEVELS[1]!;
+    const shared = settings.shared()?.value;
+    const got = shared || !s.clips?.length ? sourceExcerpts(tree, shared ?? "", s, { level, clip, budgetMs: Number(env.STROM_LIVE_EXCERPT_MS ?? EXCERPT_MS) }) : { excerpts: [], missing: clip ? [clip] : marks, later: [] };
+    if (got.later.length) return void json(202, { later: true, source: id, made: got.excerpts.length, left: got.later.length });
+    const turns = appTurnsExcerpts(settings, version);
+    const each = !clip && got.excerpts.length > EXCERPTS_AT_ONCE;
+    const excerpts = got.excerpts.map(({ excerpt, region }) => {
+      const e = turns ? excerpt : turned(excerpt);
+      const original = tree.get<Media | Input>(e.media);
+      return {
+        clip: e.clip,
+        ...(original?.sha ? { sha: original.sha } : {}),
+        ...(region ? { region } : {}),
+        ...(e.orient ? { orient: e.orient } : {}),
+        width: e.width,
+        height: e.height,
+        mime: "image/jpeg",
+        bytes: e.jpeg.length,
+        ...(e.url ? { url: e.url } : {}),
+        ...(each ? {} : { dataUrl: dataUrl(e) }),
+      };
+    });
+    json(200, { source: id, level: level.name, excerpts, missing: got.missing, ...(each ? { each: true } : {}) });
   };
 
   // A commit a moment ago: another may follow at once — the tree is made once none came for quietMs (at most
@@ -1607,6 +1725,12 @@ export function serveLive(root: string, env: Env): Promise<void> {
           res.writeHead(200, { "Content-Type": known.mime, "Content-Length": String(size), "Cache-Control": "no-store", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(known.name ?? path.basename(known.file))}` });
           fs.createReadStream(known.file).on("error", (e) => failed(req, res, e)).pipe(res);
         }
+      } else if (what === "excerpt" && sub && !act) {
+        giveExcerpt(req, res, version, decoded(sub).toUpperCase());
+      } else if (what === "excerpts" && !sub) {
+        if (new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("missing") !== "1") res.writeHead(400, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(refusal("/excerpts?missing=1: the excerpts the tree's file leaves out", "excerpts.missing")));
+        // the plan of the file the tree's head has: made when the commits stop coming, as the tree is
+        else afterQuiet(() => safely(req, res, () => giveLeft(res, version)));
       } else if (what === "material") {
         // the family's files the research keeps — an archive's too, which nobody sorts: the app shows them again
         const q = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
@@ -1753,7 +1877,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
               ? {
                   notWritten: changes
                     .filter((c) => c.action === "report" || c.action === "pick")
-                    .map((c) => ({ kind: c.kind, ...(c.person ? { person: c.person } : {}), ...(c.family ? { family: c.family } : {}), ...(c.fact?.kind ?? c.was?.kind ? { fact: c.fact?.kind ?? c.was?.kind } : {}), why: c.takenBack ? "takenBack" : c.kept ? "kept" : c.action, ...(c.uncited?.length ? { cites: c.uncited.map((k) => (k.startsWith("x:") ? `@${k.slice(2)}@` : k)) } : {}) })),
+                    .map((c) => ({ kind: c.kind, ...(c.person ? { person: c.person } : {}), ...(c.family ? { family: c.family } : {}), ...notWrittenOf(c), ...(c.fact?.kind ?? c.was?.kind ? { fact: c.fact?.kind ?? c.was?.kind } : {}), why: c.takenBack ? "takenBack" : c.kept ? "kept" : c.action, ...(c.uncited?.length ? { cites: c.uncited.map((k) => (k.startsWith("x:") ? `@${k.slice(2)}@` : k)) } : {}) })),
                 }
               : {}),
             // the changes the research could not write (the rest is written): what and why

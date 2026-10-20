@@ -12,7 +12,7 @@ import type { Clip, ExcerptQuality, ExcerptScope, Family, Input, Media, Person, 
 import type { Tree } from "./tree.ts";
 import { clipText, inputPath, sharperPart } from "./media.ts";
 import { kinship } from "./kin.ts";
-import { readableFile } from "./readable.ts";
+import { convertedDir, readableFile } from "./readable.ts";
 import { Settings } from "./config.ts";
 import { crop, resize, toGrey, upright, type RawImage } from "../image/image.ts";
 import { decodeImage, encodeImage, exifOrientation, imageSize } from "../image/index.ts";
@@ -88,6 +88,19 @@ export function turned(e: Excerpt): Excerpt {
 /** Not made yet, and there was no time for it now (an export with a time budget): the next export makes it. */
 export const LATER = Symbol("later");
 
+/** Where a clip's excerpt is cut from at a level: the sharpest image of that place, its region there, its file and the excerpt's place in the cache. */
+function clipPlace(tree: Tree, shared: string, clip: Clip, all: Media[], level: ExcerptLevel): { m: Media; src: Media; region: Region; file: string; cache: string } | undefined {
+  const m = all.find((x) => x.id === clip.media);
+  if (!m) return undefined;
+  const wanted = withMargin(clip.region);
+  // the sharpest image of that place: a part of it fetched sharper, or a bigger copy
+  const sharper = sharperPart(all, m, wanted);
+  const src = sharper?.part ?? m;
+  const region = sharper?.crop ?? wanted;
+  const key = crypto.createHash("sha256").update(JSON.stringify({ sha: src.sha, region, level })).digest("hex").slice(0, 16);
+  return { m, src, region, file: path.join(shared, src.file), cache: path.join(tree.root, ".strom", "excerpts", `${src.id}-${key}.jpg`) };
+}
+
 /** One clip cut out of its scan at a level (cached in .strom/excerpts); undefined when its image is not on this computer. */
 export function renderClip(
   tree: Tree,
@@ -97,17 +110,9 @@ export function renderClip(
   level: ExcerptLevel = LEVELS[1]!,
   cachedOnly = false,
 ): Excerpt | typeof LATER | undefined {
-  const m = all.find((x) => x.id === clip.media);
-  if (!m) return undefined;
-  const wanted = withMargin(clip.region);
-  // the sharpest image of that place: a part of it fetched sharper, or a bigger copy
-  const sharper = sharperPart(all, m, wanted);
-  const src = sharper?.part ?? m;
-  const region = sharper?.crop ?? wanted;
-  const file = path.join(shared, src.file);
-  if (!fs.existsSync(file)) return undefined;
-  const key = crypto.createHash("sha256").update(JSON.stringify({ sha: src.sha, region, level })).digest("hex").slice(0, 16);
-  const cache = path.join(tree.root, ".strom", "excerpts", `${src.id}-${key}.jpg`);
+  const at = clipPlace(tree, shared, clip, all, level);
+  if (!at || !fs.existsSync(at.file)) return undefined;
+  const { m, src, region, file, cache } = at;
   const url = m.url ?? src.url;
   const o = exifOrientation(file);
   const orient = o && o !== 1 ? { orient: o } : {};
@@ -129,12 +134,17 @@ export function renderClip(
  * The image of a document the user gave (an input), when it is one: JPEG or PNG on this computer, or a HEIC photo
  * this computer converts (the JPEG made of it; the original stays as it is).
  */
-function inputImage(tree: Tree, id: string | undefined): { input: Input; file: string } | undefined {
+function inputImage(tree: Tree, id: string | undefined, convert = true): { input: Input; file: string } | undefined {
   const input = id ? tree.get<Input>(id) : undefined;
   const file = input ? inputPath(tree, input) : undefined;
   if (!input || !file || !fs.existsSync(file)) return undefined;
   if (/^image\/(jpeg|png)$/.test(input.mime ?? "") || /\.(jpe?g|png)$/i.test(file)) return { input, file };
   if (!/^image\/hei[cf]$/.test(input.mime ?? "") && !/\.hei[cf]$/i.test(file)) return undefined;
+  if (!convert) {
+    // the JPEG made of it when there is one, else the photo itself (its excerpt's cache is told by its hash all the same)
+    const made = path.join(convertedDir(tree.root, file), "1.jpg");
+    return { input, file: fs.existsSync(made) ? made : file };
+  }
   try {
     return { input, file: readableFile(tree.root, file, { env: tree.env }).file };
   } catch {
@@ -142,12 +152,24 @@ function inputImage(tree: Tree, id: string | undefined): { input: Input; file: s
   }
 }
 
+/** Whether a document the user gave is a picture on this computer (nothing converted to say it). */
+function inputHere(tree: Tree, id: string | undefined): boolean {
+  const input = id ? tree.get<Input>(id) : undefined;
+  const file = input ? inputPath(tree, input) : undefined;
+  return !!file && fs.existsSync(file) && (/^image\/(jpeg|png|hei[cf])$/.test(input!.mime ?? "") || /\.(jpe?g|png|hei[cf])$/i.test(file));
+}
+
+/** Where the excerpt of a document the user gave is kept at a level. */
+function inputCache(tree: Tree, found: { input: Input; file: string }, level: ExcerptLevel): string {
+  const key = crypto.createHash("sha256").update(JSON.stringify({ sha: found.input.sha ?? found.file, level })).digest("hex").slice(0, 16);
+  return path.join(tree.root, ".strom", "excerpts", `${found.input.id}-${key}.jpg`);
+}
+
 /** A document the user gave as a scan (the source's input): the whole image is its excerpt (cached in .strom/excerpts). */
 export function renderInput(tree: Tree, id: string, level: ExcerptLevel = LEVELS[1]!, cachedOnly = false): Excerpt | typeof LATER | undefined {
   const found = inputImage(tree, id);
   if (!found) return undefined;
-  const key = crypto.createHash("sha256").update(JSON.stringify({ sha: found.input.sha ?? found.file, level })).digest("hex").slice(0, 16);
-  const cache = path.join(tree.root, ".strom", "excerpts", `${found.input.id}-${key}.jpg`);
+  const cache = inputCache(tree, found, level);
   const o = exifOrientation(found.file);
   const orient = o && o !== 1 ? { orient: o } : {};
   if (fs.existsSync(cache)) {
@@ -192,6 +214,27 @@ export interface ExcerptReport {
 
 /** Why a source with an excerpt has none in the export: outside excerpts.for, over the limit, no time now, or its image not on this computer. */
 export type ExcerptLeft = "scope" | "limit" | "later" | "missing";
+
+/**
+ * A source whose excerpts the export leaves out, though the research has them (1 _STROM_IMG_OMITTED for the Strom app):
+ * why, and the marks of the excerpts not in it (2 _STROM_CLIP) — all of them, or, a source that has some, those whose
+ * image is not on this computer ("missing", the one reason a source is ever left out in part).
+ */
+export interface ExcerptOmitted {
+  why: ExcerptLeft;
+  clips: string[];
+}
+
+/** The marks of a source's excerpts: one for each clip, "input" for a document the user gave as a scan. */
+export function excerptMarks(s: Source): string[] {
+  return s.clips?.length ? s.clips.map(clipMark) : s.input ? [INPUT_MARK] : [];
+}
+
+/** Whether the image a clip is cut from is on this computer (nothing opened, nothing made). */
+function clipHere(tree: Tree, shared: string, clip: Clip, all: Media[]): boolean {
+  const at = clipPlace(tree, shared, clip, all, LEVELS[1]!);
+  return !!at && fs.existsSync(at.file);
+}
 
 /**
  * How near the research each cited source is: the nearest of the people who cite it — 0 an ancestor, 1 their
@@ -248,11 +291,13 @@ export function planExcerpts(
     /** Make new excerpts for at most this long (the made ones come from the cache): the rest the next export makes. */
     budgetMs?: number | undefined;
   },
-): { of: (s: Source) => Excerpt[]; left: (s: Source) => ExcerptLeft | undefined; report: ExcerptReport } {
+): { of: (s: Source) => Excerpt[]; left: (s: Source) => ExcerptLeft | undefined; omitted: (s: Source) => ExcerptOmitted | undefined; report: ExcerptReport } {
   const all = tree.list<Media>("media");
   const near = sourceNearness(tree, opts.persons);
   const report: ExcerptReport = { sources: 0, excerpts: 0, bytes: 0, asked: opts.quality, level: opts.quality, dropped: [], outOfScope: 0, uncited: 0, uncitedLeft: [], missing: [], unclipped: [], later: [] };
   const why = new Map<string, ExcerptLeft>();
+  // the excerpts of a source in the export whose image is not on this computer
+  const gone = new Map<string, string[]>();
   const sources = tree.list<Source>("source").filter((s) => !s.retracted);
   // a document the user gave as a scan is its own excerpt
   const given = (s: Source) => !s.clips?.length && !!inputImage(tree, s.input);
@@ -276,13 +321,18 @@ export function planExcerpts(
   const render = (s: Source) => {
     const out: Excerpt[] = [];
     let later = false;
-    const take = (e: Excerpt | typeof LATER | undefined, what: string) => {
+    const lost: string[] = [];
+    const take = (e: Excerpt | typeof LATER | undefined, what: string, mark: string) => {
       if (e === LATER) later = true;
       else if (e) out.push(e);
-      else report.missing.push(`${s.id} ${what}`);
+      else {
+        report.missing.push(`${s.id} ${what}`);
+        lost.push(mark);
+      }
     };
-    if (!s.clips?.length) take(renderInput(tree, s.input!, LEVELS[at], late()), s.input!);
-    for (const c of s.clips ?? []) take(renderClip(tree, shared, c, all, LEVELS[at], late()), c.media);
+    if (!s.clips?.length) take(renderInput(tree, s.input!, LEVELS[at], late()), s.input!, INPUT_MARK);
+    for (const c of s.clips ?? []) take(renderClip(tree, shared, c, all, LEVELS[at], late()), c.media, clipMark(c));
+    if (lost.length) gone.set(s.id, lost);
     // a source goes in whole or not yet: never half its excerpts
     if (later) {
       report.later.push(s.id);
@@ -331,7 +381,107 @@ export function planExcerpts(
       report.excerpts += x.excerpts.length;
     }
   report.bytes = size(made);
-  return { of: (s: Source) => bySource.get(s.id) ?? [], left: (s: Source) => why.get(s.id), report };
+  const omitted = (s: Source): ExcerptOmitted | undefined => {
+    const reason = why.get(s.id);
+    if (!reason) {
+      // in the export, but not whole: the excerpts whose image is not here
+      const lost = gone.get(s.id);
+      return lost?.length && bySource.get(s.id)?.length ? { why: "missing", clips: lost } : undefined;
+    }
+    const clips = excerptMarks(s);
+    // left out by the setting or the limit, none of its images here: nothing the app could ask for
+    const here = reason === "missing" ? false : s.clips?.length ? s.clips.some((c) => clipHere(tree, shared, c, all)) : inputHere(tree, s.input);
+    return { why: here ? reason : "missing", clips };
+  };
+  return { of: (s: Source) => bySource.get(s.id) ?? [], left: (s: Source) => why.get(s.id), omitted, report };
+}
+
+/** A level by its name (excerpts.quality, ?level=): undefined when there is none of that name. */
+export function excerptLevel(name: string | null | undefined): ExcerptLevel | undefined {
+  return LEVELS.find((l) => l.name === name);
+}
+
+/**
+ * One source's excerpts, for the Strom app asking for those its file left out (the bridge's /excerpt/<S>): each at the
+ * level asked for, never made smaller for a limit (that is the file's); `clip`: that one alone. New ones are made for
+ * `budgetMs` at most — one always, so each ask gets further — the rest `later` (made by the next ask: the made ones
+ * come from the cache). `missing`: the marks whose image is not on this computer.
+ */
+export function sourceExcerpts(
+  tree: Tree,
+  shared: string,
+  s: Source,
+  opts: { level: ExcerptLevel; clip?: string | undefined; budgetMs?: number | undefined },
+): { excerpts: { excerpt: Excerpt; region?: Region }[]; missing: string[]; later: string[] } {
+  const all = tree.list<Media>("media");
+  const started = Date.now();
+  let made = 0;
+  const late = () => made > 0 && opts.budgetMs !== undefined && Date.now() - started > opts.budgetMs;
+  const out: { excerpts: { excerpt: Excerpt; region?: Region }[]; missing: string[]; later: string[] } = { excerpts: [], missing: [], later: [] };
+  const take = (e: Excerpt | typeof LATER | undefined, cached: boolean, mark: string, region?: Region) => {
+    if (e === LATER) out.later.push(mark);
+    else if (e) {
+      out.excerpts.push({ excerpt: e, ...(region ? { region } : {}) });
+      if (!cached) made++;
+    } else out.missing.push(mark);
+  };
+  if (!s.clips?.length) {
+    const found = s.input && (!opts.clip || opts.clip === INPUT_MARK) ? inputImage(tree, s.input) : undefined;
+    if (found) {
+      const cached = fs.existsSync(inputCache(tree, found, opts.level));
+      take(renderInput(tree, s.input!, opts.level, late()), cached, INPUT_MARK);
+    }
+    else if (s.input && (!opts.clip || opts.clip === INPUT_MARK)) out.missing.push(INPUT_MARK);
+    return out;
+  }
+  for (const c of s.clips) {
+    const mark = clipMark(c);
+    if (opts.clip && opts.clip !== mark) continue;
+    const cache = clipPlace(tree, shared, c, all, opts.level)?.cache;
+    const cached = !!cache && fs.existsSync(cache); // before it is made
+    take(renderClip(tree, shared, c, all, opts.level, late()), cached, mark, c.region);
+  }
+  return out;
+}
+
+/** Bytes of a JPEG excerpt per pixel at each level, about (a page of a register): for a size said before it is made. */
+const PER_PIXEL: Record<string, number> = { sharp: 0.3, normal: 0.22, small: 0.12, smaller: 0.1 };
+
+/**
+ * How large a source's excerpts are at a level as the bridge sends them (base64, a third more), without making any:
+ * those made already by their file, the rest estimated from the size of their image (`estimated`); `ready`: all made.
+ * Only those whose image is here count.
+ */
+export function excerptSizes(tree: Tree, shared: string, s: Source, level: ExcerptLevel, all: Media[] = tree.list<Media>("media")): { clips: string[]; bytes: number; ready: boolean; estimated: boolean } {
+  const b64 = (n: number) => Math.ceil(n / 3) * 4;
+  const guess = (w?: number, h?: number) => {
+    const px = w && h ? w * h : level.mp * 1e6;
+    const k = w && h ? Math.min(1, level.long / Math.max(w, h), Math.sqrt((level.mp * 1e6) / px)) : 1;
+    return b64(Math.round(px * k * k * (PER_PIXEL[level.name] ?? 0.22)));
+  };
+  const out = { clips: [] as string[], bytes: 0, ready: true, estimated: false };
+  const count = (cache: string, mark: string, estimate: () => number) => {
+    out.clips.push(mark);
+    if (fs.existsSync(cache)) out.bytes += b64(fs.statSync(cache).size);
+    else {
+      out.bytes += estimate();
+      out.ready = false;
+      out.estimated = true;
+    }
+  };
+  if (!s.clips?.length) {
+    // nothing converted to say it: a HEIC photo not converted yet is estimated
+    const found = inputImage(tree, s.input, false);
+    if (found) count(inputCache(tree, found, level), INPUT_MARK, () => guess());
+    return out;
+  }
+  for (const c of s.clips) {
+    const at = clipPlace(tree, shared, c, all, level);
+    if (!at || !fs.existsSync(at.file)) continue;
+    const { src, region } = at;
+    count(at.cache, clipMark(c), () => guess(src.width ? src.width * region.w : undefined, src.height ? src.height * region.h : undefined));
+  }
+  return out;
 }
 
 /** An excerpt as the Strom app takes it: a data URL. */

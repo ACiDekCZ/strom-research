@@ -583,7 +583,7 @@ test("a change not written leaves out the sources the user gave its fact: named 
     await new Promise((r) => setTimeout(r, 1100));
     await w.ok(["sync", "undo", sent.input]);
     const next = await post("sync", copy("Marietta"));
-    assert.deepEqual(next.notWritten, [{ kind: "source.new", why: "takenBack" }, { kind: "fact.changed", person: "P0001", fact: "BIRT", why: "takenBack", cites: ["@S5@"] }], JSON.stringify(next));
+    assert.deepEqual(next.notWritten, [{ kind: "source.new", source: "@S5@", why: "takenBack" }, { kind: "fact.changed", person: "P0001", fact: "BIRT", why: "takenBack", cites: ["@S5@"] }], JSON.stringify(next));
   } finally {
     await w.ok(["live", "stop"]);
   }

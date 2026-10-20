@@ -35,7 +35,7 @@ import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
 import { quay } from "../core/evidence.ts";
 import { VERSION, type Tree } from "../core/tree.ts";
-import { dataUrl, turned, type Excerpt } from "../core/excerpt.ts";
+import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/excerpt.ts";
 import { mainPerson } from "../core/kin.ts";
 import { hypothesisPeople } from "../core/directions.ts";
 import * as git from "../core/git.ts";
@@ -145,6 +145,12 @@ export interface ExportOptions {
    * made of a reading confirmed in the app carries 1 _STROM_READING D… with 2 _STROM_ENTRY e….
    */
   readings?: boolean;
+  /**
+   * The Strom profile, for an app that says why a source has no image and asks the research for it
+   * (APP_SHOWS_OMITTED_IMAGES): a source whose excerpts the file leaves out, though the research has them, carries
+   * 1 _STROM_IMG_OMITTED <why> with 2 _STROM_CLIP <mark> for each of them (planExcerpts().omitted).
+   */
+  omitted?: (s: Source) => ExcerptOmitted | undefined;
 }
 
 export interface ExportResult {
@@ -487,6 +493,12 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (original?.sha) w.line(2, "_STROM_SHA", original.sha);
       // cut as the picture lies in its file: how the app turns it for showing (a phone's photo, EXIF 2–8)
       if (e.orient) w.line(2, "_STROM_ORIENT", String(e.orient));
+    }
+    // the excerpts the research has that this file leaves out, and why: the app says so and asks for them (/excerpt/<S>)
+    const left = opts.omitted?.(s);
+    if (left) {
+      w.line(1, "_STROM_IMG_OMITTED", left.why);
+      for (const mark of left.clips) w.line(2, "_STROM_CLIP", mark);
     }
   }
   for (const r of repos) {

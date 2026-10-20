@@ -80,6 +80,8 @@ const EXTENSIONS = new Set([
   "_DRAFT",
   // what a variant of a hypothesis would connect, and what of it the tree records already
   "_VAR", "_LINK", "_PERS", "_FAM", "_PAR", "_CHOSEN", "_INTREE",
+  // a source's excerpts the file leaves out, and why
+  "_STROM_IMG_OMITTED",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */
