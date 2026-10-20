@@ -114,6 +114,23 @@ test("the menu: a person can always change their mind — the current choice sug
   w.cleanup();
 });
 
+test("the menu with several trees and none chosen: choosing a tree goes back by 0 and by Enter, nothing chosen (found on Windows: 0 was refused)", unix, async () => {
+  const w = new World();
+  w.env.PATH = pathWith(w, ["claude"]);
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Novákovi"]);
+  await w.ok(["init", "Svobodovi"]);
+  const file = path.join(w.env.STROM_CONFIG_DIR!, "config.json");
+  const { currentTree: _, ...config } = readJsonFile(file);
+  fs.writeFileSync(file, JSON.stringify(config, null, 2));
+  const r = await w.ok([], { tty: true, answers: ["1", "0", "1", "", "0"] });
+  assert.match(r.out, /Který rodokmen\?\n {3}1 {2}Novákovi .*\n {3}2 {2}Svobodovi .*\n {3}3 {2}nový rodokmen\n {3}4 {2}rodokmen, který někdo poslal \(soubor ZIP\)\n {3}5 {2}odebrat rodokmen z tohoto počítače\n {3}0 {2}Zpět\nVybrat \[0\]/);
+  assert.doesNotMatch(r.out, /Čekám jedno z čísel/);
+  assert.equal(r.out.match(/Který rodokmen\?/g)?.length, 2, "asked twice, gone back twice");
+  assert.equal(readJsonFile(file).currentTree, undefined, "no tree chosen");
+  w.cleanup();
+});
+
 test("setup run again: every choice can be left as it is (0)", unix, async () => {
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);

@@ -966,7 +966,10 @@ export function mergePersons(tree: Tree, keepId: string, otherId: string, reason
       const cites = [...(n.citations ?? []), ...(same?.citations ?? []).filter((c) => !(n.citations ?? []).some((x) => x.source === c.source && x.locator === c.locator))];
       return cites.length ? { ...n, citations: cites } : n;
     });
-    for (const o of other.names) if (!names.some((n) => sameName(n, o))) names.push(o);
+    // a name the person's research took back stays taken back (the other's retracted come along, for the history)
+    const retractedNames = [...(keep.retractedNames ?? []), ...(other.retractedNames ?? [])];
+    for (const o of other.names) if (!names.some((n) => sameName(n, o)) && !retractedNames.some((n) => sameName(n, o))) names.push(o);
+    const retractedNotes = [...(keep.retractedNotes ?? []), ...(other.retractedNotes ?? [])];
     const refs = [...(keep.refs ?? []), ...(other.refs ?? []).filter((r) => !(keep.refs ?? []).some((k) => k.system === r.system && k.id === r.id))];
     const why = reason.trim();
     const merged: Person = {
@@ -975,6 +978,8 @@ export function mergePersons(tree: Tree, keepId: string, otherId: string, reason
       sex: keep.sex === "U" ? other.sex : keep.sex,
       events: [...keep.events, ...other.events],
       notes: [...keep.notes, ...other.notes],
+      ...(retractedNames.length ? { retractedNames } : {}),
+      ...(retractedNotes.length ? { retractedNotes } : {}),
       ...(refs.length ? { refs } : {}),
       updated: now(),
     };

@@ -30,7 +30,9 @@ export function runInstaller(inst: Installer, env: Env): boolean {
  */
 export function agentBinDirs(env: Env, platform: NodeJS.Platform = process.platform): string[] {
   const home = userHome(env);
+  // joined as that platform joins them (a test of another platform's folders runs on any)
+  const p = platform === "win32" ? path.win32 : path.posix;
   // Grok Build's installer: ~/.grok/bin (on PATH through the shell's profile; Windows: added by hand)
-  if (platform === "win32") return [path.join(home, ".local", "bin"), path.join(env.APPDATA ?? path.join(home, "AppData", "Roaming"), "npm"), path.join(home, ".grok", "bin")];
-  return [path.join(home, ".local", "bin"), path.join(home, ".claude", "local"), path.join(home, ".grok", "bin")];
+  if (platform === "win32") return [p.join(home, ".local", "bin"), p.join(env.APPDATA ?? p.join(home, "AppData", "Roaming"), "npm"), p.join(home, ".grok", "bin")];
+  return [p.join(home, ".local", "bin"), p.join(home, ".claude", "local"), p.join(home, ".grok", "bin")];
 }

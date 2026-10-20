@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.18.0
 
-*In preparation: the betas up to 1.18.0-beta.8. The section is complete with the release.*
+*In preparation: the betas up to 1.18.0-beta.9. The section is complete with the release.*
 
 - **Phone photos upright.** A photo turned by its EXIF orientation is read as it is meant to be seen, upright; the
   places marked on it (excerpts, the halves of a spread, a cut-out part) are of the picture as it is shown. The
@@ -39,14 +39,29 @@ The changes of each version in short. The full notes and the install lines are o
   it is not this one). Finds, under Now, say what the research found since the phone looked last (the last 24 hours
   at least, older ones on a tap) — new people, sources, facts found, corrected or newly cited, conflicts resolved —
   the new ones marked; something new while the page is open shows only as a count in the tab's title and a small label.
-- **A consent in one language.** A consent only a person gives (unpacking a research, removing a tree, a window said
-  no to) is said whole in the research's language, nothing of it left in English.
-- **An update said no to.** When `strom update` is declined, it says nothing was installed and which version stays,
-  and ends with an error code; a failed install is said in the research's language too.
-- **Asked in the terminal too.** What opens the computer outward, costs money or runs another's program — Remote
-  Control, downloaders without asking first, the condition of the agent working alone, a hook, an archive's own pace,
-  the phone connection, tuning the reading — asks yes or no in the terminal as well; Enter says no, `--yes` never
-  answers it.
+- **A consent in one language, asked in the terminal too.** A consent only a person gives (unpacking a research,
+  removing a tree, a window said no to) is said whole in the research's language. What opens the computer outward,
+  costs money or runs another's program — Remote Control, downloaders without asking first, the condition of the agent
+  working alone, a hook, an archive's own pace, the phone connection, tuning the reading — asks yes or no in the
+  terminal as well; Enter says no, `--yes` never answers it. When `strom update` is declined, it says nothing was
+  installed and which version stays, and ends with an error code; a failed install is said in the research's language
+  too.
+- **A wrong name or note taken back.** `strom name retract` takes back a name misread or given to the wrong person,
+  `strom note retract` a note, and `strom note edit` corrects one — of a person, a fact or a task, each with its
+  reason; nothing is deleted. What is taken back is shown nowhere any more — not to the agent, not in the GEDCOM or
+  `strom find`, so the Strom app no longer shows it once it loads the tree, and a sync never brings it back; `strom
+  person show --history` says what it was, when and why, and `strom name restore` or `strom note restore` puts it
+  back.
+- **Fixes from reports.** The menu's goodbye says how to start strom again where the terminal window does not know the
+  command yet (after the one-line install: `strom` in a new window, the full path in this one; the full path also
+  where another `strom` answers the name first), and says when the Strom app's bridge goes on running and how to stop
+  it; the menu's choice of a family tree goes back with 0. The bridge no longer holds the family tree's folder, so
+  Windows can delete it, and ends by itself once the tree is gone (`strom trees remove` deletes a tree). An end of the
+  tree where the baptism names no father is a closed end once nothing runs on it, no longer waiting for a decision for
+  good. A source renamed in the Strom app is renamed in the research too, and a source's call number or page reaches
+  the app on the source itself, also before anything cites it. With `excerpts.for all` a source nobody cites yet gets
+  its excerpt in the Strom app too, wherever it fits under the limit beside the cited ones, which never get smaller
+  for it; what did not fit is said.
 
 ## 1.17.0
 

@@ -434,12 +434,16 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (set?.callNumber) w.line(2, "CALN", set.callNumber);
       usedRepos.add(repo);
     }
+    // Where in the book, for Strom on the record itself: the app's "reference" of the source (it reads 1 PAGE there in
+    // every version; GEDCOM 5.5.1 has PAGE on a citation only, so another program gets it in the note)
+    const page = !strict && s.locator?.trim() ? s.locator : undefined;
+    if (page) w.text(1, "PAGE", page);
     // The words of the record are the source's TEXT (in both files: Strom reads it there).
     if (s.transcript) w.text(1, "TEXT", s.transcript);
     const url = s.url ?? set?.url;
     const head = [
       set ? `${L("recordset")}: ${set.title}${set.callNumber && (strict || repeat) ? ` (${set.callNumber})` : ""}` : "",
-      s.locator ?? "",
+      page ? "" : (s.locator ?? ""),
       s.date ? `${L("recorded")}: ${s.date}` : "",
       s.language ? `${L("language")}: ${s.language}` : "",
       url ? `${L("url")}: ${url}${s.accessed ? ` (${s.accessed})` : ""}` : "",

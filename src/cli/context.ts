@@ -57,6 +57,8 @@ export class Context {
   dryRun = false;
   /** The record IDs the command names (T…, N…, G…): which of an agent's sessions in several researches is its. */
   refs: string[] = [];
+  /** The PATH this strom was given (before core/userpath.ts made it fuller): what the terminal it runs in knows. */
+  givenPath: string | undefined;
   private opened: Tree | undefined;
   /**
    * The backup before another channel or an older version could not be made (cli/backups.ts): no research is brought

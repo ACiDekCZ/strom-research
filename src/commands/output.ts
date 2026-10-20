@@ -136,7 +136,9 @@ export function imagesLines(r: ExcerptReport, images: { for: ExcerptScope; mb: n
     ui(lang, "ui.export.images", { excerpts: r.excerpts, sources: r.sources, size: mbIn(r.bytes, lang), level: qualityIn(r.level, lang) }),
     r.level !== r.asked ? ui(lang, "ui.export.images.smaller", { mb: numberIn(lang, images.mb, { maximumFractionDigits: 3, useGrouping: false }), level: qualityIn(r.level, lang), asked: qualityIn(r.asked, lang) }) : undefined,
     r.dropped.length ? ui(lang, "ui.export.images.dropped", { mb: numberIn(lang, images.mb, { maximumFractionDigits: 3, useGrouping: false }), n: r.dropped.length, ids: few(r.dropped) }) : undefined,
+    r.uncitedLeft.length ? ui(lang, "ui.export.images.uncited", { mb: numberIn(lang, images.mb, { maximumFractionDigits: 3, useGrouping: false }), n: r.uncitedLeft.length, ids: few(r.uncitedLeft) }) : undefined,
     r.outOfScope ? ui(lang, "ui.export.images.scope", { n: r.outOfScope, for: images.for }) : undefined,
+    images.for !== "all" && r.uncited ? ui(lang, "ui.export.images.uncitedOut", { n: r.uncited }) : undefined,
     r.missing.length ? ui(lang, "ui.export.images.missing", { ids: few(r.missing) }) : undefined,
     r.unclipped.length ? ui(lang, "ui.export.images.unclipped", { ids: few(r.unclipped) }) : undefined,
     r.later.length ? ui(lang, "ui.export.images.later", { n: r.later.length }) : undefined,
@@ -179,15 +181,17 @@ register(
       "quality of each citation's evidence; leads say so in a note; retracted and disproven facts are left out;\n" +
       "of several facts of a kind the best supported comes first. Which files: --for or the setting gedcom.for.\n" +
       "The Strom file carries each entry cut out of its scan (the sources' clips; the settings excerpts.*, excerpts.for\n" +
-      "none: without) and stays out of the tree's history — the history keeps the standard file.",
+      "none: without) and stays out of the tree's history — the history keeps the standard file. The entries nobody\n" +
+      "cites only with --images-for all: after the cited ones, where they still fit under the limit (the cited never\n" +
+      "made smaller for them).",
     options: [
       { name: "for", type: "string", value: "<reader>", description: "standard (any program), strom (the Strom app) or both (default: the setting gedcom.for, both)" },
       { name: "research", type: "string", value: "<G…>", description: "only the people of one research (focus, ancestors, partners)" },
       { name: "out", type: "string", value: "<file>", description: "write here instead of output/ (with --for standard or strom)" },
       { name: "images", type: "boolean", description: "the Strom file with the entries' images (the default; kept for older scripts)" },
       { name: "images-quality", type: "string", value: "<q>", description: "small (1000 px, grey), normal, sharp (1600 px) — default: the setting excerpts.quality (normal)" },
-      { name: "images-for", type: "string", value: "<whose>", description: "none, line, family, connected or all — default: the setting excerpts.for (family: the ancestors and their families)" },
-      { name: "images-max-mb", type: "string", value: "<n>", description: "limit of all excerpts together — over it smaller, then the farthest left out (default: the setting excerpts.mb, 200)" },
+      { name: "images-for", type: "string", value: "<whose>", description: "none, line, family, connected or all (every source with an excerpt) — default: the setting excerpts.for (family: the ancestors and their families)" },
+      { name: "images-max-mb", type: "string", value: "<n>", description: "limit of all excerpts together — over it smaller, then the farthest left out; with all, the entries nobody cites only where there is room (default: the setting excerpts.mb, 200)" },
     ],
     examples: ["strom export gedcom", "strom export gedcom --research G0001", "strom export gedcom --for standard --out ~/Desktop/novak.ged", "strom export gedcom --for strom --images-for all"],
     run(ctx, { opts }) {

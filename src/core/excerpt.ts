@@ -177,9 +177,11 @@ export interface ExcerptReport {
   level: string;
   /** Left out to keep under the limit, the farthest from the research first. */
   dropped: string[];
-  /** Entries of people outside excerpts.for, and entries nobody in the export cites. */
+  /** Entries of people outside excerpts.for, and entries nobody in the export cites (in the file only with excerpts.for all). */
   outOfScope: number;
   uncited: number;
+  /** With excerpts.for all, entries nobody cites left out: they did not fit under the limit beside the cited ones (which are never made smaller for them). */
+  uncitedLeft: string[];
   /** Clips whose image is not on this computer. */
   missing: string[];
   /** Sources on images with no clip: nobody said where the entry is. */
@@ -187,6 +189,9 @@ export interface ExcerptReport {
   /** Sources whose excerpts there was no time to make now (an export with a time budget): the next one makes them. */
   later: string[];
 }
+
+/** Why a source with an excerpt has none in the export: outside excerpts.for, over the limit, no time now, or its image not on this computer. */
+export type ExcerptLeft = "scope" | "limit" | "later" | "missing";
 
 /**
  * How near the research each cited source is: the nearest of the people who cite it — 0 an ancestor, 1 their
@@ -225,9 +230,12 @@ export function excerptSettings(tree: Tree, settings: Settings = new Settings(tr
 }
 
 /**
- * The excerpts of an export: the entries of the people the setting excerpts.for names, nearest to the
- * research first, at the quality asked for — made smaller as far as needed to fit under the limit,
- * and only then the farthest left out. Everything it decided is in the report, for the user to hear.
+ * The excerpts of an export: the entries cited by the people the setting excerpts.for names, nearest to the
+ * research first, at the quality asked for — made smaller as far as needed to fit under the limit, and only then
+ * the farthest left out. The entries nobody cites (no person of the research to measure them by) only with "all":
+ * after the cited ones, at the quality those got, each where it still fits — never one of the cited made smaller or
+ * left out for them. Everything it decided is in the report, for the user to hear, and why each source has no
+ * excerpt in `left`.
  */
 export function planExcerpts(
   tree: Tree,
@@ -240,25 +248,32 @@ export function planExcerpts(
     /** Make new excerpts for at most this long (the made ones come from the cache): the rest the next export makes. */
     budgetMs?: number | undefined;
   },
-): { of: (s: Source) => Excerpt[]; report: ExcerptReport } {
+): { of: (s: Source) => Excerpt[]; left: (s: Source) => ExcerptLeft | undefined; report: ExcerptReport } {
   const all = tree.list<Media>("media");
   const near = sourceNearness(tree, opts.persons);
-  const report: ExcerptReport = { sources: 0, excerpts: 0, bytes: 0, asked: opts.quality, level: opts.quality, dropped: [], outOfScope: 0, uncited: 0, missing: [], unclipped: [], later: [] };
+  const report: ExcerptReport = { sources: 0, excerpts: 0, bytes: 0, asked: opts.quality, level: opts.quality, dropped: [], outOfScope: 0, uncited: 0, uncitedLeft: [], missing: [], unclipped: [], later: [] };
+  const why = new Map<string, ExcerptLeft>();
   const sources = tree.list<Source>("source").filter((s) => !s.retracted);
   // a document the user gave as a scan is its own excerpt
   const given = (s: Source) => !s.clips?.length && !!inputImage(tree, s.input);
   for (const s of sources) if (!s.clips?.length && s.media?.length && !given(s) && near.has(s.id)) report.unclipped.push(s.id);
   const clipped = sources.filter((s) => s.clips?.length || given(s));
-  const rank = (s: Source) => near.get(s.id) ?? 4;
-  report.uncited = clipped.filter((s) => !near.has(s.id)).length;
-  report.outOfScope = clipped.filter((s) => rank(s) > SCOPE_MAX[opts.for]).length;
-  const wanted = clipped.filter((s) => rank(s) <= SCOPE_MAX[opts.for]).sort((a, b) => rank(a) - rank(b) || a.id.localeCompare(b.id));
+  const rank = (s: Source) => near.get(s.id)!;
+  const byId = (a: Source, b: Source) => a.id.localeCompare(b.id);
+  // the entries nobody cites only with "all": the file stays small, the Strom app asks the research for them later
+  const uncited = opts.for === "all" ? clipped.filter((s) => !near.has(s.id)).sort(byId) : [];
+  const cited = clipped.filter((s) => near.has(s.id));
+  report.uncited = clipped.length - cited.length;
+  for (const s of cited) if (rank(s) > SCOPE_MAX[opts.for]) why.set(s.id, "scope");
+  report.outOfScope = why.size;
+  if (opts.for !== "all") for (const s of clipped) if (!near.has(s.id)) why.set(s.id, "scope");
+  const wanted = cited.filter((s) => rank(s) <= SCOPE_MAX[opts.for]).sort((a, b) => rank(a) - rank(b) || byId(a, b));
 
   // at the quality asked for, from the scans
   let at = Math.max(0, LEVELS.findIndex((l) => l.name === opts.quality));
   const started = Date.now();
   const late = () => opts.budgetMs !== undefined && Date.now() - started > opts.budgetMs;
-  let made = wanted.map((s) => {
+  const render = (s: Source) => {
     const out: Excerpt[] = [];
     let later = false;
     const take = (e: Excerpt | typeof LATER | undefined, what: string) => {
@@ -271,12 +286,16 @@ export function planExcerpts(
     // a source goes in whole or not yet: never half its excerpts
     if (later) {
       report.later.push(s.id);
+      why.set(s.id, "later");
       return { source: s.id, excerpts: [] as Excerpt[] };
     }
+    if (!out.length) why.set(s.id, "missing");
     return { source: s.id, excerpts: out };
-  });
+  };
+  let made = wanted.map(render);
   // base64 takes a third more
-  const size = (list: typeof made) => list.reduce((n, x) => n + x.excerpts.reduce((m, e) => m + Math.ceil(e.jpeg.length / 3) * 4, 0), 0);
+  const bytes = (x: (typeof made)[number]) => x.excerpts.reduce((m, e) => m + Math.ceil(e.jpeg.length / 3) * 4, 0);
+  const size = (list: typeof made) => list.reduce((n, x) => n + bytes(x), 0);
   // over the limit: smaller, as far as it takes
   while (size(made) > opts.maxBytes && at < LEVELS.length - 1) {
     at++;
@@ -285,7 +304,26 @@ export function planExcerpts(
   }
   report.level = LEVELS[at]!.name;
   // still over it: the farthest from the research go
-  while (made.length && size(made) > opts.maxBytes) report.dropped.push(made.pop()!.source);
+  while (made.length && size(made) > opts.maxBytes) {
+    const gone = made.pop()!;
+    report.dropped.push(gone.source);
+    why.set(gone.source, "limit");
+  }
+  // the entries nobody cites: at the quality the cited ones got, each where there is still room
+  let room = opts.maxBytes - size(made);
+  for (const s of uncited) {
+    // no room left at all: not made just to be left out
+    const x = room > 0 ? render(s) : undefined;
+    if (x && !x.excerpts.length) continue;
+    const n = x ? bytes(x) : 0;
+    if (!x || n > room) {
+      report.uncitedLeft.push(s.id);
+      why.set(s.id, "limit");
+      continue;
+    }
+    room -= n;
+    made.push(x);
+  }
   const bySource = new Map(made.map((x) => [x.source, x.excerpts]));
   for (const x of made)
     if (x.excerpts.length) {
@@ -293,7 +331,7 @@ export function planExcerpts(
       report.excerpts += x.excerpts.length;
     }
   report.bytes = size(made);
-  return { of: (s: Source) => bySource.get(s.id) ?? [], report };
+  return { of: (s: Source) => bySource.get(s.id) ?? [], left: (s: Source) => why.get(s.id), report };
 }
 
 /** An excerpt as the Strom app takes it: a data URL. */

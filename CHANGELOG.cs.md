@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.18.0
 
-*Připravuje se: bety do 1.18.0-beta.8. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.18.0-beta.9. Oddíl bude úplný s vydáním.*
 
 - **Fotky z telefonu nastojato.** Fotka otočená podle údaje EXIF se čte tak, jak se má dívat, nastojato; místa na ní
   vyznačená (výřezy, poloviny dvoustrany, uložená část) jsou místa obrázku, jak se ukazuje. Fotka sama zůstává, jak
@@ -38,13 +38,26 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   posledního pohledu z telefonu (aspoň posledních 24 hodin, starší klepnutím) — nové osoby, prameny, nalezené, opravené
   či nově doložené údaje, vyřešené rozpory — nové zvýrazněné; co přibude při otevřené stránce, ukáže jen počet
   v názvu záložky a malý štítek.
-- **Souhlas v jednom jazyce.** Souhlas, který dává jen člověk (rozbalení výzkumu, odebrání stromu, odmítnuté okno),
-  zazní celý v jazyce výzkumu, nic z něj nezůstane anglicky.
-- **Odmítnutá aktualizace.** Když se `strom update` odmítne, řekne, že se nic nenainstalovalo a která verze zůstává,
-  a skončí chybovým kódem; nepovedená instalace se řekne také v jazyce výzkumu.
-- **Otázka i v terminálu.** Co otevírá počítač ven, stojí peníze nebo spouští cizí program – Remote Control,
-  stahovače bez ptaní, podmínka práce agenta o samotě, hook, vlastní tempo archivu, propojení s telefonem, ladění
-  čtení – se v terminálu ptá ano/ne; Enter znamená ne a `--yes` za člověka neodpoví.
+- **Souhlas v jednom jazyce, otázka i v terminálu.** Souhlas, který dává jen člověk (rozbalení výzkumu, odebrání
+  stromu, odmítnuté okno), zazní celý v jazyce výzkumu. Co otevírá počítač ven, stojí peníze nebo spouští cizí program
+  – Remote Control, stahovače bez ptaní, podmínka práce agenta o samotě, hook, vlastní tempo archivu, propojení s
+  telefonem, ladění čtení – se ptá ano/ne i v terminálu; Enter znamená ne a `--yes` za člověka neodpoví. Když se
+  `strom update` odmítne, řekne, že se nic nenainstalovalo a která verze zůstává, a skončí chybovým kódem; nepovedená
+  instalace se řekne také v jazyce výzkumu.
+- **Chybné jméno nebo poznámka odvolané.** `strom name retract` odvolá jméno špatně přečtené nebo přiřazené jinému
+  člověku, `strom note retract` poznámku a `strom note edit` ji opraví – u osoby, faktu i úkolu, vždy s důvodem; nic
+  se nemaže. Odvolané se už nikde neukazuje – ani agentovi, ani v GEDCOM, ani ve `strom find`, takže ho aplikace Strom
+  po načtení stromu neukáže a synchronizace ho nevrátí; `strom person show --history` řekne, co to bylo, kdy a proč, a
+  `strom name restore` nebo `strom note restore` ho vrátí.
+- **Opravy z hlášení.** Rozloučení nabídky řekne, jak strom spustit znovu i tam, kde okno terminálu příkaz ještě nezná
+  (po instalaci jedním řádkem: v novém okně `strom`, v tomto plná cesta; plná cesta i tam, kde se na jméno ozve dřív
+  jiný `strom`), a když most pro aplikaci Strom běží dál, řekne to i s tím, jak ho zastavit; výběr rodokmenu v nabídce
+  jde vrátit nulou. Most už nedrží složku rodokmenu, takže ji jde na Windows smazat, a sám skončí, když rodokmen zmizí
+  (rodokmen smaže `strom trees remove`). Konec stromu, kde křest neuvádí otce, je uzavřený, jakmile na něm nic neběží
+  – už nečeká natrvalo na rozhodnutí. Pramen přejmenovaný v aplikaci Strom se přejmenuje i ve výzkumu a signatura nebo
+  strana pramene přijde do aplikace k prameni samému („Signatura / strana“), i když ho zatím nic necituje. S
+  `excerpts.for all` dostane v aplikaci Strom výřez i pramen, který zatím nikdo necituje, pokud se vedle citovaných
+  vejde do limitu – citované se kvůli němu nezmenší; co se nevešlo, se řekne.
 
 ## 1.17.0
 

@@ -21,7 +21,8 @@ test("the Strom app takes the export with images: an older one everything but th
   await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
   await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--recordset", "B1", "--date", "12 MAR 1865", "--transcript", "Joannes", "--clip", "B1:4@0.1,0.4,0.8,0.08"]);
   await w.ok(["event", "add", "P0001", "CHR", "--date", "12 MAR 1865", "--cite", "S0001"]);
-  await w.ok(["export", "gedcom", "--images"]);
+  await w.ok(["source", "add", "Zápis převzatý", "--clip", "B1:2@0.1,0.1,0.5,0.1"]); // cited by nobody: its excerpt with --images-for all, where it fits
+  await w.ok(["export", "gedcom", "--images", "--images-for", "all"]);
   const script = path.join(w.dir, "rt.ts");
   fs.writeFileSync(
     script,
@@ -38,7 +39,7 @@ console.log(JSON.stringify({ dropped: [...parsed.droppedTags.entries()], stats: 
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout.trim().split("\n").pop()!);
   assert.equal(out.persons, 1);
-  assert.equal(out.sources.length, 1);
+  assert.equal(out.sources.length, 2);
   assert.equal(out.jan[0].sourceIds.length, 1, "the citation stays");
   if (stromReadsTags(app, STROM_READS_EXCERPTS)) {
     // it reads them all: the transcript, the entry's REFN, its excerpt
@@ -46,6 +47,7 @@ console.log(JSON.stringify({ dropped: [...parsed.droppedTags.entries()], stats: 
     assert.match(out.sources[0].transcript, /Joannes/);
     assert.equal(out.sources[0].refn, "S0001");
     assert.equal(out.sources[0].excerpts, 1);
+    assert.equal(out.sources.find((x: { title: string }) => x.title === "Zápis převzatý")?.excerpts, 1, "a source nobody cites: its excerpt in the window of sources");
   } else {
     // it says which it left out (the source's REFN and the excerpt); the rest comes in whole
     assert.deepEqual(out.dropped.map((d: [string, number]) => d[0]).sort(), ["OBJE", "REFN"]);

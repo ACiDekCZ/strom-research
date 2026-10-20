@@ -107,8 +107,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
     now: c.kind === "fact.detail" ? detailText(c.fact, lang, short) : factText(c.fact, lang, short),
     when: [humanDate(c.fact?.date, lang), humanPlace(c.fact?.place, undefined, lang)].filter(Boolean).join(", "),
     text: truncate(c.text ?? "", 120),
-    old: c.note ? truncate(c.note.was, 80) : c.title ? truncate(c.title.was, 80) || "—" : shownName(c.wasName),
-    new: c.note ? truncate(c.text ?? "", 80) : c.title ? truncate(c.text ?? "", 80) || "—" : shownName(c.text),
+    old: c.note ? truncate(c.note.was, 80) : c.title ? truncate(c.title.was, 80) || "—" : c.wasTitle !== undefined ? truncate(c.wasTitle, 80) : shownName(c.wasName),
+    new: c.note ? truncate(c.text ?? "", 80) : c.title || c.wasTitle !== undefined ? truncate(c.text ?? "", 80) || "—" : shownName(c.text),
     title: c.title ? ui(lang, c.title.part === "before" ? "ui.conflict.titleBefore" : "ui.conflict.titleAfter") : "",
     child: name(c.child),
     // a child's tie to each parent: one word for both, else each parent's
@@ -158,6 +158,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       ? "ui.sync.do.detail"
       : c.kind === "fact.part" && (c.action === "add" || c.action === "user")
         ? `ui.sync.do.part${c.action === "user" ? ".user" : ""}`
+      : c.kind === "source.title"
+        ? `ui.sync.do.source.title${c.action === "add" ? ".beside" : c.action === "user" ? ".user" : ""}`
       : c.kind === "source.new" && c.reading?.ok
         ? `ui.sync.do.source.new.reading${c.reading.edited ? ".edited" : ""}`
       : c.kind.startsWith("source.") || c.kind === "fact.cite" || c.kind === "person.cite" || c.kind === "family.cite"

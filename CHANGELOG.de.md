@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.18.0
 
-*In Vorbereitung: die Betas bis 1.18.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.18.0-beta.9. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Handyfotos aufrecht.** Ein Foto, das nach seiner EXIF-Ausrichtung gedreht ist, wird gelesen, wie es gesehen
   werden soll, aufrecht; die darauf markierten Stellen (Ausschnitte, die Hälften einer Doppelseite, ein gespeicherter
@@ -43,16 +43,30 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Handy gefunden hat (mindestens die letzten 24 Stunden, ältere auf Antippen) — neue Personen, Quellen, gefundene,
   korrigierte oder neu belegte Angaben, geklärte Widersprüche —, die neuen hervorgehoben; was bei offener Seite
   hinzukommt, zeigt nur eine Zahl im Titel des Tabs und ein kleines Etikett.
-- **Eine Zustimmung in einer Sprache.** Eine Zustimmung, die nur ein Mensch gibt (eine Forschung entpacken, einen
-  Stammbaum entfernen, ein abgelehntes Fenster), steht ganz in der Sprache der Forschung, nichts davon bleibt
-  Englisch.
-- **Ein abgelehntes Update.** Wird `strom update` abgelehnt, sagt es, dass nichts installiert wurde und welche
-  Version bleibt, und endet mit einem Fehlercode; eine misslungene Installation wird auch in der Sprache der
-  Forschung gesagt.
-- **Auch im Terminal gefragt.** Was den Computer nach außen öffnet, Geld kostet oder ein fremdes Programm startet –
-  Remote Control, Downloader ohne Rückfrage, die Bedingung für den Agenten allein, ein Hook, ein eigenes Tempo eines
-  Archivs, die Verbindung mit dem Telefon, das Abstimmen des Lesens – fragt auch im Terminal Ja oder Nein; Enter
-  heißt Nein, `--yes` antwortet nie dafür.
+- **Eine Zustimmung in einer Sprache, auch im Terminal gefragt.** Eine Zustimmung, die nur ein Mensch gibt (eine
+  Forschung entpacken, einen Stammbaum entfernen, ein abgelehntes Fenster), steht ganz in der Sprache der Forschung.
+  Was den Computer nach außen öffnet, Geld kostet oder ein fremdes Programm startet – Remote Control, Downloader ohne
+  Rückfrage, die Bedingung für den Agenten allein, ein Hook, ein eigenes Tempo eines Archivs, die Verbindung mit dem
+  Telefon, das Abstimmen des Lesens – fragt auch im Terminal Ja oder Nein; Enter heißt Nein, `--yes` antwortet nie
+  dafür. Wird `strom update` abgelehnt, sagt es, dass nichts installiert wurde und welche Version bleibt, und endet
+  mit einem Fehlercode; eine misslungene Installation wird auch in der Sprache der Forschung gesagt.
+- **Ein falscher Name oder eine falsche Notiz zurückgezogen.** `strom name retract` zieht einen falsch gelesenen oder
+  der falschen Person gegebenen Namen zurück, `strom note retract` eine Notiz, und `strom note edit` berichtigt eine –
+  bei einer Person, einem Fakt oder einer Aufgabe, jeweils mit Grund; nichts wird gelöscht. Was zurückgezogen ist,
+  zeigt sich nirgends mehr – nicht dem Agenten, nicht im GEDCOM oder in `strom find`, so dass die Strom-App es nach
+  dem Laden des Stammbaums nicht mehr zeigt und ein Abgleich es nie zurückbringt; `strom person show --history` sagt,
+  was es war, wann und warum, und `strom name restore` oder `strom note restore` holt es zurück.
+- **Korrekturen aus Meldungen.** Der Abschied des Menüs sagt, wie strom wieder startet, wo das Terminalfenster den
+  Befehl noch nicht kennt (nach der Installation mit einer Zeile: `strom` in einem neuen Fenster, in diesem der volle
+  Pfad; der volle Pfad auch, wo zuerst ein anderes `strom` auf den Namen antwortet), und sagt, wenn die Brücke für die
+  Strom-App weiterläuft, auch, wie sie zu beenden ist; die Wahl des Stammbaums im Menü geht mit 0 zurück. Die Brücke
+  hält den Ordner des Stammbaums nicht mehr fest, so dass Windows ihn löschen kann, und endet von selbst, sobald der
+  Stammbaum weg ist (einen Stammbaum löscht `strom trees remove`). Ein Ende des Baums, wo die Taufe keinen Vater
+  nennt, ist ein geschlossenes Ende, sobald nichts mehr daran läuft – es wartet nicht mehr für immer auf eine
+  Entscheidung. Eine in der Strom-App umbenannte Quelle heißt auch in der Forschung neu, und Signatur oder Seite einer
+  Quelle kommen in der App bei der Quelle selbst an, auch bevor etwas sie zitiert. Mit `excerpts.for all` bekommt auch
+  eine Quelle, die noch niemand zitiert, in der Strom-App ihren Ausschnitt, soweit er neben den zitierten unter die
+  Grenze passt – die zitierten werden dafür nie kleiner; was nicht passte, wird gesagt.
 
 ## 1.17.0
 

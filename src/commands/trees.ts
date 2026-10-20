@@ -141,7 +141,8 @@ register({
     "Offers a backup first (strom pack --all-images: it comes back with strom unpack), then the images no other tree\n" +
     "uses; the person types the tree's name to confirm. The tree's folder goes into the system's trash (never deleted\n" +
     "for good), so do the images they chose. Never while somebody works on it; only the person at the computer —\n" +
-    "never an agent.",
+    "never an agent. The way to delete a family tree: its bridge for the Strom app is stopped first (a folder deleted\n" +
+    "by hand: the bridge ends by itself once it finds its research gone).",
   args: [{ name: "tree", description: "tree name or folder", required: true }],
   examples: ['strom trees remove "Novákovi"'],
   async run(ctx, { args }) {

@@ -36,7 +36,8 @@ conclusion so the next researcher can follow it.
 <!-- end -->
 <!-- for link verify enrich intake locate -->
 - **Nothing is deleted.** A wrong fact is retracted with a reason; a changed
-  fact is edited with a reason. Contradictions become conflicts, competing
+  fact is edited with a reason; so are a wrong name or note (`strom name retract`,
+  `strom note retract`, `strom note edit`). Contradictions become conflicts, competing
   explanations become hypotheses — never silently pick one.
 <!-- end -->
 - **Write as you go.** Record each finding as soon as you have it: what is

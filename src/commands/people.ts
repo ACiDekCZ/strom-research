@@ -1,4 +1,4 @@
-// person add · list · show · edit · name add · family add · show · child · event add · note add · cite
+// person add · list · show · edit · name add · retract · restore · family add · show · child · event add · note add · list · edit · retract · restore · cite
 
 import { register, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
@@ -8,7 +8,7 @@ import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
 import { INFORMATION } from "../core/evidence.ts";
-import { EVENT_KINDS, NAME_KINDS, type Citation, type Event, type Family, type Name, type Person, type Research, type Task } from "../core/model.ts";
+import { EVENT_KINDS, NAME_KINDS, type Citation, type Event, type Family, type Name, type Note, type Person, type Research, type RetractedNote, type Task } from "../core/model.ts";
 import {
   ancestorGenerations,
   displayName,
@@ -16,14 +16,18 @@ import {
   familiesAsPartner,
   findPersons,
   formatName,
+  gedcomName,
   label,
   lifespan,
+  parseName,
   primaryName,
   relationTo,
   resolvePerson,
+  sameName,
   titledName,
 } from "../core/people.ts";
 import { resolveResearch } from "./research.ts";
+import { editNote, notesOf, restoreName, restoreNote, retractName, retractNote } from "../core/retractions.ts";
 import { DEATH_AFTER_YEARS, unprovenPeople, type UnprovenKind } from "../core/review.ts";
 import { foldText } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
@@ -122,6 +126,42 @@ function citesOf(citations: Citation[] | undefined, w: Words = ENGLISH): string 
 function nameLine(n: Name, w: Words = ENGLISH): string {
   const cites = citesOf(n.citations, w);
   return `${titledName(n)}${n.kind ? ` (${w.word("name", n.kind)})` : ""}${cites ? `  ← ${cites}` : ""}`;
+}
+
+/** What was taken back or corrected on a person and their facts, oldest first: the name or text as it was, when, by whom, why. */
+interface HistoryItem {
+  kind: "name" | "note" | "edit";
+  /** The person or the fact (E…) it was on. */
+  on: string;
+  text: string;
+  /** The kind of a name taken back. */
+  nameKind?: string;
+  at: string;
+  by: string;
+  reason: string;
+}
+
+function historyOf(p: Person): HistoryItem[] {
+  const out: HistoryItem[] = [];
+  for (const n of p.retractedNames ?? []) out.push({ kind: "name", on: p.id, text: titledName(n), ...(n.kind ? { nameKind: n.kind } : {}), ...n.retracted });
+  const notes = (on: string, list: Note[], gone: RetractedNote[]) => {
+    for (const n of [...list, ...gone]) for (const e of n.edits ?? []) out.push({ kind: "edit", on, ...e });
+    for (const n of gone) out.push({ kind: "note", on, text: n.text, ...n.retracted });
+  };
+  notes(p.id, p.notes, p.retractedNotes ?? []);
+  for (const e of p.events) {
+    for (const x of e.noteEdits ?? []) out.push({ kind: "edit", on: e.id, ...x });
+    notes(e.id, [], e.retractedNotes ?? []);
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at));
+}
+
+function historyLine(h: HistoryItem, w: Words): string {
+  const values = { at: h.at.slice(0, 10), by: h.by, reason: h.reason, text: truncate(h.text, 160), name: h.nameKind ? `${h.text} (${w.word("name", h.nameKind)})` : h.text };
+  const fact = h.on.startsWith("E") ? `${h.on} ` : "";
+  if (h.kind === "name") return w.say("ui.show.history.name", `name ${values.name} retracted ${values.at} (${values.by}): ${values.reason}`, values);
+  if (h.kind === "note") return fact + w.say("ui.show.history.note", `note retracted ${values.at} (${values.by}): ${values.reason} — ${values.text}`, values);
+  return fact + w.say("ui.show.history.edit", `note corrected ${values.at} (${values.by}): ${values.reason} — before: ${values.text}`, values);
 }
 
 export function eventLine(e: Event, w: Words = ENGLISH): string {
@@ -259,8 +299,9 @@ register(
     group: "people",
     tree: true,
     args: [{ name: "person", description: "ID (P0001) or name", required: true }],
-    examples: ["strom person show P0001", 'strom person show "Antonín Víšek"'],
-    run(ctx, { args }) {
+    options: [{ name: "history", type: "boolean", description: "also the names and notes taken back and the texts notes had before they were corrected: when, by whom, why" }],
+    examples: ["strom person show P0001", 'strom person show "Antonín Víšek"', "strom person show P0001 --history"],
+    run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const p = resolvePerson(tree, args[0]!);
       const parents = familiesAsChild(tree, p.id);
@@ -300,9 +341,12 @@ register(
       }
       if (researches.length) out.push("", `${w.say("ui.show.research", "in research")}  ${researches.map((r) => `${r.id} ${r.name}`).join(" · ")}`);
       if (p.notes.length) out.push("", w.say("ui.show.notes", "notes"), ...p.notes.map((n) => `  ${n.at.slice(0, 10)} ${n.text}`));
+      const history = historyOf(p);
+      if (opts.history) out.push("", w.say("ui.show.history", "history"), ...(history.length ? history.map((h) => `  ${historyLine(h, w)}`) : [`  ${w.say("ui.show.history.none", "nothing retracted or corrected")}`]));
+      else if (history.length) out.push("", w.say("ui.show.history.more", `retracted or corrected: ${history.length} — strom person show ${p.id} --history`, { n: history.length, id: p.id }));
       return {
         text: lines(...out),
-        data: { person: p, parentFamilies: parents, partnerFamilies: partnerships, researches: researches.map((r) => r.id) },
+        data: { person: p, parentFamilies: parents, partnerFamilies: partnerships, researches: researches.map((r) => r.id), ...(opts.history ? { history } : {}) },
       };
     },
   },
@@ -401,7 +445,52 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const p = resolvePerson(tree, args[0]!);
+      const gone = p.retractedNames?.find((n) => sameName(n, parseName(args[1]!)));
+      if (gone)
+        throw new UsageError(`the name ${gedcomName(gone)} of ${p.id} was retracted: ${gone.retracted.reason}`, {
+          hint: `right after all: strom name restore ${p.id} "${gedcomName(gone)}" --reason "…"`,
+          code: "name.retracted",
+        });
       const r = addName(tree, p.id, { name: args[1]!, kind: opts.kind as string | undefined, citation: citationOf(opts), primary: Boolean(opts.primary), prefix: opts.prefix as string | undefined, suffix: opts.suffix as string | undefined });
+      return { text: written(tree), data: { person: r.person, name: r.name } };
+    },
+  },
+  {
+    path: ["name", "retract"],
+    summary: "Take back a name of a person that turned out wrong (kept with the reason, shown nowhere but in the history)",
+    group: "people",
+    tree: true,
+    writes: true,
+    description:
+      "The name goes from everything that shows, reads or matches names: person show, the brief, the GEDCOM (the Strom\n" +
+      "app no longer shows it once it loads the tree), searching and pairing. The name the person is shown by only while\n" +
+      "they have another (they are shown by that one then); its spelling is corrected with strom person edit --name.\n" +
+      "Seen again: strom person show <who> --history; put back: strom name restore.",
+    args: [
+      { name: "person", description: "ID (P0001) or name", required: true },
+      { name: "name", description: 'the name as the person has it, surname in slashes: "Jana /Nováková/"', required: true },
+    ],
+    examples: ['strom name retract P0002 "Josef /Nowak/" --reason "misread: the register has Novák"'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const r = retractName(tree, resolvePerson(tree, args[0]!).id, args[1]!, opts.reason as string | undefined);
+      return { text: written(tree), data: { person: r.person, name: r.name } };
+    },
+  },
+  {
+    path: ["name", "restore"],
+    summary: "Put a name taken back among the person's names again",
+    group: "people",
+    tree: true,
+    writes: true,
+    args: [
+      { name: "person", description: "ID (P0001) or name", required: true },
+      { name: "name", description: "the retracted name, surname in slashes", required: true },
+    ],
+    examples: ['strom name restore P0002 "Josef /Nowack/" --reason "the second record gives it too"'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const r = restoreName(tree, resolvePerson(tree, args[0]!).id, args[1]!, opts.reason as string | undefined);
       return { text: written(tree), data: { person: r.person, name: r.name } };
     },
   },
@@ -640,7 +729,94 @@ register(
       return { text: written(tree), data: { id, note } };
     },
   },
+  {
+    path: ["note", "list"],
+    summary: "The notes of a record or a fact, numbered (the number strom note edit and retract take)",
+    group: "people",
+    tree: true,
+    args: [{ name: "id", description: "record ID (P0001, F0001, T0001, S0001 …), a fact (E0001) or person name", required: true }],
+    options: [{ name: "history", type: "boolean", description: "also the notes taken back (numbered for strom note restore) and the texts notes had before they were corrected" }],
+    examples: ["strom note list P0001", "strom note list T0004 --history"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const id = noteHolderId(tree, args[0]!);
+      const { notes, retracted } = notesOf(tree, id);
+      const was = (n: Note) => (opts.history ? (n.edits ?? []).map((e) => `     before ${e.at.slice(0, 10)} (${e.by}): ${e.reason} — ${truncate(e.text, 160)}`) : []);
+      const out: (string | undefined)[] = [
+        notes.length ? `${id} notes` : `${id} has no notes`,
+        ...notes.flatMap((n, i) => [`  ${i + 1}  ${[n.at.slice(0, 10), n.by].filter(Boolean).join(" ")}  ${n.text}`, ...was(n)]),
+      ];
+      if (opts.history && retracted.length)
+        out.push("retracted", ...retracted.flatMap((n, i) => [`  ${i + 1}  ${n.at.slice(0, 10)} ${n.by}  ${n.text}`, `     retracted ${n.retracted.at.slice(0, 10)} (${n.retracted.by}): ${n.retracted.reason}`, ...was(n)]));
+      else if (retracted.length) out.push(`retracted: ${retracted.length} — strom note list ${id} --history`);
+      return {
+        text: lines(...out),
+        data: { id, notes: notes.map((n, i) => ({ n: i + 1, ...n })), ...(opts.history ? { retracted: retracted.map((n, i) => ({ n: i + 1, ...n })) } : { retracted: retracted.length }) },
+      };
+    },
+  },
+  {
+    path: ["note", "edit"],
+    summary: "Correct a note of a person, family, task or fact — the text it had stays in the history with the reason",
+    group: "people",
+    tree: true,
+    writes: true,
+    args: [
+      { name: "id", description: "record ID, a fact (E0001) or person name", required: true },
+      { name: "n", description: "the note's number (strom note list <id>; a fact's note is 1)", required: true },
+      { name: "text", description: "the corrected note", required: true },
+    ],
+    examples: ['strom note edit T0002 1 "Book 12 searched 1801–1830: no entry" --reason "the years were written wrong"'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const id = noteHolderId(tree, args[0]!);
+      const note = editNote(tree, id, Number(args[1]), args[2]!, opts.reason as string | undefined);
+      return { text: written(tree), data: { id, note } };
+    },
+  },
+  {
+    path: ["note", "retract"],
+    summary: "Take back a note that turned out wrong (kept with the reason, shown nowhere but in the history)",
+    group: "people",
+    tree: true,
+    writes: true,
+    description: "The notes after it move up a number. Seen again: strom note list <id> --history; put back: strom note restore.",
+    args: [
+      { name: "id", description: "record ID, a fact (E0001) or person name", required: true },
+      { name: "n", description: "the note's number (strom note list <id>; a fact's note is 1)", required: true },
+    ],
+    examples: ['strom note retract P0003 1 --reason "it was about a namesake from No. 37"'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const id = noteHolderId(tree, args[0]!);
+      const note = retractNote(tree, id, Number(args[1]), opts.reason as string | undefined);
+      return { text: written(tree), data: { id, note } };
+    },
+  },
+  {
+    path: ["note", "restore"],
+    summary: "Put a note taken back among the notes again",
+    group: "people",
+    tree: true,
+    writes: true,
+    args: [
+      { name: "id", description: "record ID, a fact (E0001) or person name", required: true },
+      { name: "n", description: "its number among the retracted (strom note list <id> --history)", required: true },
+    ],
+    examples: ['strom note restore P0003 1 --reason "it was ours after all"'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const id = noteHolderId(tree, args[0]!);
+      const note = restoreNote(tree, id, Number(args[1]), opts.reason as string | undefined);
+      return { text: written(tree), data: { id, note } };
+    },
+  },
 );
+
+/** The record or fact a note command names: an ID as given, else a person by name. */
+function noteHolderId(tree: Tree, ref: string): string {
+  return /^[A-Z]\d+$/i.test(ref.trim()) ? normId(ref) : resolvePerson(tree, ref).id;
+}
 
 register(
   {

@@ -49,6 +49,7 @@ const CHILDREN: Record<string, string[]> = {
   "FAM.CHIL": ["_FREL", "_MREL"],
   "INDI.ASSO": ["RELA", "SOUR", "NOTE"],
   FAM: ["HUSB", "WIFE", "CHIL", "NOTE", "SOUR", "REFN", "OBJE", "RIN", "CHAN", "_STORY", ...FAM_EVENTS],
+  // the Strom profile also writes PAGE on the record: where in the book the source is (the Strom app's reference)
   SOUR: ["TITL", "AUTH", "ABBR", "PUBL", "TEXT", "REPO", "NOTE", "REFN", "DATA", "OBJE", "RIN", "CHAN"],
   "SOUR.REPO": ["CALN", "NOTE"],
   REPO: ["NAME", "ADDR", "NOTE", "REFN", "RIN", "CHAN"],
@@ -146,7 +147,7 @@ export function validateGedcom(text: string, opts: { strict?: boolean } = {}): G
       const parentTag = stack[level - 1]!;
       if (tag === "CONC" || tag === "CONT") {
         if (!TEXT_TAGS.has(parentTag) && !["CONC", "CONT"].includes(parentTag)) add("warn", n, `${tag} under ${parentTag}`);
-      } else if (allowed && !allowed.includes(tag)) add(tag.startsWith("_") ? "warn" : "error", n, `${tag} is not expected under ${ctx}`);
+      } else if (allowed && !allowed.includes(tag) && !(ctx === "SOUR" && tag === "PAGE" && !opts.strict)) add(tag.startsWith("_") ? "warn" : "error", n, `${tag} is not expected under ${ctx}`);
     }
     stack[level] = tag;
     if (tag.startsWith("_") && (opts.strict || !EXTENSIONS.has(tag))) add(opts.strict ? "error" : "warn", n, `non-standard tag ${tag}`);

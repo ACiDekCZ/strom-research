@@ -302,7 +302,9 @@ register(
                 ui(lang, "ui.app.images", { n: String(r.excerpts), mb: numberIn(lang, r.bytes / 1024 / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }),
                 r.level !== r.asked ? ui(lang, "ui.app.images.smaller", { limit: numberIn(lang, set.mb, { maximumFractionDigits: 3, useGrouping: false }), level: qualityIn(r.level, lang), asked: qualityIn(r.asked, lang) }) : undefined,
                 r.dropped.length ? ui(lang, "ui.app.images.left", { n: String(r.dropped.length), limit: numberIn(lang, set.mb, { maximumFractionDigits: 3, useGrouping: false }) }) : undefined,
+                r.uncitedLeft.length ? ui(lang, "ui.app.images.uncited", { n: String(r.uncitedLeft.length), limit: numberIn(lang, set.mb, { maximumFractionDigits: 3, useGrouping: false }) }) : undefined,
                 r.outOfScope ? ui(lang, "ui.app.images.scope", { n: String(r.outOfScope), for: set.for }) : undefined,
+                set.for !== "all" && r.uncited ? ui(lang, "ui.app.images.uncitedOut", { n: String(r.uncited) }) : undefined,
                 r.unclipped.length ? ui(lang, "ui.app.images.unclipped", { n: String(r.unclipped.length) }) : undefined,
               )
             : undefined;
@@ -414,7 +416,9 @@ register(
     description:
       "Ended for good: the next bridge gets a new secret (its port while free) — the address the Strom app kept no longer\n" +
       "works, and the app gets the new one when the research is opened in it again (strom app). --forget: its port too.\n" +
-      "(A bridge started again by itself — strom updated, one that ended when idle — keeps its address.)",
+      "(A bridge started again by itself — strom updated, one that ended when idle — keeps its address.)\n" +
+      "The bridge runs on in the background after the menu closes, until idle; a whole family tree is deleted with\n" +
+      "strom trees remove (its bridge stopped first).",
     options: [{ name: "forget", type: "boolean", description: "the next bridge gets a new port too, not only a new secret" }],
     examples: ["strom live stop", "strom live stop --forget"],
     run(ctx, { opts }) {

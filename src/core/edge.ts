@@ -40,7 +40,8 @@ export const EDGE_ENDS = ["unnamed", "named", "lost", "before-records", "gap", "
 /**
  * What comes next: an agent works on it now, it waits for the user, it is in the queue, it waits out of the queue
  * (a direction paused, people off the tree, put aside), strom proposes it with the next session, everything strom
- * could propose was tried (the user decides), nothing.
+ * could propose was tried (the user decides), nothing — also where the baptism names no father and nothing is at work
+ * on it or open about them (a closed end, never the user's decision).
  */
 export const EDGE_NEXT = ["working", "waiting", "queued", "held", "proposed", "decide", "none"] as const;
 
@@ -393,7 +394,10 @@ export function treeEdges(tree: Tree, opts: { named?: boolean } = {}): { edges: 
     });
     // named, and no task tests the hypotheses that name them: what comes next is the user's decision
     const untested = naming.length > 0 && edgeHyps.filter((h) => naming.includes(h.id)).every((h) => !h.tests.length);
-    const nextNow: Edge["next"] = end === "named" && untested && (next === "none" || next === "proposed") ? "decide" : next;
+    // the baptism read names no father: an end the records close — nothing for the user to decide once its work is done
+    // (no task at work, waiting or put aside on it, no open hypothesis about them)
+    const closed = end === "unnamed" && !edgeTasks.length && !edgeHyps.length;
+    const nextNow: Edge["next"] = closed ? "none" : end === "named" && untested && (next === "none" || next === "proposed") ? "decide" : next;
     const edgeConflicts = conflicts
       .filter((c) => subjectPeople(tree, c.subject).includes(p.id) && (!c.fact || EDGE_FACTS.has(c.fact)))
       .map((c) => c.id);

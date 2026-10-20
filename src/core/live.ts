@@ -84,7 +84,7 @@ import http from "node:http";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import type { Env } from "./paths.ts";
+import { configDir, userHome, type Env } from "./paths.ts";
 import { newerTree, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
 import { readJsonIfExists } from "./json.ts";
 import { changeLines, type ChangeKind } from "./changelog.ts";
@@ -267,8 +267,9 @@ function sameFolder(a: string, b: string): boolean | undefined {
 }
 
 /**
- * Where a process runs (its working folder): a bridge runs in its tree's folder. Undefined where it cannot be asked
- * (Windows; lsof missing) — then a process is taken for what its note says, as before.
+ * Where a process runs (its working folder): a bridge runs in its tree's folder (on Windows a newer one in the settings'
+ * folder, never asked there). Undefined where it cannot be asked (Windows; lsof missing) — then a process is taken for
+ * what its note says, as before.
  */
 function processCwd(pid: number): string | undefined {
   if (process.platform === "linux") {
@@ -285,10 +286,13 @@ function processCwd(pid: number): string | undefined {
   return line ? line.slice(1) : undefined;
 }
 
-/** A bridge running in another folder than this tree's — never ended for this tree. Its folder, else undefined. */
+/**
+ * A bridge running in another tree's folder than this one's (an older strom's, whose note names no folder) — never
+ * ended for this tree. Its folder, else undefined. A folder of no tree (a bridge run elsewhere) is not another tree's.
+ */
 function bridgeElsewhere(pid: number, root: string): string | undefined {
   const cwd = processCwd(pid);
-  return cwd && sameFolder(cwd, realRoot(root)) === false ? cwd : undefined;
+  return cwd && sameFolder(cwd, realRoot(root)) === false && fs.existsSync(path.join(cwd, "strom.json")) ? cwd : undefined;
 }
 
 /**
@@ -338,10 +342,11 @@ function writeLast(root: string, last: LiveLast): void {
 export function noteLive(root: string, text: string): void {
   try {
     // the research moved or taken off: its folder never made again for a line of the log (found on Mac: a folder
-    // left where the person moved the research from)
+    // left where the person moved the research from) — nor its .strom, deleted by hand (it is made by what starts a
+    // bridge: its lock, its log's folder)
     if (!fs.existsSync(path.join(root, "strom.json"))) return;
     const file = liveLogFile(root);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
+    if (!fs.existsSync(path.dirname(file))) return;
     fs.appendFileSync(file, `${new Date().toISOString()} [${process.pid}] ${text}\n`);
     const size = fs.statSync(file).size;
     if (size > LIVE_LOG_BYTES) {
@@ -351,6 +356,16 @@ export function noteLive(root: string, text: string): void {
     }
   } catch {
     // a log that cannot be written stops nothing
+  }
+}
+
+/** A folder as the system knows it (its disk and number): another folder made under the same name is another one. */
+function folderId(dir: string): string | undefined {
+  try {
+    const st = fs.statSync(dir, { bigint: true });
+    return st.isDirectory() ? `${st.dev}:${st.ino}` : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -427,26 +442,49 @@ function startNow(root: string, env: Env, running: LiveInfo | undefined): LiveIn
 /** The bridge asking the one that takes over from it whether it answers: as the app's own pages ask. */
 const STATUS_PROBE_ORIGIN = "https://stromapp.info";
 
-/** A bridge started on its own (detached), what it says itself into its log — also what Node says when it dies. */
+/**
+ * A bridge started on its own (detached). Nothing of it holds the tree's folder, which Windows would then refuse to
+ * delete (found on Windows: the folder of a research could not be deleted after the menu closed, its bridge running on
+ * for hours): on Windows it runs in the settings' folder, as the phone's server does (the tree is named to it:
+ * STROM_TREE; bridgeCwd), and its log is no open file of the process (stderr) — each line opened, appended and closed
+ * (noteLive), errors nobody caught too; what Node says when the process cannot even start is what `strom live serve`
+ * shows in the foreground.
+ */
 function spawnBridge(root: string, env: Env, extra: Record<string, string> = {}): ChildProcess {
   const { command, args } = stromLauncher();
-  let log: number | "ignore" = "ignore";
   try {
+    // its log's folder (a research handed over comes without its .strom)
     fs.mkdirSync(path.dirname(liveLogFile(root)), { recursive: true });
-    log = fs.openSync(liveLogFile(root), "a");
   } catch {
     // without a log
   }
   const child = spawn(command, [...args, "live", "serve"], {
-    cwd: root,
+    cwd: bridgeCwd(root, env),
     env: { ...(env as NodeJS.ProcessEnv), STROM_TREE: root, STROM_SPAWNED: "1", ...extra },
     detached: true,
-    stdio: ["ignore", "ignore", log],
+    stdio: "ignore",
     windowsHide: true,
   });
   child.unref();
-  if (typeof log === "number") fs.closeSync(log);
   return child;
+}
+
+/**
+ * Where a bridge runs. On Windows the settings' folder (else the user's home), never its tree's: a folder a process runs
+ * in cannot be deleted there. Elsewhere its tree's folder, which deleting or moving it never minds: an older strom (1.17
+ * and before, on macOS and Linux) tells its tree's bridge by the folder it runs in, and one in another folder it never
+ * ends — going back to it left the bridge running at the app's address, the older one's at another (found in the test
+ * of a switch from the beta back to the release).
+ */
+export function bridgeCwd(root: string, env: Env, platform: NodeJS.Platform = process.platform): string {
+  if (platform !== "win32" && fs.existsSync(root)) return root;
+  const dir = configDir(env);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  } catch {
+    return userHome(env);
+  }
 }
 
 /**
@@ -2405,6 +2443,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
       live = { port, token, pid: process.pid, url: `http://127.0.0.1:${port}/${token}`, started: new Date().toISOString(), version: VERSION };
       writeLive(root, live);
       writeLast(root, { port, token, pid: process.pid, started: live.started });
+      // its research gone: no strom.json there, or the .strom it was started with deleted (gone, or another one in its
+      // place) — the bridge then ends and makes neither again (noteLive, writeLast make no folder)
+      const dotStrom = folderId(path.join(root, ".strom"));
+      const researchGone = () => !fs.existsSync(path.join(root, "strom.json")) || folderId(path.join(root, ".strom")) !== dotStrom;
       const how = !last ? "a new address" : last.port === port ? (last.token ? "the address of the last bridge" : "the port of the last bridge, a new secret (it was ended for good)") : last.token ? "the token of the last bridge, another port" : "a new address";
       noteLive(root, `started: strom ${VERSION}, port ${port}, ${how}`);
 
@@ -2540,9 +2582,9 @@ export function serveLive(root: string, env: Env): Promise<void> {
       // the first a few minutes after it starts, then once a day
       let tidied = Date.now() - Number(env.STROM_TIDY_MS ?? 24 * 3600_000) + 5 * 60_000;
       const timer = setInterval(() => {
-        // its research gone (taken off the computer, a test's folder): nothing to follow — even while handing over
-        // (found: bridges of a folder removed in the middle of it left running for hours)
-        if (!fs.existsSync(path.join(root, "strom.json"))) return stop("the research is no longer there", "gone", false);
+        // its research gone (taken off the computer, a test's folder, moved; its .strom deleted): nothing to follow —
+        // even while handing over (found: bridges of a folder removed in the middle of it left running for hours)
+        if (researchGone()) return stop("the research is no longer there", "gone", false);
         if (renewing) return;
         if (Date.now() - renewChecked > RENEW_MS) {
           renewChecked = Date.now();
@@ -2579,7 +2621,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         if (streams.size || anyoneAtWork(root) || reads.active()) lastAsked = Date.now();
         if (Date.now() - lastAsked > idleMs) return stop("idle: nobody asked for a while", "idle", false);
         // its research gone (taken off the computer, a test's folder): nothing to follow
-        if (!fs.existsSync(path.join(root, "strom.json"))) return stop("the research is no longer there", "gone", false);
+        if (researchGone()) return stop("the research is no longer there", "gone", false);
         if (!streams.size) return;
         safe("a tick", () => {
           const { head: h, at } = tip(root);

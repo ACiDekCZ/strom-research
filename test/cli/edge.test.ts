@@ -306,3 +306,40 @@ test("edge and the brief: a book of weak scans (the long side at most 2000 px) i
   // nothing offered again: the queue is the same with or without weak scans
   assert.equal(e.P0004.next, "queued");
 });
+
+test("edge: the baptism read names no father — a closed end once its work is done, never the user's decision", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["research", "new", "Předci Jana", "--new-person", "Jan /Novák/", "--sex", "M"]); // P1
+  await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"]); // P2
+  await w.ok(["family", "add", "--partner", "P2", "--child", "P1"]);
+  await w.ok(["recordset", "add", "Lhota, narození 1784–1830", "--kinds", "baptism", "--places", "Lhota", "--years", "1784-1830", "--access", "online-free"]); // B1
+  await w.ok(["source", "add", "Křest Jana", "--kind", "baptism", "--recordset", "B0001", "--locator", "fol. 3", "--information", "primary"]); // S1
+  await w.ok(["event", "add", "P1", "BIRT", "--date", "1820", "--place", "Lhota", "--cite", "S0001", "--status", "proven"]);
+  // the work on the father: in the queue, as today
+  await w.ok(["task", "add", "Otec Jana", "--level", "link", "--where", "B0001", "--why", "otec", "--done-when", "zápis nalezen", "--about", "P1"]); // T1
+  let e = await edges(w);
+  assert.equal(e.P0001.missing, "father");
+  assert.equal(e.P0001.end, "unnamed");
+  assert.equal(e.P0001.next, "queued");
+  // done: the baptism names no father — nothing waits for the user
+  await w.ok(["task", "done", "T0001", "--result", "otec neuveden"]);
+  e = await edges(w);
+  assert.equal(e.P0001.end, "unnamed");
+  assert.deepEqual(e.P0001.tried, ["T0001"]);
+  assert.equal(e.P0001.next, "none");
+  assert.match((await w.ok(["edge", "P1"])).out, /next: nothing planned/);
+  assert.match(exportGedcom(Tree.open(w.cwd, w.env), { for: "strom", edges: true }).text, /2 _END unnamed\n2 _NEXT none/);
+  // work on it again (a task at work, waiting or in the queue): as before
+  await w.ok(["task", "add", "Otec Jana jinde", "--level", "link", "--where", "B0001", "--why", "otec", "--done-when", "zápis nalezen", "--about", "P1"]); // T2
+  e = await edges(w);
+  assert.equal(e.P0001.next, "queued");
+  await w.ok(["task", "drop", "T0002", "--reason", "nechci"]);
+  e = await edges(w);
+  assert.deepEqual(e.P0001.tried, ["T0001", "T0002"]);
+  assert.equal(e.P0001.next, "none");
+  // an open hypothesis about them: as before, the user decides
+  await w.ok(["hypothesis", "add", "Byl otcem Josef?", "--about", "P1", "--variant", "A: ano", "--variant", "B: ne"]);
+  e = await edges(w);
+  assert.equal(e.P0001.next, "decide");
+});

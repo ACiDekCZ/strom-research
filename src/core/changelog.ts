@@ -69,6 +69,8 @@ const SAID: Record<string, PhraseKey> = {
   "story.discard": "log.story.discard",
   "note.add": "log.note.add",
   "note.edit": "log.note.edit",
+  "note.retract": "log.note.retract",
+  "note.restore": "log.note.restore",
   "input.add": "log.input.add",
   "input.sync": "log.input.sync",
   "input.done": "log.input.done",
@@ -300,6 +302,11 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     if (o.op === "person.name" || o.op === "name.remove") {
       const m = o.op === "person.name" ? /^\S+ name (.+?)(?: \([\w-]+\))?(?: ← \S+)?$/.exec(o.summary) : /^\S+ name (.+?) removed[:,]/.exec(o.summary);
       say(m ? phrase(lang, o.op === "person.name" ? "log.name.add" : "log.name.remove", { name: m[1]!.replace(/\//g, " ").replace(/\s+/g, " ").trim(), who: who(first) }) : o.op === "person.name" ? phrase(lang, "log.person.name", { who: who(first) }) : changed(o));
+      continue;
+    }
+    if (o.op === "name.retract" || o.op === "name.restore") {
+      const m = /^\S+ name (.+?) (?:retracted|restored)(?:;|$)/.exec(o.summary);
+      say(m ? phrase(lang, o.op === "name.retract" ? "log.name.retract" : "log.name.restore", { name: m[1]!.replace(/\//g, " ").replace(/\s+/g, " ").trim(), who: who(first) }) : changed(o));
       continue;
     }
     if (o.op === "note.remove") {

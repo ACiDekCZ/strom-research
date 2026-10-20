@@ -30,9 +30,10 @@ async function world(): Promise<World> {
 }
 
 test("paths dropped into the terminal: quoted, escaped, several — on Windows a backslash is the path's", () => {
-  assert.deepEqual(droppedPaths("/Users/a/My\\ Folder"), ["/Users/a/My Folder"]);
-  assert.deepEqual(droppedPaths("'/tmp/Dopisy babičky' \"/tmp/rodokmen.ged\" "), ["/tmp/Dopisy babičky", "/tmp/rodokmen.ged"]);
-  assert.deepEqual(droppedPaths("/tmp/a.jpg /tmp/b.jpg"), ["/tmp/a.jpg", "/tmp/b.jpg"]);
+  // (macOS, Linux said so: the test runs on Windows too)
+  assert.deepEqual(droppedPaths("/Users/a/My\\ Folder", "darwin"), ["/Users/a/My Folder"]);
+  assert.deepEqual(droppedPaths("'/tmp/Dopisy babičky' \"/tmp/rodokmen.ged\" ", "linux"), ["/tmp/Dopisy babičky", "/tmp/rodokmen.ged"]);
+  assert.deepEqual(droppedPaths("/tmp/a.jpg /tmp/b.jpg", "linux"), ["/tmp/a.jpg", "/tmp/b.jpg"]);
   assert.deepEqual(droppedPaths('"C:\\Users\\Jana\\Fotky rodiny"', "win32"), ["C:\\Users\\Jana\\Fotky rodiny"]);
   assert.deepEqual(droppedPaths("  "), []);
 });

@@ -25,7 +25,7 @@ import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
 import { prependPath } from "../runners/runner.ts";
 import { shimDir } from "../commands/session.ts";
 import { isAgent } from "../core/which.ts";
-import { completePath, pathToRemember } from "../core/userpath.ts";
+import { completePath, pathOf, pathToRemember } from "../core/userpath.ts";
 import { appUrlShown, noticeStromApp } from "../core/stromapp.ts";
 import { lastChannelOf, pendingTransition, updateChannel, whatsNewUrl } from "../core/update.ts";
 import { backupBefore, backupSaid } from "./backups.ts";
@@ -230,6 +230,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         }
       }
     }
+    // the PATH as given, before it is made fuller: what the terminal strom was started from knows (the menu's goodbye)
+    ctx.givenPath = pathOf(env);
     completePath(env, ctx.settings.config.terminalPath);
     // a person's own pace for a host taken as given until a command to an archive finds settings not the person's
     netTrust.ownPace = true;

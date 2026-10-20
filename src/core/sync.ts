@@ -44,6 +44,7 @@ import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
 import { APP_DATA_SEX_UNKNOWN, isAppVersion } from "./stromapp.ts";
 import { bestGrade, checkReading, readingGrade, readingResult, readingSource, surer, takeReadingImages, type ReadFact, type ReadGrade, type ReadingCheck, type ReadingMark, type ReadingRefusal } from "./readsync.ts";
+import { earlierNoteTexts } from "./retractions.ts";
 import { cleanTitle, familiesAsPartner, formatName, foundTitles, gedcomTitledName, parseName, primaryName, sameName as sameWords, titledName } from "./people.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
@@ -2070,6 +2071,7 @@ export type ChangeKind =
   | "source.changed"
   | "source.reading"
   | "source.verified"
+  | "source.title"
   | "fact.cite"
   | "fact.part"
   | "person.cite"
@@ -2108,6 +2110,8 @@ export interface Change {
   /** A source: its key in the file, and the research's source it is (a change of one the research has). */
   source?: string;
   sourceId?: string;
+  /** source.title: the research's title of the source (the file's new one is `text`). */
+  wasTitle?: string;
   /** A fact taken with its sources: it stands on the user's reading of a record (their transcript counts as one). */
   reads?: boolean;
   /** fact.part: who the file names at the fact (`was` the research's fact), and the research's entry of them (its role). */
@@ -2252,7 +2256,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const carriedFam = new Set(incoming.families.flatMap((f) => f.facts.map((x) => kindOf(x.kind))));
   // the sources first: what the file's citations are the research has, or what comes with them
   const readings = new Map<string, ReadingCheck>();
-  const sources = planSources(tree, incoming, ours, base, push, readings);
+  const sources = planSources(tree, incoming, ours, base, push, readings, edits);
   const reads = readsFor(tree, incoming, sources, changes, readings);
   const idOf = (key: string) => (key.startsWith("x:") ? key : (resolve(tree, key)?.id ?? key));
   // who the records name at a fact: the same person by their key or a name of theirs; the role "other" is any role
@@ -2507,8 +2511,9 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
         if (!has.kind && nameKey(n) !== nameKey(shown)) push({ kind: "name.new", action: "add", person: id, name, text: n, married: true });
         continue;
       }
-      // the research took it off since the app was given it: that stays
+      // the research took it off since the app was given it, or took it back (strom name retract): that stays
       if (b && (b.married ?? []).some((m) => nameKey(m) === nameKey(n))) continue;
+      if ((person.retractedNames ?? []).some((m) => nameKey(gedcomName(m)) === nameKey(n))) continue;
       push({ kind: "name.new", action: "add", person: id, name, text: n, married: true });
     }
     if (!b || partial) return;
@@ -2555,7 +2560,9 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       push({ kind: "name.changed", action: renamed && !nameBacked(tree, shown) ? "correct" : edits === "user" ? "user" : "conflict", person: id, name, text: now, wasName: mine });
     }
     const theirMarried = new Set(p.married ?? []);
-    for (const n of p.names) if (!theirMarried.has(n) && !((renamed || both) && n === now) && !ourNames.has(nameKey(n)) && !baseNames.has(nameKey(n))) push({ kind: "name.new", action: "add", person: id, name, text: n });
+    // a name the research took back (strom name retract) is no name of the user's: an older copy still has it
+    const goneNames = new Set((tree.get<Person>(id)?.retractedNames ?? []).map((n) => nameKey(gedcomName(n))));
+    for (const n of p.names) if (!theirMarried.has(n) && !((renamed || both) && n === now) && !ourNames.has(nameKey(n)) && !baseNames.has(nameKey(n)) && !goneNames.has(nameKey(n))) push({ kind: "name.new", action: "add", person: id, name, text: n });
     marriedDiff(id, name, p, o, b);
     // the titles of the name they are shown by (T07), each apart and never as a change of the name itself: the user's
     // edit where the file's differs from what the app was given — one the name lacks added, a lead's corrected, a
@@ -2598,7 +2605,8 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       const overGuess = mySex === "U" && guessed !== undefined && !incoming.sexU;
       push({ kind: "sex.changed", action: b ? (edits === "user" ? "user" : backed || since || overGuess ? "conflict" : "correct") : "report", person: id, name, text: p.sex });
     }
-    notesDiff({ person: id, name }, p.notes, [o.said, b?.said ?? ""], o.facts, tree.get<Person>(id)?.notes);
+    // the notes the research took back or corrected since are words it said: an older copy's, no new note of the user's
+    notesDiff({ person: id, name }, p.notes, [o.said, b?.said ?? "", ...earlierNoteTexts(tree.get<Person>(id))], o.facts, tree.get<Person>(id)?.notes);
   }
   if (base && !partial)
     for (const [key, b] of base.persons)
@@ -2760,7 +2768,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     const both = [...new Set([...o.partners, ...partners])];
     factsDiff({ family: fam.id, partners: both }, f.facts, o.facts, b?.facts, true);
     citesDiff({ family: fam.id, partners: both }, f.cites, fam, b?.cites);
-    notesDiff({ family: fam.id, partners: both }, f.notes, [o.said ?? "", b?.said ?? ""], o.facts, fam.notes);
+    notesDiff({ family: fam.id, partners: both }, f.notes, [o.said ?? "", b?.said ?? "", ...earlierNoteTexts(fam)], o.facts, fam.notes);
     // how the couple is bound (no record proves it): the user's word where it changed since given, or where the research
     // has none; another word with nothing to stand on only said; none in the file takes nothing away (an older app)
     // (the one partner's married or divorced is the couple's facts' to say once the unknown one is named)
@@ -3034,6 +3042,9 @@ function citedIn(rec: unknown): Set<string> {
   return out;
 }
 
+/** A source's title for a comparison: spaces as one, NFC — its case and accents count (a title corrected so is renamed). */
+const sourceTitle = (s: string | undefined) => (s ?? "").normalize("NFC").replace(/\s+/g, " ").trim();
+
 /** Folded for matching an entry: no accents, case, stops or doubled spaces. */
 const entryKey = (s: string | undefined) => fold((s ?? "").replace(/[.,;:]/g, " "));
 
@@ -3070,7 +3081,7 @@ export function readByResearch(tree: Tree): Set<string> {
  * before), or new. Of the research's, what the user changed in the app since it was given — the app's own source
  * corrected, a record the research read a second reading beside it — and "transcript verified" ticked.
  */
-function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snapshot | undefined, push: (c: Omit<Change, "n">) => void, readings: Map<string, ReadingCheck>): Map<string, string> {
+function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snapshot | undefined, push: (c: Omit<Change, "n">) => void, readings: Map<string, ReadingCheck>, edits: "conflict" | "user"): Map<string, string> {
   const map = new Map<string, string>();
   let readSet: Set<string> | undefined;
   if (!incoming.sources?.size) return map;
@@ -3105,6 +3116,14 @@ function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snaps
       const kept = read && mine.notes.some((n) => edited.every((f) => exact(n.text).includes(entryWords(inc[f]))));
       if (edited.length && !kept) {
         push({ kind: read ? "source.reading" : "source.changed", action: read ? "add" : "correct", source: key, sourceId: mine.id, text: mine.title, ...(!read && (incoming.transcripts === "evidence" || mine.app?.read) ? { reads: true } : {}) });
+      }
+      // renamed in the app since it was given (an empty title takes nothing away): the research's title corrected —
+      // renamed by the research too since then, the user's title kept beside it, unless the user's word wins
+      const title = sourceTitle(inc.title);
+      if (title && [b.title, o?.title, mine.title].every((x) => sourceTitle(x) !== title)) {
+        const since = sourceTitle(mine.title) !== sourceTitle(b.title);
+        const beside = since && mine.notes.some((n) => sourceTitle(n.text).includes(title));
+        if (!beside) push({ kind: "source.title", action: !since ? "correct" : edits === "user" ? "user" : "add", source: key, sourceId: mine.id, text: inc.title, wasTitle: mine.title });
       }
     }
     if (inc.verified && mine.app && !mine.app.verified) push({ kind: "source.verified", action: "add", source: key, sourceId: mine.id, text: mine.title });
@@ -3373,7 +3392,7 @@ export interface Applied {
    * its status; event.cite: its status and the sources it was given (JSON); sex.edit: the sex before; family.sides: the
    * partner the family kept as HUSB before a sex of its partners changed ("" none); partner.remove: the partner, their
    * place and the partner kept as HUSB (JSON); note.add: the
-   * note's time; note.edit: the note's time, its line as the file has it and as it was (JSON); child.add: the child; place.edit: its position before (JSON); source.edit: its words, page and the
+   * note's time; note.edit: the note's time, its line as the file has it and as it was (JSON); child.add: the child; place.edit: its position before (JSON); source.edit: its words, page, title and the
    * app's mark before (JSON); event.parts: its participants before (JSON); name.cite, family.cite: the sources it was
    * given (JSON); name.edit: the name the person was shown by and the corrected one's spelling (JSON); name.primary:
    * the name added in front and the one shown before (JSON); name.drop: the user's name an edit of theirs replaced, and
@@ -3895,6 +3914,24 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           );
           applied.push({ do: "source.edit", id: s.id, before });
           raise(s.id);
+          break;
+        }
+        case "source.title": {
+          // renamed in the app: the research's title corrected (the user's word wins), else kept beside it
+          const s = c.sourceId ? tree.get<Source>(c.sourceId) : undefined;
+          const title = c.text?.replace(/\s+/g, " ").trim();
+          if (!s || !title) break;
+          if (c.action === "add") {
+            const n = addNote(tree, s.id, `${phrase(tree.lang, "sync.title.note", { source: source.id })} ${title}`);
+            applied.push({ do: "note.add", id: s.id, before: n.at });
+            break;
+          }
+          const before = JSON.stringify({ transcript: s.transcript ?? null, locator: s.locator ?? null, app: s.app ?? null, title: s.title });
+          update<Source>(tree, s.id, "source", (x) => ({ ...x, title }), {
+            op: "source.sync",
+            summary: `${s.id} renamed "${s.title}" → "${title}" (${c.action === "user" ? "the user's edit wins: " : ""}${reason})`,
+          });
+          applied.push({ do: "source.edit", id: s.id, before });
           break;
         }
         case "source.reading": {
@@ -4665,12 +4702,13 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         break;
       }
       case "source.edit": {
-        const b = JSON.parse(String(a.before ?? "{}")) as { transcript?: string | null; locator?: string | null; app?: Source["app"] | null };
+        const b = JSON.parse(String(a.before ?? "{}")) as { transcript?: string | null; locator?: string | null; app?: Source["app"] | null; title?: string };
         update<Source>(
           tree,
           a.id,
           "source",
-          ({ transcript: _t, locator: _l, app: _a, ...x }) => ({ ...x, ...(b.transcript ? { transcript: b.transcript } : {}), ...(b.locator ? { locator: b.locator } : {}), ...(b.app ? { app: b.app } : {}) }) as Source,
+          // its title too, when a rename in the app changed it
+          ({ transcript: _t, locator: _l, app: _a, ...x }) => ({ ...x, ...(b.title ? { title: b.title } : {}), ...(b.transcript ? { transcript: b.transcript } : {}), ...(b.locator ? { locator: b.locator } : {}), ...(b.app ? { app: b.app } : {}) }) as Source,
           { op: "source.sync", summary: `${a.id} as it was: ${reason}` },
         );
         break;
