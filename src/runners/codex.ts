@@ -23,6 +23,15 @@ export function codexWritable(root: string, shared: string | undefined): string[
 }
 
 /**
+ * A reader's sandbox: the folder of its report the one place it writes besides the folder it works in (found live: the
+ * report in the tree's notes/readings was refused, "writing outside of the project"), and no network — it reads the
+ * views it is given, it fetches nothing. Whatever the person's level: a reader opens its views and writes its report.
+ */
+export function codexReaderWritable(files: NonNullable<RunOptions["readerFiles"]>): string[] {
+  return ["-c", `sandbox_workspace_write.writable_roots=${JSON.stringify([path.dirname(path.resolve(files.report))])}`];
+}
+
+/**
  * The folder Codex works in, trusted for this process alone in an isolated installation: a session Codex starts in a
  * folder its config does not trust it records as trusted in ~/.codex/config.toml (`[projects."<folder>"]`, found
  * after headless runs) — once per tree in a regular installation; an isolated one writes nothing of the agents'
@@ -50,9 +59,10 @@ export function codexTrust(env: Env, cwd: string): string[] {
 export const CODEX_CLEAN = ["-c", "features.plugins=false", "-c", "features.apps=false", "-c", "features.hooks=false", "-c", "features.memories=false"] as const;
 
 /** Command-line arguments of a headless run (exported for tests). */
-export function codexArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs" | "permissions" | "shared" | "cwd" | "clean"> & Partial<Pick<RunOptions, "env">>): string[] {
-  const sandbox =
-    opts.permissions === "full"
+export function codexArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs" | "permissions" | "shared" | "cwd" | "clean"> & Partial<Pick<RunOptions, "env" | "readerFiles">>): string[] {
+  const sandbox = opts.readerFiles
+    ? ["--sandbox", "workspace-write", ...codexReaderWritable(opts.readerFiles)]
+    : opts.permissions === "full"
       ? ["--dangerously-bypass-approvals-and-sandbox"]
       : ["--sandbox", "workspace-write", "-c", "sandbox_workspace_write.network_access=true", ...codexWritable(opts.cwd, opts.shared)];
   return ["exec", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? CODEX_CLEAN : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), ...(opts.extraArgs ?? []), "-"];
@@ -62,9 +72,10 @@ export function codexArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs
  * Arguments that resume a headless session with a message on stdin (exported for tests). `exec resume` has no
  * --sandbox or --add-dir: the same sandbox is set through its configuration.
  */
-export function codexResumeArgs(id: string, opts: Pick<RunOptions, "model" | "effort" | "permissions" | "shared" | "cwd" | "clean"> & Partial<Pick<RunOptions, "env">>): string[] {
-  const sandbox =
-    opts.permissions === "full"
+export function codexResumeArgs(id: string, opts: Pick<RunOptions, "model" | "effort" | "permissions" | "shared" | "cwd" | "clean"> & Partial<Pick<RunOptions, "env" | "readerFiles">>): string[] {
+  const sandbox = opts.readerFiles
+    ? ["-c", 'sandbox_mode="workspace-write"', ...codexReaderWritable(opts.readerFiles)]
+    : opts.permissions === "full"
       ? ["--dangerously-bypass-approvals-and-sandbox"]
       : ["-c", 'sandbox_mode="workspace-write"', "-c", "sandbox_workspace_write.network_access=true", ...codexWritable(opts.cwd, opts.shared)];
   return ["exec", "resume", "--json", "--skip-git-repo-check", ...sandbox, ...codexTrust(opts.env ?? {}, opts.cwd), ...(opts.clean ? CODEX_CLEAN : []), ...(opts.model ? ["--model", opts.model] : []), ...effortArgs("codex", opts.effort), id, "-"];

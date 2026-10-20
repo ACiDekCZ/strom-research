@@ -10,6 +10,8 @@ import path from "node:path";
 import { until, World } from "../helpers.ts";
 import { halves, jpegWithOrientation, makePdf } from "../image-samples.ts";
 import { encodeImage } from "../../src/image/index.ts";
+import { readingResult } from "../../src/core/readsync.ts";
+import { Tree } from "../../src/core/tree.ts";
 
 const READER = `import fs from "node:fs";
 const p = process.env.STROM_PROMPT ?? "";
@@ -237,6 +239,61 @@ test("strom document read: a given name of other letters than written is kept as
     assert.match(shown, /p2 father: Giuseppe Novák \[written: Giuseppe Novák\] · today's form by the reader, not of its letters \(a lead\): Josef · M · uncertain: given → P0001/);
     assert.match(shown, /p3 godparent: Wenceslaus \[written: Wenceslaus\] · today's form by the reader, not of its letters \(a lead\): Václav/);
     assert.match(shown, /e1 p1 surname "Novák" \(not-in-transcript\); e1 p2 given "Josef" for "Giuseppe" \(not-of-its-letters\); e1 p3 surname "Horák" \(not-in-transcript\)/);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("strom document read of a certificate by two readers: a name held in the form's fields apart is read, its people, events and relations kept; a role read otherwise is a variant", async () => {
+  const { w, dir, photo } = await setUp();
+  try {
+    // a made-up birth certificate on a printed form: the surnames in one field, the given names in another
+    const form = (blind: boolean) => `## Document
+kind: certificate
+language: de
+script: print
+date: 12.05.2020
+legible: yes
+
+## Entry e1 · page 1
+region: 0.10,0.05,0.80,0.60
+transcript: Standesamt Lhota | Geburtsurkunde | Tag der Geburt 03-04-1950 | Ort der Geburt Lhota | Familienname LÖFFLER | Vornamen HANS JÜRGEN | Geschlecht M | Vater | Mutter | Familienname LÖFFLER | LÖFFLER | Vornamen WALTER | ERIKA MARIA | Ausgestellt am 12-05-2020 | Dr. Petra Zimmer${blind ? "" : " [?]"} | Standesbeamtin
+person: p1 | child | ${blind ? "" : "dítě | "}written=LÖFFLER HANS JÜRGEN | given=Hans Jürgen | surname=Löffler | sex=M
+person: p2 | father | ${blind ? "" : "otec | "}written=LÖFFLER WALTER | given=Walter | surname=Löffler | sex=M
+person: p3 | mother | ${blind ? "" : "matka | "}written=LÖFFLER ERIKA MARIA | given=Erika Maria | surname=Löffler | sex=F
+${blind ? "person: p4 | writer | written=Dr. Petra Zimmer | given=Petra | surname=Zimmer | sex=F" : "person: p4 | other | úřednice | written=Dr. Petra Zimmer [?] | given=Petra | sex=F | occupation=Standesbeamtin"}
+event: BIRT | date=3.4.1950 | place=Lhota | persons=p1:principal,p2:father,p3:mother
+relation: parent p2 p1
+relation: parent p3 p1
+
+done: 1 entries`;
+    fs.writeFileSync(path.join(dir, "form-first.md"), form(false));
+    fs.writeFileSync(path.join(dir, "form-blind.md"), form(true));
+    Object.assign(w.env, { DOC_FIRST: path.join(dir, "form-first.md"), DOC_BLIND: path.join(dir, "form-blind.md") });
+    const d = (await w.ok(["document", "read", photo, "--readers", "2", "--agent", "script", "--json"])).json;
+    assert.equal(d.doc.kind, "certificate");
+    assert.deepEqual(d.readers, { asked: 2, ran: 2, agree: "differ" });
+    const e = d.entries[0];
+    assert.deepEqual(
+      e.persons.map((p: { ref: string; role: string; given?: string; surname?: string }) => `${p.ref} ${p.role} ${p.given} ${p.surname}`),
+      ["p1 child Hans Jürgen Löffler", "p2 father Walter Löffler", "p3 mother Erika Maria Löffler", "p4 other Petra undefined"],
+    );
+    assert.deepEqual(e.events[0].type, "BIRT");
+    assert.deepEqual(e.events[0].persons, [{ ref: "p1", role: "principal" }, { ref: "p2", role: "father" }, { ref: "p3", role: "mother" }]);
+    assert.deepEqual(e.relations, [{ type: "parent", parent: "p2", child: "p1" }, { type: "parent", parent: "p3", child: "p1" }]);
+    assert.deepEqual(d.checks, []);
+    // the readers agree on the people of the form; the clerk's role and the surname only the blind one read are variants
+    assert.deepEqual(e.variants, [
+      { field: "p4.role", at: "other", other: "writer" },
+      { field: "p4.surname", at: "", other: "Zimmer" },
+    ]);
+    // a result written by a strom before (its people left out): what the app is written into the tree by is read
+    // from the readers' reports here, as the app is shown it
+    const file = path.join(w.cwd, "notes", "readings", `${d.id}.json`);
+    const before = JSON.parse(fs.readFileSync(file, "utf8"));
+    before.entries[0].persons = [];
+    fs.writeFileSync(file, JSON.stringify(before));
+    assert.equal(readingResult(Tree.open(w.cwd, w.env), d.id)!.entries[0]!.persons.length, 4);
   } finally {
     w.cleanup();
   }

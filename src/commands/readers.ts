@@ -158,6 +158,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
       env: { ...withoutAgentMarks(env), STROM_NONINTERACTIVE: "1", STROM_READER: "1" },
       settingsFile,
       reader: true,
+      readerFiles: { views, report },
       // without the user's own add-ons (skills, plugins, MCP servers) unless they said otherwise
       ...(ctx.settings.agentAddons(tree.config) ? {} : { clean: true }),
       timeoutMs: limit.minutes * 60_000,

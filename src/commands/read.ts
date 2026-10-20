@@ -424,7 +424,8 @@ register({
       const own = path.join(work, `${stem}-${k + 1}`);
       fs.mkdirSync(own, { recursive: true });
       const settingsFile = path.join(own, "reader-settings.json");
-      fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(group.flatMap((g) => [g.view, ...(g.parts ?? []).map((p) => p.view)]), report, permissionPath), null, 2));
+      const seen = group.flatMap((g) => [g.view, ...(g.parts ?? []).map((p) => p.view)]);
+      fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(seen, report, permissionPath), null, 2));
       const context = typeof opts.context === "string" && opts.context.trim() ? `Context: ${opts.context.trim().replace(/\s*\n\s*/g, " ")}\n` : "";
       // a blind reading says so in its head: its "unclear" over a place the researcher looked at before is a check
       const head = `# Reading ${label} · batch ${k + 1}${fetching ? "" : ` of ${groups.length}`}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}${opts.blind ? "Blind: yes\n" : ""}\n${NEXT_BLOCK}\n`;
@@ -442,6 +443,7 @@ register({
         env: { ...withoutAgentMarks(env), STROM_NONINTERACTIVE: "1", STROM_READER: "1" },
         settingsFile,
         reader: true,
+        readerFiles: { views: seen, report },
         // without the user's own add-ons (skills, plugins, MCP servers) unless they said otherwise
         ...(ctx.settings.agentAddons(tree.config) ? {} : { clean: true }),
         timeoutMs: minutes * 60_000,

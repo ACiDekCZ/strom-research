@@ -23,6 +23,7 @@ import { addResponses, heardResponse, runJsonLines, webUse, type Heard } from ".
 import type { AgentWeb } from "../core/metrics.ts";
 import { usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
 import { effortArgs } from "../agents/effort.ts";
+import { DOC_NEXT } from "../core/document.ts";
 
 /** Command-line arguments of a headless run (exported for tests); `first` is its first message. */
 export function antigravityArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs" | "permissions" | "shared" | "timeoutMs">, first: string): string[] {
@@ -38,6 +39,34 @@ export function antigravityArgs(opts: Pick<RunOptions, "model" | "effort" | "ext
     ...(opts.timeoutMs ? ["--print-timeout", `${Math.round(opts.timeoutMs / 1000)}s`] : []),
     ...(opts.extraArgs ?? []),
   ];
+}
+
+/**
+ * A reader in agy: its views in its workspace (--add-dir: read without asking); never a skipped permission, whatever the
+ * level. agy refuses every file it would write in a headless run, its own folder's too (only rules in the person's
+ * settings would allow one, and strom writes none there): its report is its answer, which strom adds to the report
+ * (found live 2026-10-20 — the views refused outside its folder, then the report).
+ */
+export function antigravityReaderArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs" | "timeoutMs">, files: NonNullable<RunOptions["readerFiles"]>, first: string): string[] {
+  const dirs = [...new Set(files.views.map((v) => path.dirname(path.resolve(v))))];
+  return antigravityArgs({ ...opts, permissions: "auto" }, first).flatMap((a, i, all) => (i === all.indexOf("stream-json") ? [a, ...dirs.flatMap((d) => ["--add-dir", d])] : [a]));
+}
+
+/** What a reader in agy is told beside its task: the report as its answer (exported for tests). */
+export function antigravityReaderNote(report: string): string {
+  return (
+    `\n\nHERE: this agent cannot write files. Do not edit ${report}: give every block you would add to it, in order, ` +
+    "as your final answer — the blocks alone, nothing before or after them — and strom adds them to the report."
+  );
+}
+
+/** A reader's answer added to its report at its last line (DOC_NEXT), when it added nothing itself (exported for tests). */
+export function addReaderAnswer(report: string, answer: string, next: string): boolean {
+  const text = fs.existsSync(report) ? fs.readFileSync(report, "utf8") : "";
+  const at = text.lastIndexOf(next);
+  if (at < 0 || !answer.trim() || text.slice(0, at).includes("## Document")) return false;
+  fs.writeFileSync(report, `${text.slice(0, at)}${answer.trim()}\n${text.slice(at)}`);
+  return true;
 }
 
 /** The first message of a run whose brief is in a file (exported for tests). */
@@ -114,6 +143,15 @@ export const antigravityRunner: Runner = {
       resume: (id: string, message: string, timeoutMs: number | undefined) => ({ args: antigravityGoOnArgs({ ...opts, timeoutMs }, id, message), input: "" }),
     };
     const web = { seen: new Set<string>(), on: (w: AgentWeb) => tellWeb(opts, w) };
+    const reader = opts.readerFiles;
+    if (reader) {
+      // a reader: its report is its answer, and it is never told to go on through strom
+      const args = antigravityReaderArgs(opts, reader, first + antigravityReaderNote(reader.report));
+      return runJsonLines("agy", args, opts.env, { ...opts, prompt: "" }, undefined, (msg, heard) => readEvent(msg, heard, said, opts.onProgress, opts.onUsage, web), { totalsAtEnd: true }).then((r) => {
+        if (r.outcome === "ok") addReaderAnswer(reader.report, r.text, DOC_NEXT);
+        return r;
+      });
+    }
     return runJsonLines("agy", antigravityArgs(opts, first), opts.env, { ...opts, prompt: "" }, undefined, (msg, heard) => readEvent(msg, heard, said, opts.onProgress, opts.onUsage, web), { totalsAtEnd: true, goOn });
   },
 };

@@ -18,7 +18,7 @@ import type { Env } from "./paths.ts";
 import { newerTree, Tree } from "./tree.ts";
 import type { Settings } from "./config.ts";
 import { actsAsArchive } from "./state.ts";
-import { APP_READ_FROM, alive, backBefore, buildResult, DOC_PAGES, FINAL_STATES, loadState, parseRegion, READ_ID, readsDir, reportPath, resultPath, saveState, shownName, statePath, type ReadResult, type ReadState, type ReadStateName } from "./document.ts";
+import { APP_READ_FROM, alive, backBefore, buildResult, DOC_PAGES, FINAL_STATES, loadState, parseRegion, READ_ID, readsDir, reportPath, resultForApp, resultPath, saveState, shownName, statePath, type ReadResult, type ReadState, type ReadStateName } from "./document.ts";
 import { knownOriginal } from "./originals.ts";
 import { readableTypes } from "./readable.ts";
 import { makeView } from "./views.ts";
@@ -38,8 +38,6 @@ export const APP_READ_DEFAULT = { hour: 20, day: 60 } as const;
 export const READ_QUEUE_MAX = 3;
 /** The largest file read (a page is read at 2000 px at most: a larger file adds nothing). */
 export const READ_MAX_BYTES = 50 * 1024 * 1024;
-/** The agents whose reader of documents was tried (the others wait for a live test: why agent.untested). */
-export const READ_TESTED = ["claude", "script"];
 /** The longest side of a page's picture for the app. */
 const PAGE_PX = 2000;
 const DAY_MS = 24 * 3600_000;
@@ -329,7 +327,6 @@ function notReady(tree: Tree, settings: Settings, env: Env, seen: ReadingsSeen |
   // (the agents' table of core, not the runners': a runner's module reaches the bridge, and so would come round to itself)
   const known = AGENTS.find((a) => a.id === agent);
   if (agent !== "script" && (!known || !findAgent(known.command, env))) return { why: "agent.none" };
-  if (!READ_TESTED.includes(agent)) return { why: "agent.untested" };
   // the last reading that ended: its agent out of its limit, or not signed in — until another reads
   const last = (seen ?? new ReadingsSeen(tree.root, env)).all().find((r) => r.state && FINAL_STATES.includes(r.state.state))?.state;
   if (last?.state === "failed") {
@@ -449,7 +446,8 @@ export class AppReadings {
       const n = this.none(id);
       return this.json(res, n.code, n.body);
     }
-    this.json(res, 200, { ...got.result, pages: got.result.pages.map((p) => ({ ...p, image: `read/${id}/page/${p.n}.jpg` })) });
+    const r = resultForApp(got.result);
+    this.json(res, 200, { ...r, pages: r.pages.map((p) => ({ ...p, image: `read/${id}/page/${p.n}.jpg` })) });
   }
 
   /** GET /read/<id>/page/<n>.jpg: the page upright as a JPEG of 2000 px at most (a HEIC's, a PDF's page too). */

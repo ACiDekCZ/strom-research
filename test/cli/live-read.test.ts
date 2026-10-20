@@ -27,7 +27,9 @@ const report = /Write your report to (.+) AS YOU GO/.exec(p)[1];
 const blind = p.includes("This is a BLIND reading");
 fs.appendFileSync(process.env.DOC_MARK, "start " + (blind ? "blind" : "first") + "\\n");
 while (fs.existsSync(process.env.DOC_HOLD)) await new Promise((r) => setTimeout(r, 50));
-const body = fs.readFileSync(process.env.DOC_FIRST, "utf8");
+// the blind reader's own report where the test wrote one beside the first's
+const own = process.env.DOC_FIRST + ".blind";
+const body = fs.readFileSync(blind && fs.existsSync(own) ? own : process.env.DOC_FIRST, "utf8");
 fs.writeFileSync(report, fs.readFileSync(report, "utf8").replace("<!-- next block -->", body.trim() + "\\n<!-- next block -->"));
 fs.appendFileSync(process.env.DOC_MARK, "end\\n");
 console.log("cost: 0.25");
@@ -192,7 +194,8 @@ test("a document read for the Strom app: sent with no intake task, asked, follow
     assert.ok(states.every((s, i) => i === 0 || order.indexOf(states[i - 1]) <= order.indexOf(s)), states.join(","));
     assert.equal(states.at(-1), "done", states.join(","));
 
-    // again: the blind second reader alone
+    // again: the blind second reader alone — it gives the father another role (other), the rest alike
+    fs.writeFileSync(path.join(dir, "first.md.blind"), FIRST.replace("person: p2 | father | otec |", "person: p2 | other |"));
     const again = await post(`${url}/read/${id}/again`, { readers: 2 });
     assert.equal(again.status, 202, again.body.toString());
     assert.deepEqual([json(again).read, json(again).version], [id, 2]);
@@ -200,6 +203,15 @@ test("a document read for the Strom app: sent with no intake task, asked, follow
     const twice = json(await request("GET", `${url}/read/${id}`));
     assert.deepEqual([twice.version, twice.readers.asked, twice.readers.ran], [2, 2, 2]);
     assert.deepEqual(marks(dir), ["start first", "end", "start blind", "end"]);
+    // the role the blind reader gave is no words of the transcript: the app is given it at the person, never as a
+    // variant (it would mark "other" inside a word of the transcript); the research's result and show keep it
+    assert.equal(twice.readers.agree, "differ");
+    assert.deepEqual(twice.entries[0].variants, undefined);
+    assert.deepEqual(twice.entries[0].persons.map((p: { ref: string; role: string; blindRole?: string }) => [p.ref, p.role, p.blindRole]), [["p1", "child", undefined], ["p2", "father", "other"]]);
+    const kept = (await w.ok(["document", "show", id, "--json"])).json;
+    assert.deepEqual(kept.entries[0].variants, [{ field: "p2.role", at: "father", other: "other" }]);
+    assert.equal(kept.entries[0].persons[1].blindRole, undefined);
+    assert.match((await w.ok(["document", "show", id])).out, /differs \(p2\.role\): "father" \/ blind reader "other"/u);
     // cancelled when it is read no more: nothing to stop
     assert.deepEqual(json(await post(`${url}/read/${id}/cancel`, {})), { read: id, state: "done", cancelled: false });
     // a reading of the research itself: shown, never read again or cancelled through the bridge
@@ -373,7 +385,7 @@ test("a bridge the system started (a link from the app: the bare PATH) finds the
   }
 });
 
-test("why no reader starts: no agent's program, an agent whose reader was not tried, the limit or a login a reader ended on", opts, async () => {
+test("why no reader starts: no agent's program, the limit or a login a reader ended on — every agent the research starts reads", opts, async () => {
   const w = new World();
   try {
     await w.withTree();
@@ -383,8 +395,9 @@ test("why no reader starts: no agent's program, an agent whose reader was not tr
     assert.equal(why({ STROM_AGENT: "codex", PATH: path.join(w.dir, "nothing") }), "agent.none");
     const bin = path.join(w.dir, "bin");
     fs.mkdirSync(bin);
-    fs.writeFileSync(path.join(bin, "codex"), "#!/bin/sh\n", { mode: 0o755 });
-    assert.equal(why({ STROM_AGENT: "codex", PATH: bin }), "agent.untested");
+    // every agent the research can start reads (each one's reader tried live 2026-10-20)
+    for (const agent of ["codex", "grok", "agy", "opencode"]) fs.writeFileSync(path.join(bin, agent), "#!/bin/sh\n", { mode: 0o755 });
+    for (const agent of ["codex", "grok", "antigravity", "opencode"]) assert.equal(why({ STROM_AGENT: agent, PATH: bin }), null, agent);
     // a reader that ended on its limit: until it resets; on a login: a quarter of an hour
     const reads = path.join(w.cwd, ".strom", "reads");
     fs.mkdirSync(reads, { recursive: true });

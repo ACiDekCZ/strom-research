@@ -39,14 +39,23 @@ export function grokTrust(env: Env, reader?: boolean): { args: string[]; env: Re
   return isolated(env) ? { args: [], env: { GROK_FOLDER_TRUST: "0" } } : { args: ["--trust"], env: {} };
 }
 
+/**
+ * A reader's report, the one file it may write: dontAsk refuses an edit outside the folder it works in, and a reader
+ * works beside its views, its report in the tree (found live 2026-10-20: the report refused, the reading lost).
+ */
+export function grokReaderAllow(files: NonNullable<RunOptions["readerFiles"]>): string[] {
+  const report = path.resolve(files.report).replace(/\\/g, "/");
+  return ["--allow", `Edit(${report})`, "--allow", `Write(${report})`];
+}
+
 /** Command-line arguments of a headless run (exported for tests). */
-export function grokArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs" | "permissions"> & Partial<Pick<RunOptions, "env" | "reader">>, prompt: string[], session: string[]): string[] {
+export function grokArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs" | "permissions"> & Partial<Pick<RunOptions, "env" | "reader" | "readerFiles">>, prompt: string[], session: string[]): string[] {
   return [
     ...grokTrust(opts.env ?? {}, opts.reader).args,
     ...prompt,
     "--output-format",
     "streaming-json",
-    ...(opts.permissions === "full" ? ["--always-approve"] : ["--permission-mode", "dontAsk"]),
+    ...(opts.readerFiles ? ["--permission-mode", "dontAsk", ...grokReaderAllow(opts.readerFiles)] : opts.permissions === "full" ? ["--always-approve"] : ["--permission-mode", "dontAsk"]),
     ...session,
     ...(opts.model ? ["--model", opts.model] : []),
     ...effortArgs("grok", opts.effort),

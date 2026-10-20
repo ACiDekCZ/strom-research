@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.18.0
 
-*Připravuje se: bety do 1.18.0-beta.11. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.18.0-beta.12. Oddíl bude úplný s vydáním.*
 
 - **Fotky z telefonu nastojato.** Fotka otočená podle údaje EXIF se čte tak, jak se má dívat, nastojato; místa na ní
   vyznačená (výřezy, poloviny dvoustrany, uložená část) jsou místa obrázku, jak se ukazuje. Fotka sama zůstává, jak
@@ -16,14 +16,16 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   na macOS, Windows i Linuxu — a originál zůstává, jak přišel. Fotka HEIC jde do aplikace Strom jako výřez JPEG.
   Kde obrázek na počítači nic nepřevede, řekne to jedna věta i s tím, co by pomohlo; `strom tidy` převedené obrázky
   po 30 dnech nebo nad 500 MB uklidí.
-- **Jeden dokument přečtený naráz.** `strom document read` přečte fotku, sken nebo PDF jednoho dokumentu — zápis
-  z matriky, dopis, listinu, náhrobek, rub fotky: přepis slovo od slova, překlad, význam starých slov a zkratek
-  a osoby, které jmenuje, i s tím, kdo ze stromu to může být. Nic se nedomýšlí: jméno, které v dokumentu není,
-  vypadne — i příjmení, nikdy se nebere od otce ani z jiné rodiny —, co nejde přečíst, je označené; druhý čtenář
-  může číst naslepo. Do stromu se z toho nic nezapíše samo. Dokument už přečtený to o sobě řekne, takže se omylem
-  nečte podruhé. Dokument čtený znovu se ukazuje pod názvem svého souboru, nikdy pod kódem.
-  Dokument poslaný z aplikace Strom najde agenta stejně jako terminál — i nainstalovaného do vlastní složky, přes npm
-  nebo Homebrew — místo hlášení, že agent není nastavený.
+- **Jeden dokument přečtený naráz.** `strom document read` přečte fotku, sken nebo PDF jednoho dokumentu — zápis z
+  matriky, dopis, listinu, náhrobek, rub fotky: přepis slovo od slova, překlad, význam starých slov a zkratek a osoby,
+  které jmenuje, i s tím, kdo ze stromu to může být. Nic se nedomýšlí: jméno, které v dokumentu není, vypadne — i
+  příjmení, nikdy se nebere od otce ani z jiné rodiny —, co nejde přečíst, je označené; druhý čtenář může číst naslepo.
+  Dokument na úředním formuláři, jako rodný list, si své osoby ponechá — dítě i oba rodiče s jejich podílem —, a dokument
+  přečtený dřív je po aktualizaci ukáže, aniž by se četl znovu.
+  Do stromu se z toho nic nezapíše samo. Dokument už přečtený to o sobě řekne, takže se omylem nečte podruhé. Dokument
+  čtený znovu se ukazuje pod názvem svého souboru, nikdy pod kódem. Dokument poslaný z aplikace Strom najde agenta
+  stejně jako terminál — i nainstalovaného do vlastní složky, přes npm nebo Homebrew — místo hlášení, že agent není
+  nastavený. Čte ho každý agent, se kterým výzkum pracuje, s modelem a úsilím nastaveným pro výzkum.
 - **Fotky z telefonu.** `strom phone on`, které zapíná jen člověk, pustí k počítači telefon v domácí síti (Wi-Fi
   nebo kabel — nikdy mobilní síť ani VPN). Telefon se jednou spáruje přes QR kód; jeho stránka pak fotí nebo vybírá
   z galerie a posílá fotky celé do stromu výzkumu, s poznámkou a osobou, kterou ukazují — stejně jako „Přidat

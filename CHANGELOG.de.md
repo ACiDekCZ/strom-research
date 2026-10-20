@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.18.0
 
-*In Vorbereitung: die Betas bis 1.18.0-beta.11. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.18.0-beta.12. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Handyfotos aufrecht.** Ein Foto, das nach seiner EXIF-Ausrichtung gedreht ist, wird gelesen, wie es gesehen
   werden soll, aufrecht; die darauf markierten Stellen (Ausschnitte, die Hälften einer Doppelseite, ein gespeicherter
@@ -16,16 +16,18 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   umgewandelt — unter macOS, Windows und Linux —, das Original bleibt, wie es kam. Ein HEIC-Foto geht als
   JPEG-Ausschnitt in die Strom-App. Wo nichts auf dem Computer ein Bild umwandelt, sagt es ein Satz, auch was helfen
   würde; `strom tidy` räumt umgewandelte Bilder nach 30 Tagen oder über 500 MB weg.
-- **Ein Dokument auf einmal gelesen.** `strom document read` liest ein Foto, einen Scan oder eine PDF eines
-  Dokuments — einen Matrikeleintrag, einen Brief, eine Urkunde, einen Grabstein, die Rückseite eines Fotos: die
-  Abschrift Wort für Wort, ihre Übersetzung, was alte Wörter und Abkürzungen bedeuten, und die genannten Personen,
-  samt wem im Stammbaum sie entsprechen können. Nichts wird ergänzt: ein Name, der nicht im Dokument steht, fällt
-  weg — auch ein Nachname, nie vom Vater oder aus einer anderen Familie genommen —, Unleserliches wird markiert; ein
-  zweiter Leser kann blind lesen. In den Stammbaum gelangt nichts von selbst. Ein schon gelesenes Dokument sagt es,
-  so wird es nicht versehentlich ein zweites Mal gelesen. Ein erneut gelesenes Dokument wird unter dem Namen seiner
-  Datei gezeigt, nie unter einem Code. Ein aus der Strom-App gesendetes Dokument findet den Agenten wie das Terminal —
-  auch einen in einem eigenen Ordner, über npm oder Homebrew installierten —, statt zu melden, es sei kein Agent
-  eingerichtet.
+- **Ein Dokument auf einmal gelesen.** `strom document read` liest ein Foto, einen Scan oder eine PDF eines Dokuments —
+  einen Matrikeleintrag, einen Brief, eine Urkunde, einen Grabstein, die Rückseite eines Fotos: die Abschrift Wort für
+  Wort, ihre Übersetzung, was alte Wörter und Abkürzungen bedeuten, und die genannten Personen, samt wem im Stammbaum
+  sie entsprechen können. Nichts wird ergänzt: ein Name, der nicht im Dokument steht, fällt weg — auch ein Nachname, nie
+  vom Vater oder aus einer anderen Familie genommen —, Unleserliches wird markiert; ein zweiter Leser kann blind lesen.
+  Ein Dokument auf einem amtlichen Formular, etwa eine Geburtsurkunde, behält seine Personen — das Kind und beide
+  Eltern mit ihrem Anteil —, und ein früher gelesenes Dokument zeigt sie nach dem Update, ohne erneut gelesen zu werden.
+  In den Stammbaum gelangt nichts von selbst. Ein schon gelesenes Dokument sagt es, so wird es nicht versehentlich ein
+  zweites Mal gelesen. Ein erneut gelesenes Dokument wird unter dem Namen seiner Datei gezeigt, nie unter einem Code.
+  Ein aus der Strom-App gesendetes Dokument findet den Agenten wie das Terminal — auch einen in einem eigenen Ordner,
+  über npm oder Homebrew installierten —, statt zu melden, es sei kein Agent eingerichtet. Jeder Agent, mit dem die
+  Forschung arbeitet, liest es, mit dem Modell und dem Aufwand, die für die Forschung eingestellt sind.
 - **Fotos vom Handy.** `strom phone on`, das nur ein Mensch einschaltet, lässt ein Handy im Heimnetz (WLAN oder
   Kabel — nie ein Mobilfunknetz oder ein VPN) zu diesem Computer. Das Handy wird einmal per QR-Code gekoppelt; seine
   Seite fotografiert dann oder wählt aus der Galerie und schickt die Fotos ganz in einen Stammbaum der Forschung, mit

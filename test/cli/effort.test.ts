@@ -9,6 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { opts, world } from "./session.helpers.ts";
+import { halves, jpegWithOrientation } from "../image-samples.ts";
 
 const stream = path.join(import.meta.dirname, "..", "fixtures", "agents", "codex-stream.jsonl");
 
@@ -52,6 +53,17 @@ test("strom run with Codex: unset, its config.toml's effort said and recorded; s
   assert.deepEqual(argv.slice(argv.indexOf('model_reasoning_effort="high"') - 1, argv.indexOf('model_reasoning_effort="high"') + 1), ["-c", 'model_reasoning_effort="high"']);
   assert.equal(readJsonFile(path.join(w.cwd, "data", "sessions", "N0002.json")).effort, "high");
   assert.equal(fs.readFileSync(path.join(codex.home, "config.toml"), "utf8"), 'model_reasoning_effort = "low"\n', "Codex's config never written");
+  // a reader of a document: the research's model and effort too, never Codex's own (found 2026-10-20: its config named
+  // a model Codex refuses with a ChatGPT account, and a low effort)
+  await w.ok(["config", "set", "model.lead", "gpt-6-astra", "--agent", "codex"]);
+  const photo = path.join(w.dir, "list.jpg");
+  fs.writeFileSync(photo, jpegWithOrientation(halves(1600, 1200), 1));
+  await w.run(["document", "read", photo, "--agent", "codex"]);
+  const reader = lastArgv(codex.argv);
+  assert.ok(reader.includes("--sandbox") && !reader.includes("sandbox_workspace_write.network_access=true"), `a reader: ${reader.join(" ")}`);
+  assert.deepEqual(reader.slice(reader.indexOf("--model"), reader.indexOf("--model") + 2), ["--model", "gpt-6-astra"]);
+  assert.ok(reader.includes('model_reasoning_effort="high"'), `a reader: ${reader.join(" ")}`);
+  await w.ok(["config", "unset", "model.lead", "--agent", "codex"]);
 
   // doctor says it on Codex's line
   await w.ok(["config", "unset", "model.effort", "--agent", "codex"]);

@@ -43,17 +43,22 @@ export interface ReadingCheck {
   edited?: boolean;
 }
 
-/** The reading's result as the research keeps it: its finished result (in git), else its state here when done. */
+/**
+ * The reading's result as the research keeps it: read here, from its readers' reports as the app is shown it (GET
+ * /read/<id>: a newer strom's checks on reports read before), else its finished result (in git — read on another
+ * computer).
+ */
 export function readingResult(tree: Tree, id: string): ReadResult | undefined {
   if (!READ_ID.test(id)) return undefined;
+  const s = loadState(tree.root, id);
+  if (s?.state === "done") return buildResult(tree, s);
   try {
     const file = resultPath(tree.root, id);
     if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8")) as ReadResult;
   } catch {
     // an unreadable result is none
   }
-  const s = loadState(tree.root, id);
-  return s?.state === "done" ? buildResult(tree, s) : undefined;
+  return undefined;
 }
 
 /**

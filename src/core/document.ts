@@ -140,6 +140,7 @@ term: <a word or abbreviation as written> = <what it means, in ${into}> (term | 
   residence=<…> — one line each person named; ref p1, p2, … in this entry; role: ${ROLES.join(", ")};
   given and surname only turn the written name into today's form ("Joannes" → "Jan"): never a name the transcript
   does not have — no surname the entry does not write by the person (a child's is not taken from its father's);
+  on a form (a certificate) whose fields hold a name apart, written= the words of its fields as written there;
   a name you could not read stays out; leave out what the entry does not say
 event: <BIRT | BAPM | MARR | DEAT | BURI | RESI | EVEN> | date=<as on the record, in numbers: 3.4.1846, or a year> |
   place=<the place as written> | persons=<ref>:<principal|father|mother|godparent|witness|groom|bride|deceased|other>,…
@@ -339,6 +340,8 @@ export function parseDocReport(text: string): DocReport {
 /** A kind a reader wrote in its own words: the nearest of the list. */
 function kindOf(said: string): string {
   const f = foldText(said);
+  // a certificate first: a birth certificate is no register of births ("rodný list", "Geburtsurkunde", "odpis aktu")
+  if (/certif|urkunde|zaswiadcz|odpis|extrait|auszug|vypis|(?:rodn|oddac|umrtn)\p{L}*\s+list/u.test(f)) return "certificate";
   if (/bapt|krest|tauf|chrzest|christen/u.test(f)) return "register.baptism";
   if (/birth|narozen|geburt|urodzen/u.test(f)) return "register.birth";
   if (/marri|odd|trau|heirat|slub/u.test(f)) return "register.marriage";
@@ -386,6 +389,27 @@ function find(whole: Word[], part: Word[]): number {
   return -1;
 }
 
+/**
+ * Where the words of `part` stand in `whole` apart — a form's fields, the surname in one and the given names in
+ * another —: each at a place of its own, after the word before where it can be; undefined when one is not there
+ * (a word not read, "[...]", is never found apart).
+ */
+function findApart(whole: Word[], part: Word[]): Word[] | undefined {
+  if (!part.length || part.some((w) => w.illegible)) return undefined;
+  const used = new Set<number>();
+  const out: Word[] = [];
+  let from = 0;
+  for (const w of part) {
+    let i = whole.findIndex((x, k) => k >= from && !used.has(k) && x.key === w.key);
+    if (i < 0) i = whole.findIndex((x, k) => !used.has(k) && x.key === w.key);
+    if (i < 0) return undefined;
+    used.add(i);
+    out.push(whole[i]!);
+    from = i + 1;
+  }
+  return out;
+}
+
 export type Uncertain = "given" | "surname" | "date" | "place" | "age" | "occupation" | "residence";
 
 export interface DocPerson {
@@ -403,6 +427,8 @@ export interface DocPerson {
   residence?: string;
   uncertain?: Uncertain[];
   match?: { person: string; why: string[]; score: number }[];
+  /** For the Strom app alone (resultForApp): the role the blind reader gave this person, where it is another. */
+  blindRole?: (typeof ROLES)[number];
 }
 
 export interface DocEvent {
@@ -569,7 +595,8 @@ export function gedcomDate(text: string): string | undefined {
 
 /**
  * A reader's entry as strom gives it on: each person's written name must stand in the transcript (folded — no
- * accents, no case — as words in a row), else the person is left out; its surname must be a form of one of those
+ * accents, no case — as words in a row; on a form, `form`, each word in a field of its own), else the person is left
+ * out; its surname must be a form of one of those
  * words in the form of the person's sex, else it is left out (a surname of another person, of the parish's head, of
  * nowhere, a woman's form for a man written in a man's); its given name in
  * today's form must be of the letters of the others, else the name is as written and the reader's form a lead
@@ -577,7 +604,7 @@ export function gedcomDate(text: string): string | undefined {
  * transcript marks "[?]" is uncertain, one it marks "[...]" all through is left out (the reader cannot have read it);
  * a date of "[...]" has no GEDCOM; references to people left out go too. What was left out is said (checks).
  */
-export function checkEntry(raw: RawEntry, id: string, blind = false): { entry: DocEntry; checks: Check[] } {
+export function checkEntry(raw: RawEntry, id: string, blind = false, form = false): { entry: DocEntry; checks: Check[] } {
   const checks: Check[] = [];
   const text = words(raw.transcript);
   const persons: DocPerson[] = [];
@@ -589,11 +616,13 @@ export function checkEntry(raw: RawEntry, id: string, blind = false): { entry: D
     }
     const w = words(written);
     const at = find(text, w);
-    if (at < 0) {
+    // a form (a certificate) holds a name in its fields apart — the surname in one, the given names in another —:
+    // its words each written there are the name; elsewhere a name stands in a row as written
+    const span = at >= 0 ? text.slice(at, at + w.length) : form ? findApart(text, w) : undefined;
+    if (!span) {
       checks.push({ entry: id, ref: p.ref, what: written, why: "not-in-transcript" });
       continue;
     }
-    const span = text.slice(at, at + w.length);
     const role = ((ROLES as readonly string[]).includes(p.role) ? p.role : "other") as DocPerson["role"];
     const person: DocPerson = { ref: p.ref, role, written: span.map((x) => x.text).join(" ") };
     if (p.roleText && !blind) person.roleText = p.roleText;
@@ -719,6 +748,43 @@ export function wordDiff(a: string, b: string): { at: string; other: string }[] 
 const same = (a: string | undefined, b: string | undefined) => foldText(a ?? "") === foldText(b ?? "");
 
 /**
+ * The people of one reader paired with the other's by the name written, the best match first: the whole name alike,
+ * else the most of its words shared, a word of the surname weighing more. A person two match equally well (a father
+ * and his son of one given name, two of the same name) is paired with none — missing on one side rather than another
+ * one's. Index in `mine` → index in `theirs`.
+ */
+function pairByName(mine: DocPerson[], theirs: DocPerson[]): Map<number, number> {
+  const keys = (p: DocPerson) => words(p.written).filter((x) => !x.illegible).map((x) => x.key);
+  const surname = (p: DocPerson) => words(p.surname ?? "").map((x) => x.key);
+  const WHOLE = 1000;
+  const score = (p: DocPerson, q: DocPerson): number => {
+    const a = keys(p);
+    const b = keys(q);
+    if (a.length && a.join(" ") === b.join(" ")) return WHOLE;
+    const other = new Set(b);
+    const sur = new Set([...surname(p), ...surname(q)]);
+    let n = 0;
+    for (const k of new Set(a)) if (other.has(k)) n += sur.has(k) ? 2 : 1;
+    return n;
+  };
+  let open = mine.flatMap((p, i) => theirs.map((q, j) => ({ i, j, s: score(p, q) }))).filter((x) => x.s > 0);
+  const out = new Map<number, number>();
+  while (open.length) {
+    const best = Math.max(...open.map((x) => x.s));
+    const top = open.filter((x) => x.s === best);
+    const done = { i: new Set<number>(), j: new Set<number>() };
+    for (const x of top) {
+      // equally good for either side: a tie, neither paired
+      if (!top.some((y) => y !== x && (y.i === x.i || y.j === x.j))) out.set(x.i, x.j);
+      done.i.add(x.i);
+      done.j.add(x.j);
+    }
+    open = open.filter((x) => !done.i.has(x.i) && !done.j.has(x.j));
+  }
+  return out;
+}
+
+/**
  * The first reader's entries against the blind reader's: paired by page and order; the transcripts word by word, the
  * people by role and order (given name, surname), the events by type and order (date, place). Where they differ is a
  * variant of the entry; an entry only one of them has differs whole.
@@ -747,17 +813,33 @@ export function compareReadings(first: DocEntry[], blind: DocEntry[]): { agree: 
       };
       const theirs = groups(b.persons);
       const seen = new Map<string, number>();
+      const fields = (p: DocPerson, q: DocPerson) => {
+        for (const f of ["given", "surname"] as const) if (!same(p[f], q[f])) variants.push({ field: `${p.ref}.${f}`, at: p[f] ?? "", other: q[f] ?? "" });
+      };
+      const alone: DocPerson[] = [];
       for (const p of e.persons) {
         const i = seen.get(p.role) ?? 0;
         seen.set(p.role, i + 1);
         const q = theirs.get(p.role)?.[i];
-        if (!q) {
+        if (q) fields(p, q);
+        else alone.push(p);
+      }
+      // a person the blind reader gave another role (other / writer): the same one by the name written, the role a
+      // variant as its other fields
+      const left = [...theirs].flatMap(([role, qs]) => qs.slice(seen.get(role) ?? 0));
+      const pairs = pairByName(alone, left);
+      for (const [i, p] of alone.entries()) {
+        const j = pairs.get(i);
+        if (j === undefined) {
           variants.push({ field: `${p.ref}`, at: [p.given, p.surname].filter(Boolean).join(" ") || p.written, other: "" });
           continue;
         }
-        for (const f of ["given", "surname"] as const) if (!same(p[f], q[f])) variants.push({ field: `${p.ref}.${f}`, at: p[f] ?? "", other: q[f] ?? "" });
+        const q = left[j]!;
+        variants.push({ field: `${p.ref}.role`, at: p.role, other: q.role });
+        fields(p, q);
       }
-      for (const [role, qs] of theirs) for (const q of qs.slice(seen.get(role) ?? 0)) variants.push({ field: "person", at: "", other: [q.given, q.surname].filter(Boolean).join(" ") || q.written });
+      const taken = new Set(pairs.values());
+      for (const [j, q] of left.entries()) if (!taken.has(j)) variants.push({ field: "person", at: "", other: [q.given, q.surname].filter(Boolean).join(" ") || q.written });
       const evs = new Map<string, number>();
       for (const ev of e.events) {
         const i = evs.get(ev.type) ?? 0;
@@ -1045,6 +1127,36 @@ export interface ReadResult {
 
 const LEGIBLE_ORDER = { yes: 0, partly: 1, no: 2 } as const;
 
+/** A variant of a person's role (`p2.role`): no words of the transcript. */
+const ROLE_VARIANT = /^[\p{L}\p{N}_-]+\.role$/u;
+
+/**
+ * The result as the Strom app is given it (GET /read/<id>): a variant of a person's role is no words of the
+ * transcript, and the app (3.14) marks each variant where its words stand in the transcript and counts it as a
+ * difference — a role code ("other") stood inside "Mother". So the role the blind reader gave goes to the person
+ * (`blindRole`) and out of `variants`; the result kept and `strom document show` keep it as a variant.
+ */
+export function resultForApp(r: ReadResult): ReadResult {
+  return {
+    ...r,
+    entries: r.entries.map((e) => {
+      const roles = new Map<string, string>();
+      for (const v of e.variants ?? []) if (ROLE_VARIANT.test(v.field)) roles.set(v.field.slice(0, -".role".length), v.other);
+      if (!roles.size) return e;
+      const variants = (e.variants ?? []).filter((v) => !ROLE_VARIANT.test(v.field));
+      const { variants: _, ...rest } = e;
+      return {
+        ...rest,
+        ...(variants.length ? { variants } : {}),
+        persons: e.persons.map((p) => {
+          const other = roles.get(p.ref);
+          return other && (ROLES as readonly string[]).includes(other) ? { ...p, blindRole: other as DocPerson["role"] } : p;
+        }),
+      };
+    }),
+  };
+}
+
 /**
  * The result of a reading as it stands (while its readers write too: what they wrote so far): the first reader's
  * entries checked and matched with the tree, the blind reader's held against them.
@@ -1080,7 +1192,7 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
       }
       for (const e of rep?.entries ?? []) {
         const id = `e${out.length + 1}`;
-        const c = checkEntry(e, id, blind);
+        const c = checkEntry(e, id, blind, rep?.doc.kind === "certificate");
         if (!blind) checks.push(...c.checks);
         // a region of a part asked (--region): of the whole page
         const page = s.pages.find((p) => p.n === e.page);

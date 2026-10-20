@@ -3,7 +3,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkEntry, sameNameWord, compareReadings, docPrompt, gedcomDate, newReadId, parseDocReport, parseRegion, READ_ID, within, wordDiff, words, DOC_NEXT } from "../../src/core/document.ts";
+import { checkEntry, sameNameWord, compareReadings, docPrompt, gedcomDate, newReadId, parseDocReport, parseRegion, READ_ID, resultForApp, within, wordDiff, words, DOC_NEXT, type ReadResult } from "../../src/core/document.ts";
 
 const REPORT = `# Document D20260101120000-ab12 · reader 1
 
@@ -70,6 +70,8 @@ test("the report read back: the document, each entry with its lines, the context
 test("a kind in the reader's own words: the nearest of the list; a region off the page is cut to it", () => {
   assert.equal(parseDocReport("## Document\nkind: Taufbuch\n").doc.kind, "register.baptism");
   assert.equal(parseDocReport("## Document\nkind: náhrobek\n").doc.kind, "gravestone");
+  // a certificate is no register: rodný list, Geburtsurkunde, odpis skrócony aktu urodzenia
+  for (const k of ["rodný list", "Geburtsurkunde", "Odpis skrócony aktu urodzenia", "birth certificate"]) assert.equal(parseDocReport(`## Document\nkind: ${k}\n`).doc.kind, "certificate", k);
   assert.deepEqual(parseRegion("0.5,0.5,0.9,0.9"), [0.5, 0.5, 0.5, 0.5]);
   assert.equal(parseRegion("0.1,0.2"), undefined);
 });
@@ -212,6 +214,106 @@ person: p3 | mother | written=Анна Петрова | given=Анна | surname
   assert.deepEqual(c.checks.map((x) => x.why), ["not-in-transcript"]);
   // the words: folded, marks attached to their word, illegible as one token
   assert.deepEqual(words("Novák [?] | [ ... ] Dvořák,").map((w) => [w.key, w.unsure, w.illegible]), [["novak", true, false], ["[...]", false, true], ["dvorak", false, false]]);
+});
+
+test("a form holds a name in its fields apart: each word written there is the name; a register's name stands in a row", () => {
+  // a made-up certificate: the surnames in one field, the given names in another, the parents' side by side
+  const form = (written: string) =>
+    parseDocReport(`## Entry e1 · page 1
+transcript: Familienname LÖFFLER | Vornamen HANS JÜRGEN | Vater | Mutter | Familienname LÖFFLER | LÖFFLER | Vornamen WALTER | ERIKA [...]
+person: p1 | child | written=${written} | given=Hans Jürgen | surname=Löffler | sex=M
+person: p2 | father | written=LÖFFLER WALTER | given=Walter | surname=Löffler | sex=M
+person: p3 | mother | written=LÖFFLER ERIKA [...] | given=Erika | surname=Löffler | sex=F
+person: p4 | witness | written=LÖFFLER KARL | given=Karl | surname=Löffler
+event: BIRT | date=3.4.1950 | persons=p1:principal,p2:father,p3:mother
+relation: parent p2 p1
+relation: parent p3 p1
+`).entries[0]!;
+  const c = checkEntry(form("LÖFFLER HANS JÜRGEN".normalize("NFD")), "e1", false, true);
+  // a word not read is never found apart; a name of a word nowhere written is left out as before
+  assert.deepEqual(c.entry.persons.map((p) => `${p.ref} ${p.given} ${p.surname} ${p.written}`), ["p1 Hans Jürgen Löffler LÖFFLER HANS JÜRGEN", "p2 Walter Löffler LÖFFLER WALTER"]);
+  assert.deepEqual(c.checks.map((x) => `${x.ref}:${x.why}`), ["p3:not-in-transcript", "p4:not-in-transcript"]);
+  assert.deepEqual(c.entry.events[0]!.persons, [{ ref: "p1", role: "principal" }, { ref: "p2", role: "father" }]);
+  assert.deepEqual(c.entry.relations, [{ type: "parent", parent: "p2", child: "p1" }]);
+  // not a form: a name stands in a row as written — the child's surname is never its father's taken
+  assert.deepEqual(checkEntry(form("LÖFFLER HANS JÜRGEN"), "e1").entry.persons.map((p) => p.ref), []);
+  // any script
+  const cyr = parseDocReport(`## Entry e1 · page 1
+transcript: Фамилия ИВАНОВ | Имя ПЁТР
+person: p1 | child | written=ИВАНОВ ПЁТР | given=Пётр | surname=Иванов
+`).entries[0]!;
+  assert.equal(checkEntry(cyr, "e1", false, true).entry.persons[0]!.given, "Пётр");
+});
+
+test("two readers: a person the blind one gave another role is the same one, the role and a field only one read are variants", () => {
+  const e = (role: string, fields: string) =>
+    checkEntry(parseDocReport(`## Entry e1 · page 1\ntranscript: Ausgestellt Dr. Petra Zimmer\nperson: p1 | ${role} | written=Dr. Petra Zimmer | given=Petra${fields}\n`).entries[0]!, "e1").entry;
+  const c = compareReadings([e("other", "")], [e("writer", " | surname=Zimmer")]);
+  assert.deepEqual(c.entries[0]!.variants, [
+    { field: "p1.role", at: "other", other: "writer" },
+    { field: "p1.surname", at: "", other: "Zimmer" },
+  ]);
+  assert.deepEqual(c.entries[0]!.persons.map((p) => p.ref), ["p1"]);
+});
+
+test("two readers: the people of another role paired by the best match of the name, a tie paired with none", () => {
+  const e = (transcript: string, persons: string[]) =>
+    checkEntry(parseDocReport(`## Entry e1 · page 1\ntranscript: ${transcript}\n${persons.map((p, i) => `person: p${i + 1} | ${p}`).join("\n")}\n`).entries[0]!, "e1").entry;
+  const person = (role: string, given: string, surname?: string) => `${role} | written=${[given, surname].filter(Boolean).join(" ")} | given=${given}${surname ? ` | surname=${surname}` : ""}`;
+  // a father and a godparent of one given name: each with the blind reader's one of his whole name, never by "Jan" alone
+  const t = "Josef Novák syn Jan Novák otec Jan Dvořák kmotr";
+  const a = compareReadings(
+    [e(t, [person("child", "Josef", "Novák"), person("father", "Jan", "Novák"), person("godparent", "Jan", "Dvořák")])],
+    [e(t, [person("child", "Josef", "Novák"), person("witness", "Jan", "Dvořák"), person("other", "Jan", "Novák")])],
+  );
+  assert.deepEqual(a.entries[0]!.variants, [
+    { field: "p2.role", at: "father", other: "other" },
+    { field: "p3.role", at: "godparent", other: "witness" },
+  ]);
+  // a father and his son of one name: the father is the one the blind reader read whole; the son missing there,
+  // never given his father's surname
+  const u = "Jan syn Jan Novák otec";
+  const b = compareReadings([e(u, [person("child", "Jan"), person("father", "Jan", "Novák")])], [e(u, [person("other", "Jan", "Novák")])]);
+  assert.deepEqual(b.entries[0]!.variants, [
+    { field: "p1", at: "Jan", other: "" },
+    { field: "p2.role", at: "father", other: "other" },
+  ]);
+  // decomposed accents (NFD) are the same name; two the same name equally well: neither paired
+  const nfd = "Jan Dvořák kmotr Jan Dvořák svědek".normalize("NFD");
+  const tie = compareReadings([e(nfd, [person("godparent", "Jan", "Dvořák".normalize("NFD"))])], [e(nfd, [person("witness", "Jan", "Dvořák"), person("other", "Jan", "Dvořák")])]);
+  assert.deepEqual(tie.entries[0]!.variants, [
+    { field: "p1", at: "Jan Dvořák".normalize("NFD"), other: "" },
+    { field: "person", at: "", other: "Jan Dvořák" },
+    { field: "person", at: "", other: "Jan Dvořák" },
+  ]);
+  // another script: the surname shared weighs more than the given name
+  const cyr = "Пётр Иванов Иван Иванов Пётр Сидоров";
+  const c = compareReadings(
+    [e(cyr, [person("father", "Иван", "Иванов")])],
+    [e(cyr, [person("witness", "Пётр", "Сидоров"), person("other", "Пётр", "Иванов")])],
+  );
+  assert.deepEqual(c.entries[0]!.variants, [
+    { field: "p1.role", at: "father", other: "other" },
+    { field: "p1.given", at: "Иван", other: "Пётр" },
+    { field: "person", at: "", other: "Пётр Сидоров" },
+  ]);
+});
+
+test("the Strom app is given the role the blind reader gave at the person, never as a variant of the transcript", () => {
+  const e = (role: string) =>
+    checkEntry(parseDocReport(`## Entry e1 · page 1\ntranscript: Mutter Löffler Erika Maria\nperson: p1 | ${role} | written=Löffler Erika Maria | given=Erika Maria | surname=Löffler\n`).entries[0]!, "e1").entry;
+  const c = compareReadings([e("mother")], [e("other")]);
+  assert.deepEqual(c.entries[0]!.variants, [{ field: "p1.role", at: "mother", other: "other" }]);
+  const r = { id: "D1", state: "done", version: 1, lang: "cs", at: "", since: "", doc: {}, readers: { asked: 2, ran: 2, agree: c.agree }, pages: [], entries: c.entries, checks: [] } as ReadResult;
+  const app = resultForApp(r);
+  assert.equal(app.entries[0]!.variants, undefined);
+  assert.equal(app.entries[0]!.persons[0]!.blindRole, "other");
+  assert.equal(app.readers.agree, "differ");
+  // the result itself keeps the variant (strom document show, the agents)
+  assert.deepEqual(r.entries[0]!.variants, [{ field: "p1.role", at: "mother", other: "other" }]);
+  // the other variants stay as they are
+  const d = compareReadings([e("mother")], [{ ...e("other"), transcript: "Mutter Löfler Erika Maria" }]);
+  assert.deepEqual(resultForApp({ ...r, entries: d.entries }).entries[0]!.variants, [{ field: "transcript", at: "Löffler", other: "Löfler" }]);
 });
 
 test("a blind reader's entry: no translation, no terms", () => {
