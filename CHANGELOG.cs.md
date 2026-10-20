@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.18.0
 
-*Připravuje se: bety do 1.18.0-beta.5. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.18.0-beta.6. Oddíl bude úplný s vydáním.*
 
 - **Fotky z telefonu nastojato.** Fotka otočená podle údaje EXIF se čte tak, jak se má dívat, nastojato; místa na ní
   vyznačená (výřezy, poloviny dvoustrany, uložená část) jsou místa obrázku, jak se ukazuje. Fotka sama zůstává, jak

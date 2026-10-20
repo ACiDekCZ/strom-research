@@ -14,6 +14,7 @@ import { Tree } from "../../src/core/tree.ts";
 import type { Input, Media, Person, Source, Task } from "../../src/core/model.ts";
 import { READ_VERIFY_ORIGIN } from "../../src/core/sync.ts";
 import { readersOf } from "../../src/core/review.ts";
+import { listedReads, ReadingsSeen } from "../../src/core/live-read.ts";
 import { get, post } from "./sync.helpers.ts";
 
 const opts = { skip: !hasGit };
@@ -107,6 +108,9 @@ async function sent(w: World, name: string, mark: { reading?: string; sha?: stri
   return ged;
 }
 
+/** GET /reads of the bridge as it would answer now and in so many days: [id, inSource] of each reading listed. */
+const listed = (w: World, days = 0) => listedReads(Tree.open(w.cwd, w.env), new ReadingsSeen(w.cwd, w.env), Date.now() + days * 24 * 3600_000).map((r) => [r.id, r.inSource]);
+
 /** The input the last sync came as: what strom sync undo takes. */
 const lastSync = (w: World) => Tree.open(w.cwd, w.env).list<Input>("input").filter((i) => i.id !== "I0001").at(-1)!.id;
 
@@ -155,6 +159,9 @@ test("one reader: the entry a source of the reading with the picture and its exc
     assert.ok(tasks[0]!.where.includes(s.id));
     // the research's readers read it, not the user
     assert.ok(!readersOf(tree).get(s.id)?.has("user"));
+    // the app's history of readings (GET /reads): in a source of this tree; after 90 days no more listed
+    assert.deepEqual(listed(w), [[r.id, true]]);
+    assert.deepEqual(listed(w, 91), []);
     // back to the app: the source says its reading only to an app that shows it (APP_SHOWS_READINGS)
     const out = path.join(w.dir, "zpet.ged");
     await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", out]);
@@ -171,6 +178,9 @@ test("one reader: the entry a source of the reading with the picture and its exc
     const back = Tree.open(w.cwd, w.env);
     assert.equal(back.get<Input>("I0001")!.state, "new");
     assert.ok(back.get<Source>(s.id)!.retracted);
+    // its source retracted: the reading to be come back to again, however old
+    assert.deepEqual(listed(w), [[r.id, false]]);
+    assert.deepEqual(listed(w, 91), [[r.id, false]]);
   } finally {
     w.cleanup();
   }

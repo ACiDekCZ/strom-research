@@ -1071,8 +1071,10 @@ test("the shortcut on the desktop starts this strom", { skip: process.platform =
   const text = fs.readFileSync(file!, "utf8");
   assert.match(text, /^#!\/bin\/sh\ncd "\$HOME"\nexec "\S*node\S*" "\S+cli\.ts"\n$/);
   assert.ok((fs.statSync(file!).mode & 0o111) !== 0, "runs on a double-click");
-  // its own icon: the Strom app's tree with a magnifying glass (Finder keeps it in the file's attributes)
-  if (process.platform === "darwin") assert.match(spawnSync("xattr", [file!], { encoding: "utf8" }).stdout, /com\.apple\.FinderInfo/);
+  // its own icon: the Strom app's tree with a magnifying glass (Finder keeps it in the file's attributes) — set by the
+  // system's osascript alone: a stand-in first on PATH (a test run isolated) sets none
+  const realOsascript = spawnSync("/bin/sh", ["-c", "command -v osascript"], { encoding: "utf8" }).stdout.trim() === "/usr/bin/osascript";
+  if (process.platform === "darwin" && realOsascript) assert.match(spawnSync("xattr", [file!], { encoding: "utf8" }).stdout, /com\.apple\.FinderInfo/);
   const linux = createShortcut("Strom výzkum", w.env, "linux");
   const entry = fs.readFileSync(linux[0]!, "utf8");
   assert.match(entry, /Terminal=true/);

@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.18.0
 
-*In preparation: the betas up to 1.18.0-beta.5. The section is complete with the release.*
+*In preparation: the betas up to 1.18.0-beta.6. The section is complete with the release.*
 
 - **Phone photos upright.** A photo turned by its EXIF orientation is read as it is meant to be seen, upright; the
   places marked on it (excerpts, the halves of a spread, a cut-out part) are of the picture as it is shown. The

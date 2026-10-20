@@ -207,6 +207,12 @@ test("a document read for the Strom app: sent with no intake task, asked, follow
     assert.equal(json(await post(`${url}/read/${own.id}/again`, {})).code, "read.none");
     const all = json(await request("GET", `${url}/status`)).reads;
     assert.equal(all.find((r: { id: string }) => r.id === own.id).from, "research");
+    // an archive (the person's choice): none of its readings any more, however read — the app shows its sources' words
+    await w.ok(["mode", "archive"], { tty: true });
+    for (const u of [`read/${id}`, `read/${id}/page/1.jpg`, `read/${own.id}`, "reads"]) {
+      const r = await request("GET", `${url}/${u}`);
+      assert.deepEqual([r.status, json(r).code], [404, "read.none"], u);
+    }
   } finally {
     events.close();
     await w.run(["live", "stop"]);

@@ -258,9 +258,13 @@ export function statusReads(seen: ReadingsSeen, now = Date.now()): AppRead[] {
     .filter((r) => !FINAL_STATES.includes(r.state) || Date.parse(r.since) > now - STATUS_DAYS * DAY_MS);
 }
 
-/** GET /reads: the last 90 days, and every reading no source of the research is of. */
+/**
+ * GET /reads: the last 90 days, and every reading no source of the research is of. inSource: a source of this tree —
+ * the only one a reading can be of (its input, state and result are the tree's; the sync takes no other's) — and not
+ * retracted (a sync undone, a source merged away): the reading is then to be come back to again.
+ */
 export function listedReads(tree: Tree, seen: ReadingsSeen, now = Date.now()): AppRead[] {
-  const inSources = new Set(tree.list<Source>("source").map((s) => (s as Source & { reading?: unknown }).reading).filter((r): r is string => typeof r === "string"));
+  const inSources = new Set(tree.list<Source>("source").flatMap((s) => (!s.retracted && typeof s.reading === "string" ? [s.reading] : [])));
   return seen
     .all()
     .map((r) => ({ ...r.read, inSource: inSources.has(r.read.id) }))
