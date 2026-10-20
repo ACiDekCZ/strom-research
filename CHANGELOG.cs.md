@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.18.0
 
-*Připravuje se: bety do 1.18.0-beta.7. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.18.0-beta.8. Oddíl bude úplný s vydáním.*
 
 - **Fotky z telefonu nastojato.** Fotka otočená podle údaje EXIF se čte tak, jak se má dívat, nastojato; místa na ní
   vyznačená (výřezy, poloviny dvoustrany, uložená část) jsou místa obrázku, jak se ukazuje. Fotka sama zůstává, jak
@@ -22,6 +22,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   vypadne — i příjmení, nikdy se nebere od otce ani z jiné rodiny —, co nejde přečíst, je označené; druhý čtenář
   může číst naslepo. Do stromu se z toho nic nezapíše samo. Dokument už přečtený to o sobě řekne, takže se omylem
   nečte podruhé. Dokument čtený znovu se ukazuje pod názvem svého souboru, nikdy pod kódem.
+  Dokument poslaný z aplikace Strom najde agenta stejně jako terminál — i nainstalovaného do vlastní složky, přes npm
+  nebo Homebrew — místo hlášení, že agent není nastavený.
 - **Fotky z telefonu.** `strom phone on`, které zapíná jen člověk, pustí k počítači telefon v domácí síti (Wi-Fi
   nebo kabel — nikdy mobilní síť ani VPN). Telefon se jednou spáruje přes QR kód; jeho stránka pak fotí nebo vybírá
   z galerie a posílá fotky celé do stromu výzkumu, s poznámkou a osobou, kterou ukazují — stejně jako „Přidat
@@ -32,7 +34,10 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   údaji a jejich časem. Otevře strom, jehož QR kód ji spároval, a jde přidat na plochu jako ikona, která ji otevře
   bez nového párování. Co čeká a změny jdou na telefonu přečíst celé: text toho, co čeká, se neořezává, další položky
   nad prvních 20 se donačtou klepnutím a změna s víc řádky se rozbalí celá; Co čeká je poslední částí stránky. Změna
-  starší než dnešek má u času i datum (rok jen u loňských a starších).
+  starší než dnešek má u času i datum (rok jen u loňských a starších). Nálezy pod Teď ukazují, co výzkum našel od
+  posledního pohledu z telefonu (aspoň posledních 24 hodin, starší klepnutím) — nové osoby, prameny, nalezené, opravené
+  či nově doložené údaje, vyřešené rozpory — nové zvýrazněné; co přibude při otevřené stránce, ukáže jen počet
+  v názvu záložky a malý štítek.
 - **Souhlas v jednom jazyce.** Souhlas, který dává jen člověk (rozbalení výzkumu, odebrání stromu, odmítnuté okno),
   zazní celý v jazyce výzkumu, nic z něj nezůstane anglicky.
 - **Odmítnutá aktualizace.** Když se `strom update` odmítne, řekne, že se nic nenainstalovalo a která verze zůstává,

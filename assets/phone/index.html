@@ -40,6 +40,12 @@
     <button id="treeBtn" class="tree" type="button" aria-haspopup="dialog"><span id="treeName"></span><span class="caret" aria-hidden="true">▼</span></button>
     <div class="status"><span id="dot" class="dot"></span><span id="statusText"></span></div>
   </header>
+  <!-- something new while the page is open: a small label under the header (no sound, no vibration, no dialog); the
+       progress's label of changes above stacked under it, never over it -->
+  <div class="notes">
+    <div class="findnote" aria-live="polite"><button id="findPill" class="findpill" type="button" hidden></button></div>
+    <button id="newPill" class="newpill" type="button" hidden></button>
+  </div>
   <div id="goneBanner" class="banner" hidden><span id="goneText"></span><button id="goneClose" class="x" type="button">×</button></div>
   <section id="down" class="card down" hidden>
     <h2 id="downTitle"></h2>
@@ -50,13 +56,21 @@
     <p id="noTrees" class="quiet" hidden></p>
     <section id="pairedCard" class="card" hidden><h2 id="pairedTitle"></h2><p id="pairedText" class="quiet"></p></section>
     <section id="archiveCard" class="card" hidden><p id="archiveText" class="strong"></p><p id="archivePhotos" class="quiet"></p></section>
-    <!-- what the research does now, what waits, the last 24 hours and the progress: to look at alone (nothing here
+    <!-- what the research does now, what it found, the last 24 hours, the progress and what waits: to look at alone (nothing here
          answers, starts or decides anything) -->
     <div id="overview" hidden>
       <section id="nowCard" class="card">
         <h2 id="nowTitle" class="cap"></h2>
         <ul id="nowLines" class="lines"></ul>
         <div id="nowIdle" hidden><p class="idle-row"><span class="ring" aria-hidden="true"></span><span id="nowIdleText"></span></p><p id="nowIdleLast" class="quiet small"></p></div>
+      </section>
+      <!-- what the research found since this phone looked last (the last 24 hours at least), the new ones marked -->
+      <section id="findsCard" class="card">
+        <h2 class="cap"><span id="findsTitle"></span> <span id="findsSince" class="since-label"></span></h2>
+        <p id="findsNone" class="quiet" hidden></p>
+        <ul id="findsList" class="finds"></ul>
+        <p id="findsCut" class="quiet small" hidden></p>
+        <p class="morerow"><button id="findsOlder" class="linkbtn" type="button" hidden></button></p>
       </section>
       <section id="dayCard" class="card" hidden>
         <h2 id="dayTitle" class="cap"></h2>
@@ -91,7 +105,6 @@
       <p><button id="homeClose" class="btn outline small" type="button"></button></p>
     </section>
   </div>
-  <button id="newPill" class="newpill" type="button" hidden></button>
   <button id="strip" class="strip" type="button" hidden><span class="strip-bar"><span id="stripFill"></span></span><span id="stripText"></span></button>
   <footer class="bar">
     <button id="photoBtn" class="btn primary" type="button"></button>

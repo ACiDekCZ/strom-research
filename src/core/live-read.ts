@@ -24,7 +24,7 @@ import { readableTypes } from "./readable.ts";
 import { makeView } from "./views.ts";
 import { inputPath } from "./media.ts";
 import { sandboxOf } from "./sandbox.ts";
-import { AGENTS, which } from "./which.ts";
+import { AGENTS, findAgent } from "./which.ts";
 import { assetPath } from "./assets.ts";
 import { EXIT } from "./errors.ts";
 import { forApp, refusal } from "./receive.ts";
@@ -328,7 +328,7 @@ function notReady(tree: Tree, settings: Settings, env: Env, seen: ReadingsSeen |
   const agent = settings.agent(tree.config).value;
   // (the agents' table of core, not the runners': a runner's module reaches the bridge, and so would come round to itself)
   const known = AGENTS.find((a) => a.id === agent);
-  if (agent !== "script" && (!known || !which(known.command, env))) return { why: "agent.none" };
+  if (agent !== "script" && (!known || !findAgent(known.command, env))) return { why: "agent.none" };
   if (!READ_TESTED.includes(agent)) return { why: "agent.untested" };
   // the last reading that ended: its agent out of its limit, or not signed in — until another reads
   const last = (seen ?? new ReadingsSeen(tree.root, env)).all().find((r) => r.state && FINAL_STATES.includes(r.state.state))?.state;

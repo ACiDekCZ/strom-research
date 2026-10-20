@@ -81,6 +81,10 @@ const ALONE = String.raw`(?<![\p{L}\p{M}\p{N}])`;
 const ENDS = String.raw`(?![\p{L}\p{M}\p{N}])`;
 const ONE_ID = String.raw`${ALONE}(?:D\d{14}-[0-9a-f]{4}|[${[...new Set(Object.values(ALL_PREFIXES))].join("")}]\d{4,})${ENDS}`;
 const IDS = new RegExp(String.raw`${ONE_ID}(?:(?:\s*[,;/&+–—-]\s*|\s+(?:\p{L}\p{M}*){1,4}\s+)${ONE_ID})*(?:\s*,?\s*(?:…|\.{3}))?`, "gu");
+// an ID written short in square brackets ("[I103]", "[P12, F3]"): a capital or two of any script and a number — never a
+// year ("[1842]"), a word ("[sic]") or what has a space or a small letter in it ("[fol. 3]", "[č. 12]")
+const SHORT_ID = String.raw`\p{Lu}\p{M}*(?:\p{Lu}\p{M}*)?\p{Nd}+`;
+const BRACKET_IDS = new RegExp(String.raw`\[\s*${SHORT_ID}(?:\s*[,;/&+–—-]\s*${SHORT_ID})*\s*\]`, "gu");
 // a link, with its scheme or www.: its site alone
 const LINK = /(?<![\p{L}\p{M}\p{N}.@])(?:(?:https?|ftp):\/\/|www\.)[^\s<>"„“”«»]+/giu;
 // a path: of Windows (C:\…, C:/…, \\server\…), the home's (~/…), absolute (/Users/…), in the research (notes/…, data/…),
@@ -139,6 +143,7 @@ export function forPhone(text: string): string {
       return `${siteOf(core)}${tail}`;
     })
     .replace(PATHS, (m) => peeled(m).tail)
+    .replace(BRACKET_IDS, "")
     .replace(IDS, "")
     .replace(/\s+/gu, " ");
   for (let before = ""; before !== s; ) {

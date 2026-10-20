@@ -333,6 +333,46 @@ test("no reader here: accepts.read says why and nothing is asked; an archive rea
   }
 });
 
+test("a bridge the system started (a link from the app: the bare PATH) finds the agent of the person's terminal, or in its installer's folder", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree();
+    // the person's terminal: the agent in a folder of its own (as npm's or Homebrew's), remembered at a strom run there
+    const own = path.join(w.dir, "own bin");
+    fs.mkdirSync(own);
+    fs.writeFileSync(path.join(own, "claude"), "#!/bin/sh\n", { mode: 0o755 });
+    // (not the stand-in agent every test has on its PATH)
+    const terminal = [own, "/usr/bin", "/bin"].join(path.delimiter);
+    await w.ok(["check"], { tty: true, env: { PATH: terminal } });
+    const config = () => JSON.parse(fs.readFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), "utf8"));
+    assert.equal(config().terminalPath, terminal);
+    // never an agent's PATH, nor one without a terminal
+    await w.ok(["check"], { tty: true, env: { PATH: "/usr/bin:/bin", CLAUDECODE: "1" } });
+    await w.ok(["check"], { env: { PATH: "/usr/bin:/bin" } });
+    assert.equal(config().terminalPath, terminal);
+
+    // the applet's do shell script: /usr/bin:/bin:/usr/sbin:/sbin
+    Object.assign(w.env, { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", STROM_AGENT: "claude", STROM_LIVE_POLL_MS: "150" });
+    const url = (await w.ok(["live", "start", "--json"])).json.url as string;
+    const read = async () => json(await request("GET", `${url}/status`)).accepts.read;
+    const first = await read();
+    assert.deepEqual([first.ready, first.why], [true, null]);
+    // gone from there: in the folder its installer puts it, still found; nowhere: no agent
+    fs.rmSync(path.join(own, "claude"));
+    const local = path.join(w.env.HOME!, ".local", "bin");
+    fs.mkdirSync(local, { recursive: true });
+    fs.writeFileSync(path.join(local, "claude"), "#!/bin/sh\n", { mode: 0o755 });
+    assert.equal((await read()).ready, true);
+    fs.rmSync(path.join(local, "claude"));
+    // nowhere (nor its desktop app): the research waits for its agent and says nothing of reading (no agent's program
+    // beside its desktop app: agent.none, the test below)
+    assert.equal(await read(), undefined);
+  } finally {
+    await w.run(["live", "stop"]);
+    w.cleanup();
+  }
+});
+
 test("why no reader starts: no agent's program, an agent whose reader was not tried, the limit or a login a reader ended on", opts, async () => {
   const w = new World();
   try {

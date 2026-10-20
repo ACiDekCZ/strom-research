@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.18.0
 
-*In Vorbereitung: die Betas bis 1.18.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.18.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Handyfotos aufrecht.** Ein Foto, das nach seiner EXIF-Ausrichtung gedreht ist, wird gelesen, wie es gesehen
   werden soll, aufrecht; die darauf markierten Stellen (Ausschnitte, die Hälften einer Doppelseite, ein gespeicherter
@@ -23,7 +23,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   weg — auch ein Nachname, nie vom Vater oder aus einer anderen Familie genommen —, Unleserliches wird markiert; ein
   zweiter Leser kann blind lesen. In den Stammbaum gelangt nichts von selbst. Ein schon gelesenes Dokument sagt es,
   so wird es nicht versehentlich ein zweites Mal gelesen. Ein erneut gelesenes Dokument wird unter dem Namen seiner
-  Datei gezeigt, nie unter einem Code.
+  Datei gezeigt, nie unter einem Code. Ein aus der Strom-App gesendetes Dokument findet den Agenten wie das Terminal —
+  auch einen in einem eigenen Ordner, über npm oder Homebrew installierten —, statt zu melden, es sei kein Agent
+  eingerichtet.
 - **Fotos vom Handy.** `strom phone on`, das nur ein Mensch einschaltet, lässt ein Handy im Heimnetz (WLAN oder
   Kabel — nie ein Mobilfunknetz oder ein VPN) zu diesem Computer. Das Handy wird einmal per QR-Code gekoppelt; seine
   Seite fotografiert dann oder wählt aus der Galerie und schickt die Fotos ganz in einen Stammbaum der Forschung, mit
@@ -37,7 +39,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   das sie ohne neues Koppeln öffnet. Was wartet und die Änderungen lassen sich auf dem Handy ganz lesen: kein Text
   dessen, was wartet, wird gekürzt, mehr als die ersten 20 kommen auf Antippen, eine Änderung mit vielen Zeilen klappt
   ganz auf; Was wartet ist der letzte Teil der Seite. Eine Änderung vor heute hat bei der Uhrzeit auch ihr Datum (das
-  Jahr nur, wenn es nicht das laufende ist).
+  Jahr nur, wenn es nicht das laufende ist). Funde unter Jetzt zeigen, was die Forschung seit dem letzten Blick vom
+  Handy gefunden hat (mindestens die letzten 24 Stunden, ältere auf Antippen) — neue Personen, Quellen, gefundene,
+  korrigierte oder neu belegte Angaben, geklärte Widersprüche —, die neuen hervorgehoben; was bei offener Seite
+  hinzukommt, zeigt nur eine Zahl im Titel des Tabs und ein kleines Etikett.
 - **Eine Zustimmung in einer Sprache.** Eine Zustimmung, die nur ein Mensch gibt (eine Forschung entpacken, einen
   Stammbaum entfernen, ein abgelehntes Fenster), steht ganz in der Sprache der Forschung, nichts davon bleibt
   Englisch.

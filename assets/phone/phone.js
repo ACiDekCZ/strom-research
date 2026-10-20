@@ -168,6 +168,12 @@
     logLatest: "",
     waitLoaded: null, // more of what waits, asked for on a tap: {tree, of (what the overview gave then), n, items}
     waitBusy: false,
+    finds: null, // what the research found: {tree, key, since, groups, cut, earlier}
+    findsWin: {}, // the window of each tree: {since, base (what came after it is marked new)}
+    findsBusy: false,
+    seenMem: {}, // the last look at the finds of each tree, where the browser keeps nothing
+    waitBase: {}, // how much waited for each tree when it was looked at last
+    dwell: { finds: 0, wait: 0 }, // seconds each part has been in sight
     newCount: 0, // changes added above while scrolled down
     returning: false, // the page looked at again: the first answer after it awaited
   };
@@ -264,6 +270,7 @@
         S.shown = r.body.shown || null;
         if (S.shown && S.shown.latest && (S.logTree !== S.tree || S.logLatest !== S.shown.latest)) void loadLog(S.tree, S.shown.latest);
         keepWait();
+        wantFinds();
       } else {
         S.shown = null;
         setTimeout(() => void refresh(), 0);
@@ -637,6 +644,7 @@
   };
 
   const render = () => {
+    notice();
     if (S.view === "unpaired") return renderUnpaired();
     if (S.view !== "main") return;
     renderHeader();
@@ -707,7 +715,7 @@
     $("overview").hidden = !tree || !o;
     if (!tree || !o) return;
     const archive = !!tree.archive;
-    $("nowCard").hidden = $("waitCard").hidden = archive;
+    $("nowCard").hidden = $("waitCard").hidden = $("findsCard").hidden = archive;
     const lines = Array.isArray(o.now) ? o.now : [];
     if (!archive && changed("now", [lines, o.lastWorked, new Date().toDateString()])) {
       $("nowTitle").textContent = lines.length > 1 ? t("now.lines", { n: lines.length }) : t("now");
@@ -732,6 +740,7 @@
       if (o.lastWorked) $("nowIdleLast").textContent = t("now.idleLast", { when: whenOf(o.lastWorked) });
     }
     if (!archive) drawWait();
+    if (!archive) drawFinds();
     $("dayCard").hidden = !o.day;
     if (o.day && changed("day", o.day)) {
       const plus = (n) => (n > 0 ? "+" : "") + count(n);
@@ -776,6 +785,170 @@
     $("waitRest").hidden = !left || can;
     if (left && !can) $("waitRest").textContent = t("waiting.rest", { n: left });
     $("waitWhere").hidden = !w.n;
+  };
+
+  // ── the finds: since this phone looked last (its browser keeps when, for each tree), the last 24 hours at least ──
+  const DAY_MS = 86_400_000;
+  // a look longer ago than this: the last 24 hours (older ones on a tap), all of them new
+  const LONG_MS = 7 * DAY_MS;
+  const seenKey = (tree) => `strom.phone.seen.${tree}`;
+  const later = (a, b) => (a > b ? a : b);
+  const seenOf = (tree) => {
+    const v = later(store.get(seenKey(tree)) || "", S.seenMem[tree] || "");
+    return Number.isFinite(Date.parse(v)) ? v : "";
+  };
+  // the window of a tree, set as it is opened: from its last look, the last 24 hours at least; no look known: the last
+  // 24 hours, none of them new (what comes after the first answer is)
+  const findsWindow = (tree, now = Date.now()) => {
+    let w = S.findsWin[tree];
+    if (!w) {
+      const seen = seenOf(tree);
+      const day = new Date(now - DAY_MS).toISOString();
+      w = S.findsWin[tree] = { since: seen && now - Date.parse(seen) < LONG_MS && seen < day ? seen : day, base: seen };
+    }
+    return w;
+  };
+  const newest = (groups) => groups.reduce((m, g) => later(m, String(g.at || "")), "");
+  const isNew = (at) => {
+    const w = S.findsWin[S.tree];
+    return !!w && !!w.base && at > w.base;
+  };
+  // asked when the tree's newest change or the window is another
+  let findsAsking = null;
+  const loadFinds = (tree, latest) =>
+    (findsAsking ??= (async () => {
+      const w = findsWindow(tree);
+      const key = `${tree}|${latest}|${w.since}`;
+      // a fact said in the page's language (its name and date as the rest of the line)
+      const r = await ask(`/phone/finds?tree=${encodeURIComponent(tree)}&since=${encodeURIComponent(w.since)}&lang=${encodeURIComponent(LANG)}`);
+      findsAsking = null;
+      S.findsBusy = false;
+      const ok = r.status === 200 && Array.isArray(r.body.groups);
+      if (ok && tree === S.tree) {
+        if (!w.base) w.base = newest(r.body.groups) || w.since;
+        S.finds = { tree, key, since: typeof r.body.since === "string" ? r.body.since : w.since, groups: r.body.groups, cut: Number(r.body.cut) || 0, earlier: typeof r.body.earlier === "string" ? r.body.earlier : "" };
+      }
+      drawFinds();
+      notice();
+      // another tree, a newer change or another window meanwhile: asked again for it (a failure: at the next answer)
+      if (ok || tree !== S.tree) wantFinds();
+    })());
+  const wantFinds = () => {
+    const tree = treeById(S.tree);
+    if (!tree || tree.archive || !S.shown || !S.shown.latest) return;
+    const w = findsWindow(S.tree);
+    if (!S.finds || S.finds.key !== `${S.tree}|${S.shown.latest}|${w.since}`) void loadFinds(S.tree, S.shown.latest);
+  };
+  const drawFind = (g) => {
+    const li = el("li");
+    const head = el("div", "head");
+    head.append(el("span", "who", g.kind === "sources" ? t("finds.sources") : g.kind === "resolved" ? t("finds.resolved") : String(g.title || "")));
+    const time = el("time", "", logTime(Date.parse(g.at)));
+    time.dateTime = g.at;
+    head.append(time);
+    li.append(head);
+    for (const l of Array.isArray(g.lines) ? g.lines : []) {
+      const p = el("p");
+      if (isNew(l.at)) {
+        p.className = "new";
+        li.className = "new";
+        const dot = el("span", "nd");
+        dot.setAttribute("aria-hidden", "true");
+        p.append(dot, el("span", "vh", `${t("finds.newMark")}: `));
+      }
+      p.append(el("span", "", t(`finds.kind.${l.kind}`, { text: l.text })));
+      li.append(p);
+    }
+    return li;
+  };
+  const drawFinds = () => {
+    const tree = treeById(S.tree);
+    if (!tree || tree.archive) return;
+    const f = S.finds && S.finds.tree === S.tree ? S.finds : null;
+    const w = S.findsWin[S.tree];
+    if (!changed("finds", [f && [f.groups, f.cut, f.earlier, f.since], w && w.base, S.findsBusy, !!(S.shown && S.shown.latest), new Date().toDateString()])) return;
+    const groups = f ? f.groups : [];
+    $("findsTitle").textContent = t("finds");
+    $("findsSince").textContent = f ? t("finds.since", { time: logTime(Date.parse(f.since)) }) : "";
+    $("findsCard").classList.toggle("none", !groups.length);
+    // nothing saved yet, or nothing found in the window: a short line
+    $("findsNone").hidden = groups.length > 0 || (!f && !!(S.shown && S.shown.latest));
+    $("findsNone").textContent = t("finds.none");
+    $("findsList").replaceChildren(...groups.map(drawFind));
+    $("findsList").hidden = !groups.length;
+    $("findsCut").hidden = !(f && f.cut);
+    if (f && f.cut) $("findsCut").textContent = t("finds.cut", { n: f.cut });
+    $("findsOlder").hidden = !(f && f.earlier);
+    $("findsOlder").disabled = S.findsBusy;
+    $("findsOlder").textContent = S.findsBusy ? t("finds.loading") : t("finds.older");
+  };
+  // older finds: a day before the newest of them (the server looks a month back at most)
+  const olderFinds = () => {
+    const f = S.finds && S.finds.tree === S.tree ? S.finds : null;
+    const w = S.findsWin[S.tree];
+    if (!f || !f.earlier || !w || S.findsBusy) return;
+    w.since = new Date(Date.parse(f.earlier) - DAY_MS).toISOString();
+    S.findsBusy = true;
+    drawFinds();
+    wantFinds();
+  };
+
+  // ── something new while the page is open: its count in the tab's title and a small label (no sound, no vibration,
+  // no dialog, no notification); gone once the part it is in has been in sight a while ──
+  const BASE_TITLE = document.title;
+  const unseen = () => {
+    const tree = treeById(S.tree);
+    if (!tree || tree.archive || S.view !== "main") return { finds: 0, wait: 0 };
+    const f = S.finds && S.finds.tree === S.tree ? S.finds : null;
+    const w = S.findsWin[S.tree];
+    const ref = later(seenOf(S.tree), (w && w.base) || "");
+    const finds = f && ref ? f.groups.reduce((n, g) => n + (Array.isArray(g.lines) ? g.lines : []).filter((l) => l.at > ref).length, 0) : 0;
+    const n = S.shown && S.shown.waiting ? Number(S.shown.waiting.n) || 0 : 0;
+    const base = S.waitBase[S.tree];
+    return { finds, wait: base === undefined ? 0 : Math.max(0, n - base) };
+  };
+  const notice = () => {
+    // what waits: counted from what waited as the tree was opened (fewer since: from those)
+    const n = S.shown && S.shown.waiting && S.view === "main" ? Number(S.shown.waiting.n) || 0 : null;
+    if (n !== null && (S.waitBase[S.tree] === undefined || n < S.waitBase[S.tree])) S.waitBase[S.tree] = n;
+    const u = unseen();
+    const all = u.finds + u.wait;
+    const title = all ? `(${count(all)}) ${BASE_TITLE}` : BASE_TITLE;
+    if (document.title !== title) document.title = title;
+    $("findPill").hidden = !all;
+    const text = all ? t("finds.new", { n: all }) : "";
+    if (all && $("findPill").textContent !== text) $("findPill").textContent = text;
+  };
+  // in sight: on the screen, the page in front, no sheet over it
+  const inView = (e) => {
+    const r = e.getBoundingClientRect();
+    return r.height > 0 && r.bottom > 0 && r.top < (window.innerHeight || 0);
+  };
+  const DWELL_S = 2;
+  // called every second: what has been in sight DWELL_S seconds is seen (the finds by their newest, what waits by its count)
+  const looked = () => {
+    const tree = S.tree;
+    const showing = S.view === "main" && document.visibilityState !== "hidden" && !S.sheet && $("switcher").hidden;
+    const f = S.finds && S.finds.tree === tree ? S.finds : null;
+    S.dwell.finds = showing && f && f.groups.length && inView($("findsCard")) ? S.dwell.finds + 1 : 0;
+    S.dwell.wait = showing && S.shown && S.shown.waiting && inView($("waitCard")) ? S.dwell.wait + 1 : 0;
+    let moved = false;
+    if (S.dwell.finds >= DWELL_S) {
+      const at = newest(f.groups);
+      if (at && at > seenOf(tree)) {
+        S.seenMem[tree] = at;
+        store.set(seenKey(tree), at);
+        moved = true;
+      }
+    }
+    if (S.dwell.wait >= DWELL_S) {
+      const n = Number(S.shown.waiting.n) || 0;
+      if (S.waitBase[tree] !== n) {
+        S.waitBase[tree] = n;
+        moved = true;
+      }
+    }
+    if (moved) notice();
   };
 
   // the progress: the changes drawn kept by their id, a new one put on top (lit for 6 s); scrolled down, what is under
@@ -1067,6 +1240,9 @@
     if (S.tree !== id) {
       S.shown = null;
       S.waitLoaded = null;
+      S.finds = null;
+      S.findsBusy = false;
+      S.dwell = { finds: 0, wait: 0 };
       S.logTree = "";
       for (const li of logItems.values()) li.remove();
       logItems.clear();
@@ -1281,6 +1457,12 @@
     homeTimer = setTimeout(homeOff, Math.max(0, Date.parse(r.body.expiresAt) - Date.now()));
   };
   $("homeClose").onclick = homeOff;
+  $("findsOlder").onclick = olderFinds;
+  // to the finds (only what waits is new: to that)
+  $("findPill").onclick = () => {
+    const u = unseen();
+    $(u.finds || !u.wait ? "findsCard" : "waitCard").scrollIntoView({ block: "start", behavior: "smooth" });
+  };
   $("newPill").onclick = () => {
     S.newCount = 0;
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1302,6 +1484,7 @@
     if (S.view === "main") {
       renderHeader();
       restampLog();
+      looked();
       if (ticks % 10 === 0 && document.visibilityState !== "hidden") void refresh();
     } else if (S.view === "unpaired" && ticks % 10 === 0) void whoami().then((w) => w === "paired" && void refresh());
   }, 1000);

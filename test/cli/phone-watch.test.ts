@@ -138,6 +138,17 @@ test("the phone watches the research: paired by a tree's QR code, that tree open
     assert.deepEqual((await request(`${address}/phone/waiting?tree=${treeA}`, me)).body, { n: 1, items: [] }, "past the first 20 by default");
     assert.equal((await request(`${address}/phone/waiting?tree=${treeA}&from=0`)).status, 401);
     assert.equal((await request(`${address}/phone/waiting?tree=${treeA}&from=0`, { ...me, Origin: "http://evil.example" })).status, 403);
+
+    // the finds: the person's own edits none; nothing to another page, unpaired, a tree gone
+    const finds = await request(`${address}/phone/finds?tree=${encodeURIComponent(treeA)}&since=${encodeURIComponent(new Date(Date.now() - 3_600_000).toISOString())}`, me);
+    assert.equal(finds.status, 200);
+    assert.deepEqual(finds.body.groups, []);
+    assert.match(finds.body.since, /^\d{4}-\d{2}-\d{2}T/u);
+    // the page's language asked along (a fact said in it), anything else in its place no harm
+    for (const lang of ["de", "x/y"]) assert.equal((await request(`${address}/phone/finds?tree=${encodeURIComponent(treeA)}&lang=${encodeURIComponent(lang)}`, me)).status, 200, lang);
+    assert.equal((await request(`${address}/phone/finds?tree=${treeA}`)).status, 401);
+    assert.equal((await request(`${address}/phone/finds?tree=${treeA}`, { ...me, Origin: "http://evil.example" })).status, 403);
+    assert.deepEqual((await request(`${address}/phone/finds?tree=nope`, me)).body.code, "phone.tree-gone");
     assert.equal((await request(`${address}/phone/waiting?tree=nope&from=0`, me)).body.code, "phone.tree-gone");
 
     // the progress: newest first, without IDs; fewer asked, more said

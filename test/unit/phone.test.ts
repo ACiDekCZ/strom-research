@@ -293,6 +293,16 @@ test("a text of the research for the phone: without the IDs of its records, any 
   assert.equal(forPhone("Ane\u0301zka [I0007]".normalize("NFD")), "Anézka".normalize("NFD"));
 });
 
+test("a text of the research for the phone: an ID written short in square brackets goes too (any prefix, any script, a list of them); a year, a word or a folio in brackets stays", () => {
+  assert.equal(forPhone("Rok narození Anežky [I103] – zápis křtu"), "Rok narození Anežky – zápis křtu");
+  assert.equal(forPhone("Spor o otce [P12, F3] vyřešen."), "Spor o otce vyřešen.");
+  assert.equal(forPhone("Мария Жукова [Ж7]"), "Мария Жукова");
+  assert.equal(forPhone("Zden\u030cka [C\u030c12]".normalize("NFD")), "Zden\u030cka".normalize("NFD"));
+  assert.equal(forPhone("Familie [X1]."), "Familie.");
+  for (const kept of ["Kniha [1842] zůstává", "zapsáno [sic] takto", "Matrika [fol. 3] Sloup", "dům [č. 12] v Sloupu", "Teil [b2] des Buches", "Seite [S 12]"])
+    assert.equal(forPhone(kept), kept, kept);
+});
+
 test("the icon on the home screen unpaired scans no QR code: the page says to open it in the browser and add the icon again, in each language", () => {
   const src = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/phone.js"), "utf8");
   assert.match(src, /if \(standalone\) \$\("unpairedHow"\)\.textContent = t\("unpaired\.howHome"\);/);
@@ -441,7 +451,7 @@ test("the phone's page: What waits is the last part of the overview, more of it 
 test("the phone's page draws what waits whole, a button for more while more waits, and what is past the most it asks for said in a line; in each language", () => {
   for (const [lang, more, rest] of [["cs", /^Ukázat další · zbývá 28$/u, /^a 50 dalších v Přehledu výzkumu na počítači$/u], ["en", /^Show more · 28 left$/u, /^and 50 more in the Research overview/u], ["de", /^Weitere zeigen · noch 28$/u, /^und 50 weitere in der Forschungsübersicht/u]] as const) {
     const { src, t, el } = pageTexts(lang);
-    const code = src.slice(src.indexOf("  const drawWait ="), src.indexOf("  // the progress: the changes drawn"));
+    const code = src.slice(src.indexOf("  const drawWait ="), src.indexOf("  const DAY_MS ="));
     const ids = new Map<string, FakeEl>();
     const $ = (id: string) => ids.get(id) ?? ids.set(id, new FakeEl(id)).get(id)!;
     const S: Record<string, any> = { tree: "tr", waitLoaded: null, waitBusy: false };
@@ -596,4 +606,218 @@ test("the phone's page keeps more of what waits it asked for over each answer of
   S.tree = "other";
   await late;
   assert.equal(S.waitLoaded, null);
+});
+
+test("the phone's page: Finds under what the research does now, before the last 24 hours, the progress and what waits; the label of something new alone told to a screen reader", () => {
+  const html = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/index.html"), "utf8");
+  const at = (id: string) => html.indexOf(`id="${id}"`);
+  const order = ["nowCard", "findsCard", "dayCard", "logCard", "waitCard"].map(at);
+  assert.ok(order.every((x) => x > 0), String(order));
+  assert.deepEqual(order, [...order].sort((a, b) => a - b));
+  const main = html.slice(at("main"));
+  assert.equal(main.match(/aria-live/gu)?.length, 1, "one live region in the research's part");
+  assert.match(main, /<div class="findnote" aria-live="polite"><button id="findPill" class="findpill" type="button" hidden><\/button><\/div>/u);
+  assert.match(html, /<button id="findsOlder" class="linkbtn" type="button" hidden><\/button>/u);
+  const js = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/phone.js"), "utf8");
+  assert.doesNotMatch(js, /Notification|vibrate|new Audio|alert\(|confirm\(/u, "no sound, vibration, dialog or notification");
+});
+
+test("the phone's page: the label of finds and the progress's label of changes above, shown together, stacked one under the other — neither over the other", () => {
+  const html = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/index.html"), "utf8");
+  const css = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/phone.css"), "utf8").replace(/\/\*[\s\S]*?\*\//gu, "");
+  const rule = (selector: string) => {
+    const m = new RegExp(`(?:^|\\})\\s*${selector.replace(/[.#]/gu, "\\$&")}\\s*\\{([^}]*)\\}`, "u").exec(css);
+    return m ? m[1]! : "";
+  };
+  // both labels in one column under the header: the finds' first, the progress's under it
+  const notes = /<div class="notes">([\s\S]*?)\n  <\/div>/u.exec(html);
+  assert.ok(notes, "the labels' column");
+  const inside = notes![1]!;
+  assert.ok(inside.indexOf('id="findPill"') >= 0 && inside.indexOf('id="newPill"') > inside.indexOf('id="findPill"'), inside);
+  assert.equal(html.match(/id="newPill"/gu)?.length, 1);
+  assert.match(rule(".notes"), /position:sticky/u);
+  assert.match(rule(".notes"), /display:flex/u);
+  assert.match(rule(".notes"), /flex-direction:column/u);
+  // in the column's flow, each taking its own room: none placed on its own, none of no height
+  for (const sel of [".findnote", ".findpill", ".newpill"]) {
+    const r = rule(sel);
+    assert.ok(r, sel);
+    assert.doesNotMatch(r, /position:(?:fixed|absolute|sticky)|transform:|(?:^|;)height:0/u, `${sel}: ${r}`);
+  }
+});
+
+// The page's finds as its script draws them: the block cut out of phone.js, with a fake document, store and server.
+function findsPage(lang: string, stored: Record<string, string> = {}) {
+  const { src, t, el } = pageTexts(lang);
+  const code = src.slice(src.indexOf("  const DAY_MS ="), src.indexOf("  // the progress: the changes drawn kept by their id"));
+  const ids = new Map<string, FakeEl & { getBoundingClientRect?: () => { top: number; bottom: number; height: number }; scrolled?: boolean }>();
+  const $ = (id: string) => ids.get(id) ?? ids.set(id, new FakeEl(id)).get(id)!;
+  $("switcher").hidden = true;
+  const S: Record<string, any> = { tree: "tr", view: "main", finds: null, findsWin: {}, findsBusy: false, seenMem: {}, waitBase: {}, dwell: { finds: 0, wait: 0 }, shown: { latest: "abc", waiting: { n: 2, items: [] } } };
+  const drawn: Record<string, string> = {};
+  const changed = (key: string, value: unknown) => {
+    const j = JSON.stringify(value);
+    if (drawn[key] === j) return false;
+    drawn[key] = j;
+    return true;
+  };
+  const store = {
+    data: { ...stored } as Record<string, string>,
+    get(k: string) {
+      return this.data[k] ?? null;
+    },
+    set(k: string, v: string) {
+      this.data[k] = v;
+    },
+  };
+  const asked: string[] = [];
+  const answers: Array<{ status: number; body: Record<string, any> }> = [];
+  const ask = async (url: string) => {
+    asked.push(url);
+    return answers.shift() ?? { status: 500, body: {} };
+  };
+  const document = { title: "Strom", visibilityState: "visible" };
+  const window = { innerHeight: 800 };
+  const logTime = (ms: number) => new Date(ms).toISOString().slice(11, 16);
+  const count = (n: number) => new Intl.NumberFormat(lang).format(n);
+  const api = new Function("S", "$", "t", "el", "changed", "store", "ask", "treeById", "logTime", "count", "document", "window", "LANG", `${code}; return { findsWindow, isNew, loadFinds, wantFinds, drawFinds, olderFinds, notice, looked, unseen };`)(
+    S, $, t, el, changed, store, ask, (id: string) => (id === "tr" ? { id, archive: false } : undefined), logTime, count, document, window, lang,
+  ) as Record<"findsWindow" | "isNew" | "loadFinds" | "wantFinds" | "drawFinds" | "olderFinds" | "notice" | "looked" | "unseen", (...a: any[]) => any>;
+  return { S, $, t, store, asked, answers, document, ...api };
+}
+
+const H = 3_600_000;
+const iso = (ms: number) => new Date(ms).toISOString();
+
+test("the phone's page draws the finds grouped by whom, the new ones since the last look marked, nothing cut; in each language", async () => {
+  const now = Date.now();
+  for (const [lang, kinds, sources] of [
+    ["cs", /^Nově v rodokmenu$|^Narození: 12\. 3\. 1861, Sloup · nově doloženo$|^Rozpor: /u, "Nové prameny"],
+    ["en", /^New in the tree$|^Narození: 12\. 3\. 1861, Sloup · newly cited$|^Conflict: /u, "New sources"],
+    ["de", /^Neu im Stammbaum$|^Narození: 12\. 3\. 1861, Sloup · neu belegt$|^Widerspruch: /u, "Neue Quellen"],
+  ] as const) {
+    // looked 30 hours ago: the window from then, what came after it new
+    const seen = iso(now - 30 * H);
+    const p = findsPage(lang, { "strom.phone.seen.tr": seen });
+    const long = "Метрическая книга церкви Святого Николая, ".repeat(6).trim();
+    p.answers.push({
+      status: 200,
+      body: {
+        since: seen,
+        groups: [
+          { key: "a1", kind: "person", title: "Anežka Dvořáková (*1861)", at: iso(now - H), lines: [{ kind: "person", text: "", at: iso(now - 2 * H) }, { kind: "cited", text: "Narození: 12. 3. 1861, Sloup", at: iso(now - H) }] },
+          { key: "b2", kind: "sources", at: iso(now - 40 * H), lines: [{ kind: "source", text: long, at: iso(now - 40 * H) }] },
+          { key: "c3", kind: "resolved", at: iso(now - 3 * H), lines: [{ kind: "conflict", text: "Rok narození", at: iso(now - 3 * H) }] },
+        ],
+        earlier: iso(now - 50 * H),
+      },
+    });
+    p.wantFinds();
+    await new Promise((r) => setImmediate(r));
+    assert.equal(p.asked.length, 1);
+    // the page's language asked for: a fact said as the rest of its line
+    assert.match(p.asked[0]!, new RegExp(`^/phone/finds\\?tree=tr&since=${encodeURIComponent(seen)}&lang=${lang}$`, "u"));
+    const list = p.$("findsList");
+    assert.equal(list.children.length, 3);
+    const texts = list.children.flatMap((li) => li.children.slice(1).map((pp) => pp.children.at(-1)!.textContent));
+    for (const x of texts) assert.doesNotMatch(x, /[{}]/u, x);
+    assert.ok(texts.some((x) => kinds.test(x)), texts.join(" | "));
+    assert.ok(texts.includes(long), "a text whole");
+    assert.equal(list.children[1]!.children[0]!.children[0]!.textContent, sources);
+    // new since the last look: marked; before it: not
+    assert.deepEqual(list.children.map((li) => li.className.trim()), ["new", "", "new"]);
+    assert.equal(list.children[0]!.children[1]!.children[1]!.textContent, `${p.t("finds.newMark")}: `);
+    assert.equal(p.$("findsNone").hidden, true);
+    assert.equal(p.$("findsOlder").hidden, false);
+    assert.equal(p.$("findsOlder").textContent, p.t("finds.older"));
+    // three lines new: the title and the label count them
+    assert.equal(p.document.title, "(3) Strom");
+    assert.equal(p.$("findPill").hidden, false);
+    assert.match(p.$("findPill").textContent, /^3 \S+ ↓$/u);
+    // asked again with the same newest change: nothing asked
+    p.wantFinds();
+    assert.equal(p.asked.length, 1);
+    // older ones: a day before the newest of them, the button busy meanwhile
+    p.answers.push({ status: 200, body: { since: iso(now - 74 * H), groups: [] } });
+    p.olderFinds();
+    assert.equal(p.$("findsOlder").disabled, true);
+    assert.equal(p.$("findsOlder").textContent, p.t("finds.loading"));
+    await new Promise((r) => setImmediate(r));
+    assert.match(p.asked[1]!, new RegExp(`since=${encodeURIComponent(iso(now - 74 * H))}&lang=${lang}$`, "u"));
+    // nothing in it: a short line, the part takes no room
+    assert.equal(p.$("findsNone").hidden, false);
+    assert.equal(p.$("findsNone").textContent, p.t("finds.none"));
+    assert.match(p.$("findsCard").className, /none/u);
+  }
+});
+
+test("the phone's page: the first look (or a browser that keeps nothing) shows the last 24 hours none of them new; what comes later is, until it has been in sight a while", async () => {
+  const now = Date.now();
+  const p = findsPage("cs");
+  p.answers.push({ status: 200, body: { since: iso(now - 24 * H), groups: [{ key: "a", kind: "person", title: "Marie Nováková", at: iso(now - 2 * H), lines: [{ kind: "person", text: "", at: iso(now - 2 * H) }] }] } });
+  p.wantFinds();
+  await new Promise((r) => setImmediate(r));
+  assert.ok(Math.abs(Date.parse(decodeURIComponent(p.asked[0]!.split("since=")[1]!.split("&")[0]!)) - (now - 24 * H)) < 5000, "the last 24 hours");
+  assert.equal(p.$("findsList").children[0]!.className.trim(), "", "none new at the first look");
+  assert.equal(p.document.title, "Strom");
+  assert.equal(p.$("findPill").hidden, true);
+  // a new change: a new find, counted and marked
+  p.S.shown = { ...p.S.shown, latest: "def" };
+  p.answers.push({
+    status: 200,
+    body: {
+      since: iso(now - 24 * H),
+      groups: [
+        { key: "b", kind: "person", title: "Жуков Иван", at: iso(now), lines: [{ kind: "person", text: "", at: iso(now) }] },
+        { key: "a", kind: "person", title: "Marie Nováková", at: iso(now - 2 * H), lines: [{ kind: "person", text: "", at: iso(now - 2 * H) }] },
+      ],
+    },
+  });
+  p.wantFinds();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(p.$("findsList").children[0]!.className.trim(), "new");
+  assert.equal(p.document.title, "(1) Strom");
+  assert.equal(p.$("findPill").textContent, "1 novinka ↓");
+  // loaded alone is not seen: the part out of sight, nothing moves
+  p.$("findsCard").getBoundingClientRect = () => ({ top: 2000, bottom: 2400, height: 400 });
+  p.$("waitCard").getBoundingClientRect = () => ({ top: 3000, bottom: 3400, height: 400 });
+  for (let i = 0; i < 5; i++) p.looked();
+  assert.equal(p.store.data["strom.phone.seen.tr"], undefined);
+  assert.equal(p.document.title, "(1) Strom");
+  // in sight, but the page behind another: nothing
+  p.$("findsCard").getBoundingClientRect = () => ({ top: 100, bottom: 500, height: 400 });
+  p.document.visibilityState = "hidden";
+  for (let i = 0; i < 5; i++) p.looked();
+  assert.equal(p.store.data["strom.phone.seen.tr"], undefined);
+  // in sight a second: not yet; two: seen — the label gone, the mark kept until the page is opened again
+  p.document.visibilityState = "visible";
+  p.looked();
+  assert.equal(p.store.data["strom.phone.seen.tr"], undefined);
+  p.looked();
+  assert.equal(p.store.data["strom.phone.seen.tr"], iso(now));
+  assert.equal(p.document.title, "Strom");
+  assert.equal(p.$("findPill").hidden, true);
+  assert.equal(p.$("findsList").children[0]!.className.trim(), "new");
+  // more waiting while open: counted, seen when what waits has been in sight
+  p.S.shown = { ...p.S.shown, waiting: { n: 4, items: [] } };
+  p.notice();
+  assert.equal(p.document.title, "(2) Strom");
+  p.$("waitCard").getBoundingClientRect = () => ({ top: 100, bottom: 500, height: 400 });
+  p.looked();
+  p.looked();
+  assert.equal(p.document.title, "Strom");
+});
+
+test("the phone's page: the window from the last look when it was within a week, the last 24 hours at least; an older look or none: the last 24 hours", () => {
+  const now = Date.parse("2026-03-10T12:00:00Z");
+  for (const [seen, since, base] of [
+    [undefined, "2026-03-09T12:00:00.000Z", ""],
+    ["2026-03-10T08:00:00.000Z", "2026-03-09T12:00:00.000Z", "2026-03-10T08:00:00.000Z"],
+    ["2026-03-06T08:00:00.000Z", "2026-03-06T08:00:00.000Z", "2026-03-06T08:00:00.000Z"],
+    ["2026-02-01T08:00:00.000Z", "2026-03-09T12:00:00.000Z", "2026-02-01T08:00:00.000Z"],
+    ["not a moment", "2026-03-09T12:00:00.000Z", ""],
+  ] as const) {
+    const p = findsPage("en", seen ? { "strom.phone.seen.tr": seen } : {});
+    assert.deepEqual(p.findsWindow("tr", now), { since, base }, String(seen));
+  }
 });

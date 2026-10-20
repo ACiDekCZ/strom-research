@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.18.0
 
-*In preparation: the betas up to 1.18.0-beta.7. The section is complete with the release.*
+*In preparation: the betas up to 1.18.0-beta.8. The section is complete with the release.*
 
 - **Phone photos upright.** A photo turned by its EXIF orientation is read as it is meant to be seen, upright; the
   places marked on it (excerpts, the halves of a spread, a cut-out part) are of the picture as it is shown. The
@@ -22,7 +22,8 @@ The changes of each version in short. The full notes and the install lines are o
   a name the document does not have is left out — a surname too, never taken from a father or another family —,
   what cannot be read is marked; a second reader can read it blind. Nothing of it enters the tree by itself. A
   document read already says so, so it is not read a second time by mistake. A document read again is shown under
-  the name of its file, never a code.
+  the name of its file, never a code. A document sent from the Strom app finds the agent as the terminal does — one
+  installed in a folder of its own, by npm or Homebrew too — instead of saying no agent is set up.
 - **Photos from a phone.** `strom phone on`, turned on by the person alone, lets a phone on the home network (Wi-Fi
   or a cable — never a mobile network or a VPN) reach this computer. The phone is paired once by its QR code; its
   page then takes photos or picks them from the gallery and sends them whole into a tree of the research, with a
@@ -35,7 +36,9 @@ The changes of each version in short. The full notes and the install lines are o
   the home screen as an icon that opens it without pairing again. What waits and the changes read whole on the phone:
   no text of what waits is cut, more of it than the first 20 comes on a tap, a change of many lines unfolds whole;
   What waits is the last part of the page. A change older than today has its date beside the time (the year only when
-  it is not this one).
+  it is not this one). Finds, under Now, say what the research found since the phone looked last (the last 24 hours
+  at least, older ones on a tap) — new people, sources, facts found, corrected or newly cited, conflicts resolved —
+  the new ones marked; something new while the page is open shows only as a count in the tab's title and a small label.
 - **A consent in one language.** A consent only a person gives (unpacking a research, removing a tree, a window said
   no to) is said whole in the research's language, nothing of it left in English.
 - **An update said no to.** When `strom update` is declined, it says nothing was installed and which version stays,

@@ -156,6 +156,15 @@ function kindOf(op: string): ChangeKind {
   return "other";
 }
 
+/** A fact of a person or a family as a person reads it ("narození: 3. 4. 1842, Sloup"); undefined when it is not there. */
+export function factSaid(tree: Tree, owner: string | undefined, eventId: string | undefined, lang: string): string | undefined {
+  const e = (owner ? tree.get<Person | Family>(owner) : undefined)?.events.find((x) => x.id === eventId);
+  if (!e) return undefined;
+  const f = cardFact(tree, e);
+  const what = [f.value, humanDate(f.date, lang), humanPlace(f.place, f.house, lang)].filter(Boolean).join(", ");
+  return `${eventName(f.kind, lang, f.label)}${what ? `: ${what}` : ""}`;
+}
+
 /** Lines of what a commit saved, in the research language, each with what it is about; its subject when it logged no operation. */
 export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string, was?: Tree): { text: string; kind: ChangeKind }[] {
   const get = <T extends AnyRecord>(id: string | undefined) => (id ? tree.get<T>(id) : undefined);
@@ -208,13 +217,7 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
         return (r as { id: string }).id;
     }
   };
-  const fact = (owner: string | undefined, eventId: string | undefined, at: Tree = tree): string | undefined => {
-    const e = (owner ? at.get<Person | Family>(owner) : undefined)?.events.find((x) => x.id === eventId);
-    if (!e) return undefined;
-    const f = cardFact(at, e);
-    const what = [f.value, humanDate(f.date, lang), humanPlace(f.place, f.house, lang)].filter(Boolean).join(", ");
-    return `${eventName(f.kind, lang, f.label)}${what ? `: ${what}` : ""}`;
-  };
+  const fact = (owner: string | undefined, eventId: string | undefined, at: Tree = tree): string | undefined => factSaid(at, owner, eventId, lang);
 
   /** A fact as an operation's summary names it, its record gone since ("+E0274 BIRT P0076 MAR 1776 [probable]"). */
   const factOf = (summary: string): string | undefined => {

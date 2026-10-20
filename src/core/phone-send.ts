@@ -9,6 +9,8 @@
 //                                  rest?}], more}), at most 20; rest: the lines of a change past the 3 shown
 //   GET  /phone/waiting?tree=&from=&limit=   more of what waits than the state gives ({n, items: [{what, on?}]}), of the
 //                                  same list, at most 200 at once
+//   GET  /phone/finds?tree=&since=   what the research found since then (phone-finds.ts: {since, groups: [{key, kind,
+//                                  title?, at, lines: [{kind, text, at}]}], cut?, earlier?}), at most 31 days back
 //   GET  /phone/people?tree=&q=    up to 8 people of the tree matching q (2 letters at least; case, accents and NFD
 //                                  aside): {id, name, birth, death, place}
 //   GET  /phone/media/<sha256>?tree=   is that content in the research already ({known: false} or {known, kind})
@@ -35,6 +37,7 @@ import { waysHere } from "./readable.ts";
 import { birthEvent, deathEvent, displayName, findPersons } from "./people.ts";
 import { yearLabel } from "./gdate.ts";
 import { foldText } from "./text.ts";
+import { treeFinds } from "./phone-finds.ts";
 import { LOG_PHONE, WAITING_ASKED, WAITING_SHOWN, treeLog, treeMarks, treeOverview, treeWaiting } from "./phone-watch.ts";
 import type { Person } from "./model.ts";
 
@@ -139,6 +142,16 @@ export function phoneSend(env: Env, note: (text: string) => void): PhoneSend {
         if (!t) return gone();
         const limit = Math.min(LOG_PHONE, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "", 10) || LOG_PHONE));
         reply(200, treeLog(t.root, env, limit));
+      };
+
+    if (req.method === "GET" && p === "/phone/finds")
+      return () => {
+        if (foreign()) return refuse(403, refusal("only the phone's page asks", "phone.origin"));
+        req.resume();
+        const t = treeOf();
+        if (!t) return gone();
+        // a fact said in the page's language (its name and date as the rest of the line)
+        reply(200, { ...treeFinds(t.root, env, url.searchParams.get("since") ?? undefined, Date.now(), url.searchParams.get("lang") ?? undefined) });
       };
 
     if (req.method === "GET" && p === "/phone/waiting")
