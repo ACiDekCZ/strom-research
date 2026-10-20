@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { World, hasGit, until } from "../helpers.ts";
 import { decodeQr, svgModules, terminalModules } from "../qr-decode.ts";
-import { OVERVIEW_MS, treeOverview } from "../../src/core/phone-watch.ts";
+import { OVERVIEW_MS, WAITING_ASKED, forPhone, treeLog, treeOverview, treeWaiting } from "../../src/core/phone-watch.ts";
 
 const APP = { Origin: "https://stromapp.info", "Content-Type": "text/plain;charset=UTF-8" };
 const ID = /\[[A-Z]\d{4,}\]/;
@@ -131,6 +131,15 @@ test("the phone watches the research: paired by a tree's QR code, that tree open
     const gone = await request(`${address}/phone/state?tree=nope`, me);
     assert.deepEqual([gone.status, gone.body.code], [404, "phone.tree-gone"]);
 
+    // more of what waits: the same list from where asked, as the state gives it; nothing to another page, unpaired, a tree gone
+    const more = await request(`${address}/phone/waiting?tree=${encodeURIComponent(treeA)}&from=0&limit=50`, me);
+    assert.equal(more.status, 200);
+    assert.deepEqual(more.body, { n: 1, items: o.waiting.items });
+    assert.deepEqual((await request(`${address}/phone/waiting?tree=${treeA}`, me)).body, { n: 1, items: [] }, "past the first 20 by default");
+    assert.equal((await request(`${address}/phone/waiting?tree=${treeA}&from=0`)).status, 401);
+    assert.equal((await request(`${address}/phone/waiting?tree=${treeA}&from=0`, { ...me, Origin: "http://evil.example" })).status, 403);
+    assert.equal((await request(`${address}/phone/waiting?tree=nope&from=0`, me)).body.code, "phone.tree-gone");
+
     // the progress: newest first, without IDs; fewer asked, more said
     const log = await request(`${address}/phone/log?tree=${encodeURIComponent(treeA)}`, me);
     assert.equal(log.status, 200);
@@ -206,6 +215,52 @@ test("the overview of the tree shown is kept longer than the page waits between 
     assert.equal(treeOverview(w.cwd, w.env).now.length, 1);
   } finally {
     clock.mock.restore();
+    w.cleanup();
+  }
+});
+
+test("what waits on the phone: each text whole, the first 20 in the overview and more of the same list asked for; a change of many lines given whole to unfold", { skip }, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Dvořákovi");
+    // a long text of what it waits on, of any script, decomposed: never cut
+    const long = `${"Odpověď farnosti Sloup na dotaz o křtu Anežky Dvořákové a jejích sourozenců, ".normalize("NFD")}${"Ответ архива о метрической книге 1842 года, ".repeat(3)}viz T0001 a https://www.archiv.example.org/kniha/12 – pak rozhodnout, zda psát dál.`;
+    const n = 23;
+    await w.ok(["batch", ...Array.from({ length: n }, (_, i) => `task add "Křest ${i + 1}" --level locate --where "farnost Sloup" --why rodiče --done-when zápis`)]);
+    await w.ok(["batch", ...Array.from({ length: n }, (_, i) => `task wait T${String(i + 1).padStart(4, "0")} --on "${i === 0 ? long : `Odpověď farnosti ${i + 1}`}"`)]);
+    const o = treeOverview(w.cwd, w.env);
+    assert.equal(o.waiting.n, n);
+    assert.equal(o.waiting.items.length, 20);
+    // (the research keeps it in NFC)
+    const whole = o.waiting.items.find((x) => x.on?.startsWith("Odpověď farnosti Sloup"));
+    assert.ok(whole, JSON.stringify(o.waiting.items));
+    assert.equal(whole.on, forPhone(long.normalize("NFC")), "whole, cleaned as any text for the phone");
+    assert.ok(whole.on!.length > 200 && whole.on!.endsWith("pak rozhodnout, zda psát dál."), whole.on);
+    assert.doesNotMatch(whole.on!, /T0001|https?:/u);
+    // more of it: the same list, from where asked; at most so many at once
+    const all = treeWaiting(w.cwd, w.env, 0, 100);
+    assert.equal(all.n, n);
+    assert.equal(all.items.length, n);
+    assert.deepEqual(all.items.slice(0, 20), o.waiting.items);
+    assert.deepEqual(treeWaiting(w.cwd, w.env, 20, 50).items, all.items.slice(20));
+    assert.deepEqual(treeWaiting(w.cwd, w.env, 0, 5).items, all.items.slice(0, 5));
+    assert.equal(treeWaiting(w.cwd, w.env, 40, 50).items.length, 0);
+    assert.ok(WAITING_ASKED >= 50);
+    assert.equal(new Set(all.items.map((x) => x.on)).size, n, "each once");
+
+    // a change of many lines: three shown, the others given to unfold, without IDs
+    await w.ok(["batch", ...["Anežka /Dvořáková/", "Ольга /Жукова/", "Václav /Dvořák/", "Marie /Nováková/", "Jan /Novák/", "Jiří /Kratochvíl/"].map((x) => `person add "${x}"`)]);
+    const c = treeLog(w.cwd, w.env).changes[0]!;
+    assert.equal(c.lines.length, 3, JSON.stringify(c));
+    assert.equal(c.more, 3);
+    assert.equal(c.rest?.length, 3);
+    const lines = [...c.lines, ...c.rest!].join(" | ");
+    for (const name of ["Anežka Dvořáková", "Ольга Жукова", "Jiří Kratochvíl"]) assert.ok(lines.includes(name), lines);
+    assert.doesNotMatch(lines, /\[[A-Z]\d{4,}\]|\bP\d{4}\b/u);
+    // a change of few lines: nothing more
+    const few = treeLog(w.cwd, w.env).changes.find((x) => !x.more);
+    assert.ok(few && few.rest === undefined);
+  } finally {
     w.cleanup();
   }
 });

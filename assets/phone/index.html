@@ -58,13 +58,6 @@
         <ul id="nowLines" class="lines"></ul>
         <div id="nowIdle" hidden><p class="idle-row"><span class="ring" aria-hidden="true"></span><span id="nowIdleText"></span></p><p id="nowIdleLast" class="quiet small"></p></div>
       </section>
-      <section id="waitCard" class="card">
-        <h2 id="waitTitle" class="cap"></h2>
-        <p id="waitNone" class="quiet" hidden></p>
-        <ul id="waitList" class="waits"></ul>
-        <p id="waitMore" class="quiet small" hidden></p>
-        <p id="waitWhere" class="quiet small"></p>
-      </section>
       <section id="dayCard" class="card" hidden>
         <h2 id="dayTitle" class="cap"></h2>
         <div class="day">
@@ -78,6 +71,15 @@
         <p id="logNone" class="quiet" hidden></p>
         <ul id="logList" class="log"></ul>
         <p id="logMore" class="quiet small" hidden></p>
+      </section>
+      <!-- the last: each text whole, more of them asked for on a tap -->
+      <section id="waitCard" class="card">
+        <h2 id="waitTitle" class="cap"></h2>
+        <p id="waitNone" class="quiet" hidden></p>
+        <ul id="waitList" class="waits"></ul>
+        <p class="morerow"><button id="waitMore" class="linkbtn" type="button" hidden></button></p>
+        <p id="waitRest" class="quiet small" hidden></p>
+        <p id="waitWhere" class="quiet small"></p>
       </section>
     </div>
     <p class="homerow"><button id="homeBtn" class="linkbtn" type="button" hidden></button></p>

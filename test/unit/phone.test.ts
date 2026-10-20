@@ -376,3 +376,224 @@ test("the icon on the home screen: a code of a paired phone, taken once for a ke
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// A few elements as the page's script uses them: enough to draw what waits and a change of the progress.
+class FakeEl {
+  tagName: string;
+  className = "";
+  textContent = "";
+  hidden = false;
+  disabled = false;
+  id = "";
+  type = "";
+  dateTime = "";
+  children: FakeEl[] = [];
+  attrs: Record<string, string> = {};
+  classList = { toggle: (c: string, on: boolean) => void (this.className = on ? `${this.className} ${c}` : this.className.replace(c, "")) };
+  onclick: (() => void) | null = null;
+  constructor(tag: string) {
+    this.tagName = tag;
+  }
+  append(...xs: FakeEl[]) {
+    this.children.push(...xs);
+  }
+  replaceChildren(...xs: FakeEl[]) {
+    this.children = xs;
+  }
+  setAttribute(k: string, v: string) {
+    this.attrs[k] = v;
+  }
+  text(): string {
+    return [this.textContent, ...this.children.map((c) => c.text())].filter(Boolean).join(" ");
+  }
+}
+
+function pageTexts(lang: string) {
+  const src = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/phone.js"), "utf8");
+  const T = JSON.parse(/<script id="texts" type="application\/json">([^<]*)<\/script>/.exec(phonePage(lang, "n"))![1]!) as Record<string, string>;
+  const code = src.slice(src.indexOf("  const closing ="), src.indexOf("  const mb ="));
+  const t = new Function("T", "LANG", "plurals", `${code}; return t;`)(T, lang, new Intl.PluralRules(lang)) as (k: string, v?: Record<string, unknown>) => string;
+  const el = (tag: string, cls?: string, text?: string) => {
+    const e = new FakeEl(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  };
+  return { src, t, el };
+}
+
+test("the phone's page: What waits is the last part of the overview, more of it asked for by a button; no text of what waits or of the progress cut", () => {
+  const html = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/index.html"), "utf8");
+  const at = (id: string) => html.indexOf(`id="${id}"`);
+  for (const id of ["nowCard", "dayCard", "logCard"]) assert.ok(at(id) > 0 && at(id) < at("waitCard"), id);
+  assert.ok(at("waitCard") < at("homeBtn"), "still in the overview");
+  assert.match(html, /<button id="waitMore" class="linkbtn" type="button" hidden><\/button>/);
+  const css = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/phone.css"), "utf8");
+  for (const rule of css.match(/^\.(?:waits|log)[^{]*\{[^}]*\}/gmu) ?? []) assert.doesNotMatch(rule, /ellipsis|nowrap|line-clamp/u, rule);
+  assert.match(css, /\.waits \.on\{[^}]*overflow-wrap:anywhere/u);
+  // a change's time breaks only between its day and its time, also where a browser has no subgrid: its column there
+  // as wide as the time needs, never a width it would run out of
+  assert.match(css, /\.log time\{[^}]*overflow-wrap:normal/u);
+  const li = css.match(/^\.log li\{[^}]*\}/mu)?.[0] ?? "";
+  assert.match(li, /grid-template-columns:fit-content\(88px\) minmax\(0,1fr\);grid-template-columns:subgrid/u);
+});
+
+test("the phone's page draws what waits whole, a button for more while more waits, and what is past the most it asks for said in a line; in each language", () => {
+  for (const [lang, more, rest] of [["cs", /^Ukázat další · zbývá 28$/u, /^a 50 dalších v Přehledu výzkumu na počítači$/u], ["en", /^Show more · 28 left$/u, /^and 50 more in the Research overview/u], ["de", /^Weitere zeigen · noch 28$/u, /^und 50 weitere in der Forschungsübersicht/u]] as const) {
+    const { src, t, el } = pageTexts(lang);
+    const code = src.slice(src.indexOf("  const drawWait ="), src.indexOf("  // the progress: the changes drawn"));
+    const ids = new Map<string, FakeEl>();
+    const $ = (id: string) => ids.get(id) ?? ids.set(id, new FakeEl(id)).get(id)!;
+    const S: Record<string, any> = { tree: "tr", waitLoaded: null, waitBusy: false };
+    const drawn: Record<string, string> = {};
+    const changed = (key: string, value: unknown) => {
+      const j = JSON.stringify(value);
+      if (drawn[key] === j) return false;
+      drawn[key] = j;
+      return true;
+    };
+    const drawWait = new Function("$", "S", "t", "el", "changed", "treeById", "WAIT_MAX", `${code}; return drawWait;`)($, S, t, el, changed, () => ({ id: "tr" }), 200) as () => void;
+    const long = "Ответ архива о метрической книге 1842 года. ".repeat(8).trim();
+    const items = (n: number) => Array.from({ length: n }, (_, i) => ({ what: `Křest ${i + 1}`, ...(i === 0 ? { on: long } : {}) }));
+    S.shown = { waiting: { n: 48, items: items(20) } };
+    drawWait();
+    assert.equal($("waitList").children.length, 20);
+    assert.ok($("waitList").text().includes(long), "the text whole");
+    assert.equal($("waitMore").hidden, false);
+    assert.match($("waitMore").textContent, more);
+    assert.equal($("waitRest").hidden, true);
+    // asked: the button says so and takes no tap meanwhile
+    S.waitBusy = true;
+    drawWait();
+    assert.equal($("waitMore").disabled, true);
+    assert.equal($("waitMore").textContent, t("waiting.loading"));
+    // all of it here: no button
+    S.waitBusy = false;
+    S.waitLoaded = { tree: "tr", of: "", n: 48, items: items(48) };
+    drawWait();
+    assert.equal($("waitList").children.length, 48);
+    assert.deepEqual([$("waitMore").hidden, $("waitMore").disabled, $("waitRest").hidden], [true, false, true]);
+    // another tree's: the overview's first ones
+    S.waitLoaded = { ...S.waitLoaded, tree: "other" };
+    drawWait();
+    assert.equal($("waitList").children.length, 20);
+    // the most asked for: the rest said in a line
+    S.waitLoaded = { tree: "tr", of: "", n: 250, items: items(200) };
+    drawWait();
+    assert.equal($("waitMore").hidden, true);
+    assert.equal($("waitRest").hidden, false);
+    assert.match($("waitRest").textContent, rest);
+    assert.doesNotMatch($("waitRest").textContent + $("waitMore").textContent, /[{}#]/u);
+  }
+});
+
+test("the phone's page unfolds a change of many lines whole on a tap, a button saying whether it is open; a change of few lines has none", () => {
+  for (const lang of ["cs", "en", "de"]) {
+    const { src, t, el } = pageTexts(lang);
+    const code = src.slice(src.indexOf("  const drawChange ="), src.indexOf("  const drawLog ="));
+    const drawChange = new Function("t", "el", "logTime", `${code}; return drawChange;`)(t, el, () => "10:00") as (c: Record<string, unknown>) => FakeEl;
+    const li = drawChange({ id: "abc", at: new Date().toISOString(), lines: ["a", "b", "c"], more: 4, rest: ["d", "e", "Жукова f", "g"] });
+    const box = li.children[1]!;
+    const hid = box.children.find((x) => x.className === "rest")!;
+    const unfold = box.children.find((x) => x.tagName === "button")!;
+    assert.equal(unfold.type, "button");
+    assert.deepEqual([hid.hidden, unfold.attrs["aria-expanded"], unfold.attrs["aria-controls"], unfold.textContent], [true, "false", hid.id, t("log.lines", { n: 4 })]);
+    assert.ok(hid.text().includes("Жукова f"));
+    unfold.onclick!();
+    assert.deepEqual([hid.hidden, unfold.attrs["aria-expanded"], unfold.textContent], [false, "true", t("log.fold")]);
+    unfold.onclick!();
+    assert.deepEqual([hid.hidden, unfold.attrs["aria-expanded"]], [true, "false"]);
+    // more lines than given: the rest said under them
+    const big = drawChange({ id: "big", at: new Date().toISOString(), lines: ["a", "b", "c"], more: 205, rest: Array.from({ length: 200 }, (_, i) => `r${i}`) });
+    assert.equal(big.children[1]!.children.find((x) => x.className === "rest")!.children.at(-1)!.textContent, t("log.lines", { n: 5 }));
+    // an answer of an older server (no rest): the count alone, no button
+    const old = drawChange({ id: "old", at: new Date().toISOString(), lines: ["a"], more: 2 });
+    assert.ok(!old.children[1]!.children.some((x) => x.tagName === "button"));
+    const few = drawChange({ id: "few", at: new Date().toISOString(), lines: ["a"] });
+    assert.equal(few.children[1]!.children.length, 1);
+  }
+});
+
+test("the phone's page gives a change of another day its day before the time, the year when not this one, in each language; past midnight the changes drawn get theirs", () => {
+  for (const [lang, today, older, lastYear] of [
+    ["cs", /^14:05$/u, /^19\. 10\. 14:05$/u, /^31\. 12\. 2025 23:50$/u],
+    ["en", /^2:05\sPM$/u, /^10\/19 2:05\sPM$/u, /^12\/31\/2025 11:50\sPM$/u],
+    ["de", /^14:05$/u, /^19\.10\. 14:05$/u, /^31\.12\.2025 23:50$/u],
+  ] as const) {
+    const { src, el } = pageTexts(lang);
+    const pick = (from: string, to: string) => src.slice(src.indexOf(from), src.indexOf(to));
+    const code = [pick("  const HOUR =", "  const fold ="), pick("  const sameDay =", "  // a time of today"), pick("  const logTime =", "  const whenOf ="), pick("  const logItems =", "  const drawLog ="), pick("  let logDay =", "  const renderPill =")].join("\n");
+    const { logTime, drawChange, restampLog, logItems } = new Function("LANG", "t", "el", `${code}; return { logTime, drawChange, restampLog, logItems };`)(lang, () => "", el) as {
+      logTime: (ms: number, now?: Date) => string;
+      drawChange: (c: Record<string, unknown>) => FakeEl;
+      restampLog: (now?: Date) => void;
+      logItems: Map<string, FakeEl>;
+    };
+    const now = new Date(2026, 9, 20, 9, 30);
+    const plain = (s: string) => s.replace(/\u00a0/gu, " ");
+    assert.match(plain(logTime(new Date(2026, 9, 20, 14, 5).getTime(), now)), today);
+    assert.match(plain(logTime(new Date(2026, 9, 19, 14, 5).getTime(), now)), older);
+    assert.match(plain(logTime(new Date(2025, 11, 31, 23, 50).getTime(), now)), lastYear);
+    // broken only between the day and the time
+    assert.equal(logTime(new Date(2025, 11, 31, 23, 50).getTime(), now).split(" ").length, 2);
+    // a 24-hour clock keeps its leading zero, a 12-hour one has none
+    assert.equal(plain(logTime(new Date(2026, 9, 20, 9, 7).getTime(), now)).replace(/\s/gu, " "), lang === "en" ? "9:07 AM" : "09:07");
+    // today's change drawn with its time alone, its moment kept for the machine
+    const at = new Date(Date.now() - 60_000);
+    const li = drawChange({ id: "a", at: at.toISOString(), lines: ["Křest — Жукова"] });
+    assert.equal(li.children[0]!.tagName, "time");
+    assert.equal(li.children[0]!.dateTime, at.toISOString());
+    assert.doesNotMatch(li.children[0]!.textContent, /\d{4}|\/|\. \d/u);
+    // a day later the same change has its day; asked again the same day, nothing drawn again
+    logItems.set("a", li);
+    restampLog(new Date(at.getTime() + 86_400_000));
+    assert.equal(li.children[0]!.textContent, logTime(at.getTime(), new Date(at.getTime() + 86_400_000)));
+    assert.notEqual(li.children[0]!.textContent, logTime(at.getTime(), at));
+    li.children[0]!.textContent = "kept";
+    restampLog(new Date(at.getTime() + 86_400_000 + 1000));
+    assert.equal(li.children[0]!.textContent, "kept");
+  }
+});
+
+test("the phone's page keeps more of what waits it asked for over each answer of the 10 s: asked again as many when what waits is another, nothing asked while it is the same", async () => {
+  const src = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/phone.js"), "utf8");
+  const code = src.slice(src.indexOf("  const WAIT_PAGE ="), src.indexOf("  // ── each photo"));
+  const asked: string[] = [];
+  let answer: Record<string, unknown> = {};
+  const ask = async (p: string) => (asked.push(p), { status: 200, body: answer });
+  const S: Record<string, any> = { tree: "tr", waitBusy: false };
+  const { loadWait, keepWait } = new Function("S", "ask", "drawWait", `${code}; return { loadWait, keepWait };`)(S, ask, () => {}) as { loadWait: (n: number) => Promise<void>; keepWait: () => void };
+  const items = (n: number, tag = "") => Array.from({ length: n }, (_, i) => ({ what: `Křest ${i + 1}${tag}` }));
+  S.shown = { waiting: { n: 48, items: items(20) } };
+  answer = { n: 48, items: items(48) };
+  await loadWait(70);
+  assert.deepEqual(asked, ["/phone/waiting?tree=tr&from=0&limit=70"]);
+  assert.equal(S.waitLoaded.items.length, 48);
+  // the same answer again: kept, nothing asked
+  S.shown = { waiting: { n: 48, items: items(20) } };
+  keepWait();
+  assert.equal(asked.length, 1);
+  assert.equal(S.waitLoaded.items.length, 48);
+  // what waits another: as many asked again, those kept till then
+  S.shown = { waiting: { n: 49, items: items(20, "·") } };
+  answer = { n: 49, items: items(48, "·") };
+  keepWait();
+  assert.equal(S.waitLoaded.items[0].what, "Křest 1", "kept till the answer");
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(asked.at(-1), "/phone/waiting?tree=tr&from=0&limit=48");
+  assert.equal(S.waitLoaded.items[0].what, "Křest 1·");
+  // all of it in the overview now: none asked
+  S.shown = { waiting: { n: 3, items: items(3) } };
+  keepWait();
+  assert.equal(S.waitLoaded, null);
+  assert.equal(asked.length, 2);
+  // never more than the most at once
+  await loadWait(1000);
+  assert.match(asked.at(-1)!, /limit=200$/u);
+  // another tree picked meanwhile: its answer not taken
+  S.waitLoaded = null;
+  const late = loadWait(70);
+  S.tree = "other";
+  await late;
+  assert.equal(S.waitLoaded, null);
+});

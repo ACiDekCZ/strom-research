@@ -12,7 +12,7 @@ import { actsAsArchive } from "./state.ts";
 import { liveWorkers } from "./workers.ts";
 import { openSessions } from "./session.ts";
 import { directionOf, scopes, type Scope } from "./directions.ts";
-import { waitingFor } from "./waiting.ts";
+import { waitingFor, type Waiting } from "./waiting.ts";
 import { recentNow } from "./recent.ts";
 import { runGit } from "./git.ts";
 import { history, whoAtWork } from "./live.ts";
@@ -24,10 +24,13 @@ import { ALL_PREFIXES, type Research, type Session, type Task } from "./model.ts
 /** How long the overview of the tree shown is kept (the page asks every 10 s); the marks of the other trees in the switcher. */
 export const OVERVIEW_MS = 15_000;
 const MARKS_MS = 60_000;
-/** At most so many changes the page shows; so many lines of one change, and of what waits. */
+/** At most so many changes the page shows; so many lines of one change shown, and kept to be unfolded on the phone. */
 export const LOG_PHONE = 20;
 const LINES_PER_CHANGE = 3;
-const WAITING_SHOWN = 20;
+const LINES_KEPT = 200;
+/** So many of what waits the overview gives; more asked by the page, at most so many at once. */
+export const WAITING_SHOWN = 20;
+export const WAITING_ASKED = 200;
 
 /** The marks of a tree in the switcher: an agent at work on it, how much waits for the person. */
 export interface TreeMarks {
@@ -49,11 +52,17 @@ export interface Overview {
   now: NowLine[];
   /** When anybody worked on it last (nobody at work now). */
   lastWorked?: string;
-  waiting: { n: number; items: { what: string; on?: string }[] };
+  waiting: { n: number; items: WaitingLine[] };
   /** The last 24 hours, once worked out (in the background: none at first). */
   day?: { persons: number; sources: number; saves: number };
   /** The newest change: the page asks for the progress again when it is another. */
   latest?: string;
+}
+
+/** One of what waits for the person, its texts whole. */
+export interface WaitingLine {
+  what: string;
+  on?: string;
 }
 
 export interface Change {
@@ -62,6 +71,8 @@ export interface Change {
   lines: string[];
   /** Lines of it not shown. */
   more?: number;
+  /** Those lines, to be unfolded on the phone (the first LINES_KEPT of them). */
+  rest?: string[];
 }
 
 // A record's ID standing alone (every prefix of the model, a document read's D + its time + 4 hex); a list of them
@@ -174,7 +185,8 @@ function waitingOf(tree: Tree, env: Env, all: Scope[]) {
 }
 
 const marksKept = new Map<string, { at: number; value: TreeMarks }>();
-const overviewKept = new Map<string, { at: number; key: string; value: Pick<Overview, "now" | "lastWorked" | "waiting"> }>();
+// what waits is kept whole beside the overview: the page asks for more of the same list the overview began
+const overviewKept = new Map<string, { at: number; key: string; value: Pick<Overview, "now" | "lastWorked" | "waiting">; tree?: Tree; waits: Waiting[] }>();
 const logKept = new Map<string, { head: string; limit: number; value: { changes: Change[]; more: boolean } }>();
 
 /** An agent at work on a tree, and how much waits for the person (none of either in an archive). */
@@ -203,6 +215,7 @@ export function treeOverview(root: string, env: Env): Overview {
   if (kept && kept.key === key && Date.now() - kept.at < OVERVIEW_MS) return { ...kept.value, ...day, ...latest };
   const tree = Tree.open(root, env);
   let value: Pick<Overview, "now" | "lastWorked" | "waiting">;
+  let waits: Waiting[] = [];
   if (actsAsArchive(tree)) value = { now: [], waiting: { n: 0, items: [] } };
   else {
     const all = scopes(tree);
@@ -219,17 +232,32 @@ export function treeOverview(root: string, env: Env): Overview {
     });
     const sessions = tree.list<Session>("session");
     const last = sessions.map((s) => s.ended ?? s.started).sort().at(-1);
-    const waits = waitingOf(tree, env, all);
-    // a text of nothing but IDs, paths and links: said in general
-    const items = waits.slice(0, WAITING_SHOWN).map(({ item }) => {
-      const on = item.on ? forPhone(humanTask(tree, item.on, tree.lang)) : "";
-      return { what: forPhone(humanTask(tree, item.what, tree.lang)) || ui(tree.lang, "ui.phone.waiting.item"), ...(on ? { on } : {}) };
-    });
+    waits = waitingOf(tree, env, all);
+    const items = waits.slice(0, WAITING_SHOWN).map((w) => waitingLine(tree, w));
     value = { now, ...(!now.length && last ? { lastWorked: last } : {}), waiting: { n: waits.length, items } };
     marksKept.set(root, { at: Date.now(), value: { working: now.some((l) => !l.paused), waiting: waits.length } });
   }
-  overviewKept.set(root, { at: Date.now(), key, value });
+  overviewKept.set(root, { at: Date.now(), key, value, tree, waits });
   return { ...value, ...day, ...latest };
+}
+
+/** One of what waits as the phone shows it, whole; a text of nothing but IDs, paths and links: said in general. */
+function waitingLine(tree: Tree, { item }: Waiting): WaitingLine {
+  const on = item.on ? forPhone(humanTask(tree, item.on, tree.lang)) : "";
+  return { what: forPhone(humanTask(tree, item.what, tree.lang)) || ui(tree.lang, "ui.phone.waiting.item"), ...(on ? { on } : {}) };
+}
+
+/**
+ * More of what waits than the overview gives: `limit` of them (at most WAITING_ASKED) from `from`, of the same list the
+ * overview of the tree began (kept as long as it is), each text as cleaned for the phone; n: how many wait in all.
+ */
+export function treeWaiting(root: string, env: Env, from: number, limit: number): { n: number; items: WaitingLine[] } {
+  treeOverview(root, env);
+  const kept = overviewKept.get(root);
+  if (!kept?.tree) return { n: 0, items: [] };
+  const start = Math.max(0, Math.floor(from));
+  const tree = kept.tree;
+  return { n: kept.waits.length, items: kept.waits.slice(start, start + Math.min(WAITING_ASKED, Math.max(0, Math.floor(limit)))).map((w) => waitingLine(tree, w)) };
 }
 
 /** The last changes the research saved, newest first, as the bridge's /log gives them (each commit, its lines). */
@@ -246,7 +274,7 @@ export function treeLog(root: string, env: Env, limit = LOG_PHONE): { changes: C
     id: e.head.slice(0, 12),
     at: e.at,
     lines: lines.slice(0, LINES_PER_CHANGE),
-    ...(lines.length > LINES_PER_CHANGE ? { more: lines.length - LINES_PER_CHANGE } : {}),
+    ...(lines.length > LINES_PER_CHANGE ? { more: lines.length - LINES_PER_CHANGE, rest: lines.slice(LINES_PER_CHANGE, LINES_PER_CHANGE + LINES_KEPT) } : {}),
   }));
   const value = { changes, more: all.length > limit };
   logKept.set(root, { head: h, limit, value });

@@ -68,7 +68,9 @@
   const t = (key, v = {}) => fill(T[key] ?? key, v);
   // a small photo is never "0.0 MB"
   const mb = (bytes) => new Intl.NumberFormat(LANG, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(bytes > 0 ? Math.max(0.1, bytes / 1024 / 1024) : 0);
-  const hhmm = (ms) => new Intl.DateTimeFormat(LANG, { hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
+  // a 12-hour clock without a leading zero ("2:05 PM"), a 24-hour one with it ("09:07")
+  const HOUR = /^h1[12]$/u.test(new Intl.DateTimeFormat(LANG, { hour: "numeric" }).resolvedOptions().hourCycle ?? "") ? "numeric" : "2-digit";
+  const hhmm = (ms) => new Intl.DateTimeFormat(LANG, { hour: HOUR, minute: "2-digit" }).format(new Date(ms));
   const fold = (s) => String(s).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("").replace(/^(.{8})(.{4})(.{4})(.{4})/, "$1-$2-$3-$4-");
   const el = (tag, cls, text) => {
@@ -164,6 +166,8 @@
     shown: null, // what the tree shown does: now, lastWorked, waiting, day, latest
     logTree: "", // the tree and its newest change the progress shows
     logLatest: "",
+    waitLoaded: null, // more of what waits, asked for on a tap: {tree, of (what the overview gave then), n, items}
+    waitBusy: false,
     newCount: 0, // changes added above while scrolled down
     returning: false, // the page looked at again: the first answer after it awaited
   };
@@ -259,6 +263,7 @@
       if (asked === S.tree) {
         S.shown = r.body.shown || null;
         if (S.shown && S.shown.latest && (S.logTree !== S.tree || S.logLatest !== S.shown.latest)) void loadLog(S.tree, S.shown.latest);
+        keepWait();
       } else {
         S.shown = null;
         setTimeout(() => void refresh(), 0);
@@ -286,6 +291,34 @@
       // another tree picked meanwhile, or a newer change: asked again for it
       if (S.shown && S.shown.latest && (S.logTree !== S.tree || S.logLatest !== S.shown.latest)) void loadLog(S.tree, S.shown.latest);
     })());
+
+  // more of what waits than the overview gives, the first ones of the same list again with them
+  const WAIT_PAGE = 50;
+  const WAIT_MAX = 200;
+  let waitAsking = null;
+  const loadWait = (count, quiet = false) =>
+    (waitAsking ??= (async () => {
+      const tree = S.tree;
+      const of = JSON.stringify(S.shown && S.shown.waiting);
+      // asked on a tap: the button says so (asked again after an answer: nothing changes till it comes)
+      if (!quiet) {
+        S.waitBusy = true;
+        drawWait();
+      }
+      const r = await ask(`/phone/waiting?tree=${encodeURIComponent(tree)}&from=0&limit=${Math.min(WAIT_MAX, count)}`);
+      waitAsking = null;
+      S.waitBusy = false;
+      if (tree === S.tree && r.status === 200 && Array.isArray(r.body.items)) S.waitLoaded = { tree, of, n: Number(r.body.n) || 0, items: r.body.items };
+      drawWait();
+    })());
+  // more of what waits asked for, kept over each answer: what waits another, asked again as many (all of it in the
+  // overview: none)
+  const keepWait = () => {
+    const w = S.shown && S.shown.waiting;
+    if (!S.waitLoaded || JSON.stringify(w) === S.waitLoaded.of) return;
+    if (!w || !Array.isArray(w.items) || w.n <= w.items.length) S.waitLoaded = null;
+    else void loadWait(S.waitLoaded.items.length, true);
+  };
 
   // ── each photo: its SHA-256, in the research already?, sent ──────────────────────────────────────────────────────
   let worker = null;
@@ -641,7 +674,16 @@
   // a time of today, else its day too
   const atTime = (iso) => {
     const d = new Date(iso);
-    return sameDay(d, new Date()) ? hhmm(d) : new Intl.DateTimeFormat(LANG, { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }).format(d);
+    return sameDay(d, new Date()) ? hhmm(d) : new Intl.DateTimeFormat(LANG, { day: "numeric", month: "numeric", hour: HOUR, minute: "2-digit" }).format(d);
+  };
+  // a change's time: of today the time alone, else its day before it (the year when not this one), broken only
+  // between the two
+  const logTime = (ms, now = new Date()) => {
+    const d = new Date(ms);
+    if (sameDay(d, now)) return hhmm(d);
+    const day = new Intl.DateTimeFormat(LANG, { day: "numeric", month: "numeric", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) }).format(d);
+    const whole = (text) => text.replace(/\s/gu, "\u00a0");
+    return `${whole(day)} ${whole(hhmm(d))}`;
   };
   const whenOf = (iso) => {
     const d = new Date(iso);
@@ -689,26 +731,7 @@
       $("nowIdleLast").hidden = !o.lastWorked;
       if (o.lastWorked) $("nowIdleLast").textContent = t("now.idleLast", { when: whenOf(o.lastWorked) });
     }
-    const w = o.waiting && Array.isArray(o.waiting.items) ? o.waiting : { n: 0, items: [] };
-    if (!archive && changed("wait", w)) {
-      $("waitCard").classList.toggle("none", !w.n);
-      $("waitTitle").textContent = w.n ? t("waiting", { n: w.n }) : t("waiting.title");
-      $("waitNone").hidden = w.n > 0;
-      $("waitList").replaceChildren(
-        ...w.items.map((x) => {
-          const li = el("li");
-          const box = el("div");
-          box.append(el("div", "what", x.what));
-          if (x.on) box.append(el("div", "on", x.on));
-          li.append(el("span", "wdot"), box);
-          return li;
-        }),
-      );
-      $("waitList").hidden = !w.n;
-      $("waitMore").hidden = w.n <= w.items.length;
-      if (w.n > w.items.length) $("waitMore").textContent = t("waiting.more", { n: w.n - w.items.length });
-      $("waitWhere").hidden = !w.n;
-    }
+    if (!archive) drawWait();
     $("dayCard").hidden = !o.day;
     if (o.day && changed("day", o.day)) {
       const plus = (n) => (n > 0 ? "+" : "") + count(n);
@@ -722,16 +745,68 @@
     $("logCard").hidden = S.logTree !== S.tree;
   };
 
+  // what waits, each text whole: the overview's first ones, or more of them asked for (kept till what waits is another)
+  const drawWait = () => {
+    const tree = treeById(S.tree);
+    const o = S.shown;
+    if (!tree || !o || tree.archive) return;
+    const first = o.waiting && Array.isArray(o.waiting.items) ? o.waiting : { n: 0, items: [] };
+    const more = S.waitLoaded && S.waitLoaded.tree === S.tree && S.waitLoaded.items.length > first.items.length ? S.waitLoaded : null;
+    const w = more ? { n: more.n, items: more.items } : first;
+    if (!changed("wait", [w, S.waitBusy])) return;
+    $("waitCard").classList.toggle("none", !w.n);
+    $("waitTitle").textContent = w.n ? t("waiting", { n: w.n }) : t("waiting.title");
+    $("waitNone").hidden = w.n > 0;
+    $("waitList").replaceChildren(
+      ...w.items.map((x) => {
+        const li = el("li");
+        const box = el("div");
+        box.append(el("div", "what", x.what));
+        if (x.on) box.append(el("div", "on", x.on));
+        li.append(el("span", "wdot"), box);
+        return li;
+      }),
+    );
+    $("waitList").hidden = !w.n;
+    const left = Math.max(0, w.n - w.items.length);
+    const can = left > 0 && w.items.length < WAIT_MAX;
+    $("waitMore").hidden = !can;
+    $("waitMore").disabled = S.waitBusy;
+    if (can) $("waitMore").textContent = S.waitBusy ? t("waiting.loading") : t("waiting.more", { n: left });
+    $("waitRest").hidden = !left || can;
+    if (left && !can) $("waitRest").textContent = t("waiting.rest", { n: left });
+    $("waitWhere").hidden = !w.n;
+  };
+
   // the progress: the changes drawn kept by their id, a new one put on top (lit for 6 s); scrolled down, what is under
   // the finger stays where it is and a pill says how many came above
   const logItems = new Map();
   const drawChange = (c) => {
     const li = el("li");
-    const time = el("time", "", hhmm(Date.parse(c.at)));
+    const time = el("time", "", logTime(Date.parse(c.at)));
     time.dateTime = c.at;
     const box = el("div");
     for (const line of c.lines || []) box.append(el("p", "", line));
-    if (c.more) box.append(el("p", "more", t("log.lines", { n: c.more })));
+    // its other lines unfolded on a tap (the change drawn is kept: a new answer folds nothing)
+    const rest = Array.isArray(c.rest) ? c.rest : [];
+    if (c.more && rest.length) {
+      const hid = el("div", "rest");
+      hid.hidden = true;
+      hid.id = `rest-${c.id}`;
+      for (const line of rest) hid.append(el("p", "", line));
+      if (c.more > rest.length) hid.append(el("p", "more", t("log.lines", { n: c.more - rest.length })));
+      const unfold = el("button", "unfold", t("log.lines", { n: c.more }));
+      unfold.type = "button";
+      unfold.setAttribute("aria-expanded", "false");
+      unfold.setAttribute("aria-controls", hid.id);
+      unfold.onclick = () => {
+        const open = hid.hidden;
+        hid.hidden = !open;
+        unfold.setAttribute("aria-expanded", String(open));
+        unfold.textContent = open ? t("log.fold") : t("log.lines", { n: c.more });
+      };
+      box.append(hid, unfold);
+    } else if (c.more) box.append(el("p", "more", t("log.lines", { n: c.more })));
     li.append(time, box);
     return li;
   };
@@ -774,6 +849,17 @@
       S.newCount += added;
     }
     renderPill();
+  };
+  // past midnight the changes of the day before get their day (asked every second, drawn again once a day)
+  let logDay = "";
+  const restampLog = (now = new Date()) => {
+    const day = now.toDateString();
+    if (day === logDay) return;
+    logDay = day;
+    for (const li of logItems.values()) {
+      const time = li.children[0];
+      time.textContent = logTime(Date.parse(time.dateTime), now);
+    }
   };
   const renderPill = () => {
     if (window.scrollY <= 4) S.newCount = 0;
@@ -980,6 +1066,7 @@
     closeTrees();
     if (S.tree !== id) {
       S.shown = null;
+      S.waitLoaded = null;
       S.logTree = "";
       for (const li of logItems.values()) li.remove();
       logItems.clear();
@@ -1078,6 +1165,10 @@
   $("personClear").setAttribute("aria-label", t("remove"));
 
   $("plainRetry").onclick = () => start("");
+  $("waitMore").onclick = () => {
+    const w = S.waitLoaded && S.waitLoaded.tree === S.tree ? S.waitLoaded : S.shown && S.shown.waiting;
+    if (w && Array.isArray(w.items)) void loadWait(w.items.length + WAIT_PAGE);
+  };
   $("photoBtn").onclick = $("morePhotoBtn").onclick = () => $("photoInput").click();
   $("galleryBtn").onclick = $("moreGalleryBtn").onclick = () => $("galleryInput").click();
   $("photoInput").onchange = (e) => {
@@ -1210,6 +1301,7 @@
     ticks++;
     if (S.view === "main") {
       renderHeader();
+      restampLog();
       if (ticks % 10 === 0 && document.visibilityState !== "hidden") void refresh();
     } else if (S.view === "unpaired" && ticks % 10 === 0) void whoami().then((w) => w === "paired" && void refresh());
   }, 1000);

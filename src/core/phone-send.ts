@@ -5,8 +5,10 @@
 //                                  (this computer converts HEIC: else the page asks the phone for JPEG), max (the largest
 //                                  file, MB); of the tree asked, what it shows (phone-watch.ts): now, lastWorked, waiting,
 //                                  day, latest (a tree asked that is gone: 404 phone.tree-gone, as /phone/log)
-//   GET  /phone/log?tree=&limit=   the last changes the research saved, newest first ({changes: [{id, at, lines, more?}],
-//                                  more}), at most 20
+//   GET  /phone/log?tree=&limit=   the last changes the research saved, newest first ({changes: [{id, at, lines, more?,
+//                                  rest?}], more}), at most 20; rest: the lines of a change past the 3 shown
+//   GET  /phone/waiting?tree=&from=&limit=   more of what waits than the state gives ({n, items: [{what, on?}]}), of the
+//                                  same list, at most 200 at once
 //   GET  /phone/people?tree=&q=    up to 8 people of the tree matching q (2 letters at least; case, accents and NFD
 //                                  aside): {id, name, birth, death, place}
 //   GET  /phone/media/<sha256>?tree=   is that content in the research already ({known: false} or {known, kind})
@@ -33,7 +35,7 @@ import { waysHere } from "./readable.ts";
 import { birthEvent, deathEvent, displayName, findPersons } from "./people.ts";
 import { yearLabel } from "./gdate.ts";
 import { foldText } from "./text.ts";
-import { LOG_PHONE, treeLog, treeMarks, treeOverview } from "./phone-watch.ts";
+import { LOG_PHONE, WAITING_ASKED, WAITING_SHOWN, treeLog, treeMarks, treeOverview, treeWaiting } from "./phone-watch.ts";
 import type { Person } from "./model.ts";
 
 /** How often the batches of a phone are looked at, and the parts of uploads cut short. */
@@ -137,6 +139,21 @@ export function phoneSend(env: Env, note: (text: string) => void): PhoneSend {
         if (!t) return gone();
         const limit = Math.min(LOG_PHONE, Math.max(1, Number.parseInt(url.searchParams.get("limit") ?? "", 10) || LOG_PHONE));
         reply(200, treeLog(t.root, env, limit));
+      };
+
+    if (req.method === "GET" && p === "/phone/waiting")
+      return () => {
+        if (foreign()) return refuse(403, refusal("only the phone's page asks", "phone.origin"));
+        req.resume();
+        const t = treeOf();
+        if (!t) return gone();
+        const number = (name: string, or: number) => {
+          const n = Number.parseInt(url.searchParams.get(name) ?? "", 10);
+          return Number.isFinite(n) ? n : or;
+        };
+        const from = Math.max(0, number("from", WAITING_SHOWN));
+        const limit = Math.min(WAITING_ASKED, Math.max(1, number("limit", WAITING_ASKED)));
+        reply(200, treeWaiting(t.root, env, from, limit));
       };
 
     if (req.method === "GET" && p === "/phone/people")

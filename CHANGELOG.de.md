@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.18.0
 
-*In Vorbereitung: die Betas bis 1.18.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.18.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Handyfotos aufrecht.** Ein Foto, das nach seiner EXIF-Ausrichtung gedreht ist, wird gelesen, wie es gesehen
   werden soll, aufrecht; die darauf markierten Stellen (Ausschnitte, die Hälften einer Doppelseite, ein gespeicherter
@@ -34,7 +34,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Sekunden aufgefrischt, solange die Seite angesehen wird — nur zum Ansehen: auf dem Handy wird nichts beantwortet,
   gestartet oder entschieden. Ein unerreichbarer Computer wird gesagt, mit den letzten Daten und ihrer Zeit. Die Seite
   öffnet den Stammbaum, dessen QR-Code sie gekoppelt hat, und lässt sich als Symbol auf den Home-Bildschirm legen,
-  das sie ohne neues Koppeln öffnet.
+  das sie ohne neues Koppeln öffnet. Was wartet und die Änderungen lassen sich auf dem Handy ganz lesen: kein Text
+  dessen, was wartet, wird gekürzt, mehr als die ersten 20 kommen auf Antippen, eine Änderung mit vielen Zeilen klappt
+  ganz auf; Was wartet ist der letzte Teil der Seite. Eine Änderung vor heute hat bei der Uhrzeit auch ihr Datum (das
+  Jahr nur, wenn es nicht das laufende ist).
 - **Eine Zustimmung in einer Sprache.** Eine Zustimmung, die nur ein Mensch gibt (eine Forschung entpacken, einen
   Stammbaum entfernen, ein abgelehntes Fenster), steht ganz in der Sprache der Forschung, nichts davon bleibt
   Englisch.
