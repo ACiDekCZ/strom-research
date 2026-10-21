@@ -245,6 +245,69 @@ person: p1 | child | written=ИВАНОВ ПЁТР | given=Пётр | surname=И
   assert.equal(checkEntry(cyr, "e1", false, true).entry.persons[0]!.given, "Пётр");
 });
 
+test("a name in letter-spaced type is one word, a birth name after roz./geb./урожд. is the surname; written stays as it stands", () => {
+  // a made-up typewritten certificate: the child's and the mother's surnames spaced out, the mothers' birth names glued
+  const entry = (t: string) =>
+    parseDocReport(`## Entry e1 · page 1
+transcript: ${t}
+person: p1 | child | written=Petr K o v á ř | given=Petr | surname=Kovář | sex=M
+person: p2 | mother | written=Hana K o v á ř o v á roz.Kratochvílová | given=Hana | surname=Kratochvílová | sex=F
+person: p3 | other | written=Jana roz. Dvořáková | given=Jana | surname=Dvořáková | sex=F
+person: p4 | other | written=Erika Lang geb.Zimmer | given=Erika | surname=Zimmer | sex=F
+`).entries[0]!;
+  const t = "Jméno a příjmení dítěte | Petr K o v á ř | Matka | Hana K o v á ř o v á roz.Kratochvílová | Jana roz. Dvořáková | Erika Lang geb.Zimmer | Předseda: v z.";
+  for (const x of [t, t.normalize("NFD")]) {
+    const c = checkEntry(entry(x), "e1", false, true);
+    assert.deepEqual(c.checks, []);
+    assert.deepEqual(
+      c.entry.persons.map((p) => `${p.given}/${p.surname}/${p.written.normalize("NFC")}`),
+      ["Petr/Kovář/Petr K o v á ř", "Hana/Kratochvílová/Hana K o v á ř o v á roz.Kratochvílová", "Jana/Dvořáková/Jana roz. Dvořáková", "Erika/Zimmer/Erika Lang geb.Zimmer"],
+    );
+  }
+  // the reader's surname written spaced or not is the same word; two letters alone stay apart (v z.)
+  assert.deepEqual(words("Petr K o v á ř, v z. n.Labem").map((w) => w.key), ["petr", "kovar", "v", "z", "n", "labem"]);
+  // the married surname is no given name: a given name of other letters falls back to the words before the mark
+  const other = checkEntry(parseDocReport("## Entry e1 · page 1\ntranscript: Hana K o v á ř o v á roz.Kratochvílová\nperson: p1 | mother | written=Hana K o v á ř o v á roz.Kratochvílová | given=Johanna | surname=Kratochvílová\n").entries[0]!, "e1");
+  assert.equal(other.entry.persons[0]!.given, "Hana Kovářová");
+  // any script: урожд. (урождённая)
+  const cyr = checkEntry(parseDocReport("## Entry e1 · page 1\ntranscript: Мать | Анна П е т р о в а урожд.Иванова\nperson: p1 | mother | written=Анна П е т р о в а урожд.Иванова | given=Анна | surname=Иванова | sex=F\n").entries[0]!, "e1");
+  assert.deepEqual(cyr.entry.persons.map((p) => `${p.given}/${p.surname}`), ["Анна/Иванова"]);
+  assert.deepEqual(cyr.checks, []);
+});
+
+test("a whole name letter-spaced: a gap of two spaces parts its words, the reader's names part them where one space does; Ur is a name, letters of running text stay apart", () => {
+  const one = (t: string, written: string, given: string, surname: string, sex = "F") =>
+    checkEntry(parseDocReport(`## Entry e1 · page 1\ntranscript: ${t}\nperson: p1 | mother | written=${written} | given=${given} | surname=${surname} | sex=${sex}\n`).entries[0]!, "e1", false, true);
+  for (const nf of ["NFC", "NFD"] as const) {
+    const n = (s: string) => s.normalize(nf);
+    // a typewriter's two spaces between the words, the reader's one: Marie Nováková, nothing left out
+    for (const [t, written] of [
+      ["Matka | M a r i e  N o v á k o v á", "M a r i e N o v á k o v á"],
+      ["Matka | M a r i e N o v á k o v á", "M a r i e N o v á k o v á"],
+      ["Matka | M A R I E  N O V Á K O V Á", "M A R I E  N O V Á K O V Á"],
+    ]) {
+      const c = one(n(t!), n(written!), n("Marie"), n("Nováková"));
+      assert.deepEqual(c.checks, [], t);
+      assert.deepEqual(c.entry.persons.map((p) => `${p.given}/${p.surname?.normalize("NFC")}`), ["Marie/Nováková"], t);
+    }
+    // a given name of other letters: the surname still parted from the rest
+    const other = one(n("Matka | H a n a K o v á ř o v á"), n("H a n a K o v á ř o v á"), "Johanna", n("Kovářová"));
+    assert.deepEqual(other.entry.persons.map((p) => `${p.given}/${p.today}/${p.surname?.normalize("NFC")}`), ["Hana/Johanna/Kovářová"]);
+    // Ur without a stop is a name; ur. before the surname is the birth name's mark
+    const ur = one(n("Otec | Jan Ur Novák"), n("Jan Ur Novák"), n("Jan Ur"), n("Novák"), "M");
+    assert.deepEqual([ur.entry.persons[0]!.given, ur.entry.persons[0]!.surname?.normalize("NFC"), ur.checks], ["Jan Ur", "Novák", []]);
+    const marked = one(n("Matka | Hana ur. Nováková"), n("Hana ur. Nováková"), "Johanna", n("Nováková"));
+    assert.equal(marked.entry.persons[0]!.given, "Hana");
+    // single letters of running text are words of their own, so two readers differ only where they do
+    assert.deepEqual(words(n("šel a v k domu")).map((w) => w.text), ["šel", "a", "v", "k", "domu"].map(n));
+    assert.deepEqual(wordDiff(n("šel a v k domu"), n("šel k domu")), [{ at: "a v", other: "" }]);
+    assert.deepEqual(wordDiff(n("Jan M a r i e N o v á k o v á"), n("Jan Marie Nováková")), []);
+  }
+  // any script
+  const cyr = one("Мать | А н н а  П е т р о в а", "А н н а П е т р о в а", "Анна", "Петрова");
+  assert.deepEqual([cyr.entry.persons.map((p) => `${p.given}/${p.surname}`), cyr.checks], [["Анна/Петрова"], []]);
+});
+
 test("two readers: a person the blind one gave another role is the same one, the role and a field only one read are variants", () => {
   const e = (role: string, fields: string) =>
     checkEntry(parseDocReport(`## Entry e1 · page 1\ntranscript: Ausgestellt Dr. Petra Zimmer\nperson: p1 | ${role} | written=Dr. Petra Zimmer | given=Petra${fields}\n`).entries[0]!, "e1").entry;
@@ -348,6 +411,9 @@ test("two readers: alike after folding; where they differ, the words and the fie
   // an entry only the blind reader has: they differ
   assert.equal(compareReadings([e("Anna", "X")], [e("Anna", "X"), { ...e("Petr", "Y"), id: "e2" }]).agree, "differ");
   assert.deepEqual(wordDiff("a b c", "a x c d"), [{ at: "b", other: "x" }, { at: "", other: "d" }]);
+  assert.deepEqual(wordDiff("Anna Bára Cyril", "Anna Xaver Cyril Dan"), [{ at: "Bára", other: "Xaver" }, { at: "", other: "Dan" }]);
+  // a name one reader wrote in letter-spaced type as it stands, the other as one word: no difference
+  assert.deepEqual(wordDiff("Petr K o v á ř", "Petr Kovář"), []);
 });
 
 test("the reader's task: the pages, the report's line, the language; a blind one without translation or context", () => {

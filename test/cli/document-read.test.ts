@@ -305,6 +305,59 @@ done: 1 entries`;
   }
 });
 
+test("strom document read of a typewritten certificate: a surname in letter-spaced type and a birth name after roz. are kept, the mother matched by the year she was born, her mother by it; a result written before is read again from the report", async () => {
+  const { w, dir, photo } = await setUp();
+  try {
+    // two of one name in the tree, born 1907 and 1925 (both fit a mother of 1942): the document says 1907
+    await w.ok(["person", "add", "Hana /Kratochvílová/", "--sex", "F", "--born", "1907"]); // P0003
+    await w.ok(["person", "add", "Hana /Kratochvílová/", "--sex", "F", "--born", "1925"]); // P0004
+    // her mother: one of a fitting year, one a century before
+    await w.ok(["person", "add", "Jana /Dvořáková/", "--sex", "F", "--born", "1880"]); // P0005
+    await w.ok(["person", "add", "Jana /Dvořáková/", "--sex", "F", "--born", "1790"]); // P0006
+    fs.writeFileSync(
+      path.join(dir, "typewriter.md"),
+      `## Document
+kind: certificate
+language: cs
+script: print
+legible: yes
+
+## Entry e1 · page 1
+region: 0.10,0.05,0.80,0.60
+transcript: Den, měsíc a rok narození | 3.6.1942 | Místo narození | Lhota | Jméno a příjmení dítěte | Petr K o v á ř | Matka | Jméno a příjmení | Hana K o v á ř o v á roz.Kratochvílová | den, měsíc, rok, místo narození | 29.8.1907, Lhota | Jméno a příjmení jejích rodičů | Jana roz.Dvořáková
+person: p1 | child | dítě | written=Petr K o v á ř | given=Petr | surname=Kovář | sex=M
+person: p2 | mother | matka | written=Hana K o v á ř o v á roz.Kratochvílová | given=Hana | surname=Kratochvílová | sex=F
+person: p3 | other | matka matky | written=Jana roz.Dvořáková | given=Jana | surname=Dvořáková | sex=F
+event: BIRT | date=3.6.1942 | place=Lhota | persons=p1:principal,p2:mother
+event: BIRT | date=29.8.1907 | place=Lhota | persons=p2:principal,p3:mother
+relation: parent p2 p1
+relation: parent p3 p2
+
+done: 1 entries`,
+    );
+    w.env.DOC_FIRST = path.join(dir, "typewriter.md");
+    const d = (await w.ok(["document", "read", photo, "--agent", "script", "--json"])).json;
+    assert.deepEqual(d.checks, []);
+    const e = d.entries[0];
+    assert.deepEqual(
+      e.persons.map((p: { given?: string; surname?: string; written: string }) => `${p.given} ${p.surname} | ${p.written}`),
+      ["Petr Kovář | Petr K o v á ř", "Hana Kratochvílová | Hana K o v á ř o v á roz.Kratochvílová", "Jana Dvořáková | Jana roz.Dvořáková"],
+    );
+    assert.deepEqual(e.persons[1].match.map((m: { person: string }) => m.person), ["P0003"]);
+    assert.ok(e.persons[1].match[0].why.includes("years"));
+    // the grandmother: a parent of one born 1907
+    assert.deepEqual(e.persons[2].match.map((m: { person: string }) => m.person), ["P0005"]);
+    // a result written by a strom before (the surnames left out): read again from the reader's report here
+    const file = path.join(w.cwd, "notes", "readings", `${d.id}.json`);
+    const before = JSON.parse(fs.readFileSync(file, "utf8"));
+    for (const p of before.entries[0].persons) delete p.surname;
+    fs.writeFileSync(file, JSON.stringify(before));
+    assert.deepEqual(readingResult(Tree.open(w.cwd, w.env), d.id)!.entries[0]!.persons.map((p) => p.surname), ["Kovář", "Kratochvílová", "Dvořáková"]);
+  } finally {
+    w.cleanup();
+  }
+});
+
 test("strom document read of a PDF: its pages; a part of a page asked is said of the page", async () => {
   const { w, dir } = await setUp();
   try {

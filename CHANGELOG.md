@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.18.0
 
-*In preparation: the betas up to 1.18.0-beta.13. The section is complete with the release.*
+*In preparation: the betas up to 1.18.0-beta.14. The section is complete with the release.*
 
 - **Phone photos upright.** A photo turned by its EXIF orientation is read as it is meant to be seen, upright; the
   places marked on it (excerpts, the halves of a spread, a cut-out part) are of the picture as it is shown. The
@@ -22,8 +22,9 @@ The changes of each version in short. The full notes and the install lines are o
   name the document does not have is left out — a surname too, never taken from a father or another family —, what
   cannot be read is marked; a second reader can read it blind. A
   document on a printed form, as a birth certificate, keeps its people — the child and both parents with their part in
-  it —, and a document read before shows them after the update with nothing read again. Each person and event it names
-  comes with the place on the page where it stands, so the Strom app shows each its own excerpt. Nothing of it enters the tree by itself. A document read
+  it, their names typed letter-spaced and a mother's birth name after "née" or "roz." too —, and a document read before
+  shows them after the update with nothing read again. Each person and event it names comes with the place on the page
+  where it stands, so the Strom app shows each its own excerpt. Nothing of it enters the tree by itself. A document read
   already says so, so it is not read a second time by mistake. A document read again is shown under the name of its
   file, never a code. A document sent from the Strom app finds the agent as the terminal does — one installed in a
   folder of its own, by npm or Homebrew too — instead of saying no agent is set up. Every agent the research works with

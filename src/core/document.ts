@@ -141,6 +141,8 @@ term: <a word or abbreviation as written> = <what it means, in ${into}> (term | 
   given and surname only turn the written name into today's form ("Joannes" → "Jan"): never a name the transcript
   does not have — no surname the entry does not write by the person (a child's is not taken from its father's);
   on a form (a certificate) whose fields hold a name apart, written= the words of its fields as written there;
+  a name in letter-spaced type ("N o v á k") is one word: surname=Novák; a woman written with her birth name
+  ("Marie Nováková roz. Dvořáková", geb., née, z domu): surname= the birth name;
   a name you could not read stays out; leave out what the entry does not say; region: where the person's name
   stands — its line, or its field on a form — as the entry's region, of the page's whole view (tight, not the entry)
 event: <BIRT | BAPM | MARR | DEAT | BURI | RESI | EVEN> | date=<as on the record, in numbers: 3.4.1846, or a year> |
@@ -374,21 +376,108 @@ export interface Word {
   key: string;
   unsure: boolean;
   illegible: boolean;
+  /** Written with no space after the word before ("roz.Nováková": "Nováková"). */
+  glued?: boolean;
 }
 
-export function words(s: string): Word[] {
+/** One letter alone, as a typewriter spaces out a name (V í š e k); the last of them may have a stop or a "[?]". */
+const SPACED = /^\p{L}\p{M}*$/u;
+const SPACED_LAST = /^\p{L}\p{M}*(?:\[\?\]|[^\p{L}\p{M}\p{N}\[\]])*$/u;
+
+const keyOf = (t: string) => foldText(t.replace(/\[\?\]/gu, "")).replace(/[^\p{L}\p{M}\p{N}]+/gu, "");
+
+/** The keys of the words of names (a reader's given name and surname, the other reader's text) that join spaced letters. */
+export function nameKeys(...names: (string | undefined)[]): string[] {
+  return names.flatMap((n) => (n ? words(n).map((w) => w.key) : [])).filter((k) => k.length >= 2 && k !== "[...]");
+}
+
+/**
+ * The words of a text as they are compared: a word after a stop with no space ("roz.Nováková", "n.Labem") a word of
+ * its own, glued to the one before; letters standing alone (a name in letter-spaced type, "N o v á k") one word, as
+ * written — a run of them that spells one of `names` (the reader's given name or surname), the rest of a run that has
+ * one, and else three or more beginning with a capital; a gap of two spaces or more (a typewriter's between the words of
+ * a spaced name) or a line ends a run. Letters of running text ("šel a v k domu") stay words of their own.
+ */
+export function words(s: string, names: readonly string[] = []): Word[] {
   const src = s
     .replace(/\s*\[\?\]/gu, "[?]")
     .replace(/\[\s*(?:\.{2,}|…)\s*\]/gu, " [...] ")
-    .replace(/\|/gu, " ");
-  return src
-    .split(/\s+/u)
-    .filter(Boolean)
-    .flatMap((t): Word[] => {
-      if (t === "[...]") return [{ text: t, key: "[...]", unsure: false, illegible: true }];
-      const key = foldText(t.replace(/\[\?\]/gu, "")).replace(/[^\p{L}\p{M}\p{N}]+/gu, "");
-      return key ? [{ text: t, key, unsure: t.includes("[?]"), illegible: false }] : [];
-    });
+    .replace(/\|/gu, "  ");
+  const parts: { t: string; glued: boolean; wide: boolean }[] = [];
+  for (const m of src.matchAll(/(\s*)(\S+)/gu)) {
+    const wide = m[1]!.length > 1 || /[\n\r]/u.test(m[1]!);
+    if (m[2] === "[...]") parts.push({ t: m[2], glued: false, wide });
+    else m[2]!.split(/(?<=\p{L}\p{M}*\.)(?=\p{L})/u).forEach((t, i) => parts.push({ t, glued: i > 0, wide: i === 0 && wide }));
+  }
+  const known = new Set(names);
+  const out: Word[] = [];
+  const letters = (a: number, b: number) => {
+    const text = parts.slice(a, b).map((x) => x.t).join(" ");
+    out.push({ text, key: keyOf(text), unsure: text.includes("[?]"), illegible: false });
+  };
+  for (let i = 0; i < parts.length; i++) {
+    // a run of letters alone: no gap of two spaces within, the last may have a stop, the word after not glued to it
+    let j = i;
+    while (j < parts.length && !parts[j]!.glued && (j === i || !parts[j]!.wide) && SPACED.test(parts[j]!.t)) j++;
+    if (j < parts.length && j > i && !parts[j]!.glued && !parts[j]!.wide && SPACED_LAST.test(parts[j]!.t) && !SPACED.test(parts[j]!.t)) j++;
+    if (j - i >= 2 && (j === parts.length || !parts[j]!.glued)) {
+      // the names it spells, the longest first, and what stands between them
+      const named: [number, number][] = [];
+      for (let a = i; a < j - 1; ) {
+        let b = j;
+        while (b - a >= 2 && !known.has(keyOf(parts.slice(a, b).map((x) => x.t).join("")))) b--;
+        if (b - a >= 2) {
+          named.push([a, b]);
+          a = b;
+        } else a++;
+      }
+      if (named.length) {
+        let a = i;
+        for (const [x, y] of [...named, [j, j] as [number, number]]) {
+          if (x - a >= 2) letters(a, x);
+          else for (let k = a; k < x; k++) letters(k, k + 1);
+          if (y > x) letters(x, y);
+          a = y;
+        }
+        i = j - 1;
+        continue;
+      }
+      if (j - i >= 3 && /^\p{Lu}/u.test(parts[i]!.t)) {
+        letters(i, j);
+        i = j - 1;
+        continue;
+      }
+    }
+    const { t, glued } = parts[i]!;
+    if (t === "[...]") {
+      out.push({ text: t, key: "[...]", unsure: false, illegible: true });
+      continue;
+    }
+    const key = keyOf(t);
+    if (key) out.push({ text: t, key, unsure: t.includes("[?]"), illegible: false, ...(glued ? { glued } : {}) });
+  }
+  return out;
+}
+
+/** Words that stand in a row as they were written: one space between, none before a word glued to the one before. */
+function asWritten(span: Word[]): string {
+  return span.map((x, i) => (i && !x.glued ? ` ${x.text}` : x.text)).join("");
+}
+
+/**
+ * The words of a birth name's mark, folded: in full — rozená, geborene, née, nata, urodzona, урождённая, z domu — or
+ * shortened with its stop — roz., geb., urodz., ur., урожд. —: the name after one is the person's birth surname.
+ */
+const BIRTH_WORDS = new Set(["rozena", "rozeny", "geborene", "geborener", "nee", "nata", "urodzona", "урожденная", "урожденный", "szuletett"]);
+const BIRTH_SHORT = new Set(["roz", "geb", "urodz", "ur", "урожд", "szul"]);
+
+/** A birth name's mark at `i`; a short one only with its stop, "ur." only before the reader's surname (Ur is a name too). */
+function birthMarkAt(span: Word[], i: number, surnameAt: number): boolean {
+  const x = span[i]!;
+  if (x.key === "domu") return span[i - 1]?.key === "z";
+  if (BIRTH_WORDS.has(x.key)) return true;
+  if (!BIRTH_SHORT.has(x.key) || !/\.$/u.test(x.text.replace(/\[\?\]/gu, ""))) return false;
+  return x.key !== "ur" || i + 1 === surnameAt;
 }
 
 /** Where the words of `part` stand in `whole`, in a row (its first place), else -1. */
@@ -630,17 +719,20 @@ export function checkEntry(raw: RawEntry, id: string, blind = false, form = fals
       checks.push({ entry: id, ref: p.ref, what: [p.fields.given, p.fields.surname].filter(Boolean).join(" ") || p.role, why: "no-name" });
       continue;
     }
-    const w = words(written);
-    const at = find(text, w);
+    // letters spaced out (a name typed letter-spaced) joined as the reader's given name and surname spell them
+    const names = nameKeys(p.fields.given, p.fields.surname);
+    const own = words(raw.transcript, names);
+    const w = words(written, names);
+    const at = find(own, w);
     // a form (a certificate) holds a name in its fields apart — the surname in one, the given names in another —:
     // its words each written there are the name; elsewhere a name stands in a row as written
-    const span = at >= 0 ? text.slice(at, at + w.length) : form ? findApart(text, w) : undefined;
+    const span = at >= 0 ? own.slice(at, at + w.length) : form ? findApart(own, w) : undefined;
     if (!span) {
       checks.push({ entry: id, ref: p.ref, what: written, why: "not-in-transcript" });
       continue;
     }
     const role = ((ROLES as readonly string[]).includes(p.role) ? p.role : "other") as DocPerson["role"];
-    const person: DocPerson = { ref: p.ref, role, written: span.map((x) => x.text).join(" ") };
+    const person: DocPerson = { ref: p.ref, role, written: at >= 0 ? asWritten(span) : span.map((x) => x.text).join(" ") };
     if (p.roleText && !blind) person.roleText = p.roleText;
     const uncertain = new Set<Uncertain>();
     // the surname: a written word it is a form of (the last such), else the last of two or more words, "[...]" ones
@@ -662,7 +754,12 @@ export function checkEntry(raw: RawEntry, id: string, blind = false, form = fals
     }
     // the given name: the other words; a word of today's form must be one of them in its letters (Josephi → Josef,
     // Joannes → Jan), else the name is as written and the reader's form only a lead (today)
-    const givenWords = span.filter((_, i) => i !== surnameAt);
+    // (not a birth name's mark, roz. or geb., nor the birth name after it)
+    const marked = new Set<number>();
+    span.forEach((x, i) => {
+      if (birthMarkAt(span, i, surnameAt)) [i, i + 1, ...(x.key === "domu" ? [i - 1] : [])].forEach((k) => marked.add(k));
+    });
+    const givenWords = span.filter((_, i) => i !== surnameAt && !marked.has(i));
     const given = p.fields.given?.replace(/\[\?\]/gu, "").trim();
     if (given) {
       const legible = givenWords.filter((x) => !x.illegible);
@@ -671,7 +768,7 @@ export function checkEntry(raw: RawEntry, id: string, blind = false, form = fals
         const fits = words(given).every((g) => legible.some((x) => sameNameWord(g.key, x.key)));
         if (fits) person.given = given;
         else {
-          person.given = legible.map((x) => x.text.replace(/\[\?\]/gu, "").replace(/^[^\p{L}\p{M}\p{N}]+|[^\p{L}\p{M}\p{N}]+$/gu, "")).join(" ");
+          person.given = legible.map((x) => x.text.replace(/\[\?\]|\s+/gu, "").replace(/^[^\p{L}\p{M}\p{N}]+|[^\p{L}\p{M}\p{N}]+$/gu, "")).join(" ");
           person.today = given;
           uncertain.add("given");
           checks.push({ entry: id, ref: p.ref, what: `given "${given}" for "${person.given}"`, why: "not-of-its-letters" });
@@ -754,8 +851,9 @@ function partOf(r: Region | undefined, entry: Region | undefined): Region | unde
 
 /** The hunks where two transcripts differ, word by word (their keys; the marks [?] are no difference). */
 export function wordDiff(a: string, b: string): { at: string; other: string }[] {
-  const x = words(a);
-  const y = words(b);
+  // letters one reader spaced out joined as the other wrote the word
+  const x = words(a, nameKeys(b));
+  const y = words(b, nameKeys(a));
   const n = x.length;
   const m = y.length;
   const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
@@ -792,7 +890,7 @@ const same = (a: string | undefined, b: string | undefined) => foldText(a ?? "")
  * one's. Index in `mine` → index in `theirs`.
  */
 function pairByName(mine: DocPerson[], theirs: DocPerson[]): Map<number, number> {
-  const keys = (p: DocPerson) => words(p.written).filter((x) => !x.illegible).map((x) => x.key);
+  const keys = (p: DocPerson) => words(p.written, nameKeys(p.given, p.surname)).filter((x) => !x.illegible).map((x) => x.key);
   const surname = (p: DocPerson) => words(p.surname ?? "").map((x) => x.key);
   const WHOLE = 1000;
   const score = (p: DocPerson, q: DocPerson): number => {
@@ -934,7 +1032,7 @@ function bornRange(role: string, year: number, age?: string): [number, number] |
  * and a surname of the same family (Novák/Nováková) are needed; the same sex, a birth year that fits the role and the
  * record's year, and a place of theirs add to it. A suggestion, never a decision: the person chooses.
  */
-export function matchPerson(tree: Tree, p: DocPerson, year?: number, place?: string): { person: string; why: string[]; score: number }[] {
+export function matchPerson(tree: Tree, p: DocPerson, year?: number, place?: string, own?: number, child?: number): { person: string; why: string[]; score: number }[] {
   if (!p.given || !p.surname) return [];
   const firstOf = (s: string) => foldText(s).split(" ")[0]!;
   const out: { person: string; why: string[]; score: number }[] = [];
@@ -959,8 +1057,14 @@ export function matchPerson(tree: Tree, p: DocPerson, year?: number, place?: str
       score += 0.1;
     }
     const born = dateYears(birthEvent(o)?.date ?? "")[0];
-    const range = year !== undefined ? bornRange(p.role, year, p.age) : undefined;
-    if (range && born !== undefined) {
+    // a parent of one the document says was born then (a certificate's grandparents) as a parent of that year
+    const range = child !== undefined ? bornRange("father", child) : year !== undefined ? bornRange(p.role, year, p.age) : undefined;
+    // the year the document says the person was born (a certificate's parents): the tree's, a year apart at most
+    if (own !== undefined && born !== undefined) {
+      if (Math.abs(born - own) > 1) continue;
+      why.push("years");
+      score += 0.15;
+    } else if (range && born !== undefined) {
       if (born < range[0] - 2 || born > range[1] + 2) continue;
       why.push("years");
       score += 0.1;
@@ -993,8 +1097,14 @@ export function withTree(tree: Tree, entries: DocEntry[]): DocEntry[] {
       const known = knownPlace(tree, x.place.text);
       return known ? { ...x, place: { ...x.place, known } } : x;
     });
+    // the year each person was born, where the document says so
+    const bornOf = (ref: string): number | undefined => {
+      const birth = e.events.find((x) => ["BIRT", "BAPM", "CHR"].includes(x.type) && x.date?.gedcom && x.persons.some((r) => r.ref === ref && r.role === "principal"));
+      return birth?.date?.gedcom ? dateYears(birth.date.gedcom)[0] : undefined;
+    };
     const persons = e.persons.map((p) => {
-      const match = matchPerson(tree, p, year, place);
+      const child = e.relations.flatMap((r) => (r.type === "parent" && r.parent === p.ref ? [bornOf(r.child)] : [])).find((y) => y !== undefined);
+      const match = matchPerson(tree, p, year, place, bornOf(p.ref), child);
       return match.length ? { ...p, match } : p;
     });
     return { ...e, persons, events };
