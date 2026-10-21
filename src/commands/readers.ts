@@ -22,6 +22,8 @@ import { currentSession } from "../core/session.ts";
 import { noReaderHere, refusedBySandbox, sandboxOf } from "../core/sandbox.ts";
 
 export interface Readers {
+  /** The agent that reads. */
+  agent: string;
   model: string | undefined;
   /** The longest side of a view the readers' model takes in whole. */
   viewMax: number;
@@ -210,5 +212,5 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
     if (!/^##\s/m.test(written) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
     return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}), ...(r.metrics.costPartial ? { costPartial: true } : {}), ...(r.resumeAt ? { resumeAt: r.resumeAt } : {}) };
   };
-  return { model, viewMax: sizes.read, parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
+  return { agent: agentId, model, viewMax: sizes.read, parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
 }

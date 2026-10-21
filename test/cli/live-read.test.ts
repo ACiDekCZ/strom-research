@@ -14,7 +14,7 @@ import { World, hasGit, until } from "../helpers.ts";
 import { halves, jpegWithOrientation } from "../image-samples.ts";
 import { Tree } from "../../src/core/tree.ts";
 import { Settings } from "../../src/core/config.ts";
-import { appReadLimits, limitReached, noteAsked, readAccepts } from "../../src/core/live-read.ts";
+import { appReadLimits, expectSecs, limitReached, noteAsked, readAccepts } from "../../src/core/live-read.ts";
 
 const opts = { skip: !hasGit || process.platform === "win32" };
 const app = { Origin: "https://beta.stromapp.info" };
@@ -127,6 +127,7 @@ test("a document read for the Strom app: sent with no intake task, asked, follow
     assert.deepEqual(read.types, ["image/jpeg", "image/png"], "nothing converted here (STROM_NO_CONVERT)");
     assert.deepEqual([read.max, read.pages], [50 * 1024 * 1024, 10]);
     assert.deepEqual(read.langs, ["cs", "de", "en"]);
+    assert.equal(read.expectSecs, 60, "no reader of this agent ended here yet: what an agent's readers take");
     assert.deepEqual(status.reads, []);
 
     // the file: an input of the person, no intake task
@@ -255,6 +256,9 @@ test("readings of the app one at a time: three more queued, the next refused; on
     const now = await reads();
     assert.equal(now.filter((r) => r.state === "reading").length, 1, JSON.stringify(now));
     assert.equal(now.filter((r) => r.state === "queued").length, 3, JSON.stringify(now));
+    // each at work or queued: how long it is expected to take from its start (no reader ended here yet: the agent's own)
+    assert.deepEqual(now.map((r) => (r as { expectSecs?: number }).expectSecs), [60, 60, 60, 60]);
+    assert.equal(json(await request("GET", `${url}/read/${now[0]!.id}`)).expectSecs, 60);
     // one waiting cancelled: never read
     const waiting = now.find((r) => r.state === "queued")!.id;
     const cancelled = await post(`${url}/read/${waiting}/cancel`, {});
@@ -264,6 +268,12 @@ test("readings of the app one at a time: three more queued, the next refused; on
     const end = await reads();
     assert.equal(end.find((r) => r.id === waiting)!.state, "cancelled");
     assert.equal(end.filter((r) => r.state === "done").length, 3);
+    // ended: nothing expected any more; the next one expected as long as this agent's readers took here
+    assert.ok(end.every((r) => (r as { expectSecs?: number }).expectSecs === undefined), JSON.stringify(end));
+    assert.equal(json(await request("GET", `${url}/read/${ids[0]}`)).expectSecs, undefined);
+    const learned = json(await request("GET", `${url}/status`)).accepts.read.expectSecs;
+    assert.equal(learned, expectSecs(w.cwd, "script"));
+    assert.ok(learned >= 1 && learned < 60, String(learned));
     // the month's readings: the three read, never the one cancelled while queued
     assert.deepEqual(json(await request("GET", `${url}/status`)).spend.reads, { count: 3, amount: 0.75 });
     // one at a time: each reader ended before the next began
@@ -415,6 +425,9 @@ test("why no reader starts: no agent's program, the limit or a login a reader en
     assert.equal(why({ STROM_AGENT: "script" }), "auth");
     assert.equal(readAccepts(tree(), new Settings({ ...w.env, STROM_AGENT: "script" }, {}), { ...w.env, STROM_AGENT: "script" }, undefined, Date.now() + 16 * 60_000)?.why, null);
 
+    // not ready: nothing expected
+    assert.equal(readAccepts(tree(), new Settings({ ...w.env, STROM_AGENT: "script" }, {}), { ...w.env, STROM_AGENT: "script" })?.expectSecs, undefined);
+
     // the limits: the default, the person's own; the hour full until its oldest is an hour old
     assert.deepEqual(appReadLimits(undefined), { hour: 20, day: 60 });
     assert.deepEqual(appReadLimits("5 9"), { hour: 5, day: 9 });
@@ -467,6 +480,42 @@ test("strom document read --queue keeps a reading to be read later; read by its 
     assert.deepEqual([back.state, back.version, back.readers.ran, back.entries.length], ["done", 1, 2, 1]);
     const anew = (await w.ok(["document", "again", q.id, "--queue", "--json"])).json;
     assert.deepEqual([anew.state, anew.version], ["queued", 3], "past the version cancelled");
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("how long a reading is expected to take: the median of the agent's last readers of documents here, else what its readers took when measured", () => {
+  const w = new World();
+  try {
+    const root = w.dir;
+    assert.equal(expectSecs(root, "grok"), 240, "Grok's readers take minutes");
+    assert.equal(expectSecs(root, "claude"), 60);
+    assert.equal(expectSecs(root, "codex", 2), 120, "two rounds of readers");
+    const metrics = path.join(root, ".strom", "metrics");
+    fs.mkdirSync(metrics, { recursive: true });
+    const line = (r: Record<string, unknown>) => JSON.stringify({ at: new Date().toISOString(), kind: "document", agent: "grok", outcome: "ok", ...r });
+    fs.writeFileSync(
+      path.join(metrics, "readers.jsonl"),
+      [
+        line({ wallMs: 300_000 }),
+        line({ wallMs: 100_000 }),
+        // not counted: a reader that did not read to an end, a reader of scans, another agent's, a line cut short
+        line({ wallMs: 900_000, outcome: "timeout" }),
+        line({ wallMs: 900_000, kind: "read" }),
+        line({ wallMs: 5_000, agent: "claude" }),
+        '{"kind":"document","agent":"grok"',
+        line({ wallMs: 200_400 }),
+      ].join("\n") + "\n",
+    );
+    assert.equal(expectSecs(root, "grok"), 200);
+    assert.equal(expectSecs(root, "claude"), 5);
+    assert.equal(expectSecs(root, "codex"), 60, "no reader of its own here");
+    // an even number: between the middle two; the last nine alone
+    fs.appendFileSync(path.join(metrics, "readers.jsonl"), line({ wallMs: 400_000 }) + "\n");
+    assert.equal(expectSecs(root, "grok"), 250);
+    fs.appendFileSync(path.join(metrics, "readers.jsonl"), Array.from({ length: 9 }, () => line({ wallMs: 30_000 })).join("\n") + "\n");
+    assert.equal(expectSecs(root, "grok"), 30);
   } finally {
     w.cleanup();
   }

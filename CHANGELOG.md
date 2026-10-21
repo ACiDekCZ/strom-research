@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.19.0
 
-*In preparation: the betas up to 1.19.0-beta.3. The section is complete with the release.*
+*In preparation: the betas up to 1.19.0-beta.4. The section is complete with the release.*
 
 - **An archive that went silent is waited for, not asked again and again.** When an archive stops answering, strom
   leaves it alone for an hour — two, then four when it stays silent the same day — and the agent hears until when:

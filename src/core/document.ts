@@ -1165,6 +1165,7 @@ export interface ReadState {
   why?: string;
   error?: string;
   model?: string;
+  /** The agent its readers read with. */
   agent?: string;
   /** Queued to be read later (strom document read --queue): only the blind reader, against the first one's reading. */
   only?: "blind";

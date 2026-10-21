@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.19.0
 
-*Připravuje se: bety do 1.19.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.19.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **Na archiv, který zmlkl, se čeká, místo opakovaných dotazů.** Když archiv přestane odpovídat, strom ho nechá na
   pokoji hodinu — a když týž den mlčí dál, dvě a pak čtyři hodiny — a agent se dozví, do kdy: mezitím dělá
