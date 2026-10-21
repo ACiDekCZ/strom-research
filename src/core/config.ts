@@ -53,6 +53,8 @@ export interface UserConfig {
   runGate?: string;
   /** A person's pace for the images of restricted archives: "<seconds> <requests an hour>" (core/terms.ts humanPace). */
   archivePace?: string;
+  /** Readings of documents the Strom app may ask: "<an hour> <a day>" (core/live-read.ts appReadLimits). */
+  readApp?: string;
   /** Hooks told of what is saved into a research (plugins/hooks/<name>), turned on by the user. */
   hooks?: string[];
   /** Model per tier, per agent, and its reasoning effort (model.effort): { claude: { vision: "opus" }, codex: { effort: "high" } }. */
@@ -112,6 +114,8 @@ export interface UserConfig {
   lastChannel?: "beta" | "stable";
   /** The folder of that strom's program (core/self.ts ownFolder): another installation running here is its guest. */
   lastProgram?: string;
+  /** The PATH of the last strom the person ran in a terminal: a strom the system starts (a link, the bridge) gets it (core/userpath.ts). */
+  terminalPath?: string;
   /** The backups made before another channel or an older version (core/backup.ts), the newest last. */
   backups?: BackupRecord[];
   /** What an agent in a conversation was told to tell the user once — the stories, the Strom app, asking about the tree — and when. */
@@ -184,7 +188,7 @@ export interface SettingDef {
   env: string;
   /** Can a tree carry its own value (strom.json)? */
   tree: boolean;
-  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin" | "views" | "tuned" | "pace";
+  kind: "path" | "lang" | "agent" | "model" | "number" | "choice" | "version" | "person" | "url" | "plugin" | "views" | "tuned" | "pace" | "limits";
   /** The values a "choice" allows. */
   choices?: readonly string[];
   description: string;
@@ -223,6 +227,7 @@ export const SETTINGS: SettingDef[] = [
   // Read from the config file only, changed by the user alone: how fast strom may take images of an archive whose
   // terms restrict automation, once the user allowed it slowly (core/terms.ts).
   { key: "archive.pace", env: "", tree: false, kind: "pace", description: "a person's pace for the images of an archive whose terms restrict automated access, once you allowed it slowly: seconds between two images, then requests to the archive an hour, its catalogue counted too (default \"10 120\"; auto: the default) — the service's own pace stays the slowest; one archive's own: strom allow host <host> --pace/--per-hour — only you set it" },
+  { key: "read.app", env: "", tree: false, kind: "limits", description: "readings of documents the Strom app may ask (its \"Read a document\"; each reader costs as one of strom read): at most so many an hour, then so many a day (default \"20 60\"; auto: the default) — one at a time, three more queued; never in an archive — only you raise it" },
   { key: "queue.strategy", env: "STROM_QUEUE_STRATEGY", tree: true, kind: "choice", choices: STRATEGIES, description: "order of the task queue: balanced (default — nearest ancestors first, spread over the lines, nothing taken forever), depth (stay on one line), priority (strict priority)" },
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
@@ -232,8 +237,8 @@ export const SETTINGS: SettingDef[] = [
   { key: "sync.review", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "what the Strom app sends: off (default — written at once: additions, the leads corrected, a record's fact changed a conflict for you to decide; strom sync undo takes a send back) or on (each send waits for your word: the menu's What waits for you) — an archive writes always" },
   { key: "main.person", env: "STROM_MAIN_PERSON", tree: true, kind: "person", description: "the main person of the tree (P…): first in the GEDCOM files — the Strom app opens on them (default: the nearest person descended from every research's focus, else the first research's focus)" },
   { key: "excerpts.quality", env: "STROM_EXCERPTS_QUALITY", tree: true, kind: "choice", choices: EXCERPT_QUALITIES, description: "the entries cut out of their scans in the file for the Strom app (output/tree-strom.ged): small (1000 px, grey — half the size), normal (default, 1200 px), sharp (1600 px)" },
-  { key: "excerpts.for", env: "STROM_EXCERPTS_FOR", tree: true, kind: "choice", choices: EXCERPT_SCOPES, description: "whose entries get their image in the Strom app: none (the file without images), line (the ancestors), family (default: the ancestors and their families), connected (anyone linked to them), all" },
-  { key: "excerpts.mb", env: "STROM_EXCERPTS_MB", tree: true, kind: "number", description: `limit of all the images in one file for the Strom app, MB (default ${EXCERPTS_MAX_MB}): over it they are made smaller, then the farthest from the research left out — strom says so` },
+  { key: "excerpts.for", env: "STROM_EXCERPTS_FOR", tree: true, kind: "choice", choices: EXCERPT_SCOPES, description: "whose entries get their image in the Strom app: none (the file without images), line (the ancestors), family (default: the ancestors and their families), connected (anyone linked to them), all (every source with an excerpt: the entries nobody cites too, where they still fit under excerpts.mb, the cited never made smaller for them)" },
+  { key: "excerpts.mb", env: "STROM_EXCERPTS_MB", tree: true, kind: "number", description: `limit of all the images in one file for the Strom app, MB (default ${EXCERPTS_MAX_MB}): over it they are made smaller, then the farthest from the research left out; with excerpts.for all, the entries nobody cites only where there is room — strom says so` },
   { key: "strom.version", env: "STROM_APP_VERSION", tree: true, kind: "version", description: "version of the Strom app the Strom GEDCOM is for (set by the app)" },
   { key: "connectors.consent", env: "STROM_CONNECTORS_CONSENT", tree: false, kind: "choice", choices: ["off", "on"], description: "off (default): connectors run without asking — paced by strom, only to their hosts; on: each needs the user's yes, in their terminal, to it and to each archive host" },
   { key: "browser.downloads", env: "STROM_BROWSER_DOWNLOADS", tree: false, kind: "path", description: "the folder your browser saves downloads into (default: the system's Downloads folder) — strom takes a connector's images over from there" },
@@ -286,6 +291,7 @@ const FIELDS: Record<string, string> = {
   "excerpts.mb": "excerptsMb",
   "run.gate": "runGate",
   "archive.pace": "archivePace",
+  "read.app": "readApp",
   "tune.transcripts": "tuneTranscripts",
   "tune.auto": "tuneAuto",
 };
@@ -390,6 +396,13 @@ export function checkValue(def: SettingDef, raw: string, resolvePath: (p: string
       if (v.toLowerCase() === "auto") return "auto";
       const m = /^(\d+(?:\.\d+)?)\s+(\d+)$/u.exec(v);
       if (!m || Number(m[1]) < 0.25 || !(Number(m[2]) >= 1)) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: 'seconds between two images (at least 0.25), then requests to the archive an hour, its catalogue counted too: "10 120" — or auto' });
+      return `${Number(m[1])} ${Number(m[2])}`;
+    }
+    case "limits": {
+      // so many an hour, then so many a day: "20 60" — or auto, the default
+      if (v.toLowerCase() === "auto") return "auto";
+      const m = /^(\d+)\s+(\d+)$/u.exec(v);
+      if (!m || Number(m[1]) > Number(m[2])) throw new UsageError(`invalid ${def.key} "${raw}"`, { hint: 'so many an hour, then so many a day (not fewer than an hour\'s): "20 60" — 0 0: none; or auto' });
       return `${Number(m[1])} ${Number(m[2])}`;
     }
     case "plugin":
@@ -665,6 +678,11 @@ export class Settings {
   /** The gate of working alone, if the user set one (the config file only). */
   runGate(): string | undefined {
     return this.config.runGate || undefined;
+  }
+
+  /** The readings of documents the Strom app may ask ("<an hour> <a day>"; the config file only, raised by the person alone). */
+  readApp(): string | undefined {
+    return this.config.readApp && this.config.readApp !== "auto" ? this.config.readApp : undefined;
   }
 
   agentPermissions(): AgentPermissions {

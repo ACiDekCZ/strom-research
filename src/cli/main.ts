@@ -20,10 +20,12 @@ import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { settleArchive } from "../core/mode.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "../core/hypolinks.ts";
 import { liveRunning, reviveLive, startLive } from "../core/live.ts";
+import { revivePhone } from "../core/phone.ts";
 import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
 import { prependPath } from "../runners/runner.ts";
 import { shimDir } from "../commands/session.ts";
 import { isAgent } from "../core/which.ts";
+import { completePath, pathOf, pathToRemember } from "../core/userpath.ts";
 import { appUrlShown, noticeStromApp } from "../core/stromapp.ts";
 import { lastChannelOf, pendingTransition, updateChannel, whatsNewUrl } from "../core/update.ts";
 import { backupBefore, backupSaid } from "./backups.ts";
@@ -214,6 +216,23 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       .map((x) => `${x[0]!.toUpperCase()}${x.slice(1).padStart(4, "0")}`);
     ran = ctx;
     command = def.path.join(" ");
+    // The PATH of the person's terminal remembered (never an agent's, a hook's, one strom started); a strom the system
+    // started (a link from the Strom app, the bridge, the phone's server) gets what of it is missing — and so do the
+    // agents and readers it starts (core/userpath.ts)
+    if (io.tty && !isAgent(env) && env.STROM_SPAWNED !== "1" && v.hook !== true && ctx.settings.home()) {
+      const remember = pathToRemember(env, ctx.settings.config.terminalPath);
+      if (remember) {
+        try {
+          ctx.settings.config.terminalPath = remember;
+          ctx.settings.save();
+        } catch {
+          // remembered next time
+        }
+      }
+    }
+    // the PATH as given, before it is made fuller: what the terminal strom was started from knows (the menu's goodbye)
+    ctx.givenPath = pathOf(env);
+    completePath(env, ctx.settings.config.terminalPath);
     // a person's own pace for a host taken as given until a command to an archive finds settings not the person's
     netTrust.ownPace = true;
     // the person's own settings folder (another than their default one, outside an agent): listed as theirs, so that an
@@ -329,6 +348,13 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         } catch {
           // its next session brings it back (reviveLive)
         }
+      }
+      // …and the phone's server, when the connection is on (it starts again with this version by itself; one the
+      // installer ended to replace the program back)
+      try {
+        revivePhone(env);
+      } catch {
+        // its next bridge brings it back
       }
     }
     // the folder of the program that runs with these settings (from a strom that ran here before it was kept, once):

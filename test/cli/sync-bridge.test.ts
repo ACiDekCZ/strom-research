@@ -93,9 +93,10 @@ test("the app sends on its own: the send waits in the inbox (/status inbox, send
   const app = { Origin: "https://beta.stromapp.info" };
   const status = async () => JSON.parse((await get(`${info.url}/status?poll=1`)).body);
   try {
-    const { media, ...accepts } = (await status()).accepts;
+    const { media, read, ...accepts } = (await status()).accepts;
     assert.deepEqual(accepts, { mode: "research", sync: { auto: "off" }, sources: true, verified: true });
     assert.equal(media.max, 500 * 1024 * 1024, "originals through PUT /media");
+    assert.equal(read.readers, 2, "a document read at once (live-read.test.ts)");
     assert.deepEqual((await status()).inbox, { trees: [], material: 0 });
     const first = JSON.parse((await post(`${info.url}/sync`, marked(text, "app-tree-a", "v2-aaa"), app)).body);
     let st = await status();
@@ -208,9 +209,10 @@ test("what the app sends is written at once (the default): additions, a lead cor
   const app = { Origin: "https://beta.stromapp.info" };
   const status = async () => JSON.parse((await get(`${info.url}/status?poll=1`)).body);
   try {
-    const { media, ...accepts } = (await status()).accepts;
+    const { media, read, ...accepts } = (await status()).accepts;
     assert.deepEqual(accepts, { mode: "research", sync: { auto: "write" }, sources: true, verified: true });
     assert.equal(media.max, 500 * 1024 * 1024, "originals through PUT /media");
+    assert.equal(read.readers, 2, "a document read at once (live-read.test.ts)");
     const r = await post(`${info.url}/sync`, marked(text, "app-tree-a", "v2-1"), app);
     assert.equal(r.status, 200, r.body);
     const sent = JSON.parse(r.body);

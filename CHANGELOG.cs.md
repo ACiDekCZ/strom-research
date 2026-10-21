@@ -5,6 +5,66 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.18.0
+
+*21. 10. 2026 · patří k aplikaci Strom 3.14.0.*
+
+- **Fotky z telefonu nastojato.** Fotka otočená podle údaje EXIF se čte tak, jak se má dívat, nastojato; místa na ní
+  vyznačená (výřezy, poloviny dvoustrany, uložená část) jsou místa obrázku, jak se ukazuje. Fotka sama zůstává, jak
+  byla.
+- **Fotky HEIC a dokumenty PDF jdou přečíst.** Fotky HEIC z telefonu a stránky PDF se pro čtení převádějí na JPEG —
+  na macOS, Windows i Linuxu — a originál zůstává, jak přišel. Fotka HEIC jde do aplikace Strom jako výřez JPEG.
+  Kde obrázek na počítači nic nepřevede, řekne to jedna věta i s tím, co by pomohlo; `strom tidy` převedené obrázky
+  po 30 dnech nebo nad 500 MB uklidí.
+- **Jeden dokument přečtený naráz.** `strom document read` přečte fotku, sken nebo PDF jednoho dokumentu — zápis z
+  matriky, dopis, listinu, náhrobek, rub fotky: přepis slovo od slova, překlad, význam starých slov a zkratek a osoby,
+  které jmenuje, i s tím, kdo ze stromu to může být. Nic se nedomýšlí: jméno, které v dokumentu není, vypadne — i
+  příjmení, nikdy se nebere od otce ani z jiné rodiny —, co nejde přečíst, je označené; druhý čtenář může číst naslepo.
+  Dokument na úředním formuláři, jako rodný list, si své osoby ponechá — dítě i oba rodiče s jejich podílem, i jméno a
+  příjmení psané proloženě a rodné příjmení po „roz.“ —, a dokument přečtený dřív je po aktualizaci ukáže, aniž by se
+  četl znovu. U každé osoby a události je i místo na stránce, kde stojí, takže aplikace Strom ukáže výřez každé z nich.
+  Do stromu se z toho nic nezapíše samo. Dokument už přečtený to o sobě řekne, takže se omylem nečte podruhé. Dokument
+  čtený znovu se ukazuje pod názvem svého souboru, nikdy pod kódem. Dokument poslaný z aplikace Strom najde agenta
+  stejně jako terminál — i nainstalovaného do vlastní složky, přes npm nebo Homebrew — místo hlášení, že agent není
+  nastavený. Čte ho každý agent, se kterým výzkum pracuje, s modelem a úsilím nastaveným pro výzkum.
+- **Fotky z telefonu.** `strom phone on`, které zapíná jen člověk, pustí k počítači telefon v domácí síti (Wi-Fi
+  nebo kabel — nikdy mobilní síť ani VPN). Telefon se jednou spáruje přes QR kód; jeho stránka pak fotí nebo vybírá
+  z galerie a posílá fotky celé do stromu výzkumu, s poznámkou a osobou, kterou ukazují — stejně jako „Přidat
+  materiály“ v aplikaci Strom. Fotka zůstává v telefonu, dokud ji počítač nemá, takže přerušené spojení nic neztratí.
+- **Výzkum sledovaný z telefonu.** Stránka telefonu ukazuje, co výzkum dělá — na čem se teď pracuje, co čeká na
+  rozhodnutí, posledních 24 hodin a poslední změny, obnovené každých 10 sekund, dokud je stránka na očích — jen
+  k podívání: v telefonu se nic neodpovídá, nespouští ani nerozhoduje. Nedostupný počítač stránka řekne i s posledními
+  údaji a jejich časem. Otevře strom, jehož QR kód ji spároval, a jde přidat na plochu jako ikona, která ji otevře
+  bez nového párování. Co čeká a změny jdou na telefonu přečíst celé: text toho, co čeká, se neořezává, další položky
+  nad prvních 20 se donačtou klepnutím a změna s víc řádky se rozbalí celá; Co čeká je poslední částí stránky. Změna
+  starší než dnešek má u času i datum (rok jen u loňských a starších). Nálezy pod Teď ukazují, co výzkum našel od
+  posledního pohledu z telefonu (aspoň posledních 24 hodin, starší klepnutím) — nové osoby, prameny, nalezené, opravené
+  či nově doložené údaje, vyřešené rozpory — nové zvýrazněné; co přibude při otevřené stránce, ukáže jen počet
+  v názvu záložky a malý štítek.
+- **Souhlas v jednom jazyce, otázka i v terminálu.** Souhlas, který dává jen člověk (rozbalení výzkumu, odebrání
+  stromu, odmítnuté okno), zazní celý v jazyce výzkumu. Co otevírá počítač ven, stojí peníze nebo spouští cizí program
+  – Remote Control, stahovače bez ptaní, podmínka práce agenta o samotě, hook, vlastní tempo archivu, propojení s
+  telefonem, ladění čtení – se ptá ano/ne i v terminálu; Enter znamená ne a `--yes` za člověka neodpoví. Když se
+  `strom update` odmítne, řekne, že se nic nenainstalovalo a která verze zůstává, a skončí chybovým kódem; nepovedená
+  instalace se řekne také v jazyce výzkumu.
+- **Chybné jméno nebo poznámka odvolané.** `strom name retract` odvolá jméno špatně přečtené nebo přiřazené jinému
+  člověku, `strom note retract` poznámku a `strom note edit` ji opraví – u osoby, faktu i úkolu, vždy s důvodem; nic
+  se nemaže. Odvolané se už nikde neukazuje – ani agentovi, ani v GEDCOM, ani ve `strom find`, takže ho aplikace Strom
+  po načtení stromu neukáže a synchronizace ho nevrátí; `strom person show --history` řekne, co to bylo, kdy a proč, a
+  `strom name restore` nebo `strom note restore` ho vrátí.
+- **Opravy z hlášení.** Rozloučení nabídky řekne, jak strom spustit znovu i tam, kde okno terminálu příkaz ještě nezná
+  (po instalaci jedním řádkem: v novém okně `strom`, v tomto plná cesta; plná cesta i tam, kde se na jméno ozve dřív
+  jiný `strom`), a když most pro aplikaci Strom běží dál, řekne to i s tím, jak ho zastavit; výběr rodokmenu v nabídce
+  jde vrátit nulou. Most už nedrží složku rodokmenu, takže ji jde na Windows smazat, a sám skončí, když rodokmen zmizí
+  (rodokmen smaže `strom trees remove`). Konec stromu, kde křest neuvádí otce, je uzavřený, jakmile na něm nic neběží
+  – už nečeká natrvalo na rozhodnutí. Pramen přejmenovaný v aplikaci Strom se přejmenuje i ve výzkumu a signatura nebo
+  strana pramene přijde do aplikace k prameni samému („Signatura / strana“), i když ho zatím nic necituje. Emoji nebo
+  jiný vzácný znak, který soubor z aplikace Strom cestou poškodil (ukáže se jako ��), není přejmenování ani změna
+  poznámky: výzkum si nechá svůj text. Místo nebo jiný údaj delší než řádek souboru GEDCOM (255 bajtů) už nezastaví
+  jeho zápis a žádné emoji se nerozdělí tam, kde dlouhý řádek pokračuje. S `excerpts.for all` dostane v aplikaci Strom
+  výřez i pramen, který zatím nikdo necituje, pokud se vedle citovaných vejde do limitu – citované se kvůli němu
+  nezmenší; co se nevešlo, se řekne.
+
 ## 1.17.0
 
 *19. 10. 2026 · patří k aplikaci Strom 3.13.1.*

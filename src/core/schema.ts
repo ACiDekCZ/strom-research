@@ -218,6 +218,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     batch: S(),
     path: S({ max: 500 }),
     sorted: { t: "any" },
+    read: { t: "strings" },
   },
   media: {
     sha: S({ req: true }),

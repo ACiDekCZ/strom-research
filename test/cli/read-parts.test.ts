@@ -35,6 +35,10 @@ test("strom read over images registered only in parts: the fetch through the boo
     const mixed = await w.ok(["read", "B1", "--images", "1-5", "--whole", "--question", "Křty Nováků", "--agent", "script"]);
     assert.match(mixed.out, /^B0001: registered only in parts \(images 5\): readers need whole images, these are not read → strom fetch zkusebni 5359 --images 5 --recordset B0001$/m);
     assert.match(mixed.out, /▶ reader 1\/1: 2 images \(1–2\)/);
+    // an agent strom has no reader for: every agent of a research said, none preferred (found in 1.18.0: "works with Claude Code")
+    const none = await w.run(["read", "B1", "--images", "1-2", "--question", "Křty Nováků", "--agent", "nonesuch"]);
+    assert.equal(none.code, 2, none.err);
+    assert.match(none.err, /no reader for agent "nonesuch"\n→ strom read reads with claude, codex, antigravity, opencode, grok: strom read … --agent <one of them>\n/);
   } finally {
     w.cleanup();
     await a.close();

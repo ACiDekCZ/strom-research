@@ -85,7 +85,7 @@ test("a connector that worked before keeps working after the person's yes: a res
     assert.equal(sha(manifest), before, "connector.json untouched");
 
     // the person's own pace for the host comes before strom's 10 s (the service's stays the slowest)
-    await w.ok(["allow", "host", "127.0.0.1", "--pace", "5", "--per-hour", "120"], { tty: true });
+    await w.ok(["allow", "host", "127.0.0.1", "--pace", "5", "--per-hour", "120"], { tty: true, answers: ["y"] });
     const consents = await w.ok(["consents", "--json"]);
     const row = consents.json.archives.find((r: { host: string }) => r.host === "127.0.0.1");
     assert.equal(row.level, "restricted");
@@ -378,7 +378,7 @@ test("the window: two or three sentences — the terms with their address, the w
     assert.equal((await fetchOne(later)).json.asked, "menu");
     assert.equal(shown.length, 1);
     // a day later: the window again, with the person's own pace for the host
-    await w.ok(["allow", "host", "127.0.0.1", "--pace", "5", "--per-hour", "120"], { tty: true });
+    await w.ok(["allow", "host", "127.0.0.1", "--pace", "5", "--per-hour", "120"], { tty: true, answers: ["y"] });
     const dayLater = () => {
       const s = store(w);
       for (const p of s.pending) if (p.window) p.window = new Date(Date.now() - 25 * 3600_000).toISOString();

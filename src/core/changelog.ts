@@ -69,6 +69,8 @@ const SAID: Record<string, PhraseKey> = {
   "story.discard": "log.story.discard",
   "note.add": "log.note.add",
   "note.edit": "log.note.edit",
+  "note.retract": "log.note.retract",
+  "note.restore": "log.note.restore",
   "input.add": "log.input.add",
   "input.sync": "log.input.sync",
   "input.done": "log.input.done",
@@ -156,8 +158,48 @@ function kindOf(op: string): ChangeKind {
   return "other";
 }
 
-/** Lines of what a commit saved, in the research language, each with what it is about; its subject when it logged no operation. */
-export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string, was?: Tree): { text: string; kind: ChangeKind }[] {
+/** A fact of a person or a family as a person reads it ("narození: 3. 4. 1842, Sloup"); undefined when it is not there. */
+export function factSaid(tree: Tree, owner: string | undefined, eventId: string | undefined, lang: string): string | undefined {
+  const e = (owner ? tree.get<Person | Family>(owner) : undefined)?.events.find((x) => x.id === eventId);
+  if (!e) return undefined;
+  const f = cardFact(tree, e);
+  const what = [f.value, humanDate(f.date, lang), humanPlace(f.place, f.house, lang)].filter(Boolean).join(", ");
+  return `${eventName(f.kind, lang, f.label)}${what ? `: ${what}` : ""}`;
+}
+
+/** How many sources a line of the history names at most (the Strom app opens each from it). */
+export const LINE_SOURCES_MAX = 20;
+
+/** A source named by its ID in a summary of any script (never \b, which knows only ASCII letters). */
+const SOURCE_IN = /(?<![\p{L}\p{M}\p{N}])S\d+(?![\p{L}\p{M}\p{N}])/gu;
+
+/**
+ * The sources an operation is about, by the IDs the research has them under now: those it changed (its targets) and,
+ * a citation, those it cites or cites no more (its summary names them), a fact added, those it cites now — a source
+ * merged into another as that one.
+ */
+function sourcesOf(tree: Tree, o: Op): string[] {
+  const ids = o.targets.filter((t) => /^S\d+$/.test(t));
+  if (/\.cite$/.test(o.op)) ids.push(...(o.summary.match(SOURCE_IN) ?? []));
+  // a fact added: the sources it cites (as it stands now — what the app would open to check it)
+  if (o.op === "event.add") {
+    const owner = tree.get<Person | Family>(o.targets[0] ?? "");
+    const fact = owner?.events.find((e) => e.id === o.targets[1]);
+    if (fact && !fact.retracted) ids.push(...fact.citations.map((c) => c.source));
+  }
+  const now = ids.map((id) => {
+    let r = tree.get<Source>(id);
+    for (let hops = 0; r?.mergedInto && hops < 10; hops++) r = tree.get<Source>(r.mergedInto) ?? r;
+    return r?.id ?? id;
+  });
+  return [...new Set(now)].slice(0, LINE_SOURCES_MAX);
+}
+
+/**
+ * Lines of what a commit saved, in the research language, each with what it is about and the sources it names (for
+ * the Strom app to open them: /log `sources`); its subject when it logged no operation.
+ */
+export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string, was?: Tree): { text: string; kind: ChangeKind; sources?: string[] }[] {
   const get = <T extends AnyRecord>(id: string | undefined) => (id ? tree.get<T>(id) : undefined);
   const who = (id: string | undefined): string => {
     const r = get<Person | Family>(id);
@@ -208,13 +250,7 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
         return (r as { id: string }).id;
     }
   };
-  const fact = (owner: string | undefined, eventId: string | undefined, at: Tree = tree): string | undefined => {
-    const e = (owner ? at.get<Person | Family>(owner) : undefined)?.events.find((x) => x.id === eventId);
-    if (!e) return undefined;
-    const f = cardFact(at, e);
-    const what = [f.value, humanDate(f.date, lang), humanPlace(f.place, f.house, lang)].filter(Boolean).join(", ");
-    return `${eventName(f.kind, lang, f.label)}${what ? `: ${what}` : ""}`;
-  };
+  const fact = (owner: string | undefined, eventId: string | undefined, at: Tree = tree): string | undefined => factSaid(at, owner, eventId, lang);
 
   /** A fact as an operation's summary names it, its record gone since ("+E0274 BIRT P0076 MAR 1776 [probable]"). */
   const factOf = (summary: string): string | undefined => {
@@ -234,16 +270,22 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     return key ? phrase(lang, key, { who: who(first), name: name(first) }) : "";
   };
 
-  const out: { text: string; kind: ChangeKind }[] = [];
+  const out: { text: string; kind: ChangeKind; sources?: string[] }[] = [];
   let kind: ChangeKind = "other";
+  let cites: string[] = [];
   const say = (line: string) => {
-    if (line && !out.some((l) => l.text === line)) out.push({ text: line, kind });
+    if (!line) return;
+    const had = out.find((l) => l.text === line);
+    if (!had) out.push({ text: line, kind, ...(cites.length ? { sources: cites } : {}) });
+    // the same line of another operation: its sources too
+    else for (const id of cites) if (!had.sources?.includes(id) && (had.sources?.length ?? 0) < LINE_SOURCES_MAX) had.sources = [...(had.sources ?? []), id];
   };
   // Images downloaded: one line for each book, whatever their order.
   const images = new Map<string, number[]>();
   for (const o of ops) {
     if (QUIET.has(o.op)) continue;
     kind = kindOf(o.op);
+    cites = sourcesOf(tree, o);
     const [first, second] = o.targets;
     if (o.op === "media.add") {
       // a part of an image fetched sharper is no new scan: said as a part of its image, apart from the new scans
@@ -297,6 +339,11 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     if (o.op === "person.name" || o.op === "name.remove") {
       const m = o.op === "person.name" ? /^\S+ name (.+?)(?: \([\w-]+\))?(?: ← \S+)?$/.exec(o.summary) : /^\S+ name (.+?) removed[:,]/.exec(o.summary);
       say(m ? phrase(lang, o.op === "person.name" ? "log.name.add" : "log.name.remove", { name: m[1]!.replace(/\//g, " ").replace(/\s+/g, " ").trim(), who: who(first) }) : o.op === "person.name" ? phrase(lang, "log.person.name", { who: who(first) }) : changed(o));
+      continue;
+    }
+    if (o.op === "name.retract" || o.op === "name.restore") {
+      const m = /^\S+ name (.+?) (?:retracted|restored)(?:;|$)/.exec(o.summary);
+      say(m ? phrase(lang, o.op === "name.retract" ? "log.name.retract" : "log.name.restore", { name: m[1]!.replace(/\//g, " ").replace(/\s+/g, " ").trim(), who: who(first) }) : changed(o));
       continue;
     }
     if (o.op === "note.remove") {
@@ -375,8 +422,8 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     const key = SAID[o.op];
     say(key ? phrase(lang, key, { who: who(first), name: name(first) }) : changed(o));
   }
-  const lines = out.map(({ text: line, kind }) => {
-    if (!line.startsWith("\u0000media:")) return { text: line, kind };
+  const lines = out.map(({ text: line, kind, sources }) => {
+    if (!line.startsWith("\u0000media:")) return { text: line, kind, ...(sources ? { sources } : {}) };
     const key = line.slice("\u0000media:".length);
     const part = key.startsWith("part:");
     const book = key.slice(key.indexOf(":") + 1);

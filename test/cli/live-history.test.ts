@@ -11,7 +11,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
-import { history, HistoryCache } from "../../src/core/live.ts";
+import { history, HistoryCache, notWrittenOf } from "../../src/core/live.ts";
+import type { Change } from "../../src/core/sync.ts";
 
 const opts = { skip: !hasGit };
 const git = (cwd: string, args: string[]) => spawnSync("git", args, { cwd, encoding: "utf8" }).stdout.trim();
@@ -134,4 +135,28 @@ test("the bridge: /log as history gives it, the tree from the newest commit once
     await w.ok(["live", "stop"]);
   }
   w.cleanup();
+});
+
+test("bridge history: the sources each line names (/log sources) — a source added, a fact with the sources it cites — only when one does", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["research", "new", "Předci", "--new-person", "Jan /Novák/", "--sex", "M"]);
+  await w.ok(["source", "add", "Křest Jana — Ткач"]); // S0001
+  await w.ok(["event", "add", "P0001", "CHR", "--cite", "S0001"]);
+  await w.ok(["person", "add", "Žofie /Dvořáková/", "--sex", "F"]);
+  // the newest first: the person, the fact, the source
+  const log = history(w.cwd, Tree.open(w.cwd, w.env));
+  assert.match(log[0]!.text.join(), /Dvořáková/);
+  assert.equal(log[0]!.sources, undefined, "a line naming no source: no field");
+  assert.deepEqual(log[1]!.sources, [["S0001"]], JSON.stringify(log[1]));
+  assert.deepEqual(log[2]!.sources, [["S0001"]], JSON.stringify(log[2]));
+  w.cleanup();
+});
+
+test("a change not written says the source or the place it is about (notWritten[].source, .place)", () => {
+  const base = { n: 1, action: "report" as const };
+  assert.deepEqual(notWrittenOf({ ...base, kind: "source.title", source: "x:S12", sourceId: "S0003" } as Change), { source: "S0003" });
+  assert.deepEqual(notWrittenOf({ ...base, kind: "source.title", source: "x:S12" } as Change), { source: "@S12@" });
+  assert.deepEqual(notWrittenOf({ ...base, kind: "place.coords", place: { name: "Týnec nad Labem" } } as Change), { place: "Týnec nad Labem" });
+  assert.deepEqual(notWrittenOf({ ...base, kind: "fact.new", source: "x:S1" } as Change), {});
 });

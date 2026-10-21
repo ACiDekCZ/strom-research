@@ -22,8 +22,8 @@ import { fileURLToPath } from "node:url";
 import { betaFollows, npmPublishesTrusted, npmTagOf, npmTagsTrusted, publishOfTag, releaseKind, tarballRefusal } from "./npm-channel.ts";
 
 const NAME = "strom-research";
-/** How many times `after` asks npm again for the new version, 20 s apart: up to 10 minutes. */
-export const AFTER_TRIES = 30;
+/** How many times `after` asks npm again for the new version, 20 s apart: up to 20 minutes (1.18.0-beta.3: ~13). */
+export const AFTER_TRIES = 60;
 
 /** What npm knows of the package: its versions and dist-tags (asked anew, never from a cache). */
 export interface Registry {
@@ -134,7 +134,7 @@ function main(args: string[]): void {
   }
   if (step === "after" && a && b !== undefined) {
     // the registry shows a new version only once it is processed ("may take a few minutes", npm says; 1.17.0-beta.2
-    // took more than a minute): asked again every 20 s for up to 10 minutes
+    // took more than a minute, 1.18.0-beta.3 about 13): asked again every 20 s for up to 20 minutes
     let npm = registry();
     let state = afterState(a, b, npm);
     for (let i = 0; i < AFTER_TRIES && state === "wait"; i++) {

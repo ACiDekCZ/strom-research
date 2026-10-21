@@ -12,6 +12,7 @@ import { foldText } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { validateRecord } from "./validate.ts";
 import { normalizeDate } from "./gdate.ts";
+import { isRetractedName } from "./retractions.ts";
 import { appNoSurname, cleanTitle, gedcomName, noName, notAName, parseName, sameName, surnameAfterGiven, withoutTitles } from "./people.ts";
 import { update } from "./records.ts";
 import { now, type Tree } from "./tree.ts";
@@ -420,7 +421,8 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         factNotes(r, incoming);
         const facts = incoming.filter((e) => !knownFact(cur.events, e));
         result.events -= incoming.length - facts.length;
-        const names = namesOf(r).filter((n) => n.given !== "?" && !cur.names.some((x) => sameName(x, n)));
+        // a name the research took back is not taken again from a file that still has it
+        const names = namesOf(r).filter((n) => n.given !== "?" && !cur.names.some((x) => sameName(x, n)) && !isRetractedName(cur, n));
         if (!facts.length && !names.length) continue;
         const next: Person = { ...cur, names: [...cur.names, ...names], events: [...cur.events, ...facts], refs: [...(cur.refs ?? []), { system, id: r.xref! }], updated: now() };
         const what = [...facts.map((e) => [e.kind, e.date].filter(Boolean).join(" ")), ...names.map((n) => `name ${[n.given, n.surname].filter(Boolean).join(" ")}`)].join(", ");
@@ -594,7 +596,7 @@ export function marriedNamesPlan(tree: Tree, input: Input, text: string): Marrie
       continue;
     }
     for (const name of married) {
-      const had = p.names.some((n) => sameName(n, name)) || plan.add.some((a) => a.person === p.id && sameName(a.name, name));
+      const had = p.names.some((n) => sameName(n, name)) || isRetractedName(p, name) || plan.add.some((a) => a.person === p.id && sameName(a.name, name));
       (had ? plan.have : plan.add).push({ person: p.id, xref: r.xref!, name });
     }
   }

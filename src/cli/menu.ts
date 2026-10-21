@@ -19,9 +19,10 @@ const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { BACKUP_SAID_DAYS, lastBackup } from "../core/backup.ts";
 import { lastBackupLine } from "./backups.ts";
-import { diskVersion } from "../core/self.ts";
+import { diskVersion, installation } from "../core/self.ts";
 import { liveHolder } from "../core/lock.ts";
-import { reviveLive } from "../core/live.ts";
+import { liveRunning, reviveLive } from "../core/live.ts";
+import { revivePhone } from "../core/phone.ts";
 import { newerVersion } from "../core/update.ts";
 import { taskQueue } from "../commands/tasks.ts";
 import { humanTask } from "../commands/browse.ts";
@@ -39,7 +40,8 @@ import type { Person, Research } from "../core/model.ts";
 import { displayName } from "../core/people.ts";
 import { agentReady, droppedPaths, guarded, pause as partsPause, pickPerson, subMenu, type Item, type Run } from "./menu-parts.ts";
 import { packPlan } from "../core/pack.ts";
-import { expandHome, isolated } from "../core/paths.ts";
+import { expandHome, isolated, ownCommand } from "../core/paths.ts";
+import { pathOf, startAgain } from "../core/userpath.ts";
 import { offerAgent } from "./fixes.ts";
 import { addToResearch } from "./menu-research.ts";
 import { waitingForYou, waitingHere } from "./menu-waiting.ts";
@@ -160,6 +162,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         revived.add(root);
         try {
           reviveLive(root, ctx.env);
+          revivePhone(ctx.env);
         } catch {
           // its next start brings it back
         }
@@ -379,10 +382,36 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
     if (i === undefined) return;
     const quit = await guarded(ctx, lang, items[i]!.act);
     if (quit === true || quit === "quit") {
-      out(t("ui.menu.bye"));
+      out(byeLine(ctx, t));
+      // the Strom app's bridge goes on in the background after the menu: said only while it runs (nothing started to ask)
+      if (root && liveRunning(root)) out(t("ui.menu.bye.live"));
       return;
     }
   }
+}
+
+/**
+ * The goodbye: how to start strom again in this terminal (core/userpath.ts startAgain) — its name where the terminal
+ * knows it, else that a new window does and the full path for this one.
+ */
+function byeLine(ctx: Context, t: (key: UIKey, values?: Record<string, string | number>) => string): string {
+  const inst = installation();
+  const how = startAgain({
+    platform: process.platform,
+    given: ctx.givenPath ?? pathOf(ctx.env),
+    installer: ctx.env.STROM_INSTALLER === "1",
+    launchers: inst.kind === "installed" ? (inst.launchers ?? []) : [],
+    command: ownCommand(ctx.env) ?? "strom",
+    isolated: isolated(ctx.env) && !ownCommand(ctx.env),
+    found: (file) => {
+      try {
+        return fs.statSync(file).isFile();
+      } catch {
+        return false;
+      }
+    },
+  });
+  return how.kind === "name" ? t("ui.menu.bye") : t(how.kind === "new" ? "ui.menu.bye.new" : "ui.menu.bye.path", { path: how.path });
 }
 
 /** How many tasks of the queue the menu lists before the agent works alone. */
@@ -498,7 +527,7 @@ async function openStromApp(ctx: Context, run: Run, lang: string, said: boolean)
   await run(["app"]);
 }
 
-/** Choose another family tree, or create a new one (and start its research). The one worked on now is suggested; 0 stays with it. */
+/** Choose another family tree, or create a new one (and start its research). The one worked on now is suggested; 0 (and, with none chosen yet, Enter) goes back. */
 async function pickTree(ctx: Context, run: Run, lang: string): Promise<void> {
   const known = ctx.knownTrees();
   let here: string | undefined;
@@ -518,8 +547,10 @@ async function pickTree(ctx: Context, run: Run, lang: string): Promise<void> {
   const packAt = at >= 0 ? options.push({ label: ui(lang, "ui.trees.pack", { name: known[at]!.name }) }) - 1 : -1;
   const unpackAt = options.push({ label: ui(lang, "ui.trees.unpack") }) - 1;
   const removeAt = known.length ? options.push({ label: ui(lang, "ui.trees.remove") }) - 1 : -1;
-  const back = at >= 0 ? { back: ui(lang, "ui.back.stay", { name: known[at]!.name }) } : {};
-  const i = await ctx.choose(ui(lang, "ui.trees.pick"), options, Math.max(0, at), back);
+  // 0 always goes back: stays with the one worked on, or (none chosen yet) back to the menu — Enter too (found on
+  // Windows: one who came here by Enter had to choose a tree)
+  const back = { back: at >= 0 ? ui(lang, "ui.back.stay", { name: known[at]!.name }) : ui(lang, "ui.browse.back") };
+  const i = await ctx.choose(ui(lang, "ui.trees.pick"), options, at >= 0 ? at : options.length, back);
   if (i === undefined || i === at) return;
   if (i < known.length) {
     await run(["trees", "use", known[i]!.root], true);

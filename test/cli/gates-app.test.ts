@@ -10,7 +10,7 @@ import { opts, agent, world } from "./gates.helpers.ts";
 
 test("--loop without a gate works while there is work; --no-gate goes round it", opts, async () => {
   const w = await world([{ code: 2, say: { reason: "ne" } }]);
-  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   const r = await w.ok(["run", "--agent", "script", "--loop", "--no-gate", "--json"]);
   assert.equal(r.json.stop, "empty", "on until the queue is empty");
   assert.ok(r.json.sessions.length >= 3);
@@ -21,10 +21,10 @@ test("--loop without a gate works while there is work; --no-gate goes round it",
 
 test("the gate is the user's: an agent neither sets, removes nor goes round it; a gate that is not there is said at once", opts, async () => {
   const w = await world([]);
-  const bad = await w.run(["config", "set", "run.gate", "nikde"], { tty: true });
+  const bad = await w.run(["config", "set", "run.gate", "nikde"], { tty: true, answers: ["y"] });
   assert.notEqual(bad.code, 0);
   assert.match(bad.err, /no gate "nikde"/);
-  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   w.env.CLAUDECODE = "1";
   for (const args of [["config", "unset", "run.gate"], ["config", "set", "run.gate", "claude-usage"], ["run", "--agent", "script", "--no-gate"], ["config", "set", "agent.remote", "on"]]) {
     const r = await w.run(args);
@@ -46,7 +46,7 @@ test("the menu offers working on while the gate allows it — only with a gate s
   Object.assign(w.env, { STROM_AGENT: "script" });
   const without = await w.ok([], { tty: true, answers: ["2", "0", "0"] });
   assert.doesNotMatch(without.out, /dovolí to podmínka/);
-  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   const r = await w.ok([], { tty: true, answers: ["2", "3", "", "0"] });
   assert.match(r.out, /3 {2}Nechat ho pracovat, dokud je co dělat a dovolí to podmínka „Zkouška“/);
   assert.match(r.out, /podmínka „Zkouška“ řekla dost — stačí/);
@@ -100,7 +100,7 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
   assert.ok(Math.abs(Date.parse(full.until) - (soon.getTime() + 60_000)) <= 1, full.until);
   // the number reaches it from run.gate
   usage(10, 30);
-  await w.ok(["config", "set", "run.gate", "claude-usage   20"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "claude-usage   20"], { tty: true, answers: ["y"] });
   assert.equal((await w.ok(["config", "get", "run.gate"])).out.trim(), "claude-usage 20");
   assert.equal((await w.ok(["gate", "test", "--json"])).json.verdict, "wait");
   assert.equal((await ask("claude-usage x")).verdict, "stop", "not a number");
@@ -119,7 +119,7 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
 
 test("a run waiting for its gate is paused, not at work: the Strom app hears until when and why", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = await world([{ code: 1, say: { reason: "týden je z 92 % pryč", wait: 7200 } }]);
-  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   // a real run (a signal reaches it, not the test runner), waiting for the gate
   const child = spawn(process.execPath, [path.join(import.meta.dirname, "..", "..", "src", "cli.ts"), "run", "--agent", "script", "--loop"], { cwd: w.cwd, env: w.env, stdio: "ignore" });
   const exited = new Promise((resolve) => child.on("exit", resolve));
@@ -150,12 +150,12 @@ test("a run waiting for its gate is paused, not at work: the Strom app hears unt
 
 test("the Strom app follows a run from its first session on — never while the gate holds it back", opts, async () => {
   const w = await world([{ code: 2, say: { reason: "týden je pryč" } }]);
-  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   const held = await w.ok(["run", "--agent", "script", "--loop", "--follow"]);
   assert.match(held.out + held.err, /podmínka „Zkouška“ řekla dost/);
   assert.doesNotMatch(held.out + held.err, /Aplikace Strom/, "no session: the app not opened");
   // sessions: the app opened once, as the first began (a test opens nothing for real)
-  const r = await w.ok(["run", "--agent", "script", "--max", "2", "--no-gate", "--follow"], { tty: true });
+  const r = await w.ok(["run", "--agent", "script", "--max", "2", "--no-gate", "--follow"], { tty: true, answers: ["y"] });
   const said = r.out + r.err;
   assert.equal(said.match(/Aplikace Strom se otevřela/g)?.length, 1, said);
   assert.ok(said.indexOf("Aplikace Strom se otevřela") < said.indexOf("▶ N0001"), said);

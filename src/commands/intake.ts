@@ -10,6 +10,7 @@ import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { counted, lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
+import { readingsLine, readingsOf } from "../core/readsync.ts";
 import { notFound, UsageError } from "../core/errors.ts";
 import type { Input, Name, Person, Research, Task } from "../core/model.ts";
 import { collectFiles, fileSha256, inputPath, MAX_IN_TREE, mimeOf, storeShared } from "../core/media.ts";
@@ -258,8 +259,9 @@ register(
       const all = ctx.tree().list<Input>("input").filter((i) => !opts.state || i.state === opts.state);
       const page = paginate(all, ctx.limit, ctx.page);
       return {
-        text: all.length ? lines(table(page.items.map((i) => [i.id, i.kind, i.state, truncate(i.name, 60)])), moreLine(page, "strom input list")) : 'no inputs → strom intake <files or folder>',
-        data: { total: all.length, inputs: opts.full ? page.items : page.items.map((i) => ({ id: i.id, kind: i.kind, state: i.state, name: i.name })) },
+        // a file read already (strom document read) says so: its reading, not read again
+        text: all.length ? lines(table(page.items.map((i) => [i.id, i.kind, i.state, truncate(i.name, 60), i.read?.length ? `read ${i.read[i.read.length - 1]} (strom readings ${i.read[i.read.length - 1]})` : ""])), moreLine(page, "strom input list")) : 'no inputs → strom intake <files or folder>',
+        data: { total: all.length, inputs: opts.full ? page.items : page.items.map((i) => ({ id: i.id, kind: i.kind, state: i.state, name: i.name, ...(i.read?.length ? { read: i.read } : {}) })) },
       };
     },
   },
@@ -283,15 +285,16 @@ register(
         i.sorted ? `sorted ${i.sorted.as}${i.sorted.source ? ` → ${i.sorted.source}` : ""}${i.sorted.reason ? ` (${i.sorted.reason})` : ""}` : undefined,
         i.mime ? `type   ${i.mime}${i.size !== undefined ? ` · ${Math.round(i.size / 1024)} kB` : ""}` : undefined,
         i.imported ? `import ${i.imported.persons} persons, ${i.imported.families} families as leads, cited as ${i.source}` : undefined,
+        i.read?.length ? `read   ${readingsLine(tree, i)}` : undefined,
         i.text ? `\n${i.text}` : undefined,
         !i.text && i.kind === "text" && abs && fs.existsSync(abs) && (i.size ?? 0) < 20_000 && /\.(txt|md|csv)$/i.test(abs) ? `\n${fs.readFileSync(abs, "utf8").trim()}` : undefined,
         tasks.length ? `\ntasks\n${table(tasks.map((t) => [`  ${t.id}`, t.state, truncate(t.what, 60)]))}` : undefined,
         ...i.notes.map((n) => `note   ${n.text}`),
-        i.kind === "document" && abs
+        i.kind === "document" && abs && !readingsOf(tree, i).some((r) => r.state === "done")
           ? `\nread the file (a big image: strom media view ${i.id} --grid, then --crop), then record what it says: strom source add … --input ${i.id}`
           : undefined,
       );
-      return { text, data: { input: i, path: abs, tasks: tasks.map((t) => t.id) } };
+      return { text, data: { input: i, path: abs, tasks: tasks.map((t) => t.id), ...(i.read?.length ? { readings: readingsOf(tree, i) } : {}) } };
     },
   },
   {

@@ -184,8 +184,8 @@ export function permissionPath(abs: string): string {
 }
 
 /** What strom keeps in its settings folder that no agent reads or edits: the seal keys, the person's settings,
- * consents, permissions, logins. */
-const SETTINGS_KEPT = ["keys", "config.json", "consents.json", "archives.json", "logins.json", "agents-taught.json", "shortcut"];
+ * consents, permissions, logins, the phone's connection and the phones paired. */
+const SETTINGS_KEPT = ["keys", "config.json", "consents.json", "archives.json", "logins.json", "agents-taught.json", "shortcut", "phone.json", "phones.json", "phone-run.json", "phone-ask.json"];
 
 /**
  * The parts of strom's settings folder kept from the agents, each with whether it is a folder. The whole folder —

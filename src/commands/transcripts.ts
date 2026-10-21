@@ -14,6 +14,9 @@ import { UsageError } from "../core/errors.ts";
 import { EXCERPT_SCOPES, type ExcerptScope, type Input, type Media, type Source } from "../core/model.ts";
 import { normId, requireRecord, update } from "../core/records.ts";
 import { makeView } from "../core/views.ts";
+import { readableFile } from "../core/readable.ts";
+import { fileToShown } from "../image/image.ts";
+import { exifOrientation } from "../image/index.ts";
 import { inputPath, regionText, sharperPart } from "../core/media.ts";
 import { SCOPE_MAX, sourceNearness, withMargin } from "../core/excerpt.ts";
 import { batches, READER_MINUTES_HELP } from "../core/reader.ts";
@@ -76,11 +79,23 @@ register({
           const sharper = sharperPart(all, m, wanted);
           const src = sharper?.part ?? m;
           const file = path.join(shared, src.file);
-          return /^image\/(jpeg|png)$/.test(src.mime) && fs.existsSync(file) ? [{ media: m.id, file, crop: regionText(sharper?.crop ?? wanted) }] : [];
+          // a clip is kept as the file lies; the reader's view is upright
+          return /^image\/(jpeg|png)$/.test(src.mime) && fs.existsSync(file) ? [{ media: m.id, file, crop: regionText(fileToShown(sharper?.crop ?? wanted, exifOrientation(file))) }] : [];
         });
       const input = s.input ? tree.get<Input>(s.input) : undefined;
       const file = input ? inputPath(tree, input) : undefined;
-      return input && file && /\.(jpe?g|png)$/i.test(file) && fs.existsSync(file) ? [{ media: input.id, file }] : [];
+      return input && file && fs.existsSync(file) && readable(file) ? [{ media: input.id, file }] : [];
+    };
+    /** A JPEG or PNG, or a HEIC photo or a PDF this computer converts for reading (its first page). */
+    const readable = (file: string): boolean => {
+      if (/\.(jpe?g|png)$/i.test(file)) return true;
+      if (!/\.(heic|heif|pdf)$/i.test(file)) return false;
+      try {
+        readableFile(tree.root, file, { env: ctx.env });
+        return true;
+      } catch {
+        return false;
+      }
     };
     let todo = tree
       .list<Source>("source")

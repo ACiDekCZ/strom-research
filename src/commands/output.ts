@@ -17,7 +17,7 @@ import { UsageError } from "../core/errors.ts";
 import { excerptSettings, planExcerpts, type ExcerptReport } from "../core/excerpt.ts";
 import { runGit, tracked } from "../core/git.ts";
 import { Settings } from "../core/config.ts";
-import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsSourceReads, appShowsFactStatus, appShowsStoryDrafts, appTurnsExcerpts } from "../core/stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsReadings, appShowsOmittedImages, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsSourceReads, appShowsFactStatus, appShowsStoryDrafts, appTurnsExcerpts } from "../core/stromapp.ts";
 import { EXCERPT_QUALITIES, EXCERPT_SCOPES, type ExcerptQuality, type ExcerptScope } from "../core/model.ts";
 import { ui } from "../cli/ui.ts";
 import { isAgent } from "../core/which.ts";
@@ -107,7 +107,11 @@ export function writeTreeGed(
   const hypothesisLinks = opts.for === "strom" && appShowsHypothesisLinks(new Settings(tree.env, {}), opts.stromVersion);
   // …and the sides of a conflict of the user's edit, for an app that decides it
   const conflictSides = opts.for === "strom" && appDecidesConflicts(new Settings(tree.env, {}), opts.stromVersion);
-  const result = exportGedcom(tree, { for: opts.for, stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}) });
+  // …and the reading of a document each source is an entry of, for an app that opens it
+  const readings = opts.for === "strom" && appShowsReadings(new Settings(tree.env, {}), opts.stromVersion);
+  // …and why a source has no image though the research has one, for an app that says so and asks for it
+  const omitted = !!images && appShowsOmittedImages(new Settings(tree.env, {}), opts.stromVersion);
+  const result = exportGedcom(tree, { for: opts.for, stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(omitted ? { omitted: images.omitted } : {}) });
   const findings = validateGedcom(result.text, opts.for === "standard" ? { strict: true } : {});
   const file = opts.out ?? gedFile(tree, opts.for, opts.research);
   if (!hasGedErrors(findings) && !tree.dryRun) {
@@ -134,7 +138,9 @@ export function imagesLines(r: ExcerptReport, images: { for: ExcerptScope; mb: n
     ui(lang, "ui.export.images", { excerpts: r.excerpts, sources: r.sources, size: mbIn(r.bytes, lang), level: qualityIn(r.level, lang) }),
     r.level !== r.asked ? ui(lang, "ui.export.images.smaller", { mb: numberIn(lang, images.mb, { maximumFractionDigits: 3, useGrouping: false }), level: qualityIn(r.level, lang), asked: qualityIn(r.asked, lang) }) : undefined,
     r.dropped.length ? ui(lang, "ui.export.images.dropped", { mb: numberIn(lang, images.mb, { maximumFractionDigits: 3, useGrouping: false }), n: r.dropped.length, ids: few(r.dropped) }) : undefined,
+    r.uncitedLeft.length ? ui(lang, "ui.export.images.uncited", { mb: numberIn(lang, images.mb, { maximumFractionDigits: 3, useGrouping: false }), n: r.uncitedLeft.length, ids: few(r.uncitedLeft) }) : undefined,
     r.outOfScope ? ui(lang, "ui.export.images.scope", { n: r.outOfScope, for: images.for }) : undefined,
+    images.for !== "all" && r.uncited ? ui(lang, "ui.export.images.uncitedOut", { n: r.uncited }) : undefined,
     r.missing.length ? ui(lang, "ui.export.images.missing", { ids: few(r.missing) }) : undefined,
     r.unclipped.length ? ui(lang, "ui.export.images.unclipped", { ids: few(r.unclipped) }) : undefined,
     r.later.length ? ui(lang, "ui.export.images.later", { n: r.later.length }) : undefined,
@@ -177,15 +183,17 @@ register(
       "quality of each citation's evidence; leads say so in a note; retracted and disproven facts are left out;\n" +
       "of several facts of a kind the best supported comes first. Which files: --for or the setting gedcom.for.\n" +
       "The Strom file carries each entry cut out of its scan (the sources' clips; the settings excerpts.*, excerpts.for\n" +
-      "none: without) and stays out of the tree's history — the history keeps the standard file.",
+      "none: without) and stays out of the tree's history — the history keeps the standard file. The entries nobody\n" +
+      "cites only with --images-for all: after the cited ones, where they still fit under the limit (the cited never\n" +
+      "made smaller for them).",
     options: [
       { name: "for", type: "string", value: "<reader>", description: "standard (any program), strom (the Strom app) or both (default: the setting gedcom.for, both)" },
       { name: "research", type: "string", value: "<G…>", description: "only the people of one research (focus, ancestors, partners)" },
       { name: "out", type: "string", value: "<file>", description: "write here instead of output/ (with --for standard or strom)" },
       { name: "images", type: "boolean", description: "the Strom file with the entries' images (the default; kept for older scripts)" },
       { name: "images-quality", type: "string", value: "<q>", description: "small (1000 px, grey), normal, sharp (1600 px) — default: the setting excerpts.quality (normal)" },
-      { name: "images-for", type: "string", value: "<whose>", description: "none, line, family, connected or all — default: the setting excerpts.for (family: the ancestors and their families)" },
-      { name: "images-max-mb", type: "string", value: "<n>", description: "limit of all excerpts together — over it smaller, then the farthest left out (default: the setting excerpts.mb, 200)" },
+      { name: "images-for", type: "string", value: "<whose>", description: "none, line, family, connected or all (every source with an excerpt) — default: the setting excerpts.for (family: the ancestors and their families)" },
+      { name: "images-max-mb", type: "string", value: "<n>", description: "limit of all excerpts together — over it smaller, then the farthest left out; with all, the entries nobody cites only where there is room (default: the setting excerpts.mb, 200)" },
     ],
     examples: ["strom export gedcom", "strom export gedcom --research G0001", "strom export gedcom --for standard --out ~/Desktop/novak.ged", "strom export gedcom --for strom --images-for all"],
     run(ctx, { opts }) {

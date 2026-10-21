@@ -58,6 +58,12 @@ export interface RunOptions {
   clean?: boolean;
   /** A reader (strom read, clips, transcripts): it opens the views it is given and writes its report — nothing else. */
   reader?: boolean;
+  /**
+   * A reader's files: the views it opens and the report it writes. Claude Code is fenced to them by its settings file;
+   * Codex and OpenCode by their own switches (Codex's sandbox writes the report's folder alone, OpenCode's rules allow
+   * these files alone) — found live: Codex's sandbox refused the report outside the folder the reader works in.
+   */
+  readerFiles?: { views: string[]; report: string };
   /** What the agent may do without asking (the user's setting agent.permissions). */
   permissions?: AgentPermissions;
   /** The shared folder (inbox, plugins): a workspace folder of the agent besides the tree. */

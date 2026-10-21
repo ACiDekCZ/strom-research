@@ -5,6 +5,78 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.18.0
+
+*21.10.2026 · gehört zur Strom-App 3.14.0.*
+
+- **Handyfotos aufrecht.** Ein Foto, das nach seiner EXIF-Ausrichtung gedreht ist, wird gelesen, wie es gesehen
+  werden soll, aufrecht; die darauf markierten Stellen (Ausschnitte, die Hälften einer Doppelseite, ein gespeicherter
+  Teil) sind die des Bildes, wie es gezeigt wird. Das Foto selbst bleibt, wie es war.
+- **HEIC-Fotos und PDF-Dokumente lesbar.** HEIC-Fotos vom Handy und die Seiten einer PDF werden zum Lesen in JPEG
+  umgewandelt — unter macOS, Windows und Linux —, das Original bleibt, wie es kam. Ein HEIC-Foto geht als
+  JPEG-Ausschnitt in die Strom-App. Wo nichts auf dem Computer ein Bild umwandelt, sagt es ein Satz, auch was helfen
+  würde; `strom tidy` räumt umgewandelte Bilder nach 30 Tagen oder über 500 MB weg.
+- **Ein Dokument auf einmal gelesen.** `strom document read` liest ein Foto, einen Scan oder eine PDF eines Dokuments —
+  einen Matrikeleintrag, einen Brief, eine Urkunde, einen Grabstein, die Rückseite eines Fotos: die Abschrift Wort für
+  Wort, ihre Übersetzung, was alte Wörter und Abkürzungen bedeuten, und die genannten Personen, samt wem im Stammbaum
+  sie entsprechen können. Nichts wird ergänzt: ein Name, der nicht im Dokument steht, fällt weg — auch ein Nachname, nie
+  vom Vater oder aus einer anderen Familie genommen —, Unleserliches wird markiert; ein zweiter Leser kann blind lesen.
+  Ein Dokument auf einem amtlichen Formular, etwa eine Geburtsurkunde, behält seine Personen — das Kind und beide Eltern
+  mit ihrem Anteil, auch ein gesperrt getippter Name und ein Geburtsname nach „geb.“ —, und ein früher gelesenes
+  Dokument zeigt sie nach dem Update, ohne erneut gelesen zu werden. Jede Person und jedes Ereignis kommt mit der Stelle
+  auf der Seite, an der es steht, so zeigt die Strom-App von jedem
+  einen eigenen Ausschnitt.
+  In den Stammbaum gelangt nichts von selbst. Ein schon gelesenes Dokument sagt es, so wird es nicht versehentlich ein
+  zweites Mal gelesen. Ein erneut gelesenes Dokument wird unter dem Namen seiner Datei gezeigt, nie unter einem Code.
+  Ein aus der Strom-App gesendetes Dokument findet den Agenten wie das Terminal — auch einen in einem eigenen Ordner,
+  über npm oder Homebrew installierten —, statt zu melden, es sei kein Agent eingerichtet. Jeder Agent, mit dem die
+  Forschung arbeitet, liest es, mit dem Modell und dem Aufwand, die für die Forschung eingestellt sind.
+- **Fotos vom Handy.** `strom phone on`, das nur ein Mensch einschaltet, lässt ein Handy im Heimnetz (WLAN oder
+  Kabel — nie ein Mobilfunknetz oder ein VPN) zu diesem Computer. Das Handy wird einmal per QR-Code gekoppelt; seine
+  Seite fotografiert dann oder wählt aus der Galerie und schickt die Fotos ganz in einen Stammbaum der Forschung, mit
+  einer Notiz und der Person, die sie zeigen — wie „Materialien hinzufügen“ in der Strom-App. Ein Foto bleibt auf dem
+  Handy, bis der Computer es hat, so geht bei einer unterbrochenen Verbindung nichts verloren.
+- **Die Forschung vom Handy aus verfolgt.** Die Seite des Handys zeigt, was die Forschung tut — woran gerade
+  gearbeitet wird, was auf eine Entscheidung wartet, die letzten 24 Stunden und die letzten Änderungen, alle 10
+  Sekunden aufgefrischt, solange die Seite angesehen wird — nur zum Ansehen: auf dem Handy wird nichts beantwortet,
+  gestartet oder entschieden. Ein unerreichbarer Computer wird gesagt, mit den letzten Daten und ihrer Zeit. Die Seite
+  öffnet den Stammbaum, dessen QR-Code sie gekoppelt hat, und lässt sich als Symbol auf den Home-Bildschirm legen,
+  das sie ohne neues Koppeln öffnet. Was wartet und die Änderungen lassen sich auf dem Handy ganz lesen: kein Text
+  dessen, was wartet, wird gekürzt, mehr als die ersten 20 kommen auf Antippen, eine Änderung mit vielen Zeilen klappt
+  ganz auf; Was wartet ist der letzte Teil der Seite. Eine Änderung vor heute hat bei der Uhrzeit auch ihr Datum (das
+  Jahr nur, wenn es nicht das laufende ist). Funde unter Jetzt zeigen, was die Forschung seit dem letzten Blick vom
+  Handy gefunden hat (mindestens die letzten 24 Stunden, ältere auf Antippen) — neue Personen, Quellen, gefundene,
+  korrigierte oder neu belegte Angaben, geklärte Widersprüche —, die neuen hervorgehoben; was bei offener Seite
+  hinzukommt, zeigt nur eine Zahl im Titel des Tabs und ein kleines Etikett.
+- **Eine Zustimmung in einer Sprache, auch im Terminal gefragt.** Eine Zustimmung, die nur ein Mensch gibt (eine
+  Forschung entpacken, einen Stammbaum entfernen, ein abgelehntes Fenster), steht ganz in der Sprache der Forschung.
+  Was den Computer nach außen öffnet, Geld kostet oder ein fremdes Programm startet – Remote Control, Downloader ohne
+  Rückfrage, die Bedingung für den Agenten allein, ein Hook, ein eigenes Tempo eines Archivs, die Verbindung mit dem
+  Telefon, das Abstimmen des Lesens – fragt auch im Terminal Ja oder Nein; Enter heißt Nein, `--yes` antwortet nie
+  dafür. Wird `strom update` abgelehnt, sagt es, dass nichts installiert wurde und welche Version bleibt, und endet
+  mit einem Fehlercode; eine misslungene Installation wird auch in der Sprache der Forschung gesagt.
+- **Ein falscher Name oder eine falsche Notiz zurückgezogen.** `strom name retract` zieht einen falsch gelesenen oder
+  der falschen Person gegebenen Namen zurück, `strom note retract` eine Notiz, und `strom note edit` berichtigt eine –
+  bei einer Person, einem Fakt oder einer Aufgabe, jeweils mit Grund; nichts wird gelöscht. Was zurückgezogen ist,
+  zeigt sich nirgends mehr – nicht dem Agenten, nicht im GEDCOM oder in `strom find`, so dass die Strom-App es nach
+  dem Laden des Stammbaums nicht mehr zeigt und ein Abgleich es nie zurückbringt; `strom person show --history` sagt,
+  was es war, wann und warum, und `strom name restore` oder `strom note restore` holt es zurück.
+- **Korrekturen aus Meldungen.** Der Abschied des Menüs sagt, wie strom wieder startet, wo das Terminalfenster den
+  Befehl noch nicht kennt (nach der Installation mit einer Zeile: `strom` in einem neuen Fenster, in diesem der volle
+  Pfad; der volle Pfad auch, wo zuerst ein anderes `strom` auf den Namen antwortet), und sagt, wenn die Brücke für die
+  Strom-App weiterläuft, auch, wie sie zu beenden ist; die Wahl des Stammbaums im Menü geht mit 0 zurück. Die Brücke
+  hält den Ordner des Stammbaums nicht mehr fest, so dass Windows ihn löschen kann, und endet von selbst, sobald der
+  Stammbaum weg ist (einen Stammbaum löscht `strom trees remove`). Ein Ende des Baums, wo die Taufe keinen Vater
+  nennt, ist ein geschlossenes Ende, sobald nichts mehr daran läuft – es wartet nicht mehr für immer auf eine
+  Entscheidung. Eine in der Strom-App umbenannte Quelle heißt auch in der Forschung neu, und Signatur oder Seite einer
+  Quelle kommen in der App bei der Quelle selbst an, auch bevor etwas sie zitiert. Ein Emoji oder ein anderes seltenes
+  Zeichen, das die Datei der Strom-App unterwegs beschädigt hat (als �� zu sehen), ist keine Umbenennung und keine
+  geänderte Notiz: Die Forschung behält ihren Text. Ein Ort oder ein anderer Wert, länger als eine Zeile der
+  GEDCOM-Datei (255 Bytes), hält das Schreiben der Datei nicht mehr auf, und kein Emoji wird dort geteilt, wo eine
+  lange Zeile weitergeht. Mit `excerpts.for all` bekommt auch eine Quelle, die noch niemand zitiert, in der Strom-App
+  ihren Ausschnitt, soweit er neben den zitierten unter die Grenze passt – die zitierten werden dafür nie kleiner; was
+  nicht passte, wird gesagt.
+
 ## 1.17.0
 
 *19.10.2026 · gehört zur Strom-App 3.13.1.*

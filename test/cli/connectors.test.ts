@@ -398,7 +398,7 @@ test("consents off (the default): a connector runs at once — code that goes ro
   }
   assert.equal((await w.run(["config", "set", "connectors.consent", "off"])).code, 4, "not without a terminal");
   assert.equal((await w.ok(["config", "get", "connectors.consent"])).out.trim(), "on");
-  assert.equal((await w.run(["config", "set", "connectors.consent", "off"], { tty: true })).code, 0, "the user, in their terminal");
+  assert.equal((await w.run(["config", "set", "connectors.consent", "off"], { tty: true, answers: ["y"] })).code, 0, "the user, in their terminal");
   assert.equal((await w.ok(["config", "get", "connectors.consent"])).out.trim(), "off");
   w.cleanup();
   agent.cleanup();

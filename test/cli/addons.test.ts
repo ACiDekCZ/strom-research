@@ -11,8 +11,9 @@ import { World, fakeConnector, hasGit, readJsonFile } from "../helpers.ts";
 import { claudeArgs, cleanTools, headlessEnv, missingTools, READER_TOOLS, RUN_DISALLOWED, RUN_TOOLS } from "../../src/runners/claude.ts";
 import { CODEX_CLEAN, codexArgs, codexResumeArgs } from "../../src/runners/codex.ts";
 import { GROK_CLEAN, grokArgs, grokEnv } from "../../src/runners/grok.ts";
-import { opencodeArgs } from "../../src/runners/opencode.ts";
-import { antigravityArgs } from "../../src/runners/antigravity.ts";
+import { OPENCODE_READER_AGENT, opencodeArgs, opencodeReaderArgs, opencodeReaderConfig } from "../../src/runners/opencode.ts";
+import { addReaderAnswer, antigravityArgs, antigravityReaderArgs, antigravityReaderNote } from "../../src/runners/antigravity.ts";
+import { DOC_NEXT } from "../../src/core/document.ts";
 import { conversationArgs, conversationEnv } from "../../src/agents/launch.ts";
 
 const unix = { skip: !hasGit || process.platform === "win32" };
@@ -88,6 +89,52 @@ test("Grok has switches for a part only — what it takes in of the other agents
   assert.deepEqual(grokArgs({ ...o, clean: true, reader: true } as never, ["--prompt-file", "p"], ["--session-id", "x"]), grokArgs(o, ["--prompt-file", "p"], ["--session-id", "x"]).filter((a) => a !== "--trust"));
   assert.deepEqual(opencodeArgs({ ...o, clean: true, reader: true } as never), opencodeArgs(o));
   assert.deepEqual(antigravityArgs({ ...o, clean: true, reader: true } as never, "k"), antigravityArgs(o, "k"));
+});
+
+test("a reader in Codex and OpenCode: only the folder of its report written, no network, its views opened — never the person's service or a tree's agent", () => {
+  const files = { views: ["/c/desk/D1/v1.png", "/c/desk/D1/v2.png"], report: "/t/notes/readings/D1/r1.json" };
+  const fwd = (p: string) => path.resolve(p).replace(/\\/g, "/"); // (on Windows a drive before it)
+  for (const permissions of ["auto", "full"] as const) {
+    const args = codexArgs({ cwd: "/c/desk/D1", shared: "/s", permissions, readerFiles: files });
+    assert.ok(!args.includes("--dangerously-bypass-approvals-and-sandbox"), permissions);
+    assert.deepEqual(args.slice(args.indexOf("--sandbox"), args.indexOf("--sandbox") + 4), ["--sandbox", "workspace-write", "-c", `sandbox_workspace_write.writable_roots=${JSON.stringify([path.resolve("/t/notes/readings/D1")])}`]);
+    assert.ok(!args.some((a) => a.includes("network_access")), "a reader reads no web");
+  }
+  const resumed = codexResumeArgs("abc", { cwd: "/c/desk/D1", permissions: "full", readerFiles: files });
+  assert.ok(resumed.includes('sandbox_mode="workspace-write"') && !resumed.includes("--dangerously-bypass-approvals-and-sandbox"));
+  // OpenCode: a server of its own, its agent given for the run
+  const args = opencodeReaderArgs({ model: "openai/m" });
+  assert.deepEqual(args.slice(0, 8), ["run", "--standalone", "--format", "json", "--agent", OPENCODE_READER_AGENT, "--model", "openai/m"]);
+  const agent = (opencodeReaderConfig(files).agent as Record<string, { permission: Record<string, unknown> }>)[OPENCODE_READER_AGENT]!;
+  assert.deepEqual(agent.permission.read, { "*": "deny", [fwd("/c/desk/D1/v1.png")]: "allow", [fwd("/c/desk/D1/v2.png")]: "allow", [fwd("/t/notes/readings/D1/r1.json")]: "allow" });
+  assert.deepEqual(agent.permission.edit, { "*": "deny", [fwd("/t/notes/readings/D1/r1.json")]: "allow" });
+  assert.deepEqual(agent.permission.external_directory, { "*": "deny", [`${fwd("/c/desk/D1")}/*`]: "allow", [`${fwd("/t/notes/readings/D1")}/*`]: "allow" });
+  for (const t of ["bash", "webfetch", "websearch", "task", "question"]) assert.equal(agent.permission[t], "deny", t);
+  // Grok: refused what it was not given (dontAsk, whatever the level), its report allowed by name
+  const grok = grokArgs({ permissions: "full", readerFiles: files, reader: true }, ["--prompt-file", "p"], ["--session-id", "x"]);
+  assert.ok(!grok.includes("--always-approve"));
+  assert.deepEqual(grok.slice(grok.indexOf("--permission-mode"), grok.indexOf("--permission-mode") + 6), ["--permission-mode", "dontAsk", "--allow", `Edit(${fwd("/t/notes/readings/D1/r1.json")})`, "--allow", `Write(${fwd("/t/notes/readings/D1/r1.json")})`]);
+  // Antigravity: its views in its workspace, never a skipped permission; its report is its answer
+  const agy = antigravityReaderArgs({ model: "m" }, files, "task");
+  assert.deepEqual(agy.slice(0, 6), ["--print", "task", "--output-format", "stream-json", "--add-dir", path.resolve("/c/desk/D1")]);
+  assert.equal(agy.filter((a) => a === "--add-dir").length, 1, "one folder of views, once");
+  assert.ok(!agy.includes("--dangerously-skip-permissions"));
+  assert.match(antigravityReaderNote("/t/r.md"), /final answer/);
+});
+
+test("an answer of a reader that cannot write files goes into its report at its last line, once", () => {
+  const w = new World();
+  const report = path.join(w.dir, "zpráva ř.md");
+  const head = `# Document D1 · reader 1\n\nPages: 1\n\n${DOC_NEXT}\n`;
+  fs.writeFileSync(report, head);
+  assert.equal(addReaderAnswer(report, "  ## Document\nkind: letter\n", DOC_NEXT), true);
+  assert.equal(fs.readFileSync(report, "utf8"), `# Document D1 · reader 1\n\nPages: 1\n\n## Document\nkind: letter\n${DOC_NEXT}\n`);
+  // what it wrote itself is kept: its answer is not added again; nothing said, nothing added
+  assert.equal(addReaderAnswer(report, "## Document\nkind: deed", DOC_NEXT), false);
+  fs.writeFileSync(report, head);
+  assert.equal(addReaderAnswer(report, "  ", DOC_NEXT), false);
+  assert.equal(fs.readFileSync(report, "utf8"), head);
+  w.cleanup();
 });
 
 /** A tree, and Claude Code as a fake that notes how it was started and says its tools (WebFetch… left out). */

@@ -22,7 +22,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CHILD_RELATIONS, UNIONS, eventKind, type ChildLink, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Name, type Note, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Source, type Task, type Union } from "./model.ts";
+import { CHILD_RELATIONS, UNIONS, eventKind, type ChildLink, type ChildRelation, type Citation, type Conflict, type Event, type Family, type Input, type Media, type Name, type Note, type Participant, type ParticipantRole, type Person, type Place, type RecordSet, type Repository, type Session, type Source, type Task, type Union } from "./model.ts";
 import { isWeak } from "./evidence.ts";
 import { phrase } from "./phrases.ts";
 import { addChild, addEvent, addFamily, addName, addNote, editEvent, editPerson, retractEvent, retractPerson } from "./actions.ts";
@@ -43,6 +43,9 @@ import { now, Tree, typeOfId } from "./tree.ts";
 import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
 import { APP_DATA_SEX_UNKNOWN, isAppVersion } from "./stromapp.ts";
+import { bestGrade, checkReading, readingGrade, readingResult, readingSource, surer, takeReadingImages, type ReadFact, type ReadGrade, type ReadingCheck, type ReadingMark, type ReadingRefusal } from "./readsync.ts";
+import { earlierNoteTexts } from "./retractions.ts";
+import { mendAll } from "./damaged.ts";
 import { cleanTitle, familiesAsPartner, formatName, foundTitles, gedcomTitledName, parseName, primaryName, sameName as sameWords, titledName } from "./people.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
@@ -102,6 +105,8 @@ export interface SSource {
   quay?: number;
   /** The user ticked "transcript verified" in the app (_STROM_VERIFIED Y). */
   verified?: boolean;
+  /** An entry of a reading of a document the person confirmed in the app (_STROM_READING D…, checked before taken). */
+  reading?: ReadingMark;
 }
 
 export interface SPerson {
@@ -603,6 +608,19 @@ export function stampAppVersion(text: string, version: string | undefined): stri
   return lines.join(eol);
 }
 
+/**
+ * The reading a source of the app is an entry of: 1 _STROM_READING D… (2 _STROM_ENTRY e…), and the originals its
+ * excerpts are cut from (2 _STROM_SHA under its OBJE, or 1 _STROM_SHA of its own).
+ */
+function readingMarkOf(r: GedNode): { reading?: ReadingMark } {
+  const n = r.children.find((c) => c.tag === "_STROM_READING");
+  const id = n?.value.trim();
+  if (!n || !id) return {};
+  const entry = val(n, "_STROM_ENTRY")?.trim();
+  const shas = [...children(r, "_STROM_SHA"), ...children(r, "OBJE").flatMap((o) => children(o, "_STROM_SHA"))].map((x) => x.value.trim().toLowerCase()).filter(Boolean);
+  return { reading: { id, ...(entry ? { entry } : {}), shas: [...new Set(shas)] } };
+}
+
 /** A GEDCOM file (or one of ours, in memory) as a snapshot; an unreadable one throws. */
 export function readGedcom(text: string): Snapshot {
   const { records, problems } = parseGedcomText(text);
@@ -634,6 +652,7 @@ export function readGedcom(text: string): Snapshot {
       ...(url ? { url } : {}),
       ...(note ? { note } : {}),
       ...(/^y(es)?$/i.test(val(r, "_STROM_VERIFIED")?.trim() ?? "") ? { verified: true } : {}),
+      ...readingMarkOf(r),
     });
   }
   const cite = (n: GedNode): SCite | undefined => {
@@ -874,6 +893,11 @@ interface AppSource {
   recordDate?: string;
   refn?: string;
   transcriptVerified?: boolean;
+  /** A reading of a document confirmed (spec 013): its D…, its entry, the original (else its excerpts' originalSha). */
+  reading?: string;
+  readingEntry?: string;
+  readingSha?: string;
+  excerpts?: { originalSha?: string }[];
 }
 interface AppPartnership {
   person1Id?: string;
@@ -926,6 +950,15 @@ export function readStromJson(data: unknown): Snapshot {
       ...(str(a.note) ? { note: str(a.note)! } : {}),
       ...(q !== undefined ? { quay: q } : {}),
       ...(a.transcriptVerified === true ? { verified: true } : {}),
+      ...(str(a.reading)
+        ? {
+            reading: {
+              id: str(a.reading)!,
+              ...(str(a.readingEntry) ? { entry: str(a.readingEntry)! } : {}),
+              shas: [...new Set([a.readingSha, ...(Array.isArray(a.excerpts) ? a.excerpts.map((x) => x?.originalSha) : [])].map((x) => str(x)?.toLowerCase()).filter((x): x is string => !!x))],
+            },
+          }
+        : {}),
     });
   }
   const citesOf = (ids: unknown): SCite[] | undefined => {
@@ -2039,6 +2072,7 @@ export type ChangeKind =
   | "source.changed"
   | "source.reading"
   | "source.verified"
+  | "source.title"
   | "fact.cite"
   | "fact.part"
   | "person.cite"
@@ -2077,6 +2111,8 @@ export interface Change {
   /** A source: its key in the file, and the research's source it is (a change of one the research has). */
   source?: string;
   sourceId?: string;
+  /** source.title: the research's title of the source (the file's new one is `text`). */
+  wasTitle?: string;
   /** A fact taken with its sources: it stands on the user's reading of a record (their transcript counts as one). */
   reads?: boolean;
   /** fact.part: who the file names at the fact (`was` the research's fact), and the research's entry of them (its role). */
@@ -2101,18 +2137,24 @@ export interface Change {
   uncited?: string[];
   /** fact.changed: what of the research's fact the user took off in the app, the fact kept (B-1). */
   off?: ("date" | "place" | "value")[];
+  /** source.new: the reading of a document it says it is an entry of (_STROM_READING), as checked — not ok: the app's own source. */
+  reading?: { id: string; ok: boolean; entry?: string; code?: ReadingRefusal; edited?: true };
 }
 
 export interface Plan {
   changes: Change[];
   /** The file's sources that are the research's (its REFN, or the same entry): the file's key → the research's ID. */
   sources: Map<string, string>;
+  /** The file's new sources that are an entry of a reading the research keeps (checked): the file's key → the check. */
+  readings?: Map<string, ReadingCheck>;
   /** Compared with what the research gave (base) — or only with the research now. */
   base: boolean;
   head?: string;
   /** The file has far fewer people than it was given: nothing is taken as removed. */
   partial: boolean;
   identity: Identity;
+  /** The file's texts whose characters a line split damaged (U+FFFD), mended from what the research has: no edit. */
+  mended?: number;
 }
 
 /** Does a record prove it: proven or probable, from a record — not a family tree, not someone's word. */
@@ -2169,6 +2211,9 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const had = (list: "persons" | "facts" | "children", key: string) => !seen || seen[list].includes(key);
   const identity = checkIdentity(tree, incoming, opts.force);
   const ours = snapshotOfTree(tree);
+  // characters the app's file damaged (an emoji split on a CONC line: U+FFFD U+FFFD) are not the user's edit: put back
+  // from the same field of the same record in what the app was given, else in the research now
+  let mended = mendAll(incoming, () => [incoming.head ? snapshotAt(tree, incoming.head) : undefined, ours]);
   knownNewcomers(incoming, ours);
   renamedInPlace(incoming, ours);
   // the user's edits against the send this copy is a copy of (_STROM_SINCE) — else the research after the last send of
@@ -2181,6 +2226,8 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const since = !sentAgain ? sinceBase(tree, incoming) : undefined;
   const after = incoming.head && !sentAgain && !since ? afterSends(tree, incoming) : undefined;
   const base = sentAgain && incoming.head ? snapshotAt(tree, incoming.head) : (since ?? after?.base);
+  // a send that wrote damaged characters into the research before: what it gave the app is mended alike
+  if (base) mended += mendAll(base, () => [ours]);
   // the titles an app that reads none keeps in the name (the research gives them in the NAME line): found there, the
   // person's titles still — in a copy of the app it stands on too (a send it kept: _STROM_SINCE)
   for (const [key, b] of base?.persons ?? []) if (!key.startsWith("x:")) titlesInName(b, [ours.persons.get(resolve(tree, key)?.id ?? key)?.titles]);
@@ -2216,8 +2263,9 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const carried = new Set([...incoming.persons.values()].flatMap((p) => p.facts.map((f) => kindOf(f.kind))));
   const carriedFam = new Set(incoming.families.flatMap((f) => f.facts.map((x) => kindOf(x.kind))));
   // the sources first: what the file's citations are the research has, or what comes with them
-  const sources = planSources(tree, incoming, ours, base, push);
-  const reads = readsFor(tree, incoming, sources, changes);
+  const readings = new Map<string, ReadingCheck>();
+  const sources = planSources(tree, incoming, ours, base, push, readings, edits);
+  const reads = readsFor(tree, incoming, sources, changes, readings);
   const idOf = (key: string) => (key.startsWith("x:") ? key : (resolve(tree, key)?.id ?? key));
   // who the records name at a fact: the same person by their key or a name of theirs; the role "other" is any role
   // (the Strom app has no name for an informant or a midwife)
@@ -2471,8 +2519,9 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
         if (!has.kind && nameKey(n) !== nameKey(shown)) push({ kind: "name.new", action: "add", person: id, name, text: n, married: true });
         continue;
       }
-      // the research took it off since the app was given it: that stays
+      // the research took it off since the app was given it, or took it back (strom name retract): that stays
       if (b && (b.married ?? []).some((m) => nameKey(m) === nameKey(n))) continue;
+      if ((person.retractedNames ?? []).some((m) => nameKey(gedcomName(m)) === nameKey(n))) continue;
       push({ kind: "name.new", action: "add", person: id, name, text: n, married: true });
     }
     if (!b || partial) return;
@@ -2519,7 +2568,9 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       push({ kind: "name.changed", action: renamed && !nameBacked(tree, shown) ? "correct" : edits === "user" ? "user" : "conflict", person: id, name, text: now, wasName: mine });
     }
     const theirMarried = new Set(p.married ?? []);
-    for (const n of p.names) if (!theirMarried.has(n) && !((renamed || both) && n === now) && !ourNames.has(nameKey(n)) && !baseNames.has(nameKey(n))) push({ kind: "name.new", action: "add", person: id, name, text: n });
+    // a name the research took back (strom name retract) is no name of the user's: an older copy still has it
+    const goneNames = new Set((tree.get<Person>(id)?.retractedNames ?? []).map((n) => nameKey(gedcomName(n))));
+    for (const n of p.names) if (!theirMarried.has(n) && !((renamed || both) && n === now) && !ourNames.has(nameKey(n)) && !baseNames.has(nameKey(n)) && !goneNames.has(nameKey(n))) push({ kind: "name.new", action: "add", person: id, name, text: n });
     marriedDiff(id, name, p, o, b);
     // the titles of the name they are shown by (T07), each apart and never as a change of the name itself: the user's
     // edit where the file's differs from what the app was given — one the name lacks added, a lead's corrected, a
@@ -2562,7 +2613,8 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       const overGuess = mySex === "U" && guessed !== undefined && !incoming.sexU;
       push({ kind: "sex.changed", action: b ? (edits === "user" ? "user" : backed || since || overGuess ? "conflict" : "correct") : "report", person: id, name, text: p.sex });
     }
-    notesDiff({ person: id, name }, p.notes, [o.said, b?.said ?? ""], o.facts, tree.get<Person>(id)?.notes);
+    // the notes the research took back or corrected since are words it said: an older copy's, no new note of the user's
+    notesDiff({ person: id, name }, p.notes, [o.said, b?.said ?? "", ...earlierNoteTexts(tree.get<Person>(id))], o.facts, tree.get<Person>(id)?.notes);
   }
   if (base && !partial)
     for (const [key, b] of base.persons)
@@ -2724,7 +2776,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     const both = [...new Set([...o.partners, ...partners])];
     factsDiff({ family: fam.id, partners: both }, f.facts, o.facts, b?.facts, true);
     citesDiff({ family: fam.id, partners: both }, f.cites, fam, b?.cites);
-    notesDiff({ family: fam.id, partners: both }, f.notes, [o.said ?? "", b?.said ?? ""], o.facts, fam.notes);
+    notesDiff({ family: fam.id, partners: both }, f.notes, [o.said ?? "", b?.said ?? "", ...earlierNoteTexts(fam)], o.facts, fam.notes);
     // how the couple is bound (no record proves it): the user's word where it changed since given, or where the research
     // has none; another word with nothing to stand on only said; none in the file takes nothing away (an older app)
     // (the one partner's married or divorced is the couple's facts' to say once the unknown one is named)
@@ -2796,7 +2848,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     const left = c.fact.cites.filter((x) => !has.has(sources.get(x.source) ?? x.source)).map((x) => x.source);
     if (left.length) c.uncited = [...new Set(left)];
   }
-  return { changes, sources, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity };
+  return { changes, sources, readings, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity, ...(mended ? { mended } : {}) };
 }
 
 /**
@@ -2998,6 +3050,9 @@ function citedIn(rec: unknown): Set<string> {
   return out;
 }
 
+/** A source's title for a comparison: spaces as one, NFC — its case and accents count (a title corrected so is renamed). */
+const sourceTitle = (s: string | undefined) => (s ?? "").normalize("NFC").replace(/\s+/g, " ").trim();
+
 /** Folded for matching an entry: no accents, case, stops or doubled spaces. */
 const entryKey = (s: string | undefined) => fold((s ?? "").replace(/[.,;:]/g, " "));
 
@@ -3034,7 +3089,7 @@ export function readByResearch(tree: Tree): Set<string> {
  * before), or new. Of the research's, what the user changed in the app since it was given — the app's own source
  * corrected, a record the research read a second reading beside it — and "transcript verified" ticked.
  */
-function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snapshot | undefined, push: (c: Omit<Change, "n">) => void): Map<string, string> {
+function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snapshot | undefined, push: (c: Omit<Change, "n">) => void, readings: Map<string, ReadingCheck>, edits: "conflict" | "user"): Map<string, string> {
   const map = new Map<string, string>();
   let readSet: Set<string> | undefined;
   if (!incoming.sources?.size) return map;
@@ -3044,10 +3099,16 @@ function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snaps
     let mine = key.startsWith("x:") ? undefined : tree.get<Source>(key);
     for (let hops = 0; mine?.mergedInto && hops < 10; hops++) mine = tree.get<Source>(mine.mergedInto);
     if (mine && (mine.type !== "source" || mine.retracted)) mine = undefined;
-    // one the research has: the same entry (a send the app has not had back yet)
+    // an entry of a reading of a document the person confirmed in the app: the research's reading, when it is one
+    // (it exists and is read, the original is its page, the words its entry's) — else the app's own source as any
+    const check = !mine && inc.reading ? checkReading(tree, inc.reading, inc.text) : undefined;
+    // one the research has: the source it made of that entry before (a send the app has not had back yet), the same entry
+    if (check?.ok) mine ??= live.find((s) => s.reading === check.id && s.readingEntry === check.entry!.id);
     mine ??= live.find((s) => sameEntry(tree, s, pageOf(s), inc));
     if (!mine) {
-      if (inc.title || inc.text) push({ kind: "source.new", action: "add", source: key, text: inc.title || inc.text!.slice(0, 60) });
+      if (check?.ok) readings.set(key, check);
+      const reading = check ? { reading: { id: check.id, ok: check.ok, ...(check.entry ? { entry: check.entry.id } : {}), ...(check.code ? { code: check.code } : {}), ...(check.edited ? { edited: true as const } : {}) } } : {};
+      if (inc.title || inc.text) push({ kind: "source.new", action: "add", source: key, text: inc.title || inc.text!.slice(0, 60), ...reading });
       continue;
     }
     map.set(key, mine.id);
@@ -3064,6 +3125,14 @@ function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snaps
       if (edited.length && !kept) {
         push({ kind: read ? "source.reading" : "source.changed", action: read ? "add" : "correct", source: key, sourceId: mine.id, text: mine.title, ...(!read && (incoming.transcripts === "evidence" || mine.app?.read) ? { reads: true } : {}) });
       }
+      // renamed in the app since it was given (an empty title takes nothing away): the research's title corrected —
+      // renamed by the research too since then, the user's title kept beside it, unless the user's word wins
+      const title = sourceTitle(inc.title);
+      if (title && [b.title, o?.title, mine.title].every((x) => sourceTitle(x) !== title)) {
+        const since = sourceTitle(mine.title) !== sourceTitle(b.title);
+        const beside = since && mine.notes.some((n) => sourceTitle(n.text).includes(title));
+        if (!beside) push({ kind: "source.title", action: !since ? "correct" : edits === "user" ? "user" : "add", source: key, sourceId: mine.id, text: inc.title, wasTitle: mine.title });
+      }
     }
     if (inc.verified && mine.app && !mine.app.verified) push({ kind: "source.verified", action: "add", source: key, sourceId: mine.id, text: mine.title });
   }
@@ -3075,11 +3144,13 @@ function planSources(tree: Tree, incoming: Snapshot, ours: Snapshot, base: Snaps
  * not authored) whose transcript counts — the app's own source when the send says evidence, or verified (now or
  * before); the research's own one cited by the user when the send says evidence.
  */
-function readsFor(tree: Tree, incoming: Snapshot, sources: Map<string, string>, changes: Change[]): (key: string) => boolean {
+function readsFor(tree: Tree, incoming: Snapshot, sources: Map<string, string>, changes: Change[], readings: Map<string, ReadingCheck>): (key: string) => boolean {
   const evidence = incoming.transcripts === "evidence";
   return (key: string) => {
     const inc = incoming.sources?.get(key);
     const id = sources.get(key);
+    // a reading of the research: its readers read it, not the user (the facts' status is by what they read)
+    if (!id && readings.has(key)) return false;
     if (!id) {
       // new: the app's quality 0 is someone's word, no record
       return !!inc && inc.quay !== 0 && (evidence || !!inc.verified);
@@ -3320,14 +3391,16 @@ export interface Applied {
     | "child.remove"
     | "event.parts"
     | "name.cite"
-    | "family.cite";
+    | "family.cite"
+    | "media.add"
+    | "input.sort";
   id: string;
   /**
    * event.edit: the fact before; event.detail: its cause, age and house before (JSON); event.retract, event.status:
    * its status; event.cite: its status and the sources it was given (JSON); sex.edit: the sex before; family.sides: the
    * partner the family kept as HUSB before a sex of its partners changed ("" none); partner.remove: the partner, their
    * place and the partner kept as HUSB (JSON); note.add: the
-   * note's time; note.edit: the note's time, its line as the file has it and as it was (JSON); child.add: the child; place.edit: its position before (JSON); source.edit: its words, page and the
+   * note's time; note.edit: the note's time, its line as the file has it and as it was (JSON); child.add: the child; place.edit: its position before (JSON); source.edit: its words, page, title and the
    * app's mark before (JSON); event.parts: its participants before (JSON); name.cite, family.cite: the sources it was
    * given (JSON); name.edit: the name the person was shown by and the corrected one's spelling (JSON); name.primary:
    * the name added in front and the one shown before (JSON); name.drop: the user's name an edit of theirs replaced, and
@@ -3452,12 +3525,45 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
   // the app's sources first: the facts cite them
   const made = new Map<string, string>(); // a new source's key → its ID
   const srcId = (key: string) => plan.sources.get(key) ?? made.get(key);
+  // the sources that are an entry of a reading of the research: its ID → the reading as checked
+  const checks = new Map<string, ReadingCheck>();
   for (const c of plan.changes.filter((x) => x.kind === "source.new" && taken(x))) {
     const inc = incoming.sources?.get(c.source!);
     if (!inc) continue;
     const repository = inc.repo ? repositoryFor(tree, inc.repo, applied) : undefined;
     const [form, information] = QUAY_EVIDENCE[inc.quay ?? -1] ?? (["original", "unknown"] as const);
     const title = inc.title || inc.text!.slice(0, 60);
+    const check = plan.readings?.get(c.source!);
+    if (check) {
+      // the research's reading of the record: its transcript, translation, language, input and images; the person's
+      // words where they changed them (the reading's kept beside them, theirs not yet a reading that counts)
+      const read = readingSource(check, inc.text);
+      const notes = [inc.note, check.edited ? phrase(tree.lang, "read.note.source.edited", { read: check.id, text: check.entry!.transcript }) : undefined].filter(Boolean).join("\n\n");
+      const made1 = create<Source>(
+        tree,
+        "source",
+        {
+          ...read,
+          kind: read.kind ?? sourceKind(incoming, c.source!),
+          title,
+          ...(repository ? { repository } : {}),
+          ...(inc.page ? { locator: inc.page } : {}),
+          ...(inc.date ? { date: inc.date } : {}),
+          ...(inc.url ? { url: inc.url } : {}),
+          ...(check.edited ? { app: { read: false } } : {}),
+          ...(notes ? { note: notes } : {}),
+        } as never,
+        (id) => `+${id} source "${truncateText(title, 50)}" (read ${check.id} ${check.entry!.id}, confirmed in the Strom app, ${source.id})`,
+        read.input ? [read.input] : [],
+      );
+      made.set(c.source!, made1.id);
+      applied.push({ do: "source.add", id: made1.id, before: c.source! });
+      const took = takeReadingImages(tree, made1, check, `the Strom app, ${source.id}`);
+      if (took.added) applied.push({ do: "media.add", id: took.added });
+      if (took.input) applied.push({ do: "input.sort", id: took.input.id, before: JSON.stringify(took.input.before) });
+      checks.set(made1.id, check);
+      continue;
+    }
     const made1 = create<Source>(
       tree,
       "source",
@@ -3483,7 +3589,57 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
   /** Whether a citation of this source stands on a reading of a record: the user's, when it counts. */
   const reading = (id: string) => {
     const s = tree.get<Source>(id);
-    return !!s && !isWeak(s) && (s.app ? s.app.read : evidence);
+    // a reading of the research's readers: its facts by what they read (graded), unless the person's words changed
+    // there count now (verified)
+    return !!s && !isWeak(s) && (s.app ? s.app.read : !s.reading && evidence);
+  };
+  /** A source that is an entry of a reading of the research (made now, or by a sync before): the reading as checked. */
+  const checkOf = (id: string): ReadingCheck | undefined => {
+    if (checks.has(id)) return checks.get(id);
+    const s = tree.get<Source>(id);
+    const result = s?.reading && !s.retracted ? readingResult(tree, s.reading) : undefined;
+    const entry = result?.entries.find((e) => e.id === s!.readingEntry);
+    const k = result && entry ? { id: s!.reading!, ok: true, entry, page: result.pages.find((p) => p.n === entry.page)!, result, ...(s!.app ? { edited: true } : {}) } : undefined;
+    if (k) checks.set(id, k);
+    return k;
+  };
+  /** How sure a fact is by the readings it cites (decision of 19 Oct 2026; none cited: undefined), and which they are. */
+  const graded = (cits: Citation[], f: ReadFact | undefined): { grade: ReadGrade; reads: string[]; sources: string[] } | undefined => {
+    if (!f) return undefined;
+    const each = cits.flatMap((c) => {
+      const k = checkOf(c.source);
+      return k && !tree.get<Source>(c.source)?.app?.read ? [{ g: readingGrade(tree, k, f), read: k.id, source: c.source }] : [];
+    });
+    const grade = bestGrade(each.map((x) => x.g));
+    return grade ? { grade, reads: [...new Set(each.map((x) => x.read))], sources: [...new Set(each.map((x) => x.source))] } : undefined;
+  };
+  /** Why a fact of a reading is not probable, beside it (both readings where they differ). */
+  const gradeNote = (gr: { grade: ReadGrade; reads: string[] }): string | undefined => {
+    const read = gr.reads.join(", ");
+    switch (gr.grade.why) {
+      case "two":
+        return undefined;
+      case "differ":
+        return phrase(tree.lang, "read.note.differ", { read, list: (gr.grade.variants ?? []).map((v) => `"${v.at}" / "${v.other}"`).join("; ") });
+      default:
+        return phrase(tree.lang, `read.note.${gr.grade.why}`, { read });
+    }
+  };
+  // the people whose facts stand on a reading not yet sure (one reader, readers apart, the words changed): one task each
+  const readVerify = new Map<string, Set<string>>();
+  const toCheck = (owner: string, gr: { grade: ReadGrade; sources: string[] } | undefined) => {
+    if (!gr || gr.grade.status === "probable") return;
+    const people = owner.startsWith("F") ? (tree.get<Family>(owner)?.partners ?? []) : [owner];
+    for (const p of people) for (const s1 of gr.sources) (readVerify.get(p) ?? readVerify.set(p, new Set()).get(p)!).add(s1);
+  };
+  /** A fact of the research a reading now makes surer (never less sure): its status raised. */
+  const lift = (owner: string, e: Event, gr: { grade: ReadGrade; reads: string[] } | undefined) => {
+    if (!gr || !surer(gr.grade.status, e.status)) return;
+    update<Person | Family>(tree, owner, owner.startsWith("F") ? "family" : "person", (o) => ({ ...o, events: o.events.map((x) => (x.id === e.id ? { ...x, status: gr.grade.status } : x)) }), {
+      op: "event.status",
+      summary: `${e.id} ${gr.grade.status}: read ${gr.reads.join(", ")} (${reason})`,
+    });
+    applied.push({ do: "event.status", id: e.id, before: e.status });
   };
   /** The citations of a fact from the file: its sources (where in them), else the sync. */
   const citesOf = (f: SFact | undefined): Citation[] => {
@@ -3502,7 +3658,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
     const unread = cits.filter((c) => {
       const s = tree.get<Source>(c.source);
       // a reading of the user's that counts is the first reading: read again only by the usual rules
-      return !!s?.app && !s.app.read && !isWeak(s) && !researchRead(tree, s, (read ??= readByResearch(tree)));
+      return !!s?.app && !s.app.read && !s.reading && !isWeak(s) && !researchRead(tree, s, (read ??= readByResearch(tree)));
     });
     if (!unread.length) return;
     const people = owner.startsWith("F") ? (tree.get<Family>(owner)?.partners ?? []) : [owner];
@@ -3552,9 +3708,12 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           const theirs = citesOf(c.fact);
           if (c.kind === "fact.new" || !mine || (c.action === "add" && !mine)) {
             const citations = theirs.length ? theirs : [cite(c.fact.kind)];
-            const { event } = addEvent(tree, owner, { ...fields(c.fact), status: citations.some((x) => reading(x.source)) ? "probable" : "lead", citations });
+            const gr = graded(citations, c.fact);
+            const note = gr ? gradeNote(gr) : undefined;
+            const { event } = addEvent(tree, owner, { ...fields(c.fact), status: gr ? gr.grade.status : citations.some((x) => reading(x.source)) ? "probable" : "lead", ...(note ? { note } : {}), citations });
             applied.push({ do: "event.add", id: event.id });
             toVerify(owner, citations);
+            toCheck(owner, gr);
           } else if (c.action === "refine") {
             // the record's fact stays as it is proven; what the user added to it cites their tree (or the sources they gave)
             const parts = [c.fact.date !== mine.date ? "DATE" : "", exact(c.fact.place) !== exact(mine.place) ? "PLAC" : "", exact(c.fact.value) !== exact(mine.value) ? "value" : ""].filter(Boolean);
@@ -3590,6 +3749,9 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
             });
             if (stale.length) applied.push({ do: "event.uncite", id: mine.id, before: JSON.stringify(stale) });
             toVerify(owner, theirs);
+            const gr = graded(theirs, c.fact);
+            lift(owner, eventById(tree, mine.id) ?? mine, gr);
+            toCheck(owner, gr);
             applied.push({ do: "event.edit", id: mine.id, before: { kind: mine.kind, ...(mine.date ? { date: mine.date } : {}), ...(mine.place ? { place: mine.place } : {}), ...(mine.value ? { value: mine.value } : {}) } });
           } else if (c.action === "user") {
             retractEvent(tree, mine.id, `the user's edit wins: ${reason}`);
@@ -3597,9 +3759,12 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
             if (bare(c.fact)) break;
             // the user's word: no record makes it probable — unless it is their reading of one, which counts
             const citations = theirs.length ? theirs : [cite(c.fact.kind)];
-            const { event } = addEvent(tree, owner, { ...fields(c.fact), status: citations.some((x) => reading(x.source)) ? "probable" : "possible", citations });
+            const gr = graded(citations, c.fact);
+            const note = gr ? gradeNote(gr) : undefined;
+            const { event } = addEvent(tree, owner, { ...fields(c.fact), status: gr ? gr.grade.status : citations.some((x) => reading(x.source)) ? "probable" : "possible", ...(note ? { note } : {}), citations });
             applied.push({ do: "event.add", id: event.id });
             toVerify(owner, citations);
+            toCheck(owner, gr);
           } else {
             const title = editTitle(c.name ?? owner, eventName(c.fact.kind, tree.lang, c.fact.label), factWords(tree, incoming, mine), factWords(tree, incoming, c.fact));
             conflictOfEdit(tree, applied, owner, c.fact.kind, title, [
@@ -3640,12 +3805,16 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           const add = citesOf(c.fact).filter((x) => !mine.citations.some((y) => y.source === x.source));
           if (!add.length) break;
           const up = (mine.status === "lead" || mine.status === "possible") && add.some((x) => reading(x.source));
-          update<Person | Family>(tree, owner, owner.startsWith("F") ? "family" : "person", (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id ? { ...e, citations: [...e.citations, ...add], ...(up ? { status: "probable" as const } : {}) } : e)) }), {
+          // a reading the person gave it: the research's fact as the readers read it (surer only, never less)
+          const gr = graded(add, mine);
+          const to = gr && surer(gr.grade.status, up ? "probable" : mine.status) ? gr.grade.status : up ? "probable" : undefined;
+          update<Person | Family>(tree, owner, owner.startsWith("F") ? "family" : "person", (o) => ({ ...o, events: o.events.map((e) => (e.id === mine.id ? { ...e, citations: [...e.citations, ...add], ...(to ? { status: to } : {}) } : e)) }), {
             op: "event.cite",
-            summary: `${mine.id} cites ${add.map((x) => x.source).join(", ")}${up ? " — probable on the user's reading" : ""} (${reason})`,
+            summary: `${mine.id} cites ${add.map((x) => x.source).join(", ")}${to && !up ? ` — ${to}: read ${gr!.reads.join(", ")}` : up ? " — probable on the user's reading" : ""} (${reason})`,
           });
           applied.push({ do: "event.cite", id: mine.id, before: JSON.stringify({ status: mine.status, sources: add.map((x) => x.source) }) });
           toVerify(owner, add);
+          toCheck(owner, gr);
           break;
         }
         case "fact.part": {
@@ -3753,6 +3922,24 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           );
           applied.push({ do: "source.edit", id: s.id, before });
           raise(s.id);
+          break;
+        }
+        case "source.title": {
+          // renamed in the app: the research's title corrected (the user's word wins), else kept beside it
+          const s = c.sourceId ? tree.get<Source>(c.sourceId) : undefined;
+          const title = c.text?.replace(/\s+/g, " ").trim();
+          if (!s || !title) break;
+          if (c.action === "add") {
+            const n = addNote(tree, s.id, `${phrase(tree.lang, "sync.title.note", { source: source.id })} ${title}`);
+            applied.push({ do: "note.add", id: s.id, before: n.at });
+            break;
+          }
+          const before = JSON.stringify({ transcript: s.transcript ?? null, locator: s.locator ?? null, app: s.app ?? null, title: s.title });
+          update<Source>(tree, s.id, "source", (x) => ({ ...x, title }), {
+            op: "source.sync",
+            summary: `${s.id} renamed "${s.title}" → "${title}" (${c.action === "user" ? "the user's edit wins: " : ""}${reason})`,
+          });
+          applied.push({ do: "source.edit", id: s.id, before });
           break;
         }
         case "source.reading": {
@@ -4075,8 +4262,37 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
     );
     applied.push({ do: "task.add", id: t.id });
   }
+  // one task per person to check what one reader read, or readers read apart, or the person changed (the readings
+  // are the research's own: a second, blind reading and its own look prove them or show a mistake)
+  const openRead = tree.list<Task>("task").filter((t) => t.origin === READ_VERIFY_ORIGIN && ["open", "doing", "parked", "waiting"].includes(t.state));
+  for (const [person, srcs] of actsAsArchive(tree) ? [] : readVerify) {
+    const p = tree.get<Person>(person);
+    if (!p || p.retracted || openRead.some((t) => t.subject.includes(person) && [...srcs].every((x) => t.subject.includes(x)))) continue;
+    const reads = [...new Set([...srcs].map((x) => tree.get<Source>(x)?.reading).filter((x): x is string => !!x))];
+    const images = [...new Set([...srcs].flatMap((x) => tree.get<Source>(x)?.clips?.map((k) => k.media) ?? []))];
+    const t = create<Task>(
+      tree,
+      "task",
+      {
+        level: "verify",
+        priority: 3,
+        what: truncateText(phrase(tree.lang, "read.verify.what", { name: person, list: [...srcs].join(", ") }), 200),
+        where: [...srcs, ...images],
+        why: phrase(tree.lang, "read.verify.why", { read: reads.join(", "), source: source.id }),
+        doneWhen: phrase(tree.lang, "read.verify.done", { read: reads[0] ?? "D…", source: [...srcs][0]! }),
+        subject: [person, ...srcs],
+        state: "open",
+        origin: READ_VERIFY_ORIGIN,
+      } as never,
+      (id) => `+${id} task "check the reading ${reads.join(", ")} of ${person}"`,
+    );
+    applied.push({ do: "task.add", id: t.id });
+  }
   return { applied, changes: changes - skipped.length, skipped };
 }
+
+/** Where a task to check a reading of a document confirmed in the app comes from (one per person and its sources). */
+export const READ_VERIFY_ORIGIN = "read:verify";
 
 /** Where a task to read the user's transcripts again comes from (one per person at a time). */
 export const VERIFY_ORIGIN = "sync:verify";
@@ -4494,12 +4710,13 @@ export function undoSync(tree: Tree, input: SyncInput): number {
         break;
       }
       case "source.edit": {
-        const b = JSON.parse(String(a.before ?? "{}")) as { transcript?: string | null; locator?: string | null; app?: Source["app"] | null };
+        const b = JSON.parse(String(a.before ?? "{}")) as { transcript?: string | null; locator?: string | null; app?: Source["app"] | null; title?: string };
         update<Source>(
           tree,
           a.id,
           "source",
-          ({ transcript: _t, locator: _l, app: _a, ...x }) => ({ ...x, ...(b.transcript ? { transcript: b.transcript } : {}), ...(b.locator ? { locator: b.locator } : {}), ...(b.app ? { app: b.app } : {}) }) as Source,
+          // its title too, when a rename in the app changed it
+          ({ transcript: _t, locator: _l, app: _a, ...x }) => ({ ...x, ...(b.title ? { title: b.title } : {}), ...(b.transcript ? { transcript: b.transcript } : {}), ...(b.locator ? { locator: b.locator } : {}), ...(b.app ? { app: b.app } : {}) }) as Source,
           { op: "source.sync", summary: `${a.id} as it was: ${reason}` },
         );
         break;
@@ -4516,6 +4733,15 @@ export function undoSync(tree: Tree, input: SyncInput): number {
       case "source.add":
         update<Source>(tree, a.id, "source", (x) => ({ ...x, retracted: { at: now(), reason } }), { op: "source.retract", summary: `${a.id} retracted: ${reason}` });
         break;
+      case "media.add":
+        update<Media>(tree, a.id, "media", (x) => ({ ...x, retracted: { at: now(), reason } }), { op: "media.retract", summary: `${a.id} retracted: ${reason}`, reason });
+        break;
+      case "input.sort": {
+        // the material as it stood before the reading's source was made of it
+        const b = JSON.parse(String(a.before ?? "{}")) as Pick<Input, "state" | "sorted">;
+        update<Input>(tree, a.id, "input", ({ sorted: _s, ...x }) => ({ ...x, state: b.state ?? "new", ...(b.sorted ? { sorted: b.sorted } : {}) }) as Input, { op: "input.sort", summary: `${a.id} ${b.state ?? "new"} again: ${reason}`, reason });
+        break;
+      }
       case "repo.add":
         update<Repository>(tree, a.id, "repository", (x) => ({ ...x, retracted: { at: now(), reason } }), { op: "repo.retract", summary: `${a.id} retracted: ${reason}`, reason });
         break;

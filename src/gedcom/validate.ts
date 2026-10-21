@@ -49,6 +49,7 @@ const CHILDREN: Record<string, string[]> = {
   "FAM.CHIL": ["_FREL", "_MREL"],
   "INDI.ASSO": ["RELA", "SOUR", "NOTE"],
   FAM: ["HUSB", "WIFE", "CHIL", "NOTE", "SOUR", "REFN", "OBJE", "RIN", "CHAN", "_STORY", ...FAM_EVENTS],
+  // the Strom profile also writes PAGE on the record: where in the book the source is (the Strom app's reference)
   SOUR: ["TITL", "AUTH", "ABBR", "PUBL", "TEXT", "REPO", "NOTE", "REFN", "DATA", "OBJE", "RIN", "CHAN"],
   "SOUR.REPO": ["CALN", "NOTE"],
   REPO: ["NAME", "ADDR", "NOTE", "REFN", "RIN", "CHAN"],
@@ -67,6 +68,8 @@ const CHILDREN: Record<string, string[]> = {
   ADDR: ["CONT", "ADR1", "ADR2", "ADR3", "CITY", "STAE", "POST", "CTRY"],
 };
 
+/** Values the Strom app joins from CONC lines though GEDCOM 5.5.1 gives them none: a long place, name, label (its file). */
+const JOINED_TAGS = new Set(["PLAC", "NAME", "_WITN", "PAGE", "TYPE", "SOUR", "REFN", "AGE"]);
 const TEXT_TAGS = new Set(["NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "VAL", "DECI"]);
 const EXTENSIONS = new Set([
   "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
@@ -79,6 +82,8 @@ const EXTENSIONS = new Set([
   "_DRAFT",
   // what a variant of a hypothesis would connect, and what of it the tree records already
   "_VAR", "_LINK", "_PERS", "_FAM", "_PAR", "_CHOSEN", "_INTREE",
+  // a source's excerpts the file leaves out, and why
+  "_STROM_IMG_OMITTED",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */
@@ -145,8 +150,8 @@ export function validateGedcom(text: string, opts: { strict?: boolean } = {}): G
       const allowed = ctx ? CHILDREN[ctx] : undefined;
       const parentTag = stack[level - 1]!;
       if (tag === "CONC" || tag === "CONT") {
-        if (!TEXT_TAGS.has(parentTag) && !["CONC", "CONT"].includes(parentTag)) add("warn", n, `${tag} under ${parentTag}`);
-      } else if (allowed && !allowed.includes(tag)) add(tag.startsWith("_") ? "warn" : "error", n, `${tag} is not expected under ${ctx}`);
+        if (!TEXT_TAGS.has(parentTag) && !["CONC", "CONT"].includes(parentTag) && (opts.strict || !JOINED_TAGS.has(parentTag))) add("warn", n, `${tag} under ${parentTag}`);
+      } else if (allowed && !allowed.includes(tag) && !(ctx === "SOUR" && tag === "PAGE" && !opts.strict)) add(tag.startsWith("_") ? "warn" : "error", n, `${tag} is not expected under ${ctx}`);
     }
     stack[level] = tag;
     if (tag.startsWith("_") && (opts.strict || !EXTENSIONS.has(tag))) add(opts.strict ? "error" : "warn", n, `non-standard tag ${tag}`);

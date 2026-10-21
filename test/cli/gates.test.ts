@@ -10,7 +10,7 @@ import { opts, agent, world } from "./gates.helpers.ts";
 
 test("a gate is asked before each session: go on, then stop — the run ends and says why", opts, async () => {
   const w = await world([{ code: 0 }, { code: 0, say: { reason: "dost místa" } }, { code: 2, say: { reason: "týden je z 90 % pryč" } }]);
-  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   const r = await w.ok(["run", "--agent", "script", "--loop", "--json"]);
   assert.equal(r.json.sessions.length, 2);
   assert.equal(r.json.stop, "gate");
@@ -27,7 +27,7 @@ test("a gate is asked before each session: go on, then stop — the run ends and
 
 test("a gate that says wait past --until ends the run; one that fails stops it — never spending blind", opts, async () => {
   const w = await world([{ code: 1, say: { reason: "sezení je plné", wait: 7200 } }, { code: 7 }, { code: 0, say: "not JSON, just words" }]);
-  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   const soon = new Date(Date.now() + 60 * 60_000);
   const until = `${String(soon.getHours()).padStart(2, "0")}:${String(soon.getMinutes()).padStart(2, "0")}`;
   const waited = await w.ok(["run", "--agent", "script", "--loop", "--until", until, "--json"]);
@@ -45,7 +45,7 @@ test("a gate that says wait past --until ends the run; one that fails stops it �
 
 test("tasks the user starts themselves: the gate is asked once, and when it would not start, the user decides", opts, async () => {
   const w = await world([{ code: 1, say: { reason: "sezení je plné", wait: 7200 } }, { code: 1, say: { reason: "sezení je plné", wait: 7200 } }, { code: 2 }]);
-  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   // no: nothing starts, and the run says why
   const no = await w.ok(["run", "--agent", "script", "--max", "2"], { tty: true, answers: ["n"] });
   assert.match(no.out, /podmínka: Zkouška — tyto úkoly jsou spuštěné ručně/);
@@ -66,7 +66,7 @@ test("tasks the user starts themselves: the gate is asked once, and when it woul
 
 test("tasks started by an agent or a script: nobody to ask there — an agent needs the user's yes, a script keeps to the gate", opts, async () => {
   const w = await world([{ code: 1, say: { reason: "sezení je plné" } }, { code: 1, say: { reason: "sezení je plné" } }]);
-  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true });
+  await w.ok(["config", "set", "run.gate", "zkouska"], { tty: true, answers: ["y"] });
   const script = await w.ok(["run", "--agent", "script", "--json"]);
   assert.equal(script.json.stop, "gate.declined");
   w.env.CLAUDECODE = "1";

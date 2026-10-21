@@ -31,6 +31,8 @@ export const LIMITS = {
   views: { days: 14, bytes: 500 * MB, journal: 10 * MB },
   excerpts: { bytes: 200 * MB },
   fetch: { days: 1 },
+  /** HEIC photos and PDF pages converted to JPEG for reading (core/readable.ts): made again when needed. */
+  converted: { days: 30, bytes: 500 * MB },
   kept: { written: 5, days: 7, undoneDays: 30, refused: 5 },
   /** The measurements (core/metrics.ts): each journal and the use of the sessions together — never a summary. */
   metrics: { days: 90, bytes: 20 * MB },
@@ -47,7 +49,7 @@ export const TIDY_SAID = 100 * MB;
 /** A file (or a work folder) only touched this long ago is left: something may still write it. */
 const QUIET_MS = 10 * 60_000;
 
-export type TidyKind = "logs" | "briefs" | "views" | "excerpts" | "fetch" | "kept" | "inbox" | "pointers" | "metrics" | "gate";
+export type TidyKind = "logs" | "briefs" | "views" | "excerpts" | "fetch" | "converted" | "kept" | "inbox" | "pointers" | "metrics" | "gate";
 
 export interface TidyItem {
   kind: TidyKind;
@@ -225,6 +227,18 @@ export function tidyPlan(tree: Tree, at = Date.now()): TidyPlan {
     }
   }
 
+  // the pictures converted for reading (a folder per document): made again when needed — never while somebody is at
+  // work (a reader may be at one)
+  if (!atWork) {
+    const conv = entries(root, "converted", true).sort((a, b) => b.mtime - a.mtime);
+    let bytes = 0;
+    for (const e of conv) {
+      const old = at - e.mtime > LIMITS.converted.days * DAY;
+      if (old || bytes + e.bytes > LIMITS.converted.bytes) items.push({ kind: "converted", path: e.rel, bytes: e.bytes, do: "remove", why: old ? `converted for reading, not used for ${LIMITS.converted.days} days (made again when needed)` : `beyond ${LIMITS.converted.bytes / MB} MB converted for reading` });
+      else bytes += e.bytes;
+    }
+  }
+
   // work folders of downloads left by one cut short
   for (const e of entries(root, "fetch", true)) {
     const stamp = Number(/-(\d{12,})$/.exec(path.basename(e.rel))?.[1] ?? NaN);
@@ -348,7 +362,7 @@ function withoutImages(text: string): string {
 
 /** The path checked again as it goes: in the tree's .strom, of its kind, no link. */
 function safe(root: string, item: TidyItem): string | undefined {
-  const dirs: Record<TidyKind, string> = { logs: "runs", briefs: "briefs", views: "views", excerpts: "excerpts", fetch: "fetch", kept: path.join("sync", "kept"), inbox: "sync", pointers: "", metrics: "metrics", gate: "" };
+  const dirs: Record<TidyKind, string> = { logs: "runs", briefs: "briefs", views: "views", excerpts: "excerpts", fetch: "fetch", converted: "converted", kept: path.join("sync", "kept"), inbox: "sync", pointers: "", metrics: "metrics", gate: "" };
   const abs = path.resolve(root, item.path);
   const expected = path.resolve(root, ".strom", dirs[item.kind]);
   // the measurements: a journal in .strom/metrics, the use of a session in its usage folder — nothing else
@@ -361,7 +375,7 @@ function safe(root: string, item: TidyItem): string | undefined {
   if (!fits) return undefined;
   try {
     const st = fs.lstatSync(abs);
-    if (st.isSymbolicLink() || (item.kind === "fetch" ? !st.isDirectory() : !st.isFile())) return undefined;
+    if (st.isSymbolicLink() || (item.kind === "fetch" || item.kind === "converted" ? !st.isDirectory() : !st.isFile())) return undefined;
     const strom = fs.realpathSync(path.join(root, ".strom"));
     if (path.relative(strom, fs.realpathSync(abs)).startsWith("..")) return undefined;
   } catch {
@@ -388,7 +402,7 @@ export function tidy(tree: Tree, plan: TidyPlan, how: "person" | "auto"): { remo
     if (!abs) continue;
     try {
       if (item.do === "remove") {
-        fs.rmSync(abs, { recursive: item.kind === "fetch", force: true });
+        fs.rmSync(abs, { recursive: item.kind === "fetch" || item.kind === "converted", force: true });
         removed++;
         freed += item.bytes;
       } else if (item.kind === "logs") {

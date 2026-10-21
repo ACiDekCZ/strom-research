@@ -15,6 +15,7 @@ import { birthEvent, displayName, familiesAsPartner, lifespan } from "./people.t
 import { phrase, type PhraseKey } from "./phrases.ts";
 import { foldText } from "./text.ts";
 import { weighedSources } from "./conflicts.ts";
+import { loadState } from "./document.ts";
 import type { Tree } from "./tree.ts";
 import { parseYears } from "./years.ts";
 
@@ -131,12 +132,19 @@ export function readersOf(tree: Tree): Map<string, Set<string>> {
   const fromApp = new Map(tree.list<Source>("source").filter((s) => s.app).map((s) => [s.id, s.app!]));
   const out = new Map<string, Set<string>>();
   for (const [id, app] of fromApp) if (app.read) out.set(id, new Set(["user"]));
+  // an entry of a reading of a document the app sent back: its readers read it (their model), not whoever ran the sync
+  const readings = new Set<string>();
+  for (const s of tree.list<Source>("source")) {
+    if (!s.reading) continue;
+    readings.add(s.id);
+    if (!out.has(s.id)) out.set(s.id, new Set([loadState(tree.root, s.reading)?.model ?? "unknown"]));
+  }
   for (const op of tree.readOps()) {
     if (op.op !== "source.add" && op.op !== "source.edit") continue;
     const who = op.by === "user" ? "user" : (model.get(op.by) ?? "unknown");
     for (const id of op.targets) {
       if (!id.startsWith("S")) continue;
-      if (fromApp.has(id) && (op.op === "source.add" || !model.has(op.by))) continue;
+      if ((fromApp.has(id) || readings.has(id)) && (op.op === "source.add" || !model.has(op.by))) continue;
       (out.get(id) ?? out.set(id, new Set()).get(id)!).add(who);
     }
   }

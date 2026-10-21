@@ -51,7 +51,7 @@ import { agentSettingsLine, chooseEffort } from "../cli/model-choice.ts";
 import { calibrationKey, calibrationLabel, calibrationOffer, forgetCalibration, researchKey, sizesText, viewModel, viewSizesFor } from "../core/viewsizes.ts";
 import { bookTuned, bookViewSizes, forgetTuning, keyTuningOf, readingOf, selfTune, treeTuning, type KeyTuning, type Tuned } from "../core/tune.ts";
 import { loadAliases } from "../core/modelkey.ts";
-import { NeedsInputError, StromError, UsageError } from "../core/errors.ts";
+import { EXIT, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
 import { worsenings, type Worsening } from "../core/tunereset.ts";
 import { resetReading } from "../cli/tunereset.ts";
 import { loadRollup, manyWeb, type Unit } from "../core/readstats.ts";
@@ -64,6 +64,7 @@ import { checkGate, ensureGatesDir } from "../core/gate.ts";
 import { ensureHooksDir } from "../core/hooks.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL, downloadsDir } from "../core/browser.ts";
 import { browserConnectors, fenceKeepsNetOff, listConnectors } from "../core/connector.ts";
+import { appReadLimits } from "../core/live-read.ts";
 
 export const SHARED_DIRS = ["media", "catalog", "tools", "cache", "inbox"];
 
@@ -630,10 +631,13 @@ register({
       : newer
         ? t("ui.update.sure", { version: newest, current: VERSION })
         : t("ui.update.node.sure", { from: inst.node ?? "?", to: node!.version });
+    const again = to ? `strom update --channel ${to}` : "strom update";
     if (isAgent(ctx.env) || !ctx.yes) {
+      // said no: said so, nothing installed and the version it stays at, and not ok (exit 1) — never a quiet 0 that
+      // reads as done (found: strom update --channel beta ended 0 at the old version, nobody knew why)
       if (!isAgent(ctx.env) && ctx.interactive) {
-        if (!(await ctx.confirm(question, true))) return { text: t("ui.update.later"), data: { current: VERSION, latest: newest, updated: false, ...extra } };
-      } else ctx.requireHuman(`update strom to ${newest}${to ? ` (--channel ${to})` : ""}`, to ? `strom update --channel ${to}` : "strom update", "update", question);
+        if (!(await ctx.confirm(question, true))) return { text: t("ui.update.later", { current: VERSION, command: again }), data: { current: VERSION, latest: newest, updated: false, refused: true, ...extra }, exitCode: EXIT.error };
+      } else ctx.requireHuman(`update strom to ${newest}${to ? ` (--channel ${to})` : ""}`, again, "update", question);
     }
     // Another channel, or an older version: every research and the settings backed up before anything is installed —
     // none made, nothing installed (Milan, 2026-10-07: "přechod beta ↔ produkce nikdy nepřijde o data")
@@ -644,7 +648,9 @@ register({
     try {
       done = await installUpdate(ctx.env, inst.root!, process.platform, { release: latest, keep: ctx.researchFolders(), ...(switching ? { channel: to! } : {}) });
     } catch (e) {
-      throw new StromError(t("ui.update.failed", { detail: (e as Error).message }), { hint: "strom update — or run the installer again" });
+      // the person's language for a person (ui.error.update.failed and its hint), the English for an agent and a program
+      const params = { detail: (e as Error).message, current: VERSION, command: again };
+      throw new StromError(ui("en", "ui.error.update.failed", params), { hint: ui("en", "ui.error.update.failed.hint", params), code: "update.failed", params });
     }
     // The agents learn what the new version tells them.
     const { command, args } = stromLauncher();
@@ -756,6 +762,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   mode: () => "research",
   updates: () => "check",
   "archive.pace": () => "auto",
+  "read.app": () => "auto",
 };
 
 /** Effective value of a setting, with the default filled in (views.size of one book: `recordset`). */
@@ -939,6 +946,13 @@ export function setTreeSetting(ctx: Context, key: string, value: string | number
   return tree;
 }
 
+/** The person said no in their terminal: nothing changed, said in their language (exit 1, as a refusal). */
+function kept(ctx: Context, def: SettingDef) {
+  const r = effective(ctx, def);
+  const value = r.value === undefined ? "—" : display(ctx, def, r.value);
+  return { text: ui(ctx.uiLang(), "ui.consent.kept", { key: def.key, value }), data: { key: def.key, value: r.value ?? null, changed: false }, exitCode: 1 };
+}
+
 /** Does this value let the agent do more than now? */
 function raises(now: AgentPermissions, value: string | number | undefined): boolean {
   const next = (value ?? "auto") as AgentPermissions;
@@ -982,7 +996,8 @@ export function refuseInProgram(ctx: Context, key: "home" | "trees" | "shared", 
   ctx.refuseProgramFolder(key, target);
 }
 
-function setUserSetting(ctx: Context, key: string, value: string | number | undefined): void {
+/** false: the person said no in their terminal to what needs their own yes there (requireHumanYes) — nothing changed. */
+async function setUserSetting(ctx: Context, key: string, value: string | number | undefined): Promise<boolean> {
   const s = ctx.settings;
   syncDecisions(ctx, key, value, "user");
   addonsDecision(ctx, key, value, "user");
@@ -996,15 +1011,16 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
     const tree = treeSettings(ctx);
     const root = tree ? rootHere(ctx) : undefined;
     forgetCalibration(s.config, viewSizesFor(s, s.agent(tree).value, tree, undefined, root).key, loadAliases(root));
-    return s.save();
+    s.save();
+    return true;
   }
   // what strom set by itself for the reading, taken back: the default again (logged; not set again for a while)
   if (key === "reading.batch" || key === "reading.views") {
     const tree = treeSettings(ctx);
     forgetTuning(s, tree ? ctx.tree().root : undefined, readingKey(ctx, tree), key === "reading.batch" ? ["batch", "viewsPerCall"] : ["viewsStop", "ctx"]);
-    return;
+    return true;
   }
-  // Loosening the agent's permissions is the user's decision alone.
+  // Loosening the agent's permissions is the user's decision alone (full: config set asked their yes in a terminal).
   if (key === "agent.permissions" && raises(s.agentPermissions(), value))
     ctx.requireHuman(
       `Let the agent ${value === "full" ? "do everything but what the tree's permissions deny" : "work on its own, asking only about risky steps"}, without asking?`,
@@ -1012,23 +1028,27 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
       "agent.permissions",
       ui(ctx.uiLang(), value === "full" ? "ui.consent.level.full" : "ui.consent.level.auto"),
     );
-  // Sessions steered from elsewhere (Remote Control): the user's decision alone.
+  // Sessions steered from elsewhere (Remote Control): the user's decision alone — their yes in a terminal too.
   if (key === "agent.remote" && value === "on" && !s.agentRemote())
-    ctx.requireHuman("Start the Claude Code sessions with Remote Control (followed and steered from claude.ai or a phone)?", "strom config set agent.remote on", "agent.remote", ui(ctx.uiLang(), "ui.consent.remote"));
-  // Asking before a connector runs is the user's safeguard: only they take it away.
+    if (!(await ctx.requireHumanYes("Start the Claude Code sessions with Remote Control (followed and steered from claude.ai or a phone)?", "strom config set agent.remote on", "agent.remote", ui(ctx.uiLang(), "ui.consent.remote")))) return false;
+  // Asking before a connector runs is the user's safeguard: only they take it away — their yes in a terminal too.
   if (key === "connectors.consent" && value !== "on" && s.connectorsConsent())
-    ctx.requireHuman("Let connectors run without asking first?", `strom config set connectors.consent ${value ?? "off"}`, "connectors.consent", ui(ctx.uiLang(), "ui.consent.connectors.off"));
+    if (!(await ctx.requireHumanYes("Let connectors run without asking first?", `strom config set connectors.consent ${value ?? "off"}`, "connectors.consent", ui(ctx.uiLang(), "ui.consent.connectors.off")))) return false;
   // a gate that is not there (or not a gate), or a cap that is no cap, is said now — before anybody is asked, set up
   // or not, and nothing put on the disk for it (the setup makes the gates folder, a run refreshes it)
   if (key === "run.gate" && typeof value === "string") checkGate(s.shared()?.value, value);
-  // The gate decides what working alone spends: set and taken away by the user alone.
+  // The gate decides what working alone spends (and runs a program of its own): set and taken away by the user alone,
+  // their yes in a terminal too.
   if (key === "run.gate" && value !== s.runGate())
-    ctx.requireHuman(
-      value ? `Let the gate "${value}" decide when the agent working alone goes on?` : `Remove the gate "${s.runGate()}" — the agent working alone no longer asks it?`,
-      value ? `strom config set run.gate ${value}` : "strom config unset run.gate",
-      "run.gate",
-      ui(ctx.uiLang(), value ? "ui.consent.gate.set" : "ui.consent.gate.unset", { name: String(value ?? s.runGate()) }),
-    );
+    if (
+      !(await ctx.requireHumanYes(
+        value ? `Let the gate "${value}" decide when the agent working alone goes on?` : `Remove the gate "${s.runGate()}" — the agent working alone no longer asks it?`,
+        value ? `strom config set run.gate ${value}` : "strom config unset run.gate",
+        "run.gate",
+        ui(ctx.uiLang(), value ? "ui.consent.gate.set" : "ui.consent.gate.unset", { name: String(value ?? s.runGate()) }),
+      ))
+    )
+      return false;
   // A person's pace for the images of restricted archives: theirs alone, faster or slower — never the agent's.
   if (key === "archive.pace" && value !== (s.config.archivePace ?? undefined)) {
     const p = typeof value === "string" && value !== "auto" ? parseArchivePace(value) : undefined;
@@ -1040,9 +1060,18 @@ function setUserSetting(ctx: Context, key: string, value: string | number | unde
       ui(ctx.uiLang(), "ui.consent.archive.pace", { seconds: secondsIn(ctx.uiLang(), pace.minIntervalMs), n: pace.perHour }),
     );
   }
+  // What the Strom app may spend on readings of documents: raised by the person alone, their yes in a terminal too
+  // (lowered by anyone).
+  if (key === "read.app") {
+    const was = appReadLimits(s.config.readApp);
+    const now = appReadLimits(typeof value === "string" ? value : undefined);
+    if (now.hour > was.hour || now.day > was.day)
+      if (!(await ctx.requireHumanYes(`Let the Strom app ask up to ${now.hour} readings of documents an hour and ${now.day} a day?`, value === undefined ? "strom config unset read.app" : `strom config set read.app "${value}"`, "read.app", ui(ctx.uiLang(), "ui.consent.read.app", { hour: now.hour, day: now.day })))) return false;
+  }
   writeStored(s.config, key, s.agent(treeSettings(ctx)).value, value);
   s.save();
   if (key === "shared" && typeof value === "string") ensureShared(value);
+  return true;
 }
 
 register(
@@ -1104,9 +1133,8 @@ register(
       // In their own terminal the user reads what full means and says yes once more.
       if (def.key === "agent.permissions" && value === "full" && ctx.settings.agentPermissions() !== "full" && !opts["for-tree"] && ctx.interactive && !isAgent(ctx.env)) {
         const lang = ctx.uiLang();
-        ctx.io.stderr(ui(lang, "ui.full.warning") + "\n");
         const now = ctx.settings.agentPermissions();
-        if (!(await ctx.confirm(ui(lang, "ui.full.ask"), false))) return { text: ui(lang, "ui.full.unchanged", { level: now }), data: { key: def.key, value: now, scope: "user" }, exitCode: 1 };
+        if (!(await ctx.humanYes(ui(lang, "ui.full.warning"), ui(lang, "ui.full.ask")))) return { text: ui(lang, "ui.full.unchanged", { level: now }), data: { key: def.key, value: now, scope: "user" }, exitCode: 1 };
       }
       // a model is kept for one agent (the research's, or --agent): said which
       const forAgent = def.kind === "model" ? ctx.settings.agent(treeSettings(ctx)).value : undefined;
@@ -1125,7 +1153,7 @@ register(
         text = `${def.key} = ${display(ctx, def, value)}${who} for tree "${tree.config.name}"`;
         data = { key: def.key, value, scope: "tree", ...(forAgent ? { agent: forAgent } : {}) };
       } else {
-        setUserSetting(ctx, def.key, value);
+        if (!(await setUserSetting(ctx, def.key, value))) return kept(ctx, def);
         text = `${def.key} = ${display(ctx, def, value)}${who}`;
         data = { key: def.key, value, scope: "user", ...(forAgent ? { agent: forAgent } : {}) };
       }
@@ -1139,7 +1167,7 @@ register(
           const e = await chooseEffort(ctx, lang, forAgent, kept ? String(kept.value) : undefined, { back: ui(lang, "ui.keep") });
           if (e?.picked && e.value !== (kept ? String(kept.value) : undefined)) {
             if (scopeArgs.for === "tree") setTreeSetting(ctx, "model.effort", e.value);
-            else setUserSetting(ctx, "model.effort", e.value);
+            else await setUserSetting(ctx, "model.effort", e.value);
             text += `\nmodel.effort = ${e.value ?? "(unset)"}${who}`;
             data.effort = e.value ?? null;
           }
@@ -1155,10 +1183,10 @@ register(
     args: [{ name: "key", description: SETTINGS.map((s) => s.key).join(", "), required: true }],
     options: [{ name: "for-tree", type: "boolean", description: "remove the tree's own value" }],
     examples: ["strom config unset shared", "strom config unset agent --for-tree"],
-    run(ctx, { args, opts }) {
+    async run(ctx, { args, opts }) {
       const def = settingDef(args[0]!);
       if (opts["for-tree"]) setTreeSetting(ctx, def.key, undefined);
-      else setUserSetting(ctx, def.key, undefined);
+      else if (!(await setUserSetting(ctx, def.key, undefined))) return kept(ctx, def);
       const r = effective(ctx, def);
       // a setting with no default: nothing holds now, said once (never "now (unset) (unset)")
       const now = r.value === undefined ? "nothing set now" : `now ${display(ctx, def, r.value)} (${r.source})`;

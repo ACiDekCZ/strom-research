@@ -990,12 +990,15 @@ register(
 // ── find and gaps ──────────────────────────────────────────────────────────
 
 /** Searchable text of a record, for `strom find`. */
+/** What was taken back or replaced (spec 016): kept for the history, never searched — at any depth of a record. */
+const NOT_SEARCHED = new Set(["retractedNames", "retractedNotes", "edits", "noteEdits"]);
+
 function haystack(r: AnyRecord): string {
   const parts: string[] = [];
   const add = (v: unknown) => {
     if (typeof v === "string") parts.push(v);
     else if (Array.isArray(v)) v.forEach(add);
-    else if (v && typeof v === "object") Object.values(v).forEach(add);
+    else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) if (!NOT_SEARCHED.has(k)) add(x);
   };
   const { id: _i, type: _t, created: _c, updated: _u, ...rest } = r as unknown as Record<string, unknown>;
   // a person's titles ("Ing.", "ml.") are never searched as their name — the Strom app finds nobody by them either

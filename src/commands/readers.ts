@@ -30,13 +30,21 @@ export interface Readers {
   stem: string;
   reportsDir: string;
   /** One reader: it looks at these views and writes its report; the report's text comes back. */
-  read: (name: string, views: string[], title: string, prompt: (report: string) => string) => Promise<{ report: string; text: string; outcome: string; costUsd?: number }>;
+  read: (name: string, views: string[], title: string, prompt: (report: string) => string, more?: ReadMore) => Promise<{ report: string; text: string; outcome: string; costUsd?: number; costPartial?: boolean; resumeAt?: string }>;
   cost: () => number;
   /** How many readers ran, and whether one stopped before it said what it cost. */
   runs: () => number;
   partial: () => boolean;
   failed: string[];
   progress: (s: string) => void;
+}
+
+/** What one reader of a run may have besides its views: the first lines of its report, a way to stop it. */
+export interface ReadMore {
+  /** The report's first lines (else "# <title>"). */
+  head?: string;
+  /** Stops the reader (a reading cancelled): its outcome is "stopped". */
+  signal?: AbortSignal;
 }
 
 /**
@@ -95,6 +103,12 @@ export function claimStem(root: string, prefix: string, base: string, taken: (st
   return `${base}-${process.pid}`;
 }
 
+/** An agent strom has no reader for: the agents that read said (each agent of a research does), none of them preferred. */
+export function noReaderFor(agentId: string, command: string): UsageError {
+  const agents = Object.keys(RUNNERS).filter((a) => a !== "script");
+  return new UsageError(`no reader for agent "${agentId}"`, { hint: `${command} reads with ${agents.join(", ")}: ${command} … --agent <one of them>` });
+}
+
 /** Inside a sandbox that lets no agent start (Codex's) no reader is started: said at once, with what to do instead. */
 export function refuseReadersInSandbox(ctx: Context, command: string): void {
   const sb = sandboxOf(ctx.env);
@@ -105,12 +119,12 @@ export function refuseReadersInSandbox(ctx: Context, command: string): void {
  * Set up the readers of a run (--model, --parallel, --minutes; the agent of the session, else of the tree). `reportsDir`: where their reports
  * go when they are not the research's readings (notes/readings) — a calibration's, beside the research in .strom.
  */
-export function readers(ctx: Context, tree: Tree, shared: string, kind: string, first: string, opts: Record<string, unknown>, reportsAt?: string): Readers {
+export function readers(ctx: Context, tree: Tree, shared: string, kind: string, first: string, opts: Record<string, unknown>, reportsAt?: string, own: { stem?: string } = {}): Readers {
   refuseReadersWhenFinishing(tree.root, ctx.env);
   refuseReadersInSandbox(ctx, `strom ${kind}`);
   const agentId = readerAgent(ctx, tree);
   const runner = RUNNERS[agentId];
-  if (!runner) throw new UsageError(`no reader for agent "${agentId}" yet`, { hint: `strom ${kind} works with Claude Code: strom ${kind} … --agent claude` });
+  if (!runner) throw noReaderFor(agentId, `strom ${kind}`);
   if (agentId !== "script" && !which(runner.command, ctx.env)) throw new StromError(`${runner.command} is not installed`);
   const model = typeof opts.model === "string" ? opts.model : ctx.settings.models(agentId, tree.config).vision;
   const effort = ctx.settings.effort(agentId, tree.config)?.value;
@@ -122,20 +136,20 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
   const day = new Date().toISOString().slice(0, 10);
   const reportsDir = reportsAt ?? path.join(tree.root, "notes", "readings");
   fs.mkdirSync(reportsDir, { recursive: true });
-  const stem = claimStem(tree.root, kind, `${day}-${kind}`, (s) => fs.existsSync(path.join(reportsDir, `${s}-${first}-1.md`)));
+  const stem = own.stem ?? claimStem(tree.root, kind, `${day}-${kind}`, (s) => fs.existsSync(path.join(reportsDir, `${s}-${first}-1.md`)));
   const work = path.join(shared, "cache", "readers");
   const progress = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
   let cost = 0;
   let runs = 0;
   let partial = false;
   const failed: string[] = [];
-  const read = async (name: string, views: string[], title: string, prompt: (report: string) => string) => {
+  const read = async (name: string, views: string[], title: string, prompt: (report: string) => string, more: ReadMore = {}) => {
     const report = path.join(reportsDir, `${stem}-${name}.md`);
     const own = path.join(work, `${stem}-${name}`);
     fs.mkdirSync(own, { recursive: true });
     const settingsFile = path.join(own, "reader-settings.json");
     fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(views, report, permissionPath), null, 2));
-    fs.writeFileSync(report, `# ${title}\n\n`);
+    fs.writeFileSync(report, more.head ?? `# ${title}\n\n`);
     const text = prompt(report);
     // its time limit: by hand, else by its views and what the readers of this agent and model before it needed
     const limit = minutesSaid !== undefined ? { minutes: minutesSaid, from: "option" as const } : readerLimit(tree.root, sizes.key, views.length);
@@ -150,6 +164,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
       env: { ...withoutAgentMarks(env), STROM_NONINTERACTIVE: "1", STROM_READER: "1" },
       settingsFile,
       reader: true,
+      readerFiles: { views, report },
       // without the user's own add-ons (skills, plugins, MCP servers) unless they said otherwise
       ...(ctx.settings.agentAddons(tree.config) ? {} : { clean: true }),
       timeoutMs: limit.minutes * 60_000,
@@ -157,6 +172,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
       ...(model ? { model } : {}),
       // the reasoning effort the person chose for the agent (model.effort): readers read with it too
       ...(effort ? { effort } : {}),
+      ...(more.signal ? { signal: more.signal } : {}),
       ...usageOpt(tree, `${kind}-${stem}-${name}`, { agent: agentId, key: sizes.asked ?? sizes.key, ...(model ? { model } : {}), ...(effort ? { effort } : {}), reader: kind }),
     });
     const ranMs = Date.now() - startedAt;
@@ -192,7 +208,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
     if (r.outcome !== "ok") failed.push(`${name} (${r.outcome === "error" && refusedBySandbox(r.text) ? "no reader can start in this sandbox" : r.outcome === "timeout" ? `stopped at its time limit, ${limit.minutes} min` : r.outcome})`);
     const written = fs.readFileSync(report, "utf8");
     if (!/^##\s/m.test(written) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
-    return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}) };
+    return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}), ...(r.metrics.costPartial ? { costPartial: true } : {}), ...(r.resumeAt ? { resumeAt: r.resumeAt } : {}) };
   };
   return { model, viewMax: sizes.read, parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
 }

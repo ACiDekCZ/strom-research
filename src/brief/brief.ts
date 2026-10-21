@@ -24,6 +24,7 @@ import { clock, hostAllowed, hostState, REFUSED_FOREVER } from "../core/net.ts";
 import { archiveLevel, type PendingQuestion } from "../core/terms.ts";
 import { onHost, permissionQuestions, setHosts } from "../core/archivewait.ts";
 import { runs, runsArg, shellArg } from "../cli/format.ts";
+import { readingsLine, readingsOf } from "../core/readsync.ts";
 import { commandSheet } from "./sheet.ts";
 import { foldText } from "../core/text.ts";
 import { subjectPeople } from "../core/records.ts";
@@ -1013,9 +1014,13 @@ export function buildBrief(
           const file = inputPath(tree, i);
           // all that strom input show says of it, so it needs no extra command (K6)
           const small = !i.text && i.kind === "text" && file && (i.size ?? 0) < 20_000 && /\.(txt|md|csv)$/i.test(file) ? readSmall(file) : undefined;
+          // read already (strom document read): its result, the file not read again
+          const read = readingsLine(tree, i);
+          const readDone = readingsOf(tree, i).some((r) => r.state === "done");
           return [
             `${i.id} ${i.name} [${i.kind} · ${i.state}]${i.from ? ` from ${i.from}` : ""}${i.mime ? ` · ${i.mime}${i.size !== undefined ? ` ${Math.round(i.size / 1024)} kB` : ""}` : ""}`,
-            file ? `file: ${file}${i.kind === "document" || i.kind === "photo" ? " — open it and read it yourself" : ""}` : "",
+            file ? `file: ${file}${(i.kind === "document" || i.kind === "photo") && !readDone ? " — open it and read it yourself" : ""}` : "",
+            read ? `read: ${read}` : "",
             i.batch ? `batch: ${i.batch}${i.path ? ` · ${i.path}` : ""}` : "",
             i.persons?.length ? `of: ${i.persons.join(", ")}` : "",
             i.sorted ? `sorted: ${i.sorted.as}${i.sorted.source ? ` → ${i.sorted.source}` : ""}${i.sorted.reason ? ` (${i.sorted.reason})` : ""}` : "",

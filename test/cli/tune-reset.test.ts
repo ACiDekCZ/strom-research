@@ -98,7 +98,9 @@ test("listed first, returned only on a person's yes; --only, --recordset, --host
   plant(root, [unit("r-1", Date.now() - 2 * DAY, { B0003: { scans: 20, views: 20, read: 20 } }, { outcome: "ok" })]);
   const before = { cfg: fs.readFileSync(cfgFile(w), "utf8"), state: fs.readFileSync(tuneFile(root, "state.json"), "utf8"), answers: fs.readFileSync(tuneFile(root, "answers.json"), "utf8") };
   const unchanged = () => {
-    assert.equal(fs.readFileSync(cfgFile(w), "utf8"), before.cfg);
+    // (the PATH of the person's terminal is remembered at a run in it: no setting of the reading)
+    const own = (text: string) => ({ ...JSON.parse(text), terminalPath: undefined });
+    assert.deepEqual(own(fs.readFileSync(cfgFile(w), "utf8")), own(before.cfg));
     assert.equal(fs.readFileSync(tuneFile(root, "state.json"), "utf8"), before.state);
     assert.equal(fs.readFileSync(tuneFile(root, "answers.json"), "utf8"), before.answers);
   };

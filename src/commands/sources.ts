@@ -28,7 +28,8 @@ import { makeNote, makeNotes, parseDate } from "../core/actions.ts";
 import { calibrationLine, fitCalibration } from "../core/calibration.ts";
 import { foldText } from "../core/text.ts";
 import { clipNote, clipText, imageOfRef, MAX_CLIPS, transcriptNote } from "../core/media.ts";
-import { partRegion } from "../core/views.ts";
+import { mediaOrient, partRegion } from "../core/views.ts";
+import { fileToShown } from "../image/image.ts";
 import { formatName } from "../core/people.ts";
 import { yearsOption, yearsOverlap } from "../core/years.ts";
 import type { Tree } from "../core/tree.ts";
@@ -69,8 +70,9 @@ function mediaRefs(tree: Tree, refs: string[]): string[] {
 /**
  * Where the entry is on an image, as its view was cut: "M0012@0.05,0.4,0.45,0.18", "B0001:57@left:0.1,0.4,0.8,0.1"
  * (a half, then a crop within it), pixels of the registered image, or "M0012" alone (the entry is the whole image).
+ * Of the picture as the view showed it (a photo upright, turned by its EXIF); kept as the picture lies in its file.
  */
-function clipRefs(tree: Tree, specs: string[]): Clip[] {
+function clipRefs(tree: Tree, specs: string[], shared: string | undefined): Clip[] {
   return specs.map((spec) => {
     const m = /^([^@]+?)(?:@(.+))?$/.exec(spec.trim()) ?? [];
     let [ref, where] = [m[1] ?? "", m[2]];
@@ -80,7 +82,8 @@ function clipRefs(tree: Tree, specs: string[]): Clip[] {
     const media = mediaRefs(tree, [ref])[0]!;
     if (!where) return { media, region: { x: 0, y: 0, w: 1, h: 1 } };
     const w = /^(?:(left|right|top|bottom)(?::|$))?(.*)$/.exec(where.trim())!;
-    const region = partRegion({ half: w[1], crop: w[2] || undefined }, tree.get<Media>(media));
+    const img = tree.get<Media>(media);
+    const region = partRegion({ half: w[1], crop: w[2] || undefined }, img, mediaOrient(shared, img));
     return { media, region };
   });
 }
@@ -214,7 +217,7 @@ register(
       const book = opts.recordset ? requireRecord<RecordSet>(tree, opts.recordset as string, "recordset") : undefined;
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
       if (opts.input) requireRecord(tree, opts.input as string, "input");
-      const clips = clipRefs(tree, listOpt(opts.clip));
+      const clips = clipRefs(tree, listOpt(opts.clip), ctx.settings.shared()?.value);
       if (clips.length > MAX_CLIPS) throw new UsageError(`at most ${MAX_CLIPS} clips: an entry, and its continuation over a page break`);
       const media = [...new Set([...mediaRefs(tree, csvOpt(opts.media)), ...clips.map((c) => c.media)])];
       // a line of an index is a copy made by another hand; a book with its own index holds originals too
@@ -281,6 +284,7 @@ register(
     args: [{ name: "source", description: "source ID (S0001)", required: true }],
     run(ctx, { args }) {
       const tree = ctx.tree();
+      const shared = ctx.settings.shared()?.value;
       const s = requireRecord<Source>(tree, args[0]!, "source");
       const citing: string[] = [];
       const at = (c: Citation) => (c.locator ? ` (${c.locator})` : "");
@@ -298,7 +302,8 @@ register(
         s.recordset || s.repository ? `in     ${[s.recordset, s.repository].filter(Boolean).join(" · ")}${s.locator ? ` · ${s.locator}` : ""}` : s.locator ? `at     ${s.locator}` : undefined,
         s.url ? `url    ${s.url}` : undefined,
         s.media?.length ? `images ${s.media.map((id) => { const m = tree.get<Media>(id); return m ? `${id}${m.recordset ? ` (${m.recordset}:${m.image ?? "?"})` : ""}` : id; }).join(" · ")} — strom media view <M…>` : undefined,
-        s.clips?.length ? `clips  ${s.clips.map((c, i) => `${i + 1}. ${clipText(c)}`).join(" · ")} — where the entry is on its image` : undefined,
+        // as --clip takes them: of the picture as its view shows it
+        s.clips?.length ? `clips  ${s.clips.map((c, i) => `${i + 1}. ${clipText({ media: c.media, region: fileToShown(c.region, mediaOrient(shared, tree.get<Media>(c.media))) })}`).join(" · ")} — where the entry is on its image` : undefined,
         s.transcript ? `\ntranscript\n${s.transcript}` : undefined,
         s.translation ? `\ntranslation\n${s.translation}` : undefined,
         citing.length ? `\ncited by\n${citing.map((c) => `  ${c}`).join("\n")}` : "\ncited by nothing yet",
@@ -821,7 +826,7 @@ register(
       const tree = ctx.tree();
       if (opts.recordset) requireRecord(tree, opts.recordset as string, "recordset");
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
-      const clips = clipRefs(tree, listOpt(opts.clip));
+      const clips = clipRefs(tree, listOpt(opts.clip), ctx.settings.shared()?.value);
       const drop = str(opts["clip-remove"]);
       const media = [...new Set([...mediaRefs(tree, csvOpt(opts.media)), ...clips.map((c) => c.media)])];
       const s = editFields<Source>(

@@ -372,7 +372,7 @@ function hostLine(ctx: Context, host: string, lang = "en"): string {
 async function askHost(ctx: Context, host: string, c?: Connector, byWindow = false): Promise<boolean> {
   if (!byWindow) {
     ctx.io.stdout("\n" + hostWarning(host, c, paceAt(ctx, host, c)) + "\n");
-    if (!(await ctx.confirm(`Allow automated access to ${host}?`, false))) return false;
+    if (!(await ctx.humanYes(ui(ctx.uiLang(), "ui.consent.host", { host: bareHost(host) })))) return false;
   }
   const all = loadConsents(ctx.env);
   all.hosts[bareHost(host)] = { at: new Date().toISOString(), ...(c ? { connector: c.name } : {}), ...(c?.manifest.policy.terms ? { terms: c.manifest.policy.terms } : {}) };
@@ -411,7 +411,7 @@ async function askConnector(ctx: Context, c: Connector, source: string, byWindow
   if (miss.code) {
     if (!byWindow) {
       ctx.io.stdout("\n" + codeWarning(c, source, directNetwork(c)) + "\n");
-      if (!(await ctx.confirm(`${miss.code === "changed" ? "Its code changed — allow" : "Allow"} connector ${c.name}?`, false))) return { allowed: false, hosts: [], missing: c.manifest.hosts.map(bareHost) };
+      if (!(await ctx.humanYes(consentWindow(ctx, c)))) return { allowed: false, hosts: [], missing: c.manifest.hosts.map(bareHost) };
     }
     grant(ctx, c, source);
   }
@@ -1535,7 +1535,8 @@ register(
         }
         const c = listConnectors(ctx.settings.shared()?.value).find((x) => x.manifest.hosts.some((h) => hostAllowed(host, [h])));
         const next = hostPace({ recent: [], own: { ...own, at: "" } }, c?.manifest.policy.pace);
-        ctx.requireHuman(`Set the pace of ${host}: ${paceText(next)}?`, `strom allow host ${host}${opts.pace !== undefined ? ` --pace ${opts.pace}` : ""}${opts["per-hour"] !== undefined ? ` --per-hour ${opts["per-hour"]}` : ""}`, `pace:${host}`, ui(lang, "ui.consent.host.pace", { host, seconds: secondsIn(lang, next.minIntervalMs), cap: Number.isFinite(next.perHour) ? ui(lang, "ui.pace.cap", { n: next.perHour }) : ui(lang, "ui.pace.nocap") }));
+        const yes = await ctx.requireHumanYes(`Set the pace of ${host}: ${paceText(next)}?`, `strom allow host ${host}${opts.pace !== undefined ? ` --pace ${opts.pace}` : ""}${opts["per-hour"] !== undefined ? ` --per-hour ${opts["per-hour"]}` : ""}`, `pace:${host}`, ui(lang, "ui.consent.host.pace", { host, seconds: secondsIn(lang, next.minIntervalMs), cap: Number.isFinite(next.perHour) ? ui(lang, "ui.pace.cap", { n: next.perHour }) : ui(lang, "ui.pace.nocap") }));
+        if (!yes) return { text: ui(lang, "ui.host.pace.kept", { host }), data: { host, changed: false }, exitCode: 1 };
         const s = setOwnPace(netDir(ctx), host, own);
         const now = paceAt(ctx, host, c);
         // what the person reads, in the research language (as strom allow archive says its decision)
@@ -1556,7 +1557,7 @@ register(
       }
       if (opts.unblock) {
         // the person's question and answer, in their language (a refusal, or a limit the host said is used up)
-        if (how === "terminal" && !(await ctx.confirm(ui(lang, "ui.consent.host.unblock", { host }), false))) return { text: ui(lang, "ui.host.unblock.kept", { host }) };
+        if (how === "terminal" && !(await ctx.humanYes(ui(lang, "ui.consent.host.unblock", { host })))) return { text: ui(lang, "ui.host.unblock.kept", { host }) };
         clearBlock(netDir(ctx), host);
         // a refusal of strom's client kept in the person's settings too: lifted with it
         liftRefusal(ctx.env, host);

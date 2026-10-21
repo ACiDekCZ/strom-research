@@ -56,7 +56,36 @@ function checkNotes(notes: unknown, path: string, out: Problem[]): void {
       out.push({ path: `${p}.text`, message: `is longer than ${NOTE_MAX} characters — use a conflict, hypothesis or story` });
     if (!str(note.at) || !ISO.test(note.at)) out.push({ path: `${p}.at`, message: "must be an ISO timestamp" });
     if (!str(note.by)) out.push({ path: `${p}.by`, message: "is required" });
+    if (note.edits !== undefined) checkEdits(note.edits, `${p}.edits`, out);
   });
+}
+
+/** The texts a note had before it was corrected: each with when, by whom and why. */
+function checkEdits(edits: unknown, path: string, out: Problem[]): void {
+  if (!Array.isArray(edits)) return void out.push({ path, message: "must be an array" });
+  edits.forEach((e: unknown, i) => {
+    const p = `${path}[${i}]`;
+    if (!isObj(e)) return void out.push({ path: p, message: "must be an object" });
+    if (!str(e.text)) out.push({ path: `${p}.text`, message: "is required" });
+    if (!str(e.at) || !ISO.test(e.at)) out.push({ path: `${p}.at`, message: "must be an ISO timestamp" });
+    if (!str(e.by)) out.push({ path: `${p}.by`, message: "is required" });
+    if (!str(e.reason)) out.push({ path: `${p}.reason`, message: "is required" });
+  });
+}
+
+/** A name or a note taken back: when, by whom and why. */
+function checkRetraction(r: unknown, path: string, out: Problem[]): void {
+  if (!isObj(r)) return void out.push({ path, message: "must be an object" });
+  if (!str(r.at) || !ISO.test(r.at)) out.push({ path: `${path}.at`, message: "must be an ISO timestamp" });
+  if (!str(r.reason)) out.push({ path: `${path}.reason`, message: "is required" });
+  if (!str(r.by)) out.push({ path: `${path}.by`, message: "is required" });
+}
+
+/** Notes taken back (a record's, or a fact's): notes, each with its retraction. */
+function checkRetractedNotes(list: unknown, path: string, out: Problem[]): void {
+  if (list === undefined) return;
+  checkNotes(list, path, out);
+  if (Array.isArray(list)) list.forEach((n: unknown, i) => isObj(n) && checkRetraction(n.retracted, `${path}[${i}].retracted`, out));
 }
 
 function checkCitations(list: unknown, path: string, out: Problem[]): void {
@@ -85,6 +114,8 @@ export function checkEvent(e: unknown, path: string, out: Problem[], family = fa
     out.push({ path: `${path}.status`, message: `${ev.status} needs at least one citation` });
   if (ev.house !== undefined && !str(ev.house)) out.push({ path: `${path}.house`, message: "must be a non-empty string" });
   if (ev.cause !== undefined && !str(ev.cause)) out.push({ path: `${path}.cause`, message: "must be a non-empty string" });
+  if (ev.noteEdits !== undefined) checkEdits(ev.noteEdits, `${path}.noteEdits`, out);
+  checkRetractedNotes(ev.retractedNotes, `${path}.retractedNotes`, out);
   if (ev.kind === "EVEN" && !ev.label && !ev.value) out.push({ path: `${path}.label`, message: "EVEN needs a label (what happened)" });
   if (["OCCU", "RELI", "TITL", "NATI"].includes(String(ev.kind)) && !ev.value)
     out.push({ path: `${path}.value`, message: `${ev.kind} needs a value (the fact itself, e.g. "blacksmith")` });
@@ -119,6 +150,7 @@ function checkBase(r: Record<string, unknown>, type: string, out: Problem[]): vo
   if (!str(r.id) || !re?.test(r.id)) out.push({ path: "id", message: `must be a ${type} ID` });
   if (!str(r.created) || !ISO.test(r.created)) out.push({ path: "created", message: "must be an ISO timestamp" });
   if (!str(r.updated) || !ISO.test(r.updated)) out.push({ path: "updated", message: "must be an ISO timestamp" });
+  checkRetractedNotes(r.retractedNotes, "retractedNotes", out);
 }
 
 function checkStory(st: unknown, out: Problem[]): void {
@@ -147,6 +179,15 @@ function checkPerson(p: Partial<Person>, out: Problem[]): void {
       if (n.kind !== undefined && !NAME_KINDS.includes(n.kind)) out.push({ path: `names[${i}].kind`, message: `must be one of ${NAME_KINDS.join(", ")}` });
       checkCitations(n.citations, `names[${i}].citations`, out);
     });
+  if (p.retractedNames !== undefined) {
+    if (!Array.isArray(p.retractedNames)) out.push({ path: "retractedNames", message: "must be an array" });
+    else
+      p.retractedNames.forEach((n, i) => {
+        if (!isObj(n) || typeof n.given !== "string" || typeof n.surname !== "string") return void out.push({ path: `retractedNames[${i}]`, message: "must be a name" });
+        checkCitations(n.citations, `retractedNames[${i}].citations`, out);
+        checkRetraction(n.retracted, `retractedNames[${i}].retracted`, out);
+      });
+  }
   if (!["M", "F", "U"].includes(p.sex as string)) out.push({ path: "sex", message: "must be M, F or U" });
   checkStory(p.story, out);
   if (!Array.isArray(p.events)) out.push({ path: "events", message: "must be an array" });
@@ -269,8 +310,10 @@ export function recordRefs(value: AnyRecord): RefUse[] {
     e.citations?.forEach((c, j) => refs.push({ path: `events[${i}].citations[${j}]`, id: c.source, to: ["source"] }));
     e.participants?.forEach((pt, j) => pt.person && refs.push({ path: `events[${i}].participants[${j}]`, id: pt.person, to: ["person"] }));
   });
-  if (value.type === "person")
+  if (value.type === "person") {
     value.names.forEach((n, i) => n.citations?.forEach((c, j) => refs.push({ path: `names[${i}].citations[${j}]`, id: c.source, to: ["source"] })));
+    value.retractedNames?.forEach((n, i) => n.citations?.forEach((c, j) => refs.push({ path: `retractedNames[${i}].citations[${j}]`, id: c.source, to: ["source"] })));
+  }
   if (value.type === "family") {
     value.citations?.forEach((c, j) => refs.push({ path: `citations[${j}]`, id: c.source, to: ["source"] }));
     value.partners.forEach((p, i) => refs.push({ path: `partners[${i}]`, id: p, to: ["person"] }));

@@ -28,7 +28,8 @@ HARD RULES
    goes through a strom command. Direct edits are detected and block writing.
 2. Never invent facts. What the user or a family tree says is a lead until a
    record proves it.
-3. Nothing is deleted. Wrong facts are retracted with --reason.
+3. Nothing is deleted. Wrong facts are retracted with --reason, so is a wrong
+   name or note (strom name retract, strom note retract|edit) — yours to do.
 4. A namesake is not your person: check year, place, house and parents —
    different parents mean two people, not a clerk's error.
 5. Negative results are results: record every search, also when nothing
@@ -64,6 +65,8 @@ GETTING STARTED (once)
   strom research new "<name>" --new-person "Josef /Novák/" --born "ABT 1885" --born-place "Kamenice nad Lipou"
   strom intake --text "<what the user told you, in their words>"
   strom intake <file or folder>        documents, photos, a GEDCOM or Strom tree
+  strom document read <photo or PDF>   one document of the user's read at once: its transcript, translation,
+                                       terms and people — tell the user; nothing of it enters the tree by itself
 
 THE WORK, STEP BY STEP (every agent — also one strom did not start: a
 conversation opened anywhere, a bot on its own server)

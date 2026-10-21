@@ -30,9 +30,10 @@ async function world(): Promise<World> {
 }
 
 test("paths dropped into the terminal: quoted, escaped, several — on Windows a backslash is the path's", () => {
-  assert.deepEqual(droppedPaths("/Users/a/My\\ Folder"), ["/Users/a/My Folder"]);
-  assert.deepEqual(droppedPaths("'/tmp/Dopisy babičky' \"/tmp/rodokmen.ged\" "), ["/tmp/Dopisy babičky", "/tmp/rodokmen.ged"]);
-  assert.deepEqual(droppedPaths("/tmp/a.jpg /tmp/b.jpg"), ["/tmp/a.jpg", "/tmp/b.jpg"]);
+  // (macOS, Linux said so: the test runs on Windows too)
+  assert.deepEqual(droppedPaths("/Users/a/My\\ Folder", "darwin"), ["/Users/a/My Folder"]);
+  assert.deepEqual(droppedPaths("'/tmp/Dopisy babičky' \"/tmp/rodokmen.ged\" ", "linux"), ["/tmp/Dopisy babičky", "/tmp/rodokmen.ged"]);
+  assert.deepEqual(droppedPaths("/tmp/a.jpg /tmp/b.jpg", "linux"), ["/tmp/a.jpg", "/tmp/b.jpg"]);
   assert.deepEqual(droppedPaths('"C:\\Users\\Jana\\Fotky rodiny"', "win32"), ["C:\\Users\\Jana\\Fotky rodiny"]);
   assert.deepEqual(droppedPaths("  "), []);
 });
@@ -98,9 +99,10 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   fs.mkdirSync(hook, { recursive: true });
   fs.writeFileSync(path.join(hook, "hook.json"), JSON.stringify({ interface: 1, title: "Zpráva do telefonu", command: ["node", "hook.ts"] }));
   const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  // 8 settings · 2 working alone · 1 minutes: 90 · 2 the condition: 1 Claude usage, 12 · 0 back
+  // 8 settings · 2 working alone · 1 minutes: 90 · 2 the condition: 1 Claude usage, 12, yes · 0 back
   // · 3 hooks · 1 on: yes · 0 back · 7 Remote Control: yes · 4 archives · 1 ask first: yes · 0 back · 0 back · 0 quit
-  const r = await w.ok([], { tty: true, answers: ["8", "2", "1", "90", "2", "1", "12", "0", "3", "1", "a", "0", "7", "a", "4", "1", "a", "0", "0", "0"] });
+  // (the condition, the hook and Remote Control: the command's own question, asked once)
+  const r = await w.ok([], { tty: true, answers: ["8", "2", "1", "90", "2", "1", "12", "a", "0", "3", "1", "a", "0", "7", "a", "4", "1", "a", "0", "0", "0"] });
   assert.match(r.out, /Nastavení \(na tomto počítači\)\n {3}1 {2}Jazyk, agent, model/);
   assert.match(r.out, /Samostatná práce agenta: 90 min na úkol · podmínka: Claude usage 12/);
   assert.match(r.out, /Zpráva do telefonu: zapnuto/);
@@ -113,7 +115,7 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   assert.equal(c.agentRemote, "on");
   assert.equal(c.connectorsConsent, "on");
   // and back: no condition, the hook off — 0 in a question changes nothing
-  await w.ok([], { tty: true, answers: ["8", "2", "2", "2", "0", "3", "1", "0", "0", "0"] });
+  await w.ok([], { tty: true, answers: ["8", "2", "2", "2", "a", "0", "3", "1", "0", "0", "0"] });
   assert.equal(config().runGate, undefined);
   assert.equal(config().hooks, undefined);
   w.cleanup();
@@ -261,7 +263,7 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
   assert.equal((await w.ok(["research", "list", "--json"])).json.researches.length, 1);
   // claude-usage takes a number of points; a tree with a time of its own gets the change
   await w.ok(["config", "set", "run.minutes", "45", "--for-tree"]);
-  const s = await w.ok([], { tty: true, answers: ["8", "2", "2", "1", "hodně", "15", "1", "30", "0", "0", "0"] });
+  const s = await w.ok([], { tty: true, answers: ["8", "2", "2", "1", "hodně", "15", "a", "1", "30", "0", "0", "0"] });
   assert.match(s.out, /Čekám počet bodů od 0 do 100/);
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).runGate, "claude-usage 15");
   assert.match(s.out, /Čas na jeden úkol: 30 min/);
@@ -301,7 +303,12 @@ test("Remote Control on in Claude Code itself: the settings say so, and what str
   w.env.CLAUDE_CONFIG_DIR = claudeDir;
   const r = await w.ok([], { tty: true, answers: ["8", "7", "n", "0", "0"] });
   assert.match(r.out, /Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): rozhovory ano, samostatná práce ne/);
-  assert.match(r.out, /Samostatnou práci agenta \(volba 2 v menu\) až po zapnutí i tohohle\.\nZapnout to i pro samostatnou práci\?/);
+  assert.match(r.out, /Samostatnou práci agenta \(volba 2 v menu\) až po zapnutí i tohohle\./);
+  // turned on by the setting's own question alone (Enter or n: nothing changes), never asked twice
+  assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).agentRemote, undefined);
+  const on = await w.ok([], { tty: true, answers: ["8", "7", "a", "0", "0"] });
+  assert.match(on.out, /rozhovory ano, samostatná práce ne[\s\S]*Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): rozhovory i samostatná práce/);
+  assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).agentRemote, "on");
   w.cleanup();
 });
 
@@ -436,7 +443,7 @@ test("what a review of the menu found: words that start with a dash, Enter in a 
   await w.ok([], { tty: true, answers: ["8", "3", "", "", "0"] });
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).hooks, undefined);
   // a hook turned on whose folder is gone can be turned off
-  await w.ok(["hook", "on", "zprava"], { tty: true });
+  await w.ok(["hook", "on", "zprava"], { tty: true, answers: ["y"] });
   fs.rmSync(hook, { recursive: true });
   await w.ok(["hook", "off", "zprava"], { tty: true });
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).hooks, undefined);

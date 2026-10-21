@@ -25,7 +25,7 @@
 //   older than STROM_READS_TAGS, AGE, CAUS, ADDR and _FREL/_MREL are also said
 //   in notes.
 
-import { GedWriter } from "./lines.ts";
+import { GedWriter, clipChars } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, HypothesisVariant, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
 import { linkInTree, recordedLinks } from "../core/hypolinks.ts";
@@ -35,7 +35,7 @@ import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
 import { quay } from "../core/evidence.ts";
 import { VERSION, type Tree } from "../core/tree.ts";
-import { dataUrl, turned, type Excerpt } from "../core/excerpt.ts";
+import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/excerpt.ts";
 import { mainPerson } from "../core/kin.ts";
 import { hypothesisPeople } from "../core/directions.ts";
 import * as git from "../core/git.ts";
@@ -140,6 +140,17 @@ export interface ExportOptions {
    * when the side's is (a title taken off), a sex also as 3 _STROM_RAW M|F|U.
    */
   conflictSides?: boolean;
+  /**
+   * The Strom profile, for an app that opens a reading of a document from its source (APP_SHOWS_READINGS): a source
+   * made of a reading confirmed in the app carries 1 _STROM_READING D… with 2 _STROM_ENTRY e….
+   */
+  readings?: boolean;
+  /**
+   * The Strom profile, for an app that says why a source has no image and asks the research for it
+   * (APP_SHOWS_OMITTED_IMAGES): a source whose excerpts the file leaves out, though the research has them, carries
+   * 1 _STROM_IMG_OMITTED <why> with 2 _STROM_CLIP <mark> for each of them (planExcerpts().omitted).
+   */
+  omitted?: (s: Source) => ExcerptOmitted | undefined;
 }
 
 export interface ExportResult {
@@ -429,12 +440,16 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (set?.callNumber) w.line(2, "CALN", set.callNumber);
       usedRepos.add(repo);
     }
+    // Where in the book, for Strom on the record itself: the app's "reference" of the source (it reads 1 PAGE there in
+    // every version; GEDCOM 5.5.1 has PAGE on a citation only, so another program gets it in the note)
+    const page = !strict && s.locator?.trim() ? s.locator : undefined;
+    if (page) w.text(1, "PAGE", page);
     // The words of the record are the source's TEXT (in both files: Strom reads it there).
     if (s.transcript) w.text(1, "TEXT", s.transcript);
     const url = s.url ?? set?.url;
     const head = [
       set ? `${L("recordset")}: ${set.title}${set.callNumber && (strict || repeat) ? ` (${set.callNumber})` : ""}` : "",
-      s.locator ?? "",
+      page ? "" : (s.locator ?? ""),
       s.date ? `${L("recorded")}: ${s.date}` : "",
       s.language ? `${L("language")}: ${s.language}` : "",
       url ? `${L("url")}: ${url}${s.accessed ? ` (${s.accessed})` : ""}` : "",
@@ -460,6 +475,11 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (user || research) w.line(1, "_STROM_READ", user && research ? "both" : user ? "user" : "research");
     }
     if (opts.sourceReads && s.app?.verified) w.line(1, "_STROM_VERIFIED", "Y");
+    // the reading of a document the source is an entry of: the app opens its result there (its pages, translation)
+    if (opts.readings && s.reading) {
+      w.line(1, "_STROM_READING", s.reading);
+      if (s.readingEntry) w.line(2, "_STROM_ENTRY", s.readingEntry);
+    }
     for (const cut of opts.excerpts?.(s) ?? []) {
       const e = opts.turnsExcerpts ? cut : turned(cut);
       w.line(1, "OBJE");
@@ -473,6 +493,12 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       if (original?.sha) w.line(2, "_STROM_SHA", original.sha);
       // cut as the picture lies in its file: how the app turns it for showing (a phone's photo, EXIF 2–8)
       if (e.orient) w.line(2, "_STROM_ORIENT", String(e.orient));
+    }
+    // the excerpts the research has that this file leaves out, and why: the app says so and asks for them (/excerpt/<S>)
+    const left = opts.omitted?.(s);
+    if (left) {
+      w.line(1, "_STROM_IMG_OMITTED", left.why);
+      for (const mark of left.clips) w.line(2, "_STROM_CLIP", mark);
     }
   }
   for (const r of repos) {
@@ -771,7 +797,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         const e = eventById.get(id);
         if (!e || e.retracted) continue;
         const cites = [...new Set(e.citations.map((c) => c.source))].join(", ");
-        w.line(level, "DATA", [e.kind, e.date, e.place, e.value, cites ? `[${cites}]` : ""].filter(Boolean).join(" ").slice(0, 200));
+        w.line(level, "DATA", clipChars([e.kind, e.date, e.place, e.value, cites ? `[${cites}]` : ""].filter(Boolean).join(" "), 200));
       }
     };
     data(2, st.facts);

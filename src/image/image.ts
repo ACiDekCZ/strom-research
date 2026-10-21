@@ -194,6 +194,55 @@ export function upright(img: RawImage, orient: number | undefined): RawImage {
   return { width: nw, height: nh, channels: c, data: out };
 }
 
+/** A box: x, y, width, height — fractions of a picture (0–1), or its pixels. */
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Whether an EXIF orientation (5–8) shows the picture turned across: its width is the file's height. */
+export function turnsAcross(orient: number | undefined): boolean {
+  return !!orient && orient >= 5 && orient <= 8;
+}
+
+/**
+ * A place on a picture as it is shown (fractions of the shown picture), as fractions of the picture as it lies in its
+ * file: what is cut from the file to show that place (upright of the cut is the place as shown). 1 or none: the same.
+ */
+export function shownToFile(r: Box, orient: number | undefined): Box {
+  if (!orient || orient < 2 || orient > 8) return r;
+  // where a shown point lies in the file (the ways of upright, on fractions)
+  const at: Record<number, (x: number, y: number) => [number, number]> = {
+    2: (x, y) => [1 - x, y],
+    3: (x, y) => [1 - x, 1 - y],
+    4: (x, y) => [x, 1 - y],
+    5: (x, y) => [y, x],
+    6: (x, y) => [y, 1 - x],
+    7: (x, y) => [1 - y, 1 - x],
+    8: (x, y) => [1 - y, x],
+  };
+  const [ax, ay] = at[orient]!(r.x, r.y);
+  const [bx, by] = at[orient]!(r.x + r.w, r.y + r.h);
+  const f = (n: number) => Math.round(n * 1e6) / 1e6;
+  return { x: f(Math.min(ax, bx)), y: f(Math.min(ay, by)), w: f(Math.abs(bx - ax)), h: f(Math.abs(by - ay)) };
+}
+
+/** A place on a picture as it lies in its file (fractions), as fractions of the picture as it is shown. */
+export function fileToShown(r: Box, orient: number | undefined): Box {
+  // a quarter one way is undone by a quarter the other way; every other orientation undoes itself
+  return shownToFile(r, orient === 6 ? 8 : orient === 8 ? 6 : orient);
+}
+
+/** shownToFile in pixels: a box of the shown picture (W×H as shown) as a box of the file's pixels. */
+export function shownBoxToFile(b: Box, orient: number | undefined, W: number, H: number): Box {
+  if (!orient || orient < 2 || orient > 8) return b;
+  const r = shownToFile({ x: b.x / W, y: b.y / H, w: b.w / W, h: b.h / H }, orient);
+  const [fw, fh] = turnsAcross(orient) ? [H, W] : [W, H];
+  return { x: Math.round(r.x * fw), y: Math.round(r.y * fh), w: Math.max(1, Math.round(r.w * fw)), h: Math.max(1, Math.round(r.h * fh)) };
+}
+
 /** 3×5 pixel digits for grid labels. */
 const DIGITS = ["111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001", "111100111001111", "111100111101111", "111001001001001", "111101111101111", "111101111001111"];
 

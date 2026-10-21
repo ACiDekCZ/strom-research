@@ -308,7 +308,7 @@ test("Ctrl-C of a fetch: what came registered and committed, the rest said, noth
   const a = await bookArchive();
   const w = await setUp(a);
   // the person's pace for the test's archive: a request every half second (a human's decision, in the test's settings)
-  await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5"], { tty: true });
+  await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5"], { tty: true, answers: ["y"] });
   const child = spawn(process.execPath, [CLI, "fetch", "zkusebni", "5359", "--images", "1-30", "--recordset", "B1"], { cwd: w.cwd, env: w.env, stdio: ["ignore", "pipe", "pipe"] });
   let out = "";
   let err = "";
@@ -341,7 +341,7 @@ test("Ctrl-C while git commits a batch: stopped as interrupted, the batch commit
   const w = await setUp(a);
   // a git that, adding the first batch, says so and takes its time: the person's Ctrl-C reaches it (one group)
   const real = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
-  await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5"], { tty: true });
+  await w.ok(["allow", "host", "127.0.0.1", "--pace", "0.5"], { tty: true, answers: ["y"] });
   const flag = path.join(w.dir, "in-add");
   const wrapper = path.join(w.dir, "git-slow.sh");
   // its add of the first batch waits until the test pressed Ctrl-C (at most a minute): it lands while it commits,

@@ -21,8 +21,11 @@ function shared(ctx: Context): string {
   return s;
 }
 
-/** Turning a hook on or off is the user's decision: an agent asks them (a window of the system). */
-function setHook(ctx: Context, name: string, on: boolean) {
+/**
+ * Turning a hook on or off is the user's decision: an agent asks them (a window of the system). On — a program told of
+ * everything saved — asks their yes in a terminal too.
+ */
+async function setHook(ctx: Context, name: string, on: boolean) {
   const s = shared(ctx);
   const now = ctx.settings.config.hooks ?? [];
   if (now.includes(name) === on) return { text: `${name}: ${on ? "on" : "off"} already`, data: { hook: name, on, hooks: now } };
@@ -34,12 +37,10 @@ function setHook(ctx: Context, name: string, on: boolean) {
     if (on) throw err;
   }
   const title = hook?.manifest.title ?? name;
-  ctx.requireHuman(
-    on ? `Let the hook "${name}" be told of everything saved into your researches?` : `Stop telling the hook "${name}"?`,
-    `strom hook ${on ? "on" : "off"} ${name}`,
-    "hooks",
-    ui(ctx.uiLang(), on ? "ui.consent.hook.on" : "ui.consent.hook.off", { name: title }),
-  );
+  const question = on ? `Let the hook "${name}" be told of everything saved into your researches?` : `Stop telling the hook "${name}"?`;
+  const says = ui(ctx.uiLang(), on ? "ui.consent.hook.on" : "ui.consent.hook.off", { name: title });
+  if (!on) ctx.requireHuman(question, `strom hook off ${name}`, "hooks", says);
+  else if (!(await ctx.requireHumanYes(question, `strom hook on ${name}`, "hooks", says))) return { text: ui(ctx.uiLang(), "ui.hook.kept", { name: title }), data: { hook: name, on: false, hooks: now }, exitCode: 1 };
   ctx.settings.reload();
   const next = on ? [...(ctx.settings.config.hooks ?? []).filter((h) => h !== name), name] : (ctx.settings.config.hooks ?? []).filter((h) => h !== name);
   ctx.settings.config.hooks = next.length ? next : undefined;

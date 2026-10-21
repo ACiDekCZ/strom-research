@@ -17,34 +17,55 @@ export function escapeAt(tag: string, value: string): string {
 
 const utf8 = (s: string) => Buffer.byteLength(s, "utf8");
 
-/** Longest prefix of `s` (in whole code points) that fits in `bytes`. */
-function fit(s: string, bytes: number): number {
-  let used = 0;
-  let i = 0;
-  for (const ch of s) {
-    const b = utf8(ch);
-    if (used + b > bytes) break;
-    used += b;
-    i += ch.length;
+// One character as a reader sees it: a letter with its accents, an emoji with its skin tone, variation selector or
+// joined parts, a flag. A line is cut only between two of them, so no reader gets half a UTF-16 pair (U+FFFD) or an
+// accent, a skin tone or half a family emoji on a line of its own.
+const graphemes = new Intl.Segmenter("und", { granularity: "grapheme" });
+
+/** The first `n` characters of a text, as a reader counts them (never half of one). */
+export function clipChars(text: string, n: number): string {
+  let out = "";
+  let count = 0;
+  for (const g of graphemes.segment(text)) {
+    if (count++ === n) break;
+    out += g.segment;
   }
-  return i;
+  return out;
 }
 
 /** Split one paragraph into chunks of at most `bytes`, never cutting next to a space. */
 export function splitParagraph(text: string, bytes: number): string[] {
+  const parts = Array.from(graphemes.segment(text), (g) => g.segment);
   const out: string[] = [];
-  let rest = text;
-  while (utf8(rest) > bytes) {
-    let cut = fit(rest, bytes);
-    // never next to a space, never between the two halves of an escaped "@@", never
-    // between a letter and its accent (a combining mark with no precomposed form)
-    while (cut > 1 && (rest[cut - 1] === " " || rest[cut] === " " || (rest[cut - 1] === "@" && rest[cut] === "@") || /^\p{M}/u.test(rest.slice(cut)))) cut--;
-    if (cut <= 1) cut = fit(rest, bytes); // a run of spaces: nothing better possible
-    out.push(rest.slice(0, cut));
-    rest = rest.slice(cut);
+  // inside an escaped "@@": an odd run of "@" before the cut (readers unescape line by line)
+  const inEscape = (cut: number) => {
+    let at = 0;
+    while (cut - at > 0 && parts[cut - at - 1] === "@") at++;
+    return at % 2 === 1;
+  };
+  const nearSpace = (cut: number) => parts[cut - 1]!.endsWith(" ") || parts[cut]!.startsWith(" ");
+  let i = 0;
+  while (i < parts.length) {
+    let used = 0;
+    let end = i;
+    while (end < parts.length && used + utf8(parts[end]!) <= bytes) used += utf8(parts[end++]!);
+    if (end === parts.length) {
+      out.push(parts.slice(i).join(""));
+      return out;
+    }
+    if (end === i) {
+      // one character longer than a line (a letter under dozens of marks): only then by code points
+      parts.splice(i, 1, ...Array.from(parts[i]!));
+      continue;
+    }
+    let cut = end;
+    while (cut > i && (inEscape(cut) || nearSpace(cut))) cut--;
+    if (cut === i) for (cut = end; cut > i && inEscape(cut); ) cut--; // a run of spaces: nothing better possible
+    if (cut === i) cut = end;
+    out.push(parts.slice(i, cut).join(""));
+    i = cut;
   }
-  out.push(rest);
-  return out;
+  return out.length ? out : [""];
 }
 
 export class GedWriter {
@@ -52,9 +73,19 @@ export class GedWriter {
 
   // Text is written composed (NFC): "č" as one letter, as every reader compares it —
   // whatever form it came in (macOS file names, copied text are often decomposed).
+  // A value longer than a line goes on in CONC lines whatever its tag (a long place, name, label): readers join
+  // them, the Strom app under PLAC, NAME, TYPE, … too, and a line over 255 bytes is no GEDCOM at all.
   line(level: number, tag: string, value?: string | number): void {
     const v = value === undefined || value === null ? "" : escapeAt(tag, String(value).normalize("NFC").replace(/[\r\n]+/g, " ").trim());
-    this.lines.push(v ? `${level} ${tag} ${v}` : `${level} ${tag}`);
+    this.long(level, tag, v);
+  }
+
+  /** An escaped value on its line, the rest of it in CONC lines at `conc` (below it; beside a CONT). */
+  private long(level: number, tag: string, v: string, conc = level + 1): void {
+    if (utf8(`${level} ${tag} ${v}`) <= MAX_LINE_BYTES) return this.raw(level, tag, v);
+    const first = splitParagraph(v, MAX_LINE_BYTES - utf8(`${level} ${tag} `))[0] ?? "";
+    this.raw(level, tag, first);
+    for (const chunk of splitParagraph(v.slice(first.length), MAX_LINE_BYTES - utf8(`${conc} CONC `))) if (chunk) this.raw(conc, "CONC", chunk);
   }
 
   /** A line whose value is already escaped (continuations of a text). */
@@ -83,12 +114,8 @@ export class GedWriter {
       .split("\n")
       .map((p) => p.replace(/\s+/g, " ").trim().replace(/@/g, "@@"));
     paragraphs.forEach((para, i) => {
-      const lineTag = i === 0 ? tag : "CONT";
-      const lvl = i === 0 ? level : level + 1;
-      const first = splitParagraph(para, MAX_LINE_BYTES - utf8(`${lvl} ${lineTag} `))[0] ?? "";
-      this.raw(lvl, lineTag, first);
-      const rest = para.slice(first.length);
-      for (const chunk of splitParagraph(rest, MAX_LINE_BYTES - utf8(`${level + 1} CONC `))) if (chunk) this.raw(level + 1, "CONC", chunk);
+      if (i === 0) this.long(level, tag, para);
+      else this.long(level + 1, "CONT", para, level + 1);
     });
   }
 

@@ -20,7 +20,8 @@ import { IMAGE_MAX, IMAGE_MAX_LARGE } from "../agents/images.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
 import { currentSession } from "../core/session.ts";
 import { BATCH, BATCH_MAX, batches, NEXT_BLOCK, parseReport, READER_MINUTES_HELP, readerPrompt, readerSettings, viewCount, withoutNextBlock, type Finding, type ReaderImage } from "../core/reader.ts";
-import { imageSize } from "../image/index.ts";
+import { exifOrientation, shownSize } from "../image/index.ts";
+import { turnsAcross } from "../image/image.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { which, withoutAgentMarks } from "../core/which.ts";
 import { permissionPath } from "../agents/files.ts";
@@ -33,7 +34,7 @@ import { recordReader, tokensOf, usageOpt } from "../core/metrics.ts";
 import { readerLimit } from "../core/readstats.ts";
 import { guardIndexFirst, INDEX_FIRST_DEFAULT } from "../core/indexfirst.ts";
 import { bookViewSizes, readingOf, treeTuning, tuningOn } from "../core/tune.ts";
-import { claimStem, readerAgent, readerDesk, refuseReadersInSandbox } from "./readers.ts";
+import { claimStem, noReaderFor, readerAgent, readerDesk, refuseReadersInSandbox } from "./readers.ts";
 import { noReaderHere, refusedBySandbox } from "../core/sandbox.ts";
 import { activeFetches } from "../core/fetching.ts";
 import { finishOf } from "../core/clock.ts";
@@ -241,7 +242,7 @@ register({
     refuseReadersInSandbox(ctx, "strom read");
     const agentId = readerAgent(ctx, tree);
     const runner = RUNNERS[agentId];
-    if (!runner) throw new UsageError(`no reader for agent "${agentId}" yet`, { hint: "strom read works with Claude Code: strom read … --agent claude" });
+    if (!runner) throw noReaderFor(agentId, "strom read");
     if (agentId !== "script" && !which(runner.command, ctx.env)) throw new StromError(`${runner.command} is not installed`);
     const model = typeof opts.model === "string" ? opts.model : ctx.settings.models(agentId, tree.config).vision;
     const effort = ctx.settings.effort(agentId, tree.config)?.value;
@@ -298,13 +299,17 @@ register({
       const file = path.join(ctx.settings.shared()!.value, m.file);
       const page = m.page ?? (b && m.image !== undefined ? pageOf(b, m.image) : undefined);
       const contrast = Boolean(opts.contrast);
-      if (typeof opts.crop === "string" && m.width && m.height) {
+      // the image as a reader sees it: upright (a photo turned by its EXIF has its sides swapped)
+      const across = fs.existsSync(file) && turnsAcross(exifOrientation(file));
+      const W = across ? m.height : m.width;
+      const H = across ? m.width : m.height;
+      if (typeof opts.crop === "string" && W && H) {
         // a crop is read at full resolution — in overlapping parts when it is bigger than one look
-        const all = tiles(parseCrop(partCrops.get(m.id) ?? opts.crop, m.width, m.height), max);
+        const all = tiles(parseCrop(partCrops.get(m.id) ?? opts.crop, W, H), max);
         const parts = all.map((t) => ({ label: t.label, view: view(file, m, { crop: t.crop, max, contrast }, all.length > 1 ? "split" : "crop").file }));
         return { id: m.id, image: m.image, page, view: parts[0]!.view, ...(parts.length > 1 ? { parts } : {}) };
       }
-      const size = !opts.whole && fs.existsSync(file) ? (m.width && m.height ? { width: m.width, height: m.height } : imageSize(new Uint8Array(fs.readFileSync(file)))) : undefined;
+      const size = !opts.whole && fs.existsSync(file) ? (W && H ? { width: W, height: H } : shownSize(new Uint8Array(fs.readFileSync(file)))) : undefined;
       if (size && half) {
         // one page of a spread, with the strip past the gutter (a scan is seldom centred on it)
         const v = view(file, m, { crop: cropOf(halves(size.width, size.height)[half]), max, contrast }, "half");
@@ -419,7 +424,8 @@ register({
       const own = path.join(work, `${stem}-${k + 1}`);
       fs.mkdirSync(own, { recursive: true });
       const settingsFile = path.join(own, "reader-settings.json");
-      fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(group.flatMap((g) => [g.view, ...(g.parts ?? []).map((p) => p.view)]), report, permissionPath), null, 2));
+      const seen = group.flatMap((g) => [g.view, ...(g.parts ?? []).map((p) => p.view)]);
+      fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(seen, report, permissionPath), null, 2));
       const context = typeof opts.context === "string" && opts.context.trim() ? `Context: ${opts.context.trim().replace(/\s*\n\s*/g, " ")}\n` : "";
       // a blind reading says so in its head: its "unclear" over a place the researcher looked at before is a check
       const head = `# Reading ${label} · batch ${k + 1}${fetching ? "" : ` of ${groups.length}`}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}${opts.blind ? "Blind: yes\n" : ""}\n${NEXT_BLOCK}\n`;
@@ -437,6 +443,7 @@ register({
         env: { ...withoutAgentMarks(env), STROM_NONINTERACTIVE: "1", STROM_READER: "1" },
         settingsFile,
         reader: true,
+        readerFiles: { views: seen, report },
         // without the user's own add-ons (skills, plugins, MCP servers) unless they said otherwise
         ...(ctx.settings.agentAddons(tree.config) ? {} : { clean: true }),
         timeoutMs: minutes * 60_000,

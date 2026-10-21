@@ -14,10 +14,12 @@ import { parseBatch } from "../../src/commands/batch.ts";
 import { guideText } from "../../src/commands/guide.ts";
 import { STROM_APP_URL } from "../../src/core/stromapp.ts";
 
+import { encodeImage } from "../../src/image/index.ts";
+import { makePdf } from "../image-samples.ts";
 const opts = { skip: !hasGit };
 
 /** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
-const NOT_RUN = new Set(["setup", "init", "run", "read", "seal adopt", "unpack", "trees remove", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test"]); // uninstall, update, unpack, trees remove: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests)
+const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test", "phone remove"]); // uninstall, update, unpack, trees remove: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired
 
 async function seeded(): Promise<World> {
   const w = new World();
@@ -103,10 +105,27 @@ async function seeded(): Promise<World> {
   // a hypothesis about whose son Josef Víšek was, one variant saying what it would connect (hypothesis link --remove)
   await w.ok(["hypothesis", "add", "Čí syn byl Josef?", "--about", "P0006", "--variant", "A: sourozenec Antonína", "--variant", "B: syn Josefa a Marie"]); // H0001
   await w.ok(["hypothesis", "link", "H0001", "A", "--siblings", "P0004", "P0006"]);
+  // a name and a note taken back, a task's note to correct (name retract|restore, note edit|retract|restore)
+  await w.ok(["name", "add", "P0002", "Josef /Nowak/", "--kind", "alias"]);
+  await w.ok(["name", "add", "P0002", "Josef /Nowack/", "--kind", "alias"]);
+  await w.ok(["name", "retract", "P0002", "Josef /Nowack/", "--reason", "přepis"]);
+  await w.ok(["note", "add", "P0003", "Žila v čp. 37"]);
+  await w.ok(["note", "add", "P0003", "Kmotra z Lhoty"]);
+  await w.ok(["note", "retract", "P0003", "2", "--reason", "jmenovkyně"]);
+  await w.ok(["task", "edit", "T0002", "--note", "Kniha 12 prohledána 1801–1820"]);
   // a family tree of another program imported (I0004), its married name (_MARNM) to take in again (input names)
   const ged = ["0 HEAD", "1 SOUR MYHERITAGE", "0 @I1@ INDI", "1 NAME Ludmila /Kopecká/", "2 _MARNM Horká", "1 SEX F", "0 TRLR", ""].join("\n");
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "rodokmen.ged"), ged);
   await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "rodokmen.ged")]);
+  // a document the user gave as a PDF of two scanned pages (I0005), read page by page (media view I0005:2)
+  const scan = (grey: number) => ({ bytes: encodeImage({ width: 30, height: 40, channels: 3, data: new Uint8Array(30 * 40 * 3).fill(grey) }, "jpeg"), width: 30, height: 40 });
+  fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "dopis.pdf"), makePdf([{ jpeg: scan(60) }, { jpeg: scan(200) }]));
+  await w.ok(["intake", path.join(w.env.HOME!, "Downloads", "dopis.pdf")]);
+  // a reading of a document done (strom document show, cancel): its state as strom document read leaves it
+  const reads = path.join(w.cwd, ".strom", "reads");
+  fs.mkdirSync(reads, { recursive: true });
+  const at = "2026-01-01T12:00:00.000Z";
+  fs.writeFileSync(path.join(reads, "D20260101120000-ab12.json"), JSON.stringify({ id: "D20260101120000-ab12", state: "done", version: 1, readers: 1, lang: "cs", pages: [{ n: 1, file: "I0005", name: "dopis.pdf", page: 1 }], groups: [[1]], reports: [], at, since: at }));
   return w;
 }
 
@@ -121,8 +140,9 @@ test("every example in the help runs", opts, async () => {
       const argv = lines[0]!.argv;
       // Paths outside the test world are only checked for syntax.
       if (argv.some((a) => a.startsWith("/Volumes/"))) continue;
-      // the person's own answer (task wake --answer/--check): in their terminal — this test's own settings (R8)
-      const person = def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check");
+      // the person's own answer (task wake --answer/--check), the QR code to pair a phone (phone qr): in their terminal —
+      // this test's own settings (R8)
+      const person = (def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check")) || def.path.join(" ") === "phone qr";
       const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true } : {});
       if (r.code !== 0) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
     }

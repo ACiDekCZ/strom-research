@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 import { reviveLive } from "../../src/core/live.ts";
 
@@ -47,12 +47,21 @@ const until = async (what: string, ok: () => boolean, ms = 20_000) => {
   assert.fail(`waited in vain: ${what}`);
 };
 
-/** A research with its bridge running, and a copy of its whole folder (.strom too) beside it. */
-async function copied() {
+/**
+ * A research with its bridge running, and a copy of its whole folder (.strom too) beside it. `older`: the bridge runs
+ * as an older strom ran it — in its tree's folder (a newer one runs in the settings' folder, its notes name its tree).
+ */
+async function copied(o: { older?: boolean } = {}) {
   const w = new World();
   await w.withTree();
   const a = w.cwd;
-  const info = (await w.ok(["live", "start", "--json"])).json as Info;
+  let info: Info;
+  if (o.older) {
+    const cli = path.join(import.meta.dirname, "..", "..", "src", "cli.ts");
+    spawn(process.execPath, [cli, "live", "serve"], { cwd: a, env: { ...w.env, STROM_TREE: a, STROM_SPAWNED: "1" }, detached: true, stdio: "ignore" }).unref();
+    await until("the older bridge listens", () => fs.existsSync(path.join(a, ".strom", "live.json")));
+    info = (await w.ok(["live", "--json"])).json as Info;
+  } else info = (await w.ok(["live", "start", "--json"])).json as Info;
   const b = path.join(path.dirname(a), `${path.basename(a)} kopie`);
   fs.cpSync(a, b, { recursive: true });
   const file = (root: string, name: string) => path.join(root, ".strom", name);
@@ -130,7 +139,7 @@ test("a copy whose original's bridge ended without a word: the copy's revive tak
 });
 
 test("an older strom's notes (no folder named) of a bridge running in another folder: not this tree's — never stopped, never its address", { skip: opts.skip || !cwdKnown }, async () => {
-  const c = await copied();
+  const c = await copied({ older: true });
   try {
     for (const name of ["live.json", "live-last.json"]) {
       const { root: _root, ...older } = c.read(c.b, name);

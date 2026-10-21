@@ -43,6 +43,31 @@ export interface Note {
   at: string;
   /** Session ID, or "user" for notes entered outside a session. */
   by: string;
+  /** The texts it had before it was corrected (strom note edit), oldest first. */
+  edits?: NoteEdit[];
+}
+
+/** A text a note (or a fact's note) had before it was corrected: when it was replaced, by whom and why. */
+export interface NoteEdit {
+  text: string;
+  at: string;
+  by: string;
+  reason: string;
+}
+
+/** A name or a note taken back as wrong: when, by whom (a session ID or "user") and why. */
+export interface Retraction {
+  at: string;
+  reason: string;
+  by: string;
+}
+
+/**
+ * A note taken back (strom note retract): kept apart from the notes — shown nowhere, given to no agent, in no GEDCOM —
+ * for the history and to be put back. A fact's note keeps the time it was taken back as its own.
+ */
+export interface RetractedNote extends Note {
+  retracted: Retraction;
 }
 
 export interface Citation {
@@ -86,6 +111,10 @@ export interface Event {
   status: Status;
   citations: Citation[];
   note?: string;
+  /** The texts the note had before it was corrected, oldest first. */
+  noteEdits?: NoteEdit[];
+  /** The note taken back (strom note retract), kept for the history. */
+  retractedNotes?: RetractedNote[];
   retracted?: { at: string; reason: string };
 }
 
@@ -106,6 +135,14 @@ export interface Name {
   citations?: Citation[];
 }
 
+/**
+ * A name taken back as wrong (strom name retract): kept apart from the names — not shown, not given to an agent, not
+ * in a GEDCOM, never matched or searched — for the history and to be put back (strom name restore).
+ */
+export interface RetractedName extends Name {
+  retracted: Retraction;
+}
+
 export interface BaseRecord {
   id: string;
   type: RecordType;
@@ -114,6 +151,8 @@ export interface BaseRecord {
   retracted?: { at: string; reason: string };
   /** A duplicate merged into this record (it stays, retracted, for the history). */
   mergedInto?: string;
+  /** Notes taken back (strom note retract), apart from `notes`: shown nowhere but in the history. */
+  retractedNotes?: RetractedNote[];
 }
 
 /** Identity of a record in another system (Strom app, a GEDCOM file). */
@@ -161,6 +200,8 @@ export interface StoryDraft {
 export interface Person extends BaseRecord {
   type: "person";
   names: Name[];
+  /** Names taken back (strom name retract), apart from `names`. */
+  retractedNames?: RetractedName[];
   sex: Sex;
   events: Event[];
   story?: Story;
@@ -277,6 +318,9 @@ export interface Source extends BaseRecord {
    * reading of the record (the app's "my transcripts are evidence" when it was sent, or "transcript verified").
    */
   app?: { read: boolean; verified?: boolean };
+  /** A reading of a document the person confirmed in the Strom app (strom document read): D…, and its entry (e1 …). */
+  reading?: string;
+  readingEntry?: string;
   notes: Note[];
 }
 
@@ -583,6 +627,8 @@ export interface Input extends BaseRecord {
   path?: string;
   /** What it is, as whoever sorted the batch found (strom input sort): a record, a document, a photo, nothing of the family. */
   sorted?: { as: (typeof SORT_KINDS)[number]; persons?: string[]; source?: string; reason?: string; at: string; by: string };
+  /** The readings of it (strom document read): D… — their results in notes/readings/<D…>.json. */
+  read?: string[];
   notes: Note[];
 }
 
