@@ -14,14 +14,14 @@ import type { Media, RecordSet, Task } from "../core/model.ts";
 import { normId, requireRecord } from "../core/records.ts";
 import { bookRoute } from "../core/samebook.ts";
 import { pageOf } from "../core/calibration.ts";
-import { coveringPart, findImage, IMAGE_RANGE_MAX, imageOfRef, imageRange, onlyParts, regionText, wholeSizeOf } from "../core/media.ts";
-import { cropOf, halves, makeView, parseCrop, readInHalves, tiles, type ViewMeta } from "../core/views.ts";
+import { coveringPart, findImage, IMAGE_RANGE_MAX, imageOfRef, imageRange, onlyParts, regionText, sharperCover, wholeSizeOf } from "../core/media.ts";
+import { cropOf, halves, makeView, mediaOrient, parseCrop, readInHalves, tiles, type ViewMeta } from "../core/views.ts";
 import { IMAGE_MAX, IMAGE_MAX_LARGE } from "../agents/images.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
 import { currentSession } from "../core/session.ts";
 import { BATCH, BATCH_MAX, batches, NEXT_BLOCK, parseReport, READER_MINUTES_HELP, readerPrompt, readerSettings, viewCount, withoutNextBlock, type Finding, type ReaderImage } from "../core/reader.ts";
 import { exifOrientation, shownSize } from "../image/index.ts";
-import { turnsAcross } from "../image/image.ts";
+import { fileToShown, shownToFile, turnsAcross } from "../image/image.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { which, withoutAgentMarks } from "../core/which.ts";
 import { permissionPath } from "../agents/files.ts";
@@ -53,6 +53,33 @@ function partCovering(parts: Media[], crop: string): { part: Media; crop: string
       hint: `a crop within one of those parts (fractions of the whole image), or name the part: ${parts.map((p) => p.id).join(" or ")}`,
     });
   return { part: found.part, crop: regionText(found.crop) };
+}
+
+/**
+ * The copy a reader reads a crop of a whole image from (as strom media view shows it): the part fetched sharper that
+ * holds the place, or nearly all of it (cut to it, the rest said); a sharper part that shows only some of it said. The
+ * crop is of the picture as it is shown (upright by its EXIF); in the part, kept in `partCrops`.
+ */
+function sharperForReader(ctx: Context, all: Media[], m: Media, crop: string, partCrops: Map<string, string>): Media {
+  const shared = ctx.settings.shared()?.value;
+  if (m.part || !m.width || !m.height || m.recordset === undefined || m.image === undefined) return m;
+  const o = mediaOrient(shared, m);
+  const [W, H] = turnsAcross(o) ? [m.height, m.width] : [m.width, m.height];
+  const px = parseCrop(crop, W, H);
+  const cover = sharperCover(all, m, shownToFile({ x: px.x / W, y: px.y / H, w: px.w / W, h: px.h / H }, o));
+  const say = (l: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(l + "\n");
+  const ref = `${m.recordset}:${m.image}`;
+  if (cover.near)
+    say(`${ref}: ${cover.near.part.id}, a part of the image fetched sharper (${cover.near.gain.toFixed(1)}× the detail), shows ${regionText(fileToShown(cover.near.shows, o))} of the crop, not all of it — read from the whole image; that place sharper: strom read ${ref} --crop ${regionText(fileToShown(cover.near.shows, o))} …`);
+  const s = cover.use;
+  if (!s) return m;
+  partCrops.set(s.part.id, regionText(fileToShown(s.crop, mediaOrient(shared, s.part))));
+  const rest = (s.out ?? []).map((x) => `strom media view ${ref} --crop ${regionText(fileToShown(x, o))}`);
+  say(
+    `${ref}: read from ${s.part.id}, ${s.part.part ? "a part of the image fetched sharper" : "a sharper copy of the image"} (${s.gain.toFixed(1)}× the detail)` +
+      (s.cut ? `, cut to it: ${regionText(fileToShown(s.cut, o))} of the crop${rest.length ? ` — the rest (the whole image, less sharp): ${rest.join(" · ")}` : ""}` : ""),
+  );
+  return s.part;
 }
 
 /**
@@ -238,6 +265,9 @@ register({
       });
       label = images.map((m) => m.id).join("-").slice(0, 40);
     }
+    // a crop of a whole image a part fetched sharper holds (or nearly all of, cut to it): read from that part; one that
+    // shows only some of it said (as strom media view does)
+    if (typeof opts.crop === "string") images = images.map((m) => sharperForReader(ctx, all, m, opts.crop as string, partCrops));
     // inside a sandbox that lets no agent start (Codex's): said at once, nothing prepared
     refuseReadersInSandbox(ctx, "strom read");
     const agentId = readerAgent(ctx, tree);

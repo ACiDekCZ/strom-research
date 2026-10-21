@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.19.0
 
-*In Vorbereitung: die Betas bis 1.19.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.19.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Auf ein verstummtes Archiv wird gewartet, statt es immer wieder zu fragen.** Antwortet ein Archiv nicht mehr,
   lässt strom es eine Stunde in Ruhe — zwei, dann vier, wenn es am selben Tag still bleibt — und der Agent erfährt, bis
@@ -21,6 +21,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Digitale Bibliotheken beim ersten Versuch richtig durchsucht.** Für Kramerius der Tschechischen
   Nationalbibliothek und der Mährischen Landesbibliothek und für ANNO der Österreichischen Nationalbibliothek bekommt
   der Agent die eigenen Suchadressen der Bibliotheken — weniger fehlgeschlagene Anfragen und weniger Raten.
+- **Ein schärfer geholter Teil eines Scans wird gelesen.** Kam ein Teil eines Scans in mehr Detail aus dem Archiv,
+  sehen der Agent und seine Leser diese Stelle darin an — auch wenn die markierte Stelle etwas darüber hinausreicht,
+  der Rest wird genannt — statt des ganzen, verkleinerten Scans; ein schärferer Teil, der die Stelle nur zum Teil
+  zeigt, wird mit dem Weg genannt, ihn anzusehen.
 
 ## 1.18.0
 

@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.19.0
 
-*In preparation: the betas up to 1.19.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.19.0-beta.2. The section is complete with the release.*
 
 - **An archive that went silent is waited for, not asked again and again.** When an archive stops answering, strom
   leaves it alone for an hour — two, then four when it stays silent the same day — and the agent hears until when:
@@ -20,6 +20,10 @@ The changes of each version in short. The full notes and the install lines are o
 - **Digital libraries searched right at the first try.** For Kramerius of the Czech National Library and of the
   Moravian Library and for ANNO of the Austrian National Library, the agent gets the libraries' own search
   addresses — fewer failed requests and less guessing.
+- **A part of a scan fetched sharper is read from.** Where a part of a scan came from the archive in more detail, the
+  agent and its readers look at that place in it — also when the place they mark reaches a little past it, the rest
+  said — instead of the whole scan, reduced; a sharper part that holds only some of the place is named with the way
+  to look at it.
 
 ## 1.18.0
 

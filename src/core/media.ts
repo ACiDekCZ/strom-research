@@ -335,6 +335,74 @@ export function sharperPart(all: Media[], whole: Media, r: Region): { part: Medi
   return best;
 }
 
+/** A sharper part of an image (sharperCover): used for a view of a place, or said beside it. */
+export interface SharperCover {
+  part: Media;
+  /** Its detail over the whole image's. */
+  gain: number;
+  /** Where the place it shows is in the part (fractions of it). */
+  crop: Region;
+  /** It shows nearly all of the place, not all: what of the place it shows, and the strips it leaves out (fractions of the whole image). */
+  cut?: Region;
+  out?: Region[];
+}
+
+/** Of a part that shows a place in part: the share of the place it shows, of the part in the place, and where they meet. */
+function overlap(r: Region, p: Region): { of: number; ofPart: number; meet: Region } | undefined {
+  const x0 = Math.max(r.x, p.x);
+  const y0 = Math.max(r.y, p.y);
+  const x1 = Math.min(r.x + r.w, p.x + p.w);
+  const y1 = Math.min(r.y + r.h, p.y + p.h);
+  if (x1 <= x0 || y1 <= y0 || !(r.w > 0 && r.h > 0 && p.w > 0 && p.h > 0)) return undefined;
+  const a = (x1 - x0) * (y1 - y0);
+  // to a thousandth, as coveringPart counts it
+  return { of: Math.min(1, Math.round((a / (r.w * r.h)) * 1000) / 1000), ofPart: Math.min(1, Math.round((a / (p.w * p.h)) * 1000) / 1000), meet: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } };
+}
+
+/** The strips of a region outside another that lies in it (above, below, left, right), thinner than a pixel left out. */
+function stripsOutside(r: Region, m: Region): Region[] {
+  const out: Region[] = [];
+  const thin = 0.0005;
+  if (m.y - r.y > thin) out.push({ x: r.x, y: r.y, w: r.w, h: m.y - r.y });
+  if (r.y + r.h - (m.y + m.h) > thin) out.push({ x: r.x, y: m.y + m.h, w: r.w, h: r.y + r.h - (m.y + m.h) });
+  if (m.x - r.x > thin) out.push({ x: r.x, y: m.y, w: m.x - r.x, h: m.h });
+  if (r.x + r.w - (m.x + m.w) > thin) out.push({ x: m.x + m.w, y: m.y, w: r.x + r.w - (m.x + m.w), h: m.h });
+  return out;
+}
+
+/**
+ * A sharper part for a view of a place of a whole image (fractions of it, as the file lies), as an agent reads by it:
+ * the sharpest that holds all of the place (sharperPart); else, of the sharper parts that show nearly all of it
+ * (COVERS, as coveringPart takes a part of an image registered only in parts — a crop drawn a little past the entry
+ * fetched sharper), the one that shows the most, then the sharpest, the place cut to it (`use.cut`, `use.out`). A
+ * sharper part that shows less of the place, but much of it or lies mostly in it, is not used: `near` says it — the
+ * part, its detail and what of the place it shows. Nothing sharper: {}.
+ */
+export function sharperCover(all: Media[], whole: Media, r: Region): { use?: SharperCover; near?: { part: Media; gain: number; shows: Region } } {
+  const full = sharperPart(all, whole, r);
+  if (full) return { use: full };
+  if (!whole.width || whole.part || whole.recordset === undefined || whole.image === undefined) return {};
+  let best: { part: Media; gain: number; of: number; meet: Region } | undefined;
+  let near: { part: Media; gain: number; of: number; meet: Region } | undefined;
+  for (const m of all) {
+    const p = m.part;
+    if (!p || !m.width || m.retracted || m.recordset !== whole.recordset || m.image !== whole.image) continue;
+    const o = overlap(r, p);
+    if (!o) continue;
+    const gain = m.width / p.w / whole.width;
+    if (gain < SHARPER) continue;
+    if (o.of >= COVERS) {
+      if (!best || o.of > best.of || (o.of === best.of && gain > best.gain)) best = { part: m, gain, of: o.of, meet: o.meet };
+    } else if ((o.of >= 0.25 || o.ofPart >= 0.5) && (!near || o.of > near.of || (o.of === near.of && gain > near.gain))) near = { part: m, gain, of: o.of, meet: o.meet };
+  }
+  if (best) {
+    const p = best.part.part!;
+    const crop = { x: (best.meet.x - p.x) / p.w, y: (best.meet.y - p.y) / p.h, w: best.meet.w / p.w, h: best.meet.h / p.h };
+    return { use: { part: best.part, gain: best.gain, crop, cut: best.meet, out: stripsOutside(r, best.meet) } };
+  }
+  return near ? { near: { part: near.part, gain: near.gain, shows: near.meet } } : {};
+}
+
 /** What strom holds already of a part of an image a connector would fetch (partHere). */
 export interface PartHere {
   /** The image or part that holds the place, the sharpest. */

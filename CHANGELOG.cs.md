@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.19.0
 
-*Připravuje se: bety do 1.19.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.19.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Na archiv, který zmlkl, se čeká, místo opakovaných dotazů.** Když archiv přestane odpovídat, strom ho nechá na
   pokoji hodinu — a když týž den mlčí dál, dvě a pak čtyři hodiny — a agent se dozví, do kdy: mezitím dělá
@@ -19,6 +19,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   nastavení dál říkají, co jde uvolnit.
 - **Digitální knihovny napoprvé správně.** U Krameria Národní knihovny ČR a Moravské zemské knihovny a u ANNO
   Rakouské národní knihovny dostane agent jejich vlastní vyhledávací adresy — méně neúspěšných dotazů a hádání.
+- **Ostřejší část snímku se opravdu čte.** Když z archivu přišla část snímku v lepším rozlišení, agent i jeho čtenáři
+  se na to místo dívají v ní — i když vyznačené místo kousek přesahuje, zbytek se řekne —, ne na celý zmenšený snímek;
+  ostřejší část, která místo pokrývá jen zčásti, se uvede i s tím, jak se na ni podívat.
 
 ## 1.18.0
 

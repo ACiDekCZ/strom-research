@@ -12,7 +12,7 @@ import { counted, lines, moreLine, paginate, runs, shellArg, table, truncate } f
 import { notFound, UsageError } from "../core/errors.ts";
 import type { Input, Media, RecordSet, Region, Source, Task } from "../core/model.ts";
 import { makeNote } from "../core/actions.ts";
-import { clipText, collectFiles, coveringPart, fileSha256, findImage, imageNumbers, imageOfRef, imageRange, IMAGE_FILE_EXT, inboxFolders, inputPath, isWhole, mimeOf, onlyParts, otherCopies, parseImageList, regionText, sharperPart, storeShared, wholeSizeOf } from "../core/media.ts";
+import { clipText, collectFiles, coveringPart, fileSha256, findImage, imageNumbers, imageOfRef, imageRange, IMAGE_FILE_EXT, inboxFolders, inputPath, isWhole, mimeOf, onlyParts, otherCopies, parseImageList, regionText, sharperCover, storeShared, wholeSizeOf, type SharperCover } from "../core/media.ts";
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { exifOrientation, imageSizeOfFile } from "../image/index.ts";
 import { fileToShown, shownToFile, turnsAcross } from "../image/image.ts";
@@ -550,7 +550,9 @@ interface OneView {
   v: View;
   /** The image is registered only in parts: the part the view is of (the one that covers the place asked). */
   part?: Media;
-  sharper?: { part: Media; gain: number };
+  sharper?: SharperCover;
+  /** A sharper part that shows much of the place, not nearly all: not used, said (where it is, as the view shows the image). */
+  near?: { part: Media; gain: number; shows: Region };
   page: string;
   fetchPart?: string;
   clip?: string;
@@ -565,13 +567,17 @@ function oneView(ctx: Context, tree: Tree, shared: string, all: Media[], target:
   // a part of the image fetched sharper (or a sharper copy of all of it) shows the same place with more detail: it is used by itself
   let shown = t.media;
   let v: View | undefined;
-  let sharper: { part: Media; gain: number } | undefined;
+  let sharper: SharperCover | undefined;
+  let near: OneView["near"];
   if (t.media?.width && t.media.height && !t.media.part) {
     // the place asked is of the picture shown (upright by its EXIF); parts are kept as the file lies
     const o = mediaOrient(shared, t.media);
     const [W, H] = turnsAcross(o) ? [t.media.height, t.media.width] : [t.media.width, t.media.height];
     const px = viewRegion(spec, W, H);
-    const s = sharperPart(all, t.media, shownToFile({ x: px.x / W, y: px.y / H, w: px.w / W, h: px.h / H }, o));
+    // a crop drawn a little past a part fetched sharper is shown from it, cut to it (what it leaves out said)
+    const cover = sharperCover(all, t.media, shownToFile({ x: px.x / W, y: px.y / H, w: px.w / W, h: px.h / H }, o));
+    const s = cover.use && { ...cover.use, ...(cover.use.cut ? { cut: fileToShown(cover.use.cut, o), out: (cover.use.out ?? []).map((x) => fileToShown(x, o)) } : {}) };
+    if (cover.near) near = { ...cover.near, shows: fileToShown(cover.near.shows, o) };
     if (s) {
       sharper = s;
       shown = s.part;
@@ -606,7 +612,7 @@ function oneView(ctx: Context, tree: Tree, shared: string, all: Media[], target:
       : whole && !whole.part
         ? clipText({ media: whole.id, region: fileToShown(inWhole, mediaOrient(shared, whole)) })
         : clipText({ media: t.key, region: { x: v.region.x / v.original.width, y: v.region.y / v.original.height, w: v.region.w / v.original.width, h: v.region.h / v.original.height } });
-  return { v, page, ...(t !== target ? { part: t.media! } : {}), ...(sharper ? { sharper } : {}), ...(fetchPart ? { fetchPart } : {}), ...(clip ? { clip } : {}) };
+  return { v, page, ...(t !== target ? { part: t.media! } : {}), ...(sharper ? { sharper } : {}), ...(near ? { near } : {}), ...(fetchPart ? { fetchPart } : {}), ...(clip ? { clip } : {}) };
 }
 
 /**
@@ -638,13 +644,25 @@ function partLine(p: Media): string {
   return `from ${p.id}, the part of the image that covers it (part ${regionText(p.part!)}; the image is registered only in parts)`;
 }
 
-function sharperLine(s: { part: Media; gain: number }, t: Target): string {
-  return `from ${s.part.id}, ${s.part.part ? "a part of the image fetched sharper" : "a sharper copy of the image"} (${s.gain.toFixed(1)}× the detail of ${s.part.part ? "the whole image" : t.media!.id})`;
+function sharperLine(s: SharperCover, t: Target): string {
+  const from = `from ${s.part.id}, ${s.part.part ? "a part of the image fetched sharper" : "a sharper copy of the image"} (${s.gain.toFixed(1)}× the detail of ${s.part.part ? "the whole image" : t.media!.id})`;
+  if (!s.cut) return from;
+  // a crop drawn a little past the part: the view is of what the part holds; the strips it leaves out from the whole image
+  const out = (s.out ?? []).map((x) => `strom media view ${t.ref} --crop ${regionText(x)}`);
+  return `${from}, cut to it: ${regionText(s.cut)} of the place asked${out.length ? ` — the rest (the whole image, less sharp): ${out.join(" · ")}` : ""}`;
 }
+
+/** A sharper part beside a view from the whole image: where it shows the place, and the view of that from it. */
+function nearLine(n: NonNullable<OneView["near"]>, t: Target): string {
+  return `${n.part.id}, a part of the image fetched sharper (${n.gain.toFixed(1)}× the detail), shows ${regionText(n.shows)} of this place, not all of it — this view is from the whole image; that place sharper: strom media view ${t.ref} --crop ${regionText(n.shows)}`;
+}
+
+/** A place as the text says it: to a thousandth. */
+const rounded = (r: Region): Region => ({ x: Math.round(r.x * 1000) / 1000, y: Math.round(r.y * 1000) / 1000, w: Math.round(r.w * 1000) / 1000, h: Math.round(r.h * 1000) / 1000 });
 
 function viewData(t: Target, r: OneView): Record<string, unknown> {
   const v = r.v;
-  return { view: v.file, width: v.width, height: v.height, scale: v.scale, region: v.region, original: v.original, image: r.part?.id ?? t.key, ...(r.sharper ? { from: r.sharper.part.id } : r.part ? { from: r.part.id } : {}), page: r.page || undefined, ...(r.clip ? { clip: r.clip } : {}) };
+  return { view: v.file, width: v.width, height: v.height, scale: v.scale, region: v.region, original: v.original, image: r.part?.id ?? t.key, ...(r.sharper ? { from: r.sharper.part.id, ...(r.sharper.cut ? { cut: rounded(r.sharper.cut), left: (r.sharper.out ?? []).map(rounded) } : {}) } : r.part ? { from: r.part.id } : {}), ...(r.near ? { sharper: { part: r.near.part.id, gain: Math.round(r.near.gain * 10) / 10, shows: rounded(r.near.shows) } } : {}), page: r.page || undefined, ...(r.clip ? { clip: r.clip } : {}) };
 }
 
 register(
@@ -1014,6 +1032,7 @@ register(
             describeView(r.v, (p) => ctx.display(p), r.fetchPart, isOverview(parts[0]!)),
             r.clip ? `the source of an entry read here: --clip ${r.clip}` : undefined,
             r.sharper ? sharperLine(r.sharper, t) : undefined,
+            r.near ? nearLine(r.near, t) : undefined,
             r.part ? partLine(r.part) : undefined,
             r.page ? `page ${r.page}` : undefined,
           ),
@@ -1048,6 +1067,7 @@ register(
           ctx.display(r.v.file),
           `  ${[`${t.ref}${t.ref !== t.key ? ` (${t.key}${r.page ? `, page ${r.page}` : ""})` : r.page ? ` (page ${r.page})` : ""}`, label, note, viewLine(r.v), viewSize(r.v), r.clip ? `--clip ${r.clip}` : undefined].filter(Boolean).join(" · ")}`,
           r.sharper ? `  ${sharperLine(r.sharper, t)}` : undefined,
+          r.near ? `  ${nearLine(r.near, t)}` : undefined,
           r.part ? `  ${partLine(r.part)}` : undefined,
           r.fetchPart ? `  this part sharper from the archive (one request): ${r.fetchPart}` : undefined,
         ]),
