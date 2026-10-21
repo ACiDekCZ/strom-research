@@ -32,7 +32,7 @@ import { runGit } from "../core/git.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { Tree } from "../core/tree.ts";
 import { syncAgentFiles } from "../agents/files.ts";
-import { CAP_WARN, capNear, clearBlock, clock, CookieJar, DEFAULT_PACE, hostAllowed, hostPace, hostState, knownHosts, leftUntil, MIN_INTERVAL_MS, NetError, paceText, politeRequest, REFUSED_FOREVER, refusedBy, reserveSlots, setOwnPace, testHooks, type Pace, type RefusedKind, type ServicePace } from "../core/net.ts";
+import { CAP_WARN, capNear, clearBlock, clock, clockUp, CookieJar, DEFAULT_PACE, hostAllowed, hostPace, hostState, knownHosts, leftAloneFor, leftUntil, MIN_INTERVAL_MS, NetError, paceText, politeRequest, REFUSED_FOREVER, refusedBy, reserveSlots, setOwnPace, testHooks, type Pace, type RefusedKind, type ServicePace, type WaitWhy } from "../core/net.ts";
 import { match, optionsOf } from "../cli/registry.ts";
 import {
   botCheck,
@@ -478,7 +478,7 @@ function describeRun(r: RunReport, what: string): string {
  */
 export const FETCH_WAIT_MS = 30 * 60_000;
 
-function limitWait(ctx: Context): { waitMs: number; onWait: (w: { host: string; until: number; ms: number; why: "cap" | "limit" }) => void } {
+function limitWait(ctx: Context): { waitMs: number; onWait: (w: { host: string; until: number; ms: number; why: WaitWhy }) => void } {
   const deadline = deadlineOf(ctx.env);
   const left = deadline !== undefined ? deadline - Date.now() - REMIND_MS : Infinity;
   const waitMs = Math.max(0, Math.min(FETCH_WAIT_MS, left));
@@ -486,7 +486,7 @@ function limitWait(ctx: Context): { waitMs: number; onWait: (w: { host: string; 
     waitMs,
     onWait: (w) =>
       ctx.io.stderr(
-        `  · ${w.host}: ${w.why === "cap" ? "its hourly cap is used up" : "it says its limit is used up"} — strom waits until ${clock(w.until)} (${Math.max(1, Math.ceil(w.ms / 60_000))} min), then goes on by itself (it waits at most ${Math.round(waitMs / 60_000)} min); do not stop it\n`,
+        `  · ${w.host}: ${w.why === "cap" ? "its hourly cap is used up" : w.why === "down" ? "left alone for a while (it went silent, or asked to slow down)" : "it says its limit is used up"} — strom waits until ${clockUp(w.until)} (${Math.max(1, Math.ceil(w.ms / 60_000))} min), then goes on by itself (it waits at most ${Math.round(waitMs / 60_000)} min); do not stop it\n`,
       ),
   };
 }
@@ -533,10 +533,21 @@ function measure(ctx: Context, c: Connector, meter: FetchMeter | undefined, rec:
   }
 }
 
-/** A run that ended at a limit used up: when to try again, and the exit code that says "later". */
-function later(r: RunReport, again: string): { line?: string; exitCode?: (typeof EXIT)["later"] } {
+/**
+ * A run that ended at a limit used up, or at a host left alone for a while (it went silent, asked to slow down): when
+ * to try again (rounded up — never a minute too early), what to do meanwhile, and the exit code that says "later".
+ * `background`: the command of a fetch in the background (it waits for a host that frees within FETCH_WAIT_MS).
+ */
+function later(r: RunReport, again: string, background?: string): { line?: string; exitCode?: (typeof EXIT)["later"]; data?: { retryAt: string; leftAlone?: string } } {
   if (r.later === undefined) return {};
-  return { line: `→ the archive's limit is used up: try again at ${clock(r.later)} (${again}); meanwhile other work — no sleeping and asking sooner`, exitCode: EXIT.later };
+  const at = clockUp(r.later);
+  const what = r.laterDown ? `${r.laterDown} is left alone until ${at} (it went silent, or asked to slow down — strom sends it nothing before then)` : "the archive's limit is used up";
+  const soon = background && r.later - Date.now() <= FETCH_WAIT_MS ? `; or let it wait by itself: ${background} --background` : "";
+  return {
+    line: `→ ${what}: try again at ${at}, not sooner (${again})${soon}; meanwhile other work, or close the session for later (strom session close --continue) — no sleeping, no asking again sooner`,
+    exitCode: EXIT.later,
+    data: { retryAt: new Date(Math.ceil(r.later / 60_000) * 60_000).toISOString(), ...(r.laterDown ? { leftAlone: r.laterDown } : {}) },
+  };
 }
 
 /** Does this strom's task wait take --check <URL> (a check of a site by the person)? Said in the advice only then. */
@@ -1360,7 +1371,10 @@ register(
       "Every request goes through strom's limiter: one at a time, paced, capped per hour; a refusal (401/403)\n" +
       "stops the run and leaves the archive alone for a day. An archive's hourly cap used up: strom waits for it by\n" +
       "itself (up to 30 min, never into a session's last 10) and says until when — no need to sleep and ask again;\n" +
-      "longer, it ends with exit 7 and the time to try again. With --recordset the images are registered as they\n" +
+      "longer, it ends with exit 7 and the time to try again. An archive that went silent (or asked twice to slow\n" +
+      "down) is left alone for an hour (longer when it goes silent again): a fetch then ends at once with exit 7\n" +
+      "and the time — other work meanwhile, or close the session with --continue; a fetch with --background waits\n" +
+      "for it by itself when it frees within 30 min. With --recordset the images are registered as they\n" +
       "come, 10 at a time (strom read of the book may begin meanwhile); Ctrl-C keeps what came, the same command\n" +
       "fetches the rest;\n" +
       "without it they go into the inbox, a folder for the book.\n" +
@@ -2370,6 +2384,17 @@ const BACKGROUND_START_MS = 15_000;
  */
 async function startBackground(ctx: Context, c: Connector, request: Extract<ConnectorRequest, { cmd: "fetch" }>, recordset: string, owner: BackgroundOf & { guessed?: true }, noIndex: boolean, again: string | undefined): Promise<Result> {
   const tree = ctx.tree();
+  // a host of the archive left alone for a while (it went silent, asked to slow down): waited for when it frees in
+  // time, else said when to try again — no strom started only to end at once
+  const alone = leftAloneHosts(ctx, c);
+  const by = Date.now() + limitWait(ctx).waitMs;
+  const tooLong = alone.filter((a) => a.until > by);
+  if (tooLong.length) {
+    const last = tooLong.reduce((a, b) => (b.until > a.until ? b : a));
+    const wait = later({ later: last.until, laterDown: last.host } as RunReport, `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)} --recordset ${recordset} --background`);
+    return { text: lines(`nothing started in the background: ${last.host} is left alone longer than a fetch in the background waits (${Math.round(limitWait(ctx).waitMs / 60_000)} min)`, wait.line), data: { started: false, ...wait.data }, exitCode: EXIT.later };
+  }
+  const waits = alone.length ? alone.reduce((a, b) => (b.until > a.until ? b : a)) : undefined;
   const log = backgroundLog(tree.root, recordset);
   fs.mkdirSync(path.dirname(log), { recursive: true });
   const out = fs.openSync(log, "a");
@@ -2402,9 +2427,9 @@ async function startBackground(ctx: Context, c: Connector, request: Extract<Conn
   child.on("error", () => (exit = 1));
   child.unref();
   const pid = child.pid ?? 0;
-  const by = Date.now() + BACKGROUND_START_MS;
+  const startBy = Date.now() + BACKGROUND_START_MS;
   let began = false;
-  while (Date.now() < by && exit === undefined) {
+  while (Date.now() < startBy && exit === undefined) {
     if (activeFetches(tree.root, recordset).some((m) => m.pid === pid)) {
       began = true;
       break;
@@ -2428,12 +2453,25 @@ async function startBackground(ctx: Context, c: Connector, request: Extract<Conn
   return {
     text: lines(
       `fetching ${counted(n, "image")} of ${recordset} (images ${runs(request.images)}) in the background — pid ${pid}, for ${owner.task ?? `session ${owner.session}`}`,
+      waits ? `  ${waits.host} is left alone until ${clockUp(waits.until)} (it went silent, or asked to slow down): the fetch waits for it, then goes on by itself — other work meanwhile, no asking again` : undefined,
       `  read them as they come: strom read ${recordset} --images ${imagesArg(request.images)} · what came: strom fetch --status · stop it: strom fetch --stop ${recordset}`,
       `  it stops when the session is asked to finish or closes${isRunWorker(owner.worker) ? " (in this run: when the run ends)" : ""}; what came stays registered`,
       owner.guessed ? `  for ${owner.task}: the one task this session worked on that names ${recordset}${currentSession(tree, ctx.env)?.task ? ` (the session's own: ${currentSession(tree, ctx.env)!.task})` : ""} — for another one: --task T…` : undefined,
     ),
-    data: { pid, recordset, images: request.images, session: owner.session, ...(owner.task ? { task: owner.task } : {}), log },
+    data: { pid, recordset, images: request.images, session: owner.session, ...(owner.task ? { task: owner.task } : {}), log, ...(waits ? { waitsUntil: new Date(waits.until).toISOString() } : {}) },
   };
+}
+
+/** The hosts of a connector left alone now for a while without a refusal (silence, "slow down"), and until when. */
+function leftAloneHosts(ctx: Context, c: Connector): { host: string; until: number }[] {
+  const dir = netDir(ctx);
+  const now = Date.now();
+  return knownHosts(dir)
+    .filter((h) => hostAllowed(h, c.manifest.hosts))
+    .flatMap((host) => {
+      const until = leftAloneFor(hostState(dir, host), now);
+      return until !== undefined ? [{ host, until }] : [];
+    });
 }
 
 /** A fetch in the foreground whose images another strom is fetching already: waits for them (Ctrl-C stops waiting). */
@@ -2467,7 +2505,7 @@ async function joinFetch(ctx: Context, recordset: string, joined: { images: numb
 /** One line of a fetch at work, for strom fetch --status. */
 function activeLine(m: ActiveFetch): string {
   const since = m.since ? ` · since ${clock(Date.parse(m.since))}` : "";
-  const state = m.waitUntil && m.waitUntil > Date.now() ? ` · waits for the archive's limit until ${clock(m.waitUntil)}` : m.yielding ? " · waits while a fetch in the foreground asks the archive" : "";
+  const state = m.waitUntil && m.waitUntil > Date.now() ? ` · waits for the archive until ${clockUp(m.waitUntil)}, then goes on by itself` : m.yielding ? " · waits while a fetch in the foreground asks the archive" : "";
   return `${m.recordset} (${m.connector} ${m.book}): ${m.registered}/${m.images.length} images registered · ${m.background ? `in the background${m.task ? ` for ${m.task}` : ""}${m.session ? ` (session ${m.session})` : ""}` : "in the foreground"}${since}${state} · pid ${m.pid}`;
 }
 
@@ -2667,7 +2705,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
       const wait = later(r, "the same command");
       return {
         text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`, tree)].join("\n") : advice ?? (r.stopped ? "no books — the run stopped before any came" : "no books found"), r.books.length ? advice : undefined, wait.line, near),
-        data: r,
+        data: { ...r, ...wait.data },
         ...(wait.exitCode ? { exitCode: wait.exitCode } : r.stopped && !r.books.length ? { exitCode: 1 } : {}),
       };
     }
@@ -2732,12 +2770,13 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
       text = "no images fetched";
     }
     // the images it got are registered; the rest when the archive takes requests again
-    const wait = later(r, request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)}${recordset ? ` --recordset ${recordset}` : ""} — what is here already is not fetched again` : "the same command");
+    const again = request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)}${recordset ? ` --recordset ${recordset}` : ""}` : undefined;
+    const wait = later(r, again ? `${again} — what is here already is not fetched again` : "the same command", again && recordset && !child && currentSession(tree, ctx.env) ? again : undefined);
     // images another strom was fetching: waited for once this one's are here (the foreground)
     const after = joined && !batches?.interrupted() && recordset ? await joinFetch(ctx, recordset, joined, `images ${runs(joined.images)} of ${recordset}: the other fetch`) : undefined;
     const code = wait.exitCode ? wait.exitCode : batches?.stopped() ? 0 : batches?.interrupted() ? EXIT.cancelled : r.stopped && !r.images.length ? 1 : after?.exitCode;
     endCode = code ?? 0;
-    return { text: lines(describeRun(r, request.cmd), text, advice, wait.line, near, after?.text), data: { ...data, ...(after ? { joined: after.data } : {}) }, ...(code ? { exitCode: code } : {}) };
+    return { text: lines(describeRun(r, request.cmd), text, advice, wait.line, near, after?.text), data: { ...data, ...wait.data, ...(after ? { joined: after.data } : {}) }, ...(code ? { exitCode: code } : {}) };
   } finally {
     // a fetch in the background says how it ended (strom fetch --status, the next brief) before its mark goes
     if (child && recordset && request.cmd === "fetch") {

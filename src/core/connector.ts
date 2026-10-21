@@ -26,7 +26,7 @@ import { loadUserConfig, Settings, type RouteChoice } from "./config.ts";
 import { readJsonIfExists, writeJson } from "./json.ts";
 import { readAsset } from "./assets.ts";
 import { foldText } from "./text.ts";
-import { CookieJar, hostAllowed, hostState, NetError, paceOf, paceText, politeRequest, releaseForeground, type NetVerdict, type Pace, type RefusedKind, type ServicePace } from "./net.ts";
+import { CookieJar, hostAllowed, hostState, NetError, paceOf, paceText, politeRequest, REFUSED_FOREVER, releaseForeground, type NetVerdict, type Pace, type RefusedKind, type ServicePace, type WaitWhy } from "./net.ts";
 import { loginOf, redactor } from "./logins.ts";
 import type { Media, RecordSet, Region, Repository, Source, Task } from "./model.ts";
 import { HYPOTHESIS_LINKS_ORIGIN } from "./hypolinks.ts";
@@ -838,8 +838,10 @@ export interface RunReport {
   logs: string[];
   /** Why the run ended early, if it did. */
   stopped?: string;
-  /** It ended at a limit used up (an hourly cap): when the host takes requests again (ms). */
+  /** It ended at a limit used up (an hourly cap), or at a host left alone for a while: when it takes requests again (ms). */
   later?: number;
+  /** later: the host left alone after it went silent or asked to slow down (no refusal) — not a limit used up. */
+  laterDown?: string;
   /**
    * It ended at a refusal: the host refused (401/403 — `now`), was left alone after one, or its robots.txt keeps
    * automated tools off the path (`robots`) — why, and what the agent is told to do (the limiter's hint).
@@ -868,9 +870,9 @@ export interface RunOptions {
   now?: () => number;
   /** How long a request may wait for a limit used up (net.ts NetOptions.waitMs), and who is told first. */
   waitMs?: number;
-  onWait?: (w: { host: string; until: number; ms: number; why: "cap" | "limit" }) => void;
+  onWait?: (w: { host: string; until: number; ms: number; why: WaitWhy }) => void;
   /** The measure of the load on the archive (core/metrics.ts): every pause and every request, as the limiter makes them. */
-  onPause?: (p: { host: string; ms: number; why: "pace" | "cap" | "limit" }) => void;
+  onPause?: (p: { host: string; ms: number; why: "pace" | WaitWhy }) => void;
   onRequest?: (host: string) => void;
   /**
    * The pace of a request's host, where it is not the service's own: an archive whose terms restrict automation,
@@ -1163,9 +1165,13 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
         } else send({ ...answer, text: clean(res.body.toString("utf8")) });
       } catch (err) {
         if (!(err instanceof NetError)) throw err;
-        if (err.failure === "cap" && err.until !== undefined) report.later = err.until;
         // a refusal: why, and the limiter's advice with it (the agent reads it with what strom fetch says next)
         const refusal = (err.failure === "refused" && (err.status === 401 || err.status === 403)) || (err.failure === "blocked" && !!err.refusedKind) || err.failure === "robots";
+        // a limit used up, or a host left alone for a while (silence, "slow down"): when to try again — exit 7
+        if (!refusal && err.until !== undefined && err.until < REFUSED_FOREVER && (err.failure === "cap" || err.failure === "blocked" || err.failure === "silent" || err.failure === "refused")) {
+          report.later = err.until;
+          if (err.failure !== "cap") report.laterDown = err.host;
+        }
         if (refusal)
           report.refused = {
             host: err.host,

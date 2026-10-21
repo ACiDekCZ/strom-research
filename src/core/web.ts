@@ -46,6 +46,7 @@ import { calibrationKey, viewModel } from "./viewsizes.ts";
 import { ui } from "../cli/ui.ts";
 import { isAgent } from "./which.ts";
 import { otherWay, webGate, type WebGate } from "./webgate.ts";
+import { searchText } from "./knownterms.ts";
 import type { Env } from "./paths.ts";
 
 /**
@@ -506,9 +507,12 @@ export async function answerWebEvent(ev: WebEvent, o: { env: Env; cwd: string; n
     if (!had.toolUses.has(ev.toolUse)) return {};
     const n = had.domains.get(site) ?? 0;
     const event = ev.phase === "failed" ? "PostToolUseFailure" : "PostToolUse";
+    // a site whose own search strom's list knows: its addresses with the first page of it in the session, and after a
+    // call that failed (what was tried blind before: brackets unencoded, HTTP 400)
+    const search = n === 1 || ev.phase === "failed" ? searchText(ev.netHost ?? host) : undefined;
     if (n < Math.max(1, perHost - WEB_NOTE_BEFORE)) {
-      if (!had.advised.has(ev.toolUse)) return {};
-      return { context: `${softText(host, site, soft, perHost)} ${wayText(host, way())} ${NEVER}`, event };
+      if (!had.advised.has(ev.toolUse)) return search ? { context: search, event } : {};
+      return { context: `${softText(host, site, soft, perHost)} ${wayText(host, way())} ${NEVER}${search ? ` ${search}` : ""}`, event };
     }
     const head =
       n <= perHost

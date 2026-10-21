@@ -50,10 +50,15 @@ test("name retract: needs a reason, keeps the only name; taken back it is shown,
   assert.doesNotMatch((await w.ok(["brief", "T1"])).out, /Horká/);
   assert.doesNotMatch(await exported(w, "plain.ged", "--for", "standard"), /Horká/);
   assert.doesNotMatch(await exported(w, "app.ged", "--for", "strom"), /Horká/, "the Strom app no longer shows it once it loads the tree");
-  // added again by mistake: refused, the way back said
+  // added again by mistake: refused, the way back said — in the research's language (found in 1.18.0: English)
   const again = await w.run(["name", "add", "P1", "Anna /Horká/"]);
   assert.equal(again.code, 2);
-  assert.match(again.err, /strom name restore P0001 "Anna \/Horká\/"/);
+  assert.match(again.err, /^chyba: jméno Anna \/Horká\/ u P0001 je odvolané: misread: the register has Horáková\n→ přece správné: strom name restore P0001 "Anna \/Horká\/"/);
+  // retracted twice: said so, in the research's language
+  const twice = await w.run(["name", "retract", "P1", "Anna /Horká/", "--reason", "again"]);
+  assert.equal(twice.code, 2);
+  assert.match(twice.err, /^chyba: jméno Anna \/Horká\/ u P0001 je odvolané: misread: the register has Horáková\n/);
+  assert.equal((await w.run(["name", "retract", "P1", "Anna /Horká/", "--reason", "again", "--json"])).json.code, "name.retracted");
   assert.match((await w.ok(["history"])).out, /Odvolané jméno: Anna Horká/);
   assert.match((await w.ok(["check"])).out, /^ok/);
 

@@ -732,7 +732,9 @@ export function checkEntry(raw: RawEntry, id: string, blind = false, form = fals
       continue;
     }
     const role = ((ROLES as readonly string[]).includes(p.role) ? p.role : "other") as DocPerson["role"];
-    const person: DocPerson = { ref: p.ref, role, written: at >= 0 ? asWritten(span) : span.map((x) => x.text).join(" ") };
+    // the transcript's comma, semicolon or colon after the name is no part of it (a stop may be: ml., st.)
+    const as = (at >= 0 ? asWritten(span) : span.map((x) => x.text).join(" ")).replace(/[\s,;:]+$/u, "");
+    const person: DocPerson = { ref: p.ref, role, written: as };
     if (p.roleText && !blind) person.roleText = p.roleText;
     const uncertain = new Set<Uncertain>();
     // the surname: a written word it is a form of (the last such), else the last of two or more words, "[...]" ones

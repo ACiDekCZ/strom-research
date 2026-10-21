@@ -10,7 +10,10 @@ export const EXIT = {
   locked: 5,
   /** A backup before another channel or an older version could not be made: nothing is switched (core/backup.ts). */
   noBackup: 6,
-  /** An archive's limit is used up (its hourly cap): nothing more goes to it until the time said — other work meanwhile. */
+  /**
+   * An archive's limit is used up (its hourly cap), or it is left alone for a while (it went silent, asked to slow
+   * down): nothing more goes to it until the time said — other work meanwhile.
+   */
   later: 7,
   cancelled: 130,
 } as const;

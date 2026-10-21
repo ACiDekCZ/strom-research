@@ -54,7 +54,10 @@ test("facts are changed only with a reason and retracted, never deleted", opts, 
   const w = await world();
   assert.equal((await w.run(["event", "edit", "E1", "--date", "1906"])).code, 2);
   await w.ok(["event", "edit", "E1", "--date", "1906", "--reason", "sister remembers 1906"]);
+  // what a person reads says "odvolání", as the history does (found in 1.18.0: "stažení", a download's word)
+  assert.match((await w.run(["event", "retract", "E1"])).err, /^chyba: odvolání potřebuje --reason\n/);
   await w.ok(["event", "retract", "E1", "--reason", "namesake"]);
+  assert.match((await w.ok(["person", "show", "P1"], { tty: true })).out, /\(odvoláno: namesake\)/);
   const p = readJsonFile(path.join(w.cwd, "data", "persons", "P0001.json"));
   assert.equal(p.events.length, 1);
   assert.equal(p.events[0].status, "retracted");

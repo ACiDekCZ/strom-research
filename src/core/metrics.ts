@@ -113,7 +113,7 @@ export interface HostLoad {
   /** All pauses for the host's pace together (ms). */
   paceMs?: number;
   /** Each wait for its hourly cap or a limit it said was used up. */
-  waits?: { ms: number; why: "cap" | "limit" }[];
+  waits?: { ms: number; why: "cap" | "limit" | "down" }[];
 }
 
 /** Counts what a run asks of each host (fed by the connector's run and the limiter). */
@@ -128,7 +128,7 @@ export class FetchMeter {
   request = (host: string): void => {
     this.of(host).requests++;
   };
-  pause = (p: { host: string; ms: number; why: "pace" | "cap" | "limit" }): void => {
+  pause = (p: { host: string; ms: number; why: "pace" | "cap" | "limit" | "down" }): void => {
     if (!(p.ms > 0)) return;
     const h = this.of(p.host);
     if (p.why === "pace") h.paceMs = (h.paceMs ?? 0) + Math.round(p.ms);

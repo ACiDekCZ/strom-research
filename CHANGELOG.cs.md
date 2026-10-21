@@ -5,9 +5,24 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.19.0
+
+*Připravuje se: bety do 1.19.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Na archiv, který zmlkl, se čeká, místo opakovaných dotazů.** Když archiv přestane odpovídat, strom ho nechá na
+  pokoji hodinu — a když týž den mlčí dál, dvě a pak čtyři hodiny — a agent se dozví, do kdy: mezitím dělá
+  jinou práci, nechá stahování na pozadí na archiv počkat (až 30 minut) a pokračovat samo, nebo sezení ukončí a
+  naváže později. Archiv se už mezitím neobtěžuje dotazy pořád dokola.
+- **První úklid staršího výzkumu se jednou nabídne.** Výzkum, u kterého se nastřádalo hodně dat dřív, než si v tom
+  strom začal sám dělat pořádek (záznamy práce, náhledy snímků a podobně), dostane v menu jednu nabídku: co by se
+  smazalo, kolik a proč — bez souhlasu nic. Po souhlasu se v tom pak udržuje pořádek samo; po odmítnutí menu a
+  nastavení dál říkají, co jde uvolnit.
+- **Digitální knihovny napoprvé správně.** U Krameria Národní knihovny ČR a Moravské zemské knihovny a u ANNO
+  Rakouské národní knihovny dostane agent jejich vlastní vyhledávací adresy — méně neúspěšných dotazů a hádání.
+
 ## 1.18.0
 
-*Připravuje se: bety do 1.18.0-beta.14. Oddíl bude úplný s vydáním.*
+*21. 10. 2026 · patří k aplikaci Strom 3.14.0.*
 
 - **Fotky z telefonu nastojato.** Fotka otočená podle údaje EXIF se čte tak, jak se má dívat, nastojato; místa na ní
   vyznačená (výřezy, poloviny dvoustrany, uložená část) jsou místa obrázku, jak se ukazuje. Fotka sama zůstává, jak
@@ -58,9 +73,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   jde vrátit nulou. Most už nedrží složku rodokmenu, takže ji jde na Windows smazat, a sám skončí, když rodokmen zmizí
   (rodokmen smaže `strom trees remove`). Konec stromu, kde křest neuvádí otce, je uzavřený, jakmile na něm nic neběží
   – už nečeká natrvalo na rozhodnutí. Pramen přejmenovaný v aplikaci Strom se přejmenuje i ve výzkumu a signatura nebo
-  strana pramene přijde do aplikace k prameni samému („Signatura / strana“), i když ho zatím nic necituje. S
-  `excerpts.for all` dostane v aplikaci Strom výřez i pramen, který zatím nikdo necituje, pokud se vedle citovaných
-  vejde do limitu – citované se kvůli němu nezmenší; co se nevešlo, se řekne.
+  strana pramene přijde do aplikace k prameni samému („Signatura / strana“), i když ho zatím nic necituje. Emoji nebo
+  jiný vzácný znak, který soubor z aplikace Strom cestou poškodil (ukáže se jako ��), není přejmenování ani změna
+  poznámky: výzkum si nechá svůj text. Místo nebo jiný údaj delší než řádek souboru GEDCOM (255 bajtů) už nezastaví
+  jeho zápis a žádné emoji se nerozdělí tam, kde dlouhý řádek pokračuje. S `excerpts.for all` dostane v aplikaci Strom
+  výřez i pramen, který zatím nikdo necituje, pokud se vedle citovaných vejde do limitu – citované se kvůli němu
+  nezmenší; co se nevešlo, se řekne.
 
 ## 1.17.0
 

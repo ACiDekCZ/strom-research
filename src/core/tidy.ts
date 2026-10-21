@@ -80,6 +80,25 @@ export function tidyOn(root: string): boolean {
   }
 }
 
+/**
+ * The first tidy of an old tree offered to the person once (the menu): asked already, whatever the answer — the menu
+ * and the settings go on saying what can be freed.
+ */
+export function tidyAsked(root: string): boolean {
+  try {
+    return typeof (JSON.parse(fs.readFileSync(path.join(root, ".strom", "tidy.json"), "utf8")) as { asked?: unknown }).asked === "string";
+  } catch {
+    return false;
+  }
+}
+
+export function setTidyAsked(root: string): void {
+  if (tidyOn(root)) return;
+  const file = path.join(root, ".strom", "tidy.json");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ auto: false, asked: new Date().toISOString() }) + "\n");
+}
+
 export function setTidyOn(root: string): void {
   const file = path.join(root, ".strom", "tidy.json");
   fs.mkdirSync(path.dirname(file), { recursive: true });

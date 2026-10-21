@@ -103,6 +103,12 @@ export function claimStem(root: string, prefix: string, base: string, taken: (st
   return `${base}-${process.pid}`;
 }
 
+/** An agent strom has no reader for: the agents that read said (each agent of a research does), none of them preferred. */
+export function noReaderFor(agentId: string, command: string): UsageError {
+  const agents = Object.keys(RUNNERS).filter((a) => a !== "script");
+  return new UsageError(`no reader for agent "${agentId}"`, { hint: `${command} reads with ${agents.join(", ")}: ${command} … --agent <one of them>` });
+}
+
 /** Inside a sandbox that lets no agent start (Codex's) no reader is started: said at once, with what to do instead. */
 export function refuseReadersInSandbox(ctx: Context, command: string): void {
   const sb = sandboxOf(ctx.env);
@@ -118,7 +124,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
   refuseReadersInSandbox(ctx, `strom ${kind}`);
   const agentId = readerAgent(ctx, tree);
   const runner = RUNNERS[agentId];
-  if (!runner) throw new UsageError(`no reader for agent "${agentId}" yet`, { hint: `strom ${kind} works with Claude Code: strom ${kind} … --agent claude` });
+  if (!runner) throw noReaderFor(agentId, `strom ${kind}`);
   if (agentId !== "script" && !which(runner.command, ctx.env)) throw new StromError(`${runner.command} is not installed`);
   const model = typeof opts.model === "string" ? opts.model : ctx.settings.models(agentId, tree.config).vision;
   const effort = ctx.settings.effort(agentId, tree.config)?.value;

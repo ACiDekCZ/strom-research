@@ -25,7 +25,7 @@
 //   older than STROM_READS_TAGS, AGE, CAUS, ADDR and _FREL/_MREL are also said
 //   in notes.
 
-import { GedWriter } from "./lines.ts";
+import { GedWriter, clipChars } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, HypothesisVariant, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
 import { linkInTree, recordedLinks } from "../core/hypolinks.ts";
@@ -797,7 +797,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         const e = eventById.get(id);
         if (!e || e.retracted) continue;
         const cites = [...new Set(e.citations.map((c) => c.source))].join(", ");
-        w.line(level, "DATA", [e.kind, e.date, e.place, e.value, cites ? `[${cites}]` : ""].filter(Boolean).join(" ").slice(0, 200));
+        w.line(level, "DATA", clipChars([e.kind, e.date, e.place, e.value, cites ? `[${cites}]` : ""].filter(Boolean).join(" "), 200));
       }
     };
     data(2, st.facts);

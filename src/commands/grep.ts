@@ -66,8 +66,11 @@ register({
     const patterns = [...new Set(args.map((a) => a.trim()).filter(Boolean))];
     const regex = !!opts.regex;
     if (!patterns.length || (!regex && !patterns.some((p) => foldText(p)))) throw new UsageError("what to find?", { hint: 'strom grep "<text>"' });
-    const context = opts.context === undefined ? 0 : Number(opts.context);
-    if (!Number.isInteger(context) || context < 0 || context > MAX_CONTEXT) throw new UsageError(`--context: a number of lines, 0–${MAX_CONTEXT}`);
+    const asked = opts.context === undefined ? 0 : Number(opts.context);
+    if (!Number.isInteger(asked) || asked < 0) throw new UsageError(`--context: a number of lines, 0–${MAX_CONTEXT}`);
+    // more than the most: the most, said (no turn lost on it)
+    const context = Math.min(asked, MAX_CONTEXT);
+    const cut = asked > MAX_CONTEXT ? `--context: at most ${MAX_CONTEXT} lines — ${MAX_CONTEXT} shown` : undefined;
     // an input named by its ID: its file in inputs/ (one kept in the shared store is an image or a document)
     const wanted = listOpt(opts.in).map((w) => {
       if (!/^I\p{N}+$/iu.test(w)) return w;
@@ -120,7 +123,7 @@ register({
     const tooBig = found.tooBig.length ? `left out, over 64 MB: ${found.tooBig.join(", ")}` : undefined;
     if (!found.hits.length)
       return {
-        text: lines(`not found in ${counted(found.searched, "text file")} of ${where}`, tooBig, "→ the records: strom find <text>"),
+        text: lines(`not found in ${counted(found.searched, "text file")} of ${where}`, tooBig, cut, "→ the records: strom find <text>"),
         data: { total: 0, searched: found.searched, hits: [], ...(found.tooBig.length ? { tooBig: found.tooBig } : {}) },
       };
     const total = `${found.hits.length}${found.capped ? "+" : ""}`;
@@ -137,7 +140,7 @@ register({
     }
     const page = paginate(found.hits, ctx.limit, ctx.page);
     return {
-      text: lines(head + ":", ...grepLines(page.items), moreLine(page, again) || undefined, tooBig),
+      text: lines(head + ":", ...grepLines(page.items), moreLine(page, again) || undefined, tooBig, cut),
       data: { total: found.hits.length, capped: found.capped, searched: found.searched, files: found.counts.size, hits: page.items, ...(found.tooBig.length ? { tooBig: found.tooBig } : {}) },
     };
   },

@@ -5,9 +5,25 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.19.0
+
+*In preparation: the betas up to 1.19.0-beta.1. The section is complete with the release.*
+
+- **An archive that went silent is waited for, not asked again and again.** When an archive stops answering, strom
+  leaves it alone for an hour — two, then four when it stays silent the same day — and the agent hears until when:
+  it goes on with other work, lets a download in the background wait for the archive (up to 30 minutes) and go on by
+  itself, or closes the session to go on later. No more asking the archive over and over meanwhile.
+- **The first tidy of an older research is offered once.** A research that gathered much beside it before strom
+  kept order there by itself (logs of work sessions, views of scans and the like) gets one offer in the menu: what
+  would go, how much and why, and nothing goes without a yes. After a yes it is kept in order by itself; after a no,
+  the menu and the settings keep saying what can be freed.
+- **Digital libraries searched right at the first try.** For Kramerius of the Czech National Library and of the
+  Moravian Library and for ANNO of the Austrian National Library, the agent gets the libraries' own search
+  addresses — fewer failed requests and less guessing.
+
 ## 1.18.0
 
-*In preparation: the betas up to 1.18.0-beta.14. The section is complete with the release.*
+*2026-10-21 · goes with the Strom app 3.14.0.*
 
 - **Phone photos upright.** A photo turned by its EXIF orientation is read as it is meant to be seen, upright; the
   places marked on it (excerpts, the halves of a spread, a cut-out part) are of the picture as it is shown. The
@@ -64,9 +80,12 @@ The changes of each version in short. The full notes and the install lines are o
   Windows can delete it, and ends by itself once the tree is gone (`strom trees remove` deletes a tree). An end of the
   tree where the baptism names no father is a closed end once nothing runs on it, no longer waiting for a decision for
   good. A source renamed in the Strom app is renamed in the research too, and a source's call number or page reaches
-  the app on the source itself, also before anything cites it. With `excerpts.for all` a source nobody cites yet gets
-  its excerpt in the Strom app too, wherever it fits under the limit beside the cited ones, which never get smaller
-  for it; what did not fit is said.
+  the app on the source itself, also before anything cites it. An emoji or another rare sign the Strom app's file
+  damaged on its way (shown as ��) is no rename and no changed note: the research keeps its text. A place or another
+  value longer than a line of the GEDCOM file (255 bytes) no longer stops the file from being written, and no emoji is
+  split where a long line goes on. With `excerpts.for all` a source nobody cites yet gets its excerpt in the Strom app
+  too, wherever it fits under the limit beside the cited ones, which never get smaller for it; what did not fit is
+  said.
 
 ## 1.17.0
 

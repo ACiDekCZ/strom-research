@@ -62,7 +62,7 @@ async function research(): Promise<{ w: World; mark: (id: string, n?: number) =>
 
 const block = (ged: string, id: string) => ged.split(`0 @${id}@ SOUR`)[1]!.split("\n0 ")[0]!;
 
-test("the Strom file says which images it leaves out and why — only for an app that knows it (its beta at once; the release once it is out)", opts, async () => {
+test("the Strom file says which images it leaves out and why — only for an app that knows it (its beta at once; the release from 3.14.0)", opts, async () => {
   const { w, mark } = await research();
   const file = path.join(w.cwd, "output", "tree-strom.ged");
   await w.ok(["export", "gedcom"]);
@@ -82,10 +82,14 @@ test("the Strom file says which images it leaves out and why — only for an app
   ged = fs.readFileSync(file, "utf8");
   for (const id of ["S0001", "S0002", "S0003"]) assert.equal(block(ged, id).includes("_STROM_IMG_OMITTED"), false, id);
   assert.match(block(ged, "S0004"), /1 _STROM_IMG_OMITTED missing/);
-  // the released app: nothing until it is out (an older one would list the tag as unknown)
+  // the released app: from 3.14.0 and an unknown version; an older one would list the tag as unknown
   w.env.STROM_APP_URL = "https://stromapp.info/run/";
-  await w.ok(["export", "gedcom"]);
+  await w.ok(["export", "gedcom"], { env: { STROM_APP_VERSION: "3.13.1" } });
   assert.doesNotMatch(fs.readFileSync(file, "utf8"), /_STROM_IMG_OMITTED/);
+  for (const version of ["3.14.0", undefined]) {
+    await w.ok(["export", "gedcom"], version ? { env: { STROM_APP_VERSION: version } } : {});
+    assert.match(fs.readFileSync(file, "utf8"), /1 _STROM_IMG_OMITTED scope/, String(version));
+  }
   // the standard file: never
   w.env.STROM_APP_URL = `${APP}/run/`;
   await w.ok(["export", "gedcom", "--for", "standard"]);

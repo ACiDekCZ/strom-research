@@ -10,7 +10,7 @@ import http from "node:http";
 import http2 from "node:http2";
 import zlib from "node:zlib";
 import type { AddressInfo } from "node:net";
-import { politeGet, politeRequest, hostState, clearBlock, paceOf, hostPace, limitUsedUp, setOwnPace, MIN_INTERVAL_MS, hostAllowed, NetError, CookieJar, USER_AGENT, DEFAULT_PACE, COOL_OFF_MS } from "../../src/core/net.ts";
+import { politeGet, politeRequest, hostState, clearBlock, paceOf, hostPace, limitUsedUp, setOwnPace, MIN_INTERVAL_MS, hostAllowed, NetError, CookieJar, USER_AGENT, DEFAULT_PACE, COOL_OFF_MS, refusedBy } from "../../src/core/net.ts";
 
 async function server(): Promise<{ base: string; hits: Record<string, number>; agents: string[]; close: () => Promise<void> }> {
   const hits: Record<string, number> = {};
@@ -126,6 +126,20 @@ test("net: 403 — stop, and leave the host alone for a day, in every process", 
   assert.equal(srv.hits["/ok"], undefined, "nothing more was sent");
   clearBlock(dir, "127.0.0.1");
   assert.equal((await politeGet(`${srv.base}/ok`, opts(dir, waits))).status, 200);
+  await srv.close();
+});
+
+test("net: a refusal the browser got is a refusal for strom too — never said as a host gone silent", async () => {
+  const srv = await server();
+  const dir = tmp();
+  const waits: number[] = [];
+  assert.match(refusedBy(dir, "127.0.0.1", 403)!, /refused the browser \(HTTP 403/);
+  await assert.rejects(politeGet(`${srv.base}/ok`, opts(dir, waits)), (e: NetError) => e.failure === "blocked" && e.refusedKind === "load" && /refused the browser/.test(e.message));
+  assert.equal(srv.hits["/ok"], undefined, "nothing was sent");
+  // asked to slow down only: no refusal
+  const slow = tmp();
+  refusedBy(slow, "127.0.0.1", 429);
+  await assert.rejects(politeGet(`${srv.base}/ok`, opts(slow, waits)), (e: NetError) => e.failure === "blocked" && e.refusedKind === undefined);
   await srv.close();
 });
 

@@ -102,3 +102,36 @@ test("strom readings: a report whose head the reader wrote in the research langu
   assert.match(none.err, /the newest: strom readings 2026-01-21-M0004 — all: strom readings --list/);
   w.cleanup();
 });
+
+test("strom readings --match without a book: only the readings that mention it, the rest counted, no overview of each book; --limit", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["recordset", "add", "Matrika zemřelých 1848–1856"]); // B0001
+  const dir = path.join(w.cwd, "notes", "readings");
+  fs.mkdirSync(dir, { recursive: true });
+  for (const f of fs.readdirSync(fixtures)) fs.copyFileSync(path.join(fixtures, f), path.join(dir, f));
+  // many readings of other images that never mention the name — each with its gaps and parts of the book
+  for (let i = 1; i <= 30; i++) {
+    const day = `2026-02-${String(1 + (i % 27)).padStart(2, "0")}`;
+    fs.writeFileSync(
+      path.join(dir, `${day}-B0001-${100 + i}-${100 + i}-${i}.md`),
+      `# Reading B0001 · images ${100 + i}\n\nquestion: Úmrtí Šťastný\n\n## Image ${100 + i}\nresult: nothing\nentries: nic\nsection: nová část Horní Ves\ngaps: strana chybí\n`,
+    );
+  }
+  const m = await w.ok(["readings", "--match", "Kolář"]);
+  assert.match(m.out, /^2026-01-15-B0001-31-60 · 3 reports/);
+  assert.match(m.out, /Joannes Kolář/);
+  assert.doesNotMatch(m.out, /no block mentions it/);
+  assert.doesNotMatch(m.out, /parts of the book|gaps in the book/);
+  assert.match(m.out, /^30 other readings do not mention it$/m);
+  assert.ok(Buffer.byteLength(m.out) < 4000, String(Buffer.byteLength(m.out)));
+  // a name nobody read: one line
+  const none = await w.ok(["readings", "--match", "Иванов"]);
+  assert.match(none.out, /^no reading mentions "Иванов" \(31 readings looked through\)/);
+  // a word every reading mentions: the newest 20, then how many more
+  const all = await w.ok(["readings", "--match", "Ves"]);
+  assert.match(all.out, /^… 11 more readings mention it: --limit 31$/m);
+  assert.equal((await w.ok(["readings", "--match", "Ves", "--limit", "2", "--json"])).json.readings.length, 2);
+  assert.equal((await w.run(["readings", "--match", "Ves", "--limit", "0"])).code, 2);
+  w.cleanup();
+});

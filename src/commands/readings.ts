@@ -156,10 +156,12 @@ export function summary(blocks: Block[], o: { match?: string[] | undefined; ques
     if (o.maxLines !== undefined && out.length + ls.length > o.maxLines) more++;
     else out.push(...ls);
   }
+  // words looked for: the blocks that mention them alone — the book's gaps and parts belong to its overview
+  const overview = !(o.match ?? []).some((m) => m.trim());
   const gaps = blocks.flatMap((b) => (b.gaps ?? []).map((g) => `${label(b)}: ${g}`));
   const parts = blocks.flatMap((b) => (b.section ?? []).map((s) => `${label(b)}: ${s}`));
-  if (gaps.length) out.push(`gaps in the book (by image): ${gaps.join(" · ")}`);
-  if (parts.length) out.push(`parts of the book (by image): ${parts.join(" · ")}`);
+  if (gaps.length && overview) out.push(`gaps in the book (by image): ${gaps.join(" · ")}`);
+  if (parts.length && overview) out.push(`parts of the book (by image): ${parts.join(" · ")}`);
   return { lines: out, more, gaps: blocks.flatMap((b) => b.gaps ?? []), shown };
 }
 
@@ -454,6 +456,9 @@ export function earlierLines(e: ReturnType<typeof earlierReadings>): string[] {
   ];
 }
 
+/** The readings strom readings --match shows at most unless --limit says otherwise (the newest first). */
+const MATCH_READINGS = 20;
+
 register({
   path: ["readings"],
   summary: "What earlier readers reported (strom read), compact: finds, unclear entries, what was illegible, gaps in the book",
@@ -463,13 +468,15 @@ register({
     "The readers' reports in notes/readings, without reading them whole: each found and unclear block, from the\n" +
     "blocks with nothing found only what the reader could not read (a possible match is often there), the gaps in\n" +
     "the page numbering and the parts of the book they saw. One image's block word for word: --image N.\n" +
-    "Default: the newest reading; with --images, --image or --match all of them. Nothing is written.",
+    "Default: the newest reading; with --images, --image or --match all of them — with --match only the readings\n" +
+    "that mention it (the newest 20; --limit for more), the others counted. Nothing is written.",
   args: [{ name: "which", description: "a record set (B…), a reading: its report's name or the start of it (a day), or a reading of a document (D…)" }],
   options: [
     { name: "images", type: "string", value: "<from-to>", description: "only these image numbers, e.g. 40-69 or 5-113,130-228" },
     { name: "image", type: "string", value: "<n>", description: "that image's whole block, word for word (a few: 35-38)" },
     { name: "match", type: "string", multiple: true, value: "<words>", description: "only blocks that mention it — any spelling of accents (repeatable: variants)" },
     { name: "list", type: "boolean", description: "the readings there are, one line each" },
+    { name: "limit", type: "string", value: "<n>", description: `at most this many readings (with --match: ${MATCH_READINGS} unless said)` },
   ],
   examples: ["strom readings", "strom readings B0001 --images 40-69 --match Novák --match Nowak", "strom readings B0001 --image 57", "strom readings D20260101120000-ab12", "strom readings --list"],
   run(ctx, { args, opts }) {
@@ -504,10 +511,20 @@ register({
     // one image, or a few (35-38, 35..38): each one's block word for word
     const image = opts.image === undefined ? undefined : new Set(imageRange(String(opts.image)));
     const match = (Array.isArray(opts.match) ? opts.match : typeof opts.match === "string" ? [opts.match] : []).map(String).filter((m) => m.trim());
+    const limit = opts.limit === undefined ? undefined : Number(opts.limit);
+    if (limit !== undefined && !(Number.isInteger(limit) && limit > 0)) throw new UsageError(`invalid --limit "${String(opts.limit)}": a whole number, 1 or more`, { hint: "e.g. --limit 40" });
     const pick = (r: Reading) => r.blocks.filter((b) => (!book || b.recordset === book) && (!ranges || within(b.num, ranges)) && (image === undefined || (b.num !== undefined && image.has(b.num))));
-    const readings = all.map((r) => ({ r, blocks: pick(r) })).filter((x) => x.blocks.length);
+    const picked = all.map((r) => ({ r, blocks: pick(r) })).filter((x) => x.blocks.length);
+    // words looked for: only the readings that mention them (the rest counted), the newest first, at most the limit
+    const readings = match.length ? picked.filter(({ r, blocks }) => select(blocks, { match, question: r.question }).length) : picked;
+    const silent = picked.length - readings.length;
     // nothing asked: the newest reading only
-    const shown = which || ranges || image !== undefined || match.length || opts.list ? readings : readings.slice(0, 1);
+    const every = which || ranges || image !== undefined || match.length || opts.list ? readings : readings.slice(0, 1);
+    const cap = limit ?? (match.length ? MATCH_READINGS : Infinity);
+    const shown = every.slice(0, cap);
+    const beyond = every.length - shown.length;
+    if (shown.length === 0 && match.length && picked.length)
+      return { text: `no reading mentions ${match.map((m) => `"${m}"`).join(" or ")} (${counted(picked.length, "reading")} looked through) · strom grep for the notes too`, data: { readings: [], without: picked.length } };
     if (shown.length === 0) return { text: `no reader reported ${image !== undefined ? `image ${runs([...image])}` : "these images"}${book ? ` of ${book}` : ""} · strom readings --list`, data: { readings: [] } };
 
     if (opts.list) {
@@ -538,7 +555,9 @@ register({
       };
     });
     const at = book ?? (which ? shellArg(which) : shown[0]!.blocks[0]?.recordset ?? shellArg(shown[0]!.r.stem));
+    if (beyond > 0) parts.push(`… ${counted(beyond, "more reading")}${match.length ? " mention it" : ""}: --limit ${every.length}`);
+    if (silent > 0) parts.push(`${counted(silent, "other reading")} ${silent === 1 ? "does" : "do"} not mention it`);
     parts.push(`one image's whole block: strom readings ${at} --image <n>`);
-    return { text: lines(...parts), data: { readings: data } };
+    return { text: lines(...parts), data: { readings: data, ...(beyond > 0 ? { more: beyond } : {}), ...(match.length ? { without: silent } : {}) } };
   },
 });

@@ -32,7 +32,7 @@ test("fetch: past the wait for an hourly cap — exit 7, the time and the comman
   const r = await w.run(["fetch", "zkusebni", "5359", "--images", "3", "--recordset", "B1"]);
   assert.equal(r.code, 7, r.out + r.err);
   assert.match(r.out, /stopped: 2 requests to 127\.0\.0\.1 in the last hour — its hourly cap; try again at (\d{4}-\d\d-\d\d )?\d\d:\d\d/);
-  assert.match(r.out, /→ the archive's limit is used up: try again at (\d{4}-\d\d-\d\d )?\d\d:\d\d \(strom fetch zkusebni 5359 --images 3 --recordset B0001 — what is here already is not fetched again\); meanwhile other work/);
+  assert.match(r.out, /→ the archive's limit is used up: try again at (\d{4}-\d\d-\d\d )?\d\d:\d\d, not sooner \(strom fetch zkusebni 5359 --images 3 --recordset B0001 — what is here already is not fetched again\); meanwhile other work/);
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 2, "nothing beyond the cap");
   w.cleanup();
 });

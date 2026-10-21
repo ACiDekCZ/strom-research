@@ -450,6 +450,7 @@ register(
         throw new UsageError(`the name ${gedcomName(gone)} of ${p.id} was retracted: ${gone.retracted.reason}`, {
           hint: `right after all: strom name restore ${p.id} "${gedcomName(gone)}" --reason "…"`,
           code: "name.retracted",
+          params: { name: gedcomName(gone), id: p.id, reason: gone.retracted.reason },
         });
       const r = addName(tree, p.id, { name: args[1]!, kind: opts.kind as string | undefined, citation: citationOf(opts), primary: Boolean(opts.primary), prefix: opts.prefix as string | undefined, suffix: opts.suffix as string | undefined });
       return { text: written(tree), data: { person: r.person, name: r.name } };

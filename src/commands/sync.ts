@@ -356,7 +356,7 @@ register(
         if (opts.only !== undefined && !opts.apply) throw new UsageError("--only goes with --apply");
         return {
           text: lines(got ? ui(lang, "ui.sync.got") : undefined, planText(tree, plan, incoming, shownAs, lang, edits)),
-          data: { ...(got ? { received: got } : {}), base: plan.base, head: plan.head ?? null, partial: plan.partial, changes: plan.changes, strangers: plan.identity.strangers },
+          data: { ...(got ? { received: got } : {}), base: plan.base, head: plan.head ?? null, partial: plan.partial, changes: plan.changes, strangers: plan.identity.strangers, ...(plan.mended ? { mended: plan.mended } : {}) },
         };
       }
       const only = numbers(opts.only, plan.changes.length);

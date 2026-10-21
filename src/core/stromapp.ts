@@ -380,10 +380,10 @@ export function appShowsFactStatus(settings: Settings, version?: string): boolea
 /**
  * The first Strom app that opens a reading of a document from its source (spec 013 U6): each source the research made
  * of a reading confirmed in the app carries 1 _STROM_READING D… (2 _STROM_ENTRY e…). An older app lists the tag as one
- * it does not know and loses nothing, so an unknown version gets it once the app is out. Not released yet: set with
- * the app's U6 — never to a beta version; beta/dev copies of the app get it at once.
+ * it does not know and loses nothing, so an unknown version gets it. The app's 3.14.0 (2026-10-21) shows it; beta/dev
+ * copies of the app get it at once.
  */
-export const APP_SHOWS_READINGS: string | undefined = undefined;
+export const APP_SHOWS_READINGS: string | undefined = "3.14.0";
 
 export function appShowsReadings(settings: Settings, version?: string): boolean {
   if (anotherCopy(settings)) return true;
@@ -399,10 +399,10 @@ export function appShowsReadings(settings: Settings, version?: string): boolean 
  * The first Strom app that says why a source has no image though the research has one, and asks the research for it
  * (spec 014 U5, spec 015 U3; the app's ZADANI_VYZKUM_kontrola-prace-agenta.md and ZADANI_VYZKUM_obrazy-z-vyzkumu.md):
  * 1 _STROM_IMG_OMITTED scope|limit|later|missing under such a source, 2 _STROM_CLIP for each excerpt left out. An older
- * app lists the tag as one it does not know and loses nothing, so an unknown version gets it once the app is out. Not
- * released yet: set when the app says it is out — never to a beta version; beta/dev copies of the app get it at once.
+ * app lists the tag as one it does not know and loses nothing, so an unknown version gets it. The app's 3.14.0
+ * (2026-10-21) reads it; beta/dev copies of the app get it at once.
  */
-export const APP_SHOWS_OMITTED_IMAGES: string | undefined = undefined;
+export const APP_SHOWS_OMITTED_IMAGES: string | undefined = "3.14.0";
 
 export function appShowsOmittedImages(settings: Settings, version?: string): boolean {
   if (anotherCopy(settings)) return true;

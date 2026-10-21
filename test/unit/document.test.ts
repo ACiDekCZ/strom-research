@@ -435,3 +435,25 @@ test("a region of a part asked, as a region of its page", () => {
   assert.deepEqual(within([0.5, 0.5, 0.5, 0.5], [0, 0, 1, 1]), [0.5, 0.5, 0.5, 0.5]);
   assert.deepEqual(within([0.2, 0.4, 0.5, 0.5], [0.5, 0.5, 0.2, 0.2]), [0.45, 0.65, 0.1, 0.1]);
 });
+
+test("a written name ends where the name does: no comma, semicolon or colon of the transcript after it", () => {
+  const raw = parseDocReport(`## Entry e1 · page 1
+transcript: Joannes Novák, filius Josephi Novák; mater: Mariae Dvořáková: levans Wenceslaus Horák[?], Лука Петров,
+person: p1 | child | written=Joannes Novák, | given=Jan | surname=Novák | sex=M
+person: p2 | father | written=Josephi Novák | given=Josef | surname=Novák | sex=M
+person: p3 | mother | written=Mariae Dvořáková | given=Marie | surname=Dvořáková | sex=F
+person: p4 | godparent | written=Wenceslaus Horák[?] | given=Václav | surname=Horák | sex=M
+person: p5 | witness | written=Лука Петров, | given=Лука | surname=Петров | sex=M
+`).entries[0]!;
+  const { entry } = checkEntry(raw, "e1");
+  assert.deepEqual(
+    entry.persons.map((p) => p.written),
+    ["Joannes Novák", "Josephi Novák", "Mariae Dvořáková", "Wenceslaus Horák[?]", "Лука Петров"],
+  );
+  // a stop stays: it may be the name's own (ml., st.)
+  const short = parseDocReport(`## Entry e1 · page 1
+transcript: Jan Novák ml., syn
+person: p1 | child | written=Jan Novák ml. | given=Jan | surname=Novák | sex=M
+`).entries[0]!;
+  assert.equal(checkEntry(short, "e1").entry.persons[0]!.written, "Jan Novák ml.");
+});

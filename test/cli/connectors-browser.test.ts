@@ -179,7 +179,8 @@ test("through the browser: the connector says where the images are, strom plans 
   const hits = a.hits.length;
   const next = await w.run(["fetch", "zkusebni", "5359", "--images", "3", "--recordset", "B1"]);
   assert.equal(next.code, 1);
-  assert.match(next.out, /stopped: 127\.0\.0\.1: it refused the browser \(HTTP 403 .*\) — left alone until[\s\S]*nothing planned/);
+  assert.match(next.out, /stopped: 127\.0\.0\.1: it refused the browser \(HTTP 403 .*\) — left alone until[\s\S]*refused strom before: left alone until/);
+  assert.doesNotMatch(next.out, /went silent/, "a refusal is said as one");
   assert.equal(a.hits.length, hits, "nothing goes to an archive that refused — not even the connector's page");
   await w.ok(["allow", "host", "127.0.0.1", "--unblock"], { tty: true, answers: ["y"] });
 

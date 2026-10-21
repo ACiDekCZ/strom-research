@@ -34,7 +34,7 @@ import { recordReader, tokensOf, usageOpt } from "../core/metrics.ts";
 import { readerLimit } from "../core/readstats.ts";
 import { guardIndexFirst, INDEX_FIRST_DEFAULT } from "../core/indexfirst.ts";
 import { bookViewSizes, readingOf, treeTuning, tuningOn } from "../core/tune.ts";
-import { claimStem, readerAgent, readerDesk, refuseReadersInSandbox } from "./readers.ts";
+import { claimStem, noReaderFor, readerAgent, readerDesk, refuseReadersInSandbox } from "./readers.ts";
 import { noReaderHere, refusedBySandbox } from "../core/sandbox.ts";
 import { activeFetches } from "../core/fetching.ts";
 import { finishOf } from "../core/clock.ts";
@@ -242,7 +242,7 @@ register({
     refuseReadersInSandbox(ctx, "strom read");
     const agentId = readerAgent(ctx, tree);
     const runner = RUNNERS[agentId];
-    if (!runner) throw new UsageError(`no reader for agent "${agentId}" yet`, { hint: "strom read works with Claude Code: strom read … --agent claude" });
+    if (!runner) throw noReaderFor(agentId, "strom read");
     if (agentId !== "script" && !which(runner.command, ctx.env)) throw new StromError(`${runner.command} is not installed`);
     const model = typeof opts.model === "string" ? opts.model : ctx.settings.models(agentId, tree.config).vision;
     const effort = ctx.settings.effort(agentId, tree.config)?.value;

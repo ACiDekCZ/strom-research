@@ -5,9 +5,26 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.19.0
+
+*In Vorbereitung: die Betas bis 1.19.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Auf ein verstummtes Archiv wird gewartet, statt es immer wieder zu fragen.** Antwortet ein Archiv nicht mehr,
+  lässt strom es eine Stunde in Ruhe — zwei, dann vier, wenn es am selben Tag still bleibt — und der Agent erfährt, bis
+  wann: Er macht inzwischen andere Arbeit, lässt einen Download im Hintergrund auf das Archiv warten (bis zu 30 Minuten)
+  und von selbst weiterlaufen, oder beendet die Sitzung, um später weiterzumachen. Das Archiv wird inzwischen nicht mehr
+  immer wieder angefragt.
+- **Das erste Aufräumen einer älteren Forschung wird einmal angeboten.** Eine Forschung, neben der sich viel
+  angesammelt hat, bevor strom dort selbst Ordnung hielt (Protokolle der Arbeitssitzungen, Ansichten von Scans und
+  Ähnliches), bekommt im Menü ein Angebot: was ginge, wie viel und warum — ohne Ja geht nichts. Nach einem Ja wird dort
+  von selbst Ordnung gehalten; nach einem Nein sagen Menü und Einstellungen weiter, was sich freigeben lässt.
+- **Digitale Bibliotheken beim ersten Versuch richtig durchsucht.** Für Kramerius der Tschechischen
+  Nationalbibliothek und der Mährischen Landesbibliothek und für ANNO der Österreichischen Nationalbibliothek bekommt
+  der Agent die eigenen Suchadressen der Bibliotheken — weniger fehlgeschlagene Anfragen und weniger Raten.
+
 ## 1.18.0
 
-*In Vorbereitung: die Betas bis 1.18.0-beta.14. Der Abschnitt ist mit dem Release vollständig.*
+*21.10.2026 · gehört zur Strom-App 3.14.0.*
 
 - **Handyfotos aufrecht.** Ein Foto, das nach seiner EXIF-Ausrichtung gedreht ist, wird gelesen, wie es gesehen
   werden soll, aufrecht; die darauf markierten Stellen (Ausschnitte, die Hälften einer Doppelseite, ein gespeicherter
@@ -69,9 +86,13 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Stammbaum weg ist (einen Stammbaum löscht `strom trees remove`). Ein Ende des Baums, wo die Taufe keinen Vater
   nennt, ist ein geschlossenes Ende, sobald nichts mehr daran läuft – es wartet nicht mehr für immer auf eine
   Entscheidung. Eine in der Strom-App umbenannte Quelle heißt auch in der Forschung neu, und Signatur oder Seite einer
-  Quelle kommen in der App bei der Quelle selbst an, auch bevor etwas sie zitiert. Mit `excerpts.for all` bekommt auch
-  eine Quelle, die noch niemand zitiert, in der Strom-App ihren Ausschnitt, soweit er neben den zitierten unter die
-  Grenze passt – die zitierten werden dafür nie kleiner; was nicht passte, wird gesagt.
+  Quelle kommen in der App bei der Quelle selbst an, auch bevor etwas sie zitiert. Ein Emoji oder ein anderes seltenes
+  Zeichen, das die Datei der Strom-App unterwegs beschädigt hat (als �� zu sehen), ist keine Umbenennung und keine
+  geänderte Notiz: Die Forschung behält ihren Text. Ein Ort oder ein anderer Wert, länger als eine Zeile der
+  GEDCOM-Datei (255 Bytes), hält das Schreiben der Datei nicht mehr auf, und kein Emoji wird dort geteilt, wo eine
+  lange Zeile weitergeht. Mit `excerpts.for all` bekommt auch eine Quelle, die noch niemand zitiert, in der Strom-App
+  ihren Ausschnitt, soweit er neben den zitierten unter die Grenze passt – die zitierten werden dafür nie kleiner; was
+  nicht passte, wird gesagt.
 
 ## 1.17.0
 

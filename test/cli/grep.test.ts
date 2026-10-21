@@ -118,7 +118,11 @@ test("strom grep refuses what is not the research's text: data/, .strom, .git, o
     assert.equal((await w.run(["grep", "mlynar", "--in", "notes/away/outside.md"])).code, 2);
   }
   assert.equal((await w.run(["grep", "(", "--regex"])).code, 2);
-  assert.equal((await w.run(["grep", "x", "--context", "99"])).code, 2);
+  // more context than the most: the most, said — no turn lost on an error
+  const wide = await w.run(["grep", "x", "--context", "99"]);
+  assert.equal(wide.code, 0);
+  assert.match(wide.out, /--context: at most 20 lines — 20 shown/);
+  assert.equal((await w.run(["grep", "x", "--context", "-1"])).code, 2);
   assert.equal((await w.run(["grep", "   "])).code, 2);
   // nothing found: said, with the way to the records
   const none = await w.ok(["grep", "nikde-nic"]);

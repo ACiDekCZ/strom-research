@@ -272,29 +272,31 @@ test("the Strom app 3.9.0 reads who read a source, an archive and parents who ar
   w.cleanup();
 });
 
-test("an entry of a reading of a document (_STROM_READING) only for an app that shows it: the gate not open yet, its beta and development at once", opts, async () => {
+test("an entry of a reading of a document (_STROM_READING) only for an app that shows it: from 3.14.0 and an unknown version, its beta and development at once", opts, async () => {
   const w = new World();
   const m = await import("../../src/core/stromapp.ts");
   const { Settings } = await import("../../src/core/config.ts");
   const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ ...w.env, STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
   // set from the app's version that shows them (the app's U6), never a beta's
-  assert.equal(m.APP_SHOWS_READINGS, undefined);
-  for (const v of [undefined, "3.11.0", "4.0.0", "9.0.0-beta.1"]) assert.equal(m.appShowsReadings(prod, v), false, String(v));
-  assert.equal(m.appShowsReadings(beta), true, "the beta: at once");
+  assert.equal(m.APP_SHOWS_READINGS, "3.14.0");
+  for (const v of ["3.11.0", "3.13.1"]) assert.equal(m.appShowsReadings(prod, v), false, v);
+  for (const v of [undefined, "3.14.0", "3.14.1", "4.0.0"]) assert.equal(m.appShowsReadings(prod, v), true, String(v));
+  assert.equal(m.appShowsReadings(beta, "3.11.0"), true, "the beta: at once");
   w.cleanup();
 });
 
-test("which images the file leaves out (_STROM_IMG_OMITTED) only for an app that knows it: the gate not open yet, its beta and development at once", opts, async () => {
+test("which images the file leaves out (_STROM_IMG_OMITTED) only for an app that knows it: from 3.14.0 and an unknown version, its beta and development at once", opts, async () => {
   const w = new World();
   const m = await import("../../src/core/stromapp.ts");
   const { Settings } = await import("../../src/core/config.ts");
   const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ ...w.env, STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
   // set from the app's version that reads it, never a beta's
-  assert.equal(m.APP_SHOWS_OMITTED_IMAGES, undefined);
-  for (const v of [undefined, "3.11.0", "4.0.0", "9.0.0-beta.1"]) assert.equal(m.appShowsOmittedImages(prod, v), false, String(v));
-  assert.equal(m.appShowsOmittedImages(beta), true, "the beta: at once");
+  assert.equal(m.APP_SHOWS_OMITTED_IMAGES, "3.14.0");
+  for (const v of ["3.11.0", "3.13.1"]) assert.equal(m.appShowsOmittedImages(prod, v), false, v);
+  for (const v of [undefined, "3.14.0", "3.14.1", "4.0.0"]) assert.equal(m.appShowsOmittedImages(prod, v), true, String(v));
+  assert.equal(m.appShowsOmittedImages(beta, "3.11.0"), true, "the beta: at once");
   w.cleanup();
 });
 

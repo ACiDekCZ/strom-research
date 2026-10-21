@@ -164,11 +164,16 @@ test("one reader: the entry a source of the reading with the picture and its exc
     assert.deepEqual(listed(w, 91), []);
     // back to the app: the source says its reading only to an app that shows it (APP_SHOWS_READINGS)
     const out = path.join(w.dir, "zpet.ged");
-    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", out]);
+    const reading = new RegExp(`\\n1 _STROM_READING ${r.id}\\n2 _STROM_ENTRY e1\\n`);
+    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", out], { env: { STROM_APP_VERSION: "3.13.1" } });
     assert.doesNotMatch(fs.readFileSync(out, "utf8"), /_STROM_READING/);
+    for (const version of ["3.14.0", undefined]) {
+      await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", out], version ? { env: { STROM_APP_VERSION: version } } : {});
+      assert.match(fs.readFileSync(out, "utf8"), reading, String(version));
+    }
     await w.ok(["config", "set", "strom.app.url", "https://beta.stromapp.info/run/"]);
-    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", out]);
-    assert.match(fs.readFileSync(out, "utf8"), new RegExp(`\\n1 _STROM_READING ${r.id}\\n2 _STROM_ENTRY e1\\n`));
+    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", out], { env: { STROM_APP_VERSION: "3.13.1" } });
+    assert.match(fs.readFileSync(out, "utf8"), reading);
     await w.ok(["config", "unset", "strom.app.url"]);
     // taken in already: nothing new, no second task
     await w.ok(["sync", ged, "--apply"]);

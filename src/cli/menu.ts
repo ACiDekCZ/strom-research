@@ -11,7 +11,8 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
-import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+import { isAgent } from "../core/which.ts";
+import { mb, setTidyAsked, tidyAsked, tidyOn, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
 
 /** A line as a sentence: its first letter capital (a catalog's text that also stands inside a line). */
@@ -187,7 +188,18 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       for (const line of permissionWaitingLines(tree, lang)) out(line);
       // much kept beside the research that can go (an older strom never tidied it): said, freed in the settings
       const disk = tidyPlan(tree);
-      if (disk.frees >= TIDY_SAID) out(t("ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) }));
+      if (disk.frees >= TIDY_SAID) {
+        // never tidied (an older strom gathered it): its first tidy offered once, shown and asked as strom tidy asks
+        // (Enter says no) — nothing goes unasked; then kept in order by itself. Nobody to ask (no terminal,
+        // STROM_NONINTERACTIVE): only said, the offer kept for the person
+        if (!tidyOn(root) && !tidyAsked(root) && !isAgent(ctx.env) && ctx.interactive) {
+          setTidyAsked(root);
+          out(t("ui.tidy.first", { size: mb(disk.frees, lang) }));
+          out();
+          await run(["tidy"]);
+          out();
+        } else out(t("ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) }));
+      }
       // the scan views tuned before, but for another agent or model: offered again (the settings), never run unasked
       const offer = !archive && ready ? calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root) : undefined;
       if (offer) out(sentence(t("ui.views.offer", { before: calibrationLabel(offer.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(offer.now, t("ui.settings.model.own")) })));

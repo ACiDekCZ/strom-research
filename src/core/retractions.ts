@@ -37,7 +37,10 @@ export function retractName(tree: Tree, id: string, text: string, reason: string
     const name = p.names.find((n) => sameName(n, wanted));
     if (!name) {
       const gone = p.retractedNames?.find((n) => sameName(n, wanted));
-      if (gone) throw new UsageError(`the name ${gedcomName(gone)} of ${id} is retracted already: ${gone.retracted.reason}`, { code: "name.retracted" });
+      if (gone) throw new UsageError(`the name ${gedcomName(gone)} of ${id} is retracted already: ${gone.retracted.reason}`, {
+        code: "name.retracted",
+        params: { name: gedcomName(gone), id, reason: gone.retracted.reason },
+      });
       throw new UsageError(`${id} has no name ${gedcomName(wanted)}`, { hint: `its names: ${nameList(p.names)}`, code: "name.none" });
     }
     if (p.names.length === 1)

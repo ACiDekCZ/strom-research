@@ -183,7 +183,9 @@ register(
     writes: true,
     description:
       "An original register entry or certificate is primary evidence; family trees and memories are\n" +
-      "authored/derivative — facts citing only them stay leads. --transcript @file reads a file.",
+      "authored/derivative — facts citing only them stay leads. --transcript @file reads a file.\n" +
+      `One source is one entry (its clips: the entry, and its continuation over a page break — at most ${MAX_CLIPS});\n` +
+      "several entries of one page are several sources.",
     args: [{ name: "title", description: 'short title: "Baptism of Jan Novák, Týnec 1905"', required: true }],
     options: [
       { name: "kind", type: "string", value: "<kind>", description: `${SOURCE_KINDS.slice(0, 8).join(", ")}, … (default other)` },
@@ -218,7 +220,7 @@ register(
       if (opts.repo) requireRecord(tree, opts.repo as string, "repository");
       if (opts.input) requireRecord(tree, opts.input as string, "input");
       const clips = clipRefs(tree, listOpt(opts.clip), ctx.settings.shared()?.value);
-      if (clips.length > MAX_CLIPS) throw new UsageError(`at most ${MAX_CLIPS} clips: an entry, and its continuation over a page break`);
+      if (clips.length > MAX_CLIPS) throw new UsageError(`at most ${MAX_CLIPS} clips: an entry, and its continuation over a page break — several entries are several sources (one strom source add each)`);
       const media = [...new Set([...mediaRefs(tree, csvOpt(opts.media)), ...clips.map((c) => c.media)])];
       // a line of an index is a copy made by another hand; a book with its own index holds originals too
       const kind = oneOf(opts.kind, SOURCE_KINDS, "kind", "other");

@@ -68,6 +68,8 @@ const CHILDREN: Record<string, string[]> = {
   ADDR: ["CONT", "ADR1", "ADR2", "ADR3", "CITY", "STAE", "POST", "CTRY"],
 };
 
+/** Values the Strom app joins from CONC lines though GEDCOM 5.5.1 gives them none: a long place, name, label (its file). */
+const JOINED_TAGS = new Set(["PLAC", "NAME", "_WITN", "PAGE", "TYPE", "SOUR", "REFN", "AGE"]);
 const TEXT_TAGS = new Set(["NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "VAL", "DECI"]);
 const EXTENSIONS = new Set([
   "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
@@ -148,7 +150,7 @@ export function validateGedcom(text: string, opts: { strict?: boolean } = {}): G
       const allowed = ctx ? CHILDREN[ctx] : undefined;
       const parentTag = stack[level - 1]!;
       if (tag === "CONC" || tag === "CONT") {
-        if (!TEXT_TAGS.has(parentTag) && !["CONC", "CONT"].includes(parentTag)) add("warn", n, `${tag} under ${parentTag}`);
+        if (!TEXT_TAGS.has(parentTag) && !["CONC", "CONT"].includes(parentTag) && (opts.strict || !JOINED_TAGS.has(parentTag))) add("warn", n, `${tag} under ${parentTag}`);
       } else if (allowed && !allowed.includes(tag) && !(ctx === "SOUR" && tag === "PAGE" && !opts.strict)) add(tag.startsWith("_") ? "warn" : "error", n, `${tag} is not expected under ${ctx}`);
     }
     stack[level] = tag;

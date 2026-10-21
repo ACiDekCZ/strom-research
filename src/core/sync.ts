@@ -45,6 +45,7 @@ import { appSides } from "./conflicts.ts";
 import { APP_DATA_SEX_UNKNOWN, isAppVersion } from "./stromapp.ts";
 import { bestGrade, checkReading, readingGrade, readingResult, readingSource, surer, takeReadingImages, type ReadFact, type ReadGrade, type ReadingCheck, type ReadingMark, type ReadingRefusal } from "./readsync.ts";
 import { earlierNoteTexts } from "./retractions.ts";
+import { mendAll } from "./damaged.ts";
 import { cleanTitle, familiesAsPartner, formatName, foundTitles, gedcomTitledName, parseName, primaryName, sameName as sameWords, titledName } from "./people.ts";
 
 // ── snapshots ────────────────────────────────────────────────────────────────
@@ -2152,6 +2153,8 @@ export interface Plan {
   /** The file has far fewer people than it was given: nothing is taken as removed. */
   partial: boolean;
   identity: Identity;
+  /** The file's texts whose characters a line split damaged (U+FFFD), mended from what the research has: no edit. */
+  mended?: number;
 }
 
 /** Does a record prove it: proven or probable, from a record — not a family tree, not someone's word. */
@@ -2208,6 +2211,9 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const had = (list: "persons" | "facts" | "children", key: string) => !seen || seen[list].includes(key);
   const identity = checkIdentity(tree, incoming, opts.force);
   const ours = snapshotOfTree(tree);
+  // characters the app's file damaged (an emoji split on a CONC line: U+FFFD U+FFFD) are not the user's edit: put back
+  // from the same field of the same record in what the app was given, else in the research now
+  let mended = mendAll(incoming, () => [incoming.head ? snapshotAt(tree, incoming.head) : undefined, ours]);
   knownNewcomers(incoming, ours);
   renamedInPlace(incoming, ours);
   // the user's edits against the send this copy is a copy of (_STROM_SINCE) — else the research after the last send of
@@ -2220,6 +2226,8 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const since = !sentAgain ? sinceBase(tree, incoming) : undefined;
   const after = incoming.head && !sentAgain && !since ? afterSends(tree, incoming) : undefined;
   const base = sentAgain && incoming.head ? snapshotAt(tree, incoming.head) : (since ?? after?.base);
+  // a send that wrote damaged characters into the research before: what it gave the app is mended alike
+  if (base) mended += mendAll(base, () => [ours]);
   // the titles an app that reads none keeps in the name (the research gives them in the NAME line): found there, the
   // person's titles still — in a copy of the app it stands on too (a send it kept: _STROM_SINCE)
   for (const [key, b] of base?.persons ?? []) if (!key.startsWith("x:")) titlesInName(b, [ours.persons.get(resolve(tree, key)?.id ?? key)?.titles]);
@@ -2840,7 +2848,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     const left = c.fact.cites.filter((x) => !has.has(sources.get(x.source) ?? x.source)).map((x) => x.source);
     if (left.length) c.uncited = [...new Set(left)];
   }
-  return { changes, sources, readings, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity };
+  return { changes, sources, readings, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity, ...(mended ? { mended } : {}) };
 }
 
 /**

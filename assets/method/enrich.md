@@ -25,6 +25,8 @@ recorded, also in vain (`strom search add … --method web|catalog|full-text`).
   built right away when the task needs that site (`strom connector new
   <site>`, then `strom fetch`) — never for a site that refused strom or
   restricts automation (`strom net web --check <url>`): another source.
+  A digital library strom knows gives its own search there: fetch its
+  addresses as given, the words URL-encoded — never a guessed API.
 - **The history of a place once in a research**: what is written of it (the
   brief says) is reused, never searched again.
 - **Read the source itself** — the page, the scan. A snippet, an OCR line,
