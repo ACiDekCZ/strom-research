@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.19.0
 
-*In Vorbereitung: die Betas bis 1.19.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.19.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Auf ein verstummtes Archiv wird gewartet, statt es immer wieder zu fragen.** Antwortet ein Archiv nicht mehr,
   lässt strom es eine Stunde in Ruhe — zwei, dann vier, wenn es am selben Tag still bleibt — und der Agent erfährt, bis
@@ -25,6 +25,11 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   sehen der Agent und seine Leser diese Stelle darin an — auch wenn die markierte Stelle etwas darüber hinausreicht,
   der Rest wird genannt — statt des ganzen, verkleinerten Scans; ein schärferer Teil, der die Stelle nur zum Teil
   zeigt, wird mit dem Weg genannt, ihn anzusehen.
+- **Ein Dokument wird verlässlicher gelesen.** Ein Leser schreibt seine Lesung laufend in seinen Bericht, und eine
+  Lesung zweier Leser, bei der nur einer las, sagt das so — nie, dass sie übereinstimmen.
+- **Die Verbindung mit dem Telefon wartet auf die Forschung, nicht als Fehler genannt.** Bevor die Forschung nach dem
+  Neustart des Computers startet, sagen `strom phone` und die Einstellungen, dass die Verbindung an ist und ihr Server
+  mit der Forschung wieder startet.
 
 ## 1.18.0
 

@@ -276,11 +276,15 @@ export function parseReport(text: string): Finding[] {
   return out;
 }
 
-/** Claude Code settings for a reader: it may read these views and write its report — nothing else. */
+/**
+ * Claude Code settings for a reader: it may read these views and read and write its report — nothing else. Its report
+ * read too: Claude Code edits no file it has not read (found live 2026-10-21: every edit refused, the report kept only
+ * from the answer, a reader that answered in prose lost).
+ */
 export function readerSettings(views: string[], report: string, toPermission: (p: string) => string): Record<string, unknown> {
   return {
     permissions: {
-      allow: [...views.map((v) => `Read(${toPermission(v)})`), `Write(${toPermission(report)})`, `Edit(${toPermission(report)})`],
+      allow: [...views.map((v) => `Read(${toPermission(v)})`), `Read(${toPermission(report)})`, `Write(${toPermission(report)})`, `Edit(${toPermission(report)})`],
       deny: ["Bash", "WebFetch", "WebSearch"],
     },
   };

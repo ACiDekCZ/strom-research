@@ -305,6 +305,28 @@ done: 1 entries`;
   }
 });
 
+test("strom document read by two readers: a first reader that answers in prose only (its report not written) is no reader that ran, the blind one's reading never held against itself", async () => {
+  const { w, dir, photo } = await setUp();
+  try {
+    // found live 2026-10-21: the first reader could not edit its report and only told what it would have written
+    fs.writeFileSync(path.join(dir, "prose.md"), "I've read the page, but I couldn't write anything to the report file.\n\nThe writer, Josef Novák, tells of a baptism.");
+    w.env.DOC_FIRST = path.join(dir, "prose.md");
+    const d = (await w.ok(["document", "read", photo, "--readers", "2", "--agent", "script", "--json"])).json;
+    assert.deepEqual(readers(dir).sort(), ["blind", "first"]);
+    assert.deepEqual(d.readers, { asked: 2, ran: 1, agree: null });
+    // the blind reader's entry, with no variants of itself
+    const e = d.entries[0];
+    assert.match(e.transcript, /Josephi Novak/u);
+    assert.equal(e.agree, undefined);
+    assert.equal(e.variants, undefined);
+    const shown = await w.ok(["document", "show", d.id]);
+    assert.match(shown.out, /1 reader of 2/u);
+    assert.doesNotMatch(shown.out, /they agree/u);
+  } finally {
+    w.cleanup();
+  }
+});
+
 test("strom document read of a typewritten certificate: a surname in letter-spaced type and a birth name after roz. are kept, the mother matched by the year she was born, her mother by it; a result written before is read again from the report", async () => {
   const { w, dir, photo } = await setUp();
   try {

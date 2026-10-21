@@ -1298,6 +1298,7 @@
   "ui.phone.window.no": "Zrušit",
   "ui.phone.on": "propojení s telefonem: zapnuto, v místní síti na {urls}",
   "ui.phone.starting": "propojení s telefonem: zapnuto, jeho server se spouští",
+  "ui.phone.waiting": "propojení s telefonem: zapnuto, jeho server se znovu spustí se spuštěním výzkumu",
   "ui.phone.error": "propojení s telefonem: zapnuto, ale telefon se k němu nedostane: {why}",
   "ui.phone.why.no-lan": "počítač není v žádné místní síti (Wi-Fi ani kabel)",
   "ui.phone.why.port-busy": "porty 47800–47819 mají obsazené jiné programy",

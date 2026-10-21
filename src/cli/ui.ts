@@ -1204,6 +1204,7 @@ export const UI = {
   "ui.phone.window.no": "Cancel",
   "ui.phone.on": "phone connection: on, on the local network at {urls}",
   "ui.phone.starting": "phone connection: on, its server is starting",
+  "ui.phone.waiting": "phone connection: on, its server starts again when the research starts",
   "ui.phone.error": "phone connection: on, but a phone cannot reach it: {why}",
   "ui.phone.why.no-lan": "this computer is on no local network (Wi-Fi or a cable)",
   "ui.phone.why.port-busy": "the ports 47800–47819 are taken by other programs",

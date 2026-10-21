@@ -115,7 +115,8 @@ export interface PhoneState {
   lanSeenAt: string | null;
   pair: { expiresAt: string } | null;
   phones: PhoneEntry[];
-  error: { code: PhoneErrorCode; detail: string } | null;
+  /** `waiting`: no server runs — not a failure, it starts again with the research (a session, the bridge, the menu). */
+  error: { code: PhoneErrorCode; detail: string; waiting?: true } | null;
   platform: NodeJS.Platform;
 }
 
@@ -592,7 +593,7 @@ export function phoneState(env: Env): PhoneState {
     }
     // just turned on: its server on the way
     if (c.since && Date.now() - Date.parse(c.since) < 15_000) return { ...base, state: "on", since: c.since, phones };
-    return { ...base, state: "error", since: c.since ?? null, error: { code: "bind-failed", detail: run?.ended ? `the server ended: ${run.ended.reason}` : "the server does not run" }, phones };
+    return { ...base, state: "error", since: c.since ?? null, error: { code: "bind-failed", detail: run?.ended ? `the server ended: ${run.ended.reason}` : "the server does not run", waiting: true }, phones };
   }
   const a = readAsk(env);
   if (asking(a)) return { ...base, state: "confirm", phones };

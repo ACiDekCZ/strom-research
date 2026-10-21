@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { batches, parseReport, readerPrompt, saysNothing, viewCount, type ReaderImage } from "../../src/core/reader.ts";
+import { batches, parseReport, readerPrompt, readerSettings, saysNothing, viewCount, type ReaderImage } from "../../src/core/reader.ts";
 import { summary, parseRanges, type Block } from "../../src/commands/readings.ts";
 
 const dir = path.join(import.meta.dirname, "..", "fixtures", "readings");
@@ -116,4 +116,12 @@ test("the reader's prompt asks for possible matches as unclear and for the gaps 
   assert.match(p, /never hide it inside a "nothing" block/);
   assert.deepEqual(parseRanges("5-113,130–228"), [[5, 113], [130, 228]]);
   assert.equal(parseRanges("pages"), undefined);
+});
+
+test("a reader may read its views and read and write its report — Claude Code edits no file it has not read", () => {
+  const views = ["/t/Strom výzkum/.strom/views/I0001-a.jpg"];
+  const report = "/t/Strom výzkum/notes/readings/D1-1.md";
+  const s = readerSettings(views, report, (p) => `/${p}`) as { permissions: { allow: string[]; deny: string[] } };
+  assert.deepEqual(s.permissions.allow, [`Read(/${views[0]})`, `Read(/${report})`, `Write(/${report})`, `Edit(/${report})`]);
+  assert.deepEqual(s.permissions.deny, ["Bash", "WebFetch", "WebSearch"]);
 });

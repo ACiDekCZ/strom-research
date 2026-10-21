@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.19.0
 
-*In preparation: the betas up to 1.19.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.19.0-beta.3. The section is complete with the release.*
 
 - **An archive that went silent is waited for, not asked again and again.** When an archive stops answering, strom
   leaves it alone for an hour — two, then four when it stays silent the same day — and the agent hears until when:
@@ -24,6 +24,10 @@ The changes of each version in short. The full notes and the install lines are o
   agent and its readers look at that place in it — also when the place they mark reaches a little past it, the rest
   said — instead of the whole scan, reduced; a sharper part that holds only some of the place is named with the way
   to look at it.
+- **A document read more surely.** A reader writes its reading into its report as it goes, and a reading of two readers where
+  only one read says so, never that they agree.
+- **The phone connection waits for the research, not said as an error.** Before the research starts after the computer
+  started again, `strom phone` and the settings say the connection is on and its server starts again with the research.
 
 ## 1.18.0
 

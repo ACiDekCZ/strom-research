@@ -1298,6 +1298,7 @@
   "ui.phone.window.no": "Abbrechen",
   "ui.phone.on": "Verbindung mit dem Telefon: an, im lokalen Netz unter {urls}",
   "ui.phone.starting": "Verbindung mit dem Telefon: an, ihr Server startet",
+  "ui.phone.waiting": "Verbindung mit dem Telefon: an, ihr Server startet wieder, sobald die Forschung startet",
   "ui.phone.error": "Verbindung mit dem Telefon: an, aber ein Telefon erreicht sie nicht: {why}",
   "ui.phone.why.no-lan": "der Computer ist in keinem lokalen Netz (weder WLAN noch Kabel)",
   "ui.phone.why.port-busy": "die Ports 47800–47819 belegen andere Programme",

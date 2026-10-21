@@ -1362,18 +1362,25 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     return out;
   };
   let entries = entriesOf(firsts, false);
+  const firstRead = entries.length > 0;
   const blindRan = blinds.some((r) => r);
-  // the first reader failed, the blind one read: its entries, untranslated
+  // the first reader failed, the blind one read: its entries, untranslated — never held against themselves
   if (!entries.length && blindRan) entries = entriesOf(blinds, false);
   let agree: ReadResult["readers"]["agree"] = null;
-  if (blindRan && s.readers > 1 && entries.length) {
+  if (blindRan && s.readers > 1 && firstRead) {
     const blindEntries = entriesOf(blinds, true);
     const c = compareReadings(entries, blindEntries);
     entries = c.entries;
     agree = c.agree;
   }
   entries = withTree(tree, entries);
-  const ran = (firsts.some((r) => r?.outcome === "ok") ? 1 : 0) + (blinds.some((r) => r?.outcome === "ok") ? 1 : 0);
+  // a reader ran when it ended well and its report says something (an answer in prose only is no reading)
+  const said = (r: ReadReport | undefined) => {
+    if (r?.outcome !== "ok") return false;
+    const rep = read(r);
+    return !!rep && (rep.entries.length > 0 || rep.done || rep.doc.legible !== undefined);
+  };
+  const ran = (firsts.some(said) ? 1 : 0) + (blinds.some(said) ? 1 : 0);
   const usd = s.reports.reduce((n, r) => n + (r.usd ?? 0), 0);
   const partial = s.reports.some((r) => r.outcome !== undefined && (r.usd === undefined || r.partial));
   return {

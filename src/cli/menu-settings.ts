@@ -185,7 +185,7 @@ async function phoneStep(ctx: Context, run: Run, lang: string): Promise<void> {
     await pause(ctx, lang);
     return;
   }
-  const i = await ctx.choose(t(s.state === "on" ? "ui.phone.on" : "ui.phone.error", { urls: s.addresses.map((a) => a.url).join(", "), why: t(`ui.phone.why.${s.error?.code ?? "bind-failed"}` as UIKey) }), [{ label: t("ui.phone.menu.off") }, ...s.phones.map((p) => ({ label: t("ui.phone.menu.remove", { name: p.name || p.id, date: p.pairedAt.slice(0, 10) }) }))], 0, { back: t("ui.browse.back") });
+  const i = await ctx.choose(t(s.state === "on" ? "ui.phone.on" : s.error?.waiting ? "ui.phone.waiting" : "ui.phone.error", { urls: s.addresses.map((a) => a.url).join(", "), why: t(`ui.phone.why.${s.error?.code ?? "bind-failed"}` as UIKey) }), [{ label: t("ui.phone.menu.off") }, ...s.phones.map((p) => ({ label: t("ui.phone.menu.remove", { name: p.name || p.id, date: p.pairedAt.slice(0, 10) }) }))], 0, { back: t("ui.browse.back") });
   if (i === undefined) return;
   if (i === 0) await run(["phone", "off"]);
   else await run(["phone", "remove", s.phones[i - 1]!.id]);
