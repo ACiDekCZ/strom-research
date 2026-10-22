@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.19.0
 
-*Připravuje se: bety do 1.19.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.19.0-beta.5. Oddíl bude úplný s vydáním.*
 
 - **Na archiv, který zmlkl, se čeká, místo opakovaných dotazů.** Když archiv přestane odpovídat, strom ho nechá na
   pokoji hodinu — a když týž den mlčí dál, dvě a pak čtyři hodiny — a agent se dozví, do kdy: mezitím dělá
@@ -26,6 +26,19 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   jen jeden, to tak řekne — nikdy, že se shodují.
 - **Propojení s telefonem čeká na výzkum, neříká se jako chyba.** Než se po spuštění počítače spustí výzkum, `strom
   phone` i nastavení řeknou, že propojení je zapnuté a jeho server se znovu spustí se spuštěním výzkumu.
+- **Opravy vlastních chyb stromu k rozhodnutí.** Když strom zjistí, že některá jeho dřívější verze ve výzkumu něco
+  udělala špatně, `strom fixes` a Nastavení → Údržba → Opravy řeknou, o co jde, co se našlo a co by napravení udělalo,
+  i jak je náročné; bez souhlasu se nestane nic a odmítnutí platí. První: slepá čtení ze zmenšeného snímku tam, kde
+  byla ostřejší část — přečtou se znovu vedle starých, nejdřív na několika, nic se nepřepíše, rozdíl se stane úkolem.
+  Druhá: po změně modelu nebo agenta pro čtení dřívější čtení, která stojí za nové přečtení — s otevřenými místy,
+  s neshodou čtenářů, s otevřeným rozporem, nepotvrzená u pramene; řečeno jako „četl model X, teď se čte modelem Y“,
+  nabídnuto jednou na agenta a model, každé se přečte znovu tak, jak se četlo (snímky jednoho čtení spolu, zkouška
+  i část vždy z celých čtení). Počítá se v čteních s jejich místy a náročnost ve voláních čtenáře; nabízí se po
+  stupních — jen sporná (rozchod čtenářů, otevřený rozpor, nepotvrzené u pramene), s přímou linií, nebo všechna —
+  každý s tím, co stojí, nejužší první; data a svědci jen řadí. Napravit může i jiný připravený agent nebo model
+  (`strom fixes run <id> --agent <a> --model <m>`), s tím, kdo četl dřív; ten, kdo tu číst nemůže, se odmítne hned
+  i s těmi, kdo mohou. Čas napravení se zaokrouhluje nahoru a po zkoušce se přepočítá podle čtení, jak běžela
+  souběžně.
 
 ## 1.18.0
 

@@ -437,7 +437,7 @@ test("a new version: seen at most once a day, said by strom, the menu and doctor
   // the settings' maintenance (8) says it on its line, its own item 3 takes it
   const menu = (await w.ok([], { tty: true, answers: [said[1]!, "8", "0", "0", "0"] })).out;
   assert.match(menu, /Nastavení \(na tomto počítači\)\n[\s\S]* {3}8 {2}Údržba: kontrola instalace, místo na disku, aktualizace na 9\.9\.10\n {3}9 {2}Nápověda: příkazy pro člověka\n {3}0 {2}Zpět/);
-  assert.match(menu, /Údržba\n {3}1 {2}Kontrola instalace\n {3}2 {2}Místo na disku[^\n]*\n {3}3 {2}Aktualizovat strom na 9\.9\.10\n {3}0 {2}Zpět/);
+  assert.match(menu, /Údržba\n {3}1 {2}Kontrola instalace\n {3}2 {2}Místo na disku[^\n]*\n {3}3 {2}Opravy stromu\n {3}4 {2}Aktualizovat strom na 9\.9\.10\n {3}0 {2}Zpět/);
   // Off: never asked, never said.
   await w.ok(["config", "set", "updates", "off"]);
   delete w.env.STROM_UPDATES;

@@ -58,6 +58,7 @@ import { isArchive } from "../core/mode.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { switchTo } from "./menu-mode.ts";
 import { appMarkFromInstall, linkScheme } from "../core/links.ts";
+import { fixEnv, pendingFixes } from "../commands/fixchecks.ts";
 
 
 /** Create a family tree and say so in the user's words (init itself talks to agents). */
@@ -200,6 +201,10 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
           out();
         } else out(t("ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) }));
       }
+      // a fix of strom's left something behind here that waits for the person's decision: one line (the settings)
+      const fix = archive ? undefined : pendingFixes(tree, fixEnv(ctx, tree))[0];
+      // a fix of strom's said as one; another model reading now, as readings to read again
+      if (fix) out(t(fix.check.id === "new-model" ? "ui.fixes.hint.readings" : "ui.fixes.hint", { name: t(`ui.fixes.${fix.check.id}.name` as UIKey), count: fix.check.unit === "reading" ? fix.found.readings : fix.found.items.length }));
       // the scan views tuned before, but for another agent or model: offered again (the settings), never run unasked
       const offer = !archive && ready ? calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root) : undefined;
       if (offer) out(sentence(t("ui.views.offer", { before: calibrationLabel(offer.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(offer.now, t("ui.settings.model.own")) })));

@@ -57,6 +57,7 @@ import { resetReading } from "../cli/tunereset.ts";
 import { loadRollup, manyWeb, type Unit } from "../core/readstats.ts";
 import { WEB_PER_HOST, WEB_SOFT } from "../core/metrics.ts";
 import { isArchive } from "../core/mode.ts";
+import { fixEnv, fixesDoctorLine } from "./fixchecks.ts";
 import { check } from "../core/check.ts";
 import { assertIntact, verifyFull } from "../core/integrity.ts";
 import { ensurePluginsDir } from "../core/connector.ts";
@@ -449,6 +450,11 @@ function diagnose(ctx: Context): Check[] {
     // (past the soft threshold, where the hook advises the connector)
     const many = isArchive(tr) ? [] : manyWeb(tuned.rollup?.units ?? [], Date.now(), Math.min(WEB_SOFT, ctx.settings.webPerHost(tr.config)));
     if (many.length) add("web", "warn", t("ui.doc.web.many", { list: many.slice(0, 3).map((h) => `${h.host} (${h.most})`).join(", ") }), "strom connector new");
+    // what a fix of strom's left behind here, waiting for the person's decision (strom fixes); nothing in an archive
+    if (!isArchive(tr)) {
+      const fixes = fixesDoctorLine(tr, fixEnv(ctx, tr), lang);
+      add("fixes", fixes.status, fixes.text, fixes.fix);
+    }
   }
   // archives that refused strom's client: left alone until the person lifts it (only once the archive said it is fine)
   const sharedNet = ctx.settings.shared()?.value;

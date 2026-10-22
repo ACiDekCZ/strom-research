@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.19.0
 
-*In Vorbereitung: die Betas bis 1.19.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.19.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Auf ein verstummtes Archiv wird gewartet, statt es immer wieder zu fragen.** Antwortet ein Archiv nicht mehr,
   lässt strom es eine Stunde in Ruhe — zwei, dann vier, wenn es am selben Tag still bleibt — und der Agent erfährt, bis
@@ -30,6 +30,21 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Die Verbindung mit dem Telefon wartet auf die Forschung, nicht als Fehler genannt.** Bevor die Forschung nach dem
   Neustart des Computers startet, sagen `strom phone` und die Einstellungen, dass die Verbindung an ist und ihr Server
   mit der Forschung wieder startet.
+- **Korrekturen eigener Fehler von strom zur Entscheidung.** Findet strom, dass eine frühere Version von ihm in einer
+  Forschung etwas falsch gemacht hat, sagen `strom fixes` und Einstellungen → Wartung → Korrekturen, worum es geht, was
+  gefunden wurde und was eine Behebung täte, auch wie aufwendig sie ist; ohne Ja geschieht nichts, ein Nein bleibt.
+  Die erste: blinde Lesungen aus dem verkleinerten Scan, wo es einen schärferen Teil gab — neben den alten noch einmal
+  gelesen, zuerst an einigen, nichts überschrieben, ein Unterschied wird zur Aufgabe. Die zweite: nach einem Wechsel
+  des Lesemodells oder Agenten die früheren Lesungen, die ein neues Lesen lohnen — mit offenen Stellen, uneinigen
+  Lesern, einem offenen Widerspruch, an der Quelle nicht bestätigt; gesagt als „gelesen von Modell X, jetzt liest
+  Modell Y“, einmal je Agent und Modell gefragt, jede so neu gelesen, wie sie gelesen wurde (die Bilder einer Lesung
+  zusammen, ein Versuch oder ein Teil immer aus ganzen Lesungen). Gezählt in Lesungen mit ihren Stellen, der Aufwand
+  in Leseaufrufen; angeboten nach Stufen — nur die strittigen (uneinige Leser, ein offener Widerspruch, an der Quelle
+  nicht bestätigt), mit der direkten Linie oder alle —, jede mit dem, was sie kostet, die engste zuerst; Daten und
+  Zeugen ordnen nur. Beheben kann auch ein anderer bereiter Agent oder ein anderes Modell
+  (`strom fixes run <id> --agent <a> --model <m>`), mit dem, der vorher las; einer, der hier nicht lesen kann, wird
+  sofort abgelehnt, mit denen, die es können. Die Zeit einer Behebung wird aufgerundet und nach dem Versuch nach den
+  nebeneinander gelaufenen Lesungen neu gemessen.
 
 ## 1.18.0
 

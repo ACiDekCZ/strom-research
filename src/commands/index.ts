@@ -34,3 +34,4 @@ import "./links.ts";
 import "./checks.ts";
 import "./setup.ts";
 import "./calibrate.ts";
+import "./fixes.ts";

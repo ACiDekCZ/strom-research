@@ -1268,6 +1268,9 @@ export interface ReadResult {
   since: string;
   doc: { kind?: string; language?: string[]; script?: string; date?: string; legible?: "yes" | "partly" | "no"; why?: string | null };
   readers: { asked: number; ran: number; agree: "same" | "differ" | null };
+  /** The agent and model its readers read with (kept with the research: a later check of strom's knows them). */
+  agent?: string;
+  model?: string;
   pages: ReadPage[];
   entries: DocEntry[];
   context?: string;
@@ -1393,6 +1396,8 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     since: s.since,
     doc: { ...doc, why: doc.why ?? (s.why || null) },
     readers: { asked: s.readers, ran, agree },
+    ...(s.agent ? { agent: s.agent } : {}),
+    ...(s.model ? { model: s.model } : {}),
     pages: s.pages,
     entries,
     ...(contexts.length ? { context: contexts.join("\n\n") } : {}),

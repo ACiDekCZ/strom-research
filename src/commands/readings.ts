@@ -33,6 +33,8 @@ export interface Reading {
   context?: string | undefined;
   /** A blind reading (strom read --blind: "Blind: yes" in its head) — a check of what the researcher read. */
   blind?: boolean;
+  /** The head of each report, by its name: what strom wrote of the reading (Strom:, Agent:, Model:, Image: lines). */
+  heads: Map<string, string>;
   reports: string[];
   blocks: Block[];
   mtime: number;
@@ -68,8 +70,9 @@ export function loadReadings(tree: Tree): Reading[] {
     const stem = /^(.*)-\d+$/.exec(name)?.[1] ?? name;
     const head = text.split(/^##\s/m)[0] ?? "";
     const book = /^# Reading ([Bb]\d+)-/.exec(head)?.[1]?.toUpperCase();
-    const r = byStem.get(stem) ?? { stem, question: headLine(head, "Question"), context: headLine(head, "Context"), ...(/^yes$/i.test(headLine(head, "Blind") ?? "") ? { blind: true } : {}), reports: [], blocks: [], mtime: 0 };
+    const r = byStem.get(stem) ?? { stem, question: headLine(head, "Question"), context: headLine(head, "Context"), ...(/^yes$/i.test(headLine(head, "Blind") ?? "") ? { blind: true } : {}), heads: new Map<string, string>(), reports: [], blocks: [], mtime: 0 };
     r.reports.push(name);
+    r.heads.set(name, head);
     r.mtime = Math.max(r.mtime, fs.statSync(full).mtimeMs);
     for (const f of parseReport(text)) {
       const m = f.media ? media.get(f.media) : undefined;

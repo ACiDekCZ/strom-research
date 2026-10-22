@@ -575,7 +575,7 @@ test("strom read: what the readers wrote comes back compact, and images read bef
   assert.match(r.out, /--by reader --result found --note "strany 11–20 chybí: po 10 následuje 21"\n/);
   assert.match(r.out, /strom readings \d{4}-\d\d-\d\d-B0001-1-3 \(this again\), strom readings B0001 --image <n>/);
   const [report] = fs.readdirSync(path.join(w.cwd, "notes", "readings"));
-  assert.match(fs.readFileSync(path.join(w.cwd, "notes", "readings", report!), "utf8"), /^# Reading B0001-1-3 · batch 1 of 1\nQuestion: Úmrtí Dvořák 1850–1855\nContext: dům č\. 12\n\n## Image 1/);
+  assert.match(fs.readFileSync(path.join(w.cwd, "notes", "readings", report!), "utf8"), /^# Reading B0001-1-3 · batch 1 of 1\nQuestion: Úmrtí Dvořák 1850–1855\nContext: dům č\. 12\nStrom: [^\n]+\nAgent: script\nModel: [^\n]+\nImages: M0001, M0002, M0003\n\n## Image 1/);
   // the same images again: said first (never refused), with the reading to look at
   const again = await w.run(["read", "B1", "--images", "2-3", "--question", "Křty Dvořák", "--agent", "script", "--json"]);
   assert.equal(again.code, 0, again.out + again.err);

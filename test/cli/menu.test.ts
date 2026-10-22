@@ -137,14 +137,14 @@ test("the settings: at most nine items and 0, each at a number of its own — wh
   assert.deepEqual(numbersUnder(all.out, title), [1, 2, 3, 4, 5, 6, 7, 8, 9, 0], all.out);
   assert.match(
     all.out,
-    / 1 {2}Jazyk, agent, model[^\n]*\n {3}2 {2}Samostatná práce agenta[^\n]*\n {3}3 {2}Zprávy o tom, co se uloží[^\n]*\n {3}4 {2}Archivy[^\n]*\n {3}5 {2}Výzkum, nebo jen Archiv Stromu[^\n]*\n {3}6 {2}Vyladit čtení snímků[^\n]*\n {3}7 {2}Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): vypnuto\n {3}8 {2}Údržba: kontrola instalace, místo na disku\n {3}9 {2}Nápověda: příkazy pro člověka\n {3}0 {2}Zpět\n/,
+    / 1 {2}Jazyk, agent, model[^\n]*\n {3}2 {2}Samostatná práce agenta[^\n]*\n {3}3 {2}Zprávy o tom, co se uloží[^\n]*\n {3}4 {2}Archivy[^\n]*\n {3}5 {2}Výzkum, nebo jen Archiv Stromu[^\n]*\n {3}6 {2}Vyladit čtení snímků[^\n]*\n {3}7 {2}Remote Control v aplikaci Claude \(rozhovor s agentem i z mobilu\): vypnuto\n {3}8 {2}Údržba: kontrola instalace, místo na disku, opravy\n {3}9 {2}Nápověda: příkazy pro člověka\n {3}0 {2}Zpět\n/,
   );
   assert.doesNotMatch(all.out, /Model výzkumu|Kontrola instalace\n/, "the model in the setup, the check in maintenance");
-  // maintenance: the check of the installation, disk space — the update only when one is out (a gap at 3)
-  const care = await w.ok([], { tty: true, answers: ["8", "8", "3", "0", "0", "0"] });
-  assert.deepEqual(numbersUnder(care.out, "Údržba"), [1, 2, 0]);
-  assert.match(care.out, /Údržba\n {3}1 {2}Kontrola instalace\n {3}2 {2}Místo na disku: strom si vedle výzkumu drží [^\n]+\n {3}0 {2}Zpět\n/);
-  assert.match(care.out, /Čekám jedno z čísel: 1, 2, 0\./, "a number not shown is refused");
+  // maintenance: the check of the installation, disk space, the fixes of strom's — the update only when one is out (a gap at 4)
+  const care = await w.ok([], { tty: true, answers: ["8", "8", "4", "0", "0", "0"] });
+  assert.deepEqual(numbersUnder(care.out, "Údržba"), [1, 2, 3, 0]);
+  assert.match(care.out, /Údržba\n {3}1 {2}Kontrola instalace\n {3}2 {2}Místo na disku: strom si vedle výzkumu drží [^\n]+\n {3}3 {2}Opravy stromu\n {3}0 {2}Zpět\n/);
+  assert.match(care.out, /Čekám jedno z čísel: 1, 2, 3, 0\./, "a number not shown is refused");
   // the help keeps its 9
   assert.match((await w.ok([], { tty: true, answers: ["8", "9", "", "0", "0"] })).out, /strom/);
   // another agent here does the research: nothing of Claude's — Remote Control's 7 a gap, typed 7 refused, the rest stay
