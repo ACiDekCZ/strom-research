@@ -1013,6 +1013,8 @@ register({
         const env = {
           ...prependPath(withoutAgentMarks(runEnv), bin),
           STROM_SESSION: session.id,
+          // which agent strom runs in, should its sandbox hide the agent's own marks (core/which.ts)
+          STROM_IN_AGENT: runnerId,
           STROM_DEADLINE: new Date(deadline).toISOString(),
           STROM_MINUTES: String(minutes),
           // the model it works with, for what strom does inside the session (readers, the size of views) — as a

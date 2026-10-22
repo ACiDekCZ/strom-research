@@ -1158,16 +1158,17 @@
     $("doneBox").hidden = !handed;
     if (handed) $("doneText").textContent = t("commit.done", { n: b.done });
     // the foot: the camera's photos only here, handing over
-    $("captureNote").hidden = !items.some((i) => i.capture && i.blob);
+    // while typing, only what ends the typing: the rest of the foot would take what the keyboard leaves of the sheet
+    $("captureNote").hidden = !!S.typing || !items.some((i) => i.capture && i.blob);
     $("photoRow").hidden = !!S.typing;
     $("typingRow").hidden = !S.typing;
     $("noPersonBtn").hidden = S.typing !== "person";
     const committing = !!(b && b.commit);
-    $("commitBtn").hidden = !items.length;
+    $("commitBtn").hidden = !items.length || !!S.typing;
     $("commitBtn").disabled = committing || !items.some((i) => !FINAL(i));
     $("commitBtn").textContent = committing ? t("commit.wait") : t("commit");
     $("commitCancel").hidden = !committing;
-    $("commitLater").hidden = !items.length || committing;
+    $("commitLater").hidden = !items.length || committing || !!S.typing;
   };
 
   const renderUnpaired = () => {
@@ -1275,6 +1276,17 @@
     render();
   };
 
+  // the field typed in at the top of the sheet's body, what it offers under it (the keyboard leaves little of the sheet)
+  const keepTyped = () => {
+    const f = document.activeElement;
+    if (!f || (f.id !== "person" && f.id !== "note") || $("sheet").hidden) return;
+    const body = $("sheet").querySelector(".sheet-body");
+    const field = (f.closest && f.closest(".field")) || f;
+    if (!body) return;
+    const off = field.getBoundingClientRect().top - body.getBoundingClientRect().top - 8;
+    if (Math.abs(off) > 1) body.scrollTop += off;
+  };
+
   let lookFor = 0;
   let asked = "";
   const findPeople = () => {
@@ -1317,6 +1329,7 @@
         ul.append(li);
       }
       ul.hidden = !people.length;
+      if (people.length) keepTyped();
     }, 250);
   };
 
@@ -1469,12 +1482,22 @@
     renderPill();
   };
   window.addEventListener("scroll", () => S.newCount && window.scrollY <= 4 && renderPill(), { passive: true });
-  // the keyboard: the sheet as high as what is seen of the page, its foot above the keyboard
+  // the keyboard: the sheet as high as what is seen of the page and where it is seen (iOS Safari keeps the page as tall
+  // and moves what is seen of it up above the keyboard: a sheet fixed at the page's top would end under the field), its
+  // foot above the keyboard, the field typed in kept in sight; without visualViewport the sheet is the whole window
   const vv = window.visualViewport;
   if (vv) {
-    const fit = () => document.documentElement.style.setProperty("--vvh", `${vv.height}px`);
-    vv.addEventListener("resize", fit);
-    fit();
+    const place = () => {
+      const root = document.documentElement.style;
+      root.setProperty("--vvh", `${Math.round(vv.height)}px`);
+      root.setProperty("--vvt", `${Math.max(0, Math.round(vv.offsetTop || 0))}px`);
+    };
+    vv.addEventListener("resize", () => {
+      place();
+      keepTyped();
+    });
+    vv.addEventListener("scroll", place);
+    place();
   }
 
   // looked at again: asked at once; every 10 s while open

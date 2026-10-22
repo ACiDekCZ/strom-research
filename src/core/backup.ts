@@ -165,10 +165,13 @@ function freeBytes(dir: string): number | undefined {
 /** Why a backup could not be made: no room (how much it needs, how much is free), or what the system said. */
 export class BackupFailed extends Error {
   readonly room: { need: number; free: number } | undefined;
-  constructor(message: string, room?: { need: number; free: number }) {
+  /** What the system said (ENOSPC, EPERM, …), where it said something. */
+  readonly code: string | undefined;
+  constructor(message: string, room?: { need: number; free: number }, code?: string) {
     super(message);
     this.name = "BackupFailed";
     this.room = room;
+    this.code = code;
   }
 }
 
@@ -208,7 +211,8 @@ export function makeBackup(opts: { home: string; env: Env; trees: string[]; tran
     } catch {
       // what is left says itself
     }
-    throw new BackupFailed((e as NodeJS.ErrnoException).code === "ENOSPC" ? `the disk is full: the backup needs ${mb(need)}` : (e as Error).message);
+    const code = (e as NodeJS.ErrnoException).code;
+    throw new BackupFailed(code === "ENOSPC" ? `the disk is full: the backup needs ${mb(need)}` : (e as Error).message, undefined, code);
   }
   return { at: at.toISOString(), from: opts.transition.from, to: opts.transition.to, ...(opts.transition.fromChannel ? { fromChannel: opts.transition.fromChannel } : {}), ...(opts.transition.toChannel ? { toChannel: opts.transition.toChannel } : {}), path: dir, bytes: need };
 }

@@ -88,7 +88,7 @@ test("an archive says nothing of an agent or AI anywhere a person or the app loo
   assert.doesNotMatch(lately, /úkol/, lately);
   assert.equal(JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).mode, "archive", "Enter never switched research on");
   // its folder: no files of the agents
-  for (const f of ["AGENTS.md", "CLAUDE.md", ".claude", ".grok", "opencode.json"]) assert.ok(!fs.existsSync(path.join(w.cwd, f)), f);
+  for (const f of ["AGENTS.md", "CLAUDE.md", ".claude", ".grok", ".codex", "opencode.json"]) assert.ok(!fs.existsSync(path.join(w.cwd, f)), f);
   // what the bridge tells the app: no queue of tasks put aside, nothing spent, no agent
   const info = (await w.ok(["live", "start", "--json"])).json;
   try {
@@ -103,7 +103,7 @@ test("an archive says nothing of an agent or AI anywhere a person or the app loo
 test("research switched on, the agents' files come; an archive again, strom's own go and a person's notes stay", opts, async () => {
   const w = new World();
   await w.withTree("Novákovi");
-  for (const f of ["AGENTS.md", "CLAUDE.md", "opencode.json"]) assert.ok(fs.existsSync(path.join(w.cwd, f)), f);
+  for (const f of ["AGENTS.md", "CLAUDE.md", "opencode.json", path.join(".codex", "rules", "strom.rules")]) assert.ok(fs.existsSync(path.join(w.cwd, f)), f);
   // the person's own notes in CLAUDE.md, below the mark
   fs.appendFileSync(path.join(w.cwd, "CLAUDE.md"), "\nMoje poznámka: hledat v Týnci.\n");
   // a person's own file in notes/: never swept into the switch's commit (found on Windows)
@@ -111,7 +111,7 @@ test("research switched on, the agents' files come; an archive again, strom's ow
   const switched = await w.ok(["mode", "archive"], { tty: true });
   assert.match(switched.out, /^Výzkum je teď Archiv Stromu\./m, switched.out);
   assert.doesNotMatch(switched.out, /put aside|the research is/, switched.out);
-  for (const f of ["AGENTS.md", "opencode.json", ".claude", ".grok"]) assert.ok(!fs.existsSync(path.join(w.cwd, f)), f);
+  for (const f of ["AGENTS.md", "opencode.json", ".claude", ".grok", ".codex"]) assert.ok(!fs.existsSync(path.join(w.cwd, f)), f);
   assert.match(fs.readFileSync(path.join(w.cwd, "CLAUDE.md"), "utf8"), /Moje poznámka/, "a person's notes stay");
   await w.ok(["mode", "research"], { tty: true });
   // the switches in the history: in the research's language (found on Windows: "the research is an archive")
@@ -119,7 +119,7 @@ test("research switched on, the agents' files come; an archive again, strom's ow
   assert.match(hist, /Výzkum je teď Archiv Stromu/, hist);
   assert.match(hist, /Výzkum je znovu zapnutý/, hist);
   assert.doesNotMatch(hist, /the research|with an agent/, hist);
-  for (const f of ["AGENTS.md", "opencode.json", path.join(".claude", "settings.json")]) assert.ok(fs.existsSync(path.join(w.cwd, f)), f);
+  for (const f of ["AGENTS.md", "opencode.json", path.join(".claude", "settings.json"), path.join(".codex", "rules", "strom.rules")]) assert.ok(fs.existsSync(path.join(w.cwd, f)), f);
   assert.equal(execFileSync("git", ["ls-files", "notes/moje.txt"], { cwd: w.cwd, encoding: "utf8" }), "", "the person's file left alone");
   assert.match(fs.readFileSync(path.join(w.cwd, "CLAUDE.md"), "utf8"), /Moje poznámka/);
   w.cleanup();

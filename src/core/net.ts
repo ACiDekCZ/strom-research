@@ -75,6 +75,13 @@ export const AGENT_TOOL_TOKENS: Record<string, readonly string[]> = { claude: ["
 export const MAX_WAIT_MS = 2 * 60_000;
 /** An hour off after a host kept asking us to slow down, or stopped answering. */
 export const COOL_OFF_MS = 3600_000;
+/**
+ * Off after a host went silent: an hour, and longer each time it goes silent again before it answered (within a day of
+ * the last time) — never shorter than an hour (gentle on archives: a firewall that drops requests looks the same).
+ */
+export const SILENT_COOL_MS = [COOL_OFF_MS, 2 * COOL_OFF_MS, 4 * COOL_OFF_MS] as const;
+/** How long a silence counts towards the next, longer, time off (SILENT_COOL_MS). */
+const SILENT_RUN_MS = 24 * 3600_000;
 const TIMEOUT_MS = 60_000;
 /** Attempts per request: a busy server (5xx) a few, "slow down" (429) and silence only one more. */
 const ATTEMPTS = { busy: 3, slowDown: 2, silent: 2 };
@@ -146,12 +153,18 @@ export class NetError extends StromError {
 /** A limit used up for longer than a pause: waited for with the host's lock let go (thrown inside, caught by politeRequest). */
 class WaitOutside {
   readonly until: number;
-  readonly why: "cap" | "limit";
-  constructor(until: number, why: "cap" | "limit") {
+  readonly why: WaitWhy;
+  constructor(until: number, why: WaitWhy) {
     this.until = until;
     this.why = why;
   }
 }
+
+/**
+ * Why a request waits: the host's hourly cap used up (cap), a limit the host says is used up (limit), or the host left
+ * alone for a while after it went silent or asked to slow down (down — a fetch in the background only, lane).
+ */
+export type WaitWhy = "cap" | "limit" | "down";
 
 /** When the host takes a request again: its hourly cap used up (the oldest request that keeps it full is an hour old). */
 function capFree(recent: number[], perHour: number): number {
@@ -187,7 +200,7 @@ export function capNear(s: HostState, pace: Pace, now: number): CapNear | undefi
 /** A limit used up: try again then. */
 function capError(host: string, why: "cap" | "limit", until: number, perHour: number): NetError {
   const what = why === "cap" ? `${perHour} requests to ${host} in the last hour — its hourly cap` : `${host} says its limit is used up`;
-  return new NetError("cap", host, `${what}; try again at ${clock(until)}`, `go on with other work; run it again at ${clock(until)} — not sooner: strom sends nothing to ${host} before then${why === "limit" ? `; the person can lift it early: strom allow host ${host} --unblock` : ""}`, undefined, until);
+  return new NetError("cap", host, `${what}; try again at ${clockUp(until)}`, `go on with other work; run it again at ${clockUp(until)} — not sooner: strom sends nothing to ${host} before then${why === "limit" ? `; the person can lift it early: strom allow host ${host} --unblock` : ""}`, undefined, until);
 }
 
 export interface HostState {
@@ -209,6 +222,8 @@ export interface HostState {
   own?: OwnPace;
   /** Its robots.txt as strom last read it. */
   robots?: RobotsState;
+  /** Silences in a row, the host answering none in between: how many, the last (each a longer time off — SILENT_COOL_MS). */
+  silentRun?: { n: number; at: number };
   /** Why it was left alone, when a refusal (401/403) did it. */
   refusedKind?: RefusedKind;
   /** The first request of a run refused (once): a second such refusal on another day is a refusal of the client. */
@@ -252,10 +267,10 @@ export interface NetOptions {
    * agent that would only sleep and ask again: longer than strom's own MAX_WAIT_MS, never past it — and told first.
    */
   waitMs?: number;
-  /** Told before a wait for a limit: the host, until when, and why. */
-  onWait?: (w: { host: string; until: number; ms: number; why: "cap" | "limit" }) => void;
+  /** Told before a wait for a limit (or, in the background, for a host left alone): the host, until when, and why. */
+  onWait?: (w: { host: string; until: number; ms: number; why: WaitWhy }) => void;
   /** Told of every pause a request makes (the host's pace, its hourly cap, a limit used up) — measured, never decided by. */
-  onPause?: (p: { host: string; ms: number; why: "pace" | "cap" | "limit" }) => void;
+  onPause?: (p: { host: string; ms: number; why: "pace" | WaitWhy }) => void;
   /** Told of every request that goes to a host (a redirect and a retry are requests too) — measured only. */
   onRequest?: (host: string) => void;
   now?: () => number;
@@ -289,6 +304,8 @@ export interface NetOptions {
    * None: neither (a probe, a robots.txt).
    */
   lane?: "foreground" | "background";
+  // in the background a host left alone after silence or "slow down" (no refusal) is waited for, within waitMs, as a
+  // limit used up — the agent goes on meanwhile; in the foreground it ends at once, saying when (exit 7)
   onYield?: (waiting: boolean) => void;
   /** The run is stopped: a fetch in the background that waits for the foreground asks nothing more. */
   stop?: AbortSignal;
@@ -625,6 +642,10 @@ function checkHostState(raw: Record<string, unknown>, at: number): { state: Host
   if (has("refusedKind") && !REFUSED_KINDS.includes(raw.refusedKind as RefusedKind)) drop("refusedKind");
   if (has("refusedFirst") && !(raw.refusedFirst && typeof raw.refusedFirst === "object" && until((raw.refusedFirst as { at?: unknown }).at))) drop("refusedFirst");
   if (has("okAt") && !until(raw.okAt)) drop("okAt");
+  if (has("silentRun")) {
+    const r = raw.silentRun as { n?: unknown; at?: unknown } | null;
+    if (!(r && typeof r === "object" && typeof r.n === "number" && Number.isInteger(r.n) && r.n >= 1 && until(r.at))) drop("silentRun");
+  }
   if (has("tracked") && !until(raw.tracked)) drop("tracked");
   if (has("own")) {
     const own = raw.own;
@@ -687,7 +708,7 @@ export function stamp(ms: number): string {
 
 /** Until when a host is left alone, in words: a time, or until the person lifts it (a refusal of strom's client). */
 export function leftUntil(host: string, until: number): string {
-  return until >= REFUSED_FOREVER ? `until the person lifts it (strom allow host ${host} --unblock)` : `until ${clock(until)}`;
+  return until >= REFUSED_FOREVER ? `until the person lifts it (strom allow host ${host} --unblock)` : `until ${clockUp(until)}`;
 }
 
 /**
@@ -846,7 +867,12 @@ function netError(failure: NetFailure, host: string, message: string, hint: stri
 /** A host left alone (a refusal, silence, "slow down"): what strom says of a request it does not send. */
 function blockedError(host: string, s: HostState): NetError {
   const until = s.blockedUntil!;
-  return netError("blocked", host, `${host}: ${s.reason ?? "refused us"} — left alone ${leftUntil(host, until)}`, until >= REFUSED_FOREVER ? `do not try it through your web tools or a browser either; only the person lifts it: strom allow host ${host} --unblock` : `do not retry: go on with other work; the user can lift it early with strom allow host ${host} --unblock`, undefined, { refusedKind: s.refusedKind, until });
+  return netError("blocked", host, `${host}: ${s.reason ?? "refused us"} — left alone ${leftUntil(host, until)}`, until >= REFUSED_FOREVER ? `do not try it through your web tools or a browser either; only the person lifts it: strom allow host ${host} --unblock` : `do not retry before ${clockUp(until)}: strom sends ${host} nothing until then — go on with other work; the user can lift it early with strom allow host ${host} --unblock`, undefined, { refusedKind: s.refusedKind, until });
+}
+
+/** A host left alone for a while without a refusal (it went silent, asked to slow down): waited for in the background. */
+export function leftAloneFor(s: HostState, now: number): number | undefined {
+  return s.blockedUntil && s.blockedUntil > now && s.blockedUntil < REFUSED_FOREVER && !s.refusedKind && !(s.reason ?? "").includes("refused") ? s.blockedUntil : undefined;
 }
 /** A time as the clock on the wall shows it here ("14:32"), with the day when it is not today. */
 export function clock(ms: number, today = Date.now()): string {
@@ -858,9 +884,29 @@ export function clock(ms: number, today = Date.now()): string {
   return `${sameDay ? "" : `${day} `}${two(d.getHours())}:${two(d.getMinutes())}`;
 }
 
+/** A time something waits until, as clock() says it, rounded up to the minute: "11:04" for 11:03:22 — never too early. */
+export function clockUp(ms: number, today = Date.now()): string {
+  return clock(Math.ceil(ms / 60_000) * 60_000, today);
+}
+
 /** One request, politely. Throws NetError when the host is not allowed, refused us, went silent, or is capped. */
+/**
+ * A wait that ends early when the run is stopped: its own timer, cleared then (a process stopped never stays for a
+ * timer left behind) — or a caller's sleep (a test's clock) raced with the stop.
+ */
+function stoppable(ms: number, stop: AbortSignal, sleep?: (ms: number) => Promise<void>): Promise<void> {
+  if (stop.aborted) return Promise.resolve();
+  return new Promise<void>((r) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const done = () => (stop.removeEventListener("abort", done), timer !== undefined && clearTimeout(timer), r());
+    stop.addEventListener("abort", done, { once: true });
+    if (sleep) void sleep(ms).then(done);
+    else timer = setTimeout(done, ms);
+  });
+}
+
 /** A pause told to the caller's measure; whatever it does, the request goes on. */
-function paused(opts: NetOptions, p: { host: string; ms: number; why: "pace" | "cap" | "limit" }): void {
+function paused(opts: NetOptions, p: { host: string; ms: number; why: "pace" | WaitWhy }): void {
   try {
     opts.onPause?.(p);
   } catch {
@@ -1047,7 +1093,12 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
       pace = hostPace(s, opts.pace, human, host);
       slowed = (s.slowdown ?? 1) > 1;
       const t = now();
-      if (s.blockedUntil && s.blockedUntil > t) throw blockedError(host, s);
+      if (s.blockedUntil && s.blockedUntil > t) {
+        // in the background a host left alone for a while is waited for (with the host let go), never one that refused
+        const free = opts.lane === "background" ? leftAloneFor(s, t) : undefined;
+        if (free !== undefined && free <= waitBy) throw new WaitOutside(free, "down");
+        throw blockedError(host, s);
+      }
       s.recent = s.recent.filter((x) => x > t - 3600_000);
       if (s.recent.length >= pace.perHour) {
         const free = capFree(s.recent, pace.perHour);
@@ -1066,7 +1117,7 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
       const gap = (s.last ?? 0) + gapOf(s, pace) - now();
       // a pause longer than the caller waits (a site's long Crawl-delay): said when to come back, never sooner
       if (gap > MAX_WAIT_MS && now() + gap > waitBy)
-        throw new NetError("cap", host, `${host}'s pace (${paceText(pace)}${robotsDelayMs(s.robots) >= pace.minIntervalMs ? ", its robots.txt's Crawl-delay" : ""}) — the next request at ${clock(now() + gap)}`, `go on with other work; run it again at ${clock(now() + gap)} — not sooner`, undefined, now() + gap);
+        throw new NetError("cap", host, `${host}'s pace (${paceText(pace)}${robotsDelayMs(s.robots) >= pace.minIntervalMs ? ", its robots.txt's Crawl-delay" : ""}) — the next request at ${clockUp(now() + gap)}`, `go on with other work; run it again at ${clockUp(now() + gap)} — not sooner`, undefined, now() + gap);
       if (gap > 0) {
         paused(opts, { host, ms: gap, why: "pace" });
         await sleep(gap);
@@ -1094,8 +1145,14 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
         failed = err;
       }
       took = now() - asked;
-      const cool = (ms: number, reason: string, kind?: RefusedKind) => {
+      const cool = (ms: number | "silent", reason: string, kind?: RefusedKind) => {
         s = hostState(opts.stateDir, host, now());
+        if (ms === "silent") {
+          // silent again within a day, no answer since: longer off each time (an hour, two, four)
+          const run = s.silentRun && now() - s.silentRun.at < SILENT_RUN_MS ? s.silentRun.n : 0;
+          ms = SILENT_COOL_MS[Math.min(run, SILENT_COOL_MS.length - 1)]!;
+          s.silentRun = { n: run + 1, at: now() };
+        }
         s.blockedUntil = kind === "client" ? REFUSED_FOREVER : now() + ms;
         s.reason = reason;
         if (kind) s.refusedKind = kind;
@@ -1110,7 +1167,7 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
         cool(REFUSED_MS, refusedAs === "client" ? `it refused strom's client (HTTP ${res.status} at ${stamp(now())})` : `it refused us (HTTP ${res.status} at ${stamp(now())})`, refusedAs);
         refusedState = s;
       } else if (!robotsAsked && res?.status === 429 && tries.slowDown + 1 >= ATTEMPTS.slowDown) cool(COOL_OFF_MS, `it asked us to slow down twice (HTTP 429 at ${stamp(now())})`);
-      else if (!robotsAsked && !res && tries.silent + 1 >= ATTEMPTS.silent) cool(COOL_OFF_MS, `no answer at ${stamp(now())} — the server is down, or it blocks this IP`);
+      else if (!robotsAsked && !res && tries.silent + 1 >= ATTEMPTS.silent) cool("silent", `no answer at ${stamp(now())} — the server is down, or it blocks this IP`);
     } catch (err) {
       if (!(err instanceof WaitOutside)) throw err;
       outside = err;
@@ -1119,10 +1176,13 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
     }
     if (outside) {
       // a slot freed may go to another strom first: waited again, a few times at most, then said when to try again
-      if (++waitedOutside > 3) throw capError(host, outside.why, outside.until, pace.perHour);
+      if (++waitedOutside > 3) throw outside.why === "down" ? blockedError(host, hostState(opts.stateDir, host, now())) : capError(host, outside.why, outside.until, pace.perHour);
       opts.onWait?.({ host, until: outside.until, ms: Math.max(0, outside.until - now()), why: outside.why });
       paused(opts, { host, ms: Math.max(0, outside.until - now()), why: outside.why });
-      await sleep(Math.max(0, outside.until - now()));
+      // a long wait in the background ends when its run is stopped (its session closed)
+      const ms = Math.max(0, outside.until - now());
+      await (opts.stop ? stoppable(ms, opts.stop, opts.sleep ?? testHooks.sleep) : sleep(ms));
+      if (opts.stop?.aborted) throw new NetError("http", host, `stopped while it waited for ${host}`);
       continue;
     }
 
@@ -1173,6 +1233,8 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
         delete cur.refusedFirst;
       }
       cur.latencyMs = Math.round(cur.latencyMs === undefined ? took : cur.latencyMs * 0.7 + took * 0.3);
+      // it answered: a silence later starts from an hour off again
+      delete cur.silentRun;
       // the pause counts from the answer: a host that works long on each gets as long to rest
       cur.last = Math.max(cur.last ?? 0, now());
       const until = limitUsedUp(res.headers, now());
@@ -1188,11 +1250,14 @@ export async function politeRequest(url: string, opts: NetOptions, redirects = 0
     // Busy, "slow down", or no answer: slow down, and try again — a little.
     const cur = hostState(opts.stateDir, host, now());
     cur.slowdown = Math.min(16, (cur.slowdown ?? 1) * 2);
+    if (res) delete cur.silentRun;
     writeJson(file, cur);
     tries[kind!]++;
     if (tries[kind!] >= attempts[kind!]) {
-      if (kind === "silent") throw new NetError("silent", host, `no answer from ${host} (${(failed as Error)?.message ?? "timeout"}) — it is down, or it blocks this IP; strom leaves it alone for an hour`, "do not retry: a firewall that drops requests looks exactly like this");
-      if (kind === "slowDown") throw new NetError("refused", host, `${host} asked us twice to slow down (429) — strom leaves it alone for an hour`, "go on with other work; a smaller batch next time", 429);
+      const left = hostState(opts.stateDir, host, now()).blockedUntil;
+      const off = left !== undefined && left > now() ? left : undefined;
+      if (kind === "silent") throw new NetError("silent", host, `no answer from ${host} (${(failed as Error)?.message ?? "timeout"}) — it is down, or it blocks this IP; strom leaves it alone${off ? ` until ${clockUp(off)}` : " for an hour"}`, "do not retry: a firewall that drops requests looks exactly like this", undefined, off);
+      if (kind === "slowDown") throw new NetError("refused", host, `${host} asked us twice to slow down (429) — strom leaves it alone${off ? ` until ${clockUp(off)}` : " for an hour"}`, "go on with other work; a smaller batch next time", 429, off);
       throw new NetError("http", host, `${host} answered ${res!.status} ${tries.busy} times — the server has trouble; try later`, undefined, res!.status);
     }
     const asked = res ? retryAfterMs(res.headers.get("retry-after"), now()) : undefined;
@@ -1227,7 +1292,7 @@ export function reserveSlots(stateDir: string, host: string, asked: ServicePace 
     const first = Math.max(t + (opts.leadMs ?? 0), (s.last ?? 0) + gap, s.waitUntil ?? 0);
     // never further ahead than SLOTS_AHEAD_MS: fewer than asked, the rest next time
     if (first > t + SLOTS_AHEAD_MS)
-      throw new NetError("cap", host, `${host}: strom has planned its requests for the next hour already; try again at ${clock(first - SLOTS_AHEAD_MS)}`, `go on with other work; run it again at ${clock(first - SLOTS_AHEAD_MS)}`, undefined, first - SLOTS_AHEAD_MS);
+      throw new NetError("cap", host, `${host}: strom has planned its requests for the next hour already; try again at ${clockUp(first - SLOTS_AHEAD_MS)}`, `go on with other work; run it again at ${clockUp(first - SLOTS_AHEAD_MS)}`, undefined, first - SLOTS_AHEAD_MS);
     const times = Array.from({ length: Math.min(free, Math.floor((t + SLOTS_AHEAD_MS - first) / gap) + 1) }, (_, i) => first + i * gap);
     s.last = times.at(-1)!;
     s.recent.push(...times);
@@ -1250,8 +1315,10 @@ export function refusedBy(stateDir: string, host: string, status: number, now: (
     const reason = status === 429 ? `it asked the browser to slow down (HTTP 429 at ${stamp(now())})` : `it refused the browser (HTTP ${status} at ${stamp(now())})`;
     s.blockedUntil = Math.max(s.blockedUntil ?? 0, now() + ms);
     s.reason = reason;
+    // a refusal is said as one (strom fetch: refused, not "went silent"); a kind it had already stays
+    if (status !== 429) s.refusedKind ??= "load";
     writeJson(file, s);
-    return `${host}: ${reason} — strom leaves it alone until ${clock(s.blockedUntil)}`;
+    return `${host}: ${reason} — strom leaves it alone until ${clockUp(s.blockedUntil)}`;
   } finally {
     release();
   }

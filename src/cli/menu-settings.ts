@@ -28,6 +28,8 @@ import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
 import { archivePermissions, archiveState, browserOnlyHere } from "./menu-archives.ts";
 import { chooseTerminal, terminalState } from "./terminals.ts";
 import { phoneState } from "../core/phone.ts";
+import { fixEnv, pendingFixes } from "../commands/fixchecks.ts";
+import { isArchive as archiveHere } from "../core/mode.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -185,7 +187,7 @@ async function phoneStep(ctx: Context, run: Run, lang: string): Promise<void> {
     await pause(ctx, lang);
     return;
   }
-  const i = await ctx.choose(t(s.state === "on" ? "ui.phone.on" : "ui.phone.error", { urls: s.addresses.map((a) => a.url).join(", "), why: t(`ui.phone.why.${s.error?.code ?? "bind-failed"}` as UIKey) }), [{ label: t("ui.phone.menu.off") }, ...s.phones.map((p) => ({ label: t("ui.phone.menu.remove", { name: p.name || p.id, date: p.pairedAt.slice(0, 10) }) }))], 0, { back: t("ui.browse.back") });
+  const i = await ctx.choose(t(s.state === "on" ? "ui.phone.on" : s.error?.waiting ? "ui.phone.waiting" : "ui.phone.error", { urls: s.addresses.map((a) => a.url).join(", "), why: t(`ui.phone.why.${s.error?.code ?? "bind-failed"}` as UIKey) }), [{ label: t("ui.phone.menu.off") }, ...s.phones.map((p) => ({ label: t("ui.phone.menu.remove", { name: p.name || p.id, date: p.pairedAt.slice(0, 10) }) }))], 0, { back: t("ui.browse.back") });
   if (i === undefined) return;
   if (i === 0) await run(["phone", "off"]);
   else await run(["phone", "remove", s.phones[i - 1]!.id]);
@@ -222,9 +224,25 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
           },
         });
       }
+      // what a fix of strom's left behind in this research: what it is, then the person's choice (strom fixes run)
+      if (root) {
+        const tree = Tree.open(root, ctx.env);
+        if (!archiveHere(tree)) {
+          const waits = pendingFixes(tree, fixEnv(ctx, tree)).reduce((n, s) => n + (s.check.unit === "reading" ? s.found.readings : s.found.items.length), 0);
+          items.push({
+            key: "3",
+            label: t("ui.maintenance.fixes", { state: waits ? t("ui.maintenance.fixes.waits", { n: waits }) : "" }),
+            act: async () => {
+              if (waits) await run(["fixes", "run"]);
+              else await run(["fixes"]);
+              await pause(ctx, lang);
+            },
+          });
+        }
+      }
       if (newer)
         items.push({
-          key: "3",
+          key: "4",
           label: t("ui.menu.update", { version: newer }),
           act: async () => {
             if ((await run(["update"])) !== 0) return;

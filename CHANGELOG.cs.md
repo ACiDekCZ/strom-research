@@ -5,6 +5,61 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.19.0
+
+*22. 10. 2026 · patří k aplikaci Strom 3.15.0.*
+
+- **Na archiv, který zmlkl, se čeká, místo opakovaných dotazů.** Když archiv přestane odpovídat, strom ho nechá na
+  pokoji hodinu — a když týž den mlčí dál, dvě a pak čtyři hodiny — a agent se dozví, do kdy: mezitím dělá
+  jinou práci, nechá stahování na pozadí na archiv počkat (až 30 minut) a pokračovat samo, nebo sezení ukončí a
+  naváže později. Archiv se už mezitím neobtěžuje dotazy pořád dokola.
+- **První úklid staršího výzkumu se jednou nabídne.** Výzkum, u kterého se nastřádalo hodně dat dřív, než si v tom
+  strom začal sám dělat pořádek (záznamy práce, náhledy snímků a podobně), dostane v menu jednu nabídku: co by se
+  smazalo, kolik a proč — bez souhlasu nic. Po souhlasu se v tom pak udržuje pořádek samo; po odmítnutí menu a
+  nastavení dál říkají, co jde uvolnit. `strom pack`, odebrání rodokmenu i menu uvádějí velikost balíku, zálohy nebo
+  snímků jako všude jinde (1,5 MB, u malých 24 kB), nikdy „0.0 MB“.
+- **Digitální knihovny napoprvé správně.** U Krameria Národní knihovny ČR a Moravské zemské knihovny a u ANNO
+  Rakouské národní knihovny dostane agent jejich vlastní vyhledávací adresy — méně neúspěšných dotazů a hádání.
+- **Ostřejší část snímku se opravdu čte.** Když z archivu přišla část snímku v lepším rozlišení, agent i jeho čtenáři
+  se na to místo dívají v ní — i když vyznačené místo kousek přesahuje, zbytek se řekne —, ne na celý zmenšený snímek;
+  ostřejší část, která místo pokrývá jen zčásti, se uvede i s tím, jak se na ni podívat.
+- **Dokument se přečte spolehlivěji.** Čtenář zapisuje čtení do své zprávy průběžně, a čtení dvou čtenářů, kde četl
+  jen jeden, to tak řekne — nikdy, že se shodují.
+- **Propojení s telefonem čeká na výzkum, neříká se jako chyba.** Než se po spuštění počítače spustí výzkum, `strom
+  phone` i nastavení řeknou, že propojení je zapnuté a jeho server se znovu spustí se spuštěním výzkumu. Na iPhonu
+  zůstane list fotek při psaní osoby nebo poznámky nad klávesnicí a nabízené osoby na očích; server telefonu se spustí
+  jednou, i když ho spouští několik naráz.
+- **Opravy vlastních chyb stromu k rozhodnutí.** Když strom zjistí, že některá jeho dřívější verze ve výzkumu něco
+  udělala špatně, `strom fixes` a Nastavení → Údržba → Opravy řeknou, o co jde, co se našlo a co by napravení udělalo,
+  i jak je náročné; bez souhlasu se nestane nic a odmítnutí platí. První: slepá čtení ze zmenšeného snímku tam, kde
+  byla ostřejší část — přečtou se znovu vedle starých, nejdřív na několika, nic se nepřepíše, rozdíl se stane úkolem.
+  Čtení se porovnají podle přečteného — jmen, dat a čísel přepisu, ne slov komentáře čtenáře (i v němčině, kde má
+  velké písmeno každé podstatné jméno) — a úkol jednou větou řekne, který údaj se liší; kde jméno může jen začínat
+  větu, čtení se za shodná nevydávají. Když není co číst znovu, `strom fixes run` to řekne. Druhá: po změně modelu nebo agenta pro čtení dřívější čtení, která stojí za nové přečtení
+  — s otevřenými místy, s neshodou čtenářů, s otevřeným rozporem, nepotvrzená u pramene; řečeno jako „četl model X,
+  teď se čte modelem Y“, nabídnuto jednou na agenta a model, každé se přečte znovu tak, jak se četlo (snímky jednoho
+  čtení spolu, zkouška i část vždy z celých čtení). Počítá se v čteních s jejich místy a náročnost ve voláních
+  čtenáře; nabízí se po stupních — jen sporná (rozchod čtenářů, otevřený rozpor, nepotvrzené u pramene), s přímou
+  linií, nebo všechna — každý s tím, co stojí, nejužší první; data a svědci jen řadí. Napravit může i jiný připravený
+  agent nebo model (`strom fixes run <id> --agent <a> --model <m>`), s tím, kdo četl dřív; ten, kdo tu číst nemůže, se
+  odmítne hned i s těmi, kdo mohou. Čas napravení se zaokrouhluje nahoru a po zkoušce se přepočítá podle čtení, jak
+  běžela souběžně.
+- **Rodokmen, do kterého strom nesmí zapisovat, řekne proč.** strom zapíše do složky výzkumu pravidla pro Codex:
+  příkaz strom spuštěný samotný jde mimo sandbox Codexu — i na Windows, kde sandbox držel historii výzkumu zavřenou
+  a nic jiného nepustil — a co rozhoduje člověk a samotný git zůstává zakázané. Když zápisu do složky rodokmenu
+  sandbox agenta přesto brání, strom to řekne a agentovi poradí, co dělat podle toho, jak běží — spouštět strom
+  samotný, spustit Codex ve složce výzkumu, které důvěřuje, nebo nechat příkaz schválit mimo sandbox — místo holého
+  „chybí oprávnění“, které agent převyprávěl jako „nemám přístup k rodokmenu“. Kde agent nenechá žádnou svou značku,
+  pozná ho strom podle vlastní značky u agentů, které spouští, nebo podle programů, které ho spustily, a jako
+  pravděpodobnou příčinu jmenuje jeho sandbox, potom OneDrive nebo řízený přístup ke složkám ve Windows. Odmítnutý
+  zápis do historie se už nehlásí jako chybějící oprávnění k samotnému gitu a záloha nebo aktualizace, kterou nešlo
+  zapsat, žádá složku, do které lze zapisovat, a už neradí uvolnit místo na disku. `strom doctor` a `strom check`
+  zápis do výzkumu zkusí a řeknou, když nejde, i tam, kde složku nejde ani vypsat. Na disku bez pevných odkazů
+  (síťové úložiště, disk přesměrovaný přes Vzdálenou plochu) strom zase zapisuje, zámek jde jinou cestou, a zámek,
+  který pomalý disk ještě neukáže, už se po chvilce nepřebírá; rodokmen, který tam nejde založit, po sobě nic nenechá
+  a řekne to v jazyce výzkumu. Po instalaci přes npm na Windows spustí strom příkaz `strom.cmd` i tam, kde PowerShell
+  skripty odmítá.
+
 ## 1.18.0
 
 *21. 10. 2026 · patří k aplikaci Strom 3.14.0.*
@@ -63,7 +118,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   poznámky: výzkum si nechá svůj text. Místo nebo jiný údaj delší než řádek souboru GEDCOM (255 bajtů) už nezastaví
   jeho zápis a žádné emoji se nerozdělí tam, kde dlouhý řádek pokračuje. S `excerpts.for all` dostane v aplikaci Strom
   výřez i pramen, který zatím nikdo necituje, pokud se vedle citovaných vejde do limitu – citované se kvůli němu
-  nezmenší; co se nevešlo, se řekne.
+  nezmenší; co se nevešlo, se řekne. Aplikace Strom se dozví, které obrazy pramene výzkum má, ale soubor je vynechal,
+  a na vyžádání si je z výzkumu načte — pramen po prameni, nebo všechny najednou i s tím, kolik jich je a jak asi velké.
 
 ## 1.17.0
 

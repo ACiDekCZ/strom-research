@@ -30,6 +30,8 @@ import { EXIT } from "./errors.ts";
 import { forApp, refusal } from "./receive.ts";
 import { stromLauncher } from "./self.ts";
 import { normId } from "./records.ts";
+import { metricsDir } from "./metrics.ts";
+import { readJournal } from "./readstats.ts";
 import type { Input, Media, Person, Source } from "./model.ts";
 
 /** The readings the app may ask, unless the person set others (read.app). */
@@ -153,12 +155,14 @@ export interface AppRead {
   from: "app" | "research";
   /** GET /reads: whether a source of the research is of it. */
   inSource?: boolean;
+  /** /status reads, a reading at work or queued: the seconds it is expected to take from its start. */
+  expectSecs?: number;
 }
 
 /** What /status, the event read and GET /reads say of each reading, made again only when one of its files changed. */
 export class ReadingsSeen {
   private readonly cache = new Map<string, { key: string; read: AppRead }>();
-  private readonly root: string;
+  readonly root: string;
   private readonly env: Env;
   constructor(root: string, env: Env) {
     this.root = root;
@@ -248,12 +252,12 @@ export class ReadingsSeen {
   }
 }
 
-/** /status reads: those at work, and those ended in the last week. */
-export function statusReads(seen: ReadingsSeen, now = Date.now()): AppRead[] {
+/** /status reads: those at work (with the seconds each is expected to take: expectSecs), and those ended in the last week. */
+export function statusReads(seen: ReadingsSeen, agentNow: string, now = Date.now()): AppRead[] {
   return seen
     .all()
-    .map((r) => r.read)
-    .filter((r) => !FINAL_STATES.includes(r.state) || Date.parse(r.since) > now - STATUS_DAYS * DAY_MS);
+    .filter((r) => !FINAL_STATES.includes(r.read.state) || Date.parse(r.read.since) > now - STATUS_DAYS * DAY_MS)
+    .map((r) => (r.state && !FINAL_STATES.includes(r.read.state) ? { ...r.read, expectSecs: expectOf(seen.root, r.state, agentNow) } : r.read));
 }
 
 /**
@@ -298,6 +302,8 @@ export interface ReadAccepts {
   max: number;
   pages: number;
   langs: string[];
+  /** The seconds a reading of one document is expected to take with the agent of the research (expectSecs). */
+  expectSecs?: number;
 }
 
 /**
@@ -316,6 +322,7 @@ export function readAccepts(tree: Tree, settings: Settings, env: Env, seen?: Rea
     max: READ_MAX_BYTES,
     pages: DOC_PAGES,
     langs: readLangs(),
+    ...(not ? {} : { expectSecs: expectSecs(tree.root, settings.agent(tree.config).value) }),
   };
 }
 
@@ -338,6 +345,62 @@ function notReady(tree: Tree, settings: Settings, env: Env, seen: ReadingsSeen |
     } else if (outcomes.includes("auth") && ended + AUTH_MS > now) return { why: "auth" };
   }
   return undefined;
+}
+
+// ── how long a reading takes ────────────────────────────────────────────────────────────────────────────────────
+
+/** A reading's seconds before any of this agent's readers ended here (measured 2026-10-20 and 21): Grok's take minutes. */
+export const READ_EXPECT_DEFAULT: Readonly<Record<string, number>> = { grok: 240 };
+export const READ_EXPECT_OTHERS = 60;
+/** The seconds a reading is expected to take with this agent before any of its readers ended here (any name: its own key only). */
+export const readExpectDefault = (agent: string): number => (Object.hasOwn(READ_EXPECT_DEFAULT, agent) ? READ_EXPECT_DEFAULT[agent]! : READ_EXPECT_OTHERS);
+/** A reader's time past this is no reader's (a journal written by hand, a clock gone wrong): never learned from. */
+export const READER_MS_MAX = DAY_MS;
+/** The readers of documents a reading's time is learned from: the last so many of the agent that read to an end. */
+const EXPECT_LAST = 9;
+const expectSeen = new Map<string, { key: string; secs: Map<string, number[]> }>();
+
+/** How long this agent's readers of documents took here (.strom/metrics/readers.jsonl, nothing of the tree), oldest first. */
+function readerSecs(root: string, agent: string): number[] {
+  const file = path.join(metricsDir(root), "readers.jsonl");
+  let key = "-";
+  try {
+    const st = fs.statSync(file);
+    key = `${st.mtimeMs}:${st.size}`;
+  } catch {
+    return [];
+  }
+  let had = expectSeen.get(file);
+  if (had?.key !== key) {
+    const secs = new Map<string, number[]>();
+    for (const r of readJournal(file)) {
+      const ms = typeof r.wallMs === "number" ? r.wallMs : typeof r.ms === "number" ? r.ms : NaN;
+      if (r.kind !== "document" || r.outcome !== "ok" || typeof r.agent !== "string" || !(ms >= 0 && ms <= READER_MS_MAX)) continue;
+      secs.set(r.agent, [...(secs.get(r.agent) ?? []), ms / 1000].slice(-EXPECT_LAST));
+    }
+    had = { key, secs };
+    expectSeen.set(file, had);
+  }
+  return had.secs.get(agent) ?? [];
+}
+
+/**
+ * The seconds one reading is expected to take with this agent (`rounds`: its readers one after another, a long
+ * document's parts beyond the readers at work at once): the median of its last readers of documents here, else what
+ * the agent's readers took when measured — for the app to say a reading takes minutes, never a promise.
+ */
+export function expectSecs(root: string, agent: string, rounds = 1): number {
+  const secs = readerSecs(root, agent).sort((a, b) => a - b);
+  const mid = secs.length >> 1;
+  const one = secs.length ? (secs.length % 2 ? secs[mid]! : (secs[mid - 1]! + secs[mid]!) / 2) : readExpectDefault(agent);
+  return Math.max(1, Math.round(one * Math.max(1, rounds)));
+}
+
+/** A reading at work or queued: how long it is expected to take from its start (since, when it is reading). */
+function expectOf(root: string, s: ReadState, agentNow: string): number {
+  // each part of the document read by the first reader and the blind one, as many at once as the readers asked, three at least
+  const jobs = Math.max(1, s.groups.length) * ((s.only === "blind" ? 0 : 1) + (s.readers > 1 ? 1 : 0));
+  return expectSecs(root, s.agent ?? agentNow, Math.ceil(jobs / Math.max(3, s.readers)));
 }
 
 // ── the routes ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -447,7 +510,10 @@ export class AppReadings {
       return this.json(res, n.code, n.body);
     }
     const r = resultForApp(got.result);
-    this.json(res, 200, { ...r, pages: r.pages.map((p) => ({ ...p, image: `read/${id}/page/${p.n}.jpg` })) });
+    // at work or queued: how long it is expected to take from its start
+    const s = FINAL_STATES.includes(got.result.state) ? undefined : loadState(this.b.root, id);
+    const expect = s ? { expectSecs: expectOf(this.b.root, s, this.b.settings().agent(got.tree.config).value) } : {};
+    this.json(res, 200, { ...r, ...expect, pages: r.pages.map((p) => ({ ...p, image: `read/${id}/page/${p.n}.jpg` })) });
   }
 
   /** GET /read/<id>/page/<n>.jpg: the page upright as a JPEG of 2000 px at most (a HEIC's, a PDF's page too). */

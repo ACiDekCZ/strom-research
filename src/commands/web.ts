@@ -9,6 +9,7 @@ import { currentSession } from "../core/session.ts";
 import { requireRecord } from "../core/records.ts";
 import type { Session } from "../core/model.ts";
 import { webGate } from "../core/webgate.ts";
+import { knownSearch } from "../core/knownterms.ts";
 import { termsFor } from "../core/terms.ts";
 import { clock } from "../core/net.ts";
 import { UsageError } from "../core/errors.ts";
@@ -33,7 +34,8 @@ register({
     "(their yes or no to that question stands for it) — counted once it went out (the same hook after the fetch ran).\n" +
     "Without --hook: this session's requests by server (no session open: the last one with web requests, said which).\n" +
     "--check <url>: whether strom would let your web tools fetch that address now, and why — the archive's level, the\n" +
-    "person's permission, the robots.txt line, a refusal of strom's client, the host left alone — read only, nothing sent.\n" +
+    "person's permission, the robots.txt line, a refusal of strom's client, the host left alone — read only, nothing sent;\n" +
+    "a digital library strom knows: its own search addresses too, to fetch as given (the words URL-encoded).\n" +
     "An agent without strom's hook (Codex, OpenCode, Antigravity) runs it before its own web fetch of an archive's site\n" +
     "and keeps to its answer.",
   options: [
@@ -120,6 +122,7 @@ function checkUrl(ctx: Context, url: string) {
   const session = tree ? currentSession(tree, ctx.env, ctx.refs) : undefined;
   const g = webGate({ env: ctx.env, ...(tree ? { tree } : {}), url: u.href, shared, ...(session?.task ? { task: session.task } : {}) });
   const ok = g.allow && !g.blocked;
+  const search = knownSearch(u.hostname);
   const a = g.level;
   const answer = !g.allow ? "refused" : g.blocked ? "refused now" : g.why === "terms" ? "only this page (its terms)" : "allowed";
   const why = !g.allow
@@ -135,6 +138,8 @@ function checkUrl(ctx: Context, url: string) {
       a ? `  archive ${a.host}: ${a.level}${a.from.length ? ` (${a.from.join(", ")})` : ""}${a.permission ? ` · the person's permission: ${a.permission}` : ""}${a.refused ? " · refused strom's client" : ""}${a.browserOnly ? " · only through a person's browser" : ""}` : undefined,
       g.robots ? `  robots.txt: ${g.robots.line} (${g.robots.path})` : undefined,
       `  ${why}`,
+      // its own search, as strom's list gives it: fetched as given, never guessed
+      ...(g.allow && search.length ? ["  its search (fetch as given; {q} the words, a space %20, ( %28, ) %29, [ %5B, ] %5D, : %3A, \" %22):", ...search.map((x) => `    ${x.what}: ${x.url}`)] : []),
     ),
     data: {
       url: u.href,
@@ -147,6 +152,7 @@ function checkUrl(ctx: Context, url: string) {
       ...(g.blocked ? { blocked: { until: new Date(g.blocked.until).toISOString(), ...(g.blocked.reason ? { reason: g.blocked.reason } : {}) } } : {}),
       ...(g.termsToday !== undefined ? { termsToday: g.termsToday } : {}),
       reason: why,
+      ...(g.allow && search.length ? { search } : {}),
     },
   };
 }

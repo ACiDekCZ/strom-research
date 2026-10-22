@@ -1273,7 +1273,7 @@ function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): 
     ...(intake ? { lastIntake: intake } : {}),
     accepts: accepts(tree, settings, env, seen),
     // the documents the app asked to be read and the research's own readings: at work, and ended in the last week
-    ...(archive || !seen ? {} : { reads: statusReads(seen) }),
+    ...(archive || !seen ? {} : { reads: statusReads(seen, settings.agent(tree.config).value) }),
     inbox: { trees: inboxTrees(root, env), material: materialWaiting(tree) },
     sends: recentSends(root, tree),
     batches: batchStatus(tree),

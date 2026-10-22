@@ -34,10 +34,17 @@ export interface KnownTerms {
   disallow?: string[];
   /** What the level covers (for the agent): "catalogue only", "public-domain works through the API". */
   scope?: string;
+  /** The site's own search, an address the agent's web tools fetch as given ({q} the words, {from} {to} the years, {pid} an item found). */
+  search?: KnownSearch[];
   /** What its robots.txt said when it was checked. */
   robots?: string;
   /** A test's own (STROM_ARCHIVES_FILE), not strom's. */
   extra?: boolean;
+}
+
+export interface KnownSearch {
+  what: string;
+  url: string;
 }
 
 /**
@@ -87,4 +94,23 @@ export function knownPaceMs(host: string): number {
 /** The paths strom's list keeps automated requests off on a host. */
 export function knownDisallow(host: string): string[] {
   return [...new Set(shippedTerms().filter((k) => within(host, k.host)).flatMap((k) => (Array.isArray(k.disallow) ? k.disallow.filter((d) => typeof d === "string" && d.startsWith("/")) : [])))];
+}
+
+/**
+ * The search addresses strom's list gives for a host (its own, else its site's): what an agent tried blind before
+ * (a Solr query's brackets and spaces unencoded: HTTP 400; a search page empty without a browser).
+ */
+export function knownSearch(host: string): KnownSearch[] {
+  const seen = new Set<string>();
+  return shippedTerms()
+    .filter((k) => within(host, k.host) && Array.isArray(k.search))
+    .flatMap((k) => k.search!.filter((x): x is KnownSearch => !!x && typeof x.url === "string" && /^https:\/\//.test(x.url) && typeof x.what === "string"))
+    .filter((x) => !seen.has(x.url) && !!seen.add(x.url));
+}
+
+/** The search addresses as lines for the agent (none: undefined). */
+export function searchText(host: string): string | undefined {
+  const all = knownSearch(host);
+  if (!all.length) return undefined;
+  return `strom: ${host}'s own search, fetched as given — {q} the words (a word, or (word OR word)), {from} {to} the years, {pid} an item found; every space %20, ( %28, ) %29, [ %5B, ] %5D, : %3A, " %22: ${all.map((x) => `${x.what}: ${x.url}`).join(" · ")}`;
 }

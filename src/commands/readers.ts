@@ -20,8 +20,11 @@ import { recordReader, tokensOf, usageOpt } from "../core/metrics.ts";
 import { imageSizeOfFile } from "../image/index.ts";
 import { currentSession } from "../core/session.ts";
 import { noReaderHere, refusedBySandbox, sandboxOf } from "../core/sandbox.ts";
+import { VERSION } from "../core/tree.ts";
 
 export interface Readers {
+  /** The agent that reads. */
+  agent: string;
   model: string | undefined;
   /** The longest side of a view the readers' model takes in whole. */
   viewMax: number;
@@ -149,7 +152,8 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
     fs.mkdirSync(own, { recursive: true });
     const settingsFile = path.join(own, "reader-settings.json");
     fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(views, report, permissionPath), null, 2));
-    fs.writeFileSync(report, more.head ?? `# ${title}\n\n`);
+    // the strom, agent and model that read, kept with the report (a later check of strom's knows them)
+    fs.writeFileSync(report, more.head ?? `# ${title}\nStrom: ${VERSION}\nAgent: ${agentId}\nModel: ${model ?? "default"}\n\n`);
     const text = prompt(report);
     // its time limit: by hand, else by its views and what the readers of this agent and model before it needed
     const limit = minutesSaid !== undefined ? { minutes: minutesSaid, from: "option" as const } : readerLimit(tree.root, sizes.key, views.length);
@@ -210,5 +214,5 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
     if (!/^##\s/m.test(written) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
     return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}), ...(r.metrics.costPartial ? { costPartial: true } : {}), ...(r.resumeAt ? { resumeAt: r.resumeAt } : {}) };
   };
-  return { model, viewMax: sizes.read, parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
+  return { agent: agentId, model, viewMax: sizes.read, parallel, stem, reportsDir, read, cost: () => cost, runs: () => runs, partial: () => partial, failed, progress };
 }

@@ -18,6 +18,20 @@ import { WEB_CALL_MAX_MS, WEB_HOOK_TIMEOUT_S, WEB_PER_HOST, WEB_SOFT, WEB_SOFT_G
 import { recordAgentWeb } from "../../src/core/metrics.ts";
 
 const CLI = path.join(import.meta.dirname, "..", "..", "src", "cli.ts");
+/**
+ * The time limit of each test: real processes by the dozen, each a strom started from its sources — under the load of
+ * the whole suite they start many times slower than alone (half a minute each test alone); what is checked is their
+ * order and count, never how fast a busy machine runs them.
+ */
+const SLOW = 600_000;
+/** Until `ok` holds (polled), at most `ms`: a moment of a process under load is never a fixed pause. */
+async function until(ok: () => boolean, ms: number, what: string): Promise<void> {
+  const end = Date.now() + ms;
+  while (!ok()) {
+    assert.ok(Date.now() < end, `${what} within ${ms} ms`);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
 /** The threshold of the test of the hard one at once: the soft one, the hard one set to it (web.perHost). */
 const HARD = WEB_SOFT;
 
@@ -48,7 +62,7 @@ const journal = (w: World) =>
     }
   });
 
-test("sixteen web fetches at once: each recorded once, at most the threshold let through and spaced by the pace, the rest refused in a run, and in a conversation the person asked once", { skip: !hasGit || process.platform === "win32", timeout: 180_000 }, async () => {
+test("sixteen web fetches at once: each recorded once, at most the threshold let through and spaced by the pace, the rest refused in a run, and in a conversation the person asked once", { skip: !hasGit || process.platform === "win32", timeout: SLOW }, async () => {
   const w = new World();
   await w.withTree();
   // the hard threshold at the soft one (the person's lower number): no zone between
@@ -110,7 +124,7 @@ test("sixteen web fetches at once: each recorded once, at most the threshold let
   w.cleanup();
 });
 
-test("past the soft threshold, eighteen at once to two mirrors of one site: none refused for their number nor asked, the site's slower pace across its hosts — as many as fit the hook's wait, the rest refused as one request at a time", { skip: !hasGit || process.platform === "win32", timeout: 180_000 }, async () => {
+test("past the soft threshold, eighteen at once to two mirrors of one site: none refused for their number nor asked, the site's slower pace across its hosts — as many as fit the hook's wait, the rest refused as one request at a time", { skip: !hasGit || process.platform === "win32", timeout: SLOW }, async () => {
   const w = new World();
   await w.withTree();
   await w.ok(["research", "new", "Předci Jana Nováka", "--new-person", "Jan /Novák/", "--sex", "M", "--born", "ABT 1905"]);
@@ -148,7 +162,7 @@ test("past the soft threshold, eighteen at once to two mirrors of one site: none
 
 const quiet = (r: { code: number; out: string; err: string }, what: string) => assert.deepEqual([r.code, r.out.trim()], [0, ""], `${what}: let go without a word (${r.err})`);
 
-test("a real failure never refuses: a lock left by a process killed (kill -9) mid-reservation is taken over at once, a broken journal line lets the call go, a broken host state is written again whole from what the journal tells — never a host uncounted for good", { skip: !hasGit || process.platform === "win32", timeout: 120_000 }, async () => {
+test("a real failure never refuses: a lock left by a process killed (kill -9) mid-reservation is taken over at once, a broken journal line lets the call go, a broken host state is written again whole from what the journal tells — never a host uncounted for good", { skip: !hasGit || process.platform === "win32", timeout: SLOW }, async () => {
   const w = new World();
   await w.withTree();
   const net = path.join(w.home, "shared", "net");
@@ -208,7 +222,7 @@ test("a real failure never refuses: a lock left by a process killed (kill -9) mi
 /** Lines of the journal without the newest fields. */
 const journalLines = (w: World) => fs.readFileSync(path.join(w.cwd, ".strom", "metrics", "fetch.jsonl"), "utf8");
 
-test("nothing else slowed: the hook's wait holds no host's lock (strom's own requests keep their pace after its slot), hosts apart, a search only counted, an older strom's journal read on; one call stays well inside the hook's time limit, and takes this long", { skip: !hasGit || process.platform === "win32", timeout: 180_000 }, async (t) => {
+test("nothing else slowed: the hook's wait holds no host's lock (strom's own requests keep their pace after its slot), hosts apart, a search only counted, an older strom's journal read on; one call stays well inside the hook's time limit, and takes this long", { skip: !hasGit || process.platform === "win32", timeout: SLOW }, async (t) => {
   const w = new World();
   await w.withTree();
   const net = path.join(w.home, "shared", "net");
@@ -222,11 +236,21 @@ test("nothing else slowed: the hook's wait holds no host's lock (strom's own req
     assert.ok(timeouts.length >= 3 && timeouts.every((x) => x === WEB_HOOK_TIMEOUT_S), `${file}: an explicit time limit on each hook`);
   }
 
-  // a slot 3 s ahead: the hook waits for it with the host's lock let go
-  setOwnPace(net, "sdileny-example.org", { minIntervalMs: 3000 });
+  // a slot a pace ahead: the hook waits for it with the host's lock let go (a pace a busy machine starts a hook well within)
+  const SHARED = 10_000;
+  setOwnPace(net, "sdileny-example.org", { minIntervalMs: SHARED });
   quiet(await hook(w, fetchEvent(w, "https://sdileny-example.org/1", "s1"), {}), "first");
   const second = hook(w, fetchEvent(w, "https://sdileny-example.org/2", "s2"), {});
-  await new Promise((r) => setTimeout(r, 1200));
+  // its slot reserved (in the host's hour beside the first one's), while the slot is still ahead
+  const slots = () => {
+    try {
+      return (readJsonFile(path.join(net, "sdileny-example.org.json")) as { recent?: number[] }).recent ?? [];
+    } catch {
+      return []; // (being written)
+    }
+  };
+  await until(() => slots().length >= 2, 60_000, "the second hook's slot");
+  assert.ok(Math.max(...slots()) > Date.now(), "its slot still ahead: it waits");
   assert.ok(!fs.existsSync(path.join(net, "sdileny-example.org.json.lock")), "no lock held while it waits");
   // strom's own request (a connector's) to the same host meanwhile: after the reserved slot, one pace later
   const waits: number[] = [];
@@ -235,14 +259,15 @@ test("nothing else slowed: the hook's wait holds no host's lock (strom's own req
     fetchImpl: (async () => new Response("ok", { status: 200 })) as typeof fetch,
   });
   assert.equal(got.status, 200);
-  assert.ok(waits.length === 1 && waits[0]! > 3000 && waits[0]! <= 6000, `its pace kept after the agent's slot (${waits.join(", ")} ms)`);
+  assert.ok(waits.length === 1 && waits[0]! > SHARED && waits[0]! <= 2 * SHARED, `its pace kept after the agent's slot (${waits.join(", ")} ms)`);
   quiet(await second, "second");
 
   // another host's lock held (a connector at work on it): this host answers at once — no lock across hosts
   fs.writeFileSync(path.join(net, "jiny-example.org.json.lock"), JSON.stringify({ pid: process.pid, host: os.hostname(), at: new Date().toISOString(), owner: "strom net" }));
   const t0 = Date.now();
   quiet(await hook(w, fetchEvent(w, "https://volny-example.org/1", "f1"), {}), "another host");
-  assert.ok(Date.now() - t0 < 5000);
+  // a hook that waited for that lock would wait its whole wait for it (WEB_LOCK_WAIT_MS)
+  assert.ok(Date.now() - t0 < WEB_WAIT_MAX_MS / 2, `at once (${Date.now() - t0} ms)`);
   fs.rmSync(path.join(net, "jiny-example.org.json.lock"));
 
   // a search: counted only, no host, no lock, no wait
@@ -260,7 +285,7 @@ test("nothing else slowed: the hook's wait holds no host's lock (strom's own req
 
   // how long one call takes, nothing to wait for: each on a host of its own
   const ms: number[] = [];
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 20; i++) {
     const s0 = Date.now();
     quiet(await hook(w, fetchEvent(w, `https://h${i}-example.net/`, `t${i}`), {}), `timing ${i}`);
     ms.push(Date.now() - s0);

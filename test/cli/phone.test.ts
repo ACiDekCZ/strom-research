@@ -7,9 +7,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { World, hasGit, until } from "../helpers.ts";
 import { decodeQr, svgModules, terminalModules } from "../qr-decode.ts";
+import { revivePhone, startPhone } from "../../src/core/phone.ts";
 
 type Info = { pid: number; url: string };
 type State = { state: string; addresses: { url: string; iface: string; kind: string | null }[]; phones: { id: string; name: string; stale: boolean }[]; error: { code: string } | null; since: string | null; platform: string; network: unknown; firewall: unknown; pair: unknown; lanSeenAt: string | null; addressChangedAt: string | null };
@@ -397,6 +399,132 @@ test("pairing a phone: the QR code of the bridge (its headers, the address witho
     const off = await w.run(["phone", "qr"], { tty: true });
     assert.equal(off.code, 0);
     assert.match(off.out, /strom phone on/);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("the computer started again: the phone's server gone is said as waiting, never a failure; the research started — its server back on its port, the paired phone gets through; turned off — never back", { skip }, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Novákovi");
+    const env = { STROM_ISOLATED: "1", STROM_PHONE_TEST_ANSWER: "yes", STROM_PHONE_TEST_ANSWER_MS: "200" };
+    const b = (await w.ok(["live", "start", "--json"], { env })).json as Info;
+    await post(b.url, "on", { lang: "cs" });
+    await until("on", async () => (await phone(b.url)).addresses.length === 1, { ms: 20_000 });
+    const address = (await phone(b.url)).addresses[0]!.url;
+    const port = new URL(address).port;
+    const code = decodeQr(svgModules(await (await fetch(`${b.url}/phone/qr.svg`)).text())).text.split("#")[1]!;
+    const paired = await fetch(`${address}/pair`, { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8", Origin: address }, body: JSON.stringify({ code }) });
+    assert.equal(paired.status, 200);
+    const cookie = { Cookie: paired.headers.get("set-cookie")!.split(";")[0]! };
+    assert.equal((await fetch(`${address}/whoami`, { headers: cookie })).status, 200);
+    // the computer off: the bridge and the phone's server gone without a word; turned on a while ago
+    const server = run(w).pid;
+    process.kill(b.pid, "SIGKILL");
+    // a second server started with the first (the window's yes and the bridge both) takes over the moment the first is
+    // gone: killed too, until none runs for two seconds
+    for (let quiet = 0; quiet < 10; await new Promise((r) => setTimeout(r, 200))) {
+      const pid = run(w).pid;
+      if (alive(pid)) {
+        process.kill(pid, "SIGKILL");
+        quiet = 0;
+      } else quiet++;
+    }
+    assert.ok(!alive(b.pid) && !alive(server));
+    const config = path.join(w.env.STROM_CONFIG_DIR!, "phone.json");
+    fs.writeFileSync(config, JSON.stringify({ ...JSON.parse(fs.readFileSync(config, "utf8")), since: new Date(Date.now() - 60_000).toISOString() }));
+    // before the research starts: on, waiting for it — never said as an error
+    const waiting = await w.ok(["phone", "--json"]);
+    assert.equal(waiting.json.state, "error");
+    assert.equal(waiting.json.error.waiting, true);
+    for (const [lang, said] of [["cs", /zapnuto, jeho server se znovu spustí se spuštěním výzkumu/], ["en", /on, its server starts again when the research starts/], ["de", /an, ihr Server startet wieder, sobald die Forschung startet/]] as const) {
+      const out = (await w.ok(["phone"], { env: { STROM_LANG: lang } })).out;
+      assert.match(out, said, out);
+      assert.doesNotMatch(out, /nespustil|did not start|nicht gestartet/, out);
+    }
+    // the research started: its server back on the same port, the phone paired before gets through
+    const b2 = (await w.ok(["live", "start", "--json"], { env })).json as Info;
+    await until("back", async () => (await phone(b2.url)).addresses.length === 1, { ms: 20_000 });
+    assert.equal((await phone(b2.url)).addresses[0]!.url, address);
+    assert.notEqual(run(w).pid, server);
+    assert.equal((await fetch(`${address}/whoami`, { headers: cookie })).status, 200);
+    assert.equal((await phone(b2.url)).error, null);
+    // turned off, the computer off again: the research started comes back without it
+    await w.ok(["phone", "off"]);
+    await until("server ended", async () => !alive(run(w).pid), { ms: 10_000 });
+    process.kill(b2.pid, "SIGKILL");
+    await until("bridge gone", async () => !alive(b2.pid), { ms: 10_000 });
+    const b3 = (await w.ok(["live", "start", "--json"], { env })).json as Info;
+    const off = await phone(b3.url);
+    assert.equal(off.state, "off");
+    assert.ok(run(w).ended, "no server started again");
+    await fetch(`${address}/whoami`, { headers: cookie }).then(
+      () => assert.fail("the phone's server is back though turned off"),
+      () => undefined,
+    );
+    assert.equal((await w.ok(["phone", "--json"])).json.state, "off");
+  } finally {
+    w.cleanup();
+  }
+});
+
+/** The phone's servers a process started (`parent`), seen at least once while watched for `ms`. */
+async function serversOf(parent: number, ms: number): Promise<Set<number>> {
+  const seen = new Set<number>();
+  for (const end = Date.now() + ms; Date.now() < end; ) {
+    const ps = spawnSync("ps", ["-ax", "-o", "pid=,ppid=,command="], { encoding: "utf8" }).stdout ?? "";
+    for (const line of ps.split("\n")) {
+      const m = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
+      if (m && Number(m[2]) === parent && /\bphone serve\b/.test(m[3]!)) seen.add(Number(m[1]));
+    }
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  return seen;
+}
+
+test("the phone's server started again by several at once (bridges, a strom just updated): one process, not one each", { skip }, async () => {
+  const w = new World();
+  try {
+    await w.ok(["setup", "--yes"]);
+    await w.ok(["phone", "on", "--json"], { dialog: true });
+    const first = run(w).pid;
+    // its server gone, the connection still on (the computer slept, a crash)
+    process.kill(first, "SIGTERM");
+    await until("the server ended", () => !alive(first), { ms: 10_000 });
+    assert.equal((await w.ok(["phone", "--json"])).json.state, "on");
+    // two bridges look in the same moment, before the new server has said itself
+    assert.equal(revivePhone(w.env), undefined);
+    assert.equal(revivePhone(w.env), undefined);
+    const started = await serversOf(process.pid, 3000);
+    assert.equal(started.size, 1, `servers started: ${[...started].join(", ")}`);
+    await until("the new server runs", () => run(w).pid === [...started][0] && !run(w).ended, { ms: 10_000 });
+    // and one asking later waits for that one, starts none
+    assert.equal(startPhone(w.env)?.pid, [...started][0]);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("strom phone serve, the first run of a newer strom: it is the server itself, it starts no second one beside it", { skip }, async () => {
+  const w = new World();
+  try {
+    await w.ok(["setup", "--yes"]);
+    await w.ok(["phone", "on", "--json"], { dialog: true });
+    const first = run(w).pid;
+    process.kill(first, "SIGTERM");
+    await until("the server ended", () => !alive(first), { ms: 10_000 });
+    // an older strom ran here last: this one's first run catches up (and starts what is on but gone)
+    const config = path.join(w.env.STROM_CONFIG_DIR!, "config.json");
+    fs.writeFileSync(config, JSON.stringify({ ...JSON.parse(fs.readFileSync(config, "utf8")), lastVersion: "0.0.1" }));
+    const serve = spawn(process.execPath, [path.resolve(import.meta.dirname, "..", "..", "src", "cli.ts"), "phone", "serve"], { cwd: w.dir, env: { ...w.env, STROM_LANG: "en" }, stdio: "ignore" });
+    try {
+      await until("the server runs", () => fs.existsSync(path.join(w.env.STROM_CONFIG_DIR!, "phone-run.json")) && run(w).pid === serve.pid && !run(w).ended, { ms: 15_000 });
+      const beside = await serversOf(serve.pid!, 2000);
+      assert.equal(beside.size, 0, `servers started beside it: ${[...beside].join(", ")}`);
+    } finally {
+      serve.kill("SIGTERM");
+    }
   } finally {
     w.cleanup();
   }

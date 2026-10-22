@@ -115,7 +115,8 @@ export interface PhoneState {
   lanSeenAt: string | null;
   pair: { expiresAt: string } | null;
   phones: PhoneEntry[];
-  error: { code: PhoneErrorCode; detail: string } | null;
+  /** `waiting`: no server runs — not a failure, it starts again with the research (a session, the bridge, the menu). */
+  error: { code: PhoneErrorCode; detail: string; waiting?: true } | null;
   platform: NodeJS.Platform;
 }
 
@@ -346,6 +347,20 @@ export function phoneRunning(env: Env): PhoneRun | undefined {
   return run && !run.ended && alive(run.pid) ? run : undefined;
 }
 
+/** How long a server just started may take to say itself (phone-run.json) before another may be started. */
+const SPAWN_SAYS_MS = 20_000;
+
+/**
+ * A server started a moment ago that has not said itself yet (Node starting, its addresses bound): its pid while it
+ * lives. Several asking at once (a bridge of each research, a strom just updated) start that one, not one each.
+ */
+function startedJustNow(env: Env): number | undefined {
+  const s = readSafe<{ pid?: unknown; at?: unknown }>(file(env, "phone-spawn.json"));
+  if (!s || typeof s.pid !== "number" || typeof s.at !== "string") return undefined;
+  const age = Date.now() - Date.parse(s.at);
+  return age >= 0 && age < SPAWN_SAYS_MS && alive(s.pid) ? s.pid : undefined;
+}
+
 function spawnPhone(env: Env, extra: Record<string, string> = {}): number | undefined {
   const { command, args } = stromLauncher();
   const dir = configDir(env);
@@ -366,6 +381,13 @@ function spawnPhone(env: Env, extra: Record<string, string> = {}): number | unde
   child.on("error", () => {});
   child.unref();
   if (typeof log === "number") fs.closeSync(log);
+  if (child.pid) {
+    try {
+      writeJson(file(env, "phone-spawn.json"), { pid: child.pid, at: new Date().toISOString() });
+    } catch {
+      // another may start one meanwhile: the one that gets the server's lock serves, the other ends at once
+    }
+  }
   return child.pid;
 }
 
@@ -386,8 +408,12 @@ export function startPhone(env: Env, opts: { waitMs?: number; why?: string } = {
   try {
     const now = phoneRunning(env);
     if (now) return now;
-    if (opts.why) notePhone(env, opts.why);
-    const pid = spawnPhone(env);
+    // one started a moment ago and not said yet: waited for, none started beside it
+    let pid = startedJustNow(env);
+    if (!pid) {
+      if (opts.why) notePhone(env, opts.why);
+      pid = spawnPhone(env);
+    }
     const waitMs = opts.waitMs ?? 8000;
     for (let waited = 0; pid && waited < waitMs; waited += 50) {
       const run = phoneRun(env);
@@ -592,7 +618,7 @@ export function phoneState(env: Env): PhoneState {
     }
     // just turned on: its server on the way
     if (c.since && Date.now() - Date.parse(c.since) < 15_000) return { ...base, state: "on", since: c.since, phones };
-    return { ...base, state: "error", since: c.since ?? null, error: { code: "bind-failed", detail: run?.ended ? `the server ended: ${run.ended.reason}` : "the server does not run" }, phones };
+    return { ...base, state: "error", since: c.since ?? null, error: { code: "bind-failed", detail: run?.ended ? `the server ended: ${run.ended.reason}` : "the server does not run", waiting: true }, phones };
   }
   const a = readAsk(env);
   if (asking(a)) return { ...base, state: "confirm", phones };
@@ -646,21 +672,24 @@ function pairMs(env: Env): number {
   return phoneTest(env) && Number.isFinite(t) && t > 0 ? t : PAIR_MS;
 }
 
-function readPair(env: Env): PairFile | undefined {
+/** The clock of the code to pair a phone (a test's own: its expiry tested without a race with the time). */
+type Clock = () => number;
+
+function readPair(env: Env, clock: Clock = Date.now): PairFile | undefined {
   const p = readSafe<PairFile>(file(env, "phone-pair.json"));
-  return p && typeof p.code === "string" && /^[A-Za-z0-9_-]{22}$/.test(p.code) && isTime(p.expiresAt) && Date.parse(p.expiresAt) > Date.now() ? p : undefined;
+  return p && typeof p.code === "string" && /^[A-Za-z0-9_-]{22}$/.test(p.code) && isTime(p.expiresAt) && Date.parse(p.expiresAt) > clock() ? p : undefined;
 }
 
 /** When the code to pair a phone ends, while there is one (never the code). */
-export function pairExpires(env: Env): string | undefined {
-  return readPair(env)?.expiresAt;
+export function pairExpires(env: Env, clock: Clock = Date.now): string | undefined {
+  return readPair(env, clock)?.expiresAt;
 }
 
 /**
  * The code to pair a phone: the one that holds, else a new one (128 bits, PAIR_MS long, kept for strom's user alone).
  * `tree`: the tree whose QR code it is (the last one shown wins: the page opens it once paired).
  */
-export function pairCode(env: Env, opts: { tree?: string } = {}): { code: string; expiresAt: string } {
+export function pairCode(env: Env, opts: { tree?: string } = {}, clock: Clock = Date.now): { code: string; expiresAt: string } {
   return withLock(file(env, "phone-pair.lock"), { owner: "the code to pair a phone" }, () => {
     const f = file(env, "phone-pair.json");
     const write = (p: PairFile) => {
@@ -671,7 +700,7 @@ export function pairCode(env: Env, opts: { tree?: string } = {}): { code: string
         // Windows: the user's folder is theirs
       }
     };
-    const now = readPair(env);
+    const now = readPair(env, clock);
     if (now) {
       // the last shown counts: one shown with no tree (outside a tree's folder) opens the tree the page chose
       if (now.tree !== opts.tree) {
@@ -681,7 +710,7 @@ export function pairCode(env: Env, opts: { tree?: string } = {}): { code: string
       return { code: now.code, expiresAt: now.expiresAt };
     }
     const code = crypto.randomBytes(16).toString("base64url");
-    const at = new Date();
+    const at = new Date(clock());
     const expiresAt = new Date(at.getTime() + pairMs(env)).toISOString();
     write({ code, at: at.toISOString(), expiresAt, ...(opts.tree ? { tree: opts.tree } : {}) });
     notePhone(env, `a code to pair a phone made, it holds until ${expiresAt}`);
@@ -723,9 +752,9 @@ export function phoneName(ua: string | undefined): string {
  * The code given back by a phone's page, taken once: right and holding — the phone paired (its key, only now and only
  * to it); anything else — none, and the code still holds for the phone it was shown to.
  */
-export function pairPhone(env: Env, code: string, info: { address: string; userAgent?: string; lang?: string }): { phone: PairedPhone; key: string; tree?: string } | undefined {
+export function pairPhone(env: Env, code: string, info: { address: string; userAgent?: string; lang?: string }, clock: Clock = Date.now): { phone: PairedPhone; key: string; tree?: string } | undefined {
   const taken = withLock(file(env, "phone-pair.lock"), { owner: "the code to pair a phone" }, () => {
-    const p = readPair(env);
+    const p = readPair(env, clock);
     const a = Buffer.from(p?.code ?? "");
     const b = Buffer.from(code);
     if (!p || a.length !== b.length || !crypto.timingSafeEqual(a, b)) return undefined;

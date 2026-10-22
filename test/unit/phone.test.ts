@@ -162,15 +162,23 @@ test("the code to pair a phone: 128 bits, the same while it holds, taken once, g
     assert.equal(phoneByKey(env, paired.key)?.id, paired.phone.id);
     assert.equal(phoneByKey(env, paired.key.replace(/^./, (c) => (c === "A" ? "B" : "A"))), undefined);
     assert.equal(phoneByKey(env, undefined), undefined);
-    // a new code; its time over: none, and nothing pairs with it
+    // a new code; its time over: none, and nothing pairs with it (the test's own clock: no race with a busy computer)
     const short = { ...env, STROM_PHONE_PAIR_MS: "50" };
-    const two = pairCode(short);
+    let t = Date.now();
+    const clock = () => t;
+    const two = pairCode(short, {}, clock);
     assert.notEqual(two.code, one.code);
-    pairCode(short, { tree: "tr_one" });
-    assert.equal(pairCode(short, {}).code, two.code, "shown with no tree: the code the same, no tree");
+    assert.equal(Date.parse(two.expiresAt), t + 50, "a test's shorter time");
+    t += 49;
+    pairCode(short, { tree: "tr_one" }, clock);
+    assert.equal(pairCode(short, {}, clock).code, two.code, "shown with no tree: the code the same, no tree");
     assert.equal(JSON.parse(fs.readFileSync(path.join(dir, "phone-pair.json"), "utf8")).tree, undefined);
-    const until = Date.now() + 120;
-    while (Date.now() < until);
+    assert.equal(pairExpires(short, clock), two.expiresAt);
+    t += 1;
+    assert.equal(pairExpires(short, clock), undefined);
+    assert.equal(pairPhone(short, two.code, { address: "http://127.0.0.1:47800" }, clock), undefined);
+    // and by the computer's clock too, once that time is over
+    while (Date.now() <= Date.parse(two.expiresAt));
     assert.equal(pairExpires(short), undefined);
     assert.equal(pairPhone(short, two.code, { address: "http://127.0.0.1:47800" }), undefined);
     // a shorter time only for a test
@@ -820,4 +828,66 @@ test("the phone's page: the window from the last look when it was within a week,
     const p = findsPage("en", seen ? { "strom.phone.seen.tr": seen } : {});
     assert.deepEqual(p.findsWindow("tr", now), { since, base }, String(seen));
   }
+});
+
+test("the phone's page with the keyboard open: the sheet where what is seen of the page is (iOS Safari moves it up), as high as it, the field typed in kept in sight with what it offers; the foot while typing only what ends the typing", () => {
+  const src = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/phone.js"), "utf8");
+  // the sheet follows the visible viewport: its size and where it is (resize and scroll)
+  const fitCode = src.slice(src.indexOf("  // the keyboard: the sheet"), src.indexOf("  // looked at again"));
+  assert.ok(fitCode.includes("visualViewport"), "the block of the keyboard found");
+  const props: Record<string, string> = {};
+  const document = { documentElement: { style: { setProperty: (k: string, v: string) => void (props[k] = v) } } };
+  const handlers: Record<string, () => void> = {};
+  const vv = { height: 760, offsetTop: 0, addEventListener: (e: string, f: () => void) => void (handlers[e] = f) };
+  let kept = 0;
+  new Function("window", "document", "keepTyped", fitCode)({ visualViewport: vv }, document, () => kept++);
+  assert.deepEqual(props, { "--vvh": "760px", "--vvt": "0px" });
+  assert.ok(handlers.resize && handlers.scroll, "resize and scroll both followed");
+  // the keyboard opens: what is seen shrinks and moves down the page
+  Object.assign(vv, { height: 318.5, offsetTop: 411.2 });
+  handlers.resize!();
+  assert.deepEqual(props, { "--vvh": "319px", "--vvt": "411px" });
+  assert.equal(kept, 1, "the field kept in sight once the keyboard is up");
+  // moved alone (scrolled): the sheet with it, the body scrolled by nobody but the person
+  vv.offsetTop = 200;
+  handlers.scroll!();
+  assert.equal(props["--vvt"], "200px");
+  assert.equal(kept, 1);
+  // a browser without visualViewport: nothing set, the sheet the whole window (the CSS's fallbacks)
+  const none: Record<string, string> = {};
+  assert.doesNotThrow(() => new Function("window", "document", "keepTyped", fitCode)({}, { documentElement: { style: { setProperty: (k: string, v: string) => void (none[k] = v) } } }, () => {}));
+  assert.deepEqual(none, {});
+  const css = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/phone.css"), "utf8");
+  const sheet = /(?:^|\})\s*\.sheet\{([^}]*)\}/mu.exec(css)?.[1] ?? "";
+  assert.match(sheet, /position:fixed/u);
+  assert.match(sheet, /top:var\(--vvt,0px\)/u);
+  assert.match(sheet, /height:var\(--vvh,100%\)/u);
+  assert.match(/(?:^|\})\s*\.sheet-body\{([^}]*)\}/mu.exec(css)?.[1] ?? "", /overflow-y:auto/u, "the body scrolls, the foot stays below it");
+
+  // the field typed in at the top of the sheet's body, its offers under it
+  const keepCode = src.slice(src.indexOf("  // the field typed in at the top"), src.indexOf("  let lookFor = 0;"));
+  const rect = (top: number) => () => ({ top });
+  const body = { scrollTop: 40, getBoundingClientRect: rect(70) };
+  const field = { getBoundingClientRect: rect(330) };
+  const person = { id: "person", closest: (s: string) => (s === ".field" ? field : null) };
+  const sheetEl = { hidden: false, querySelector: (s: string) => (s === ".sheet-body" ? body : null) };
+  const doc: { activeElement: unknown } = { activeElement: person };
+  const keepTyped = new Function("$", "document", `${keepCode}; return keepTyped;`)((id: string) => (id === "sheet" ? sheetEl : null), doc) as () => void;
+  keepTyped();
+  assert.equal(body.scrollTop, 40 + 330 - 70 - 8);
+  // nothing typed in, or the sheet closed: nothing moved
+  body.scrollTop = 0;
+  doc.activeElement = { id: "commitBtn" };
+  keepTyped();
+  doc.activeElement = person;
+  sheetEl.hidden = true;
+  keepTyped();
+  assert.equal(body.scrollTop, 0);
+  // the offers found: the field kept in sight
+  const people = src.slice(src.indexOf("  const findPeople ="), src.indexOf("  // ── wiring"));
+  assert.match(people, /ul\.hidden = !people\.length;\s*if \(people\.length\) keepTyped\(\);/u);
+  // while typing the foot keeps only what ends the typing (without a person, done): handing over waits under the keyboard
+  assert.match(src, /\$\("commitBtn"\)\.hidden = !items\.length \|\| !!S\.typing;/u);
+  assert.match(src, /\$\("commitLater"\)\.hidden = [^;]*!!S\.typing;/u);
+  assert.match(src, /\$\("captureNote"\)\.hidden = !!S\.typing \|\|/u);
 });

@@ -119,7 +119,7 @@ export function openInNewTerminal(
 ): boolean | "recent" | "fallback" {
   if (env.STROM_NO_OPEN === "1") return false;
   const { command, args } = stromLauncher();
-  const skip = new Set(["STROM_WORKER", "STROM_SESSION", "STROM_NONINTERACTIVE", "STROM_HANDOVER"]);
+  const skip = new Set(["STROM_WORKER", "STROM_SESSION", "STROM_IN_AGENT", "STROM_NONINTERACTIVE", "STROM_HANDOVER"]);
   const own = Object.entries(env).filter(([k, v]) => k.startsWith("STROM_") && !skip.has(k) && v !== undefined) as [string, string][];
   const marks = Object.keys(env).filter(isAgentMark);
   const dir = path.join(cwd, ".strom", "open");

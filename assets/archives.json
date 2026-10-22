@@ -180,7 +180,11 @@
       "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
       "robots": "none",
       "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
-      "checked": "2026-10-11"
+      "checked": "2026-10-11",
+      "search": [
+        {"what": "full text of its books and newspapers (Solr: q a word, or (word OR word); the years in it; public works only: accessibility)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/search?q=text_ocr%3A{q}%20AND%20date_range_start.year%3A%5B{from}%20TO%20{to}%5D&fl=pid,root.title,date.str,page.number,accessibility&rows=50"},
+        {"what": "the text of a page found (its pid)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/items/{pid}/ocr/text"}
+      ]
     },
     {
       "host": "www.digitalniknihovna.cz",
@@ -190,7 +194,11 @@
       "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
       "robots": "none (the application's page)",
       "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
-      "checked": "2026-10-11"
+      "checked": "2026-10-11",
+      "search": [
+        {"what": "full text of its books and newspapers (Solr: q a word, or (word OR word); the years in it; public works only: accessibility)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/search?q=text_ocr%3A{q}%20AND%20date_range_start.year%3A%5B{from}%20TO%20{to}%5D&fl=pid,root.title,date.str,page.number,accessibility&rows=50"},
+        {"what": "the text of a page found (its pid)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/items/{pid}/ocr/text"}
+      ]
     },
     {
       "host": "api.kramerius.mzk.cz",
@@ -200,7 +208,11 @@
       "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
       "robots": "none (404)",
       "scope": "public-domain works only (works under copyright or DNNT need an institution's login: never)",
-      "checked": "2026-10-11"
+      "checked": "2026-10-11",
+      "search": [
+        {"what": "full text of its books and newspapers (Solr: q a word, or (word OR word); the years in it; public works only: accessibility)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/search?q=text_ocr%3A{q}%20AND%20date_range_start.year%3A%5B{from}%20TO%20{to}%5D&fl=pid,root.title,date.str,page.number,accessibility&rows=50"},
+        {"what": "the text of a page found (its pid)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/items/{pid}/ocr/text"}
+      ]
     },
     {
       "host": "kramerius5.nkp.cz",
@@ -210,7 +222,11 @@
       "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
       "robots": "none (the application's page)",
       "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
-      "checked": "2026-10-11"
+      "checked": "2026-10-11",
+      "search": [
+        {"what": "full text of its books and newspapers (Solr: q a word, or (word OR word); fq the years)", "url": "https://kramerius5.nkp.cz/search/api/v5.0/search?q=text_ocr%3A{q}&fq=datum_begin%3A%5B{from}%20TO%20{to}%5D&fl=PID,root_title,datum_str,details,root_pid&rows=30&wt=json"},
+        {"what": "the text of a page found (its PID)", "url": "https://kramerius5.nkp.cz/search/api/v5.0/item/{pid}/streams/TEXT_OCR"}
+      ]
     },
     {
       "host": "ndk.cz",
@@ -220,7 +236,21 @@
       "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
       "robots": "none (the application's page)",
       "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
-      "checked": "2026-10-11"
+      "checked": "2026-10-11",
+      "search": [
+        {"what": "full text of its books and newspapers (Solr: q a word, or (word OR word); fq the years)", "url": "https://kramerius5.nkp.cz/search/api/v5.0/search?q=text_ocr%3A{q}&fq=datum_begin%3A%5B{from}%20TO%20{to}%5D&fl=PID,root_title,datum_str,details,root_pid&rows=30&wt=json"},
+        {"what": "the text of a page found (its PID)", "url": "https://kramerius5.nkp.cz/search/api/v5.0/item/{pid}/streams/TEXT_OCR"}
+      ]
+    },
+    {
+      "host": "anno.onb.ac.at",
+      "name": "Österreichische Nationalbibliothek (ANNO)",
+      "level": "unknown",
+      "robots": "User-agent: * · Disallow: /core/, /profiles/, /admin/, /search/, /user/… (nothing on /anno-suche or /cgi-content)",
+      "checked": "2026-10-21",
+      "search": [
+        {"what": "full text of its newspapers and journals (text a word; the years; from=0 the first hits) — the search page itself is empty without a browser", "url": "https://anno.onb.ac.at/anno-suche/rest/search/complex?text={q}&dateFrom={from}&dateTo={to}&from=0&facets=false"}
+      ]
     },
     {
       "host": "geneteka.genealodzy.pl",

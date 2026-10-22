@@ -5,6 +5,72 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.19.0
+
+*22.10.2026 · gehört zur Strom-App 3.15.0.*
+
+- **Auf ein verstummtes Archiv wird gewartet, statt es immer wieder zu fragen.** Antwortet ein Archiv nicht mehr,
+  lässt strom es eine Stunde in Ruhe — zwei, dann vier, wenn es am selben Tag still bleibt — und der Agent erfährt, bis
+  wann: Er macht inzwischen andere Arbeit, lässt einen Download im Hintergrund auf das Archiv warten (bis zu 30 Minuten)
+  und von selbst weiterlaufen, oder beendet die Sitzung, um später weiterzumachen. Das Archiv wird inzwischen nicht mehr
+  immer wieder angefragt.
+- **Das erste Aufräumen einer älteren Forschung wird einmal angeboten.** Eine Forschung, neben der sich viel
+  angesammelt hat, bevor strom dort selbst Ordnung hielt (Protokolle der Arbeitssitzungen, Ansichten von Scans und
+  Ähnliches), bekommt im Menü ein Angebot: was ginge, wie viel und warum — ohne Ja geht nichts. Nach einem Ja wird
+  dort von selbst Ordnung gehalten; nach einem Nein sagen Menü und Einstellungen weiter, was sich freigeben lässt.
+  `strom pack`, das Entfernen eines Stammbaums und das Menü nennen die Größe eines Pakets, einer Sicherung oder der
+  Bilder wie überall sonst (1,5 MB, bei kleinen 24 kB), nie „0.0 MB“.
+- **Digitale Bibliotheken beim ersten Versuch richtig durchsucht.** Für Kramerius der Tschechischen
+  Nationalbibliothek und der Mährischen Landesbibliothek und für ANNO der Österreichischen Nationalbibliothek bekommt
+  der Agent die eigenen Suchadressen der Bibliotheken — weniger fehlgeschlagene Anfragen und weniger Raten.
+- **Ein schärfer geholter Teil eines Scans wird gelesen.** Kam ein Teil eines Scans in mehr Detail aus dem Archiv,
+  sehen der Agent und seine Leser diese Stelle darin an — auch wenn die markierte Stelle etwas darüber hinausreicht,
+  der Rest wird genannt — statt des ganzen, verkleinerten Scans; ein schärferer Teil, der die Stelle nur zum Teil
+  zeigt, wird mit dem Weg genannt, ihn anzusehen.
+- **Ein Dokument wird verlässlicher gelesen.** Ein Leser schreibt seine Lesung laufend in seinen Bericht, und eine
+  Lesung zweier Leser, bei der nur einer las, sagt das so — nie, dass sie übereinstimmen.
+- **Die Verbindung mit dem Telefon wartet auf die Forschung, nicht als Fehler genannt.** Bevor die Forschung nach dem
+  Neustart des Computers startet, sagen `strom phone` und die Einstellungen, dass die Verbindung an ist und ihr Server
+  mit der Forschung wieder startet. Auf einem iPhone bleibt das Blatt der Fotos beim Tippen einer Person oder Notiz über
+  der Tastatur, die angebotenen Personen im Blick; der Server des Telefons startet einmal, auch wenn ihn mehrere
+  zugleich starten.
+- **Korrekturen eigener Fehler von strom zur Entscheidung.** Findet strom, dass eine frühere Version von ihm in einer
+  Forschung etwas falsch gemacht hat, sagen `strom fixes` und Einstellungen → Wartung → Korrekturen, worum es geht,
+  was gefunden wurde und was eine Behebung täte, auch wie aufwendig sie ist; ohne Ja geschieht nichts, ein Nein
+  bleibt. Die erste: blinde Lesungen aus dem verkleinerten Scan, wo es einen schärferen Teil gab — neben den alten
+  noch einmal gelesen, zuerst an einigen, nichts überschrieben, ein Unterschied wird zur Aufgabe. Verglichen wird, was
+  gelesen wurde — die Namen, Daten und Zahlen der Abschrift, nicht die Worte des Kommentars (auch auf Deutsch, wo
+  jedes Substantiv groß geschrieben wird) —, und die Aufgabe sagt in einem Satz, welche Angabe abweicht; wo ein Name
+  nur einen Satz beginnen kann, gelten die Lesungen nicht als gleich. Gibt es nichts neu zu lesen, sagt `strom fixes
+  run` das. Die zweite: nach einem Wechsel des Lesemodells oder Agenten die früheren
+  Lesungen, die ein neues Lesen lohnen — mit offenen Stellen, uneinigen Lesern, einem offenen Widerspruch, an der
+  Quelle nicht bestätigt; gesagt als „gelesen von Modell X, jetzt liest Modell Y“, einmal je Agent und Modell gefragt,
+  jede so neu gelesen, wie sie gelesen wurde (die Bilder einer Lesung zusammen, ein Versuch oder ein Teil immer aus
+  ganzen Lesungen). Gezählt in Lesungen mit ihren Stellen, der Aufwand in Leseaufrufen; angeboten nach Stufen — nur
+  die strittigen (uneinige Leser, ein offener Widerspruch, an der Quelle nicht bestätigt), mit der direkten Linie oder
+  alle —, jede mit dem, was sie kostet, die engste zuerst; Daten und Zeugen ordnen nur. Beheben kann auch ein anderer
+  bereiter Agent oder ein anderes Modell (`strom fixes run <id> --agent <a> --model <m>`), mit dem, der vorher las;
+  einer, der hier nicht lesen kann, wird sofort abgelehnt, mit denen, die es können. Die Zeit einer Behebung wird
+  aufgerundet und nach dem Versuch nach den nebeneinander gelaufenen Lesungen neu gemessen.
+- **Ein Stammbaum, in den strom nicht schreiben darf, sagt warum.** strom schreibt Regeln für Codex in den Ordner der
+  Forschung: ein allein ausgeführter strom-Befehl läuft außerhalb der Sandbox von Codex — auch unter Windows, wo die
+  Sandbox den Verlauf der Forschung verschlossen hielt und nichts anderes zuließ —, während das, was der Mensch
+  entscheidet, und git selbst verboten bleiben. Hindert die Sandbox eines Agenten strom trotzdem am Schreiben in den
+  Ordner des Stammbaums, sagt strom das und sagt dem Agenten, was zu tun ist, je nachdem, wie er läuft — strom allein
+  ausführen, Codex im Ordner der Forschung starten, dem er vertraut, oder den Befehl außerhalb der Sandbox genehmigen
+  lassen — statt eines bloßen „keine Berechtigung“, das der Agent als fehlenden Zugriff auf den Stammbaum wiedergab.
+  Wo ein Agent kein eigenes Merkmal hinterlässt, erkennt strom ihn an seinem eigenen Merkmal bei den Agenten, die es
+  startet, oder an den Programmen, die es gestartet haben, und nennt seine Sandbox als wahrscheinliche Ursache, danach
+  OneDrive oder den überwachten Ordnerzugriff von Windows. Ein vom Verlauf verweigertes Schreiben gilt nicht mehr als
+  fehlende Berechtigung für git selbst, und eine Sicherung oder ein Update, die nicht geschrieben werden konnten,
+  verlangen einen Ordner, in den geschrieben werden darf, statt Platz auf dem Datenträger freizumachen. `strom doctor`
+  und `strom check` versuchen, in die Forschung zu schreiben, und sagen, wenn es nicht geht, auch dort, wo sich der
+  Ordner nicht einmal auflisten lässt. Auf einem Laufwerk ohne feste Verknüpfungen (eine Netzwerkfreigabe, ein über
+  Remotedesktop umgeleitetes Laufwerk) schreibt strom wieder, seine Sperre geht einen anderen Weg, und eine Sperre, die
+  ein langsames Laufwerk noch nicht zeigt, wird nicht mehr nach einem Augenblick übernommen; ein Stammbaum, der sich
+  dort nicht anlegen lässt, hinterlässt nichts und sagt es in der Sprache der Forschung. Mit npm unter Windows
+  installiert, startet `strom.cmd` strom auch dort, wo PowerShell Skripte verweigert.
+
 ## 1.18.0
 
 *21.10.2026 · gehört zur Strom-App 3.14.0.*
@@ -75,7 +141,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   GEDCOM-Datei (255 Bytes), hält das Schreiben der Datei nicht mehr auf, und kein Emoji wird dort geteilt, wo eine
   lange Zeile weitergeht. Mit `excerpts.for all` bekommt auch eine Quelle, die noch niemand zitiert, in der Strom-App
   ihren Ausschnitt, soweit er neben den zitierten unter die Grenze passt – die zitierten werden dafür nie kleiner; was
-  nicht passte, wird gesagt.
+  nicht passte, wird gesagt. Die Strom-App erfährt, welche Bilder einer Quelle die Forschung hat, ihre Datei aber
+  wegließ, und lädt sie bei Bedarf aus der Forschung — Quelle für Quelle oder alle auf einmal, mit Anzahl und etwa
+  ihrer Größe.
 
 ## 1.17.0
 

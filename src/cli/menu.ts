@@ -11,7 +11,8 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
-import { mb, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+import { isAgent } from "../core/which.ts";
+import { mb, setTidyAsked, tidyAsked, tidyOn, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
 
 /** A line as a sentence: its first letter capital (a catalog's text that also stands inside a line). */
@@ -57,6 +58,7 @@ import { isArchive } from "../core/mode.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { switchTo } from "./menu-mode.ts";
 import { appMarkFromInstall, linkScheme } from "../core/links.ts";
+import { fixEnv, pendingFixes } from "../commands/fixchecks.ts";
 
 
 /** Create a family tree and say so in the user's words (init itself talks to agents). */
@@ -187,7 +189,22 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       for (const line of permissionWaitingLines(tree, lang)) out(line);
       // much kept beside the research that can go (an older strom never tidied it): said, freed in the settings
       const disk = tidyPlan(tree);
-      if (disk.frees >= TIDY_SAID) out(t("ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) }));
+      if (disk.frees >= TIDY_SAID) {
+        // never tidied (an older strom gathered it): its first tidy offered once, shown and asked as strom tidy asks
+        // (Enter says no) — nothing goes unasked; then kept in order by itself. Nobody to ask (no terminal,
+        // STROM_NONINTERACTIVE): only said, the offer kept for the person
+        if (!tidyOn(root) && !tidyAsked(root) && !isAgent(ctx.env) && ctx.interactive) {
+          setTidyAsked(root);
+          out(t("ui.tidy.first", { size: mb(disk.frees, lang) }));
+          out();
+          await run(["tidy"]);
+          out();
+        } else out(t("ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) }));
+      }
+      // a fix of strom's left something behind here that waits for the person's decision: one line (the settings)
+      const fix = archive ? undefined : pendingFixes(tree, fixEnv(ctx, tree))[0];
+      // a fix of strom's said as one; another model reading now, as readings to read again
+      if (fix) out(t(fix.check.id === "new-model" ? "ui.fixes.hint.readings" : "ui.fixes.hint", { name: t(`ui.fixes.${fix.check.id}.name` as UIKey), count: fix.check.unit === "reading" ? fix.found.readings : fix.found.items.length }));
       // the scan views tuned before, but for another agent or model: offered again (the settings), never run unasked
       const offer = !archive && ready ? calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root) : undefined;
       if (offer) out(sentence(t("ui.views.offer", { before: calibrationLabel(offer.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(offer.now, t("ui.settings.model.own")) })));
@@ -559,8 +576,8 @@ async function pickTree(ctx: Context, run: Run, lang: string): Promise<void> {
   if (i === packAt) {
     const tree = Tree.open(known[at]!.root, ctx.env);
     const shared = ctx.settings.shared()!.value;
-    const size = (all: boolean) => (packPlan(tree, shared, all).media.reduce((s, m) => s + m.size, 0) / 1e6).toFixed(0);
-    const which = await ctx.choose(ui(lang, "ui.pack.which"), [{ label: ui(lang, "ui.pack.opt.records", { mb: size(false) }) }, { label: ui(lang, "ui.pack.opt.all", { mb: size(true) }) }], 0, { back: ui(lang, "ui.browse.back") });
+    const size = (all: boolean) => mb(packPlan(tree, shared, all).media.reduce((s, m) => s + m.size, 0), lang);
+    const which = await ctx.choose(ui(lang, "ui.pack.which"), [{ label: ui(lang, "ui.pack.opt.records", { size: size(false) }) }, { label: ui(lang, "ui.pack.opt.all", { size: size(true) }) }], 0, { back: ui(lang, "ui.browse.back") });
     if (which === undefined) return;
     await run(["pack", "--tree", tree.root, ...(which === 1 ? ["--all-images"] : [])]);
     await partsPause(ctx, lang);

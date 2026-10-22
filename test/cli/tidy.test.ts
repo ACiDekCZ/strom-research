@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
-import { autoTidy, tidyOn, tidyPlan } from "../../src/core/tidy.ts";
+import { autoTidy, tidyAsked, tidyOn, tidyPlan } from "../../src/core/tidy.ts";
 import { enterWorker } from "../../src/core/workers.ts";
 import { noteLive } from "../../src/core/live.ts";
 
@@ -157,4 +157,45 @@ test("a bridge's last word never makes again the folder of a research moved away
   noteLive(gone, "ended: the research is no longer there");
   assert.ok(!fs.existsSync(gone));
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("an old tree's first tidy is offered once in the menu: shown, asked (Enter says no), never again unasked", opts, async () => {
+  const w = new World();
+  await w.withTree("Novákovi");
+  gathered(w.cwd);
+  // much gathered by an older strom: a log of a session long ago (sparse: big, nothing written)
+  const big = path.join(w.cwd, ".strom", "runs", "N0003.log");
+  put(big, "x", 40);
+  fs.truncateSync(big, 150 * 1024 * 1024);
+  const at = new Date(Date.now() - 40 * DAY);
+  fs.utimesSync(big, at, at);
+  const tree = () => Tree.open(w.cwd, { ...process.env, ...w.env });
+  const before = tidyPlan(tree()).items.length;
+  // asked once: what goes shown, Enter says no — nothing goes, nor by itself after
+  const first = await w.run([], { tty: true, answers: ["", "0"] });
+  assert.match(first.out, /Vedle výzkumu se nastřádalo, co jde uvolnit/);
+  assert.match(first.out, /Uvolnit/);
+  assert.ok(fs.existsSync(big));
+  assert.equal(tidyOn(w.cwd), false);
+  autoTidy(tree());
+  assert.equal(tidyPlan(tree()).items.length, before);
+  // never asked again: only said
+  const again = await w.run([], { tty: true, answers: ["0"] });
+  assert.doesNotMatch(again.out, /se nastřádalo/);
+  assert.match(again.out, /z toho jde uvolnit/);
+  assert.ok(fs.existsSync(big));
+  // an agent's strom never asks
+  fs.rmSync(path.join(w.cwd, ".strom", "tidy.json"));
+  const agent = await w.run([], { tty: true, answers: ["0"], env: { CLAUDECODE: "1" } });
+  assert.doesNotMatch(agent.out, /se nastřádalo/);
+  // nobody to ask (no terminal, STROM_NONINTERACTIVE): not offered, nor remembered as asked
+  const unattended = await w.run(["menu"], { answers: ["0"], env: { STROM_NONINTERACTIVE: "1" } });
+  assert.doesNotMatch(unattended.out, /se nastřádalo/);
+  assert.equal(tidyAsked(w.cwd), false);
+  // the person's yes: freed, kept in order by itself from then on
+  fs.rmSync(path.join(w.cwd, ".strom", "tidy.json"), { force: true });
+  await w.run([], { tty: true, answers: ["a", "0"] });
+  assert.ok(!fs.existsSync(big));
+  assert.ok(tidyOn(w.cwd));
+  w.cleanup();
 });

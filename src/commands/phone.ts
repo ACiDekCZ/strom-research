@@ -17,7 +17,9 @@ function stateLines(lang: string, s: PhoneState): string {
         ? ui(lang, "ui.phone.on", { urls: s.addresses.map((a) => a.url).join(", ") })
         : ui(lang, "ui.phone.starting")
       : s.state === "error"
-        ? ui(lang, "ui.phone.error", { why: ui(lang, `ui.phone.why.${s.error?.code ?? "bind-failed"}`) })
+        ? s.error?.waiting
+          ? ui(lang, "ui.phone.waiting")
+          : ui(lang, "ui.phone.error", { why: ui(lang, `ui.phone.why.${s.error?.code ?? "bind-failed"}`) })
         : s.state === "confirm"
           ? ui(lang, "ui.phone.confirm")
           : s.state === "declined"

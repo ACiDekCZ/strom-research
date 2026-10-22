@@ -8,10 +8,11 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import http from "node:http";
 import net from "node:net";
-import { VERSION } from "../../src/core/tree.ts";
+import { VERSION, type Tree } from "../../src/core/tree.ts";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { conversationArgs } from "../../src/agents/launch.ts";
 import { detectAgent, withoutAgentMarks } from "../../src/core/which.ts";
+import { BYPASS_DENY, codexRules } from "../../src/agents/files.ts";
 import { webAppProfile } from "../../src/core/chromium.ts";
 import { installedStromApp, isStromName } from "../../src/core/stromapp.ts";
 import { createShortcut, openInNewTerminal } from "../../src/core/shortcut.ts";
@@ -95,7 +96,7 @@ test("the menu: a person can always change their mind — the current choice sug
   assert.match((await w.ok(["status"])).out, /Novákovi/, "still the same tree");
   // handing it over from the menu: packed, then unpacked by someone else (a file dragged in)
   const p = await w.ok([], { tty: true, answers: ["6", "4", "1", "", "0"] });
-  assert.match(p.out, /Které snímky přibalit\?\n {3}1 {2}jen se zápisy – 0 MB[^\n]*\n {3}2 {2}všechny – 0 MB\n {3}0 /);
+  assert.match(p.out, /Které snímky přibalit\?\n {3}1 {2}jen se zápisy – \d+ kB[^\n]*\n {3}2 {2}všechny – \d+ kB\n {3}0 /);
   assert.match(p.out, /Zabaleno „Novákovi“: (.+\.zip) \(/);
   const zip = path.join(w.env.HOME!, /Zabaleno „Novákovi“: ~\/(.+\.zip) \(/.exec(p.out)![1]!);
   assert.ok(fs.existsSync(zip), zip);
@@ -184,6 +185,13 @@ test("strom chat: the agent set up as the user chose — Claude Code, Codex, Ant
   assert.ok(toml.includes(JSON.stringify(`Read(${w.env.STROM_CONFIG_DIR!}/**)`)), "the seal keys by their path");
   assert.ok(!/"(Read|Edit)\(\/\//.test(toml));
   assert.match(fs.readFileSync(path.join(w.treeDir("Novákovi"), ".grok", "rules", "strom.md"), "utf8"), /CLAUDE\.md in this folder is written for Claude Code/);
+  // Codex: strom's command alone outside its sandbox (which keeps .strom and .git closed), what the person decides and
+  // git itself forbidden
+  const rules = fs.readFileSync(path.join(w.treeDir("Novákovi"), ".codex", "rules", "strom.rules"), "utf8");
+  assert.match(rules, /^prefix_rule\(pattern = \[\["strom","strom\.cmd"\]\], decision = "allow"/m);
+  assert.match(rules, /^prefix_rule\(pattern = \[\["strom","strom\.cmd"\], \["login", "seal"\]\], decision = "forbidden"/m);
+  assert.match(rules, /^prefix_rule\(pattern = \[\["strom","strom\.cmd"\], "connector", \["add", "remove"\]\], decision = "forbidden"/m);
+  assert.match(rules, /^prefix_rule\(pattern = \["git"\], decision = "forbidden"/m);
   // An agent elsewhere (it set strom up from the web page) hands the research over: its own
   // conversation, in a new terminal window (not opened in a test: the user is told how).
   w.env.CLAUDECODE = "1";
@@ -212,6 +220,11 @@ test("strom chat: the agent set up as the user chose — Claude Code, Codex, Ant
   w.env.STROM_HANDOVER = "1";
   await w.ok(["chat"]);
   assert.match(fs.readFileSync(path.join(w.dir, "claude.calls"), "utf8"), /--permission-mode/);
+  // strom's own mark on the agent it starts: strom inside it knows the agent where its sandbox sets no mark of its own
+  const seen = path.join(w.dir, "claude.mark");
+  fs.writeFileSync(path.join(w.dir, "bin", "claude"), `#!/bin/sh\necho "$STROM_IN_AGENT" > "${seen}"\nexit 0\n`, { mode: 0o755 });
+  await w.ok(["chat"]);
+  assert.equal(fs.readFileSync(seen, "utf8").trim(), "claude");
   delete w.env.STROM_HANDOVER;
   // An agent strom started is where the research happens already: no second conversation.
   w.env.STROM_WORKER = "claude-1";
@@ -402,6 +415,19 @@ test("which agent runs strom: Grok passes on the terminal it was started from; a
   assert.equal(detectAgent({ CURSOR_AGENT: "1", SAND_BOX_ID: "x" }), "cursor", "Cursor's agents, Grok Bot among them");
   const env = withoutAgentMarks({ PATH: "/bin", GROK_AGENT: "1", GROK_SESSION_ID: "x", CODEX_HOME: "/c", CODEX_THREAD_ID: "t", STROM_HOME: "/s" });
   assert.deepEqual(env, { PATH: "/bin", CODEX_HOME: "/c", STROM_HOME: "/s" }, "an agent's own settings (…_HOME) and strom's stay");
+  // strom's own mark on an agent it starts: where none of the agent's own is (a sandbox that sets none, Codex on
+  // Windows); an agent's own marks say better who runs strom now
+  assert.equal(detectAgent({ STROM_IN_AGENT: "Codex" }), "codex");
+  assert.equal(detectAgent({ STROM_IN_AGENT: "codex", AI_AGENT: "other" }), "codex");
+  assert.equal(detectAgent({ STROM_IN_AGENT: "claude", GROK_AGENT: "1" }), "grok");
+  assert.deepEqual(withoutAgentMarks({ PATH: "/bin", STROM_IN_AGENT: "codex" }), { PATH: "/bin" }, "never handed on to another agent");
+});
+
+test("Codex's rules: a second installation's own command let out too; never edited by an agent let do everything else", () => {
+  const rules = codexRules({ env: { STROM_ISOLATED: "1", STROM_COMMAND: "strom-beta" } } as unknown as Tree);
+  assert.match(rules, /^prefix_rule\(pattern = \[\["strom","strom\.cmd","strom-beta","strom-beta\.cmd"\]\], decision = "allow"/m);
+  assert.doesNotMatch(codexRules({ env: { STROM_COMMAND: "strom-beta" } } as unknown as Tree), /strom-beta/, "only an isolated installation's");
+  assert.ok(BYPASS_DENY.includes("Edit(.codex/**)"));
 });
 
 test("agents learn about strom in any folder, and forget it again; the user's own text stays", async () => {

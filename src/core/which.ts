@@ -42,13 +42,16 @@ export function detectAgent(env: Env): string | undefined {
   if (env.OPENCODE === "1" || env.OPENCODE_PID) return "opencode";
   // Cursor's agents — also xAI's Grok Bot, on Cursor's platform (found live): not one strom starts, but an agent
   if (env.CURSOR_AGENT) return "cursor";
+  // the agent strom started (strom chat, strom run): its own marks first — found on Windows, Codex's sandbox ran strom
+  // without any of them
+  if (env.STROM_IN_AGENT) return env.STROM_IN_AGENT.toLowerCase();
   if (env.AI_AGENT) return env.AI_AGENT.toLowerCase();
   return undefined;
 }
 
 /** What says an agent runs strom (detectAgent) — not the user's own settings of an agent (…_HOME). */
 export function isAgentMark(k: string): boolean {
-  return ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "AI_AGENT", "OPENCODE", "OPENCODE_PID", "GROK_AGENT", "GROK_SESSION_ID", "CURSOR_AGENT"].includes(k) || (/^(CODEX|ANTIGRAVITY)_/.test(k) && !/_HOME$/.test(k));
+  return ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "AI_AGENT", "STROM_IN_AGENT", "OPENCODE", "OPENCODE_PID", "GROK_AGENT", "GROK_SESSION_ID", "CURSOR_AGENT"].includes(k) || (/^(CODEX|ANTIGRAVITY)_/.test(k) && !/_HOME$/.test(k));
 }
 
 /**

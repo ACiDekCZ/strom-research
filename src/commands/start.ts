@@ -239,7 +239,7 @@ register({
     if (browserSays) ctx.io.stdout(browserSays + "\n");
     // Claude Code asks once whether the folder is to be trusted — its own safety step, kept; the user knows what to answer.
     if (agent === "claude" && !claudeTrusts(tree.root, ctx.env)) ctx.io.stdout(ui(lang, "ui.chat.trust") + "\n");
-    const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree)), ...agentEnv, STROM_WORKER: worker, ...(base.model ? { STROM_MODEL: base.model } : {}), ...(base.effort ? { STROM_MODEL_EFFORT: base.effort } : {}) };
+    const env: Record<string, string | undefined> = { ...prependPath(withoutAgentMarks(ctx.env), shimDir(tree)), ...agentEnv, STROM_WORKER: worker, STROM_IN_AGENT: agent, ...(base.model ? { STROM_MODEL: base.model } : {}), ...(base.effort ? { STROM_MODEL_EFFORT: base.effort } : {}) };
     delete env.STROM_HANDOVER;
     let code: number;
     try {

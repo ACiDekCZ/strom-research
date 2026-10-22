@@ -280,7 +280,7 @@ async function readWith(ctx: Context, tree: Tree, s: ReadState, opts: Record<str
   }
   const team = readers(ctx, tree, shared, "document", "1", opts, undefined, { stem: s.id });
   const views = s.pages.map((p) => viewsOf(tree, shared, p, team.viewMax));
-  s = { ...s, groups: groupsOf(views), state: "reading", since: now(), pid: process.pid, ...(team.model ? { model: team.model } : {}) };
+  s = { ...s, groups: groupsOf(views), state: "reading", since: now(), pid: process.pid, agent: team.agent, ...(team.model ? { model: team.model } : {}) };
   saveState(tree.root, s);
   const stop = new AbortController();
   const look = setInterval(() => {

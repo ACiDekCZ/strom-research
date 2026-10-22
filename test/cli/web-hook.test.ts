@@ -850,3 +850,37 @@ test("the hook's command as the agent's shell runs it: strom's deny passes on wh
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("a digital library strom's list knows: its own search with the first page of it in a session (and after a call that failed), and in strom net web --check — fetched as given, encoded", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  const env = { STROM_NONINTERACTIVE: "1", STROM_WORKER: "run-1-x" };
+  const note = async (url: string, use: string, failed?: string) => {
+    const out = (await hook(w, afterEvent(w, url, use, failed), env)).out;
+    return out ? ((JSON.parse(out) as { hookSpecificOutput: { additionalContext: string } }).hookSpecificOutput.additionalContext) : "";
+  };
+  // the first page of the site: its search with it
+  assert.equal((await hook(w, fetchEvent(w, "https://kramerius5.nkp.cz/uuid/x", { use: "k1" }), env)).out, "");
+  const first = await note("https://kramerius5.nkp.cz/uuid/x", "k1");
+  assert.match(first, /^strom: kramerius5\.nkp\.cz's own search, fetched as given/);
+  assert.ok(first.includes("https://kramerius5.nkp.cz/search/api/v5.0/search?q=text_ocr%3A{q}&fq=datum_begin%3A%5B{from}%20TO%20{to}%5D"), first);
+  assert.ok(!/[[\] ]/.test(first.split(": https://")[1]!.split(" ")[0]!), "the address itself encoded");
+  // the next page: nothing more
+  assert.equal((await hook(w, fetchEvent(w, "https://kramerius5.nkp.cz/uuid/y", { use: "k2" }), env)).out, "");
+  assert.equal(await note("https://kramerius5.nkp.cz/uuid/y", "k2"), "");
+  // one that failed: said again
+  assert.equal((await hook(w, fetchEvent(w, "https://kramerius5.nkp.cz/search/api/v5.0/search?q=x", { use: "k3" }), env)).out, "");
+  assert.match(await note("https://kramerius5.nkp.cz/search/api/v5.0/search?q=x", "k3", "HTTP 400"), /own search/);
+  // a site the list knows nothing of the search of: no note
+  assert.equal((await hook(w, fetchEvent(w, "https://soupis-example.org/1", { use: "s1" }), env)).out, "");
+  assert.equal(await note("https://soupis-example.org/1", "s1"), "");
+  // strom net web --check: the same addresses, in the JSON too
+  const check = await w.ok(["net", "web", "--check", "https://anno.onb.ac.at/anno-suche/"]);
+  assert.match(check.out, /its search \(fetch as given/);
+  assert.ok(check.out.includes("https://anno.onb.ac.at/anno-suche/rest/search/complex?text={q}&dateFrom={from}&dateTo={to}"), check.out);
+  const mzk = (await w.ok(["net", "web", "--check", "https://www.digitalniknihovna.cz/mzk/", "--json"])).json;
+  assert.equal(mzk.search.length, 2);
+  assert.match(mzk.search[0].url, /^https:\/\/api\.kramerius\.mzk\.cz\/search\/api\/client\/v7\.0\/search\?q=text_ocr%3A\{q\}%20AND%20date_range_start\.year%3A%5B\{from\}%20TO%20\{to\}%5D/);
+  assert.equal((await w.ok(["net", "web", "--check", "https://soupis-example.org/1", "--json"])).json.search, undefined);
+  w.cleanup();
+});

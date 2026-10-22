@@ -107,6 +107,9 @@ conclusion so the next researcher can follow it.
   Images you will read later in the session: `--background` fetches them
   while you work on, `strom read` reads them as they come. Nothing for a
   later session: the session that reads a book fetches it.
+  An archive unavailable for now (exit 7, "try again at …"): never wait for
+  it in a loop of fetches — other work, `--background` when it frees within
+  30 minutes, or `strom session close --continue`.
 <!-- end -->
 - **What strom or the tree denies stays denied.** Never offer the user to
   change your permissions or settings, strom's or the tree's, to get round it:

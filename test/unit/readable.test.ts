@@ -183,7 +183,8 @@ test("Windows: HEIC through WinRT only with the HEIF and HEVC extensions, PDF th
   for (const s of [WINRT_HEIC, WINDOWS_PDF]) assert.match(s, /\$env:STROM_IN/);
 });
 
-test("Linux: pdftoppm's pages named as strom names them, heif-convert for HEIC", () => {
+// stand-in programs found by their execute bit: none on Windows (found 2026-10-22 on Windows: {} there)
+test("Linux: pdftoppm's pages named as strom names them, heif-convert for HEIC", { skip: process.platform === "win32" }, () => {
   const root = tmp();
   const bin = path.join(root, "bin");
   fs.mkdirSync(bin);

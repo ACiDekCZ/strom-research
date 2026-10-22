@@ -5,6 +5,64 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.19.0
+
+*2026-10-22 · goes with the Strom app 3.15.0.*
+
+- **An archive that went silent is waited for, not asked again and again.** When an archive stops answering, strom
+  leaves it alone for an hour — two, then four when it stays silent the same day — and the agent hears until when:
+  it goes on with other work, lets a download in the background wait for the archive (up to 30 minutes) and go on by
+  itself, or closes the session to go on later. No more asking the archive over and over meanwhile.
+- **The first tidy of an older research is offered once.** A research that gathered much beside it before strom kept
+  order there by itself (logs of work sessions, views of scans and the like) gets one offer in the menu: what would
+  go, how much and why, and nothing goes without a yes. After a yes it is kept in order by itself; after a no, the
+  menu and the settings keep saying what can be freed. `strom pack`, removing a family tree and the menu say how big a
+  package, a backup or the images are as everywhere else (1,5 MB in Czech, 24 kB for a small one), never "0.0 MB".
+- **Digital libraries searched right at the first try.** For Kramerius of the Czech National Library and of the
+  Moravian Library and for ANNO of the Austrian National Library, the agent gets the libraries' own search
+  addresses — fewer failed requests and less guessing.
+- **A part of a scan fetched sharper is read from.** Where a part of a scan came from the archive in more detail, the
+  agent and its readers look at that place in it — also when the place they mark reaches a little past it, the rest
+  said — instead of the whole scan, reduced; a sharper part that holds only some of the place is named with the way
+  to look at it.
+- **A document read more surely.** A reader writes its reading into its report as it goes, and a reading of two readers where
+  only one read says so, never that they agree.
+- **The phone connection waits for the research, not said as an error.** Before the research starts after the computer
+  started again, `strom phone` and the settings say the connection is on and its server starts again with the research.
+  On an iPhone the sheet of photos stays above the keyboard while a person or a note is typed, the persons offered in
+  sight; the phone's server starts once, also when several start it at the same moment.
+- **Fixes of strom's own mistakes, offered to decide.** When strom finds that an earlier version of its own did
+  something wrong in a research, `strom fixes` and Settings → Maintenance → Fixes say what it is about, what was found
+  and what a remedy would do, with how demanding it is; nothing happens without a yes, and a no is kept. The first:
+  blind readings made from the reduced scan where a sharper part existed — read again beside the old ones, first on a
+  few, nothing overwritten, a difference becomes a task. Held against each other by what was read — the names, dates
+  and numbers of the transcript, not the words of the reader's comment (in German too, where every noun has a
+  capital) — the task says in one sentence which of them differs; where a name may only begin a sentence, the readings
+  are not said to agree. With nothing to read again, `strom fixes run` says so. The second: after the reading model or agent changed, the earlier readings worth reading again — with open
+  places, readers who disagreed, an open conflict, a reading not confirmed at the source; said as "read by model X,
+  now read by model Y", asked once per agent and model, each read again as it was read (the images of one reading
+  together, a trial or a part always of whole readings). Counted in readings with their places and what a remedy takes
+  in reader calls; offered by stage — the disputed alone (readers who differed, an open conflict, not confirmed at the
+  source), with the direct line, or all — each with what it takes, the narrowest first, dates and witnesses only
+  ordering them. The remedy may be read by another agent or model ready here (`strom fixes run <id> --agent <a>
+  --model <m>`), with which one read before said; one that cannot read here is refused at once, with those that can.
+  The time of a remedy is rounded up and, after the trial, measured again by the readings as they ran side by side.
+- **A family tree strom may not write into says why.** strom writes Codex's rules into the research's folder: a strom
+  command run on its own goes outside Codex's sandbox — on Windows too, where the sandbox kept the research's history
+  closed and let nothing else run — while what the person decides and git itself stay forbidden. When an agent's
+  sandbox still keeps strom from writing into the family tree's folder, strom says so and tells the agent what to do as
+  it is there — run strom on its own, start Codex in the research's folder it trusts, or have the command approved
+  outside the sandbox — instead of a bare "no permission" the agent retold as no access to the family tree. Where an
+  agent leaves no mark of its own, strom knows it by its own mark on the agents it starts, or by the programs that
+  started it, and names its sandbox as the likely cause, then OneDrive or the controlled folder access of Windows. A
+  write the history refused is no longer said as missing rights to git itself, and a backup or an update that could not
+  be written asks for a folder with the right to write in it, no longer to free room on the disk. `strom doctor` and
+  `strom check` try writing into the research and say when it does not go, also where the folder cannot even be
+  listed. On a disk without hard links (a network share, a drive redirected over Remote Desktop) strom writes again,
+  its lock made another way, and a lock a slow disk does not show yet is no longer taken over after a moment; a family
+  tree that cannot be created there leaves nothing behind, said in the research language. Installed with npm on
+  Windows, `strom.cmd` runs strom where PowerShell refuses scripts.
+
 ## 1.18.0
 
 *2026-10-21 · goes with the Strom app 3.14.0.*
@@ -69,7 +127,8 @@ The changes of each version in short. The full notes and the install lines are o
   value longer than a line of the GEDCOM file (255 bytes) no longer stops the file from being written, and no emoji is
   split where a long line goes on. With `excerpts.for all` a source nobody cites yet gets its excerpt in the Strom app
   too, wherever it fits under the limit beside the cited ones, which never get smaller for it; what did not fit is
-  said.
+  said. The Strom app is told which images of a source the research has but its file left out, and loads them from
+  the research on demand — a source at a time, or all at once with how many and about how big.
 
 ## 1.17.0
 

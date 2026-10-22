@@ -6,6 +6,8 @@ import { backupOnce, backupsDir, BackupFailed, mb, type BackupRecord, type Trans
 import type { Context } from "./context.ts";
 import { installation, replacedHolding } from "../core/self.ts";
 import { ui } from "./ui.ts";
+import { isAgent } from "../core/which.ts";
+import { refusedCode, SANDBOX_HINT } from "../core/writable.ts";
 
 /** A local date and time for a sentence. */
 function when(iso: string): string {
@@ -52,17 +54,36 @@ export function backupBefore(ctx: Context, t: Transition, opts: { update?: { cha
     const where = backupsDir(home);
     const back = t.fromChannel ?? "stable";
     const params = { ...said, detail, where, back, channel: opts.update?.channel ?? "" };
+    // room on the disk only where the disk is full (found on Windows: an agent's sandbox refused the backup's lock, EPERM,
+    // and strom advised freeing room); a refused write says so — under an agent most likely its sandbox
+    const code = e instanceof BackupFailed ? e.code : (e as NodeJS.ErrnoException).code;
+    const why = (e instanceof BackupFailed && e.room) || code === "ENOSPC" ? "room" : refusedCode(code) ? "refused" : "other";
+    const agent = isAgent(ctx.env);
     if (opts.update)
       throw new StromError(`the backup before going from ${said.from} to ${said.to} could not be made: ${detail} — nothing was installed`, {
         exitCode: EXIT.noBackup,
-        hint: `free room on the disk (${where}), then strom update --channel ${opts.update.channel} again`,
+        hint:
+          why === "room"
+            ? `free room on the disk (${where}), then strom update --channel ${opts.update.channel} again`
+            : why === "refused"
+              ? `${agent ? `writing into ${where} was refused — ${SANDBOX_HINT}` : `writing into ${where} is refused: a folder with the right to write in it`}; then strom update --channel ${opts.update.channel} again`
+              : `strom doctor says more; then strom update --channel ${opts.update.channel} again`,
+        ...(why !== "room" ? { hintCode: `backup.failed.update.${why}` } : {}),
         code: "backup.failed.update",
         params,
         details: { from: t.from, to: t.to, where, ...(e instanceof BackupFailed && e.room ? { room: e.room } : {}) },
       });
     throw new StromError(`the backup before going from ${said.from} to ${said.to} could not be made: ${detail} — nothing is switched: this strom opens no family tree for writing until it is made (tried again at each run)`, {
       exitCode: EXIT.noBackup,
-      hint: `tell the user: free room on the disk (${where}), then run strom again — or go back: strom update --channel ${back}`,
+      hint:
+        why === "room"
+          ? `tell the user: free room on the disk (${where}), then run strom again — or go back: strom update --channel ${back}`
+          : why === "refused"
+            ? agent
+              ? `writing into ${where} was refused — ${SANDBOX_HINT}`
+              : `writing into ${where} is refused: a folder with the right to write in it, then run strom again — or go back: strom update --channel ${back}`
+            : `strom doctor says more; run strom again — or go back: strom update --channel ${back}`,
+      ...(why !== "room" ? { hintCode: `backup.failed.${why}` } : {}),
       code: "backup.failed",
       params,
       details: { from: t.from, to: t.to, where, ...(e instanceof BackupFailed && e.room ? { room: e.room } : {}) },

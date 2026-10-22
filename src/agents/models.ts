@@ -95,6 +95,17 @@ function family(id: string): string {
 }
 
 /**
+ * Whether a model is a newer version of the same line as another: the same words but its version
+ * (claude-opus-5-5 of claude-opus-4-7, gpt-6.1-sol of gpt-6-sol) — never said across lines or makers.
+ */
+export function sameLineNewer(before: string, now: string): boolean {
+  const line = (id: string) => words(id.slice(id.lastIndexOf("/") + 1)).filter((w) => !/^\p{N}+$/u.test(w)).join(" ");
+  return id(before) !== id(now) && line(before) === line(now) && !!line(now) && newer(version(before), version(now)) > 0;
+}
+
+const id = (m: string) => m.trim().toLowerCase();
+
+/**
  * The strong models of a list, in the order to offer them: never a fast, small or cheap one; the strongest line of a
  * maker first (Opus, Pro, Astra), then the one below (Sonnet, Sol), then the rest; makers in the order the agent lists
  * them (its own first), the newest version first, at most two of one line, three in all.

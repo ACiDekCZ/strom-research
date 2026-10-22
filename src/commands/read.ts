@@ -14,14 +14,14 @@ import type { Media, RecordSet, Task } from "../core/model.ts";
 import { normId, requireRecord } from "../core/records.ts";
 import { bookRoute } from "../core/samebook.ts";
 import { pageOf } from "../core/calibration.ts";
-import { coveringPart, findImage, IMAGE_RANGE_MAX, imageOfRef, imageRange, onlyParts, regionText, wholeSizeOf } from "../core/media.ts";
-import { cropOf, halves, makeView, parseCrop, readInHalves, tiles, type ViewMeta } from "../core/views.ts";
+import { coveringPart, findImage, IMAGE_RANGE_MAX, imageOfRef, imageRange, onlyParts, regionText, sharperCover, wholeSizeOf } from "../core/media.ts";
+import { cropOf, halves, makeView, mediaOrient, parseCrop, readInHalves, tiles, type ViewMeta } from "../core/views.ts";
 import { IMAGE_MAX, IMAGE_MAX_LARGE } from "../agents/images.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
 import { currentSession } from "../core/session.ts";
 import { BATCH, BATCH_MAX, batches, NEXT_BLOCK, parseReport, READER_MINUTES_HELP, readerPrompt, readerSettings, viewCount, withoutNextBlock, type Finding, type ReaderImage } from "../core/reader.ts";
 import { exifOrientation, shownSize } from "../image/index.ts";
-import { turnsAcross } from "../image/image.ts";
+import { fileToShown, shownToFile, turnsAcross } from "../image/image.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { which, withoutAgentMarks } from "../core/which.ts";
 import { permissionPath } from "../agents/files.ts";
@@ -38,6 +38,7 @@ import { claimStem, noReaderFor, readerAgent, readerDesk, refuseReadersInSandbox
 import { noReaderHere, refusedBySandbox } from "../core/sandbox.ts";
 import { activeFetches } from "../core/fetching.ts";
 import { finishOf } from "../core/clock.ts";
+import { VERSION } from "../core/tree.ts";
 
 /**
  * Of an image registered only in parts, the part a crop of the whole image (fractions or pixels of it) is on, and the
@@ -53,6 +54,60 @@ function partCovering(parts: Media[], crop: string): { part: Media; crop: string
       hint: `a crop within one of those parts (fractions of the whole image), or name the part: ${parts.map((p) => p.id).join(" or ")}`,
     });
   return { part: found.part, crop: regionText(found.crop) };
+}
+
+/**
+ * The copy a reader reads a crop of a whole image from (as strom media view shows it): the part fetched sharper that
+ * holds the place, or nearly all of it (cut to it, the rest said); a sharper part that shows only some of it said. The
+ * crop is of the picture as it is shown (upright by its EXIF); in the part, kept in `partCrops`.
+ */
+function sharperForReader(ctx: Context, all: Media[], m: Media, crop: string, partCrops: Map<string, string>, froms: Map<string, ReadFrom>): Media {
+  const shared = ctx.settings.shared()?.value;
+  if (m.part || !m.width || !m.height || m.recordset === undefined || m.image === undefined) return m;
+  const o = mediaOrient(shared, m);
+  const [W, H] = turnsAcross(o) ? [m.height, m.width] : [m.width, m.height];
+  const px = parseCrop(crop, W, H);
+  const cover = sharperCover(all, m, shownToFile({ x: px.x / W, y: px.y / H, w: px.w / W, h: px.h / H }, o));
+  const say = (l: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(l + "\n");
+  const ref = `${m.recordset}:${m.image}`;
+  if (cover.near)
+    say(`${ref}: ${cover.near.part.id}, a part of the image fetched sharper (${cover.near.gain.toFixed(1)}× the detail), shows ${regionText(fileToShown(cover.near.shows, o))} of the crop, not all of it — read from the whole image; that place sharper: strom read ${ref} --crop ${regionText(fileToShown(cover.near.shows, o))} …`);
+  const s = cover.use;
+  if (!s) return m;
+  partCrops.set(s.part.id, regionText(fileToShown(s.crop, mediaOrient(shared, s.part))));
+  froms.set(s.part.id, { whole: m, gain: s.gain });
+  const rest = (s.out ?? []).map((x) => `strom media view ${ref} --crop ${regionText(fileToShown(x, o))}`);
+  say(
+    `${ref}: read from ${s.part.id}, ${s.part.part ? "a part of the image fetched sharper" : "a sharper copy of the image"} (${s.gain.toFixed(1)}× the detail)` +
+      (s.cut ? `, cut to it: ${regionText(fileToShown(s.cut, o))} of the crop${rest.length ? ` — the rest (the whole image, less sharp): ${rest.join(" · ")}` : ""}` : ""),
+  );
+  return s.part;
+}
+
+/** The whole image a crop was read of from a sharper copy of it, and that copy's detail (the record of the reading). */
+interface ReadFrom {
+  whole: Media;
+  gain: number;
+}
+
+/** A crop as fractions of the picture as shown (W×H), four places: what a reading's head keeps of it. */
+function cropFractions(crop: string, W: number, H: number): string {
+  const r = parseCrop(crop, W, H);
+  return [r.x / W, r.y / H, r.w / W, r.h / H].map((v) => Number(v.toFixed(4))).join(",");
+}
+
+/**
+ * What a reading's head says of what each reader read (core/fixchecks.ts reads it back, strom fixes): the strom that
+ * read, the agent and model, and the images — with a crop, each image whole as the crop was asked of it, and the
+ * sharper copy it was read from (its id, the crop in it, its detail). Small, nothing of the image itself.
+ */
+export function readHead(o: { agent: string; model: string | undefined; images: { id: string; ref?: string; crop?: string; from?: { id: string; crop: string; gain: number } }[] }): string {
+  const lines = [`Strom: ${VERSION}`, `Agent: ${o.agent}`, `Model: ${o.model ?? "default"}`];
+  if (o.images.some((i) => i.crop))
+    for (const i of o.images)
+      lines.push(`Image: ${i.id}${i.ref ? ` (${i.ref})` : ""}${i.crop ? ` · crop ${i.crop}` : ""}${i.from ? ` · from ${i.from.id} crop ${i.from.crop} (${i.from.gain.toFixed(1)}×)` : ""}`);
+  else lines.push(`Images: ${o.images.map((i) => i.id).join(", ")}`);
+  return lines.join("\n") + "\n";
 }
 
 /**
@@ -177,6 +232,8 @@ register({
     let label: string;
     // an image registered only in parts, named as an image of its book: the crop asked, in the part that covers it
     const partCrops = new Map<string, string>();
+    // a crop read from a sharper copy: the whole image it is of (the record of the reading)
+    const froms = new Map<string, ReadFrom>();
     // the images of the book a fetch at work is still to register (core/fetching.ts): read as they come
     let fetching: { book: RecordSet; asked: number[]; coming: number[] } | undefined;
     if (args.length === 1 && /^[Bb]\d+$/.test(args[0]!)) {
@@ -238,6 +295,9 @@ register({
       });
       label = images.map((m) => m.id).join("-").slice(0, 40);
     }
+    // a crop of a whole image a part fetched sharper holds (or nearly all of, cut to it): read from that part; one that
+    // shows only some of it said (as strom media view does)
+    if (typeof opts.crop === "string") images = images.map((m) => sharperForReader(ctx, all, m, opts.crop as string, partCrops, froms));
     // inside a sandbox that lets no agent start (Codex's): said at once, nothing prepared
     refuseReadersInSandbox(ctx, "strom read");
     const agentId = readerAgent(ctx, tree);
@@ -328,6 +388,20 @@ register({
       return { id: m.id, image: m.image, page, view: v.file };
     };
     const prepared: ReaderImage[] = images.map(prepare);
+    // what each reader read, for the head of its report: the image whole as the crop was asked of it, the sharper copy
+    // it was read from
+    const readOf = (g: ReaderImage) => {
+      const m = byMedia.get(g.id)!;
+      const ref = m.recordset !== undefined && m.image !== undefined ? `${m.recordset}:${m.image}` : undefined;
+      if (typeof opts.crop !== "string") return { id: m.id, ...(ref ? { ref } : {}) };
+      const f = froms.get(m.id);
+      const whole = f?.whole ?? m;
+      const size = whole.part ? wholeSizeOf(whole) : whole.width && whole.height ? { width: whole.width, height: whole.height } : undefined;
+      const across = turnsAcross(mediaOrient(ctx.settings.shared()?.value, whole));
+      const [W, H] = size ? (across ? [size.height, size.width] : [size.width, size.height]) : [0, 0];
+      const crop = W && H ? cropFractions(opts.crop, W, H) : opts.crop;
+      return { id: whole.id, ...(ref ? { ref } : {}), crop, ...(f ? { from: { id: m.id, crop: partCrops.get(m.id) ?? "", gain: f.gain } } : {}) };
+    };
     const progress = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
     // The same images read before: said, never refused (another question, a blind check).
     const earlier = earlierReadings(tree, images);
@@ -428,7 +502,7 @@ register({
       fs.writeFileSync(settingsFile, JSON.stringify(readerSettings(seen, report, permissionPath), null, 2));
       const context = typeof opts.context === "string" && opts.context.trim() ? `Context: ${opts.context.trim().replace(/\s*\n\s*/g, " ")}\n` : "";
       // a blind reading says so in its head: its "unclear" over a place the researcher looked at before is a check
-      const head = `# Reading ${label} · batch ${k + 1}${fetching ? "" : ` of ${groups.length}`}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}${opts.blind ? "Blind: yes\n" : ""}\n${NEXT_BLOCK}\n`;
+      const head = `# Reading ${label} · batch ${k + 1}${fetching ? "" : ` of ${groups.length}`}\nQuestion: ${question.replace(/\s*\n\s*/g, " ")}\n${context}${opts.blind ? "Blind: yes\n" : ""}${readHead({ agent: agentId, model, images: group.map(readOf) })}\n${NEXT_BLOCK}\n`;
       fs.writeFileSync(report, head);
       if (untilFound) atWork.set(k, report);
       const prompt = readerPrompt({ question, images: group, report, lang: tree.lang, context: opts.context as string | undefined, blind: Boolean(opts.blind) });
@@ -459,6 +533,8 @@ register({
       // back on top — strom readings finds a reading by it.
       let text = fs.readFileSync(report, "utf8");
       if (!text.startsWith("# Reading")) text = `${head}${text}`;
+      // the model the agent says it read with (an alias asked, or the agent's own: the model it named)
+      if (r.metrics.model) text = text.replace(/^Model: .*$/m, `Model: ${r.metrics.model}`);
       // the line each block was added at: not part of the report once its reader ended
       fs.writeFileSync(report, (text = withoutNextBlock(text)));
       // A reader that answered but did not write: keep its answer as the report.
@@ -484,6 +560,7 @@ register({
         reported: r.metrics.model,
         images: group.length,
         imageIds: group.map((g) => g.id),
+        ...(typeof opts.crop === "string" ? { crop: opts.crop } : {}),
         views: groupViews.length,
         px: groupViews.reduce((n, v) => n + (pixels.get(v) ?? 0), 0),
         cap: Math.max(...caps.map((c) => c.cap)),

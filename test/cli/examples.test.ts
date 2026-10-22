@@ -140,9 +140,11 @@ test("every example in the help runs", opts, async () => {
       const argv = lines[0]!.argv;
       // Paths outside the test world are only checked for syntax.
       if (argv.some((a) => a.startsWith("/Volumes/"))) continue;
-      // the person's own answer (task wake --answer/--check), the QR code to pair a phone (phone qr): in their terminal —
+      // the person's own answer (task wake --answer/--check), the QR code to pair a phone (phone qr), a fix decided (fixes
+      // run|decline|reopen): in their terminal —
       // this test's own settings (R8)
-      const person = (def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check")) || def.path.join(" ") === "phone qr";
+      const person = (def.path.join(" ") === "task wake" && argv.some((a) => a === "--answer" || a === "--check")) || def.path.join(" ") === "phone qr" ||
+        ["fixes run", "fixes decline", "fixes reopen"].includes(def.path.join(" "));
       const r = await w.run([...argv, ...(def.writes ? ["--dry-run"] : [])], person ? { tty: true } : {});
       if (r.code !== 0) failures.push(`${example}\n    → ${(r.err || r.out).trim().split("\n").slice(0, 2).join(" | ")}`);
     }

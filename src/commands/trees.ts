@@ -10,7 +10,8 @@ import { lines, table } from "../cli/format.ts";
 import { Tree } from "../core/tree.ts";
 import { foldText, safeFolderName } from "../core/text.ts";
 import { isValidLang, langName } from "../core/lang.ts";
-import { NeedsConsentError, UsageError } from "../core/errors.ts";
+import { NeedsConsentError, StromError, UsageError } from "../core/errors.ts";
+import { refusedCode } from "../core/writable.ts";
 import { verifyFast } from "../core/integrity.ts";
 import * as git from "../core/git.ts";
 import type { Research } from "../core/model.ts";
@@ -35,6 +36,38 @@ import { archiveWaitingItems } from "../core/archiveasks.ts";
 import { agentReady, claudeHere } from "../cli/menu-parts.ts";
 import { agentFirst, agentStepsSkipped } from "../cli/menu-mode.ts";
 import { isAgent } from "../core/which.ts";
+
+/** Take away what an init that failed made: the folder it created, or what it put into the empty one given. */
+function undoInit(root: string, existed: boolean): void {
+  try {
+    if (!existed) fs.rmSync(root, { recursive: true, force: true });
+    else for (const entry of fs.readdirSync(root)) fs.rmSync(path.join(root, entry), { recursive: true, force: true });
+  } catch {
+    // a folder that refuses writing may refuse this too: what is left says itself
+  }
+}
+
+/**
+ * Why a family tree could not be created, in the research's language: writing refused (init.unwritable — under an agent
+ * most likely its sandbox, cli/main.ts), else what went wrong (init.failed); strom's own errors as they are.
+ */
+function initFailed(e: unknown, root: string): unknown {
+  const code = e instanceof StromError ? e.code : (e as NodeJS.ErrnoException).code;
+  if (code === "fs.no-permission" || code === "git.unwritable" || refusedCode(code))
+    return new UsageError(`the family tree could not be created in ${root}: writing there is refused — nothing of it was left there`, {
+      hint: "a folder with the right to write in it",
+      code: "init.unwritable",
+      params: { where: root },
+    });
+  if (e instanceof StromError && e.code) return e;
+  if (e instanceof UsageError) return e;
+  const detail = (e as Error).message;
+  return new StromError(`the family tree could not be created in ${root}: ${detail} — nothing of it was left there`, {
+    hint: "a folder on this computer's own disk (a network or redirected drive may refuse writing or the history)",
+    code: "init.failed",
+    params: { where: root, detail },
+  });
+}
 
 register({
   path: ["init"],
@@ -64,14 +97,24 @@ register({
     const lang = langR.value;
     fs.mkdirSync(treesDir, { recursive: true });
     ensureShared(ctx.settings.shared()!.value);
-    const tree = Tree.create(root, name, lang, ctx.env);
-    // an archive from the start: no agent works on it (strom mode research switches it)
-    if (mode === "archive") tree.withTreeLock(() => {
-      switchMode(tree, "archive");
-      tree.commit("The research is an archive", ["strom.json", ...tree.opsFilesTouched()]);
-    });
-    const agentFiles = syncAgentFiles(tree);
-    if (agentFiles.length) tree.withTreeLock(() => tree.commit(`Agent instructions: ${agentFiles.join(", ")}`, agentFiles));
+    const existed = fs.existsSync(root);
+    const wasEmpty = !existed || (fs.statSync(root).isDirectory() && fs.readdirSync(root).length === 0);
+    let tree: Tree;
+    try {
+      tree = Tree.create(root, name, lang, ctx.env);
+      // an archive from the start: no agent works on it (strom mode research switches it)
+      if (mode === "archive") tree.withTreeLock(() => {
+        switchMode(tree, "archive");
+        tree.commit("The research is an archive", ["strom.json", ...tree.opsFilesTouched()]);
+      });
+      const agentFiles = syncAgentFiles(tree);
+      if (agentFiles.length) tree.withTreeLock(() => tree.commit(`Agent instructions: ${agentFiles.join(", ")}`, agentFiles));
+    } catch (e) {
+      // no half a family tree left behind (found on Windows: a redirected drive where git init failed, the folder
+      // stayed with strom.json and data/ and no history) — only what this init made, never a folder that had files
+      if (wasEmpty) undoInit(root, existed);
+      throw initFailed(e, root);
+    }
     if (path.dirname(root) !== treesDir) {
       const extra = new Set(ctx.settings.config.extraTrees ?? []);
       extra.add(root);
@@ -159,17 +202,16 @@ register({
     const others = ctx.knownTrees().map((k) => k.root).filter((r) => path.resolve(r) !== path.resolve(root));
     const only = onlyItsFiles(root, others, shared);
     const onlyBytes = only.reduce((s, f) => s + f.size, 0);
-    const mb = (b: number) => (b / 1e6 < 10 ? (b / 1e6).toFixed(1) : Math.round(b / 1e6).toString());
     ctx.io.stdout(ui(lang, "ui.remove.what", { name, root: ctx.display(root), persons: tree.list("person").length }) + "\n");
     // a way back first
     let backup: string | undefined;
     const all = packPlan(tree, shared, true).media.reduce((s, m) => s + m.size, 0);
-    if (await ctx.confirm(ui(lang, "ui.remove.backup", { mb: mb(all) }), true)) {
+    if (await ctx.confirm(ui(lang, "ui.remove.backup", { size: mb(all, lang) }), true)) {
       const out = defaultPackFile(ctx, tree);
       backup = packTree(tree, shared, out, true).file;
       ctx.io.stdout(ui(lang, "ui.remove.backup.done", { file: ctx.display(backup) }) + "\n");
     }
-    const images = only.length > 0 && (await ctx.confirm(ui(lang, "ui.remove.images", { n: only.length, mb: mb(onlyBytes) }), backup !== undefined));
+    const images = only.length > 0 && (await ctx.confirm(ui(lang, "ui.remove.images", { n: only.length, size: mb(onlyBytes, lang) }), backup !== undefined));
     const typed = (await ctx.ask(ui(lang, "ui.remove.type", { name }))).trim();
     if (!typed || foldText(typed) !== foldText(name)) return { text: ui(lang, "ui.remove.cancelled"), data: { removed: false, ...(backup ? { backup } : {}) } };
     if (atWork(root, { bridge: false })) throw new UsageError(ui(lang, "ui.remove.busy", { name }), { hint: "strom" });
@@ -190,7 +232,7 @@ register({
     const text = lines(
       ui(lang, "ui.remove.done", { name }),
       followed ? ui(lang, "ui.remove.live") : undefined,
-      moved ? ui(lang, "ui.remove.images.done", { n: moved, mb: mb(onlyBytes) }) : undefined,
+      moved ? ui(lang, "ui.remove.images.done", { n: moved, size: mb(onlyBytes, lang) }) : undefined,
       backup ? ui(lang, "ui.remove.backup.back", { file: ctx.display(backup) }) : undefined,
       ui(lang, backup ? "ui.remove.trash" : "ui.remove.trash.alone"),
       next ? ui(lang, "ui.remove.next", { name: next }) : undefined,
