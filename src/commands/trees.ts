@@ -159,17 +159,16 @@ register({
     const others = ctx.knownTrees().map((k) => k.root).filter((r) => path.resolve(r) !== path.resolve(root));
     const only = onlyItsFiles(root, others, shared);
     const onlyBytes = only.reduce((s, f) => s + f.size, 0);
-    const mb = (b: number) => (b / 1e6 < 10 ? (b / 1e6).toFixed(1) : Math.round(b / 1e6).toString());
     ctx.io.stdout(ui(lang, "ui.remove.what", { name, root: ctx.display(root), persons: tree.list("person").length }) + "\n");
     // a way back first
     let backup: string | undefined;
     const all = packPlan(tree, shared, true).media.reduce((s, m) => s + m.size, 0);
-    if (await ctx.confirm(ui(lang, "ui.remove.backup", { mb: mb(all) }), true)) {
+    if (await ctx.confirm(ui(lang, "ui.remove.backup", { size: mb(all, lang) }), true)) {
       const out = defaultPackFile(ctx, tree);
       backup = packTree(tree, shared, out, true).file;
       ctx.io.stdout(ui(lang, "ui.remove.backup.done", { file: ctx.display(backup) }) + "\n");
     }
-    const images = only.length > 0 && (await ctx.confirm(ui(lang, "ui.remove.images", { n: only.length, mb: mb(onlyBytes) }), backup !== undefined));
+    const images = only.length > 0 && (await ctx.confirm(ui(lang, "ui.remove.images", { n: only.length, size: mb(onlyBytes, lang) }), backup !== undefined));
     const typed = (await ctx.ask(ui(lang, "ui.remove.type", { name }))).trim();
     if (!typed || foldText(typed) !== foldText(name)) return { text: ui(lang, "ui.remove.cancelled"), data: { removed: false, ...(backup ? { backup } : {}) } };
     if (atWork(root, { bridge: false })) throw new UsageError(ui(lang, "ui.remove.busy", { name }), { hint: "strom" });
@@ -190,7 +189,7 @@ register({
     const text = lines(
       ui(lang, "ui.remove.done", { name }),
       followed ? ui(lang, "ui.remove.live") : undefined,
-      moved ? ui(lang, "ui.remove.images.done", { n: moved, mb: mb(onlyBytes) }) : undefined,
+      moved ? ui(lang, "ui.remove.images.done", { n: moved, size: mb(onlyBytes, lang) }) : undefined,
       backup ? ui(lang, "ui.remove.backup.back", { file: ctx.display(backup) }) : undefined,
       ui(lang, backup ? "ui.remove.trash" : "ui.remove.trash.alone"),
       next ? ui(lang, "ui.remove.next", { name: next }) : undefined,

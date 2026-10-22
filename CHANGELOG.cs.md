@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.19.0
 
-*Připravuje se: bety do 1.19.0-beta.6. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.19.0-beta.7. Oddíl bude úplný s vydáním.*
 
 - **Na archiv, který zmlkl, se čeká, místo opakovaných dotazů.** Když archiv přestane odpovídat, strom ho nechá na
   pokoji hodinu — a když týž den mlčí dál, dvě a pak čtyři hodiny — a agent se dozví, do kdy: mezitím dělá
@@ -25,13 +25,16 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Dokument se přečte spolehlivěji.** Čtenář zapisuje čtení do své zprávy průběžně, a čtení dvou čtenářů, kde četl
   jen jeden, to tak řekne — nikdy, že se shodují.
 - **Propojení s telefonem čeká na výzkum, neříká se jako chyba.** Než se po spuštění počítače spustí výzkum, `strom
-  phone` i nastavení řeknou, že propojení je zapnuté a jeho server se znovu spustí se spuštěním výzkumu.
+  phone` i nastavení řeknou, že propojení je zapnuté a jeho server se znovu spustí se spuštěním výzkumu. Na iPhonu
+  zůstane list fotek při psaní osoby nebo poznámky nad klávesnicí a nabízené osoby na očích; server telefonu se spustí
+  jednou, i když ho spouští několik naráz.
 - **Opravy vlastních chyb stromu k rozhodnutí.** Když strom zjistí, že některá jeho dřívější verze ve výzkumu něco
   udělala špatně, `strom fixes` a Nastavení → Údržba → Opravy řeknou, o co jde, co se našlo a co by napravení udělalo,
   i jak je náročné; bez souhlasu se nestane nic a odmítnutí platí. První: slepá čtení ze zmenšeného snímku tam, kde
   byla ostřejší část — přečtou se znovu vedle starých, nejdřív na několika, nic se nepřepíše, rozdíl se stane úkolem.
-  Čtení se porovnají podle přečteného — jmen, dat a čísel přepisu, ne slov komentáře čtenáře — a úkol jednou větou
-  řekne, který údaj se liší. Druhá: po změně modelu nebo agenta pro čtení dřívější čtení, která stojí za nové přečtení
+  Čtení se porovnají podle přečteného — jmen, dat a čísel přepisu, ne slov komentáře čtenáře (i v němčině, kde má
+  velké písmeno každé podstatné jméno) — a úkol jednou větou řekne, který údaj se liší; kde jméno může jen začínat
+  větu, čtení se za shodná nevydávají. Když není co číst znovu, `strom fixes run` to řekne. Druhá: po změně modelu nebo agenta pro čtení dřívější čtení, která stojí za nové přečtení
   — s otevřenými místy, s neshodou čtenářů, s otevřeným rozporem, nepotvrzená u pramene; řečeno jako „četl model X,
   teď se čte modelem Y“, nabídnuto jednou na agenta a model, každé se přečte znovu tak, jak se četlo (snímky jednoho
   čtení spolu, zkouška i část vždy z celých čtení). Počítá se v čteních s jejich místy a náročnost ve voláních
@@ -40,6 +43,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   agent nebo model (`strom fixes run <id> --agent <a> --model <m>`), s tím, kdo četl dřív; ten, kdo tu číst nemůže, se
   odmítne hned i s těmi, kdo mohou. Čas napravení se zaokrouhluje nahoru a po zkoušce se přepočítá podle čtení, jak
   běžela souběžně.
+- **Velikosti tak, jak je píše jazyk výzkumu.** `strom pack`, odebrání rodokmenu i menu uvádějí velikost balíku,
+  zálohy nebo snímků jako všude jinde (1,5 MB, u malých 24 kB), nikdy „0.0 MB“.
 
 ## 1.18.0
 
@@ -99,7 +104,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   poznámky: výzkum si nechá svůj text. Místo nebo jiný údaj delší než řádek souboru GEDCOM (255 bajtů) už nezastaví
   jeho zápis a žádné emoji se nerozdělí tam, kde dlouhý řádek pokračuje. S `excerpts.for all` dostane v aplikaci Strom
   výřez i pramen, který zatím nikdo necituje, pokud se vedle citovaných vejde do limitu – citované se kvůli němu
-  nezmenší; co se nevešlo, se řekne.
+  nezmenší; co se nevešlo, se řekne. Aplikace Strom se dozví, které obrazy pramene výzkum má, ale soubor je vynechal,
+  a na vyžádání si je z výzkumu načte — pramen po prameni, nebo všechny najednou i s tím, kolik jich je a jak asi velké.
 
 ## 1.17.0
 

@@ -10,13 +10,12 @@ import { NeedsConsentError, UsageError } from "../core/errors.ts";
 import { findPack, freeRoot, INSTALL_UNIX, INSTALL_WINDOWS, packPlan, unpack, writePack } from "../core/pack.ts";
 import { desktopDir, userHome } from "../core/paths.ts";
 import { safeFolderName } from "../core/text.ts";
+import { mb } from "../core/tidy.ts";
 import { Tree } from "../core/tree.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import { setupWizard } from "../cli/wizard.ts";
 import { isAgent } from "../core/which.ts";
 import { ensureShared } from "./setup.ts";
-
-const mb = (bytes: number) => (bytes / 1e6 < 10 ? (bytes / 1e6).toFixed(1) : Math.round(bytes / 1e6).toString());
 
 /** Where a package goes unless named: the desktop (else the home), the tree's name and the day, a free name. */
 export function defaultPackFile(ctx: Context, tree: Tree): string {
@@ -64,15 +63,15 @@ register({
     if (ctx.dryRun) {
       const plan = packPlan(tree, shared, all);
       const bytes = plan.media.reduce((s, m) => s + m.size, 0);
-      return { text: `dry run: would pack "${tree.config.name}" with ${counted(plan.media.length, "image")} (${mb(bytes)} MB) into ${ctx.display(out)} — nothing written`, data: { out, plan } };
+      return { text: `dry run: would pack "${tree.config.name}" with ${counted(plan.media.length, "image")} (${mb(bytes)}) into ${ctx.display(out)} — nothing written`, data: { out, plan } };
     }
     const r = packTree(tree, shared, out, all);
     const took = r.plan.media.reduce((s, m) => s + m.size, 0);
     const text = lines(
-      ui(lang, "ui.pack.done", { name: tree.config.name, file: ctx.display(r.file), mb: mb(r.bytes) }),
+      ui(lang, "ui.pack.done", { name: tree.config.name, file: ctx.display(r.file), size: mb(r.bytes, lang) }),
       ui(lang, "ui.pack.saved"),
-      ui(lang, all ? "ui.pack.images.all" : "ui.pack.images", { n: r.plan.media.length, mb: mb(took) }),
-      r.plan.left.count ? ui(lang, "ui.pack.left", { n: r.plan.left.count, mb: mb(r.plan.left.bytes) }) : undefined,
+      ui(lang, all ? "ui.pack.images.all" : "ui.pack.images", { n: r.plan.media.length, size: mb(took, lang) }),
+      r.plan.left.count ? ui(lang, "ui.pack.left", { n: r.plan.left.count, size: mb(r.plan.left.bytes, lang) }) : undefined,
       r.plan.connectors.length ? ui(lang, "ui.pack.connectors", { list: r.plan.connectors.join(", ") }) : undefined,
       r.plan.left.count && r.plan.left.connectors ? ui(lang, "ui.pack.noconnector") : undefined,
       r.plan.missing.length ? ui(lang, "ui.pack.missing", { n: r.plan.missing.length }) : undefined,

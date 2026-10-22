@@ -154,6 +154,23 @@ test("strom fixes run: an agent, a run nobody watches and --yes never start the 
   }
 });
 
+test("strom fixes run: nothing found to read again — said so for anyone, before who reads or whose choice it is (exit 0)", opts, async () => {
+  const w = await world();
+  try {
+    for (const env of [{ STROM_NONINTERACTIVE: "1" }, { CLAUDECODE: "1" }, { STROM_NONINTERACTIVE: "1", STROM_AGENT: "unknown-agent" }] as Record<string, string>[]) {
+      for (const args of [["fixes", "run", "blind-reduced"], ["fixes", "run"]]) {
+        const r = await w.run([...args, "--lang", "en"], { env });
+        assert.equal(r.code, 0, `${JSON.stringify(env)} ${args.join(" ")}: ${r.out}${r.err}`);
+        assert.match(r.out, /Nothing waits/);
+      }
+    }
+    const json = await w.ok(["fixes", "run", "blind-reduced", "--json"], { env: { STROM_NONINTERACTIVE: "1" } });
+    assert.deepEqual(json.json.checks, [{ id: "blind-reduced", read: 0, tasks: [] }]);
+  } finally {
+    w.cleanup();
+  }
+});
+
 test("strom fixes run: a few first, their summary and the rest with the estimate again; the new readings beside the old, a task where they differ", opts, async () => {
   const w = await world();
   try {
@@ -294,6 +311,10 @@ test("estimateFix: cheap, medium, expensive by the earlier readers' cost here, e
     assert.equal(estimateFix(root, { agent: "claude", model: "opus", calls: 4, parallel: 2, perReading: 15 }).minutes, 1);
     assert.equal(estimateFix(root, { agent: "claude", model: "opus", calls: 1, parallel: 2, perReading: 89 }).minutes, 2, "89 s is not about 1 min");
     assert.equal(estimateFix(root, { agent: "codex", model: undefined, calls: 1, parallel: 1 }).minutes, 1, "60 s is 1 min");
+    assert.equal(estimateFix(root, { agent: "toString", model: undefined, calls: 1, parallel: 1 }).minutes, 1, "an agent named as an object's own key");
+    // a time no reader takes (a journal written by hand) never learned from
+    for (let i = 0; i < 3; i++) append(path.join(root, ".strom", "metrics", "readers.jsonl"), { reader: `read-y-${i}`, kind: "read", agent: "codex", model: "m", outcome: "ok", images: 1, wallMs: 1e308, at: new Date().toISOString() });
+    assert.equal(estimateFix(root, { agent: "codex", model: "m", calls: 1, parallel: 1 }).minutes, 1);
   } finally {
     w.cleanup();
   }
@@ -381,6 +402,25 @@ test("compareReadings: what was read held against each other — the same, refin
   assert.deepEqual(compareReadings([block(["Jan Novák, dům 12"])], [block(["Josef Novák, dům 12"])]).before, ["Jan"]);
   assert.deepEqual(compareReadings([block(["Jan, syn sedláka"])], [block(["Josef, syn sedláka"])]).before, ["Jan"]);
   assert.deepEqual(compareReadings([block(["getauft am 5. Mai von Hans Weber"])], [block(["getauft am 5. Juni von Hans Weber"])]).before, ["Mai"]);
+  // … a capital that begins a sentence where the other one has another between the same words: not sure, never the same
+  const swap = compareReadings([block(["Marie byla pokřtěna 1818"])], [block(["Anna byla pokřtěna 1818"])]);
+  assert.deepEqual([swap.result, swap.now], ["refined", ["Anna"]]);
+  assert.equal(r([block(["Marie byla pokřtěna 1818".normalize("NFD")])], [block(["Anna byla pokřtěna 1818"])]), "refined", "NFD");
+  assert.equal(r([block(["Мария крещена 1818"])], [block(["Анна крещена 1818"])]), "refined", "any script");
+  assert.equal(r([block(["Výřez ukazuje zápis: Jan Novak 1818"])], [block(["Záznam ukazuje zápis: Jan Novak 1818"])]), "refined", "the comment's own words, not sure");
+  assert.equal(r([block(["Marie byla pokřtěna 1818. Kmotrou byla Marie Dvořáková"])], [block(["Anna byla pokřtěna 1818. Kmotrou byla Marie Dvořáková"])]), "refined");
+  // … and a name for sure where the same word stands elsewhere as one
+  assert.deepEqual(compareReadings([block(["Josef byl pokřtěn 1818, otec Josef Novák"])], [block(["Jan byl pokřtěn 1818, otec Jan Novák"])]).before, ["Josef"]);
+  // German prose writes its nouns with a capital: a lone one is no name; names together, a month after a day and numbers are
+  const de = (a: string, b: string) => compareReadings([block([a])], [block([b])], "de");
+  assert.equal(de("Der Ausschnitt zeigt Jan Novak 1818", "Jan Novak 1818").result, "same");
+  assert.equal(de("Der Ausschnitt zeigt Jan Novák 1818".normalize("NFD"), "Die Aufnahme zeigt Jan Novák 1818").result, "same", "NFD, other nouns");
+  assert.deepEqual(de("Der Ausschnitt zeigt Jan Novak 1818", "Der Ausschnitt zeigt Josef Novak 1818").before, ["Jan"]);
+  assert.deepEqual(de("Getauft am 5. Mai 1818", "Getauft am 5. Juni 1818").before, ["Mai"]);
+  assert.deepEqual(de("Die Taufe am 5. Mai 1818", "Die Taufe am 5. Mai 1819").before, ["1818"]);
+  assert.equal(de("Getauft wurde Anna am 5. Mai", "Getauft wurde Marie am 5. Mai").result, "refined", "a lone name: not sure");
+  // without the language, as before
+  assert.equal(r([block(["Der Ausschnitt zeigt Jan Novak 1818"])], [block(["Jan Novak 1818"])]), "differ");
 });
 
 test("compareDocuments: the people and events each reader gave — the same, another surname or date, more read", () => {

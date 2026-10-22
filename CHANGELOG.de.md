@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.19.0
 
-*In Vorbereitung: die Betas bis 1.19.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.19.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Auf ein verstummtes Archiv wird gewartet, statt es immer wieder zu fragen.** Antwortet ein Archiv nicht mehr,
   lässt strom es eine Stunde in Ruhe — zwei, dann vier, wenn es am selben Tag still bleibt — und der Agent erfährt, bis
@@ -29,14 +29,18 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Lesung zweier Leser, bei der nur einer las, sagt das so — nie, dass sie übereinstimmen.
 - **Die Verbindung mit dem Telefon wartet auf die Forschung, nicht als Fehler genannt.** Bevor die Forschung nach dem
   Neustart des Computers startet, sagen `strom phone` und die Einstellungen, dass die Verbindung an ist und ihr Server
-  mit der Forschung wieder startet.
+  mit der Forschung wieder startet. Auf einem iPhone bleibt das Blatt der Fotos beim Tippen einer Person oder Notiz über
+  der Tastatur, die angebotenen Personen im Blick; der Server des Telefons startet einmal, auch wenn ihn mehrere
+  zugleich starten.
 - **Korrekturen eigener Fehler von strom zur Entscheidung.** Findet strom, dass eine frühere Version von ihm in einer
   Forschung etwas falsch gemacht hat, sagen `strom fixes` und Einstellungen → Wartung → Korrekturen, worum es geht,
   was gefunden wurde und was eine Behebung täte, auch wie aufwendig sie ist; ohne Ja geschieht nichts, ein Nein
   bleibt. Die erste: blinde Lesungen aus dem verkleinerten Scan, wo es einen schärferen Teil gab — neben den alten
   noch einmal gelesen, zuerst an einigen, nichts überschrieben, ein Unterschied wird zur Aufgabe. Verglichen wird, was
-  gelesen wurde — die Namen, Daten und Zahlen der Abschrift, nicht die Worte des Kommentars —, und die Aufgabe sagt in
-  einem Satz, welche Angabe abweicht. Die zweite: nach einem Wechsel des Lesemodells oder Agenten die früheren
+  gelesen wurde — die Namen, Daten und Zahlen der Abschrift, nicht die Worte des Kommentars (auch auf Deutsch, wo
+  jedes Substantiv groß geschrieben wird) —, und die Aufgabe sagt in einem Satz, welche Angabe abweicht; wo ein Name
+  nur einen Satz beginnen kann, gelten die Lesungen nicht als gleich. Gibt es nichts neu zu lesen, sagt `strom fixes
+  run` das. Die zweite: nach einem Wechsel des Lesemodells oder Agenten die früheren
   Lesungen, die ein neues Lesen lohnen — mit offenen Stellen, uneinigen Lesern, einem offenen Widerspruch, an der
   Quelle nicht bestätigt; gesagt als „gelesen von Modell X, jetzt liest Modell Y“, einmal je Agent und Modell gefragt,
   jede so neu gelesen, wie sie gelesen wurde (die Bilder einer Lesung zusammen, ein Versuch oder ein Teil immer aus
@@ -46,6 +50,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   bereiter Agent oder ein anderes Modell (`strom fixes run <id> --agent <a> --model <m>`), mit dem, der vorher las;
   einer, der hier nicht lesen kann, wird sofort abgelehnt, mit denen, die es können. Die Zeit einer Behebung wird
   aufgerundet und nach dem Versuch nach den nebeneinander gelaufenen Lesungen neu gemessen.
+- **Größen, wie die Sprache der Forschung sie schreibt.** `strom pack`, das Entfernen eines Stammbaums und das Menü
+  nennen die Größe eines Pakets, einer Sicherung oder der Bilder wie überall sonst (1,5 MB, bei kleinen 24 kB), nie
+  „0.0 MB“.
 
 ## 1.18.0
 
@@ -117,7 +124,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   GEDCOM-Datei (255 Bytes), hält das Schreiben der Datei nicht mehr auf, und kein Emoji wird dort geteilt, wo eine
   lange Zeile weitergeht. Mit `excerpts.for all` bekommt auch eine Quelle, die noch niemand zitiert, in der Strom-App
   ihren Ausschnitt, soweit er neben den zitierten unter die Grenze passt – die zitierten werden dafür nie kleiner; was
-  nicht passte, wird gesagt.
+  nicht passte, wird gesagt. Die Strom-App erfährt, welche Bilder einer Quelle die Forschung hat, ihre Datei aber
+  wegließ, und lädt sie bei Bedarf aus der Forschung — Quelle für Quelle oder alle auf einmal, mit Anzahl und etwa
+  ihrer Größe.
 
 ## 1.17.0
 

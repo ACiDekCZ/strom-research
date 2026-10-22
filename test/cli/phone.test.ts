@@ -7,9 +7,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { World, hasGit, until } from "../helpers.ts";
 import { decodeQr, svgModules, terminalModules } from "../qr-decode.ts";
+import { revivePhone, startPhone } from "../../src/core/phone.ts";
 
 type Info = { pid: number; url: string };
 type State = { state: string; addresses: { url: string; iface: string; kind: string | null }[]; phones: { id: string; name: string; stale: boolean }[]; error: { code: string } | null; since: string | null; platform: string; network: unknown; firewall: unknown; pair: unknown; lanSeenAt: string | null; addressChangedAt: string | null };
@@ -462,6 +464,67 @@ test("the computer started again: the phone's server gone is said as waiting, ne
       () => undefined,
     );
     assert.equal((await w.ok(["phone", "--json"])).json.state, "off");
+  } finally {
+    w.cleanup();
+  }
+});
+
+/** The phone's servers a process started (`parent`), seen at least once while watched for `ms`. */
+async function serversOf(parent: number, ms: number): Promise<Set<number>> {
+  const seen = new Set<number>();
+  for (const end = Date.now() + ms; Date.now() < end; ) {
+    const ps = spawnSync("ps", ["-ax", "-o", "pid=,ppid=,command="], { encoding: "utf8" }).stdout ?? "";
+    for (const line of ps.split("\n")) {
+      const m = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
+      if (m && Number(m[2]) === parent && /\bphone serve\b/.test(m[3]!)) seen.add(Number(m[1]));
+    }
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  return seen;
+}
+
+test("the phone's server started again by several at once (bridges, a strom just updated): one process, not one each", { skip }, async () => {
+  const w = new World();
+  try {
+    await w.ok(["setup", "--yes"]);
+    await w.ok(["phone", "on", "--json"], { dialog: true });
+    const first = run(w).pid;
+    // its server gone, the connection still on (the computer slept, a crash)
+    process.kill(first, "SIGTERM");
+    await until("the server ended", () => !alive(first), { ms: 10_000 });
+    assert.equal((await w.ok(["phone", "--json"])).json.state, "on");
+    // two bridges look in the same moment, before the new server has said itself
+    assert.equal(revivePhone(w.env), undefined);
+    assert.equal(revivePhone(w.env), undefined);
+    const started = await serversOf(process.pid, 3000);
+    assert.equal(started.size, 1, `servers started: ${[...started].join(", ")}`);
+    await until("the new server runs", () => run(w).pid === [...started][0] && !run(w).ended, { ms: 10_000 });
+    // and one asking later waits for that one, starts none
+    assert.equal(startPhone(w.env)?.pid, [...started][0]);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("strom phone serve, the first run of a newer strom: it is the server itself, it starts no second one beside it", { skip }, async () => {
+  const w = new World();
+  try {
+    await w.ok(["setup", "--yes"]);
+    await w.ok(["phone", "on", "--json"], { dialog: true });
+    const first = run(w).pid;
+    process.kill(first, "SIGTERM");
+    await until("the server ended", () => !alive(first), { ms: 10_000 });
+    // an older strom ran here last: this one's first run catches up (and starts what is on but gone)
+    const config = path.join(w.env.STROM_CONFIG_DIR!, "config.json");
+    fs.writeFileSync(config, JSON.stringify({ ...JSON.parse(fs.readFileSync(config, "utf8")), lastVersion: "0.0.1" }));
+    const serve = spawn(process.execPath, [path.resolve(import.meta.dirname, "..", "..", "src", "cli.ts"), "phone", "serve"], { cwd: w.dir, env: { ...w.env, STROM_LANG: "en" }, stdio: "ignore" });
+    try {
+      await until("the server runs", () => fs.existsSync(path.join(w.env.STROM_CONFIG_DIR!, "phone-run.json")) && run(w).pid === serve.pid && !run(w).ended, { ms: 15_000 });
+      const beside = await serversOf(serve.pid!, 2000);
+      assert.equal(beside.size, 0, `servers started beside it: ${[...beside].join(", ")}`);
+    } finally {
+      serve.kill("SIGTERM");
+    }
   } finally {
     w.cleanup();
   }

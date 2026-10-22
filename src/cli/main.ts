@@ -350,11 +350,13 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
         }
       }
       // …and the phone's server, when the connection is on (it starts again with this version by itself; one the
-      // installer ended to replace the program back)
-      try {
-        revivePhone(env);
-      } catch {
-        // its next bridge brings it back
+      // installer ended to replace the program back) — not by the server itself, which would start a second one beside it
+      if (def.path.join(" ") !== "phone serve") {
+        try {
+          revivePhone(env);
+        } catch {
+          // its next bridge brings it back
+        }
       }
     }
     // the folder of the program that runs with these settings (from a strom that ran here before it was kept, once):

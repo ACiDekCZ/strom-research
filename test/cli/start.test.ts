@@ -95,7 +95,7 @@ test("the menu: a person can always change their mind — the current choice sug
   assert.match((await w.ok(["status"])).out, /Novákovi/, "still the same tree");
   // handing it over from the menu: packed, then unpacked by someone else (a file dragged in)
   const p = await w.ok([], { tty: true, answers: ["6", "4", "1", "", "0"] });
-  assert.match(p.out, /Které snímky přibalit\?\n {3}1 {2}jen se zápisy – 0 MB[^\n]*\n {3}2 {2}všechny – 0 MB\n {3}0 /);
+  assert.match(p.out, /Které snímky přibalit\?\n {3}1 {2}jen se zápisy – \d+ kB[^\n]*\n {3}2 {2}všechny – \d+ kB\n {3}0 /);
   assert.match(p.out, /Zabaleno „Novákovi“: (.+\.zip) \(/);
   const zip = path.join(w.env.HOME!, /Zabaleno „Novákovi“: ~\/(.+\.zip) \(/.exec(p.out)![1]!);
   assert.ok(fs.existsSync(zip), zip);

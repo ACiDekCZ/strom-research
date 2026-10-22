@@ -17,7 +17,7 @@ import { mediaOrient } from "../core/views.ts";
 import { median, readJournal } from "../core/readstats.ts";
 import { metricsDir } from "../core/metrics.ts";
 import { runGit } from "../core/git.ts";
-import { READ_EXPECT_DEFAULT, READ_EXPECT_OTHERS } from "../core/live-read.ts";
+import { READER_MS_MAX, readExpectDefault } from "../core/live-read.ts";
 import { foldText } from "../core/text.ts";
 import type { Finding } from "../core/reader.ts";
 import { loadReadings, type Block, type Reading } from "./readings.ts";
@@ -644,7 +644,7 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
       const unclear = blocks.reduce((n, b) => n + Math.max(unclearOf(b), b.result === "unclear" ? 1 : 0), 0);
       // a blind reading that reads otherwise than the researcher's reading of the image before it
       const theirs = r.blind ? list.filter((x) => !x.r.blind && x.t <= t && x.r !== r).sort((a, b) => b.t - a.t)[0] : undefined;
-      const differ = !!theirs && compareReadings(theirs.blocks, blocks).result === "differ";
+      const differ = !!theirs && compareReadings(theirs.blocks, blocks, tree.lang).result === "differ";
       const reg = cropRegion(crop);
       const src = reg && !m.part ? sourcesOf(sources, media, m, shownToFile(reg, mediaOrient(env.shared, m))) : sources.filter((s) => (s.media ?? []).includes(id) || (s.clips ?? []).some((c) => c.media === id)).map((s) => s.id).sort();
       const reasons: Reason[] = [...(unclear ? ["unclear" as const] : []), ...(differ ? ["differ" as const] : []), ...(src.some((s) => conflicted.has(s)) ? ["conflict" as const] : [])];
@@ -848,7 +848,7 @@ function earlierReaders(root: string, agent: string, model: string | undefined):
     if (r.kind !== "read" || r.agent !== agent || (model && r.model !== model && r.reported !== model) || r.outcome !== "ok" || num(r.images) !== 1) continue;
     if (num(r.usd) !== undefined && !r.usdPartial) usd.push(num(r.usd)!);
     const ms = num(r.wallMs) ?? num(r.ms);
-    if (ms) secs.push(ms / 1000);
+    if (ms && ms > 0 && ms <= READER_MS_MAX) secs.push(ms / 1000);
   }
   return { usd, secs };
 }
@@ -868,7 +868,7 @@ export function estimateFix(root: string, o: { agent: string; model: string | un
   const e = earlierReaders(root, o.agent, o.model);
   const n = o.calls;
   const mUsd = e.usd.length >= EARLIER_MIN ? median(e.usd) : undefined;
-  const one = (e.secs.length >= EARLIER_MIN ? median(e.secs) : undefined) ?? READ_EXPECT_DEFAULT[o.agent] ?? READ_EXPECT_OTHERS;
+  const one = (e.secs.length >= EARLIER_MIN ? median(e.secs) : undefined) ?? readExpectDefault(o.agent);
   const secs = o.perReading !== undefined ? n * o.perReading : Math.ceil(n / Math.max(1, o.parallel)) * one;
   const minutes = Math.max(1, Math.ceil(secs / 60));
   if (mUsd !== undefined) {
@@ -891,13 +891,34 @@ export interface Comparison {
   now: string[];
 }
 
-/** What a reading read: its facts (names, numbers) by their folded key, as first written; all its words; how unclear. */
+/**
+ * What a reading read: its facts (names, numbers) by their folded key, as first written; all its words; how unclear.
+ * `maybe`: of a reader's own words (prose), each capital that may only begin a sentence or be a noun, with the words beside
+ * it (a name all the same where the word stands elsewhere as one: then in `facts` too).
+ */
 interface Read {
   facts: Map<string, string>;
   words: Set<string>;
   unclear: number;
   found: boolean;
+  maybe: Maybe[];
 }
+
+/** A capital of prose that may be a name: the word, its key, and the keys of the words before and after it ("" at an end). */
+interface Maybe {
+  word: string;
+  key: string;
+  prev: string;
+  next: string;
+}
+
+/**
+ * Languages whose prose writes every noun with a capital ("Der Ausschnitt zeigt …"): there a lone capital is no name for
+ * sure, and the little words that begin a sentence there (an article, a pronoun) never one.
+ */
+const NOUNS_CAPITALIZED: Record<string, Set<string>> = {
+  de: new Set("der die das dem den des ein eine einen einem einer eines im am vom zum zur beim ins es er sie wir ich man dies diese dieser dieses hier da dort auch und aber oder nur noch so wie was wo nach unter von mit bei auf in an".split(" ")),
+};
 
 // a reader's quotation marks: what it quotes of the record is its transcript, the rest its comment
 const QUOTED = /[„“”"«»「」『』]([^„“”"«»「」『』]*)[„“”"«»「」『』]/gu;
@@ -909,9 +930,11 @@ const wordKey = (w: string) => foldText(w).replace(/ſ/gu, "s").replace(/ʒ/gu, 
  * The facts of a transcript: the names (a word that begins with a capital, or any word of a script without capitals)
  * and the numbers; a word broken over a line ("Wac- / lawa", "In= / mann", "Wac|lawa") whole, the marks of doubt and an editor's
  * notes in brackets left out (a letter supplied in brackets, "Mi[cha]la", kept). Of a reader's own words (prose: nothing
- * quoted), a capital that only begins a sentence ("The crop shows …", "Výřez ukazuje …") is no name.
+ * quoted), a capital that only begins a sentence ("The crop shows …", "Výřez ukazuje …") is a name only where the same
+ * word stands elsewhere as one; in a language that writes its nouns with a capital (`lang`), so is a lone capital — two or
+ * more together ("Jan Novak") and a month after a day ("5. Mai") stay names. Such a word is kept as maybe one.
  */
-function readOf(text: string, unclear: number, found: boolean, prose = false): Read {
+function readOf(text: string, unclear: number, found: boolean, prose = false, lang = ""): Read {
   const clean = text
     .replace(/\[\?\]|\(\?\)/gu, "")
     .replace(/\[[^\]]*\s[^\]]*\]/gu, " ")
@@ -919,16 +942,31 @@ function readOf(text: string, unclear: number, found: boolean, prose = false): R
     .replace(/([\p{L}\p{M}])(?:[-=¬]\s*[/|]?\s*|\|)(?=[\p{L}\p{M}])/gu, "$1");
   const facts = new Map<string, string>();
   const words = new Set<string>();
-  for (const m of clean.matchAll(/[\p{L}\p{M}\p{N}]+/gu)) {
+  const tokens = [...clean.matchAll(/[\p{L}\p{M}\p{N}]+/gu)];
+  const little = prose ? NOUNS_CAPITALIZED[lang.toLowerCase().split(/[-_]/u)[0]!] : undefined;
+  const capital = (i: number) => /^\p{Lu}/u.test(tokens[i]?.[0] ?? "") && !/\p{N}/u.test(tokens[i]![0]) && !little?.has(wordKey(tokens[i]![0]));
+  // the word before a token within its sentence (a sentence's end or a line's in between: none)
+  const joined = (a: number, b: number) => a >= 0 && b < tokens.length && !/[.!?…:;\n]/u.test(clean.slice(tokens[a]!.index + tokens[a]![0].length, tokens[b]!.index).replace(/^\./u, (d) => (/\p{N}$/u.test(tokens[a]![0]) ? "" : d)));
+  const maybeAt: { word: string; key: string; at: number }[] = [];
+  tokens.forEach((m, i) => {
     const w = m[0];
     const k = wordKey(w);
     words.add(k);
     const digits = /\p{N}/u.test(w);
     const cased = /[\p{Lu}\p{Ll}]/u.test(w);
-    if (!digits && cased && prose && /^\p{Lu}/u.test(w) && opensSentence(clean, m.index, w.length)) continue;
+    if (!digits && cased && prose && /^\p{Lu}/u.test(w)) {
+      if (little?.has(k)) return;
+      const lone = little ? !(joined(i - 1, i) && capital(i - 1)) && !(joined(i, i + 1) && capital(i + 1)) && !(joined(i - 1, i) && /^\p{N}+$/u.test(tokens[i - 1]![0])) : opensSentence(clean, m.index, w.length);
+      if (lone) {
+        maybeAt.push({ word: w, key: k, at: i });
+        return;
+      }
+    }
     if (digits || (w.length > 1 && (!cased || /^\p{Lu}/u.test(w)))) if (!facts.has(k)) facts.set(k, w);
-  }
-  return { facts, words, unclear, found };
+  });
+  const near = (i: number) => (i >= 0 && i < tokens.length ? wordKey(tokens[i]![0]) : "");
+  const maybe = maybeAt.filter((x) => x.word.length > 1).map((x) => ({ word: x.word, key: x.key, prev: joined(x.at - 1, x.at) ? near(x.at - 1) : "", next: joined(x.at, x.at + 1) ? near(x.at + 1) : "" }));
+  return { facts, words, unclear, found, maybe };
 }
 
 /**
@@ -947,12 +985,12 @@ function opensSentence(text: string, at: number, length: number): boolean {
  * entries — never a line of possible readings with their chances or of letters with theirs (a "%" in it), nor how it
  * describes the hand or how sure it is (hand, certainty); what it could not read only counts as unclear.
  */
-function readOfBlocks(blocks: Finding[]): Read {
+function readOfBlocks(blocks: Finding[], lang?: string): Read {
   const lines = blocks.flatMap((b) => b.entries ?? []).filter((l) => !/%/u.test(l));
   const quoted = lines.flatMap((l) => [...l.matchAll(QUOTED)].map((m) => m[1]!));
   const unclear = blocks.reduce((n, x) => n + unclearOf(x), 0);
   const found = blocks.some((b) => b.result === "found");
-  return quoted.length ? readOf(quoted.join(" "), unclear, found) : readOf(lines.join("\n"), unclear, found, true);
+  return quoted.length ? readOf(quoted.join(" "), unclear, found) : readOf(lines.join("\n"), unclear, found, true, lang);
 }
 
 /** What a reading of a document read: the people's names and ages, the events' dates and places (the reader's own fields). */
@@ -962,17 +1000,19 @@ function readOfDocument(r: ReadResult): Read {
   // every word of its fields counts: a document's reader says what each one is
   const read = readOf(parts.filter(Boolean).join(" "), unclear, r.entries.length > 0);
   for (const w of read.words) if (!read.facts.has(w)) read.facts.set(w, w);
-  return read;
+  return { ...read, maybe: [] };
 }
 
 /**
  * The new reading of a place against the earlier one, by what each read — the names and numbers of its transcript:
  * the same (shoda); all the earlier one read with more beside it, fewer places unclear, or found where it was unclear
  * (upřesněno); something the earlier one read that the new one does not — another name, date, number or place (rozchod).
- * Nothing read: failed.
+ * Of a reader's own words, a capital that may only begin a sentence or be a noun in another place of the same sentence
+ * ("Marie byla …" against "Anna byla …"): not sure, so refined, never the same. Nothing read: failed. `lang`: the language
+ * the readers wrote their own words in (the research language).
  */
-export function compareReadings(before: Finding[], now: Finding[]): Comparison {
-  return now.length ? compareRead(readOfBlocks(before), readOfBlocks(now)) : { result: "failed", before: [], now: [] };
+export function compareReadings(before: Finding[], now: Finding[], lang?: string): Comparison {
+  return now.length ? compareRead(readOfBlocks(before, lang), readOfBlocks(now, lang)) : { result: "failed", before: [], now: [] };
 }
 
 /** A reading of a document again against the earlier one, as compareReadings (its people and events). */
@@ -985,8 +1025,11 @@ function compareRead(a: Read, b: Read): Comparison {
   const before = [...a.facts].filter(([k]) => !b.words.has(k)).map(([, w]) => w);
   const now = [...b.facts].filter(([k]) => !a.words.has(k)).map(([, w]) => w);
   if (before.length) return { result: "differ", before, now };
+  // a maybe-name of one where the other has another between the same words
+  const swapped = (x: Read, y: Read) => x.maybe.filter((m) => !x.facts.has(m.key) && !y.words.has(m.key) && y.maybe.some((o) => o.key !== m.key && o.prev === m.prev && o.next === m.next)).map((m) => m.word);
+  const maybeNow = swapped(b, a);
   const surer = b.unclear < a.unclear || (b.found && !a.found);
-  return { result: now.length || surer ? "refined" : "same", before, now };
+  return { result: now.length || maybeNow.length || surer ? "refined" : "same", before, now: [...now, ...maybeNow] };
 }
 
 // ── what waits ──────────────────────────────────────────────────────────────────────────────────────────────────

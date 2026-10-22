@@ -46,7 +46,7 @@ test("trees remove: a backup first, the name typed, the tree and the images only
   const gone = new Promise((done) => bridge.on("exit", done));
   // a name typed wrong takes nothing off
   const wrong = await w.ok(["trees", "remove", "Novákovi"], { answers: ["n", "a", "Svobodovi"] });
-  assert.match(wrong.out, /„Novákovi“ \(.*\) · osoby: 0[\s\S]*Nejdřív ho zabalit jako zálohu, se všemi snímky[\s\S]*snímky: 1, [\d.]+ MB[\s\S]*napsat název rodokmenu \(Novákovi\)[\s\S]*Nic se neodebralo/);
+  assert.match(wrong.out, /„Novákovi“ \(.*\) · osoby: 0[\s\S]*Nejdřív ho zabalit jako zálohu, se všemi snímky[\s\S]*snímky: 1, \d+ kB[\s\S]*napsat název rodokmenu \(Novákovi\)[\s\S]*Nic se neodebralo/);
   assert.ok(fs.existsSync(root));
   await w.ok(["init", "Dvořákovi"]);
   await w.ok(["trees", "use", "Novákovi"]);

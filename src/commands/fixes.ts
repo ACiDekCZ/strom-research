@@ -322,7 +322,7 @@ async function readAgain(ctx: Context, tree: Tree, t: T, items: FixItem[], model
       const m = byId.get(i.media);
       const now = reading && m ? blocksOf(tree, reading, m) : [];
       const before = m ? blocksOf(tree, i.reading, m) : [];
-      return { item: i, ...compared(compareReadings(before, now)), ...(reading ? { reading } : {}), secs, ...(error ? { error } : {}) };
+      return { item: i, ...compared(compareReadings(before, now, tree.lang)), ...(reading ? { reading } : {}), secs, ...(error ? { error } : {}) };
     });
   })).flat();
 }
@@ -624,12 +624,13 @@ register(
       if (ctx.yes) throw new UsageError("--yes never starts readings that cost: a person chooses at their terminal", { hint: set });
       // who reads, before anything is offered: the agent asked, or with nothing asked, any here
       if (typeof opts.model === "string" && !opts.model.trim()) throw new UsageError("--model names a model", { hint: `${set} --model <model>` });
-      if (ctx.settings.agent(tree.config).source === "flag" || typeof opts.model === "string" || !readyHere(ctx).length) requireReady(ctx, tree, set);
-      personOnly(ctx, t, "Read places of this research again (paid readings)?", set);
       const first = positive(opts.first, "first");
       const tryN = positive(opts.try, "try", FIX_TRY)!;
       const states = args[0] ? [stateOfCheck(ctx, tree, args[0])] : fixStates(tree, fixEnv(ctx, tree)).filter((s) => s.state === "pending");
-      if (!states.length) return { text: t("ui.fixes.none"), data: { checks: [] } };
+      // nothing to read again: said so, before who reads or whose choice it is
+      if (!states.some((s) => s.found.items.length)) return { text: t("ui.fixes.none"), data: { checks: states.map((s) => ({ id: s.check.id, read: 0, tasks: [] })) } };
+      if (ctx.settings.agent(tree.config).source === "flag" || typeof opts.model === "string" || !readyHere(ctx).length) requireReady(ctx, tree, set);
+      personOnly(ctx, t, "Read places of this research again (paid readings)?", set);
       const results: { id: string; decided?: string; read: number; tasks: string[] }[] = [];
       for (const s of states) {
         if (!s.found.items.length) {

@@ -352,6 +352,10 @@ function notReady(tree: Tree, settings: Settings, env: Env, seen: ReadingsSeen |
 /** A reading's seconds before any of this agent's readers ended here (measured 2026-10-20 and 21): Grok's take minutes. */
 export const READ_EXPECT_DEFAULT: Readonly<Record<string, number>> = { grok: 240 };
 export const READ_EXPECT_OTHERS = 60;
+/** The seconds a reading is expected to take with this agent before any of its readers ended here (any name: its own key only). */
+export const readExpectDefault = (agent: string): number => (Object.hasOwn(READ_EXPECT_DEFAULT, agent) ? READ_EXPECT_DEFAULT[agent]! : READ_EXPECT_OTHERS);
+/** A reader's time past this is no reader's (a journal written by hand, a clock gone wrong): never learned from. */
+export const READER_MS_MAX = DAY_MS;
 /** The readers of documents a reading's time is learned from: the last so many of the agent that read to an end. */
 const EXPECT_LAST = 9;
 const expectSeen = new Map<string, { key: string; secs: Map<string, number[]> }>();
@@ -371,7 +375,7 @@ function readerSecs(root: string, agent: string): number[] {
     const secs = new Map<string, number[]>();
     for (const r of readJournal(file)) {
       const ms = typeof r.wallMs === "number" ? r.wallMs : typeof r.ms === "number" ? r.ms : NaN;
-      if (r.kind !== "document" || r.outcome !== "ok" || typeof r.agent !== "string" || !(ms >= 0)) continue;
+      if (r.kind !== "document" || r.outcome !== "ok" || typeof r.agent !== "string" || !(ms >= 0 && ms <= READER_MS_MAX)) continue;
       secs.set(r.agent, [...(secs.get(r.agent) ?? []), ms / 1000].slice(-EXPECT_LAST));
     }
     had = { key, secs };
@@ -388,7 +392,7 @@ function readerSecs(root: string, agent: string): number[] {
 export function expectSecs(root: string, agent: string, rounds = 1): number {
   const secs = readerSecs(root, agent).sort((a, b) => a - b);
   const mid = secs.length >> 1;
-  const one = secs.length ? (secs.length % 2 ? secs[mid]! : (secs[mid - 1]! + secs[mid]!) / 2) : (READ_EXPECT_DEFAULT[agent] ?? READ_EXPECT_OTHERS);
+  const one = secs.length ? (secs.length % 2 ? secs[mid]! : (secs[mid - 1]! + secs[mid]!) / 2) : readExpectDefault(agent);
   return Math.max(1, Math.round(one * Math.max(1, rounds)));
 }
 

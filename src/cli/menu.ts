@@ -576,8 +576,8 @@ async function pickTree(ctx: Context, run: Run, lang: string): Promise<void> {
   if (i === packAt) {
     const tree = Tree.open(known[at]!.root, ctx.env);
     const shared = ctx.settings.shared()!.value;
-    const size = (all: boolean) => (packPlan(tree, shared, all).media.reduce((s, m) => s + m.size, 0) / 1e6).toFixed(0);
-    const which = await ctx.choose(ui(lang, "ui.pack.which"), [{ label: ui(lang, "ui.pack.opt.records", { mb: size(false) }) }, { label: ui(lang, "ui.pack.opt.all", { mb: size(true) }) }], 0, { back: ui(lang, "ui.browse.back") });
+    const size = (all: boolean) => mb(packPlan(tree, shared, all).media.reduce((s, m) => s + m.size, 0), lang);
+    const which = await ctx.choose(ui(lang, "ui.pack.which"), [{ label: ui(lang, "ui.pack.opt.records", { size: size(false) }) }, { label: ui(lang, "ui.pack.opt.all", { size: size(true) }) }], 0, { back: ui(lang, "ui.browse.back") });
     if (which === undefined) return;
     await run(["pack", "--tree", tree.root, ...(which === 1 ? ["--all-images"] : [])]);
     await partsPause(ctx, lang);

@@ -492,6 +492,8 @@ test("how long a reading is expected to take: the median of the agent's last rea
     assert.equal(expectSecs(root, "grok"), 240, "Grok's readers take minutes");
     assert.equal(expectSecs(root, "claude"), 60);
     assert.equal(expectSecs(root, "codex", 2), 120, "two rounds of readers");
+    assert.equal(expectSecs(root, "toString"), 60, "an agent named as an object's own key");
+    assert.equal(expectSecs(root, "__proto__"), 60);
     const metrics = path.join(root, ".strom", "metrics");
     fs.mkdirSync(metrics, { recursive: true });
     const line = (r: Record<string, unknown>) => JSON.stringify({ at: new Date().toISOString(), kind: "document", agent: "grok", outcome: "ok", ...r });
@@ -505,6 +507,9 @@ test("how long a reading is expected to take: the median of the agent's last rea
         line({ wallMs: 900_000, kind: "read" }),
         line({ wallMs: 5_000, agent: "claude" }),
         '{"kind":"document","agent":"grok"',
+        // nor a time no reader takes (a journal written by hand)
+        line({ wallMs: 1e308 }),
+        line({ wallMs: 1e308 }),
         line({ wallMs: 200_400 }),
       ].join("\n") + "\n",
     );

@@ -30,9 +30,11 @@ test("pack and unpack: the research handed over — the tree with its history, t
   await w.ok(["source", "add", "Křest Jana Nováka 1805", "--kind", "baptism", "--recordset", "B1", "--locator", "fol. 2", "--information", "primary", "--form", "original", "--clip", "B0001:2@0.05,0.40,0.45,0.18"]);
   const zip = path.join(w.dir, "balík.zip");
   const r = await w.ok(["pack", "--out", zip]);
-  assert.match(r.out, /Zabaleno „Novákovi“: .*balík\.zip/);
-  assert.match(r.out, /snímky: 1 \(/);
-  assert.match(r.out, /vynechané snímky: 2 \(/);
+  // the sizes as the research's language writes them, never "0.0 MB"
+  assert.match(r.out, /Zabaleno „Novákovi“: .*balík\.zip \(\d+(?:,\d)? (?:kB|MB)\)/);
+  assert.match(r.out, /snímky: 1 \(\d+ kB\)/);
+  assert.match(r.out, /vynechané: 2 snímky \(\d+ kB\)/);
+  assert.doesNotMatch(r.out, /\d\.\d MB/);
   assert.match(r.out, /konektory: zkusebni/);
   const names = readZip(zip).map((e) => e.name);
   for (const n of ["JAK-NAVAZAT.txt", "strom-pack.json", "Windows.cmd", "macOS.command", "Linux.sh", "Novákovi/strom.json", "Novákovi/.git/HEAD", "Novákovi/.git/refs/heads/", "shared/plugins/connectors/zkusebni/connector.json"])

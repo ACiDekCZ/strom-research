@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.19.0
 
-*In preparation: the betas up to 1.19.0-beta.6. The section is complete with the release.*
+*In preparation: the betas up to 1.19.0-beta.7. The section is complete with the release.*
 
 - **An archive that went silent is waited for, not asked again and again.** When an archive stops answering, strom
   leaves it alone for an hour — two, then four when it stays silent the same day — and the agent hears until when:
@@ -28,13 +28,16 @@ The changes of each version in short. The full notes and the install lines are o
   only one read says so, never that they agree.
 - **The phone connection waits for the research, not said as an error.** Before the research starts after the computer
   started again, `strom phone` and the settings say the connection is on and its server starts again with the research.
+  On an iPhone the sheet of photos stays above the keyboard while a person or a note is typed, the persons offered in
+  sight; the phone's server starts once, also when several start it at the same moment.
 - **Fixes of strom's own mistakes, offered to decide.** When strom finds that an earlier version of its own did
   something wrong in a research, `strom fixes` and Settings → Maintenance → Fixes say what it is about, what was found
   and what a remedy would do, with how demanding it is; nothing happens without a yes, and a no is kept. The first:
   blind readings made from the reduced scan where a sharper part existed — read again beside the old ones, first on a
   few, nothing overwritten, a difference becomes a task. Held against each other by what was read — the names, dates
-  and numbers of the transcript, not the words of the reader's comment — the task says in one sentence which of them
-  differs. The second: after the reading model or agent changed, the earlier readings worth reading again — with open
+  and numbers of the transcript, not the words of the reader's comment (in German too, where every noun has a
+  capital) — the task says in one sentence which of them differs; where a name may only begin a sentence, the readings
+  are not said to agree. With nothing to read again, `strom fixes run` says so. The second: after the reading model or agent changed, the earlier readings worth reading again — with open
   places, readers who disagreed, an open conflict, a reading not confirmed at the source; said as "read by model X,
   now read by model Y", asked once per agent and model, each read again as it was read (the images of one reading
   together, a trial or a part always of whole readings). Counted in readings with their places and what a remedy takes
@@ -43,6 +46,8 @@ The changes of each version in short. The full notes and the install lines are o
   ordering them. The remedy may be read by another agent or model ready here (`strom fixes run <id> --agent <a>
   --model <m>`), with which one read before said; one that cannot read here is refused at once, with those that can.
   The time of a remedy is rounded up and, after the trial, measured again by the readings as they ran side by side.
+- **Sizes as the research's language writes them.** `strom pack`, removing a family tree and the menu say how big a
+  package, a backup or the images are as everywhere else (1,5 MB in Czech, 24 kB for a small one), never "0.0 MB".
 
 ## 1.18.0
 
@@ -108,7 +113,8 @@ The changes of each version in short. The full notes and the install lines are o
   value longer than a line of the GEDCOM file (255 bytes) no longer stops the file from being written, and no emoji is
   split where a long line goes on. With `excerpts.for all` a source nobody cites yet gets its excerpt in the Strom app
   too, wherever it fits under the limit beside the cited ones, which never get smaller for it; what did not fit is
-  said.
+  said. The Strom app is told which images of a source the research has but its file left out, and loads them from
+  the research on demand — a source at a time, or all at once with how many and about how big.
 
 ## 1.17.0
 
