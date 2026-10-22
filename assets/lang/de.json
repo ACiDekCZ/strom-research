@@ -2656,6 +2656,8 @@
   "fix.model.why.differ": "Von {now} erneut gelesen (zuvor: {before}), wo etwas offen blieb, und die Lesungen weichen ab.",
   "fix.model.why.refined": "Von {now} erneut gelesen (zuvor: {before}), wo etwas offen blieb, und die neue Lesung liest mehr oder sicherer.",
   "fix.model.done": "beide Lesungen miteinander verglichen ({show} {old} · {show} {now}) und mit {sources}: was gilt, an der Quelle vermerkt, die Angaben darauf geprüft; nichts ohne Grund entfernt",
+  "fix.differs": "Abweichend: früher {before}, jetzt {now}.",
+  "fix.more": "Jetzt zusätzlich gelesen: {now}.",
   "fix.model.unknown": "ein nicht vermerktes Modell",
   "fix.model.own": "eigenes Modell"
 }

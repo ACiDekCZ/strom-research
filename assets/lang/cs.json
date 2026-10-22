@@ -2656,6 +2656,8 @@
   "fix.model.why.differ": "Přečteno znovu modelem {now} (dříve: {before}) tam, kde něco zůstalo otevřené, a čtení se liší.",
   "fix.model.why.refined": "Přečteno znovu modelem {now} (dříve: {before}) tam, kde něco zůstalo otevřené, a nové čtení přečetlo víc nebo jistěji.",
   "fix.model.done": "obě čtení porovnaná mezi sebou ({show} {old} · {show} {now}) a s {sources}: co platí, zapsané u pramene, údaje na něm ověřené; nic odebrané bez důvodu",
+  "fix.differs": "Liší se: dříve {before}, nově {now}.",
+  "fix.more": "Nově přečteno navíc: {now}.",
   "fix.model.unknown": "nezaznamenaný model",
   "fix.model.own": "vlastní model"
 }

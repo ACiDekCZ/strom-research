@@ -34,6 +34,7 @@ import {
   readBefore,
   stagesOf,
   type Compared,
+  type Comparison,
   type FixCheck,
   type FixEstimate,
   type FixItem,
@@ -260,11 +261,19 @@ function blocksOf(tree: Tree, stem: string, media: Media): Block[] {
 interface Reread {
   item: FixItem;
   result: Compared;
+  /** The facts each reading read that the other does not (differ, refined). */
+  differs?: Pick<Comparison, "before" | "now">;
   reading?: string;
   secs: number;
   task?: string;
   /** Why nothing was read, where strom read said. */
   error?: string;
+}
+
+/** A comparison as a reading again keeps it: its result, and what differs where something does. */
+function compared(c: Comparison | undefined): Pick<Reread, "result" | "differs"> {
+  if (!c) return { result: "failed" };
+  return { result: c.result, ...(c.before.length || c.now.length ? { differs: { before: c.before, now: c.now } } : {}) };
 }
 
 /** Each place read again, blind with the earlier question, from the sharper copy; the readings held against each other. */
@@ -295,7 +304,8 @@ async function readAgain(ctx: Context, tree: Tree, t: T, items: FixItem[], model
       }
       const before = loadDocResult(tree.root, item.reading);
       const secs = (Date.now() - began) / 1000;
-      return [{ item, result: before ? compareDocuments(before, now) : "failed", ...(now?.id ? { reading: now.id } : {}), secs, ...(error ? { error } : {}) }];
+      const c = before ? compareDocuments(before, now) : undefined;
+      return [{ item, ...compared(c), ...(now?.id ? { reading: now.id } : {}), secs, ...(error ? { error } : {}) }];
     }
     const opts: Record<string, string | boolean> = { question: item.question, ...(model ? { model } : {}), ...(item.crop ? { crop: item.crop } : {}), parallel: "1", ...(item.blind ? { blind: true } : {}), ...(item.context ? { context: item.context } : {}) };
     let reading: string | undefined;
@@ -312,7 +322,7 @@ async function readAgain(ctx: Context, tree: Tree, t: T, items: FixItem[], model
       const m = byId.get(i.media);
       const now = reading && m ? blocksOf(tree, reading, m) : [];
       const before = m ? blocksOf(tree, i.reading, m) : [];
-      return { item: i, result: compareReadings(before, now), ...(reading ? { reading } : {}), secs, ...(error ? { error } : {}) };
+      return { item: i, ...compared(compareReadings(before, now)), ...(reading ? { reading } : {}), secs, ...(error ? { error } : {}) };
     });
   })).flat();
 }
@@ -333,7 +343,7 @@ function tasksFor(tree: Tree, check: FixCheck, done: Reread[], now?: string): vo
         priority: d.result === "differ" ? 2 : 3,
         what: phrase(lang, `${p}.what`, { media: i.document ? i.document.files.join(", ") : i.media, old: i.reading, now: d.reading }),
         where: [...(i.document ? i.document.files : [i.media]), ...i.sources],
-        why: phrase(lang, `${p}.why.${d.result}`, { since: check.since, from: i.from ?? "", before: i.before ? label(i.before) : "", now: now ? label(now) : "" }),
+        why: [phrase(lang, `${p}.why.${d.result}`, { since: check.since, from: i.from ?? "", before: i.before ? label(i.before) : "", now: now ? label(now) : "" }), differsText(lang, d)].filter(Boolean).join(" "),
         doneWhen: phrase(lang, `${p}.done`, { old: i.reading, now: d.reading, sources: i.sources.join(", ") || i.media, show: i.document ? "strom document show" : "strom readings" }),
         subject: [...i.sources],
         state: "open",
@@ -343,6 +353,14 @@ function tasksFor(tree: Tree, check: FixCheck, done: Reread[], now?: string): vo
     );
     d.task = task.id;
   }
+}
+
+/** One sentence of what differs (the facts each read that the other does not), or what the new reading read beside. */
+function differsText(lang: string, d: Reread): string {
+  const list = (ws: string[]) => (ws.length ? ws.slice(0, 6).join(", ") + (ws.length > 6 ? ", …" : "") : "—");
+  if (!d.differs) return "";
+  if (d.result === "differ") return phrase(lang, "fix.differs", { before: list(d.differs.before), now: list(d.differs.now) });
+  return d.differs.now.length ? phrase(lang, "fix.more", { now: list(d.differs.now) }) : "";
 }
 
 /** `secs`: the real time the readings took, readers at once and all. Its places: the same, refined, different. */

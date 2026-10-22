@@ -143,6 +143,8 @@ export const BLIND_REDUCED_FIXED_AT = "2026-10-21T13:42:49Z";
 /** A view made for a reader this long before its reader began belongs to its reading. */
 const VIEW_BEFORE_MS = 30 * 60_000;
 const VIEW_AFTER_MS = 2 * 60_000;
+/** strom makes a reader's views before it begins it: of a reader whose own start is known, only those (ms rounding). */
+const VIEW_EXACT_MS = 100;
 /** Views of one reading are made within moments of each other. */
 const VIEW_CLUSTER_MS = 10_000;
 /** A later reading from a sharper copy that covers this much of a place has read it again. */
@@ -213,12 +215,23 @@ function blindReducedDetect(tree: Tree, env: FixEnv): FixFindings {
   // when each reading began (its readers, this computer)
   const began = new Map<string, number>();
   const capOf = new Map<string, number>();
+  // when the reader of each image of a reading began, and every reader's start of an image (any reading)
+  const beganImage = new Map<string, number>();
+  const startsOf = new Map<string, number[]>();
   for (const r of readJournal(path.join(metricsDir(tree.root), "readers.jsonl"))) {
     if (r.kind !== "read" || typeof r.reader !== "string" || typeof r.at !== "string") continue;
     const stem = r.reader.replace(/^read-/u, "").replace(/-\d+$/u, "");
     const t = Date.parse(r.at) - (num(r.wallMs) ?? num(r.ms) ?? 0);
     if (Number.isFinite(t) && t < (began.get(stem) ?? Infinity)) began.set(stem, t);
     if (num(r.cap)) capOf.set(stem, num(r.cap)!);
+    if (!Number.isFinite(t)) continue;
+    // the images it read (an older strom's record: those its reading is named after)
+    for (const id of Array.isArray(r.imageIds) ? r.imageIds : (stem.match(/M\d+/gu) ?? [])) {
+      if (typeof id !== "string") continue;
+      const k = `${stem}|${id}`;
+      if (t < (beganImage.get(k) ?? Infinity)) beganImage.set(k, t);
+      startsOf.set(id, [...(startsOf.get(id) ?? []), t]);
+    }
   }
   // the views made for readers (this computer): a crop, the image it is of, when
   const views = new Map<string, ViewRec[]>();
@@ -243,12 +256,22 @@ function blindReducedDetect(tree: Tree, env: FixEnv): FixFindings {
     const times = r.reports.map((n) => added!.get(n)).filter((t): t is number => t !== undefined);
     return times.length ? Math.min(...times) : undefined;
   };
-  /** The views of one reading of an image: those made last before its reader began, within moments of each other. */
-  const viewsOf = (key: string, t: number): ViewRec[] => {
-    const near = (views.get(key) ?? []).filter((v) => v.t >= t - VIEW_BEFORE_MS && v.t <= t + VIEW_AFTER_MS);
-    if (!near.length) return [];
+  /**
+   * The views of one reading of an image: those made last before its reader began, within moments of each other —
+   * never those of another reader of the same image (made before it began). Its reader's own start unknown here and
+   * views of more than one moment near: which it read is not sure (an estimate).
+   */
+  const viewsOf = (stem: string, key: string, t: number): { views: ViewRec[]; estimated: boolean } => {
+    const own = beganImage.get(`${stem}|${key}`);
+    const at = own ?? t;
+    const others = (startsOf.get(key) ?? []).filter((s) => s !== own);
+    const after = Math.min(at + (own !== undefined ? VIEW_EXACT_MS : VIEW_AFTER_MS), ...others.filter((s) => s > at));
+    const before = Math.max(at - VIEW_BEFORE_MS, ...others.filter((s) => s < at));
+    const near = (views.get(key) ?? []).filter((v) => v.t > before && v.t <= after);
+    if (!near.length) return { views: [], estimated: false };
     const last = Math.max(...near.map((v) => v.t));
-    return near.filter((v) => v.t >= last - VIEW_CLUSTER_MS);
+    const cluster = near.filter((v) => v.t >= last - VIEW_CLUSTER_MS);
+    return { views: cluster, estimated: own === undefined && cluster.length < near.length };
   };
   // places read again from a sharper copy since (a later reading): by whole image, fractions as the file lies
   const readSharper = new Map<string, { t: number; r: Region }[]>();
@@ -274,7 +297,7 @@ function blindReducedDetect(tree: Tree, env: FixEnv): FixFindings {
     for (const id of ids) {
       const m = byId.get(id);
       if (!m || m.retracted) continue;
-      const own = viewsOf(id, t);
+      const { views: own, estimated: unsure } = viewsOf(r.stem, id, t);
       if (m.part) {
         // a part read: the place in the whole image read sharper (when its views say where)
         if (m.recordset !== undefined && m.image !== undefined) {
@@ -295,7 +318,7 @@ function blindReducedDetect(tree: Tree, env: FixEnv): FixFindings {
         const x1 = Math.max(...own.map((v) => v.region.x + v.region.w));
         const y1 = Math.max(...own.map((v) => v.region.y + v.region.h));
         const v = own[0]!;
-        places = [{ file: shownToFile({ x: x0 / v.W, y: y0 / v.H, w: (x1 - x0) / v.W, h: (y1 - y0) / v.H }, v.orient), estimated: false }];
+        places = [{ file: shownToFile({ x: x0 / v.W, y: y0 / v.H, w: (x1 - x0) / v.W, h: (y1 - y0) / v.H }, v.orient), estimated: unsure }];
       } else if ((views.size === 0 || !views.has(id)) && r.blind && few && t < Date.parse(BLIND_REDUCED_FIXED_AT)) {
         // no record of its views here (another computer): the places of the sources' entries on the image, an estimate
         places = sources.flatMap((s) => (s.clips ?? []).filter((c) => c.media === id).map((c) => ({ file: c.region, estimated: true })));
@@ -621,7 +644,7 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
       const unclear = blocks.reduce((n, b) => n + Math.max(unclearOf(b), b.result === "unclear" ? 1 : 0), 0);
       // a blind reading that reads otherwise than the researcher's reading of the image before it
       const theirs = r.blind ? list.filter((x) => !x.r.blind && x.t <= t && x.r !== r).sort((a, b) => b.t - a.t)[0] : undefined;
-      const differ = !!theirs && compareReadings(theirs.blocks, blocks) === "differ";
+      const differ = !!theirs && compareReadings(theirs.blocks, blocks).result === "differ";
       const reg = cropRegion(crop);
       const src = reg && !m.part ? sourcesOf(sources, media, m, shownToFile(reg, mediaOrient(env.shared, m))) : sources.filter((s) => (s.media ?? []).includes(id) || (s.clips ?? []).some((c) => c.media === id)).map((s) => s.id).sort();
       const reasons: Reason[] = [...(unclear ? ["unclear" as const] : []), ...(differ ? ["differ" as const] : []), ...(src.some((s) => conflicted.has(s)) ? ["conflict" as const] : [])];
@@ -787,13 +810,16 @@ export function decide(tree: Tree, id: string, decision: FixDecision["decision"]
   );
 }
 
-/** Each check with what it found here and the decision about it. */
+/**
+ * Each check with what it found here and the decision about it. Set right holds for what was read again: what a check
+ * still finds after (never read again — a few first, or a place strom took wrongly then) waits again, it alone.
+ */
 export function fixStates(tree: Tree, env: FixEnv): FixState[] {
   return FIX_CHECKS.map((check) => {
     const found = check.detect(tree, env);
     const key = decisionKeyOf(tree, check, env);
     const decision = decisionOf(tree.config, key);
-    const state: FixStateName = decision ? decision.decision : found.items.length ? "pending" : "nothing";
+    const state: FixStateName = decision?.decision === "declined" ? "declined" : found.items.length ? "pending" : decision ? "fixed" : "nothing";
     return { check, key, found, ...(decision ? { decision } : {}), state };
   });
 }
@@ -856,40 +882,111 @@ export function estimateFix(root: string, o: { agent: string; model: string | un
 
 export type Compared = "same" | "refined" | "differ" | "failed";
 
-/** The words of a text, folded, without the marks of uncertainty. */
-function words(text: string): Set<string> {
-  return new Set(foldText(text.replace(/\[\?\]/gu, " ")).split(/[^\p{L}\p{M}\p{N}]+/u).filter((w) => w.length > 1));
+/** Two readings held against each other: the result, and the facts read that are not in the other one (as written). */
+export interface Comparison {
+  result: Compared;
+  /** What the earlier reading read that the new one does not. */
+  before: string[];
+  /** What the new reading read that the earlier one does not. */
+  now: string[];
 }
 
-/** A reader's entries as one text, and its uncertain places. */
-const readText = (blocks: Finding[]) => ({ text: blocks.map((b) => (b.entries?.length ? b.entries.join(" ") : b.text)).join(" "), unclear: blocks.reduce((n, x) => n + unclearOf(x), 0) });
+/** What a reading read: its facts (names, numbers) by their folded key, as first written; all its words; how unclear. */
+interface Read {
+  facts: Map<string, string>;
+  words: Set<string>;
+  unclear: number;
+  found: boolean;
+}
+
+// a reader's quotation marks: what it quotes of the record is its transcript, the rest its comment
+const QUOTED = /[„“”"«»「」『』]([^„“”"«»「」『』]*)[„“”"«»「」『』]/gu;
+
+/** A word as compared: folded, the long s and the ezh of old hands as the letters they are. */
+const wordKey = (w: string) => foldText(w).replace(/ſ/gu, "s").replace(/ʒ/gu, "z");
 
 /**
- * The new reading of a place against the earlier one: the same words (shoda), the same with fewer places unclear or
- * more read (upřesněno), or other words (rozchod) — nothing read: failed.
+ * The facts of a transcript: the names (a word that begins with a capital, or any word of a script without capitals)
+ * and the numbers; a word broken over a line ("Wac- / lawa", "In= / mann", "Wac|lawa") whole, the marks of doubt and an editor's
+ * notes in brackets left out (a letter supplied in brackets, "Mi[cha]la", kept). Of a reader's own words (prose: nothing
+ * quoted), a capital that only begins a sentence ("The crop shows …", "Výřez ukazuje …") is no name.
  */
-export function compareReadings(before: Finding[], now: Finding[]): Compared {
-  return now.length ? compareTexts(readText(before), readText(now)) : "failed";
+function readOf(text: string, unclear: number, found: boolean, prose = false): Read {
+  const clean = text
+    .replace(/\[\?\]|\(\?\)/gu, "")
+    .replace(/\[[^\]]*\s[^\]]*\]/gu, " ")
+    .replace(/[[\]]/gu, "")
+    .replace(/([\p{L}\p{M}])(?:[-=¬]\s*[/|]?\s*|\|)(?=[\p{L}\p{M}])/gu, "$1");
+  const facts = new Map<string, string>();
+  const words = new Set<string>();
+  for (const m of clean.matchAll(/[\p{L}\p{M}\p{N}]+/gu)) {
+    const w = m[0];
+    const k = wordKey(w);
+    words.add(k);
+    const digits = /\p{N}/u.test(w);
+    const cased = /[\p{Lu}\p{Ll}]/u.test(w);
+    if (!digits && cased && prose && /^\p{Lu}/u.test(w) && opensSentence(clean, m.index, w.length)) continue;
+    if (digits || (w.length > 1 && (!cased || /^\p{Lu}/u.test(w)))) if (!facts.has(k)) facts.set(k, w);
+  }
+  return { facts, words, unclear, found };
 }
 
-/** A reading of a document again against the earlier one, as compareReadings (its entries' transcripts). */
-export function compareDocuments(before: ReadResult, now: ReadResult | undefined): Compared {
-  if (!now || !now.entries.length) return "failed";
-  return compareTexts(docText(before), docText(now));
+/**
+ * A word that begins a sentence of prose: at a line's start or after a sentence's end (never after a number's dot, "5. Mai"),
+ * the next word of its sentence in small letters ("Jan Novak", "Jan, son of" stay names).
+ */
+function opensSentence(text: string, at: number, length: number): boolean {
+  let i = at - 1;
+  while (i >= 0 && /\s/u.test(text[i]!) && text[i] !== "\n") i--;
+  const start = i < 0 || text[i] === "\n" || (/[.!?…]/u.test(text[i]!) && i > 0 && !/\p{N}/u.test(text[i - 1]!));
+  return start && /^\s+\p{Ll}/u.test(text.slice(at + length));
 }
 
-function compareTexts(before: { text: string; unclear: number }, now: { text: string; unclear: number }): Compared {
-  const a = words(before.text);
-  const b = words(now.text);
-  const both = [...a].filter((w) => b.has(w)).length;
-  const all = new Set([...a, ...b]).size;
-  const alike = all ? both / all : 1;
-  const fewer = now.unclear < before.unclear;
-  // what the earlier reading had, the new one has too, with more beside it: read further
-  const more = a.size > 0 && both / a.size >= 0.85 && b.size > a.size;
-  if (alike >= 0.9) return fewer ? "refined" : "same";
-  if ((alike >= 0.6 && fewer) || more) return "refined";
-  return "differ";
+/**
+ * What a reader read of its blocks: the parts of its entries it quotes from the record (when it quotes any), else its
+ * entries — never a line of possible readings with their chances or of letters with theirs (a "%" in it), nor how it
+ * describes the hand or how sure it is (hand, certainty); what it could not read only counts as unclear.
+ */
+function readOfBlocks(blocks: Finding[]): Read {
+  const lines = blocks.flatMap((b) => b.entries ?? []).filter((l) => !/%/u.test(l));
+  const quoted = lines.flatMap((l) => [...l.matchAll(QUOTED)].map((m) => m[1]!));
+  const unclear = blocks.reduce((n, x) => n + unclearOf(x), 0);
+  const found = blocks.some((b) => b.result === "found");
+  return quoted.length ? readOf(quoted.join(" "), unclear, found) : readOf(lines.join("\n"), unclear, found, true);
+}
+
+/** What a reading of a document read: the people's names and ages, the events' dates and places (the reader's own fields). */
+function readOfDocument(r: ReadResult): Read {
+  const { unclear } = docText(r);
+  const parts = r.entries.flatMap((e) => [...e.persons.flatMap((p) => [p.given, p.surname, p.age]), ...e.events.flatMap((v) => [v.date?.gedcom ?? v.date?.text, v.place?.text])]);
+  // every word of its fields counts: a document's reader says what each one is
+  const read = readOf(parts.filter(Boolean).join(" "), unclear, r.entries.length > 0);
+  for (const w of read.words) if (!read.facts.has(w)) read.facts.set(w, w);
+  return read;
+}
+
+/**
+ * The new reading of a place against the earlier one, by what each read — the names and numbers of its transcript:
+ * the same (shoda); all the earlier one read with more beside it, fewer places unclear, or found where it was unclear
+ * (upřesněno); something the earlier one read that the new one does not — another name, date, number or place (rozchod).
+ * Nothing read: failed.
+ */
+export function compareReadings(before: Finding[], now: Finding[]): Comparison {
+  return now.length ? compareRead(readOfBlocks(before), readOfBlocks(now)) : { result: "failed", before: [], now: [] };
+}
+
+/** A reading of a document again against the earlier one, as compareReadings (its people and events). */
+export function compareDocuments(before: ReadResult, now: ReadResult | undefined): Comparison {
+  if (!now || !now.entries.length) return { result: "failed", before: [], now: [] };
+  return compareRead(readOfDocument(before), readOfDocument(now));
+}
+
+function compareRead(a: Read, b: Read): Comparison {
+  const before = [...a.facts].filter(([k]) => !b.words.has(k)).map(([, w]) => w);
+  const now = [...b.facts].filter(([k]) => !a.words.has(k)).map(([, w]) => w);
+  if (before.length) return { result: "differ", before, now };
+  const surer = b.unclear < a.unclear || (b.found && !a.found);
+  return { result: now.length || surer ? "refined" : "same", before, now };
 }
 
 // ── what waits ──────────────────────────────────────────────────────────────────────────────────────────────────

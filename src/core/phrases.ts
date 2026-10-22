@@ -122,6 +122,8 @@ export const PHRASES = {
   "fix.model.why.differ": "Read again by {now} (earlier: {before}) where something stayed open, and the readings differ.",
   "fix.model.why.refined": "Read again by {now} (earlier: {before}) where something stayed open, and the new reading reads more or is surer.",
   "fix.model.done": "both readings held against each other ({show} {old} · {show} {now}) and against {sources}: what holds kept on the source, the facts on it checked; nothing taken away without a reason",
+  "fix.differs": "What differs: earlier {before}, now {now}.",
+  "fix.more": "Read now beside the earlier: {now}.",
   "fix.model.unknown": "a model not recorded",
   "fix.model.own": "its own model",
   "batch.unnamed": "material from the Strom app",

@@ -10,8 +10,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { encodeImage } from "../../src/image/index.ts";
-import { compareReadings, estimateFix, headImages } from "../../src/commands/fixchecks.ts";
+import { compareDocuments, compareReadings, estimateFix, headImages } from "../../src/commands/fixchecks.ts";
 import type { Finding } from "../../src/core/reader.ts";
+import type { ReadResult } from "../../src/core/document.ts";
 import type { Media } from "../../src/core/model.ts";
 import { Tree } from "../../src/core/tree.ts";
 
@@ -181,6 +182,11 @@ test("strom fixes run: a few first, their summary and the rest with the estimate
     const fixTasks = tasks.tasks.filter((t: { what: string }) => /^Hold the two readings of M0001 against each other/.test(t.what));
     // the same words read again from the sharper copy: no task; other words, or more read: a task each
     assert.equal(fixTasks.length, 3, JSON.stringify(fixTasks.map((t: { what: string }) => t.what)));
+    // each says in one sentence what differs, or what the new one read beside
+    for (const { id } of fixTasks as { id: string }[]) {
+      const why = (JSON.parse(fs.readFileSync(path.join(w.cwd, "data", "tasks", `${id}.json`), "utf8")) as { why: string }).why;
+      assert.match(why, /(?:What differs: earlier .+, now .+|Read now beside the earlier: .+)\.$/u, why);
+    }
     assert.match(r.out, /^Tasks to hold the readings against each other: T0001, T0002$/m);
     assert.equal((await w.ok(["fixes", "--json"])).json.checks[0].state, "fixed");
     assert.equal(JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).fixes["blind-reduced"].decision, "fixed");
@@ -293,13 +299,98 @@ test("estimateFix: cheap, medium, expensive by the earlier readers' cost here, e
   }
 });
 
-test("compareReadings: the same words, refined (fewer uncertain places or more read), other words, nothing read", () => {
-  const block = (entries: string[], illegible?: string[]): Finding => ({ image: "M0001", result: "found", text: entries.join("\n"), entries, ...(illegible ? { illegible } : {}) });
-  assert.equal(compareReadings([block(["Jan Novák, dům 12"])], [block(["Jan Novák, dům 12"])]), "same");
-  assert.equal(compareReadings([block(["Jan NOVÁK, dům 12"])], [block(["Jan Novák, dům 12"])]), "same", "case, NFD");
-  assert.equal(compareReadings([block(["Jan Novák [?], dům 12"])], [block(["Jan Novák, dům 12"])]), "refined");
-  assert.equal(compareReadings([block(["Jan Novák"])], [block(["Jan Novák, Marie Dvořáková, dům 12, 1822"])]), "refined");
-  assert.equal(compareReadings([block(["Иван Петров"])], [block(["Иван Петров"])]), "same", "any script");
-  assert.equal(compareReadings([block(["Jan Novák, dům 12"])], [block(["Václav Černý, dům 40"])]), "differ");
-  assert.equal(compareReadings([block(["Jan Novák"])], []), "failed");
+test("strom fixes: two readings of one image moments apart — each its own crop, never the later one's", opts, async () => {
+  const w = await world();
+  try {
+    // the second began 56 s after the first: its view made then, both within the sharper part
+    const first = oldReading(w, 1, [0.05, 0.5, 0.2, 0.08], "Jan Novák [?]", 30);
+    const second = oldReading(w, 2, [0.05, 0.6, 0.2, 0.08], "Josef Dvořák [?]", 30 - 56 / 60);
+    const { json } = await w.ok(["fixes", "show", "blind-reduced", "--json"]);
+    const crop = (stem: string) => json.items.find((i: { reading: string }) => i.reading === stem)?.crop;
+    assert.equal(crop(first), "0.0498,0.5004,0.2002,0.0796");
+    assert.equal(crop(second), "0.0498,0.6003,0.2002,0.0796");
+    assert.equal(json.found.estimated, 0);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("strom fixes: set right holds for what was read again — a place found only after waits again, it alone", opts, async () => {
+  const w = await world();
+  try {
+    const done = oldReading(w, 1, [0.05, 0.5, 0.2, 0.15], "Jan Novák [?]", 50);
+    w.env.STROM_RUNNER_SCRIPT = path.join(w.dir, "reader.mjs");
+    fs.writeFileSync(w.env.STROM_RUNNER_SCRIPT, READER);
+    await w.ok(["fixes", "run", "blind-reduced", "--agent", "script", "--lang", "en"], { tty: true, answers: ["1"] });
+    assert.equal((await w.ok(["fixes", "--json"])).json.checks[0].state, "fixed");
+    // a place strom took wrongly then (another reading's crop): found now, never read again
+    const left = oldReading(w, 2, [0.1, 0.6, 0.2, 0.1], "Anna Svobodová [?]", 40);
+    const c = (await w.ok(["fixes", "--json"])).json.checks[0];
+    assert.equal(c.state, "pending");
+    assert.deepEqual(c.items.map((i: { reading: string }) => i.reading), [left]);
+    const before = fs.readdirSync(path.join(w.cwd, "notes", "readings")).length;
+    const r = await w.ok(["fixes", "run", "blind-reduced", "--agent", "script", "--lang", "en"], { tty: true, answers: ["1"] });
+    assert.match(r.out, /^Read again: 1 reading \(1 place\)/m, "the one left alone, never the one read again");
+    assert.equal(fs.readdirSync(path.join(w.cwd, "notes", "readings")).length, before + 1);
+    assert.ok(!r.out.includes(done));
+    assert.equal((await w.ok(["fixes", "--json"])).json.checks[0].state, "fixed");
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("compareReadings: what was read held against each other — the same, refined (fewer uncertain places, more read, found), another fact, nothing read", () => {
+  const block = (entries: string[], o: { illegible?: string[]; result?: Finding["result"]; hand?: string[]; certainty?: string[] } = {}): Finding => ({ image: "M0001", result: o.result ?? "found", text: entries.join("\n"), entries, ...o });
+  const r = (a: Finding[], b: Finding[]) => compareReadings(a, b).result;
+  assert.equal(r([block(["Jan Novák, dům 12"])], [block(["Jan Novák, dům 12"])]), "same");
+  assert.equal(r([block(["Jan NOVÁK, dům 12"])], [block(["Jan Novák, dům 12".normalize("NFD")])]), "same", "case, NFD");
+  assert.equal(r([block(["Jan Novák [?], dům 12"])], [block(["Jan Novák, dům 12"])]), "refined");
+  assert.equal(r([block(["Jan Novák"])], [block(["Jan Novák, Marie Dvořáková, dům 12, 1822"])]), "refined");
+  assert.equal(r([block(["Иван Петров"])], [block(["Иван Петров"])]), "same", "any script");
+  assert.equal(r([block(["Jan Novák, dům 12"])], [block(["Václav Černý, dům 40"])]), "differ");
+  assert.equal(compareReadings([block(["Jan Novák"])], []).result, "failed");
+  // the reader's comment in other words, the same transcript: the same (the words of the comment never count)
+  const before = block([
+    "zápis č. 3 (výřez, jediný zápis): „Jozef Wondra z Lipowic, ſyn Wac-|lawa Wondry, 1818“",
+    "  místo za „z“ po písmenech: velké L se smyčkou, pak krátké dříky",
+    "  možná čtení: Lipowic ~60 %; Lupowic ~30 %",
+  ], { hand: ["hnědý inkoust, kurent"], certainty: ["Jozef 95 %; Lipowic 60 %"] });
+  const same = block([
+    "jediný celý zápis ve výřezu, sloupec jmen – po řádcích, jak je psáno:",
+    "  ř. 1: „Jozef Wondra z Lipowic, syn Wac-“",
+    "  ř. 2: „lawa Wondry, 1818“ (konec řádku vybledlý, čte se ale celý)",
+    "  písmena obce: L 90 %, i 80 %, p 85 %",
+  ], { hand: ["černý inkoust, německý kurent, dvojtečky jako oddělovače"], certainty: ["Jozef 90 %; Lipowic 85 %"] });
+  assert.equal(r([before], [same]), "same", "the comment, the hand and the certainty in other words");
+  // another year or village: differ, and what differs said
+  const year = compareReadings([before], [block(["„Jozef Wondra z Lipowic, ſyn Waclawa Wondry, 1819“"])]);
+  assert.equal(year.result, "differ");
+  assert.deepEqual([year.before, year.now], [["1818"], ["1819"]]);
+  const place = compareReadings([before], [block(["„Jozef Wondra z Lupowic, ſyn Waclawa Wondry, 1818“"])]);
+  assert.deepEqual([place.result, place.before, place.now], ["differ", ["Lipowic"], ["Lupowic"]]);
+  // the new one reads more of the entry: refined, what it reads beside said
+  const more = compareReadings([before], [block(["„Jozef Wondra z Lipowic, ſyn Waclawa Wondry, 1818, dům 7, Marie Hanzlowa“"])]);
+  assert.deepEqual([more.result, more.before, more.now], ["refined", [], ["7", "Marie", "Hanzlowa"]]);
+  // the same facts, unclear before and found now: refined
+  assert.equal(r([block(["„Magda Wondrowa“"], { result: "unclear", illegible: ["konec slova"] })], [block(["„Magda Wondrowa“"], { illegible: ["konec slova"] })]), "refined");
+  // nothing quoted: the capital that only begins a sentence of the reader's own words is no name
+  assert.equal(r([block(["Výřez ukazuje zápis: Jan Novak 1818"])], [block(["Jan Novak 1818"])]), "same");
+  assert.equal(r([block(["Výřez ukazuje zápis: Jan Novák 1818".normalize("NFD")])], [block(["Jan Novák 1818"])]), "same", "NFD");
+  assert.equal(r([block(["Видно запись: Иван Петров. Почерк ровный"])], [block(["Иван Петров"])]), "same", "any script");
+  // … a name at a line's start still one ("Jan Novák", "Jan, son of"), and so a month after a day's dot
+  assert.deepEqual(compareReadings([block(["Jan Novák, dům 12"])], [block(["Josef Novák, dům 12"])]).before, ["Jan"]);
+  assert.deepEqual(compareReadings([block(["Jan, syn sedláka"])], [block(["Josef, syn sedláka"])]).before, ["Jan"]);
+  assert.deepEqual(compareReadings([block(["getauft am 5. Mai von Hans Weber"])], [block(["getauft am 5. Juni von Hans Weber"])]).before, ["Mai"]);
+});
+
+test("compareDocuments: the people and events each reader gave — the same, another surname or date, more read", () => {
+  const doc = (persons: { given?: string; surname?: string }[], date: string, place: string): ReadResult =>
+    ({ id: "D0001", state: "read", checks: [], entries: [{ id: "e1", page: 1, transcript: "(the reader's own words)", persons: persons.map((p, i) => ({ ref: `p${i}`, role: "other", written: "", ...p })), events: [{ type: "birth", date: { text: date }, place: { text: place }, persons: [] }], relations: [] }] }) as unknown as ReadResult;
+  const a = doc([{ given: "Jan", surname: "Wondra" }], "1818", "Lipowice");
+  assert.equal(compareDocuments(a, doc([{ given: "Jan", surname: "Wondra" }], "1818", "Lipowice")).result, "same");
+  const other = compareDocuments(a, doc([{ given: "Jan", surname: "Wondrák" }], "1818", "Lipowice"));
+  assert.deepEqual([other.result, other.before, other.now], ["differ", ["Wondra"], ["Wondrák"]]);
+  assert.equal(compareDocuments(a, doc([{ given: "Jan", surname: "Wondra" }], "1819", "Lipowice")).result, "differ", "another year");
+  assert.equal(compareDocuments(a, doc([{ given: "Jan", surname: "Wondra" }, { given: "Marie" }], "1818", "Lipowice")).result, "refined");
+  assert.equal(compareDocuments(a, undefined).result, "failed");
 });
