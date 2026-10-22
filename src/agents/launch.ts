@@ -17,7 +17,9 @@
 //
 // Claude Code always gets the tree's allow and deny lists (--settings); Codex
 // works in its sandbox on the tree folder with its .git (strom commits) and the
-// shared folder writable and the network on (strom fetches).
+// shared folder writable and the network on (strom fetches) — and strom itself
+// runs outside it by the tree's rules (.codex/rules/strom.rules): on Windows its
+// sandbox keeps .git closed though it is named writable.
 
 import { claudeArgs } from "../runners/claude.ts";
 import { codexTrust, codexWritable } from "../runners/codex.ts";

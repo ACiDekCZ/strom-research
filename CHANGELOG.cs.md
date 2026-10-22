@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.19.0
 
-*Připravuje se: bety do 1.19.0-beta.7. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.19.0-beta.8. Oddíl bude úplný s vydáním.*
 
 - **Na archiv, který zmlkl, se čeká, místo opakovaných dotazů.** Když archiv přestane odpovídat, strom ho nechá na
   pokoji hodinu — a když týž den mlčí dál, dvě a pak čtyři hodiny — a agent se dozví, do kdy: mezitím dělá
@@ -16,7 +16,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **První úklid staršího výzkumu se jednou nabídne.** Výzkum, u kterého se nastřádalo hodně dat dřív, než si v tom
   strom začal sám dělat pořádek (záznamy práce, náhledy snímků a podobně), dostane v menu jednu nabídku: co by se
   smazalo, kolik a proč — bez souhlasu nic. Po souhlasu se v tom pak udržuje pořádek samo; po odmítnutí menu a
-  nastavení dál říkají, co jde uvolnit.
+  nastavení dál říkají, co jde uvolnit. `strom pack`, odebrání rodokmenu i menu uvádějí velikost balíku, zálohy nebo
+  snímků jako všude jinde (1,5 MB, u malých 24 kB), nikdy „0.0 MB“.
 - **Digitální knihovny napoprvé správně.** U Krameria Národní knihovny ČR a Moravské zemské knihovny a u ANNO
   Rakouské národní knihovny dostane agent jejich vlastní vyhledávací adresy — méně neúspěšných dotazů a hádání.
 - **Ostřejší část snímku se opravdu čte.** Když z archivu přišla část snímku v lepším rozlišení, agent i jeho čtenáři
@@ -43,8 +44,21 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   agent nebo model (`strom fixes run <id> --agent <a> --model <m>`), s tím, kdo četl dřív; ten, kdo tu číst nemůže, se
   odmítne hned i s těmi, kdo mohou. Čas napravení se zaokrouhluje nahoru a po zkoušce se přepočítá podle čtení, jak
   běžela souběžně.
-- **Velikosti tak, jak je píše jazyk výzkumu.** `strom pack`, odebrání rodokmenu i menu uvádějí velikost balíku,
-  zálohy nebo snímků jako všude jinde (1,5 MB, u malých 24 kB), nikdy „0.0 MB“.
+- **Rodokmen, do kterého strom nesmí zapisovat, řekne proč.** strom zapíše do složky výzkumu pravidla pro Codex:
+  příkaz strom spuštěný samotný jde mimo sandbox Codexu — i na Windows, kde sandbox držel historii výzkumu zavřenou
+  a nic jiného nepustil — a co rozhoduje člověk a samotný git zůstává zakázané. Když zápisu do složky rodokmenu
+  sandbox agenta přesto brání, strom to řekne a agentovi poradí, co dělat podle toho, jak běží — spouštět strom
+  samotný, spustit Codex ve složce výzkumu, které důvěřuje, nebo nechat příkaz schválit mimo sandbox — místo holého
+  „chybí oprávnění“, které agent převyprávěl jako „nemám přístup k rodokmenu“. Kde agent nenechá žádnou svou značku,
+  pozná ho strom podle vlastní značky u agentů, které spouští, nebo podle programů, které ho spustily, a jako
+  pravděpodobnou příčinu jmenuje jeho sandbox, potom OneDrive nebo řízený přístup ke složkám ve Windows. Odmítnutý
+  zápis do historie se už nehlásí jako chybějící oprávnění k samotnému gitu a záloha nebo aktualizace, kterou nešlo
+  zapsat, žádá složku, do které lze zapisovat, a už neradí uvolnit místo na disku. `strom doctor` a `strom check`
+  zápis do výzkumu zkusí a řeknou, když nejde, i tam, kde složku nejde ani vypsat. Na disku bez pevných odkazů
+  (síťové úložiště, disk přesměrovaný přes Vzdálenou plochu) strom zase zapisuje, zámek jde jinou cestou, a zámek,
+  který pomalý disk ještě neukáže, už se po chvilce nepřebírá; rodokmen, který tam nejde založit, po sobě nic nenechá
+  a řekne to v jazyce výzkumu. Po instalaci přes npm na Windows spustí strom příkaz `strom.cmd` i tam, kde PowerShell
+  skripty odmítá.
 
 ## 1.18.0
 

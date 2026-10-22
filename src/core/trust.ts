@@ -45,7 +45,7 @@ export interface SettingsTrust {
 }
 
 /** The programs of the agents strom knows (and those it does not drive but sees), as their processes are named. */
-const AGENT_PROCESS = /(?:^|[\\/\s])(claude|codex|opencode|grok|agy|antigravity|gemini|cursor-agent)(?:\.exe|\.js|\.mjs|\.cjs)?(?=\s|$)/i;
+const AGENT_PROCESS = /(?:^|[\\/\s])(claude|codex(?:-windows-sandbox(?:-setup)?|-command-runner)?|opencode|grok|agy|antigravity|gemini|cursor-agent)(?:\.exe|\.js|\.mjs|\.cjs)?(?=\s|$)/i;
 
 /** A process table's line: its id, its parent's, its command. */
 export interface ProcessRow {
@@ -62,11 +62,17 @@ export function agentAmong(rows: ProcessRow[], from: number): string | undefined
     const r = byPid.get(pid);
     if (!r) return undefined;
     const m = AGENT_PROCESS.exec(r.command);
-    if (m) return m[1]!.toLowerCase();
+    if (m) return agentOfProcess(m[1]!);
     if (r.ppid === pid) return undefined;
     pid = r.ppid;
   }
   return undefined;
+}
+
+/** The agent a process of it is (its sandbox's helper on Windows is Codex, agy is Antigravity). */
+function agentOfProcess(name: string): string {
+  const n = name.toLowerCase();
+  return n.startsWith("codex") ? "codex" : n === "agy" ? "antigravity" : n === "cursor-agent" ? "cursor" : n;
 }
 
 /** POSIX `ps -A -o pid= -o ppid= -o args=` read into rows. */
@@ -92,7 +98,7 @@ export function parseCim(text: string): ProcessRow[] {
   return out;
 }
 
-let ancestry: { agent?: string } | undefined;
+let ancestry: { agent?: string; unread?: boolean } | undefined;
 
 /** For tests in this process: forget what was read of the parent processes. */
 export function forgetAncestry(): void {
@@ -101,11 +107,11 @@ export function forgetAncestry(): void {
 
 /**
  * An agent among strom's parent processes (its name): read once per process — POSIX one `ps`, Windows one CIM query.
- * STROM_TEST_ANCESTRY (the sources only): the names standing for them ("" none).
+ * STROM_TEST_ANCESTRY (the sources only): the names standing for them ("" none, "!" the table unreadable).
  */
 export function agentInAncestry(env: Env, inst: Installation = installation(), platform: NodeJS.Platform = process.platform): string | undefined {
   if (inst.kind === "source") {
-    if (env.STROM_TEST_ANCESTRY === undefined) return undefined;
+    if (env.STROM_TEST_ANCESTRY === undefined || env.STROM_TEST_ANCESTRY === "!") return undefined;
     return agentAmong(
       env.STROM_TEST_ANCESTRY.split(",").filter(Boolean).map((command, i, all) => ({ pid: 100 + i, ppid: i + 1 < all.length ? 101 + i : 1, command })),
       100,
@@ -125,8 +131,17 @@ export function agentInAncestry(env: Env, inst: Installation = installation(), p
     rows = [];
   }
   const agent = agentAmong(rows, process.ppid);
-  ancestry = agent ? { agent } : {};
+  ancestry = agent ? { agent } : { unread: !rows.length };
   return agent;
+}
+
+/**
+ * The process table could not be read at all (after agentInAncestry): measured 2026-10-22, inside Codex's sandbox on
+ * macOS and Windows reading it fails — a sign of a sandbox, not a certainty. STROM_TEST_ANCESTRY "!" (the sources only).
+ */
+export function ancestryUnread(env: Env, inst: Installation = installation()): boolean {
+  if (inst.kind === "source") return env.STROM_TEST_ANCESTRY === "!";
+  return ancestry?.unread === true;
 }
 
 /** The person's real home (never $HOME, which an agent may set). STROM_TEST_REAL_HOME (the sources only) for a test. */

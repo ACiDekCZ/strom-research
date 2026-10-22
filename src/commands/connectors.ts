@@ -991,6 +991,7 @@ register(
     args: [{ name: "source", description: "folder or git URL", required: true }],
     options: [{ name: "name", type: "string", value: "<name>", description: "its name here, when the folder's is not one (lowercase, digits, dashes)" }],
     examples: ["strom connector add ~/Downloads/example-archive", "strom connector add https://github.com/someone/strom-connector-example.git --name example-archive"],
+    person: "Installing a plugin is the user's own, in their terminal",
     run: async (ctx, { args, opts }) => {
       const source = args[0]!;
       ctx.requireHuman(`Install and allow the connector from ${source}?`, `strom connector add ${shellArg(source)}`, "connector", undefined, { window: false });
@@ -1039,6 +1040,7 @@ register(
     group: "sources",
     args: [{ name: "connector", description: "its name", required: true }],
     examples: ["strom connector remove example-archive"],
+    person: "Removing a plugin is the user's own, in their terminal",
     run: async (ctx, { args }) => {
       const name = args[0]!;
       ctx.requireHuman(`Remove connector ${name}?`, `strom connector remove ${name}`, "connector", undefined, { window: false });
@@ -1641,6 +1643,7 @@ register(
     args: [{ name: "connector", description: "its name" }],
     options: [{ name: "remove", type: "boolean", description: "forget the login" }],
     examples: ["strom login example-archive", "strom login example-archive --remove", "strom login"],
+    person: "A login to an archive is the user's own, in their terminal",
     run: async (ctx, { args, opts }) => {
       const saved = loadLogins(ctx.env);
       if (!args[0]) {

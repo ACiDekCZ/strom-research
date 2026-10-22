@@ -103,6 +103,11 @@ export interface CommandDef {
   lock?: "command" | "sections";
   /** Needs a tree to work on. */
   tree?: boolean;
+  /**
+   * The user's own, in their terminal: an agent never runs it, whatever options come before it (strom --json seal
+   * adopt) — refused before anything is read or written (cli/main.ts). The question, for the agent.
+   */
+  person?: string;
   /** Takes arguments after "--" and passes them on (to the agent CLI). */
   passthrough?: boolean;
   run(ctx: Context, input: Input): Promise<Result> | Result;
@@ -223,6 +228,8 @@ export function describe(def: CommandDef, appUrl: ShownAppUrl): Record<string, u
   if (description) out.description = description;
   if (def.writes) out.writes = true;
   if (def.tree) out.needsTree = true;
+  // the user's own, in their terminal: refused to an agent
+  if (def.person) out.userOnly = true;
   if (def.aliases?.length) out.aliases = def.aliases.map((a) => a.join(" "));
   if (def.args?.length) out.args = def.args;
   const opts = [...(def.options ?? []), ...(def.writes ? WRITE_OPTIONS : [])].filter((o) => !o.hidden);

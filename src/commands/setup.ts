@@ -20,6 +20,8 @@ import { createShortcut } from "../core/shortcut.ts";
 import { openForUser } from "../core/open.ts";
 import { isValidLang, langName } from "../core/lang.ts";
 import { detectAgent, isAgent } from "../core/which.ts";
+import { agentName, sandboxHere, writeProblems } from "../core/writable.ts";
+import { agentInAncestry } from "../core/trust.ts";
 import { agentsHere, DESKTOP_APPS, inDesktopApp, whereToTalk } from "../core/apps.ts";
 import { setupWizard } from "../cli/wizard.ts";
 import { holdsPath, insideProgram, installation, replacedHolding, shimNeedsCodePage, stromLauncher } from "../core/self.ts";
@@ -212,6 +214,8 @@ interface Check {
   fix?: string;
   /** What strom doctor --fix can do about it itself. */
   repair?: "git" | "agent" | "knows" | "shortcut" | "app" | "links" | "tune";
+  /** What a program reads of a problem (--json), where the detail alone would not say it. */
+  code?: string;
 }
 
 function nodeOk(version: string): boolean {
@@ -252,7 +256,7 @@ function diagnose(ctx: Context): Check[] {
   // The backup before another channel or an older version: one that could not be made (nothing switches until it is),
   // else where the last one is, for a month
   const backup = lastBackup(ctx.env, BACKUP_SAID_DAYS);
-  if (ctx.backupFailed) add("backup", "fail", t("ui.error.backup.failed", ctx.backupFailed.params ?? {}), t("ui.error.backup.failed.hint", ctx.backupFailed.params ?? {}));
+  if (ctx.backupFailed) add("backup", "fail", t("ui.error.backup.failed", ctx.backupFailed.params ?? {}), t(`ui.error.${ctx.backupFailed.hintCode ?? "backup.failed"}.hint` as UIKey, ctx.backupFailed.params ?? {}));
   else if (backup) add("backup", "ok", lastBackupLine(lang, backup));
   // A connector runs fenced in on the Node strom runs on; only from Node 25 does the fence keep it off the network too.
   // The installer's Node comes with strom update; npm's and the sources' are the person's own.
@@ -439,6 +443,22 @@ function diagnose(ctx: Context): Check[] {
     const errs = check(tr).filter((f) => f.level === "error").length + verifyFull(tr).findings.filter((f) => f.level === "error").length;
     if (errs === 0) add("tree", "ok", t("ui.doc.tree.ok", { name: tr.config.name }));
     else add("tree", "fail", t("ui.doc.tree.bad", { name: tr.config.name, n: errs }), "strom verify ; strom check");
+    // can it be written — its locks (.strom) and history (.git) tried: found on Windows, an agent's sandbox refused
+    // writing while doctor said all was fine; a disk without hard links works, the lock another way (core/lock.ts)
+    const problems = writeProblems(tr.root, isAgent(ctx.env));
+    const worst = problems.find((p) => p.cause !== "nolink") ?? problems[0];
+    if (!worst) add("write", "ok", t("ui.doc.write.ok"));
+    else {
+      const where = problems.filter((p) => p.cause === worst.cause).map((p) => ctx.display(p.where)).join(", ");
+      const here = worst.cause === "sandbox" ? sandboxHere(ctx.env) : undefined;
+      // refused with no agent's marks, an agent among strom's parent processes (found on Windows: Codex's sandbox ran
+      // strom with none of them): its sandbox named as the likely cause
+      const above = worst.cause === "refused" ? agentInAncestry(ctx.env) : undefined;
+      const win = process.platform === "win32" ? ".windows" : "";
+      const fix = above ? `ui.doc.write.refused.fix.agent${win}` : worst.cause === "refused" ? `ui.doc.write.refused.fix${win}` : here ? `ui.doc.write.sandbox.fix.${here}` : `ui.doc.write.${worst.cause}.fix`;
+      add("write", worst.cause === "nolink" ? "warn" : "fail", t(`ui.doc.write.${worst.cause}` as UIKey, { where }), t(fix as UIKey, above ? { agent: agentName(above) } : {}));
+      checks[checks.length - 1]!.code = `write.${worst.cause}`;
+    }
     // the reading of scans looked at again (core/tune.ts): what only adds accuracy or saves requests set by itself —
     // free, local, never failing; a session at work goes on by the values of its start
     const tuned = selfTune(tr, { settings: ctx.settings });

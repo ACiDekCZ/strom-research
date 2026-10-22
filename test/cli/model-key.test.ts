@@ -87,6 +87,7 @@ cat > "${heard}/\${STROM_SESSION:-reader}-\$\$.txt"
 echo '{"type":"system","subtype":"init","session_id":"s-'\$\$'","model":"claude-opus-5-5[1m]","tools":["Bash","Read"]}'
 echo '{"type":"assistant","message":{"id":"m-'\$\$'","model":"claude-opus-5-5[1m]","content":[],"usage":{"input_tokens":5,"cache_read_input_tokens":40000,"cache_creation_input_tokens":0,"output_tokens":10}},"parent_tool_use_id":null}'
 echo '{"type":"assistant","message":{"id":"n-'\$\$'","model":"claude-opus-5-5[1m]","content":[],"usage":{"input_tokens":5,"cache_read_input_tokens":45000,"cache_creation_input_tokens":0,"output_tokens":10}},"parent_tool_use_id":null}'
+[ -z "\${STROM_READER:-}" ] && echo "\${STROM_IN_AGENT:-}" > "${heard}/mark.txt"
 [ -z "\${STROM_READER:-}" ] && node "${CLI}" media view B0001:1 > /dev/null 2>&1
 if [ -z "\${STROM_READER:-}" ] && [ -n "\${FAKE_READ:-}" ]; then
   node "${CLI}" media view B0003:2 --json > "${heard}/view.json" 2>&1
@@ -111,6 +112,7 @@ test("Claude Code: strom asks for opus, its init says claude-opus-5-5 — the hi
 
   // a session: the start of its use says the alias asked and the model it runs on
   await w.ok(["run", "--agent", "claude", "--max", "1"]);
+  assert.equal(fs.readFileSync(path.join(heard, "mark.txt"), "utf8").trim(), "claude", "strom's own mark on the agent it runs (a sandbox may set none of the agent's)");
   const models = readJsonFile(path.join(root, ".strom", "metrics", "models.json"));
   assert.deepEqual(models.aliases["claude opus"].map((e: { key: string }) => e.key), ["claude claude-opus-5-5"]);
   const usage = journal(path.join(root, ".strom", "metrics", "usage", "N0001.jsonl"));

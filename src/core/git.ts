@@ -11,6 +11,7 @@ import type { Env } from "./paths.ts";
 import { configDir, isolated, userHome } from "./paths.ts";
 import { installation } from "./self.ts";
 import { which } from "./which.ts";
+import { gitRefusedWhere, gitRefusedWords, gitUnwritable, refusedCode, writeRefusal } from "./writable.ts";
 
 export interface GitResult {
   status: number;
@@ -77,6 +78,13 @@ export function runGit(cwd: string, args: string[], input?: string, extraEnv: Re
   if (r.error) {
     const code = (r.error as NodeJS.ErrnoException).code;
     if (code === "ENOENT") throw gitMissingError();
+    // git refused to start where writing into the research is refused (found on Windows: an agent's sandbox guarding
+    // .git — "no permission to use: …\git.exe"): said as the research's .git, never as git itself
+    if (refusedCode(code)) {
+      const dotGit = path.join(cwd, ".git");
+      const where = fs.existsSync(dotGit) ? dotGit : cwd;
+      if (writeRefusal(where)) throw gitUnwritable(where, "");
+    }
     throw gitTimedOut(args, r.error) ?? r.error;
   }
   if (PROFILE) process.stderr.write(`[git ${(performance.now() - t0).toFixed(0)}ms] ${args.slice(0, 3).join(" ")}\n`);
@@ -104,9 +112,15 @@ export function runGitLater(cwd: string, args: string[], timeoutMs = 60_000): Pr
   });
 }
 
+/** A git that failed: interrupted, refused writing into the research (git.unwritable), or its own words. */
+function gitFailed(cwd: string, args: string[], r: GitResult, what = `git ${args[0]}`): StromError {
+  const said = r.stderr.trim() || r.stdout.trim();
+  return gitInterrupted(args, r) ?? (gitRefusedWords(said) ? gitUnwritable(gitRefusedWhere(cwd, said), said) : new StromError(`${what} failed: ${said}`));
+}
+
 function git(cwd: string, args: string[], input?: string): string {
   const r = runGit(cwd, args, input);
-  if (r.status !== 0) throw gitInterrupted(args, r) ?? new StromError(`git ${args[0]} failed: ${r.stderr.trim() || r.stdout.trim()}`);
+  if (r.status !== 0) throw gitFailed(cwd, args, r);
   return r.stdout;
 }
 
@@ -305,7 +319,7 @@ export function commitAll(
   if (parent && parent.tree === tree) return undefined;
   const full = seal ? `${message}\n\n${seal(tree)}\n` : `${message}\n`;
   const r = commitTree(dir, tree, parent?.hash, full);
-  if (r.status !== 0) throw gitInterrupted(["commit-tree"], r) ?? new StromError(`git commit failed: ${r.stderr.trim()}`);
+  if (r.status !== 0) throw gitFailed(dir, ["commit-tree"], r, "git commit");
   const hash = r.stdout.trim();
   git(dir, ["update-ref", "HEAD", hash, ...(parent ? [parent.hash] : [])]);
   headCache.set(dir, { hash, tree, message: full });

@@ -32,6 +32,11 @@ test("the parent processes: an agent's program found walking up, by its name or 
   assert.equal(agentAmong(parsePs(" 10 1 /Users/x/grok/bin/node /x/cli.js\n 11 10 vim notes-claude.txt"), 11), undefined, "a name inside another word or folder is not one");
   const cim = parseCim(['"ProcessId","ParentProcessId","Name","CommandLine"', '"4","0","System",""', '"100","4","explorer.exe","C:\\\\Windows\\\\explorer.exe"', '"200","100","claude.exe","""C:\\\\Users\\\\x\\\\.local\\\\bin\\\\claude.exe"""', '"300","200","node.exe","node C:\\\\strom\\\\cli.js"'].join("\r\n"));
   assert.equal(agentAmong(cim, 300), "claude");
+  // Codex on Windows: the sandbox's own helper is Codex; agy is Antigravity
+  const win = parseCim(['"ProcessId","ParentProcessId","Name","CommandLine"', '"100","4","codex.exe","codex"', '"200","100","codex-windows-sandbox.exe","codex-windows-sandbox.exe --x"', '"300","200","node.exe","node C:\\\\strom\\\\cli.js"', '"400","4","agy.exe","agy"', '"500","400","node.exe","node cli.js"'].join("\r\n"));
+  assert.equal(agentAmong(win, 300), "codex");
+  assert.equal(agentAmong(win, 500), "antigravity");
+  assert.equal(agentAmong(parsePs(" 10 1 /opt/codex-command-runner\n 11 10 strom"), 11), "codex");
 });
 
 test("under an agent: the default folder for the real home, a folder the person listed, never one inside a tree or the shared folder; a person always; the sources not checked", () => {

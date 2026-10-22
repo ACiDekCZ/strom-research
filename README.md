@@ -34,7 +34,10 @@ Nothing needs admin rights.
 - **macOS, Linux**:
   `curl -fsSL https://raw.githubusercontent.com/ACiDekCZ/strom-research/main/install/install.sh | sh`
 
-With Node 22.18 or newer: `npm install -g strom-research`.
+With Node 22.18 or newer: `npm install -g strom-research`. On Windows the
+installer above is the recommended way: installed with npm, PowerShell may
+refuse `strom` ("running scripts is disabled on this system") — `strom.cmd`
+runs it.
 
 The setup asks a few things — language, where to keep the research, which
 agent (it finds the installed ones and offers Claude if there is none), the

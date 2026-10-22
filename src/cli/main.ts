@@ -3,14 +3,14 @@
 
 import fs from "node:fs";
 import { takeOverConnectors } from "../core/terms.ts";
-import { notePersonFolder } from "../core/trust.ts";
+import { agentInAncestry, ancestryUnread, notePersonFolder } from "../core/trust.ts";
 import { netTrust } from "../core/net.ts";
 import { connectorsDir, listConnectors } from "../core/connector.ts";
 import { Cancelled, EXIT, notFound, StromError, UsageError } from "../core/errors.ts";
 import { ownCommand, type Env } from "../core/paths.ts";
 import { Context, type IO } from "./context.ts";
 import { commands, match, type CommandDef, type Result } from "./registry.ts";
-import { asCommand, asCommandJson } from "./format.ts";
+import { asCommand, asCommandJson, shellArg } from "./format.ts";
 import { groupHelpAs, helpAs } from "./help.ts";
 import { autoCommit } from "./commit.ts";
 import { assertIntact } from "../core/integrity.ts";
@@ -25,6 +25,7 @@ import { fireHooks, HOOK_INTERFACE } from "../core/hooks.ts";
 import { prependPath } from "../runners/runner.ts";
 import { shimDir } from "../commands/session.ts";
 import { isAgent } from "../core/which.ts";
+import { noPermission } from "../core/writable.ts";
 import { completePath, pathOf, pathToRemember } from "../core/userpath.ts";
 import { appUrlShown, noticeStromApp } from "../core/stromapp.ts";
 import { lastChannelOf, pendingTransition, updateChannel, whatsNewUrl } from "../core/update.ts";
@@ -58,8 +59,11 @@ function print(io: IO, ctx: Context | undefined, result: Result): void {
   else if (result.text) io.stdout(result.text.endsWith("\n") ? result.text : result.text + "\n");
 }
 
-/** File-system errors in plain words (a missing @file, a folder without rights). */
-function systemError(e: HeldError): StromError | undefined {
+/**
+ * File-system errors in plain words (a missing @file, a folder without rights — under an agent most likely its
+ * sandbox, core/writable.ts).
+ */
+function systemError(e: HeldError, agent: Env | false): StromError | undefined {
   const where = e.path ? `: ${e.path}` : "";
   // a file another program held past the waits (Windows: an antivirus, a sync tool, an editor) — no lack of rights:
   // running it again does it (what the command wrote was taken back)
@@ -69,9 +73,10 @@ function systemError(e: HeldError): StromError | undefined {
       return e.path ? notFound(e.path) : new UsageError("no such file or folder", { hint: "check the path (relative paths start in the current folder)" });
     case "EACCES":
     case "EPERM":
-      return new UsageError(`no permission to use${where}`, { hint: "a folder with the right to write in it", code: "fs.no-permission", params: { where } });
+    case "EROFS":
+      return noPermission(e.path, agent);
     case "EISDIR":
-      return new UsageError(`a folder was given where a file is expected${where}`);
+      return new UsageError(`a folder was given where a file is expected${where}`, { code: "fs.folder", ...(e.path ? { params: { path: e.path } } : {}) });
     case "ENOTDIR":
       return new UsageError(`a file was given where a folder is expected${where}`);
     case "ENOSPC":
@@ -102,8 +107,26 @@ function inLanguage(e: StromError, lang: string | undefined): { message: string;
   return { message: say(localized(lang!, key, message, e.params)), ...(e.hint ? { hint: say(hint ? localized(lang!, hintKey, hint, e.params) : e.hint) } : {}), prefix: ui(lang!, "ui.error.prefix") };
 }
 
-function printError(io: IO, json: boolean, err: unknown, debug: boolean, lang?: string): number {
-  const e = err instanceof StromError ? err : (systemError(err as NodeJS.ErrnoException) ?? err);
+const REFUSALS = new Set(["fs.no-permission", "git.unwritable", "init.unwritable"]);
+
+/**
+ * A refusal to write under an agent: most likely its sandbox — said so, with what the agent does (core/writable.ts).
+ * Without an agent's marks, an agent among strom's parent processes (read here only, on a refusal: found on Windows,
+ * Codex's sandbox ran strom with none of its marks) is named to the person as the likely cause — not certain, so
+ * the other causes after it.
+ */
+function underAgent(e: StromError, env: Env): StromError {
+  if (!REFUSALS.has(e.code ?? "")) return e;
+  if (isAgent(env)) return noPermission(e.params?.where, env);
+  const above = agentInAncestry(env);
+  if (above) return noPermission(e.params?.where, false, process.platform, above);
+  return ancestryUnread(env) ? noPermission(e.params?.where, false, process.platform, "?") : e;
+}
+
+function printError(io: IO, json: boolean, err: unknown, debug: boolean, lang: string | undefined, env: Env): number {
+  const agent = isAgent(env) && env;
+  const sys = err instanceof StromError ? err : (systemError(err as NodeJS.ErrnoException, agent) ?? err);
+  const e = sys instanceof StromError ? underAgent(sys, env) : sys;
   if (e instanceof StromError) {
     if (json) io.stdout(toJson(e.toJSON()));
     else if (e instanceof Cancelled) io.stderr(`${lang ? ui(lang, "ui.cancelled") : e.message}\n`); // the person's Ctrl-C: no error
@@ -216,6 +239,13 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       .map((x) => `${x[0]!.toUpperCase()}${x.slice(1).padStart(4, "0")}`);
     ran = ctx;
     command = def.path.join(" ");
+    // What the user does in their own terminal (a login, the seal, a plugin installed): refused to an agent here, after
+    // every option is read — the agents' rules match only what follows the command's name (strom --json seal adopt
+    // passed Codex's), so they are a second layer and strom the first
+    if (def.person && isAgent(env)) {
+      const said = (def.options ?? []).flatMap((o) => (v[o.name] === undefined || v[o.name] === false ? [] : o.type === "boolean" ? [`--${o.name}`] : [`--${o.name}`, String(v[o.name])]));
+      ctx.requireHuman(def.person, ["strom", ...def.path, ...[...parsed.positionals, ...said].map(shellArg)].join(" "), def.path[0]!, undefined, { window: false });
+    }
     // The PATH of the person's terminal remembered (never an agent's, a hook's, one strom started); a strom the system
     // started (a link from the Strom app, the bridge, the phone's server) gets what of it is missing — and so do the
     // agents and readers it starts (core/userpath.ts)
@@ -437,7 +467,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     if (said instanceof UsageError && !said.usage && called?.path.length && callMistake(said, called)) said.usage = usageOf(called, own);
     // the usage is the agent's (or a program's): a person reads the error and its hint in their language, no English
     if (said instanceof StromError && said.usage && !json && !isAgent(env)) said.usage = undefined;
-    const code = printError(io, json, said, debug, lang);
+    const code = printError(io, json, said, debug, lang, env);
     remind(io, ran, command, Date.now() - startedAt);
     return code;
   }

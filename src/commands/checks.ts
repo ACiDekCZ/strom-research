@@ -18,6 +18,7 @@ import { ui } from "../cli/ui.ts";
 import { history } from "../core/live.ts";
 import { humanWhen } from "../cli/human.ts";
 import { isAgent } from "../core/which.ts";
+import { writeProblems } from "../core/writable.ts";
 import type { Tree } from "../core/tree.ts";
 
 /**
@@ -26,6 +27,7 @@ import type { Tree } from "../core/tree.ts";
  */
 function said(f: Finding, lang: string | undefined): string {
   if (lang && f.code === "counter" && f.id) return ui(lang, "ui.check.counter", { prefix: f.id.charAt(0) });
+  if (lang && f.code === "unwritable") return ui(lang, "ui.check.unwritable");
   return f.message;
 }
 
@@ -48,6 +50,22 @@ export function report(findings: Finding[], okText: string, lang?: string, perso
 }
 
 
+/**
+ * A research that cannot be written is no "ok" (found on Windows: check said ok where every write failed) — its
+ * .strom and .git tried; what and why strom doctor says.
+ */
+function unwritable(tree: Tree, agent: boolean): Finding[] {
+  return writeProblems(tree.root, agent)
+    .filter((p) => p.cause !== "nolink")
+    .map((p) => ({
+      level: "error" as const,
+      code: "unwritable",
+      file: path.relative(tree.root, p.where) || ".",
+      message: p.cause === "sandbox" ? "writing refused — strom runs under an agent, most likely its sandbox forbids it" : "writing refused — no right to write there",
+      hint: "strom doctor",
+    }));
+}
+
 register(
   {
     path: ["check"],
@@ -58,11 +76,18 @@ register(
       const tree = ctx.tree();
       // its verdict and sum in the research's language: the person follows it in the agent's session too; a warning
       // a person may meet, in it where a person runs it
-      const checked = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree)], ui(tree.lang, "ui.check.ok"), tree.lang, !isAgent(ctx.env));
-      // much kept beside the research that can go (an older strom never tidied it): a sentence, in the research's language
-      const disk = tidyPlan(tree);
+      const checked = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree), ...unwritable(tree, isAgent(ctx.env))], ui(tree.lang, "ui.check.ok"), tree.lang, !isAgent(ctx.env));
+      // much kept beside the research that can go (an older strom never tidied it): a sentence, in the research's language —
+      // none where .strom cannot be listed (found on Windows: a folder denied to strom ended check with "no permission"
+      // instead of its finding; unwritable says it)
+      let disk: ReturnType<typeof tidyPlan> | undefined;
+      try {
+        disk = tidyPlan(tree);
+      } catch {
+        disk = undefined;
+      }
       const out =
-        disk.frees >= TIDY_SAID
+        disk && disk.frees >= TIDY_SAID
           ? { ...checked, text: lines(checked.text, ui(tree.lang, "ui.tidy.hint", { strom: mb(disk.size.strom, tree.lang), size: mb(disk.frees, tree.lang) })), data: { ...checked.data, disk: { strom: disk.size.strom, frees: disk.frees } } }
           : checked;
       // not an error — research to do: who rests on no record of their own
@@ -177,6 +202,7 @@ register(
     group: "history",
     tree: true,
     description: "Checks the chain and every record hash, then creates this computer's seal key for the tree.\nAgents must not run this — it needs the user's confirmation.",
+    person: "Taking over this tree on this computer (the seal) is the user's own, in their terminal",
     run: async (ctx: Context) => {
       const tree = ctx.tree();
       if (tree.key) return { text: "this tree is already sealed on this computer", data: { adopted: false } };

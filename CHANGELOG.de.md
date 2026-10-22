@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.19.0
 
-*In Vorbereitung: die Betas bis 1.19.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.19.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Auf ein verstummtes Archiv wird gewartet, statt es immer wieder zu fragen.** Antwortet ein Archiv nicht mehr,
   lässt strom es eine Stunde in Ruhe — zwei, dann vier, wenn es am selben Tag still bleibt — und der Agent erfährt, bis
@@ -16,8 +16,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   immer wieder angefragt.
 - **Das erste Aufräumen einer älteren Forschung wird einmal angeboten.** Eine Forschung, neben der sich viel
   angesammelt hat, bevor strom dort selbst Ordnung hielt (Protokolle der Arbeitssitzungen, Ansichten von Scans und
-  Ähnliches), bekommt im Menü ein Angebot: was ginge, wie viel und warum — ohne Ja geht nichts. Nach einem Ja wird dort
-  von selbst Ordnung gehalten; nach einem Nein sagen Menü und Einstellungen weiter, was sich freigeben lässt.
+  Ähnliches), bekommt im Menü ein Angebot: was ginge, wie viel und warum — ohne Ja geht nichts. Nach einem Ja wird
+  dort von selbst Ordnung gehalten; nach einem Nein sagen Menü und Einstellungen weiter, was sich freigeben lässt.
+  `strom pack`, das Entfernen eines Stammbaums und das Menü nennen die Größe eines Pakets, einer Sicherung oder der
+  Bilder wie überall sonst (1,5 MB, bei kleinen 24 kB), nie „0.0 MB“.
 - **Digitale Bibliotheken beim ersten Versuch richtig durchsucht.** Für Kramerius der Tschechischen
   Nationalbibliothek und der Mährischen Landesbibliothek und für ANNO der Österreichischen Nationalbibliothek bekommt
   der Agent die eigenen Suchadressen der Bibliotheken — weniger fehlgeschlagene Anfragen und weniger Raten.
@@ -50,9 +52,24 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   bereiter Agent oder ein anderes Modell (`strom fixes run <id> --agent <a> --model <m>`), mit dem, der vorher las;
   einer, der hier nicht lesen kann, wird sofort abgelehnt, mit denen, die es können. Die Zeit einer Behebung wird
   aufgerundet und nach dem Versuch nach den nebeneinander gelaufenen Lesungen neu gemessen.
-- **Größen, wie die Sprache der Forschung sie schreibt.** `strom pack`, das Entfernen eines Stammbaums und das Menü
-  nennen die Größe eines Pakets, einer Sicherung oder der Bilder wie überall sonst (1,5 MB, bei kleinen 24 kB), nie
-  „0.0 MB“.
+- **Ein Stammbaum, in den strom nicht schreiben darf, sagt warum.** strom schreibt Regeln für Codex in den Ordner der
+  Forschung: ein allein ausgeführter strom-Befehl läuft außerhalb der Sandbox von Codex — auch unter Windows, wo die
+  Sandbox den Verlauf der Forschung verschlossen hielt und nichts anderes zuließ —, während das, was der Mensch
+  entscheidet, und git selbst verboten bleiben. Hindert die Sandbox eines Agenten strom trotzdem am Schreiben in den
+  Ordner des Stammbaums, sagt strom das und sagt dem Agenten, was zu tun ist, je nachdem, wie er läuft — strom allein
+  ausführen, Codex im Ordner der Forschung starten, dem er vertraut, oder den Befehl außerhalb der Sandbox genehmigen
+  lassen — statt eines bloßen „keine Berechtigung“, das der Agent als fehlenden Zugriff auf den Stammbaum wiedergab.
+  Wo ein Agent kein eigenes Merkmal hinterlässt, erkennt strom ihn an seinem eigenen Merkmal bei den Agenten, die es
+  startet, oder an den Programmen, die es gestartet haben, und nennt seine Sandbox als wahrscheinliche Ursache, danach
+  OneDrive oder den überwachten Ordnerzugriff von Windows. Ein vom Verlauf verweigertes Schreiben gilt nicht mehr als
+  fehlende Berechtigung für git selbst, und eine Sicherung oder ein Update, die nicht geschrieben werden konnten,
+  verlangen einen Ordner, in den geschrieben werden darf, statt Platz auf dem Datenträger freizumachen. `strom doctor`
+  und `strom check` versuchen, in die Forschung zu schreiben, und sagen, wenn es nicht geht, auch dort, wo sich der
+  Ordner nicht einmal auflisten lässt. Auf einem Laufwerk ohne feste Verknüpfungen (eine Netzwerkfreigabe, ein über
+  Remotedesktop umgeleitetes Laufwerk) schreibt strom wieder, seine Sperre geht einen anderen Weg, und eine Sperre, die
+  ein langsames Laufwerk noch nicht zeigt, wird nicht mehr nach einem Augenblick übernommen; ein Stammbaum, der sich
+  dort nicht anlegen lässt, hinterlässt nichts und sagt es in der Sprache der Forschung. Mit npm unter Windows
+  installiert, startet `strom.cmd` strom auch dort, wo PowerShell Skripte verweigert.
 
 ## 1.18.0
 

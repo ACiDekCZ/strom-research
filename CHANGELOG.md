@@ -7,16 +7,17 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.19.0
 
-*In preparation: the betas up to 1.19.0-beta.7. The section is complete with the release.*
+*In preparation: the betas up to 1.19.0-beta.8. The section is complete with the release.*
 
 - **An archive that went silent is waited for, not asked again and again.** When an archive stops answering, strom
   leaves it alone for an hour — two, then four when it stays silent the same day — and the agent hears until when:
   it goes on with other work, lets a download in the background wait for the archive (up to 30 minutes) and go on by
   itself, or closes the session to go on later. No more asking the archive over and over meanwhile.
-- **The first tidy of an older research is offered once.** A research that gathered much beside it before strom
-  kept order there by itself (logs of work sessions, views of scans and the like) gets one offer in the menu: what
-  would go, how much and why, and nothing goes without a yes. After a yes it is kept in order by itself; after a no,
-  the menu and the settings keep saying what can be freed.
+- **The first tidy of an older research is offered once.** A research that gathered much beside it before strom kept
+  order there by itself (logs of work sessions, views of scans and the like) gets one offer in the menu: what would
+  go, how much and why, and nothing goes without a yes. After a yes it is kept in order by itself; after a no, the
+  menu and the settings keep saying what can be freed. `strom pack`, removing a family tree and the menu say how big a
+  package, a backup or the images are as everywhere else (1,5 MB in Czech, 24 kB for a small one), never "0.0 MB".
 - **Digital libraries searched right at the first try.** For Kramerius of the Czech National Library and of the
   Moravian Library and for ANNO of the Austrian National Library, the agent gets the libraries' own search
   addresses — fewer failed requests and less guessing.
@@ -46,8 +47,21 @@ The changes of each version in short. The full notes and the install lines are o
   ordering them. The remedy may be read by another agent or model ready here (`strom fixes run <id> --agent <a>
   --model <m>`), with which one read before said; one that cannot read here is refused at once, with those that can.
   The time of a remedy is rounded up and, after the trial, measured again by the readings as they ran side by side.
-- **Sizes as the research's language writes them.** `strom pack`, removing a family tree and the menu say how big a
-  package, a backup or the images are as everywhere else (1,5 MB in Czech, 24 kB for a small one), never "0.0 MB".
+- **A family tree strom may not write into says why.** strom writes Codex's rules into the research's folder: a strom
+  command run on its own goes outside Codex's sandbox — on Windows too, where the sandbox kept the research's history
+  closed and let nothing else run — while what the person decides and git itself stay forbidden. When an agent's
+  sandbox still keeps strom from writing into the family tree's folder, strom says so and tells the agent what to do as
+  it is there — run strom on its own, start Codex in the research's folder it trusts, or have the command approved
+  outside the sandbox — instead of a bare "no permission" the agent retold as no access to the family tree. Where an
+  agent leaves no mark of its own, strom knows it by its own mark on the agents it starts, or by the programs that
+  started it, and names its sandbox as the likely cause, then OneDrive or the controlled folder access of Windows. A
+  write the history refused is no longer said as missing rights to git itself, and a backup or an update that could not
+  be written asks for a folder with the right to write in it, no longer to free room on the disk. `strom doctor` and
+  `strom check` try writing into the research and say when it does not go, also where the folder cannot even be
+  listed. On a disk without hard links (a network share, a drive redirected over Remote Desktop) strom writes again,
+  its lock made another way, and a lock a slow disk does not show yet is no longer taken over after a moment; a family
+  tree that cannot be created there leaves nothing behind, said in the research language. Installed with npm on
+  Windows, `strom.cmd` runs strom where PowerShell refuses scripts.
 
 ## 1.18.0
 

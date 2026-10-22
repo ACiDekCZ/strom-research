@@ -83,6 +83,8 @@ export class World {
       STROM_TEST_HOSTS: "1",
       // The phone's server of a test listens on the loopback alone, never on the computer's network.
       STROM_PHONE_TEST: "loopback",
+      // No agent among strom's parent processes, whatever runs the tests (a test names the ones it wants).
+      STROM_TEST_ANCESTRY: "",
     };
     this.cwd = this.dir;
   }

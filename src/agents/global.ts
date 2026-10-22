@@ -60,7 +60,9 @@ mentions strom, a family tree or the Strom app.
    "Continue the research with the agent".
 6. When strom needs the user's consent it opens a window on their screen —
    tell them to answer it; you cannot. Exit code 4 means the user must run
-   the given command themselves.
+   the given command themselves. strom saying your sandbox refused writing
+   (\`fs.sandboxed\`): never another folder or setting — ask for the command
+   to run outside your sandbox, or work in the family tree's folder.
 7. Old handwriting is read by your strongest model — never a faster or
    cheaper model, subagent or pass; a name or place the next search depends
    on is read again on an enlarged crop before it is recorded.

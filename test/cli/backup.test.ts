@@ -13,6 +13,8 @@ import { spawnSync } from "node:child_process";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { VERSION } from "../../src/core/tree.ts";
 import { backupFor, type BackupRecord } from "../../src/core/backup.ts";
+import { UI } from "../../src/cli/ui.ts";
+import { catalog } from "../../src/core/phrases.ts";
 
 const cfgOf = (w: World) => path.join(w.env.STROM_CONFIG_DIR!, "config.json");
 const config = (w: World) => readJsonFile(cfgOf(w));
@@ -145,9 +147,18 @@ test("a backup that cannot be made switches nothing: no research opened for writ
     assert.equal(add.code, 6);
     assert.match(add.err, /Zálohu před přechodem z 99\.0\.0 na .* se nepodařilo vytvořit/);
     assert.match(add.err, /strom update --channel stable/);
+    // a refused write is no full disk (found on Windows: EPERM in an agent's sandbox, and "free room on the disk")
+    // no agent runs it: no agent's sandbox named (as in English and German)
+    assert.match(add.err, /→ Zápis do .* je odepřen: vybrat složku, do které lze zapisovat, pak spustit strom znovu – nebo se vrátit: strom update --channel stable/);
+    assert.doesNotMatch(add.err, /sandbox/);
+    assert.doesNotMatch(add.err, /místo na disku/);
     const json = await w.run(["person", "add", "Marie /Nováková/", "--json"]);
     assert.equal(json.code, 6);
     assert.equal(json.json.code, "backup.failed");
+    assert.doesNotMatch(json.json.hint, /room on the disk/);
+    const agent = await w.run(["person", "add", "Marie /Nováková/"], { env: { CODEX_SANDBOX: "seatbelt" } });
+    assert.match(agent.err, /→ writing into .* was refused — run this strom command outside the agent's sandbox/);
+    assert.match((await w.run(["doctor"])).out, /Zápis do .* je odepřen/);
     assert.equal((await w.run(["chat"])).code, 6, "no work started");
     // reading goes on
     assert.match((await w.ok(["person", "list"])).out, /Jan Novák/);
@@ -331,4 +342,13 @@ test("the same change backed up again when its last backup is older than a day �
   assert.ok(backupFor([b("2026-11-07T11:00:00Z")], t, now), "made by strom update an hour ago: its first run makes none");
   assert.equal(backupFor([b("2026-10-07T12:00:00Z")], t, now), undefined, "a month ago: another trip, its own backup");
   assert.equal(backupFor([b("2026-11-07T11:00:00Z"), { ...b("2026-11-07T11:30:00Z"), to: "1.13.0-beta.1", from: "1.12.1" }], t, now), undefined, "only the newest counts");
+});
+
+test("a refused backup is said alike in every language: a person's words name no agent's sandbox (the agent's are English)", () => {
+  for (const key of ["ui.error.backup.failed.refused.hint", "ui.error.backup.failed.update.refused.hint"] as const)
+    for (const text of [UI[key], catalog("cs")[key], catalog("de")[key]]) {
+      assert.ok(text, key);
+      assert.doesNotMatch(text, /sandbox|agent/i, `${key}: ${text}`);
+      assert.match(text, /\{where\}/);
+    }
 });

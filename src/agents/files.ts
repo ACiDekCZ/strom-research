@@ -15,7 +15,7 @@ import { PROFILES, selfReading } from "./profiles.ts";
 import { isArchive } from "../core/mode.ts";
 import { Settings } from "../core/config.ts";
 import { agentAppUrl, appSite } from "../core/stromapp.ts";
-import { configDir } from "../core/paths.ts";
+import { configDir, ownCommand } from "../core/paths.ts";
 import { within } from "../core/relocate.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
@@ -54,16 +54,20 @@ the researcher; \`strom\` is your only way to read and change the research.
 5. Material from the user goes in with \`strom intake <file or folder>\` or
    \`strom intake --text "…"\`. Exit code 3 means strom needs an answer from the
    user; exit code 4 means the USER must run the given command in their own
-   terminal — never do it yourself.
+   terminal — never do it yourself. strom saying your sandbox refused writing
+   (\`fs.sandboxed\`): never another folder or setting — ask for the command
+   to run outside your sandbox, or work in this folder (its \`.git\` and
+   \`.strom\` too).
 6. You may read \`inputs/\`, \`output/\`, \`notes/\` and \`.strom/views/\`, and write
    your own working notes in \`notes/\`. Scans are looked at through views:
    \`strom media view B0001:57 --half left\` writes one to \`.strom/views/\`;
    the views of a scan or a batch come in one call (\`B0001:57-60 --half both\`).
    A text in those files: \`strom grep "<text>"\` (each line with its file and
    number) — never read a big file in pieces.
-7. Run strom commands on their own — no pipes (\`| head\`, \`| grep\`): output is
-   already short, listings take \`--limit\` and \`--page\`, and piped commands may
-   be refused by your permissions.${ps ? `\n   ${ps}` : ""}
+7. Run strom commands on their own — no pipes (\`| head\`, \`| grep\`), no
+   redirection (\`2>&1\`), no \`cd\` before them: output is already short,
+   listings take \`--limit\` and \`--page\`, and such commands may be refused by
+   your permissions (Codex's sandbox lets strom out only on its own).${ps ? `\n   ${ps}` : ""}
 8. Other agents may work on this tree too (Claude Code, Codex, Antigravity,
    OpenCode, Grok — the user's choice). \`strom\` shows who is working now; never take a task
    another one has started.
@@ -271,6 +275,7 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
       ...shell("git:*"),
       // A password is typed by the user in their own terminal, and so is installing a plugin; the seal is strom's.
       // (Consents the agent may ask for — strom allow …: strom asks the person in a window.)
+      // A rule matches only the command right after strom's name: strom itself refuses these to an agent (CommandDef.person).
       ...shell("strom login:*"),
       ...shell("strom connector add:*"),
       ...shell("strom connector remove:*"),
@@ -328,13 +333,43 @@ Agent tool, the models opus, sonnet and haiku) is not yours. Follow AGENTS.md,
 and read scans yourself as it says under "Reading scans".
 `;
 
+/**
+ * Codex's rules for this tree (.codex/rules/strom.rules, read once the folder is trusted): strom run as a command of
+ * its own goes outside Codex's sandbox without asking — it writes the research's .strom and .git, which the sandbox
+ * keeps closed (measured 2026-10-22, codex-cli 0.163: on Windows .git stays closed even as a writable root, and nothing
+ * runs at all without a rule; on macOS too) — what the person decides stays forbidden, and git itself. Only strom's
+ * command alone: one in a pipe or after `cd` runs in the sandbox (Codex's rules match a plain command). Codex keeps
+ * .codex closed to the agent itself.
+ * The whole of strom is allowed, as for Claude Code (Bash(strom:*)): what strom writes outside the research (strom
+ * export --out, strom init <folder>) is strom's own decision, and what is the person's it refuses to an agent itself.
+ * The forbidden rules match only the command right after strom's name (strom --json seal adopt is not matched — a
+ * value-taking option cannot be listed): they are the second layer and give the agent the reason; the first is strom
+ * refusing the user's own commands to any agent, whatever comes before them (CommandDef.person).
+ */
+export function codexRules(tree: Tree): string {
+  const own = ownCommand(tree.env);
+  const names = JSON.stringify(["strom", "strom.cmd", ...(own ? [own, `${own}.cmd`] : [])]);
+  const rule = (pattern: string, decision: string, why: string) => `prefix_rule(pattern = [${pattern}], decision = "${decision}", justification = ${JSON.stringify(why)})`;
+  return [
+    "# strom: generated (strom agents sync) — Codex's rules for this family tree; changed by strom only",
+    rule(names, "allow", "strom writes the research (its .strom and .git) and keeps its rules"),
+    rule(`${names}, ["login", "seal"]`, "forbidden", "a login and the seal are the user's own"),
+    rule(`${names}, "connector", ["add", "remove"]`, "forbidden", "installing a plugin is the user's own"),
+    rule('"git"', "forbidden", "strom keeps the history: never git itself"),
+    "",
+  ].join("\n");
+}
+
+export const CODEX_RULES = path.join(".codex", "rules", "strom.rules");
+
 /** Denied as well when the user lets the agent do everything else (agent.permissions full). */
 export const BYPASS_DENY = [
   // its own permissions and instructions
   "Edit(.claude/**)",
   ...["AGENTS.md", "CLAUDE.md"].map((f) => `Edit(${f})`),
-  // (Grok Build's own rules and instructions)
+  // (Grok Build's and Codex's own rules and instructions)
   "Edit(.grok/**)",
+  "Edit(.codex/**)",
   // downloads round strom's limiter
   "Bash(curl:*)",
   "Bash(wget:*)",
@@ -479,6 +514,7 @@ function dropAgentFiles(tree: Tree): string[] {
     [path.join(".grok", "config.toml"), grokConfig(tree)],
     [path.join(".grok", "rules", "strom.md"), GROK_RULES],
     [GROK_HOOKS, JSON.stringify(grokWebHooks(tree.root), null, 2) + "\n"],
+    [CODEX_RULES, codexRules(tree)],
   ];
   for (const [rel, content] of generated) {
     const file = path.join(tree.root, rel);
@@ -521,7 +557,7 @@ export const GROK_HOOKS = path.join(".grok", "hooks", "strom.json");
 /** Claude Code's subagent for reading scans, in the tree. */
 export const CLAUDE_SCAN_READER = path.join(".claude", "agents", `${SCAN_READER}.md`);
 
-export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS];
+export const AGENT_FILES = ["AGENTS.md", "CLAUDE.md", path.join(".claude", "settings.json"), CLAUDE_SCAN_READER, "opencode.json", path.join(".grok", "config.toml"), path.join(".grok", "rules", "strom.md"), GROK_HOOKS, CODEX_RULES];
 
 /**
  * strom's files of the agents written for the tree (only what changed: the files written, to commit). `said.shim`: the
@@ -553,6 +589,7 @@ export function syncAgentFiles(tree: Tree, said: { shim?: boolean } = {}): strin
   write(path.join(".grok", "config.toml"), grokConfig(tree));
   write(path.join(".grok", "rules", "strom.md"), GROK_RULES);
   write(GROK_HOOKS, JSON.stringify(grokWebHooks(tree.root), null, 2) + "\n");
+  write(CODEX_RULES, codexRules(tree));
   // the strom the agent hooks name (the tree's .strom/bin, never committed) — there also for a conversation strom did not start
   if (!tree.dryRun) {
     try {

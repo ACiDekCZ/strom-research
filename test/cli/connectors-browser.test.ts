@@ -62,7 +62,7 @@ done();
   agent.cwd = w.cwd;
   const refused = await agent.run(["login", "zkusebni"], { tty: true, answers: ["Jana", "x"] });
   assert.equal(refused.code, 4);
-  assert.match(refused.err, /Save your login to Testovací archiv for connector zkusebni\? \(an agent cannot answer this\)[\s\S]*strom login zkusebni/);
+  assert.match(refused.err, /A login to an archive is the user's own, in their terminal \(an agent cannot answer this\)[\s\S]*strom login zkusebni/);
   assert.equal((await w.run(["login", "zkusebni"])).code, 4);
   // the user, in their terminal: what it is for and where it goes, then the fields
   const secret = "tajné heslo Ž&<x>";
