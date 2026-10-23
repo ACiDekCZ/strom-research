@@ -5,9 +5,21 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.20.0
+
+*Připravuje se: bety do 1.20.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Menu bez nikoho u terminálu to řekne hned.** Spuštěné tam, kde nemá kdo odpovědět (zavřený vstup, okno
+  bez terminálu), skončí jednou větou v jazyce výzkumu a tím, co udělat místo toho, už ne chybou programu; otázka,
+  jejíž vstup skončí dřív než odpověď, ukončí menu stejně.
+- **`strom check` mluví jedním jazykem.** Pro člověka jsou všechny nálezy, součet i poznámky v jazyce výzkumu, pro
+  agenta celé anglicky, nikdy směs obou.
+- **Když sandbox agenta odmítne git, je jmenováno správné místo.** Zpráva uvádí jako odepřenou historii výzkumu
+  (jeho složku `.git`), ne program gitu.
+
 ## 1.19.0
 
-*Připravuje se: bety do 1.19.0-beta.8. Oddíl bude úplný s vydáním.*
+*22. 10. 2026 · patří k aplikaci Strom 3.15.0.*
 
 - **Na archiv, který zmlkl, se čeká, místo opakovaných dotazů.** Když archiv přestane odpovídat, strom ho nechá na
   pokoji hodinu — a když týž den mlčí dál, dvě a pak čtyři hodiny — a agent se dozví, do kdy: mezitím dělá

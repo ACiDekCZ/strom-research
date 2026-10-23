@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { Readable } from "node:stream";
+import { fileURLToPath } from "node:url";
 import http from "node:http";
 import net from "node:net";
 import { VERSION, type Tree } from "../../src/core/tree.ts";
@@ -18,6 +20,7 @@ import { installedStromApp, isStromName } from "../../src/core/stromapp.ts";
 import { createShortcut, openInNewTerminal } from "../../src/core/shortcut.ts";
 import { enterWorker } from "../../src/core/workers.ts";
 import { writeFileAtomic } from "../../src/core/json.ts";
+import { main } from "../../src/cli/main.ts";
 
 const unix = { skip: !hasGit || process.platform === "win32" };
 
@@ -59,6 +62,31 @@ test("a person runs strom: the first family tree, straight into the conversation
   await w.ok(["config", "unset", "agent.browser"]);
   // An agent (or a script) still gets the orientation, never the menu.
   assert.match((await w.ok([])).out, /^strom \S+ — nástroj pro genealogický výzkum s AI agenty/);
+  w.cleanup();
+});
+
+test("the menu with nobody at a terminal (stdin closed, STROM_NONINTERACTIVE): said at once in the person's language, exit 3 — never a question left open (found on Mac: Node's unsettled top-level await, exit 13)", () => {
+  const w = new World();
+  const cli = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "src", "cli.ts");
+  for (const extra of [{ STROM_NONINTERACTIVE: "1" }, {}]) {
+    const r = spawnSync(process.execPath, [cli, "menu"], { cwd: w.dir, env: { ...w.env, ...extra }, stdio: ["ignore", "pipe", "pipe"], encoding: "utf8", timeout: 60_000 });
+    assert.equal(r.status, 3, r.stderr);
+    assert.match(r.stderr, /^chyba: menu je pro člověka u terminálu – tady žádný není\n→ otevřít terminál a spustit v něm strom\n$/);
+    assert.doesNotMatch(r.stdout + r.stderr, /unsettled|Warning/);
+  }
+  w.cleanup();
+});
+
+test("a question whose input ends before an answer (a terminal's stdin used up): the menu ends, exit 3 — nothing hangs", async () => {
+  const w = new World();
+  await w.ok(["setup", "--yes"]);
+  let out = "";
+  let err = "";
+  const io = { stdout: (t: string) => void (out += t), stderr: (t: string) => void (err += t), tty: true, stdin: Readable.from([]) };
+  const code = await main(["menu"], io, w.env, w.cwd);
+  assert.equal(code, 3, out + err);
+  assert.match(err, /vstup skončil dřív, než přišla odpověď/);
+  assert.doesNotMatch(out, /nepovedlo/i, "not said as an item that failed");
   w.cleanup();
 });
 
@@ -246,11 +274,13 @@ test("the handover window: the agent's marks cleared, STROM_HANDOVER set, one wi
   assert.match(body, /export STROM_LANG='de'\nexport STROM_HANDOVER=1\n/);
   assert.doesNotMatch(body, /CODEX_HOME|STROM_SESSION/, "the user's own settings stay, the agent's session does not go along");
   assert.equal(openInNewTerminal(["chat"], cwd, env, "linux"), "recent", "one window at a time");
-  // Run, it deletes itself (a copy that stops before strom).
-  const copy = path.join(dir, "copy.command");
-  fs.writeFileSync(copy, body.replace(/^exec .*$/m, "exit 0"));
-  assert.equal(spawnSync("/bin/sh", [copy]).status, 0);
-  assert.ok(!fs.existsSync(copy));
+  // Run, it deletes itself (a copy that stops before strom) — where a /bin/sh runs it (on Windows the script is only written)
+  if (process.platform !== "win32") {
+    const copy = path.join(dir, "copy.command");
+    fs.writeFileSync(copy, body.replace(/^exec .*$/m, "exit 0"));
+    assert.equal(spawnSync("/bin/sh", [copy]).status, 0);
+    assert.ok(!fs.existsSync(copy));
+  }
   w.cleanup();
 });
 

@@ -5,9 +5,22 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.20.0
+
+*In Vorbereitung: die Betas bis 1.20.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Das Menü ohne jemanden am Terminal sagt es sofort.** Dort gestartet, wo niemand antworten kann (geschlossene
+  Eingabe, ein Fenster ohne Terminal), endet es mit einem Satz in der Sprache der Forschung und dem, was
+  stattdessen zu tun ist, nicht mehr mit einem Fehler des Programms; eine Frage, deren Eingabe vor der Antwort endet,
+  beendet das Menü genauso.
+- **`strom check` spricht eine Sprache.** Für einen Menschen stehen alle Befunde, die Summe und die Hinweise in der
+  Sprache der Forschung, für einen Agenten alles auf Englisch, nie beides gemischt.
+- **Verweigert die Sandbox des Agenten git, wird der richtige Ort genannt.** Die Meldung nennt die Geschichte der
+  Forschung (ihren Ordner `.git`) als verweigerten Ort, nicht das Programm git.
+
 ## 1.19.0
 
-*In Vorbereitung: die Betas bis 1.19.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
+*22.10.2026 · gehört zur Strom-App 3.15.0.*
 
 - **Auf ein verstummtes Archiv wird gewartet, statt es immer wieder zu fragen.** Antwortet ein Archiv nicht mehr,
   lässt strom es eine Stunde in Ruhe — zwei, dann vier, wenn es am selben Tag still bleibt — und der Agent erfährt, bis

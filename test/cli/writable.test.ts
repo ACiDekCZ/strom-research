@@ -192,6 +192,48 @@ test("check is no 'ok' where the research cannot be written: it says so and poin
   w.cleanup();
 });
 
+test("check speaks one language: all of it in the research's for a person, all in English for an agent (found on Mac: English findings above a Czech sum)", opts, async () => {
+  const w = new World();
+  const tree = await w.withTree();
+  await readOnly(path.join(tree, ".git"), async () => {
+    const person = await w.run(["check"], { cwd: tree });
+    assert.match(person.out, /zápis sem je odepřen/);
+    assert.match(person.out, /\n1 chyba, 0 varování\n/);
+    const agent = await w.run(["check"], { cwd: tree, env: { CLAUDECODE: "1" } });
+    assert.equal(agent.code, 1);
+    assert.match(agent.out, /ERROR +unwritable +\.git +writing refused — strom runs under an agent/);
+    assert.match(agent.out, /\n1 error, 0 warnings\n/);
+    assert.doesNotMatch(agent.out, /[ěščřžýáíéůú]/u, "no word of the research's language");
+  });
+  const ok = await w.run(["check"], { cwd: tree, env: { CLAUDECODE: "1" } });
+  assert.match(ok.out, /^ok — data consistent, sealed, nothing lost/);
+  w.cleanup();
+});
+
+test("git not let to start under an agent: the research's .git is where, never git's own program (found on Windows: …\\Git\\cmd\\git.exe)", opts, async () => {
+  const w = new World();
+  const tree = await w.withTree();
+  // a git that cannot be run (as an agent's sandbox refuses git.exe): EACCES at its start
+  const fake = path.join(w.dir, "git zakázaný");
+  fs.writeFileSync(fake, "#!/bin/sh\nexit 0\n", { mode: 0o644 });
+  const before = process.env.STROM_GIT;
+  process.env.STROM_GIT = fake;
+  try {
+    const agent = await w.run(["person", "add", "Žofie /Nováková/", "--json"], { cwd: tree, env: { CLAUDECODE: "1" } });
+    assert.equal(agent.json?.code, "fs.sandboxed", agent.out + agent.err);
+    assert.equal(fs.realpathSync(agent.json.params.where), fs.realpathSync(path.join(tree, ".git")));
+    assert.doesNotMatch(agent.json.message, /git zakázaný/);
+    // a person with no agent: the program refused stays said (an antivirus may refuse it)
+    const person = await w.run(["person", "add", "Žofie /Nováková/", "--json"], { cwd: tree });
+    assert.equal(person.json?.code, "fs.no-permission", person.out + person.err);
+    assert.equal(person.json.params.where, fake);
+  } finally {
+    if (before === undefined) delete process.env.STROM_GIT;
+    else process.env.STROM_GIT = before;
+  }
+  w.cleanup();
+});
+
 test("check where .strom cannot even be listed (as Windows denies a folder): its finding and exit 1, no 'no permission' error", opts, async () => {
   const w = new World();
   const tree = await w.withTree();

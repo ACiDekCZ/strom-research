@@ -9,7 +9,7 @@ import { Settings, type Flags } from "../core/config.ts";
 import { configDir, displayPath, expandHome, ISOLATED_HOME, type Env } from "../core/paths.ts";
 import { backupsDir } from "../core/backup.ts";
 import { insideProgram } from "../core/self.ts";
-import { Cancelled, NeedsConsentError, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
+import { Cancelled, InputEnded, NeedsConsentError, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
 import { migrate } from "../core/migrate.ts";
 import { Tree, findTreeUpwards, isTreeDir, knownTreesIn } from "../core/tree.ts";
 import { SCHEMA_VERSION, type TreeConfig } from "../core/model.ts";
@@ -135,8 +135,12 @@ export class Context {
       if (answer === "\u0003") throw new Cancelled(); // Ctrl-C, as a test types it
     } else {
       const rl = readline.createInterface({ input: this.io.stdin ?? process.stdin, output: process.stdout });
+      // the input ending before an answer (stdin closed, used up) settles the question too — never a question left
+      // open; a moment later, so Ctrl-C at a terminal (it closes the line first) stays the person's Ctrl-C
+      const ended = new Promise<never>((_, reject) => rl.once("close", () => setImmediate(() => reject(new InputEnded()))));
+      ended.catch(() => undefined);
       try {
-        answer = await rl.question(prompt);
+        answer = await Promise.race([rl.question(prompt), ended]);
       } catch (err) {
         // Ctrl-C at the question (Node: "Aborted with Ctrl+C", found on Mac as the menu's "that did not work")
         if ((err as { code?: string }).code === "ABORT_ERR") {

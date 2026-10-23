@@ -74,10 +74,13 @@ register(
     tree: true,
     run(ctx) {
       const tree = ctx.tree();
-      // its verdict and sum in the research's language: the person follows it in the agent's session too; a warning
-      // a person may meet, in it where a person runs it
-      const checked = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree), ...unwritable(tree, isAgent(ctx.env))], ui(tree.lang, "ui.check.ok"), tree.lang, !isAgent(ctx.env));
-      // much kept beside the research that can go (an older strom never tidied it): a sentence, in the research's language —
+      // one language from the first line to the last: a person reads it in the research's language (the findings a
+      // person may meet too); an agent reads it all in English, as it reads strom's errors — its findings say what to
+      // run (found on Mac: English findings above a Czech sum)
+      const agent = isAgent(ctx.env);
+      const lang = agent ? "en" : tree.lang;
+      const checked = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree), ...unwritable(tree, agent)], ui(lang, "ui.check.ok"), lang, !agent);
+      // much kept beside the research that can go (an older strom never tidied it): a sentence, in that language —
       // none where .strom cannot be listed (found on Windows: a folder denied to strom ended check with "no permission"
       // instead of its finding; unwritable says it)
       let disk: ReturnType<typeof tidyPlan> | undefined;
@@ -88,13 +91,13 @@ register(
       }
       const out =
         disk && disk.frees >= TIDY_SAID
-          ? { ...checked, text: lines(checked.text, ui(tree.lang, "ui.tidy.hint", { strom: mb(disk.size.strom, tree.lang), size: mb(disk.frees, tree.lang) })), data: { ...checked.data, disk: { strom: disk.size.strom, frees: disk.frees } } }
+          ? { ...checked, text: lines(checked.text, ui(lang, "ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) })), data: { ...checked.data, disk: { strom: disk.size.strom, frees: disk.frees } } }
           : checked;
       // not an error — research to do: who rests on no record of their own
       const unproven = unprovenPeople(tree).filter((u) => !u.living).length;
       // an archive: what to research is no matter of it
       if (!unproven || actsAsArchive(tree)) return out;
-      return { ...out, text: lines(out.text, ui(tree.lang, "ui.check.unproven", { n: unproven })), data: { ...out.data, unproven } };
+      return { ...out, text: lines(out.text, ui(lang, "ui.check.unproven", { n: unproven })), data: { ...out.data, unproven } };
     },
   },
   {

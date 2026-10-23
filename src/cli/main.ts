@@ -74,7 +74,8 @@ function systemError(e: HeldError, agent: Env | false): StromError | undefined {
     case "EACCES":
     case "EPERM":
     case "EROFS":
-      return noPermission(e.path, agent);
+      // git not let to start under an agent: said as the research's folder (underAgent)
+      return noPermission((agent && e.gitFolder) || e.path, agent);
     case "EISDIR":
       return new UsageError(`a folder was given where a file is expected${where}`, { code: "fs.folder", ...(e.path ? { params: { path: e.path } } : {}) });
     case "ENOTDIR":
@@ -115,18 +116,21 @@ const REFUSALS = new Set(["fs.no-permission", "git.unwritable", "init.unwritable
  * Codex's sandbox ran strom with none of its marks) is named to the person as the likely cause — not certain, so
  * the other causes after it.
  */
-function underAgent(e: StromError, env: Env): StromError {
+function underAgent(e: StromError, env: Env, gitFolder?: string): StromError {
   if (!REFUSALS.has(e.code ?? "")) return e;
-  if (isAgent(env)) return noPermission(e.params?.where, env);
+  // git not let to start under an agent: the research's folder is where (found on Windows: "…\Git\cmd\git.exe"),
+  // what the agent's sandbox is to let strom use; with no agent the program refused stays said (an antivirus)
+  const where = gitFolder ?? e.params?.where;
+  if (isAgent(env)) return noPermission(where, env);
   const above = agentInAncestry(env);
-  if (above) return noPermission(e.params?.where, false, process.platform, above);
-  return ancestryUnread(env) ? noPermission(e.params?.where, false, process.platform, "?") : e;
+  if (above) return noPermission(where, false, process.platform, above);
+  return ancestryUnread(env) ? noPermission(where, false, process.platform, "?") : e;
 }
 
 function printError(io: IO, json: boolean, err: unknown, debug: boolean, lang: string | undefined, env: Env): number {
   const agent = isAgent(env) && env;
-  const sys = err instanceof StromError ? err : (systemError(err as NodeJS.ErrnoException, agent) ?? err);
-  const e = sys instanceof StromError ? underAgent(sys, env) : sys;
+  const sys = err instanceof StromError ? err : (systemError(err as HeldError, agent) ?? err);
+  const e = sys instanceof StromError ? underAgent(sys, env, (err as HeldError | undefined)?.gitFolder) : sys;
   if (e instanceof StromError) {
     if (json) io.stdout(toJson(e.toJSON()));
     else if (e instanceof Cancelled) io.stderr(`${lang ? ui(lang, "ui.cancelled") : e.message}\n`); // the person's Ctrl-C: no error

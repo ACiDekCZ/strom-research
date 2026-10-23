@@ -10,7 +10,7 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, numberIn, truncate } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
-import { StromError, UsageError } from "../core/errors.ts";
+import { EXIT, StromError, UsageError } from "../core/errors.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { conversationArgs, conversationEnv } from "../agents/launch.ts";
 import { globalTargets, installGlobal, isInstalled, uninstallGlobal } from "../agents/global.ts";
@@ -600,6 +600,10 @@ register(
     group: "start",
     run: async (ctx) => {
       if (isAgent(ctx.env)) throw new UsageError("the menu is for a person at a terminal", { hint: "strom (orientation) — or strom --json" });
+      // nobody at a terminal to answer (stdin closed or not one, STROM_NONINTERACTIVE, --yes/--json): said at once —
+      // never a menu waiting for an answer that cannot come
+      if (!ctx.interactive)
+        throw new StromError("the menu is for a person at a terminal — none here", { exitCode: EXIT.needsInput, code: "menu.no-terminal", hint: "strom (orientation) — or strom --json" });
       const { runMenu } = await import("../cli/menu.ts");
       const { main } = await import("../cli/main.ts");
       await runMenu(ctx, (argv, quiet) => main(argv, quiet ? { ...ctx.io, stdout: () => undefined } : ctx.io, ctx.env, ctx.cwd));

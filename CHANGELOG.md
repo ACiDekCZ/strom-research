@@ -5,9 +5,21 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.20.0
+
+*In preparation: the betas up to 1.20.0-beta.1. The section is complete with the release.*
+
+- **The menu with nobody at a terminal says so at once.** Started where no one can answer (a closed input, a window
+  without a terminal), the menu ends with one sentence in the research's language and what to do instead,
+  no longer with an error of the program; a question whose input ends before an answer ends the menu the same way.
+- **`strom check` speaks one language.** For a person every finding, the sum and the notes are in the research's
+  language; for an agent all of it is in English, never a mix of both.
+- **When the agent's sandbox refuses git, the right place is named.** The message names the research's history (its
+  `.git` folder) as the place refused, not git's own program.
+
 ## 1.19.0
 
-*In preparation: the betas up to 1.19.0-beta.8. The section is complete with the release.*
+*2026-10-22 · goes with the Strom app 3.15.0.*
 
 - **An archive that went silent is waited for, not asked again and again.** When an archive stops answering, strom
   leaves it alone for an hour — two, then four when it stays silent the same day — and the agent hears until when:

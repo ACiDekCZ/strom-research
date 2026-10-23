@@ -91,6 +91,18 @@ export class Cancelled extends StromError {
   }
 }
 
+/**
+ * The input ended before an answer (stdin closed, a file or a pipe used up): nobody left to ask — said, never a
+ * process that hangs on its question (found on Mac: the menu with stdin closed ended in Node's "unsettled top-level
+ * await", exit 13).
+ */
+export class InputEnded extends StromError {
+  constructor() {
+    super("the input ended before an answer — nobody to ask here", { exitCode: EXIT.needsInput, code: "input.ended", hint: "run it at a terminal" });
+    this.name = "InputEnded";
+  }
+}
+
 /** A name matched more than one record. Never pick one silently. */
 export class AmbiguousError extends StromError {
   readonly candidates: Candidate[];
