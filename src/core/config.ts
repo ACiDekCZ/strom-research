@@ -7,7 +7,7 @@
 
 import path from "node:path";
 import { configDir, defaultHome, expandHome, type Env } from "./paths.ts";
-import { readJsonIfExists, writeJson } from "./json.ts";
+import { canonicalize, readJsonIfExists, writeJson } from "./json.ts";
 import { detectLang, isValidLang } from "./lang.ts";
 import { UsageError } from "./errors.ts";
 import { DEFAULT_AGENT, PROFILES, TIERS, type Tier } from "../agents/profiles.ts";
@@ -24,6 +24,13 @@ import type { ViewCalibration } from "./viewsizes.ts";
 import type { KeyTuning } from "./tune.ts";
 import type { TuneAnswer } from "./tuneask.ts";
 
+/** A family tree seen on this computer: where it was, its id and name (strom.json). */
+export interface SeenTree {
+  root: string;
+  id: string;
+  name: string;
+}
+
 export interface UserConfig {
   /** Strom home: default parent of trees and shared data. */
   home?: string;
@@ -37,6 +44,11 @@ export interface UserConfig {
   extraTrees?: string[];
   /** The tree used when no other says which (`strom trees use`). */
   currentTree?: string;
+  /**
+   * The family trees seen on this computer (strom's own memory): one gone from its folder and found nowhere else is
+   * said (moved?) — never another opened in its place; `strom trees remove` and `strom trees forget` take it out.
+   */
+  seenTrees?: SeenTree[];
   /** Default AI agent: claude, codex, antigravity, opencode, grok. */
   agent?: string;
   /** What a new research is: an archive (the person's own choice: the setup wizard, the settings, strom config set mode), else one with an agent. */
@@ -729,6 +741,28 @@ export class Settings {
   stromVersion(tree?: TreeConfig): string | undefined {
     const r = this.resolve("strom.version", tree);
     return r ? String(r.value) : undefined;
+  }
+
+  /**
+   * Only this one setting written (strom's own memory of what it saw): nothing else changed in memory goes with it,
+   * nor is anything written when it is as on disk.
+   */
+  saveKey(key: keyof UserConfig): void {
+    const file = configFile(this.env);
+    const release = acquireLock(`${file}.lock`, { owner: "strom config", waitMs: 10_000, staleMs: 60_000 });
+    try {
+      const fresh = loadUserConfig(this.env) as Record<string, unknown>;
+      const mine = (this.config as Record<string, unknown>)[key];
+      if (JSON.stringify(canonicalize(fresh[key])) === JSON.stringify(canonicalize(mine))) return;
+      if (mine === undefined) delete fresh[key];
+      else fresh[key] = mine;
+      saveUserConfig(this.env, fresh as UserConfig);
+      const base = this.baseline as Record<string, unknown>;
+      if (mine === undefined) delete base[key];
+      else base[key] = structuredClone(mine);
+    } finally {
+      release();
+    }
   }
 
   /**

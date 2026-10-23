@@ -1,11 +1,12 @@
 // The backup before another channel or an older version (core/backup.ts), as the CLI makes it: every research this
-// computer knows and the settings, the README in the person's language, kept in the user config, said in a line.
+// computer knows, the shared folder with its images and the settings, the README in the person's language, kept in the user config, said in a line.
 
 import { EXIT, StromError } from "../core/errors.ts";
-import { backupOnce, backupsDir, BackupFailed, mb, type BackupRecord, type Transition } from "../core/backup.ts";
+import { backupOnce, backupsDir, BackupFailed, mb, type BackupRecord, type SharedMedia, type Transition } from "../core/backup.ts";
 import type { Context } from "./context.ts";
 import { installation, replacedHolding } from "../core/self.ts";
 import { ui } from "./ui.ts";
+import { mb as sizeIn } from "../core/tidy.ts";
 import { isAgent } from "../core/which.ts";
 import { refusedCode, SANDBOX_HINT } from "../core/writable.ts";
 
@@ -42,8 +43,9 @@ export function backupBefore(ctx: Context, t: Transition, opts: { update?: { cha
       env: ctx.env,
       trees: () => ctx.knownTrees().map((k) => k.root),
       research: [ctx.settings.trees()?.value, ctx.settings.shared()?.value].filter((p): p is string => !!p),
+      ...(ctx.settings.shared()?.value ? { shared: ctx.settings.shared()!.value } : {}),
       transition: t,
-      readme: ui(lang, "ui.backup.readme", { ...said, date: when(new Date().toISOString()) }),
+      readme: (media) => ui(lang, "ui.backup.readme", { ...said, date: when(new Date().toISOString()), media: mediaSaid(lang, media) }),
       record: (made, before) => {
         ctx.settings.config.backups = [...before, made];
         ctx.settings.save();
@@ -91,10 +93,17 @@ export function backupBefore(ctx: Context, t: Transition, opts: { update?: { cha
   }
 }
 
-/** Where the backup is, in a line: the person's language, or JSON for an agent (--json). */
+/** How the shared images are in a backup, for its README. */
+function mediaSaid(lang: string, media: SharedMedia | undefined): string {
+  if (!media || !media.files) return ui(lang, "ui.backup.media.none");
+  return ui(lang, `ui.backup.media.${media.how}`, { n: media.files, size: sizeIn(media.bytes, lang) });
+}
+
+/** Where the backup is, in a line: the person's language, or JSON for an agent (--json). Shared images left out are said. */
 export function backupSaid(ctx: Context, b: BackupRecord): string {
-  if (ctx.json) return JSON.stringify({ backup: { path: b.path, bytes: b.bytes, from: b.from, to: b.to } });
-  return ui(ctx.uiLang(), "ui.backup.made", { ...sides(b), path: b.path, size: mb(b.bytes) });
+  if (ctx.json) return JSON.stringify({ backup: { path: b.path, bytes: b.bytes, from: b.from, to: b.to, ...(b.media ? { media: b.media } : {}) } });
+  const made = ui(ctx.uiLang(), "ui.backup.made", { ...sides(b), path: b.path, size: mb(b.bytes) });
+  return b.media?.how === "left" ? `${made}\n${ui(ctx.uiLang(), "ui.backup.media.left.line", { size: sizeIn(b.media.bytes, ctx.uiLang()) })}` : made;
 }
 
 /** The last backup in a line (the menu, strom doctor). */

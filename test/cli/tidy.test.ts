@@ -44,6 +44,9 @@ function gathered(root: string): { outside: string } {
   const old = new Date(Date.now() - 40 * DAY);
   fs.utimesSync(s("converted", "0123456789abcdef"), old, old);
   put(s("converted", "fedcba9876543210", "1.jpg"), 3000, 1);
+  // the app's previews of the material: one not asked for 70 days goes, one asked stays
+  put(s("thumbs", `${"a".repeat(64)}-256.jpg`), 2000, 70);
+  put(s("thumbs", `${"b".repeat(64)}-256.jpg`), 2000, 1);
   for (let i = 0; i < 7; i++) put(s("sync", "kept", `strom-app-2026-10-0${i}.ged`), 2000, 1 + i / 10); // 5 newest stay
   // a send taken back: kept while the app may send it again
   put(s("sync", "kept", "strom-app-undone.ged"), 2000, 2);
@@ -82,6 +85,7 @@ test("strom tidy: what goes is shown, the person's yes takes it; the research, l
   assert.match(shown.out, /Pracovní složky přerušených stahování: počet 1,/, shown.out);
   assert.match(shown.out, /Starší poslání z aplikace Strom, už zapsaná .*: počet 2,/, shown.out);
   assert.match(shown.out, /Fotky a strany PDF převedené pro čtení .*: počet 1,/, shown.out);
+  assert.match(shown.out, /Malé náhledy materiálů pro aplikaci Strom .*: počet 1,/, shown.out);
   assert.match(shown.out, /Uvolní se asi/, shown.out);
   assert.ok(has("runs", "N0001.log"), "a dry run removes nothing");
   // Enter says no
@@ -92,13 +96,13 @@ test("strom tidy: what goes is shown, the person's yes takes it; the research, l
   const done = await w.run(["tidy"], { tty: true, answers: ["a"] });
   assert.equal(done.code, 0, done.out + done.err);
   assert.match(done.out, /✓ Uvolněno/, done.out);
-  for (const gone of [["runs", "N0001.log"], ["briefs", "N0001.md"], ["views", "B0001-1-aaaaaaaaaa.jpg"], ["fetch", "demo-1700000000000"], ["converted", "0123456789abcdef"], ["sync", "kept", "strom-app-2026-10-05.ged"], ["sync", "kept", "strom-app-2026-10-06.ged"], ["session-w-gone.json"], ["runs", "N0002.log"]])
+  for (const gone of [["runs", "N0001.log"], ["briefs", "N0001.md"], ["views", "B0001-1-aaaaaaaaaa.jpg"], ["fetch", "demo-1700000000000"], ["converted", "0123456789abcdef"], ["sync", "kept", "strom-app-2026-10-05.ged"], ["sync", "kept", "strom-app-2026-10-06.ged"], ["session-w-gone.json"], ["runs", "N0002.log"], ["thumbs", `${"a".repeat(64)}-256.jpg`]])
     assert.ok(!has(...gone), gone.join("/"));
   // the log kept smaller, its words kept, its images left out
   const log = (await import("node:zlib")).gunzipSync(fs.readFileSync(path.join(w.cwd, ".strom", "runs", "N0002.log.gz"))).toString("utf8");
   assert.match(log, /Hledám křest/);
   assert.match(log, /\[image \d+ kB left out\]/);
-  for (const kept of [["views", "B0001-2-bbbbbbbbbb.jpg"], ["converted", "fedcba9876543210", "1.jpg"], ["excerpts", "S0001-x.jpg"], ["sync", "kept", "strom-app-undone.ged"], ["sync", "kept", "strom-app-2026-10-00.ged"], ["sync", "kept", "strom-app-2026-10-04.ged"]])
+  for (const kept of [["views", "B0001-2-bbbbbbbbbb.jpg"], ["converted", "fedcba9876543210", "1.jpg"], ["thumbs", `${"b".repeat(64)}-256.jpg`], ["excerpts", "S0001-x.jpg"], ["sync", "kept", "strom-app-undone.ged"], ["sync", "kept", "strom-app-2026-10-00.ged"], ["sync", "kept", "strom-app-2026-10-04.ged"]])
     assert.ok(has(...kept), kept.join("/"));
   assert.ok(fs.lstatSync(path.join(w.cwd, ".strom", "views", "link-out.jpg")).isSymbolicLink(), "a link stays");
   assert.ok(fs.existsSync(outside), "what it leads to stays");

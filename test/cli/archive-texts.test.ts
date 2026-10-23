@@ -122,7 +122,9 @@ test("K4.3 material in an archive: kept, said so — no conversation offered, no
   const { archive, waiting } = await trees();
   // the menu: 4 add · 1 material · 2 what is known · the words · Enter back · 0
   const m = await archive.ok([], { tty: true, answers: ["4", "1", "2", "Děda Josef byl mlynář v Týnci", "", "0"] });
-  assert.match(m.out, /✓ Uloženo do Archivu Stromu: 1\. Projde se, až se zapne výzkum\./, m.out);
+  // saved, nothing promised (spec 017, M12: no agent, queue or cost)
+  assert.match(m.out, /✓ Uloženo do Archivu Stromu: 1\.$/m, m.out);
+  assert.doesNotMatch(m.out, /Projde se|zapne výzkum/, m.out);
   assert.doesNotMatch(m.out, /Agent to projde|Pustit se do toho s agentem/, m.out);
   const after = m.out.slice(m.out.indexOf("Uloženo do Archivu Stromu"));
   assert.doesNotMatch(after, NO_AI, after);
@@ -131,7 +133,7 @@ test("K4.3 material in an archive: kept, said so — no conversation offered, no
   assert.ok(t.length && t.every((x) => x.heldBy === "archive"), JSON.stringify(t));
   // the command
   const c = await archive.ok(["intake", "--text", "Babička Anna pekla chleba"]);
-  assert.match(c.out, /^✓ Uloženo do Archivu Stromu: 1\. Projde se, až se zapne výzkum\.$/m, c.out);
+  assert.match(c.out, /^✓ Uloženo do Archivu Stromu: 1\.$/m, c.out);
   assert.doesNotMatch(c.out, /task next|intake task/, c.out);
   assert.doesNotMatch(c.out, NO_AI, c.out);
   // a file, then the same file again: nothing new, said so
@@ -151,6 +153,45 @@ test("K4.3 material in an archive: kept, said so — no conversation offered, no
   assert.ok(Tree.open(waiting.cwd, waiting.env).list<Task>("task").some((x) => x.level === "intake" && x.state === "open" && !x.heldBy));
   archive.cleanup();
   waiting.cleanup();
+});
+
+test("material in a tree the Strom app has (its bridge, the secret kept): said where it is in the app, in the research's language; without the app, or after live stop, not", opts, async () => {
+  const { archive, waiting } = await trees();
+  const APP = /V aplikaci u osoby → Materiály\./;
+  try {
+    // never given to the app: nothing said of it
+    assert.doesNotMatch((await archive.ok(["intake", "--text", "Teta Anna"])).out, APP);
+    await archive.ok(["live", "start"]);
+    const c = await archive.ok(["intake", "--text", "Babička Anna pekla chleba"]);
+    assert.match(c.out, /^✓ Uloženo do Archivu Stromu: 1\. V aplikaci u osoby → Materiály\.$/m, c.out);
+    assert.doesNotMatch(c.out, NO_AI, c.out);
+    // the menu says it too
+    const m = await archive.ok([], { tty: true, answers: ["4", "1", "2", "Děda Josef byl mlynář v Týnci", "", "0"] });
+    assert.match(m.out, /✓ Uloženo do Archivu Stromu: 1\. V aplikaci u osoby → Materiály\./, m.out);
+    // the same again: nothing added, nothing said of the app
+    const letter = path.join(archive.dir, "dopis.txt");
+    fs.writeFileSync(letter, "Milá sestro, Josef se oženil v Týnci.\n");
+    await archive.ok(["intake", letter]);
+    assert.doesNotMatch((await archive.ok(["intake", letter])).out, APP);
+    // the person said there is no Strom app: not said
+    await archive.ok(["config", "set", "strom.app", "no"]);
+    assert.doesNotMatch((await archive.ok(["intake", "--text", "Strýc Karel"])).out, APP);
+    await archive.ok(["config", "set", "strom.app", "yes"]);
+    assert.match((await archive.ok(["intake", "--text", "Strýc Jan"])).out, APP);
+    // live stop drops the secret address: the app no longer has it
+    await archive.ok(["live", "stop"]);
+    assert.doesNotMatch((await archive.ok(["intake", "--text", "Sestřenice Eva"])).out, APP);
+    // another language, a research waiting for its agent
+    waiting.env.STROM_LANG = "de";
+    await waiting.ok(["live", "start"]);
+    const d = await waiting.ok(["intake", "--text", "Großvater Josef"]);
+    assert.match(d.out, /In der Strom-App bei der Person → Materialien\./, d.out);
+  } finally {
+    await archive.run(["live", "stop"]);
+    await waiting.run(["live", "stop"]);
+    archive.cleanup();
+    waiting.cleanup();
+  }
 });
 
 test("K4.3 the menu of an empty archive: Add to the archive is material only; the Strom app not installed — nothing followed live", opts, async () => {
@@ -280,4 +321,45 @@ test("A4 strom setup in an archive offers research: kept an archive (Enter), or 
   const again = await w.run(["setup"], { tty: true, answers: Array(20).fill("") });
   assert.doesNotMatch(again.out, /Nechat ho tak, nebo zapnout výzkum/, again.out);
   w.cleanup();
+});
+
+test("M12 a folder of more than 20 images in an archive: kept as family documents on a yes, nothing of a book or an agent — the menu and the command", opts, async () => {
+  const { archive } = await trees();
+  const folder = path.join(archive.dir, "Fotky od tety Žofie");
+  fs.mkdirSync(folder);
+  // 21 small images, each its own content
+  for (let i = 1; i <= 21; i++) fs.writeFileSync(path.join(folder, `foto-${i}.jpg`), Buffer.from([0xff, 0xd8, 0xff, 0xe0, i, 0xff, 0xd9]));
+  // the menu: 4 add · 1 material · 1 files · the folder · Enter = yes, family documents · Enter back · 0
+  const m = await archive.ok([], { tty: true, answers: ["4", "1", "1", folder, "", "", "0"] });
+  assert.match(m.out, /Ve složce Fotky od tety Žofie je 21 obrázků\. Uložit je do Archivu Stromu jako rodinné dokumenty\?/, m.out);
+  assert.match(m.out, /✓ Uloženo do Archivu Stromu: 21\.$/m, m.out);
+  const said = m.out.slice(m.out.indexOf("Ve složce"), m.out.indexOf("Uloženo do Archivu Stromu: 21"));
+  assert.doesNotMatch(said, NO_AI, said);
+  assert.doesNotMatch(said, /matrik|knihy|zaeviduje/, said);
+  // no: nothing saved, said so — nothing of a book
+  const other = path.join(archive.dir, "Druhá složka");
+  fs.mkdirSync(other);
+  for (let i = 1; i <= 21; i++) fs.writeFileSync(path.join(other, `b-${i}.jpg`), Buffer.from([0xff, 0xd8, 0xff, 0xe1, i, 0xff, 0xd9]));
+  const no = await archive.ok([], { tty: true, answers: ["4", "1", "1", other, "n", "", "0"] });
+  assert.match(no.out, /^Druhá složka: neuloženo\.$/m, no.out);
+  assert.doesNotMatch(no.out, NO_AI, no.out);
+  // the command: the way to keep them is --documents, never a record set
+  const c = await archive.run(["intake", other]);
+  assert.notEqual(c.code, 0);
+  assert.match(c.err, /strom intake ".*Druhá složka" --documents/, c.err);
+  assert.doesNotMatch(c.err, /recordset|media add/, c.err);
+  assert.match((await archive.ok(["intake", other, "--documents"])).out, /✓ Uloženo do Archivu Stromu: 21\.$/m);
+  archive.cleanup();
+});
+
+test("M12 an archive's help names the phone and switches research on where the refusal says: the menu's first item", opts, async () => {
+  const { archive } = await trees();
+  const h = await archive.ok(["help", "--human"]);
+  assert.match(h.out, /strom phone\s+Propojení s telefonem/, h.out);
+  assert.doesNotMatch(h.out, NO_AI, h.out);
+  const agentOnly = await archive.ok(["help", "--human", "brief"]);
+  assert.match(agentOnly.out, /v Archivu Stromu se nepoužívá \(výzkum se zapíná v menu, první položka\)/, agentOnly.out);
+  const catalog = await archive.ok(["help"]);
+  assert.match(catalog.out, /phone/, catalog.out);
+  archive.cleanup();
 });

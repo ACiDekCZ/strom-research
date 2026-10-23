@@ -20,7 +20,7 @@ import { withMargin } from "../core/excerpt.ts";
 import { batches, READER_MINUTES_HELP } from "../core/reader.ts";
 import { checkPrompt, locatePrompt, parseChecked, parseLocated, widen, type CheckJob, type Checked, type ClipJob, type Located } from "../core/clipfinder.ts";
 import { displayName } from "../core/people.ts";
-import { readers } from "./readers.ts";
+import { readers, refuseReadersInArchive } from "./readers.ts";
 import { verifyFast } from "../core/integrity.ts";
 import { pool } from "./read.ts";
 import type { Tree } from "../core/tree.ts";
@@ -71,6 +71,7 @@ register({
   examples: ["strom clips --dry-run", "strom clips --recordset B0001 --limit 20", "strom clips S0001 S0002"],
   run: async (ctx: Context, { args, opts }) => {
     const tree = ctx.tree();
+    refuseReadersInArchive(ctx, tree, "strom clips");
     const shared = ctx.settings.shared()?.value;
     if (!shared) throw new UsageError("no shared folder with the images is set", { hint: "strom setup" });
     const all = new Map(tree.list<Media>("media").map((m) => [m.id, m]));

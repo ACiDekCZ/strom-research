@@ -22,8 +22,11 @@ import { decodeText, safeFolderName } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
 import { amendInput, checkOriginalMeta } from "../core/originals.ts";
 import { batchStatus, closeBatch, listBatches, readBatch } from "../core/batches.ts";
-import { SORT_KINDS, type Source } from "../core/model.ts";
+import { HIDE_REASONS, SORT_KINDS, type Source } from "../core/model.ts";
+import { assignMaterial, hideMaterial, unhideMaterial } from "../core/material.ts";
+import { normalizeDate } from "../core/gdate.ts";
 import { actsAsArchive } from "../core/state.ts";
+import { appHasTree } from "../core/live.ts";
 import { isArchive } from "../core/mode.ts";
 import { ui } from "../cli/ui.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
@@ -41,6 +44,20 @@ function kindOf(file: string, text?: string): Input["kind"] {
   if ([".jpg", ".jpeg", ".png", ".tif", ".tiff", ".gif", ".webp", ".heic", ".pdf"].includes(ext)) return "document";
   if ([".txt", ".md", ".rtf", ".doc", ".docx", ".odt", ".html", ".csv"].includes(ext)) return "text";
   return "other";
+}
+
+/** The input IDs given: as arguments, and from a file (--files-from, "-" = stdin), one or more a line. */
+function idsGiven(ctx: Context, args: string[], opts: Record<string, unknown>): string[] {
+  const from = opts["files-from"];
+  let more: string[] = [];
+  if (typeof from === "string") {
+    const text = from === "-" ? (ctx.io.stdinText?.() ?? "") : fs.existsSync(ctx.resolvePath(from)) ? fs.readFileSync(ctx.resolvePath(from), "utf8") : undefined;
+    if (text === undefined) throw notFound(from);
+    more = text.split(/[\s,]+/u).filter(Boolean);
+  }
+  const ids = [...args, ...more];
+  if (!ids.length) throw new UsageError("give the inputs (I…)", { code: "material.body", hint: "strom input list" });
+  return ids;
 }
 
 /** The research the inputs are for: the one named, else the only active one. */
@@ -130,6 +147,9 @@ register(
       const note = typeof opts.note === "string" ? opts.note.replace(/[\p{Cc}]/gu, " ").trim().slice(0, 500) || undefined : undefined;
       const research = forTask?.research ?? researchFor(tree, opts.research);
       const persons = checkOriginalMeta(tree, { persons: [...(forTask ? taskPeople(tree, forTask) : []), ...(Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).map((p) => String(p).trim().toUpperCase())] }).persons;
+      // where nobody researches (an archive, a research waiting for its agent): said to the person, in the research's
+      // language — kept, no task to take next (an archive's waits put aside until research is switched on)
+      const quiet = actsAsArchive(tree);
       // Files per argument: a folder becomes one intake task, not one per file.
       const groups = args.map((a) => {
         const p = ctx.resolvePath(a);
@@ -139,13 +159,13 @@ register(
         const images = files.filter((f) => IMAGE_EXT.has(path.extname(f).toLowerCase())).length;
         if (folder && images > BOOK_OF_SCANS && !opts.documents)
           throw new UsageError(`${images} images in ${ctx.display(p)} look like the scans of a book, not family documents`, {
-            hint: `scans of a register: strom recordset add "<the book>" … then strom media add "${a}" --recordset B…\nif they are family documents after all: strom intake "${a}" --documents`,
+            // where nobody researches no record set is made: kept as family documents, or not at all
+            hint: quiet
+              ? `family documents: strom intake "${a}" --documents`
+              : `scans of a register: strom recordset add "<the book>" … then strom media add "${a}" --recordset B…\nif they are family documents after all: strom intake "${a}" --documents`,
           });
         return { folder: folder ? path.basename(p) : undefined, files };
       });
-      // where nobody researches (an archive, a research waiting for its agent): said to the person, in the research's
-      // language — kept, no task to take next (an archive's waits put aside until research is switched on)
-      const quiet = actsAsArchive(tree);
       const known = new Map(tree.list<Input>("input").filter((i) => i.sha).map((i) => [i.sha!, i.id]));
       const report: string[] = [];
       const added: Input[] = [];
@@ -237,9 +257,11 @@ register(
       });
       // what came, in the research's language: a person follows it, also where the agent ran it (in its session)
       const tasks = tree.written.filter((o) => o.op === "task.add").length;
+      // a tree the Strom app has: where the material is there (its Materials, at the person)
+      const inApp = added.length > 0 && appHasTree(tree.root, ctx.settings);
       const text = lines(
         added.length
-          ? `${ui(tree.lang, quiet ? (isArchive(tree) ? "ui.intake.done.archive" : "ui.intake.done.waiting") : "ui.intake.registered", { n: added.length })}${skipped ? ` ${ui(tree.lang, "ui.intake.same", { n: skipped })}` : ""}`
+          ? `${ui(tree.lang, quiet ? (isArchive(tree) ? "ui.intake.done.archive" : "ui.intake.done.waiting") : "ui.intake.registered", { n: added.length })}${skipped ? ` ${ui(tree.lang, "ui.intake.same", { n: skipped })}` : ""}${inApp ? ` ${ui(tree.lang, "ui.intake.app")}` : ""}`
           : ui(tree.lang, "ui.intake.known"),
         added.length ? table(added.map((i) => [`  ${i.id}`, i.kind, truncate(i.name, 60)])) : undefined,
         ...report,
@@ -275,10 +297,12 @@ register(
       const tree = ctx.tree();
       const i = requireRecord<Input>(tree, args[0]!, "input");
       const abs = inputPath(tree, i);
+      // the file gone (the shared folder not brought along, deleted by hand): said, never shown as if it were there
+      const missing = !!abs && !fs.existsSync(abs);
       const tasks = tree.list<Task>("task").filter((t) => t.where.includes(i.id));
       const text = lines(
         `${i.id} ${i.name}  [${i.kind} · ${i.state}]`,
-        abs ? `file   ${abs}` : undefined,
+        abs ? `file   ${abs}${missing ? ` — missing on this computer: bring back the ${i.file?.startsWith("media:") ? "shared folder from a backup of the whole Strom folder (its subfolder shared)" : "research's folder from a backup"}` : ""}` : undefined,
         i.from ? `from   ${i.from}` : undefined,
         i.batch ? `batch  ${i.batch}${i.path ? ` · ${i.path}` : ""}` : undefined,
         i.persons?.length ? `of     ${i.persons.join(", ")}` : undefined,
@@ -290,11 +314,11 @@ register(
         !i.text && i.kind === "text" && abs && fs.existsSync(abs) && (i.size ?? 0) < 20_000 && /\.(txt|md|csv)$/i.test(abs) ? `\n${fs.readFileSync(abs, "utf8").trim()}` : undefined,
         tasks.length ? `\ntasks\n${table(tasks.map((t) => [`  ${t.id}`, t.state, truncate(t.what, 60)]))}` : undefined,
         ...i.notes.map((n) => `note   ${n.text}`),
-        i.kind === "document" && abs && !readingsOf(tree, i).some((r) => r.state === "done")
+        i.kind === "document" && abs && !missing && !readingsOf(tree, i).some((r) => r.state === "done")
           ? `\nread the file (a big image: strom media view ${i.id} --grid, then --crop), then record what it says: strom source add … --input ${i.id}`
           : undefined,
       );
-      return { text, data: { input: i, path: abs, tasks: tasks.map((t) => t.id), ...(i.read?.length ? { readings: readingsOf(tree, i) } : {}) } };
+      return { text, data: { input: i, path: abs, ...(missing ? { missing: true } : {}), tasks: tasks.map((t) => t.id), ...(i.read?.length ? { readings: readingsOf(tree, i) } : {}) } };
     },
   },
   {
@@ -323,8 +347,95 @@ register(
       const tree = ctx.tree();
       if (!opts.reason) throw new UsageError("--reason is required");
       const id = normId(args[0]!, "input");
-      update<Input>(tree, id, "input", (i) => ({ ...i, state: "skipped" }), { op: "input.skip", summary: `${id} skipped`, reason: String(opts.reason) });
-      return { text: lines(...tree.written.map((o) => o.summary)), data: { id } };
+      // the state it had kept: strom input unskip gives it back
+      update<Input>(
+        tree,
+        id,
+        "input",
+        (i) => (i.state === "skipped" ? i : { ...i, state: "skipped", hidden: { at: new Date().toISOString(), by: fileBy(tree, ctx.env), was: i.state === "processed" ? "processed" : "new" } }),
+        { op: "input.skip", summary: `${id} skipped`, reason: String(opts.reason) },
+      );
+      return { text: lines(...tree.written.map((o) => o.summary), `take it back: strom input unskip ${id}`), data: { id } };
+    },
+  },
+  {
+    path: ["input", "unskip"],
+    summary: "Take back a skip or a hide: the files of the material as they were before (the bridge runs it for the Strom app's Show again)",
+    group: "inputs",
+    tree: true,
+    writes: true,
+    description:
+      "Each skipped or hidden file gets back the state it had: new, or processed when a source was made of it. One that\n" +
+      "waits again and that no task holds gets an intake task (in an archive put aside); sorted as unrelated, that sorting\n" +
+      "goes (the history keeps it). A file not skipped: nothing. Many files: --files-from <file> (one ID a line; - = stdin).",
+    args: [{ name: "inputs", description: "input IDs (I0001 …)", variadic: true, unless: ["files-from"] }],
+    options: [{ name: "files-from", type: "string", value: "<file|->", description: "the input IDs from a file, one a line (- = stdin)" }],
+    examples: ["strom input unskip I0003", "strom input unskip --files-from ids.txt"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const ids = idsGiven(ctx, args, opts);
+      const got = tree.withTreeLock(() => unhideMaterial(tree, ids));
+      return { text: got.changed.length ? lines(...tree.written.map((o) => o.summary)) : "nothing skipped: nothing changed", data: got };
+    },
+  },
+  {
+    path: ["input", "hide"],
+    summary: "Hide files of the material — nothing of the family, the same as another (the bridge runs it for the Strom app's Hide)",
+    group: "inputs",
+    tree: true,
+    writes: true,
+    description:
+      "The files are skipped, the state each had kept: strom input unskip shows them again. A task holding one lets it go\n" +
+      "(given up when none of its files is left), so nobody sorts it. Nothing is deleted; the original stays. The Strom\n" +
+      "app lists hidden files as hidden. An agent sorting a batch says what a file is with strom input sort instead.",
+    args: [{ name: "inputs", description: "input IDs (I0001 …)", variadic: true, unless: ["files-from"] }],
+    options: [
+      { name: "why", type: "string", value: "<code>", description: `${HIDE_REASONS.join(" or ")} (or none)` },
+      { name: "files-from", type: "string", value: "<file|->", description: "the input IDs from a file, one a line (- = stdin)" },
+    ],
+    examples: ["strom input hide I0003 --why unrelated", "strom input hide I0003 I0005 --why duplicate"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const why = typeof opts.why === "string" ? opts.why.trim() : undefined;
+      if (why !== undefined && !(HIDE_REASONS as readonly string[]).includes(why))
+        throw new UsageError(`--why: ${HIDE_REASONS.join(" or ")}`, { code: "material.body", params: { why: why.slice(0, 40) } });
+      const ids = idsGiven(ctx, args, opts);
+      const got = tree.withTreeLock(() => hideMaterial(tree, ids, { reason: why as (typeof HIDE_REASONS)[number] | undefined, by: fileBy(tree, ctx.env) }));
+      return { text: got.changed.length ? lines(...tree.written.map((o) => o.summary), `show again: strom input unskip ${got.changed.length > 3 ? "…" : got.changed.join(" ")}`) : "hidden already: nothing changed", data: got };
+    },
+  },
+  {
+    path: ["input", "assign"],
+    summary: "Add the people files of the material are of, or take them off (the bridge runs it for the Strom app's Assign)",
+    group: "inputs",
+    tree: true,
+    writes: true,
+    description:
+      "Of each file given, or of a whole batch (--batch: its people, and each of its files). All or nothing: a file or a\n" +
+      "person the research does not have, and nothing is written. Adding makes no task and never puts a sorted file back\n" +
+      "to new; a file that still waits, its task is of the person too. Taken off a file, a person the whole batch is of\n" +
+      "stays (said: take it off the batch). The same again: nothing written. Many files: --files-from (one ID a line).",
+    args: [{ name: "inputs", description: "input IDs (I0001 …)", variadic: true, unless: ["files-from", "batch"] }],
+    options: [
+      { name: "add", type: "string", multiple: true, value: "<P…>", description: "a person the files are of (repeatable)" },
+      { name: "remove", type: "string", multiple: true, value: "<P…>", description: "a person they are not of (repeatable)" },
+      { name: "batch", type: "string", value: "<mark>", description: "a whole batch instead of files (strom input batch)" },
+      { name: "files-from", type: "string", value: "<file|->", description: "the input IDs from a file, one a line (- = stdin)" },
+    ],
+    examples: ["strom input assign I0003 I0005 --add P0001 --add P0004", "strom input assign I0005 --remove P0004", "strom input assign --batch 4f1c2a9e-0b7d-4c55-9a7e-3d2c1b0a9f88 --remove P0004"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const people = (v: unknown) => (Array.isArray(v) ? v : v ? [v] : []).flatMap((p) => String(p).split(",")).map((p) => p.trim()).filter(Boolean);
+      const batch = typeof opts.batch === "string" ? opts.batch.trim() : undefined;
+      if (batch && (args.length || opts["files-from"])) throw new UsageError("give the files or --batch, not both", { code: "material.body" });
+      const got = tree.withTreeLock(() => assignMaterial(tree, { ...(batch ? { batch } : { files: idsGiven(ctx, args, opts) }), add: people(opts.add), remove: people(opts.remove) }));
+      return {
+        text: lines(
+          got.changed.length ? lines(...tree.written.map((o) => o.summary)) : "nothing to change",
+          ...got.kept.map((k) => `${k.id}: ${k.person} stays — the whole batch is theirs (strom input assign --batch ${k.batch} --remove ${k.person})`),
+        ),
+        data: got,
+      };
     },
   },
   {
@@ -483,8 +594,10 @@ register(
       { name: "person", type: "string", multiple: true, value: "<P…>", description: "a person it is of (repeatable)" },
       { name: "source", type: "string", value: "<S…>", description: "the source recorded from it (with --as source)" },
       { name: "reason", type: "string", value: "<text>", description: "why (required with unrelated: \"the same as I0012\", \"a holiday photo of strangers\")" },
+      { name: "title", type: "string", value: "<text>", max: 200, description: "what to call it, in the research's language (one file): \"<a wedding, the place, the year>\"" },
+      { name: "date", type: "string", value: "<date>", description: "when it was written or taken (GEDCOM: 1932, ABT 1930, 12 MAY 1932)" },
     ],
-    examples: ["strom input sort I0001 I0002 --as photo --person P0001", 'strom input sort I0003 --as unrelated --reason "a tax form of 1998"'],
+    examples: ["strom input sort I0001 I0002 --as photo --person P0001", 'strom input sort I0005 --as photo --title "<what the photo shows>" --date "ABT 1930"', 'strom input sort I0003 --as unrelated --reason "a tax form of 1998"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       if (!args.length) throw new UsageError("give the inputs (I…)");
@@ -495,6 +608,11 @@ register(
       const source = typeof opts.source === "string" ? requireRecord<Source>(tree, opts.source, "source").id : undefined;
       const persons = checkOriginalMeta(tree, { persons: (Array.isArray(opts.person) ? opts.person : opts.person ? [opts.person] : []).map((p) => String(p).trim().toUpperCase()) }).persons;
       const ids = args.map((a) => requireRecord<Input>(tree, a, "input").id);
+      const title = typeof opts.title === "string" ? opts.title.replace(/[\p{Cc}]/gu, " ").replace(/\s+/gu, " ").trim().normalize("NFC").slice(0, 200) : undefined;
+      if (title && ids.length > 1) throw new UsageError("--title names one file: sort the others apart", { hint: `strom input sort ${ids[0]} --as ${as} --title …` });
+      const date = typeof opts.date === "string" ? normalizeDate(opts.date) : undefined;
+      if (typeof opts.date === "string" && !date) throw new UsageError(`--date: "${opts.date}" is no date (GEDCOM: 1932, ABT 1930, 12 MAY 1932)`);
+      const at = new Date().toISOString();
       tree.withTreeLock(() => {
         for (const id of ids)
           update<Input>(
@@ -505,8 +623,11 @@ register(
               ...i,
               ...(persons.length ? { persons: [...new Set([...(i.persons ?? []), ...persons])] } : {}),
               ...(source ? { source } : {}),
-              ...(as === "unrelated" ? { state: "skipped" as const } : {}),
-              sorted: { as: as as (typeof SORT_KINDS)[number], ...(persons.length ? { persons } : {}), ...(source ? { source } : {}), ...(reason ? { reason } : {}), at: new Date().toISOString(), by: tree.actor },
+              ...(title ? { title } : {}),
+              ...(date ? { date } : {}),
+              // nothing of the family: hidden, the state it had kept (strom input unskip gives it back)
+              ...(as === "unrelated" && i.state !== "skipped" ? { state: "skipped" as const, hidden: { at, by: tree.actor, reason: "unrelated" as const, was: i.state === "processed" ? ("processed" as const) : ("new" as const) } } : {}),
+              sorted: { as: as as (typeof SORT_KINDS)[number], ...(persons.length ? { persons } : {}), ...(source ? { source } : {}), ...(reason ? { reason } : {}), at, by: tree.actor },
             }),
             { op: "input.sort", summary: `${id} ${as}${persons.length ? ` of ${persons.join(", ")}` : ""}${source ? ` → ${source}` : ""}`, ...(reason ? { reason } : {}), targets: persons },
           );

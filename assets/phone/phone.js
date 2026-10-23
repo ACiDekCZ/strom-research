@@ -66,6 +66,9 @@
     return out;
   };
   const t = (key, v = {}) => fill(T[key] ?? key, v);
+  // a tree where nobody researches (an archive, one waiting for its agent): its own words where it has them — saved to
+  // the Strom archive, nothing handed to a research
+  const ta = (tree, key, v = {}) => t(tree && tree.archive && T[`${key}.archive`] !== undefined ? `${key}.archive` : key, v);
   // a small photo is never "0.0 MB"
   const mb = (bytes) => new Intl.NumberFormat(LANG, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(bytes > 0 ? Math.max(0.1, bytes / 1024 / 1024) : 0);
   // a 12-hour clock without a leading zero ("2:05 PM"), a 24-hour one with it ("09:07")
@@ -1067,7 +1070,7 @@
     const tree = treeById(S.tree);
     const b = tree ? batchOf(tree.id) : null;
     const items = b ? ofBatch(b) : [];
-    $("sheetTo").textContent = tree ? t("sheet.to", { tree: tree.name }) : "";
+    $("sheetTo").textContent = tree ? ta(tree, "sheet.to", { tree: tree.name }) : "";
     // photos left from before
     const left = S.resumed ? unsent().filter((i) => treeById(i.tree)).length : 0;
     if (!left) S.resumed = 0;
@@ -1156,7 +1159,7 @@
     // handed over
     const handed = b && b.done !== undefined && !items.length;
     $("doneBox").hidden = !handed;
-    if (handed) $("doneText").textContent = t("commit.done", { n: b.done });
+    if (handed) $("doneText").textContent = ta(tree, "commit.done", { n: b.done });
     // the foot: the camera's photos only here, handing over
     // while typing, only what ends the typing: the rest of the foot would take what the keyboard leaves of the sheet
     $("captureNote").hidden = !!S.typing || !items.some((i) => i.capture && i.blob);
@@ -1166,7 +1169,9 @@
     const committing = !!(b && b.commit);
     $("commitBtn").hidden = !items.length || !!S.typing;
     $("commitBtn").disabled = committing || !items.some((i) => !FINAL(i));
-    $("commitBtn").textContent = committing ? t("commit.wait") : t("commit");
+    $("commitBtn").textContent = committing ? ta(tree, "commit.wait") : ta(tree, "commit");
+    $("commitLater").textContent = ta(tree, "commit.later");
+    $("commitCancel").textContent = ta(tree, "commit.cancel");
     $("commitCancel").hidden = !committing;
     $("commitLater").hidden = !items.length || committing || !!S.typing;
   };

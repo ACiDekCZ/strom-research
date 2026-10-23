@@ -32,7 +32,19 @@
 //                          each is; what takes long is made over several asks (202 {later}, asked again)
 //   GET <token>/excerpts?missing=1   what the file left out that the app could load: each source, its marks, about how
 //                          large (nothing made to say it)
-//   GET <token>/material   the family's files the research keeps (core/material.ts), ?person=P… / ?batch=<id>
+//   GET <token>/material   the family's files the research keeps (core/material.ts), ?person=P… / ?batch=<id>,
+//                          ?files=0 (the batches only); each file's title, kind, date, hidden (hidden ones stay listed),
+//                          `people`: the names of the people it names
+//   POST <token>/material/assign   the people files are of ({files: [I…] | batch, add: [P…], remove: [P…]}): strom
+//                          input assign, all or nothing; {files, people, kept, head}
+//   POST <token>/material/hide     files hidden or shown again ({files: [I…], hidden: true|false, reason: unrelated |
+//                          duplicate}): strom input hide | unskip; {files, people, head}. Both refused 400 material.body,
+//                          404 material.file|person|batch, 403 material.readonly, 409 material.busy (+ Retry-After).
+//                          Every write of the app's (these, PUT /media, /batch/<id>/done, /waiting, /group) answers
+//                          `head` after it and `parent`, the head just before it (nothing written: parent = head) —
+//                          the app takes head as its version only when parent is the head it knew
+//   GET <token>/media/<sha256>?thumb=128|256|512   a small JPEG preview of a file (core/thumbs.ts, kept in
+//                          .strom/thumbs): 400 thumb.size, 404, 410 media.gone, 415 thumb.type (none of this kind here)
 //   PUT <token>/media/<sha256>   an original from the app, unchanged (the body; X-Strom-Name, -Person, -Source,
 //                          -Region, -Note): streamed to disk, its hash checked, kept outside git
 //                          (strom media original) — of a source an image, else material of people with an intake task;
@@ -85,13 +97,14 @@
 // new secret. Nothing is replaced on a timer.
 
 import { opsLogsOf } from "./opslog.ts";
+import { notDownloaded } from "./integrity.ts";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { configDir, userHome, type Env } from "./paths.ts";
-import { newerTree, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
+import { newerTree, SEAL_FOREIGN, sealedHere, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
 import { readJsonIfExists } from "./json.ts";
 import { changeLines, type ChangeKind } from "./changelog.ts";
 import { directionOf, scopes, type Scope } from "./directions.ts";
@@ -101,13 +114,14 @@ import { exportGedcom } from "../gedcom/export.ts";
 import { dataUrl, excerptLevel, excerptMarks, excerptSettings, excerptSizes, INPUT_MARK, LEVELS, planExcerpts, sourceExcerpts, turned, type ExcerptOmitted } from "./excerpt.ts";
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
-import { actsAsArchive, stateOf } from "./state.ts";
+import { actsAsArchive, kindOf, stateOf } from "./state.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
-import { EXIT, StromError } from "./errors.ts";
+import { DISK_FULL, EXIT, isDiskFull, StromError } from "./errors.ts";
 import { acquireLock } from "./lock.ts";
-import { material } from "./material.ts";
+import { checkAsked, material, MATERIAL_MOST_FILES, MATERIAL_MOST_PEOPLE, peopleOf } from "./material.ts";
+import { cachedThumb, THUMB_SIZES } from "./thumbs.ts";
 import { checkOriginalMeta, cleanIncoming, freeBytes, knownOriginal, materialWaiting, originalMax, ORIGINAL_RESERVE, ORIGINAL_TYPES, parseRegion } from "./originals.ts";
 import { BATCH_ID, batchEstimate, batchLimits, batchPath, batchStatus, idleBatches, readBatch } from "./batches.ts";
 
@@ -126,15 +140,15 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin } from "./stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
 import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
 import { qrSvg } from "./qr.ts";
 import { diskVersion, stromLauncher } from "./self.ts";
-import { closeBatchBy, forApp, receiveOriginal, refusal, refusalOf, type Receiver } from "./receive.ts";
-import type { Input, Media, Session, Source, Task, TreeConfig } from "./model.ts";
+import { closeBatchBy, committed, diskFullSaid, forApp, fullWhere, langOf, receiveOriginal, refusal, refusalOf, type Receiver } from "./receive.ts";
+import { HIDE_REASONS, type Input, type Media, type Session, type Source, type Task, type TreeConfig } from "./model.ts";
 import { normId } from "./records.ts";
 import { requestTexts, waitingFor } from "./waiting.ts";
 import { fileRefused } from "./taskfiles.ts";
@@ -172,7 +186,11 @@ const CODES = {
   "ui.sync.bridge.noids": "tree.no-ids",
   "ui.media.large": "media.large",
   "ui.media.full": "media.full",
+  "ui.seal.bridge": SEAL_FOREIGN,
+  "ui.error.tree.not-downloaded": "tree.not-downloaded",
 } as const;
+/** What the app sends that the research writes (the routes after the secret): refused while it is sealed elsewhere. */
+const APP_WRITES = new Set(["sync", "adopt", "media", "batch", "waiting", "group", "material", "read"]);
 /** A file refused (its error's code): what the bridge says of it. */
 const REFUSED: Record<string, keyof typeof CODES> = {
   "tree.other-research": "ui.sync.bridge.other",
@@ -198,6 +216,11 @@ function said(lang: string, key: keyof typeof CODES, params: Record<string, stri
  * - `media.no-shared` 500 — the research has no shared folder for files (strom setup)
  * - `media.large` 413 {mb} (and `max`) — larger than the research takes; `media.full` 507 (and `free`) — no room
  *   (these two: `error` in the research's language, `text` English — said() above)
+ * - `disk.full` 507 {where} — no room left on the disk as a write met it (any write of the app: a send, an adoption, an
+ *   original, a batch, the material, a waiting task): `error` in the research's language, `text` English, `where` the
+ *   folder (feature `disk.full`); nothing was lost
+ * - `tree.not-downloaded` 409 {n, first} — files of the research not downloaded from iCloud yet (only their placeholder
+ *   here): nothing written until they are (/status `notDownloaded`, feature `tree.notDownloaded`)
  * - `media.sha-differs` 409 {sha} — the file is not the one its address names
  * - `media.type` 415 {name} — not a kind of file the research takes
  * - `media.cut-short` 422 {name, kind: JPEG|PNG|PDF}; `media.too-small` 422 {name, bytes} — the file is not whole
@@ -435,6 +458,48 @@ export function startLive(root: string, env: Env, opts: { current?: boolean; why
   }
 }
 
+/** How little room on the disk of a research means no bridge starts there (its lock, its notes, live.json). */
+const BRIDGE_ROOM = 1024 * 1024;
+
+/**
+ * Why a bridge did not start (strom live start, strom app --live): no room on the disk of the research — tried by a
+ * small file written, as the system may say room it does not give — else the last line its log got since `since`
+ * (none: undefined). Never throws.
+ */
+export function notStartedWhy(root: string, since: number): { full: true } | { full: false; line?: string } {
+  const free = freeBytes(root);
+  let full = free !== undefined && free < BRIDGE_ROOM;
+  if (!full) {
+    const probe = path.join(root, ".strom", `.room-${process.pid}`);
+    try {
+      fs.mkdirSync(path.dirname(probe), { recursive: true });
+      fs.writeFileSync(probe, Buffer.alloc(64 * 1024));
+    } catch (e) {
+      full = isDiskFull(e);
+    } finally {
+      try {
+        fs.rmSync(probe, { force: true });
+      } catch {
+        // what is left goes with the next tidy
+      }
+    }
+  }
+  if (full) return { full: true };
+  try {
+    const lines = fs.readFileSync(liveLogFile(root), "utf8").split("\n").filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const m = /^(\S+) \[\d+\] (.*)$/u.exec(lines[i]!);
+      if (!m) continue;
+      if (!(Date.parse(m[1]!) >= since - 1000)) break;
+      // the first line of what it said (a stack's message, never the stack)
+      return { full: false, line: m[2]!.slice(0, 300) };
+    }
+  } catch {
+    // no log: nothing to say
+  }
+  return { full: false };
+}
+
 function startNow(root: string, env: Env, running: LiveInfo | undefined): LiveInfo | undefined {
   if (running) stopLive(root, `a bridge of strom ${VERSION} is wanted (this one: ${running.version ?? "older"})`, { back: true });
   fs.rmSync(liveFile(root), { force: true });
@@ -639,6 +704,16 @@ export function stopLive(root: string, why = "strom live stop", opts: { back?: b
   return how === "gone" ? "none" : how;
 }
 
+/**
+ * Whether the Strom app has this tree: its bridge runs, or the last one kept its secret address (the app was given it;
+ * never after strom live stop or uninstall) — and the person did not say there is no app. What is said of the app
+ * (after intake: where the material is in it) only then.
+ */
+export function appHasTree(root: string, settings: Settings): boolean {
+  if (stromAppState(settings) === "no") return false;
+  return !!liveRunning(root) || !!readLast(root)?.token;
+}
+
 /** Whether a bridge's end was its idle time running out (the reason it wrote: "idle: …"). */
 function endedIdle(last: LiveLast): boolean {
   return /^idle\b/.test(last.ended?.reason ?? "");
@@ -773,7 +848,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -828,6 +903,8 @@ function rendered(tree: Tree, raws: RawCommit[]): HistoryEntry[] {
   let all: Scope[] | undefined;
   const now = Date.now();
   const titles = new Map<string, string>();
+  // an archive's history says nothing of tasks (asked once, not for each commit)
+  const tasks = !actsAsArchive(tree);
   const taskOf = (s: Session | undefined): { task?: string } => {
     if (!s?.task) return {};
     const task = tree.get<Task>(s.task);
@@ -843,7 +920,7 @@ function rendered(tree: Tree, raws: RawCommit[]): HistoryEntry[] {
     const when = Date.parse(at);
     const open = named.size ? [] : [...sessions.values()].filter((s) => Date.parse(s.started) <= when && when <= (s.ended ? Date.parse(s.ended) : now));
     const s = named.size === 1 ? sessions.get([...named][0]!) : open.length === 1 ? open[0] : undefined;
-    const lines = changeLines(tree, ops, subject.trim(), tree.lang);
+    const lines = changeLines(tree, ops, subject.trim(), tree.lang, undefined, tasks);
     // the directions only when a session needs them (they cost)
     const research = s ? sessionResearch(tree, s, s.research ? [] : (all ??= scopes(tree))) : undefined;
     // the sources each line names, for the app to open them (only when one does)
@@ -1241,8 +1318,15 @@ function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): 
     features: BRIDGE_FEATURES,
     ...channelOf(env),
     ...(disk && disk.version !== (env.STROM_LIVE_RENEWED ?? VERSION) ? { installed: disk.version } : {}),
-    tree: { id: tree.config.id, name: tree.config.name, lang: tree.lang },
+    // what the research is (an archive, a research, one waiting for its agent) — the app says it beside the tree
+    tree: { id: tree.config.id, name: tree.config.name, lang: tree.lang, state: stateOf(tree), kind: kindOf(tree) },
     path: root,
+    // sealed on this computer (writing works), or on another (its folder brought here, strom's settings gone): the
+    // app's writes are refused with seal.foreign until the person takes it over (strom seal adopt, the menu, the link seal)
+    seal: tree.key ? "here" : "elsewhere",
+    // files of the research only in iCloud (placeholders `.X.json.icloud`): the app's writes are refused with
+    // tree.not-downloaded until they are downloaded; the tree is still served as it reads
+    notDownloaded: notDownloaded(root).length,
     ...(agent && PROFILES[agent] ? { agent: { id: agent, name: PROFILES[agent]!.name, ...(where === "app" || where === "terminal" ? { where } : {}) } } : {}),
     head: last.head,
     ...(last.at ? { headAt: last.at } : {}),
@@ -1366,6 +1450,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
       else {
         // a send or an adoption that went wrong on the way: its stable code too, for the app to say it in its words
         const what = req.method === "POST" ? (req.url ?? "").split("?")[0]!.split("/")[2] : undefined;
+        if (isDiskFull(e)) {
+          res.writeHead(507, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(diskFullSaid(langOf(root, env), root)));
+          return;
+        }
         const code = what === "sync" ? CODES["ui.sync.bridge.failed"] : what === "adopt" ? CODES["ui.sync.bridge.adopt"] : undefined;
         res.writeHead(500, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ error: (e as Error)?.message ?? String(e), ...(code ? { code } : {}) }));
       }
@@ -1601,6 +1689,31 @@ export function serveLive(root: string, env: Env): Promise<void> {
     look();
   };
 
+  /** A write refused as the research is sealed on another computer: said in its language, the way in `params.set`. */
+  const sealRefusal = () => {
+    let lang = "en";
+    let name = "";
+    try {
+      const config = readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE));
+      lang = config?.lang ?? lang;
+      name = config?.name ?? name;
+    } catch {
+      // said in English
+    }
+    return { ...said(lang, "ui.seal.bridge", { name, set: "strom seal adopt" }), seal: "elsewhere" };
+  };
+
+  /** A write refused as files of the research are only in iCloud: said in its language, how many and the first. */
+  const cloudRefusal = (files: string[]) => {
+    let lang = "en";
+    try {
+      lang = readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE))?.lang ?? lang;
+    } catch {
+      // said in English
+    }
+    return { ...said(lang, "ui.error.tree.not-downloaded", { n: String(files.length), first: files[0]! }), notDownloaded: files.length };
+  };
+
   const answer = (req: http.IncomingMessage, res: http.ServerResponse) => {
     const [, t, what, sub, act, rest] = (req.url ?? "").split("?")[0]!.split("/");
     // the app asking now and then (?poll=1) or by itself what is new keeps no bridge running; anything else does
@@ -1626,6 +1739,21 @@ export function serveLive(root: string, env: Env): Promise<void> {
         res.setHeader("Access-Control-Max-Age", "600");
       }
       res.writeHead(origin ? 204 : 403).end();
+      return;
+    }
+    // sealed on another computer: nothing the app sends is written until the person takes it over here — said so (409
+    // seal.foreign, in the research's language with the way), never "send again in a moment" (found in the audit)
+    if ((req.method === "POST" || req.method === "PUT") && t === token && origin && APP_WRITES.has(what ?? "") && !newerTree(root, env) && !sealedHere(root, env)) {
+      req.resume();
+      res.writeHead(409, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(sealRefusal()));
+      return;
+    }
+    // files of the research only in iCloud: nothing the app sends is written over them (409 tree.not-downloaded, the
+    // way in the research's language), never "send again in a moment"
+    const cloud = (req.method === "POST" || req.method === "PUT") && t === token && origin && APP_WRITES.has(what ?? "") ? notDownloaded(root) : [];
+    if (cloud.length) {
+      req.resume();
+      res.writeHead(409, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(cloudRefusal(cloud)));
       return;
     }
     if (req.method === "POST" && t === token && what === "sync" && sub && act === "again") {
@@ -1669,6 +1797,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     if (req.method === "POST" && t === token && what === "group" && sub && !act) {
       writeFor(req, res, origin, groupWrite(decoded(sub)));
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "material" && (sub === "assign" || sub === "hide") && !act) {
+      writeFor(req, res, origin, materialWrite(sub));
       return;
     }
     if ((req.method === "GET" || req.method === "POST") && t === token && what === "phone") {
@@ -1717,7 +1849,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
         const shared = new Settings(env, {}).shared()?.value;
         const known = /^[0-9a-f]{64}$/.test(sha) ? knownOriginal(Tree.open(root, env), shared, sha) : undefined;
         const json = (code: number, body: Record<string, unknown>) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
-        if (!known) json(404, { known: null });
+        const thumb = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("thumb");
+        if (thumb !== null && !(THUMB_SIZES as readonly number[]).includes(Number(thumb))) json(400, refusal(`?thumb=${THUMB_SIZES.join("|")} (the longer side in pixels)`, "thumb.size"));
+        else if (!known) json(404, { known: null });
+        else if (thumb !== null) giveThumb(req, res, known, sha, Number(thumb));
         else if (!/[?&]file=1(?:&|$)/.test(req.url ?? "")) json(200, { known: known.id, kind: known.kind, mime: known.mime, bytes: known.bytes, ...(known.name ? { name: known.name } : {}), here: !!known.file && fs.existsSync(known.file) });
         else if (!known.file || !fs.existsSync(known.file)) json(410, { known: known.id, ...refusal("its file is not on this computer", "media.gone", { known: known.id }) });
         else {
@@ -1736,9 +1871,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
         const q = new URLSearchParams((req.url ?? "").split("?")[1] ?? "");
         const person = (q.get("person") ?? "").toUpperCase();
         const batch = q.get("batch") ?? "";
+        const files = q.get("files");
         const json = (code: number, body: unknown) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(body));
-        if ((q.has("person") && !/^P\d{1,9}$/.test(person)) || (q.has("batch") && !BATCH_ID.test(batch))) json(400, { error: "?person=P… (a person of the research), ?batch=<the batch's mark>" });
-        else json(200, material(Tree.open(root, env), new Settings(env, {}).shared()?.value, { ...(person ? { person } : {}), ...(batch ? { batch } : {}) }));
+        if ((q.has("person") && !/^P\d{1,9}$/.test(person)) || (q.has("batch") && !BATCH_ID.test(batch)) || (files !== null && files !== "0" && files !== "1"))
+          json(400, { ...refusal("?person=P… (a person of the research), ?batch=<the batch's mark>, ?files=0 (the batches only)", "material.query") });
+        else json(200, material(Tree.open(root, env), new Settings(env, {}).shared()?.value, { ...(person ? { person } : {}), ...(batch ? { batch } : {}), ...(files === "0" ? { files: false } : {}) }));
       } else if (what === "group" && act === "note") {
         // the request texts of one place, for one e-mail: read only
         const got = groupNote(decoded(sub));
@@ -1877,7 +2014,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
               ? {
                   notWritten: changes
                     .filter((c) => c.action === "report" || c.action === "pick")
-                    .map((c) => ({ kind: c.kind, ...(c.person ? { person: c.person } : {}), ...(c.family ? { family: c.family } : {}), ...notWrittenOf(c), ...(c.fact?.kind ?? c.was?.kind ? { fact: c.fact?.kind ?? c.was?.kind } : {}), why: c.takenBack ? "takenBack" : c.kept ? "kept" : c.action, ...(c.uncited?.length ? { cites: c.uncited.map((k) => (k.startsWith("x:") ? `@${k.slice(2)}@` : k)) } : {}) })),
+                    .map((c) => ({ kind: c.kind, ...(c.person ? { person: c.person } : {}), ...(c.family ? { family: c.family } : {}), ...notWrittenOf(c), ...(c.fact?.kind ?? c.was?.kind ? { fact: c.fact?.kind ?? c.was?.kind } : {}), why: c.takenBack ? "takenBack" : c.kept ? "kept" : c.kind === "person.removed" ? "removed" : c.action, ...(c.removedBy ? { removedBy: c.removedBy } : {}), ...(c.uncited?.length ? { cites: c.uncited.map((k) => (k.startsWith("x:") ? `@${k.slice(2)}@` : k)) } : {}) })),
                 }
               : {}),
             // the changes the research could not write (the rest is written): what and why
@@ -1908,7 +2045,11 @@ export function serveLive(root: string, env: Env): Promise<void> {
           } catch {
             // the IDs only
           }
-          reply(500, { ...said(lang, "ui.sync.bridge.failed"), reason: why, ...(data.code ? { reasonCode: data.code } : {}), ...(data.params ? { reasonParams: data.params, reasonNames } : {}), intake: sent.intake });
+          // sealed on another computer since it was asked (its key gone meanwhile): said as the bridge says it before
+          if (data.code === SEAL_FOREIGN) reply(409, { ...sealRefusal(), intake: sent.intake });
+          // no room on the disk: said as everywhere (507 disk.full), never the system's words with strom's inner path
+          else if (data.code === DISK_FULL || isDiskFull(why)) reply(507, { ...diskFullSaid(lang, fullWhere(data, root)), reason: why, intake: sent.intake });
+          else reply(500, { ...said(lang, "ui.sync.bridge.failed"), reason: why, ...(data.code ? { reasonCode: data.code } : {}), ...(data.params ? { reasonParams: data.params, reasonNames } : {}), intake: sent.intake });
         }
       }
       writing = undefined;
@@ -1963,10 +2104,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
       answered = true;
       reply(202, { tree, pending: true });
     }, ADOPT_ANSWER_MS);
-    const failed = (why: string) => {
+    const failed = (why: string, full = false) => {
       noteLive(root, `the app's tree was not taken in: ${why}`);
       noteAdoptFailed(root, "other", why);
-      if (!answered) reply(500, { ...said(lang, "ui.sync.bridge.adopt"), reason: why });
+      if (!answered) reply(full ? 507 : 500, full ? { ...diskFullSaid(lang, root), reason: why } : { ...said(lang, "ui.sync.bridge.adopt"), reason: why });
     };
     child.on("error", (e) => {
       clearTimeout(timer);
@@ -1977,13 +2118,16 @@ export function serveLive(root: string, env: Env): Promise<void> {
       clearTimeout(timer);
       adopting = false;
       if (code === null) return; // the error said it
-      let data: { input?: string | null; message?: string; applied?: { do: string; id: string; before?: string }[] } = {};
+      let data: { input?: string | null; message?: string; code?: string; applied?: { do: string; id: string; before?: string }[] } = {};
       try {
         data = JSON.parse(out) as typeof data;
       } catch {
         // said by the exit code
       }
-      if (code !== 0) return failed(data.message ?? err.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? `exit ${code}`);
+      if (code !== 0) {
+        const why = data.message ?? err.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? `exit ${code}`;
+        return failed(why, data.code === DISK_FULL || isDiskFull(why));
+      }
       try {
         markAdopted(root, data.input ?? undefined, app);
       } catch (e) {
@@ -2050,6 +2194,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         } catch {
           // said in English
         }
+        if (isDiskFull(e)) return reply(507, diskFullSaid(lang, root));
         reply(400, key ? said(lang, key) : { error: m, code: "tree.refused", text: m });
       }
     });
@@ -2104,7 +2249,9 @@ export function serveLive(root: string, env: Env): Promise<void> {
         const key = code ? REFUSED[code] : undefined;
         // what came, kept aside to be looked at (.strom/sync/kept/)
         const keptAs = e instanceof StromError ? (e.details as { kept?: string } | undefined)?.kept : undefined;
-        reply(400, { ...(key ? said(lang(), key) : { error: m, code: "tree.refused", text: m }), ...(keptAs ? { keptAs } : {}) });
+        // no room on the disk (found on Mac: "ENOSPC: no space left on device, mkdir …/.strom/sync" as tree.refused)
+        if (isDiskFull(e)) reply(507, { ...diskFullSaid(lang(), root), ...(keptAs ? { keptAs } : {}) });
+        else reply(400, { ...(key ? said(lang(), key) : { error: m, code: "tree.refused", text: m }), ...(keptAs ? { keptAs } : {}) });
       }
     }));
   };
@@ -2247,22 +2394,35 @@ export function serveLive(root: string, env: Env): Promise<void> {
     done(tree: Tree, data: Record<string, unknown>, head: string): Record<string, unknown>;
     /** The command's refusal (its --json code) as the app is told it; none: 500 `waiting.failed`. */
     refused(tree: Tree, code: string, why: string): { code: number; body: Record<string, unknown> } | undefined;
+    /** What goes to the command's stdin (a long list of IDs: never a command line too long for Windows). */
+    stdin?: string;
+    /** Its own codes: a body that is no JSON object, the research busy (409 + Retry-After instead of 503), a failure. */
+    codes?: { badBody: string; busy: string; failed: string };
+    /** The largest body it takes (default 8 kB). */
+    max?: number;
   }
   const writeFor = (req: http.IncomingMessage, res: http.ServerResponse, origin: string | undefined, how: AppWrite) => {
     const reply = (code: number, body: Record<string, unknown>) => {
-      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": String(body.retry ?? WRITE_RETRY_S) } : {}) }).end(JSON.stringify(body));
+      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 || (code === 409 && body.retry !== undefined) ? { "Retry-After": String(body.retry ?? WRITE_RETRY_S) } : {}) }).end(JSON.stringify(body));
     };
+    const codes = how.codes ?? { badBody: "waiting.bad-body", busy: "research.busy", failed: "waiting.failed" };
+    const busy = (why: string) => reply(how.codes ? 409 : 503, { ...refusal(why, codes.busy), retry: WRITE_RETRY_S });
+    const max = how.max ?? 8192;
     if (!origin) {
       req.resume();
       return reply(403, refusal("only the Strom app may write here", "app.only"));
     }
     let text = "";
     let over = false;
+    const chunks: Buffer[] = [];
+    let size = 0;
     req.on("data", (c: Buffer) => {
-      if (text.length + c.length > 8192) over = true;
-      else text += c.toString("utf8");
+      size += c.length;
+      if (size > max) over = true;
+      else chunks.push(c);
     });
     req.on("end", () => safely(req, res, () => {
+      text = Buffer.concat(chunks).toString("utf8");
       // a research a newer strom wrote: never opened, never written (as /status says it: locked)
       const newer = newerTree(root, env);
       if (newer) return reply(423, { ...refusal(newer.message, "locked"), reasonCode: newer.code, ...(newer.params ? { reasonParams: newer.params } : {}) });
@@ -2274,22 +2434,28 @@ export function serveLive(root: string, env: Env): Promise<void> {
       } catch {
         over = true;
       }
-      if (over) return reply(400, refusal(`the body: a JSON object {"do": …}`, "waiting.bad-body"));
+      if (over) return reply(400, refusal(size > max ? `the body: at most ${max} bytes` : `the body: a JSON object {"do": …}`, codes.badBody));
       const asked = how.ask(Tree.open(root, env), body);
       if ("code" in asked) return reply(asked.code, asked.body);
       // a send or an adoption being written, another write of the person's: asked again in a moment
-      if (writing || adopting || personWriting) return reply(503, { ...refusal("the research is busy — ask again in a moment", "research.busy"), retry: WRITE_RETRY_S });
+      if (writing || adopting || personWriting) return busy("the research is busy — ask again in a moment");
       personWriting = how.what;
       const { command, args } = stromLauncher();
-      const child = spawn(command, [...args, ...asked.args, "--json"], { cwd: root, env: forApp(env, root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+      const child = spawn(command, [...args, ...asked.args, "--json"], { cwd: root, env: forApp(env, root), stdio: [how.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"], windowsHide: true });
       track(child);
+      if (how.stdin !== undefined) {
+        child.stdin!.on("error", () => {
+          // the command ended before reading it: said by its exit
+        });
+        child.stdin!.end(how.stdin);
+      }
       let out = "";
       let err = "";
-      child.stdout.on("data", (d: Buffer) => (out += d.toString("utf8")));
-      child.stderr.on("data", (d: Buffer) => (err += d.toString("utf8")));
+      child.stdout!.on("data", (d: Buffer) => (out += d.toString("utf8")));
+      child.stderr!.on("data", (d: Buffer) => (err += d.toString("utf8")));
       child.on("error", (e) => {
         personWriting = undefined;
-        reply(500, refusal(errorText(e), "waiting.failed"));
+        reply(500, refusal(errorText(e), codes.failed));
       });
       child.on("close", (code) => {
         personWriting = undefined;
@@ -2301,15 +2467,184 @@ export function serveLive(root: string, env: Env): Promise<void> {
           // said by the exit code
         }
         const now = Tree.open(root, env);
-        if (code === 0) return reply(200, how.done(now, data, head(root)));
+        if (code === 0) {
+          const c = committed(data, () => head(root));
+          return reply(200, { ...how.done(now, c.data, c.head), ...(c.parent !== undefined ? { parent: c.parent } : {}) });
+        }
         const why = String(data.message ?? err.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? `exit ${code}`);
         noteLive(root, `${how.what} was not written (exit ${code}): ${why}`);
         // the research busy (another strom holding it longer than a writer waits)
-        if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: WRITE_RETRY_S });
+        if (code === EXIT.locked) return busy(why);
+        // no room on the disk: said as everywhere (507 disk.full)
+        if (data.code === DISK_FULL || isDiskFull(why)) return reply(507, diskFullSaid(now.lang, fullWhere(data, root)));
         const known = typeof data.code === "string" ? how.refused(now, data.code, why) : undefined;
-        reply(known?.code ?? 500, known?.body ?? { ...refusal(why, "waiting.failed"), ...(typeof data.code === "string" ? { reasonCode: data.code } : {}) });
+        reply(known?.code ?? 500, known?.body ?? { ...refusal(why, codes.failed), ...(typeof data.code === "string" ? { reasonCode: data.code } : {}) });
       });
     }));
+  };
+
+  /**
+   * The people a file of the family's material is of, added and taken off (POST /material/assign {files: [I…] | batch,
+   * add: [P…], remove: [P…]}: strom input assign), files hidden and shown again (POST /material/hide {files, hidden,
+   * reason}: strom input hide | unskip) — the person's, as written in the app; all or nothing. Answered with the files'
+   * records as GET /material gives them, the people's names, and the people a file keeps through its batch (`kept`).
+   * Refused: 400 material.body, 404 material.file | material.person | material.batch {id | batch}, 403 material.readonly
+   * (nothing can be written into the research here), 409 material.busy (and Retry-After: another write holds it).
+   */
+  const MATERIAL_CODES = { badBody: "material.body", busy: "material.busy", failed: "material.failed" };
+  const materialWrite = (kind: "assign" | "hide"): AppWrite => {
+    let ids: string[] = [];
+    const shown = (tree: Tree, files: string[], kept: { person: string }[] = []) => {
+      const got = material(tree, new Settings(env, {}).shared()?.value, { ids: files });
+      return { files: got.files, people: { ...got.people, ...peopleOf(tree, kept.map((k) => k.person)) } };
+    };
+    const strings = (v: unknown, most: number): string[] | undefined => (v === undefined ? [] : Array.isArray(v) && v.length <= most && v.every((x) => typeof x === "string" && x.length <= 40) ? (v as string[]) : undefined);
+    const bad = (why: string) => ({ code: 400, body: refusal(why, "material.body") });
+    return {
+      what: `the material: ${kind}`,
+      codes: MATERIAL_CODES,
+      max: 256 * 1024,
+      ask(tree, body) {
+        const files = body.files === undefined ? undefined : strings(body.files, MATERIAL_MOST_FILES);
+        if (body.files !== undefined && (!files || !files.length)) return bad(`files: 1 to ${MATERIAL_MOST_FILES} IDs of the material (I…)`);
+        let args: string[];
+        if (kind === "assign") {
+          const batch = typeof body.batch === "string" && BATCH_ID.test(body.batch) ? body.batch : undefined;
+          const add = strings(body.add, MATERIAL_MOST_PEOPLE);
+          const remove = strings(body.remove, MATERIAL_MOST_PEOPLE);
+          if ((files === undefined) === (batch === undefined) || (body.batch !== undefined && !batch)) return bad(`files: [I…] or batch: "<the batch's mark>" — one of them`);
+          if (!add || !remove || !(add.length + remove.length)) return bad(`add, remove: up to ${MATERIAL_MOST_PEOPLE} people (P…), one of them not empty`);
+          try {
+            checkAsked(tree, { ...(batch ? { batch } : { files: files! }), add, remove });
+          } catch (e) {
+            return refusedAsked(e);
+          }
+          ids = files ?? [];
+          args = ["input", "assign", ...(batch ? ["--batch", batch] : ["--files-from", "-"]), ...add.flatMap((p) => ["--add", p]), ...remove.flatMap((p) => ["--remove", p])];
+        } else {
+          if (!files) return bad(`files: 1 to ${MATERIAL_MOST_FILES} IDs of the material (I…)`);
+          if (typeof body.hidden !== "boolean") return bad(`hidden: true (hide) or false (show again)`);
+          const reason = body.reason === undefined || body.reason === null ? undefined : body.reason;
+          if (reason !== undefined && !(HIDE_REASONS as readonly unknown[]).includes(reason)) return bad(`reason: ${HIDE_REASONS.join(" or ")}, or none`);
+          try {
+            checkAsked(tree, { files });
+          } catch (e) {
+            return refusedAsked(e);
+          }
+          ids = files;
+          args = body.hidden ? ["input", "hide", "--files-from", "-", ...(reason ? ["--why", String(reason)] : [])] : ["input", "unskip", "--files-from", "-"];
+        }
+        // nothing can be written into the research here (unpacked read only, a copy of someone else's)
+        if (!writableHere()) return { code: 403, body: refusal("nothing can be written into the research on this computer", "material.readonly") };
+        this.stdin = ids.join("\n");
+        return { args };
+      },
+      done(tree, data, head) {
+        const files = Array.isArray(data.files) ? data.files.map(String) : ids;
+        const kept = Array.isArray(data.kept) ? (data.kept as { id: string; person: string; batch: string }[]) : [];
+        return { ...shown(tree, files, kept), ...(kind === "assign" ? { kept } : {}), head };
+      },
+      refused(_tree, code, why) {
+        if (code === "material.body") return { code: 400, body: refusal(why, code) };
+        if (code === "material.file" || code === "material.person" || code === "material.batch") return { code: 404, body: refusal(why, code) };
+        if (code === "fs.no-permission" || code === "fs.sandboxed" || code === "git.unwritable" || code === "needs-consent") return { code: 403, body: { ...refusal(why, "material.readonly"), reasonCode: code } };
+        return undefined;
+      },
+    };
+  };
+  /** A write of the app's the research cannot take as asked (checkAsked): its code, the HTTP status the app reads it by. */
+  const refusedAsked = (e: unknown): { code: number; body: Record<string, unknown> } => {
+    if (!(e instanceof StromError) || !e.code) throw e;
+    return { code: e.code === "material.body" ? 400 : 404, body: refusal(e.message, e.code, e.params ?? {}) };
+  };
+  /** Whether the research can be written here at all: its history, its records, its locks. */
+  const writableHere = (): boolean => {
+    try {
+      for (const d of [".git", "data", ".strom"]) fs.accessSync(path.join(root, d), fs.constants.W_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  /**
+   * GET /media/<sha>?thumb=128|256|512: a small preview of a file of the material (core/thumbs.ts) — kept, else made by
+   * a strom of its own (two at a time; the same one asked twice made once). 410 media.gone (the file not here), 415
+   * thumb.type (no preview of this kind here: the app shows its icon), 503 thumb.busy (too many waiting), 500.
+   */
+  const THUMBS_AT_ONCE = 2;
+  const THUMBS_WAITING = 400;
+  const THUMB_MS = 90_000;
+  let thumbsMaking = 0;
+  const thumbsWaiting: (() => void)[] = [];
+  const thumbsAsked = new Map<string, ((r: { code: number; file?: string; body?: Record<string, unknown> }) => void)[]>();
+  const giveThumb = (req: http.IncomingMessage, res: http.ServerResponse, known: { id: string; file?: string }, sha: string, px: number) => {
+    const json = (code: number, body: Record<string, unknown>) => {
+      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 ? { "Retry-After": "5" } : {}) }).end(JSON.stringify(body));
+    };
+    const send = (file: string) => {
+      let size: number;
+      try {
+        size = fs.statSync(file).size;
+      } catch (e) {
+        return failed(req, res, e);
+      }
+      res.writeHead(200, { "Content-Type": "image/jpeg", "Content-Length": String(size), "Cache-Control": "private, max-age=86400" });
+      fs.createReadStream(file).on("error", (e) => failed(req, res, e)).pipe(res);
+    };
+    if (!known.file || !fs.existsSync(known.file)) return json(410, { known: known.id, ...refusal("its file is not on this computer", "media.gone", { known: known.id }) });
+    const have = cachedThumb(root, sha, px);
+    if (have) return send(have);
+    const key = `${sha}-${px}`;
+    const answer = (r: { code: number; file?: string; body?: Record<string, unknown> }) => (r.file ? send(r.file) : json(r.code, r.body ?? {}));
+    const asked = thumbsAsked.get(key);
+    if (asked) return void asked.push(answer);
+    if (thumbsWaiting.length >= THUMBS_WAITING) return json(503, { ...refusal("too many previews asked at once — ask again in a moment", "thumb.busy"), retry: 5 });
+    thumbsAsked.set(key, [answer]);
+    const done = (r: { code: number; file?: string; body?: Record<string, unknown> }) => {
+      const all = thumbsAsked.get(key) ?? [];
+      thumbsAsked.delete(key);
+      thumbsMaking--;
+      thumbsWaiting.shift()?.();
+      for (const a of all) a(r);
+    };
+    const make = () => {
+      thumbsMaking++;
+      const { command, args } = stromLauncher();
+      const child = spawn(command, [...args, "media", "thumb", sha, "--px", String(px), "--json"], { cwd: root, env: forApp(env, root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+      track(child);
+      let out = "";
+      child.stdout.on("data", (d: Buffer) => (out += d.toString("utf8")));
+      child.stderr.on("data", () => {
+        // said by its --json
+      });
+      const timer = setTimeout(() => child.kill(), THUMB_MS);
+      let ended = false;
+      const end = (r: { code: number; file?: string; body?: Record<string, unknown> }) => {
+        if (ended) return;
+        ended = true;
+        clearTimeout(timer);
+        done(r);
+      };
+      child.on("error", (e) => end({ code: 500, body: refusal(errorText(e), "thumb.failed") }));
+      child.on("close", (code) => {
+        let data: Record<string, unknown> = {};
+        try {
+          data = JSON.parse(out) as Record<string, unknown>;
+        } catch {
+          // said by the exit code
+        }
+        const file = typeof data.file === "string" ? data.file : undefined;
+        if (code === 0 && file) return end({ code: 200, file });
+        const why = String(data.message ?? `exit ${code}`);
+        if (data.code === "thumb.type") return end({ code: 415, body: refusal(why, "thumb.type") });
+        if (data.code === "media.gone") return end({ code: 410, body: { known: known.id, ...refusal(why, "media.gone", { known: known.id }) } });
+        noteLive(root, `the preview of ${known.id} was not made: ${why}`);
+        end({ code: 500, body: refusal(why, "thumb.failed") });
+      });
+    };
+    if (thumbsMaking < THUMBS_AT_ONCE) make();
+    else thumbsWaiting.push(make);
   };
 
   /** A part of the address, decoded (one that is not URI-encoded: none). */
@@ -2483,7 +2818,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
         const ids = items
           .filter((w) => w.task && SENDABLE.includes(w.item.kind as WaitKind) && (word === "sent" ? w.item.phase === "todo" : w.item.phase === "sent" && listed.includes(w.task.id)))
           .map((w) => w.task!.id);
-        if (!ids.length) return { code: 200, body: { [word]: [], group: key, head: head(root) } };
+        if (!ids.length) {
+          const h = head(root);
+          return { code: 200, body: { [word]: [], group: key, head: h, parent: h } };
+        }
         return { args: ["task", "sent", ...ids, ...(word === "unsent" ? ["--undo"] : [])] };
       },
       done(_tree, data, head) {

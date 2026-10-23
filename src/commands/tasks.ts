@@ -30,6 +30,7 @@ import { permissionsWaiting, permissionWaitingLines } from "../core/archiveasks.
 import { receivedPending } from "../core/sync.ts";
 import { clipNote, inboxFolderFor, parseImageList, transcriptNote } from "../core/media.ts";
 import { actsAsArchive } from "../core/state.ts";
+import { conflictsToDecide } from "../core/conflicts.ts";
 import { othersAtWork } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
 import { currentSession } from "../core/session.ts";
@@ -118,8 +119,11 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
   // an archive's images wait for the person's decision (shared by every tree here): one line, only until it is answered
   const asked = permissionsWaiting(tree);
   const askedLine = asked.length ? lines(...permissionWaitingLines(tree, tree.lang).map((l) => `  ${l}`)) : undefined;
-  const others = stories.length + sent.length + asked.length;
-  if (!w.length) return others ? lines(ui(tree.lang, "ui.wait.title", { n: others }), sentLine, askedLine, storyLine) : undefined;
+  // the open conflicts the person decides (an archive: every one — nobody else decides them): how many, how to go through them
+  const conflicts = conflictsToDecide(tree).map((c) => c.id);
+  const conflictLine = conflicts.length ? `  ${ui(tree.lang, "ui.wait.conflicts", { n: conflicts.length, ids: `${conflicts.slice(0, 5).join(" ")}${conflicts.length > 5 ? " …" : ""}` })}` : undefined;
+  const others = stories.length + sent.length + asked.length + conflicts.length;
+  if (!w.length) return others ? lines(ui(tree.lang, "ui.wait.title", { n: others }), sentLine, conflictLine, askedLine, storyLine) : undefined;
   const show = where.display ?? ((p: string) => p);
   const lang = tree.lang;
   const images = (t: Task) => {
@@ -134,6 +138,7 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
   return lines(
     ui(lang, "ui.wait.title", { n: w.length + others }),
     sentLine,
+    conflictLine,
     askedLine,
     ...w.slice(0, max).flatMap((t) => [`  ${t.id}  ${truncate(t.waitingOn || t.what, 150)}`, ...images(t)]),
     w.length > max ? `  … strom task list --state waiting` : undefined,

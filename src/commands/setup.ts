@@ -13,7 +13,7 @@ import { lines, secondsIn, table } from "../cli/format.ts";
 import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import type { Input, Media, TreeConfig } from "../core/model.ts";
-import { gitVersion } from "../core/git.ts";
+import { gitVersion, runGit } from "../core/git.ts";
 import { linuxGitCommand } from "../core/deps.ts";
 import { fixGit, offerAgent } from "../cli/fixes.ts";
 import { createShortcut } from "../core/shortcut.ts";
@@ -46,6 +46,7 @@ import type { UIKey } from "../cli/ui.ts";
 
 import { globalTargets, installGlobal } from "../agents/global.ts";
 import { placeholders, ui, UI } from "../cli/ui.ts";
+import { foundTrees } from "../cli/seal.ts";
 import { PERMISSION_LEVELS, type AgentPermissions } from "../core/config.ts";
 import { PROFILES, type Tier } from "../agents/profiles.ts";
 import { agentSettingsSaid, EFFORTS, hasEffort, ownEffort, raisesEffort, RECOMMENDED_EFFORT } from "../agents/effort.ts";
@@ -186,6 +187,9 @@ register({
       ? undefined
       : `${where === "app" ? t("ui.setup.summary.app", { app: DESKTOP_APPS[agent]!.name }) : t("ui.setup.summary.terminal")}${has!.app && has!.cli ? t("ui.setup.summary.both", { where: where === "app" ? "terminal" : "app" }) : ""}`;
 
+    // family trees already in the folder (strom set up again, a folder from another computer): said, with how one
+    // sealed elsewhere is taken over — the way on is then strom, never a new tree (found in the audit)
+    const found = foundTrees(ctx, lang);
     const text = lines(
       t("ui.setup.summary"),
       table([
@@ -199,9 +203,10 @@ register({
         [`  ${t("ui.setup.summary.config")}`, ctx.display(configFile(ctx.env))],
       ]),
       "",
-      t("ui.init.next", { command: placeholders(lang, 'strom init "<family tree name>"') }),
+      ...(found.lines.length ? [...found.lines, ""] : []),
+      t("ui.init.next", { command: found.lines.length ? "strom" : placeholders(lang, 'strom init "<family tree name>"') }),
     );
-    return { text, data: { home, trees: treesDir, shared: sharedDir, lang, agent, ...(where ? { where } : {}), config: configFile(ctx.env) } };
+    return { text, data: { home, trees: treesDir, shared: sharedDir, lang, agent, ...(where ? { where } : {}), config: configFile(ctx.env), ...(found.lines.length ? { found: ctx.knownTrees().map((k) => ({ name: k.name, root: k.root, sealed: !found.foreign.some((f) => f.root === k.root) })) } : {}) } };
   },
 });
 
@@ -235,6 +240,16 @@ function secondLine(ctx: Context, t: (key: UIKey, values?: Record<string, string
   const folder = ctx.display(installation().root ?? configDir(ctx.env));
   const command = ownCommand(ctx.env);
   return ` · ${command ? t("ui.doc.second", { command, folder, scheme: linkScheme(ctx.env) }) : t("ui.doc.isolated", { folder })}`;
+}
+
+/** Does git, started in `dir`, fail to tell the folder it works in (a network or redirected drive)? */
+function gitLost(dir: string): boolean {
+  try {
+    const r = runGit(dir, ["rev-parse", "--git-dir"]);
+    return r.status !== 0 && /unable to get current working directory/i.test(r.stderr);
+  } catch {
+    return false;
+  }
 }
 
 function diagnose(ctx: Context): Check[] {
@@ -287,6 +302,11 @@ function diagnose(ctx: Context): Check[] {
     if (homeIn) add("home", "warn", program(home.value), "strom setup");
     else if (isolated(ctx.env) && path.resolve(home.value) === path.resolve(defaultHome(regular))) add("home", "warn", `${ctx.display(home.value)} · ${t("ui.doc.home.regular")}`, "strom setup");
     else add("home", exists ? "ok" : "fail", ctx.display(home.value), exists ? undefined : "strom setup");
+    // git where the family trees are (ticket B4): on a network or redirected drive git cannot tell the folder it works
+    // in, and no tree there keeps its history — said as strom init says it
+    if (g)
+      for (const dir of [...new Set([home.value, ctx.settings.trees()?.value].filter((p): p is string => !!p && fs.existsSync(p)))])
+        if (gitLost(dir)) add("gitdir", "warn", t("ui.doc.gitdir.cwd", { where: ctx.display(dir) }), t("ui.error.init.failed.hint"));
     const shared = ctx.settings.shared()!;
     const sharedOk = SHARED_DIRS.every((d) => fs.existsSync(path.join(shared.value, d)));
     if (inProgram(shared.value)) add("shared", "warn", program(shared.value), "strom setup");

@@ -29,6 +29,13 @@ function request(method: string, url: string, body?: Buffer, headers: Record<str
   });
 }
 const json = (r: { body: Buffer }) => JSON.parse(r.body.toString("utf8"));
+/** An answer of nothing written: its head is its parent (the research as it is), the rest as said. */
+function unwritten(j: Record<string, unknown>): Record<string, unknown> {
+  const { head, parent, ...rest } = j;
+  assert.ok(typeof head === "string" && head.length === 40, JSON.stringify(j));
+  assert.equal(parent, head, "nothing written: parent is head");
+  return rest;
+}
 
 test("the names in a ZIP from Windows: UTF-8 when they read so, else the DOS code page of Central Europe or the old one", () => {
   // "Babička" in CP852 (č = 0x9F)
@@ -59,7 +66,7 @@ test("a batch from the app: its files kept without tasks, a ZIP unpacked by the 
     assert.match(a.input, /^I\d{4}$/);
     assert.equal(a.task, undefined, "no task of its own: the batch's come when it is closed");
     const b = json(await put(read("png-bw.png"), "Babička/foto.png"));
-    assert.deepEqual(json(await put(read("s0001.jpg"), "Babička/znovu.jpg")), { known: a.input, kind: "input", batch }, "the same content: only said");
+    assert.deepEqual(unwritten(json(await put(read("s0001.jpg"), "Babička/znovu.jpg"))), { known: a.input, kind: "input", batch }, "the same content: only said");
     assert.equal((await put(Buffer.concat([Buffer.from("MZ"), Buffer.alloc(500)]), "Babička/setup.exe")).status, 415);
     // a ZIP: unpacked here, each file its own, its folders kept in the path; a ZIP in it and the system's litter left
     const zipFile = path.join(w.dir, "krabice.zip");
@@ -177,7 +184,7 @@ test("the material an archive keeps, for the app to show again: every file of a 
   try {
     const status = json(await request("GET", `${info.url}/status`));
     assert.ok(status.features.includes("material.list"));
-    assert.deepEqual(json(await request("GET", `${info.url}/material`)), { files: [], batches: [] });
+    assert.deepEqual(json(await request("GET", `${info.url}/material`)), { files: [], batches: [], people: {} });
 
     const batch = "9e8d7c6b-5a4f-3e2d";
     const put = (b: Buffer, p: string, more: Record<string, string> = {}) =>
@@ -214,7 +221,7 @@ test("the material an archive keeps, for the app to show again: every file of a 
     const one = json(await request("GET", `${info.url}/material?batch=${batch}`));
     assert.equal(one.files.length, 2);
     assert.equal((await request("GET", `${info.url}/material?person=${encodeURIComponent("Žofie")}`)).status, 400, "not a person: said, never everything");
-    assert.deepEqual(json(await request("GET", `${info.url}/material?person=P0099`)), { files: [], batches: [] });
+    assert.deepEqual(json(await request("GET", `${info.url}/material?person=P0099`)), { files: [], batches: [], people: {} });
 
     // the file itself, as the app opens it
     const file = await request("GET", `${info.url}/media/${fc.sha}?file=1`, undefined, app);

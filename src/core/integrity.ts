@@ -103,9 +103,75 @@ function headSeal(tree: Tree, findings: Finding[]): void {
     });
 }
 
-function checkRecordFile(tree: Tree, rel: string, expected: string | undefined, untracked: boolean, findings: Finding[], tampered: Set<string>): void {
+/**
+ * iCloud's placeholder of a file it keeps only in the cloud ("optimise storage"): `.<name>.icloud` where the file was —
+ * the name of the file it stands for, else undefined.
+ */
+export function placeholderOf(name: string): string | undefined {
+  return /^\.(.+)\.icloud$/su.exec(name)?.[1];
+}
+
+/** Is a file not there only because iCloud keeps it in the cloud (its placeholder beside where it was)? */
+export function inCloudOnly(abs: string): boolean {
+  return !fs.existsSync(abs) && fs.existsSync(path.join(path.dirname(abs), `.${path.basename(abs)}.icloud`));
+}
+
+/**
+ * The files of a research iCloud has not downloaded (only their placeholders here: the research's folder in iCloud
+ * Drive, its storage optimised), tree-relative with "/" — its records and history (data/) and strom.json. Reads the
+ * folders' names only, never a file.
+ */
+export function notDownloaded(root: string): string[] {
+  const out: string[] = [];
+  const walk = (dir: string, rel: string) => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.isDirectory()) {
+        walk(path.join(dir, e.name), `${rel}${e.name}/`);
+        continue;
+      }
+      const name = placeholderOf(e.name);
+      if (name && !fs.existsSync(path.join(dir, name))) out.push(`${rel}${name}`);
+    }
+  };
+  walk(path.join(root, "data"), "data/");
+  if (inCloudOnly(path.join(root, "strom.json"))) out.push("strom.json");
+  return out.sort();
+}
+
+export const NOT_DOWNLOADED = "not-downloaded";
+
+/**
+ * Files only in iCloud, as one finding (never "deleted outside strom → strom repair": repair would write the sealed
+ * version over the one in the cloud, and remove its placeholder): how many, the first, and the way — download them.
+ */
+function notDownloadedFinding(files: string[]): Finding {
+  const first = files[0]!;
+  const id = isRecordPath(first) ? path.basename(first, ".json") : undefined;
+  return {
+    level: "error",
+    code: NOT_DOWNLOADED,
+    ...(id ? { id } : {}),
+    file: first,
+    count: files.length,
+    message: files.length === 1 ? "not downloaded from iCloud yet — only its placeholder is here" : `${files.length} files not downloaded from iCloud yet (the first: ${first}) — only their placeholders are here`,
+    hint: "open the research's folder in Finder and download it (or take the folder out of iCloud Drive), then check again — never strom repair",
+  };
+}
+
+function checkRecordFile(tree: Tree, rel: string, expected: string | undefined, untracked: boolean, findings: Finding[], tampered: Set<string>, cloud?: Set<string>): void {
   const id = path.basename(rel, ".json");
   const abs = path.join(tree.root, rel);
+  // only in iCloud: not downloaded yet, no change of anybody's (said once for all of them)
+  if (cloud && inCloudOnly(abs)) {
+    cloud.add(rel);
+    return;
+  }
   if (!fs.existsSync(abs)) {
     tampered.add(rel);
     findings.push({ level: "error", code: "manual-delete", id, file: rel, message: "record was deleted outside strom", hint: "strom repair" });
@@ -138,9 +204,14 @@ export function verifyFast(tree: Tree, snap: Snapshot = snapshot(tree)): Integri
 
   const opsChanged = changes.filter((c) => c.path.startsWith("data/ops/") && c.path.endsWith(".jsonl"));
   const latest = new Map<string, string>();
+  const cloud = new Set<string>();
   for (const c of opsChanged) {
     const before = committed.get(c.path) ?? "";
     const abs = path.join(tree.root, c.path);
+    if (inCloudOnly(abs)) {
+      cloud.add(c.path);
+      continue;
+    }
     if (!fs.existsSync(abs)) {
       findings.push({ level: "error", code: "ops-deleted", file: c.path, message: "operation log was deleted" });
       continue;
@@ -157,6 +228,13 @@ export function verifyFast(tree: Tree, snap: Snapshot = snapshot(tree)): Integri
   }
 
   for (const c of changes) {
+    // iCloud's placeholder of a file: the file it stands for says it (a record, a log of the history)
+    const stands = placeholderOf(path.posix.basename(c.path));
+    if (stands !== undefined) {
+      const rel = path.posix.join(path.posix.dirname(c.path), stands);
+      if (inCloudOnly(path.join(tree.root, rel))) cloud.add(rel);
+      continue;
+    }
     if (c.path.startsWith("data/ops/") || c.path === "data/_counters.json") continue;
     if (c.path === "strom.json") {
       // strom changes its config through a logged operation (strom config set --for-tree).
@@ -170,8 +248,9 @@ export function verifyFast(tree: Tree, snap: Snapshot = snapshot(tree)): Integri
       tampered.add(c.path);
       continue;
     }
-    checkRecordFile(tree, c.path, latest.get(c.path), c.code === "??", findings, tampered);
+    checkRecordFile(tree, c.path, latest.get(c.path), c.code === "??", findings, tampered, cloud);
   }
+  if (cloud.size) findings.unshift(notDownloadedFinding([...cloud].sort()));
   return { findings, tampered: [...tampered] };
 }
 
@@ -192,6 +271,8 @@ export function verifyFull(tree: Tree): Integrity {
   all.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
   for (const op of all) for (const sf of op.files ?? []) latest.set(sf.path, sf.sha);
   const present = new Set<string>();
+  // what iCloud keeps in the cloud only (records, logs of the history): said once, first — what it holds cannot be judged
+  const cloud = new Set(notDownloaded(tree.root));
   for (const def of Object.values(RECORD_TYPES)) {
     const dir = path.join(tree.dataDir, def.dir);
     if (!fs.existsSync(dir)) continue;
@@ -199,10 +280,17 @@ export function verifyFull(tree: Tree): Integrity {
       if (!f.endsWith(".json")) continue;
       const rel = `data/${def.dir}/${f}`;
       present.add(rel);
-      checkRecordFile(tree, rel, latest.get(rel), true, findings, tampered);
+      checkRecordFile(tree, rel, latest.get(rel), true, findings, tampered, cloud);
     }
   }
-  for (const rel of latest.keys()) if (!present.has(rel) && rel !== "strom.json") checkRecordFile(tree, rel, latest.get(rel), false, findings, tampered);
+  for (const rel of latest.keys()) if (!present.has(rel) && rel !== "strom.json") checkRecordFile(tree, rel, latest.get(rel), false, findings, tampered, cloud);
+  if (cloud.size) findings.unshift(notDownloadedFinding([...cloud].sort()));
+  // a log of the history only in the cloud: what it sealed cannot be told here — no record said edited for it
+  if ([...cloud].some((p) => p.startsWith("data/ops/"))) {
+    const unjudged = findings.filter((f) => (f.code === "unsealed" || f.code === "manual-edit") && f.file);
+    for (const f of unjudged) tampered.delete(f.file!);
+    findings.splice(0, findings.length, ...findings.filter((f) => !unjudged.includes(f)));
+  }
   const cfg = latest.get("strom.json");
   if (cfg && fileSha(path.join(tree.root, "strom.json")) !== cfg) {
     tampered.add("strom.json");
@@ -233,8 +321,26 @@ export function assertIntact(tree: Tree): void {
     tree.requireKey();
     return;
   }
+  // files only in iCloud: downloaded first — what else is wrong is judged then
+  if (errors.some((f) => f.code === NOT_DOWNLOADED)) throw notDownloadedError(notDownloaded(tree.root));
   throw new StromError(`data was changed outside strom (${counted(errors.length, "problem")}) — refusing to write`, {
     hint: "strom verify   (details)\nstrom repair   (restore the last sealed state)",
     details: errors,
+  });
+}
+
+/**
+ * Writing refused while files of the research are only in iCloud (a write would commit them as deleted): how many, the
+ * first, and the way — never strom repair. Its code for a program (tree.not-downloaded), the person's words in their
+ * language (ui.error.tree.not-downloaded).
+ */
+export function notDownloadedError(files: string[]): StromError {
+  const first = files[0] ?? "data/";
+  const n = String(Math.max(1, files.length));
+  return new StromError(`${counted(Math.max(1, files.length), "file")} of the research not downloaded from iCloud yet (the first: ${first}) — nothing written`, {
+    hint: "open the research's folder in Finder and download them (or take the folder out of iCloud Drive), then run it again — never strom repair",
+    code: "tree.not-downloaded",
+    params: { n, first },
+    details: files.slice(0, 50),
   });
 }

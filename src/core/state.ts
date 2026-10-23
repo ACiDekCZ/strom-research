@@ -45,6 +45,17 @@ export function actsAsArchive(tree: { config: TreeConfig; env: Env; root?: strin
   return stateOf(tree) !== "research";
 }
 
+/** The two kinds the Strom app shows: a research, or an archive (Milan's decision, 2026-10-23). */
+export type Kind = "research" | "archive";
+
+/**
+ * The kind of a tree as the app and a choice of trees show it: a research waiting for its agent is an archive until an
+ * agent starts on it (its state stays `waiting` beside it).
+ */
+export function kindOf(tree: { config: TreeConfig; env: Env; root?: string }): Kind {
+  return actsAsArchive(tree) ? "archive" : "research";
+}
+
 /**
  * Work of an agent refused where nobody researches: an archive (nothing of an agent said: where research is switched
  * on), or a research waiting for its agent when the agent asked for is not here either (`strom run --agent` of another

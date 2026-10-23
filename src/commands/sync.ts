@@ -19,7 +19,7 @@ import { decodeText, safeFolderName } from "../core/text.ts";
 import { humanAge } from "../core/age.ts";
 import { now, Tree } from "../core/tree.ts";
 import { actsAsArchive } from "../core/state.ts";
-import { applySync, discardReceived, nothingSince, withoutImages, planSync, readTreeFile, receivedAll, receivedPending, receivedSince, receivedOf, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput } from "../core/sync.ts";
+import { applySync, discardReceived, nothingSince, withoutImages, planSync, readTreeFile, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput } from "../core/sync.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { startLive } from "../core/live.ts";
 import { appSendsChanges, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
@@ -144,6 +144,8 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
       ? "ui.sync.do.taken"
       : c.kind === "child.parents"
       ? "ui.sync.do.parents"
+      : c.kind === "person.removed"
+      ? `ui.sync.do.removed${c.action === "conflict" ? ".conflict" : ""}`
       : c.kind === "name.changed" && c.action === "user"
       ? "ui.sync.do.name.user"
       : c.kind === "name.gone"
@@ -417,10 +419,10 @@ register(
             } as never,
             (sid) => `+${sid} source "${path.basename(file)}" (sync)`,
           );
-        const { applied: done, changes, skipped: left } = applySync(tree, fresh, now1, source, only);
+        const { applied: done, changes, skipped: left, asked } = applySync(tree, fresh, now1, source, only);
         applied = changes;
         skipped = left;
-        input = update<SyncInput>(tree, made.id, "input", (i) => ({ ...i, source: source.id, sync: { ...(fresh.head ? { head: fresh.head } : {}), edits: edits as "conflict" | "user", applied: done } }), {
+        input = update<SyncInput>(tree, made.id, "input", (i) => ({ ...i, source: source.id, sync: { ...(fresh.head ? { head: fresh.head } : {}), edits: edits as "conflict" | "user", applied: done, ...(asked ? { asked } : {}) } }), {
           op: "input.sync",
           summary: `${made.id} synced: ${changes} change(s)${fresh.head ? ` against ${fresh.head.slice(0, 8)}` : ""}`,
         });
@@ -472,7 +474,12 @@ register(
       // a send of the app it wrote: taken back (the app hears it through the bridge) — a dry run tells it nothing (found on
       // Windows: the app told "taken back" of a send nothing was taken back of)
       if (!tree.dryRun) undoReceived(tree.root, id);
-      return { text: lines(...opsFor(ctx, tree), "", ui(tree.lang, "ui.sync.undone", { input: id, n })), data: { input: id, undone: n } };
+      // whom its removal took away on the person's word stays away: said, with the way back
+      const still = removedByItsDecision(tree, input);
+      return {
+        text: lines(...opsFor(ctx, tree), "", ui(tree.lang, "ui.sync.undone", { input: id, n }), ...still.map((r) => ui(tree.lang, "ui.sync.undone.stillRemoved", { name: r.name, person: r.person, id: r.conflict }))),
+        data: { input: id, undone: n, ...(still.length ? { stillRemoved: still.map((r) => ({ person: r.person, conflict: r.conflict, back: `strom conflict resolve ${r.conflict} --take research --reasoning "<why>" --reason "<why>"` })) } : {}) },
+      };
     },
   },
   {

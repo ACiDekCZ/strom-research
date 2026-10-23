@@ -34,7 +34,7 @@ import { recordReader, tokensOf, usageOpt } from "../core/metrics.ts";
 import { readerLimit } from "../core/readstats.ts";
 import { guardIndexFirst, INDEX_FIRST_DEFAULT } from "../core/indexfirst.ts";
 import { bookViewSizes, readingOf, treeTuning, tuningOn } from "../core/tune.ts";
-import { claimStem, noReaderFor, readerAgent, readerDesk, refuseReadersInSandbox } from "./readers.ts";
+import { claimStem, noReaderFor, readerAgent, readerDesk, refuseReadersInArchive, refuseReadersInSandbox } from "./readers.ts";
 import { noReaderHere, refusedBySandbox } from "../core/sandbox.ts";
 import { activeFetches } from "../core/fetching.ts";
 import { finishOf } from "../core/clock.ts";
@@ -223,6 +223,7 @@ register({
   ],
   run: async (ctx: Context, { args: typed, opts }) => {
     const tree = ctx.tree();
+    refuseReadersInArchive(ctx, tree, "strom read");
     // a list copied with its spaces, split by the shell: one list again
     const { args, images: imagesOpt } = joinedImages(typed, opts.images);
     const question = typeof opts.question === "string" ? opts.question.trim() : "";

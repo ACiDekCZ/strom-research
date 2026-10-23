@@ -6,7 +6,8 @@ import { takeOverConnectors } from "../core/terms.ts";
 import { agentInAncestry, ancestryUnread, notePersonFolder } from "../core/trust.ts";
 import { netTrust } from "../core/net.ts";
 import { connectorsDir, listConnectors } from "../core/connector.ts";
-import { Cancelled, EXIT, notFound, StromError, UsageError } from "../core/errors.ts";
+import path from "node:path";
+import { Cancelled, diskFull, DISK_FULL, EXIT, folderOf, isDiskFull, notFound, StromError, UsageError } from "../core/errors.ts";
 import { ownCommand, type Env } from "../core/paths.ts";
 import { Context, type IO } from "./context.ts";
 import { commands, match, type CommandDef, type Result } from "./registry.ts";
@@ -14,7 +15,7 @@ import { asCommand, asCommandJson, shellArg } from "./format.ts";
 import { groupHelpAs, helpAs } from "./help.ts";
 import { autoCommit } from "./commit.ts";
 import { assertIntact } from "../core/integrity.ts";
-import { resetCache } from "../core/git.ts";
+import { head as gitHead, resetCache } from "../core/git.ts";
 import type { HeldError } from "../core/json.ts";
 import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { settleArchive } from "../core/mode.ts";
@@ -80,8 +81,6 @@ function systemError(e: HeldError, agent: Env | false): StromError | undefined {
       return new UsageError(`a folder was given where a file is expected${where}`, { code: "fs.folder", ...(e.path ? { params: { path: e.path } } : {}) });
     case "ENOTDIR":
       return new UsageError(`a file was given where a folder is expected${where}`);
-    case "ENOSPC":
-      return new StromError(`the disk is full${where}`);
   }
   return undefined;
 }
@@ -96,7 +95,11 @@ function systemError(e: HeldError, agent: Env | false): StromError | undefined {
  */
 function inLanguage(e: StromError, lang: string | undefined): { message: string; hint?: string; prefix?: string } {
   const key = `ui.error.${e.code}`;
-  const own = (k: string) => (lang && e.code && k in UI && catalog(lang)[k] ? UI[k as UIKey] : undefined);
+  // a person in English (a research in English, or in a language strom has no catalog of) reads the person's English
+  // text built in, as a person in Czech reads the Czech one — never the agent's message (found 2026-10-23: a seal
+  // taken elsewhere said "consent required" and "ask the user" to a person in English)
+  const english = lang !== undefined && Object.keys(catalog(lang)).length === 0;
+  const own = (k: string) => (lang && e.code && k in UI && (english || catalog(lang)[k]) ? UI[k as UIKey] : undefined);
   const fits = (text: string) => placeholdersOf(text).every((name) => e.params?.[name] !== undefined);
   const message = own(key);
   if (!message || !fits(message)) return { message: e.message, ...(e.hint ? { hint: e.hint } : {}) };
@@ -127,9 +130,20 @@ function underAgent(e: StromError, env: Env, gitFolder?: string): StromError {
   return ancestryUnread(env) ? noPermission(where, false, process.platform, "?") : e;
 }
 
-function printError(io: IO, json: boolean, err: unknown, debug: boolean, lang: string | undefined, env: Env): number {
+/** Where a full disk is said: the research's folder when the file lies in it, else the folder of the file (the shared images), else the research's. */
+function fullAt(file: string | undefined, root: string | undefined): string {
+  const rel = file && root ? path.relative(root, path.resolve(file)) : undefined;
+  const inRoot = rel !== undefined && !rel.startsWith("..") && !path.isAbsolute(rel);
+  if (file && !inRoot) return folderOf(file);
+  return root ?? process.cwd();
+}
+
+function printError(io: IO, json: boolean, err: unknown, debug: boolean, lang: string | undefined, env: Env, folder?: string): number {
   const agent = isAgent(env) && env;
-  const sys = err instanceof StromError ? err : (systemError(err as HeldError, agent) ?? err);
+  // no room on the disk, whatever met it (a write of strom's, git, a lock): said one way, the research's folder named,
+  // never strom's inner file (found on Mac: "the disk is full: …/.strom/tree.lock.….tmp" in English in a Czech research)
+  const full = isDiskFull(err) && !(err instanceof StromError && err.code === DISK_FULL) ? diskFull(fullAt((err as HeldError).path, folder)) : undefined;
+  const sys = full ?? (err instanceof StromError ? err : (systemError(err as HeldError, agent) ?? err));
   const e = sys instanceof StromError ? underAgent(sys, env, (err as HeldError | undefined)?.gitFolder) : sys;
   if (e instanceof StromError) {
     if (json) io.stdout(toJson(e.toJSON()));
@@ -213,7 +227,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     } catch (err) {
       if (err instanceof GroupOnly) {
         const c = Context.fromOptions({ env, cwd, io, json, values: {} });
-        io.stdout(groupHelpAs(err.group, { archive: c.archiveHere(), human: false, lang: c.uiLang(), appUrl: appUrlShown(c.settings), pointer: io.tty && !isAgent(env) }) + "\n");
+        io.stdout(groupHelpAs(err.group, { ...c.helpShown(), human: false, lang: c.uiLang(), appUrl: appUrlShown(c.settings), pointer: io.tty && !isAgent(env) }) + "\n");
         return EXIT.ok;
       }
       throw err;
@@ -227,7 +241,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       // the agent's help, whoever asks (Milan, 2026-10-04: "výchozí je pro agenta"); a person at a terminal is told in a
       // line of their language how to get theirs (strom help <command> --human)
       const c = Context.fromOptions({ env, cwd, io, json, values: v });
-      io.stdout(helpAs(def.path, { archive: c.archiveHere(), human: false, lang: c.uiLang(), appUrl: appUrlShown(c.settings), pointer: io.tty && !isAgent(env) }) + "\n");
+      io.stdout(helpAs(def.path, { ...c.helpShown(), human: false, lang: c.uiLang(), appUrl: appUrlShown(c.settings), pointer: io.tty && !isAgent(env) }) + "\n");
       return EXIT.ok;
     }
     if (v.version) {
@@ -415,11 +429,22 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       if (def.writes && def.tree) def.lock === "sections" ? ctx.tree().withTreeLock(() => assertIntact(ctx.tree())) : assertIntact(ctx.tree());
       let result: Result;
       let blocked: ReturnType<typeof autoCommit>;
+      // a write of the Strom app's (through the bridge, which holds the tree from its first read to its commit): the
+      // research's head before it and after it, for the app to take its own write as its version only when nothing
+      // came between (found: "the research has a newer version" after every file the app assigned)
+      const forApp = def.writes && def.tree && def.lock !== "sections" && !ctx.dryRun && env.STROM_FOR_APP === "1";
+      const headNow = () => {
+        const root = ctx.tree().root;
+        resetCache(root);
+        return gitHead(root) ?? "";
+      };
+      const parent = forApp ? headNow() : undefined;
       try {
         result = await (shows ?? def).run(ctx, { args, opts: v, ...(passthrough.length ? { extra: passthrough } : {}), ...(parsed.seq ? { seq: parsed.seq } : {}) });
         // its commit is part of it: one that fails (found on Windows: _counters.json held by another program, its IDs
         // not written) takes back what the command wrote — a person or an agent running it again gets no second record
         if (def.writes) blocked = autoCommit(ctx, def);
+        if (parent !== undefined && !blocked && result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), commit: { head: headNow(), parent } };
       } catch (err) {
         // A writing command is a transaction: on failure nothing it wrote remains.
         const t = def.writes ? ctx.current() : undefined;
@@ -471,7 +496,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     if (said instanceof UsageError && !said.usage && called?.path.length && callMistake(said, called)) said.usage = usageOf(called, own);
     // the usage is the agent's (or a program's): a person reads the error and its hint in their language, no English
     if (said instanceof StromError && said.usage && !json && !isAgent(env)) said.usage = undefined;
-    const code = printError(io, json, said, debug, lang, env);
+    const code = printError(io, json, said, debug, lang, env, ran?.openedRoot());
     remind(io, ran, command, Date.now() - startedAt);
     return code;
   }

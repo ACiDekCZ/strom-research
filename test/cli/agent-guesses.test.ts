@@ -12,6 +12,8 @@ import { blank } from "../../src/image/image.ts";
 import { suggest } from "../../src/cli/execute.ts";
 
 const opts = { skip: !hasGit };
+/** An agent's shell: what it guessed is answered in its own English (a person reads the person's sentence). */
+const AGENT = { CLAUDECODE: "1" };
 
 async function world(): Promise<World> {
   const w = new World();
@@ -133,7 +135,7 @@ test("searched --surname / --task: only those searches — any script, accents a
     assert.match((await w.ok(["searched", "--surname", "Šťastný", "--task", "T0001"])).out, /^1 search for Šťastný · T0001 — 1 negative/);
     assert.match((await w.ok(["searched", "B0001", "--surnames", "Петров"])).out, /^1 search for B0001 · surname Петров/);
     assert.equal((await w.run(["searched", "--task", "T0099"])).code, 2);
-    const none = await w.run(["searched"]);
+    const none = await w.run(["searched"], { env: AGENT });
     assert.equal(none.code, 2);
     assert.match(none.err, /missing <what>/);
   } finally {
@@ -165,12 +167,14 @@ test("story list: whose stories there are, a draft, a new version waiting", opts
 test("a list's filter typed as --find or --search: its argument said", opts, async () => {
   const w = await world();
   try {
-    const find = await w.run(["recordset", "list", "--find", "lhota"]);
+    const find = await w.run(["recordset", "list", "--find", "lhota"], { env: AGENT });
     assert.equal(find.code, 2);
     assert.match(find.err, /--find is no option of strom recordset list: <filter> is its argument\n→ strom recordset list <filter>/);
-    assert.match((await w.run(["source", "list", "--search", "křest"])).err, /--search is no option of strom source list: <filter> is its argument/);
+    assert.match((await w.run(["source", "list", "--search", "křest"], { env: AGENT })).err, /--search is no option of strom source list: <filter> is its argument/);
     // the argument by its own name, as before
-    assert.match((await w.run(["recordset", "list", "--filter", "lhota"])).err, /filter is an argument of strom recordset list, not an option/);
+    assert.match((await w.run(["recordset", "list", "--filter", "lhota"], { env: AGENT })).err, /filter is an argument of strom recordset list, not an option/);
+    // a person in an English research: the person's sentence, as in any other language
+    assert.match((await w.run(["recordset", "list", "--find", "lhota"])).err, /^error: --find is an argument of strom recordset list, not an option$/m);
   } finally {
     w.cleanup();
   }

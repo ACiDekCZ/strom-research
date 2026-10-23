@@ -13,7 +13,7 @@ import { withoutAgentMarks } from "./which.ts";
 import { Tree } from "./tree.ts";
 import { Settings } from "./config.ts";
 import { ui } from "../cli/ui.ts";
-import { EXIT, StromError } from "./errors.ts";
+import { DISK_FULL, EXIT, isDiskFull, StromError } from "./errors.ts";
 import { freeBytes, knownOriginal, originalMax, ORIGINAL_RESERVE } from "./originals.ts";
 import { batchRoom, noteBatch, openBatch } from "./batches.ts";
 import { stromLauncher } from "./self.ts";
@@ -30,6 +30,18 @@ export function forApp(env: Env, root: string): NodeJS.ProcessEnv {
   return { ...rest, STROM_TREE: root, STROM_NONINTERACTIVE: "1", STROM_FOR_APP: "1", STROM_SPAWNED: "1" };
 }
 
+/**
+ * The research's head after a write of a strom of its own and before it (its --json `commit`, written under the tree's
+ * lock from its first read to its commit): the app takes `head` as its version only when `parent` is the head it knew.
+ * The command's data without it, for an answer that passes its data on.
+ */
+export function committed(data: Record<string, unknown>, now: () => string | undefined): { data: Record<string, unknown>; head: string; parent?: string } {
+  const { commit, ...rest } = data;
+  const c = commit && typeof commit === "object" ? (commit as { head?: unknown; parent?: unknown }) : undefined;
+  const head = typeof c?.head === "string" && c.head ? c.head : (now() ?? "");
+  return { data: rest, head, ...(typeof c?.parent === "string" ? { parent: c.parent } : {}) };
+}
+
 /** A refusal: the English sentence (`error`, `text`) and its stable `code` with `params` (the codes: live.ts). */
 export function refusal(error: string, code: string, params: Record<string, string> = {}): { error: string; code: string; text: string; params?: Record<string, string> } {
   return { error, code, text: error, ...(Object.keys(params).length ? { params } : {}) };
@@ -39,6 +51,29 @@ export function refusalOf(why: string, data: { code?: unknown; params?: unknown 
   const params = data.params && typeof data.params === "object" ? Object.fromEntries(Object.entries(data.params as Record<string, unknown>).map(([k, v]) => [k, String(v)])) : {};
   return refusal(why, typeof data.code === "string" && data.code ? data.code : fallback, params);
 }
+/**
+ * No room on the disk as a write met it (core/errors.ts diskFull): the sentence in the research's language (`error`),
+ * English (`text`), its code disk.full and the folder (`params.where`) — answered 507.
+ */
+export function diskFullSaid(lang: string, where: string): { error: string; code: string; text: string; params: Record<string, string> } {
+  return { error: ui(lang, "ui.error.disk.full", { where }), code: DISK_FULL, text: ui("en", "ui.error.disk.full", { where }), params: { where } };
+}
+
+/** The folder a strom of its own named as it met a full disk (its params.where), else the research's. */
+export function fullWhere(data: { params?: unknown }, root: string): string {
+  const where = (data.params as { where?: unknown } | undefined)?.where;
+  return typeof where === "string" && where ? where : root;
+}
+
+/** The research's language, English where it cannot be read. */
+export function langOf(root: string, env: Env): string {
+  try {
+    return Tree.open(root, env).lang;
+  } catch {
+    return "en";
+  }
+}
+
 /** Too large, no room: the sentence in the research's language (`error`), English (`text`) and the code. */
 function said(lang: string, key: "ui.media.large" | "ui.media.full", params: Record<string, string> = {}): { error: string; code: string; text: string; params?: Record<string, string> } {
   return { error: ui(lang, key, params), code: key === "ui.media.large" ? "media.large" : "media.full", text: ui("en", key, params), ...(Object.keys(params).length ? { params } : {}) };
@@ -130,7 +165,12 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
     const had = known.kind === "input" && !batch ? tree.get<Input>(known.id) : undefined;
     const more = had && (f.persons.some((p) => !(had.persons ?? []).includes(p)) || (!!note?.trim() && !had.notes.some((n) => foldText(n.text) === foldText(note!.trim()))));
     // (a file to read: what it is of goes with its reading, never into an intake task)
-    if (!more || f.read) return refuse(200, { known: known.id, kind: known.kind, ...(batch ? { batch } : {}) });
+    // nothing written (or what came again not added): the head as it is, which is its parent too (the bridge's answers)
+    const unchanged = (): Record<string, unknown> => {
+      const h = r.head?.();
+      return h === undefined ? {} : { head: h, parent: h };
+    };
+    if (!more || f.read) return refuse(200, { known: known.id, kind: known.kind, ...(batch ? { batch } : {}), ...unchanged() });
     req.resume();
     const { command, args } = stromLauncher();
     const child = spawn(command, [...args, "input", "amend", known.id, ...f.persons.flatMap((p) => ["--person", p]), ...(note ? [`--note=${note}`] : []), "--json"], {
@@ -143,7 +183,7 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
     let stdout = "";
     child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
     child.stderr.resume();
-    child.on("error", () => reply(200, { known: known.id, kind: known.kind }));
+    child.on("error", () => reply(200, { known: known.id, kind: known.kind, ...unchanged() }));
     child.on("close", (code) => {
       let data: { added?: unknown; task?: unknown } = {};
       try {
@@ -153,7 +193,8 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
       }
       if (code !== 0) r.note(`what came again for ${known.id} was not added (exit ${code})`);
       if (code === EXIT.locked) return reply(503, { ...refusal("the research is busy — send it again in a while", "research.busy"), retry: 30 });
-      reply(200, { known: known.id, kind: known.kind, ...(code === 0 && data.added ? { added: data.added } : {}), ...(code === 0 && data.task ? { task: data.task } : {}), ...(code === 0 ? { head: r.head?.() } : {}) });
+      const c = committed(data as Record<string, unknown>, () => r.head?.());
+      reply(200, { known: known.id, kind: known.kind, ...(code === 0 && data.added ? { added: data.added } : {}), ...(code === 0 && data.task ? { task: data.task } : {}), ...(code === 0 ? { head: c.head, ...(c.parent !== undefined ? { parent: c.parent } : {}) } : unchanged()) });
     });
     return;
   }
@@ -201,7 +242,7 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
   out.on("error", (e) => {
     over = true;
     drop();
-    reply(/ENOSPC/.test(String(e)) ? 507 : 500, /ENOSPC/.test(String(e)) ? said(tree.lang, "ui.media.full") : { error: errorText(e), code: "media.failed", text: errorText(e) });
+    reply(isDiskFull(e) ? 507 : 500, isDiskFull(e) ? said(tree.lang, "ui.media.full") : { error: errorText(e), code: "media.failed", text: errorText(e) });
     req.resume();
   });
   req.on("end", () => {
@@ -251,7 +292,8 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
           // said by the exit code
         }
         if (code === 0) {
-          reply(200, { ...data, sha, bytes: size, ...(batch ? { batch } : {}), head: r.head?.() });
+          const c = committed(data, () => r.head?.());
+          reply(200, { ...c.data, sha, bytes: size, ...(batch ? { batch } : {}), head: c.head, ...(c.parent !== undefined ? { parent: c.parent } : {}) });
           return;
         }
         drop();
@@ -259,6 +301,8 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
         r.note(`an original was not taken (exit ${code}): ${why}`);
         // the research busy (another strom holding it longer than a writer waits): the app sends it again later
         if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 30 });
+        // no room on the disk: said in the research's language, never its inner path (found on Mac: "the disk is full: …")
+        if (data.code === DISK_FULL || isDiskFull(why)) return reply(507, diskFullSaid(tree.lang, fullWhere(data, r.root)));
         // the task waits no more (answered meanwhile in the terminal)
         if (f.task && typeof data.code === "string" && ["task.none", "task.not-waiting", "task.no-file"].includes(data.code))
           return reply(409, refusal(why, data.code === "task.no-file" ? "waiting.no-file" : "waiting.none", { id: f.task }));
@@ -300,10 +344,14 @@ export function closeBatchBy(r: Receiver, id: string, extra: string[], reply: (c
     } catch {
       // said by the exit code
     }
-    if (code === 0) return reply(200, { ...data, head: r.head?.() });
+    if (code === 0) {
+      const c = committed(data, () => r.head?.());
+      return reply(200, { ...c.data, head: c.head, ...(c.parent !== undefined ? { parent: c.parent } : {}) });
+    }
     const why = String(data.message ?? stderr.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? "the batch was not closed");
     r.note(`the batch ${id} was not closed (exit ${code}): ${why}`);
     if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 30, batch: id });
+    if (data.code === DISK_FULL || isDiskFull(why)) return reply(507, { ...diskFullSaid(langOf(r.root, r.env), fullWhere(data, r.root)), batch: id });
     reply(/no batch/.test(why) ? 404 : 400, { ...refusalOf(why, data, /no batch/.test(why) ? "batch.none" : "media.refused"), batch: id });
   });
 }

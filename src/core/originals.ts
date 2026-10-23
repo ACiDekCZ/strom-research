@@ -335,7 +335,7 @@ function citingPeople(tree: Tree, source: string): string[] {
 }
 
 /** An intake task for an input from the app: the one of the same people made a while ago takes it, else a new one. */
-function gatherTask(tree: Tree, input: Input, persons: string[]): string {
+export function gatherTask(tree: Tree, input: Input, persons: string[]): string {
   const lang = tree.lang;
   const same = (t: Task) => {
     const theirs = t.subject.filter((x) => x.startsWith("P"));

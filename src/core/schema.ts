@@ -219,6 +219,9 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     path: S({ max: 500 }),
     sorted: { t: "any" },
     read: { t: "strings" },
+    title: S({ max: 200 }),
+    date: S({ date: true }),
+    hidden: { t: "any" },
   },
   media: {
     sha: S({ req: true }),

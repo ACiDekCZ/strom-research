@@ -25,7 +25,7 @@ import { mb, setTidyOn, tidy, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { EXIT } from "../core/errors.ts";
 import { atWork } from "../core/relocate.ts";
 import { MODES, isArchive, modeOf, switchMode, type Mode } from "../core/mode.ts";
-import { stateOf } from "../core/state.ts";
+import { kindOf, stateOf } from "../core/state.ts";
 import { liveWorkers, runsAtWork } from "../core/workers.ts";
 import { moveToTrash } from "../core/trash.ts";
 import { history, stopLive } from "../core/live.ts";
@@ -146,16 +146,38 @@ register({
       const tree = Tree.open(t.root, ctx.env);
       return {
         ...t,
+        // what it is: a research, one waiting for its agent (none on this computer), a Strom archive
+        state: stateOf(tree),
+        // what the Strom app shows: a research waiting for its agent is an archive until an agent starts on it
+        kind: kindOf(tree),
+        // sealed on this computer (writing works), or on another (taken over: strom seal adopt)
+        seal: tree.key ? ("here" as const) : ("elsewhere" as const),
         persons: tree.countLive("person"),
         researches: tree.list<Research>("research").length,
       };
     });
+    // seen here before, gone from their folders since (moved?): said — with how to add the new folder
+    const missing = ctx.missingTrees().map(({ name, root }) => ({ name, root }));
     const lang = ctx.uiLang();
-    if (trees.length === 0) return { text: ui(lang, "ui.trees.none"), data: { trees } };
-    const text = table(
-      trees.map((t) => [t.name, t.lang, ui(lang, "ui.trees.persons", { n: t.persons }), ui(lang, "ui.trees.researches", { n: t.researches }), ctx.display(t.root)]),
+    const gone = missing.map((m) => ui(lang, "ui.trees.missing", { name: m.name, path: ctx.display(m.root) }));
+    if (trees.length === 0) return { text: lines(ui(lang, "ui.trees.none"), ...gone), data: { trees, ...(missing.length ? { missing } : {}) } };
+    const text = lines(
+      table(
+        trees.map((t) => [
+          t.name,
+          t.lang,
+          // an archive is only that (nothing of an agent); a research says what it waits for
+          ui(lang, `ui.trees.state.${t.state}` as UIKey),
+          ui(lang, "ui.trees.persons", { n: t.persons }),
+          // a research's directions: nothing of an archive's
+          t.state === "archive" ? "" : ui(lang, "ui.trees.researches", { n: t.researches }),
+          ctx.display(t.root),
+          t.seal === "here" ? "" : ui(lang, "ui.trees.foreign"),
+        ]),
+      ),
+      ...(gone.length ? ["", ...gone] : []),
     );
-    return { text, data: { trees } };
+    return { text, data: { trees, ...(missing.length ? { missing } : {}) } };
   },
 });
 
@@ -170,9 +192,43 @@ register({
     const probe = Context.fromOptions({ env: ctx.env, cwd: ctx.cwd, io: ctx.io, json: ctx.json, values: { tree: args[0]! } });
     const root = probe.locateTree()!;
     ctx.settings.config.currentTree = root;
+    // a folder outside the trees' folder (a tree moved, one brought from elsewhere): remembered, listed from now on
+    const treesDir = ctx.treesDir();
+    if (!treesDir || path.resolve(path.dirname(root)) !== path.resolve(treesDir)) {
+      const extra = new Set(ctx.settings.config.extraTrees ?? []);
+      extra.add(root);
+      ctx.settings.config.extraTrees = [...extra];
+    }
     ctx.settings.save();
+    // seen where it is now (one of the same id gone from another folder: the same tree moved, said no more)
+    ctx.knownTrees();
     const tree = Tree.open(root, ctx.env);
     return { text: ui(tree.lang, "ui.trees.use", { name: tree.config.name, root: ctx.display(root) }), data: { name: tree.config.name, root } };
+  },
+});
+
+register({
+  path: ["trees", "forget"],
+  summary: "Forget a family tree gone from its folder (moved, deleted by hand): no longer said to be missing",
+  group: "research",
+  description: "Only strom's memory of it goes — nothing is deleted. A tree that is still there: strom trees remove.",
+  args: [{ name: "tree", description: "the tree's name or its former folder (strom trees says them)", required: true }],
+  examples: ['strom trees forget "Novákovi"'],
+  person: "Forgetting a family tree on this computer is the user's own choice",
+  run(ctx, { args }) {
+    const ref = args[0]!.trim();
+    const key = foldText(ref);
+    const asPath = path.resolve(ctx.resolvePath(ref));
+    const gone = ctx.missingTrees().filter((m) => foldText(m.name) === key || path.resolve(m.root) === asPath || foldText(path.basename(m.root)) === key);
+    if (!gone.length) throw new UsageError(`no family tree "${ref}" is missing from its folder — nothing to forget`, { hint: "strom trees" });
+    const roots = new Set(gone.map((g) => path.resolve(g.root)));
+    const cfg = ctx.settings.config;
+    cfg.seenTrees = (cfg.seenTrees ?? []).filter((s) => !roots.has(path.resolve(s.root)));
+    if (cfg.extraTrees) cfg.extraTrees = cfg.extraTrees.filter((r) => !roots.has(path.resolve(r)));
+    if (cfg.currentTree && roots.has(path.resolve(cfg.currentTree))) delete cfg.currentTree;
+    ctx.settings.save();
+    const lang = ctx.uiLang();
+    return { text: lines(...gone.map((g) => ui(lang, "ui.trees.forgot", { name: g.name }))), data: { forgotten: gone.map(({ name, root }) => ({ name, root })) } };
   },
 });
 
@@ -471,6 +527,8 @@ export function forgetTree(ctx: Context, root: string, why: string): { followed:
   moveToTrash(root, ctx.env, path.basename(root));
   const cfg = ctx.settings.config;
   if (cfg.extraTrees) cfg.extraTrees = cfg.extraTrees.filter((r) => path.resolve(r) !== path.resolve(root));
+  // taken away on purpose: never said to be missing (moved?)
+  if (cfg.seenTrees) cfg.seenTrees = cfg.seenTrees.filter((s) => path.resolve(s.root) !== path.resolve(root));
   let next: string | undefined;
   if (cfg.currentTree && path.resolve(cfg.currentTree) === path.resolve(root)) {
     const left = ctx.knownTrees().filter((k) => path.resolve(k.root) !== path.resolve(root));

@@ -3,7 +3,8 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { RECORD_TYPES, type Conflict, type Family, type Person, type RecordType } from "./model.ts";
+import { RECORD_TYPES, type Conflict, type Family, type Input, type Media, type Person, type RecordType } from "./model.ts";
+import { Settings } from "./config.ts";
 import { recordRefs, validateRecord } from "./validate.ts";
 import { readJson, readJsonIfExists } from "./json.ts";
 import { Tree, prefixOf } from "./tree.ts";
@@ -16,6 +17,8 @@ export interface Finding {
   id?: string;
   file?: string;
   hint?: string;
+  /** How many it stands for, where one finding says them all (files only in iCloud, files of the shared folder missing). */
+  count?: number;
 }
 
 export function check(tree: Tree): Finding[] {
@@ -126,4 +129,33 @@ export function houseIn(place: string): { place: string; house: string } | undef
   const m = /^(.*?)[\s,]+(?:č\.\s?p\.?|čp\.?|č\.\s?d\.?|c\.\s?p\.?|cp\.|Haus-?\s?N(?:r|ro)\.?|Nr\.|No\.|house\s+(?:No\.?)?|dům\s+(?:č\.)?)\s*(\d+[\w/-]*)\s*$/iu.exec(place.trim());
   if (!m || !m[1]!.trim()) return undefined;
   return { place: m[1]!.trim().replace(/,$/, ""), house: m[2]! };
+}
+
+export const SHARED_MISSING = "shared-missing";
+
+/**
+ * The family's material and the images nobody can fetch again whose file in the shared folder is not on this computer
+ * (found in the audit: the research's folder brought back from a backup without the shared one — check said "nothing
+ * lost"): one warning, how many and the first, the way back. The records are whole (a warning, no error); only whether
+ * each file is there is asked — never read. The images an archive gives again (fetched) are not counted: strom fetch
+ * puts them back.
+ */
+export function sharedMissing(tree: Tree): Finding[] {
+  const shared = new Settings(tree.env, {}).shared()?.value;
+  const there = (rel: string) => shared !== undefined && fs.existsSync(path.join(shared, rel));
+  const gone: string[] = [];
+  for (const i of tree.list<Input>("input")) if (i.file?.startsWith("media:") && !there(i.file.slice(6))) gone.push(i.id);
+  for (const m of tree.list<Media>("media")) if (!m.retracted && !m.fetched && m.file && !there(m.file)) gone.push(m.id);
+  if (!gone.length) return [];
+  const first = gone[0]!;
+  return [
+    {
+      level: "warn",
+      code: SHARED_MISSING,
+      id: first,
+      count: gone.length,
+      message: `${gone.length} ${gone.length === 1 ? "file" : "files"} of the shared folder not on this computer (the first: ${first}) — the family's material and images strom keeps beside the research, not in its folder`,
+      hint: `bring the shared folder back from a backup of the whole Strom folder (its subfolder shared); where the first belongs: strom ${first.startsWith("I") ? "input" : "media"} show ${first}`,
+    },
+  ];
 }

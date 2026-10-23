@@ -29,6 +29,9 @@ import type { Env } from "./paths.ts";
 import { lastBackup } from "./backup.ts";
 
 export const TREE_FILE = "strom.json";
+/** The code of a write refused because the research is sealed on another computer (CLI, the bridge: 409). */
+export const SEAL_FOREIGN = "seal.foreign";
+
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
 export const VERSION = "1.19.0";
@@ -143,6 +146,15 @@ export function newerTreeError(config: Pick<TreeConfig, "schema" | "createdWith"
     params: { by, version: VERSION, schema: String(config.schema), release, ...(backup ? { backup } : {}) },
     details: { locked: true, by, schema: config.schema, way: beta ? "strom update --channel beta" : "strom update", ...(backup ? { backup } : {}) },
   });
+}
+
+/**
+ * Whether the research's seal key is on this computer (writing works here), read without opening the research: false
+ * for a folder copied from another computer, or strom's settings lost with their keys (strom seal adopt).
+ */
+export function sealedHere(root: string, env: Env): boolean {
+  const id = readJsonIfExists<TreeConfig>(path.join(root, TREE_FILE))?.id;
+  return !!id && loadKey(env, id) !== undefined;
 }
 
 /** The refusal of a research a newer strom wrote, without opening it (the menu's list, the bridge); none: it opens. */
@@ -614,17 +626,27 @@ export class Tree {
     this.keyCache = undefined;
   }
 
+  /**
+   * The seal key, else the research is another computer's (copied here, or strom's settings lost with their keys): a
+   * consent the person gives in their own terminal (strom seal adopt, or the menu), never an agent. Said to the person
+   * in the research's language with that step (ui.error.seal.foreign); an agent reads the English, a program the code.
+   */
   requireKey(): Buffer {
     const key = this.key;
     if (key) return key;
-    throw new NeedsConsentError([
-      {
-        key: "seal",
-        kind: "consent",
-        question: "This tree was sealed on another computer. Take it over on this one?",
-        set: "strom seal adopt",
-      },
-    ]);
+    throw new NeedsConsentError(
+      [
+        {
+          key: "seal",
+          kind: "consent",
+          question: "This tree was sealed on another computer. Take it over on this one?",
+          set: "strom seal adopt",
+        },
+      ],
+      undefined,
+      undefined,
+      { code: SEAL_FOREIGN, params: { name: this.config.name, set: "strom seal adopt" } },
+    );
   }
 
   /** Sealed commit of everything under pathspec. */

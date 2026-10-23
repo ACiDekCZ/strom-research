@@ -5,15 +5,31 @@ import type { Conflict, Family, Person } from "./model.ts";
 import { UsageError } from "./errors.ts";
 import type { Tree } from "./tree.ts";
 import { claimText } from "./people.ts";
+import { actsAsArchive } from "./state.ts";
 
 type Claim = Conflict["claims"][number];
 
 /** The note on the user's claim of a conflict of their edit (core/sync.ts conflictOfEdit). */
 export const USER_EDIT = "the user's edit";
 
-/** A conflict of the user's edit in the Strom app: a fact's, a child's parents, a name's, a title's or a sex's. */
+/**
+ * A conflict of the user's edit in the Strom app: a fact's, a child's parents, a name's, a title's or a sex's — or a
+ * person removed by one send whom another copy edited (PERSON: whether they come back).
+ */
 export function isEditConflict(c: Conflict): boolean {
-  return Boolean(c.edit || c.parents || (["NAME", "SEX", "NPFX", "NSFX"].includes(c.fact ?? "") && c.claims.some((x) => x.note === USER_EDIT)));
+  return Boolean(c.edit || c.parents || (["NAME", "SEX", "NPFX", "NSFX", "PERSON"].includes(c.fact ?? "") && c.claims.some((x) => x.note === USER_EDIT)));
+}
+
+/**
+ * The open conflicts the person decides (the menu's What waits, the overview): every open one where no agent works (an
+ * archive, a research waiting for its agent), else those of the person's own edits in the Strom app — the oldest first.
+ */
+export function conflictsToDecide(tree: Tree): Conflict[] {
+  const all = actsAsArchive(tree);
+  return tree
+    .list<Conflict>("conflict")
+    .filter((c) => c.state === "open" && !c.retracted && (all || isEditConflict(c)))
+    .sort((a, b) => a.created.localeCompare(b.created) || a.id.localeCompare(b.id));
 }
 
 /** Which side a claim of a conflict of the user's edit is: the user's, the research's; none in any other conflict. */
@@ -30,7 +46,7 @@ export function claimOf(c: Conflict, side: "user" | "research"): Claim | undefin
 }
 
 /** The kinds of fact a conflict of the user's edit is decided by side from the Strom app (phase 1: not a child's parents). */
-const BY_SIDE = new Set(["NAME", "SEX", "NPFX", "NSFX"]);
+const BY_SIDE = new Set(["NAME", "SEX", "NPFX", "NSFX", "PERSON"]);
 
 /**
  * The two sides of a conflict of the user's edit the Strom app decides by side (the link conflict&do=decide&take=): a fact's value (date,
@@ -95,7 +111,9 @@ export function againAllowed(tree: Tree, c: Conflict, how: { reason?: string | u
       code: "conflict.decided",
       params,
     });
-  if (how.side && c.taken)
+  // whether a person stays in the tree (PERSON) is decided again either way: taking the other side puts them back or
+  // takes them away (the undo of the send that asked does not — found by the verification of U7)
+  if (how.side && c.taken && (c.fact !== "PERSON" || how.side === c.taken))
     throw new UsageError(`${c.id} took the ${c.taken === "user" ? "user's" : "research's"} value already: its fact is written — change the fact with the fact commands (event edit, event retract), then decide it again with --resolution`, {
       hint: `strom conflict show ${c.id}`,
       code: "conflict.taken",

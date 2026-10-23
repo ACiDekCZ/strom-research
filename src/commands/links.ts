@@ -189,6 +189,9 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     case "update":
     case "setup":
       return end((await run([link.action])) === 0);
+    // sealed on another computer: taken over here as strom seal adopt does it — its records checked, the person's yes
+    case "seal":
+      return end((await run(["seal", "adopt"])) === 0);
     case "sessions": {
       const { sessionsView } = await import("../cli/menu-links.ts");
       sessionsView(ctx, treeLang, root);
@@ -388,7 +391,8 @@ register(
       "browser, by hand), answered in the terminal as in the menu's What waits; the answer is never in the link.\n" +
       "strom-research://update|sessions|setup?tree=<id> — strom update, the agent's sessions and their cost, strom setup.\n" +
       "strom-research://new?app=<the app's mark> — a tree of the app becomes a new research: named, made, the app hands the\n" +
-      "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app.\n" +
+      "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app. Family trees here already:\n" +
+      "opening one of them in the app (strom app) is offered first; with no terminal the result lists them (trees).\n" +
       "What writes tasks or starts the agent is said and asked in the terminal first. Any page can open such a link:\n" +
       "each part is checked (only IDs and fixed values, never text), an unknown research, person, task or excerpt is\n" +
       "only said. No link: the menu.",
@@ -417,11 +421,14 @@ register(
           if (!done) await pause(ctx, ctx.uiLang(), "ui.enter.close");
           return { text: "", data: { done, action: "new" } };
         }
+        // nobody to ask here: the terminal opened asks — which family trees it will offer to open instead, said (b-D4)
+        const { treesToOpen } = await import("../cli/menu-links.ts");
+        const trees = treesToOpen(ctx);
         const where = ctx.settings.home()?.value ?? configDir(ctx.env);
         fs.mkdirSync(where, { recursive: true });
         const opened = openInNewTerminal(["link", "open", linkText(link, linkScheme(ctx.env))], where, ctx.env, process.platform, windowOf(ctx));
-        if (opened === false) return say(ctx, "ui.link.noterminal.new");
-        return { text: "", data: { done: true, action: "new", ...fellBack(opened) } };
+        if (opened === false) return say(ctx, "ui.link.noterminal.new", {}, { action: "new", trees });
+        return { text: "", data: { done: true, action: "new", trees, ...fellBack(opened) } };
       }
       if (link.action === "media") {
         // an original the app sent: the file itself, in the viewer of the system; nothing written

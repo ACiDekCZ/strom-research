@@ -13,7 +13,7 @@ import * as git from "./git.ts";
 import { RECORD_TYPES } from "./model.ts";
 import type { Finding } from "./check.ts";
 import type { Tree, Op } from "./tree.ts";
-import { snapshot, type Snapshot } from "./integrity.ts";
+import { inCloudOnly, snapshot, type Snapshot } from "./integrity.ts";
 
 type Rec = Record<string, unknown> & { id?: string };
 
@@ -55,6 +55,8 @@ export function guard(tree: Tree, snap: Snapshot = snapshot(tree)): Finding[] {
     if (!c.path.startsWith("data/ops/")) continue;
     const abs = path.join(tree.root, c.path);
     const old = before.get(c.path) ?? "";
+    // only in iCloud (its placeholder here): not downloaded, nothing deleted — verify says so (not-downloaded)
+    if (!fs.existsSync(abs) && inCloudOnly(abs)) continue;
     if (!fs.existsSync(abs)) {
       if (old) out.push({ level: "error", code: "ops-deleted", file: c.path, message: "operation log was deleted" });
       continue;
@@ -82,6 +84,7 @@ export function guard(tree: Tree, snap: Snapshot = snapshot(tree)): Finding[] {
     if (!prev) continue; // new record: nothing to lose
     const id = prev.id ?? path.basename(c.path, ".json");
     const abs = path.join(tree.root, c.path);
+    if (!fs.existsSync(abs) && inCloudOnly(abs)) continue;
     if (!fs.existsSync(abs)) {
       if (!justified.has(id))
         out.push({

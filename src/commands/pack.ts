@@ -12,6 +12,7 @@ import { desktopDir, userHome } from "../core/paths.ts";
 import { safeFolderName } from "../core/text.ts";
 import { mb } from "../core/tidy.ts";
 import { Tree } from "../core/tree.ts";
+import { isArchive } from "../core/mode.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import { setupWizard } from "../cli/wizard.ts";
 import { isAgent } from "../core/which.ts";
@@ -27,11 +28,16 @@ export function defaultPackFile(ctx: Context, tree: Tree): string {
   return out;
 }
 
-/** The package with its how-to and launchers in the research language. */
+/**
+ * The package with its how-to and launchers in the research language. An archive's how-to goes on in the Strom app,
+ * nothing of an agent (found 2026-10-23: "the conversation with the agent"); its launchers open strom's menu, the
+ * archive's, which offers the app — a research waiting for its agent here is packed as a research: the computer it goes
+ * to may have one.
+ */
 export function packTree(tree: Tree, shared: string, out: string, all: boolean): ReturnType<typeof writePack> {
   const readme = {
     name: ui(tree.config.lang, "ui.pack.readme.file"),
-    text: ui(tree.config.lang, "ui.pack.readme", { name: tree.config.name, win: INSTALL_WINDOWS, unix: INSTALL_UNIX }),
+    text: ui(tree.config.lang, isArchive(tree) ? "ui.pack.readme.archive" : "ui.pack.readme", { name: tree.config.name, win: INSTALL_WINDOWS, unix: INSTALL_UNIX }),
   };
   const say = { extract: ui(tree.config.lang, "ui.pack.launch.extract"), failed: ui(tree.config.lang, "ui.pack.launch.failed") };
   return writePack(tree, shared, out, { all, readme, say });

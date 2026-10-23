@@ -194,7 +194,7 @@ async function phoneStep(ctx: Context, run: Run, lang: string): Promise<void> {
   await pause(ctx, lang);
 }
 
-/** Maintenance: the check of the installation, what strom keeps beside the research (disk space), the newer strom when one is out. */
+/** Maintenance: the check of the installation, what strom keeps beside the research (disk space), the newer strom when one is out, what to back up. */
 async function maintenance(ctx: Context, run: Run, lang: string, root: string | undefined, newer: string | undefined): Promise<"quit" | void> {
   const t = translator(lang);
   return subMenu(
@@ -252,6 +252,15 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
             return "quit";
           },
         });
+      // what to back up: the one folder with every research and the shared images, its size, or a research packed (strom backup)
+      items.push({
+        key: "5",
+        label: t("ui.maintenance.backup"),
+        act: async () => {
+          await run(["backup"]);
+          await pause(ctx, lang);
+        },
+      });
       return { title: t("ui.maintenance.title"), items };
     },
     { fixed: true },

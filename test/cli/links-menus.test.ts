@@ -381,3 +381,56 @@ test("the copy of the app strom was installed from: only the app's own pages, ne
   assert.equal(from(undefined), undefined);
   assert.equal(from("https://beta.stromapp.info/run/", ""), undefined, "not installed from the app: the setting is the person's");
 });
+
+test("strom-research://new with family trees here already (an empty Strom app): opening one in the app is offered first, a research waiting for its agent as an archive; 0 is nothing; no terminal: the result lists them (b-D4)", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = new World();
+  // the stand-in Claude Code only: no other agent on this computer
+  w.env.PATH = [path.join(w.dir, "agents"), path.dirname(process.execPath), "/usr/bin", "/bin"].join(path.delimiter);
+  await w.ok(["setup", "--yes"]);
+  await w.ok(["init", "Novákovi"]);
+  await w.ok(["init", "Archiv", "--mode", "archive"]);
+  await w.ok(["init", "Svobodovi"]);
+  // its agent is not on this computer: the research waits for it
+  await w.ok(["config", "set", "agent", "grok", "--for-tree"], { cwd: w.treeDir("Svobodovi") });
+  for (const [name, person] of [["Novákovi", "Josef /Novák/"], ["Archiv", "Marie /Dvořáková/"], ["Svobodovi", "Karel /Svoboda/"]]) await w.ok(["person", "add", person!], { cwd: w.treeDir(name!) });
+  // one with nobody in it: nothing to show in the app, not offered (a new research of its name goes into it)
+  await w.ok(["init", "Dvořákovi"]);
+  const link = "strom-research://new?app=RXhpc3RpbmctdHJlZXMtaGVyZS1hbHJlYWR5LTAwMDE";
+  const names = async () => ((await w.ok(["trees", "--json"])).json.trees as { name: string }[]).map((t) => t.name).sort();
+  // no terminal: the terminal it opens asks — the result says which trees it offers, with their kind
+  const quiet = await w.run(["link", "open", link, "--json"]);
+  assert.equal(quiet.code, 0, quiet.err);
+  assert.deepEqual(Object.fromEntries((quiet.json.trees as { name: string; kind: string }[]).map((t) => [t.name, t.kind])), { Archiv: "archive", Novákovi: "research", Svobodovi: "archive" });
+  // 0: nothing set up, nothing opened
+  const no = await w.run(["link", "open", link], { tty: true, answers: ["0", ""] });
+  assert.match(no.out, /Aplikace Strom chce začít výzkum s jedním svým rodokmenem\.\n\nNa tomto počítači už rodokmeny jsou\. Otevřít některý z nich v aplikaci Strom, nebo začít nový výzkum se stromem z aplikace\?\n/);
+  assert.match(no.out, /\d\s+„Archiv“ v aplikaci Strom \(Archiv Stromu\)\n/);
+  assert.match(no.out, /\d\s+„Svobodovi“ v aplikaci Strom \(Archiv Stromu\)\n/, "a research waiting for its agent: an archive");
+  assert.match(no.out, /\d\s+„Novákovi“ v aplikaci Strom \(výzkum\)\n/);
+  assert.match(no.out, /4\s+Nový výzkum se stromem z aplikace\n\s+0\s+Zrušit/);
+  assert.doesNotMatch(no.out, /„Dvořákovi“ v aplikaci/, "nobody in it: not offered");
+  assert.doesNotMatch(no.out, /Název výzkumu/);
+  assert.deepEqual(await names(), ["Archiv", "Dvořákovi", "Novákovi", "Svobodovi"]);
+  const key = (name: string) => new RegExp(`(\\d)\\s+„${name}“ v aplikaci Strom`, "u").exec(no.out)![1]!;
+  // a new research: the handover goes on as before (its name asked; 0 there ends it)
+  const fresh = await w.run(["link", "open", link], { tty: true, answers: ["4", "0", ""] });
+  assert.match(fresh.out, /Název výzkumu/);
+  assert.equal((fresh.out.match(/Aplikace Strom chce začít výzkum/gu) ?? []).length, 1, "said once");
+  assert.deepEqual(await names(), ["Archiv", "Dvořákovi", "Novákovi", "Svobodovi"]);
+  // one of them: opened in the app as strom app opens it (a browser here the app reaches strom from) — the research
+  // through its bridge, nothing set up
+  w.env.STROM_APP_DIRS = path.join(w.dir, "Applications");
+  fs.mkdirSync(path.join(w.env.STROM_APP_DIRS, "Google Chrome.app"), { recursive: true });
+  const root = w.treeDir("Novákovi");
+  try {
+    const opened = await w.run(["link", "open", link], { tty: true, answers: [key("Novákovi"), "", "", ""] });
+    assert.equal(opened.code, 0, opened.err);
+    assert.doesNotMatch(opened.out, /Název výzkumu/);
+    assert.match(opened.out, /import-url=|live=/u, opened.out);
+    assert.ok(fs.existsSync(path.join(root, ".strom", "live.json")), opened.out);
+    assert.deepEqual(await names(), ["Archiv", "Dvořákovi", "Novákovi", "Svobodovi"]);
+  } finally {
+    await w.run(["live", "stop"], { cwd: root });
+  }
+  w.cleanup();
+});

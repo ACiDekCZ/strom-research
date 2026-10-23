@@ -7,15 +7,66 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.20.0
 
-*Připravuje se: bety do 1.20.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.20.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Menu bez nikoho u terminálu to řekne hned.** Spuštěné tam, kde nemá kdo odpovědět (zavřený vstup, okno
   bez terminálu), skončí jednou větou v jazyce výzkumu a tím, co udělat místo toho, už ne chybou programu; otázka,
   jejíž vstup skončí dřív než odpověď, ukončí menu stejně.
 - **`strom check` mluví jedním jazykem.** Pro člověka jsou všechny nálezy, součet i poznámky v jazyce výzkumu, pro
-  agenta celé anglicky, nikdy směs obou.
+  agenta celé anglicky, nikdy směs obou. Řekne i to, co na tomto počítači chybí: soubory sdílené složky, které se
+  nepřenesly (kolik, první a vrátit celou složku Strom), a soubory výzkumu v iCloud Drive, které se ještě nestáhly –
+  řečeno právě tak, nikdy s odkazem na `strom repair`, a nic se přes ně nezapíše. Plný disk se všude řekne stejně,
+  v jazyce výzkumu se složkou, na jejímž disku chybí místo; most aplikaci odpoví kódem `disk.full` (507)
+  a `tree.not-downloaded` (409) a `strom live start` řekne, proč se most nespustil.
 - **Když sandbox agenta odmítne git, je jmenováno správné místo.** Zpráva uvádí jako odepřenou historii výzkumu
   (jeho složku `.git`), ne program gitu.
+- **Archiv Stromu nespustí placené čtení.** `strom read`, `strom clips` a `strom transcripts` archiv (i výzkum,
+  který čeká na svého agenta) odmítne stejnou větou jako ostatní odmítnutí; nic se nečte ani nezapisuje.
+  Texty archivu nic neslibují: materiál se „ukládá do Archivu Stromu“ a řekne se jen počet; složka s víc než
+  20 obrázky nabídne uložení jako rodinné dokumenty; stránka telefonu v archivu říká „Uložit do Archivu Stromu“;
+  telefon je v nápovědě archivu. Nápověda archivu i výzkumu, který čeká na svého agenta, nabízí jen to, co v něm
+  funguje, bez úkolů a fronty; návod v balíčku archivu (`strom pack`) vede do aplikace Strom. Neohlásí ani nový
+  úkol, který pak nevypíše. **V něm se rozhodují i rozpory:**
+  otevřený rozpor (tentýž údaj upravený jinak v aplikaci Strom a tady) se řekne v přehledu i v „Co čeká“ a rozhodne
+  se tam – hodnota z aplikace, nebo z archivu, a proč – stejně jako odkazem z aplikace; `strom conflict` je
+  v nápovědě archivu. `strom person show` osoby odebrané v aplikaci Strom tím začíná, se dnem a s `strom sync undo
+  I…`, které ji vrátí; výpisy jejích příbuzných ji označí „(odebráno)“. **Dva prohlížeče nad jedním archivem:**
+  osobu odebranou v jednom už starší kopie z druhého nikdy nezapíše jako novou osobu — kde na ní nic nezměnila,
+  odebrání platí a aplikace se dozví, které poslání ji odebralo; kde ji upravila, úpravy se uloží k ní a rozpor se
+  zeptá, zda se vrátí — druhá kopie, která ji upravila jinak, dostane vlastní rozpor proti první a nikdy ji
+  nepřepíše, a po rozhodnutí „nechat odebranou“ se tatáž kopie už neptá. Starší kopie bez osoby, kterou jiné okno
+  nebo výzkum mezitím upravil, ji už potichu neodebere: rozpor se zeptá, zda odejde, a řekne, kdo ji upravil (jiná
+  kopie aplikace, výzkum, obojí); úprava mezitím vrácená (`strom sync undo`) se nepočítá a po rozhodnutí „nechat“ se
+  tatáž kopie dozví jen to. Když se po rozhodnutí „odebrat“ vrátí poslání starší kopie, výpis řekne, že osoba zůstává mimo strom,
+  i jak ji vrátit (`strom conflict resolve X… --take research`). Poslání vrácené zpět (`strom sync undo`)
+  a z aplikace poslané znovu odebere znovu, co odebralo. Zda osoba ve stromu zůstane, jde rozhodnout znovu: `strom history`
+  uvádí každé rozhodnutí s jeho vlastním zdůvodněním a s tím, zda osoba ze stromu odešla, nebo se vrátila, a `strom conflict
+  show` vypíše dřívější rozhodnutí v jazyce výzkumu.
+- **Záloha před jinou verzí obsahuje i sdílenou složku.** Sdílené obrázky (skeny, originály z aplikace Strom, fotky
+  z telefonu) se do ní propojí, kde to disk umí, takže místo nezabírají dvakrát, jinak se zkopírují; vynechají se
+  jen tehdy, když na disku na kopii není místo, a záloha to řekne; nedokončená nahrávání z aplikace a náhledy, které
+  strom umí udělat znovu, zůstanou venku. **Co zálohovat:** `strom backup` a Nastavení →
+  Údržba → „Co zálohovat“ uvedou jedinou složku se všemi výzkumy
+  a sdílenými obrázky i s její velikostí, nebo `strom pack` pro jeden rodokmen.
+- **`strom doctor` pozná síťový nebo přesměrovaný disk.** Kde git nezjistí složku, ve které pracuje, rodokmeny tam
+  nemohou vést historii; doctor to teď řekne stejně jako `strom init`.
+- **Rodinný materiál se dá do pořádku v aplikaci Strom.** Osoby, ke kterým fotka nebo dokument patří, se přidávají
+  a odebírají u mnoha souborů najednou nebo u celé dávky; soubor, který s rodinou nesouvisí nebo je stejný jako jiný,
+  se skryje a kdykoli zase ukáže — nic se nemaže. Aplikace ukazuje název, druh a datum každého souboru
+  (`strom input sort --title --date`) a malé náhledy fotek, HEIC a PDF, vytvořené jednou a uložené stranou.
+  V terminálu: `strom input assign`, `strom input hide` a `strom input unskip`, které vrátí i přeskočení.
+  Materiál přidaný v terminálu nebo v menu do rodokmenu, který má aplikace Strom, řekne, kde v ní je: u osoby
+  → Materiály.
+- **Rodokmen z jiného počítače nebo ručně přesunutý se ohlásí – nikdy ho nenahradí jiný.** Zapečetěný na jiném
+  počítači (nebo s chybějícím nastavením stromu) jde číst a zápis to řekne v jazyce výzkumu s jediným krokem,
+  `strom seal adopt`, který nabídne menu, nastavení (vypíše nalezené rodokmeny) i odkaz z aplikace Strom, vždy až na
+  ano člověka; most odmítne zápisy aplikace kódem `seal.foreign` (409). Rodokmen, který už není tam, kde byl, se
+  jmenuje s původní složkou a s tím, jak přidat novou (`strom trees use <složka>`, od té doby zapamatovanou);
+  `strom app`, `strom live start` ani žádný příkaz místo něj neotevře jiný a `strom trees forget` sundá ze seznamu
+  ten, který už není potřeba. `strom trees` i `/status` mostu říkají, co který rodokmen je: výzkum, výzkum čekající
+  na svého agenta, nebo Archiv Stromu – pro aplikaci (`kind`) je výzkum čekající na agenta archivem, dokud na něm
+  agent nezačne. Prázdná aplikace Strom (s vymazanými daty prohlížeče), která žádá nový výzkum, dostane nejdřív
+  nabídku rodokmenů, které už tu jsou, a některý z nich otevře v aplikaci.
 
 ## 1.19.0
 

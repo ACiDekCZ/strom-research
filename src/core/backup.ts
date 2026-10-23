@@ -2,9 +2,13 @@
 // nepřijde o data"). Before a strom of another channel than last time, or an older one than the one that ran last,
 // opens any research, every research this computer knows is copied whole — its folder with its history (.git) — and
 // so is the folder of the settings (seal keys and logins as they are on disk: the backup stays on this computer, as
-// they do), into <home>/backups/<when> <from> to <to>/. Left out only what strom makes again by itself (views of scans,
-// excerpts, work folders of downloads cut short, a lock) and the shared images: kept by their content, never deleted
-// by strom, the same for every version.
+// they do), into <home>/backups/<when> <from> to <to>/. The shared folder goes with them (spec 017, Q5: one folder
+// backed up holds everything): its plugins and what waits in it copied, its images (media/ — originals of the Strom
+// app and the phone, scans: tens of GB) linked where the disk can (a hard link: no room taken twice, and each stays in
+// the backup whatever happens to the shared folder — the store never writes a file again, it only adds), else copied;
+// with no room for a copy they are left out and the backup says so. Left out only what strom makes again by itself
+// (views of scans, excerpts, previews, files converted for reading, work folders of downloads cut short, a lock, the
+// shared cache and the pace of hosts) and an upload of the app not yet whole (media/.incoming: taken in or gone).
 //
 // strom update makes it before it installs (the running strom), the first run of the other version when nothing made
 // it for this very change yet (the installers, npm, a strom copied by hand). A backup that cannot be made switches
@@ -25,7 +29,17 @@ export interface BackupRecord {
   fromChannel?: "beta" | "stable";
   toChannel?: "beta" | "stable";
   path: string;
+  /** Bytes the backup took on the disk (linked images not counted: they take no room twice). */
   bytes: number;
+  /** The shared images (shared/media): how many, their size, and how they are in the backup. */
+  media?: SharedMedia;
+}
+
+/** The shared images in a backup: linked (no room taken twice), copied, or left out (no room for a copy: said). */
+export interface SharedMedia {
+  files: number;
+  bytes: number;
+  how: "linked" | "copied" | "left";
 }
 
 /** The change a backup is made for. */
@@ -96,8 +110,17 @@ function rebuildable(parts: string[]): boolean {
   if (parts.length === 2 && parts[1] === "tree.lock") return true;
   // a download cut short: its work folder (the scans fetched are in the shared store)
   if (parts[1] === "fetch") return true;
+  // previews of the family's files (the Strom app's thumbnails) and files converted for reading (PDF, HEIC): made again
+  // when asked (found in the test of the material: up to 200 MB and 500 MB of a research in every backup)
+  if (parts[1] === "thumbs" || parts[1] === "converted") return true;
   // views of scans and excerpts: made again from the scans whenever needed
   return (parts[1] === "views" || parts[1] === "excerpts") && parts.length > 2 && /\.(jpe?g|png)$/i.test(parts.at(-1)!);
+}
+
+/** What of the shared folder is not copied: what strom makes again (its cache, the pace of hosts), a lock — the images apart. */
+function sharedSkipped(parts: string[]): boolean {
+  if (parts[0] === "cache" || parts[0] === "net" || parts[0] === "media") return true;
+  return /\.lock$/.test(parts.at(-1)!);
 }
 
 /** A folder as compared: as named and as the disk has it (/tmp and /private/tmp). */
@@ -150,6 +173,58 @@ function sizeOf(dir: string, keep: (src: string) => boolean): number {
   return total;
 }
 
+/**
+ * The shared images (media/), each with its size (links never followed) — never an upload of the app still coming
+ * (media/.incoming/*.part: taken into the store when whole, else gone within a day; linked into a backup it would
+ * grow on there, or stay half for good, and be counted as an image).
+ */
+function imagesOf(media: string): { file: string; size: number }[] {
+  const out: { file: string; size: number }[] = [];
+  const incoming = path.join(media, ".incoming");
+  const walk = (p: string) => {
+    if (p === incoming) return;
+    let st: fs.Stats;
+    try {
+      st = fs.lstatSync(p);
+    } catch {
+      return;
+    }
+    if (st.isSymbolicLink()) return;
+    if (st.isDirectory()) for (const name of fs.readdirSync(p)) walk(path.join(p, name));
+    else if (st.isFile()) out.push({ file: p, size: st.size });
+  };
+  walk(media);
+  return out;
+}
+
+/** Can a file of `from` be linked into `dir` (one disk, a file system with hard links)? Tried with one file, nothing left. */
+function linksInto(from: string, dir: string): boolean {
+  const probe = path.join(dir, `.link-probe-${process.pid}`);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.linkSync(from, probe);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try {
+      fs.rmSync(probe, { force: true });
+    } catch {
+      // what is left says itself
+    }
+  }
+}
+
+/**
+ * How the shared images go into a backup: linked where the disk can (they take no room); else copied — and with no
+ * room for the copy (only for it: the rest fits) left out, which the backup says. Never a reason to refuse a backup.
+ */
+export function mediaHow(o: { linked: boolean; images: number; rest: number; free: number | undefined }): SharedMedia["how"] {
+  if (o.linked) return "linked";
+  if (o.images && o.free !== undefined && o.free < o.rest + o.images + BACKUP_RESERVE && o.free >= o.rest + BACKUP_RESERVE) return "left";
+  return "copied";
+}
+
 /** Bytes free on the disk of `dir`; undefined when the system does not say. */
 function freeBytes(dir: string): number | undefined {
   try {
@@ -176,11 +251,12 @@ export class BackupFailed extends Error {
 }
 
 /**
- * Copy every research (whole, with .git) and the settings into a new folder of the backups. The trees go into
- * trees/<the folder's own name> (never normalized: a name of any script stays as it is), the settings into settings/,
- * a README.txt beside them. Throws BackupFailed and leaves nothing of itself when it cannot.
+ * Copy every research (whole, with .git), the shared folder and the settings into a new folder of the backups. The
+ * trees go into trees/<the folder's own name> (never normalized: a name of any script stays as it is), the shared
+ * folder into shared/ (its images linked where the disk can), the settings into settings/, a README.txt beside them
+ * (`readme` gets how the shared images are in it). Throws BackupFailed and leaves nothing of itself when it cannot.
  */
-export function makeBackup(opts: { home: string; env: Env; trees: string[]; transition: Transition; readme: string; at?: Date; /** Folders of the research besides the home and the trees (the folder of the trees, the shared one): never copied as part of the settings. */ research?: string[] }): BackupRecord {
+export function makeBackup(opts: { home: string; env: Env; trees: string[]; transition: Transition; readme: string | ((media: SharedMedia | undefined) => string); at?: Date; /** Folders of the research besides the home and the trees (the folder of the trees, the shared one): never copied as part of the settings. */ research?: string[]; /** The shared folder: its images and plugins go with the backup. */ shared?: string }): BackupRecord {
   const at = opts.at ?? new Date();
   const top = backupsDir(opts.home);
   const settings = configDir(opts.env);
@@ -195,15 +271,43 @@ export function makeBackup(opts: { home: string; env: Env; trees: string[]; tran
     sources.push({ from: root, to: path.join("trees", name), keep: filterFor(root, "tree", [skip]) });
   }
   if (fs.existsSync(settings)) sources.push({ from: settings, to: "settings", keep: filterFor(settings, "settings", [skip, opts.home, ...opts.trees, ...(opts.research ?? [])]) });
-  const need = sources.reduce((s, x) => s + sizeOf(x.from, x.keep), 0);
+  // the shared folder: what is not its images copied (plugins, what waits for the person), its images apart
+  const shared = opts.shared && fs.existsSync(opts.shared) ? opts.shared : undefined;
+  if (shared) {
+    const inner = filterFor(shared, "tree", [skip, ...opts.trees]);
+    sources.push({ from: shared, to: "shared", keep: (src) => {
+      const rel = path.relative(shared, src);
+      return inner(src) && !(rel && sharedSkipped(rel.split(path.sep)));
+    } });
+  }
+  const images = shared ? imagesOf(path.join(shared, "media")) : [];
+  const imageBytes = images.reduce((n, f) => n + f.size, 0);
+  const rest = sources.reduce((s, x) => s + sizeOf(x.from, x.keep), 0);
   const free = freeBytes(top);
+  const linked = images.length > 0 && linksInto(images[0]!.file, top);
+  const how = mediaHow({ linked, images: imageBytes, rest, free });
+  const need = rest + (how === "copied" ? imageBytes : 0);
   if (free !== undefined && free < need + BACKUP_RESERVE) throw new BackupFailed(`not enough room on the disk: the backup needs ${mb(need)}, ${mb(free)} is free (${mb(BACKUP_RESERVE)} kept for the system)`, { need, free });
+  const media: SharedMedia | undefined = shared ? { files: images.length, bytes: imageBytes, how } : undefined;
   let dir = path.join(top, backupName(opts.transition, at));
   for (let n = 2; fs.existsSync(dir); n++) dir = path.join(top, `${backupName(opts.transition, at)} ${n}`);
   try {
     fs.mkdirSync(dir, { recursive: true });
     for (const s of sources) copyInto(s.from, path.join(dir, s.to), s.keep);
-    fs.writeFileSync(path.join(dir, "README.txt"), opts.readme.endsWith("\n") ? opts.readme : `${opts.readme}\n`);
+    if (shared && how !== "left")
+      for (const f of images) {
+        const to = path.join(dir, "shared", "media", path.relative(path.join(shared, "media"), f.file));
+        fs.mkdirSync(path.dirname(to), { recursive: true });
+        // one that cannot be linked (too many links of it, another disk under the folder): copied
+        try {
+          if (how !== "linked") throw new Error("copied");
+          fs.linkSync(f.file, to);
+        } catch {
+          fs.copyFileSync(f.file, to, fs.constants.COPYFILE_EXCL);
+        }
+      }
+    const readme = typeof opts.readme === "function" ? opts.readme(media) : opts.readme;
+    fs.writeFileSync(path.join(dir, "README.txt"), readme.endsWith("\n") ? readme : `${readme}\n`);
   } catch (e) {
     // nothing half made stays: a backup is whole or none
     try {
@@ -214,7 +318,7 @@ export function makeBackup(opts: { home: string; env: Env; trees: string[]; tran
     const code = (e as NodeJS.ErrnoException).code;
     throw new BackupFailed(code === "ENOSPC" ? `the disk is full: the backup needs ${mb(need)}` : (e as Error).message, undefined, code);
   }
-  return { at: at.toISOString(), from: opts.transition.from, to: opts.transition.to, ...(opts.transition.fromChannel ? { fromChannel: opts.transition.fromChannel } : {}), ...(opts.transition.toChannel ? { toChannel: opts.transition.toChannel } : {}), path: dir, bytes: need };
+  return { at: at.toISOString(), from: opts.transition.from, to: opts.transition.to, ...(opts.transition.fromChannel ? { fromChannel: opts.transition.fromChannel } : {}), ...(opts.transition.toChannel ? { toChannel: opts.transition.toChannel } : {}), path: dir, bytes: need, ...(media ? { media } : {}) };
 }
 
 /**
@@ -244,12 +348,12 @@ export function mb(bytes: number): string {
  * once make one), nothing made when one for this change is recorded already. `record` keeps it in the user config.
  * Returns the backup made now, or undefined when one was made before.
  */
-export function backupOnce(opts: { home: string; env: Env; trees: () => string[]; research?: string[]; transition: Transition; readme: string; record: (b: BackupRecord, before: BackupRecord[]) => void }): BackupRecord | undefined {
+export function backupOnce(opts: { home: string; env: Env; trees: () => string[]; research?: string[]; shared?: string; transition: Transition; readme: string | ((media: SharedMedia | undefined) => string); record: (b: BackupRecord, before: BackupRecord[]) => void }): BackupRecord | undefined {
   const release = acquireLock(path.join(configDir(opts.env), "backup.lock"), { owner: "strom backup", waitMs: 30 * 60_000, staleMs: 6 * 3600_000 });
   try {
     const before = backupsMade(opts.env);
     if (backupFor(before, opts.transition)) return undefined;
-    const made = makeBackup({ home: opts.home, env: opts.env, trees: opts.trees(), transition: opts.transition, readme: opts.readme, ...(opts.research ? { research: opts.research } : {}) });
+    const made = makeBackup({ home: opts.home, env: opts.env, trees: opts.trees(), transition: opts.transition, readme: opts.readme, ...(opts.research ? { research: opts.research } : {}), ...(opts.shared ? { shared: opts.shared } : {}) });
     opts.record(made, before.slice(-(KEPT - 1)));
     return made;
   } finally {
