@@ -6,7 +6,7 @@ import type { Context } from "./context.ts";
 import { agentHere } from "../core/state.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
-import { Cancelled } from "../core/errors.ts";
+import { Cancelled, InputEnded } from "../core/errors.ts";
 import type { Person, TreeConfig } from "../core/model.ts";
 import { findPersons, label } from "../core/people.ts";
 import { agentsHere } from "../core/apps.ts";
@@ -152,6 +152,8 @@ export async function guarded(ctx: Context, lang: string, act: () => Promise<boo
   } catch (err) {
     // Ctrl-C at its question: stopped by the person, nothing changed — no failure, the menu goes on
     if (err instanceof Cancelled) return void ctx.io.stdout(ui(lang, "ui.cancelled") + "\n");
+    // nobody left to ask: the menu ends, said once
+    if (err instanceof InputEnded) throw err;
     ctx.io.stdout(ui(lang, "ui.menu.failed", { reason: (err as Error).message }) + "\n");
     await pause(ctx, lang);
   }

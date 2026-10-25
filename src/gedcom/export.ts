@@ -79,6 +79,8 @@ export interface ExportOptions {
   stromVersion?: string | undefined;
   /** Only these persons (and families among them); default everyone. */
   persons?: Set<string>;
+  /** These removed (retracted) persons too — a sync compares an older copy's edits of a removed person with them as they are now. */
+  removed?: Set<string>;
   /** The Strom profile with images: the entry cut out of its scan, for each source that has clips. */
   excerpts?: (s: Source) => Excerpt[];
   /** The Strom profile: the commit of the research the file is of (default: the tree's HEAD) — what strom sync compares a returning tree with. */
@@ -208,7 +210,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   const everyone = tree.list<Person>("person");
   const personById = new Map(everyone.map((p) => [p.id, p]));
   const eventById = new Map<string, Event>([...everyone, ...tree.list<Family>("family")].flatMap((r) => r.events.map((e) => [e.id, e] as const)));
-  const persons = everyone.filter((p) => !p.retracted && (!opts.persons || opts.persons.has(p.id)));
+  const persons = everyone.filter((p) => (!p.retracted || !!opts.removed?.has(p.id)) && (!opts.persons || opts.persons.has(p.id)));
   // The main person first: programs (the Strom app too) open on the first person of a file.
   const main = mainPerson(tree);
   const at = persons.findIndex((p) => p.id === main);

@@ -127,7 +127,9 @@ test("a copy of the app linked to the research but without its IDs, its people w
   const empty = path.join(w.dir, "empty.ged");
   fs.writeFileSync(empty, "  \n");
   assert.match((await w.run(["sync", empty])).err, /^chyba: soubor je prázdný, nejsou v něm žádné osoby$/m);
-  assert.match((await w.run(["sync", empty, "--lang", "en"])).err, /^error: empty\.ged is empty$/m, "English: the message itself");
+  // English: the person's sentence too — the message itself only for an agent
+  assert.match((await w.run(["sync", empty, "--lang", "en"])).err, /^error: the file is empty: no people in it$/m);
+  assert.match((await w.run(["sync", empty, "--lang", "en"], { env: { CLAUDECODE: "1" } })).err, /^error: empty\.ged is empty$/m);
   // through the bridge, as the app sends it: refused, said as a program reads it
   const started = await w.ok(["live", "start"]);
   assert.match(started.out, /^most běží: http:\/\/127\.0\.0\.1:\d+\/\S+\n  aplikace Strom ho sleduje na adrese: /, started.out);
@@ -173,7 +175,7 @@ test("a sync taken back: the people it brought are withdrawn, and what a person 
   assert.equal((await w.ok(["--json"])).json.tree.persons, 0);
   assert.equal((await w.ok(["trees", "--json"])).json.trees[0].persons, 0);
   // the list of the trees in the person's language too
-  assert.match((await w.ok(["trees"])).out, /^Dvořákovi\s+cs\s+osob: 0\s+linií výzkumu: 0\s/m);
+  assert.match((await w.ok(["trees"])).out, /^Dvořákovi\s+cs\s+výzkum\s+osob: 0\s+linií výzkumu: 0\s/m);
   const none = await w.run(["trees", "use", "Neexistuje X"]);
   assert.equal(none.err, "chyba: žádný rodokmen „Neexistuje X“ tu není\n→ rodokmeny, které tu jsou: strom trees\n");
   assert.deepEqual((await w.run(["trees", "use", "Neexistuje X", "--json"])).json, { status: "error", message: 'no tree "Neexistuje X"', hint: "strom trees", code: "tree.unknown", params: { name: "Neexistuje X" } });

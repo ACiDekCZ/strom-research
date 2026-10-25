@@ -21,6 +21,7 @@ import { UNPROVEN_BATCH } from "../commands/research.ts";
 import { expandHome } from "../core/paths.ts";
 import { collectFiles } from "../core/media.ts";
 import { actsAsArchive } from "../core/state.ts";
+import { appHasTree } from "../core/live.ts";
 import { isArchive } from "../core/mode.ts";
 import { BOOK_OF_SCANS, IMAGE_EXT } from "../commands/intake.ts";
 
@@ -83,16 +84,18 @@ async function addMaterial(ctx: Context, run: Run, lang: string, root: string): 
     // Nothing to take in (an empty folder, hidden files only): said so.
     if (!collectFiles(paths).length) return void out(t("ui.intake.empty"));
     // A folder of many images is the scans of a book: those go to a record set, which the agent makes in a conversation —
-    // the rest is taken in.
+    // the rest is taken in. Where nobody researches (an archive, a research waiting for its agent) there is no record
+    // set to make: the folder is kept as family documents, or not at all — nothing of an agent said.
+    const quiet = actsAsArchive(Tree.open(root, ctx.env));
     const scans = paths
       .filter((p) => fs.statSync(p).isDirectory())
       .map((p) => ({ p, n: collectFiles([p]).filter((f) => IMAGE_EXT.has(path.extname(f).toLowerCase())).length }))
       .filter((x) => x.n > BOOK_OF_SCANS);
     let documents = false;
     for (const s of scans) {
-      if (await ctx.confirm(t("ui.intake.scans", { folder: path.basename(s.p), n: s.n }), false)) documents = true;
+      if (await ctx.confirm(t(quiet ? "ui.intake.scans.archive" : "ui.intake.scans", { folder: path.basename(s.p), n: s.n }), quiet)) documents = true;
       else {
-        out(t("ui.intake.book", { folder: path.basename(s.p) }));
+        out(t(quiet ? "ui.intake.book.archive" : "ui.intake.book", { folder: path.basename(s.p) }));
         paths = paths.filter((p) => p !== s.p);
       }
     }
@@ -105,8 +108,10 @@ async function addMaterial(ctx: Context, run: Run, lang: string, root: string): 
   if (!added) return void out(t("ui.intake.known"));
   // an archive keeps it (its task put aside until research is switched on); waiting for its agent, for it once it is here
   const kept = Tree.open(root, ctx.env);
-  if (actsAsArchive(kept)) return void out(t(isArchive(kept) ? "ui.intake.done.archive" : "ui.intake.done.waiting", { n: added }));
-  out(t("ui.intake.done", { n: added }));
+  // a tree the Strom app has: where the material is there (its Materials, at the person)
+  const app = appHasTree(root, ctx.settings) ? ` ${t("ui.intake.app")}` : "";
+  if (actsAsArchive(kept)) return void out(t(isArchive(kept) ? "ui.intake.done.archive" : "ui.intake.done.waiting", { n: added }) + app);
+  out(t("ui.intake.done", { n: added }) + app);
   await offerChat(ctx, run, lang, root, t("ui.intake.chat"), t("ui.intake.say"));
 }
 

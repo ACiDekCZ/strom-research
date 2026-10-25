@@ -28,6 +28,13 @@ function request(method: string, url: string, body?: Buffer, headers: Record<str
   });
 }
 const json = (r: { body: Buffer }) => JSON.parse(r.body.toString("utf8"));
+/** An answer of nothing written: its head is its parent (the research as it is), the rest as said. */
+function unwritten(j: Record<string, unknown>): Record<string, unknown> {
+  const { head, parent, ...rest } = j;
+  assert.ok(typeof head === "string" && head.length === 40, JSON.stringify(j));
+  assert.equal(parent, head, "nothing written: parent is head");
+  return rest;
+}
 
 test("originals from the app: material of a person an input outside git with one intake task, the same content only said, the file given back; refused what is not the app's, not the file named, not a record's kind, too large", opts, async () => {
   const w = new World();
@@ -99,7 +106,7 @@ test("originals from the app: material of a person an input outside git with one
     assert.match(got.task, /^T\d{4}$/);
     const two = json(await send(png, { "X-Strom-Name": "foto.png", "X-Strom-Person": "P0001" }));
     assert.equal(two.task, got.task, "what came for the same person a while ago shares its task");
-    assert.deepEqual(json(await send(jpg, { "X-Strom-Person": "P0001" })), { known: got.input, kind: "input" }, "the same content: only said");
+    assert.deepEqual(unwritten(json(await send(jpg, { "X-Strom-Person": "P0001" }))), { known: got.input, kind: "input" }, "the same content: only said");
 
     const input = (await w.ok(["input", "show", got.input, "--json"])).json;
     assert.equal(input.input.name, "dopis babičky.jpg");
@@ -118,11 +125,13 @@ test("originals from the app: material of a person an input outside git with one
     // …said of again with more — another person, a new note of the user's: added to the input (its task still at hand)
     await w.ok(["person", "add", "Marie /Nováková/", "--sex", "F"]); // P2
     const again = json(await send(jpg, { "X-Strom-Person": "P0002", "X-Strom-Note": encodeURIComponent("psala ho Marie sestře") }));
-    assert.deepEqual({ ...again, head: undefined }, { known: got.input, kind: "input", added: { persons: ["P0002"], note: true }, head: undefined }, JSON.stringify(again));
+    assert.deepEqual({ ...again, head: undefined, parent: undefined }, { known: got.input, kind: "input", added: { persons: ["P0002"], note: true }, head: undefined, parent: undefined }, JSON.stringify(again));
+    // the head before it too: the app takes the head as its version only when nothing came between
+    assert.match(again.parent, /^[0-9a-f]{40}$/, JSON.stringify(again));
     const amended = (await w.ok(["input", "show", got.input, "--json"])).json.input;
     assert.deepEqual(amended.persons, ["P0001", "P0002"]);
     assert.deepEqual(amended.notes.map((n: { text: string; by: string }) => [n.text, n.by]), [["z krabice od babičky", "user"], ["psala ho Marie sestře", "user"]]);
-    assert.deepEqual(json(await send(jpg, { "X-Strom-Person": "P0002", "X-Strom-Note": encodeURIComponent("psala ho Marie sestře") })), { known: got.input, kind: "input" }, "nothing new: nothing written");
+    assert.deepEqual(unwritten(json(await send(jpg, { "X-Strom-Person": "P0002", "X-Strom-Note": encodeURIComponent("psala ho Marie sestře") }))), { known: got.input, kind: "input" }, "nothing new: nothing written");
     const tracked = execFileSync("git", ["ls-files"], { cwd: w.cwd, encoding: "utf8" });
     assert.doesNotMatch(tracked, /\.(jpg|png)$|^inputs\/(?!\.gitkeep)/m, "nothing of it in git");
     assert.equal(fs.readdirSync(path.join(path.dirname(path.dirname(input.path)), "..", ".incoming")).length, 0, "nothing left half-way");

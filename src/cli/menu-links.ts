@@ -13,11 +13,11 @@ import { humanCost, humanDay, humanTask, humanWhen } from "./human.ts";
 import { lines, truncate } from "./format.ts";
 import { isArchive } from "../core/mode.ts";
 import type { UIKey } from "./ui.ts";
-import { actsAsArchive } from "../core/state.ts";
+import { actsAsArchive, kindOf, type Kind } from "../core/state.ts";
 import { Tree } from "../core/tree.ts";
 import type { Conflict, Family, Person, Research, Session, Source, Task } from "../core/model.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
-import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, SYNC_INBOX, undoSync, withoutImages, type SyncInput } from "../core/sync.ts";
+import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, removedByItsDecision, SYNC_INBOX, undoSync, withoutImages, type SyncInput } from "../core/sync.ts";
 import { moveToTrash } from "../core/trash.ts";
 import { noteMovedByFile } from "../core/transfer.ts";
 import { appBrowsers, browserKind, kindReaches, type BrowserKind } from "../core/chromium.ts";
@@ -236,29 +236,42 @@ export async function decideConflict(ctx: Context, run: Run, lang: string, root:
   if (take && sides) {
     const value = sideText(tree, c, sides[take]) || t("ui.link.conflict.empty");
     if (!(await asks(ctx, lang, root, t(take === "user" ? "ui.link.what.conflict.user" : "ui.link.what.conflict.research", { title: c.title, value })))) return false;
-    let why = "";
-    while (!why) {
-      why = (await ctx.ask(t("ui.link.conflict.why"))).trim();
-      if (why === "0" || outOfAnswers(ctx)) return false;
-    }
+    const why = await askWhy(ctx, lang);
+    if (!why) return false;
     if ((await run(["conflict", "resolve", id, `--take=${take}`, `--reasoning=${t("ui.link.conflict.by", { why })}`], true)) !== 0) return false;
     out(ctx, t("ui.link.conflict.done"));
     return true;
   }
   if (!(await asks(ctx, lang, root, t("ui.link.what.conflict.decide", { title: c.title })))) return false;
+  return pickClaim(ctx, run, lang, tree, c);
+}
+
+/** Why the person decides so: asked until said ("0" or no more answers: nothing decided). */
+export async function askWhy(ctx: Context, lang: string): Promise<string | undefined> {
+  const t = translator(lang);
+  let why = "";
+  while (!why) {
+    why = (await ctx.ask(t("ui.link.conflict.why"))).trim();
+    // said: taken, even as the last answer there is; nothing said and nothing more to read: nothing decided
+    if (why === "0" || (!why && outOfAnswers(ctx))) return undefined;
+  }
+  return why;
+}
+
+/** A conflict decided by which claim holds (or the person's own words), and why — 0 leaves it open (the menu's `back`: Enter too). */
+export async function pickClaim(ctx: Context, run: Run, lang: string, tree: Tree, c: Conflict, back?: string): Promise<boolean> {
+  const t = translator(lang);
+  const id = c.id;
   const claim = (x: Conflict["claims"][number]) => `${claimText(tree, c, x)}${x.source ? ` — ${tree.get<Source>(x.source)?.title ?? x.source}` : ""}`;
-  const i = await ctx.choose(t("ui.link.conflict.pick"), [...c.claims.map((x) => ({ label: claim(x) })), { label: t("ui.link.conflict.other") }], 0, { back: t("ui.browse.back") });
+  const i = await ctx.choose(t("ui.link.conflict.pick"), [...c.claims.map((x) => ({ label: claim(x) })), { label: t("ui.link.conflict.other") }], back ? c.claims.length + 1 : 0, { back: back ?? t("ui.browse.back") });
   if (i === undefined) return false;
   let resolution = i < c.claims.length ? `${claimText(tree, c, c.claims[i]!)}${c.claims[i]!.source ? ` (${c.claims[i]!.source})` : ""}` : "";
   if (!resolution) {
     resolution = (await ctx.ask(t("ui.link.conflict.own"))).trim();
     if (!resolution || resolution === "0") return false;
   }
-  let why = "";
-  while (!why) {
-    why = (await ctx.ask(t("ui.link.conflict.why"))).trim();
-    if (why === "0" || outOfAnswers(ctx)) return false;
-  }
+  const why = await askWhy(ctx, lang);
+  if (!why) return false;
   // a side of a conflict of the user's edit picked: that side taken — the user's value written into the fact (found: the
   // value with its source named neither side, the conflict closed and nothing written)
   const side = i < c.claims.length ? sideOf(c, c.claims[i]!) : undefined;
@@ -314,7 +327,11 @@ export async function undoSending(ctx: Context, run: Run, lang: string, root: st
   preview.withTreeLock(() => undoSync(preview, input));
   const ops = actsAsArchive(preview) ? preview.written.filter((o) => !o.op.startsWith("task.")) : preview.written;
   // what it is now beside what it goes back to (found on Mac: only the value it would have again)
-  const said = changeLines(preview, ops, "", lang, Tree.open(root, ctx.env)).map((l) => `  ${l.text}`);
+  const said = [
+    ...changeLines(preview, ops, "", lang, Tree.open(root, ctx.env)).map((l) => `  ${l.text}`),
+    // whom its removal took away on the person's word stays away (found by the verification: nothing said of it)
+    ...removedByItsDecision(preview, input).map((r) => `  ${t("ui.sync.undone.stillRemoved", { name: r.name, person: r.person, id: r.conflict })}`),
+  ];
   const when = humanWhen(input.created, lang);
   if (fromMenu) {
     out(ctx, lines(t("ui.more.undo.what", { when }), ...said, ""));
@@ -348,11 +365,48 @@ async function fromFile(ctx: Context, run: Run, root: string, name: string, file
 }
 
 /**
+ * The family trees on this computer a link of the Strom app may open instead of a new research (b-D4): each with its
+ * kind as the app shows it (a research waiting for its agent is an archive). Not one with nobody in it (nothing to show
+ * in the app; a new research of its name goes into it), nor one made for a tree of the app that never came — the
+ * handover asks about it itself.
+ */
+export function treesToOpen(ctx: Context): { name: string; root: string; kind: Kind }[] {
+  const found: { name: string; root: string; kind: Kind }[] = [];
+  for (const k of ctx.knownTrees()) {
+    if (adoptionNeverCame(k.root)) continue;
+    try {
+      const tree = Tree.open(k.root, ctx.env);
+      if (tree.countLive("person") === 0) continue;
+      found.push({ name: tree.config.name, root: k.root, kind: kindOf(tree) });
+    } catch {
+      // a tree strom cannot open here (a newer strom's): strom trees says why
+    }
+  }
+  return found;
+}
+
+/**
  * A tree of the Strom app becomes a new research (strom-research://new?app=<its mark>): named, its language and
  * agent chosen, made; the app opened to hand the tree over (?adopt=<the bridge>), the tree taken in as leads,
  * the research sent back to the app — then the conversation offered.
  */
 export async function newFromApp(ctx: Context, runIn: RunIn, token: string, openAt: (url: string) => boolean, forward: () => void, opts: { browser?: BrowserKind; file?: string } = {}): Promise<boolean> {
+  // family trees here already (the app's data cleared, an empty app): one of them opened in the app as strom app opens
+  // it, before anything is moved or set up — or a new research from the app's tree; 0 is nothing (b-D4)
+  const here = ctx.interactive ? treesToOpen(ctx) : [];
+  let titled = false;
+  if (here.length) {
+    const t = translator(ctx.uiLang());
+    out(ctx, t("ui.link.new.title"));
+    titled = true;
+    const choices = [
+      ...here.map((h) => ({ label: t("ui.link.new.trees.open", { name: h.name, kind: t(h.kind === "archive" ? "ui.trees.state.archive" : "ui.trees.state.research") }) })),
+      { label: t("ui.link.new.trees.new") },
+    ];
+    const i = await ctx.choose(t("ui.link.new.trees.ask"), choices, 0, { back: t("ui.move.cancel") });
+    if (i === undefined) return false;
+    if (i < here.length) return (await (await runIn(here[i]!.root))(["app"])) === 0;
+  }
   // The browser the app runs in (its link's browser=, the line's STROM_FROM_BROWSER — the app's 3.9.1): the app keeps
   // the tree there. One the app cannot reach strom from (Safari), or the tree saved as a file for that (STROM_FROM_FILE):
   // the tree moves to a browser that can — asked first, before anything is set up (no: nothing is)
@@ -384,7 +438,7 @@ export async function newFromApp(ctx: Context, runIn: RunIn, token: string, open
   stromAppUrl(ctx.settings);
   let lang = ctx.uiLang();
   let t = translator(lang);
-  out(ctx, t("ui.link.new.title"));
+  if (!titled) out(ctx, t("ui.link.new.title"));
   out(ctx, "");
   // the name; an empty research of that name (a handover that did not come) is taken again
   let name = "";

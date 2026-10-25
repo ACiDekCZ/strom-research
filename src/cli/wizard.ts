@@ -28,6 +28,9 @@ import { ensureShared } from "../commands/setup.ts";
 import { moveHome, planMove, repointSettings, sameFolder } from "../core/relocate.ts";
 import type { StromError } from "../core/errors.ts";
 import type { TreeConfig } from "../core/model.ts";
+import { adoptSeal, foundTrees, offerAdopt } from "./seal.ts";
+import { Tree } from "../core/tree.ts";
+import { isAgent } from "../core/which.ts";
 
 export interface WizardResult {
   home: string;
@@ -252,6 +255,19 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
 
   out();
   out(`${ui(lang, "ui.setup.done")}  (${langName(lang, lang)} · ${ctx.display(home)})`);
+  // family trees already here (a folder from another computer, strom set up again): said — one sealed elsewhere taken
+  // over on the person's yes, as strom seal adopt does it (every record checked first)
+  const found = foundTrees(ctx, lang);
+  if (found.lines.length) {
+    out();
+    for (const line of found.lines) out(line);
+    for (const f of found.foreign) {
+      if (!offerAdopt(ctx, f.root, !isAgent(ctx.env))) continue;
+      const tree = Tree.open(f.root, ctx.env);
+      const r = await adoptSeal(ctx, tree, tree.lang);
+      out(r.adopted ? ui(tree.lang, "ui.seal.adopted", { name: f.name }) : r.why === "problems" ? ui(tree.lang, "ui.seal.problems") : ui(tree.lang, "ui.cancelled"));
+    }
+  }
   return { home, lang, ...(agent ? { agent } : {}), permissions: level };
 }
 

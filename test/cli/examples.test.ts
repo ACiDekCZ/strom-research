@@ -19,7 +19,7 @@ import { makePdf } from "../image-samples.ts";
 const opts = { skip: !hasGit };
 
 /** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
-const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test", "phone remove"]); // uninstall, update, unpack, trees remove: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired
+const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "trees forget", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test", "phone remove"]); // uninstall, update, unpack, trees remove, trees forget: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired
 
 async function seeded(): Promise<World> {
   const w = new World();
@@ -57,6 +57,7 @@ async function seeded(): Promise<World> {
   fs.writeFileSync(path.join(w.cwd, "notes", "request-lhota.md"), "Žádost o opis křestního zápisu.\n"); // task wait --request
   fs.writeFileSync(path.join(w.cwd, "inputs", "rodokmen.md"), "Jan Novák, Lhota čp. 12\n"); // a text the user gave (strom grep)
   fs.writeFileSync(path.join(w.cwd, "krest-1885.txt"), 'person add "Karel /Novák/" --sex M #karel\nnote add @karel "z křestního zápisu"\n');
+  fs.writeFileSync(path.join(w.cwd, "ids.txt"), "I0003\nI0005\n"); // input unskip --files-from
   fs.writeFileSync(path.join(w.cwd, "strom-export.json"), JSON.stringify({ persons: {}, partnerships: {} }));
   // scans: registered ones for the views, new ones for media add, one download in the inbox
   const scans = path.join(import.meta.dirname, "..", "fixtures", "images");

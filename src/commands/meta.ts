@@ -2,6 +2,7 @@
 // `strom commands`, `strom help`. An agent with no prior knowledge learns
 // from these what strom is and what to do next.
 
+import { conflictsToDecide } from "../core/conflicts.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { newerVersion } from "../core/update.ts";
@@ -41,6 +42,8 @@ interface Orientation {
   version: string;
   home?: string;
   trees: { name: string; root: string; lang: string }[];
+  /** Family trees seen here before and gone from their folders since (moved?): said, never another opened in their place. */
+  missing?: { name: string; root: string }[];
   tree?: { name: string; root: string; lang: string; persons: number; families: number; errors: number; warnings: number };
   /** Other agents at work in this tree right now, and their tasks. */
   working?: { who: string; since: string; session?: string; task?: string }[];
@@ -59,6 +62,8 @@ interface Orientation {
   views?: { now: string; before: string[] };
   /** Questions about the reading of scans waiting for a person (an agent tells the person; it never answers them). */
   tune?: { questions: number; command: string };
+  /** The open conflicts the person decides (an archive, a research waiting for its agent: every one; else their own edits'). */
+  conflicts?: { open: number; ids: string[]; command: string };
   /** Archives whose images wait for the person's decision (asked in strom's menu: What waits) — for the agent to tell them. */
   permissions?: { host: string; title: string; connector?: string; since: string; tries: number; tasks: string[]; command: string }[];
   next: { why: string; command: string };
@@ -73,6 +78,8 @@ function orientation(ctx: Context): Orientation {
   // A person at a terminal lets an agent do the work; an agent does it itself.
   const human = ctx.io.tty && !isAgent(ctx.env);
   if (home) base.home = home;
+  const missing = home ? ctx.missingTrees().map(({ name, root }) => ({ name, root })) : [];
+  if (missing.length) base.missing = missing;
   if (!home) {
     base.next = human
       ? { why: t("ui.why.setup.human"), command: "strom setup" }
@@ -85,8 +92,9 @@ function orientation(ctx: Context): Orientation {
     return base;
   }
   if (!ctx.hasTree()) {
-    base.next =
-      known.length === 0
+    base.next = missing.length
+      ? { why: t("ui.trees.missing", { name: missing[0]!.name, path: ctx.display(missing[0]!.root) }), command: 'strom trees use "<folder>"' }
+      : known.length === 0
         ? { why: t("ui.why.init"), command: 'strom init "<tree name, e.g. the family surname>"' }
         : { why: t("ui.why.pick"), command: `strom trees use "${known[0]!.name}"` };
     return base;
@@ -133,6 +141,8 @@ function orientation(ctx: Context): Orientation {
   if (views) base.views = views;
   const questions = actsAsArchive(tree) ? 0 : questionsWaiting(tree, ctx.settings);
   if (questions) base.tune = { questions, command: "strom media calibrate --questions" };
+  const conflicts = conflictsToDecide(tree).map((c) => c.id);
+  if (conflicts.length) base.conflicts = { open: conflicts.length, ids: conflicts.slice(0, 20), command: `strom conflict show ${conflicts[0]}` };
   const asked = permissionsWaiting(tree);
   if (asked.length) {
     // the ways as the menu and the bridge offer them (a site only a browser goes to, a bot check: never slowly)
@@ -169,6 +179,8 @@ function orientation(ctx: Context): Orientation {
   const chosen = ctx.settings.agent(tree.config).value;
   const elsewhere = isAgent(ctx.env) && !ctx.env.STROM_WORKER && !ctx.env.STROM_SESSION && !inTree && agentsHere(ctx.env).some((a) => a.id === chosen);
   if (base.tree.errors > 0) base.next = { why: t("ui.why.check"), command: "strom check" };
+  // sealed on another computer (its folder brought here, strom's settings gone): taken over by the person alone
+  else if (!tree.key) base.next = human ? { why: t("ui.why.seal.human"), command: "strom seal adopt" } : { why: t("ui.why.seal.agent"), command: "strom check" };
   // an archive: no agent works on it — the data come from the Strom app; only the person switches work with an agent on
   else if (isArchive(tree)) base.next = human ? { why: t("ui.why.archive.human"), command: "strom" } : { why: t("ui.why.archive.agent"), command: "strom sync --inbox" };
   // its agent not on this computer: the research waits for it, kept as an archive meanwhile — no session, no queue
@@ -261,6 +273,8 @@ register(
           : o.trees.length > 1
             ? t("ui.o.trees") + "\n" + table(o.trees.map((x) => [`  ${x.name}`, ctx.display(x.root)]))
             : undefined,
+        // a family tree gone from its folder (moved?): said, with how to add its new folder
+        ...(o.missing ?? []).map((m) => t("ui.trees.missing", { name: m.name, path: ctx.display(m.root) })),
         "",
         row(t("ui.o.next"), placeholders(lang, o.next.command)),
         `${" ".repeat(width)}(${o.next.why})`,
@@ -334,7 +348,7 @@ register(
       // the agent's help, whoever asks — a person's only with --human (Milan, 2026-10-04); a person at a terminal is told
       // how in a line of their language
       const human = Boolean(input.opts.human) && !input.opts.agent;
-      const text = helpAs(input.args, { archive: ctx.archiveHere(), human, lang: ctx.uiLang(), appUrl: appUrlShown(ctx.settings), pointer: !human && ctx.io.tty && !isAgent(ctx.env) });
+      const text = helpAs(input.args, { ...ctx.helpShown(), human, lang: ctx.uiLang(), appUrl: appUrlShown(ctx.settings), pointer: !human && ctx.io.tty && !isAgent(ctx.env) });
       return { text, data: { help: text } };
     },
   },

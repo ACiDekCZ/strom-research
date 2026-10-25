@@ -7,11 +7,12 @@ import path from "node:path";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { counted, lines, table } from "../cli/format.ts";
-import { check, type Finding } from "../core/check.ts";
+import { check, SHARED_MISSING, sharedMissing, type Finding } from "../core/check.ts";
 import { guard } from "../core/guard.ts";
 import { unprovenPeople } from "../core/review.ts";
-import { verifyFast, verifyFull } from "../core/integrity.ts";
-import { createKey, verifyCommitSeal } from "../core/seal.ts";
+import { NOT_DOWNLOADED, notDownloaded, notDownloadedError, verifyFast, verifyFull } from "../core/integrity.ts";
+import { verifyCommitSeal } from "../core/seal.ts";
+import { adoptSeal } from "../cli/seal.ts";
 import { NeedsConsentError, StromError } from "../core/errors.ts";
 import * as git from "../core/git.ts";
 import { ui } from "../cli/ui.ts";
@@ -28,7 +29,18 @@ import type { Tree } from "../core/tree.ts";
 function said(f: Finding, lang: string | undefined): string {
   if (lang && f.code === "counter" && f.id) return ui(lang, "ui.check.counter", { prefix: f.id.charAt(0) });
   if (lang && f.code === "unwritable") return ui(lang, "ui.check.unwritable");
+  if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal");
+  if (lang && f.code === NOT_DOWNLOADED) return ui(lang, "ui.check.notdownloaded", { n: f.count ?? 1, first: f.file ?? "" });
+  if (lang && f.code === SHARED_MISSING) return ui(lang, "ui.check.sharedmissing", { n: f.count ?? 1, first: f.id ?? "" });
   return f.message;
+}
+
+/** Its next step said as its finding is (the research sealed on another computer: taken over by the person). */
+function hintSaid(f: Finding, lang: string | undefined): string | undefined {
+  if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal.hint");
+  if (lang && f.code === NOT_DOWNLOADED) return ui(lang, "ui.check.notdownloaded.hint");
+  if (lang && f.code === SHARED_MISSING) return ui(lang, "ui.check.sharedmissing.hint", { show: `strom ${f.id?.startsWith("M") ? "media" : "input"} show ${f.id ?? ""}` });
+  return f.hint;
 }
 
 /**
@@ -42,7 +54,7 @@ export function report(findings: Finding[], okText: string, lang?: string, perso
     findings.length === 0
       ? okText
       : lines(
-          table(findings.map((f) => [f.level === "error" ? "ERROR" : "warn", f.code, f.id ?? f.file ?? "", said(f, person ? lang : undefined), f.hint ? `→ ${f.hint}` : ""])),
+          table(findings.map((f) => [f.level === "error" ? "ERROR" : "warn", f.code, f.id ?? f.file ?? "", said(f, person ? lang : undefined), f.hint ? `→ ${hintSaid(f, person ? lang : undefined)}` : ""])),
           "",
           lang ? ui(lang, "ui.check.found", sum) : `${counted(sum.errors, "error")}, ${counted(sum.warnings, "warning")}`,
         );
@@ -74,10 +86,15 @@ register(
     tree: true,
     run(ctx) {
       const tree = ctx.tree();
-      // its verdict and sum in the research's language: the person follows it in the agent's session too; a warning
-      // a person may meet, in it where a person runs it
-      const checked = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree), ...unwritable(tree, isAgent(ctx.env))], ui(tree.lang, "ui.check.ok"), tree.lang, !isAgent(ctx.env));
-      // much kept beside the research that can go (an older strom never tidied it): a sentence, in the research's language —
+      // one language from the first line to the last: a person reads it in the research's language (the findings a
+      // person may meet too); an agent reads it all in English, as it reads strom's errors — its findings say what to
+      // run (found on Mac: English findings above a Czech sum)
+      const agent = isAgent(ctx.env);
+      const lang = agent ? "en" : tree.lang;
+      // the shared folder's files of this research (its material, the images nobody fetches again): only here and in
+      // strom verify, never before a command (each file asked whether it is there)
+      const checked = report([...verifyFull(tree).findings, ...check(tree), ...guard(tree), ...unwritable(tree, agent), ...sharedMissing(tree)], ui(lang, "ui.check.ok"), lang, !agent);
+      // much kept beside the research that can go (an older strom never tidied it): a sentence, in that language —
       // none where .strom cannot be listed (found on Windows: a folder denied to strom ended check with "no permission"
       // instead of its finding; unwritable says it)
       let disk: ReturnType<typeof tidyPlan> | undefined;
@@ -88,13 +105,13 @@ register(
       }
       const out =
         disk && disk.frees >= TIDY_SAID
-          ? { ...checked, text: lines(checked.text, ui(tree.lang, "ui.tidy.hint", { strom: mb(disk.size.strom, tree.lang), size: mb(disk.frees, tree.lang) })), data: { ...checked.data, disk: { strom: disk.size.strom, frees: disk.frees } } }
+          ? { ...checked, text: lines(checked.text, ui(lang, "ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) })), data: { ...checked.data, disk: { strom: disk.size.strom, frees: disk.frees } } }
           : checked;
       // not an error — research to do: who rests on no record of their own
       const unproven = unprovenPeople(tree).filter((u) => !u.living).length;
       // an archive: what to research is no matter of it
       if (!unproven || actsAsArchive(tree)) return out;
-      return { ...out, text: lines(out.text, ui(tree.lang, "ui.check.unproven", { n: unproven })), data: { ...out.data, unproven } };
+      return { ...out, text: lines(out.text, ui(lang, "ui.check.unproven", { n: unproven })), data: { ...out.data, unproven } };
     },
   },
   {
@@ -105,7 +122,7 @@ register(
     options: [{ name: "fast", type: "boolean", description: "only what changed since the last commit (what runs before every write)" }],
     run(ctx, { opts }) {
       const tree = ctx.tree();
-      return report((opts.fast ? verifyFast(tree) : verifyFull(tree)).findings, "ok — every record matches its seal");
+      return report(opts.fast ? verifyFast(tree).findings : [...verifyFull(tree).findings, ...sharedMissing(tree)], "ok — every record matches its seal");
     },
   },
   {
@@ -135,6 +152,10 @@ function quarantine(tree: Tree, rel: string, stamp: string): void {
 
 /** Return data/ and strom.json to the newest sealed commit. */
 function repair(tree: Tree): Repaired {
+  // files only in iCloud: never written over from the history (the cloud may hold a newer one), their placeholders
+  // never taken away — downloaded first, then whatever else is wrong is repaired
+  const cloud = notDownloaded(tree.root);
+  if (cloud.length) throw notDownloadedError(cloud);
   const key = tree.requireKey();
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const head = git.headInfo(tree.root);
@@ -205,21 +226,21 @@ register(
     person: "Taking over this tree on this computer (the seal) is the user's own, in their terminal",
     run: async (ctx: Context) => {
       const tree = ctx.tree();
-      if (tree.key) return { text: "this tree is already sealed on this computer", data: { adopted: false } };
+      // a person reads it in the research's language (the menu, a link's terminal, the setup go the same way)
+      const lang = tree.lang;
+      const name = tree.config.name;
+      if (tree.key) return { text: ui(lang, "ui.seal.already", { name }), data: { adopted: false } };
       if (!ctx.interactive)
         throw new NeedsConsentError([
           { key: "seal", kind: "consent", question: "Take over this tree on this computer?", set: "strom seal adopt" },
         ]);
-      const problems = verifyFull(tree).findings.filter((f) => f.level === "error");
-      if (problems.length) return report(problems, "");
-      if (!(await ctx.confirm(`Take over "${tree.config.name}" on this computer?`, true))) return { text: "cancelled", data: { adopted: false } };
-      tree.withTreeLock(() => {
-        createKey(tree.env, tree.config.id);
-        tree.reloadKey();
-        tree.appendOp({ op: "seal.adopt", targets: [], files: [], summary: "Tree adopted on this computer" });
-        tree.commit("Seal: tree adopted on this computer");
-      });
-      return { text: `"${tree.config.name}" is now sealed on this computer`, data: { adopted: true } };
+      const r = await adoptSeal(ctx, tree, lang);
+      if (r.adopted) return { text: ui(lang, "ui.seal.adopted", { name }), data: { adopted: true } };
+      if (r.why === "problems") {
+        const found = report(r.problems!, "", lang, true);
+        return { ...found, text: lines(found.text, ui(lang, "ui.seal.problems")), data: { ...found.data, adopted: false } };
+      }
+      return { text: ui(lang, r.why === "already" ? "ui.seal.already" : "ui.cancelled", { name }), data: { adopted: false } };
     },
   },
   {

@@ -10,7 +10,7 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, numberIn, truncate } from "../cli/format.ts";
 import { ui } from "../cli/ui.ts";
-import { StromError, UsageError } from "../core/errors.ts";
+import { diskFull, EXIT, StromError, UsageError } from "../core/errors.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { conversationArgs, conversationEnv } from "../agents/launch.ts";
 import { globalTargets, installGlobal, isInstalled, uninstallGlobal } from "../agents/global.ts";
@@ -22,7 +22,7 @@ import { agentBrowser } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { offerLinks } from "../cli/wizard.ts";
 import { appOpensLinks, appOpensResearch, appUrlSetting, importAppUrl, installedStromApp, liveAppUrl, liveAppUrlShown, noticeStromApp, stromAppUrl } from "../core/stromapp.ts";
-import { dropLiveSecret, forgetLive, liveRunning, serveLive, startLive, stopLive } from "../core/live.ts";
+import { dropLiveSecret, forgetLive, liveRunning, notStartedWhy, serveLive, startLive, stopLive } from "../core/live.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut, openInNewTerminal } from "../core/shortcut.ts";
 import { browserKind, openFileWith, revealFile } from "../core/chromium.ts";
@@ -123,6 +123,17 @@ function aboutWaiting(tree: Tree, ref: string, shared: string | undefined): { id
   const others = sameGroup(tree, t, shared);
   const more = others.length ? ui(lang, "ui.chat.task.more.say", { tasks: others.map((x) => `${x.id} (${truncate(x.what, 60)})`).join(", ") }) : undefined;
   return { id: t.id, say: more ? `${first} ${more}` : first };
+}
+
+/**
+ * A bridge that did not start, and why where strom can tell (found on Mac: "the bridge did not start" on a full disk,
+ * nothing more): no room on the disk said as everywhere, else what its log said last, else where to see it.
+ */
+function notStarted(root: string, since: number): StromError {
+  const why = notStartedWhy(root, since);
+  if (why.full) return diskFull(root);
+  if (why.line) return new StromError(`the bridge did not start: ${why.line}`, { hint: `its log (.strom/live.log) says: ${why.line}\nstrom live serve shows more`, code: "live.not-started", hintCode: "live.not-started.why", params: { why: why.line } });
+  return new StromError("the bridge did not start", { hint: "strom live serve shows why", code: "live.not-started" });
 }
 
 register({
@@ -354,8 +365,9 @@ register(
         };
       }
       if (opts.live) {
+        const since = Date.now();
         const info = startLive(ctx.tree().root, ctx.env);
-        if (!info) throw new StromError("the bridge did not start", { hint: "strom live serve shows why" });
+        if (!info) throw notStarted(ctx.tree().root, since);
         const url = liveAppUrl(info.url, ctx.settings);
         const opened = openForUser(url, ctx.env);
         return { text: opened ? ui(lang, "ui.app.opened", { where: ui(lang, "ui.app.browser") }) : ui(lang, "ui.app.url", { url }), data: { opened, url, bridge: info.url } };
@@ -400,8 +412,9 @@ register(
     run(ctx, { opts }) {
       const tree = bridgeTree(ctx);
       const lang = tree.lang;
+      const since = Date.now();
       const info = startLive(tree.root, ctx.env, { current: !!opts.current });
-      if (!info) throw new StromError("the bridge did not start", { hint: "strom live serve shows why", code: "live.not-started" });
+      if (!info) throw notStarted(tree.root, since);
       return {
         text: lines(ui(lang, "ui.live.runs", { url: info.url }), liveAppLine(ctx, lang, info.url), info.moved ? ui(lang, "ui.live.moved") : undefined),
         data: { ...info, ...liveAppData(ctx, info.url) },
@@ -600,6 +613,10 @@ register(
     group: "start",
     run: async (ctx) => {
       if (isAgent(ctx.env)) throw new UsageError("the menu is for a person at a terminal", { hint: "strom (orientation) — or strom --json" });
+      // nobody at a terminal to answer (stdin closed or not one, STROM_NONINTERACTIVE, --yes/--json): said at once —
+      // never a menu waiting for an answer that cannot come
+      if (!ctx.interactive)
+        throw new StromError("the menu is for a person at a terminal — none here", { exitCode: EXIT.needsInput, code: "menu.no-terminal", hint: "strom (orientation) — or strom --json" });
       const { runMenu } = await import("../cli/menu.ts");
       const { main } = await import("../cli/main.ts");
       await runMenu(ctx, (argv, quiet) => main(argv, quiet ? { ...ctx.io, stdout: () => undefined } : ctx.io, ctx.env, ctx.cwd));

@@ -21,6 +21,7 @@ import { imageSizeOfFile } from "../image/index.ts";
 import { currentSession } from "../core/session.ts";
 import { noReaderHere, refusedBySandbox, sandboxOf } from "../core/sandbox.ts";
 import { VERSION } from "../core/tree.ts";
+import { refuseInArchive } from "../core/state.ts";
 
 export interface Readers {
   /** The agent that reads. */
@@ -112,6 +113,14 @@ export function noReaderFor(agentId: string, command: string): UsageError {
   return new UsageError(`no reader for agent "${agentId}"`, { hint: `${command} reads with ${agents.join(", ")}: ${command} … --agent <one of them>` });
 }
 
+/**
+ * Readers are paid model work: none where nobody researches — an archive, or a research waiting for its agent when the
+ * readers' agent is not here either (refuseInArchive: one sentence, nothing read, nothing written).
+ */
+export function refuseReadersInArchive(ctx: Context, tree: Tree, command: string): void {
+  refuseInArchive(tree, command, readerAgent(ctx, tree));
+}
+
 /** Inside a sandbox that lets no agent start (Codex's) no reader is started: said at once, with what to do instead. */
 export function refuseReadersInSandbox(ctx: Context, command: string): void {
   const sb = sandboxOf(ctx.env);
@@ -123,6 +132,7 @@ export function refuseReadersInSandbox(ctx: Context, command: string): void {
  * go when they are not the research's readings (notes/readings) — a calibration's, beside the research in .strom.
  */
 export function readers(ctx: Context, tree: Tree, shared: string, kind: string, first: string, opts: Record<string, unknown>, reportsAt?: string, own: { stem?: string } = {}): Readers {
+  refuseReadersInArchive(ctx, tree, `strom ${kind}`);
   refuseReadersWhenFinishing(tree.root, ctx.env);
   refuseReadersInSandbox(ctx, `strom ${kind}`);
   const agentId = readerAgent(ctx, tree);

@@ -33,7 +33,8 @@ import { foldText } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
 import { isAgent } from "../core/which.ts";
 import { UI, ui, type UIKey } from "../cli/ui.ts";
-import { eventName, humanDate, humanPlace, statusName } from "../cli/human.ts";
+import { eventName, humanDate, humanDay, humanPlace, statusName } from "../cli/human.ts";
+import { removedBySync } from "../core/sync.ts";
 
 function list(v: unknown): string[] {
   if (v === undefined) return [];
@@ -116,6 +117,27 @@ function wordsFor(ctx: Context, tree: Tree) {
 }
 type Words = ReturnType<typeof wordsFor>;
 const ENGLISH: Words = { lang: undefined, say: (_k, english) => english, word: (_k, v) => v };
+
+/** A relative as a listing names them, marked when they were retracted (removed in the Strom app, a misread person). */
+function relative(x: Person, w: Words): string {
+  return `${label(x)}${x.retracted ? ` ${w.say("ui.show.removed.mark", "(retracted)")}` : ""}`;
+}
+
+/**
+ * How a retracted person was taken out, said first: removed in the Strom app — the day, and the sync to undo that puts
+ * them back — or retracted another way, the day and why (found: a person the app removed shown as any other).
+ */
+function removal(tree: Tree, p: Person, w: Words): { line: string; data: { at: string; reason: string; sync?: string; undo?: string } } | undefined {
+  if (!p.retracted) return undefined;
+  const { at, reason } = p.retracted;
+  const day = w.lang ? humanDay(at, w.lang) : at.slice(0, 10);
+  const sync = removedBySync(tree, p.id);
+  if (sync) {
+    const undo = `strom sync undo ${sync.id}`;
+    return { line: w.say("ui.show.removed.app", `removed in the Strom app (${day}) — to put back: ${undo}`, { day, undo }), data: { at, reason, sync: sync.id, undo } };
+  }
+  return { line: w.say("ui.show.removed", `retracted (${day}, ${reason})`, { day, reason }), data: { at, reason } };
+}
 
 /** The citations; for a person what a family tree a sync gave cites by the part it came from ("name", "BIRT") said in words. */
 function citesOf(citations: Citation[] | undefined, w: Words = ENGLISH): string {
@@ -252,7 +274,7 @@ register(
       { name: "unproven", type: "boolean", description: "only people no record of their own proves: how each stands, the records naming them, open tasks" },
       { name: "full", type: "boolean", description: "--json: whole records instead of one row each" },
     ],
-    examples: ["strom person list", "strom person list visek", "strom person list --research G0001 --generation 3", "strom person list --unproven"],
+    examples: ["strom person list", "strom person list novak", "strom person list --research G0001 --generation 3", "strom person list --unproven"],
     run(ctx: Context, { args, opts }: Input) {
       const tree = ctx.tree();
       let people = tree.list<Person>("person").filter((p) => !p.retracted);
@@ -309,7 +331,11 @@ register(
       const researches = tree.list<Research>("research").filter((r) => ancestorGenerations(tree, r.focus).has(p.id));
       const w = wordsFor(ctx, tree);
       const unknown = w.say("ui.show.unknown", "(unknown)");
+      const removed = removal(tree, p, w);
+      const shown = new Set<Person>();
+      const who = (x: Person) => (shown.add(x), relative(x, w));
       const out: (string | undefined)[] = [
+        ...(removed ? [removed.line, ""] : []),
         `${p.id} ${titledName(primaryName(p))}${lifespan(p) ? ` (${lifespan(p)})` : ""}  ${w.lang ? w.word("sex", p.sex) : `sex ${p.sex}`}`,
         ...(p.names.length > 1 || p.names.some((n) => n.citations?.length) ? ["", w.say("ui.show.names", "names"), ...p.names.map((n) => `  ${nameLine(n, w)}`)] : []),
         "",
@@ -325,18 +351,18 @@ register(
         const names = f.partners.map((id) => {
           const x = tree.get<Person>(id);
           const rel = relationTo(link, id);
-          return `${x ? label(x) : id}${rel !== "birth" && link.relations ? ` [${w.word("rel", rel)}]` : ""}`;
+          return `${x ? who(x) : id}${rel !== "birth" && link.relations ? ` [${w.word("rel", rel)}]` : ""}`;
         });
         out.push(`  ${parentsWord}  ${f.id}: ${names.join(" & ") || unknown}${link.relation !== "birth" && !link.relations ? ` [${w.word("rel", link.relation)}]` : ""}`);
       }
       if (parents.length === 0) out.push(`  ${parentsWord}  ${unknown}`);
       for (const f of partnerships) {
-        const partner = f.partners.filter((id) => id !== p.id).map((id) => tree.get<Person>(id)).filter(Boolean).map((x) => label(x!));
+        const partner = f.partners.filter((id) => id !== p.id).map((id) => tree.get<Person>(id)).filter(Boolean).map((x) => who(x!));
         out.push(`  ${w.say("ui.show.partner", "partner")}  ${f.id}: ${partner.join(", ") || unknown}`);
         for (const e of f.events) out.push(`    ${eventLine(e, w)}`);
         for (const c of f.children) {
           const child = tree.get<Person>(c.person);
-          if (child) out.push(`    ${w.say("ui.show.child", "child")}  ${label(child)}${c.relation !== "birth" ? ` [${w.word("rel", c.relation)}]` : ""}`);
+          if (child) out.push(`    ${w.say("ui.show.child", "child")}  ${who(child)}${c.relation !== "birth" ? ` [${w.word("rel", c.relation)}]` : ""}`);
         }
       }
       if (researches.length) out.push("", `${w.say("ui.show.research", "in research")}  ${researches.map((r) => `${r.id} ${r.name}`).join(" · ")}`);
@@ -346,7 +372,15 @@ register(
       else if (history.length) out.push("", w.say("ui.show.history.more", `retracted or corrected: ${history.length} — strom person show ${p.id} --history`, { n: history.length, id: p.id }));
       return {
         text: lines(...out),
-        data: { person: p, parentFamilies: parents, partnerFamilies: partnerships, researches: researches.map((r) => r.id), ...(opts.history ? { history } : {}) },
+        data: {
+          person: p,
+          ...(removed ? { removal: removed.data } : {}),
+          parentFamilies: parents,
+          partnerFamilies: partnerships,
+          researches: researches.map((r) => r.id),
+          retractedRelatives: [...shown].filter((x) => x.retracted).map((x) => x.id),
+          ...(opts.history ? { history } : {}),
+        },
       };
     },
   },
@@ -554,8 +588,10 @@ register(
     run(ctx, { args }) {
       const tree = ctx.tree();
       const f = requireRecord<Family>(tree, args[0]!, "family");
-      const partners = f.partners.map((id) => tree.get<Person>(id)).filter(Boolean).map((p) => label(p!));
       const w = wordsFor(ctx, tree);
+      const shown = new Set<Person>();
+      const who = (x: Person) => (shown.add(x), relative(x, w));
+      const partners = f.partners.map((id) => tree.get<Person>(id)).filter(Boolean).map((p) => who(p!));
       const none = `  ${w.say("ui.show.none", "(none)")}`;
       const out = [
         `${f.id} ${partners.join(" & ") || w.say("ui.show.nopartners", "(no partners known)")}`,
@@ -570,12 +606,12 @@ register(
           ? f.children.map((c) => {
               const child = tree.get<Person>(c.person);
               const own = Object.entries(c.relations ?? {}).map(([who, rel]) => w.say("ui.show.relof", `${rel} of ${who}`, { rel: w.word("rel", rel), who }));
-              return `  ${child ? label(child) : c.person}${c.relation !== "birth" || own.length ? ` [${[c.relation !== "birth" ? w.word("rel", c.relation) : "", ...own].filter(Boolean).join(", ")}]` : ""}`;
+              return `  ${child ? who(child) : c.person}${c.relation !== "birth" || own.length ? ` [${[c.relation !== "birth" ? w.word("rel", c.relation) : "", ...own].filter(Boolean).join(", ")}]` : ""}`;
             })
           : [none]),
         ...(f.notes.length ? ["", w.say("ui.show.notes", "notes"), ...f.notes.map((n) => `  ${n.at.slice(0, 10)} ${n.text}`)] : []),
       ];
-      return { text: lines(...out), data: { family: f } };
+      return { text: lines(...out), data: { family: f, retractedPeople: [...shown].filter((x) => x.retracted).map((x) => x.id) } };
     },
   },
   {

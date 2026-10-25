@@ -1,6 +1,8 @@
 // Error types with stable exit codes. Every error carries an optional hint:
 // the exact command the caller (usually an agent) should run next.
 
+import path from "node:path";
+
 export const EXIT = {
   ok: 0,
   error: 1,
@@ -91,6 +93,18 @@ export class Cancelled extends StromError {
   }
 }
 
+/**
+ * The input ended before an answer (stdin closed, a file or a pipe used up): nobody left to ask — said, never a
+ * process that hangs on its question (found on Mac: the menu with stdin closed ended in Node's "unsettled top-level
+ * await", exit 13).
+ */
+export class InputEnded extends StromError {
+  constructor() {
+    super("the input ended before an answer — nobody to ask here", { exitCode: EXIT.needsInput, code: "input.ended", hint: "run it at a terminal" });
+    this.name = "InputEnded";
+  }
+}
+
 /** A name matched more than one record. Never pick one silently. */
 export class AmbiguousError extends StromError {
   readonly candidates: Candidate[];
@@ -142,20 +156,22 @@ export class NeedsConsentError extends StromError {
 
   /**
    * `says`: the question as the person reads it (their language) — said so at a terminal (ui.error.consent). `more`:
-   * what the agent does besides (a run nobody watches: the task for it).
+   * what the agent does besides (a run nobody watches: the task for it). `own`: a consent with a sentence of its own for
+   * the person (ui.error.<code>, ui.error.<code>.hint: the research sealed on another computer) in place of the question.
    */
-  constructor(needs: Need[], says?: string, more?: string) {
+  constructor(needs: Need[], says?: string, more?: string, own?: { code: string; params: Record<string, string> }) {
     super(`consent required — ${needs.map((n) => n.question).join(" · ")}`, {
       exitCode: EXIT.needsConsent,
       hint: `ask the user to run in their own terminal: ${needs.map((n) => n.set).join(" ; ")}${more ? ` — ${more}` : ""}`,
-      ...(says ? { code: "consent", params: { question: says, set: needs.map((n) => n.set).join(" ; ") } } : {}),
+      ...(own ? { code: own.code, params: own.params } : says ? { code: "consent", params: { question: says, set: needs.map((n) => n.set).join(" ; ") } } : {}),
     });
     this.name = "NeedsConsentError";
     this.needs = needs;
   }
 
   override toJSON(): Record<string, unknown> {
-    return { status: "needs-consent", needs: this.needs, hint: this.hint };
+    // a consent with a sentence of its own: its code for a program too (seal.foreign)
+    return { status: "needs-consent", needs: this.needs, hint: this.hint, ...(this.code && this.code !== "consent" ? { code: this.code, params: this.params } : {}) };
   }
 }
 
@@ -164,4 +180,37 @@ export class LockedError extends StromError {
     super(message, { exitCode: EXIT.locked, ...(hint ? { hint } : {}) });
     this.name = "LockedError";
   }
+}
+
+/**
+ * A disk with no room left (or a quota used up), as the system says it: ENOSPC, EDQUOT — also in the words of git or
+ * of a strom of its own (its code disk.full), whatever wrote the file.
+ */
+export function isDiskFull(e: unknown): boolean {
+  if (!e) return false;
+  const code = (e as { code?: unknown }).code;
+  if (code === "ENOSPC" || code === "EDQUOT" || code === DISK_FULL) return true;
+  const text = e instanceof Error ? e.message : typeof e === "string" ? e : "";
+  return /ENOSPC|EDQUOT|no space left on device|disk quota exceeded/i.test(text);
+}
+
+export const DISK_FULL = "disk.full";
+
+/**
+ * The folder a person knows, for a path strom met a full disk at: what lies above strom's own (.strom, .git, the
+ * images' .incoming) — never a file of strom's inside.
+ */
+export function folderOf(p: string): string {
+  const abs = path.resolve(p);
+  const parts = abs.split(path.sep);
+  const inner = parts.findIndex((x, i) => i > 0 && (x === ".strom" || x === ".git" || x === ".incoming"));
+  return inner > 0 ? parts.slice(0, inner).join(path.sep) || path.sep : path.dirname(abs);
+}
+
+/**
+ * No room on the disk, said one way wherever a write met it (the command line, the bridge's answers): the folder a
+ * person knows, never strom's inner paths, and that nothing was lost — a write of strom's is whole or none.
+ */
+export function diskFull(where: string): StromError {
+  return new StromError(`there is no room left on the disk of ${where} — make room there, then try again; nothing was lost`, { code: DISK_FULL, params: { where } });
 }

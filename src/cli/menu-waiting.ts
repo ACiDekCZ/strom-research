@@ -18,13 +18,14 @@ import type { Context } from "./context.ts";
 import { agentReady, claudeHere, guarded, outOfAnswers, pause, translator, type Run } from "./menu-parts.ts";
 import { decideSent } from "./menu-research.ts";
 import { decideArchive, decideMilder, decideTakeover } from "./menu-archives.ts";
-import { waitingDo } from "./menu-links.ts";
+import { askWhy, pickClaim, waitingDo } from "./menu-links.ts";
 import { truncate } from "./format.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { Tree } from "../core/tree.ts";
-import type { Family, Person, RecordSet, Task } from "../core/model.ts";
+import type { Conflict, Family, Person, RecordSet, Task } from "../core/model.ts";
 import { humanDay, humanTask } from "./human.ts";
-import { displayName, lifespan } from "../core/people.ts";
+import { conflictTitle, displayName, lifespan } from "../core/people.ts";
+import { claimOf, isEditConflict, sideText } from "../core/conflicts.ts";
 import { openForUser } from "../core/open.ts";
 import { isArchive } from "../core/mode.ts";
 import type { Question } from "../core/tuneask.ts";
@@ -44,7 +45,7 @@ const NO_REPLY_DAYS = 30;
 /** The sections, in the order of the app's chips. */
 const SECTIONS: readonly WaitSection[] = ["decide", "images", "letter", "family", "web", "other"];
 /** The kinds a word is said for (anything else: "other"). */
-const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "other"] as const;
+const KINDS = ["images", "letter", "family", "web", "check", "permission", "takeover", "milder", "story", "send", "tune", "conflict", "other"] as const;
 
 type T = ReturnType<typeof translator>;
 
@@ -55,6 +56,8 @@ export function waitingHere(ctx: Context, tree: Tree): Waiting[] {
     claude: () => claudeHere(ctx, tree.config),
     sends: true,
     milder: true,
+    // the open conflicts the person decides: every one in an archive, their own edits' in research
+    conflicts: true,
     // the questions about the reading of scans: an archive asks none
     ...(isArchive(tree) ? {} : { tune: ctx.settings }),
   });
@@ -407,6 +410,7 @@ async function thing(ctx: Context, run: Run, lang: string, root: string, w: Wait
 
 /** A decision: its own screen — an archive's question, a story's new version, the app's send, the reading of scans, a site to check. */
 async function decide(ctx: Context, run: Run, lang: string, root: string, w: Waiting): Promise<void> {
+  if (w.conflict) return decideConflictHere(ctx, run, lang, root, w.conflict.id);
   if (w.send) return void (await decideSent(ctx, run, lang, root, w.send));
   if (w.tune) return decideTune(ctx, run, lang, w.tune);
   const tree = Tree.open(root, ctx.env);
@@ -422,6 +426,39 @@ async function decide(ctx: Context, run: Run, lang: string, root: string, w: Wai
     ctx.io.stdout(`\n ${humanTask(tree, w.task.what, lang)}\n`);
     return checkSite(ctx, run, lang, root, w.task, true);
   }
+}
+
+/**
+ * An open conflict, decided here — in an archive too, where nobody else decides it: what it is about and its sides. One
+ * of the person's edits in the Strom app (a fact, a name, a title, a sex, a child's parents): the app's value kept or the
+ * research's taken, as the app's link decides it (strom conflict resolve --take); any other: which claim holds, or the
+ * person's own words. Why, always; 0 leaves it open.
+ */
+async function decideConflictHere(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<void> {
+  const t = translator(lang);
+  const out = (line = "") => ctx.io.stdout(line + "\n");
+  const tree = Tree.open(root, ctx.env);
+  const c = tree.get<Conflict>(id);
+  // meanwhile decided (in the app, another terminal): said, nothing asked
+  if (!c || c.type !== "conflict" || c.state !== "open") return void out(t("ui.waiting.gone"));
+  const head = ["", ` ${c.id} · ${kindWord(t, "conflict")} · ${t("ui.wait.since", { day: humanDay(c.created, lang) })}`, ` ${conflictTitle(tree, c)}`];
+  const user = claimOf(c, "user");
+  const research = claimOf(c, "research");
+  if (!isEditConflict(c) || !user || !research) {
+    out(head.join("\n"));
+    await pickClaim(ctx, run, lang, tree, c, t("ui.wait.conflict.open"));
+    return;
+  }
+  const value = (x: Conflict["claims"][number]) => sideText(tree, c, x) || t("ui.link.conflict.empty");
+  // an archive's value is the archive's, not a research's
+  const archive = isArchive(tree);
+  out([...head, `    ${t("ui.wait.conflict.app", { value: value(user) })}`, `    ${t(archive ? "ui.wait.conflict.archive" : "ui.wait.conflict.research", { value: value(research) })}`].join("\n"));
+  const i = await ctx.choose("", [{ label: t("ui.wait.conflict.take.user") }, { label: t(archive ? "ui.wait.conflict.take.archive" : "ui.wait.conflict.take.research") }], 2, { back: t("ui.wait.conflict.open") });
+  if (i === undefined) return;
+  const why = await askWhy(ctx, lang);
+  if (!why) return;
+  if ((await run(["conflict", "resolve", id, `--take=${i === 0 ? "user" : "research"}`, `--reasoning=${t("ui.link.conflict.by", { why })}`], true)) !== 0) return;
+  out(t("ui.link.conflict.done"));
 }
 
 /** The images to save by hand and where (a task waiting for an archive's images). */

@@ -294,6 +294,30 @@ test("the phone's page fills its texts as the catalog writes them: a name, a plu
   }
 });
 
+test("the phone's page in an archive saves to the Strom archive, a research's hands over (spec 017, M12): nothing of a research, a queue or an agent", () => {
+  const src = fs.readFileSync(path.join(import.meta.dirname, "../../assets/phone/phone.js"), "utf8");
+  const code = src.slice(src.indexOf("  const closing ="), src.indexOf("  const mb ="));
+  const expect = {
+    cs: { commit: "Uložit do Archivu Stromu", done: /^Uloženo do Archivu Stromu: 3 fotky$/, research: "Předat výzkumu" },
+    en: { commit: "Save to the Strom archive", done: /^Saved to the Strom archive: 3 photos$/, research: "Hand over to research" },
+    de: { commit: "Im Strom-Archiv speichern", done: /^Im Strom-Archiv gespeichert: 3 Fotos$/, research: "An die Forschung übergeben" },
+  } as const;
+  for (const lang of ["cs", "en", "de"] as const) {
+    const T = JSON.parse(/<script id="texts" type="application\/json">([^<]*)<\/script>/.exec(phonePage(lang, "n"))![1]!) as Record<string, string>;
+    const ta = new Function("T", "LANG", "plurals", `${code}; return ta;`)(T, lang, new Intl.PluralRules(lang)) as (tree: unknown, k: string, v?: Record<string, unknown>) => string;
+    const archive = { id: "t", name: "Ж", archive: true };
+    assert.equal(ta(archive, "commit"), expect[lang].commit);
+    assert.match(ta(archive, "commit.done", { n: 3 }), expect[lang].done);
+    assert.equal(ta({ ...archive, archive: false }, "commit"), expect[lang].research);
+    // a key with no archive's own words: the research's
+    assert.equal(ta(archive, "commit.next"), T["commit.next"]);
+    for (const k of ["archive", "archive.photos", "sheet.to.archive", "commit.archive", "commit.wait.archive", "commit.later.archive", "commit.done.archive", "commit.cancel.archive"])
+      assert.doesNotMatch(T[k] ?? "", /agent|výzkum|research|Forschung|zařaz|filed|Einordnung|fronta|queue|Warteschlange/i, `${lang} ${k}: ${T[k]}`);
+  }
+  // the page asks for them where it says what is done with the photos
+  for (const k of ["sheet.to", "commit", "commit.wait", "commit.later", "commit.done", "commit.cancel"]) assert.match(src, new RegExp(`ta\\(tree, "${k.replace(".", "\\.")}"`), k);
+});
+
 test("a text of the research for the phone: without the IDs of its records, any script", () => {
   assert.equal(forPhone("Křest Anežky Dvořákové (1842) [P0012]"), "Křest Anežky Dvořákové (1842)");
   assert.equal(forPhone("Ольга Жукова [P0003] a [F0001] rodina [S00042]."), "Ольга Жукова a rodina.");

@@ -629,8 +629,20 @@ export interface Input extends BaseRecord {
   sorted?: { as: (typeof SORT_KINDS)[number]; persons?: string[]; source?: string; reason?: string; at: string; by: string };
   /** The readings of it (strom document read): D… — their results in notes/readings/<D…>.json. */
   read?: string[];
+  /** What it is called, as a person or whoever sorted it named it ("Svatba Novákových, Lhota 1932"); else its name. */
+  title?: string;
+  /** When the document was written or the photo taken, a GEDCOM date ("1932", "ABT 1930") — not when it came. */
+  date?: string;
+  /**
+   * Hidden from the family's material (the Strom app's Hide, strom input hide|skip, sorted as unrelated): when, by whom,
+   * the reason's code, and the state it had, which strom input unskip gives it back. Gone when shown again.
+   */
+  hidden?: { at: string; by: string; reason?: (typeof HIDE_REASONS)[number]; was: "new" | "processed" };
   notes: Note[];
 }
+
+/** Why a file of the material is hidden: nothing of the family, the same as another. */
+export const HIDE_REASONS = ["unrelated", "duplicate"] as const;
 
 /** What a file of a batch is found to be: a record (it becomes a source), a document of the family, a photo, nothing of the family. */
 export const SORT_KINDS = ["source", "document", "photo", "unrelated"] as const;

@@ -5,6 +5,71 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.20.0
+
+*2026-10-25 · goes with the Strom app 3.16.0.*
+
+- **The menu with nobody at a terminal says so at once.** Started where no one can answer (a closed input, a window
+  without a terminal), the menu ends with one sentence in the research's language and what to do instead,
+  no longer with an error of the program; a question whose input ends before an answer ends the menu the same way.
+- **`strom check` speaks one language.** For a person every finding, the sum and the notes are in the research's
+  language; for an agent all of it is in English, never a mix of both. It also says what this computer lacks: files
+  of the shared folder not brought along (how many, the first, and to bring back the whole Strom folder), and files of
+  a research in iCloud Drive not downloaded yet — said as that, never sent to `strom repair`, nothing written over
+  them. A full disk is said alike everywhere, in the research's language with the folder whose disk it is; the
+  bridge answers the app with `disk.full` (507) and `tree.not-downloaded` (409), and `strom live start` says why a
+  bridge did not start.
+- **When the agent's sandbox refuses git, the right place is named.** The message names the research's history (its
+  `.git` folder) as the place refused, not git's own program.
+- **A Strom archive starts no paid reading.** `strom read`, `strom clips` and `strom transcripts` are refused in an
+  archive (and in a research waiting for its agent) with the one sentence the other refusals use; nothing is read
+  and nothing written.
+  Its texts promise nothing: material is "saved to the Strom archive" and the count is said, nothing
+  more; a folder of more than 20 images offers to save them as family documents; the phone's page in an archive
+  says "Save to the Strom archive"; the phone is in an archive's help. The help of an archive, and of a research
+  waiting for its agent, offers only what works in it, with no tasks or queue; the how-to in a packed archive
+  (`strom pack`) goes on in the Strom app. Nor does it announce a new task it never shows. **Its conflicts are decided in it:** an open one (the same fact edited differently in the Strom app and
+  here) is said in the overview and in "What waits", decided there — the app's value or the archive's, and why —
+  as the app's link decides it, and `strom conflict` is in an archive's help. `strom person show` of a person
+  removed in the Strom app starts with that, the day and `strom sync undo I…` that puts them back; their relatives'
+  listings mark them "(retracted)". **Two browsers on one archive:** a person removed in one is never written
+  again as a new person by the other's older copy — untouched there, the removal stands and the app is told which
+  send removed them; edited there, the edits are kept with them and a conflict asks whether they come back — a second
+  copy that edited them otherwise is a conflict of its own against the first, never written over it, and once kept
+  removed the same copy asks no more. An older copy without a person another window or the research edited since no longer
+  removes them in silence: a conflict asks whether they go, and says who edited them (another copy of the app, the
+  research, both); an edit taken back since (`strom sync undo`) counts for nothing, and once kept the same copy is only
+  told so. Taking back the older copy's send after the person decided they go says they stay removed and how they
+  come back (`strom conflict resolve X… --take research`). A send taken back (`strom sync undo`) and sent again from the app
+  takes away again what it took away. Whether a person stays in the tree may be decided again: `strom history` says each
+  decision with its own reasoning and whether the person left the tree or came back, and `strom conflict show` reads the
+  earlier decisions in the research's language.
+- **The backup before another version holds the shared folder too.** The shared images (scans, the Strom app's
+  originals, the phone's photos) are linked into it where the disk can, taking no room twice, else copied; only
+  when the disk has no room for that copy are they left out, and the backup says so; uploads of the app not yet whole
+  and previews strom makes again stay out. **What to back up:**
+  `strom backup` and Settings → Maintenance → "What to back up" name the one folder that holds
+  every research and the shared images, with its size, or `strom pack` for one family tree.
+- **`strom doctor` notices a network or redirected drive.** Where git cannot tell the folder it works in, the family
+  trees there cannot keep their history; doctor now says so, as `strom init` does.
+- **The family's material is put in order in the Strom app.** The people a photo or a document is of are added and
+  taken off for many files at once, or for a whole batch; a file of nothing of the family, or the same as another, is
+  hidden and shown again whenever needed — nothing is deleted. The app shows each file's title, kind and date
+  (`strom input sort --title --date`) and small previews of photos, HEIC and PDFs, made once and kept aside.
+  In the terminal: `strom input assign`, `strom input hide`, and `strom input unskip`, which also takes back a skip.
+  Material added in the terminal or the menu to a family tree the Strom app has says where it is there: at the person
+  → Materials.
+- **A family tree from another computer, or moved by hand, is said — never replaced by another.** One sealed on another
+  computer (or with strom's settings gone) reads, and a write says so in the research's language with the one step,
+  `strom seal adopt`, offered by the menu, by the setup (which lists the family trees it found) and by a link of the
+  Strom app, always on the person's yes; the bridge refuses the app's writes with `seal.foreign` (409). One no longer
+  where it was is named with its old folder and the way to add the new one (`strom trees use <folder>`, remembered
+  from then on); `strom app`, `strom live start` and every command refuse to open another in its place, and
+  `strom trees forget` takes one no longer wanted off the list. `strom trees` and the bridge's `/status` say what
+  each family tree is: a research, one waiting for its agent, or a Strom archive — for the app (`kind`) one waiting
+  for its agent is an archive until an agent starts on it. An empty Strom app (its browser data cleared) asking for
+  a new research gets the family trees already here offered first, to open one of them in the app.
+
 ## 1.19.0
 
 *2026-10-22 · goes with the Strom app 3.15.0.*

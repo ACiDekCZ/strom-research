@@ -9,15 +9,15 @@ import { Settings, type Flags } from "../core/config.ts";
 import { configDir, displayPath, expandHome, ISOLATED_HOME, type Env } from "../core/paths.ts";
 import { backupsDir } from "../core/backup.ts";
 import { insideProgram } from "../core/self.ts";
-import { Cancelled, NeedsConsentError, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
+import { Cancelled, InputEnded, NeedsConsentError, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
 import { migrate } from "../core/migrate.ts";
 import { Tree, findTreeUpwards, isTreeDir, knownTreesIn } from "../core/tree.ts";
 import { SCHEMA_VERSION, type TreeConfig } from "../core/model.ts";
-import { readJsonIfExists } from "../core/json.ts";
+import { canonicalize, readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
 import { currentSession } from "../core/session.ts";
 import { isAgent } from "../core/which.ts";
-import { treeAgentHere } from "../core/state.ts";
+import { stateOf, treeAgentHere } from "../core/state.ts";
 import { canShowDialog, systemDialog, WAIT_SECONDS, type ChoiceText, type DialogText } from "../core/dialog.ts";
 import { UI, ui, type UIKey } from "./ui.ts";
 import { DEFAULT_LIMIT } from "./format.ts";
@@ -135,8 +135,12 @@ export class Context {
       if (answer === "\u0003") throw new Cancelled(); // Ctrl-C, as a test types it
     } else {
       const rl = readline.createInterface({ input: this.io.stdin ?? process.stdin, output: process.stdout });
+      // the input ending before an answer (stdin closed, used up) settles the question too — never a question left
+      // open; a moment later, so Ctrl-C at a terminal (it closes the line first) stays the person's Ctrl-C
+      const ended = new Promise<never>((_, reject) => rl.once("close", () => setImmediate(() => reject(new InputEnded()))));
+      ended.catch(() => undefined);
       try {
-        answer = await rl.question(prompt);
+        answer = await Promise.race([rl.question(prompt), ended]);
       } catch (err) {
         // Ctrl-C at the question (Node: "Aborted with Ctrl+C", found on Mac as the menu's "that did not work")
         if ((err as { code?: string }).code === "ABORT_ERR") {
@@ -215,6 +219,24 @@ export class Context {
       // no tree to say
     }
     return false;
+  }
+
+  /**
+   * How help is shown here (Milan, 2026-10-23): an archive's help in an archive, and in a research waiting for its
+   * agent too (nothing offered it would refuse) — never to an agent strom is run by, which always reads its whole
+   * catalog where research is on (the agent there makes it research again).
+   */
+  helpShown(): { archive: boolean; waiting: boolean } {
+    if (this.archiveHere()) return { archive: true, waiting: false };
+    if (isAgent(this.env)) return { archive: false, waiting: false };
+    try {
+      const root = this.locateTree();
+      const config = root ? readJsonIfExists<TreeConfig>(path.join(root, "strom.json")) : undefined;
+      if (root && config && stateOf({ config, env: this.env, root }) === "waiting") return { archive: true, waiting: true };
+    } catch {
+      // no tree to say
+    }
+    return { archive: false, waiting: false };
   }
 
   /**
@@ -430,7 +452,51 @@ export class Context {
 
   /** All trees Strom knows about: folders in the trees dir plus remembered ones. */
   knownTrees(): KnownTree[] {
-    return knownTreesIn(this.treesDir(), this.settings.config.extraTrees ?? []).map(({ name, root, lang }) => ({ name, root, lang }));
+    return this.allTrees().map(({ name, root, lang }) => ({ name, root, lang }));
+  }
+
+  /** The trees known, with their ids — each seen kept in strom's memory (seenTrees) to say one gone from its folder. */
+  private allTrees(): ReturnType<typeof knownTreesIn> {
+    const all = knownTreesIn(this.treesDir(), this.settings.config.extraTrees ?? []);
+    this.remember(all);
+    return all;
+  }
+
+  /**
+   * What was seen, kept: the trees here now, and those gone from their folders and found nowhere else (a tree found in
+   * another folder is the same one moved: kept where it is now). Written only when it changed, only with strom set up.
+   */
+  private remember(all: ReturnType<typeof knownTreesIn>): void {
+    if (!this.settings.home()) return;
+    const before = this.settings.config.seenTrees ?? [];
+    const ids = new Set(all.map((k) => k.id).filter(Boolean));
+    const gone = before.filter((s) => !isTreeDir(s.root) && !ids.has(s.id));
+    const now = [...all.filter((k) => k.id).map((k) => ({ root: k.root, id: k.id, name: k.name })), ...gone];
+    // the same trees in the same folders: nothing written (the order of their fields aside)
+    if (JSON.stringify(canonicalize(now)) === JSON.stringify(canonicalize(before))) return;
+    this.settings.config.seenTrees = now;
+    try {
+      this.settings.saveKey("seenTrees");
+    } catch {
+      // settings that cannot be written: said again next time
+    }
+  }
+
+  /** The family trees seen here before and gone from their folders since (moved?), found in no other folder known. */
+  missingTrees(): { name: string; root: string; id: string }[] {
+    this.allTrees();
+    return (this.settings.config.seenTrees ?? []).filter((s) => !isTreeDir(s.root));
+  }
+
+  /** The tree meant is gone from its folder: said, with the trees there are — none opened in its place. */
+  private moved(gone: { name: string; root: string }): UsageError {
+    const known = this.knownTrees();
+    return new UsageError(`the family tree "${gone.name}" is no longer in ${gone.root} (moved?) — no other is opened in its place`, {
+      hint: `its new folder: strom trees use "<folder>" · another family tree: strom trees use "<name>" · no longer wanted: strom trees forget "${gone.name}"`,
+      code: "tree.moved",
+      params: { name: gone.name, path: this.display(gone.root) },
+      details: { candidates: known.map((k) => ({ label: `${k.name}  (${this.display(k.root)})`, root: k.root })) },
+    });
   }
 
   /** Locate the tree: --tree > STROM_TREE > current folder upwards > `strom trees use` > the only known tree. */
@@ -449,9 +515,25 @@ export class Context {
     if (up) return up;
     const current = this.settings.config.currentTree;
     if (current && isTreeDir(current)) return current;
-    const known = this.knownTrees();
-    if (known.length === 1) return known[0]!.root;
+    const all = this.allTrees();
+    // the tree worked on last gone from its folder: the same tree in another folder known (its id) is it; else said —
+    // never another opened in its place (found in the audit: strom app opened the only tree left)
+    if (current) {
+      const seen = (this.settings.config.seenTrees ?? []).find((s) => path.resolve(s.root) === path.resolve(current));
+      const same = seen ? all.filter((k) => k.id === seen.id) : [];
+      if (same.length === 1) return same[0]!.root;
+      throw this.moved({ name: seen?.name ?? path.basename(current), root: current });
+    }
+    // the only tree known, unless another seen here is gone from its folder: which one is meant is not certain then
+    const missing = (this.settings.config.seenTrees ?? []).filter((s) => !isTreeDir(s.root));
+    if (all.length === 1 && missing.length) throw this.moved(missing[0]!);
+    if (all.length === 1) return all[0]!.root;
     return undefined;
+  }
+
+  /** The research this command opened, if it did (where an error happened, said in its words). */
+  openedRoot(): string | undefined {
+    return this.opened?.root;
   }
 
   tree(): Tree {

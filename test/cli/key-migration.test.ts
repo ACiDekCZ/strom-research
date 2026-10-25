@@ -57,6 +57,7 @@ async function legacy(): Promise<{ w: World; root: string; cfgFile: string; jour
     await w.ok(["media", "add", dir, "--recordset", `B000${i + 1}`]);
   }
   await w.ok(["config", "set", "model.lead", "opus"]);
+  await w.ok(["trees"]); // the trees seen here kept in the config (seenTrees) before it is taken as it was
   const at = iso(Date.now() - 2 * DAY);
   const cfgFile = path.join(w.env.STROM_CONFIG_DIR!, "config.json");
   const cfg = readJsonFile(cfgFile);

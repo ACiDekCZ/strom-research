@@ -25,7 +25,7 @@ import { makeNote } from "../core/actions.ts";
 import { phrase } from "../core/phrases.ts";
 import { verifyFast } from "../core/integrity.ts";
 import { pool } from "./read.ts";
-import { readers } from "./readers.ts";
+import { readers, refuseReadersInArchive } from "./readers.ts";
 import { namesIn } from "./clips.ts";
 import { addReaders } from "../core/session.ts";
 
@@ -59,6 +59,7 @@ register({
   examples: ["strom transcripts --dry-run", "strom transcripts --for family --limit 20", "strom transcripts S0001 S0002"],
   run: async (ctx: Context, { args, opts }) => {
     const tree = ctx.tree();
+    refuseReadersInArchive(ctx, tree, "strom transcripts");
     const shared = ctx.settings.shared()?.value;
     if (!shared) throw new UsageError("no shared folder with the images is set", { hint: "strom setup" });
     const scope = (typeof opts.for === "string" ? opts.for : "all") as ExcerptScope;

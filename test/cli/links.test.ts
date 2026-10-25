@@ -71,7 +71,7 @@ test("a link is checked part by part: the action, the research's id, the source,
   assert.deepEqual(parseLink(`strom-research://story?tree=${ID}&person=P0012&do=keep`), { action: "story", tree: ID, person: "P0012", do: "keep" });
   assert.deepEqual(parseLink(`strom-research://sync-undo?tree=${ID}&intake=I0042`), { action: "sync-undo", tree: ID, intake: "I0042" });
   bad(`strom-research://sync-undo?tree=${ID}&intake=S0042`, /no intake named/);
-  for (const a of ["update", "sessions", "setup"]) assert.deepEqual(parseLink(`strom-research://${a}?tree=${ID}`), { action: a, tree: ID });
+  for (const a of ["update", "sessions", "setup", "seal"]) assert.deepEqual(parseLink(`strom-research://${a}?tree=${ID}`), { action: a, tree: ID });
   // the directions of the research, a conversation about one, a session asked to finish
   assert.deepEqual(parseLink(`strom-research://direction?tree=${ID}&id=g0002&do=pause`), { action: "direction", tree: ID, id: "G0002", do: "pause" });
   bad(`strom-research://direction?tree=${ID}&id=G0002`, /unknown do/);
@@ -114,7 +114,7 @@ test("registered on Linux and Windows through the system's own tools (here faked
   const entry = fs.readFileSync(file, "utf8");
   assert.match(entry, /^Exec=\/usr\/bin\/env "STROM_CONFIG_DIR=[^"]+config" .* link open %u$/m, "its settings folder goes along");
   assert.equal(linkHandlerState(env, "linux", linux), "ours");
-  assert.deepEqual(linkActions("ours"), ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive"]);
+  assert.deepEqual(linkActions("ours"), ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal"]);
   // strom moved (its entry runs another place): not ours — the app is told nothing
   fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace(/^Exec=.*$/m, "Exec=/old/node /old/cli.js link open %u"));
   assert.equal(linkHandlerState(env, "linux", linux), "other");

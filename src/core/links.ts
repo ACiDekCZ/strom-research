@@ -51,12 +51,13 @@ function handlerName(env: Env): string {
  * what they cost, a conflict decided (by the user or the agent), a story approved, a sync taken back, the setup —
  * and (the app's 3.5.0) the research followed live in the app's window; a direction of the research paused, ended or
  * taken up again, a conversation about one direction, a session at work asked to finish — and the question about an
- * archive's images (the answer is the person's, in the terminal).
+ * archive's images (the answer is the person's, in the terminal); the research sealed on another computer taken over
+ * here (strom seal adopt: checked, then the person's yes in the terminal — never by itself).
  */
 /** A story: approved (or, beside an approved one, its new version approved in its place), or that new version not wanted. */
 export const LINK_STORY_DOS = ["final", "keep"] as const;
 
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
@@ -147,6 +148,7 @@ export type Link =
   | { action: "update"; tree: string }
   | { action: "sessions"; tree: string }
   | { action: "setup"; tree: string }
+  | { action: "seal"; tree: string }
   | { action: "excerpt"; tree: string; source: string; clip: string }
   | { action: "media"; tree: string; sha: string }
   | { action: "chat"; tree: string; person?: string; research?: string }
@@ -218,6 +220,7 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
     case "update":
     case "sessions":
     case "setup":
+    case "seal":
       return { action, tree: id };
     case "excerpt": {
       const source = (q.get("source") ?? "").toUpperCase();

@@ -57,6 +57,11 @@ test("an older version than the one that ran last: the first run backs every res
   // the last strom here was a newer one (a beta): this one is older
   setConfig(w, { lastVersion: "99.0.0-beta.3", lastChannel: "beta" });
   w.env.STROM_CHANNEL = "beta";
+  // a shared image (an original of the app, a scan): kept by its content in the shared folder
+  const shared = (config(w).shared as string | undefined) ?? path.join(w.home, "shared");
+  const image = path.join(shared, "media", "ab", "ab".padEnd(64, "0"));
+  fs.mkdirSync(path.dirname(image), { recursive: true });
+  fs.writeFileSync(image, "obrázek");
   const before = gitLog(tree);
   const r = await w.ok(["status"], { cwd: tree });
   const made = config(w).backups;
@@ -78,7 +83,13 @@ test("an older version than the one that ran last: the first run backs every res
   // the settings with the seal keys; what is inside said in the person's language
   assert.equal(readJsonFile(path.join(dir, "settings", "config.json")).home, w.home);
   assert.deepEqual(fs.readdirSync(path.join(dir, "settings")).sort(), fs.readdirSync(w.env.STROM_CONFIG_DIR!).filter((n) => !n.endsWith(".lock")).sort());
-  assert.match(fs.readFileSync(path.join(dir, "README.txt"), "utf8"), /Není uvnitř: sdílené obrázky/);
+  // the shared folder too, its image linked: the same file, no room taken twice (spec 017, M3)
+  const linked = path.join(dir, "shared", "media", "ab", path.basename(image));
+  assert.equal(fs.statSync(linked).ino, fs.statSync(image).ino);
+  assert.deepEqual(made[0].media, { files: 1, bytes: Buffer.byteLength("obrázek"), how: "linked" });
+  const readme = fs.readFileSync(path.join(dir, "README.txt"), "utf8");
+  assert.match(readme, /- shared: sdílená složka – .*: 1 obrázek \(1 kB\), propojené: tytéž soubory/);
+  assert.doesNotMatch(readme, /Není uvnitř/);
   assert.equal(config(w).lastVersion, VERSION);
   // the next run: no other backup
   const again = await w.ok(["status"], { cwd: tree });
@@ -287,8 +298,11 @@ test("the backup's own pieces: what strom makes again stays out, a lock of the s
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-backup-"));
   const home = path.join(dir, "home");
   const tree = path.join(home, "Kovářoví"); // a combining mark kept as it is
-  for (const d of [".strom/views", ".strom/excerpts", ".strom/fetch/x", ".strom/runs", "data"]) fs.mkdirSync(path.join(tree, d), { recursive: true });
+  for (const d of [".strom/views", ".strom/excerpts", ".strom/fetch/x", ".strom/runs", ".strom/thumbs", ".strom/converted/0123abcd", "data"]) fs.mkdirSync(path.join(tree, d), { recursive: true });
   fs.writeFileSync(path.join(tree, ".strom", "views", "a.jpg"), "x");
+  // the previews of the family's files and what was converted for reading: made again when asked (m-N1)
+  fs.writeFileSync(path.join(tree, ".strom", "thumbs", `${"ab".repeat(32)}-256.jpg`), "preview");
+  fs.writeFileSync(path.join(tree, ".strom", "converted", "0123abcd", "page-1.png"), "page");
   fs.writeFileSync(path.join(tree, ".strom", "views", "views.jsonl"), "{}\n");
   fs.writeFileSync(path.join(tree, ".strom", "excerpts", "b.png"), "x");
   fs.writeFileSync(path.join(tree, ".strom", "fetch", "x", "c"), "x");
@@ -333,6 +347,62 @@ test("the research in the settings folder (an isolated installation's default) i
   assert.ok(fs.existsSync(path.join(b.path, "trees", "Novákovi", "data", "person.jsonl")));
   assert.equal(b.bytes, "{}\n".length * 2 + "{}".length + "k".length);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("the shared folder goes with the backup: its images linked (no room twice, kept whatever happens to the shared folder), its plugins and what waits copied, its cache, the pace of hosts and locks left out (spec 017, M3)", { skip: process.platform === "win32" }, async () => {
+  const { makeBackup } = await import("../../src/core/backup.ts");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "strom-backup-"));
+  const home = path.join(dir, "Strom");
+  const tree = path.join(home, "Novákovi");
+  const shared = path.join(home, "shared");
+  const cfg = path.join(dir, "cfg");
+  for (const d of [path.join(tree, "data"), path.join(shared, "media", "0f"), path.join(shared, "media", "e1"), path.join(shared, "plugins", "connectors", "archiv"), path.join(shared, "inbox"), path.join(shared, "cache"), path.join(shared, "net"), cfg]) fs.mkdirSync(d, { recursive: true });
+  fs.writeFileSync(path.join(tree, "data", "person.jsonl"), "{}\n");
+  const images = [path.join(shared, "media", "0f", "0f".padEnd(64, "1")), path.join(shared, "media", "e1", "e1".padEnd(64, "2"))];
+  images.forEach((f, i) => fs.writeFileSync(f, Buffer.alloc(1000 * (i + 1), i)));
+  fs.writeFileSync(path.join(shared, "plugins", "connectors", "archiv", "connector.json"), "{}");
+  fs.writeFileSync(path.join(shared, "inbox", "čeká.json"), "{}");
+  fs.writeFileSync(path.join(shared, "cache", "c"), "c");
+  fs.writeFileSync(path.join(shared, "net", "pace.json"), "{}");
+  fs.writeFileSync(path.join(shared, "media.lock"), "{}");
+  // an upload of the app still coming (or cut short): no image of the backup, never linked to grow on there (N3)
+  fs.mkdirSync(path.join(shared, "media", ".incoming"));
+  fs.writeFileSync(path.join(shared, "media", ".incoming", `${"0f".padEnd(64, "3")}-1a2b3c4d.part`), Buffer.alloc(500));
+  fs.writeFileSync(path.join(cfg, "config.json"), "{}");
+  let media: unknown;
+  const b = makeBackup({ home, env: { HOME: dir, STROM_CONFIG_DIR: cfg }, trees: [tree], research: [shared], shared, transition: { from: "2.0.0", to: "1.0.0" }, readme: (m) => ((media = m), "README") });
+  assert.deepEqual(Object.keys(snapshot(path.join(b.path, "shared"))).sort(), [path.join("inbox", "čeká.json"), ...images.map((f) => path.relative(shared, f)), path.join("plugins", "connectors", "archiv", "connector.json")].sort());
+  for (const f of images) assert.equal(fs.statSync(path.join(b.path, "shared", path.relative(shared, f))).ino, fs.statSync(f).ino, "linked");
+  assert.deepEqual(b.media, { files: 2, bytes: 3000, how: "linked" });
+  assert.ok(!fs.existsSync(path.join(b.path, "shared", "media", ".incoming")), "an upload not yet whole stays out");
+  assert.deepEqual(media, b.media, "the README told how");
+  // the linked images take no room: what the backup took is the rest alone
+  assert.equal(b.bytes, "{}\n".length + "{}".length * 3);
+  // the shared folder is never copied twice as a part of the settings or of a tree
+  assert.ok(!fs.existsSync(path.join(b.path, "trees", "shared")));
+  // an image gone from the shared folder stays in the backup
+  fs.rmSync(images[0]!);
+  assert.equal(fs.readFileSync(path.join(b.path, "shared", path.relative(shared, images[0]!))).length, 1000);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("the shared images in a backup: linked where the disk can, else copied; with no room for the copy alone left out (said) — never a backup refused for them", async () => {
+  const { mediaHow, BACKUP_RESERVE } = await import("../../src/core/backup.ts");
+  const GB = 1024 ** 3;
+  assert.equal(mediaHow({ linked: true, images: 50 * GB, rest: GB, free: 2 * GB }), "linked");
+  assert.equal(mediaHow({ linked: false, images: 50 * GB, rest: GB, free: 100 * GB }), "copied");
+  assert.equal(mediaHow({ linked: false, images: 50 * GB, rest: GB, free: 2 * GB }), "left");
+  // no room even for the rest: copied, so the backup is refused as before (the room said whole)
+  assert.equal(mediaHow({ linked: false, images: 50 * GB, rest: GB, free: GB }), "copied");
+  assert.equal(mediaHow({ linked: false, images: 50 * GB, rest: GB, free: undefined }), "copied");
+  assert.equal(mediaHow({ linked: false, images: 0, rest: GB, free: GB + BACKUP_RESERVE }), "copied");
+  // said in every language, in the line of the backup too
+  for (const lang of ["en", "cs", "de"]) {
+    const t = catalog(lang) as Record<string, string>;
+    const all: Record<string, string> = { ...UI, ...t };
+    for (const k of ["ui.backup.media.linked", "ui.backup.media.copied", "ui.backup.media.left", "ui.backup.media.none", "ui.backup.media.left.line"]) assert.ok(all[k], `${lang} ${k}`);
+    assert.match(all["ui.backup.readme"]!, /\{media\}/);
+  }
 });
 
 test("the same change backed up again when its last backup is older than a day — a trip back to a strom from before the channels leaves the beta's version as the last one, and the next trip must not find the month-old backup", () => {

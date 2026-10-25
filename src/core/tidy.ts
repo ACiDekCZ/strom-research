@@ -33,6 +33,8 @@ export const LIMITS = {
   fetch: { days: 1 },
   /** HEIC photos and PDF pages converted to JPEG for reading (core/readable.ts): made again when needed. */
   converted: { days: 30, bytes: 500 * MB },
+  /** Small previews of the material for the Strom app (core/thumbs.ts): made again when asked. */
+  thumbs: { days: 60, bytes: 200 * MB },
   kept: { written: 5, days: 7, undoneDays: 30, refused: 5 },
   /** The measurements (core/metrics.ts): each journal and the use of the sessions together — never a summary. */
   metrics: { days: 90, bytes: 20 * MB },
@@ -49,7 +51,7 @@ export const TIDY_SAID = 100 * MB;
 /** A file (or a work folder) only touched this long ago is left: something may still write it. */
 const QUIET_MS = 10 * 60_000;
 
-export type TidyKind = "logs" | "briefs" | "views" | "excerpts" | "fetch" | "converted" | "kept" | "inbox" | "pointers" | "metrics" | "gate";
+export type TidyKind = "logs" | "briefs" | "views" | "excerpts" | "fetch" | "converted" | "thumbs" | "kept" | "inbox" | "pointers" | "metrics" | "gate";
 
 export interface TidyItem {
   kind: TidyKind;
@@ -258,6 +260,17 @@ export function tidyPlan(tree: Tree, at = Date.now()): TidyPlan {
     }
   }
 
+  // the previews of the material for the app: made again when asked, the newest kept
+  {
+    const th = entries(root, "thumbs").filter((e) => /\.jpg$/i.test(e.rel) && quiet(e)).sort((a, b) => b.mtime - a.mtime);
+    let bytes = 0;
+    for (const e of th) {
+      const old = at - e.mtime > LIMITS.thumbs.days * DAY;
+      if (old || bytes + e.bytes > LIMITS.thumbs.bytes) items.push({ kind: "thumbs", path: e.rel, bytes: e.bytes, do: "remove", why: old ? `a preview not asked for ${LIMITS.thumbs.days} days (made again when asked)` : `beyond ${LIMITS.thumbs.bytes / MB} MB of previews` });
+      else bytes += e.bytes;
+    }
+  }
+
   // work folders of downloads left by one cut short
   for (const e of entries(root, "fetch", true)) {
     const stamp = Number(/-(\d{12,})$/.exec(path.basename(e.rel))?.[1] ?? NaN);
@@ -381,7 +394,7 @@ function withoutImages(text: string): string {
 
 /** The path checked again as it goes: in the tree's .strom, of its kind, no link. */
 function safe(root: string, item: TidyItem): string | undefined {
-  const dirs: Record<TidyKind, string> = { logs: "runs", briefs: "briefs", views: "views", excerpts: "excerpts", fetch: "fetch", converted: "converted", kept: path.join("sync", "kept"), inbox: "sync", pointers: "", metrics: "metrics", gate: "" };
+  const dirs: Record<TidyKind, string> = { logs: "runs", briefs: "briefs", views: "views", excerpts: "excerpts", fetch: "fetch", converted: "converted", thumbs: "thumbs", kept: path.join("sync", "kept"), inbox: "sync", pointers: "", metrics: "metrics", gate: "" };
   const abs = path.resolve(root, item.path);
   const expected = path.resolve(root, ".strom", dirs[item.kind]);
   // the measurements: a journal in .strom/metrics, the use of a session in its usage folder — nothing else

@@ -5,6 +5,78 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.20.0
+
+*25.10.2026 · gehört zur Strom-App 3.16.0.*
+
+- **Das Menü ohne jemanden am Terminal sagt es sofort.** Dort gestartet, wo niemand antworten kann (geschlossene
+  Eingabe, ein Fenster ohne Terminal), endet es mit einem Satz in der Sprache der Forschung und dem, was
+  stattdessen zu tun ist, nicht mehr mit einem Fehler des Programms; eine Frage, deren Eingabe vor der Antwort endet,
+  beendet das Menü genauso.
+- **`strom check` spricht eine Sprache.** Für einen Menschen stehen alle Befunde, die Summe und die Hinweise in der
+  Sprache der Forschung, für einen Agenten alles auf Englisch, nie beides gemischt. Er sagt auch, was diesem Computer
+  fehlt: Dateien des gemeinsamen Ordners, die nicht mitkamen (wie viele, die erste und den ganzen Strom-Ordner
+  zurückholen), und Dateien einer Forschung in iCloud Drive, die noch nicht geladen sind – genau so gesagt, nie mit
+  `strom repair`, und nichts wird über sie geschrieben. Eine volle Platte wird überall gleich gesagt, in der Sprache
+  der Forschung mit dem Ordner, auf dessen Platte der Platz fehlt; die Brücke antwortet der App mit `disk.full` (507)
+  und `tree.not-downloaded` (409), und `strom live start` sagt, warum eine Brücke nicht startete.
+- **Verweigert die Sandbox des Agenten git, wird der richtige Ort genannt.** Die Meldung nennt die Geschichte der
+  Forschung (ihren Ordner `.git`) als verweigerten Ort, nicht das Programm git.
+- **Ein Strom-Archiv startet kein bezahltes Lesen.** `strom read`, `strom clips` und `strom transcripts` werden in
+  einem Archiv (und in einer Forschung, die auf ihren Agenten wartet) mit demselben Satz abgelehnt wie die anderen
+  Ablehnungen; nichts wird gelesen, nichts geschrieben.
+  Seine Texte versprechen nichts: Material wird „im Strom-Archiv gespeichert“ und nur die Anzahl
+  genannt; ein Ordner mit mehr als 20 Bildern bietet das Speichern als Familiendokumente an; die Seite des Telefons
+  sagt in einem Archiv „Im Strom-Archiv speichern“; das Telefon steht in der Hilfe eines Archivs. Die Hilfe eines
+  Archivs und einer Forschung, die auf ihren Agenten wartet, bietet nur, was darin geht, ohne Aufgaben und
+  Warteschlange; die Anleitung in einem gepackten Archiv (`strom pack`) führt in die Strom-App. Es kündigt auch
+  keine neue Aufgabe an, die es nie zeigt. **Seine Widersprüche werden in ihm entschieden:** ein offener (dieselbe
+  Angabe in der Strom-App und hier anders bearbeitet) steht in der Übersicht und unter „Was wartet“ und wird dort
+  entschieden – der Wert der App oder der des Archivs, und warum –, wie es der Link der App tut; `strom conflict`
+  steht in der Hilfe eines Archivs. `strom person show` einer in der Strom-App entfernten Person beginnt damit, mit
+  dem Tag und `strom sync undo I…`, das sie zurückholt; die Listen ihrer Verwandten markieren sie „(entfernt)“.
+  **Zwei Browser an einem Archiv:** eine in einem entfernte Person schreibt die ältere Kopie des anderen nie als neue
+  Person — dort unberührt, bleibt die Entfernung und die App erfährt, welches Senden sie entfernt hat; dort
+  bearbeitet, bleiben die Änderungen bei ihr und ein Widerspruch fragt, ob sie zurückkommt — eine zweite Kopie, die
+  sie anders bearbeitet hat, ist ein eigener Widerspruch gegen die erste und überschreibt sie nie, und nach
+  „entfernt lassen“ fragt dieselbe Kopie nicht mehr. Eine ältere Kopie ohne eine Person, die ein anderes Fenster
+  oder die Forschung inzwischen bearbeitet hat, entfernt sie nicht mehr still: ein Widerspruch fragt, ob sie geht,
+  und sagt, wer sie bearbeitet hat (eine andere Kopie der App, die Forschung, beide); eine inzwischen zurückgenommene
+  Änderung (`strom sync undo`) zählt nicht, und nach „behalten“ erfährt dieselbe Kopie nur das. Das Zurücknehmen des
+  Sendens der älteren Kopie nach „entfernen“ sagt, dass die Person entfernt bleibt und wie sie zurückkommt
+  (`strom conflict resolve X… --take research`). Ein zurückgenommenes
+  Senden (`strom sync undo`), aus der App erneut gesendet, entfernt wieder, was es entfernt hat. Ob eine Person im
+  Stammbaum bleibt, lässt sich erneut entscheiden: `strom history` nennt jede Entscheidung mit ihrer eigenen Begründung
+  und ob die Person den Stammbaum verließ oder zurückkam, und `strom conflict show` zeigt die früheren Entscheidungen in
+  der Sprache der Forschung.
+- **Die Sicherung vor einer anderen Version enthält auch den gemeinsamen Ordner.** Die gemeinsamen Bilder (Scans,
+  Originale der Strom-App, Fotos vom Telefon) werden verknüpft, wo die Platte es kann, und belegen keinen Platz
+  doppelt, sonst kopiert; nur wenn für die Kopie kein Platz ist, bleiben sie weg, und die Sicherung sagt es;
+  unvollständige Uploads der App und Vorschauen, die strom neu erstellt, bleiben draußen.
+  **Was sichern:** `strom backup` und Einstellungen → Wartung → „Was sichern“ nennen den einen Ordner mit allen
+  Forschungen und den gemeinsamen Bildern samt Größe, oder `strom pack` für einen Stammbaum.
+- **`strom doctor` erkennt ein Netz- oder umgeleitetes Laufwerk.** Wo git den Ordner, in dem er arbeitet, nicht
+  bestimmen kann, können die Stammbäume dort ihren Verlauf nicht führen; doctor sagt es jetzt wie `strom init`.
+- **Das Familienmaterial wird in der Strom-App geordnet.** Die Personen, zu denen ein Foto oder Dokument gehört,
+  werden für viele Dateien auf einmal oder für einen ganzen Stapel hinzugefügt und entfernt; eine Datei ohne Bezug zur
+  Familie oder gleich wie eine andere wird ausgeblendet und jederzeit wieder gezeigt — nichts wird gelöscht. Die App
+  zeigt Titel, Art und Datum jeder Datei (`strom input sort --title --date`) und kleine Vorschauen von Fotos, HEIC
+  und PDFs, einmal erstellt und beiseite gelegt. Im Terminal: `strom input assign`, `strom input hide` und
+  `strom input unskip`, das auch ein Überspringen zurücknimmt. Material, im Terminal oder im Menü zu einem Stammbaum
+  hinzugefügt, den die Strom-App hat, sagt, wo es dort ist: bei der Person → Materialien.
+- **Ein Stammbaum von einem anderen Computer oder von Hand verschoben wird genannt – nie durch einen anderen
+  ersetzt.** Einer, der auf einem anderen Computer versiegelt ist (oder dessen Einstellungen von strom fehlen), lässt
+  sich lesen, und ein Schreiben sagt es in der Sprache der Forschung mit dem einen Schritt, `strom seal adopt`,
+  angeboten vom Menü, von der Einrichtung (die die gefundenen Stammbäume nennt) und von einem Link der Strom-App,
+  immer erst auf das Ja des Menschen; die Brücke lehnt Schreibvorgänge der App mit `seal.foreign` (409) ab. Einer,
+  der nicht mehr dort ist, wo er war, wird mit seinem alten Ordner genannt und mit dem Weg, den neuen hinzuzufügen
+  (`strom trees use <Ordner>`, danach gemerkt); `strom app`, `strom live start` und kein Befehl öffnen an seiner
+  Stelle einen anderen, und `strom trees forget` nimmt einen nicht mehr gewollten von der Liste. `strom trees` und
+  `/status` der Brücke sagen, was jeder Stammbaum ist: eine Forschung, eine, die auf ihren Agenten wartet, oder ein
+  Strom-Archiv – für die App (`kind`) ist eine Forschung, die auf ihren Agenten wartet, ein Archiv, bis ein Agent an
+  ihr beginnt. Eine leere Strom-App (Browserdaten gelöscht), die eine neue Forschung anlegen will, bekommt zuerst
+  die Stammbäume angeboten, die es hier schon gibt, um einen davon in der App zu öffnen.
+
 ## 1.19.0
 
 *22.10.2026 · gehört zur Strom-App 3.15.0.*

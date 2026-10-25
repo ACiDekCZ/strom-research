@@ -84,6 +84,9 @@ export function runGit(cwd: string, args: string[], input?: string, extraEnv: Re
       const dotGit = path.join(cwd, ".git");
       const where = fs.existsSync(dotGit) ? dotGit : cwd;
       if (writeRefusal(where)) throw gitUnwritable(where, "");
+      // git itself not let to start (found on Windows: an agent's sandbox, git.exe refused): the research's folder
+      // kept with it — under an agent that is what its sandbox is to let strom use (cli/main.ts)
+      throw Object.assign(r.error, { gitFolder: where });
     }
     throw gitTimedOut(args, r.error) ?? r.error;
   }

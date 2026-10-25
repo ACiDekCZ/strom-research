@@ -27,7 +27,8 @@ import { now, type Tree } from "../core/tree.ts";
 import { bookTuned, bookViewSizes, readingOf, treeTuning, tuningOn, type TuneState } from "../core/tune.ts";
 import { READING_DEFAULTS } from "../core/readstats.ts";
 import { currentSession } from "../core/session.ts";
-import { originalMax, parseRegion, takeOriginal } from "../core/originals.ts";
+import { knownOriginal, originalMax, parseRegion, takeOriginal } from "../core/originals.ts";
+import { makeThumb, THUMB_SIZES } from "../core/thumbs.ts";
 import { batchFull, batchPath, batchRoom, noteBatch, openBatch, type Batch } from "../core/batches.ts";
 import { readEntry, readZip, type ZipEntry } from "../core/zip.ts";
 import { fileBy, handFiles, taskForFile, taskPeople } from "../core/taskfiles.ts";
@@ -1083,6 +1084,32 @@ register(
     },
   },
 );
+
+register({
+  path: ["media", "thumb"],
+  summary: "A small preview of a file of the material for the Strom app (the bridge runs it): kept in .strom/thumbs",
+  group: "inputs",
+  tree: true,
+  description:
+    "The preview of the file of that content (its SHA-256, as GET <token>/material says it): a JPEG whose longer side is\n" +
+    "at most --px (128, 256 or 512), turned as the picture is shown. Of a JPEG, a PNG, a HEIC photo or a PDF's first page\n" +
+    "(HEIC and PDF where this computer converts them); anything else has none. The original is never changed.",
+  args: [{ name: "sha", description: "the file's SHA-256", required: true }],
+  options: [{ name: "px", type: "string", value: "<px>", description: `the longer side: ${THUMB_SIZES.join(", ")} (default 256)` }],
+  examples: ["strom media thumb f8dd5239cb925b731939be569b5e2183717b55b919dabe24e6cdfb6cb8ac9d8d --px 128"],
+  run(ctx, { args, opts }) {
+    const tree = ctx.tree();
+    const sha = args[0]!.trim().toLowerCase();
+    const px = opts.px === undefined ? 256 : Number(opts.px);
+    if (!(THUMB_SIZES as readonly number[]).includes(px)) throw new UsageError(`--px: ${THUMB_SIZES.join(", ")}`, { code: "thumb.size" });
+    if (!/^[0-9a-f]{64}$/.test(sha)) throw new UsageError("the file's SHA-256 (64 hexadecimal digits)", { code: "thumb.sha" });
+    const known = knownOriginal(tree, ctx.settings.shared()?.value, sha);
+    if (!known) throw new UsageError(`the research has no file of the content ${sha.slice(0, 12)}…`, { code: "media.unknown", hint: "strom input list" });
+    if (!known.file || !fs.existsSync(known.file)) throw new UsageError(`the file of ${known.id} is not on this computer`, { code: "media.gone", params: { known: known.id } });
+    const file = makeThumb(tree.root, known.file, sha, px, ctx.env);
+    return { text: file, data: { file, px, of: known.id } };
+  },
+});
 
 register({
   path: ["media", "original"],

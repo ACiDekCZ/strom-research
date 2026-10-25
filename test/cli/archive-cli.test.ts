@@ -27,7 +27,7 @@ const ENGLISH = /the person|its first item|strom run|to go on|no tasks|persons|f
 
 const LANGS = [
   { lang: "cs", archive: /^chyba: Tento výzkum je Archiv Stromu: data přicházejí z aplikace Strom a nic se nezkoumá\. Výzkum se zapíná v menu, první položka\.$/m, waiting: /^chyba: Výzkum čeká na AI agenta \(Claude Code\), který na tomto počítači není/m, hint: /^→ nebo v terminálu: strom (mode research|setup)$/m },
-  { lang: "en", archive: /^error: This research is a Strom archive: its data come from the Strom app and nothing is researched\. Research is switched on in the menu, its first item\.$/m, waiting: /^error: The research waits for its AI agent \(Claude Code\), which is not on this computer/m, hint: /^→ strom (mode research|setup)\b/m },
+  { lang: "en", archive: /^error: This research is a Strom archive: its data come from the Strom app and nothing is researched\. Research is switched on in the menu, its first item\.$/m, waiting: /^error: The research waits for its AI agent \(Claude Code\), which is not on this computer/m, hint: /^→ or in a terminal: strom (mode research|setup)$/m },
   { lang: "de", archive: /^Fehler: Diese Forschung ist ein Strom-Archiv: die Daten kommen aus der Strom-App, und nichts wird erforscht\./m, waiting: /^Fehler: Die Forschung wartet auf ihren KI-Agenten \(Claude Code\)/m, hint: /^→ oder im Terminal: strom (mode research|setup)$/m },
 ] as const;
 

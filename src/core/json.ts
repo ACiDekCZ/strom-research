@@ -51,6 +51,8 @@ const HELD = new Set(["EPERM", "EBUSY", "EACCES"]);
 /** An error of a file another program held past the waits (cli/main.ts says so in plain words): the file it was about. */
 export interface HeldError extends NodeJS.ErrnoException {
   heldFile?: string;
+  /** git refused to start in a research (core/git.ts): the research's .git (or folder) it was to work in. */
+  gitFolder?: string;
 }
 
 /**

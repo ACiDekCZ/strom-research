@@ -1,5 +1,6 @@
 // search · searched · conflict · hypothesis · lesson · find · gaps
 
+import { actsAsArchive } from "../core/state.ts";
 import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
@@ -114,6 +115,8 @@ function tasksAbout(tree: Tree, id: string): Task[] {
 }
 
 function taskLines(tree: Tree, id: string): string | undefined {
+  // an archive (a research waiting for its agent too) says nothing of tasks
+  if (actsAsArchive(tree)) return undefined;
   const tasks = tasksAbout(tree, id);
   return tasks.length ? `tasks  ${tasks.map((t) => `${t.id}${t.state === "open" ? "" : ` [${t.state}]`}`).join(" ")}` : undefined;
 }
@@ -150,6 +153,7 @@ function sourcesNotOnPeople(tree: Tree, h: Hypothesis): { person: string; source
 }
 
 function stillOpen(tree: Tree, id: string): string | undefined {
+  if (actsAsArchive(tree)) return undefined;
   const open = tasksAbout(tree, id).filter((t) => !["done", "dropped"].includes(t.state));
   return open.length ? ui(tree.lang, "ui.conflict.tasks-open", { id, tasks: open.map((t) => t.id).join(", "), first: open[0]!.id }) : undefined;
 }
@@ -442,6 +446,22 @@ register(
 /** "A: claim", "B : claim", "3: claim" — one letter or a number before the colon; "Jan: …" is a claim, not a letter. */
 const VARIANT_LABEL = /^(\p{L}|\p{N}{1,2})\s*:\s*(.+)$/su;
 
+/**
+ * A note strom wrote when a conflict was decided again (`strom conflict resolve`, kept in English in the record), as
+ * the person reads it in the research's language (found: "earlier decided by the user (the research's value): …" in a
+ * Czech research); any other note as it is.
+ */
+function decisionNote(lang: string, text: string): string {
+  const earlier = /^earlier decided(?: by the (user|agent))?(?: \(the (user's|research's) value\))?: (.*?) — (.*)$/su.exec(text);
+  if (earlier) {
+    const [, by, value, resolution, reasoning] = earlier;
+    const side = value ? ` (${ui(lang, value === "user's" ? "ui.conflict.earlier.side.user" : "ui.conflict.earlier.side.research")})` : "";
+    return ui(lang, by === "user" ? "ui.conflict.earlier.user" : by === "agent" ? "ui.conflict.earlier.agent" : "ui.conflict.earlier", { side, resolution: resolution!, reasoning: reasoning! });
+  }
+  const again = /^decided again on ((?:S\d+(?:, )?)+): (.*)$/su.exec(text);
+  return again ? ui(lang, "ui.conflict.again", { sources: again[1]!, reason: again[2]! }) : text;
+}
+
 register(
   {
     path: ["conflict", "add"],
@@ -497,7 +517,8 @@ register(
     description:
       "A decided conflict is decided again only with --reason (the earlier decision is kept in a note). One the user decided " +
       "(in the Strom app, or at a terminal) stands: an agent decides it again only on a source the decision did not weigh " +
-      "(--source S…) and with --reason; a side once taken is not taken again — change the facts with the fact commands.",
+      "(--source S…) and with --reason; a side once taken is not taken again — change the facts with the fact commands — " +
+      "except whether a person stays in the tree (PERSON): the other side, with --reason, puts them back or takes them away.",
     args: [{ name: "conflict", description: "conflict ID (X0001)", required: true }],
     options: [
       { name: "resolution", type: "string", value: "<text>", description: "the conclusion (with --take: the value taken, by default)" },
@@ -558,7 +579,9 @@ register(
           },
           {
             op: "conflict.resolve",
-            summary: `${id} ${again ? "decided again" : "resolved"}${side ? ` — the ${side === "user" ? "user's edit" : "research's"} taken` : ""}${inApp ? " in the Strom app" : ""}`,
+            // the reasoning of this decision in its operation: the history says each decision with its own, never the
+            // last one's (found: four decisions of a person's place in the tree, each with the fourth's reasoning)
+            summary: `${id} ${again ? "decided again" : "resolved"}${side ? ` — the ${side === "user" ? "user's edit" : "research's"} taken` : ""}${inApp ? " in the Strom app" : ""}; why: ${truncate(String(opts.reasoning), 300)}`,
             ...(reason ? { reason } : {}),
           },
         );
@@ -616,7 +639,7 @@ register(
           taskLines(tree, c.id),
           ...c.claims.map((cl) => `${t("ui.conflict.claim")}  ${cl.source ? `${cl.source}: ` : ""}${value(claimText(tree, c, cl))}`),
           c.resolution ? `\n${t("ui.conflict.resolution")}  ${c.resolution}\n${t("ui.conflict.reasoning")}  ${c.reasoning ?? ""}` : undefined,
-          ...c.notes.map((n) => `${t("ui.conflict.note")}  ${n.text}`),
+          ...c.notes.map((n) => `${t("ui.conflict.note")}  ${decisionNote(tree.lang, n.text)}`),
         ),
         data: { conflict: c },
       };

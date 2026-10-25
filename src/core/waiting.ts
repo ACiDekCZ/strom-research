@@ -17,7 +17,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { CHECK_ANSWERS, type Family, type Person, type RecordSet, type Repository, type Task } from "./model.ts";
+import { CHECK_ANSWERS, type Conflict, type Family, type Person, type RecordSet, type Repository, type Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 import { SENDABLE, firstUrlIn, waitGroupOf, waitKindOf, waitPhaseOf, type WaitGroup, type WaitKind, type WaitPhase } from "./waitkind.ts";
 import { archiveQuestions, archiveWaitingItems, levelWords } from "./archiveasks.ts";
@@ -29,14 +29,15 @@ import { tuneQuestions, type Question } from "./tuneask.ts";
 import type { Settings } from "./config.ts";
 import { directionOf, scopes, type Scope } from "./directions.ts";
 import { collectFiles, IMAGE_FILE_EXT, parseImageList } from "./media.ts";
-import { displayName } from "./people.ts";
+import { conflictTitle, displayName } from "./people.ts";
+import { conflictsToDecide } from "./conflicts.ts";
 import { phrase } from "./phrases.ts";
 import { actsAsArchive } from "./state.ts";
 import { ui } from "../cli/ui.ts";
 import { humanDay } from "../cli/human.ts";
 
 /** What waits: a task's kind, a question about an archive, a story, and the terminal's own (a send of the app, a question about the reading of scans). */
-export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune";
+export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict";
 export type WaitSection = "decide" | "images" | "letter" | "family" | "web" | "other";
 /** What a link of the Strom app does with an item (strom-research://task?…&do=): answer, a file to it, the request's text, the folder, sent, a conversation. */
 export type WaitAction = "answer" | "file" | "note" | "folder" | "sent" | "chat";
@@ -52,6 +53,7 @@ const SECTION: Record<string, WaitSection> = {
   story: "decide",
   send: "decide",
   tune: "decide",
+  conflict: "decide",
   images: "images",
   letter: "letter",
   family: "family",
@@ -66,7 +68,7 @@ export function sectionOf(kind: string): WaitSection {
 /** To be done: the decisions, then images and sites, then letters and the family, then the rest. */
 const SECTION_RANK: Record<WaitSection, number> = { decide: 0, images: 1, web: 1, letter: 2, family: 2, other: 3 };
 /** Among the decisions: the person's own edits first, the archives (they hold work up), then the rest. */
-const DECIDE_RANK: Record<string, number> = { send: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, tune: 6 };
+const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, tune: 6 };
 
 /** The actions each kind of task allows (those links do now: ACTIONS_OFFERED). */
 function actionsOf(kind: WaitingKind, phase: WaitPhase, note: boolean): WaitAction[] {
@@ -106,6 +108,8 @@ export interface Waiting {
   story?: string;
   send?: Received;
   tune?: Question;
+  /** An open conflict the person decides (the terminal). */
+  conflict?: Conflict;
 }
 
 export interface WaitingOptions {
@@ -119,6 +123,8 @@ export interface WaitingOptions {
   sends?: boolean;
   /** The questions about the reading of scans that are due (the terminal): the settings to ask them with. */
   tune?: Settings;
+  /** The open conflicts the person decides (the terminal; core/conflicts.ts conflictsToDecide). */
+  conflicts?: boolean;
   /** A connector's word that an archive allows more (the terminal). */
   milder?: boolean;
   /** The research's directions, when the caller has them. */
@@ -358,6 +364,13 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
           phase: "todo",
           actions: [],
         },
+      });
+  // the open conflicts the person decides: their own edits against the research, every one where no agent works
+  if (o.conflicts)
+    for (const c of conflictsToDecide(tree))
+      out.push({
+        conflict: c,
+        item: { id: c.id, what: conflictTitle(tree, c), on: "", at: c.created, kind: "conflict", section: "decide", group: { key: "conflicts", name: phrase(lang, "wait.group.conflicts"), kind: "other" }, phase: "todo", actions: [] },
       });
   // the questions about the reading of scans only a person answers
   if (o.tune)

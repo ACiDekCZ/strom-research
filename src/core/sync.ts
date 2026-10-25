@@ -35,7 +35,7 @@ import { create, update } from "./records.ts";
 import { decodeText, foldText, safeFolderName } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
-import { eventName, humanDate } from "../cli/human.ts";
+import { eventName, humanDate, humanDay } from "../cli/human.ts";
 import { ui } from "../cli/ui.ts";
 import { StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
@@ -1543,7 +1543,7 @@ export interface SyncConflict {
 export function syncConflicts(tree: Tree, input: string): SyncConflict[] {
   const sync = tree.list<SyncInput>("input").find((i) => i.id === input)?.sync;
   if (!sync || sync.undone) return [];
-  const opened = new Set(sync.applied.filter((a) => a.do === "conflict.add" || a.do === "conflict.edit").map((a) => a.id));
+  const opened = new Set([...sync.applied.filter((a) => a.do === "conflict.add" || a.do === "conflict.edit").map((a) => a.id), ...(sync.asked ?? [])]);
   if (!opened.size) return [];
   const out: SyncConflict[] = [];
   for (const x of tree.list<Conflict>("conflict")) {
@@ -1993,7 +1993,8 @@ export function checkIdentity(tree: Tree, incoming: Snapshot, force = false): Id
   let matched = 0;
   for (const [key, p] of incoming.persons) {
     if (key.startsWith("x:")) continue;
-    const ours = resolve(tree, key);
+    // a person the app removed since (an older copy, another browser's) is ours too: never another person beside them
+    const ours = resolve(tree, key) ?? removedOf(tree, key, true);
     const alike = ours && (incoming.treeId === tree.config.id || ours.names.some((n) => p.names.some((m) => sameName(`${n.given} ${n.surname}`, m) || sharesWord(`${n.given} ${n.surname}`, m))));
     if (ours && alike) matched++;
     else strangers.push(key);
@@ -2041,6 +2042,17 @@ function resolve(tree: Tree, id: string): Person | undefined {
   return p && p.type === "person" && !p.retracted ? p : undefined;
 }
 
+/**
+ * The person of this ID, removed (retracted) — after a merge, the one merged into. `byApp`: only one a send from the
+ * Strom app removed (one retracted otherwise — a person the app brought, taken back by an undo — is no one an older copy
+ * may name: it goes on as before, matched to the newcomer it is or new).
+ */
+function removedOf(tree: Tree, id: string, byApp = false): Person | undefined {
+  let p = tree.get<Person>(id);
+  for (let hops = 0; p?.mergedInto && hops < 10; hops++) p = tree.get<Person>(p.mergedInto);
+  return p && p.type === "person" && p.retracted && (!byApp || removedBySync(tree, p.id) || removedByDecision(tree, p.id)) ? p : undefined;
+}
+
 // ── the changes ──────────────────────────────────────────────────────────────
 
 export type ChangeKind =
@@ -2067,6 +2079,7 @@ export type ChangeKind =
   | "partner.gone"
   | "family.union"
   | "person.gone"
+  | "person.removed"
   | "place.coords"
   | "source.new"
   | "source.changed"
@@ -2124,6 +2137,10 @@ export interface Change {
   kept?: true;
   /** What a send taken back since the copy was made brought (its mark, R…): only said, never written again. */
   takenBack?: string;
+  /** person.removed: the sync (I…) that removed the person the copy still has — `strom sync undo` of it puts them back. */
+  removedBy?: string;
+  /** person.gone of an older copy: who edited the person since — another copy of the app, the research, both. */
+  editedBy?: "app" | "research" | "both";
   /** family.new, partner.new: the two parents are no couple (the Strom app's _STROM_NO_COUPLE). */
   noCouple?: true;
   /** family.new, family.union: how the couple is bound (Family.union); family.union: the research's before ("" none). */
@@ -2210,6 +2227,15 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const seen = mirror && incoming.appTree ? readSeen(tree.root, incoming.appTree) : undefined;
   const had = (list: "persons" | "facts" | "children", key: string) => !seen || seen[list].includes(key);
   const identity = checkIdentity(tree, incoming, opts.force);
+  // the people removed whom the file still has by their ID — an older copy, another browser's that did not load the
+  // research since (found on Mac: P0005 written beside the removed P0004): never new people; their family links stay in
+  // their records (an undo, or the person taking them back, puts them there again), so the file's are left out here
+  const removed = new Set([...incoming.persons.keys()].filter((k) => !k.startsWith("x:") && !resolve(tree, k) && removedOf(tree, k, true)));
+  if (removed.size)
+    for (const f of incoming.families) {
+      f.partners = f.partners.filter((k) => !removed.has(k));
+      f.children = f.children.filter((k) => !removed.has(k));
+    }
   const ours = snapshotOfTree(tree);
   // characters the app's file damaged (an emoji split on a CONC line: U+FFFD U+FFFD) are not the user's edit: put back
   // from the same field of the same record in what the app was given, else in the research now
@@ -2224,6 +2250,9 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   // _STROM_SINCE stands on its own: a copy the app set back to its state before a load says no _STROM_HEAD (found on
   // Mac: an occupation edited after it added as a second one, two edits left "to pick" with nothing to pick)
   const since = !sentAgain ? sinceBase(tree, incoming) : undefined;
+  // a send taken back, sent again: what it took away it takes away again, whatever the window has seen since (found on
+  // Mac: the removal undone, sent again — "applied 0", the person kept as one the window never had)
+  const again = sentAgain ? removalsOf(tree, incoming.again!) : new Set<string>();
   const after = incoming.head && !sentAgain && !since ? afterSends(tree, incoming) : undefined;
   const base = sentAgain && incoming.head ? snapshotAt(tree, incoming.head) : (since ?? after?.base);
   // a send that wrote damaged characters into the research before: what it gave the app is mended alike
@@ -2439,7 +2468,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     if (was && !partial)
       for (const b of was)
         if (!incKeys.has(factKey(b)) && !used.has(factKey(b)) && (owner.family ? carriedFam : carried).has(kindOf(b.kind)) && ourKeys.has(factKey(b)) && !keptOnce(owner, b, inc))
-          push({ kind: "fact.gone", ...gone(had("facts", seenFact(owner.family ? famKey(owner.partners ?? []) : (owner.person ?? ""), b))), ...owner, was: b });
+          push({ kind: "fact.gone", ...gone(had("facts", seenFact(owner.family ? famKey(owner.partners ?? []) : (owner.person ?? ""), b)) || (!!b.id && again.has(b.id))), ...owner, was: b });
   };
 
   /** The sources the file gives a person or a family themselves that the research's record cites nowhere, nor did it when given. */
@@ -2534,6 +2563,99 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     }
   };
 
+  /** The user's edits of a person: the file's (`p`) against the research's (`o`) and what the app was given (`b`). */
+  const personDiff = (id: string, name: string, p: SPerson, o: SPerson, b: SPerson | undefined) => {
+  factsDiff({ person: id, name }, p.facts, o.facts, b?.facts, true);
+  citesDiff({ person: id, name }, p.cites, tree.get<Person>(id), b?.cites);
+  const ourNames = new Set(o.names.map(nameKey));
+  const baseNames = new Set((b?.names ?? []).map(nameKey));
+  // the name the person is shown by, renamed in the app (the one it was given gone from the file, the research's
+  // still that one): a name no record gives is corrected; a record's — the user's edit wins (sync.edits user, an
+  // archive: the new one shown, the record's kept beside it), else a conflict for the user (found on Windows: a
+  // rename added as another name, the app showing the old one again)
+  const [given, now, mine] = [b?.names[0], p.names[0], o.names[0]];
+  const userRenamed = !!given && !!now && !!mine && !ourNames.has(nameKey(now)) && !p.names.some((n) => nameKey(n) === nameKey(given));
+  const renamed = userRenamed && nameKey(mine!) === nameKey(given!);
+  // renamed in the app and by the research since the copy was given: the user's to decide, never only another name
+  // beside the research's (found on Mac: "Jonas Berg" added, "Johannes Bergh" shown, the app and the research apart)
+  const both = userRenamed && !renamed;
+  if (renamed || both) {
+    const shown = primaryName(tree.get<Person>(id)!);
+    push({ kind: "name.changed", action: renamed && !nameBacked(tree, shown) ? "correct" : edits === "user" ? "user" : "conflict", person: id, name, text: now, wasName: mine });
+  }
+  const theirMarried = new Set(p.married ?? []);
+  // a name the research took back (strom name retract) is no name of the user's: an older copy still has it
+  const goneNames = new Set((tree.get<Person>(id)?.retractedNames ?? []).map((n) => nameKey(gedcomName(n))));
+  for (const n of p.names) if (!theirMarried.has(n) && !((renamed || both) && n === now) && !ourNames.has(nameKey(n)) && !baseNames.has(nameKey(n)) && !goneNames.has(nameKey(n))) push({ kind: "name.new", action: "add", person: id, name, text: n });
+  marriedDiff(id, name, p, o, b);
+  // the titles of the name they are shown by (T07), each apart and never as a change of the name itself: the user's
+  // edit where the file's differs from what the app was given — one the name lacks added, a lead's corrected, a
+  // record's name the user's to decide (or their word: sync.edits user, an archive); the research's changed since
+  // too: the user's to decide. Without the state it was given only a title the name lacks is taken, another one
+  // waits to be picked; a title the file lacks takes nothing away. Asked once: a conflict open with the user's word.
+  for (const part of ["before", "after"] as const) {
+    const [theirs, mine, given] = [p.titles?.[part] ?? "", o.titles?.[part] ?? "", b?.titles?.[part] ?? ""];
+    if (exact(theirs) === exact(mine) || openTitleConflict(tree, id, part, theirs)) continue;
+    let action: ChangeAction;
+    if (b) {
+      if (exact(theirs) === exact(given)) continue;
+      const since = exact(mine) !== exact(given);
+      action = !mine && !since ? "add" : since || nameBacked(tree, primaryName(tree.get<Person>(id)!)) ? (edits === "user" ? "user" : "conflict") : "correct";
+    } else {
+      if (!theirs) continue;
+      action = mine ? "pick" : "add";
+    }
+    push({ kind: "name.title", action, person: id, name, text: theirs, title: { part, was: mine } });
+  }
+  // the sex the user set: written where no record gives the person's facts, the user's to decide where one does
+  // (found on Mac: only said, the app told "written", the app and the research apart); the research's unknown (U, which
+  // the app cannot keep: it guesses one) counts — the user's edit of a sex given known, the research's U since, is the
+  // user's to decide (found on Mac: Erik M → F in the app, U in the research, nothing written, nothing said); a sex
+  // given unknown the app only guessed: nothing to tell from it — but a file that writes U where the unknown stands
+  // (_STROM_SEX_U, the app's beta.61) gives a sex there only as the user's edit, and an older app's guess is known (a
+  // husband male, anyone else female: its reading of SEX U), so another sex is the user's edit (found on Mac: Petr U,
+  // guessed male, set female in the app, "changes 0" and the edit lost); the unknown such a file gives is a sex like
+  // the others (U01): a known sex set unknown there is the user's edit too — a lead's corrected, a record's the
+  // user's to decide (found with the app's 3.10.0-beta.11: M → U dropped in silence)
+  const [mySex, givenSex] = [o.sex ?? "U", b ? (b.sex ?? "U") : undefined];
+  const guessed = givenSex === "U" ? (incoming.sexU ? "U" : b!.husb ? "M" : "F") : undefined;
+  if (p.sex && p.sex !== mySex && givenSex !== p.sex && (mySex !== "U" || (givenSex !== undefined && givenSex !== "U") || (guessed !== undefined && p.sex !== guessed))) {
+    const backed = (tree.get<Person>(id)?.events ?? []).some((e) => !e.retracted && recordBacked(tree, e));
+    const since = givenSex !== undefined && mySex !== givenSex;
+    // set otherwise than the app guessed for the research's unknown: the user's to decide, record or none (Milan,
+    // 2026-10-04: never lost in silence, a conflict; the app keeps "unknown" only after its 3.9) — but a file whose
+    // unknown is exact guessed nothing (U01-d): a sex set there for the research's unknown is an edit like M → U, a
+    // correction where no record gives the person's facts, the user's to decide where one does
+    const overGuess = mySex === "U" && guessed !== undefined && !incoming.sexU;
+    push({ kind: "sex.changed", action: b ? (edits === "user" ? "user" : backed || since || overGuess ? "conflict" : "correct") : "report", person: id, name, text: p.sex });
+  }
+  // the notes the research took back or corrected since are words it said: an older copy's, no new note of the user's
+  notesDiff({ person: id, name }, p.notes, [o.said, b?.said ?? "", ...earlierNoteTexts(tree.get<Person>(id))], o.facts, tree.get<Person>(id)?.notes);
+  };
+
+  /**
+   * A person removed whom the file still has (`removed`): nothing of them written unless the copy edited them since it was
+   * given them — an archive (or a research waiting for its agent) keeps those edits with the removed person (nothing
+   * lost; an undo of this sync takes them off) and asks whether they come back, a conflict; else only said, with the sync
+   * that removed them.
+   */
+  const removedDiff = (key: string, p: SPerson, name: string) => {
+    const r = removedOf(tree, key)!;
+    const b = base?.persons.get(key) ?? (incoming.head ? givenAt()?.persons.get(key) : undefined);
+    const by = removedByInput(tree, r.id);
+    const at = changes.length;
+    // against them as they are now, with what other copies gave them since (a second edited copy: the user's to decide
+    // against the first, never written over it in silence), and against what this copy was given
+    if (mirror && b) personDiff(r.id, name, p, removedNow()?.persons.get(r.id) ?? b, b);
+    const edited = changes.slice(at).some((c) => c.action !== "report" && c.action !== "pick");
+    if (!edited) changes.splice(at);
+    push({ kind: "person.removed", action: edited ? "conflict" : "report", person: r.id, name, ...(by ? { removedBy: by } : {}) });
+  };
+  let given0: Snapshot | undefined | null = null;
+  const givenAt = () => (given0 === null ? (given0 = snapshotAt(tree, incoming.head!)) : given0);
+  let now0: Snapshot | undefined;
+  const removedNow = () => (now0 ??= readGedcom(exportGedcom(tree, { for: "strom", ids: true, titles: true, removed: new Set([...removed].map((k) => removedOf(tree, k)!.id)) }).text));
+
   // people
   for (const [key, p] of incoming.persons) {
     const name = p.names[0] ?? "?";
@@ -2545,80 +2667,36 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
       for (const t of p.notes) push({ kind: "note.new", action: "add", person: key, name, text: t });
       continue;
     }
+    if (removed.has(key)) {
+      removedDiff(key, p, name);
+      continue;
+    }
     const id = resolve(tree, key)!.id;
     const o = ours.persons.get(id);
-    const b = base?.persons.get(key);
     if (!o) continue;
-    factsDiff({ person: id, name }, p.facts, o.facts, b?.facts, true);
-    citesDiff({ person: id, name }, p.cites, tree.get<Person>(id), b?.cites);
-    const ourNames = new Set(o.names.map(nameKey));
-    const baseNames = new Set((b?.names ?? []).map(nameKey));
-    // the name the person is shown by, renamed in the app (the one it was given gone from the file, the research's
-    // still that one): a name no record gives is corrected; a record's — the user's edit wins (sync.edits user, an
-    // archive: the new one shown, the record's kept beside it), else a conflict for the user (found on Windows: a
-    // rename added as another name, the app showing the old one again)
-    const [given, now, mine] = [b?.names[0], p.names[0], o.names[0]];
-    const userRenamed = !!given && !!now && !!mine && !ourNames.has(nameKey(now)) && !p.names.some((n) => nameKey(n) === nameKey(given));
-    const renamed = userRenamed && nameKey(mine!) === nameKey(given!);
-    // renamed in the app and by the research since the copy was given: the user's to decide, never only another name
-    // beside the research's (found on Mac: "Jonas Berg" added, "Johannes Bergh" shown, the app and the research apart)
-    const both = userRenamed && !renamed;
-    if (renamed || both) {
-      const shown = primaryName(tree.get<Person>(id)!);
-      push({ kind: "name.changed", action: renamed && !nameBacked(tree, shown) ? "correct" : edits === "user" ? "user" : "conflict", person: id, name, text: now, wasName: mine });
-    }
-    const theirMarried = new Set(p.married ?? []);
-    // a name the research took back (strom name retract) is no name of the user's: an older copy still has it
-    const goneNames = new Set((tree.get<Person>(id)?.retractedNames ?? []).map((n) => nameKey(gedcomName(n))));
-    for (const n of p.names) if (!theirMarried.has(n) && !((renamed || both) && n === now) && !ourNames.has(nameKey(n)) && !baseNames.has(nameKey(n)) && !goneNames.has(nameKey(n))) push({ kind: "name.new", action: "add", person: id, name, text: n });
-    marriedDiff(id, name, p, o, b);
-    // the titles of the name they are shown by (T07), each apart and never as a change of the name itself: the user's
-    // edit where the file's differs from what the app was given — one the name lacks added, a lead's corrected, a
-    // record's name the user's to decide (or their word: sync.edits user, an archive); the research's changed since
-    // too: the user's to decide. Without the state it was given only a title the name lacks is taken, another one
-    // waits to be picked; a title the file lacks takes nothing away. Asked once: a conflict open with the user's word.
-    for (const part of ["before", "after"] as const) {
-      const [theirs, mine, given] = [p.titles?.[part] ?? "", o.titles?.[part] ?? "", b?.titles?.[part] ?? ""];
-      if (exact(theirs) === exact(mine) || openTitleConflict(tree, id, part, theirs)) continue;
-      let action: ChangeAction;
-      if (b) {
-        if (exact(theirs) === exact(given)) continue;
-        const since = exact(mine) !== exact(given);
-        action = !mine && !since ? "add" : since || nameBacked(tree, primaryName(tree.get<Person>(id)!)) ? (edits === "user" ? "user" : "conflict") : "correct";
-      } else {
-        if (!theirs) continue;
-        action = mine ? "pick" : "add";
-      }
-      push({ kind: "name.title", action, person: id, name, text: theirs, title: { part, was: mine } });
-    }
-    // the sex the user set: written where no record gives the person's facts, the user's to decide where one does
-    // (found on Mac: only said, the app told "written", the app and the research apart); the research's unknown (U, which
-    // the app cannot keep: it guesses one) counts — the user's edit of a sex given known, the research's U since, is the
-    // user's to decide (found on Mac: Erik M → F in the app, U in the research, nothing written, nothing said); a sex
-    // given unknown the app only guessed: nothing to tell from it — but a file that writes U where the unknown stands
-    // (_STROM_SEX_U, the app's beta.61) gives a sex there only as the user's edit, and an older app's guess is known (a
-    // husband male, anyone else female: its reading of SEX U), so another sex is the user's edit (found on Mac: Petr U,
-    // guessed male, set female in the app, "changes 0" and the edit lost); the unknown such a file gives is a sex like
-    // the others (U01): a known sex set unknown there is the user's edit too — a lead's corrected, a record's the
-    // user's to decide (found with the app's 3.10.0-beta.11: M → U dropped in silence)
-    const [mySex, givenSex] = [o.sex ?? "U", b ? (b.sex ?? "U") : undefined];
-    const guessed = givenSex === "U" ? (incoming.sexU ? "U" : b!.husb ? "M" : "F") : undefined;
-    if (p.sex && p.sex !== mySex && givenSex !== p.sex && (mySex !== "U" || (givenSex !== undefined && givenSex !== "U") || (guessed !== undefined && p.sex !== guessed))) {
-      const backed = (tree.get<Person>(id)?.events ?? []).some((e) => !e.retracted && recordBacked(tree, e));
-      const since = givenSex !== undefined && mySex !== givenSex;
-      // set otherwise than the app guessed for the research's unknown: the user's to decide, record or none (Milan,
-      // 2026-10-04: never lost in silence, a conflict; the app keeps "unknown" only after its 3.9) — but a file whose
-      // unknown is exact guessed nothing (U01-d): a sex set there for the research's unknown is an edit like M → U, a
-      // correction where no record gives the person's facts, the user's to decide where one does
-      const overGuess = mySex === "U" && guessed !== undefined && !incoming.sexU;
-      push({ kind: "sex.changed", action: b ? (edits === "user" ? "user" : backed || since || overGuess ? "conflict" : "correct") : "report", person: id, name, text: p.sex });
-    }
-    // the notes the research took back or corrected since are words it said: an older copy's, no new note of the user's
-    notesDiff({ person: id, name }, p.notes, [o.said, b?.said ?? "", ...earlierNoteTexts(tree.get<Person>(id))], o.facts, tree.get<Person>(id)?.notes);
+    personDiff(id, name, p, o, base?.persons.get(key));
   }
+  let edited0: Map<string, Set<"app" | "research">> | undefined;
+  const editedHere = (key: string) => (edited0 ??= editedSince(tree, incoming)).get(key);
   if (base && !partial)
     for (const [key, b] of base.persons)
-      if (!incoming.persons.has(key) && ours.persons.has(key)) push({ kind: "person.gone", ...gone(had("persons", key)), person: key, name: b.names[0] ?? key });
+      if (!incoming.persons.has(key) && ours.persons.has(key)) {
+        const g = gone(had("persons", key) || again.has(key));
+        // removed in a copy older than another's edit of them (another window, the person here): never removed over it in
+        // silence — whether they go, the person's to decide (asked once: kept on the person's word, only said)
+        const by = g.action === "remove" && !again.has(key) ? editedHere(key) : undefined;
+        if (by) {
+          push({ kind: "person.gone", action: keptByDecision(tree, key) ? "report" : "conflict", person: key, name: b.names[0] ?? key, editedBy: by.size > 1 ? "both" : [...by][0]! });
+          continue;
+        }
+        // kept on the person's word after this very window removed them: its copy lacks them by its own removal, never
+        // "the window never had them" — only said
+        if (g.kept && !again.has(key) && keptFrom(tree, key, incoming.appTree)) {
+          push({ kind: "person.gone", action: "report", person: key, name: b.names[0] ?? key });
+          continue;
+        }
+        push({ kind: "person.gone", ...g, person: key, name: b.names[0] ?? key });
+      }
 
   // families: by their partners — a family of one parent by its children too (the Strom app's beta.39 sends them: one
   // father of two families, each with the children of another mother); one the app gave the other parent since, or
@@ -2742,7 +2820,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     // its partners as the research has them, the one the app added next to them
     for (const p of partners) if (!o.partners.includes(p)) push({ kind: "partner.new", action: "add", family: fam.id, partners: o.partners, person: p, name: incoming.persons.get(p)?.names[0] ?? p, ...(f.noCouple ? { noCouple: true as const } : {}) });
     for (const p of o.partners)
-      if (!partners.includes(p) && b?.partners.includes(p) && !partial && incoming.persons.has(p)) push({ kind: "partner.gone", ...gone(had("persons", p)), family: fam.id, partners, person: p, name: ours.persons.get(p)?.names[0] ?? p });
+      if (!partners.includes(p) && b?.partners.includes(p) && !partial && incoming.persons.has(p)) push({ kind: "partner.gone", ...gone(had("persons", p) || again.has(`${fam.id}|${p}`)), family: fam.id, partners, person: p, name: ours.persons.get(p)?.names[0] ?? p });
     const known = new Set([...o.children, ...(b?.children ?? [])]);
     for (const c of kids)
       if (!known.has(c)) {
@@ -2790,7 +2868,7 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     }
     if (b && !partial) {
       const now = new Set([...kids, ...(kidsOfParents.get(famKey(partners)) ?? [])]);
-      for (const c of b.children) if (!now.has(c) && o.children.includes(c) && incoming.persons.has(c)) push({ kind: "child.gone", ...gone(had("children", `${famKey(f.partners)}|${c}`)), family: fam.id, partners, child: c, person: c, name: ours.persons.get(c)?.names[0] ?? incoming.persons.get(c)?.names[0] ?? c });
+      for (const c of b.children) if (!now.has(c) && o.children.includes(c) && incoming.persons.has(c)) push({ kind: "child.gone", ...gone(had("children", `${famKey(f.partners)}|${c}`) || again.has(`${fam.id}|${c}`)), family: fam.id, partners, child: c, person: c, name: ours.persons.get(c)?.names[0] ?? incoming.persons.get(c)?.names[0] ?? c });
     }
   }
 
@@ -3028,7 +3106,12 @@ function takenBack(tree: Tree, incoming: Snapshot, edits: "conflict" | "user", c
       continue;
     }
     const keys = new Set(theirs.map(changeKey));
-    for (const c of changes) if (!c.takenBack && c.action !== "report" && keys.has(changeKey(c))) Object.assign(c, { action: "report", takenBack: r.intake });
+    // what it took away and the undo put back, too: taken back, not kept for a window that never had it (found on Mac)
+    for (const c of changes)
+      if (!c.takenBack && (c.action !== "report" || c.kept) && keys.has(changeKey(c))) {
+        delete c.kept;
+        Object.assign(c, { action: "report", takenBack: r.intake });
+      }
   }
 }
 
@@ -3411,7 +3494,8 @@ export interface Applied {
 }
 
 export interface SyncInput extends Input {
-  sync?: { head?: string; edits: "conflict" | "user"; applied: Applied[]; undone?: string };
+  /** `asked`: the conflicts open already that the send asked again (the same question): told the app as its own. */
+  sync?: { head?: string; edits: "conflict" | "user"; applied: Applied[]; undone?: string; asked?: string[] };
 }
 
 /**
@@ -3487,9 +3571,11 @@ function tiedLink(partners: string[], link: ChildLink, by: Record<string, string
   return { person: link.person, relation, ...(Object.keys(relations).length ? { relations } : {}) };
 }
 
-export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: Source, only?: Set<number>): { applied: Applied[]; changes: number; skipped: Skipped[] } {
+export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: Source, only?: Set<number>): { applied: Applied[]; changes: number; skipped: Skipped[]; asked?: string[] } {
   const applied: Applied[] = [];
   const skipped: Skipped[] = [];
+  // the conflicts open already that this send asks again (whether a removed person comes back): the app is told of them too
+  const asked: string[] = [];
   const cite = (locator: string) => ({ source: source.id, locator });
   const reason = `${source.title} (${source.id})`;
   const taken = (c: Change) => (only ? only.has(c.n) : c.action !== "pick") && c.action !== "report";
@@ -3967,7 +4053,39 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           applied.push({ do: "event.retract", id: mine.id, before: mine.status });
           break;
         }
+        case "person.removed": {
+          // removed (by an earlier send) and edited in this copy since: the edits are the removed person's now, whether
+          // they come back the person's to decide (conflict resolve --take user puts them back)
+          const p = c.person ? removedOf(tree, c.person) : undefined;
+          if (!p) break;
+          const name = gedcomName(primaryName(p)).replace(/\//g, "").replace(/\s+/g, " ").trim();
+          const day = humanDay(p.retracted!.at, tree.lang);
+          const ours = ui(tree.lang, "ui.conflict.removed.ours", { day, sync: c.removedBy ?? "—" });
+          const theirs = ui(tree.lang, "ui.conflict.removed.theirs");
+          const { open } = conflictOfEdit(tree, applied, p.id, "PERSON", editTitle(name, ui(tree.lang, "ui.conflict.removed"), ours, theirs), [
+            { value: `removed${c.removedBy ? ` ${c.removedBy}` : ""}`, note: "the research: removed by an earlier send", text: ours },
+            { source: source.id, value: "edited", note: "the user's edit", text: theirs },
+          ]);
+          if (open) asked.push(open);
+          break;
+        }
         case "person.gone": {
+          if (c.action === "conflict") {
+            // removed in an older copy, edited since in another: whether they go, the person's to decide (--take user removes them)
+            const p = c.person ? resolve(tree, c.person) : undefined;
+            if (!p) break;
+            const name = gedcomName(primaryName(p)).replace(/\//g, "").replace(/\s+/g, " ").trim();
+            const by = c.editedBy ?? "app";
+            const ours = ui(tree.lang, by === "app" ? "ui.conflict.removing.ours" : `ui.conflict.removing.${by}`);
+            const theirs = ui(tree.lang, "ui.conflict.removing.theirs");
+            const where = by === "app" ? "in another copy" : by === "research" ? "in the research" : "in another copy and in the research";
+            const { open } = conflictOfEdit(tree, applied, p.id, "PERSON", editTitle(name, ui(tree.lang, "ui.conflict.removed"), ours, theirs), [
+              { value: "edited", note: `the research: edited since ${where}`, text: ours },
+              { source: source.id, value: "removed", note: "the user's edit", text: theirs },
+            ]);
+            if (open) asked.push(open);
+            break;
+          }
           const p = c.action === "remove" && c.person ? resolve(tree, c.person) : undefined;
           if (!p) break;
           try {
@@ -4288,7 +4406,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
     );
     applied.push({ do: "task.add", id: t.id });
   }
-  return { applied, changes: changes - skipped.length, skipped };
+  return { applied, changes: changes - skipped.length, skipped, ...(asked.length ? { asked } : {}) };
 }
 
 /** Where a task to check a reading of a document confirmed in the app comes from (one per person and its sources). */
@@ -4403,7 +4521,35 @@ export function takeSide(tree: Tree, x: Conflict, side: "user" | "research", rea
     if (!done) throw new UsageError(`${child} is no longer a child of ${from}, or already of ${to.id}`, { hint: `strom family show ${from}` });
     return `${child} a child of ${to.id} (${partners.join(" & ")}), no longer of ${from}${done.retracted ? ` — ${from} retracted, nothing left in it` : ""}`;
   }
+  if (side === "research" && x.fact === "PERSON" && x.taken === "user") {
+    // decided again: the user's side taken before is taken back — the person as the research had them
+    const p = x.subject[0] ? tree.get<Person>(x.subject[0]) : undefined;
+    if (!p || p.mergedInto) throw new UsageError(`the person of ${x.id} is no longer in the research`, { hint: `strom conflict show ${x.id}` });
+    if (x.claims.find((c) => c.note === "the user's edit")?.value === "removed") {
+      if (!p.retracted) return `${p.id} in the tree already`;
+      update<Person>(tree, p.id, "person", ({ retracted: _r, ...q }) => q as Person, { op: "person.restore", summary: `${p.id} restored: decided again (${x.id}): ${reason}`, reason });
+      return `${p.id} back in the tree`;
+    }
+    if (p.retracted) return `${p.id} removed already`;
+    retractPerson(tree, p.id, `decided again (${x.id}): ${reason}`);
+    return `${p.id} removed`;
+  }
   if (side === "research") return undefined;
+  // a person removed by an earlier send whom another copy edited: back in the tree, with those edits and their family
+  // links (kept in the record all along)
+  if (x.fact === "PERSON") {
+    const p = x.subject[0] ? tree.get<Person>(x.subject[0]) : undefined;
+    if (!p || p.mergedInto) throw new UsageError(`the person of ${x.id} is no longer in the research`, { hint: `strom conflict show ${x.id}` });
+    // removed in an older copy of the app, edited since in another: removed on the person's word
+    if (x.claims.find((c) => c.note === "the user's edit")?.value === "removed") {
+      if (p.retracted) return `${p.id} removed already`;
+      retractPerson(tree, p.id, `the user's edit (${x.id}): ${reason}`);
+      return `${p.id} removed`;
+    }
+    if (!p.retracted) return `${p.id} in the tree already`;
+    update<Person>(tree, p.id, "person", ({ retracted: _r, ...q }) => q as Person, { op: "person.restore", summary: `${p.id} restored: the user's edit (${x.id}): ${reason}`, reason });
+    return `${p.id} back in the tree`;
+  }
   // a title of the name the user gave in the Strom app ("" taken off): on the name the person is shown by
   if (!x.edit && (x.fact === "NPFX" || x.fact === "NSFX")) {
     const user = x.claims.find((c) => c.note === "the user's edit");
@@ -4465,13 +4611,13 @@ function parentsText(tree: Tree, incoming: Snapshot, keys: string[]): string {
   return keys.map(shown).join(" & ") || "?";
 }
 
-function conflictOfEdit(tree: Tree, applied: Applied[], owner: string, fact: string, title: string, claims: Conflict["claims"], edit?: Conflict["edit"], parents?: Conflict["parents"]): { was?: string } {
+function conflictOfEdit(tree: Tree, applied: Applied[], owner: string, fact: string, title: string, claims: Conflict["claims"], edit?: Conflict["edit"], parents?: Conflict["parents"]): { was?: string; open?: string } {
   const [ours, theirs] = claims;
   const open = tree
     .list<Conflict>("conflict")
     .find((x) => x.state === "open" && x.fact === fact && x.subject[0] === owner && x.claims.length === 2 && x.claims[0]!.note === ours!.note && x.claims[0]!.value === ours!.value && x.claims[1]!.note === theirs!.note);
   if (open) {
-    if (open.claims[1]!.value === theirs!.value) return {};
+    if (open.claims[1]!.value === theirs!.value) return { open: open.id };
     update<Conflict>(tree, open.id, "conflict", (x) => ({ ...x, title: title.slice(0, 200), claims: [x.claims[0]!, theirs!], ...(edit ? { edit } : {}), ...(parents ? { parents } : {}) }), {
       op: "conflict.edit",
       summary: `${open.id} the user's edit now: ${theirs!.value.slice(0, 80)}`,
@@ -4482,6 +4628,122 @@ function conflictOfEdit(tree: Tree, applied: Applied[], owner: string, fact: str
   const x = create<Conflict>(tree, "conflict", { title: title.slice(0, 200), fact, subject: [owner], claims, ...(edit ? { edit } : {}), ...(parents ? { parents } : {}), state: "open" } as never, (id) => `+${id} conflict "${title.slice(0, 60)}"`, [owner]);
   applied.push({ do: "conflict.add", id: x.id });
   return {};
+}
+
+/**
+ * What the sync of a send (its mark, R…) took away: the people, facts (their IDs), and a family's partners and children
+ * (`F…|P…`) — sent again, it takes them away again.
+ */
+function removalsOf(tree: Tree, intake: string): Set<string> {
+  const input = receivedAll(tree.root).find((r) => r.intake === intake)?.input;
+  const out = new Set<string>();
+  for (const a of (input ? tree.get<SyncInput>(input)?.sync?.applied : undefined) ?? []) {
+    if (a.do === "person.retract" || a.do === "event.retract") out.add(a.id);
+    else if (a.do === "child.remove" || a.do === "partner.remove") {
+      try {
+        const b = JSON.parse(String(a.before ?? "{}")) as { person?: string; partner?: string };
+        const who = b.person ?? b.partner;
+        if (who) out.add(`${a.id}|${who}`);
+      } catch {
+        // an older record: nothing more
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The sync (I…) that removed a person — the person the Strom app no longer has, retracted by it and not undone since:
+ * the newest one, so `strom sync undo <it>` puts them back. None when they were retracted another way.
+ */
+export function removedBySync(tree: Tree, person: string): SyncInput | undefined {
+  return tree
+    .list<SyncInput>("input")
+    .filter((i) => i.sync && !i.sync.undone && i.sync.applied.some((a) => a.do === "person.retract" && a.id === person))
+    .sort((a, b) => b.created.localeCompare(a.created) || b.id.localeCompare(a.id))[0];
+}
+
+/**
+ * The conflict of an older copy's removal of a person edited since in another (PERSON, the user's side "removed") that the
+ * person decided — taken `side`.
+ */
+function removalDecided(tree: Tree, person: string, side: "user" | "research"): Conflict | undefined {
+  return tree
+    .list<Conflict>("conflict")
+    .filter((x) => x.state === "resolved" && x.fact === "PERSON" && x.subject[0] === person && x.taken === side && x.claims.find((c) => c.note === "the user's edit")?.value === "removed")
+    .sort((a, b) => b.updated.localeCompare(a.updated))[0];
+}
+
+/** A person the person removed in such a conflict (and not back since): removed by the app as one removed by a send. */
+function removedByDecision(tree: Tree, person: string): Conflict | undefined {
+  return removalDecided(tree, person, "user");
+}
+
+/** A person the person kept in such a conflict: an older copy without them asks no more. */
+function keptByDecision(tree: Tree, person: string): boolean {
+  return !!removalDecided(tree, person, "research");
+}
+
+/**
+ * The people a send's removal took away on the person's word (its conflict decided "remove") and still away: its undo
+ * does not put them back — the decision stands until decided again.
+ */
+export function removedByItsDecision(tree: Tree, input: SyncInput): { person: string; name: string; conflict: string }[] {
+  const out: { person: string; name: string; conflict: string }[] = [];
+  for (const a of input.sync?.applied ?? []) {
+    if (a.do !== "conflict.add") continue;
+    const x = tree.get<Conflict>(a.id);
+    const person = x?.subject[0];
+    if (!x || x.fact !== "PERSON" || x.taken !== "user" || x.claims.find((c) => c.note === "the user's edit")?.value !== "removed" || !person) continue;
+    const p = removedOf(tree, person);
+    if (!p) continue;
+    out.push({ person: p.id, name: gedcomName(primaryName(p)).replace(/\//g, "").replace(/\s+/g, " ").trim(), conflict: x.id });
+  }
+  return out;
+}
+
+/** A person kept in such a conflict that a send of this tree of the app opened (its removal). */
+function keptFrom(tree: Tree, person: string, appTree: string | undefined): boolean {
+  const x = removalDecided(tree, person, "research");
+  if (!x || !appTree) return false;
+  const input = tree.list<SyncInput>("input").find((i) => i.sync?.applied.some((a) => a.do === "conflict.add" && a.id === x.id));
+  return !!input && receivedAll(tree.root).some((r) => r.input === input.id && r.tree === appTree);
+}
+
+/** The sync (I…) that removed a person: the send that removed them, else the one whose removal the person took in a conflict. */
+function removedByInput(tree: Tree, person: string): string | undefined {
+  const sync = removedBySync(tree, person);
+  if (sync) return sync.id;
+  const x = removedByDecision(tree, person);
+  return x ? tree.list<SyncInput>("input").find((i) => i.sync?.applied.some((a) => a.do === "conflict.add" && a.id === x.id))?.id : undefined;
+}
+
+/**
+ * The people whose records changed since the state the copy stands on (_STROM_HEAD) otherwise than by the sends of its
+ * own tree of the app — and by whom: another window's send ("app"), the person's or an agent's edit here ("research").
+ * A send taken back (strom sync undo) and its undo count for nothing: the person is as the copy had them again.
+ */
+function editedSince(tree: Tree, incoming: Snapshot): Map<string, Set<"app" | "research">> {
+  const out = new Map<string, Set<"app" | "research">>();
+  if (!incoming.head || !/^[0-9a-f]{7,64}$/i.test(incoming.head)) return out;
+  const r = git.runGit(tree.root, ["log", "--name-status", "--no-renames", "--format=%x1e%H", `${incoming.head}..HEAD`, "--", "data/persons", "data/inputs"]);
+  if (r.status !== 0) return out;
+  const own = new Set(sendsSince(tree, incoming, 1000));
+  const undone = new Set(tree.list<SyncInput>("input").filter((i) => i.sync?.undone).map((i) => i.id));
+  for (const entry of r.stdout.split("\x1e").slice(1)) {
+    const [commit, ...lines] = entry.trim().split("\n");
+    if (!commit || own.has(commit.trim())) continue;
+    const files = lines.map((l) => /^([A-Z])\d*\t(.+)$/.exec(l.trim())).filter((m) => !!m);
+    const inputs = files.map((m) => ({ status: m[1]!, id: /^data\/inputs\/(I\d+)\.json$/.exec(m[2]!)?.[1] })).filter((x) => !!x.id);
+    // a send, or the undo of one, that is taken back now
+    if (inputs.some((x) => undone.has(x.id!))) continue;
+    const by = inputs.some((x) => x.status === "A" && tree.get<SyncInput>(x.id!)?.sync) ? "app" : "research";
+    for (const m of files) {
+      const id = /^data\/persons\/(.+)\.json$/.exec(m[2]!)?.[1];
+      if (id) (out.get(id) ?? out.set(id, new Set()).get(id)!).add(by);
+    }
+  }
+  return out;
 }
 
 /**

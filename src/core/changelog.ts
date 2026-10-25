@@ -16,6 +16,7 @@ import { phrase, type PhraseKey } from "./phrases.ts";
 import { clock } from "./net.ts";
 import { eventName, humanDate, humanPlace, humanTask } from "../cli/human.ts";
 import { UI, ui, type UIKey } from "../cli/ui.ts";
+import { actsAsArchive } from "./state.ts";
 
 /** Operations nobody needs to read: what another line says already, or bookkeeping. */
 const QUIET = new Set(["session.metrics", "session.readers", "task.start", "task.continue", "session.note", "tree.settle", "seal.adopt"]);
@@ -199,7 +200,10 @@ function sourcesOf(tree: Tree, o: Op): string[] {
  * Lines of what a commit saved, in the research language, each with what it is about and the sources it names (for
  * the Strom app to open them: /log `sources`); its subject when it logged no operation.
  */
-export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string, was?: Tree): { text: string; kind: ChangeKind; sources?: string[] }[] {
+export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string, was?: Tree, tasks?: boolean): { text: string; kind: ChangeKind; sources?: string[] }[] {
+  // an archive, or a research waiting for its agent, says nothing of tasks: what it keeps put aside for the agent is
+  // no "new task" a person reads (found in an archive: "Nový úkol: …" in status and history, task list empty)
+  const saysTasks = tasks ?? !actsAsArchive(tree);
   const get = <T extends AnyRecord>(id: string | undefined) => (id ? tree.get<T>(id) : undefined);
   const who = (id: string | undefined): string => {
     const r = get<Person | Family>(id);
@@ -273,17 +277,31 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
   const out: { text: string; kind: ChangeKind; sources?: string[] }[] = [];
   let kind: ChangeKind = "other";
   let cites: string[] = [];
-  const say = (line: string) => {
+  // lines said first, whatever their operation's place: what the change was (a conflict decided), its effects after it
+  let leads = 0;
+  const say = (line: string, lead = false) => {
     if (!line) return;
     const had = out.find((l) => l.text === line);
-    if (!had) out.push({ text: line, kind, ...(cites.length ? { sources: cites } : {}) });
+    if (!had) out.splice(lead ? leads++ : out.length, 0, { text: line, kind, ...(cites.length ? { sources: cites } : {}) });
     // the same line of another operation: its sources too
     else for (const id of cites) if (!had.sources?.includes(id) && (had.sources?.length ?? 0) < LINE_SOURCES_MAX) had.sources = [...(had.sources ?? []), id];
   };
+  // a person a conflict's decision removed or put back (whether they stay in the tree: PERSON): said in the decision's
+  // line, never apart as "(and 1 more change)" (found: a person removed and put back four times, each said nowhere)
+  const effects = new Map<string, Op>();
+  for (const o of ops) {
+    if (o.op !== "conflict.resolve" || !o.targets[0]) continue;
+    const x = get<Conflict>(o.targets[0]);
+    if (x?.fact !== "PERSON" || !(/; why: /.test(o.summary) || x.reasoning?.trim())) continue;
+    const p = ops.find((y) => (y.op === "person.retract" || y.op === "person.restore") && y.targets[0] === x.subject[0] && `${y.summary} ${y.reason ?? ""}`.includes(`(${x.id})`));
+    if (p) effects.set(x.id, p);
+  }
+  const folded = new Set(effects.values());
   // Images downloaded: one line for each book, whatever their order.
   const images = new Map<string, number[]>();
   for (const o of ops) {
-    if (QUIET.has(o.op)) continue;
+    if (QUIET.has(o.op) || folded.has(o)) continue;
+    if (!saysTasks && o.op.startsWith("task.")) continue;
     kind = kindOf(o.op);
     cites = sourcesOf(tree, o);
     const [first, second] = o.targets;
@@ -417,6 +435,17 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     // a file that came for a task: only that it came, never words as the person's
     if (o.op === "task.file") {
       say(phrase(lang, "log.task.file", { name: name(first), inputs: o.targets.slice(1).join(", ") }));
+      continue;
+    }
+    // a conflict decided: the decision and why, first — the fact it took back or wrote is its effect (found in an
+    // archive: "Odvoláno: …" alone in the history, the decision and its reason nowhere)
+    if (o.op === "conflict.resolve") {
+      // this decision's own reasoning, from its operation (a conflict decided again keeps only the last in its record);
+      // an operation written before it said its reasoning: the record's
+      const reasoning = (/; why: (.*)$/su.exec(o.summary)?.[1] ?? get<Conflict>(first)?.reasoning)?.trim();
+      const effect = effects.get(first ?? "")?.op;
+      const key = effect === "person.retract" ? "log.conflict.decided.removed" : effect === "person.restore" ? "log.conflict.decided.restored" : "log.conflict.decided";
+      say(reasoning ? phrase(lang, key, { name: name(first), reasoning: short(reasoning, 120) }) : phrase(lang, "log.conflict.resolve", { name: name(first) }), true);
       continue;
     }
     const key = SAID[o.op];

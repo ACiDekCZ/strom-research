@@ -12,6 +12,7 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { isAgent } from "../core/which.ts";
+import { offerAdopt } from "./seal.ts";
 import { mb, setTidyAsked, tidyAsked, tidyOn, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
 
@@ -125,8 +126,10 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       root = undefined;
     }
 
+    // seen here before, gone from their folders since (moved?): said — and no new tree asked for in their place
+    const missing = ctx.missingTrees();
     // No family tree yet: name it, create it, and start the research.
-    if (!root && known.length === 0) {
+    if (!root && known.length === 0 && missing.length === 0) {
       if (outOfAnswers()) return;
       const name = await ctx.ask(t("ui.tree.name"), t("ui.tree.default"));
       const made = await createTree(ctx, run, lang, name);
@@ -148,6 +151,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
     // where the backup before another channel or an older version is, for a month
     const backup = lastBackup(ctx.env, BACKUP_SAID_DAYS);
     if (backup) out(lastBackupLine(lang, backup));
+    for (const m of missing) out(t("ui.trees.missing", { name: m.name, path: ctx.display(m.root) }));
     const newer = await newerVersion(ctx.settings, ctx.env);
     // a research a newer strom wrote (a beta's): never opened here — why and the way on, then the menu without it
     const locked = root ? newerTree(root, ctx.env) : undefined;
@@ -183,6 +187,16 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       const current = ctx.settings.agent(tree.config).value;
       if (archive) out(t("ui.menu.archive"));
       else if (waitAgent) out(agentsHere(ctx.env).length ? t("ui.menu.waitagent.chosen", { agent: PROFILES[current]?.name ?? current }) : t("ui.menu.waitagent"));
+      // sealed on another computer (its folder brought here, strom's settings gone): read, not written — taken over by
+      // the person, offered once at a terminal (as strom seal adopt: every record checked, their yes)
+      if (!tree.key) {
+        out(t("ui.menu.seal"));
+        if (offerAdopt(ctx, root, !isAgent(ctx.env))) {
+          out();
+          await run(["seal", "adopt", "--tree", root]);
+          out();
+        }
+      }
       if (waiting) out(t("ui.menu.waiting", { count: waiting }));
       // an archive's images wait for the person's decision: one line, only until it is answered
       // (since when, and the tasks that stand on it, once it waits long or holds up much)
@@ -564,6 +578,8 @@ async function pickTree(ctx: Context, run: Run, lang: string): Promise<void> {
   const packAt = at >= 0 ? options.push({ label: ui(lang, "ui.trees.pack", { name: known[at]!.name }) }) - 1 : -1;
   const unpackAt = options.push({ label: ui(lang, "ui.trees.unpack") }) - 1;
   const removeAt = known.length ? options.push({ label: ui(lang, "ui.trees.remove") }) - 1 : -1;
+  // one seen here before gone from its folder (moved?): its new folder given, remembered there (strom trees use)
+  const movedAt = ctx.missingTrees().length ? options.push({ label: ui(lang, "ui.trees.moved") }) - 1 : -1;
   // 0 always goes back: stays with the one worked on, or (none chosen yet) back to the menu — Enter too (found on
   // Windows: one who came here by Enter had to choose a tree)
   const back = { back: at >= 0 ? ui(lang, "ui.back.stay", { name: known[at]!.name }) : ui(lang, "ui.browse.back") };
@@ -587,6 +603,14 @@ async function pickTree(ctx: Context, run: Run, lang: string): Promise<void> {
     const which = await ctx.choose(ui(lang, "ui.remove.which"), known.map((k) => ({ label: `${k.name}  (${ctx.display(k.root)})` })), known.length, { back: ui(lang, "ui.browse.back") }); // Enter goes back
     if (which === undefined) return;
     await run(["trees", "remove", known[which]!.root]);
+    await partsPause(ctx, lang);
+    return;
+  }
+  if (i === movedAt) {
+    const answer = (await ctx.ask(ui(lang, "ui.trees.moved.ask"))).trim();
+    if (!answer || answer === "0") return;
+    const dropped = droppedPaths(answer).map((p) => path.resolve(ctx.cwd, expandHome(p, ctx.env)));
+    await run(["trees", "use", dropped.length === 1 ? dropped[0]! : path.resolve(ctx.cwd, expandHome(answer, ctx.env))]);
     await partsPause(ctx, lang);
     return;
   }

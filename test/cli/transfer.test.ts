@@ -574,13 +574,15 @@ test("a tree with no people yet is handed over (C1: installed from the app's sta
   const people = (await w.ok(["person", "list", "--json"], { cwd: root })).json.persons as { name: string }[];
   assert.deepEqual(people.map((p) => p.name), ["Karel Dvořák"]);
   await w.run(["live", "stop"], { cwd: root });
-  // D4: an empty research made before (its tree never came), handed an empty tree: into it, kept
+  // D4: an empty research made before (its tree never came), handed an empty tree: into it, kept — Dvořákovi, with
+  // its person, offered to open in the app first (no agent here: as an archive, b-D4): a new research
   const other = w.treeDir("Novákovi");
   w.env.STROM_ADOPT_WAIT_MS = "1500";
-  await w.run(["link", "open", `strom-research://new?app=${TOKEN.replace(/.$/, "3")}`], { tty: true, answers: ["Novákovi", "", "n", ""] });
+  const offered = await w.run(["link", "open", `strom-research://new?app=${TOKEN.replace(/.$/, "3")}`], { tty: true, answers: ["2", "Novákovi", "", "n", ""] });
+  assert.match(offered.out, /1\s+„Dvořákovi“ v aplikaci Strom \(Archiv Stromu\)\n\s+2\s+Nový výzkum se stromem z aplikace\n/);
   await w.run(["live", "stop"], { cwd: other });
   w.env.STROM_ADOPT_WAIT_MS = "60000";
-  const flow = w.run(["link", "open", `strom-research://new?app=${TOKEN.replace(/.$/, "2")}`], { tty: true, answers: ["", "n", ""] });
+  const flow = w.run(["link", "open", `strom-research://new?app=${TOKEN.replace(/.$/, "2")}`], { tty: true, answers: ["2", "", "n", ""] });
   const url = await bridgeOf(other);
   const wait = (await (await fetch(`${url}/adopt`, { headers: ORIGIN })).json()) as { existing?: boolean };
   assert.equal(wait.existing, true);
