@@ -21,7 +21,9 @@ import { lacksImages } from "../core/queue.ts";
 import { forStory } from "../core/stories.ts";
 import { isArchive } from "../core/mode.ts";
 import { actsAsArchive, stateOf } from "../core/state.ts";
-import { rankedQueue, waitingForUser } from "./tasks.ts";
+import { rankedQueue } from "./tasks.ts";
+import { waitingHere } from "../cli/menu-waiting.ts";
+import { waitingLine } from "../core/waiting.ts";
 import { readTuneLog, type TuneLogEntry } from "../core/tune.ts";
 import { calibrationLabel } from "../core/viewsizes.ts";
 import type { UIKey } from "../cli/ui.ts";
@@ -212,7 +214,9 @@ register(
       // the stories, with the searches beyond the registers before them
       const work = queue.filter((t) => !forStory(t));
       const stories = queue.filter(forStory);
-      const waiting = waitingForUser(tree).length;
+      // what waits for the person: the menu's What waits, what of it is only here in the terminal said (core/waiting.ts)
+      const waits = waitingHere(ctx, tree);
+      const waiting = waits.length;
       const shown = work.slice(0, count);
       let n = 0;
       const rows = shown.map((t) => [
@@ -227,7 +231,7 @@ register(
         if (work.length > count) out.push(`  ${ui(lang, "ui.plan.more", { n: work.length - count })}`);
         if (stories.length) out.push(ui(lang, "ui.plan.stories", { n: stories.length, names: storyNames.join(", ") }));
       }
-      if (waiting) out.push(ui(lang, "ui.plan.waiting", { n: waiting }));
+      if (waiting) out.push(waitingLine(lang, waits, "ui.plan.waiting"));
       if (queue.length) out.push("", ui(lang, "ui.plan.steer"));
       const item = (t: Task) => ({ id: t.id, what: humanTask(tree, t.what, lang), level: t.level, state: t.state, needsImages: lacksImages(tree, t) });
       return { text: lines(...out), data: { tasks: work.map(item), stories: stories.map(item), waiting } };

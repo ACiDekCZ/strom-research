@@ -5,9 +5,22 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.21.0
+
+*In preparation: the betas up to 1.21.0-beta.1. The section is complete with the release.*
+
+- **"Waiting" says what the Strom app does not show.** The line in the menu and `strom plan` says how many of the
+  waiting things are only here in the terminal and how many wait for a reply; the rest is the number the Strom app
+  shows, so the two agree.
+- **"What waits" puts the terminal's own first.** What only the terminal shows (a conflict of an own edit, a send of
+  the app, a question about the reading of scans) is listed under "Only here in the terminal", the rest under
+  "Also in the Strom app".
+- **`strom input assign`, `hide` and `unskip` say what changed** in the research's language: each file, each task
+  let go of or made, people by name, and how to take it back. Their JSON stays the same.
+
 ## 1.20.0
 
-*In preparation: the betas up to 1.20.0-beta.2. The section is complete with the release.*
+*2026-10-25 · goes with the Strom app 3.16.0.*
 
 - **The menu with nobody at a terminal says so at once.** Started where no one can answer (a closed input, a window
   without a terminal), the menu ends with one sentence in the research's language and what to do instead,

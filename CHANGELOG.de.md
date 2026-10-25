@@ -5,9 +5,22 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.21.0
+
+*In Vorbereitung: die Betas bis 1.21.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **„Wartet“ sagt, was die Strom-App nicht zeigt.** Die Zeile im Menü und `strom plan` sagt, wie viel des Wartenden
+  nur hier im Terminal ist und wie viel auf Antwort wartet; der Rest ist die Zahl, die die Strom-App zeigt, sodass
+  beide übereinstimmen.
+- **„Was wartet“ stellt das Eigene des Terminals voran.** Was nur das Terminal zeigt (ein Widerspruch einer eigenen
+  Änderung, eine Sendung der App, eine Frage zum Lesen von Scans), steht unter „Nur hier im Terminal“, der Rest unter
+  „Auch in der Strom-App“.
+- **`strom input assign`, `hide` und `unskip` sagen, was sich geändert hat**, in der Sprache der Forschung: jede
+  Datei, jede freigegebene oder neue Aufgabe, Personen mit Namen und wie es rückgängig geht. Ihr JSON bleibt gleich.
+
 ## 1.20.0
 
-*In Vorbereitung: die Betas bis 1.20.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*25.10.2026 · gehört zur Strom-App 3.16.0.*
 
 - **Das Menü ohne jemanden am Terminal sagt es sofort.** Dort gestartet, wo niemand antworten kann (geschlossene
   Eingabe, ein Fenster ohne Terminal), endet es mit einem Satz in der Sprache der Forschung und dem, was

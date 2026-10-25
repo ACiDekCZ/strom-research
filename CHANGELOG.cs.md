@@ -5,9 +5,20 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.21.0
+
+*Připravuje se: bety do 1.21.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **„Čeká“ říká, co aplikace Strom neukazuje.** Řádek v menu a `strom plan` řekne, kolik z čekajícího je jen tady
+  v terminálu a kolik čeká na odpověď; zbytek je číslo, které ukazuje aplikace Strom, takže se obě shodují.
+- **„Co čeká“ dává vlastní věci terminálu na začátek.** Co ukazuje jen terminál (rozpor vlastní úpravy, odeslání
+  z aplikace, otázka ke čtení skenů), je pod „Jen tady v terminálu“, zbytek pod „I v aplikaci Strom“.
+- **`strom input assign`, `hide` a `unskip` řeknou, co se změnilo**, v jazyce výzkumu: každý soubor, každý
+  uvolněný nebo nový úkol, lidi jménem a jak změnu vrátit. Jejich JSON zůstává stejný.
+
 ## 1.20.0
 
-*Připravuje se: bety do 1.20.0-beta.2. Oddíl bude úplný s vydáním.*
+*25. 10. 2026 · patří k aplikaci Strom 3.16.0.*
 
 - **Menu bez nikoho u terminálu to řekne hned.** Spuštěné tam, kde nemá kdo odpovědět (zavřený vstup, okno
   bez terminálu), skončí jednou větou v jazyce výzkumu a tím, co udělat místo toho, už ne chybou programu; otázka,

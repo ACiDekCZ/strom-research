@@ -3,7 +3,9 @@
 // an office, one message to the family. What is to do apart from what waits for a reply from outside (sent).
 //
 //   the overview  the places of what is to do, a page of 15 at a time (next, previous, a range, all), filtered by
-//                 section, "?" for what waits for a reply; a number opens a place — a place of one thing that thing
+//                 section, "?" for what waits for a reply; a number opens a place — a place of one thing that thing;
+//                 what the Strom app does not show (core/waiting.ts terminalOnly) first, under a heading of its own,
+//                 the app's after it under theirs
 //   a place       its things, then for all of them at once: the request texts joined, sent, a conversation
 //   a thing       what it is and waits for, then only what makes sense for its kind: the archive or the site, the
 //                 folder for images saved by hand, the request's text, sent (or back among what is to do), an answer
@@ -30,7 +32,7 @@ import { openForUser } from "../core/open.ts";
 import { isArchive } from "../core/mode.ts";
 import type { Question } from "../core/tuneask.ts";
 import { listConnectors } from "../core/connector.ts";
-import { requestFile, requestTexts, waitingFor, type Waiting, type WaitSection } from "../core/waiting.ts";
+import { inApp, requestFile, requestTexts, waitingFor, type Waiting, type WaitSection } from "../core/waiting.ts";
 import { SENDABLE, type WaitKind, type WaitPhase } from "../core/waitkind.ts";
 
 /** A person for the person reading: "Jan Novák (*1905) [P0001]". */
@@ -107,17 +109,29 @@ interface Place {
   key: string;
   name: string;
   items: Waiting[];
+  /** Its things only here in the terminal (the Strom app shows none of them). */
+  only: boolean;
 }
 
 /** The places of a list, in its order (the items of one place stand together). */
-function placesOf(items: Waiting[]): Place[] {
+function placesOf(items: Waiting[], only = false): Place[] {
   const by = new Map<string, Place>();
   for (const w of items) {
     let p = by.get(w.item.group.key);
-    if (!p) by.set(w.item.group.key, (p = { key: w.item.group.key, name: w.item.group.name, items: [] }));
+    if (!p) by.set(w.item.group.key, (p = { key: w.item.group.key, name: w.item.group.name, items: [], only }));
     p.items.push(w);
   }
   return [...by.values()];
+}
+
+/**
+ * The places of the overview: when something is only here in the terminal, its places first, apart from those the
+ * Strom app shows too (a place with both — an archive's milder question beside its tasks — in each part with its own);
+ * else the places as they come.
+ */
+function overviewPlaces(items: Waiting[]): Place[] {
+  const here = items.filter((w) => !inApp(w));
+  return here.length ? [...placesOf(here, true), ...placesOf(items.filter(inApp))] : placesOf(items);
 }
 
 /** A place's line on the overview: the thing itself when it is one, else what is there by kind. */
@@ -161,7 +175,9 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
     const counts = new Map<WaitSection, number>();
     for (const w of here) counts.set(w.item.section, (counts.get(w.item.section) ?? 0) + 1);
     if (filter && !counts.get(filter)) filter = undefined;
-    const places = placesOf(filter ? here.filter((w) => w.item.section === filter) : here);
+    const places = overviewPlaces(filter ? here.filter((w) => w.item.section === filter) : here);
+    // the part only here in the terminal and the part the Strom app shows too, each with its heading
+    const split = places.some((p) => p.only);
     const pages = Math.max(1, Math.ceil(places.length / PAGE));
     page = Math.min(page, pages - 1);
     const [from, to] = view === "all" ? [0, places.length] : view ? [view.from, Math.min(view.to, places.length)] : [page * PAGE, Math.min(places.length, (page + 1) * PAGE)];
@@ -182,6 +198,10 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
     const width = Math.max(0, ...names.map((n) => [...n].length));
     for (const [k, p] of shown.entries()) {
       const name = names[k]!;
+      if (split && (k === 0 || shown[k - 1]!.only !== p.only)) {
+        const n = places.filter((x) => x.only === p.only).reduce((a, x) => a + x.items.length, 0);
+        screen.push(`  ${t(p.only ? "ui.wait.only.head" : "ui.wait.app.head", { n })}`);
+      }
       screen.push(`${String(from + k + 1).padStart(2)}  ${name}${" ".repeat(width - [...name].length)}   ${placeDetail(t, lang, tree, p, phase)}`);
     }
     // what can be typed here, only what does something now
@@ -255,7 +275,7 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
       if (/^\d+$/u.test(a) && Number(a) >= 1 && Number(a) <= places.length) {
         const p = places[Number(a) - 1]!;
         // a place of one: that thing at once
-        await guarded(ctx, lang, async () => (p.items.length === 1 ? thing(ctx, run, lang, root, p.items[0]!) : place(ctx, run, lang, root, p.key, phase, filter)));
+        await guarded(ctx, lang, async () => (p.items.length === 1 ? thing(ctx, run, lang, root, p.items[0]!) : place(ctx, run, lang, root, p.key, phase, filter, split ? p.only : undefined)));
         break;
       }
       out(controlLine);
@@ -264,13 +284,13 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
 }
 
 /** One place: its things, then for all of them at once — the request texts joined, sent, a conversation. */
-async function place(ctx: Context, run: Run, lang: string, root: string, key: string, phase: WaitPhase, filter: WaitSection | undefined): Promise<void> {
+async function place(ctx: Context, run: Run, lang: string, root: string, key: string, phase: WaitPhase, filter: WaitSection | undefined, only?: boolean): Promise<void> {
   const t = translator(lang);
   const out = (line = "") => ctx.io.stdout(line + "\n");
   for (;;) {
     if (outOfAnswers(ctx)) return;
     const tree = Tree.open(root, ctx.env);
-    const items = waitingHere(ctx, tree).filter((w) => w.item.group.key === key && w.item.phase === phase && (!filter || w.item.section === filter));
+    const items = waitingHere(ctx, tree).filter((w) => w.item.group.key === key && w.item.phase === phase && (!filter || w.item.section === filter) && (only === undefined || only === !inApp(w)));
     if (!items.length) return;
     const name = items[0]!.item.group.name;
     const tasks = items.filter((w) => w.task).map((w) => w.task!);
