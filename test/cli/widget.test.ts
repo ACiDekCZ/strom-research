@@ -11,6 +11,8 @@ import path from "node:path";
 import { World, hasGit, until } from "../helpers.ts";
 import { treeOverview } from "../../src/core/phone-watch.ts";
 import { foldText } from "../../src/core/text.ts";
+import { Tree } from "../../src/core/tree.ts";
+import type { Task } from "../../src/core/model.ts";
 import { appSlug, isoSecond, widgetDir, widgetTree, widgetWriter, stemsOfNames, withoutNames, WIDGET_SCHEMA, type WidgetIndex, type WidgetTree } from "../../src/core/widget.ts";
 
 const AGENT = { env: { AI_AGENT: "1" } };
@@ -175,6 +177,33 @@ test("texts without names in the overview: names that drop their e gone from wha
     const names = /karl|cvrlk|cvrlek|pavl|zvanc|zvanec|mark|brzl|brzel/u;
     const all = [...t.now.lines.flatMap((l) => [l.titleNoNames, l.taskNoNames ?? ""]), ...t.findings.items.map((f) => f.textNoNames ?? ""), ...t.pending.items.map((p) => p.textNoNames ?? "")];
     for (const s of all) assert.ok(!names.test(foldText(s)), `a name in "${s}"`);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a task strom wrote of material from the app (\"Karel Němec [P0001]\"): each name once in what waits — the widget's text and its text without names, the phone's", { skip, timeout: 120_000 }, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi z Lhoty");
+    await w.ok(["lang", "cs"]);
+    await w.ok(["research", "new", "Předci Karla Němce", "--new-person", "Karel /Němec/", "--sex", "M"]); // P0001
+    await w.ok(["person", "add", "Marie /Němcová/", "--sex", "F"], AGENT); // P0002
+    const photo = path.join(w.env.HOME!, "fotka.png");
+    fs.writeFileSync(photo, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+    await w.ok(["media", "original", photo, "--name", "fotka.png", "--person", "P0001", "--person", "P0002"]); // as the bridge takes it from the app
+    const task = Tree.open(w.cwd, w.env).list<Task>("task").find((t) => t.where.includes("I0001"))!;
+    assert.match(task.what, /Karel Němec \[P0001\], Marie Němcová \[P0002\]/u, "the task as strom writes it");
+    await w.ok(["task", "wait", task.id, "--on", "Odpověď o souboru Karla Němce"]);
+    await until("the day", () => treeOverview(w.cwd, w.env).day !== undefined, { ms: 20_000 });
+    const t = widgetTree(w.cwd, w.env, { running: true })!;
+    const what = t.pending.items.find((p) => /aplikace Strom/u.test(p.text));
+    assert.ok(what, JSON.stringify(t.pending.items));
+    assert.equal(what.text, "Rozebrat 1 soubor poslaný z aplikace Strom – Karel Němec, Marie Němcová");
+    assert.equal(what.textNoNames, "Rozebrat 1 soubor poslaný z aplikace Strom – …, …");
+    const phone = treeOverview(w.cwd, w.env).waiting.items.find((x) => /aplikace Strom/u.test(x.what));
+    assert.ok(phone);
+    assert.deepEqual(phone, { what: "Rozebrat 1 soubor poslaný z aplikace Strom – Karel Němec, Marie Němcová", on: "Odpověď o souboru Karla Němce" });
   } finally {
     w.cleanup();
   }

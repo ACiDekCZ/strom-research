@@ -5,9 +5,17 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.22.0
+
+*Připravuje se: bety do 1.22.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Jméno jednou v tom, co čeká.** Úkol k materiálu poslanému z aplikace Strom jmenoval ve widgetu a na stránce
+  telefonu každého člověka dvakrát (podruhé v hranatých závorkách) a jeho text bez jmen nechal prázdné závorky; menu,
+  `strom plan`, aplikace Strom i soubor GEDCOM ukazovaly jméno s jeho ID zopakované. Každé teď jméno řekne jednou.
+
 ## 1.21.0
 
-*Připravuje se: bety do 1.21.0-beta.2. Oddíl bude úplný s vydáním.*
+*26. 10. 2026 · patří k aplikaci Strom 3.16.0.*
 
 - **„Čeká“ říká, co aplikace Strom neukazuje.** Řádek v menu a `strom plan` řekne, kolik z čekajícího je jen tady
   v terminálu a kolik čeká na odpověď; zbytek je číslo, které ukazuje aplikace Strom, takže se obě shodují.

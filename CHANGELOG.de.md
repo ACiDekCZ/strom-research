@@ -5,9 +5,18 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.22.0
+
+*In Vorbereitung: die Betas bis 1.22.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Jeder Name einmal in dem, was wartet.** Eine Aufgabe zu Material, das aus der Strom-App gesendet wurde, nannte im
+  Widget und auf der Seite des Telefons jede Person zweimal (das zweite Mal in eckigen Klammern), und ihr Text ohne
+  Namen ließ leere Klammern stehen; Menü, `strom plan`, die Strom-App und die GEDCOM-Datei zeigten den Namen mit
+  seiner ID wiederholt. Jedes nennt den Namen jetzt einmal.
+
 ## 1.21.0
 
-*In Vorbereitung: die Betas bis 1.21.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*26.10.2026 · gehört zur Strom-App 3.16.0.*
 
 - **„Wartet“ sagt, was die Strom-App nicht zeigt.** Die Zeile im Menü und `strom plan` sagt, wie viel des Wartenden
   nur hier im Terminal ist und wie viel auf Antwort wartet; der Rest ist die Zahl, die die Strom-App zeigt, sodass

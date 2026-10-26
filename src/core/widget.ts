@@ -332,7 +332,7 @@ export function widgetTree(root: string, env: Env, opts: { running: boolean; now
   const finds = treeFinds(root, env, new Date(windowStart).toISOString(), now);
   const waits = pendingOf(tree, env);
   const pendingItems = waits.slice(0, WIDGET_PENDING).map(({ item }) => {
-    const text = forPhone(humanTask(tree, item.what, lang)) || ui(lang, "ui.phone.waiting.item");
+    const text = forPhone(humanTask(tree, item.what, lang, { asWritten: true })) || ui(lang, "ui.phone.waiting.item");
     const none = withoutNames(text, stems);
     return { text, ...(none ? { textNoNames: none } : {}) };
   });

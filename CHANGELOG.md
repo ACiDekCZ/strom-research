@@ -5,9 +5,17 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.22.0
+
+*In preparation: the betas up to 1.22.0-beta.1. The section is complete with the release.*
+
+- **Each name once in what waits.** A task for material sent from the Strom app named each person twice in the
+  widget and on the phone's page (the second time in brackets), and its text without names kept empty brackets; the
+  menu, `strom plan`, the Strom app and the GEDCOM file showed the name with its ID repeated. Each says the name once.
+
 ## 1.21.0
 
-*In preparation: the betas up to 1.21.0-beta.2. The section is complete with the release.*
+*2026-10-26 · goes with the Strom app 3.16.0.*
 
 - **"Waiting" says what the Strom app does not show.** The line in the menu and `strom plan` says how many of the
   waiting things are only here in the terminal and how many wait for a reply; the rest is the number the Strom app
