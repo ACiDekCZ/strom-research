@@ -19,7 +19,8 @@ import { history, whoAtWork } from "./live.ts";
 import { agentsHere } from "./apps.ts";
 import { humanTask } from "../cli/human.ts";
 import { ui } from "../cli/ui.ts";
-import { ALL_PREFIXES, type Research, type Session, type Task } from "./model.ts";
+import { lifespan } from "./people.ts";
+import { ALL_PREFIXES, type Person, type Research, type Session, type Task } from "./model.ts";
 
 /** How long the overview of the tree shown is kept (the page asks every 10 s); the marks of the other trees in the switcher. */
 export const OVERVIEW_MS = 15_000;
@@ -46,6 +47,9 @@ export interface NowLine {
   task?: string;
   since: string;
   paused?: { until: string };
+  /** The research's direction and the years of the life of whom it is about (the widget names it so without the name). */
+  direction?: Research["direction"];
+  span?: string;
 }
 
 export interface Overview {
@@ -233,7 +237,17 @@ export function treeOverview(root: string, env: Env): Overview {
       const way = r?.direction === "ancestors" ? "up" : r?.direction === "descendants" ? "down" : "other";
       const what = task ? taskText(tree, task) : undefined;
       const name = (r ? forPhone(r.name) : "") || whoAtWork(w.label, tree.lang);
-      return { way, name, ...(what ? { task: what } : {}), since: w.since, ...(w.paused ? { paused: { until: w.paused.until } } : {}) };
+      const focus = r?.focus ? tree.get<Person>(r.focus) : undefined;
+      const span = focus?.type === "person" ? lifespan(focus) : "";
+      return {
+        way,
+        name,
+        ...(what ? { task: what } : {}),
+        since: w.since,
+        ...(w.paused ? { paused: { until: w.paused.until } } : {}),
+        ...(r ? { direction: r.direction } : {}),
+        ...(span ? { span } : {}),
+      };
     });
     const sessions = tree.list<Session>("session");
     const last = sessions.map((s) => s.ended ?? s.started).sort().at(-1);

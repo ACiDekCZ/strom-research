@@ -24,6 +24,7 @@ import { factSaid } from "./changelog.ts";
 import { conflictTitle, displayName, lifespan } from "./people.ts";
 import { ownerName } from "./overview.ts";
 import { forPhone } from "./phone-watch.ts";
+import { eventName } from "../cli/human.ts";
 import type { Conflict, Family, Hypothesis, Person, Source } from "./model.ts";
 
 /** The window when the page asks for none: the last 24 hours. */
@@ -41,6 +42,10 @@ export interface FindLine {
   /** A fact, a name, a source's title, a conflict… as the research says it ("" for a new person or family). */
   text: string;
   at: string;
+  /** A fact: its kind (BIRT, MARR, an EVEN…), its name in the language asked, what it says past its name ("12. 3. 1861, Sloup"). */
+  fact?: { kind: string; name: string; what: string };
+  /** A child: the years of its life ("1861–1890"). */
+  span?: string;
 }
 
 export interface FindGroup {
@@ -49,6 +54,9 @@ export interface FindGroup {
   /** person, family: its name (title); sources, resolved: titled by the page. */
   kind: "person" | "family" | "sources" | "resolved";
   title?: string;
+  /** A person: the name alone, and the years of the life ("1762–1820") — the title is both. */
+  name?: string;
+  span?: string;
   /** Its newest line's moment. */
   at: string;
   lines: FindLine[];
@@ -157,7 +165,7 @@ export function findGroups(tree: Tree, ops: Op[], lang = tree.lang): FindGroup[]
       if (r.type === "person") {
         const span = lifespan(r);
         const title = forPhone(`${displayName(r)}${span ? ` (${span})` : ""}`);
-        return title ? { kind: "person", title } : undefined;
+        return title ? { kind: "person", title, name: forPhone(displayName(r)), ...(span ? { span } : {}) } : undefined;
       }
       const title = forPhone(ownerName(tree, r.id));
       return title ? { kind: "family", title } : undefined;
@@ -195,7 +203,7 @@ export function findGroups(tree: Tree, ops: Op[], lang = tree.lang): FindGroup[]
         if (!r || !child || child.type !== "person") break;
         const span = lifespan(child);
         const text = forPhone(`${displayName(child)}${span ? ` (${span})` : ""}`);
-        if (text) add(ofRecord(r), { kind: "child", text, at });
+        if (text) add(ofRecord(r), { kind: "child", text, at, ...(span ? { span } : {}) });
         break;
       }
       case "event.add":
@@ -205,8 +213,11 @@ export function findGroups(tree: Tree, ops: Op[], lang = tree.lang): FindGroup[]
         const id = second ?? /^\+?(E\d+) /u.exec(o.summary)?.[1];
         const e = r?.events.find((x) => x.id === id);
         if (!r || !e || e.retracted) break;
-        const said = forPhone(factSaid(tree, r.id, e.id, lang) ?? "");
+        const raw = factSaid(tree, r.id, e.id, lang) ?? "";
+        const said = forPhone(raw);
         if (!said) break;
+        const name = eventName(e.kind, lang, e.label);
+        const fact = { kind: e.kind, name, what: raw.startsWith(`${name}: `) ? forPhone(raw.slice(name.length + 2)) : "" };
         // a line of its own on the phone: its first letter as a sentence's
         const text = said.charAt(0).toLocaleUpperCase(lang) + said.slice(1);
         const kind: FindKind = o.op === "event.add" ? "fact" : o.op === "event.edit" ? "fixed" : "cited";
@@ -214,12 +225,13 @@ export function findGroups(tree: Tree, ops: Op[], lang = tree.lang): FindGroup[]
         if (was) {
           // said already: as it is now, at its newest moment
           was.text = text;
+          was.fact = fact;
           was.at = at;
           const g = ofRecord(r);
           if (g && at > g.at) g.at = at;
           break;
         }
-        const line = { kind, text, at };
+        const line = { kind, text, at, fact };
         facts.set(`${r.id}:${e.id}`, line);
         add(ofRecord(r), line);
         break;

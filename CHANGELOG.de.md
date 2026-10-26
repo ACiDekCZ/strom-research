@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.21.0
 
-*In Vorbereitung: die Betas bis 1.21.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.21.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **„Wartet“ sagt, was die Strom-App nicht zeigt.** Die Zeile im Menü und `strom plan` sagt, wie viel des Wartenden
   nur hier im Terminal ist und wie viel auf Antwort wartet; der Rest ist die Zahl, die die Strom-App zeigt, sodass
@@ -17,6 +17,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   „Auch in der Strom-App“.
 - **`strom input assign`, `hide` und `unskip` sagen, was sich geändert hat**, in der Sprache der Forschung: jede
   Datei, jede freigegebene oder neue Aufgabe, Personen mit Namen und wie es rückgängig geht. Ihr JSON bleibt gleich.
+- **Eine Übersicht der Forschung für ein Widget auf dem macOS-Schreibtisch.** Solange die Brücke läuft
+  (`strom live`), wird die Übersicht jedes Stammbaums in einer Datei für ein Widget auf dem Mac-Schreibtisch
+  gehalten: was gerade läuft, die Funde des letzten Tages und was wartet, jeder Text auch ohne die Namen von
+  Personen. Außerhalb von macOS wird nichts geschrieben.
 
 ## 1.20.0
 
