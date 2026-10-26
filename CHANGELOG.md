@@ -5,6 +5,22 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.21.0
+
+*2026-10-26 · goes with the Strom app 3.16.0.*
+
+- **"Waiting" says what the Strom app does not show.** The line in the menu and `strom plan` says how many of the
+  waiting things are only here in the terminal and how many wait for a reply; the rest is the number the Strom app
+  shows, so the two agree.
+- **"What waits" puts the terminal's own first.** What only the terminal shows (a conflict of an own edit, a send of
+  the app, a question about the reading of scans) is listed under "Only here in the terminal", the rest under
+  "Also in the Strom app".
+- **`strom input assign`, `hide` and `unskip` say what changed** in the research's language: each file, each task
+  let go of or made, people by name, and how to take it back. Their JSON stays the same.
+- **An overview of the research for a widget on the macOS desktop.** While the bridge runs (`strom live`), each
+  tree's overview is kept in a file for a widget on the Mac's desktop: what is at work now, the finds of the last day
+  and what waits, each text also without the names of people. Nothing is written off macOS.
+
 ## 1.20.0
 
 *2026-10-25 · goes with the Strom app 3.16.0.*

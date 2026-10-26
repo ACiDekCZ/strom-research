@@ -132,6 +132,7 @@ const EXCERPT_MS = 20_000;
 /** A source with more excerpts than this is answered without the pictures: the app asks for each (?clip=). */
 const EXCERPTS_AT_ONCE = 12;
 import { anyoneAtWork, liveWorkers, type Paused } from "./workers.ts";
+import { widgetWriter } from "./widget.ts";
 import { monthSpend, openSessions } from "./session.ts";
 import { rankTasks } from "./queue.ts";
 import { humanTask } from "../cli/human.ts";
@@ -2953,6 +2954,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
         return atWorkNow;
       };
       let workers = safe("the start", () => JSON.stringify(atWork(seen))) ?? "";
+      // the research on the desktop of a Mac (the Strom Widget): the tree's overview written while the bridge runs
+      // (core/widget.ts; none off macOS) — the first a moment after the start, never in its way
+      const widget = widgetWriter(root, env);
+      if (widget) setTimeout(() => safe("the widget", () => widget.tick(true)), 1000).unref?.();
       const send = (event: string, data: unknown) => {
         for (const s of streams) s.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       };
@@ -3084,6 +3089,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         if (Date.now() - lastAsked > idleMs) return stop("idle: nobody asked for a while", "idle", false);
         // its research gone (taken off the computer, a test's folder): nothing to follow
         if (researchGone()) return stop("the research is no longer there", "gone", false);
+        safe("the widget", () => widget?.tick());
         if (!streams.size) return;
         safe("a tick", () => {
           const { head: h, at } = tip(root);
@@ -3119,6 +3125,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         clearInterval(timer);
         clearInterval(keepAlive);
         clearInterval(stopAsked);
+        safe("the widget", () => widget?.end(reason === "gone"));
         send("end", { reason, ...(back === undefined ? {} : { back }), at: new Date().toISOString() });
         for (const s of streams) s.end();
         server.close();

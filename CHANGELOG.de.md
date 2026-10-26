@@ -5,6 +5,23 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.21.0
+
+*26.10.2026 · gehört zur Strom-App 3.16.0.*
+
+- **„Wartet“ sagt, was die Strom-App nicht zeigt.** Die Zeile im Menü und `strom plan` sagt, wie viel des Wartenden
+  nur hier im Terminal ist und wie viel auf Antwort wartet; der Rest ist die Zahl, die die Strom-App zeigt, sodass
+  beide übereinstimmen.
+- **„Was wartet“ stellt das Eigene des Terminals voran.** Was nur das Terminal zeigt (ein Widerspruch einer eigenen
+  Änderung, eine Sendung der App, eine Frage zum Lesen von Scans), steht unter „Nur hier im Terminal“, der Rest unter
+  „Auch in der Strom-App“.
+- **`strom input assign`, `hide` und `unskip` sagen, was sich geändert hat**, in der Sprache der Forschung: jede
+  Datei, jede freigegebene oder neue Aufgabe, Personen mit Namen und wie es rückgängig geht. Ihr JSON bleibt gleich.
+- **Eine Übersicht der Forschung für ein Widget auf dem macOS-Schreibtisch.** Solange die Brücke läuft
+  (`strom live`), wird die Übersicht jedes Stammbaums in einer Datei für ein Widget auf dem Mac-Schreibtisch
+  gehalten: was gerade läuft, die Funde des letzten Tages und was wartet, jeder Text auch ohne die Namen von
+  Personen. Außerhalb von macOS wird nichts geschrieben.
+
 ## 1.20.0
 
 *25.10.2026 · gehört zur Strom-App 3.16.0.*

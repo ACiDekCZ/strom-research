@@ -17,7 +17,7 @@ import { collectFiles, fileSha256, inputPath, MAX_IN_TREE, mimeOf, storeShared }
 import { create, normId, requireRecord, update } from "../core/records.ts";
 import { phrase } from "../core/phrases.ts";
 import { addMarriedNames, importedTree, importGedcom, importStromJson, isStromJson, marriedNamesPlan, undoMarriedNames, type ImportResult } from "../core/import.ts";
-import { gedcomName, likelyDuplicates } from "../core/people.ts";
+import { displayName, gedcomName, likelyDuplicates } from "../core/people.ts";
 import { decodeText, safeFolderName } from "../core/text.ts";
 import type { Tree } from "../core/tree.ts";
 import { amendInput, checkOriginalMeta } from "../core/originals.ts";
@@ -61,6 +61,60 @@ function idsGiven(ctx: Context, args: string[], opts: Record<string, unknown>): 
 }
 
 /** The research the inputs are for: the one named, else the only active one. */
+/** A person for the person reading, as the material names them: "Jan Novák [P0002]" (an ID the research lacks as given). */
+function whoOf(tree: Tree, ids: string[]): string {
+  return ids
+    .map((id) => {
+      const p = tree.get<Person>(id);
+      return p ? `${displayName(p)} [${p.id}]` : id;
+    })
+    .join(", ");
+}
+
+/** The tasks' files before a write: what a task let go of is said by its files (strom input hide). */
+function filesOfTasks(tree: Tree): Map<string, string[]> {
+  return new Map(tree.list<Task>("task").map((t) => [t.id, t.where.filter((w) => /^I\d/u.test(w))]));
+}
+
+/**
+ * What strom input assign|hide|unskip changed, in the research language (the person reads it — the menu, the Strom
+ * app's bridge, an agent too): each file, each task, each batch, from what this write logged and how the records are
+ * now. The history keeps its own words.
+ */
+function materialLines(tree: Tree, before: Map<string, string[]>, batch?: string): string[] {
+  const lang = tree.lang;
+  const out: string[] = [];
+  for (const o of tree.written) {
+    const [id, ...rest] = o.targets;
+    if (o.op === "input.assign" && id) {
+      const i = tree.get<Input>(id);
+      const now = new Set([...(i?.persons ?? []), ...(i?.sorted?.persons ?? [])]);
+      const add = rest.filter((p) => now.has(p));
+      const remove = rest.filter((p) => !now.has(p));
+      if (add.length) out.push(ui(lang, "ui.input.assign.add", { id, who: whoOf(tree, add) }));
+      if (remove.length) out.push(ui(lang, "ui.input.assign.remove", { id, who: whoOf(tree, remove) }));
+    } else if (o.op === "batch.assign" && batch) {
+      const b = readBatch(tree.root, batch);
+      const now = new Set(b?.persons ?? []);
+      const name = b?.name ?? batch;
+      const add = o.targets.filter((p) => now.has(p));
+      const remove = o.targets.filter((p) => !now.has(p));
+      if (add.length) out.push(ui(lang, "ui.input.batch.add", { name, who: whoOf(tree, add) }));
+      if (remove.length) out.push(ui(lang, "ui.input.batch.remove", { name, who: whoOf(tree, remove) }));
+    } else if (o.op === "task.edit" && id && rest.length) out.push(ui(lang, "ui.input.task.of", { task: id, who: whoOf(tree, rest) }));
+    else if (o.op === "task.edit" && id) {
+      const t = tree.get<Task>(id);
+      const files = (before.get(id) ?? []).filter((f) => !t?.where.includes(f));
+      if (files.length) out.push(ui(lang, "ui.input.task.without", { task: id, files: files.join(", ") }));
+    } else if (o.op === "task.drop" && id) out.push(ui(lang, "ui.input.task.dropped", { task: id, files: (before.get(id) ?? []).join(", ") }));
+    else if (o.op === "input.hide" && id) {
+      const why = tree.get<Input>(id)?.hidden?.reason;
+      out.push(`${ui(lang, "ui.input.hidden", { id })}${why ? ` (${ui(lang, `ui.input.why.${why}`)})` : ""}`);
+    } else if (o.op === "input.unskip" && id) out.push(ui(lang, tree.get<Input>(id)?.state === "processed" ? "ui.input.shown.processed" : "ui.input.shown.new", { id }));
+  }
+  return out;
+}
+
 function researchFor(tree: Tree, named: unknown): string | undefined {
   if (typeof named === "string") return requireRecord<Research>(tree, named, "research").id;
   const active = tree.list<Research>("research").filter((r) => r.state === "active");
@@ -374,8 +428,10 @@ register(
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       const ids = idsGiven(ctx, args, opts);
+      const before = filesOfTasks(tree);
       const got = tree.withTreeLock(() => unhideMaterial(tree, ids));
-      return { text: got.changed.length ? lines(...tree.written.map((o) => o.summary)) : "nothing skipped: nothing changed", data: got };
+      const tasks = got.tasks.map((id) => ui(tree.lang, "ui.input.task.gather", { task: id, what: tree.get<Task>(id)?.what ?? "" }));
+      return { text: got.changed.length ? lines(...materialLines(tree, before), ...tasks) : ui(tree.lang, "ui.input.unskip.none"), data: got };
     },
   },
   {
@@ -400,8 +456,12 @@ register(
       if (why !== undefined && !(HIDE_REASONS as readonly string[]).includes(why))
         throw new UsageError(`--why: ${HIDE_REASONS.join(" or ")}`, { code: "material.body", params: { why: why.slice(0, 40) } });
       const ids = idsGiven(ctx, args, opts);
+      const before = filesOfTasks(tree);
       const got = tree.withTreeLock(() => hideMaterial(tree, ids, { reason: why as (typeof HIDE_REASONS)[number] | undefined, by: fileBy(tree, ctx.env) }));
-      return { text: got.changed.length ? lines(...tree.written.map((o) => o.summary), `show again: strom input unskip ${got.changed.length > 3 ? "…" : got.changed.join(" ")}`) : "hidden already: nothing changed", data: got };
+      return {
+        text: got.changed.length ? lines(...materialLines(tree, before), ui(tree.lang, "ui.input.hide.back", { ids: got.changed.length > 3 ? "…" : got.changed.join(" ") })) : ui(tree.lang, "ui.input.hide.none"),
+        data: got,
+      };
     },
   },
   {
@@ -431,8 +491,8 @@ register(
       const got = tree.withTreeLock(() => assignMaterial(tree, { ...(batch ? { batch } : { files: idsGiven(ctx, args, opts) }), add: people(opts.add), remove: people(opts.remove) }));
       return {
         text: lines(
-          got.changed.length ? lines(...tree.written.map((o) => o.summary)) : "nothing to change",
-          ...got.kept.map((k) => `${k.id}: ${k.person} stays — the whole batch is theirs (strom input assign --batch ${k.batch} --remove ${k.person})`),
+          got.changed.length ? lines(...materialLines(tree, new Map(), got.batch)) : ui(tree.lang, "ui.input.assign.none"),
+          ...got.kept.map((k) => ui(tree.lang, "ui.input.assign.kept", { id: k.id, who: whoOf(tree, [k.person]), batch: k.batch, person: k.person })),
         ),
         data: got,
       };

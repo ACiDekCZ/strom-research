@@ -47,6 +47,7 @@ import { pathOf, startAgain } from "../core/userpath.ts";
 import { offerAgent } from "./fixes.ts";
 import { addToResearch } from "./menu-research.ts";
 import { waitingForYou, waitingHere } from "./menu-waiting.ts";
+import { waitingLine } from "../core/waiting.ts";
 import { permissionWaitingLines } from "../core/archiveasks.ts";
 import { settingsMenu } from "./menu-settings.ts";
 import { mainPerson } from "../core/kin.ts";
@@ -175,7 +176,8 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       }
       // what waits for the person: the same list What waits shows (each thing once — a task that waits for an archive's
       // decision is one of its question's)
-      const waiting = waitingHere(ctx, tree).length;
+      const waits = waitingHere(ctx, tree);
+      const waiting = waits.length;
       const started = tree.list<Research>("research").length > 0;
       out(t("ui.menu.tree", { name: tree.config.name, persons: tree.countLive("person") }));
       // No agent yet (none installed, or not the one chosen): the research waits for it — kept as an archive meanwhile,
@@ -197,7 +199,8 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
           out();
         }
       }
-      if (waiting) out(t("ui.menu.waiting", { count: waiting }));
+      // what of it the Strom app does not show (only here in the terminal) said, so its number and the app's agree
+      if (waiting) out(waitingLine(lang, waits));
       // an archive's images wait for the person's decision: one line, only until it is answered
       // (since when, and the tasks that stand on it, once it waits long or holds up much)
       for (const line of permissionWaitingLines(tree, lang)) out(line);

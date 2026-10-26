@@ -1,7 +1,8 @@
 // What waits for the person, in one ordered list: the tasks that wait for them, the questions about archives, the new
 // versions of approved stories — and, for the terminal, the trees the Strom app sent and the questions about the reading
 // of scans. The bridge sends it to the Strom app (/status `waiting`, the app's spec ZADANI_VYZKUM_menu-ceka.md); the
-// menu's What waits reads the same. Computed, nothing written.
+// menu's What waits reads the same — the terminal's own marked `terminalOnly` (TERMINAL_ONLY), so the menu says what
+// of its count the app does not show (waitingSplit, waitingLine). Computed, nothing written.
 //
 // Each item: its kind (core/waitkind.ts for a task), the section the app shows it in, the place where it is dealt with
 // (its group), todo or sent, its order; for a task its priority, the site, the request's text, whom, the folder for
@@ -110,6 +111,41 @@ export interface Waiting {
   tune?: Question;
   /** An open conflict the person decides (the terminal). */
   conflict?: Conflict;
+  /** Shown only in the terminal: the Strom app never gets it (/status `waiting` asks for none of these — TERMINAL_ONLY). */
+  terminalOnly?: true;
+}
+
+/**
+ * The options that add what only the terminal shows (the menu's What waits): the bridge never asks for them, so the
+ * Strom app never shows them. Each item they add is marked `terminalOnly`; a new kind of the terminal's own goes here.
+ */
+export const TERMINAL_ONLY = ["sends", "tune", "conflicts", "milder"] as const satisfies readonly (keyof WaitingOptions)[];
+
+/** Whether the Strom app shows a thing that waits too (its /status `waiting`): everything but the terminal's own. */
+export function inApp(w: Waiting): boolean {
+  return !w.terminalOnly;
+}
+
+/**
+ * How many things wait, split as the Strom app counts them: all of them (the menu's count), those shown only in the
+ * terminal, those in the app that wait for a reply (sent — the app counts only what is to do), and what is to do in
+ * the app (its number: all − only here − sent).
+ */
+export function waitingSplit(items: Waiting[]): { all: number; here: number; sent: number; app: number } {
+  const here = items.filter((w) => !inApp(w)).length;
+  const sent = items.filter((w) => inApp(w) && w.item.phase === "sent").length;
+  return { all: items.length, here, sent, app: items.length - here - sent };
+}
+
+/**
+ * The line "Waiting: N" for the person: what of it is only here in the terminal and what waits for a reply, each said
+ * on its own — the rest is the app's number; as it was only when neither is there (N is the app's number then).
+ */
+export function waitingLine(lang: string, items: Waiting[], key: "ui.menu.waiting" | "ui.plan.waiting" = "ui.menu.waiting"): string {
+  const s = waitingSplit(items);
+  const parts = [...(s.here ? [ui(lang, "ui.waiting.split.here", { n: s.here })] : []), ...(s.sent ? [ui(lang, "ui.waiting.split.reply", { n: s.sent })] : [])];
+  const count = parts.length ? ui(lang, "ui.waiting.split", { n: s.all, parts: parts.join(", ") }) : String(s.all);
+  return ui(lang, key, { count });
 }
 
 export interface WaitingOptions {
@@ -319,7 +355,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     for (const q of questions.filter((p) => p.kind === "milder" && p.host && p.connector)) {
       const title = q.title ?? q.connector!;
       const what = ui(lang, "ui.archive.milder.item", { title, host: q.host!, to: levelWords(lang, q.to ?? "allowed"), from: levelWords(lang, q.from ?? "restricted") });
-      out.push({ question: q, item: { id: q.key, what, on: "", at: q.at, kind: "milder", section: "decide", group: archiveGroup(tree, q.host!, title), phase: "todo", actions: [], host: q.host!, connector: q.connector! } });
+      out.push({ question: q, terminalOnly: true, item: { id: q.key, what, on: "", at: q.at, kind: "milder", section: "decide", group: archiveGroup(tree, q.host!, title), phase: "todo", actions: [], host: q.host!, connector: q.connector! } });
     }
   // a new version of an approved story: whose (a couple's: person and partner), since when
   if (o.stories !== false)
@@ -353,6 +389,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     for (const r of receivedPending(tree.root))
       out.push({
         send: r,
+        terminalOnly: true,
         item: {
           id: r.intake,
           what: ui(lang, "ui.waiting.sent", { day: humanDay(r.at, lang), time: r.at.slice(11, 16), n: r.changes }),
@@ -370,6 +407,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     for (const c of conflictsToDecide(tree))
       out.push({
         conflict: c,
+        terminalOnly: true,
         item: { id: c.id, what: conflictTitle(tree, c), on: "", at: c.created, kind: "conflict", section: "decide", group: { key: "conflicts", name: phrase(lang, "wait.group.conflicts"), kind: "other" }, phase: "todo", actions: [] },
       });
   // the questions about the reading of scans only a person answers
@@ -377,6 +415,7 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
     for (const q of tuneQuestions(tree, o.tune).due)
       out.push({
         tune: q,
+        terminalOnly: true,
         item: { id: q.id, what: q.text, on: q.why, at: q.asked, kind: "tune", section: "decide", group: { key: "tune", name: phrase(lang, "wait.group.tune"), kind: "other" }, phase: "todo", actions: [] },
       });
   // one place, one name: the first said of it (an archive's question names it as the research knows the archive; its
