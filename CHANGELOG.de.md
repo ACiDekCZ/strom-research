@@ -7,12 +7,14 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.22.0
 
-*In Vorbereitung: die Betas bis 1.22.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.22.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Jeder Name einmal in dem, was wartet.** Eine Aufgabe zu Material, das aus der Strom-App gesendet wurde, nannte im
   Widget und auf der Seite des Telefons jede Person zweimal (das zweite Mal in eckigen Klammern), und ihr Text ohne
   Namen ließ leere Klammern stehen; Menü, `strom plan`, die Strom-App und die GEDCOM-Datei zeigten den Namen mit
   seiner ID wiederholt. Jedes nennt den Namen jetzt einmal.
+- **Das Widget öffnet die richtige Forschung.** Bei mehreren Stammbäumen gleichen Namens in der Strom-App konnte das
+  Widget auf dem Mac-Schreibtisch einen der anderen öffnen; jetzt öffnet es den Stammbaum seiner eigenen Forschung.
 
 ## 1.21.0
 

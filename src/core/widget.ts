@@ -115,11 +115,20 @@ export function appSlug(name: string): string {
     .replace(/^-+|-+$/gu, "");
 }
 
-/** The tree in the Strom app strom uses (the setting strom.app.url, the channel's copy): ?tree=<slug of its name>. */
-function treeUrl(env: Env, name: string): string {
+/** A tree's ID as the app keeps it (research.id, from the GEDCOM's _STROM_TREE): a UUID. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+
+/**
+ * The tree in the Strom app strom uses (the setting strom.app.url, the channel's copy): ?tree=<slug of its name> for
+ * an app that knows only names, and &research=<the tree's ID, lowercase> — the one research of that name, when several
+ * trees in the app have it. An ID that is no UUID: the name alone.
+ */
+export function treeUrl(env: Env, name: string, id: string): string {
   const url = new URL(appUrlSetting(new Settings(env, {})).url);
   const slug = appSlug(name);
   if (slug) url.searchParams.set("tree", slug);
+  const research = id.trim().toLowerCase();
+  if (UUID.test(research)) url.searchParams.set("research", research);
   return url.href;
 }
 
@@ -311,7 +320,7 @@ export function widgetTree(root: string, env: Env, opts: { running: boolean; now
   const tree = Tree.open(root, env);
   if (actsAsArchive(tree)) return undefined;
   const lang = tree.lang;
-  const openUrl = treeUrl(env, tree.config.name);
+  const openUrl = treeUrl(env, tree.config.name, tree.config.id);
   const o = treeOverview(root, env);
   const stems = nameStems(tree, o.latest ?? "");
   const lines = o.now.map((l): WidgetLine => {

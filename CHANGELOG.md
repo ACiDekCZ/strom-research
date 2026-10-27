@@ -7,11 +7,13 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.22.0
 
-*In preparation: the betas up to 1.22.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.22.0-beta.2. The section is complete with the release.*
 
 - **Each name once in what waits.** A task for material sent from the Strom app named each person twice in the
   widget and on the phone's page (the second time in brackets), and its text without names kept empty brackets; the
   menu, `strom plan`, the Strom app and the GEDCOM file showed the name with its ID repeated. Each says the name once.
+- **The widget opens the right research.** With several trees of one name in the Strom app, the widget on the Mac's
+  desktop could open one of the others; it now opens the tree of its own research.
 
 ## 1.21.0
 

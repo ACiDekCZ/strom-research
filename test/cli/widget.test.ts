@@ -13,7 +13,7 @@ import { treeOverview } from "../../src/core/phone-watch.ts";
 import { foldText } from "../../src/core/text.ts";
 import { Tree } from "../../src/core/tree.ts";
 import type { Task } from "../../src/core/model.ts";
-import { appSlug, isoSecond, widgetDir, widgetTree, widgetWriter, stemsOfNames, withoutNames, WIDGET_SCHEMA, type WidgetIndex, type WidgetTree } from "../../src/core/widget.ts";
+import { appSlug, isoSecond, treeUrl, widgetDir, widgetTree, widgetWriter, stemsOfNames, withoutNames, WIDGET_SCHEMA, type WidgetIndex, type WidgetTree } from "../../src/core/widget.ts";
 
 const AGENT = { env: { AI_AGENT: "1" } };
 const ID = /(?<![\p{L}\p{N}])[PFSEXHTMRB]\d{4,}(?![\p{L}\p{N}])/u;
@@ -84,8 +84,9 @@ test("the widget's file: the shape it reads (schemaVersion 1), now, the finds of
     assert.equal(t.lang, "cs");
     assert.equal(t.running, true);
     for (const at of [t.generatedAt, t.lastActiveAt, t.findings.windowStart, ...t.now.lines.map((l) => l.since), ...t.findings.items.map((f) => f.at)]) assert.match(at, SECOND);
-    // the tree in the Strom app strom uses: ?tree=<the app's slug of its name>
+    // the tree in the Strom app strom uses: ?tree=<the app's slug of its name>&research=<the tree's ID, as _STROM_TREE>
     assert.equal(new URL(t.openUrl).searchParams.get("tree"), "lhotakovi-ze-lhoty");
+    assert.equal(new URL(t.openUrl).searchParams.get("research"), id.toLowerCase(), "the ID the GEDCOM's _STROM_TREE carries");
     assert.match(new URL(t.openUrl).origin, /^https:\/\/(beta\.)?stromapp\.info$/u);
 
     // now: the line of the agent at work, its direction, task and since when
@@ -304,6 +305,23 @@ test("only on macOS, never the person's own ~/Library from a test: the HOME stro
   assert.equal(widgetDir({ ...env, STROM_WIDGET_DIR: path.join(home, "w") }, "darwin"), path.join(home, "w"));
   assert.equal(appSlug("Rodina Fíšek–Łódź"), "rodina-fisek-lodz");
   assert.equal(appSlug("Жуковы"), "");
+});
+
+test("the widget's address of a tree: ?tree=<slug> for an older app, &research=<the tree's UUID, lowercase> — an ID that is no UUID: the name alone", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "strom-widget-url-"));
+  try {
+    const env = { HOME: home, STROM_CONFIG_DIR: path.join(home, "config"), STROM_APP_URL: "https://beta.stromapp.info/run/" };
+    const id = "0F8FAD5B-D9CB-469F-A165-70867728950E";
+    const u = new URL(treeUrl(env, "Lhotákovi ze Lhoty", id));
+    assert.equal(`${u.origin}${u.pathname}`, "https://beta.stromapp.info/run/");
+    assert.deepEqual([...u.searchParams], [["tree", "lhotakovi-ze-lhoty"], ["research", id.toLowerCase()]]);
+    for (const bad of ["", "lhotakovi", "0f8fad5b-d9cb-469f-a165", "0f8fad5b-d9cb-469f-a165-70867728950e&tree=x", "../0f8fad5b-d9cb-469f-a165-70867728950e"])
+      assert.deepEqual([...new URL(treeUrl(env, "Lhotákovi ze Lhoty", bad)).searchParams], [["tree", "lhotakovi-ze-lhoty"]], bad);
+    // a name without Latin letters: the app finds it by its ID alone
+    assert.deepEqual([...new URL(treeUrl(env, "Жуковы", id)).searchParams], [["research", id.toLowerCase()]]);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test("the bridge writes the widget's file while it runs and running: false when it ends — into the HOME it runs with, never the person's own ~/Library", { skip: skip || process.platform !== "darwin" }, async () => {

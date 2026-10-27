@@ -7,11 +7,13 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.22.0
 
-*Připravuje se: bety do 1.22.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.22.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Jméno jednou v tom, co čeká.** Úkol k materiálu poslanému z aplikace Strom jmenoval ve widgetu a na stránce
   telefonu každého člověka dvakrát (podruhé v hranatých závorkách) a jeho text bez jmen nechal prázdné závorky; menu,
   `strom plan`, aplikace Strom i soubor GEDCOM ukazovaly jméno s jeho ID zopakované. Každé teď jméno řekne jednou.
+- **Widget otevře správný výzkum.** Při několika stromech stejného jména v aplikaci Strom mohl widget na ploše Macu
+  otevřít jiný z nich; teď otevře strom svého výzkumu.
 
 ## 1.21.0
 
