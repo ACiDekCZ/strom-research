@@ -13,7 +13,7 @@ import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { isAgent } from "../core/which.ts";
 import { offerAdopt } from "./seal.ts";
-import { mb, setTidyAsked, tidyAsked, tidyOn, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+import { mb, setTidyAsked, tidyAskAgain, tidyAsked, tidyOn, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
 
 /** A line as a sentence: its first letter capital (a catalog's text that also stands inside a line). */
@@ -208,11 +208,13 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       const disk = tidyPlan(tree);
       if (disk.frees >= TIDY_SAID) {
         // never tidied (an older strom gathered it): its first tidy offered once, shown and asked as strom tidy asks
-        // (Enter says no) — nothing goes unasked; then kept in order by itself. Nobody to ask (no terminal,
-        // STROM_NONINTERACTIVE): only said, the offer kept for the person
-        if (!tidyOn(root) && !tidyAsked(root) && !isAgent(ctx.env) && ctx.interactive) {
-          setTidyAsked(root);
-          out(t("ui.tidy.first", { size: mb(disk.frees, lang) }));
+        // (Enter says no) — nothing but what strom makes again goes unasked; then kept in order by itself. Said no and
+        // grown far beyond the research since (tidyAskAgain): offered once more, never again. Nobody to ask (no
+        // terminal, STROM_NONINTERACTIVE): only said, the offer kept for the person
+        const again = tidyAskAgain(root, disk);
+        if (!tidyOn(root) && (!tidyAsked(root) || again) && !isAgent(ctx.env) && ctx.interactive) {
+          setTidyAsked(root, again);
+          out(again ? t("ui.tidy.again", { strom: mb(disk.size.strom, lang), research: mb(disk.size.research, lang), size: mb(disk.frees, lang) }) : t("ui.tidy.first", { size: mb(disk.frees, lang) }));
           out();
           await run(["tidy"]);
           out();

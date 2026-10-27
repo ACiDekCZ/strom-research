@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
-import { autoTidy, tidyAsked, tidyOn, tidyPlan } from "../../src/core/tidy.ts";
+import { autoTidy, tidyAskAgain, tidyAsked, tidyOn, tidyPlan } from "../../src/core/tidy.ts";
 import { enterWorker } from "../../src/core/workers.ts";
 import { noteLive } from "../../src/core/live.ts";
 
@@ -119,16 +119,32 @@ test("an old tree is kept in order by itself only after its first strom tidy; on
   const w = new World();
   await w.withTree("Novákovi");
   const tree = () => Tree.open(w.cwd, { ...process.env, ...w.env });
+  const has = (...p: string[]) => fs.existsSync(path.join(w.cwd, ".strom", ...p));
   // nothing gathered: in order from now on
   autoTidy(tree());
   assert.ok(tidyOn(w.cwd));
   fs.rmSync(path.join(w.cwd, ".strom", "tidy.json"));
-  // what an older strom left: nothing goes unasked
+  // what an older strom left, the person never asked (or said no): only what strom makes again goes by itself, and
+  // the logs are made smaller — never one removed (found 2026-10-27: 8 GB of views after a no)
   gathered(w.cwd);
+  fs.writeFileSync(path.join(w.cwd, ".strom", "tidy.json"), JSON.stringify({ auto: false, asked: "2026-10-22T10:00:00.000Z" }) + "\n");
+  // a log of 25 MB with one image of 24 MB in it (the old tidy's regular expression: "Maximum call stack size exceeded")
+  put(path.join(w.cwd, ".strom", "runs", "N0004.log"), `{"type":"text","text":"Lhoták z Lhoty"}\n{"data":"${"QUJD".repeat(6_000_000)}"}\n{"type":"text","text":"konec"}\n`, 3);
   const before = tidyPlan(tree()).items.length;
   assert.ok(before > 5, String(before));
   autoTidy(tree());
-  assert.equal(tidyPlan(tree()).items.length, before, "nothing went by itself");
+  for (const gone of [["views", "B0001-1-aaaaaaaaaa.jpg"], ["fetch", "demo-1700000000000"], ["converted", "0123456789abcdef"], ["thumbs", `${"a".repeat(64)}-256.jpg`], ["briefs", "N0001.md"], ["runs", "N0001.log"], ["runs", "N0002.log"], ["runs", "N0004.log"]])
+    assert.ok(!has(...gone), `went by itself: ${gone.join("/")}`);
+  // the logs only made smaller, their text whole — the old one too, which only the person's yes removes
+  const zlib = await import("node:zlib");
+  for (const n of ["N0001", "N0002", "N0004"]) assert.ok(has("runs", `${n}.log.gz`), n);
+  const big = zlib.gunzipSync(fs.readFileSync(path.join(w.cwd, ".strom", "runs", "N0004.log.gz"))).toString("utf8");
+  assert.equal(big, '{"type":"text","text":"Lhoták z Lhoty"}\n{"data":"[image 17578 kB left out]"}\n{"type":"text","text":"konec"}\n');
+  // the rest waits for the person
+  for (const kept of [["sync", "kept", "strom-app-2026-10-05.ged"], ["sync", "kept", "strom-app-2026-10-06.ged"], ["session-w-gone.json"], ["views", "B0001-2-bbbbbbbbbb.jpg"], ["excerpts", "S0001-x.jpg"]])
+    assert.ok(has(...kept), `waits for the person: ${kept.join("/")}`);
+  assert.ok(tidyPlan(tree()).items.some((i) => i.kind === "kept"));
+  assert.match(fs.readFileSync(path.join(w.cwd, ".strom", "tidy.log"), "utf8"), /kept in order: \d+ removed, 3 shrunk/);
   assert.equal(tidyOn(w.cwd), false);
   // the status says it, and what it frees
   assert.match((await w.ok(["status"])).out, /^Na disku: výzkum .* · vedle něj si strom drží .*$/m);
@@ -181,7 +197,6 @@ test("an old tree's first tidy is offered once in the menu: shown, asked (Enter 
   assert.match(first.out, /Uvolnit/);
   assert.ok(fs.existsSync(big));
   assert.equal(tidyOn(w.cwd), false);
-  autoTidy(tree());
   assert.equal(tidyPlan(tree()).items.length, before);
   // never asked again: only said
   const again = await w.run([], { tty: true, answers: ["0"] });
@@ -201,5 +216,84 @@ test("an old tree's first tidy is offered once in the menu: shown, asked (Enter 
   await w.run([], { tty: true, answers: ["a", "0"] });
   assert.ok(!fs.existsSync(big));
   assert.ok(tidyOn(w.cwd));
+  w.cleanup();
+});
+
+test("said no, then grown far beyond the research: asked once more in the menu, never a third time", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  const file = path.join(w.cwd, ".strom", "tidy.json");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ auto: false, asked: "2026-10-22T10:00:00.000Z" }) + "\n");
+  const tree = () => Tree.open(w.cwd, { ...process.env, ...w.env });
+  // a log of a session long ago, only the person's yes removes it (sparse: big, nothing written)
+  const big = path.join(w.cwd, ".strom", "runs", "N0003.log");
+  put(big, "x", 40);
+  fs.truncateSync(big, 600 * 1024 * 1024);
+  const at = new Date(Date.now() - 40 * DAY);
+  fs.utimesSync(big, at, at);
+  // grown, but not past its mark (at least 1 GB): only said
+  assert.equal(tidyAskAgain(w.cwd, tidyPlan(tree())), false);
+  const quiet = await w.run([], { tty: true, answers: ["0"] });
+  assert.doesNotMatch(quiet.out, /narostlo na/, quiet.out);
+  assert.match(quiet.out, /z toho jde uvolnit/);
+  // past it: asked once more (Enter says no), what goes shown
+  fs.truncateSync(big, 1200 * 1024 * 1024);
+  fs.utimesSync(big, at, at);
+  assert.equal(tidyAskAgain(w.cwd, tidyPlan(tree())), true);
+  const again = await w.run([], { tty: true, answers: ["", "0"] });
+  assert.match(again.out, /Co si strom drží vedle výzkumu, narostlo na 1,2 GB/, again.out);
+  assert.match(again.out, /Uvolnit\?/);
+  assert.ok(fs.existsSync(big));
+  const j = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.equal(j.asked, "2026-10-22T10:00:00.000Z", "the first question's day kept");
+  assert.equal(typeof j.askedAgain, "string");
+  assert.equal(tidyAskAgain(w.cwd, tidyPlan(tree())), false);
+  // never a third time: only said
+  const third = await w.run([], { tty: true, answers: ["0"] });
+  assert.doesNotMatch(third.out, /narostlo na|Uvolnit\?/);
+  assert.match(third.out, /z toho jde uvolnit/);
+  // the mark: 20 times the research, at least 1 GB, at most 5 GB
+  const GB = 1024 ** 3;
+  const plan = (strom: number, research: number) => ({ size: { strom, research } });
+  fs.writeFileSync(file, JSON.stringify({ auto: false, asked: "2026-10-22T10:00:00.000Z" }) + "\n");
+  assert.equal(tidyAskAgain(w.cwd, plan(0.9 * GB, 10 * 1024 ** 2)), false);
+  assert.equal(tidyAskAgain(w.cwd, plan(1.1 * GB, 10 * 1024 ** 2)), true);
+  assert.equal(tidyAskAgain(w.cwd, plan(1.9 * GB, 100 * 1024 ** 2)), false);
+  assert.equal(tidyAskAgain(w.cwd, plan(2.1 * GB, 100 * 1024 ** 2)), true);
+  assert.equal(tidyAskAgain(w.cwd, plan(5.1 * GB, GB)), true);
+  // never asked, or kept in order: nothing to ask again
+  fs.rmSync(file);
+  assert.equal(tidyAskAgain(w.cwd, plan(9 * GB, 0)), false);
+  w.cleanup();
+});
+
+test("by itself, the logs are made smaller within a budget, the newest first, the rest the next time; the person's strom tidy all at once", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  const tree = () => Tree.open(w.cwd, { ...process.env, ...w.env });
+  const runs = path.join(w.cwd, ".strom", "runs");
+  const image = `{"data":"${"QUJD".repeat(50_000)}"}\n`;
+  // five closed logs of 600 kB, N0001 the oldest
+  for (let i = 1; i <= 5; i++) put(path.join(runs, `N000${i}.log`), `{"type":"text","text":"Lhoták ${i}"}\n${image.repeat(3)}`, 10 - i);
+  const gz = () => fs.readdirSync(runs).filter((f) => f.endsWith(".log.gz")).sort();
+  // a budget of two logs: the two newest
+  autoTidy(tree(), { bytes: 1_000_000, ms: 60_000 });
+  assert.deepEqual(gz(), ["N0004.log.gz", "N0005.log.gz"]);
+  assert.match(fs.readFileSync(path.join(w.cwd, ".strom", "tidy.log"), "utf8"), /kept in order: 0 removed, 2 shrunk, .* 3 logs left for next time/);
+  // the next time goes on
+  autoTidy(tree(), { bytes: 1_000_000, ms: 60_000 });
+  assert.deepEqual(gz(), ["N0002.log.gz", "N0003.log.gz", "N0004.log.gz", "N0005.log.gz"]);
+  // out of time: nothing begun
+  autoTidy(tree(), { bytes: 1_000_000, ms: 0 });
+  assert.ok(fs.existsSync(path.join(runs, "N0001.log")));
+  autoTidy(tree(), { bytes: 1_000_000, ms: 60_000 });
+  assert.equal(gz().length, 5);
+  for (let i = 1; i <= 5; i++) assert.ok(!fs.existsSync(path.join(runs, `N000${i}.log`)));
+  // the person's strom tidy: no budget
+  for (let i = 6; i <= 9; i++) put(path.join(runs, `N000${i}.log`), `{"type":"text","text":"Lhoták ${i}"}\n${image.repeat(3)}`, 1);
+  const done = await w.run(["tidy"], { tty: true, answers: ["a"] });
+  assert.equal(done.code, 0, done.out + done.err);
+  assert.equal(gz().length, 9);
   w.cleanup();
 });

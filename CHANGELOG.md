@@ -7,13 +7,27 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.22.0
 
-*In preparation: the betas up to 1.22.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.22.0-beta.3. The section is complete with the release.*
 
 - **Each name once in what waits.** A task for material sent from the Strom app named each person twice in the
   widget and on the phone's page (the second time in brackets), and its text without names kept empty brackets; the
   menu, `strom plan`, the Strom app and the GEDCOM file showed the name with its ID repeated. Each says the name once.
 - **The widget opens the right research.** With several trees of one name in the Strom app, the widget on the Mac's
   desktop could open one of the others; it now opens the tree of its own research.
+- **Much smaller session logs.** The logs of sessions and readers no longer keep the images the agent looked at
+  (only their size and the view's path), so they are 95–99 % smaller.
+- **Tidying that keeps up.** `strom tidy` handles logs of any size. Views of scans, downloads cut short and other
+  things strom makes again are kept in order even without a yes; logs are only made smaller then, never removed. After
+  a no, the question comes once more when `.strom` grows far beyond the research.
+- **An archive that stops answering stops the agent's loop.** `strom fetch` says when to try again and what to do
+  meanwhile; asked again in the same session it ends at once (exit 8) and sends nothing. A task whose archive is left
+  alone waits out of the queue until then (the plan shows it put off until that time), and `strom run --loop` waits
+  for that time instead of starting sessions with nothing to do.
+- **Readers no longer wait out a silent service.** A reader whose agent goes silent after a retry of its service is
+  resumed once where it stopped; still silent, it ends at once. Such a failure no longer makes the reading batches
+  smaller.
+- **The gate of the subscription's week lets several sessions run in a row.** Once it waits for points in hand, it goes again only
+  with two more (at 15: 17), instead of one session after every wait.
 
 ## 1.21.0
 

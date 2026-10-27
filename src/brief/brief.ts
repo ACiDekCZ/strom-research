@@ -20,7 +20,7 @@ import { calibrationLine } from "../core/calibration.ts";
 import { taskRecordsets } from "../core/frontier.ts";
 import { reviewItems } from "../core/review.ts";
 import { byHandOnly, listConnectors, missingConsents, readyConnectors, routeOf, type Connector } from "../core/connector.ts";
-import { clock, hostAllowed, hostState, REFUSED_FOREVER } from "../core/net.ts";
+import { clock, clockUp, hostAllowed, hostState, leftAloneFor, REFUSED_FOREVER } from "../core/net.ts";
 import { archiveLevel, type PendingQuestion } from "../core/terms.ts";
 import { onHost, permissionQuestions, setHosts } from "../core/archivewait.ts";
 import { runs, runsArg, shellArg } from "../cli/format.ts";
@@ -823,7 +823,13 @@ function archiveLine(tree: Tree, b: RecordSet, repo: Repository | undefined, sha
   else if (net) {
     try {
       const st = hostState(net, host);
-      if (st.blockedUntil && st.blockedUntil > Date.now()) parts.push(`${host} left alone until ${clock(st.blockedUntil)}${st.reason ? ` (${st.reason})` : ""} — nothing to it before then`);
+      if (st.blockedUntil && st.blockedUntil > Date.now())
+        parts.push(
+          `${host} left alone until ${clock(st.blockedUntil)}${st.reason ? ` (${st.reason})` : ""} — nothing to it before then${
+            // it went silent, or asked to slow down: the work goes elsewhere meanwhile, never a fetch asked again and again
+            leftAloneFor(st, Date.now()) ? `: work on what needs nothing from it, else back to the queue for later (strom session close --continue) and on after ${clockUp(st.blockedUntil)}` : ""
+          }`,
+        );
     } catch {
       // the host's state unreadable: the level says enough
     }

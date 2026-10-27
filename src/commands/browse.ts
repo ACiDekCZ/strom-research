@@ -17,7 +17,8 @@ import type { Family, Person, RecordSet, Session, Source, Task } from "../core/m
 import { displayName } from "../core/people.ts";
 import { humanTask } from "../cli/human.ts";
 export { humanTask };
-import { lacksImages } from "../core/queue.ts";
+import { lacksImages, waitsForArchive } from "../core/queue.ts";
+import { clockUp } from "../core/net.ts";
 import { forStory } from "../core/stories.ts";
 import { isArchive } from "../core/mode.ts";
 import { actsAsArchive, stateOf } from "../core/state.ts";
@@ -219,13 +220,20 @@ register(
       const waiting = waits.length;
       const shown = work.slice(0, count);
       let n = 0;
-      const rows = shown.map((t) => [
-        `  ${t.state === "doing" ? ui(lang, "ui.plan.now") : `${++n}.`}`,
-        `${truncate(humanTask(tree, t.what, lang), 110)}${lacksImages(tree, t) ? ui(lang, "ui.plan.images") : ""}`,
-      ]);
+      // put off for a while: their archive is not answering now (core/leftalone.ts) — back in the queue by themselves then
+      const held = waitsForArchive(tree);
+      const inQueue = new Set(queue.map((t) => t.id));
+      const later = rankedQueue(tree, { strategy: ctx.settings.strategy(tree.config), awake: true })
+        .map((r) => r.task)
+        .filter((t) => !inQueue.has(t.id) && !forStory(t))
+        .flatMap((t) => ((a) => (a ? [{ t, a }] : []))(held(t)));
+      const rows = [
+        ...shown.map((t) => [`  ${t.state === "doing" ? ui(lang, "ui.plan.now") : `${++n}.`}`, `${truncate(humanTask(tree, t.what, lang), 110)}${lacksImages(tree, t) ? ui(lang, "ui.plan.images") : ""}`]),
+        ...later.slice(0, 5).map(({ t, a }) => [`  ${ui(lang, "ui.plan.later")}`, `${truncate(humanTask(tree, t.what, lang), 110)}${ui(lang, "ui.plan.asleep", { at: clockUp(a.until), host: a.host })}`]),
+      ];
       const storyNames = [...new Set(stories.map((t) => tree.get<Person>(t.subject[0] ?? "")).filter((p): p is Person => !!p).map((p) => `${displayName(p)} [${p.id}]`))];
       const out: (string | undefined)[] = [ui(lang, "ui.plan.title", { name: tree.config.name })];
-      if (!queue.length) out.push(`  ${ui(lang, "ui.plan.none")}`);
+      if (!queue.length && !later.length) out.push(`  ${ui(lang, "ui.plan.none")}`);
       else {
         if (rows.length) out.push(table(rows));
         if (work.length > count) out.push(`  ${ui(lang, "ui.plan.more", { n: work.length - count })}`);
@@ -234,7 +242,10 @@ register(
       if (waiting) out.push(waitingLine(lang, waits, "ui.plan.waiting"));
       if (queue.length) out.push("", ui(lang, "ui.plan.steer"));
       const item = (t: Task) => ({ id: t.id, what: humanTask(tree, t.what, lang), level: t.level, state: t.state, needsImages: lacksImages(tree, t) });
-      return { text: lines(...out), data: { tasks: work.map(item), stories: stories.map(item), waiting } };
+      return {
+        text: lines(...out),
+        data: { tasks: work.map(item), stories: stories.map(item), waiting, ...(later.length ? { later: later.map(({ t, a }) => ({ ...item(t), until: new Date(a.until).toISOString(), host: a.host })) } : {}) },
+      };
     },
   },
   {

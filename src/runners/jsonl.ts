@@ -8,6 +8,8 @@
 import type { SessionMetrics } from "../core/model.ts";
 import type { Env } from "../core/paths.ts";
 import type { AgentWeb } from "../core/metrics.ts";
+import { RunLog } from "../core/logimages.ts";
+import { StringDecoder } from "node:string_decoder";
 import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, OWN_GROUP, spawnAgent, stopTree, type RunOptions, type RunResult } from "./runner.ts";
 
 /** What a runner learns from its agent's events. */
@@ -217,15 +219,19 @@ function attempt(
       }
       onEvent(msg, heard);
     };
+    // the log a whole line at a time, its images left out (core/logimages.ts); the events read from the full line
+    const log = new RunLog(opts.logFile);
+    const text = new StringDecoder("utf8");
     child.stdout?.on("data", (d: Buffer) => {
-      const s = d.toString("utf8");
-      appendLog(opts.logFile, s);
-      buffer += s;
+      buffer += text.write(d);
       let nl: number;
       while ((nl = buffer.indexOf("\n")) >= 0) {
-        handle(buffer.slice(0, nl));
+        const line = buffer.slice(0, nl);
         buffer = buffer.slice(nl + 1);
+        log.line(line);
+        handle(line);
       }
+      log.flush();
     });
     let stderr = "";
     child.stderr?.on("data", (d: Buffer) => {
@@ -242,7 +248,10 @@ function attempt(
     });
     child.on("close", (code) => {
       end();
+      buffer += text.end();
       if (buffer) handle(buffer);
+      log.rest(buffer);
+      log.flush();
       resolve({ code, timedOut, stderr });
     });
   });

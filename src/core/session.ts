@@ -21,6 +21,7 @@ import { finishAsked, finishByLimit, finishFile, timeSaidFile } from "./clock.ts
 import { isLiveWorker, isWorkerId } from "./workers.ts";
 import { readCodexConfig } from "../agents/effort.ts";
 import { clearSessionWait, permissionWait, waitingForDecision } from "./archivewait.ts";
+import { forgetLeftAlone } from "./leftalone.ts";
 
 function currentFile(tree: Tree, env: Env = tree.env): string {
   const w = env.STROM_WORKER;
@@ -263,6 +264,7 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
   if (!tree.dryRun) {
     fs.rmSync(finishFile(tree.root, closed.id), { force: true });
     clearSessionWait(tree.root, closed.id);
+    forgetLeftAlone(tree.root, closed.id);
     // the time it was told (core/clock.ts timeLine) and an early close said once: gone with it
     for (const f of [timeSaidFile(tree.root, closed.id), timeSaidFile(tree.root, closed.id).replace(/\.json$/, ".close")]) fs.rmSync(f, { force: true });
   }

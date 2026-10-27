@@ -9,6 +9,7 @@
 // they found (and what they did not: a search "by reader").
 
 import { foldText } from "./text.ts";
+import type { Env } from "./paths.ts";
 
 export const BATCH = 10;
 export const BATCH_MAX = 12;
@@ -65,6 +66,28 @@ export function learnedReaderMinutes(views: number, earlier: ReaderTime[]): { mi
   }
   const minutes = Math.min(READER_MINUTES_CEILING, Math.max(base, Math.ceil(need)));
   return { minutes, learned: minutes > base };
+}
+
+/**
+ * A reader silent after a retry of its agent's service (Claude Code's api_retry, then not one line — found live: 14.5
+ * minutes to its time limit, two readers taken for readers without a result and the batches made smaller for it): it is
+ * stopped after this long (and the delay the retry said) and resumed once where it stopped, with the time it had left
+ * (runners/claude.ts); silent again, it ends at once — halted, its service failed, nothing of the reading
+ * (core/readstats.ts). STROM_READER_STALL_MS sets it (tests).
+ */
+export const READER_STALL_MS = 150_000;
+
+/** What a reader resumed after its service went silent is told. */
+export const READER_STALL_PROMPT =
+  "The connection to the model's service broke off and you are started again. Go on where you stopped: the images not yet in your report, each block added as before — never a block that is in it already. Then the done line.";
+
+/** How a reader that ended so is said (its images: read again later). */
+export const READER_STALLED = "its agent's service went silent after a retry, also when resumed — stopped";
+
+/** The watch of a reader's silence after a retry of its service (RunOptions.stalled). */
+export function readerStall(env: Env): { ms: number; prompt: string } {
+  const set = Number(env.STROM_READER_STALL_MS);
+  return { ms: Number.isFinite(set) && set > 0 ? set : READER_STALL_MS, prompt: READER_STALL_PROMPT };
 }
 
 /** "time limit of one reader" of the options --minutes. */

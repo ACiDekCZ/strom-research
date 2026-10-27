@@ -78,11 +78,13 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
   assert.equal(go.verdict, "go");
   assert.match(go.reason, /^týden: využito 30 %, uplynulo 4\d %, náskok 1\d \(potřeba aspoň 10\); týden se obnoví za [34],\d dne$/);
   assert.equal((await ask("claude-usage")).verdict, "go", "0 without a number: no faster than the week");
-  // 20 in hand needed, ~12 there: wait until the week gone reaches 30 + 20 = 50 %
+  // 20 in hand needed, ~12 there: wait until the week gone reaches 30 + 20 and the reserve 2 = 52 % — remembered in
+  // the gate's own folder, so it goes again only then
   const ahead = await ask("claude-usage 20");
   assert.equal(ahead.verdict, "wait");
-  assert.match(ahead.reason, /náskok 1\d \(potřeba aspoň 20\) — dokud čas nedožene/);
-  assert.ok(Math.abs(Date.parse(ahead.until) - (start + 0.5 * 7 * 86_400_000)) < 1000);
+  assert.match(ahead.reason, /náskok 1\d \(potřeba aspoň 20\) — čeká na náskok 22, pak víc sezení za sebou/);
+  assert.ok(Math.abs(Date.parse(ahead.until) - (start + 0.52 * 7 * 86_400_000)) < 1000);
+  assert.ok(fs.existsSync(path.join(w.home, "shared", "plugins", "gates", "claude-usage", "hold.json")));
   // used past the week gone: it waits, with no number too
   usage(10, 60);
   assert.equal((await ask("claude-usage")).verdict, "wait");

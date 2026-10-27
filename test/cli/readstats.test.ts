@@ -312,7 +312,7 @@ test("readers a login, a plan's limit or a failure stopped: said apart, in the r
   put(path.join(w.cwd, ".strom", "metrics", "readers.jsonl"), [line("read-ok", 6, "ok", { report: rel, views: ids.length }), ...["limit", "auth", "limit", "error", "limit"].map((o, i) => line(`read-${o}-${i}`, 5 - i, o))]);
   const text = (await w.ok(["media", "calibrate", "--report"])).out;
   assert.match(text, /^Čtenáři bez výsledku: 0 z 1$/m, text);
-  assert.match(text, /^Čtenáři zastavení přihlášením, limitem plánu nebo chybou: 5 – nepočítají se, o čtení neříkají nic$/m, text);
+  assert.match(text, /^Čtenáři zastavení přihlášením, limitem plánu, chybou nebo výpadkem služby: 5 – nepočítají se, o čtení neříkají nic$/m, text);
   const j = (await w.ok(["media", "calibrate", "--report", "--json"])).json;
   assert.deepEqual(j.readers, { n: 1, noResult: 0, halted: 5, haltedBy: { limit: 3, auth: 1, error: 1 } });
   assert.equal(j.signals.some((s: { metric: string }) => s.metric === "M10"), false);

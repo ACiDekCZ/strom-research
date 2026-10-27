@@ -17,6 +17,11 @@ export const EXIT = {
    * down): nothing more goes to it until the time said — other work meanwhile.
    */
   later: 7,
+  /**
+   * The same session asked again an archive it was told is left alone (exit 7 before), while that time off lasts:
+   * refused at once — nothing estimated, nothing sent; other work until the time said (core/leftalone.ts).
+   */
+  askedAgain: 8,
   cancelled: 130,
 } as const;
 

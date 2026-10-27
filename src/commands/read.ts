@@ -19,7 +19,7 @@ import { cropOf, halves, makeView, mediaOrient, parseCrop, readInHalves, tiles, 
 import { IMAGE_MAX, IMAGE_MAX_LARGE } from "../agents/images.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
 import { currentSession } from "../core/session.ts";
-import { BATCH, BATCH_MAX, batches, NEXT_BLOCK, parseReport, READER_MINUTES_HELP, readerPrompt, readerSettings, viewCount, withoutNextBlock, type Finding, type ReaderImage } from "../core/reader.ts";
+import { BATCH, BATCH_MAX, batches, NEXT_BLOCK, parseReport, READER_MINUTES_HELP, readerPrompt, readerSettings, READER_STALLED, readerStall, viewCount, withoutNextBlock, type Finding, type ReaderImage } from "../core/reader.ts";
 import { exifOrientation, shownSize } from "../image/index.ts";
 import { fileToShown, shownToFile, turnsAcross } from "../image/image.ts";
 import { RUNNERS } from "../runners/index.ts";
@@ -522,6 +522,8 @@ register({
         // without the user's own add-ons (skills, plugins, MCP servers) unless they said otherwise
         ...(ctx.settings.agentAddons(tree.config) ? {} : { clean: true }),
         timeoutMs: minutes * 60_000,
+        // silent after a retry of its service: resumed once, then halted — never waited for to its limit
+        stalled: readerStall(ctx.env),
         logFile: path.join(tree.root, ".strom", "runs", `read-${stem}-${k + 1}.log`),
         ...(model ? { model } : {}),
         // the reasoning effort the person chose for the agent (model.effort): readers read with it too
@@ -567,6 +569,9 @@ register({
         cap: Math.max(...caps.map((c) => c.cap)),
         capFrom: caps.length === 1 ? caps[0]!.capFrom : "mixed",
         outcome: r.outcome,
+        // its service went silent after a retry (outcome "error": halted, as an older strom reads it too), and how often
+        ...(r.stalled ? { stalled: true } : {}),
+        ...(r.stalls ? { stalls: r.stalls } : {}),
         found: findings.filter((f) => f.result === "found").length,
         nothing: findings.filter((f) => f.result === "nothing").length,
         unclear: findings.filter((f) => f.result === "unclear").length,
@@ -583,8 +588,8 @@ register({
         minutesFrom: limit.from,
         report: tree.relative(report),
       });
-      progress(`■ reader ${k + 1}: ${r.outcome === "timeout" ? `stopped at its time limit (${minutes} min)` : r.outcome}${r.metrics.costUsd !== undefined ? ` · $${r.metrics.costUsd.toFixed(2)}` : ""} · ${findings.filter((f) => f.result === "found").length} with finds`);
-      return { group, report, outcome: r.outcome, cost: r.metrics.costUsd, findings, minutes };
+      progress(`■ reader ${k + 1}: ${r.stalled ? READER_STALLED : r.outcome === "timeout" ? `stopped at its time limit (${minutes} min)` : r.outcome}${r.metrics.costUsd !== undefined ? ` · $${r.metrics.costUsd.toFixed(2)}` : ""} · ${findings.filter((f) => f.result === "found").length} with finds`);
+      return { group, report, outcome: r.outcome, cost: r.metrics.costUsd, findings, minutes, stalled: Boolean(r.stalled) };
     };
     const stop = untilFound ? stopped : undefined;
     const results = await (fetching ? streamPool(parallel, nextGroup, readGroup, stop) : pool(groups, parallel, readGroup, stop)).finally(() => clearInterval(look));
@@ -665,7 +670,7 @@ register({
         : undefined,
       notReadSaid,
       missing.length ? `NOT reported: ${runs(missing.map((m) => m.image ?? 0))} — read these again` : undefined,
-      failed.length ? `readers that failed: ${failed.map((r) => `${runs(r.group.map((g) => g.image ?? 0))} (${r.outcome === "timeout" ? `stopped at its time limit, ${r.minutes} min` : r.outcome})`).join(", ")}` : undefined,
+      failed.length ? `readers that failed: ${failed.map((r) => `${runs(r.group.map((g) => g.image ?? 0))} (${r.stalled ? READER_STALLED : r.outcome === "timeout" ? `stopped at its time limit, ${r.minutes} min` : r.outcome})`).join(", ")}` : undefined,
       late.length
         ? `a reader stopped at its time limit gave no answer for ${late.length === 1 && late[0]!.group.length === 1 ? "its image" : "its images"}: look at ${late.flatMap((r) => r.group).length === 1 ? "it" : "them"} yourself — ${late
             .flatMap((r) => r.group)
@@ -694,7 +699,7 @@ register({
         notFetched: unregistered.length ? unregistered : undefined,
         // --until-found: the reader that found it stopped the reading (its batch), the images left unread
         stoppedAtFind: atFind ? { batch: foundBy! + 1, notRead } : undefined,
-        failed: failed.map((r) => ({ images: r.group.map((g) => g.id), outcome: r.outcome, ...(r.outcome === "timeout" ? { minutes: r.minutes } : {}) })),
+        failed: failed.map((r) => ({ images: r.group.map((g) => g.id), outcome: r.outcome, ...(r.outcome === "timeout" ? { minutes: r.minutes } : {}), ...(r.stalled ? { stalled: true } : {}) })),
         reports: results.map((r) => r.report),
         reading: stem,
         blocks: (mine?.blocks ?? []).filter((x) => x.result !== "nothing" || x.illegible?.length || x.gaps?.length || x.section?.length).map((x) => ({ image: x.num, media: x.media, result: x.result, pages: x.pages, entries: x.entries, certainty: x.certainty, illegible: x.illegible, gaps: x.gaps, section: x.section })),

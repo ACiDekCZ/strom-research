@@ -15,8 +15,8 @@
 //   M8  waits for an archive's limit  minutes waited, a limit used up, requests per image
 //   M9  negatives on weak scans     a negative search whose views of the book were mostly enlarged — shown only
 //   M10 readers without a result    a reader that did not finish or wrote nothing of its images — never one a login, a
-//                                   plan's limit or a failure stopped (HALTED_OUTCOMES: counted apart, nothing of the
-//                                   reading)
+//                                   plan's limit, a failure or its service gone silent stopped (HALTED_OUTCOMES,
+//                                   stalled: counted apart, nothing of the reading)
 //   M11 load on the archive         requests per session, book and host; images fetched and never read (7 days on)
 //                                   — only those fetched while the views were recorded, and none a source stands on
 //                                   or a reader's report read
@@ -143,14 +143,17 @@ export const D1_BOOKS = 3;
 /**
  * How a reader ended that says nothing of the reading: a login, a plan's limit, a failure of the agent — counted apart
  * (`halted` in the report) and never among the readers without a result (M10), so a subscription's limit tunes nothing.
+ * So is a reader its agent's service left silent after a retry (`stalled`: recorded so since the reader is stopped for
+ * it, with the outcome "error" an older strom counts as halted too; before, stopped at its time limit with its log
+ * ending at the retry — stalledLog).
  */
 export const HALTED_OUTCOMES: readonly string[] = ["auth", "limit", "error"];
 
-/** A reader stopped by what is no reading (HALTED_OUTCOMES). */
-export const isHalted = (u: Pick<Unit, "kind" | "outcome">): boolean => u.kind === "reader" && u.outcome !== undefined && HALTED_OUTCOMES.includes(u.outcome);
+/** A reader stopped by what is no reading (HALTED_OUTCOMES, or its service gone silent). */
+export const isHalted = (u: Pick<Unit, "kind" | "outcome"> & { stalled?: true }): boolean => u.kind === "reader" && (u.stalled === true || (u.outcome !== undefined && HALTED_OUTCOMES.includes(u.outcome)));
 
 /** A reader whose end says something of the reading (M10): it ran, whatever it gave — never one halted. */
-export const isReading = (u: Pick<Unit, "kind" | "outcome">): boolean => u.kind === "reader" && u.outcome !== undefined && !isHalted(u);
+export const isReading = (u: Pick<Unit, "kind" | "outcome"> & { stalled?: true }): boolean => u.kind === "reader" && u.outcome !== undefined && !isHalted(u);
 
 /**
  * A reader's stop by the context measured (A3, TUNING.stopShare): by the tokens of one view of a reader (its wholes and
@@ -319,6 +322,8 @@ export interface Unit {
   /** A reader: how it ended, and whether it gave no result (never set for one halted: HALTED_OUTCOMES). */
   outcome?: string;
   noResult?: true;
+  /** A reader its agent's service left silent after a retry (api_retry, then nothing): halted, whatever its outcome. */
+  stalled?: true;
   /** The key as strom asked it (an alias, "claude opus") where `key` names another: the model it ran on. */
   asked?: string;
 }
@@ -369,7 +374,8 @@ export function readerLimit(root: string, key: string, views: number): { minutes
   const aliases = loadAliases(root);
   for (const r of readJournal(path.join(metricsDir(root), "readers.jsonl"))) {
     if (typeof r.key !== "string" || keyOf(r.key, str(r.reported), aliases, str(r.at)) !== key) continue;
-    earlier.push({ outcome: str(r.outcome), views: num(r.views), ms: num(r.wallMs) ?? num(r.ms), minutes: num(r.minutes) });
+    // one its service left silent says nothing of the time a reading takes (an older one stopped at its limit so)
+    earlier.push({ outcome: stalledReader(root, r) ? "stalled" : str(r.outcome), views: num(r.views), ms: num(r.wallMs) ?? num(r.ms), minutes: num(r.minutes) });
   }
   const l = learnedReaderMinutes(views, earlier);
   return { minutes: l.minutes, from: l.learned ? "learned" : "default" };
@@ -391,6 +397,66 @@ export function readJournal(file: string): Record<string, unknown>[] {
     // no journal (or not readable): what was read stands
   }
   return out;
+}
+
+/** How much of the end of a plain log is looked at for its last event (stalledLog). */
+const LOG_TAIL = 64 * 1024;
+
+/**
+ * Whether a reader's log ends at a retry of its agent's service: its last event (a line of JSON with a type — strom's
+ * notes and the agent's stderr are none) is Claude Code's api_retry. A plain log is read from its end (LOG_TAIL), a
+ * compressed one (strom tidy) line by line. No log, or one not readable: no.
+ */
+export function stalledLog(file: string): boolean {
+  let last: Record<string, unknown> | undefined;
+  const take = (line: string) => {
+    const t = line.trim();
+    if (!t.startsWith("{")) return false;
+    try {
+      const v = JSON.parse(t) as unknown;
+      if (v && typeof v === "object" && !Array.isArray(v) && typeof (v as Record<string, unknown>).type === "string") {
+        last = v as Record<string, unknown>;
+        return true;
+      }
+    } catch {
+      // a line cut short, or no JSON
+    }
+    return false;
+  };
+  try {
+    if (file.endsWith(".gz")) eachGzipLine(file, (line) => void take(line));
+    else {
+      const fd = fs.openSync(file, "r");
+      try {
+        const size = fs.fstatSync(fd).size;
+        const from = Math.max(0, size - LOG_TAIL);
+        const buf = Buffer.alloc(size - from);
+        fs.readSync(fd, buf, 0, buf.length, from);
+        const lines = buf.toString("utf8").split("\n");
+        // the first piece of a tail is a line cut short: an event that long (an image of before) is no retry
+        if (from > 0) lines.shift();
+        for (let i = lines.length - 1; i >= 0; i--) if (take(lines[i]!)) break;
+      } finally {
+        fs.closeSync(fd);
+      }
+    }
+  } catch {
+    return false;
+  }
+  return last?.type === "system" && last.subtype === "api_retry";
+}
+
+/**
+ * A reader of readers.jsonl its service left silent after a retry: recorded so (`stalled`), or — recorded before strom
+ * stopped readers for it — stopped at its time limit with its log (.strom/runs/<reader>.log, or .log.gz once tidied)
+ * ending at the retry.
+ */
+function stalledReader(root: string, r: Record<string, unknown>): boolean {
+  if (r.stalled === true) return true;
+  const name = str(r.reader);
+  if (str(r.outcome) !== "timeout" || !name || /[\\/]/.test(name)) return false;
+  const log = path.join(root, ".strom", "runs", `${name}.log`);
+  return stalledLog(fs.existsSync(log) ? log : `${log}.gz`);
 }
 
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
@@ -820,9 +886,10 @@ export function computeUnits(tree: Tree, o: ComputeOptions): Unit[] {
       ...(reported ? { reported } : {}),
       ...(str(r.key) ? {} : { guessed: true as const }),
       ...(outcome ? { outcome } : {}),
+      ...(stalledReader(root, r) ? { stalled: true as const } : {}),
       ...(session ? { session } : {}),
     }));
-    // a login, a plan's limit or a failure stopped it: nothing of the reading (counted apart)
+    // a login, a plan's limit, a failure or its service gone silent stopped it: nothing of the reading (counted apart)
     if (!isHalted(u) && (outcome !== "ok" || (images !== undefined && missing !== undefined && images > 0 && missing >= images))) u.noResult = true;
     const usd = r.usdPartial ? undefined : num(r.usd);
     if (usd !== undefined) u.usd = usd;
@@ -2038,11 +2105,15 @@ export function summarize(group: Group, o: SummaryOptions = {}): KeyReport {
     const peaks = mains.slice(-THRESHOLDS.M12.of).filter(long);
     signals.push({ metric: "M12", scope: "key", value: m12.hits, n: m12.hits, of: m12.of, extra: { ctx: THRESHOLDS.M12.ctx, peak: Math.round(median(peaks.map((u) => u.peakCtx!)) ?? 0), views: Math.round(median(peaks.map(viewsOf)) ?? 0) } });
   } else if (!m12.enough && mains.length) tried.add("M12");
-  // M10 on the readers that read (a unit kept from before may carry noResult for one halted: its outcome decides)
+  // M10 on the readers that read (a unit kept from before may carry noResult for one halted: its outcome, or its
+  // service gone silent, decides)
   const readers = ordered.filter(isReading);
   const halted = ordered.filter(isHalted);
   const haltedBy: Record<string, number> = {};
-  for (const u of halted) haltedBy[u.outcome!] = (haltedBy[u.outcome!] ?? 0) + 1;
+  for (const u of halted) {
+    const by = u.stalled ? "stalled" : u.outcome!;
+    haltedBy[by] = (haltedBy[by] ?? 0) + 1;
+  }
   const m10 = lastOf(readers.map((u) => Boolean(u.noResult)), THRESHOLDS.M10);
   if (m10.enough) met("M10");
   if (m10.signal) signals.push({ metric: "M10", scope: "key", value: m10.hits, n: m10.hits, of: m10.of });

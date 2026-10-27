@@ -7,13 +7,25 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.22.0
 
-*Připravuje se: bety do 1.22.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.22.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Jméno jednou v tom, co čeká.** Úkol k materiálu poslanému z aplikace Strom jmenoval ve widgetu a na stránce
   telefonu každého člověka dvakrát (podruhé v hranatých závorkách) a jeho text bez jmen nechal prázdné závorky; menu,
   `strom plan`, aplikace Strom i soubor GEDCOM ukazovaly jméno s jeho ID zopakované. Každé teď jméno řekne jednou.
 - **Widget otevře správný výzkum.** Při několika stromech stejného jména v aplikaci Strom mohl widget na ploše Macu
   otevřít jiný z nich; teď otevře strom svého výzkumu.
+- **Mnohem menší logy sezení.** Logy sezení a čtenářů už neuchovávají obrázky, na které se agent díval (jen jejich
+  velikost a cestu k náhledu), takže jsou o 95–99 % menší.
+- **Úklid, který stačí.** `strom tidy` zvládne logy jakékoli velikosti. Náhledy skenů, přerušená stahování a další,
+  co strom umí vyrobit znovu, se uklízejí i bez souhlasu; logy se pak jen zmenší, nikdy nesmažou. Po odmítnutí přijde
+  otázka ještě jednou, když `.strom` výrazně přeroste samotný výzkum.
+- **Archiv, který neodpovídá, zastaví smyčku agenta.** `strom fetch` řekne, kdy to zkusit znovu a co dělat mezitím;
+  stejný dotaz ve stejném sezení skončí hned (exit 8) a nic neodešle. Úkol, jehož archiv má pauzu, počká mimo frontu
+  (plán ho ukáže odložený do té doby) a `strom run --loop` do té doby počká, místo aby pouštěl sezení bez práce.
+- **Čtenáři nečekají na umlklou službu.** Čtenář, jehož agent po opakovaném pokusu služby zmlkne, se jednou obnoví
+  tam, kde skončil; když mlčí dál, hned skončí. Takový výpadek už nezmenšuje dávky čtení.
+- **Brána týdne předplatného pustí víc sezení za sebou.** Když jednou čeká na náskok, pustí znovu až se dvěma body navíc
+  (při 15: 17), místo jednoho sezení po každém čekání.
 
 ## 1.21.0
 

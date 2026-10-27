@@ -11,7 +11,9 @@
 // hypothesis joins them (core/kin.ts offTree). A task to say what the variants of hypotheses would connect comes first
 // (core/hypolinks.ts linksFirst): short work, and the Strom app shows the variants "not linked yet" until it is done.
 // Work that needs images of an archive whose images wait for the person's decision waits for it (core/archivewait.ts):
-// a session spent on it finds nothing and asks again. Strategies (setting queue.strategy): balanced (the default),
+// a session spent on it finds nothing and asks again. Work whose archive strom leaves alone for a while (it went
+// silent, or asked to slow down: core/leftalone.ts) waits until it takes requests again — a session on it would only be
+// told so. Strategies (setting queue.strategy): balanced (the default),
 // depth (stay on the line of the last sessions), priority (strict priority).
 
 import type { Research, Session, Strategy, Task } from "./model.ts";
@@ -26,6 +28,7 @@ import { HYPOTHESIS_LINKS_TRIES, linksFirst } from "./hypolinks.ts";
 import { setsWithImages } from "./mediaindex.ts";
 import { heldOn, permissionQuestions } from "./archivewait.ts";
 import type { PendingQuestion } from "./terms.ts";
+import { asleepHosts, asleepOn, type Asleep } from "./leftalone.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
 
@@ -62,6 +65,27 @@ export function waitsForDecision(tree: Tree, qs: PendingQuestion[] = permissionQ
   };
 }
 
+/** Levels whose work asks an archive for its images or its indexes (the user's material, a request, a story: none). */
+const ASKS_ARCHIVE = new Set(["locate", "link", "verify", "enrich"]);
+
+/**
+ * An open task whose archive strom leaves alone now (core/leftalone.ts): its level asks an archive, every record set of
+ * it with an address lies on a host left alone, and — reading records (link, verify) — none of them has images here
+ * yet: the host and until when (the task back in the queue then), else undefined. Nothing written: computed afresh.
+ */
+export function waitsForArchive(tree: Tree, asleep: Asleep[] = asleepHosts(tree), withImages?: Set<string | undefined>): (t: Task) => Asleep | undefined {
+  if (!asleep.length) return () => undefined;
+  let sets = withImages;
+  return (t) => {
+    if (!ASKS_ARCHIVE.has(t.level)) return undefined;
+    if (NEEDS_IMAGES.has(t.level)) {
+      sets ??= setsWithImages(tree);
+      if (!lacksImages(tree, t, sets)) return undefined; // its images here: it reads them
+    }
+    return asleepOn(tree, t, asleep);
+  };
+}
+
 /** A task that needs images none of its record sets has yet. */
 export function lacksImages(tree: Tree, t: Task, withImages: Set<string | undefined> = setsWithImages(tree)): boolean {
   return NEEDS_IMAGES.has(t.level) && !taskRecordsets(tree, t).sets.some((b) => withImages.has(b.id));
@@ -93,8 +117,11 @@ export function ancestorLines(tree: Tree, focus: string, max = 50): Map<string, 
   return out;
 }
 
-/** The open tasks in the order to work on them, each with the reason. */
-export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean } = {}): Ranked[] {
+/**
+ * The open tasks in the order to work on them, each with the reason. `awake`: as if every archive left alone took
+ * requests again (strom run asks what would come then).
+ */
+export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean } = {}): Ranked[] {
   const today = now().slice(0, 10);
   const researches = tree.list<Research>("research");
   // a direction the user paused or ended: its tasks wait (one at work goes on)
@@ -105,7 +132,9 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   const withImages = setsWithImages(tree);
   // work whose images wait for the person's decision about an archive: a session on it would only ask again
   const decision = waitsForDecision(tree, permissionQuestions(tree.env), withImages);
-  const waits = (t: Task) => t.state !== "doing" && ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? "")) || off(t) || !!decision(t));
+  // work whose archive is left alone for a while (silent, slow down): a session on it would only be told so
+  const asleep = opts.awake ? () => undefined : waitsForArchive(tree, asleepHosts(tree), withImages);
+  const waits = (t: Task) => t.state !== "doing" && ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? "")) || off(t) || !!decision(t) || !!asleep(t));
   const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)) && !waits(t));
   const lines = new Map<string, Map<string, { gen: number; line: string }>>();
   const linesOf = (researchId: string | undefined) => {

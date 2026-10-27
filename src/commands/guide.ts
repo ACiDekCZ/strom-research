@@ -261,7 +261,8 @@ OUTPUT AND ERRORS
   user, then run the given command) · 4 needs consent (the USER must run the
   given command in their terminal) · 5 locked by another session · 6 the
   backup before another version could not be made (tell the user why) · 7 an
-  archive's limit is used up (other work; run it again at the time it says).
+  archive's limit is used up (other work; run it again at the time it says)
+  · 8 that archive asked again before that time (other work, never again).
 - Settings and how to override them: strom config where.
 
 MORE

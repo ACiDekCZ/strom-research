@@ -384,7 +384,9 @@ register({
     "Never the research (data/, its history, inputs/, notes/, output/), the images in the shared folder, what anybody made,\n" +
     "nor a send of the Strom app taken back that may be sent again. Shown first (what, how much, why); removed on the\n" +
     "person's yes (a window of the system when an agent asks). From then on strom keeps it in order by itself after each\n" +
-    "session and once a day by the bridge (logged in .strom/tidy.log).",
+    "session and once a day by the bridge (logged in .strom/tidy.log). What strom makes again (views of scans, downloads\n" +
+    "cut short, pictures converted, previews, briefs of closed sessions) goes by itself in every tree, and a closed\n" +
+    "session's log is made smaller (images left out, compressed) — no log is removed unasked.",
   examples: ["strom tidy", "strom tidy --dry-run"],
   async run(ctx) {
     const tree = ctx.tree();

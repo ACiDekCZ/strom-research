@@ -22,6 +22,12 @@
 // END_WINDOW (with room for a session), its reset (a new week starts at once) —
 // never past the reset. A full session: until it resets.
 //
+// Once it waited for want of points in hand, it goes again only with RESERVE
+// more (at 15: 17), and then goes until fewer than the number are in hand — so
+// several sessions run in a row, not one after each wait. The reserve grows
+// with the week as the number does. Run by strom (STROM_GATE), the gate keeps
+// the week it waits in in its own folder (hold.json); a new week starts free.
+//
 // A cap (strom config set run.gate "claude-usage 15 --cap 95"): at 95 % of the
 // week used no session starts — the user's own hard stop, asked before every
 // session of every run, and no "start anyway" goes past it; a session at work
@@ -31,6 +37,7 @@
 //
 // strom writes this file; a copy of your own goes into a folder of its own name.
 
+import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const DAY = 86_400_000;
@@ -49,6 +56,14 @@ const END_WINDOW = 2 * 3_600_000;
 const SESSION_POINTS = 10;
 /** After the reset the gate asks again this much later, so the new week is what Claude Code says. */
 const AFTER_RESET = 60_000;
+/**
+ * Once it waited for want of points in hand, this many more are needed before it goes again (with the full number;
+ * early in the week its share, as the number's): a session takes about a point of the week, so the work goes on in
+ * runs of a few sessions instead of one after every wait — each session reads its brief anew. With no number too.
+ */
+const RESERVE = 2;
+/** The week it waits in for the reserve, in the gate's own folder — only when strom asks it (STROM_GATE). */
+const HOLD = process.env.STROM_GATE ? "hold.json" : undefined;
 const lang = (process.env.STROM_LANG ?? "en").slice(0, 2);
 
 const T: Record<string, Record<string, string>> = {
@@ -58,7 +73,7 @@ const T: Record<string, Record<string, string>> = {
     head: "week {used} % used, {gone} % gone, {behind} in hand (at least {min} needed{early})",
     early: " — half the week gone, early in the week",
     resetIn: "; weekly reset in {reset}",
-    catch: " — until the week catches up; weekly reset in {reset}",
+    hold: " — until {target} in hand, then several sessions in a row; weekly reset in {reset}",
     last: " — until the last {window} before the weekly reset in {reset}",
     reset: " — until the weekly reset in {reset}",
     end: "week {used} % used, weekly reset in {reset} — the {room} % left is enough for a session",
@@ -78,7 +93,7 @@ const T: Record<string, Record<string, string>> = {
     head: "týden: využito {used} %, uplynulo {gone} %, náskok {behind} (potřeba aspoň {min}{early})",
     early: " – na začátku týdne polovina uplynulého",
     resetIn: "; týden se obnoví za {reset}",
-    catch: " — dokud čas nedožene; týden se obnoví za {reset}",
+    hold: " — čeká na náskok {target}, pak víc sezení za sebou; týden se obnoví za {reset}",
     last: " — do posledních {window} před obnovením týdne za {reset}",
     reset: " — do obnovení týdne za {reset}",
     end: "týden: využito {used} %, obnoví se za {reset} — zbylých {room} % stačí na sezení",
@@ -98,7 +113,7 @@ const T: Record<string, Record<string, string>> = {
     head: "Woche: {used} % genutzt, {gone} % vergangen, Vorsprung {behind} (mindestens {min} nötig{early})",
     early: " – am Wochenanfang die Hälfte des Vergangenen",
     resetIn: "; Wochen-Reset in {reset}",
-    catch: " — bis die Zeit aufholt; Wochen-Reset in {reset}",
+    hold: " — wartet auf Vorsprung {target}, dann mehrere Sitzungen am Stück; Wochen-Reset in {reset}",
     last: " — bis zu den letzten {window} vor dem Wochen-Reset in {reset}",
     reset: " — bis zum Wochen-Reset in {reset}",
     end: "Woche: {used} % genutzt, Wochen-Reset in {reset} — die übrigen {room} % reichen für eine Sitzung",
@@ -188,21 +203,55 @@ const reset = inTime(resets - now);
 // shown rounded down: never "15 in hand (at least 15 needed)" for 14.6 — and gone − used stays what it says; the
 // need early in the week is a fraction: rounded down when it goes, up when it waits, so the two never seem to disagree
 const v = { used: Math.floor(week.used), gone: Math.floor(gone), behind: Math.floor(behind), early, reset };
+// the reserve once it waited: grown with the week as the number is (its share of the need), whole with no number
+const reserve = min > 0 ? (RESERVE * need) / min : RESERVE;
+const held = holding(resets);
 if (session && session.used >= 100) answer(1, say("session", { reset }), session.resets ? new Date(session.resets.getTime() + AFTER_RESET) : undefined);
-if (behind >= need) answer(0, say("head", { ...v, min: Math.floor(need) }) + say("resetIn", { reset }));
+if (behind >= need + (held ? reserve : 0)) {
+  hold(undefined);
+  answer(0, say("head", { ...v, min: Math.floor(need) }) + say("resetIn", { reset }));
+}
 // what is left before the reset: (to the cap, else to 100 %) enough for a session — in the week's last stretch it goes
 const room = (cap ?? 100) - week.used;
 const fits = room >= SESSION_POINTS;
 if (fits && resets - now <= END_WINDOW) answer(0, say("end", { used: v.used, reset, room: Math.floor(room) }));
-// else it waits for the first of: the week caught up (gone − used ≥ the need: used < n → gone = 2·used, else
-// used + n), the week's last stretch (with room for a session), the reset — a new week at 0 % goes at once, so
+// it waits for want of points in hand: from now on it goes again only with the reserve too
+if (!held) hold(resets);
+// else it waits for the first of: the week caught up with the reserve (gone − used ≥ need + reserve = k·need,
+// k = 1 + RESERVE/n: with the full number gone = used + n + RESERVE, early in the week gone·(1 − k/2) = used — never
+// when k ≥ 2), the week's last stretch (with room for a session), the reset — a new week at 0 % goes at once, so
 // never past it
-const caught = start + ((week.used < min ? 2 * week.used : week.used + min) / 100) * WEEK;
+const k = 1 + RESERVE / min;
+const byHalf = min > 0 && k < 2 ? week.used / (1 - k / 2) : Infinity;
+const caught = start + (Math.min(week.used + min + RESERVE, byHalf) / 100) * WEEK;
 const last = fits ? resets - END_WINDOW : Infinity;
 const after = resets + AFTER_RESET;
 const at = Math.min(caught, last, after);
-const tail = at === caught ? say("catch", { reset }) : at === last ? say("last", { reset, window: say("hours", { n: END_WINDOW / 3_600_000 }) }) : say("reset", { reset });
+const tail =
+  at === caught ? say("hold", { reset, target: Math.ceil(need + reserve) }) : at === last ? say("last", { reset, window: say("hours", { n: END_WINDOW / 3_600_000 }) }) : say("reset", { reset });
 answer(1, say("head", { ...v, min: Math.ceil(need) }) + tail, new Date(Math.max(at, now + 5 * 60_000)));
+
+/** It waits for the reserve in this week (the week it remembers ends within a day of this one's reset). */
+function holding(resets: number): boolean {
+  if (!HOLD) return false;
+  try {
+    const week = Date.parse((JSON.parse(fs.readFileSync(HOLD, "utf8")) as { week?: string }).week ?? "");
+    return Math.abs(week - resets) < DAY;
+  } catch {
+    return false;
+  }
+}
+
+/** The week it now waits in for the reserve, or none (gone). Never fails: without it the gate only forgets. */
+function hold(resets: number | undefined): void {
+  if (!HOLD) return;
+  try {
+    if (resets === undefined) fs.rmSync(HOLD, { force: true });
+    else fs.writeFileSync(HOLD, JSON.stringify({ week: new Date(resets).toISOString(), since: new Date().toISOString() }) + "\n");
+  } catch {
+    // a folder it may not write here: it asks as if for the first time
+  }
+}
 
 /** A stretch of time as a person reads it: hours to two days, then days — one decimal, in the research language. */
 function inTime(ms: number): string {

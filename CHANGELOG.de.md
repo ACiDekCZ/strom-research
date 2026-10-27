@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.22.0
 
-*In Vorbereitung: die Betas bis 1.22.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.22.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Jeder Name einmal in dem, was wartet.** Eine Aufgabe zu Material, das aus der Strom-App gesendet wurde, nannte im
   Widget und auf der Seite des Telefons jede Person zweimal (das zweite Mal in eckigen Klammern), und ihr Text ohne
@@ -15,6 +15,21 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   seiner ID wiederholt. Jedes nennt den Namen jetzt einmal.
 - **Das Widget öffnet die richtige Forschung.** Bei mehreren Stammbäumen gleichen Namens in der Strom-App konnte das
   Widget auf dem Mac-Schreibtisch einen der anderen öffnen; jetzt öffnet es den Stammbaum seiner eigenen Forschung.
+- **Viel kleinere Sitzungsprotokolle.** Die Protokolle der Sitzungen und Leser behalten die Bilder, die der Agent
+  angesehen hat, nicht mehr (nur ihre Größe und den Pfad der Ansicht) und sind dadurch 95–99 % kleiner.
+- **Aufräumen, das mithält.** `strom tidy` bewältigt Protokolle jeder Größe. Ansichten von Scans, abgebrochene
+  Downloads und anderes, was strom neu erstellen kann, werden auch ohne Zustimmung aufgeräumt; Protokolle werden dann
+  nur verkleinert, nie gelöscht. Nach einem Nein kommt die Frage noch einmal, wenn `.strom` weit über die Forschung
+  hinauswächst.
+- **Ein Archiv, das nicht antwortet, beendet die Schleife des Agenten.** `strom fetch` sagt, wann es wieder zu
+  versuchen ist und was bis dahin zu tun ist; dieselbe Anfrage in derselben Sitzung endet sofort (Exit 8) und sendet
+  nichts. Eine Aufgabe, deren Archiv pausiert, wartet bis dahin außerhalb der Warteschlange (der Plan zeigt sie bis zu
+  dieser Zeit zurückgestellt), und `strom run --loop` wartet bis dahin, statt Sitzungen ohne Arbeit zu starten.
+- **Leser warten nicht mehr auf einen verstummten Dienst.** Ein Leser, dessen Agent nach einem erneuten Versuch seines
+  Dienstes verstummt, wird einmal dort fortgesetzt, wo er aufhörte; bleibt er still, endet er sofort. Ein solcher
+  Ausfall verkleinert die Lesestapel nicht mehr.
+- **Das Tor der Abo-Woche lässt mehrere Sitzungen hintereinander laufen.** Wartet es einmal auf Vorsprung, lässt es
+  erst mit zwei Punkten mehr wieder los (bei 15: 17), statt einer Sitzung nach jedem Warten.
 
 ## 1.21.0
 

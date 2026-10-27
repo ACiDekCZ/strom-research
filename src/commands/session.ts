@@ -31,7 +31,8 @@ import { label, parentsOf, resolvePerson } from "../core/people.ts";
 import { storyProposals } from "../core/stories.ts";
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
 import { create, csvOpt, normId, requireRecord, update } from "../core/records.ts";
-import { finishTask, offTreeLine, taskQueue, waitingLines } from "./tasks.ts";
+import { finishTask, nextAwake, offTreeLine, taskQueue, waitingLines } from "./tasks.ts";
+import { clockUp } from "../core/net.ts";
 import { resolveResearch } from "./research.ts";
 import { writeGedcoms } from "./output.ts";
 import { syncAgentFiles } from "../agents/files.ts";
@@ -720,6 +721,9 @@ register({
     "finish when the agent says the cap's window is at 99 %.\n" +
     "Each answer of the gate is said in one line and recorded (time, gate and its arguments, exit status, verdict,\n" +
     "reason, wait, the plan's limits it was given, what the run did) in .strom/gate.log and the next session's log.\n" +
+    "A task whose archive is not answering now (left alone for a while: it went silent, or asked to slow down) waits\n" +
+    "out of the queue until then; when only such tasks are left, --loop and --until wait for that time (within\n" +
+    "--until), any other run ends saying when.\n" +
     "Arguments after -- go to the agent CLI unchanged.",
   options: [
     { name: "task", type: "string", multiple: true, value: "<T…>", description: "work on these tasks, in this order (repeatable or T0003,T0007; default: the next one of the queue)" },
@@ -795,7 +799,7 @@ register({
     let followed = false;
     // Why the run stopped: a code for the exit status and for data, words for the user (their language).
     const lang = Tree.open(root, runEnv).lang;
-    type Stop = "done" | "user" | "time" | "empty" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
+    type Stop = "done" | "user" | "time" | "empty" | "asleep" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
     // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
     let lastLimits: AgentLimit[] | undefined;
     let watch: GateAnswer["watch"];
@@ -885,6 +889,31 @@ register({
           task = free();
         }
         if (!task) {
+          // Nothing now, but work whose archive is left alone for a while (it went silent, or asked to slow down): it
+          // comes back by itself then. A run that goes on by itself (--loop, --until) waits for that time — no session
+          // spent on being told so, nothing sent meanwhile; one the user started for a session or a few ends and says
+          // when. Tasks the user named are never held.
+          const back = i < picked.length ? undefined : nextAwake(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config) }, others);
+          if (back) {
+            const at = back.until + 1000; // its time off over, and a second for the clock
+            const values = { host: back.host, at: clockUp(back.until) };
+            if (gateHolds && !(until && at > until)) {
+              out(ui(lang, "ui.run.asleep.wait", values));
+              stopAwake(); // nothing to do meanwhile: the computer may sleep
+              markPaused(root, worker, { until: new Date(at).toISOString(), reason: ui(lang, "ui.run.asleep.why", values) });
+              try {
+                await pause(at - Date.now(), stop.signal);
+              } finally {
+                markPaused(root, worker, undefined);
+              }
+              stopAwake = keepAwake(ctx.env);
+              i--; // this was no session: the queue again, as it is then
+              continue;
+            }
+            stopCode = "asleep";
+            stopValues = values;
+            break;
+          }
           stopCode = "empty";
           break;
         }
