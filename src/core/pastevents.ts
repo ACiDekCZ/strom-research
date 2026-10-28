@@ -30,6 +30,26 @@ import { dateYears } from "./gdate.ts";
 import { lineValue } from "../gedcom/lines.ts";
 import type { Family, Person, Place, Session, Source, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
+import {
+  factsByRecord,
+  finishPlaceOf,
+  placeFile,
+  placeHeld,
+  placeHistories,
+  placeKeyOf,
+  placeOfEvent,
+  placeOfTask,
+  placeRecord,
+  placeTurn,
+  raisePlaceTasks,
+  readPlaceAsks,
+  readPlaceCatalog,
+  suggestPlaces,
+  writePlaceCatalog,
+  type PlaceCatalog,
+  type PlaceHistoryState,
+  type PlaceWeight,
+} from "./placehistory.ts";
 
 /** The task of a tree that maps its places to regions (core/queue: level enrich, one a tree). */
 export const HISTORY_PLACES_ORIGIN = "history:places";
@@ -285,8 +305,15 @@ export function regionFile(shared: string, id: string): string {
 
 /** A region's ID: letters a–z, digits and hyphens, at most 24 (its events' IDs `<region>-<nnnn>` at most 32). */
 export function regionIdOk(id: string): boolean {
-  return /^[a-z0-9](?:[a-z0-9-]{0,23})$/.test(id) && !id.endsWith("-");
+  return /^[a-z0-9](?:[a-z0-9-]{0,23})$/.test(id) && !id.endsWith("-") && !PLACE_KEY.test(id);
 }
+
+/**
+ * A place's catalog key (core/placehistory.ts): p-<lat>n|s-<lon>e|w from its coordinates in hundredths of a degree
+ * (p-4962n-1507e: 49.62° N, 15.07° E — two trees' records of one village meet), or t-<tree>-l<n> for a place without
+ * coordinates (that tree's alone). Never a region's ID; its events' IDs `<key>-<nnnn>`.
+ */
+export const PLACE_KEY = /^(?:p-\d{1,4}[ns]-\d{1,5}[ew]|t-[0-9a-f]{8}-l\d{1,9})$/u;
 
 export function requireRegionId(id: string): void {
   if (!regionIdOk(id))
@@ -397,7 +424,7 @@ function putTreeFile(tree: Tree, rel: string, value: unknown, op: { op: string; 
 
 // ── checks of what an agent writes ─────────────────────────────────────────
 
-function nfc(t: Texts): Texts {
+export function nfc(t: Texts): Texts {
   return Object.fromEntries(Object.entries(t).map(([k, v]) => [k, v.normalize("NFC").replace(/\s+/gu, " ").trim()]));
 }
 
@@ -450,7 +477,7 @@ export function checkKind(kind: string): EventKind {
   return kind as EventKind;
 }
 
-const overlap = (a: { from: number; to: number }, b: { from: number; to: number }) => a.from <= b.to && b.from <= a.to;
+export const overlap = (a: { from: number; to: number }, b: { from: number; to: number }) => a.from <= b.to && b.from <= a.to;
 
 /** What may make an event the same as one written before: --same-as, --distinct, --replaces. */
 export interface Sameness {
@@ -463,7 +490,7 @@ export interface Sameness {
  * The events of the same kind and years as a new one (retracted and hidden ones too: a person who hid one never gets
  * it again under another ID) — refused with their IDs unless the agent said which it is.
  */
-function sameEvents<E extends { id: string; kind: string; from: number; to: number }>(events: E[], e: { kind: string; from: number; to: number }, s: Sameness, key: (x: E) => boolean = () => true): E[] {
+export function sameEvents<E extends { id: string; kind: string; from: number; to: number }>(events: E[], e: { kind: string; from: number; to: number }, s: Sameness, key: (x: E) => boolean = () => true): E[] {
   return events.filter((x) => x.id !== s.replaces && x.kind === e.kind && overlap(x, e) && key(x));
 }
 
@@ -472,7 +499,7 @@ function sameEvents<E extends { id: string; kind: string; from: number; to: numb
  * only with a source at another address than theirs (`url`; a local event's source is the same record: never), --same-as
  * and --replaces never name one.
  */
-function refuseDeleted<E extends { id: string; retracted?: Retracted; source?: EventSource; sources?: EventSource[] }>(same: E[], s: Sameness, url: string | undefined, what: string, local = false): void {
+export function refuseDeleted<E extends { id: string; retracted?: Retracted; source?: EventSource; sources?: EventSource[] }>(same: E[], s: Sameness, url: string | undefined, what: string, local = false): void {
   const deleted = same.filter(deletedByPerson);
   if (!deleted.length) return;
   const urls = new Set(deleted.flatMap((x) => [x.source, ...(x.sources ?? [])]).filter((x): x is EventSource => !!x).map((x) => x.url));
@@ -489,12 +516,12 @@ function refuseDeleted<E extends { id: string; retracted?: Retracted; source?: E
 }
 
 /** An event named by --same-as or --replaces the person deleted: refused (R4). */
-function refuseNamedDeleted(e: { id: string; retracted?: Retracted } | undefined): void {
+export function refuseNamedDeleted(e: { id: string; retracted?: Retracted } | undefined): void {
   if (e && deletedByPerson(e))
     throw new UsageError(`${e.id} was deleted by the person — nothing written`, { code: "history.deleted", params: { ids: e.id }, hint: "the person does not want it — leave it out" });
 }
 
-function refuseSame(ids: string[], what: string): never {
+export function refuseSame(ids: string[], what: string): never {
   throw new UsageError(`${what} of the same kind and years is there already: ${ids.join(", ")} — nothing written`, {
     code: "history.same",
     params: { ids: ids.join(", ") },
@@ -814,7 +841,7 @@ export function regionsOfMaps(tree: Tree): string[] {
 }
 
 /** An event taken back (it was wrong): never sent again; what was hidden on it stays (and moves to what replaced it). */
-export function retractEvent(tree: Tree, shared: string | undefined, id: string, why: string): { id: string; scope: "region" | "local" } {
+export function retractEvent(tree: Tree, shared: string | undefined, id: string, why: string): { id: string; scope: EventScope } {
   const reason = why.normalize("NFC").trim();
   if (!reason) throw new UsageError("--why is missing: why the event is taken back", { code: "history.why" });
   const at = new Date().toISOString();
@@ -827,17 +854,37 @@ export function retractEvent(tree: Tree, shared: string | undefined, id: string,
     putTreeFile(tree, LOCAL_FILE, { next: f.next, events }, { op: "history.retract", targets: [e.local.source], summary: `Local event ${id} taken back: ${reason}` });
     return { id, scope: "local" };
   }
-  const region = regionOfEvent(id);
-  if (!shared || !region) throw new UsageError(`there is no event ${id}`, { code: "history.event", params: { event: id } });
+  const scope = sharedScope(id);
+  if (!shared || !scope) throw new UsageError(`there is no event ${id}`, { code: "history.event", params: { event: id } });
   withCatalogs(shared, () => {
-    const c = readCatalog(shared, region);
+    const c = eventCatalog(shared, id);
     const e = c?.events.find((x) => x.id === id);
     if (!c || !e) throw new UsageError(`there is no event ${id}`, { code: "history.event", params: { event: id } });
     if (e.retracted) return;
     e.retracted = { at, why: reason };
-    writeCatalog(shared, c);
+    c.save();
   });
-  return { id, scope: "region" };
+  return { id, scope };
+}
+
+/** Where an event lives: a region's shared catalog, a place's (core/placehistory.ts), the tree's own local ones. */
+export type EventScope = "region" | "local" | "place";
+
+/** A shared event's scope by its ID: a region's or a place's; undefined for another (a local one, none). */
+function sharedScope(id: string): "region" | "place" | undefined {
+  return regionOfEvent(id) ? "region" : placeOfEvent(id) ? "place" : undefined;
+}
+
+/** The shared catalog an event's ID names, its events and how to write it back (under withCatalogs); undefined when none. */
+function eventCatalog(shared: string, id: string): { events: RegionEvent[]; save: () => void } | undefined {
+  const region = regionOfEvent(id);
+  if (region) {
+    const c = readCatalog(shared, region);
+    return c ? { events: c.events, save: () => writeCatalog(shared, c) } : undefined;
+  }
+  const key = placeOfEvent(id);
+  const c = key ? readPlaceCatalog(shared, key) : undefined;
+  return c ? { events: c.events, save: () => writePlaceCatalog(shared, c) } : undefined;
 }
 
 /**
@@ -847,7 +894,7 @@ export function retractEvent(tree: Tree, shared: string | undefined, id: string,
  * back (strom history retract, --replaces) is no person's: refused (history.retracted). Again: nothing changes. Inside
  * the tree's lock; the person's deletions after as the app reads them (deletedEvents).
  */
-export function deleteEvent(tree: Tree, shared: string | undefined, id: string, restore = false): { event: string; scope: "region" | "local"; changed: boolean; deleted: DeletedEvent[] } {
+export function deleteEvent(tree: Tree, shared: string | undefined, id: string, restore = false): { event: string; scope: EventScope; changed: boolean; deleted: DeletedEvent[] } {
   const at = new Date().toISOString();
   const change = <E extends { id: string; retracted?: Retracted }>(e: E): E | undefined => {
     if (e.retracted && !deletedByPerson(e))
@@ -872,23 +919,23 @@ export function deleteEvent(tree: Tree, shared: string | undefined, id: string, 
     }
     return { event: id, scope: "local", changed, deleted: deletedEvents(tree, shared) };
   }
-  const region = regionOfEvent(id);
-  if (!shared || !region) throw new UsageError(`there is no event ${id}`, { code: "history.event", params: { event: id } });
+  const scope = sharedScope(id);
+  if (!shared || !scope) throw new UsageError(`there is no event ${id}`, { code: "history.event", params: { event: id } });
   withCatalogs(shared, () => {
-    const c = readCatalog(shared, region);
+    const c = eventCatalog(shared, id);
     const i = c?.events.findIndex((x) => x.id === id) ?? -1;
     if (!c || i < 0) throw new UsageError(`there is no event ${id}`, { code: "history.event", params: { event: id } });
     const next = change(c.events[i]!);
     if (!next) return;
     c.events[i] = next;
-    writeCatalog(shared, c);
+    c.save();
     changed = true;
   });
-  return { event: id, scope: "region", changed, deleted: deletedEvents(tree, shared) };
+  return { event: id, scope, changed, deleted: deletedEvents(tree, shared) };
 }
 
 /** An event the person deleted as the app shows it under Deleted: what its row needs (as in `events`), and when. */
-export type DeletedEvent = Omit<AppEvent, "id"> & { event: string; at: string; place?: string };
+export type DeletedEvent = Omit<AppEvent, "id" | "place"> & { event: string; at: string; place?: string | AppEvent["place"] };
 
 /**
  * The events the person deleted that this tree would show (R4, the app's P1): of the catalogs of its places' regions —
@@ -900,11 +947,22 @@ export function deletedEvents(tree: Tree, shared: string | undefined): DeletedEv
     const { id, ...rest } = a;
     return { event: id, ...rest, ...(place !== undefined ? { place } : {}), at };
   };
-  if (shared)
+  if (shared) {
     for (const id of regionsOfMaps(tree)) {
       const c = readCatalog(shared, id);
       for (const e of c?.events ?? []) if (deletedByPerson(e)) out.push(row(appRegionEvent(e, c!), e.retracted!.at));
     }
+    // the places' own (core/placehistory.ts): of the place records of the tree's facts, each catalog once
+    const seen = new Set<string>();
+    for (const [id, at] of factsByRecord(tree)) {
+      const p = placeRecord(tree, id);
+      const key = p ? placeKeyOf(tree, p) : "";
+      if (!p || seen.has(key)) continue;
+      seen.add(key);
+      const c = readPlaceCatalog(shared, key);
+      for (const e of c?.events ?? []) if (deletedByPerson(e)) out.push(row(appPlaceEvent(e, c!, at.keys[0]!, id), e.retracted!.at));
+    }
+  }
   const sources = new Map(tree.list<Source>("source").map((s) => [s.id, s]));
   for (const e of readLocal(tree).events) {
     const s = sources.get(e.local.source);
@@ -961,8 +1019,7 @@ export function redoRegion(shared: string, region: string): Catalog {
 /** Does this event exist (any state) — in the tree's local ones or a region's catalog? */
 export function eventExists(tree: Tree, shared: string | undefined, id: string): boolean {
   if (/^L\d+$/.test(id)) return readLocal(tree).events.some((e) => e.id === id);
-  const region = regionOfEvent(id);
-  return !!shared && !!region && !!readCatalog(shared, region)?.events.some((e) => e.id === id);
+  return !!shared && !!eventCatalog(shared, id)?.events.some((e) => e.id === id);
 }
 
 /**
@@ -972,10 +1029,10 @@ export function eventExists(tree: Tree, shared: string | undefined, id: string):
 function replacements(tree: Tree, shared: string | undefined): (id: string) => { id: string; gone: boolean } {
   const files = new Map<string, Map<string, { retracted?: Retracted }>>();
   const eventsOf = (id: string) => {
-    const key = /^L\d+$/.test(id) ? "" : regionOfEvent(id);
+    const key = /^L\d+$/.test(id) ? "" : (regionOfEvent(id) ?? placeOfEvent(id));
     if (key === undefined) return undefined;
     if (!files.has(key)) {
-      const list: { id: string; retracted?: Retracted }[] = key === "" ? readLocal(tree).events : ((shared ? readCatalog(shared, key)?.events : undefined) ?? []);
+      const list: { id: string; retracted?: Retracted }[] = key === "" ? readLocal(tree).events : ((shared ? eventCatalog(shared, id)?.events : undefined) ?? []);
       files.set(key, new Map(list.map((e) => [e.id, e])));
     }
     return files.get(key);
@@ -1088,8 +1145,10 @@ export interface AppEvent {
   to: number;
   date?: string;
   kind: EventKind;
-  scope: "region" | "local";
+  scope: EventScope;
   region?: { id: string; name: Texts };
+  /** A place's own event (core/placehistory.ts): the key of `places` it shows at, the place record, the place's names. */
+  place?: { key: string; id?: string; name: Texts };
   text: Texts;
   why?: Texts;
   source?: { title: string; publisher?: string; url: string; lang?: string; checked: string; quote: string };
@@ -1117,6 +1176,10 @@ export interface AppPlace {
   skip?: true;
   /** The research's place record of it (L…), when one bears its name alone. */
   id?: string;
+  /** Its own history (core/placehistory.ts, with `id` alone): its state, when it was looked for, the reach of its search. */
+  history?: PlaceHistoryState;
+  at?: string;
+  area?: Texts;
 }
 
 export type SearchState = "none" | "running" | "done" | "waiting";
@@ -1130,6 +1193,8 @@ export interface AppRegion {
   /** When its catalog was finished (done). */
   at?: string;
   why?: string;
+  /** Nobody of the tree lived there in its years (K2.7a): waiting, with why — nothing looked for until a fact falls in them. */
+  nobody?: true;
   /** The finished regions that hold its places and years already (covered: it comes last, closed without a search). */
   covered?: string[];
   /** Its place among the tasks of the regions (their gaps too) in the order strom run takes them, 1 = the next. */
@@ -1158,6 +1223,8 @@ export interface HistoryAnswer {
   hidden: Hide[];
   /** The events the person deleted (R4), for the app's Deleted: restore brings them back. */
   deleted: DeletedEvent[];
+  /** The place records the research suggests for their own history (K7.3, only an offer): IDs alone. */
+  suggest?: string[];
 }
 
 function appRegionEvent(e: RegionEvent, c: Catalog): AppEvent {
@@ -1170,6 +1237,24 @@ function appRegionEvent(e: RegionEvent, c: Catalog): AppEvent {
     kind: (EVENT_KINDS as readonly string[]).includes(e.kind) ? e.kind : "other",
     scope: "region",
     region: { id: c.region.id, name: c.region.name },
+    text: e.text,
+    ...(e.why ? { why: e.why } : {}),
+    source: { title: s.title, ...(s.publisher ? { publisher: s.publisher } : {}), url: s.url, ...(s.lang ? { lang: s.lang } : {}), checked: s.checked, quote: s.quote },
+    ...(e.tip ? { tip: { text: e.tip.text } } : {}),
+    ...(e.sensitive ? { sensitive: true as const } : {}),
+  };
+}
+
+function appPlaceEvent(e: RegionEvent, c: PlaceCatalog, key: string, id: string | undefined): AppEvent {
+  const s = e.source;
+  return {
+    id: e.id,
+    from: e.from,
+    to: e.to,
+    ...(e.date ? { date: e.date } : {}),
+    kind: (EVENT_KINDS as readonly string[]).includes(e.kind) ? e.kind : "other",
+    scope: "place",
+    place: { key, ...(id ? { id } : {}), name: c.place.name },
     text: e.text,
     ...(e.why ? { why: e.why } : {}),
     source: { title: s.title, ...(s.publisher ? { publisher: s.publisher } : {}), url: s.url, ...(s.lang ? { lang: s.lang } : {}), checked: s.checked, quote: s.quote },
@@ -1315,7 +1400,7 @@ function resolvePerson(tree: Tree, id: string): string | undefined {
 }
 
 /** The sessions on tasks of the history: one at work (running), and when the last one ended. */
-function historySessions(tree: Tree): { running: boolean; ended?: string } {
+export function historySessions(tree: Tree): { running: boolean; ended?: string } {
   const tasks = new Map(tree.list<Task>("task").map((t) => [t.id, t]));
   let running = false;
   let ended: string | undefined;
@@ -1329,7 +1414,7 @@ function historySessions(tree: Tree): { running: boolean; ended?: string } {
 }
 
 /** Held by another tree within its days (F2: one tree builds a region's catalog). */
-export function heldElsewhere(c: Catalog | undefined, treeId: string, now = Date.now()): boolean {
+export function heldElsewhere(c: Pick<Catalog, "holder" | "done"> | undefined, treeId: string, now = Date.now()): boolean {
   if (!c?.holder || c.holder.tree === treeId || c.done) return false;
   const since = Date.parse(c.holder.since);
   return Number.isFinite(since) && now - since < HOLD_DAYS * 86_400_000;
@@ -1359,28 +1444,39 @@ export function historyAnswer(tree: Tree, shared: string | undefined, settings: 
   // the region's events of each mapped place, by the years it belonged to the region; the same event of two of its
   // regions (a land's catalog holds its state's events: the same kind and years, the same day or none) once — the
   // nearer region's
-  const regional = (m: PlaceMap | undefined): string[] => {
-    if (!m || m.state === "unlocated") return [];
-    const found: { e: RegionEvent; c: Catalog; reach: number }[] = [];
-    for (const g of m.regions) {
-      const c = r.catalog(g.id);
-      for (const e of c?.events ?? []) {
-        if (e.retracted) continue;
-        if (!inRegion(e, g)) continue;
-        found.push({ e, c: c!, reach: reach.get(g.id) ?? 0 });
-      }
+  // a place's own events (its record's catalog, core/placehistory.ts) are the nearest of all: one of its region of the
+  // same kind and years goes
+  const placeCatalogs = new Map<string, PlaceCatalog | undefined>();
+  const placeCatalog = (id: string) => {
+    if (!placeCatalogs.has(id)) {
+      const p = shared ? placeRecord(tree, id) : undefined;
+      placeCatalogs.set(id, p ? readPlaceCatalog(shared!, placeKeyOf(tree, p)) : undefined);
     }
+    return placeCatalogs.get(id);
+  };
+  const regional = (m: PlaceMap | undefined, key: string, own?: { id: string; c: PlaceCatalog | undefined }): string[] => {
+    const found: { e: RegionEvent; of: string; make: () => AppEvent; reach: number }[] = [];
+    for (const e of own?.c?.events ?? []) if (!e.retracted) found.push({ e, of: own!.c!.place.key, make: () => appPlaceEvent(e, own!.c!, key, own!.id), reach: -1 });
+    if (m && m.state !== "unlocated")
+      for (const g of m.regions) {
+        const c = r.catalog(g.id);
+        for (const e of c?.events ?? []) {
+          if (e.retracted) continue;
+          if (!inRegion(e, g)) continue;
+          found.push({ e, of: g.id, make: () => appRegionEvent(e, c!), reach: reach.get(g.id) ?? 0 });
+        }
+      }
     const nearer = [...found].sort((a, b) => a.reach - b.reach);
     const kept: typeof found = [];
     for (const x of nearer) {
-      const same = kept.some((k) => k.c.region.id !== x.c.region.id && k.e.kind === x.e.kind && k.e.from === x.e.from && k.e.to === x.e.to && (!k.e.date || !x.e.date || k.e.date === x.e.date));
+      const same = kept.some((k) => k.of !== x.of && k.e.kind === x.e.kind && k.e.from === x.e.from && k.e.to === x.e.to && (!k.e.date || !x.e.date || k.e.date === x.e.date));
       if (!same) kept.push(x);
     }
     const keep = new Set(kept.map((x) => x.e.id));
     const ids: string[] = [];
     for (const x of found) {
       if (!keep.has(x.e.id)) continue;
-      if (!events.has(x.e.id)) events.set(x.e.id, appRegionEvent(x.e, x.c));
+      if (!events.has(x.e.id)) events.set(x.e.id, x.make());
       ids.push(x.e.id);
     }
     return ids;
@@ -1407,30 +1503,37 @@ export function historyAnswer(tree: Tree, shared: string | undefined, settings: 
 
   const people = peopleAt(tree);
   const recordOf = placeRecordOf(records);
+  const own = placeHistories(tree, shared, settings);
   for (const key of new Set([...keys, ...skippedKeys, ...localAt.keys()])) {
     const skip = r.skippedFacts.has(key);
     const m = skip ? r.anyMapOf(key) : r.mapOf(key);
     const fact = r.facts.has(key) || skip;
     const state = r.facts.has(key) ? placeState(r, key) : !skip && m?.state === "unlocated" ? "unlocated" : undefined;
-    // a place skipped: no event of a region through it (the local ones read in the tree's sources stay)
-    const ids = [...new Set([...(skip ? [] : regional(m)), ...(localAt.get(key) ?? [])])];
+    const id = recordOf(key);
+    // a place skipped: no event of a region or its own through it (the local ones read in the tree's sources stay)
+    const ids = [...new Set([...(skip ? [] : regional(m, key, id ? { id, c: placeCatalog(id) } : undefined)), ...(localAt.get(key) ?? [])])];
     if (!fact && !ids.length && !state) continue;
     const also = alsoOf(tree, records, key, m);
-    const id = recordOf(key);
     const persons = people.get(foldText(key))?.size ?? 0;
+    const history = id && fact ? own(id) : undefined;
+    // why: the unlocated one's first (the app shows one sentence), else why its own history waits
+    const why = m?.state === "unlocated" && m.why ? m.why : history?.why;
     places.set(key, {
       events: ids,
       ...(also.length ? { also } : {}),
       ...(state ? { state } : {}),
       ...(m?.regions.length ? { regions: m.regions } : {}),
       ...(fact ? { persons } : {}),
-      ...(m?.state === "unlocated" && m.why ? { why: m.why } : {}),
+      ...(why ? { why } : {}),
       ...(m?.manual ? { manual: true as const } : {}),
       ...(m?.state === "redo" ? { redo: true as const, ...(m.note ? { note: m.note } : {}) } : {}),
       ...(skip ? { skip: true as const } : {}),
       ...(id ? { id } : {}),
+      ...(history ? { history: history.history, ...(history.at ? { at: history.at } : {}), area: history.area } : {}),
     });
   }
+  // the replacements of the places' own catalogs
+  for (const c of placeCatalogs.values()) for (const e of c?.events ?? []) if (e.retracted?.replacedBy) replaced.set(e.id, e.retracted.replacedBy);
   // the replacements, of every catalog read (only now are they all read)
   for (const c of r.catalogs.values()) for (const e of c?.events ?? []) if (e.retracted?.replacedBy) replaced.set(e.id, e.retracted.replacedBy);
   // the 2 PLAC key of a place pending though no region of it is known yet: in `places` already; counted
@@ -1480,6 +1583,7 @@ export function historyAnswer(tree: Tree, shared: string | undefined, settings: 
 
   const search = searchState(tree, r, on, pending);
   const mapping = mappingNow(tree, r);
+  const suggest = suggestPlaces(tree, shared, settings);
   return {
     state: { on, ...search, pending, rev: historyRev(tree, shared, settings), ...(truncated ? { truncated: true as const } : {}), ...(mapping ? { mapping } : {}) },
     lang: tree.lang,
@@ -1488,11 +1592,12 @@ export function historyAnswer(tree: Tree, shared: string | undefined, settings: 
     regions,
     hidden,
     deleted: deletedEvents(tree, shared).slice(0, maxEvents),
+    ...(suggest.length ? { suggest } : {}),
   };
 }
 
 /** The people of the tree with a fact at each place (by its folded key): a family's fact counts for its partners. */
-function peopleAt(tree: Tree): Map<string, Set<string>> {
+export function peopleAt(tree: Tree): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
   const count = (who: string[], e: Person["events"][number]) => {
     if (!factWritten(e) || !e.place) return;
@@ -1516,7 +1621,7 @@ function peopleAt(tree: Tree): Map<string, Set<string>> {
  * The research's place record of a place of the facts: the one record that bears its name (any of its names, any
  * accent), else the one that bears its first part ("Lhota, okres Horní" → "Lhota"); none when two do.
  */
-function placeRecordOf(records: Place[]): (key: string) => string | undefined {
+export function placeRecordOf(records: Place[]): (key: string) => string | undefined {
   const live = records.filter((p) => !p.retracted);
   const named = (f: string) => live.filter((p) => p.names.some((n) => foldText(n.name) === f));
   return (key) => {
@@ -1610,7 +1715,7 @@ function appRegions(
       ...(order !== undefined ? { order } : {}),
       ...(turn?.asked?.region === id ? { first: true as const } : {}),
     };
-    let state: Pick<AppRegion, "state" | "at" | "why" | "covered" | "gaps" | "fill">;
+    let state: Pick<AppRegion, "state" | "at" | "why" | "nobody" | "covered" | "gaps" | "fill">;
     if (r.skippedRegions.has(id)) state = { state: "skipped" };
     else if (c?.done) {
       const gaps = regionGaps(tree, shared, id, r);
@@ -1619,6 +1724,7 @@ function appRegions(
     else if (!on) state = { state: "none" };
     else if (archive) state = { state: "waiting", why: phrase(tree.lang, "history.why.archive") };
     else if (heldElsewhere(c, tree.config.id)) state = { state: "waiting", why: phrase(tree.lang, "history.why.held", { region: regionName(c, tree.lang, id) }) };
+    else if (regionPeriod(tree, id, r).nobody) state = { state: "waiting", why: phrase(tree.lang, "history.why.nobody", { region: regionName(c, tree.lang, id) }), nobody: true };
     else if (w?.covered?.length) state = { state: "covered", covered: w.covered };
     else state = { state: task ? "queued" : "none" };
     out[id] = { ...base, ...state };
@@ -1657,9 +1763,13 @@ export function historyRev(tree: Tree, shared: string | undefined, settings: Set
       return "-";
     }
   };
-  const parts = [historyOn(tree, settings) ? "on" : "off"];
+  const parts = [historyOn(tree, settings) ? "on" : "off", settings.historyPlacesAuto(tree.config) ? "auto" : "asked"];
   for (const rel of [PLACES_FILE, LOCAL_FILE, HIDDEN_FILE, SKIP_FILE, FIRST_FILE]) parts.push(stat(path.join(tree.root, ...rel.split("/"))));
-  if (shared) for (const id of regionsOfTree(tree)) parts.push(`${id}=${stat(regionFile(shared, id))}`);
+  if (shared) {
+    for (const id of regionsOfTree(tree)) parts.push(`${id}=${stat(regionFile(shared, id))}`);
+    // the places' own catalogs (core/placehistory.ts): of every place record (a record's coordinates change its key)
+    for (const p of tree.list<Place>("place")) if (!p.retracted) parts.push(`${p.id}=${stat(placeFile(shared, placeKeyOf(tree, p)))}`);
+  }
   parts.push(headStat(tree.root, stat));
   return crypto.createHash("sha256").update(parts.join("|")).digest("hex").slice(0, 16);
 }
@@ -1684,10 +1794,13 @@ export interface HistoryStatus {
   places: { total: number; pending: string[]; unlocated: number; mapped: number; skipped: number; manual: number };
   /**
    * period: the years its events are looked for in for this tree (regionPeriod); gaps: a finished catalog's years of the
-   * tree's people with no event, not looked at yet (regionGaps); added: its years of the period never looked through (regionNew).
+   * tree's people with no event, not looked at yet (regionGaps); added: its years of the period never looked through (regionNew);
+   * nobody: nobody of the tree lived there in its years — no period, nothing looked for (K2.7a).
    */
-  regions: { id: string; name?: Texts; events: number; retracted: number; deleted: number; done?: string; heldBy?: string; tried: number; period: Gap[]; gaps?: Gap[]; added?: Gap[]; skipped?: true }[];
+  regions: { id: string; name?: Texts; events: number; retracted: number; deleted: number; done?: string; heldBy?: string; tried: number; period: Gap[]; nobody?: true; gaps?: Gap[]; added?: Gap[]; skipped?: true }[];
   local: { events: number; retracted: number; deleted: number };
+  /** The places' own history (core/placehistory.ts): each place record of the facts with a catalog, a task or an ask. */
+  ownPlaces: { id: string; key: string; history: PlaceHistoryState; events: number; deleted: number; done?: string; heldBy?: string }[];
   hidden: { total: number; byKind: Record<string, number> };
 }
 
@@ -1707,7 +1820,7 @@ export function historyStatus(tree: Tree, shared: string | undefined, settings?:
       ...(c?.done ? { done: c.done.at } : {}),
       ...(c && heldElsewhere(c, tree.config.id) ? { heldBy: c.holder!.tree } : {}),
       tried: c?.tried.length ?? 0,
-      period: regionPeriod(tree, id, r).spans,
+      ...((p) => ({ period: p.spans, ...(p.nobody ? { nobody: true as const } : {}) }))(regionPeriod(tree, id, r)),
       ...(c?.done ? { gaps: regionGaps(tree, shared, id, r), added: regionNew(tree, shared, id, r) } : {}),
       ...(r.skippedRegions.has(id) ? { skipped: true as const } : {}),
     };
@@ -1719,7 +1832,7 @@ export function historyStatus(tree: Tree, shared: string | undefined, settings?:
   const byKind: Record<string, number> = {};
   for (const h of hides) {
     if (h.event === undefined) continue; // a whole region: no kind
-    const k = kindOf.get(h.event) ?? (shared && regionOfEvent(h.event) ? readCatalog(shared, regionOfEvent(h.event)!)?.events.find((e) => e.id === h.event)?.kind : undefined) ?? "other";
+    const k = kindOf.get(h.event) ?? (shared ? eventCatalog(shared, h.event)?.events.find((e) => e.id === h.event)?.kind : undefined) ?? "other";
     byKind[k] = (byKind[k] ?? 0) + 1;
   }
   return {
@@ -1727,8 +1840,32 @@ export function historyStatus(tree: Tree, shared: string | undefined, settings?:
     places: { total: keys.length, pending, unlocated: keys.filter((k) => placeState(r, k) === "unlocated").length, mapped: keys.filter((k) => mapped(r.mapOf(k))).length, skipped: r.skippedFacts.size, manual: keys.filter((k) => !!r.mapOf(k)?.manual).length },
     regions,
     local: { events: r.local.filter((e) => !e.retracted).length, retracted: r.local.filter((e) => e.retracted && !deletedByPerson(e)).length, deleted: r.local.filter(deletedByPerson).length },
+    ownPlaces: ownPlacesOf(tree, shared, settings ?? new Settings(tree.env, {})),
     hidden: { total: hides.length, byKind },
   };
+}
+
+/** The place records with a history of their own (strom history status): a catalog, a task or an ask. */
+function ownPlacesOf(tree: Tree, shared: string | undefined, settings: Settings): HistoryStatus["ownPlaces"] {
+  const states = placeHistories(tree, shared, settings);
+  const out: HistoryStatus["ownPlaces"] = [];
+  for (const p of tree.list<Place>("place")) {
+    if (p.retracted) continue;
+    const st = states(p.id);
+    const key = placeKeyOf(tree, p);
+    const c = shared ? readPlaceCatalog(shared, key) : undefined;
+    if (!st || (st.history === "none" && !c)) continue;
+    out.push({
+      id: p.id,
+      key,
+      history: st.history,
+      events: c?.events.filter((e) => !e.retracted).length ?? 0,
+      deleted: c?.events.filter(deletedByPerson).length ?? 0,
+      ...(c?.done ? { done: c.done.at } : {}),
+      ...(c && heldElsewhere(c, tree.config.id) ? { heldBy: c.holder!.tree } : {}),
+    });
+  }
+  return out;
 }
 
 /** A fact place of the tree by its words (decomposed, other spaces): the key as the GEDCOM writes it, or undefined. */
@@ -1824,9 +1961,11 @@ export interface RegionPeriod {
   to: number;
   /** The years the tree's people lived there (regionSpans); one span of the places' years when no fact there has a year. */
   spans: Gap[];
-  /** No fact at its places has a year: the years its places belonged to it (to this year). */
+  /** No fact at its places has a year: the years those places belonged to it (to the last of them, else to this year). */
   undated?: true;
-  places: { place: string; from?: number; to?: number; years: number[] }[];
+  /** Its places' facts have years, none of them while the places belonged to it: nobody of the tree lived there in its years — no period, nothing looked for (K2.7a). */
+  nobody?: true;
+  places: { place: string; from?: number; to?: number; years: number[]; dated: boolean }[];
 }
 
 /**
@@ -1834,8 +1973,10 @@ export interface RegionPeriod {
  * years at a war in Italy: those years, not to this one): the years its people lived at its places (regionSpans: each
  * person's facts there, LIVED_MARGIN before and after, to this year only when they reach the last PRESENT_YEARS; the
  * spans apart when more than GAP_YEARS lie between them) — this tree's places only (each tree that shares the region
- * adds its own years: an extension of a finished catalog, regionNew). No fact there with a year: the years its places
- * belonged to it, from the oldest (never before 1600) to this year.
+ * adds its own years: an extension of a finished catalog, regionNew). Facts there with years, none in the years its
+ * places belonged to it (a place of facts to 1940 in a state from 1945): nobody of the tree lived there then — no period
+ * at all (K2.7a, Milan 28 Oct 2026). Only places whose facts have no year at all give the years they belonged to it,
+ * from the oldest (never before 1600) to the region's end (to this year when it lasts).
  */
 export function regionPeriod(tree: Tree, region: string, read?: Reading): RegionPeriod {
   const r = read ?? reading(tree, undefined);
@@ -1845,14 +1986,20 @@ export function regionPeriod(tree: Tree, region: string, read?: Reading): Region
     for (const link of m?.regions ?? []) {
       if (link.id !== region) continue;
       const inside = years.filter((y) => y >= (link.from ?? -Infinity) && y <= (link.to ?? Infinity));
-      places.push({ place: key, ...(link.from !== undefined ? { from: link.from } : {}), ...(link.to !== undefined ? { to: link.to } : {}), years: inside });
+      places.push({ place: key, ...(link.from !== undefined ? { from: link.from } : {}), ...(link.to !== undefined ? { to: link.to } : {}), years: inside, dated: years.length > 0 });
     }
   }
   places.sort((a, b) => a.place.localeCompare(b.place));
   const spans = regionSpans(tree, region, r);
   if (spans.length) return { from: spans[0]!.from, to: spans.at(-1)!.to, spans, places };
-  const to = new Date().getFullYear();
-  const from = oldestYear(places, to);
+  const now = new Date().getFullYear();
+  const undated = places.filter((p) => !p.dated);
+  if (!undated.length) {
+    const from = oldestYear(places, now);
+    return { from, to: from, spans: [], nobody: true, places };
+  }
+  const to = Math.min(now, Math.max(...undated.map((p) => p.to ?? now)));
+  const from = oldestYear(undated, to);
   return { from, to, spans: [{ from, to }], undated: true, places };
 }
 
@@ -2183,6 +2330,10 @@ export interface HistoryTurn {
   order?: RegionWeight[];
   /** The places of the facts to map, open: the next session's whatever the pace — the cheap step the regions need. */
   places?: string;
+  /** The place whose own history the person asked for first (strom history place, core/placehistory.ts): its task the next session's, whatever the pace. */
+  placeAsked?: { task: string; place: string; at: string };
+  /** The other open tasks of the places' own history, after the regions: those asked for, then by their weight in the tree. */
+  placeOrder?: PlaceWeight[];
 }
 
 /** The session history's turn comes at after its last one: every, give or take its spread — drawn from the seed. */
@@ -2217,7 +2368,8 @@ export function historyTurn(tree: Tree, shared: string | undefined, settings: Se
   const prefer = preferredOf(tree, shared, [...tasks.values()], ended.slice(-PREFER_SESSIONS));
   const places = [...tasks.values()].find((t) => t.origin === HISTORY_PLACES_ORIGIN && (t.state === "open" || t.state === "doing"));
   const skipped = new Set(readSkips(tree).regions.map((x) => x.region));
-  const open = new Map([...tasks.values()].filter((t) => ofRegion(t) && (t.state === "open" || t.state === "doing") && !skipped.has(regionOfTask(t)!)).map((t) => [regionOfTask(t)!, t]));
+  const open = new Map([...tasks.values()].filter((t) => ofRegion(t) && !!regionOfTask(t) && (t.state === "open" || t.state === "doing") && !skipped.has(regionOfTask(t)!)).map((t) => [regionOfTask(t)!, t]));
+  const own = placeTurn(tree, [...tasks.values()]);
   const asked = readFirst(tree)
     .filter((x) => open.has(x.region))
     .sort((a, b) => b.at.localeCompare(a.at))
@@ -2230,6 +2382,8 @@ export function historyTurn(tree: Tree, shared: string | undefined, settings: Se
     ...(prefer ? { prefer } : {}),
     ...(places ? { places: places.id } : {}),
     ...(order.length ? { order } : {}),
+    ...(own.asked ? { placeAsked: own.asked } : {}),
+    ...(own.order.length ? { placeOrder: own.order } : {}),
   };
   if (pace === "idle") return { ...base, now: false };
   const due = historyDue(PACE_EVERY[pace], `${tree.config.id}:${last?.id ?? "first"}`);
@@ -2275,10 +2429,15 @@ function preferredOf(tree: Tree, shared: string | undefined, tasks: Task[], rece
  */
 export function historyOrder(turn: HistoryTurn | undefined): (t: Task) => number {
   const rank = new Map((turn?.order ?? []).map((w, i) => [w.id, i]));
+  const places = new Map((turn?.placeOrder ?? []).map((w, i) => [w.task, i]));
   return (t) => {
+    // the place whose history the person asked for: before anything (it needs no region)
+    if (turn?.placeAsked?.task === t.id) return -1;
     if (t.origin === HISTORY_PLACES_ORIGIN) return 0;
     if (turn?.asked?.task === t.id) return 1;
     if (turn?.prefer?.task === t.id) return 2;
+    // the places' own after the regions, those asked for first, then the places of the most people
+    if (placeOfTask(t)) return 4 + rank.size + (places.get(t.id) ?? places.size);
     const region = regionOfTask(t);
     return 3 + (region !== undefined && rank.has(region) ? rank.get(region)! : rank.size);
   };
@@ -2397,7 +2556,9 @@ export function askFirst(tree: Tree, shared: string | undefined, region: string,
     const task = tree.list<Task>("task").find((t) => t.origin === regionOrigin(id) && LIVE_STATES.has(t.state))?.id;
     if (before[0]?.region === id) return { first: before, ...(task ? { task } : {}) };
     const first = [{ region: id, at: new Date().toISOString() }, ...before.filter((x) => x.region !== id)].slice(0, FIRST_MAX);
-    putTreeFile(tree, FIRST_FILE, { first }, { op: "history.first", targets: [], summary: `History first: ${id}` });
+    // the places asked for (core/placehistory.ts) kept beside
+    const places = readPlaceAsks(tree);
+    putTreeFile(tree, FIRST_FILE, { first, ...(places.length ? { places } : {}) }, { op: "history.first", targets: [], summary: `History first: ${id}` });
     return { first, ...(task ? { task } : {}) };
   });
 }
@@ -2405,19 +2566,29 @@ export function askFirst(tree: Tree, shared: string | undefined, region: string,
 /**
  * What keeps a task of history out of the queue now — nothing written, computed afresh: the experiment off (the tasks
  * stay as they are and come back when it is on again), a research that acts as an archive, a region the person does not
- * want looked for in this tree (strom history skip: back with unskip), or a region another tree builds within HOLD_DAYS. Undefined for a task that may be taken (and for any other task).
+ * want looked for in this tree (strom history skip: back with unskip), a region another tree builds within HOLD_DAYS, or
+ * a region nobody of the tree lived in in its years (regionPeriod nobody, K2.7a: its task waiting is closed when the
+ * tasks are raised again). Undefined for a task that may be taken (and for any other task).
  */
-export function historyHeld(tree: Tree, shared: string | undefined, settings: Settings = new Settings(tree.env, {})): (t: Task) => "off" | "archive" | "held" | "skipped" | undefined {
+export function historyHeld(tree: Tree, shared: string | undefined, settings: Settings = new Settings(tree.env, {})): (t: Task) => "off" | "archive" | "held" | "skipped" | "nobody" | undefined {
   let state: "off" | "archive" | undefined | null = null;
   let skipped: Set<string> | undefined;
+  let read: Reading | undefined;
+  const nobody = new Map<string, boolean>();
+  const nobodyIn = (region: string) => {
+    if (!nobody.has(region)) nobody.set(region, !!regionPeriod(tree, region, (read ??= reading(tree, undefined))).nobody);
+    return nobody.get(region)!;
+  };
   return (t) => {
     if (!forHistory(t)) return undefined;
     if (state === null) state = !historyOn(tree, settings) ? "off" : actsAsArchive(tree) ? "archive" : undefined;
     if (state) return state;
+    if (placeOfTask(t)) return placeHeld(tree, shared, t);
     const region = regionOfTask(t);
     skipped ??= new Set(readSkips(tree).regions.map((x) => x.region));
     if (region && skipped.has(region)) return "skipped";
     if (region && shared && heldElsewhere(readCatalog(shared, region), tree.config.id)) return "held";
+    if (region && nobodyIn(region)) return "nobody";
     return undefined;
   };
 }
@@ -2513,6 +2684,15 @@ export function raiseHistoryTasks(tree: Tree, shared: string | undefined, settin
           op: "task.done",
           summary: `${t.id} done: ${id} is looked for again as a whole`,
         });
+      // nobody of the tree lived there in its years (K2.7a): nothing looked for — its task waiting is done, its catalog kept
+      if (regionPeriod(tree, id).nobody) {
+        for (const t of mine.filter((x) => x.state === "open" || x.state === "parked"))
+          update<Task>(tree, t.id, "task", (x) => ({ ...x, state: "done", result: phrase(lang, "history.region.nobody", { region: regionName(c, lang, id) }) }), {
+            op: "task.done",
+            summary: `${t.id} done: nobody of the tree lived in ${id} in its years`,
+          });
+        continue;
+      }
       if (mine.some((t) => LIVE_STATES.has(t.state))) continue;
       // dropped since the region was last asked for again: that was the answer
       if (mine.some((t) => t.state === "dropped" && t.updated >= (c.redo ?? ""))) continue;
@@ -2525,6 +2705,9 @@ export function raiseHistoryTasks(tree: Tree, shared: string | undefined, settin
         origin,
       });
     }
+    // the places' own history (core/placehistory.ts): a finished catalog closes its task; by itself only when the person
+    // turned it on (experiments.historyPlaces)
+    made.push(...raisePlaceTasks(tree, shared, settings));
     return made;
   });
 }
@@ -2534,6 +2717,7 @@ export function raiseHistoryTasks(tree: Tree, shared: string | undefined, settin
  * gaps: those gaps looked at (noteGaps).
  */
 export function finishRegionOf(tree: Tree, shared: string | undefined, t: Task): void {
+  if (placeOfTask(t)) return finishPlaceOf(tree, shared, t);
   const region = regionOfTask(t);
   if (!region || !shared || tree.dryRun) return;
   if (forGaps(t)) return noteGaps(shared, region, t, tree.config.id);
@@ -2565,9 +2749,11 @@ export interface StoryEvent {
   to: number;
   date?: string;
   kind: EventKind;
-  scope: "region" | "local";
+  scope: EventScope;
   /** The region's name in the research language (a region's event). */
   region?: string;
+  /** The place's name in the research language (a place's own event, core/placehistory.ts). */
+  place?: string;
   /** The places of the person's facts it comes through. */
   places: string[];
   /** In the research language (else English, else any). */
@@ -2604,10 +2790,10 @@ function storyPeople(tree: Tree, owner: string): string[] {
  * person's story keeps LIVED_MARGIN before their first fact, the years before the birth too. Read
  * only; the setting (stories.history) is the caller's.
  */
-export function storyHistory(tree: Tree, shared: string | undefined, owner: string): StoryEvent[] {
+export function storyHistory(tree: Tree, shared: string | undefined, owner: string, read?: Reading): StoryEvent[] {
   const persons = [...new Set(storyPeople(tree, owner).map((id) => resolvePerson(tree, id)).filter((id): id is string => !!id))];
   if (!persons.length) return [];
-  const r = reading(tree, shared);
+  const r = read ?? reading(tree, shared);
   const now = new Date().getFullYear();
   const lang = tree.lang;
   const records = tree.list<Place>("place");
@@ -2625,7 +2811,17 @@ export function storyHistory(tree: Tree, shared: string | undefined, owner: stri
   const reach = new Map<string, number>();
   for (const m of Object.values(r.maps)) for (const g of m.regions) reach.set(g.id, (reach.get(g.id) ?? 0) + 1);
 
-  const found = new Map<string, StoryEvent & { at: Set<string>; reach: number; c?: Catalog }>();
+  const found = new Map<string, StoryEvent & { at: Set<string>; reach: number; of?: string }>();
+  // the place record of each place of the facts, its own catalog (core/placehistory.ts) read once
+  const recordOf = placeRecordOf(records);
+  const ownCatalogs = new Map<string, PlaceCatalog | undefined>();
+  const ownCatalog = (id: string) => {
+    if (!ownCatalogs.has(id)) {
+      const p = shared ? placeRecord(tree, id) : undefined;
+      ownCatalogs.set(id, p ? readPlaceCatalog(shared!, placeKeyOf(tree, p)) : undefined);
+    }
+    return ownCatalogs.get(id);
+  };
   const families = tree.list<Family>("family").filter((f) => !f.retracted);
   // the years all of them lived — a couple's story only (one not known on a side: no bound there); one person keeps
   // LIVED_MARGIN before the first fact
@@ -2698,7 +2894,52 @@ export function storyHistory(tree: Tree, shared: string | undefined, owner: stri
           source: { title: src.title, ...(src.publisher ? { publisher: src.publisher } : {}), url: src.url, quote: src.quote },
           at: new Set(at),
           reach: reach.get(id) ?? 0,
-          c,
+          of: id,
+        });
+      }
+    }
+
+    // the places' own events (core/placehistory.ts): of the record of each place of their facts, in the years they
+    // lived there — the nearest of all (a place skipped: none)
+    const records_ = new Map<string, { years: number[]; places: Set<string> }>();
+    for (const f of facts) {
+      if (!f.place || r.skippedFacts.has(f.place)) continue;
+      const id = recordOf(f.place);
+      if (!id) continue;
+      const x = records_.get(id) ?? { years: [], places: new Set<string>() };
+      records_.set(id, x);
+      x.years.push(...f.years);
+      x.places.add(f.place);
+    }
+    for (const [id, x] of records_) {
+      const s = x.years.length ? span(x.years) : undefined;
+      const c = s ? ownCatalog(id) : undefined;
+      for (const e of c?.events ?? []) {
+        if (e.retracted || e.from > s!.to || e.to < s!.from || hiddenHere(e.id)) continue;
+        const at = [...x.places].filter((p) => !hiddenAt(e.id, p));
+        if (!at.length) continue;
+        const had = found.get(e.id);
+        if (had) {
+          for (const a of at) had.at.add(a);
+          continue;
+        }
+        const src = e.source;
+        found.set(e.id, {
+          id: e.id,
+          from: e.from,
+          to: e.to,
+          ...(e.date ? { date: e.date } : {}),
+          kind: (EVENT_KINDS as readonly string[]).includes(e.kind) ? e.kind : "other",
+          scope: "place",
+          place: textIn(c!.place.name, lang),
+          places: [],
+          text: textIn(e.text, lang),
+          ...ageAt(e.from),
+          ...(e.sensitive ? { sensitive: true as const } : {}),
+          source: { title: src.title, ...(src.publisher ? { publisher: src.publisher } : {}), url: src.url, quote: src.quote },
+          at: new Set(at),
+          reach: -1,
+          of: c!.place.key,
         });
       }
     }
@@ -2738,15 +2979,15 @@ export function storyHistory(tree: Tree, shared: string | undefined, owner: stri
     }
   }
 
-  // the same event of two regions (a land's catalog holds its state's): once, the nearer region's
-  const kept: (StoryEvent & { at: Set<string>; reach: number; c?: Catalog })[] = [];
+  // the same event of two regions (a land's catalog holds its state's), or of a place and its region: once, the nearer one's
+  const kept: (StoryEvent & { at: Set<string>; reach: number; of?: string })[] = [];
   for (const x of [...found.values()].sort((a, b) => a.reach - b.reach)) {
     if (x.from > both.to || x.to < both.from) continue;
-    const same = x.scope === "region" && kept.some((k) => k.scope === "region" && k.c?.region.id !== x.c?.region.id && k.kind === x.kind && k.from === x.from && k.to === x.to && (!k.date || !x.date || k.date === x.date));
+    const same = x.scope !== "local" && kept.some((k) => k.scope !== "local" && k.of !== x.of && k.kind === x.kind && k.from === x.from && k.to === x.to && (!k.date || !x.date || k.date === x.date));
     if (!same) kept.push(x);
   }
   return kept
-    .map(({ at, reach: _r, c: _c, ...e }) => ({ ...e, places: [...at].sort((a, b) => a.localeCompare(b)) }))
+    .map(({ at, reach: _r, of: _o, ...e }) => ({ ...e, places: [...at].sort((a, b) => a.localeCompare(b)) }))
     .sort((a, b) => a.from - b.from || a.to - b.to || a.id.localeCompare(b.id));
 }
 
@@ -2758,10 +2999,45 @@ export function historyEventLine(tree: Tree, shared: string | undefined, id: str
     const e = readLocal(tree).events.find((x) => x.id === id);
     return e ? `${yrs(e)} ${textIn(e.text, lang)} — ${e.local.source} ${e.local.cite}${e.retracted ? " (taken back since)" : ""}` : undefined;
   }
-  const region = regionOfEvent(id);
-  const c = shared && region ? readCatalog(shared, region) : undefined;
-  const e = c?.events.find((x) => x.id === id);
+  const e = shared ? eventCatalog(shared, id)?.events.find((x) => x.id === id) : undefined;
   return e ? `${yrs(e)} ${textIn(e.text, lang)} — ${e.source.title} ${e.source.url}${e.retracted ? " (taken back since)" : ""}` : undefined;
+}
+
+/**
+ * The people of the tree an event of the history shows at (their stories, the Strom app's person): those whose facts
+ * at its places fall in its years as storyHistory reads them — after strom history add, said to the person (K2.8).
+ */
+export function whoSees(tree: Tree, shared: string | undefined, id: string): string[] {
+  const r = reading(tree, shared);
+  // only those with a fact at one of its places are read through (a region's: the places mapped to it; a place's: those of
+  // its record; a local one: its place)
+  const region = regionOfEvent(id);
+  const key = placeOfEvent(id);
+  const recordOf = placeRecordOf(tree.list<Place>("place"));
+  const local = /^L\d+$/u.test(id) ? readLocal(tree).events.find((e) => e.id === id) : undefined;
+  const at = (place: string): boolean => {
+    if (region) return !!r.mapOf(place)?.regions.some((g) => g.id === region);
+    if (key) {
+      const rec = recordOf(place);
+      const p = rec ? placeRecord(tree, rec) : undefined;
+      return !!p && placeKeyOf(tree, p) === key;
+    }
+    return !!local && foldText(place) === foldText(local.place);
+  };
+  const fits = new Map<string, boolean>();
+  const near = (place: string | undefined) => {
+    const k = place ? lineValue(place) : "";
+    if (!k) return false;
+    if (!fits.has(k)) fits.set(k, at(k));
+    return fits.get(k)!;
+  };
+  const families = tree.list<Family>("family").filter((f) => !f.retracted);
+  return tree
+    .list<Person>("person")
+    .filter((p) => !p.retracted && !p.mergedInto)
+    .filter((p) => p.events.some((e) => near(e.place)) || families.some((f) => f.partners.includes(p.id) && f.events.some((e) => near(e.place))))
+    .filter((p) => storyHistory(tree, shared, p.id, r).some((e) => e.id === id))
+    .map((p) => p.id);
 }
 
 /**

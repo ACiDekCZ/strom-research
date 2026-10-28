@@ -119,6 +119,7 @@ function historyLine(tree: Tree, t: Task, shared: string | undefined, settings: 
   const why = historyHeld(tree, shared, settings)(t);
   if (why === "off") return `⚠ ${t.id} is a task of the history of the places, which is off for this research: strom history add refuses — close the session (strom session close --continue …)`;
   if (why === "skipped") return `⚠ the person asked for no history of ${regionOfTask(t)} in this research (strom history skip): close the session (strom session close --continue …) and take another task`;
+  if (why === "nobody") return `⚠ nobody of this tree lived in ${regionOfTask(t)} in its years (the facts at its places lie in other years): nothing to look for — close the session (strom session close --continue …) and take another task`;
   if (why === "held") return `⚠ another research on this computer builds the catalog of ${regionOfTask(t)} now: its events come from there — close the session (strom session close --continue …) and take another task`;
   return undefined;
 }

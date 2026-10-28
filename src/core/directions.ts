@@ -27,7 +27,8 @@ export function aboutPeople(tree: Tree, subject: string[]): string[] {
 
 /** Whether a text names a record by its ID (any script around it: never \b, which knows only ASCII letters). */
 export function namesId(text: string, id: string): boolean {
-  return new RegExp(`(?<![\\p{L}\\p{M}\\p{N}])${id}(?![\\p{L}\\p{M}\\p{N}])`, "u").test(text);
+  // most texts name no ID at all: a regular expression each is built only for those that hold its letters
+  return text.includes(id) && new RegExp(`(?<![\\p{L}\\p{M}\\p{N}])${id}(?![\\p{L}\\p{M}\\p{N}])`, "u").test(text);
 }
 
 const PERSON_ID = /(?<![\p{L}\p{M}\p{N}])P\d{4,}(?![\p{L}\p{M}\p{N}])/gu;

@@ -377,9 +377,12 @@ function diagnoseInto(
       const last = lastCompacted(k.root);
       if (last && !last.ok) wrong.push(t("ui.doc.history.wrong", { name: k.name, error: last.error ?? "" }));
       try {
-        const tree = timed("doctor.records", () => Tree.open(k.root, ctx.env));
-        timed("doctor.records", () => {
-          for (const r of [...tree.list<Media>("media"), ...tree.list<Input>("input")]) if (r.sha) named.add(r.sha.toLowerCase());
+        // one step, the records read once: the research worked on is the one its check reads below (found on Windows,
+        // 2026-10-28: a research on a network's disk read twice)
+        const tree = timed("doctor.records", () => {
+          const opened = ctx.hasTree() && path.resolve(ctx.tree().root) === path.resolve(k.root) ? ctx.tree() : Tree.open(k.root, ctx.env);
+          for (const r of [...opened.list<Media>("media"), ...opened.list<Input>("input")]) if (r.sha) named.add(r.sha.toLowerCase());
+          return opened;
         });
         const plan = timed("doctor.tidy", () => tidyPlan(tree));
         beside += plan.size.strom;
@@ -921,6 +924,7 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   if (def.key === "agent.addons") return { value: "off", source: "default" };
   if (def.key === "experiments.history") return { value: "off", source: "default" };
   if (def.key === "experiments.historyPace") return { value: ctx.settings.historyPace(tree), source: "default" };
+  if (def.key === "experiments.historyPlaces") return { value: "off", source: "default" };
   if (def.key === "tune.transcripts") return { value: "on", source: "default" };
   if (def.key === "tune.auto") return { value: "on", source: "default" };
   if (def.key === "browser.downloads") return { value: downloadsDir(ctx.env), source: "detected" };
@@ -974,6 +978,7 @@ function addonsDecision(ctx: Context, key: string, value: string | number | unde
  */
 function experimentsDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
   if (key === "experiments.historyPace") return paceDecision(ctx, value, scope);
+  if (key === "experiments.historyPlaces") return placesDecision(ctx, value, scope);
   if (key !== "experiments.history") return;
   if (scope === "tree") {
     if (value === "on")
@@ -985,6 +990,28 @@ function experimentsDecision(ctx: Context, key: string, value: string | number |
   const { now, next } = layerChange(ctx, key, value, scope);
   if (next === "on" && now !== "on")
     ctx.requireHuman("Look for the events of history at the places of every research on this computer (now and then between the sessions of the family research)?", "strom config set experiments.history on", "experiments.history", ui(ctx.uiLang(), "ui.consent.history"));
+}
+
+/**
+ * The history of the places by itself (experiments.historyPlaces): turned on by the person alone, in the user's config —
+ * each place a session of the agent; a tree's strom.json may only turn it off; off is anyone's.
+ */
+function placesDecision(ctx: Context, value: string | number | undefined, scope: "tree" | "user"): void {
+  if (scope === "tree") {
+    if (value === "on")
+      throw new UsageError("experiments.historyPlaces is turned on in the user's own config only — a tree may only turn it off", {
+        hint: "the user, in their terminal: strom config set experiments.historyPlaces on; strom config unset experiments.historyPlaces --for-tree takes this tree's off away",
+      });
+    return;
+  }
+  const { now, next } = layerChange(ctx, "experiments.historyPlaces", value, scope);
+  if (next === "on" && now !== "on")
+    ctx.requireHuman(
+      "Look for the history of each place with coordinates and its surroundings by itself (one session of the agent a place)?",
+      "strom config set experiments.historyPlaces on",
+      "experiments.historyPlaces",
+      ui(ctx.uiLang(), "ui.consent.history.places"),
+    );
 }
 
 /** A pace more often than another (experiments.historyPace: sometimes before rare before idle). */

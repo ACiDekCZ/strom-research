@@ -13,13 +13,14 @@ import path from "node:path";
 import * as git from "./git.ts";
 import { connectorsDir } from "./connector.ts";
 import { mergeCatalog, regionFile, regionIdOk, regionsOfTree, type Catalog } from "./pastevents.ts";
+import { mergePlaceCatalog, placeFile, placeKeyOf, placeKeyOk, type PlaceCatalog } from "./placehistory.ts";
 import { StromError, UsageError } from "./errors.ts";
 import { createKey } from "./seal.ts";
 import { safeFolderName } from "./text.ts";
 import { Tree, VERSION } from "./tree.ts";
 import { verifyFull } from "./integrity.ts";
 import { readZip, unzipTo, ZipWriter } from "./zip.ts";
-import type { Input, Media, Source } from "./model.ts";
+import type { Input, Media, Place, Source } from "./model.ts";
 import type { Env } from "./paths.ts";
 
 export const PACK_MANIFEST = "strom-pack.json";
@@ -41,6 +42,8 @@ export interface PackManifest {
   connectors: string[];
   /** The catalogs of the regions of history the tree's places belong to (shared/history/regions/<id>.json); merged on unpack, never written over. */
   history?: string[];
+  /** The catalogs of the history of the tree's places (shared/history/places/<key>.json); merged on unpack, never written over. */
+  places?: string[];
   /** Images left out (the archive gives them again). */
   left: { count: number; bytes: number };
 }
@@ -202,6 +205,8 @@ export function writePack(
     };
     const regions = regionsOfTree(tree).filter((id) => fs.existsSync(regionFile(shared, id)));
     if (regions.length) manifest.history = regions;
+    const places = [...new Set(tree.list<Place>("place").filter((p) => !p.retracted).map((p) => placeKeyOf(tree, p)))].filter((k) => fs.existsSync(placeFile(shared, k)));
+    if (places.length) manifest.places = places;
     // CRLF: Notepad of an older Windows shows it right too
     zip.add(opts.readme.name, Buffer.from(opts.readme.text.replace(/\n/g, "\r\n"), "utf8"));
     for (const l of launchers(opts.say)) zip.add(l.name, Buffer.from(l.text, "utf8"), { mode: l.mode });
@@ -212,6 +217,7 @@ export function writePack(
       addTree(zip, `shared/plugins/connectors/${c}`, path.join(connectorsDir(shared), c));
     }
     for (const id of regions) zip.addFile(`shared/history/regions/${id}.json`, regionFile(shared, id));
+    for (const key of places) zip.addFile(`shared/history/places/${key}.json`, placeFile(shared, key));
     zip.close();
     return { file: out, bytes: fs.statSync(out).size, manifest, plan };
   } catch (e) {
@@ -345,6 +351,17 @@ export function unpack(pack: { manifest: PackManifest; dir: string }, treesDir: 
       }
       if (given?.region?.id !== id) continue;
       historyEvents += mergeCatalog(shared, given).added;
+    }
+    for (const key of m.places ?? []) {
+      if (!placeKeyOk(key)) continue;
+      let given: PlaceCatalog | undefined;
+      try {
+        given = JSON.parse(fs.readFileSync(path.join(src, "shared", "history", "places", `${key}.json`), "utf8")) as PlaceCatalog;
+      } catch {
+        continue; // as a region's: the research is whole without it
+      }
+      if (given?.place?.key !== key) continue;
+      historyEvents += mergePlaceCatalog(shared, given).added;
     }
     return { root, name: tree.config.name, images: media.length - imagesHad, imagesHad, connectors, connectorsKept: kept, adopted, historyEvents };
   } catch (e) {

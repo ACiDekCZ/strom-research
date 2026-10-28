@@ -48,6 +48,8 @@ import { inboxOf, requestFile, sameGroup } from "../core/waiting.ts";
 import { SENDABLE, waitGroupOf, waitKindOf } from "../core/waitkind.ts";
 import { openForUser } from "../core/open.ts";
 import { fileRefused } from "../core/taskfiles.ts";
+import { historyOn } from "../core/pastevents.ts";
+import { placeEstimate, placeLabel, placeRecord, placesWithCoords, placeTask } from "../core/placehistory.ts";
 
 /** What the Strom app asks, said before anything is done; true when the person goes on. */
 export async function asks(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true): Promise<boolean> {
@@ -177,7 +179,8 @@ export async function archiveAsked(ctx: Context, run: Run, lang: string, root: s
  * asked once — what it does, how long, and that it is this computer's setting for every research on it when that
  * changes — then this computer's setting on and the research's own off taken away; off is the research's at once.
  */
-export async function experimentDo(ctx: Context, run: Run, lang: string, root: string, what: "on" | "off"): Promise<boolean> {
+export async function experimentDo(ctx: Context, run: Run, lang: string, root: string, what: "on" | "off", name: "history" | "places" = "history"): Promise<boolean> {
+  if (name === "places") return placesDo(ctx, run, lang, root, what);
   const t = translator(lang);
   const tree = Tree.open(root, ctx.env);
   const treeOff = tree.config.experimentsHistory === "off";
@@ -202,6 +205,61 @@ export async function experimentDo(ctx: Context, run: Run, lang: string, root: s
   if (treeOff && (await run(["config", "unset", "experiments.history", "--for-tree"], true)) !== 0) return false;
   out(ctx, t("ui.link.experiment.on.done"));
   return true;
+}
+
+/** How long a session on a place's history takes, and what such sessions cost here so far (three of them measured); the menu's settings say the same. */
+export function placeCost(t: ReturnType<typeof translator>, lang: string, tree: Tree): string {
+  const e = placeEstimate(tree);
+  return lines(
+    t("ui.link.history.place.minutes", { from: e.minutes[0], to: e.minutes[1] }),
+    e.usd ? t("ui.link.history.place.usd", { from: humanCost(e.usd[0], lang), to: humanCost(e.usd[1], lang) }) : undefined,
+  );
+}
+
+/**
+ * The history of each place with coordinates looked for by itself (strom-research://experiment&name=places): on is
+ * asked here — how many places, how long each, what such a session costs — and set in this computer's settings (only
+ * the person turns it on); off is the research's at once. Only while the search for the events of history is on.
+ */
+async function placesDo(ctx: Context, run: Run, lang: string, root: string, what: "on" | "off"): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const treeOff = tree.config.experimentsHistoryPlaces === "off";
+  if (what === "off") {
+    if (treeOff || !ctx.settings.historyPlacesAuto(tree.config)) return stop(ctx, t("ui.link.experiment.places.off.already"));
+    if ((await run(["config", "set", "experiments.historyPlaces", "off", "--for-tree"], true)) !== 0) return false;
+    out(ctx, t("ui.link.experiment.places.off.done"));
+    return true;
+  }
+  if (!historyOn(tree, ctx.settings)) return stop(ctx, t("ui.link.history.off"));
+  if (ctx.settings.historyPlacesAuto(tree.config)) return stop(ctx, t("ui.link.experiment.places.on.already"));
+  const userOn = ctx.settings.historyPlacesAuto(undefined);
+  const gps = placesWithCoords(tree, ctx.settings.shared()?.value);
+  const note = lines(t("ui.link.experiment.places.count", { n: gps.places, done: gps.done }), placeCost(t, lang, tree), userOn ? undefined : t("ui.link.experiment.all"));
+  if (!(await asks(ctx, lang, root, t("ui.link.what.experiment.places"), note, false))) return false;
+  if (!userOn && (await run(["config", "set", "experiments.historyPlaces", "on"], true)) !== 0) return false;
+  if (treeOff && (await run(["config", "unset", "experiments.historyPlaces", "--for-tree"], true)) !== 0) return false;
+  out(ctx, t("ui.link.experiment.places.on.done"));
+  return true;
+}
+
+/**
+ * The history of one place and its surroundings asked for from the Strom app (strom-research://history&place=L…):
+ * the estimate said and asked here, its task on top of the queue (strom history place), then started now if wanted.
+ */
+export async function placeSearch(ctx: Context, run: Run, lang: string, root: string, id: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const p = placeRecord(tree, id);
+  if (!p) return stop(ctx, t("ui.link.history.place.none", { place: id }));
+  if (!historyOn(tree, ctx.settings)) return stop(ctx, t("ui.link.history.off"));
+  const place = placeLabel(p, lang);
+  if (!(await asks(ctx, lang, root, t("ui.link.what.history.place", { place }), placeCost(t, lang, tree), false))) return false;
+  if ((await run(["history", "place", p.id], true)) !== 0) return false;
+  const task = placeTask(Tree.open(root, ctx.env), p.id);
+  out(ctx, t("ui.link.history.place.done", { place }));
+  if (!task || !(await ctx.confirm(t("ui.link.history.place.now"), false))) return true;
+  return (await run(["run", "--task", task.id])) === 0;
 }
 
 /** A direction of the research paused, ended (each with the person's reason, if they give one) or taken up again. */

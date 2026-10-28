@@ -123,9 +123,11 @@ export function typeOfId(id: string): RecordType | undefined {
   return p ? typeOfPrefix(p) : undefined;
 }
 
+/** The type of each prefix (asked for every ID a list goes through: a long research asks it millions of times). */
+const TYPE_OF_PREFIX = new Map(Object.entries(RECORD_TYPES).map(([type, def]) => [def.prefix as string, type as RecordType]));
+
 export function typeOfPrefix(prefix: string): RecordType | undefined {
-  for (const [type, def] of Object.entries(RECORD_TYPES)) if (def.prefix === prefix) return type as RecordType;
-  return undefined;
+  return TYPE_OF_PREFIX.get(prefix);
 }
 
 /**

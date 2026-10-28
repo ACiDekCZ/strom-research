@@ -10,21 +10,36 @@ import { spawnSync } from "node:child_process";
 import { World, fakeConnector, hasGit, readJsonFile } from "../helpers.ts";
 import { droppedPaths } from "../../src/cli/menu-parts.ts";
 import { Tree } from "../../src/core/tree.ts";
+import type { Session, Task } from "../../src/core/model.ts";
 import { exportGedcom } from "../../src/gedcom/export.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
 import { ui } from "../../src/cli/ui.ts";
 
-const unix = { skip: !hasGit || process.platform === "win32" };
+// on Windows too: the agents' stand-ins through a .cmd, git from its own folder (found 2026-10-28: every menu test was
+// left out there)
+const opts = { skip: !hasGit };
+
+/** An agent's stand-in in `bin`: it ends at once, its arguments written down into `calls` when given. */
+function standIn(bin: string, name: string, calls?: string): void {
+  const script = path.join(bin, `${name}.mjs`);
+  fs.writeFileSync(script, calls ? `import fs from "node:fs";\nfs.appendFileSync(${JSON.stringify(calls)}, process.argv.slice(2).join(" ") + "\\n");\n` : "");
+  fs.writeFileSync(path.join(bin, name), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, `${name}.cmd`), `@"${process.execPath}" "%~dp0${name}.mjs" %*\r\n`);
+}
 
 /** A tree with strom set up, Claude Code as a fake that ends at once, and the tree's folder to work in. */
 async function world(): Promise<World> {
   const w = new World();
   const bin = path.join(w.dir, "bin");
   fs.mkdirSync(bin);
-  const git = spawnSync("which", ["git"], { encoding: "utf8" }).stdout.trim();
-  if (git) fs.symlinkSync(git, path.join(bin, "git"));
-  fs.writeFileSync(path.join(bin, "claude"), `#!/bin/sh\necho "$@" >> "${path.join(w.dir, "claude.calls")}"\nexit 0\n`, { mode: 0o755 });
-  w.env.PATH = bin; // only these: no agent of this computer
+  standIn(bin, "claude", path.join(w.dir, "claude.calls"));
+  // only these and git: no agent of this computer
+  const git = spawnSync(process.platform === "win32" ? "where" : "which", ["git"], { encoding: "utf8" }).stdout.split(/\r?\n/)[0]!.trim();
+  if (process.platform === "win32") w.env.PATH = [bin, ...(git ? [path.dirname(git)] : [])].join(path.delimiter);
+  else {
+    if (git) fs.symlinkSync(git, path.join(bin, "git"));
+    w.env.PATH = bin;
+  }
   await w.withTree();
   return w;
 }
@@ -38,7 +53,7 @@ test("paths dropped into the terminal: quoted, escaped, several — on Windows a
   assert.deepEqual(droppedPaths("  "), []);
 });
 
-test("the menu: material from the family — a folder dragged in, what the person knows, the scans of a book sent to the agent", unix, async () => {
+test("the menu: material from the family — a folder dragged in, what the person knows, the scans of a book sent to the agent", opts, async () => {
   const w = await world();
   const docs = path.join(w.dir, "Dopisy babičky");
   fs.mkdirSync(docs);
@@ -71,7 +86,7 @@ test("the menu: material from the family — a folder dragged in, what the perso
   w.cleanup();
 });
 
-test("the menu: a new direction — the ancestors of someone new, with what the person knows; the descendants of someone in the tree", unix, async () => {
+test("the menu: a new direction — the ancestors of someone new, with what the person knows; the descendants of someone in the tree", opts, async () => {
   const w = await world();
   await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
   // 4 add · 2 new direction · 1 ancestors · 2 someone new · the name · 2 a woman · Enter: the name suggested · what is known · not now · 0 · 0
@@ -93,7 +108,7 @@ test("the menu: a new direction — the ancestors of someone new, with what the 
   w.cleanup();
 });
 
-test("the menu: the settings of this computer — the agent working alone, a hook, Remote Control, downloaders asking first", unix, async () => {
+test("the menu: the settings of this computer — the agent working alone, a hook, Remote Control, downloaders asking first", opts, async () => {
   const w = await world();
   const hook = path.join(w.home, "shared", "plugins", "hooks", "zprava");
   fs.mkdirSync(hook, { recursive: true });
@@ -121,7 +136,7 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   w.cleanup();
 });
 
-test("the menu: the history of the places in the settings of working alone — how often or off, the person's choice; 0 changes nothing", unix, async () => {
+test("the menu: the history of the places in the settings of working alone — how often or off, the person's choice; 0 changes nothing", opts, async () => {
   const w = await world();
   const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   // 8 settings · 2 working alone · 4 history: 2 rare · 0 back · 0 back · 0 quit
@@ -140,7 +155,37 @@ test("the menu: the history of the places in the settings of working alone — h
   w.cleanup();
 });
 
-test("the menu after an update: the history of the places never asked about is asked once — Enter is not now, nothing turns on; never for an agent, without a terminal, or when on or off already", unix, async () => {
+test("the menu: the history of each place by itself says what it takes before it turns on — minutes, and the price once three sessions of history are measured, as the app's link says", opts, async () => {
+  const w = await world();
+  // 8 settings · 2 working alone · 4 history: 2 rare · 5 each place: not now · 0 back · 0 back · 0 quit
+  const answers = ["8", "2", "4", "2", "5", "n", "0", "0", "0"];
+  const first = await w.ok([], { tty: true, answers });
+  assert.match(first.out, /Jedno sezení agenta, zhruba 15–30 minut/u);
+  assert.doesNotMatch(first.out, /Taková sezení tu zatím stála/u, "nothing measured: no price");
+  // three sessions of history measured here (as strom keeps them after a run)
+  await w.ok(["research", "new", "Předci", "--new-person", "Jan /Lhoták/", "--sex", "M"]);
+  await w.ok(["task", "add", "Dějiny kraje", "--level", "link", "--where", "Lhota", "--why", "a", "--done-when", "b", "--about", "P1"]);
+  for (let i = 0; i < 3; i++) {
+    await w.ok(["session", "start", "T1"]);
+    await w.ok(["session", "close", "--continue", "--summary", "nic", "--next", "dál"]);
+  }
+  const tree = Tree.open(w.cwd, w.env);
+  tree.withTreeLock(() => {
+    const sessions = tree.list<Session>("session");
+    assert.equal(sessions.length, 3);
+    const task = tree.list<Task>("task").find((t) => t.id === sessions[0]!.task)!;
+    tree.put({ ...task, origin: "history:region:cz-bohemia" }, { op: "task.update", targets: [task.id], summary: `${task.id} of history` });
+    sessions.forEach((s, i) => tree.put({ ...s, metrics: { ...s.metrics, costUsd: [0.4, 0.6, 0.8][i] } }, { op: "session.update", targets: [s.id], summary: `${s.id} measured` }));
+    tree.commit("Sessions of history measured");
+  });
+  const priced = await w.ok([], { tty: true, answers });
+  const said = (out: string) => out.slice(out.indexOf("Míst se souřadnicemi"), out.indexOf("Zapnout?"));
+  assert.match(said(priced.out), /Jedno sezení agenta, zhruba 15–30 minut[^\n]*\nTaková sezení tu zatím stála [^\n]*0,6[^\n]*0,8/u);
+  assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).experimentsHistoryPlaces, undefined, "not now: nothing turned on");
+  w.cleanup();
+});
+
+test("the menu after an update: the history of the places never asked about is asked once — Enter is not now, nothing turns on; never for an agent, without a terminal, or when on or off already", opts, async () => {
   const w = await world();
   const file = path.join(w.env.STROM_CONFIG_DIR!, "config.json");
   const config = () => readJsonFile(file);
@@ -153,6 +198,10 @@ test("the menu after an update: the history of the places never asked about is a
     fs.writeFileSync(file, JSON.stringify(c, null, 2));
   };
   never();
+  // the terminal closed on the question (no answer): nothing kept, asked again the next time
+  const closed = await w.run([], { tty: true, answers: [] });
+  assert.match(closed.out, /Novinka této verze/u);
+  assert.equal(config().historyAsked, undefined, "no answer, nothing kept");
   // Enter: not now · 0 quit
   const r = await w.ok([], { tty: true, answers: ["", "0"] });
   assert.match(r.out, /Novinka této verze: události dějin v místech předků/u);
@@ -205,7 +254,7 @@ function numbersUnder(out: string, title: string): number[] {
   return [...block.matchAll(/^ {2,3}(\d) {2}/gmu)].map((m) => Number(m[1]));
 }
 
-test("the settings: at most nine items and 0, each at a number of its own — what shows only sometimes leaves a gap, its number refused; maintenance a submenu; an archive's without an agent", unix, async () => {
+test("the settings: at most nine items and 0, each at a number of its own — what shows only sometimes leaves a gap, its number refused; maintenance a submenu; an archive's without an agent", opts, async () => {
   const w = await world();
   const title = "Nastavení (na tomto počítači)";
   // Claude Code here: every item
@@ -224,7 +273,7 @@ test("the settings: at most nine items and 0, each at a number of its own — wh
   // the help keeps its 9
   assert.match((await w.ok([], { tty: true, answers: ["8", "9", "", "0", "0"] })).out, /strom/);
   // another agent here does the research: nothing of Claude's — Remote Control's 7 a gap, typed 7 refused, the rest stay
-  fs.writeFileSync(path.join(w.dir, "bin", "codex"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  standIn(path.join(w.dir, "bin"), "codex");
   await w.ok(["agents", "use", "codex"]);
   const codex = await w.ok([], { tty: true, answers: ["8", "7", "0", "0"] });
   assert.deepEqual(numbersUnder(codex.out, title), [1, 2, 3, 4, 5, 6, 8, 9, 0], codex.out);
@@ -252,7 +301,7 @@ test("the settings: at most nine items and 0, each at a number of its own — wh
   w.cleanup();
 });
 
-test("the menu without an AI agent: the research waits for it, kept as an archive — item 1 gets one, item 2 keeps it only an archive, nothing offered that needs it, nothing of Claude's; the numbers stay", unix, async () => {
+test("the menu without an AI agent: the research waits for it, kept as an archive — item 1 gets one, item 2 keeps it only an archive, nothing offered that needs it, nothing of Claude's; the numbers stay", opts, async () => {
   const w = await world();
   fs.rmSync(path.join(w.dir, "bin", "claude"));
   // 1 get an agent: 3 later · Enter · 4 add to the archive · 1 material · 2 what is known · the text · 0 · 8 settings · 0 · 0
@@ -267,9 +316,9 @@ test("the menu without an AI agent: the research waits for it, kept as an archiv
   w.cleanup();
 });
 
-test("the menu never has more than nine items: two agents and a new version at once", unix, async () => {
+test("the menu never has more than nine items: two agents and a new version at once", opts, async () => {
   const w = await world();
-  fs.writeFileSync(path.join(w.dir, "bin", "codex"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  standIn(path.join(w.dir, "bin"), "codex");
   const release = path.join(w.dir, "release");
   fs.mkdirSync(release);
   fs.writeFileSync(path.join(release, "VERSION"), "9.9.9\n");
@@ -284,7 +333,7 @@ test("the menu never has more than nine items: two agents and a new version at o
   w.cleanup();
 });
 
-test("the menu: what waits for the person — what to do for each, the folder for images, their answer back to the agent", unix, async () => {
+test("the menu: what waits for the person — what to do for each, the folder for images, their answer back to the agent", opts, async () => {
   const w = await world();
   await w.ok(["research", "new", "Předci Jana", "--new-person", "Jan /Novák/", "--sex", "M"]);
   await w.ok(["recordset", "add", "Žďár N 1784–1820", "--url", "https://archive.example.org/book/5359"]); // B1
@@ -312,7 +361,7 @@ test("the menu: what waits for the person — what to do for each, the folder fo
   w.cleanup();
 });
 
-test("the menu, where it could go wrong: an empty folder, strom's own folder, a file:// address, the same research twice, a wrong number, a long answer, a tree's own time", unix, async () => {
+test("the menu, where it could go wrong: an empty folder, strom's own folder, a file:// address, the same research twice, a wrong number, a long answer, a tree's own time", opts, async () => {
   const w = await world();
   assert.deepEqual(droppedPaths("file:///tmp/Dopisy%20babi%C4%8Dky"), ["/tmp/Dopisy babičky"]);
   const empty = path.join(w.dir, "prázdná");
@@ -354,7 +403,7 @@ test("the menu, where it could go wrong: an empty folder, strom's own folder, a 
   w.cleanup();
 });
 
-test("the settings: a research with an agent, or only an archive — switched there and back; the archive's menu has no agent in it, its first item switches it on; the numbers stay", unix, async () => {
+test("the settings: a research with an agent, or only an archive — switched there and back; the archive's menu has no agent in it, its first item switches it on; the numbers stay", opts, async () => {
   const w = await world();
   // 8 settings · 5 research or archive · 2 only an archive · yes · Enter · 0 back · 0 quit
   const r = await w.ok([], { tty: true, answers: ["8", "5", "2", "a", "", "0", "0"] });
@@ -371,7 +420,7 @@ test("the settings: a research with an agent, or only an archive — switched th
   w.cleanup();
 });
 
-test("Remote Control on in Claude Code itself: the settings say so, and what strom's own setting adds", unix, async () => {
+test("Remote Control on in Claude Code itself: the settings say so, and what strom's own setting adds", opts, async () => {
   const w = await world();
   const claudeDir = path.join(w.dir, "claude config");
   fs.mkdirSync(claudeDir);
@@ -390,7 +439,7 @@ test("Remote Control on in Claude Code itself: the settings say so, and what str
 
 test(
   "another folder for the research: it moves along — the trees, the shared folder with the plugins; never while an agent works, never into a full folder; never by a setting alone",
-  unix,
+  opts,
   async () => {
     const w = await world();
     await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
@@ -435,7 +484,7 @@ test(
   },
 );
 
-test("the Strom app wanted but not installed here: installing it from the browser is offered first, else it opens", unix, async () => {
+test("the Strom app wanted but not installed here: installing it from the browser is offered first, else it opens", opts, async () => {
   const w = await world();
   await w.ok(["config", "set", "strom.app", "yes"]);
   // 7 the app · yes, install it · 0 quit
@@ -447,7 +496,7 @@ test("the Strom app wanted but not installed here: installing it from the browse
   w.cleanup();
 });
 
-test("archives through the browser: the way each downloader takes, switched in the menu; only Claude Code can, with the Claude in Chrome extension — said by the menu and doctor", unix, async () => {
+test("archives through the browser: the way each downloader takes, switched in the menu; only Claude Code can, with the Claude in Chrome extension — said by the menu and doctor", opts, async () => {
   const w = await world();
   const dir = await fakeConnector(w, "archiv-a");
   const manifest = readJsonFile(path.join(dir, "connector.json"));
@@ -466,7 +515,7 @@ test("archives through the browser: the way each downloader takes, switched in t
   fs.mkdirSync(path.join(chrome, "Default", "Extensions", "fcoeoabgfenejglbffodgkkbkcdhcgfn"), { recursive: true });
   assert.match((await w.run(["doctor"])).out, /prohlížeč \(Claude in Chrome\)\s+rozšíření v Chrome/);
   // another agent does the research: it has no browser tools — said, in the doctor and before a conversation
-  fs.writeFileSync(path.join(w.dir, "bin", "codex"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  standIn(path.join(w.dir, "bin"), "codex");
   await w.ok(["agents", "use", "codex"]);
   assert.match((await w.run(["doctor"])).out, /Testovací archiv stahují přes prohlížeč – to umí jen Claude Code \(teď: OpenAI Codex CLI\)/);
   const a = await w.ok([], { tty: true, answers: ["8", "4", "0", "0", "0"] });
@@ -475,7 +524,7 @@ test("archives through the browser: the way each downloader takes, switched in t
   w.cleanup();
 });
 
-test("what a review of the menu found: a move from the settings, 0 for the folder, a folder with .DS_Store, the top of a disk, consents after a move", unix, async () => {
+test("what a review of the menu found: a move from the settings, 0 for the folder, a folder with .DS_Store, the top of a disk, consents after a move", opts, async () => {
   const w = await world();
   await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
   const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
@@ -506,7 +555,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   w.cleanup();
 });
 
-test("what a review of the menu found: words that start with a dash, Enter in a submenu, an answer to what waits no more, a broken hook turned off, a broken link in a folder", unix, async () => {
+test("what a review of the menu found: words that start with a dash, Enter in a submenu, an answer to what waits no more, a broken hook turned off, a broken link in a folder", opts, async () => {
   const w = await world();
   // words that start with a dash are the person's words
   await w.ok([], { tty: true, answers: ["4", "1", "2", "- děda byl mlynář", "n", "0", "0"] });
@@ -530,13 +579,14 @@ test("what a review of the menu found: words that start with a dash, Enter in a 
   const docs = path.join(w.dir, "dopisy");
   fs.mkdirSync(docs);
   fs.writeFileSync(path.join(docs, "dopis.txt"), "Milá Anno");
-  fs.symlinkSync(path.join(w.dir, "nikde"), path.join(docs, "alias"));
+  // (a symbolic link on Windows needs the computer's developer mode)
+  if (process.platform !== "win32") fs.symlinkSync(path.join(w.dir, "nikde"), path.join(docs, "alias"));
   const r = await w.ok([], { tty: true, answers: ["4", "1", "1", `"${docs}"`, "n", "0", "0"] });
   assert.match(r.out, /✓ Přidáno do výzkumu: 1\./);
   w.cleanup();
 });
 
-test("a story the person approved is locked: written again, the new version waits beside it — the menu shows it, they take it or keep the old one", unix, async () => {
+test("a story the person approved is locked: written again, the new version waits beside it — the menu shows it, they take it or keep the old one", opts, async () => {
   const w = await world();
   await w.ok(["person", "add", "Jan /Novák/", "--sex", "M"]);
   await w.ok(["story", "set", "P0001", "--text", "Jan byl mlynář."]);

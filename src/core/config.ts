@@ -100,6 +100,8 @@ export interface UserConfig {
   experimentsHistory?: string;
   /** How often the experiment of history takes a session of strom run (core/pastevents.ts historyTurn): rare, sometimes (default), idle. */
   experimentsHistoryPace?: string;
+  /** The history of the places with coordinates looked for by itself (core/placehistory.ts): on, off (default). */
+  experimentsHistoryPlaces?: string;
   /**
    * When the person was asked about the history of the places (the setup, the settings, or once at the menu after an
    * update to a strom that has it — never again there, whatever the answer).
@@ -278,6 +280,9 @@ export const SETTINGS: SettingDef[] = [
   // Read from the config files only — no variable: the user's config turns it on (the person alone: a search spends the
   // agent's time and the plan), a tree's strom.json may only turn it off; off is anyone's.
   { key: "experiments.history", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the events of history at the places of the tree (wars, epidemics, censuses, changes of the state), looked for now and then between the sessions of the family research (experiments.historyPace): on or off (unset: off; the first setup suggests on) — only you turn it on (for every research on this computer); a tree may only turn it off" },
+  // The places' own history by itself: the user's config turns it on (the person alone, in the terminal), a tree's
+  // strom.json may only turn it off.
+  { key: "experiments.historyPlaces", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the history of each place of the tree with coordinates and its surroundings (fires, floods, battles nearby, the parish, the school), looked for by itself one place at a time at the pace of the history (experiments.historyPace), the places of the most people first: on or off (unset: off) — only you turn it on; a tree may only turn it off. A place is always looked for when you ask for it (strom history place L…)" },
   // How often: the user's config, a tree's strom.json only less often; more often than before is the person's alone.
   { key: "experiments.historyPace", env: "", tree: true, kind: "choice", choices: HISTORY_PACES, description: "how often the history of the places takes a session when the agent works alone (strom run): sometimes (default — about every 5th session), rare (about every 10th) or idle (only when the family research has nothing to do); a region a session just worked at goes first — only you make it more often; a tree may only make it less often" },
   { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it; while none is here it waits for one, kept as an archive) or archive (the data come from the Strom app, no agent — the person's choice: the setup wizard asks it with an agent here, the menu's settings) — a research's own: strom mode" },
@@ -315,6 +320,7 @@ const FIELDS: Record<string, string> = {
   "agent.addons": "agentAddons",
   "experiments.history": "experimentsHistory",
   "experiments.historyPace": "experimentsHistoryPace",
+  "experiments.historyPlaces": "experimentsHistoryPlaces",
   "strom.app": "stromApp",
   "strom.app.url": "stromAppUrl",
   "app.browser": "appBrowser",
@@ -676,6 +682,14 @@ export class Settings {
    */
   experimentsHistory(tree?: TreeConfig): boolean {
     return readStored(this.config, "experiments.history", "") === "on" && readStored(tree, "experiments.history", "") !== "off";
+  }
+
+  /**
+   * The history of the places with coordinates looked for by itself (core/placehistory.ts, K7.4): while the history is
+   * on, only where the user's own config turns it on and the tree's strom.json does not turn it off.
+   */
+  historyPlacesAuto(tree?: TreeConfig): boolean {
+    return this.experimentsHistory(tree) && readStored(this.config, "experiments.historyPlaces", "") === "on" && readStored(tree, "experiments.historyPlaces", "") !== "off";
   }
 
   /**

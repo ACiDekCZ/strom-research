@@ -9,6 +9,7 @@
 import path from "node:path";
 import type { Context } from "./context.ts";
 import type { UIKey } from "./ui.ts";
+import { lines } from "./format.ts";
 import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
 import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
@@ -32,6 +33,8 @@ import { phoneState } from "../core/phone.ts";
 import { fixEnv, pendingCount, pendingFixes } from "../commands/fixchecks.ts";
 import { isArchive as archiveHere } from "../core/mode.ts";
 import { isAgent } from "../core/which.ts";
+import { placesWithCoords } from "../core/placehistory.ts";
+import { placeCost } from "./menu-links.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -380,6 +383,27 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
         await applyHistory(ctx, run, h);
       },
     });
+    // the history of each place with coordinates, looked for by itself (spec 020 K7.4): this computer's, off unless the
+    // person turns it on here or from the app's link; a research may have turned it off for itself
+    const places = ctx.settings.historyPlacesAuto(tree);
+    items.push({
+      key: "6",
+      label: t("ui.alone.places", { state: t(places ? "ui.settings.on" : "ui.settings.off") }),
+      act: async () => {
+        if (!places && !ctx.settings.experimentsHistory(tree)) {
+          out(t("ui.alone.places.history"));
+          await pause(ctx, lang);
+          return;
+        }
+        const tr = root ? Tree.open(root, ctx.env) : undefined;
+        const gps = tr ? placesWithCoords(tr, shared) : undefined;
+        out(lines(t("ui.alone.places.about"), gps ? t("ui.link.experiment.places.count", { n: gps.places, done: gps.done }) : undefined, tr ? placeCost(t, lang, tr) : undefined));
+        if (!(await ctx.confirm(t(places ? "ui.alone.places.off" : "ui.alone.places.on"), false))) return;
+        await run(["config", "set", "experiments.historyPlaces", places ? "off" : "on"], true);
+        // turned on here: a research's own off goes with it (this computer's choice is the person's)
+        if (!places && root && tree?.experimentsHistoryPlaces === "off") await run(["config", "unset", "experiments.historyPlaces", "--for-tree"], true);
+      },
+    });
     if (set && shared)
       items.push({
         key: "3",
@@ -415,11 +439,12 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
 export async function offerHistory(ctx: Context, run: Run, lang: string): Promise<void> {
   if (!ctx.interactive || isAgent(ctx.env) || !historyOfferDue(ctx)) return;
   const t = translator(lang);
-  markHistoryAsked(ctx);
-  ctx.settings.save();
   ctx.io.stdout(`\n${t("ui.history.offer")}\n`);
   const h = await chooseHistory(ctx, t("ui.setup.history"), "off", { off: t("ui.history.offer.no") });
   if (h === undefined) return;
+  // kept as asked once answered: a terminal closed on the question asks it again (found on Windows)
+  markHistoryAsked(ctx);
+  ctx.settings.save();
   if (h === "off") {
     ctx.io.stdout(`${t("ui.history.offer.later")}\n`);
     return;

@@ -32,7 +32,9 @@ import { openForUser } from "../core/open.ts";
 import { isArchive } from "../core/mode.ts";
 import type { Question } from "../core/tuneask.ts";
 import { listConnectors } from "../core/connector.ts";
-import { inApp, requestFile, requestTexts, waitingFor, type Waiting, type WaitSection } from "../core/waiting.ts";
+import { inApp, requestFile, requestTexts, waitingFor, waitingSplit, type Waiting, type WaitSection } from "../core/waiting.ts";
+import { keepWaiting, keptWaiting, waitingStamp, type WaitCount } from "../core/waitkept.ts";
+import { viewModel } from "../core/viewsizes.ts";
 import { SENDABLE, type WaitKind, type WaitPhase } from "../core/waitkind.ts";
 
 /** A person for the person reading: "Jan Novák (*1905) [P0001]". */
@@ -63,6 +65,31 @@ export function waitingHere(ctx: Context, tree: Tree): Waiting[] {
     // the questions about the reading of scans: an archive asks none
     ...(isArchive(tree) ? {} : { tune: ctx.settings }),
   });
+}
+
+/**
+ * How many things wait here (waitingSplit): as kept beside the research while nothing they are counted from changed
+ * (core/waitkept.ts), else counted and kept.
+ */
+export function waitingCount(ctx: Context, tree: Tree): WaitCount {
+  const stamp = stampOf(ctx, tree);
+  const kept = keptWaiting(tree, stamp);
+  if (kept) return kept;
+  const count = waitingSplit(waitingHere(ctx, tree));
+  keepWaiting(tree, stamp, count);
+  return count;
+}
+
+/** What waits, counted: the count the menu shows kept with it (the menu then shows what What waits counted). */
+function waitingCounted(ctx: Context, tree: Tree): Waiting[] {
+  const all = waitingHere(ctx, tree);
+  keepWaiting(tree, stampOf(ctx, tree), waitingSplit(all));
+  return all;
+}
+
+function stampOf(ctx: Context, tree: Tree): string {
+  const agent = ctx.settings.agent(tree.config).value;
+  return waitingStamp(tree, ctx.env, ctx.settings.shared()?.value, `${agent} ${viewModel(ctx.settings, agent, tree.config) ?? ""} ${claudeHere(ctx, tree.config)}`);
 }
 
 /** The keys of the overview in the person's language: next, previous, all, and a letter per section. */
@@ -166,7 +193,7 @@ export async function waitingForYou(ctx: Context, run: Run, lang: string, root: 
   for (;;) {
     if (outOfAnswers(ctx)) return;
     const tree = Tree.open(root, ctx.env);
-    const all = waitingHere(ctx, tree);
+    const all = waitingCounted(ctx, tree);
     if (!all.length) return void out(t("ui.waiting.none"));
     const todo = all.filter((w) => w.item.phase === "todo");
     const sent = all.filter((w) => w.item.phase === "sent");

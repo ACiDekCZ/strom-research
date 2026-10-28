@@ -38,3 +38,14 @@ export function fileStamp(file: string): string {
 export function researchStamp(root: string): string {
   return `${headOf(root)}|${fileStamp(path.join(root, "strom.json"))}`;
 }
+
+/** The files of a folder (not its subfolders' files), each with its stamp, by name ("-": no such folder). */
+export function dirStamp(dir: string): string {
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir).sort();
+  } catch {
+    return "-";
+  }
+  return names.map((n) => `${n}=${fileStamp(path.join(dir, n))}`).join(",");
+}

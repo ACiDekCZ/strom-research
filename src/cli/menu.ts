@@ -47,7 +47,7 @@ import { expandHome, isolated, ownCommand } from "../core/paths.ts";
 import { pathOf, startAgain } from "../core/userpath.ts";
 import { offerAgent } from "./fixes.ts";
 import { addToResearch } from "./menu-research.ts";
-import { waitingForYou, waitingHere } from "./menu-waiting.ts";
+import { waitingCount, waitingForYou } from "./menu-waiting.ts";
 import { waitingLine } from "../core/waiting.ts";
 import { permissionWaitingLines } from "../core/archiveasks.ts";
 import { offerHistory, settingsMenu } from "./menu-settings.ts";
@@ -200,9 +200,10 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
         }
       }
       // what waits for the person: the same list What waits shows (each thing once — a task that waits for an archive's
-      // decision is one of its question's)
-      const waits = timed("menu.waiting", () => waitingHere(ctx, tree));
-      const waiting = waits.length;
+      // decision is one of its question's); its count kept beside the research while nothing it stands on changed
+      // (counted, a long research's records are read: on a Mac, 781 people and 29 000 scans, six seconds)
+      const waits = timed("menu.waiting", () => waitingCount(ctx, tree));
+      const waiting = waits.all;
       const started = timed("menu.records", () => tree.list<Research>("research").length > 0);
       out(t("ui.menu.tree", { name: tree.config.name, persons: timed("menu.records", () => tree.countLive("person")) }));
       // No agent yet (none installed, or not the one chosen): the research waits for it — kept as an archive meanwhile,

@@ -1,6 +1,8 @@
 // What the images of a research say in short, without reading all of them: for
-// each record set how many images stand (not withdrawn) and their numbers, and
-// how many stand in all. The task queue, the brief and the overview ask it on
+// each record set how many images stand (not withdrawn) and their numbers, the
+// connector its images came by and its sharper copies (a part, a new scan of the
+// same image: what the questions about the reading of scans stand on), and how
+// many stand in all. The task queue, the brief and the overview ask it on
 // every call, and a long research has tens of thousands of image records — read
 // whole each time they cost a second. So it is kept in .strom/cache/images.json
 // with a stamp of the images' folder (its modification time and how many
@@ -28,6 +30,22 @@ export interface SetImages {
   count: number;
   images: number[];
   long?: number;
+  /** The connector the first of its images fetched by one came by. */
+  connector?: string;
+  /** Its copies with more detail than the scan they are of (gain > 1), in the order of the records. */
+  copies?: SharperCopy[];
+}
+
+/** A copy of a scan with more detail than the scan it is of: a part of it, or a new scan of the same image. */
+export interface SharperCopy {
+  id: string;
+  image: number;
+  created: string;
+  /** How much more detail: the copy's width per the whole scan's (a part: its width over the part's share). */
+  gain: number;
+  part?: true;
+  /** The connector it came by. */
+  connector?: string;
 }
 
 /**
@@ -55,7 +73,7 @@ interface Stored {
   sets: Record<string, SetImages>;
 }
 
-const FORMAT = 2;
+const FORMAT = 3;
 const TYPE: RecordType = "media";
 /** A folder changed this recently may change again within the same tick of its clock: no stamp for it. */
 export const STABLE_MS = 2000;
@@ -129,6 +147,9 @@ function sameStamp(a: Stamp, b: Stamp): boolean {
 function build(all: Media[]): ImagesIndex {
   const sets = new Map<string, SetImages>();
   const sides = new Map<string, number[]>();
+  // the whole scans of each image (not withdrawn), for the copies' gain
+  const wholes = new Map<string, Media[]>();
+  const imageKey = (m: Media) => `${m.recordset}\n${m.image}`;
   let alive = 0;
   for (const m of all) {
     if (m.retracted) continue;
@@ -137,6 +158,7 @@ function build(all: Media[]): ImagesIndex {
     const s = sets.get(m.recordset) ?? { count: 0, images: [] };
     s.count++;
     if (m.image !== undefined) s.images.push(m.image);
+    if (s.connector === undefined && m.fetched?.connector) s.connector = m.fetched.connector;
     sets.set(m.recordset, s);
     // a part of an image is not its scan
     if (!m.part && m.width && m.height) {
@@ -144,6 +166,18 @@ function build(all: Media[]): ImagesIndex {
       l.push(Math.max(m.width, m.height));
       sides.set(m.recordset, l);
     }
+    if (!m.part && m.image !== undefined) {
+      const k = imageKey(m);
+      const w = wholes.get(k) ?? [];
+      w.push(m);
+      wholes.set(k, w);
+    }
+  }
+  for (const m of all) {
+    const gain = gainOf(m, wholes.get(imageKey(m)) ?? []);
+    if (gain === undefined || !(gain > 1)) continue;
+    const s = sets.get(m.recordset!)!;
+    (s.copies ??= []).push({ id: m.id, image: m.image!, created: m.created, gain, ...(m.part ? { part: true as const } : {}), ...(m.fetched?.connector ? { connector: m.fetched.connector } : {}) });
   }
   for (const [id, s] of sets) {
     s.images = [...new Set(s.images)].sort((x, y) => x - y);
@@ -151,6 +185,31 @@ function build(all: Media[]): ImagesIndex {
     if (l?.length) s.long = l[Math.floor((l.length - 1) / 2)]!;
   }
   return { alive, sets };
+}
+
+/**
+ * How much more detail a copy of a scan has than the scan it is of (`wholes`: the whole scans of its image that stand):
+ * a part, by the whole scan of most pixels; a new scan, by the widest scan of the image made before it.
+ */
+function gainOf(m: Media, wholes: Media[]): number | undefined {
+  if (m.retracted || !m.width || m.recordset === undefined || m.image === undefined) return undefined;
+  if (m.part) {
+    const pixels = (x: Media) => (x.width ?? 0) * (x.height ?? 0);
+    const whole = wholes.reduce<Media | undefined>((best, x) => (!best || pixels(x) > pixels(best) ? x : best), undefined);
+    return whole?.width && m.part.w > 0 ? m.width / m.part.w / whole.width : undefined;
+  }
+  const w = Math.max(0, ...wholes.filter((x) => x.id !== m.id && x.width && x.created < m.created).map((x) => x.width!));
+  return w > 0 ? m.width / w : undefined;
+}
+
+/** The sharper copies of a record set (gain at least `min`). */
+export function sharperCopies(tree: Tree, recordset: string, min: number): SharperCopy[] {
+  return (imagesIndex(tree).sets.get(recordset)?.copies ?? []).filter((c) => c.gain >= min);
+}
+
+/** The connector a record set's images came by (the first of them fetched by one). */
+export function connectorOfSet(tree: Tree, recordset: string): string | undefined {
+  return imagesIndex(tree).sets.get(recordset)?.connector;
 }
 
 function fromStored(s: Stored): ImagesIndex {

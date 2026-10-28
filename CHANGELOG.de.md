@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.22.0
 
-*In Vorbereitung: die Betas bis 1.22.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.22.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Jeder Name einmal in dem, was wartet.** Eine Aufgabe zu Material, das aus der Strom-App gesendet wurde, nannte im
   Widget und auf der Seite des Telefons jede Person zweimal (das zweite Mal in eckigen Klammern), und ihr Text ohne
@@ -23,7 +23,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   `.strom` weit über die Forschung hinauswächst.
   Langsamer Start auf OneDrive oder einem Netzlaufwerk: Menü und `strom doctor` öffnen nicht mehr jeden Scan, die
   Rückkehr ins Menü ist sofort da, doctor zeigt den Fortschritt und meldet, wenn die Forschung in einem Cloud-Ordner
-  oder auf einem Netzlaufwerk liegt; `strom doctor --timing` zeigt, was lange dauerte.
+  oder auf einem Netzlaufwerk liegt; `strom doctor --timing` zeigt, was lange dauerte. Bei einer langen Forschung
+  (viele hundert Personen, Zehntausende Scans) zeigt das Menü sofort, was wartet: Die Zahl wird neben der Forschung
+  gehalten, bis sich etwas ändert, worauf sie beruht, und dann in einem Bruchteil einer Sekunde neu gezählt.
 - **Ein Archiv, das nicht antwortet, beendet die Schleife des Agenten.** `strom fetch` sagt, wann es wieder zu
   versuchen ist und was bis dahin zu tun ist; dieselbe Anfrage in derselben Sitzung endet sofort (Exit 8) und sendet
   nichts. Eine Aufgabe, deren Archiv pausiert, wartet bis dahin außerhalb der Warteschlange (der Plan zeigt sie bis zu
@@ -49,11 +51,19 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Eine Region wird nur in den Jahren durchsucht, in denen Personen des Stammbaums an ihren Orten lebten (ihre Angaben
   dort und fünf Jahre darum; bis heute nur, wenn die Angaben in die letzten 30 Jahre reichen) – ein paar Jahre im
   Krieg im Ausland sind nur diese Jahre. Lebte ein später gefundener Vorfahre früher oder später dort, oder teilt eine
-  andere Forschung die Region, werden einmal nur die neuen Jahre durchsucht. `strom history status` und `strom plan`
-  zeigen die Jahre jeder Region und was wartet.
+  andere Forschung die Region, werden einmal nur die neuen Jahre durchsucht. Eine Region, in deren Jahren niemand
+  aus dem Stammbaum lebte (die Angaben an ihren Orten liegen alle davor oder danach), wird gar nicht durchsucht; die
+  Übersicht und die Strom-App sagen, dass dort in jenen Jahren niemand aus dem Stammbaum lebte. `strom history status`
+  und `strom plan` zeigen die Jahre jeder Region und was wartet.
   Was gezeigt wird, verwaltet der Mensch in der Strom-App oder mit `strom history`: ein Ereignis ausgeblendet, oder
   gelöscht – aus jeder Forschung auf diesem Computer, nie wieder eingetragen – und wiederhergestellt; eine Region oder
   ein Ort übersprungen; die Regionen eines Orts von Hand zugeordnet.
+  Die Geschichte eines einzelnen Ortes und seiner Umgebung – Brände, Hochwasser, Schlachten in der Nähe, die
+  Herrschaft, die Pfarrei, die Schule – wird auf das Wort eines Menschen gesucht (aus der Personenkarte der
+  Strom-App), zuerst in der nächsten Sitzung, und bleibt für jede Forschung auf diesem Computer mit diesem Ort. Jeder
+  Ort mit Koordinaten kann von selbst gesucht werden, die Orte mit den meisten Personen zuerst: Einstellungen → Der
+  Agent allein → Geschichte der einzelnen Orte automatisch (aus, bis es eingeschaltet wird). Ein Ereignis, um das im
+  Gespräch gebeten wird, trägt der Agent von einer Seite ein, die strom gelesen hat, mit seiner Quelle.
   Die Erzählungen nehmen sie als Hintergrund ihrer Zeit: die Ereignisse der Jahre, in denen ein Mensch an den Orten
   seiner Angaben lebte, jedes mit seiner Quelle, nie als das, was er tat (bei einem Paar nur die Jahre, in denen
   beide lebten); nichts Ausgeblendetes oder Gelöschtes. Eine

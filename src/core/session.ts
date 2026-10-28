@@ -24,6 +24,7 @@ import { clearSessionWait, permissionWait, waitingForDecision } from "./archivew
 import { forgetLeftAlone } from "./leftalone.ts";
 import { Settings } from "./config.ts";
 import { forGaps, regionOfTask, takeRegion } from "./pastevents.ts";
+import { placeOfTask, takePlace } from "./placehistory.ts";
 
 function currentFile(tree: Tree, env: Env = tree.env): string {
   const w = env.STROM_WORKER;
@@ -200,10 +201,12 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
       tree.put(doing, { op: "task.start", targets: [doing.id, s.id], summary: `${doing.id} start` });
     }
     // a region's task of history: this tree holds the region while it builds its catalog, or fills its gaps (another
-    // tree's task waits)
+    // tree's task waits); a place's own history likewise (core/placehistory.ts)
     const region = task ? regionOfTask(task) : undefined;
-    const shared = region && !tree.dryRun ? new Settings(tree.env, {}).shared()?.value : undefined;
+    const place = task ? placeOfTask(task) : undefined;
+    const shared = (region || place) && !tree.dryRun ? new Settings(tree.env, {}).shared()?.value : undefined;
     if (region && shared) takeRegion(shared, region, tree.config.id, forGaps(task!));
+    if (place && shared) takePlace(shared, tree, place);
     setCurrent(tree, s.id);
     return s;
   });

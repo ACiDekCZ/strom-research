@@ -1,5 +1,5 @@
 // The brief of a session on the history of the places (the experiment experiments.history, core/pastevents.ts): a
-// region's events looked for on the web, or the places of the facts mapped to regions — and, in a session that reads
+// region's events looked for on the web, a place's own history and its surroundings, or the places of the facts mapped to regions — and, in a session that reads
 // records, one line on the local events read in them. Only a brief of such a session speaks of it: the commands are
 // behind the experiment's gate (hidden), the guide, help and strom commands say nothing of them.
 
@@ -36,6 +36,7 @@ import {
 } from "../core/pastevents.ts";
 import { factPlaces } from "../gedcom/export.ts";
 import type { Section } from "./brief.ts";
+import { AREA_KM, defaultArea, factsByRecord, placeKeyOf, placeLabel, placeOfTask, placeRecord, readPlaceCatalog, regionEventsAt, yearsAt } from "../core/placehistory.ts";
 
 /** About so many events a region at most: rather fewer. */
 export const REGION_DENSITY = 60;
@@ -81,6 +82,8 @@ export function historySections(tree: Tree, task: Task, shared: string | undefin
   const region = regionOfTask(task);
   if (region) return regionSections(tree, region, shared, alone, forGaps(task) ? gapsOfTask(task) : undefined);
   if (task.origin === HISTORY_PLACES_ORIGIN) return placesSections(tree, shared, alone);
+  const place = placeOfTask(task);
+  if (place) return placeSections(tree, place, shared, alone);
   return undefined;
 }
 
@@ -146,8 +149,10 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
           ]
             .filter(Boolean)
             .join("\n")
-        : period.undated
-          ? `- period: ${period.from}–${period.to} — no fact at this tree's places in the region has a year: the years its places belonged to it (never before 1600), to this year`
+        : period.nobody
+          ? "- period: none — the facts at this tree's places in the region all lie in other years: nobody of this tree lived there in its years; nothing to look for (strom session close --continue …, another task)"
+          : period.undated
+          ? `- period: ${period.from}–${period.to} — no fact at this tree's places in the region has a year: the years those places belonged to it (never before 1600), to the region's end (this year when it lasts)`
           : `- period: ${period.spans.map(gapText).join(", ")} — the years this tree's people lived at its places: their facts there, ${LIVED_MARGIN} years before and after, to this year only when the facts reach the last ${PRESENT_YEARS} years; look for events of these years alone; another tree sharing the region adds its own years later`,
       period.places.length
         ? `- this tree's places in it: ${period.places.map((p) => `${p.place}${p.from !== undefined || p.to !== undefined ? ` (${p.from ?? "…"}–${p.to ?? "…"})` : ""}${p.years.length ? ` facts ${years(Math.min(...p.years), Math.max(...p.years))}` : ""}`).join(" · ")}`
@@ -215,6 +220,72 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
             `- nothing could be found or read at all: strom session close --continue --summary "what was tried" --next "…"`,
           ],
     ),
+  );
+  return out;
+}
+
+/** A place's session (spec 020 K7.1–K7.3): the history of the place itself, its parish, estate and surroundings. */
+function placeSections(tree: Tree, id: string, shared: string | undefined, alone: boolean): Section[] {
+  const lang = tree.lang;
+  const p = placeRecord(tree, id);
+  if (!p) return [];
+  const key = placeKeyOf(tree, p);
+  const c = shared ? readPlaceCatalog(shared, key) : undefined;
+  const at = factsByRecord(tree).get(p.id);
+  const span = yearsAt(at);
+  const name = placeLabel(p, lang);
+  const names = [...new Set(p.names.map((n) => n.name))];
+  const area = c?.area ?? defaultArea(p);
+  const events = c?.events ?? [];
+  const live = events.filter((e) => !e.retracted);
+  const theirs = regionEventsAt(tree, shared, p.id, at);
+  const out: Section[] = [];
+  out.push({
+    name: "history",
+    required: true,
+    pointer: "strom history status",
+    text: [
+      `## The history of ${name} (${p.id}) and its surroundings — for the Strom app`,
+      "The person asked for it: what the ancestors lived through at this place itself, shown in the Strom app with the lives of its people. " + NOTHING_ELSE,
+      `- the place: ${names.join(" · ")}${p.coords ? ` (${p.coords.lat.toFixed(3)}, ${p.coords.lon.toFixed(3)})` : ""}; ${at ? `${at.persons.size} ${at.persons.size === 1 ? "person" : "persons"} of the tree, ${at.facts} ${at.facts === 1 ? "fact" : "facts"} there${at.keys.length ? ` (as the facts write it: ${at.keys.slice(0, 5).join(" · ")})` : ""}` : "no fact of the tree there yet"}`,
+      `- the surroundings: the place, its parish and its estate, and what lies within about ${AREA_KM} km; what was looked through is said once, in ${REGION_LANGS.join(", ")} (strom history area ${p.id} --text-cs "…" --text-en "…" --text-de "…", ≤ 200 characters each), now: "${short(area[lang] ?? area.en ?? "", 120)}"`,
+      span
+        ? `- period: ${years(Math.max(1600, span.from - LIVED_MARGIN), Math.min(new Date().getUTCFullYear(), span.to + LIVED_MARGIN))} — the years of this tree's facts there, ${LIVED_MARGIN} years before and after; look for events of these years`
+        : "- period: no fact there has a year — the years the place's records speak of, never before 1600",
+      "- what: what happened at the place or near enough to touch its people — fires, floods, storms and hail, an epidemic there, armies passing or quartered, a battle nearby, the estate sold or divided, the parish founded or moved, the church or the school built, the railway, a factory, the end of serfdom there, the village chronicle; never what the region's catalog has (below), never a battle far away",
+      "- how many: rather few, only what a page documents — about 5–20; none documented: nothing written (the place is looked for, its catalog empty)",
+      `- kinds: ${EVENT_KINDS.join(", ")}`,
+      `- each event: strom history add --place ${p.id} …; its years (the day only when sure: --date); its texts in ${REGION_LANGS.join(", ")}, each ≤ 300 characters — factual and impersonal: what happened, where, how many; never addressed to anyone, never what to do, never speaking as yourself; --why-*: why it mattered for the people of the place; --tip-*: where a research may look because of it, impersonal too`,
+      "- a hard event (persecution, deportation, expulsion, famine, a pogrom): --sensitive; sober and factual, no judgement, and never a guess about the people of this tree",
+      ...ONLY_FROM_PAGES,
+      "- prefer the village's or the parish's own pages, the chronicle, the municipality, the regional museum and archive, the Wikipedia of the place in its language with its references",
+      "- the same event again (one more source): --same-as <event>; the same kind and years yet another event: --distinct \"<why>\"; a better one in the place of one written: --replaces <event>; one that was wrong: strom history retract <event> --why \"…\"",
+    ].join("\n"),
+  });
+  out.push({
+    name: "events",
+    first: true,
+    pointer: "strom history status --app --json",
+    text: [
+      `## Events of ${p.id} written already (${live.length}${events.length > live.length ? `, ${events.length - live.length} taken back` : ""}) — never one again; another source of one: --same-as`,
+      ...(events.length
+        ? events.slice(0, EVENTS_SHOWN).map((e) => {
+            const mark = e.retracted?.by === "person" && !e.retracted.replacedBy ? " [deleted by the person: never again]" : e.retracted ? " [taken back]" : "";
+            return `  ${e.id} ${years(e.from, e.to)} ${e.kind} "${short(e.text[lang] ?? e.text.en ?? Object.values(e.text)[0] ?? "")}"${mark}`;
+          })
+        : ["  none yet"]),
+      theirs.length ? `The regions' events at this place in its years (${theirs.length}) — the Strom app shows them here already, never written for the place (refused):` : "No region's event at this place yet.",
+      ...theirs.slice(0, EVENTS_SHOWN).map(({ event: e, region }) => `  ${e.id} ${years(e.from, e.to)} ${e.kind} (${region.region.id}) "${short(e.text[lang] ?? e.text.en ?? Object.values(e.text)[0] ?? "")}"`),
+      c?.tried.length ? `Pages strom could not read (never tried again): ${c.tried.slice(-20).map((t) => `${t.url} (${short(t.why, 40)})`).join(" · ")}` : "",
+    ].filter(Boolean).join("\n"),
+  });
+  const commands = [cmd(["history", "page"]), cmd(["history", "add"]), cmd(["history", "area"]), cmd(["history", "retract"])].filter(Boolean);
+  if (commands.length) out.push({ name: "commands", first: true, pointer: "strom help history add", text: ["## Commands (each option as it is)", ...commands].join("\n") });
+  out.push(
+    closing(alone, lang, [
+      `- the place looked through — events found, or none documented: strom history area ${p.id} … (what was looked through), then strom session close --done "how many events, of which years and kinds, from which sources — or what was looked at" --next "…" (the place is not looked for again unless the person asks)`,
+      `- time up before: strom session close --continue --summary "…" --next "what was not looked at yet" (the place stays this tree's for ${HOLD_DAYS} days)`,
+    ]),
   );
   return out;
 }
@@ -326,7 +397,7 @@ export function storyHistorySection(tree: Tree, task: Task, shared: string | und
     .sort((a, b) => a.from - b.from || a.id.localeCompare(b.id));
   if (!events.length) return undefined;
   const lines = events.slice(0, STORY_EVENTS_SHOWN).map((e) => {
-    const where = [e.region ? `(${e.region})` : "", e.places.length ? `at ${e.places.join(", ")}` : "", e.age !== undefined ? `aged ${e.age}` : ""].filter(Boolean).join(" ");
+    const where = [e.region ? `(${e.region})` : e.place ? `(${e.place})` : "", e.places.length ? `at ${e.places.join(", ")}` : "", e.age !== undefined ? `aged ${e.age}` : ""].filter(Boolean).join(" ");
     const from = "url" in e.source ? `${e.source.title} ${e.source.url}` : `${e.source.record} ${short(e.source.cite, 60)}`;
     return `  ${e.id} ${e.date ?? years(e.from, e.to)} ${e.kind}${where ? ` ${where}` : ""}: "${short(e.text)}"${e.sensitive ? " [sensitive]" : ""} — ${from}`;
   });

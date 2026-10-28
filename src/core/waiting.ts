@@ -138,11 +138,11 @@ export function waitingSplit(items: Waiting[]): { all: number; here: number; sen
 }
 
 /**
- * The line "Waiting: N" for the person: what of it is only here in the terminal and what waits for a reply, each said
+ * The line "Waiting: N" for the person (of the things, or of their count as kept: core/waitkept.ts): what of it is only here in the terminal and what waits for a reply, each said
  * on its own — the rest is the app's number; as it was only when neither is there (N is the app's number then).
  */
-export function waitingLine(lang: string, items: Waiting[], key: "ui.menu.waiting" | "ui.plan.waiting" = "ui.menu.waiting"): string {
-  const s = waitingSplit(items);
+export function waitingLine(lang: string, items: Waiting[] | ReturnType<typeof waitingSplit>, key: "ui.menu.waiting" | "ui.plan.waiting" = "ui.menu.waiting"): string {
+  const s = Array.isArray(items) ? waitingSplit(items) : items;
   const parts = [...(s.here ? [ui(lang, "ui.waiting.split.here", { n: s.here })] : []), ...(s.sent ? [ui(lang, "ui.waiting.split.reply", { n: s.sent })] : [])];
   const count = parts.length ? ui(lang, "ui.waiting.split", { n: s.all, parts: parts.join(", ") }) : String(s.all);
   return ui(lang, key, { count });

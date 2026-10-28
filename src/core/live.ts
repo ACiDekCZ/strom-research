@@ -100,13 +100,21 @@
 //                          history.off (+ link: turning it on is the person's, in the terminal), 409 history.archive |
 //                          history.done | history.skipped, 404 history.region (no place of the tree in it yet), 400 history.body,
 //                          503 research.busy
+//   POST <token>/history/place  {place: "L…"}: the history of a place and its surroundings — never started here (it
+//                          spends a session): always 403 history.link with the link strom-research://history?tree=…&place=
+//                          L…&do=search (the estimate and the person's yes in the terminal; the task on top of the queue)
+//                          and the estimate; refused 400 history.body, 404 history.place, 409 history.off (+ link) |
+//                          history.archive (feature history.place). /status history.placeEstimate {minutes, usd?: three
+//                          measured sessions}, history.placesAuto (read only); GET /history places[x].history|at|why|area,
+//                          events scope "place" with place {key, id?, name}, suggest [L…]
 //   POST <token>/stories   {"history": false|true}: the history of the places in the stories of this research
 //                          (stories.history in its strom.json; the person's own config stays) — {stories, head, parent};
 //                          refused 400 stories.body, 409 history.off (+ link: the history itself is turned on by the
 //                          person, in the terminal), 503 research.busy (feature stories.history). /status: stories.history
 //                          (on while the history is on, unless turned off); an approved story is never rewritten for it
-//   POST <token>/experiments   {"history": false}: the experiment off for this research (its strom.json; the person's
-//                          own config stays) — {experiments, head, parent}; {"history": true} is refused (403
+//   POST <token>/experiments   {"history": false} | {"historyPlaces": false}: the experiment (or each place's history
+//                          by itself) off for this research (its strom.json; the person's
+//                          own config stays) — {experiments, head, parent}; true is refused (403
 //                          experiments.link with the link strom-research://experiment…&do=on: only a person turns it on,
 //                          in the terminal the link opens). /status: experiments.history, experiments.historyPace
 //                          (how often: sometimes|rare|idle — read only: the person's own choice, in the terminal, the
@@ -201,6 +209,7 @@ import { agentsHere } from "./apps.ts";
 import { counted } from "../cli/format.ts";
 import { AppReadings, appReadSpend, readAccepts, statusReads, type ReadingsSeen } from "./live-read.ts";
 import { checkNote, historyAnswer, historyOn, historyRev, MAX_EVENTS, MAX_PLACES } from "./pastevents.ts";
+import { placeEstimate, placeRecord } from "./placehistory.ts";
 
 export interface LiveInfo {
   port: number;
@@ -234,6 +243,7 @@ const CODES = {
   "ui.seal.bridge": SEAL_FOREIGN,
   "ui.error.tree.not-downloaded": "tree.not-downloaded",
   "ui.experiments.link": "experiments.link",
+  "ui.history.place.link": "history.link",
 } as const;
 /** What the app sends that the research writes (the routes after the secret): refused while it is sealed elsewhere. */
 /** A region's ID as the app sends it (core/pastevents.ts regionIdOk). */
@@ -902,7 +912,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1410,7 +1420,7 @@ function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): 
     experiments: { history: historyOn(tree, settings), historyPace: settings.historyPace(tree.config) },
     // the history of the places in the stories (stories.history): on while the history is on, unless turned off
     stories: { history: settings.storyHistory(tree.config) },
-    ...historyOfStatus(tree, settings, last.head),
+    ...historyOfStatus(tree, settings, last.head, archive),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
     ...(archive ? { queue: [], queueMore: 0 } : queue(tree, next, all)),
     ...(newer ? { update: { version: newer } } : {}),
@@ -1445,9 +1455,15 @@ function historyShown(tree: Tree, settings: Settings): boolean {
   return historyOn(tree, settings) || fs.existsSync(path.join(tree.root, "history"));
 }
 
-/** /status history {rev}: only for a tree whose history is shown (an older app reads nothing new). */
-function historyOfStatus(tree: Tree, settings: Settings, h: string): { history?: { rev: string } } {
-  return historyShown(tree, settings) ? { history: { rev: historyRevNow(tree, settings, h) } } : {};
+/**
+ * /status history {rev}: only for a tree whose history is shown (an older app reads nothing new). Where it is looked
+ * for (no archive, the history on): how long a session on a place's history takes, what such sessions cost here (three
+ * measured), and whether each place with coordinates is looked for by itself (read only: the person's, in the terminal).
+ */
+function historyOfStatus(tree: Tree, settings: Settings, h: string, archive: boolean): { history?: { rev: string; placeEstimate?: ReturnType<typeof placeEstimate>; placesAuto?: boolean } } {
+  if (!historyShown(tree, settings)) return {};
+  const searched = !archive && historyOn(tree, settings);
+  return { history: { rev: historyRevNow(tree, settings, h), ...(searched ? { placeEstimate: placeEstimate(tree), placesAuto: settings.historyPlacesAuto(tree.config) } : {}) } };
 }
 
 /** The limits of GET /history (a test lowers them: STROM_LIVE_HISTORY_EVENTS, STROM_LIVE_HISTORY_PLACES). */
@@ -1895,6 +1911,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     if (req.method === "POST" && t === token && what === "history" && sub === "hide" && !act) {
       writeFor(req, res, origin, historyHide());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "history" && sub === "place" && !act) {
+      writeFor(req, res, origin, historyPlace());
       return;
     }
     if (req.method === "POST" && t === token && what === "history" && sub === "first" && !act) {
@@ -2899,6 +2919,40 @@ export function serveLive(root: string, env: Env): Promise<void> {
   };
 
   /**
+   * The history of a place and its surroundings asked for (POST /history/place {place: "L…"}): it spends the agent's
+   * session and the bridge cannot tell the app from an agent, so it is never started here — always 403 history.link
+   * with the link that asks the person in the terminal (strom-research://history?tree=…&place=L…&do=search: the
+   * estimate, yes or no, the task on top of the queue). A place looked for already: the same (looked for again).
+   * Refused before: 400 history.body (only the record's ID, never its name), 404 history.place (no such record), 409
+   * history.off (+ the link that turns the history on), 409 history.archive (nobody researches here).
+   */
+  const historyPlace = (): AppWrite => ({
+    what: "a place's history",
+    codes: { badBody: "history.body", busy: "research.busy", failed: "history.failed" },
+    busyStatus: 503,
+    ask(tree, body) {
+      const keys = Object.keys(body);
+      const place = typeof body.place === "string" ? body.place.trim().toUpperCase() : "";
+      if (keys.some((k) => k !== "place") || !/^L\d{1,9}$/u.test(place)) return { code: 400, body: refusal(`the body: {"place": "<L…>"}`, "history.body") };
+      if (actsAsArchive(tree)) return { code: 409, body: refusal("nobody researches here: nothing of history is looked for", "history.archive") };
+      const settings = new Settings(env, {});
+      if (!historyOn(tree, settings)) {
+        const link = linkText({ action: "experiment", tree: tree.config.id, name: "history", do: "on" }, linkScheme(env));
+        return { code: 409, body: { ...said(tree.lang, "ui.experiments.link"), code: "history.off", link } };
+      }
+      if (!placeRecord(tree, place)) return { code: 404, body: refusal(`there is no place ${place} in this research`, "history.place") };
+      const link = linkText({ action: "history", tree: tree.config.id, place, do: "search" }, linkScheme(env));
+      return { code: 403, body: { ...said(tree.lang, "ui.history.place.link"), link, estimate: placeEstimate(tree) } };
+    },
+    done(_tree, data) {
+      return data;
+    },
+    refused() {
+      return undefined;
+    },
+  });
+
+  /**
    * The experiments of this research as the app turns them (POST /experiments): {"history": false} turns the history of
    * the places off for this tree (strom config set experiments.history off --for-tree; the person's own config stays).
    * Turning it on is the person's alone, in the terminal: refused 403 experiments.link with the link that opens it
@@ -2906,23 +2960,28 @@ export function serveLive(root: string, env: Env): Promise<void> {
    */
   const experimentsWrite = (): AppWrite => {
     let before = "";
+    let field = "history";
     return {
       what: "the experiments of the research",
       codes: { badBody: "experiments.body", busy: "research.busy", failed: "experiments.failed" },
       busyStatus: 503,
       ask(tree, body) {
         const keys = Object.keys(body);
-        if (!keys.length || keys.some((k) => k !== "history") || typeof body.history !== "boolean") return { code: 400, body: refusal(`the body: {"history": false}`, "experiments.body") };
-        if (body.history) {
-          const link = linkText({ action: "experiment", tree: tree.config.id, name: "history", do: "on" }, linkScheme(env));
+        const name = keys.length === 1 && (keys[0] === "history" || keys[0] === "historyPlaces") ? keys[0] : undefined;
+        if (!name || typeof body[name] !== "boolean") return { code: 400, body: refusal(`the body: {"history": false} or {"historyPlaces": false}`, "experiments.body") };
+        field = name;
+        if (body[name]) {
+          const link = linkText({ action: "experiment", tree: tree.config.id, name: name === "history" ? "history" : "places", do: "on" }, linkScheme(env));
           return { code: 403, body: { ...said(tree.lang, "ui.experiments.link"), link } };
         }
         before = head(root);
-        if (tree.config.experimentsHistory === "off") return { code: 200, body: { experiments: { history: false }, head: before, parent: before } };
-        return { args: ["config", "set", "experiments.history", "off", "--for-tree"] };
+        const key = name === "history" ? "experiments.history" : "experiments.historyPlaces";
+        const off = name === "history" ? tree.config.experimentsHistory === "off" : tree.config.experimentsHistoryPlaces === "off" || !new Settings(env, {}).historyPlacesAuto(tree.config);
+        if (off) return { code: 200, body: { experiments: { [name]: false }, head: before, parent: before } };
+        return { args: ["config", "set", key, "off", "--for-tree"] };
       },
       done(_tree, _data, h) {
-        return { experiments: { history: false }, head: h, parent: before };
+        return { experiments: { [field]: false }, head: h, parent: before };
       },
       refused() {
         return undefined;

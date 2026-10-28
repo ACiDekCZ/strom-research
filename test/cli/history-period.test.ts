@@ -11,7 +11,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { Tree } from "../../src/core/tree.ts";
-import { GAP_DENSITY, PRESENT_YEARS, regionNew, regionPeriod } from "../../src/core/pastevents.ts";
+import { GAP_DENSITY, historyAnswer, historyHeld, PRESENT_YEARS, regionNew, regionPeriod } from "../../src/core/pastevents.ts";
+import { Settings } from "../../src/core/config.ts";
 import type { Task } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit, timeout: 180_000 };
@@ -209,5 +210,55 @@ test("history period: a catalog finished before its years were kept — counted 
     assert.equal(readJsonFile(catalogFile(v)).searched, undefined, "another tree's catalog untouched");
   } finally {
     v.cleanup();
+  }
+});
+
+test("history period: a region nobody of the tree lived in in its years — out of the queue (no task, a waiting one done), said by the status and the bridge; a place of facts without a year — its years in the region, to the region's end", opts, async () => {
+  // Jan Lhoták 1900–1940 at Lhota; Lhota in one state to 1945, in another from 1945 to 1990
+  const w = await world("Lhotákovi", "1900", "1940");
+  try {
+    const shared = path.join(w.home, "shared");
+    await w.ok(["history", "region", "cz-lhota-new", "--name-cs", "Nové Lhotsko", "--name-en", "New Lhota Land", "--name-de", "Neu-Lhotaland"]);
+    await w.ok(["history", "map", "Lhota", "--region", "cz-lhota:1600-1945", "--region", "cz-lhota-new:1945-1990"]);
+    // his son born there in 1960: the later region holds his years — its task raised
+    const petr = (await w.ok(["person", "add", "Petr /Lhoták/", "--sex", "M", "--born", "1960", "--born-place", "Lhota", "--json"])).json.person.id;
+    await w.ok(["frontier", "--apply"]);
+    const raised = (await tasks(w)).find((t) => t.origin === "history:region:cz-lhota-new");
+    assert.equal(raised?.state, "open");
+    // the son taken back: the facts there lie in other years — nobody of the tree lived there in its years
+    await w.ok(["person", "retract", petr, "--reason", "zkouška"]);
+    const tree = Tree.open(w.cwd, w.env);
+    const period = regionPeriod(tree, "cz-lhota-new");
+    assert.equal(period.nobody, true);
+    assert.deepEqual(period.spans, []);
+    assert.deepEqual(regionPeriod(tree, "cz-lhota").spans, [{ from: 1895, to: 1945 }], "the earlier region keeps his years");
+    // the queue holds its waiting task back at once; raised again: done, saying why — the catalog kept
+    assert.equal(historyHeld(tree, shared, new Settings(w.env, {}))(raised!), "nobody");
+    await w.ok(["frontier", "--apply"]);
+    const all = await tasks(w);
+    const done = all.find((t) => t.id === raised!.id)!;
+    assert.equal(done.state, "done");
+    assert.equal(done.result, "v letech regionu Nové Lhotsko tam nikdo ze stromu nežil: jeho události se nehledají");
+    assert.equal(all.filter((t) => t.origin === "history:region:cz-lhota-new" && t.state !== "done").length, 0, "no task of it again");
+    assert.ok(all.some((t) => t.origin === "history:region:cz-lhota" && t.state === "open"), "the earlier region's task stays");
+    assert.ok(fs.existsSync(path.join(shared, "history", "regions", "cz-lhota-new.json")), "its catalog kept");
+    assert.doesNotMatch((await w.ok(["plan"])).out, /Nové Lhotsko/u);
+    // the status and the bridge say it
+    assert.match((await w.ok(["history", "status"])).out, /cz-lhota-new .*nobody of the tree lived there in its years/u);
+    const status = (await w.ok(["history", "status", "--json"])).json.regions.find((r: { id: string }) => r.id === "cz-lhota-new");
+    assert.equal(status.nobody, true);
+    assert.deepEqual(status.period, []);
+    const region = historyAnswer(Tree.open(w.cwd, w.env), shared, new Settings(w.env, {})).regions["cz-lhota-new"]!;
+    assert.deepEqual([region.state, region.why, region.nobody], ["waiting", "V těch letech tu nikdo ze stromu nežil.", true]);
+    // a place whose facts have no year at all (a residence at Malá Lhota, undated): the years it belonged to its region — to
+    // the region's end, never to this year
+    await w.ok(["event", "add", "P0001", "RESI", "--place", "Malá Lhota"]);
+    await w.ok(["history", "map", "Malá Lhota", "--region", "cz-lhota-new:1950-1990"]);
+    const undated = regionPeriod(Tree.open(w.cwd, w.env), "cz-lhota-new");
+    assert.equal(undated.nobody, undefined);
+    assert.equal(undated.undated, true);
+    assert.deepEqual(undated.spans, [{ from: 1950, to: 1990 }]);
+  } finally {
+    w.cleanup();
   }
 });

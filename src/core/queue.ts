@@ -190,7 +190,9 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   const histTasks = opts.history ? open.filter(forHistory) : [];
   const order = histTasks.length ? histOrder() : () => 0;
   const firstOfHistory = [...histTasks].sort((a, b) => order(a) - order(b) || a.created.localeCompare(b.created))[0];
-  const turnTask = firstOfHistory && (firstOfHistory.origin === HISTORY_PLACES_ORIGIN || turn?.now || opts.history === "only") ? firstOfHistory.id : undefined;
+  // the places to map and a place whose history the person asked for: the next session's, whatever the pace
+  const turnTask =
+    firstOfHistory && (firstOfHistory.origin === HISTORY_PLACES_ORIGIN || turn?.placeAsked?.task === firstOfHistory.id || turn?.now || opts.history === "only") ? firstOfHistory.id : undefined;
   const tries = new Map<string, number>();
   for (const s of ended) tries.set(s.task!, (tries.get(s.task!) ?? 0) + 1);
 
@@ -250,6 +252,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
 /** Why a task of history stands where it does: history's turn now, when it comes, the place that put it first. */
 function historyWhy(turn: HistoryTurn, t: Task, now: boolean, first: boolean): string {
   if (t.origin === HISTORY_PLACES_ORIGIN) return "the places of the facts to map: before the research whatever the pace — a small step the regions need";
+  if (turn.placeAsked?.task === t.id) return `the history of ${turn.placeAsked.place} and its surroundings, asked for by the person: before the research whatever the pace`;
   const pace = `pace ${turn.pace}`;
   const prefer = first && turn.prefer ? ` · first of history: a recent session worked at ${turn.prefer.place}` : "";
   if (now) return `history's turn: ${turn.since} sessions since its last (${pace})${prefer}`;

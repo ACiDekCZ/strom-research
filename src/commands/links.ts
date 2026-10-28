@@ -132,7 +132,12 @@ function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; 
     return state === "research" ? undefined : { key: state === "archive" ? "ui.link.experiment.archive" : "ui.link.experiment.waiting", values: {}, state };
   }
   const forAgent =
-    link.action === "chat" || link.action === "review" || link.action === "research" || (link.action === "conflict" && link.do === "agent") || (link.action === "task" && link.do === "chat");
+    link.action === "chat" ||
+    link.action === "review" ||
+    link.action === "research" ||
+    link.action === "history" ||
+    (link.action === "conflict" && link.do === "agent") ||
+    (link.action === "task" && link.do === "chat");
   if (!forAgent) return undefined;
   const tree = Tree.open(root, ctx.env);
   const state = stateOf(tree);
@@ -267,7 +272,12 @@ async function inTerminal(ctx: Context, link: TreeLink) {
     case "experiment": {
       // turned on: the person's question here; turned off: at once
       const { experimentDo } = await import("../cli/menu-links.ts");
-      return end(await experimentDo(ctx, run, treeLang, root, link.do));
+      return end(await experimentDo(ctx, run, treeLang, root, link.do, link.name));
+    }
+    case "history": {
+      // a place's history: the estimate and the person's question here, its task on top of the queue, started now if wanted
+      const { placeSearch } = await import("../cli/menu-links.ts");
+      return end(await placeSearch(ctx, run, treeLang, root, link.place));
     }
   }
   const named = "person" in link ? link.person : undefined;
@@ -461,7 +471,7 @@ register(
         if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
         const { experimentDo } = await import("../cli/menu-links.ts");
         let done = true;
-        for (const c of copies) done = (await experimentDo(ctx, await runnerOf(ctx)(c.root), Tree.open(c.root, ctx.env).lang, c.root, "off")) && done;
+        for (const c of copies) done = (await experimentDo(ctx, await runnerOf(ctx)(c.root), Tree.open(c.root, ctx.env).lang, c.root, "off", link.name)) && done;
         return { text: "", data: { done, action: link.action, tree: copies[0]!.root } };
       }
       if (link.action !== "excerpt") {
