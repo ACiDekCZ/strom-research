@@ -125,6 +125,12 @@ type TreeLink = Exclude<Link, { action: "menu" | "excerpt" | "media" | "new" }>;
  * once). An archive's says where research is switched on, nothing of an agent.
  */
 function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; values: Record<string, string>; state: string } | undefined {
+  // an experiment turned on where nothing is looked for: said so, nothing of an agent (turned off: anywhere)
+  if (link.action === "experiment") {
+    if (link.do !== "on") return undefined;
+    const state = stateOf(Tree.open(root, ctx.env));
+    return state === "research" ? undefined : { key: state === "archive" ? "ui.link.experiment.archive" : "ui.link.experiment.waiting", values: {}, state };
+  }
   const forAgent =
     link.action === "chat" || link.action === "review" || link.action === "research" || (link.action === "conflict" && link.do === "agent") || (link.action === "task" && link.do === "chat");
   if (!forAgent) return undefined;
@@ -257,6 +263,11 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       // data from the app asks nothing of the kind); the answer is the person's, here
       const { archiveAsked } = await import("../cli/menu-links.ts");
       return end(await archiveAsked(ctx, run, treeLang, root, link.host));
+    }
+    case "experiment": {
+      // turned on: the person's question here; turned off: at once
+      const { experimentDo } = await import("../cli/menu-links.ts");
+      return end(await experimentDo(ctx, run, treeLang, root, link.do));
     }
   }
   const named = "person" in link ? link.person : undefined;
@@ -443,6 +454,15 @@ register(
           }
         }
         return say(ctx, "ui.link.nomedia", {}, { tree: link.tree, sha: link.sha });
+      }
+      // an experiment turned off needs nobody's answer: done in each copy of the research here, without a terminal
+      if (link.action === "experiment" && link.do === "off" && !ctx.io.tty) {
+        const copies = researchesWithId(ctx, link.tree);
+        if (!copies.length) return say(ctx, "ui.link.notree", {}, { tree: link.tree });
+        const { experimentDo } = await import("../cli/menu-links.ts");
+        let done = true;
+        for (const c of copies) done = (await experimentDo(ctx, await runnerOf(ctx)(c.root), Tree.open(c.root, ctx.env).lang, c.root, "off")) && done;
+        return { text: "", data: { done, action: link.action, tree: copies[0]!.root } };
       }
       if (link.action !== "excerpt") {
         // a terminal to show it in: this one, or a new window (the system started strom with none)

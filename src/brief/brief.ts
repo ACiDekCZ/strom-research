@@ -34,6 +34,8 @@ import type { Tree } from "../core/tree.ts";
 import { imagesIndex, weakScans } from "../core/mediaindex.ts";
 import { SHARPER_SCAN } from "../core/views.ts";
 import { HYPOTHESIS_LINKS_ORIGIN, recordedLinks, recordedText } from "../core/hypolinks.ts";
+import { forHistory, historyOn } from "../core/pastevents.ts";
+import { HISTORY_WEB_RULE, historySections, localEventsSection } from "./history.ts";
 
 export { DEFAULT_BUDGET } from "../core/config.ts";
 import { DEFAULT_BUDGET, Settings } from "../core/config.ts";
@@ -952,7 +954,7 @@ export function buildBrief(
         ? `Working alone (strom run): nobody answers here, but the user may read this session afterwards (the run's output, its log) — every message of yours, the last one too, in ${langName(lang)}, about the work and never addressed to the user ("waits for a check", never "waits for you"); a step only the user can take goes into strom task wait.`
         : "",
       STROM_ONLY,
-      webRule(new Settings(tree.env, {}).webPerHost(tree.config)),
+      task && forHistory(task) ? HISTORY_WEB_RULE : webRule(new Settings(tree.env, {}).webPerHost(tree.config)),
       opts.deadline !== undefined ? briefClock(opts.deadline) : "",
     ].filter(Boolean).join("\n"),
   });
@@ -985,6 +987,10 @@ export function buildBrief(
         ...filesCame(task),
       ].filter(Boolean).join("\n"),
     });
+
+    // a task of history (the experiment): its own sections, nothing of the records, the method or the queue
+    const history = forHistory(task) ? historySections(tree, task, opts.shared, alone) : undefined;
+    if (history) return assemble([...sections, ...history], budget);
 
   // 2. a review: what each item of the task is, as the tree has it
   if (task.origin.startsWith("review:") && task.where.length)
@@ -1318,6 +1324,12 @@ export function buildBrief(
   const kind = linking ? METHOD_LINKS : task?.level;
   sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(kind, conditions) });
 
+  // 8'. the experiment of history on: a session that reads records may write a local event they tell of
+  if (task && ["link", "verify", "intake", "enrich"].includes(kind ?? "") && historyOn(tree)) {
+    const local = localEventsSection();
+    if (local) sections.push(local);
+  }
+
   // 8 bis. the search beyond the registers: its budget of pages, printed pages for the user's model for print where the
   // agent hands work to another model, and what the research has written of the person's places already
   if (task?.origin === STORY_SOURCES_ORIGIN) {
@@ -1404,6 +1416,13 @@ export function buildBrief(
     ].filter(Boolean).join("\n"),
   });
 
+  return assemble(sections, budget);
+}
+
+/**
+ * The brief within its budget, from its sections in order.
+ */
+function assemble(sections: Section[], budget: number): Brief {
   // Assemble within the budget: required sections always, then the first ones whole when they fit, then the others in
   // order — those in parts in short —, a first one that did not fit whole cut after them, and last the parts given in
   // short made whole while they fit (UPGRADES); each written where it stands. Everything written counts: the blank line

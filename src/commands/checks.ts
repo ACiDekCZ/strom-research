@@ -10,7 +10,7 @@ import { counted, lines, table } from "../cli/format.ts";
 import { check, SHARED_MISSING, sharedMissing, type Finding } from "../core/check.ts";
 import { guard } from "../core/guard.ts";
 import { unprovenPeople } from "../core/review.ts";
-import { NOT_DOWNLOADED, notDownloaded, notDownloadedError, verifyFast, verifyFull } from "../core/integrity.ts";
+import { NOT_DOWNLOADED, SEALED_PATHS, notDownloaded, notDownloadedError, verifyFast, verifyFull } from "../core/integrity.ts";
 import { verifyCommitSeal } from "../core/seal.ts";
 import { adoptSeal } from "../cli/seal.ts";
 import { NeedsConsentError, StromError } from "../core/errors.ts";
@@ -165,9 +165,9 @@ function repair(tree: Tree): Repaired {
 
   // Paths to compare: whatever differs between the sealed commit and the working tree.
   const candidates = new Set<string>();
-  for (const c of git.changes(tree.root, ["data", "strom.json"])) candidates.add(c.path);
+  for (const c of git.changes(tree.root, SEALED_PATHS)) candidates.add(c.path);
   if (!headSealed) {
-    const r = git.runGit(tree.root, ["diff", "--name-only", "-z", sealed, "HEAD", "--", "data", "strom.json"]);
+    const r = git.runGit(tree.root, ["diff", "--name-only", "-z", sealed, "HEAD", "--", ...SEALED_PATHS]);
     for (const p of r.stdout.split("\0").filter(Boolean)) candidates.add(p);
   }
   const sealedContent = git.showFiles(tree.root, sealed, [...candidates]);
@@ -188,7 +188,7 @@ function repair(tree: Tree): Repaired {
       restored.push(rel);
     }
   }
-  if (!headSealed) tree.commit(`Repair: restore the sealed state of ${sealed.slice(0, 8)}\n\nCommits made outside strom were undone for data/ and strom.json.`, ["data", "strom.json"]);
+  if (!headSealed) tree.commit(`Repair: restore the sealed state of ${sealed.slice(0, 8)}\n\nCommits made outside strom were undone for data/, strom.json and history/.`, SEALED_PATHS);
   return { restored, quarantined, from: sealed };
 }
 

@@ -727,6 +727,20 @@ export class Tree {
     this.cache.get(record.type)?.set(record.id, record);
   }
 
+  /**
+   * Write a file of the research outside data/ that strom alone writes (history/: core/pastevents.ts), as a logged,
+   * sealed operation: a change of it without one is an edit outside strom (core/integrity.ts). Call inside withTreeLock.
+   */
+  putFile(rel: string, content: string, op: { op: string; targets: string[]; summary: string }): void {
+    const file = path.join(this.root, ...rel.split("/"));
+    this.appendOp({ ...op, summary: op.summary.normalize("NFC"), files: [{ path: rel, sha: sha256(content) }] });
+    this.version++;
+    if (this.dryRun) return;
+    this.remember(file);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    writeFileAtomic(file, content);
+  }
+
   readOps(): Op[] {
     const out: Op[] = [];
     for (const f of opsLogs(this.dataDir)) for (const op of opsOfFile(f)) out.push(op);

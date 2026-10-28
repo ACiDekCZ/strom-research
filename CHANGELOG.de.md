@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.22.0
 
-*In Vorbereitung: die Betas bis 1.22.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.22.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Jeder Name einmal in dem, was wartet.** Eine Aufgabe zu Material, das aus der Strom-App gesendet wurde, nannte im
   Widget und auf der Seite des Telefons jede Person zweimal (das zweite Mal in eckigen Klammern), und ihr Text ohne
@@ -30,6 +30,10 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Ausfall verkleinert die Lesestapel nicht mehr.
 - **Das Tor der Abo-Woche lässt mehrere Sitzungen hintereinander laufen.** Wartet es einmal auf Vorsprung, lässt es
   erst mit zwei Punkten mehr wieder los (bei 15: 17), statt einer Sitzung nach jedem Warten.
+- **Ein Experiment: was die Vorfahren erlebten.** Experimentell und standardmäßig aus: die Ereignisse an den Orten des
+  Stammbaums – die Geschichte einer Region aus Seiten, die strom selbst geladen und geprüft hat, örtliche Ereignisse
+  aus gelesenen Einträgen – zeigt die Strom-App. Einschalten kann es nur ein Mensch; solange es aus ist, wird nichts
+  gesucht.
 
 ## 1.21.0
 

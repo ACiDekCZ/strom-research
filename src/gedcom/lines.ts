@@ -68,6 +68,11 @@ export function splitParagraph(text: string, bytes: number): string[] {
   return out.length ? out : [""];
 }
 
+/** A value as a line carries it (before any @ is doubled): composed (NFC), on one line, without the spaces round it. */
+export function lineValue(value: string | number): string {
+  return String(value).normalize("NFC").replace(/[\r\n]+/g, " ").trim();
+}
+
 export class GedWriter {
   readonly lines: string[] = [];
 
@@ -76,7 +81,7 @@ export class GedWriter {
   // A value longer than a line goes on in CONC lines whatever its tag (a long place, name, label): readers join
   // them, the Strom app under PLAC, NAME, TYPE, … too, and a line over 255 bytes is no GEDCOM at all.
   line(level: number, tag: string, value?: string | number): void {
-    const v = value === undefined || value === null ? "" : escapeAt(tag, String(value).normalize("NFC").replace(/[\r\n]+/g, " ").trim());
+    const v = value === undefined || value === null ? "" : escapeAt(tag, lineValue(value));
     this.long(level, tag, v);
   }
 

@@ -13,8 +13,12 @@
 // Work that needs images of an archive whose images wait for the person's decision waits for it (core/archivewait.ts):
 // a session spent on it finds nothing and asks again. Work whose archive strom leaves alone for a while (it went
 // silent, or asked to slow down: core/leftalone.ts) waits until it takes requests again — a session on it would only be
-// told so. Strategies (setting queue.strategy): balanced (the default),
-// depth (stay on the line of the last sessions), priority (strict priority).
+// told so. The tasks of history (the experiment experiments.history, core/pastevents.ts: the places of the facts mapped
+// to regions, a region's events) come after everything — after the stories and the work that waits for a download —
+// and only where they are asked for (`history`: strom run, strom task next --history): in a conversation the user
+// leads, and the agent never takes one by itself. Out of the queue while the experiment is off, in an archive, or
+// while another tree builds the region's catalog (core/pastevents.ts historyHeld). Strategies (setting
+// queue.strategy): balanced (the default), depth (stay on the line of the last sessions), priority (strict priority).
 
 import type { Research, Session, Strategy, Task } from "./model.ts";
 import { parentsOf } from "./people.ts";
@@ -29,6 +33,8 @@ import { setsWithImages } from "./mediaindex.ts";
 import { heldOn, permissionQuestions } from "./archivewait.ts";
 import type { PendingQuestion } from "./terms.ts";
 import { asleepHosts, asleepOn, type Asleep } from "./leftalone.ts";
+import { forHistory, historyHeld } from "./pastevents.ts";
+import { Settings } from "./config.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
 
@@ -119,9 +125,10 @@ export function ancestorLines(tree: Tree, focus: string, max = 50): Map<string, 
 
 /**
  * The open tasks in the order to work on them, each with the reason. `awake`: as if every archive left alone took
- * requests again (strom run asks what would come then).
+ * requests again (strom run asks what would come then). `history`: the tasks of history too (strom run, or asked for by
+ * name: strom task next --history) — never otherwise.
  */
-export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean } = {}): Ranked[] {
+export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean } = {}): Ranked[] {
   const today = now().slice(0, 10);
   const researches = tree.list<Research>("research");
   // a direction the user paused or ended: its tasks wait (one at work goes on)
@@ -135,7 +142,15 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   // work whose archive is left alone for a while (silent, slow down): a session on it would only be told so
   const asleep = opts.awake ? () => undefined : waitsForArchive(tree, asleepHosts(tree), withImages);
   const waits = (t: Task) => t.state !== "doing" && ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? "")) || off(t) || !!decision(t) || !!asleep(t));
-  const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)) && !waits(t));
+  // the tasks of history: only where asked for, and not while the experiment is off, in an archive, or held by another tree
+  let held: ((t: Task) => string | undefined) | undefined;
+  const history = (t: Task) => {
+    if (!opts.history) return false;
+    const settings = new Settings(tree.env, {});
+    held ??= historyHeld(tree, settings.shared()?.value, settings);
+    return !held(t);
+  };
+  const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)) && (forHistory(t) ? history(t) : !waits(t)));
   const lines = new Map<string, Map<string, { gen: number; line: string }>>();
   const linesOf = (researchId: string | undefined) => {
     const r = researches.find((x) => x.id === researchId) ?? (researches.length === 1 ? researches[0] : undefined);
@@ -185,8 +200,10 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     const storyTurn = storyDue && forStory(t);
     // what the variants of hypotheses would connect: short work the Strom app waits for — before all else (core/hypolinks.ts)
     const first = linksFirst(t, tried);
+    const hist = forHistory(t);
     const why = [
       t.state === "doing" ? "in progress" : undefined,
+      hist ? "the history of the places: after all the research" : undefined,
       first ? `the hypotheses' links first: short, the Strom app waits for them (until tried ${HYPOTHESIS_LINKS_TRIES}×)` : undefined,
       storyTurn ? `a story's turn: none in the last ${STORY_EVERY} sessions` : undefined,
       blocked ? "needs images the user has to download" : undefined,
@@ -197,12 +214,14 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     ]
       .filter(Boolean)
       .join(" · ");
-    return { task: t, why, doing: t.state === "doing" ? 0 : 1, first: first ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen };
+    return { task: t, why, doing: t.state === "doing" ? 0 : 1, hist: hist ? 1 : 0, first: first ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen };
   });
   return rows
     .sort(
       (a, b) =>
         a.doing - b.doing ||
+        // the tasks of history after everything: taken only when nothing else is ready
+        a.hist - b.hist ||
         // the links of hypothesis variants before the research and a story's turn
         a.first - b.first ||
         // a story's turn first (working alone); otherwise the stories after all the research

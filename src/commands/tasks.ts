@@ -4,6 +4,8 @@
 // description), WHY it matters, and WHEN it is done. A task without "where"
 // is a wish; strom refuses it.
 
+import { Settings } from "../core/config.ts";
+import { finishRegionOf, forHistory, refuseInHistorySession } from "../core/pastevents.ts";
 import { opsLogs } from "../core/opslog.ts";
 import fs from "node:fs";
 import path from "node:path";
@@ -151,17 +153,17 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
 }
 
 /** The open tasks of the queue in the order to work on them (see core/queue.ts). */
-export function taskQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean } = {}): Task[] {
+export function taskQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean; history?: boolean } = {}): Task[] {
   return rankedQueue(tree, filter).map((r) => r.task);
 }
 
-export function rankedQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean } = {}): Ranked[] {
+export function rankedQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean; history?: boolean } = {}): Ranked[] {
   const scope = filter.research ? scopes(tree).find((s) => s.research.id === filter.research) : undefined;
   const tasks = tree
     .list<Task>("task")
     .filter((t) => !filter.research || (scope ? ofResearch(tree, t, scope) : t.research === filter.research))
     .filter((t) => !filter.level || t.level === filter.level);
-  return rankTasks(tree, tasks, filter.strategy, { storyTurn: filter.storyTurn, awake: filter.awake });
+  return rankTasks(tree, tasks, filter.strategy, { storyTurn: filter.storyTurn, awake: filter.awake, history: filter.history });
 }
 
 /**
@@ -308,9 +310,11 @@ export function longResult(tree: Tree, text: string): { result: string; more: No
 export function finishTask(tree: Tree, ref: string, text: string, produced: string[]): { task: Task; said: string[] } {
   const { result, more } = longResult(tree, text);
   const t = stateChange(tree, ref, "done", { result, produced: produced.map((x) => normId(x)) }, undefined, "done", more);
+  // a region's task of history done: its shared catalog finished too (the queue of every tree sees it so)
+  if (forHistory(t)) finishRegionOf(tree, new Settings(tree.env, {}).shared()?.value, t);
   // A search that is not recorded will be done again: nudge when a search task records none.
   const noSearch =
-    ["locate", "link", "verify", "enrich"].includes(t.level) && !tree.list<Search>("search").some((s) => s.task === t.id)
+    ["locate", "link", "verify", "enrich"].includes(t.level) && !forHistory(t) && !tree.list<Search>("search").some((s) => s.task === t.id)
       ? `note: no search is recorded for ${t.id} — record what you looked at, found or not: strom search add "<what>" --task ${t.id} --method web|catalog|index|page-by-page --result found|negative`
       : undefined;
   // A locate task hands over: the link tasks that name no record set yet should now name one.
@@ -527,6 +531,7 @@ register(
     ],
     run(ctx: Context, { args, opts }) {
       const tree = ctx.tree();
+      refuseInHistorySession(tree, currentSession(tree, ctx.env, ctx.refs), "strom task add");
       const missing = [!opts.level && "--level", !listOpt(opts.where).length && "--where", !opts.why && "--why", !opts["done-when"] && "--done-when"].filter(Boolean);
       if (missing.length)
         throw new UsageError(`a task needs ${missing.join(", ")}`, { hint: "a task without where is a wish: name the record set (B…) or describe exactly where to look" });
@@ -611,6 +616,8 @@ register(
     options: [
       { name: "research", type: "string", value: "<G…>", description: "only this research" },
       { name: "level", type: "string", value: "<level>", description: "only this level" },
+      // behind the experiment's gate: the tasks of history only when asked for by name (core/queue.ts)
+      { name: "history", type: "boolean", hidden: true, description: "the tasks of history too (after all the research)" },
     ],
     run(ctx, { opts }) {
       const tree = ctx.tree();
@@ -618,7 +625,7 @@ register(
       const strategy = ctx.settings.strategy(tree.config);
       // never a task another agent works on now (other conversations, runs in this tree)
       const held = othersAtWork(tree, ctx.env).tasks;
-      const queue = rankedQueue(tree, { ...(research ? { research } : {}), ...(opts.level ? { level: String(opts.level) } : {}), strategy }).filter((r) => !held.has(r.task.id));
+      const queue = rankedQueue(tree, { ...(research ? { research } : {}), ...(opts.level ? { level: String(opts.level) } : {}), strategy, ...(opts.history ? { history: true } : {}) }).filter((r) => !held.has(r.task.id));
       const first = queue[0];
       if (!first) {
         const held = tree.list<Task>("task").filter(offTree(tree)).filter((t) => t.state === "open").length;

@@ -52,12 +52,13 @@ function handlerName(env: Env): string {
  * and (the app's 3.5.0) the research followed live in the app's window; a direction of the research paused, ended or
  * taken up again, a conversation about one direction, a session at work asked to finish — and the question about an
  * archive's images (the answer is the person's, in the terminal); the research sealed on another computer taken over
- * here (strom seal adopt: checked, then the person's yes in the terminal — never by itself).
+ * here (strom seal adopt: checked, then the person's yes in the terminal — never by itself); an experiment turned on (the
+ * person's question in the terminal) or off for the research (at once).
  */
 /** A story: approved (or, beside an approved one, its new version approved in its place), or that new version not wanted. */
 export const LINK_STORY_DOS = ["final", "keep"] as const;
 
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
@@ -72,6 +73,9 @@ export const LINK_TASK_DOS = ["park", "drop", "wake", "check", "chat", "note", "
 export const LINK_DIRECTION_DOS = ["pause", "done", "resume"] as const;
 /** A tree the app sent that waits in the research's inbox: shown, then written or thrown away on the person's word. */
 export const LINK_SYNC_DOS = ["show"] as const;
+/** The experiments a link turns on (the person's question in the terminal) or off (for the research, at once). */
+export const LINK_EXPERIMENTS = ["history"] as const;
+export const LINK_EXPERIMENT_DOS = ["on", "off"] as const;
 /** What a link does with a conflict: the user decides it, or leaves it to the agent. */
 export const LINK_CONFLICT_DOS = ["decide", "agent"] as const;
 /** The side a conflict of the user's edit is decided for, picked in the app: the terminal asks only to confirm and why. */
@@ -162,6 +166,7 @@ export type Link =
   | { action: "direction"; tree: string; id: string; do: (typeof LINK_DIRECTION_DOS)[number] }
   | { action: "finish"; tree: string; session: string }
   | { action: "archive"; tree: string; host: string }
+  | { action: "experiment"; tree: string; name: (typeof LINK_EXPERIMENTS)[number]; do: (typeof LINK_EXPERIMENT_DOS)[number] }
   | { action: "new"; app: string; browser?: BrowserKind; file?: string }
   | { action: "menu" };
 
@@ -276,6 +281,9 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
       if (!HOST.test(host)) throw new LinkError("no archive named");
       return { action, tree: id, host };
     }
+    case "experiment":
+      // which experiment and on or off: fixed values only
+      return { action, tree: id, name: oneOf(q, "name", LINK_EXPERIMENTS), do: oneOf(q, "do", LINK_EXPERIMENT_DOS) };
   }
   throw new LinkError(`unknown action "${action.slice(0, 32)}"`);
 }

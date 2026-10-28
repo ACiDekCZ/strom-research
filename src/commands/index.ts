@@ -33,6 +33,7 @@ import "./hooks.ts";
 import "./phone.ts";
 import "./links.ts";
 import "./checks.ts";
+import "./history.ts";
 import "./setup.ts";
 import "./calibrate.ts";
 import "./fixes.ts";

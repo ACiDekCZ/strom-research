@@ -18,7 +18,7 @@
 //                          running version's section of the changelog shipped with it; asking keeps no bridge running
 //   GET <token>/recent     what the research added in the last hours (?hours=1…168, 24 when not given): the people and
 //                          sources added, the commits — the same as /status recent (core/recent.ts)
-//   GET <token>/events     server-sent events: hello, change, working; end before the bridge ends ({reason: stopped |
+//   GET <token>/events     server-sent events: hello, change, working, history; end before the bridge ends ({reason: stopped |
 //                          restart | idle | gone | signal, back: another bridge at this address at once — absent: not
 //                          known, at}): strom live stop asks it through .strom/live-stop.json, the same on every system
 //   POST <token>/sync      the Strom app sends the user's edited tree back (?send=, or on its own): kept in the
@@ -69,6 +69,18 @@
 //                          {read: D…}; /status reads and the event read follow it; never in an archive
 //   GET <token>/read/<D…>  its result (what its readers wrote so far too); /read/<D…>/page/<n>.jpg each page's picture
 //   POST <token>/read/<D…>/again {readers}, /read/<D…>/cancel; GET <token>/reads — the readings of the last 90 days
+//   GET <token>/history    what the ancestors lived through (the experiment experiments.history, core/pastevents.ts):
+//                          the events at the places of the tree's facts, the places with their state, what the person
+//                          hid, the state of the search and its rev (an archive's too; what was found stays while off);
+//                          at most 3000 events and 5000 places (those with events first): state.truncated
+//   POST <token>/history/hide   an event hidden at a place or a person ({event, place} | {event, person}, "do": "show"
+//                          shows it again): strom history hide|show, the person's; {hidden, head, parent} — refused 400
+//                          history.body, 404 history.event|history.person, 503 research.busy (+ Retry-After); an archive's too
+//   POST <token>/experiments   {"history": false}: the experiment off for this research (its strom.json; the person's
+//                          own config stays) — {experiments, head, parent}; {"history": true} is refused (403
+//                          experiments.link with the link strom-research://experiment…&do=on: only a person turns it on,
+//                          in the terminal the link opens). /status: experiments.history, history.rev; the event
+//                          history {rev} when what GET /history answers changed without a new commit
 //
 // Only pages of the Strom app may read it (CORS: https://stromapp.info, its beta, and a
 // local copy on localhost for its development), and a browser asks first
@@ -143,7 +155,7 @@ import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
 import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { Settings } from "./config.ts";
-import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, type HandlerState } from "./links.ts";
+import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, linkText, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
 import { askPhoneOn, endPhoneLater, pairCode, pairUrl, phoneConfig, phoneProbe, phoneRunning, phoneState, phoneSummary, removePhone, restorePhone, revivePhone, stopPhone, type PairedPhone } from "./phone.ts";
 import { qrSvg } from "./qr.ts";
@@ -157,6 +169,7 @@ import { SENDABLE, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts"
 import { agentsHere } from "./apps.ts";
 import { counted } from "../cli/format.ts";
 import { AppReadings, appReadSpend, readAccepts, statusReads, type ReadingsSeen } from "./live-read.ts";
+import { historyAnswer, historyOn, historyRev, MAX_EVENTS, MAX_PLACES } from "./pastevents.ts";
 
 export interface LiveInfo {
   port: number;
@@ -189,9 +202,10 @@ const CODES = {
   "ui.media.full": "media.full",
   "ui.seal.bridge": SEAL_FOREIGN,
   "ui.error.tree.not-downloaded": "tree.not-downloaded",
+  "ui.experiments.link": "experiments.link",
 } as const;
 /** What the app sends that the research writes (the routes after the secret): refused while it is sealed elsewhere. */
-const APP_WRITES = new Set(["sync", "adopt", "media", "batch", "waiting", "group", "material", "read"]);
+const APP_WRITES = new Set(["sync", "adopt", "media", "batch", "waiting", "group", "material", "read", "history", "experiments"]);
 /** A file refused (its error's code): what the bridge says of it. */
 const REFUSED: Record<string, keyof typeof CODES> = {
   "tree.other-research": "ui.sync.bridge.other",
@@ -849,7 +863,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "history.events", "history.hide"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1351,6 +1365,10 @@ function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): 
     }).map((w) => w.item),
     links: links(env),
     ...linkSchemeOf(env),
+    // the experiments searched for this tree, and the fingerprint of what GET /history answers (only for a tree that has
+    // anything of it, or with the experiment on: an older app reads nothing new)
+    experiments: { history: historyOn(tree, settings) },
+    ...historyOfStatus(tree, settings, last.head),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
     ...(archive ? { queue: [], queueMore: 0 } : queue(tree, next, all)),
     ...(newer ? { update: { version: newer } } : {}),
@@ -1365,6 +1383,35 @@ function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): 
     // the phone connection, this computer's (an archive's too: the person sends photos into it)
     phone: phoneSummaryNow(env),
   };
+}
+
+/**
+ * The fingerprint of what GET /history answers (core/pastevents.ts historyRev), worked out again with a new commit or
+ * after STROM_LIVE_HISTORY_MS (a minute): a catalog of the shared folder changes without the tree's commits.
+ */
+const historyRevs = new Map<string, { at: number; head: string; rev: string }>();
+function historyRevNow(tree: Tree, settings: Settings, h: string, fresh?: string): string {
+  const had = historyRevs.get(tree.root);
+  if (fresh === undefined && had && had.head === h && Date.now() - had.at < Number(tree.env.STROM_LIVE_HISTORY_MS ?? 60_000)) return had.rev;
+  const rev = fresh ?? historyRev(tree, settings.shared()?.value, settings);
+  historyRevs.set(tree.root, { at: Date.now(), head: h, rev });
+  return rev;
+}
+
+/** A tree the app is told the history of: with the experiment on, or one that has anything of it (its history/ folder). */
+function historyShown(tree: Tree, settings: Settings): boolean {
+  return historyOn(tree, settings) || fs.existsSync(path.join(tree.root, "history"));
+}
+
+/** /status history {rev}: only for a tree whose history is shown (an older app reads nothing new). */
+function historyOfStatus(tree: Tree, settings: Settings, h: string): { history?: { rev: string } } {
+  return historyShown(tree, settings) ? { history: { rev: historyRevNow(tree, settings, h) } } : {};
+}
+
+/** The limits of GET /history (a test lowers them: STROM_LIVE_HISTORY_EVENTS, STROM_LIVE_HISTORY_PLACES). */
+function historyLimits(env: Env): { events: number; places: number } {
+  const n = (v: string | undefined, d: number) => (v && /^\d{1,6}$/.test(v) && Number(v) > 0 ? Math.min(Number(v), d) : d);
+  return { events: n(env.STROM_LIVE_HISTORY_EVENTS, MAX_EVENTS), places: n(env.STROM_LIVE_HISTORY_PLACES, MAX_PLACES) };
 }
 
 /** What the month cost: the agent's sessions with their readers, and the readings the app asked (in no session). */
@@ -1804,6 +1851,14 @@ export function serveLive(root: string, env: Env): Promise<void> {
       writeFor(req, res, origin, materialWrite(sub));
       return;
     }
+    if (req.method === "POST" && t === token && what === "history" && sub === "hide" && !act) {
+      writeFor(req, res, origin, historyHide());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "experiments" && !sub) {
+      writeFor(req, res, origin, experimentsWrite());
+      return;
+    }
     if ((req.method === "GET" || req.method === "POST") && t === token && what === "phone") {
       phone(req, res, origin, sub, act);
       return;
@@ -1877,6 +1932,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
         if ((q.has("person") && !/^P\d{1,9}$/.test(person)) || (q.has("batch") && !BATCH_ID.test(batch)) || (files !== null && files !== "0" && files !== "1"))
           json(400, { ...refusal("?person=P… (a person of the research), ?batch=<the batch's mark>, ?files=0 (the batches only)", "material.query") });
         else json(200, material(Tree.open(root, env), new Settings(env, {}).shared()?.value, { ...(person ? { person } : {}), ...(batch ? { batch } : {}), ...(files === "0" ? { files: false } : {}) }));
+      } else if (what === "history" && !sub) {
+        // what the ancestors lived through: read in an archive too, and in a research waiting for its agent
+        const tree = Tree.open(root, env);
+        const settings = new Settings(env, {});
+        const got = historyAnswer(tree, settings.shared()?.value, settings, historyLimits(env));
+        historyRevNow(tree, settings, head(root), got.state.rev);
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(got));
       } else if (what === "group" && act === "note") {
         // the request texts of one place, for one e-mail: read only
         const got = groupNote(decoded(sub));
@@ -2399,6 +2461,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
     stdin?: string;
     /** Its own codes: a body that is no JSON object, the research busy (409 + Retry-After instead of 503), a failure. */
     codes?: { badBody: string; busy: string; failed: string };
+    /** The research busy with its own codes: answered so (503 + Retry-After, as research.busy everywhere) — default 409. */
+    busyStatus?: 409 | 503;
     /** The largest body it takes (default 8 kB). */
     max?: number;
   }
@@ -2407,7 +2471,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
       if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(code === 503 || (code === 409 && body.retry !== undefined) ? { "Retry-After": String(body.retry ?? WRITE_RETRY_S) } : {}) }).end(JSON.stringify(body));
     };
     const codes = how.codes ?? { badBody: "waiting.bad-body", busy: "research.busy", failed: "waiting.failed" };
-    const busy = (why: string) => reply(how.codes ? 409 : 503, { ...refusal(why, codes.busy), retry: WRITE_RETRY_S });
+    const busy = (why: string) => reply(how.codes ? (how.busyStatus ?? 409) : 503, { ...refusal(why, codes.busy), retry: WRITE_RETRY_S });
     const max = how.max ?? 8192;
     if (!origin) {
       req.resume();
@@ -2553,6 +2617,79 @@ export function serveLive(root: string, env: Env): Promise<void> {
       },
     };
   };
+  /**
+   * An event of history hidden at a place or a person of the tree, or shown again (POST /history/hide {event, place} |
+   * {event, person}, "do": "show"): strom history hide|show, the person's choice as written in the app — an archive's
+   * too. An unknown place is no error (the app may name one the research has no fact at). Answered with what is hidden
+   * now ({hidden: [{event, place|person, at}]}). Refused: 400 history.body, 404 history.event | history.person, 503
+   * research.busy (+ Retry-After).
+   */
+  const historyHide = (): AppWrite => {
+    const bad = (why: string) => ({ code: 400, body: refusal(why, "history.body") });
+    const EVENT = /^[\p{L}\p{N}][\p{L}\p{N}-]{0,79}$/u;
+    return {
+      what: "an event of history hidden or shown",
+      codes: { badBody: "history.body", busy: "research.busy", failed: "history.failed" },
+      busyStatus: 503,
+      ask(_tree, body) {
+        const shape = `{"event": "<its id>", "place": "<a place>"} or {"event", "person": "P…"}, and "do": "show" to show it again`;
+        const event = typeof body.event === "string" ? body.event.trim() : "";
+        if (!EVENT.test(event)) return bad(shape);
+        if ((body.place === undefined) === (body.person === undefined)) return bad(shape);
+        if (body.do !== undefined && body.do !== "show" && body.do !== "hide") return bad(shape);
+        let where: string;
+        if (body.place !== undefined) {
+          if (typeof body.place !== "string" || !body.place.trim() || body.place.length > 300 || /[\u0000-\u001f\u007f]/u.test(body.place)) return bad(shape);
+          where = `--place=${body.place.trim()}`;
+        } else {
+          if (typeof body.person !== "string" || !/^P\d{1,9}$/iu.test(body.person.trim())) return bad(shape);
+          where = `--person=${body.person.trim().toUpperCase()}`;
+        }
+        return { args: ["history", body.do === "show" ? "show" : "hide", event, where] };
+      },
+      done(_tree, data, head) {
+        return { hidden: Array.isArray(data.hidden) ? data.hidden : [], head };
+      },
+      refused(_tree, code, why) {
+        if (code === "history.body") return { code: 400, body: refusal(why, code) };
+        if (code === "history.event" || code === "history.person") return { code: 404, body: refusal(why, code) };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The experiments of this research as the app turns them (POST /experiments): {"history": false} turns the history of
+   * the places off for this tree (strom config set experiments.history off --for-tree; the person's own config stays).
+   * Turning it on is the person's alone, in the terminal: refused 403 experiments.link with the link that opens it
+   * (strom-research://experiment?tree=…&name=history&do=on, in this installation's scheme). 400 experiments.body.
+   */
+  const experimentsWrite = (): AppWrite => {
+    let before = "";
+    return {
+      what: "the experiments of the research",
+      codes: { badBody: "experiments.body", busy: "research.busy", failed: "experiments.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (!keys.length || keys.some((k) => k !== "history") || typeof body.history !== "boolean") return { code: 400, body: refusal(`the body: {"history": false}`, "experiments.body") };
+        if (body.history) {
+          const link = linkText({ action: "experiment", tree: tree.config.id, name: "history", do: "on" }, linkScheme(env));
+          return { code: 403, body: { ...said(tree.lang, "ui.experiments.link"), link } };
+        }
+        before = head(root);
+        if (tree.config.experimentsHistory === "off") return { code: 200, body: { experiments: { history: false }, head: before, parent: before } };
+        return { args: ["config", "set", "experiments.history", "off", "--for-tree"] };
+      },
+      done(_tree, _data, h) {
+        return { experiments: { history: false }, head: h, parent: before };
+      },
+      refused() {
+        return undefined;
+      },
+    };
+  };
+
   /** A write of the app's the research cannot take as asked (checkAsked): its code, the HTTP status the app reads it by. */
   const refusedAsked = (e: unknown): { code: number; body: Record<string, unknown> } => {
     if (!(e instanceof StromError) || !e.code) throw e;
@@ -3046,6 +3183,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
       };
       let batchesChecked = 0;
       let incomingCleaned = 0;
+      // what GET /history answers, looked at again at most once a minute while the app follows (its rev and the head)
+      let historyChecked = 0;
+      let historySeen: { rev: string; head: string } | undefined;
+      const HISTORY_MS = Number(env.STROM_LIVE_HISTORY_MS ?? 60_000);
       // the first a few minutes after it starts, then once a day
       let tidied = Date.now() - Number(env.STROM_TIDY_MS ?? 24 * 3600_000) + 5 * 60_000;
       const timer = setInterval(() => {
@@ -3100,6 +3241,16 @@ export function serveLive(root: string, env: Env): Promise<void> {
             seen = h;
           }
           for (const r of readsChanged) send("read", r);
+          // what GET /history answers changed without a new commit (a catalog of the shared folder another tree's session
+          // wrote): the event history {rev}; with a new commit the change said it already (the app reads /status again)
+          if (Date.now() - historyChecked >= HISTORY_MS) {
+            historyChecked = Date.now();
+            const tree = Tree.open(root, env);
+            const settings = new Settings(env, {});
+            const rev = historyShown(tree, settings) ? historyRevNow(tree, settings, h, historyRev(tree, settings.shared()?.value, settings)) : undefined;
+            if (rev && historySeen && historySeen.head === h && historySeen.rev !== rev) send("history", { rev });
+            historySeen = rev ? { rev, head: h } : undefined;
+          }
           const now = atWork(h);
           const w = JSON.stringify(now);
           if (w !== workers) {

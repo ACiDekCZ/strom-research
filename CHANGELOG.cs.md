@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.22.0
 
-*Připravuje se: bety do 1.22.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.22.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **Jméno jednou v tom, co čeká.** Úkol k materiálu poslanému z aplikace Strom jmenoval ve widgetu a na stránce
   telefonu každého člověka dvakrát (podruhé v hranatých závorkách) a jeho text bez jmen nechal prázdné závorky; menu,
@@ -26,6 +26,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   tam, kde skončil; když mlčí dál, hned skončí. Takový výpadek už nezmenšuje dávky čtení.
 - **Brána týdne předplatného pustí víc sezení za sebou.** Když jednou čeká na náskok, pustí znovu až se dvěma body navíc
   (při 15: 17), místo jednoho sezení po každém čekání.
+- **Experiment: co předek zažil.** Pokusné a ve výchozím stavu vypnuté: události v místech stromu – dějiny kraje ze
+  stránek, které strom sám stáhl a ověřil, místní události z přečtených záznamů – ukáže aplikace Strom. Zapnout ho
+  může jen člověk; dokud je vypnuté, nic se nehledá.
 
 ## 1.21.0
 

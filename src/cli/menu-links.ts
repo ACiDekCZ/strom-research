@@ -15,6 +15,7 @@ import { isArchive } from "../core/mode.ts";
 import type { UIKey } from "./ui.ts";
 import { actsAsArchive, kindOf, type Kind } from "../core/state.ts";
 import { Tree } from "../core/tree.ts";
+import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
 import type { Conflict, Family, Person, Research, Session, Source, Task } from "../core/model.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
 import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, removedByItsDecision, SYNC_INBOX, undoSync, withoutImages, type SyncInput } from "../core/sync.ts";
@@ -168,6 +169,33 @@ export async function archiveAsked(ctx: Context, run: Run, lang: string, root: s
   const known = q ? true : listConnectors(ctx.settings.shared()?.value, ctx.env).some((c) => c.manifest.hosts.map(bareHost).includes(host));
   if (!known) return stop(ctx, t("ui.link.archive.none"));
   return decideArchive(ctx, run, lang, root, host, q, q?.archiveHosts);
+}
+
+/**
+ * An experiment of the research turned on or off from the Strom app (strom-research://experiment&name=history): on is
+ * asked once — what it does, how long, and that it is this computer's setting for every research on it when that
+ * changes — then this computer's setting on and the research's own off taken away; off is the research's at once.
+ */
+export async function experimentDo(ctx: Context, run: Run, lang: string, root: string, what: "on" | "off"): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const treeOff = tree.config.experimentsHistory === "off";
+  if (what === "off") {
+    if (treeOff) return stop(ctx, t("ui.link.experiment.off.already"));
+    if ((await run(["config", "set", "experiments.history", "off", "--for-tree"], true)) !== 0) return false;
+    out(ctx, t("ui.link.experiment.off.done"));
+    return true;
+  }
+  // this computer's setting (the user's config): on for every research here unless one turned it off
+  const userOn = ctx.settings.experimentsHistory(undefined);
+  if (userOn && !treeOff) return stop(ctx, t("ui.link.experiment.on.already"));
+  const minutes = ctx.settings.number("run.minutes", tree.config, DEFAULT_RUN_MINUTES);
+  const note = lines(t(ctx.settings.runGate() ? "ui.link.experiment.note.gate" : "ui.link.experiment.note", { minutes }), userOn ? undefined : t("ui.link.experiment.all"));
+  if (!(await asks(ctx, lang, root, t("ui.link.what.experiment.history"), note, false))) return false;
+  if (!userOn && (await run(["config", "set", "experiments.history", "on"], true)) !== 0) return false;
+  if (treeOff && (await run(["config", "unset", "experiments.history", "--for-tree"], true)) !== 0) return false;
+  out(ctx, t("ui.link.experiment.on.done"));
+  return true;
 }
 
 /** A direction of the research paused, ended (each with the person's reason, if they give one) or taken up again. */

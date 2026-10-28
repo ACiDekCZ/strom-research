@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import * as git from "./git.ts";
 import { connectorsDir } from "./connector.ts";
+import { mergeCatalog, regionFile, regionIdOk, regionsOfTree, type Catalog } from "./pastevents.ts";
 import { StromError, UsageError } from "./errors.ts";
 import { createKey } from "./seal.ts";
 import { safeFolderName } from "./text.ts";
@@ -38,6 +39,8 @@ export interface PackManifest {
   /** Files of the shared folder in the package (media/…). */
   media: string[];
   connectors: string[];
+  /** The catalogs of the regions of history the tree's places belong to (shared/history/regions/<id>.json); merged on unpack, never written over. */
+  history?: string[];
   /** Images left out (the archive gives them again). */
   left: { count: number; bytes: number };
 }
@@ -197,6 +200,8 @@ export function writePack(
       connectors: plan.connectors,
       left: { count: plan.left.count, bytes: plan.left.bytes },
     };
+    const regions = regionsOfTree(tree).filter((id) => fs.existsSync(regionFile(shared, id)));
+    if (regions.length) manifest.history = regions;
     // CRLF: Notepad of an older Windows shows it right too
     zip.add(opts.readme.name, Buffer.from(opts.readme.text.replace(/\n/g, "\r\n"), "utf8"));
     for (const l of launchers(opts.say)) zip.add(l.name, Buffer.from(l.text, "utf8"), { mode: l.mode });
@@ -206,6 +211,7 @@ export function writePack(
     for (const c of plan.connectors) {
       addTree(zip, `shared/plugins/connectors/${c}`, path.join(connectorsDir(shared), c));
     }
+    for (const id of regions) zip.addFile(`shared/history/regions/${id}.json`, regionFile(shared, id));
     zip.close();
     return { file: out, bytes: fs.statSync(out).size, manifest, plan };
   } catch (e) {
@@ -254,6 +260,8 @@ export interface Unpacked {
   connectors: string[];
   connectorsKept: string[];
   adopted: boolean;
+  /** The events of history taken into this computer's catalogs (those it had stay as they are). */
+  historyEvents: number;
 }
 
 /**
@@ -325,7 +333,20 @@ export function unpack(pack: { manifest: PackManifest; dir: string }, treesDir: 
       fs.cpSync(path.join(src, "shared", "plugins", "connectors", c), to, { recursive: true });
       connectors.push(c);
     }
-    return { root, name: tree.config.name, images: media.length - imagesHad, imagesHad, connectors, connectorsKept: kept, adopted };
+    let historyEvents = 0;
+    for (const id of m.history ?? []) {
+      if (!regionIdOk(id)) continue;
+      const file = path.join(src, "shared", "history", "regions", `${id}.json`);
+      let given: Catalog | undefined;
+      try {
+        given = JSON.parse(fs.readFileSync(file, "utf8")) as Catalog;
+      } catch {
+        continue; // a catalog missing or damaged: the research is whole without it (its events are found again)
+      }
+      if (given?.region?.id !== id) continue;
+      historyEvents += mergeCatalog(shared, given).added;
+    }
+    return { root, name: tree.config.name, images: media.length - imagesHad, imagesHad, connectors, connectorsKept: kept, adopted, historyEvents };
   } catch (e) {
     fs.rmSync(root, { recursive: true, force: true });
     throw e;

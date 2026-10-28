@@ -24,6 +24,7 @@ import { sandboxOfRun } from "../core/sandbox.ts";
 import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../agents/effort.ts";
 import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
+import { claimHistoryDay, forHistory, historyHeld, historySessionsToday, raiseHistoryTasks, regionOfTask } from "../core/pastevents.ts";
 import { prependPath, type AgentLimit } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
@@ -110,6 +111,17 @@ export function applyFrontier(tree: Tree, research: Research): string[] {
   return researchProposals(tree, research).map(({ proposal, kind }) => create<Task>(tree, "task", { ...proposal, state: "open" }, (id) => `+${id} task "${truncate(proposal.what, 60)}" (${kind})`).id);
 }
 
+/**
+ * What an agent is told of a task of history started by its ID while the queue holds it back: the experiment off, or
+ * the region another tree builds now. Undefined when it may be worked on (or is no task of history).
+ */
+function historyLine(tree: Tree, t: Task, shared: string | undefined, settings: Settings): string | undefined {
+  const why = historyHeld(tree, shared, settings)(t);
+  if (why === "off") return `⚠ ${t.id} is a task of the history experiment, which is off for this research: strom history add refuses — close the session (strom session close --continue …)`;
+  if (why === "held") return `⚠ another research on this computer builds the catalog of ${regionOfTask(t)} now: its events come from there — close the session (strom session close --continue …) and take another task`;
+  return undefined;
+}
+
 /** Commit behind the same gate as every write. */
 export function commitNow(tree: Tree, message: string): boolean {
   const snap = snapshot(tree);
@@ -148,7 +160,8 @@ register(
       const brief = buildBrief(tree, { ...(task ? { task } : {}), session: s, budget: ctx.settings.number("brief.budget", tree.config, DEFAULT_BUDGET), shared, browser: briefBrowser(tree, shared, s, task) });
       // a task the queue holds back, started by its ID: the agent hears why before it begins
       const off = task && args[0] ? offTreeLine(tree, task, true) : undefined;
-      return { text: lines(written(tree), off, "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections, ...(off ? { offTree: true } : {}) } };
+      const held = task && args[0] ? historyLine(tree, task, shared, ctx.settings) : undefined;
+      return { text: lines(written(tree), off, held, "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections, ...(off ? { offTree: true } : {}) } };
     },
   },
   {
@@ -297,6 +310,9 @@ register(
       });
       const research = s.research ? tree.get<Research>(s.research) : undefined;
       const newTasks = research ? applyFrontier(tree, research) : [];
+      // what was written, said before the tasks of history are raised: those are strom run's, never the conversation's
+      const wrote = written(tree);
+      raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
       // a session of strom run whose run is at work: the run exports once the agent ends (with what it adds) — not twice
       const byRun = !!s.runner && runAlive(tree.root, s);
       const geds = tree.dryRun || byRun ? [] : writeGedcoms(ctx, tree);
@@ -305,7 +321,7 @@ register(
       autoTidy(tree);
       return {
         text: lines(
-          written(tree),
+          wrote,
           ...(finished?.said ?? []),
           ...alsoDone.flatMap((a) => a.said),
           ged ? `GEDCOM ${geds.map((g) => ctx.display(g.file)).join(" · ")}: ${ged.stats.persons} persons, ${ged.stats.families} families` : byRun ? "GEDCOM: exported by strom run when the session ends" : undefined,
@@ -410,7 +426,10 @@ register(
       if (!r) throw new UsageError("which research?", { hint: "strom frontier --research G0001" });
       if (opts.apply) {
         const ids = applyFrontier(tree, r);
-        return { text: ids.length ? written(tree) : "nothing to add — every frontier person has a task", data: { created: ids } };
+        const text = ids.length ? written(tree) : "nothing to add — every frontier person has a task";
+        // the tasks of history too (the experiment): strom run's, not said here
+        raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
+        return { text, data: { created: ids } };
       }
       const items = frontier(tree, r);
       const stories = ctx.settings.stories(tree.config).on ? storyProposals(tree, r) : [];
@@ -799,7 +818,7 @@ register({
     let followed = false;
     // Why the run stopped: a code for the exit status and for data, words for the user (their language).
     const lang = Tree.open(root, runEnv).lang;
-    type Stop = "done" | "user" | "time" | "empty" | "asleep" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
+    type Stop = "done" | "user" | "time" | "empty" | "history" | "asleep" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
     // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
     let lastLimits: AgentLimit[] | undefined;
     let watch: GateAnswer["watch"];
@@ -873,8 +892,15 @@ register({
         const research = researchOf(tree, opts.research);
         // Other agents may be at work in this tree (conversations): never their tasks.
         const others = othersAtWork(tree, tree.env, runnerId).tasks;
-        // Working alone: now and then a story's turn (in a conversation the user leads).
-        const free = () => taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), storyTurn: true }).find((t) => !others.has(t.id));
+        // The tasks of history the experiment asks for (core/pastevents.ts), made before the queue is read.
+        if (raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings).length) commitNow(tree, "Tasks of the history of the places");
+        // M1: without a gate, one session a day on the history of the places — on this computer, for all the trees
+        // sharing the folder; with a gate, the gate decides.
+        const sharedDir = ctx.settings.shared()?.value;
+        let historyNow = !!gate || historySessionsToday(tree, sharedDir) === 0;
+        // Working alone: now and then a story's turn (in a conversation the user leads); the tasks of history last.
+        const queueOf = (history: boolean) => taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), storyTurn: true, history }).find((t) => !others.has(t.id));
+        const free = () => queueOf(historyNow);
         let task: Task | undefined;
         if (i < picked.length) {
           task = tree.get<Task>(picked[i]!);
@@ -886,6 +912,11 @@ register({
         } else task = free();
         if (!task && research) {
           applyFrontier(tree, research);
+          task = free();
+        }
+        // the day's session of history taken before it starts: another run (here or in another tree) may have had it
+        if (task && !gate && i >= picked.length && forHistory(task) && sharedDir && !claimHistoryDay(sharedDir, tree.config.id)) {
+          historyNow = false;
           task = free();
         }
         if (!task) {
@@ -914,7 +945,8 @@ register({
             stopValues = values;
             break;
           }
-          stopCode = "empty";
+          // only the history of the places left, and its session of today had: tomorrow (M1)
+          stopCode = !historyNow && i >= picked.length && queueOf(true) ? "history" : "empty";
           break;
         }
         // The user's condition, between sessions only: go on, wait and ask again, or stop — in a run that goes on by

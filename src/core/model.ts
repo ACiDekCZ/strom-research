@@ -774,6 +774,8 @@ export interface TreeConfig {
   queueStrategy?: string;
   /** Stories of the ancestors: yes or no (overrides the user's). */
   stories?: string;
+  /** The experiment of history at the places of the tree turned off for this tree alone ("off"; on is the user's config). */
+  experimentsHistory?: string;
   /** The main person of the tree: first in the GEDCOM files, where the Strom app opens. */
   mainPerson?: string;
   /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */

@@ -77,7 +77,7 @@ test("fetch --background: an archive left alone longer than its wait — nothing
   started.add(pid);
   assert.match(bg.out, /fetching 2 images of B0001 \(images 1–2\) in the background/);
   assert.ok(bg.out.includes(`127.0.0.1 is left alone until ${clockUp(at)} (it went silent, or asked to slow down): the fetch waits for it, then goes on by itself`), bg.out);
-  await until("the fetch in the background waits for the archive", async () => /waits for the archive until \d\d:\d\d, then goes on by itself/.test((await w.ok(["fetch", "--status"])).out), { ms: 30_000 });
+  await until("the fetch in the background waits for the archive", async () => /waits for the archive until (\d{4}-\d\d-\d\d )?\d\d:\d\d, then goes on by itself/.test((await w.ok(["fetch", "--status"])).out), { ms: 30_000 });
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 0);
   // stopped while it waits: it ends at once, no timer keeps it
   assert.doesNotMatch((await w.ok(["fetch", "--stop", "B1"])).out, /still stopping/);

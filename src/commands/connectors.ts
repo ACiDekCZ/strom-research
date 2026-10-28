@@ -113,6 +113,7 @@ import { waitsOnHost } from "../core/archivewait.ts";
 import { waysOffered } from "../core/archiveasks.ts";
 import { archivesOverview, checkEnvironment, gateArchive, levelsOf, levelText, NeedsPermissionError, permissionText, robotsPermits, syncTrees, taskHere, verdictKeeper } from "./archives.ts";
 import { currentSession, othersAtWork } from "../core/session.ts";
+import { refuseInHistorySession } from "../core/pastevents.ts";
 import { askedAgain, noteLeftAlone } from "../core/leftalone.ts";
 import { opsLogsOf } from "../core/opslog.ts";
 
@@ -946,6 +947,10 @@ register(
       const name = args[0]!;
       if (!NAME_RE.test(name)) throw new UsageError("a connector's name is lowercase letters, digits and dashes", { hint: `e.g. ${suggestName(name) ?? "example-archive"}` });
       if (!opts.url) throw new UsageError("give the portal: --url https://…");
+      if (ctx.hasTree()) {
+        const t = ctx.tree();
+        refuseInHistorySession(t, currentSession(t, ctx.env), "strom connector new");
+      }
       let url: URL;
       try {
         url = new URL(String(opts.url));

@@ -864,6 +864,7 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   if (def.key === "read.parallel") return { value: DEFAULT_READ_PARALLEL, source: "default" };
   if (def.key === "connectors.consent") return { value: "off", source: "default" };
   if (def.key === "agent.addons") return { value: "off", source: "default" };
+  if (def.key === "experiments.history") return { value: "off", source: "default" };
   if (def.key === "tune.transcripts") return { value: "on", source: "default" };
   if (def.key === "tune.auto") return { value: "on", source: "default" };
   if (def.key === "browser.downloads") return { value: downloadsDir(ctx.env), source: "detected" };
@@ -909,6 +910,24 @@ function addonsDecision(ctx: Context, key: string, value: string | number | unde
   const { now, next } = layerChange(ctx, key, value, scope);
   if (next === "on" && now !== "on")
     ctx.requireHuman("Let the agent working alone load your own add-ons (skills, plugins, MCP servers), as in a conversation?", "strom config set agent.addons on", "agent.addons", ui(ctx.uiLang(), "ui.consent.addons"));
+}
+
+/**
+ * The experiment of history (experiments.history): turned on by the person alone, in the user's config — a search
+ * spends the agent's time and the plan; a tree's strom.json may only turn it off (its research alone); off is anyone's.
+ */
+function experimentsDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
+  if (key !== "experiments.history") return;
+  if (scope === "tree") {
+    if (value === "on")
+      throw new UsageError("experiments.history is turned on in the user's own config only — a tree may only turn it off", {
+        hint: "the user, in their terminal: strom config set experiments.history on (every research on this computer); strom config unset experiments.history --for-tree takes this tree's off away",
+      });
+    return;
+  }
+  const { now, next } = layerChange(ctx, key, value, scope);
+  if (next === "on" && now !== "on")
+    ctx.requireHuman("Look for the events of history at the places of every research on this computer (an experiment: only when the family research has nothing to do)?", "strom config set experiments.history on", "experiments.history", ui(ctx.uiLang(), "ui.consent.history"));
 }
 
 /** The browser in every session (agent.browser always): the user's decision alone, for them or for one tree. */
@@ -974,6 +993,7 @@ function webDecision(ctx: Context, key: string, value: string | number | undefin
 export function setTreeSetting(ctx: Context, key: string, value: string | number | undefined): Tree {
   syncDecisions(ctx, key, value, "tree");
   addonsDecision(ctx, key, value, "tree");
+  experimentsDecision(ctx, key, value, "tree");
   browserDecision(ctx, key, value, "tree");
   effortDecision(ctx, key, value, "tree");
   webDecision(ctx, key, value, "tree");
@@ -1047,6 +1067,7 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
   const s = ctx.settings;
   syncDecisions(ctx, key, value, "user");
   addonsDecision(ctx, key, value, "user");
+  experimentsDecision(ctx, key, value, "user");
   browserDecision(ctx, key, value, "user");
   effortDecision(ctx, key, value, "user");
   webDecision(ctx, key, value, "user");

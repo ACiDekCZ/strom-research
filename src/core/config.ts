@@ -96,6 +96,8 @@ export interface UserConfig {
   agentBrowser?: string;
   /** The agent's personal add-ons in the sessions it works alone: off (default — the research's tools only) or on. */
   agentAddons?: string;
+  /** The experiment of history at the places of the trees (core/pastevents.ts): on, off (default). */
+  experimentsHistory?: string;
   /** The Strom app on this computer: the user said so ("yes") or does not want to hear of it ("no"). */
   stromApp?: string;
   /** strom-research:// links from the Strom app: the person said yes (set up) or no (never asked again; strom link on changes it). */
@@ -261,6 +263,9 @@ export const SETTINGS: SettingDef[] = [
   { key: "agent.remote", env: "", tree: false, kind: "choice", choices: ["on", "off"], description: "the Claude Code sessions strom starts (strom run, strom chat in the terminal) with Remote Control: on — follow and steer them from claude.ai or the Claude app on your phone; off (default) — only you turn it on" },
   // Read from the config files only (the user's or the tree's) — no variable: turning them on is the user's decision.
   { key: "agent.addons", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the agent's personal add-ons (its skills, plugins, MCP servers, memory) when it works alone (strom run, the readers of strom read): off (default — it loads the research's tools only; the Strom app's connection and the browser work on) or on (as in a conversation, which loads them always) — Claude Code and Codex; Grok without what it takes in of the other agents (their skills, MCP servers, hooks) and its memory, its own skills and plugins kept (it has no switch for them); only you turn it on" },
+  // Read from the config files only — no variable: the user's config turns it on (the person alone: a search spends the
+  // agent's time and the plan), a tree's strom.json may only turn it off; off is anyone's.
+  { key: "experiments.history", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "experiment: the events of history at the places of the tree (wars, epidemics, censuses, changes of the state), looked for only when the family research has nothing to do: off (default) or on — only you turn it on (for every research on this computer); a tree may only turn it off" },
   { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it; while none is here it waits for one, kept as an archive) or archive (the data come from the Strom app, no agent — the person's choice: the setup wizard asks it with an agent here, the menu's settings) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
@@ -294,6 +299,7 @@ const FIELDS: Record<string, string> = {
   "agent.remote": "agentRemote",
   "agent.browser": "agentBrowser",
   "agent.addons": "agentAddons",
+  "experiments.history": "experimentsHistory",
   "strom.app": "stromApp",
   "strom.app.url": "stromAppUrl",
   "app.browser": "appBrowser",
@@ -647,6 +653,14 @@ export class Settings {
    */
   agentAddons(tree?: TreeConfig): boolean {
     return this.resolve("agent.addons", tree)?.value === "on";
+  }
+
+  /**
+   * The experiment of history at the places of the tree (core/pastevents.ts): on only where the user's own config turns
+   * it on and the tree's strom.json does not turn it off — a tree never turns it on by itself, nor a variable or a flag.
+   */
+  experimentsHistory(tree?: TreeConfig): boolean {
+    return readStored(this.config, "experiments.history", "") === "on" && readStored(tree, "experiments.history", "") !== "off";
   }
 
   /** Claude Code's transcripts of the sessions strom started read for tuning (core/transcripts.ts): on unless the user said off. */

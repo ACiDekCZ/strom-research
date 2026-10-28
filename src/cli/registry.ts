@@ -110,6 +110,11 @@ export interface CommandDef {
   person?: string;
   /** Takes arguments after "--" and passes them on (to the agent CLI). */
   passthrough?: boolean;
+  /**
+   * Behind a gate not open yet (an experiment the Strom app has not released): it runs when named, but no help
+   * overview, strom commands, the guide, the brief's sheet or the menu shows it.
+   */
+  hidden?: boolean;
   run(ctx: Context, input: Input): Promise<Result> | Result;
 }
 
@@ -153,8 +158,9 @@ export function register(...defs: CommandDef[]): void {
   }
 }
 
+/** The commands help, strom commands, the guide and the brief show: every one but those behind a gate (hidden). */
 export function commands(): readonly CommandDef[] {
-  return registry;
+  return registry.filter((c) => !c.hidden);
 }
 
 export function optionsOf(def: CommandDef): OptionDef[] {
@@ -178,7 +184,7 @@ export function match(words: string[]): { def: CommandDef; used: number } | unde
 
 /** Command groups ("person") that have subcommands but no command of their own. */
 export function subcommandsOf(prefix: string[]): CommandDef[] {
-  return registry.filter((c) => c.path.length > prefix.length && prefix.every((w, i) => c.path[i] === w));
+  return registry.filter((c) => !c.hidden && c.path.length > prefix.length && prefix.every((w, i) => c.path[i] === w));
 }
 
 /** An alias's words that begin with these (a group of aliases only: "lesson" has "lesson show" among them). */

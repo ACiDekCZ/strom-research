@@ -81,7 +81,7 @@ test("fetch: asked again in another session, or outside a session — exit 7 as 
   for (let i = 0; i < 2; i++) {
     const r = await w.run(["fetch", "zkusebni", "5359", "--images", "1-2", "--recordset", "B1"]);
     assert.equal(r.code, 7, r.out + r.err);
-    assert.match(r.out, /next: other work until \d\d:\d\d — no sleeping, no asking again sooner/);
+    assert.match(r.out, /next: other work until (\d{4}-\d\d-\d\d )?\d\d:\d\d — no sleeping, no asking again sooner/);
     assert.doesNotMatch(r.out, /exit 8/);
   }
   assert.ok(!fs.existsSync(path.join(w.cwd, ".strom", "left-alone")), "nothing kept outside a session");
