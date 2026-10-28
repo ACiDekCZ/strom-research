@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.22.0
 
-*In preparation: the betas up to 1.22.0-beta.5. The section is complete with the release.*
+*In preparation: the betas up to 1.22.0-beta.6. The section is complete with the release.*
 
 - **Each name once in what waits.** A task for material sent from the Strom app named each person twice in the
   widget and on the phone's page (the second time in brackets), and its text without names kept empty brackets; the
@@ -36,6 +36,9 @@ The changes of each version in short. The full notes and the install lines are o
   sessions: about every 5th (the default), every 10th, or only when nothing else is left
   (`strom config set experiments.historyPace`, the setup, the settings); `strom plan` says when. The regions
   of the most people come first, a land before the state above it.
+  Once a region's events are gathered, the years the tree's people lived there for more than 15 in a row with no
+  event are looked through once more; years looked through are not raised again, in any research, until the region
+  is asked for again.
 
 ## 1.21.0
 

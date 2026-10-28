@@ -34,6 +34,8 @@ import type { Tree } from "./tree.ts";
 export const HISTORY_PLACES_ORIGIN = "history:places";
 /** The prefix of a region's task (`history:region:<id>`, one a region). */
 export const HISTORY_REGION_ORIGIN = "history:region:";
+/** The prefix of a task that fills the gaps of a region's finished catalog (`history:gaps:<id>`, one a region). */
+export const HISTORY_GAPS_ORIGIN = "history:gaps:";
 /** The level the tasks of history take (an existing one: a new value of the list would raise SCHEMA_VERSION). */
 export const HISTORY_LEVEL = "enrich";
 
@@ -42,7 +44,17 @@ export function regionOrigin(region: string): string {
   return `${HISTORY_REGION_ORIGIN}${region}`;
 }
 
-/** Is it a task of the history (history:places, history:region:<id>)? */
+/** A region's task to fill the gaps of its finished catalog. */
+export function gapsOrigin(region: string): string {
+  return `${HISTORY_GAPS_ORIGIN}${region}`;
+}
+
+/** Is it a task that fills the gaps of a region's finished catalog (history:gaps:<id>)? */
+export function forGaps(t: Pick<Task, "origin">): boolean {
+  return typeof t.origin === "string" && t.origin.startsWith(HISTORY_GAPS_ORIGIN);
+}
+
+/** Is it a task of the history (history:places, history:region:<id>, history:gaps:<id>)? */
 export function forHistory(t: Pick<Task, "origin">): boolean {
   return typeof t.origin === "string" && t.origin.startsWith("history:");
 }
@@ -124,6 +136,24 @@ export interface Catalog {
   holder?: { tree: string; since: string };
   /** When the person asked for it to be looked for again (redo): a task of it dropped before is no answer since. */
   redo?: string;
+  /**
+   * The gaps of the finished catalog a session looked at (history:gaps:<id>): never looked for again, whatever it
+   * found — another tree's gaps within them neither. Apart from `tried` (pages strom could not read). Gone with redo.
+   */
+  gaps?: GapTried[];
+}
+
+/** Years of a region's catalog, both ends in (a gap of it). */
+export interface Gap {
+  from: number;
+  to: number;
+}
+
+/** A gap a session filled: its years, when, the tree, how many events it wrote in them. */
+export interface GapTried extends Gap {
+  at: string;
+  tree: string;
+  added: number;
 }
 
 export interface LocalEvent {
@@ -603,6 +633,7 @@ export function redoRegion(shared: string, region: string): Catalog {
     if (!c) throw new UsageError(`there is no region ${region}`, { code: "history.region.missing", params: { region } });
     delete c.done;
     delete c.holder;
+    delete c.gaps;
     c.redo = new Date().toISOString();
     writeCatalog(shared, c);
     return c;
@@ -1049,7 +1080,8 @@ function headStat(root: string, stat: (f: string) => string): string {
 export interface HistoryStatus {
   on: boolean;
   places: { total: number; pending: string[]; unlocated: number; mapped: number };
-  regions: { id: string; name?: Texts; events: number; retracted: number; done?: string; heldBy?: string; tried: number }[];
+  /** gaps: a finished catalog's years of the tree's people with no event, not looked at yet (regionGaps). */
+  regions: { id: string; name?: Texts; events: number; retracted: number; done?: string; heldBy?: string; tried: number; gaps?: Gap[] }[];
   local: { events: number; retracted: number };
   hidden: { total: number; byKind: Record<string, number> };
 }
@@ -1069,6 +1101,7 @@ export function historyStatus(tree: Tree, shared: string | undefined, settings?:
       ...(c?.done ? { done: c.done.at } : {}),
       ...(c && heldElsewhere(c, tree.config.id) ? { heldBy: c.holder!.tree } : {}),
       tried: c?.tried.length ?? 0,
+      ...(c?.done ? { gaps: regionGaps(tree, shared, id) } : {}),
     };
   });
   const kindOf = new Map<string, string>();
@@ -1112,7 +1145,11 @@ export function mergeCatalog(shared: string, given: Catalog): { added: number } 
     }
     const ids = new Set(had.events.map((e) => e.id));
     const more = given.events.filter((e) => typeof e?.id === "string" && !ids.has(e.id));
-    if (!more.length) return { added: 0 };
+    // the gaps another computer's tree looked at: not looked at here again
+    const seen = new Set((had.gaps ?? []).map((g) => `${g.from}-${g.to}-${g.tree}`));
+    const gaps = (Array.isArray(given.gaps) ? given.gaps : []).filter((g) => Number.isInteger(g?.from) && Number.isInteger(g?.to) && !seen.has(`${g.from}-${g.to}-${g.tree}`));
+    if (!more.length && !gaps.length) return { added: 0 };
+    if (gaps.length) had.gaps = [...(had.gaps ?? []), ...gaps];
     had.events.push(...more);
     had.events.sort((a, b) => a.id.localeCompare(b.id));
     const top = Math.max(0, ...had.events.map((e) => Number(/-(\d+)$/.exec(e.id)?.[1] ?? 0)));
@@ -1140,9 +1177,11 @@ export function regionName(c: Pick<Catalog, "region"> | undefined, lang: string,
   return c?.region.name[lang] ?? c?.region.name.en ?? id;
 }
 
-/** The region of a task of history (history:region:<id>), else undefined. */
+/** The region of a task of history (history:region:<id>, its gaps history:gaps:<id>), else undefined. */
 export function regionOfTask(t: Pick<Task, "origin">): string | undefined {
-  return typeof t.origin === "string" && t.origin.startsWith(HISTORY_REGION_ORIGIN) ? t.origin.slice(HISTORY_REGION_ORIGIN.length) || undefined : undefined;
+  if (typeof t.origin !== "string") return undefined;
+  for (const prefix of [HISTORY_REGION_ORIGIN, HISTORY_GAPS_ORIGIN]) if (t.origin.startsWith(prefix)) return t.origin.slice(prefix.length) || undefined;
+  return undefined;
 }
 
 /** History is looked for from this year at the earliest. */
@@ -1170,15 +1209,188 @@ export function regionPeriod(tree: Tree, region: string): { from: number; to: nu
   return { from, to, places: places.sort((a, b) => a.place.localeCompare(b.place)) };
 }
 
+// ── the gaps of a finished catalog (K2.6) ──────────────────────────────────
+
+/** A gap: more years than so many in a row the tree's people lived in a region with no event of its catalog. */
+export const GAP_YEARS = 15;
+/** A person lived in a region so many years before the first fact there and after the last. */
+export const LIVED_MARGIN = 5;
+/** An event of so many years or more (a state, a period of rule) marks only its beginning and its end, not the years between. */
+const LONG_EVENT = GAP_YEARS;
+/** About one event in so many years of a gap: what a session filling it looks for. */
+export const GAP_DENSITY = 12;
+
+/** A gap's years as a task and the brief write them: 1870–1913. */
+export function gapText(g: Gap): string {
+  return g.from === g.to ? String(g.from) : `${g.from}–${g.to}`;
+}
+
+/** The gaps a task of them was raised for (its `where`: 1870–1913 each). */
+export function gapsOfTask(t: Pick<Task, "where">): Gap[] {
+  const out: Gap[] = [];
+  for (const w of t.where ?? []) {
+    const m = /^(\d{3,4})(?:\s*[–-]\s*(\d{3,4}))?$/u.exec(w.trim());
+    if (m) out.push({ from: Number(m[1]), to: Number(m[2] ?? m[1]) });
+  }
+  return out;
+}
+
+/** Merged spans, both ends in: touching or overlapping ones joined. */
+function union(spans: Gap[]): Gap[] {
+  const out: Gap[] = [];
+  for (const s of [...spans].sort((a, b) => a.from - b.from)) {
+    const last = out.at(-1);
+    if (last && s.from <= last.to + 1) last.to = Math.max(last.to, s.to);
+    else out.push({ ...s });
+  }
+  return out;
+}
+
 /**
- * A region taken by this tree for a session on its task: the holder written into the shared catalog (refreshed when it
+ * The years the tree's people lived in a region: each person from the first year of a fact at its places (in the years
+ * each place belonged to it) to the last, LIVED_MARGIN before and after, within the years of those places' links and
+ * never before 1600 or after this year — the spans of all of them joined. A family's fact counts for its partners;
+ * a fact without a year counts for nothing.
+ */
+export function livedSpans(tree: Tree, region: string): Gap[] {
+  const r = reading(tree, undefined);
+  const now = new Date().getFullYear();
+  const of = new Map<string, { years: number[]; lo: number; hi: number }>();
+  const count = (who: string[], e: Person["events"][number]) => {
+    if (!factWritten(e) || !e.place || !e.date) return;
+    const key = lineValue(e.place);
+    const m = key ? r.mapOf(key) : undefined;
+    if (!m) return;
+    const years = dateYears(e.date);
+    for (const g of m.regions) {
+      if (g.id !== region) continue;
+      const inside = years.filter((y) => inRegion({ from: y, to: y }, g));
+      if (!inside.length) continue;
+      for (const p of who) {
+        const w = of.get(p) ?? { years: [], lo: Infinity, hi: -Infinity };
+        of.set(p, w);
+        w.years.push(...inside);
+        w.lo = Math.min(w.lo, g.from ?? -Infinity);
+        w.hi = Math.max(w.hi, g.to ?? Infinity);
+      }
+    }
+  };
+  const persons = tree.list<Person>("person").filter((p) => !p.retracted);
+  const alive = new Set(persons.map((p) => p.id));
+  for (const p of persons) for (const e of p.events) count([p.id], e);
+  for (const f of tree.list<Family>("family")) {
+    const who = f.partners.filter((p) => alive.has(p));
+    if (who.length) for (const e of f.events) count(who, e);
+  }
+  const spans: Gap[] = [];
+  for (const w of of.values()) {
+    const from = Math.max(EARLIEST_YEAR, w.lo, Math.min(...w.years) - LIVED_MARGIN);
+    const to = Math.min(now, w.hi, Math.max(...w.years) + LIVED_MARGIN);
+    if (from <= to) spans.push({ from, to });
+  }
+  return union(spans);
+}
+
+/**
+ * The gaps of a region's finished catalog for this tree (K2.6, Milan 28 Oct 2026 — a land's catalog with nothing
+ * between 1869 and 1914 while the tree's people lived there): the runs of more than GAP_YEARS years the tree's people
+ * lived there (livedSpans) with no event of the catalog — nor of the finished catalogs that hold its places and years
+ * (coverOf: a state after its lands) — and not looked at before: the gaps a session of any tree looked at (the
+ * catalog's `gaps`, noteGaps: a task of them done writes them there), this tree's tasks of them dropped (since the
+ * person last asked for the region again). A task strom closed itself (raiseHistoryTasks: filled, looked at elsewhere)
+ * is no look: events taken back later, its years are a gap again. An event of LONG_EVENT years or more marks its two
+ * ends only. None for a catalog not finished (its own task looks for all), nor without people there. Nothing written.
+ */
+export function regionGaps(tree: Tree, shared: string | undefined, region: string): Gap[] {
+  if (!shared) return [];
+  const r = reading(tree, shared);
+  const c = r.catalog(region);
+  if (!c?.done) return [];
+  const lived = livedSpans(tree, region);
+  if (!lived.length) return [];
+  const covered = eventYears(r, region);
+  const mark = (g: Gap) => {
+    for (let y = g.from; y <= g.to; y++) covered.add(y);
+  };
+  for (const g of c.gaps ?? []) mark(g);
+  for (const t of tree.list<Task>("task"))
+    if (t.origin === gapsOrigin(region) && t.state === "dropped" && t.updated >= (c.redo ?? "")) for (const g of gapsOfTask(t)) mark(g);
+  return openRuns(lived, covered);
+}
+
+/** The years the events of a region's catalog (and of the finished catalogs that hold it) mark: a long one its ends. */
+function eventYears(r: Reading, region: string): Set<number> {
+  const covered = new Set<number>();
+  for (const id of [region, ...coverOf(r, region)])
+    for (const e of r.catalog(id)?.events ?? []) {
+      if (e.retracted) continue;
+      if (e.to - e.from + 1 >= LONG_EVENT) {
+        covered.add(e.from);
+        covered.add(e.to);
+      } else for (let y = e.from; y <= e.to; y++) covered.add(y);
+    }
+  return covered;
+}
+
+/** The runs of more than GAP_YEARS years of these spans no year of `covered` falls in. */
+function openRuns(spans: Gap[], covered: Set<number>): Gap[] {
+  const out: Gap[] = [];
+  for (const span of spans) {
+    let start: number | undefined;
+    for (let y = span.from; y <= span.to + 1; y++) {
+      const open = y <= span.to && !covered.has(y);
+      if (open && start === undefined) start = y;
+      if (!open && start !== undefined) {
+        if (y - start > GAP_YEARS) out.push({ from: start, to: y - 1 });
+        start = undefined;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Why a gaps' task has nothing left to do (regionGaps none of its years): its years filled by the events of the
+ * catalog ("filled"); else looked at by another tree's session (the catalog's `gaps`: "looked", with the events it
+ * wrote in them); else no gap for this tree any more — its people's facts there changed ("gone").
+ */
+export function gapsClosed(tree: Tree, shared: string, region: string, t: Pick<Task, "where">): { why: "filled" | "looked" | "gone"; added: number } {
+  const r = reading(tree, shared);
+  const mine = gapsOfTask(t);
+  if (!openRuns(mine, eventYears(r, region)).length) return { why: "filled", added: 0 };
+  const looked = (r.catalog(region)?.gaps ?? []).filter((g) => g.tree !== tree.config.id && mine.some((m) => g.from <= m.to && m.from <= g.to));
+  if (looked.length) return { why: "looked", added: looked.reduce((n, g) => n + (g.added || 0), 0) };
+  return { why: "gone", added: 0 };
+}
+
+/**
+ * A gaps' task finished (strom session close --done): its gaps written into the shared catalog as looked at — with the
+ * events this tree wrote in them since the task was made, none too — and the region let go when this tree held it.
+ */
+export function noteGaps(shared: string, region: string, t: Pick<Task, "where" | "created">, treeId: string): void {
+  const gaps = gapsOfTask(t);
+  if (!regionIdOk(region) || !gaps.length) return;
+  withCatalogs(shared, () => {
+    const c = readCatalog(shared, region);
+    if (!c) return;
+    const at = new Date().toISOString();
+    const mine = c.events.filter((e) => !e.retracted && e.by === treeId && e.at >= t.created);
+    c.gaps = [...(c.gaps ?? []), ...gaps.map((g) => ({ ...g, at, tree: treeId, added: mine.filter((e) => overlap(e, g)).length }))];
+    if (c.holder?.tree === treeId) delete c.holder;
+    writeCatalog(shared, c);
+  });
+}
+
+/**
+ * A region taken by this tree for a session on its task (or on its gaps): the holder written into the shared catalog (refreshed when it
  * is this tree's already). Another tree's hold within HOLD_DAYS stays: its ID is returned (nothing written).
  */
-export function takeRegion(shared: string, region: string, treeId: string): string | undefined {
+export function takeRegion(shared: string, region: string, treeId: string, gaps = false): string | undefined {
   if (!regionIdOk(region)) return undefined;
   return withCatalogs(shared, () => {
     const c = readCatalog(shared, region);
-    if (!c || c.done) return undefined;
+    // a finished catalog is held only while its gaps are filled
+    if (!c || (c.done && !gaps)) return undefined;
     if (heldElsewhere(c, treeId)) return c.holder!.tree;
     c.holder = { tree: treeId, since: new Date().toISOString() };
     writeCatalog(shared, c);
@@ -1453,7 +1665,8 @@ export function historyHeld(tree: Tree, shared: string | undefined, settings: Se
 /**
  * The tasks of history raised while the experiment is on in a research (never in an archive, nor one waiting for its
  * agent, never in a dry run): one to map the places of the facts while any is not mapped, one for each region of the
- * tree's places whose catalog is not finished — level enrich, priority 1, after all the research in the queue. Never a
+ * tree's places whose catalog is not finished, one for the gaps of a finished one (regionGaps) — level enrich,
+ * priority 1, after all the research in the queue. Never a
  * second one of the same origin open; a places' task again only for a place the last one did not name; a region's task
  * dropped is the answer until the person asks for the region again (redo); one whose catalog was finished meanwhile
  * (another tree, strom history done) is done. Inside the tree's lock, committed by the caller. Returns what it made.
@@ -1468,6 +1681,35 @@ export function raiseHistoryTasks(tree: Tree, shared: string | undefined, settin
       made.push(
         create<Task>(tree, "task", { level: HISTORY_LEVEL, priority: 1, subject: [], state: "open", ...fields }, (id) => `+${id} task "${fields.what.slice(0, 60)}" (history)`).id,
       );
+    // a finished catalog with gaps in the years of the tree's people there: one task to fill them (K2.6), paced as a
+    // region's; none left (filled meanwhile, by another tree too): its waiting task is done — one at work closes itself
+    const raiseGaps = (id: string, c: Catalog) => {
+      const origin = gapsOrigin(id);
+      const live = tasks.filter((t) => t.origin === origin && LIVE_STATES.has(t.state));
+      const gaps = regionGaps(tree, shared, id);
+      if (!gaps.length) {
+        // its result says why, truly: filled, looked at by another research (found or not), or no gap here any more
+        for (const t of live.filter((x) => x.state === "open" || x.state === "parked")) {
+          const { why, added } = gapsClosed(tree, shared, id, t);
+          const key = why === "looked" ? (added ? "history.gaps.looked.some" : "history.gaps.looked.none") : why === "gone" ? "history.gaps.gone" : "history.gaps.filled";
+          const result = phrase(lang, key, { region: regionName(c, lang, id), years: t.where.join(", "), n: added });
+          update<Task>(tree, t.id, "task", (x) => ({ ...x, state: "done", result }), {
+            op: "task.done",
+            summary: `${t.id} done: no gap left in the catalog of ${id} (${why})`,
+          });
+        }
+        return;
+      }
+      if (live.length) return;
+      const years = gaps.map(gapText);
+      add({
+        what: phrase(lang, "history.gaps.what", { region: regionName(c, lang, id), years: years.join(", ") }),
+        where: years,
+        why: phrase(lang, "history.gaps.why"),
+        doneWhen: phrase(lang, "history.gaps.done"),
+        origin,
+      });
+    };
     // the places of the facts
     const unmapped = unmappedPlaces(tree);
     const ofPlaces = tasks.filter((t) => t.origin === HISTORY_PLACES_ORIGIN);
@@ -1496,6 +1738,7 @@ export function raiseHistoryTasks(tree: Tree, shared: string | undefined, settin
             op: "task.done",
             summary: `${t.id} done: the catalog of ${id} is finished`,
           });
+        raiseGaps(id, c);
         continue;
       }
       if (mine.some((t) => LIVE_STATES.has(t.state))) continue;
@@ -1514,10 +1757,14 @@ export function raiseHistoryTasks(tree: Tree, shared: string | undefined, settin
   });
 }
 
-/** A region's task finished (strom session close --done): its catalog finished too, when it is not yet. */
+/**
+ * A region's task finished (strom session close --done): its catalog finished too, when it is not yet; a task of its
+ * gaps: those gaps looked at (noteGaps).
+ */
 export function finishRegionOf(tree: Tree, shared: string | undefined, t: Task): void {
   const region = regionOfTask(t);
   if (!region || !shared || tree.dryRun) return;
+  if (forGaps(t)) return noteGaps(shared, region, t, tree.config.id);
   const c = readCatalog(shared, region);
   if (c && !c.done) markDone(shared, region, tree.config.id);
 }

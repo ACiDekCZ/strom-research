@@ -23,7 +23,7 @@ import { readCodexConfig } from "../agents/effort.ts";
 import { clearSessionWait, permissionWait, waitingForDecision } from "./archivewait.ts";
 import { forgetLeftAlone } from "./leftalone.ts";
 import { Settings } from "./config.ts";
-import { regionOfTask, takeRegion } from "./pastevents.ts";
+import { forGaps, regionOfTask, takeRegion } from "./pastevents.ts";
 
 function currentFile(tree: Tree, env: Env = tree.env): string {
   const w = env.STROM_WORKER;
@@ -199,10 +199,11 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
       const doing = { ...rest, state: "doing" as const, updated: now() };
       tree.put(doing, { op: "task.start", targets: [doing.id, s.id], summary: `${doing.id} start` });
     }
-    // a region's task of history: this tree holds the region while it builds its catalog (another tree's task waits)
+    // a region's task of history: this tree holds the region while it builds its catalog, or fills its gaps (another
+    // tree's task waits)
     const region = task ? regionOfTask(task) : undefined;
     const shared = region && !tree.dryRun ? new Settings(tree.env, {}).shared()?.value : undefined;
-    if (region && shared) takeRegion(shared, region, tree.config.id);
+    if (region && shared) takeRegion(shared, region, tree.config.id, forGaps(task!));
     setCurrent(tree, s.id);
     return s;
   });

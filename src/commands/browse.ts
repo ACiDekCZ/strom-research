@@ -20,7 +20,7 @@ export { humanTask };
 import { lacksImages, waitsForArchive } from "../core/queue.ts";
 import { clockUp } from "../core/net.ts";
 import { forStory } from "../core/stories.ts";
-import { forHistory, HISTORY_PLACES_ORIGIN, historyOn, historyTurn, readCatalog, regionName, regionOfTask, type HistoryTurn } from "../core/pastevents.ts";
+import { forGaps, forHistory, gapsOfTask, gapText, HISTORY_PLACES_ORIGIN, historyOn, historyTurn, readCatalog, regionName, regionOfTask, type HistoryTurn } from "../core/pastevents.ts";
 import { isArchive } from "../core/mode.ts";
 import { actsAsArchive, stateOf } from "../core/state.ts";
 import { rankedQueue } from "./tasks.ts";
@@ -247,7 +247,9 @@ register(
         out.push(
           ui(lang, "ui.plan.history.order", {
             list: [
-              ...history.regions.slice(0, HISTORY_REGIONS).map((r) => ui(lang, "ui.plan.history.weight", { region: r.name, n: r.persons })),
+              ...history.regions
+                .slice(0, HISTORY_REGIONS)
+                .map((r) => (r.gaps ? ui(lang, "ui.plan.history.gaps", { region: r.name, years: r.gaps.join(", "), n: r.persons }) : ui(lang, "ui.plan.history.weight", { region: r.name, n: r.persons }))),
               ...(history.regions.length > HISTORY_REGIONS ? [`… (+${history.regions.length - HISTORY_REGIONS})`] : []),
             ].join(" · "),
           }),
@@ -321,7 +323,7 @@ const HISTORY_REGIONS = 6;
 function historyPlan(
   ctx: Context,
   tree: Tree,
-): { task: Task; turn: HistoryTurn; when: string; prefer?: string; asked?: string; regions: { id: string; name: string; persons: number }[] } | undefined {
+): { task: Task; turn: HistoryTurn; when: string; prefer?: string; asked?: string; regions: { id: string; name: string; persons: number; gaps?: string[] }[] } | undefined {
   const lang = ctx.uiLang();
   if (!historyOn(tree, ctx.settings)) return undefined;
   const shared = ctx.settings.shared()?.value;
@@ -334,11 +336,13 @@ function historyPlan(
   const prefer = !asked && turn.prefer?.task === task.id ? turn.prefer.place : undefined;
   const when = task.origin === HISTORY_PLACES_ORIGIN ? ui(lang, "ui.plan.history.places") : turn.now ? ui(lang, "ui.plan.history.now") : turn.in === undefined ? ui(lang, "ui.plan.history.idle") : ui(lang, "ui.plan.history.in", { n: Math.max(1, turn.in) });
   const weight = new Map((turn.order ?? []).map((w) => [w.id, w]));
-  // the regions as the queue ranks their tasks: asked for, a recent session's place, then by weight
-  const regions = ranked
-    .map((r) => regionOfTask(r.task))
-    .filter((id): id is string => !!id)
-    .map((id) => ({ id, name: name(id), persons: weight.get(id)?.persons ?? 0 }));
+  // the regions as the queue ranks their tasks: asked for, a recent session's place, then by weight (the gaps of a
+  // finished one with their years)
+  const regions = ranked.flatMap((r) => {
+    const id = regionOfTask(r.task);
+    if (!id) return [];
+    return [{ id, name: name(id), persons: weight.get(id)?.persons ?? 0, ...(forGaps(r.task) ? { gaps: gapsOfTask(r.task).map(gapText) } : {}) }];
+  });
   return {
     task,
     turn,

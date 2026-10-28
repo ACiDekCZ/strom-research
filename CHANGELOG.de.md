@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.22.0
 
-*In Vorbereitung: die Betas bis 1.22.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.22.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Jeder Name einmal in dem, was wartet.** Eine Aufgabe zu Material, das aus der Strom-App gesendet wurde, nannte im
   Widget und auf der Seite des Telefons jede Person zweimal (das zweite Mal in eckigen Klammern), und ihr Text ohne
@@ -37,6 +37,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Sitzungen der Familienforschung durchsucht: etwa jede 5. Sitzung (Standard), jede 10. oder nur, wenn nichts anderes
   ansteht (`strom config set experiments.historyPace`, die Ersteinrichtung, die Einstellungen); wann, sagt `strom plan`.
   Zuerst die Regionen mit den meisten Personen, ein Land vor dem Staat darüber.
+  Sind die Ereignisse einer Region gesammelt, werden die Jahre, in denen die Personen des Stammbaums dort mehr als
+  15 Jahre in Folge ohne ein Ereignis lebten, noch einmal durchsucht; durchsuchte Jahre werden in keiner Forschung
+  erneut aufgegriffen, bis die Region wieder angefragt wird.
 
 ## 1.21.0
 

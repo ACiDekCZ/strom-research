@@ -2550,6 +2550,7 @@ export const UI = {
   "ui.plan.history.asked": "; first: {region}, as asked",
   "ui.plan.history.order": "Regions in turn, one at a time: {list}",
   "ui.plan.history.weight": "{region} (people: {n})",
+  "ui.plan.history.gaps": "{region}, the years without events {years} (people: {n})",
   "ui.plan.history.prefer": "; first: the place {place} from a recent session",
   "ui.link.experiment.all": "It is turned on in this computer's settings: for every research on it (each can be turned off on its own).",
   "ui.link.experiment.on.done": "The search for the events of history is on for this research.",

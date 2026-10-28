@@ -12,6 +12,11 @@ import { synopsis } from "./sheet.ts";
 import {
   catalogIds,
   EVENT_KINDS,
+  forGaps,
+  GAP_DENSITY,
+  gapsOfTask,
+  gapText,
+  type Gap,
   HISTORY_PLACES_ORIGIN,
   HOLD_DAYS,
   readCatalog,
@@ -69,7 +74,7 @@ const ONLY_FROM_PAGES = [
  */
 export function historySections(tree: Tree, task: Task, shared: string | undefined, alone: boolean): Section[] | undefined {
   const region = regionOfTask(task);
-  if (region) return regionSections(tree, region, shared, alone);
+  if (region) return regionSections(tree, region, shared, alone, forGaps(task) ? gapsOfTask(task) : undefined);
   if (task.origin === HISTORY_PLACES_ORIGIN) return placesSections(tree, shared, alone);
   return undefined;
 }
@@ -89,7 +94,12 @@ function closing(alone: boolean, lang: string, lines: string[]): Section {
   };
 }
 
-function regionSections(tree: Tree, region: string, shared: string | undefined, alone: boolean): Section[] {
+/** What events a region's catalog keeps: those that shaped the lives of ordinary people there. */
+const SHAPED =
+  "those that shaped the lives of ordinary people there: wars and their levies, epidemics, famines, censuses, changes of the state and its borders, waves of emigration, laws on serfdom, land, schools, religion, great disasters; no lists of rulers, no battles far away, no happening of one village";
+
+/** A region's session — or, with its gaps, a session filling the gaps of its finished catalog (K2.6). */
+function regionSections(tree: Tree, region: string, shared: string | undefined, alone: boolean, gaps?: Gap[]): Section[] {
   const lang = tree.lang;
   const c = shared ? readCatalog(shared, region) : undefined;
   const name = regionName(c, lang, region);
@@ -103,19 +113,26 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
   const byKind = new Map<string, number>();
   for (const e of events) if (hiddenOf.has(e.id)) byKind.set(e.kind, (byKind.get(e.kind) ?? 0) + hiddenOf.get(e.id)!);
   const room = Math.max(0, REGION_DENSITY - live.length);
+  const span = (g: Gap) => g.to - g.from + 1;
+  const wanted = gaps?.reduce((n, g) => n + Math.max(1, Math.round(span(g) / GAP_DENSITY)), 0) ?? 0;
   const out: Section[] = [];
   out.push({
     name: "history",
     required: true,
     pointer: "strom history status",
     text: [
-      `## The history of ${name} (${region}) — for the Strom app`,
+      gaps ? `## The gaps in the history of ${name} (${region}) — for the Strom app` : `## The history of ${name} (${region}) — for the Strom app`,
       "What the ancestors lived through: the events of this region's history, shown in the Strom app with the lives of the people of its places. " + NOTHING_ELSE,
-      `- period: ${period.from}–${period.to} — this tree's places only (the oldest year of their facts in the region, never before 1600, to this year); another tree sharing the region adds its own years when it takes it`,
+      gaps
+        ? `- the region's catalog is finished, yet these years of this tree's people there have no event: ${gaps.map((g) => `${gapText(g)} (${span(g)} years)`).join(", ")} — look for events of these years alone (strom history add refuses others in this session); what the catalog has (below) is never looked for again`
+        : `- period: ${period.from}–${period.to} — this tree's places only (the oldest year of their facts in the region, never before 1600, to this year); another tree sharing the region adds its own years when it takes it`,
       period.places.length
         ? `- this tree's places in it: ${period.places.map((p) => `${p.place}${p.from !== undefined || p.to !== undefined ? ` (${p.from ?? "…"}–${p.to ?? "…"})` : ""}${p.years.length ? ` facts ${years(Math.min(...p.years), Math.max(...p.years))}` : ""}`).join(" · ")}`
         : "",
-      `- how many: at most about ${REGION_DENSITY} events for the region, rather fewer (${live.length} written${room ? `, room for about ${room} more` : ": enough — only what is missing badly"}) — those that shaped the lives of ordinary people there: wars and their levies, epidemics, famines, censuses, changes of the state and its borders, waves of emigration, laws on serfdom, land, schools, religion, great disasters; no lists of rulers, no battles far away, no happening of one village`,
+      gaps
+        ? `- how many: about one event every 10–15 years of each gap (about ${wanted} in all) — ${SHAPED}; none documented worth writing: nothing — a year is never filled for its own sake`
+        : `- how many: at most about ${REGION_DENSITY} events for the region, rather fewer (${live.length} written${room ? `, room for about ${room} more` : ": enough — only what is missing badly"}) — ${SHAPED}`,
+      gaps ? "" : "- spread over the period: the people of every part of it lived through something — rather an event each 10–15 years of it than many of a few decades",
       `- kinds: ${EVENT_KINDS.join(", ")}`,
       `- each event: its years (the day only when sure: --date); its texts in ${REGION_LANGS.join(", ")}, each ≤ 300 characters — factual and impersonal: what happened, where, how many; never addressed to anyone, never what to do, never speaking as yourself; --why-*: why it mattered for the people of the place; --tip-*: where a research may look because of it (a kind of record, an archive's series), impersonal too`,
       "- a hard event (persecution, deportation, expulsion, famine, a pogrom): --sensitive; sober and factual, no judgement, no words of horror, and never a guess about the people of this tree — whom it touched is the reader's to see",
@@ -152,20 +169,29 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
       text: [
         `## Found already for the same places and years: ${cover.join(", ")} (finished, ${theirs.length} events) — the Strom app shows them at these places`,
         "- write only what they lack: an event of the whole state they do not have; one of them again is never written (not even with --same-as)",
-        `- they lack nothing worth writing: strom history done ${region} at once, no page read`,
+        gaps ? "- they lack nothing worth writing: strom session close --done at once, no page read" : `- they lack nothing worth writing: strom history done ${region} at once, no page read`,
         ...theirs.slice(0, EVENTS_SHOWN).map(({ e }) => `  ${e.id} ${years(e.from, e.to)} ${e.kind} "${short(e.text[lang] ?? e.text.en ?? Object.values(e.text)[0] ?? "")}"`),
         theirs.length > EVENTS_SHOWN ? `  … ${theirs.length - EVENTS_SHOWN} more: strom history status --app --json` : "",
       ].filter(Boolean).join("\n"),
     });
   }
-  const commands = [cmd(["history", "page"]), cmd(["history", "add"]), cmd(["history", "retract"]), cmd(["history", "status"]), cmd(["history", "done"])].filter(Boolean);
+  const commands = [cmd(["history", "page"]), cmd(["history", "add"]), cmd(["history", "retract"]), cmd(["history", "status"]), ...(gaps ? [] : [cmd(["history", "done"])])].filter(Boolean);
   if (commands.length) out.push({ name: "commands", first: true, pointer: "strom help history add", text: ["## Commands (each option as it is)", ...commands].join("\n") });
   out.push(
-    closing(alone, lang, [
-      `- the events of the period found (or nothing more worth writing): strom history done ${region}, then strom session close --done "how many events, of which kinds, from which sources" --next "…"`,
-      `- time up before: strom session close --continue --summary "…" --next "the kinds or years not looked at yet" (the region stays this tree's for ${HOLD_DAYS} days)`,
-      `- nothing could be found or read at all: strom session close --continue --summary "what was tried" --next "…"`,
-    ]),
+    closing(
+      alone,
+      lang,
+      gaps
+        ? [
+            `- the gaps looked at — events found, or none documented: strom session close --done "how many events, of which years and kinds, from which sources — or what was looked at" --next "…" (these years are never looked for again)`,
+            `- time up before: strom session close --continue --summary "…" --next "the years not looked at yet" (the region stays this tree's for ${HOLD_DAYS} days)`,
+          ]
+        : [
+            `- the events of the period found (or nothing more worth writing): strom history done ${region}, then strom session close --done "how many events, of which kinds, from which sources" --next "…"`,
+            `- time up before: strom session close --continue --summary "…" --next "the kinds or years not looked at yet" (the region stays this tree's for ${HOLD_DAYS} days)`,
+            `- nothing could be found or read at all: strom session close --continue --summary "what was tried" --next "…"`,
+          ],
+    ),
   );
   return out;
 }

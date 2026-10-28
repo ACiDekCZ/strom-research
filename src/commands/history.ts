@@ -27,7 +27,10 @@ import {
   hideEvent,
   historyAnswer,
   historyStatus,
+  forGaps,
   forHistory,
+  gapsOfTask,
+  gapText,
   historyOrder,
   historyTurn,
   mapPlace,
@@ -156,7 +159,8 @@ register(
         const w = region ? weight.get(region) : undefined;
         if (turn?.asked?.task === t.id) return "asked first";
         if (turn?.prefer?.task === t.id) return `first: ${turn.prefer.place}`;
-        return w ? `${w.persons} people, ${w.facts} facts` : "";
+        const gaps = forGaps(t) ? `gaps ${gapsOfTask(t).map(gapText).join(", ")}` : "";
+        return [gaps, w ? `${w.persons} people, ${w.facts} facts` : ""].filter(Boolean).join(" · ");
       };
       const when = !turn ? undefined : turn.places ? `the next session, the places to map first (${turn.places})` : turn.pace === "idle" ? "when the family research has nothing to do" : turn.now ? "the next session" : `in ~${Math.max(1, turn.in ?? 0)} sessions`;
       return {
@@ -165,7 +169,17 @@ register(
           `places of the facts: ${s.places.total} · mapped ${s.places.mapped} · not located ${s.places.unlocated} · waiting ${s.places.pending.length}`,
           shown.length ? `waiting: ${shown.join(" · ")}${s.places.pending.length > shown.length ? ` … (+${s.places.pending.length - shown.length}, --limit)` : ""}` : undefined,
           s.regions.length
-            ? table(s.regions.map((r) => [r.id, r.name?.en ?? "(no catalog)", `${r.events} events`, r.retracted ? `${r.retracted} taken back` : "", r.done ? `done ${r.done.slice(0, 10)}` : r.heldBy ? `held by ${r.heldBy}` : "open", r.tried ? `${r.tried} pages not read` : ""]))
+            ? table(
+                s.regions.map((r) => [
+                  r.id,
+                  r.name?.en ?? "(no catalog)",
+                  `${r.events} events`,
+                  r.retracted ? `${r.retracted} taken back` : "",
+                  r.done ? `done ${r.done.slice(0, 10)}` : r.heldBy ? `held by ${r.heldBy}` : "open",
+                  r.gaps?.length ? `gaps: ${r.gaps.map(gapText).join(", ")}` : "",
+                  r.tried ? `${r.tried} pages not read` : "",
+                ]),
+              )
             : "no regions yet",
           `local events: ${s.local.events}${s.local.retracted ? ` (${s.local.retracted} taken back)` : ""} · hidden by the person: ${s.hidden.total}`,
           turn ? `pace: ${turn.pace} (strom config set experiments.historyPace sometimes|rare|idle) · ${turn.since} sessions since the last of history · strom run takes the next: ${when}${turn.asked ? ` · first: ${turn.asked.task} (asked for ${turn.asked.region})` : turn.prefer ? ` · first: ${turn.prefer.task} (a recent session worked at ${turn.prefer.place})` : ""}` : undefined,
@@ -298,6 +312,17 @@ register(
       const shape = quotesShape(quotes, { from, to });
       if (shape) throw new UsageError(`--quote: ${shape}`, { code: "history.quote", params: { why: shape } });
       const s = sameness(opts);
+      // a session filling a finished catalog's gaps: an event of those years alone, before any request
+      const own = currentSession(tree, ctx.env, ctx.refs)?.task;
+      const ownTask = own ? tree.get<Task>(own) : undefined;
+      if (ownTask && forGaps(ownTask) && regionOfTask(ownTask) === region) {
+        const gaps = gapsOfTask(ownTask);
+        if (gaps.length && !gaps.some((g) => from <= g.to && g.from <= to))
+          throw new UsageError(`this session fills the gaps of ${region} only (${gaps.map(gapText).join(", ")}): ${from === to ? from : `${from}–${to}`} is outside them`, {
+            code: "history.gaps.outside",
+            params: { region },
+          });
+      }
       refuseBeforePage(sh, region, { kind, from, to }, s);
       let checked;
       try {
