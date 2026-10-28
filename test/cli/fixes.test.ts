@@ -275,13 +275,13 @@ test("strom fixes: without a record of the views on this computer, the place is 
   }
 });
 
-test("strom fixes: an archive says nothing of them", opts, async () => {
+test("strom fixes: an archive says nothing of the readings again — only what is set right by rules", opts, async () => {
   const w = await world();
   try {
     oldReading(w, 1, [0.05, 0.5, 0.2, 0.15], "Jan Novák [?]", 30);
     await w.ok(["mode", "archive"], { tty: true, answers: ["y"] });
     const r = await w.ok(["fixes", "--json"]);
-    assert.deepEqual(r.json.checks, []);
+    assert.deepEqual(r.json.checks.map((c: { id: string; state: string }) => [c.id, c.state]), [["participant-names", "nothing"]]);
     const doctor = await w.run(["doctor", "--json"]);
     assert.equal(doctor.json.checks.find((x: { name: string }) => x.name === "fixes"), undefined);
   } finally {

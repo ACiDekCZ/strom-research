@@ -17,7 +17,8 @@ import { UsageError } from "../core/errors.ts";
 import { excerptSettings, planExcerpts, type ExcerptReport } from "../core/excerpt.ts";
 import { runGit, tracked } from "../core/git.ts";
 import { Settings } from "../core/config.ts";
-import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsReadings, appShowsOmittedImages, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsSourceReads, appShowsFactStatus, appShowsStoryDrafts, appTurnsExcerpts } from "../core/stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsReadings, appShowsOmittedImages, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsSourceReads, appShowsFactStatus, appShowsStoryDrafts, appTurnsExcerpts, appReadsSurnameGroups } from "../core/stromapp.ts";
+import { surnamesForExport } from "../core/surnames.ts";
 import { EXCERPT_QUALITIES, EXCERPT_SCOPES, type ExcerptQuality, type ExcerptScope } from "../core/model.ts";
 import { ui } from "../cli/ui.ts";
 import { isAgent } from "../core/which.ts";
@@ -111,7 +112,9 @@ export function writeTreeGed(
   const readings = opts.for === "strom" && appShowsReadings(new Settings(tree.env, {}), opts.stromVersion);
   // …and why a source has no image though the research has one, for an app that says so and asks for it
   const omitted = !!images && appShowsOmittedImages(new Settings(tree.env, {}), opts.stromVersion);
-  const result = exportGedcom(tree, { for: opts.for, stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(omitted ? { omitted: images.omitted } : {}) });
+  // …and the groups of surname forms the user made one family and the suggestions rejected, for an app that reads them
+  const surnameGroups = opts.for === "strom" && appReadsSurnameGroups(new Settings(tree.env, {}), opts.stromVersion) ? surnamesForExport(tree) : undefined;
+  const result = exportGedcom(tree, { for: opts.for, ...(surnameGroups ? { surnameGroups } : {}), stromVersion: opts.stromVersion, ...(persons ? { persons } : {}), ...(images ? { excerpts: images.of } : {}), ...(clips ? { clips } : {}), ...(research ? { research } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(omitted ? { omitted: images.omitted } : {}) });
   const findings = validateGedcom(result.text, opts.for === "standard" ? { strict: true } : {});
   const file = opts.out ?? gedFile(tree, opts.for, opts.research);
   if (!hasGedErrors(findings) && !tree.dryRun) {

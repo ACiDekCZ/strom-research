@@ -9,6 +9,8 @@ import "./pack.ts";
 import "./backup.ts";
 import "./tasks.ts";
 import "./people.ts";
+import "./surname.ts";
+import "./quality.ts";
 import "./batch.ts";
 import "./sources.ts";
 import "./media.ts";

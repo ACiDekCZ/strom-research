@@ -36,6 +36,7 @@ import {
 import { cleanTitle, displayName, familiesAsChild, familiesAsPartner, gedcomName, gedcomTitledName, closesCircle, isAncestorOf, isBirthFamily, keepSides, notAName, parseName, primaryName, sameName, slashInName } from "./people.ts";
 import { foldText } from "./text.ts";
 import { roleWord } from "./roles.ts";
+import { checkParticipant, trailingNote } from "./participants.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
 
 /** Kinds that only make sense on a couple (a reader drops them on a person). */
@@ -157,20 +158,28 @@ export function parseAge(v: string, whose = ""): string {
   return age;
 }
 
-/** "godparent:Marie Dvořáková" or "witness:P0012" → participant. */
-export function parseParticipant(tree: Tree, spec: string): Participant {
-  const m = /^([\p{L}-]+)\s*:\s*(.+)$/u.exec(spec.trim());
-  if (!m) throw new UsageError(`invalid participant "${spec}"`, { hint: `use role:name or role:P0012 — roles: ${PARTICIPANT_ROLES.join(", ")}` });
+/**
+ * "godparent:Marie Dvořáková", "witness:P0012", "godparent:Jan Novák (farmer, No. 12)" → participant: what the closing
+ * parentheses hold is its note, the rest its name (core/participants.ts). `check` (--with): a name that holds more than
+ * a name, or a priest as a witness, is refused with what to write instead; --without takes what is there as it is.
+ */
+export function parseParticipant(tree: Tree, spec: string, o: { check?: boolean } = {}): Participant {
+  const m = /^([\p{L}-]+)\s*:\s*(.+)$/su.exec(spec.normalize("NFC").trim());
+  if (!m) throw new UsageError(`invalid participant "${spec}"`, { hint: `use role:name, role:name (what the record says beside it) or role:P0012 — roles: ${PARTICIPANT_ROLES.join(", ")}` });
   // "kmotr:…", "svědek:…", "Hebamme:…" are understood too
   const role = roleWord(m[1]);
   if (!role) throw new UsageError(`invalid role "${m[1]}"`, { hint: PARTICIPANT_ROLES.join(", ") });
-  const who = m[2]!.trim();
+  const { text, note } = trailingNote(m[2]!.replace(/\s+/gu, " "));
+  const who = text.trim();
+  let p: Participant;
   if (/^P\d+$/i.test(who)) {
     const id = "P" + who.slice(1).padStart(4, "0");
     if (!tree.get(id)) throw new UsageError(`no person ${who}`, { code: "record.none", params: { kind: "person", id: who } });
-    return { role, person: id };
-  }
-  return { role, name: who };
+    p = { role, person: id };
+  } else p = { role, name: who };
+  if (note) p.note = note;
+  if (o.check !== false) checkParticipant(p);
+  return p;
 }
 
 function checkCitation(tree: Tree, c: Citation): void {
@@ -833,11 +842,14 @@ export function editEvent(tree: Tree, eventId: string, edit: EventEdit, reason?:
     }
     const key = (p: Participant) => `${p.role}|${p.person ?? foldText(p.name ?? "")}`;
     if (edit.drop?.length) {
-      const gone = new Set(edit.drop.map(key));
+      // taken off by its role and its name — the note it has need not be said; a name written whole with its parentheses
+      // ("Jan Novák (farmer)", as older strom kept it) is found as it is too
+      const whole = (p: Participant) => foldText(`${p.name ?? ""}${p.note ? ` (${p.note})` : ""}`);
+      const hits = (d: Participant) => (p: Participant) => p.role === d.role && (d.person ? p.person === d.person : !!p.name && (foldText(p.name) === foldText(d.name ?? "") || foldText(p.name) === whole(d)));
       for (const d of edit.drop)
-        if (!(e.participants ?? []).some((p) => key(p) === key(d)))
+        if (!(e.participants ?? []).some(hits(d)))
           throw new UsageError(`${e.id} has no ${d.role} ${d.person ?? d.name}`, { hint: `its participants: ${(e.participants ?? []).map((p) => `${p.role}:${p.person ?? p.name}`).join(", ") || "none"}` });
-      next.participants = (e.participants ?? []).filter((p) => !gone.has(key(p)));
+      next.participants = (e.participants ?? []).filter((p) => !edit.drop!.some((d) => hits(d)(p)));
       if (!next.participants.length) delete next.participants;
       changed.push("participants");
     }

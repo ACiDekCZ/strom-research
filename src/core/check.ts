@@ -9,6 +9,8 @@ import { recordRefs, validateRecord } from "./validate.ts";
 import { readJson, readJsonIfExists } from "./json.ts";
 import { Tree, prefixOf } from "./tree.ts";
 import { isBirthFamily, ownAncestors } from "./people.ts";
+import { afterDeath, afterDeathMessage } from "./afterdeath.ts";
+import { longNames, NAME_WORDS_MAX } from "./participants.ts";
 
 export interface Finding {
   level: "error" | "warn";
@@ -18,7 +20,8 @@ export interface Finding {
   file?: string;
   hint?: string;
   /** How many it stands for, where one finding says them all (files only in iCloud, files of the shared folder missing). */
-  count?: number;
+  count?: number;  /** What a person reads of it in their language (after-death: the person, the event, the death). */
+  params?: Record<string, string>;
 }
 
 export function check(tree: Tree): Finding[] {
@@ -107,6 +110,31 @@ export function check(tree: Tree): Finding[] {
           hint: `strom event edit ${e.id} --place "${m.place}" --house ${m.house} --reason "the house number out of the place"`,
         });
     }
+
+  // 5c. a person named alive after their death (an event or a marriage certainly after it), unless the person marked
+  // it no error — a warning to look into, never blocking
+  for (const a of afterDeath(tree))
+    out.push({
+      level: "warn",
+      code: "after-death",
+      id: a.event.id,
+      message: afterDeathMessage(a),
+      hint: `strom person show ${a.person}`,
+      params: { person: a.person, kind: a.kind, event: a.event.kind, date: a.event.date ?? "", death: a.death.date ?? "", year: a.year },
+    });
+
+  // 5d. a participant's name that holds what the record says beside it (written before strom refused it): one warning,
+  // how many — strom fixes sets them apart, as the person decides
+  const long = longNames(tree);
+  if (long.count)
+    out.push({
+      level: "warn",
+      code: "participant-long-name",
+      id: long.first,
+      count: long.count,
+      message: `${long.count} participant name${long.count === 1 ? "" : "s"} hold${long.count === 1 ? "s" : ""} more than a name (more than ${NAME_WORDS_MAX} words, or a number)`,
+      hint: "strom fixes show participant-names",
+    });
 
   // 6. counters are ahead of every ID on disk
   const counters = readJsonIfExists<Record<string, number>>(path.join(tree.dataDir, "_counters.json")) ?? {};

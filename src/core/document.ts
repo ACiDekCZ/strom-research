@@ -17,6 +17,7 @@ import { foldText } from "./text.ts";
 import { MONTHS, dateYears, normalizeDate } from "./gdate.ts";
 import { langName } from "./lang.ts";
 import { birthEvent, sameFamilyName, surnameForms } from "./people.ts";
+import { sameFamily } from "./surnames.ts";
 import type { Person, Place } from "./model.ts";
 import type { Tree } from "./tree.ts";
 
@@ -619,8 +620,8 @@ export function sameNameWord(today: string, written: string, near = true): boole
 }
 
 /** A surname that is the written word: a form of one family name (Novák, Nováková, Nowak) or the same in its letters. */
-function sameSurnameWord(surname: string, key: string): boolean {
-  return sameFamilyName(surname, key) || sameNameWord(letters(surname), key, false);
+function sameSurnameWord(surname: string, key: string, family: (a: string, b: string) => boolean = sameFamilyName): boolean {
+  return family(surname, key) || sameNameWord(letters(surname), key, false);
 }
 
 function letters(s: string): string {
@@ -709,7 +710,8 @@ export function gedcomDate(text: string): string | undefined {
  * transcript marks "[?]" is uncertain, one it marks "[...]" all through is left out (the reader cannot have read it);
  * a date of "[...]" has no GEDCOM; references to people left out go too. What was left out is said (checks).
  */
-export function checkEntry(raw: RawEntry, id: string, blind = false, form = false): { entry: DocEntry; checks: Check[] } {
+/** `family`: two surnames of one family in this research (core/surnames.ts sameFamily: the user's groups of forms too). */
+export function checkEntry(raw: RawEntry, id: string, blind = false, form = false, family: (a: string, b: string) => boolean = sameFamilyName): { entry: DocEntry; checks: Check[] } {
   const checks: Check[] = [];
   const text = words(raw.transcript);
   const persons: DocPerson[] = [];
@@ -744,7 +746,7 @@ export function checkEntry(raw: RawEntry, id: string, blind = false, form = fals
     const sex = p.fields.sex?.trim().toUpperCase();
     let surnameAt = -1;
     if (surname) {
-      surnameAt = span.findLastIndex((x) => !x.illegible && sameSurnameWord(surname, x.key));
+      surnameAt = span.findLastIndex((x) => !x.illegible && sameSurnameWord(surname, x.key, family));
       if (surnameAt < 0 && span.length >= 2 && span.at(-1)!.illegible) {
         checks.push({ entry: id, ref: p.ref, what: `surname "${surname}"`, why: "illegible" });
         surnameAt = span.length - 1;
@@ -1037,13 +1039,14 @@ function bornRange(role: string, year: number, age?: string): [number, number] |
 export function matchPerson(tree: Tree, p: DocPerson, year?: number, place?: string, own?: number, child?: number): { person: string; why: string[]; score: number }[] {
   if (!p.given || !p.surname) return [];
   const firstOf = (s: string) => foldText(s).split(" ")[0]!;
+  const family = sameFamily(tree);
   const out: { person: string; why: string[]; score: number }[] = [];
   for (const o of tree.list<Person>("person")) {
     if (o.retracted || o.mergedInto) continue;
     if (p.sex && p.sex !== "U" && o.sex !== "U" && o.sex !== p.sex) continue;
     // the given name as written, else the reader's today's form of it (a lead: less sure)
     let first = firstOf(p.given);
-    const fits = () => o.names.filter((n) => foldText(n.given).split(" ").includes(first) && sameFamilyName(n.surname, p.surname!));
+    const fits = () => o.names.filter((n) => foldText(n.given).split(" ").includes(first) && family(n.surname, p.surname!));
     let names = fits();
     let lead = false;
     if (!names.length && p.today) {
@@ -1330,6 +1333,7 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
     }
   };
   const checks: Check[] = [];
+  const family = sameFamily(tree);
   const firsts = s.groups.map((_, g) => mine.find((r) => r.group === g && !r.blind) ?? reportOfEarlier(s, g, false));
   const blinds = s.groups.map((_, g) => mine.find((r) => r.group === g && r.blind));
   const doc: ReadResult["doc"] = {};
@@ -1351,7 +1355,7 @@ export function buildResult(tree: Tree, s: ReadState): ReadResult {
       }
       for (const e of rep?.entries ?? []) {
         const id = `e${out.length + 1}`;
-        const c = checkEntry(e, id, blind, rep?.doc.kind === "certificate");
+        const c = checkEntry(e, id, blind, rep?.doc.kind === "certificate", family);
         if (!blind) checks.push(...c.checks);
         // a region of a part asked (--region): of the whole page
         const page = s.pages.find((p) => p.n === e.page);

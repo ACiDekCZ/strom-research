@@ -153,7 +153,18 @@ export interface ExportOptions {
    * 1 _STROM_IMG_OMITTED <why> with 2 _STROM_CLIP <mark> for each of them (planExcerpts().omitted).
    */
   omitted?: (s: Source) => ExcerptOmitted | undefined;
+  /**
+   * The Strom profile, for an app that carries them over (APP_READS_SURNAME_GROUPS): the person's groups of a surname's
+   * forms and the suggestions they rejected (core/surnames.ts), in the header as the Strom app writes them —
+   * 1 NOTE Strom surname-variant groups / 1 NOTE Strom surname-variant rejections, 2 CONT a group (its forms apart by
+   * " | "), a long one on in 3 CONC. Both always, empty too (no 2 CONT: none).
+   */
+  surnameGroups?: { groups: string[][]; rejected: string[][] };
 }
+
+/** The header notes of the Strom app with the groups of a surname's forms and the suggestions rejected (its ged-exporter). */
+export const SURNAME_GROUPS_MARK = "Strom surname-variant groups";
+export const SURNAME_REJECTIONS_MARK = "Strom surname-variant rejections";
 
 export interface ExportResult {
   text: string;
@@ -327,6 +338,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   w.line(2, "FORM", "LINEAGE-LINKED");
   w.line(1, "CHAR", "UTF-8");
   w.text(1, "NOTE", `${tree.config.name}\n${L("header")}\n${L("generated")}`);
+  // the person's groups of a surname's forms and the suggestions rejected: the Strom file of an app that keeps them
+  if (!strict && opts.surnameGroups) {
+    for (const [mark, list] of [[SURNAME_GROUPS_MARK, opts.surnameGroups.groups], [SURNAME_REJECTIONS_MARK, opts.surnameGroups.rejected]] as const) {
+      w.line(1, "NOTE", mark);
+      for (const forms of list) w.line(2, "CONT", forms.join(" | "));
+    }
+  }
 
   // ── people ──
   const famc = new Map<string, { fam: string; relation: string }[]>();

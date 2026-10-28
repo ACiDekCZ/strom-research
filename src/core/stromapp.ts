@@ -489,6 +489,29 @@ export function appShowsStoryDrafts(settings: Settings, version?: string): boole
   return true;
 }
 
+/**
+ * The first Strom app that carries the groups of a surname's forms and the suggestions the person rejected over
+ * without loss (spec 021; the app's ZADANI_VYZKUM_kvalita-dat.md, §B): it reads both header notes of the Strom file —
+ * 1 NOTE Strom surname-variant groups and 1 NOTE Strom surname-variant rejections (2 CONT a group, its forms apart by
+ * " | ") —, keeps them in the tree, sends them back, and takes the research's when it loads a new version of it. The
+ * app reads the markers from its 3.17.0-beta.7 (data version 13), but no app before it merged them, and an older one
+ * drops the rejections (the research would take their absence for the person's "unreject"): set to the first
+ * production app that carries them, by strom:je-venku-brany. Until then nothing is written. An app of unknown version
+ * (strom app from a terminal) stays off — it says nothing of what it keeps; another copy of the app (its beta, its
+ * development) gets them at once, as every gate, from the version that reads them (APP_READS_SURNAME_MARKERS).
+ */
+export const APP_READS_SURNAME_GROUPS: string | undefined = undefined;
+
+/** The first app (its beta) that reads the header notes of a surname's forms: another copy of the app gets them from it. */
+export const APP_READS_SURNAME_MARKERS = "3.17.0-beta.7";
+
+export function appReadsSurnameGroups(settings: Settings, version?: string, gate: string | undefined = APP_READS_SURNAME_GROUPS): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings)) return compareVersions(v, APP_READS_SURNAME_MARKERS) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
+}
+
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */
 export function sendAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;

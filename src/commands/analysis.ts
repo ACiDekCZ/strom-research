@@ -30,7 +30,8 @@ import {
   VARIANT_LINK_KINDS,
 } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
-import { ancestorGenerations, birthEvent, claimText, conflictTitle, deathEvent, displayName, familiesAsPartner, lifespan, parentsOf, primaryName, resolvePerson, sameFamilyName } from "../core/people.ts";
+import { ancestorGenerations, birthEvent, claimText, conflictTitle, deathEvent, displayName, familiesAsPartner, lifespan, parentsOf, primaryName, resolvePerson } from "../core/people.ts";
+import { sameFamily } from "../core/surnames.ts";
 import { changeLines } from "../core/changelog.ts";
 import { isAgent } from "../core/which.ts";
 import { foldText, unfoldIndex } from "../core/text.ts";
@@ -394,6 +395,8 @@ register(
       const tree = ctx.tree();
       const surnames = csvOpt(opts.surname).map((x) => x.trim()).filter(Boolean);
       const task = typeof opts.task === "string" ? requireRecord(tree, opts.task, "task").id : undefined;
+      // a surname's forms: the language's and the groups the user made one family (core/surnames.ts)
+      const sameFamilyName = sameFamily(tree);
       const bySurname = (s: Search) => !surnames.length || (s.scope.surnames ?? []).some((x) => surnames.some((y) => foldText(x) === foldText(y) || sameFamilyName(x, y)));
       const byTask = (s: Search) => !task || s.task === task;
       const q = (args[0] ?? "").trim();

@@ -32,6 +32,8 @@ function said(f: Finding, lang: string | undefined): string {
   if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal");
   if (lang && f.code === NOT_DOWNLOADED) return ui(lang, "ui.check.notdownloaded", { n: f.count ?? 1, first: f.file ?? "" });
   if (lang && f.code === SHARED_MISSING) return ui(lang, "ui.check.sharedmissing", { n: f.count ?? 1, first: f.id ?? "" });
+  if (lang && f.code === "after-death" && f.params) return ui(lang, f.params.kind === "weddingAfterDeath" ? "ui.check.afterdeath.wedding" : "ui.check.afterdeath", f.params);
+  if (lang && f.code === "participant-long-name") return ui(lang, "ui.check.participantnames", { n: f.count ?? 1 });
   return f.message;
 }
 
@@ -40,6 +42,8 @@ function hintSaid(f: Finding, lang: string | undefined): string | undefined {
   if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal.hint");
   if (lang && f.code === NOT_DOWNLOADED) return ui(lang, "ui.check.notdownloaded.hint");
   if (lang && f.code === SHARED_MISSING) return ui(lang, "ui.check.sharedmissing.hint", { show: `strom ${f.id?.startsWith("M") ? "media" : "input"} show ${f.id ?? ""}` });
+  if (lang && f.code === "after-death" && f.params)
+    return ui(lang, "ui.check.afterdeath.hint", { show: `strom person show ${f.params.person}`, dismiss: `strom quality dismiss ${f.params.kind} ${f.params.person} --subject ${f.params.year}` });
   return f.hint;
 }
 
@@ -188,7 +192,7 @@ function repair(tree: Tree): Repaired {
       restored.push(rel);
     }
   }
-  if (!headSealed) tree.commit(`Repair: restore the sealed state of ${sealed.slice(0, 8)}\n\nCommits made outside strom were undone for data/, strom.json and history/.`, SEALED_PATHS);
+  if (!headSealed) tree.commit(`Repair: restore the sealed state of ${sealed.slice(0, 8)}\n\nCommits made outside strom were undone for data/, strom.json, history/ and quality/.`, SEALED_PATHS);
   return { restored, quarantined, from: sealed };
 }
 

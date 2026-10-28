@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.22.0
 
-*In Vorbereitung: die Betas bis 1.22.0-beta.8. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.22.0-beta.9. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Jeder Name einmal in dem, was wartet.** Eine Aufgabe zu Material, das aus der Strom-App gesendet wurde, nannte im
   Widget und auf der Seite des Telefons jede Person zweimal (das zweite Mal in eckigen Klammern), und ihr Text ohne
@@ -26,11 +26,11 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   oder auf einem Netzlaufwerk liegt; `strom doctor --timing` zeigt, was lange dauerte. Bei einer langen Forschung
   (viele hundert Personen, Zehntausende Scans) zeigt das Menü sofort, was wartet: Die Zahl wird neben der Forschung
   gehalten, bis sich etwas ändert, worauf sie beruht, und dann in einem Bruchteil einer Sekunde neu gezählt.
-- **Ein Archiv, das nicht antwortet, beendet die Schleife des Agenten.** `strom fetch` sagt, wann es wieder zu
-  versuchen ist und was bis dahin zu tun ist; dieselbe Anfrage in derselben Sitzung endet sofort (Exit 8) und sendet
-  nichts. Eine Aufgabe, deren Archiv pausiert, wartet bis dahin außerhalb der Warteschlange (der Plan zeigt sie bis zu
-  dieser Zeit zurückgestellt), und `strom run --loop` wartet bis dahin, statt Sitzungen ohne Arbeit zu starten.
-- **Leser warten nicht mehr auf einen verstummten Dienst.** Ein Leser, dessen Agent nach einem erneuten Versuch seines
+- **Ein Archiv, das nicht antwortet, beendet die Schleife des Agenten; Leser warten nicht mehr auf einen verstummten
+  Dienst.** `strom fetch` sagt, wann es wieder zu versuchen ist und was bis dahin zu tun ist; dieselbe Anfrage in
+  derselben Sitzung endet sofort (Exit 8) und sendet nichts. Eine Aufgabe, deren Archiv pausiert, wartet bis dahin
+  außerhalb der Warteschlange (der Plan zeigt sie bis zu dieser Zeit zurückgestellt), und `strom run --loop` wartet
+  bis dahin, statt Sitzungen ohne Arbeit zu starten. Ein Leser, dessen Agent nach einem erneuten Versuch seines
   Dienstes verstummt, wird einmal dort fortgesetzt, wo er aufhörte; bleibt er still, endet er sofort. Ein solcher
   Ausfall verkleinert die Lesestapel nicht mehr.
 - **Das Tor der Abo-Woche lässt mehrere Sitzungen hintereinander laufen.** Wartet es einmal auf Vorsprung, lässt es
@@ -69,6 +69,25 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   beide lebten); nichts Ausgeblendetes oder Gelöschtes. Eine
   freigegebene Erzählung bleibt, wie sie ist – die Geschichte kommt erst mit ihrer nächsten Fassung, die auf Freigabe
   wartet. Abschaltbar in den Einstellungen oder in der Strom-App (`strom config set stories.history no`).
+- **Die Formen eines Familiennamens.** `strom surname suggest` schlägt vor, welche geschriebenen Formen eines
+  Familiennamens zu einer Familie gehören: dieselbe Person in den Einträgen verschieden geschrieben (mit den Belegen),
+  oder derselbe Laut anders geschrieben am selben Ort in denselben Jahren – nie die Familien von Ehemann und Vater
+  einer Frau. Entscheiden kann nur ein Mensch, im Terminal (`strom surname accept|reject|group`); ein Agent schlägt
+  nur vor. Die Formen einer Familie erweitern die Suche nach Einträgen und nach Personen, die eine sein können.
+  `strom person compare` sagt von zwei Personen, ob sie eine sind, zwei oder unsicher, und warum (schon
+  zusammengeführt, ein anderes Geschlecht, Jahre weit auseinander, ein Leben, das endete, bevor das andere begann,
+  andere Eltern, ein Eintrag für beide…). Ein als kein Fehler markierter Befund bleibt es:
+  `strom quality dismiss|undo|list`, allein die Entscheidung eines Menschen – zwei so markierte Personen werden nie
+  wieder als eine vorgeschlagen. `strom check` warnt vor einem Ereignis oder einer Heirat, die sicher nach dem Tod
+  einer Person datiert ist (ein ungefähres Datum nie), und der Plan einer Forschung legt eine Aufgabe an, das zu
+  prüfen – von selbst erledigt, sobald das Datum berichtigt oder der Befund als kein Fehler markiert ist. Ein
+  Beteiligter eines Ereignisses (ein Pate, ein Zeuge) ist ein Name, und was der Eintrag über ihn sagt, steht als
+  Notiz in Klammern am Ende: `--with "godparent:Jan Lhoták (sedlák, Lhota č. 12)"`; ein Name aus mehr als vier
+  Wörtern oder mit einer Zahl wird abgelehnt, mit dem, was in die Klammern gehört, ein als Zeuge genannter Geistlicher
+  wird als Amtsträger (`officiant`) erfasst, und ein Beteiligter, der jemand aus der Familie um den Eintrag sein kann,
+  wird mit seiner Nummer vorgeschlagen, nie von selbst verknüpft. So früher geschriebene Namen findet `strom check`,
+  und `strom fixes show|run participant-names` trennt sie – kostenlos, nach Regeln, auch in einem Archiv, alles in
+  einem Schritt, zurück mit `strom fixes undo participant-names`; entscheiden kann nur ein Mensch.
 
 ## 1.21.0
 

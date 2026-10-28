@@ -21,8 +21,11 @@ import type { Tree } from "../core/tree.ts";
 import {
   compareDocuments,
   compareReadings,
+  checksHere,
   decide,
+  decisionChange,
   decisionKeyOf,
+  foundCount,
   estimateFix,
   fixCheck,
   fixEnv,
@@ -42,6 +45,8 @@ import {
   type Reason,
 } from "./fixchecks.ts";
 import type { ReadResult } from "../core/document.ts";
+import { VERSION } from "../core/tree.ts";
+import { applyNameRewrites, nameRewritesDone, undoNameRewrites, type NameNote, type NameRewrite } from "../core/participants.ts";
 import { calibrationLabel } from "../core/viewsizes.ts";
 import { calibrationKey, loadAliases, resolveKey, splitKey, UNKNOWN_KEY } from "../core/modelkey.ts";
 import { agentsHere } from "../core/apps.ts";
@@ -111,7 +116,11 @@ const costText = (t: T, e: FixEstimate) => t("ui.fixes.cost", { level: t(`ui.fix
 
 const stateText = (t: T, s: FixState) =>
   s.state === "pending"
-    ? (s.check.unit === "reading" ? t("ui.fixes.state.pending.readings", { count: s.found.readings }) : t("ui.fixes.state.pending", { count: s.found.items.length }))
+    ? s.check.unit === "reading"
+      ? t("ui.fixes.state.pending.readings", { count: s.found.readings })
+      : s.check.unit === "participant"
+        ? t("ui.fixes.state.pending.participants", { count: foundCount(s.found) })
+        : t("ui.fixes.state.pending", { count: s.found.items.length })
     : s.state === "nothing"
       ? t("ui.fixes.state.nothing")
       : t(`ui.fixes.state.${s.state}` as UIKey, { date: s.decision!.at.slice(0, 10) });
@@ -204,8 +213,38 @@ function foundText(t: T, s: FixState): string {
   return t(!f.estimated ? "ui.fixes.found.exact" : !f.exact ? "ui.fixes.found.estimated" : "ui.fixes.found", { part, exact: f.exact, estimated: f.estimated }) + (f.unjudged ? t("ui.fixes.unjudged", { n: f.unjudged }) : "");
 }
 
+/** A participant as it is said: its name, its note after it in parentheses. */
+const nameSaid = (n: NameNote) => `${n.name}${n.note ? ` (${n.note})` : ""}`;
+
+/** One name set apart: its fact, its role, before → after. */
+const rewriteText = (t: T, r: NameRewrite) =>
+  t("ui.fixes.participant-names.example", {
+    event: r.event,
+    role: t(`ui.show.role.${r.role}` as UIKey),
+    before: nameSaid(r.before),
+    name: r.after.name,
+    note: r.after.note ? t("ui.fixes.participant-names.note", { note: r.after.note }) : "",
+  });
+
+/** A check that rewrites by rules: what it is, what it found, examples, what setting it right does and does not. */
+function rewriteDetail(t: T, s: FixState): string[] {
+  const f = s.found;
+  const rewrites = f.rewrites ?? [];
+  const id = s.check.id;
+  return [
+    `${id} · ${t(`ui.fixes.${id}.name` as UIKey)} — ${stateText(t, s)}`,
+    t(`ui.fixes.${id}.what` as UIKey, { since: s.check.since }),
+    rewrites.length || f.unsplit ? t(`ui.fixes.${id}.found` as UIKey, { found: rewrites.length + (f.unsplit ?? 0), split: rewrites.length, unsplit: f.unsplit ?? 0 }) : t("ui.fixes.found.none"),
+    ...rewrites.slice(0, EXAMPLES).map((r) => rewriteText(t, r)),
+    rewrites.length > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: rewrites.length - EXAMPLES, id }) : undefined,
+    rewrites.length ? t(`ui.fixes.${id}.does` as UIKey, { id }) : undefined,
+    rewrites.length ? t(`ui.fixes.${id}.not` as UIKey, { id }) : undefined,
+  ].filter((l): l is string => l !== undefined);
+}
+
 /** What it is, what it found, what setting it right does and does not, and what it would take. */
 function detail(ctx: Context, tree: Tree, t: T, s: FixState): string[] {
+  if (s.check.remedy === "rewrite") return rewriteDetail(t, s);
   const f = s.found;
   const agent = readerAgent(ctx, tree);
   const values = textValues(t, s);
@@ -226,6 +265,19 @@ function detail(ctx: Context, tree: Tree, t: T, s: FixState): string[] {
 }
 
 function stateData(ctx: Context, tree: Tree, s: FixState, all = false) {
+  if (s.check.remedy === "rewrite") {
+    const rewrites = s.found.rewrites ?? [];
+    return {
+      id: s.check.id,
+      since: s.check.since,
+      paid: s.check.paid,
+      remedy: s.check.remedy,
+      state: s.state,
+      ...(s.decision ? { decision: s.decision } : {}),
+      found: { count: rewrites.length + (s.found.unsplit ?? 0), split: rewrites.length, unsplit: s.found.unsplit ?? 0 },
+      items: all ? rewrites : rewrites.slice(0, EXAMPLES),
+    };
+  }
   const items = all ? s.found.items : s.found.items.slice(0, EXAMPLES);
   return {
     id: s.check.id,
@@ -244,7 +296,44 @@ function stateData(ctx: Context, tree: Tree, s: FixState, all = false) {
 function stateOfCheck(ctx: Context, tree: Tree, id: string): FixState {
   const check = fixCheck(id);
   if (!check) throw new UsageError(`no check "${id}"`, { hint: `strom fixes (the checks: ${FIX_CHECKS.map((c) => c.id).join(", ")})` });
-  return fixStates(tree, fixEnv(ctx, tree), { keep: !ctx.backupFailed }).find((s) => s.check.id === id)!;
+  const env = fixEnv(ctx, tree);
+  // a check this research has not (one that reads, in an archive): looked at alone, what waits not kept
+  if (!checksHere(tree).includes(check)) return fixStates(tree, env, { checks: [check], keep: false })[0]!;
+  return fixStates(tree, env, { keep: !ctx.backupFailed }).find((s) => s.check.id === id)!;
+}
+
+/**
+ * Set a check that rewrites right at the person's terminal (participant-names): what it is and found, then the choice —
+ * set them apart, leave them as they are, or later (Enter). One operation and one commit, free, also in an archive.
+ */
+async function runRewrite(ctx: Context, tree: Tree, t: T, s: FixState): Promise<{ decided?: "declined" | "fixed"; changed: number; records: number }> {
+  const id = s.check.id;
+  const out = (l = "") => ctx.io.stdout(l + "\n");
+  for (const l of detail(ctx, tree, t, s)) out(l);
+  const rewrites = s.found.rewrites ?? [];
+  if (!rewrites.length) return { changed: 0, records: 0 };
+  const choices = [{ label: t(`ui.fixes.${id}.all` as UIKey, { n: rewrites.length }) }, { label: t("ui.fixes.decline") }];
+  const pick = await ctx.choose(t(`ui.fixes.${id}.ask` as UIKey), choices, choices.length, { back: t("ui.fixes.later") });
+  if (pick === undefined) {
+    out(t("ui.fixes.later.said", { id }));
+    return { changed: 0, records: 0 };
+  }
+  if (pick === 1) {
+    tree.withTreeLock(() => {
+      decide(tree, s.key, "declined");
+      tree.commit(`Fix ${s.key}: left as it is`);
+    });
+    out(t("ui.fixes.declined", { id }));
+    return { decided: "declined", changed: 0, records: 0 };
+  }
+  const r = tree.withTreeLock(() => {
+    // the names and the decision: one operation, one commit
+    const done = applyNameRewrites(tree, rewrites, VERSION, decisionChange(s.key, "fixed"));
+    if (done.changed) tree.commit(`Fix ${s.key}: ${done.changed} participant names set apart from their notes in ${done.records} records`);
+    return done;
+  });
+  out(t(`ui.fixes.${id}.done` as UIKey, { n: r.changed, records: r.records, id }));
+  return { decided: "fixed", changed: r.changed, records: r.records };
 }
 
 /** The person's own decision: in their terminal alone (an agent, a run nobody watches: exit 4, with the command). */
@@ -330,7 +419,7 @@ async function readAgain(ctx: Context, tree: Tree, t: T, items: FixItem[], model
 /** A task to hold the two readings against each other where they differ or the new one reads more; nothing overwritten. */
 function tasksFor(tree: Tree, check: FixCheck, done: Reread[], now?: string): void {
   const lang = tree.lang;
-  const p = check.phrases;
+  const p = check.phrases ?? "fix.reread";
   const label = (k: string) => (k === UNKNOWN_KEY ? phrase(lang, "fix.model.unknown") : calibrationLabel(k, phrase(lang, "fix.model.own")));
   for (const d of done) {
     if ((d.result !== "differ" && d.result !== "refined") || !d.reading) continue;
@@ -541,7 +630,7 @@ register(
       "readings and about how long (by the earlier readers here). Nothing is ever overwritten: a reading again stands\n" +
       "beside the earlier one, a difference becomes a task. The person decides: set it right (strom fixes run), leave it as\n" +
       "it is (strom fixes decline) or later (nothing kept). The decision is kept with the research (strom.json \"fixes\")\n" +
-      "and holds on every computer. strom doctor and the menu say when one waits. Nothing in an archive.\n" +
+      "and holds on every computer. strom doctor and the menu say when one waits. In an archive only participant-names.\n" +
       "The checks: blind-reduced — a reading of a part of an image (strom read --crop) read from the whole image, reduced,\n" +
       "where a sharper copy of the part was at hand (strom before 1.19.0); where this computer has no record of the\n" +
       "reading's views, the place is estimated from the sources' entries on the image, and said so.\n" +
@@ -554,17 +643,21 @@ register(
       "of its readers (.strom/metrics/readers.jsonl), else unknown. The most useful first, by stage: disputed (blind readers\n" +
       "who differed, an open conflict, a reading not confirmed at the source), then the direct line, then the rest (places\n" +
       "not read); dates and witnesses only order within a stage.\n" +
+      "participant-names — a participant's name that carries what the record says of them (status, occupation, village,\n" +
+      "house number, a number, the entry): set apart by rules (no agent, no network, free, also in an archive) into the name\n" +
+      "and the note, a note there kept and the rest added to it; a name that cannot be set apart for sure is left and\n" +
+      "counted; nobody is linked to a person. One operation, one commit; strom fixes undo participant-names puts it back.\n" +
       SET_RIGHT_HELP,
-    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes --json"],
+    examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes --json"],
     run: (ctx: Context) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
-      // an archive: nobody reads there, nothing of an agent said
-      if (isArchive(tree)) return { text: t("ui.fixes.none"), data: { checks: [] } };
+      // an archive: nobody reads there, nothing of an agent said — only what is rewritten by rules
+      const archive = isArchive(tree);
       const states = fixStates(tree, fixEnv(ctx, tree), { keep: !ctx.backupFailed });
       const pending = states.filter((s) => s.state === "pending");
       const text = lines(
-        t("ui.fixes.title"),
+        t(archive ? "ui.fixes.title.archive" : "ui.fixes.title"),
         ...states.map((s) => `  ${s.check.id} · ${t(`ui.fixes.${s.check.id}.name` as UIKey)} — ${stateText(t, s)}`),
         pending.length ? "" : undefined,
         pending.length ? t("ui.fixes.next", { id: pending[0]!.check.id }) : undefined,
@@ -582,9 +675,10 @@ register(
     run: (ctx: Context, { args }) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
-      if (isArchive(tree)) return { text: t("ui.fixes.none"), data: { checks: [] } };
+      const check = fixCheck(args[0]!);
+      if (isArchive(tree) && check?.remedy !== "rewrite") return { text: t("ui.fixes.none"), data: { checks: [] } };
       // the estimate is of the agent asked: one that cannot read here said at once
-      if (ctx.settings.agent(tree.config).source === "flag") requireReady(ctx, tree, `strom fixes show ${args[0]}`);
+      if (check?.remedy !== "rewrite" && ctx.settings.agent(tree.config).source === "flag") requireReady(ctx, tree, `strom fixes show ${args[0]}`);
       const s = stateOfCheck(ctx, tree, args[0]!);
       const text = lines(...detail(ctx, tree, t, s), "", s.state === "pending" ? t("ui.fixes.decide", { id: s.check.id }) : s.state === "declined" ? t("ui.fixes.reopen.how", { id: s.check.id }) : undefined);
       return { text, data: stateData(ctx, tree, s, true) };
@@ -608,6 +702,8 @@ register(
       "Who reads: --agent and --model; else, where more agents can read here, the person chooses — each said with whether\n" +
       "it read these before, another one recommended where the one now did. After the first few, the rest is estimated\n" +
       "again by the real time they took.\n" +
+      "participant-names reads nothing: the names set apart as shown (strom fixes show participant-names), all or none,\n" +
+      "in one operation and one commit, free, also in an archive; strom fixes undo participant-names puts them back.\n" +
       SET_RIGHT_HELP,
     args: [{ name: "check", description: "the check (default: each that waits)" }],
     options: [
@@ -615,23 +711,43 @@ register(
       { name: "try", type: "string", value: "<n>", description: `readings read first, to try it on (default ${FIX_TRY})` },
       { name: "model", type: "string", value: "<model>", description: "the readers' model (default: the agent's model.vision); with --agent: another agent reads" },
     ],
-    examples: ["strom fixes run blind-reduced", "strom fixes run new-model --first 10", "strom fixes run blind-reduced --agent codex"],
+    examples: ["strom fixes run blind-reduced", "strom fixes run new-model --first 10", "strom fixes run blind-reduced --agent codex", "strom fixes run participant-names"],
     run: async (ctx: Context, { args, opts }) => {
       const tree = ctx.tree();
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
-      refuseInArchive(tree, "strom fixes run", ctx.settings.agent(tree.config).value);
+      const asked = args[0] ? fixCheck(args[0]) : undefined;
+      // an archive: what is rewritten by rules only (nobody reads there)
+      if (asked?.remedy !== "rewrite") refuseInArchive(tree, "strom fixes run", ctx.settings.agent(tree.config).value);
       const set = `strom fixes run${args[0] ? ` ${args[0]}` : ""}`;
-      if (ctx.yes) throw new UsageError("--yes never starts readings that cost: a person chooses at their terminal", { hint: set });
+      if (ctx.yes) throw new UsageError("--yes never sets a fix right: a person chooses at their terminal", { hint: set });
       // who reads, before anything is offered: the agent asked, or with nothing asked, any here
       if (typeof opts.model === "string" && !opts.model.trim()) throw new UsageError("--model names a model", { hint: `${set} --model <model>` });
       const first = positive(opts.first, "first");
       const tryN = positive(opts.try, "try", FIX_TRY)!;
-      const states = args[0] ? [stateOfCheck(ctx, tree, args[0])] : fixStates(tree, fixEnv(ctx, tree), { keep: !ctx.backupFailed }).filter((s) => s.state === "pending");
+      const all = args[0] ? [stateOfCheck(ctx, tree, args[0])] : fixStates(tree, fixEnv(ctx, tree), { keep: !ctx.backupFailed }).filter((s) => s.state === "pending");
+      // first what is rewritten by rules: free, nobody reads (participant-names)
+      const rewrites = all.filter((s) => s.check.remedy === "rewrite");
+      const states = all.filter((s) => s.check.remedy !== "rewrite");
+      const results: { id: string; decided?: string; read?: number; tasks?: string[]; changed?: number; records?: number }[] = [];
+      if (rewrites.some((s) => foundCount(s.found))) {
+        personOnly(ctx, t, "Set the names of participants apart from their notes?", set, "ui.fixes.person.decide");
+        for (const s of rewrites) {
+          const r = await runRewrite(ctx, tree, t, s);
+          results.push({ id: s.check.id, ...(r.decided ? { decided: r.decided } : {}), changed: r.changed, records: r.records });
+        }
+      }
       // nothing to read again: said so, before who reads or whose choice it is
-      if (!states.some((s) => s.found.items.length)) return { text: t("ui.fixes.none"), data: { checks: states.map((s) => ({ id: s.check.id, read: 0, tasks: [] })) } };
+      if (!states.some((s) => s.found.items.length)) {
+        if (results.length) return { text: "", data: { checks: results } };
+        if (rewrites.length) {
+          // a check that rewrites with nothing found: what it is, all the same
+          ctx.io.stdout(lines(...rewrites.flatMap((s) => detail(ctx, tree, t, s))) + "\n");
+          return { text: "", data: { checks: rewrites.map((s) => ({ id: s.check.id, changed: 0, records: 0 })) } };
+        }
+        return { text: t("ui.fixes.none"), data: { checks: states.map((s) => ({ id: s.check.id, read: 0, tasks: [] })) } };
+      }
       if (ctx.settings.agent(tree.config).source === "flag" || typeof opts.model === "string" || !readyHere(ctx).length) requireReady(ctx, tree, set);
       personOnly(ctx, t, "Read places of this research again (paid readings)?", set);
-      const results: { id: string; decided?: string; read: number; tasks: string[] }[] = [];
       for (const s of states) {
         if (!s.found.items.length) {
           ctx.io.stdout(lines(...detail(ctx, tree, t, s)) + "\n");
@@ -681,6 +797,41 @@ register(
           tree.commit(`Fix ${s.key}: asked again`);
         });
       return { text: t("ui.fixes.reopened", { id: s.check.id }), data: { id: s.check.id, decision: null } };
+    },
+  },
+  {
+    path: ["fixes", "undo"],
+    summary: "Put back what a check that rewrites set right (participant-names): the names and notes as they were (the person's own)",
+    group: "history",
+    tree: true,
+    person: "Putting a fix back is the person's own decision, at their own terminal: never done by an agent",
+    description:
+      "Each name and note the fix set apart is put back as it was, where it is still as the fix left it; one changed since\n" +
+      "is left as it is and counted. One step of the history (one operation, one commit); the fix is then left as it is\n" +
+      "(strom fixes reopen asks again). Also in an archive.",
+    args: [{ name: "check", description: "the check, e.g. participant-names", required: true }],
+    examples: ["strom fixes undo participant-names"],
+    run: (ctx: Context, { args }) => {
+      const tree = ctx.tree();
+      const t: T = (key, values = {}) => ui(tree.lang, key, values);
+      const check = fixCheck(args[0]!);
+      if (!check) throw new UsageError(`no check "${args[0]}"`, { hint: `strom fixes (the checks: ${FIX_CHECKS.map((c) => c.id).join(", ")})` });
+      if (check.remedy !== "rewrite")
+        throw new UsageError(`${check.id} reads again and overwrites nothing: there is nothing to put back`, { hint: `strom fixes show ${check.id}` });
+      const set = `strom fixes undo ${check.id}`;
+      if (!nameRewritesDone(tree).length) return { text: t(`ui.fixes.${check.id}.nothing` as UIKey), data: { id: check.id, restored: 0, left: 0 } };
+      if (ctx.yes) throw new UsageError("--yes never puts a fix back: a person chooses at their terminal", { hint: set });
+      personOnly(ctx, t, "Put the names of participants back as they were?", set, "ui.fixes.person.decide");
+      const key = decisionKeyOf(tree, check, fixEnv(ctx, tree));
+      const r = tree.withTreeLock(() => {
+        const done = undoNameRewrites(tree, decisionChange(key, "declined"));
+        tree.commit(`Fix ${key}: undone, ${done.restored} participant names put back as they were${done.left ? `, ${done.left} changed since left` : ""}`);
+        return done;
+      });
+      return {
+        text: t(`ui.fixes.${check.id}.undone` as UIKey, { n: r.restored, left: r.left ? t(`ui.fixes.${check.id}.left` as UIKey, { n: r.left }) : "" }),
+        data: { id: check.id, restored: r.restored, records: r.records, left: r.left, decision: "declined" },
+      };
     },
   },
 );

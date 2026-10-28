@@ -93,3 +93,39 @@ export function yearLabel(date: string | undefined): string {
   if (date.startsWith("AFT")) return `>${years[0]}`;
   return String(years[0]);
 }
+
+/** A simple date's months: the first and the last it may mean (a year: January to December). */
+function simpleMonths(s: string): { min: number; max: number } | undefined {
+  const k = simpleKey(s.trim());
+  if (!k) return undefined;
+  const [y, m] = k;
+  return { min: y * 12 + (m ? m - 1 : 0), max: y * 12 + (m ? m - 1 : 11) };
+}
+
+/**
+ * The months a GEDCOM date may mean, read as loosely as it is written (as the Strom app reads it): "ABT 1857" two years
+ * either side, "BEF 1850" twenty years before, "AFT 1850" twenty after, "BET 1811 AND 1812" both ends. Undefined for a
+ * date it cannot read (a phrase, a dual year).
+ */
+export function dateMonths(date: string | undefined): { min: number; max: number } | undefined {
+  if (!date) return undefined;
+  const s = date.trim().toUpperCase().replace(/\s+/g, " ");
+  const two = /^(?:BET (.+) AND (.+)|FROM (.+) TO (.+))$/.exec(s);
+  if (two) {
+    const [a, b] = [simpleMonths(two[1] ?? two[3]!), simpleMonths(two[2] ?? two[4]!)];
+    return a && b ? { min: Math.min(a.min, b.min), max: Math.max(a.max, b.max) } : undefined;
+  }
+  const q = /^(ABT|CAL|EST|BEF|AFT|FROM|TO) (.+)$/.exec(s);
+  if (!q) return simpleMonths(s);
+  const r = simpleMonths(q[2]!);
+  if (!r) return undefined;
+  if (q[1] === "BEF" || q[1] === "TO") return { min: r.min - 240, max: r.max };
+  if (q[1] === "AFT" || q[1] === "FROM") return { min: r.min, max: r.max + 240 };
+  return { min: r.min - 24, max: r.max + 24 };
+}
+
+/** One date certainly before another, read as loosely as each is written; never when either cannot be read. */
+export function certainlyBefore(a: string | undefined, b: string | undefined): boolean {
+  const [x, y] = [dateMonths(a), dateMonths(b)];
+  return !!x && !!y && x.max < y.min;
+}

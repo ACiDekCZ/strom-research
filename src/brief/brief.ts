@@ -28,6 +28,8 @@ import { readingsLine, readingsOf } from "../core/readsync.ts";
 import { commandSheet } from "./sheet.ts";
 import { foldText } from "../core/text.ts";
 import { subjectPeople } from "../core/records.ts";
+import { familyFormsFor, groupedForms, readSurnames, sameFamily } from "../core/surnames.ts";
+import { twoPeople } from "../core/quality.ts";
 import { searchedAs } from "../core/evidence.ts";
 import { hypothesisPeople } from "../core/directions.ts";
 import type { Tree } from "../core/tree.ts";
@@ -437,6 +439,29 @@ function materialText(tree: Tree, inputs: Input[]): MaterialText {
  * place of the task; `general` — it names nothing of the tree; none — it is about other families, places, books or
  * archives.
  */
+/**
+ * The forms of the task's people's surnames the user made one family (core/surnames.ts): a register may write any of
+ * them — searched under each. None when no group holds them.
+ */
+function surnameFormLines(tree: Tree, task: Task): string[] {
+  const groups = readSurnames(tree).groups;
+  if (!groups.length) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const id of task.subject) {
+    const p = /^P\d{4,}$/u.test(id) ? tree.get<Person>(id) : undefined;
+    if (!p || p.type !== "person") continue;
+    for (const n of p.names) {
+      const s = n.surname?.trim();
+      if (!s || seen.has(s)) continue;
+      seen.add(s);
+      const more = groupedForms(tree, s, groups);
+      if (more.length) out.push(`forms: ${s} is also written ${more.join(", ")} (one family, the user's groups) — search under each`);
+    }
+  }
+  return out;
+}
+
 type LessonFit = "named" | "general" | false;
 
 /**
@@ -453,10 +478,12 @@ type LessonFit = "named" | "general" | false;
 function projectLessonFit(tree: Tree, task: Task | undefined, persons: Person[], where: string[], material?: MaterialText): (l: Lesson) => LessonFit {
   if (material?.unknown) return () => "general";
   const known = new Set<string>();
+  // a surname's forms: the language's and those of the groups the person made one family (core/surnames.ts)
+  const formsOf = familyFormsFor(tree);
   const add = (n: string | undefined) => {
     if (!n) return;
     const first = n.trim().split(/[\s,]+/u)[0] ?? "";
-    for (const f of [first, ...surnameForms(first)]) {
+    for (const f of [first, ...formsOf(first)]) {
       const s = stem(f);
       if (s) known.add(s);
     }
@@ -478,7 +505,7 @@ function projectLessonFit(tree: Tree, task: Task | undefined, persons: Person[],
   const knownList = [...known];
   // the names the task gives in its own words, and the surnames of its people in their forms
   const names = new Set([...taskTexts, ...(material?.texts ?? [])].flatMap((t) => textNames(t, true)).filter((w) => [...w].length >= 4 && !given.has(w)));
-  const surnames = [...new Set(persons.flatMap((p) => p.names.flatMap((n) => (n.surname ? [...surnameForms(n.surname)] : []))))];
+  const surnames = [...new Set(persons.flatMap((p) => p.names.flatMap((n) => (n.surname ? [...formsOf(n.surname)] : []))))];
   // a book as a lesson names it: the start of its title ("Lhota 03, N 1700–1750" → "lhota 03"), or its ID
   const bookName = (b: RecordSet) => {
     const head = foldedWords(b.title.split(",")[0] ?? "").join(" ");
@@ -981,6 +1008,7 @@ export function buildBrief(
         `why:   ${task.why}`,
         `done:  ${task.doneWhen}`,
         task.subject.length ? `about: ${task.subject.join(" ")}` : "",
+        ...surnameFormLines(tree, task),
         ...task.notes.slice(-3).map((n) => `note:  ${n.text}`),
         task.notes.length > 3 ? `(notes: the last 3 of ${task.notes.length} — all: strom task show ${task.id})` : "",
         ...personAnswers(tree, task),
@@ -1003,7 +1031,7 @@ export function buildBrief(
   for (const input of treeInputs) {
     const system = `gedcom:${input.sha!.slice(0, 12)}`;
     const ids = tree.list<Person>("person").filter((p) => !p.retracted && p.refs?.some((r) => r.system === system)).map((p) => p.id);
-    const dupes = likelyDuplicates(tree, ids);
+    const dupes = likelyDuplicates(tree, ids, sameFamily(tree), twoPeople(tree));
     if (dupes.length)
       sections.push({
         name: "duplicates",
@@ -1092,11 +1120,12 @@ export function buildBrief(
     // nothing to tell it by: kept
     return !places.length || (!span && !taskPlaces.size);
   };
-  const named = (s: Search) => (s.scope.surnames ?? []).some((x) => theirs.some((y) => sameFamilyName(x, y)));
+  const sameName = sameFamily(tree);
+  const named = (s: Search) => (s.scope.surnames ?? []).some((x) => theirs.some((y) => sameName(x, y)));
   const premise = tree.list<Search>("search").filter((s) => s.recordsets.some((b) => where.has(b)) || (s.task && s.task === task?.id) || named(s));
   const searches = premise.filter((s) => s.recordsets.some((b) => where.has(b)) || (s.task && s.task === task?.id) || nearby(s));
   const elsewhere = premise.filter((s) => !searches.includes(s));
-  const elsewhereNames = [...new Set(elsewhere.flatMap((s) => theirs.filter((y) => (s.scope.surnames ?? []).some((x) => sameFamilyName(x, y)))))];
+  const elsewhereNames = [...new Set(elsewhere.flatMap((s) => theirs.filter((y) => (s.scope.surnames ?? []).some((x) => sameName(x, y)))))];
   const ofPlace = (id: string) => {
     const pl = tree.get<Place>(id);
     return pl?.type === "place" && [...pl.names.map((n) => n.name), ...pl.jurisdictions.map((j) => j.name)].some((n) => [...bookPlaces].some((b) => b === foldText(n) || b.startsWith(`${foldText(n)},`)));

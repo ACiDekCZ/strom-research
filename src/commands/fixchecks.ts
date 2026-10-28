@@ -36,6 +36,7 @@ import { calibrationKey, fits, keyOf, loadAliases, resolveKey, splitKey, UNKNOWN
 import { sameLineNewer } from "../agents/models.ts";
 import { kinship } from "../core/kin.ts";
 import { listReadings, loadState, resultPath, type ReadResult } from "../core/document.ts";
+import { participantNames, type NameRewrite } from "../core/participants.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -86,6 +87,9 @@ export interface FixFindings {
   unjudged: number;
   /** Earlier readings the items are of. */
   readings: number;
+  /** A check that rewrites (participant-names): what it would set right, and how many it found it cannot. */
+  rewrites?: NameRewrite[];
+  unsplit?: number;
   /** The agent and model reading now and those the earlier readings were read with, how many each (new-model); `newer`: the
    * model now is a newer version of the same line as each of them (agents/models.ts) — never guessed across lines. */
   models?: { now: string; before: { key: string; readings: number }[]; newer: boolean };
@@ -109,12 +113,15 @@ export interface FixCheck {
   since: string;
   /** Setting it right costs: readers read again. */
   paid: boolean;
-  /** How it is set right: read again, as the earlier reading asked (blind-reduced: from the sharper copy). */
-  remedy: "read-again";
-  /** What it counts: places on images, or readings (each read again whole: all its images, a document). */
-  unit: "place" | "reading";
-  /** The phrases of the task where a reading again differs (core/phrases.ts): fix.reread, fix.model. */
-  phrases: "fix.reread" | "fix.model";
+  /**
+   * How it is set right: read again, as the earlier reading asked (blind-reduced: from the sharper copy); or rewritten
+   * by rules, free, at once, also in an archive, and undone the same way (participant-names: strom fixes undo).
+   */
+  remedy: "read-again" | "rewrite";
+  /** What it counts: places on images, readings (each read again whole: all its images, a document), or participants. */
+  unit: "place" | "reading" | "participant";
+  /** The phrases of the task where a reading again differs (core/phrases.ts): fix.reread, fix.model (read-again only). */
+  phrases?: "fix.reread" | "fix.model";
   detect(tree: Tree, env: FixEnv): FixFindings;
   /** Where its decision is kept in strom.json "fixes" (new-model: once for each agent and model): else its id. */
   decisionKey?(tree: Tree, env: FixEnv): string;
@@ -786,8 +793,37 @@ export const NEW_MODEL: FixCheck = {
   decisionKey: (tree, env) => `new-model:${readerKeyNow(tree, env) ?? UNKNOWN_KEY}`,
 };
 
+// ── the names of participants that hold what the record says beside them ─────────────────────────────────────────
+
+/**
+ * Until 1.22.0 strom took a participant's name as it was given (--with "godparent:Jan Novák, farmer of No. 12"): the
+ * name held the status, the place, the house. Since then the closing parentheses are the note and a name that holds more
+ * is refused. The names written before are set apart by rules (core/participants.ts), free, as the person decides.
+ */
+export const PARTICIPANT_NAMES: FixCheck = {
+  id: "participant-names",
+  since: "1.22.0",
+  paid: false,
+  remedy: "rewrite",
+  unit: "participant",
+  detect: (tree) => {
+    const f = participantNames(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.rewrites, unsplit: f.unsplit };
+  },
+};
+
 /** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL];
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES];
+
+/** The checks of this research: in an archive only those that rewrite by rules (nobody reads there). */
+export function checksHere(tree: Tree): readonly FixCheck[] {
+  return isArchive(tree) ? FIX_CHECKS.filter((c) => c.remedy === "rewrite") : FIX_CHECKS;
+}
+
+/** How many a check found to set right: what it would rewrite, or the places to read again. */
+export function foundCount(f: FixFindings): number {
+  return f.rewrites ? f.rewrites.length : f.items.length;
+}
 
 export function fixCheck(id: string): FixCheck | undefined {
   return FIX_CHECKS.find((c) => c.id === id);
@@ -807,16 +843,18 @@ export function decisionKeyOf(tree: Tree, check: FixCheck, env: FixEnv): string 
 
 /** The person's decision kept with the research (strom.json, logged and sealed); undefined takes it back. */
 export function decide(tree: Tree, id: string, decision: FixDecision["decision"] | undefined): void {
-  tree.updateConfig(
-    (c) => {
-      const all = { ...(c.fixes ?? {}) };
-      if (decision) all[id] = { decision, at: new Date().toISOString(), version: VERSION };
-      else delete all[id];
-      if (Object.keys(all).length) c.fixes = all;
-      else delete c.fixes;
-    },
-    { op: "fix.decide", summary: decision ? `fix ${id}: ${decision}` : `fix ${id}: asked again` },
-  );
+  tree.updateConfig(decisionChange(id, decision), { op: "fix.decide", summary: decision ? `fix ${id}: ${decision}` : `fix ${id}: asked again` });
+}
+
+/** The change of strom.json a decision makes (in an operation of its own, or in the one of the fix it goes with). */
+export function decisionChange(id: string, decision: FixDecision["decision"] | undefined): (c: TreeConfig) => void {
+  return (c) => {
+    const all = { ...(c.fixes ?? {}) };
+    if (decision) all[id] = { decision, at: new Date().toISOString(), version: VERSION };
+    else delete all[id];
+    if (Object.keys(all).length) c.fixes = all;
+    else delete c.fixes;
+  };
 }
 
 /**
@@ -824,18 +862,18 @@ export function decide(tree: Tree, id: string, decision: FixDecision["decision"]
  * still finds after (never read again — a few first, or a place strom took wrongly then) waits again, it alone.
  */
 /** (`keep` false: what waits not kept — a research nothing may be written to, its backup not made.) */
-export function fixStates(tree: Tree, env: FixEnv, o: { keep?: boolean } = {}): FixState[] {
+export function fixStates(tree: Tree, env: FixEnv, o: { keep?: boolean; checks?: readonly FixCheck[] } = {}): FixState[] {
   const before = fixesStamp(tree, env);
-  const states = FIX_CHECKS.map((check) => {
+  const states = (o.checks ?? checksHere(tree)).map((check) => {
     const found = check.detect(tree, env);
     const key = decisionKeyOf(tree, check, env);
     const decision = decisionOf(tree.config, key);
-    const state: FixStateName = decision?.decision === "declined" ? "declined" : found.items.length ? "pending" : decision ? "fixed" : "nothing";
+    const state: FixStateName = decision?.decision === "declined" ? "declined" : foundCount(found) ? "pending" : decision ? "fixed" : "nothing";
     return { check, key, found, ...(decision ? { decision } : {}), state };
   });
   // the images' orientation read on the way, and what waits: kept for the next look (nothing changed meanwhile)
   keepOrients();
-  if (o.keep !== false && fixesStamp(tree, env) === before) keepPending(tree, before, states);
+  if (o.keep !== false && !o.checks && fixesStamp(tree, env) === before) keepPending(tree, before, states);
   return states;
 }
 
@@ -1049,7 +1087,6 @@ function compareRead(a: Read, b: Read): Comparison {
 
 // ── what waits ──────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** The checks that wait for the person's decision here (none in an archive: nobody reads there). */
 /** A check that waits for the person's decision, in short: how many readings and places it found. */
 export interface PendingFix {
   check: FixCheck;
@@ -1058,7 +1095,7 @@ export interface PendingFix {
   items: number;
 }
 
-/** The number a check that waits is said with: its readings, or its places. */
+/** The number a check that waits is said with: its readings, or its places (its participants). */
 export function pendingCount(p: PendingFix): number {
   return p.check.unit === "reading" ? p.readings : p.items;
 }
@@ -1101,7 +1138,7 @@ function keepPending(tree: Tree, stamp: string, states: FixState[]): void {
   const stored: PendingStored = {
     v: PENDING_FORMAT,
     stamp,
-    pending: states.filter((s) => s.state === "pending").map((s) => ({ id: s.check.id, key: s.key, readings: s.found.readings, items: s.found.items.length })),
+    pending: states.filter((s) => s.state === "pending").map((s) => ({ id: s.check.id, key: s.key, readings: s.found.readings, items: foundCount(s.found) })),
   };
   try {
     writeFileAtomic(pendingFile(tree.root), JSON.stringify(stored));
@@ -1130,13 +1167,13 @@ function keptPending(tree: Tree, env: FixEnv): PendingFix[] | undefined {
  * background, refreshFixesSoon).
  */
 export function pendingFixes(tree: Tree, env: FixEnv, o: { kept?: boolean; keep?: boolean } = {}): PendingFix[] | undefined {
-  if (isArchive(tree)) return [];
-  const kept = keptPending(tree, env);
+  const here = new Set(checksHere(tree));
+  const kept = keptPending(tree, env)?.filter((p) => here.has(p.check));
   if (kept || o.kept) return kept;
   try {
     return fixStates(tree, env, o)
       .filter((s) => s.state === "pending")
-      .map((s) => ({ check: s.check, key: s.key, readings: s.found.readings, items: s.found.items.length }));
+      .map((s) => ({ check: s.check, key: s.key, readings: s.found.readings, items: foundCount(s.found) }));
   } catch {
     // a check that cannot look (a record it does not know): nothing said, nothing in the way
     return [];
@@ -1178,7 +1215,7 @@ export function fixesDoctorLine(tree: Tree, env: FixEnv, lang: string, keep = tr
   const s = pending[0]!;
   return {
     status: "warn",
-    text: ui(lang, s.check.unit === "reading" ? "ui.doc.fixes.pending.readings" : "ui.doc.fixes.pending", { name: ui(lang, `ui.fixes.${s.check.id}.name` as UIKey), count: pendingCount(s) }),
+    text: ui(lang, s.check.unit === "reading" ? "ui.doc.fixes.pending.readings" : s.check.unit === "participant" ? "ui.doc.fixes.pending.participants" : "ui.doc.fixes.pending", { name: ui(lang, `ui.fixes.${s.check.id}.name` as UIKey), count: pendingCount(s) }),
     fix: `strom fixes show ${s.check.id}`,
   };
 }

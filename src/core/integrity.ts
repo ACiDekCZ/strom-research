@@ -31,13 +31,17 @@ export interface Snapshot {
 
 /**
  * What strom alone writes in a tree, each change through a sealed operation: the records and their history (data/), the
- * tree's settings (strom.json) and the history at the places of the tree (history/: core/pastevents.ts).
+ * tree's settings (strom.json), the history at the places of the tree (history/: core/pastevents.ts) and the person's
+ * decisions on the tree's quality (quality/: core/surnames.ts).
  */
-export const SEALED_PATHS = ["data", "strom.json", "history"];
+export const SEALED_PATHS = ["data", "strom.json", "history", "quality"];
 
-/** A file of the history at the places of the tree (history/…): strom writes it whole, as a record. */
+/** The folders of files strom writes whole, as a record, outside data/: history/, quality/. */
+const WHOLE_DIRS = ["history", "quality"];
+
+/** A file strom writes whole, as a record, outside data/ (history/…, quality/…). */
 export function isHistoryPath(p: string): boolean {
-  return p.startsWith("history/");
+  return WHOLE_DIRS.some((d) => p.startsWith(`${d}/`));
 }
 
 export function snapshot(tree: Tree): Snapshot {
@@ -204,18 +208,18 @@ function checkRecordFile(tree: Tree, rel: string, expected: string | undefined, 
   }
 }
 
-/** A file of history/ not as strom sealed it. */
+/** A file of history/ or quality/ not as strom sealed it. */
 function historyFinding(rel: string, how: "edited" | "deleted" | "unsealed"): Finding {
   return {
     level: "error",
-    code: how === "unsealed" ? "unsealed" : how === "deleted" ? "manual-delete" : "history-edited",
+    code: how === "unsealed" ? "unsealed" : how === "deleted" ? "manual-delete" : rel.startsWith("quality/") ? "quality-edited" : "history-edited",
     file: rel,
     message: how === "unsealed" ? `${rel} was created outside strom` : how === "deleted" ? `${rel} was deleted outside strom` : `${rel} was changed outside strom`,
     hint: "strom repair",
   };
 }
 
-/** The files under history/ of a tree (tree-relative, "/"), a placeholder of iCloud and .DS_Store aside. */
+/** The files under history/ and quality/ of a tree (tree-relative, "/"), a placeholder of iCloud and .DS_Store aside. */
 function historyFiles(root: string): string[] {
   const out: string[] = [];
   const walk = (dir: string, rel: string) => {
@@ -231,7 +235,7 @@ function historyFiles(root: string): string[] {
       else if (e.isFile()) out.push(`${rel}${e.name}`);
     }
   };
-  walk(path.join(root, "history"), "history/");
+  for (const d of WHOLE_DIRS) walk(path.join(root, d), `${d}/`);
   return out;
 }
 

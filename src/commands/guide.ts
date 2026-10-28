@@ -153,6 +153,18 @@ One person recorded twice (an imported tree and the research) — parents
 recorded twice are merged first:
   strom family merge F0002 F0005 --reason "…"
   strom person merge P0001 P0007 --reason "…"
+Forms of one surname (Lhota, Lhotaa): strom surname suggest shows what the records suggest; which forms are
+one family's is the user's decision alone (the Strom app, or strom surname accept|reject|group in their
+terminal) — suggest them to the user, never write them. Searches and matching use the groups by themselves.
+Two people possibly one: strom person compare P0001 P0002 says same, different or unsure, and why (read only).
+A finding the user marked no error (strom quality list) is never reported again — a possible duplicate marked
+so is two people; marking or taking it back is the user's alone (the Strom app, or strom quality dismiss|undo
+in their terminal), never an agent's. strom check warns of an event dated after a death (after-death).
+A participant's name stands alone, what the record says of them in closing parentheses:
+--with "godparent:Jan Lhoták (sedlák, Lhota č. 12)"; a priest is always officiant. "is this P…?" after a
+write is a suggestion: link (godparent:P…) only when the record says so. Old names with notes run together
+(participant-long-name): strom fixes show participant-names; setting them apart (strom fixes run) or back
+(strom fixes undo participant-names) is the user's decision alone, in their terminal — never an agent's.
 Many facts from one record in one call — lines of commands, "#name" labels
 what a line creates, "@name" uses it later:
   strom batch 'person add "Anna /Svobodová/" --sex F #anna' 'family add --partner P0001 --partner @anna --married 1910 --cite S0001'

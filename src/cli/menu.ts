@@ -252,13 +252,12 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       // a fix of strom's left something behind here that waits for the person's decision: one line (the settings)
       // (as kept while nothing it is found by changed: else looked through in the background, said at the next look —
       // the menu never waits for it; found on Windows, a research on OneDrive: minutes before the menu showed)
-      const fix = archive
-        ? undefined
-        : timed("menu.fixes", () => {
-            const env = fixEnv(ctx, tree);
-            // (a backup not made: nothing written to the research, nothing looked through either)
-            return (pendingFixes(tree, env, { kept: true }) ?? (ctx.backupFailed ? undefined : refreshFixesSoon(tree, env, ctx.env)))?.[0];
-          });
+      // (an archive: only what is rewritten by rules — nobody reads there)
+      const fix = timed("menu.fixes", () => {
+        const env = fixEnv(ctx, tree);
+        // (a backup not made: nothing written to the research, nothing looked through either)
+        return (pendingFixes(tree, env, { kept: true }) ?? (ctx.backupFailed ? undefined : refreshFixesSoon(tree, env, ctx.env)))?.find((f) => !archive || f.check.remedy === "rewrite");
+      });
       // a fix of strom's said as one; another model reading now, as readings to read again
       if (fix) out(t(fix.check.id === "new-model" ? "ui.fixes.hint.readings" : "ui.fixes.hint", { name: t(`ui.fixes.${fix.check.id}.name` as UIKey), count: pendingCount(fix) }));
       // the scan views tuned before, but for another agent or model: offered again (the settings), never run unasked

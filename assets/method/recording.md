@@ -45,7 +45,10 @@ creates, `@name` uses it later; a found search comes after the source it found
   grandparents too ("daughter of Jan Novák, cottager in Týnec No. 7"), cited
   `--information secondary`. The next search identifies them by exactly these.
 - Everyone the entry names in a role goes in `--with`: godparent, witness,
-  midwife, officiant, informant, other.
+  midwife, officiant, informant, other — the name alone, what the entry says of
+  them in closing parentheses: `--with "godparent:Jan Lhoták (sedlák, Lhota
+  č. 12)"`. A priest is the officiant. "is this P…?" is linked only when the
+  record says so.
 - A child the record does not name (stillborn, died unbaptised) has no given
   name — never a description in its place: `person add "/Novák/" --sex M`, then
   `event add P… DEAT --date … --age stillborn` (or a `--note`).

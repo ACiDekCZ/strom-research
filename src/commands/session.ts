@@ -61,6 +61,8 @@ import { agentBrowser, sessionBrowser, treeBrowserConnectors } from "../core/con
 import { browserNote } from "./connectors.ts";
 import { reviewProposals } from "../core/review.ts";
 import { refuseInArchive } from "../core/state.ts";
+import { isArchive } from "../core/mode.ts";
+import { afterDeathProposals, settleAfterDeath } from "../core/afterdeath.ts";
 import { usageOpt, webOpt } from "../core/metrics.ts";
 import { calibrationKey, viewModel } from "../core/viewsizes.ts";
 
@@ -95,9 +97,13 @@ function offMap(tree: Tree): string | undefined {
 
 type Proposal = Omit<Task, "id" | "type" | "created" | "updated" | "notes" | "state">;
 
-/** The tasks strom would propose for a research now: its frontier, the review of a person, the stories due (unless the user said no). */
+/**
+ * The tasks strom would propose for a research now: its frontier, the review of a person, the stories due (unless the
+ * user said no), a person of it named alive after their death (never in an archive).
+ */
 export function researchProposals(tree: Tree, research: Research): { proposal: Proposal; kind: string }[] {
   const out: { proposal: Proposal; kind: string }[] = [];
+  if (!isArchive(tree)) for (const proposal of afterDeathProposals(tree, research)) out.push({ proposal, kind: "after-death" });
   for (const item of frontier(tree, research)) if (item.proposal) out.push({ proposal: { ...item.proposal, origin: "frontier" }, kind: "frontier" });
   for (const proposal of reviewProposals(tree, research)) out.push({ proposal, kind: "review" });
   if (new Settings(tree.env, {}).stories(tree.config).on) for (const proposal of storyProposals(tree, research)) out.push({ proposal: { ...proposal, origin: proposal.origin ?? "frontier" }, kind: "story" });
@@ -108,6 +114,8 @@ export function researchProposals(tree: Tree, research: Research): { proposal: P
 export function applyFrontier(tree: Tree, research: Research): string[] {
   // a direction paused or ended proposes nothing (resumed: what it would, at once)
   if (research.state !== "active") return [];
+  // what the person marked no error since, or a date corrected: its task waiting is done first
+  settleAfterDeath(tree);
   return researchProposals(tree, research).map(({ proposal, kind }) => create<Task>(tree, "task", { ...proposal, state: "open" }, (id) => `+${id} task "${truncate(proposal.what, 60)}" (${kind})`).id);
 }
 

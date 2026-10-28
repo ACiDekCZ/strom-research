@@ -85,6 +85,14 @@ function newReads(c: Change, incoming: Snapshot): boolean {
 
 /** One change as the user reads it, with what strom does with it. */
 function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, readings?: Plan["readings"]): string {
+  // a group of a surname's forms or a rejection the user decided in the app (core/surnames.ts)
+  if (c.surname) {
+    const sc = c.surname;
+    const values = { n: c.n, forms: truncate(c.text ?? "", 160), was: truncate((sc.was ?? []).join(" | "), 160), line: truncate(sc.forms[0] ?? "", 120), why: sc.why ? ui(lang, `ui.sync.surname.why.${sc.why}` as UIKey) : "" };
+    const key = sc.how === "warning" ? "ui.sync.surname.warning" : `ui.sync.${c.kind}${sc.how === "add" ? "" : `.${sc.how}`}`;
+    const does = sc.how === "warning" ? "ui.sync.do.surname.report" : sc.how === "kept" ? "ui.sync.do.surname.kept" : "ui.sync.do.surname";
+    return `${ui(lang, key as UIKey, values)} → ${ui(lang, does as UIKey)}`;
+  }
   const name = (key: string | undefined) => {
     if (!key) return "?";
     if (key.startsWith("x:")) return (incoming.persons.get(key)?.names[0] ?? key).replace(/\//g, "").replace(/\s+/g, " ").trim();

@@ -120,6 +120,21 @@
 //                          (how often: sometimes|rare|idle — read only: the person's own choice, in the terminal, the
 //                          setup or the settings; a body with it is refused 400 experiments.body), history.rev; the event
 //                          history {rev} when what GET /history answers changed without a new commit
+//   GET <token>/surnames   the forms of a surname that are one family's (core/surnames.ts): {rev, groups, rejected,
+//                          suggestions, state {truncated, persons, skipped}} — what the research suggests from its
+//                          records and what the person decided (quality/surnames.json); read in an archive too, and in
+//                          a research waiting for its agent; 503 research.busy (+ Retry-After) while the research is
+//                          being written (features surnames.suggest, surnames.read). The person's groups and rejections
+//                          come back by strom sync (the Strom file's header notes), never written here
+//   POST <token>/duplicates  two people the app shows as a possible duplicate, judged by the research (core/duplicates.ts):
+//                          {"pairs": [["P…", "P…"], …]} (at most 1000) → {rev, verdicts: [{pair, verdict?, reason,
+//                          years?, into?, at?, by?}]} — read only, nothing written; 400 duplicates.body, 503 research.busy
+//                          (+ Retry-After) while the research is being written (feature duplicates.judge)
+//   POST <token>/quality/dismiss  a finding of the app's validation marked no error by the person ({kind, persons,
+//                          subject?}, "do": "undo" to take it back): strom quality dismiss|undo, by "app" → {ok, rev};
+//                          400 quality.body, 404 person.no-match {person}, 503 research.busy (feature quality.dismiss)
+//   GET <token>/quality    what the person marked no error (quality/dismissed.json): {rev, dismissed}; read in an archive
+//                          too (feature quality.read). /status: quality.rev; the event quality {rev} when the file changed
 //
 // Only pages of the Strom app may read it (CORS: https://stromapp.info, its beta, and a
 // local copy on localhost for its development), and a browser asks first
@@ -150,6 +165,7 @@
 import { opsLogsOf } from "./opslog.ts";
 import { notDownloaded } from "./integrity.ts";
 import fs from "node:fs";
+import os from "node:os";
 import http from "node:http";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -170,7 +186,7 @@ import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "./hypolinks.ts"
 import { PROFILES } from "../agents/profiles.ts";
 import { ui } from "../cli/ui.ts";
 import { DISK_FULL, EXIT, isDiskFull, StromError } from "./errors.ts";
-import { acquireLock } from "./lock.ts";
+import { acquireLock, liveHolder } from "./lock.ts";
 import { checkAsked, material, MATERIAL_MOST_FILES, MATERIAL_MOST_PEOPLE, peopleOf } from "./material.ts";
 import { cachedThumb, THUMB_SIZES } from "./thumbs.ts";
 import { checkOriginalMeta, cleanIncoming, freeBytes, knownOriginal, materialWaiting, originalMax, ORIGINAL_RESERVE, ORIGINAL_TYPES, parseRegion } from "./originals.ts";
@@ -192,7 +208,10 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appReadsSurnameGroups, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { suggestSurnames, surnamesForExport } from "./surnames.ts";
+import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
+import { askOf, qualityRev, readDismissed } from "./quality.ts";
 import { Settings } from "./config.ts";
 import { LINK_SCHEME, linkActions, linkHandlerState, linkHandlerStateLater, linkScheme, linkText, type HandlerState } from "./links.ts";
 import { autoTidy } from "./tidy.ts";
@@ -254,7 +273,7 @@ function placeOk(v: unknown): v is string {
   return typeof v === "string" && !!v.trim() && v.length <= 300 && !/[\u0000-\u001f\u007f]/u.test(v);
 }
 
-const APP_WRITES = new Set(["sync", "adopt", "media", "batch", "waiting", "group", "material", "read", "history", "experiments"]);
+const APP_WRITES = new Set(["sync", "adopt", "media", "batch", "waiting", "group", "material", "read", "history", "experiments", "quality"]);
 /** A file refused (its error's code): what the bridge says of it. */
 const REFUSED: Record<string, keyof typeof CODES> = {
   "tree.other-research": "ui.sync.bridge.other",
@@ -912,7 +931,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "duplicates.judge", "quality.dismiss", "quality.read"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1421,6 +1440,8 @@ function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): 
     // the history of the places in the stories (stories.history): on while the history is on, unless turned off
     stories: { history: settings.storyHistory(tree.config) },
     ...historyOfStatus(tree, settings, last.head, archive),
+    // the fingerprint of what GET /quality answers (the person's "not an error")
+    quality: { rev: qualityRev(tree, last.head) },
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
     ...(archive ? { queue: [], queueMore: 0 } : queue(tree, next, all)),
     ...(newer ? { update: { version: newer } } : {}),
@@ -1677,6 +1698,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const readings = appShowsReadings(new Settings(env, {}), version);
       // …and why a source has no image though the research has one, for an app that says so and asks for it
       const omitted = !!images && appShowsOmittedImages(new Settings(env, {}), version);
+      // …and the groups of surname forms and the suggestions rejected, for an app that reads them (strom sync takes them back)
+      const surnameGroups = appReadsSurnameGroups(new Settings(env, {}), version) ? surnamesForExport(tree) : undefined;
       left = {
         head: h,
         level: set?.quality ?? LEVELS[1]!.name,
@@ -1687,7 +1710,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         head: h,
         links: offered.join(" "),
         version: version ?? "",
-        text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
+        text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
       };
     }
     return h;
@@ -1937,6 +1960,14 @@ export function serveLive(root: string, env: Env): Promise<void> {
       writeFor(req, res, origin, storiesWrite());
       return;
     }
+    if (req.method === "POST" && t === token && what === "quality" && sub === "dismiss" && !act) {
+      writeFor(req, res, origin, qualityDismiss());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "duplicates" && !sub) {
+      duplicates(req, res);
+      return;
+    }
     if (req.method === "POST" && t === token && what === "experiments" && !sub) {
       writeFor(req, res, origin, experimentsWrite());
       return;
@@ -2021,6 +2052,16 @@ export function serveLive(root: string, env: Env): Promise<void> {
         const got = historyAnswer(tree, settings.shared()?.value, settings, historyLimits(env));
         historyRevNow(tree, settings, head(root), got.state.rev);
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify(got));
+      } else if (what === "surnames" && !sub) {
+        // the forms of a surname: suggested from the records, decided by the person — never while the research is written
+        const json = (code: number, body: unknown, retry?: number) => res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) }).end(JSON.stringify(body));
+        const holder = liveHolder(path.join(root, ".strom", "tree.lock"));
+        if (writing || adopting || personWriting || (holder && !(holder.pid === process.pid && holder.host === os.hostname()))) json(503, { ...refusal("the research is being written: ask again in a while", "research.busy"), retry: 5 }, 5);
+        else json(200, suggestSurnames(Tree.open(root, env)));
+      } else if (what === "quality" && !sub) {
+        // what the person marked no error: read in an archive too
+        const tree = Tree.open(root, env);
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ rev: qualityRev(tree), dismissed: readDismissed(tree).dismissed }));
       } else if (what === "group" && act === "note") {
         // the request texts of one place, for one e-mail: read only
         const got = groupNote(decoded(sub));
@@ -2788,6 +2829,71 @@ export function serveLive(root: string, env: Env): Promise<void> {
   };
 
   /**
+   * A finding of the app's validation marked no error by the person, or taken back (POST /quality/dismiss {kind, persons,
+   * subject?, do?: "undo"}): strom quality dismiss|undo, written by "app". Answered {ok, rev}. Refused: 400 quality.body,
+   * 404 person.no-match {person}, 503 research.busy (+ Retry-After).
+   */
+  const qualityDismiss = (): AppWrite => {
+    const bad = (why: string) => ({ code: 400, body: refusal(why, "quality.body") });
+    return {
+      what: "a finding marked no error",
+      codes: { badBody: "quality.body", busy: "research.busy", failed: "quality.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        if (Object.keys(body).some((k) => !["kind", "persons", "subject", "do"].includes(k))) return bad(`the body: {"kind", "persons": ["P…"], "subject"?, "do"?: "undo"}`);
+        if (body.do !== undefined && body.do !== "undo" && body.do !== "dismiss") return bad(`"do": "undo" takes a mark back`);
+        let ask;
+        try {
+          ask = askOf(tree, body.kind, body.persons, body.subject);
+        } catch (e) {
+          const err = e as { code?: string; params?: Record<string, string>; message: string };
+          if (err.code === "person.no-match") return { code: 404, body: refusal(err.message, err.code, err.params ?? {}) };
+          return bad(err.message);
+        }
+        return { args: ["quality", body.do === "undo" ? "undo" : "dismiss", ...(ask.subject ? [`--subject=${ask.subject}`] : []), "--", ask.kind, ...ask.persons] };
+      },
+      done(tree) {
+        return { ok: true, rev: qualityRev(tree) };
+      },
+      refused(_tree, code, why) {
+        if (code === "quality.body") return bad(why);
+        const person = /P\d{1,9}/u.exec(why)?.[0];
+        if (code === "person.no-match") return { code: 404, body: refusal(why, code, person ? { person } : {}) };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * Pairs the app shows as possible duplicates, judged (POST /duplicates {pairs}): read only — the Strom app's or not.
+   * Answered {rev, verdicts}. Refused: 400 duplicates.body, 503 research.busy (+ Retry-After) while it is being written.
+   */
+  const duplicates = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    const json = (code: number, body: unknown, retry?: number) => {
+      if (!res.headersSent) res.writeHead(code, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...(retry ? { "Retry-After": String(retry) } : {}) }).end(JSON.stringify(body));
+    };
+    const max = 128 * 1024;
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on("data", (c: Buffer) => {
+      size += c.length;
+      if (size <= max) chunks.push(c);
+    });
+    req.on("end", () =>
+      safely(req, res, () => {
+        const text = Buffer.concat(chunks).toString("utf8");
+        // a JSON object {"pairs": …} only (the terminal's lines of two IDs are strom person compare's)
+        const pairs = size > max || !text.trim().startsWith("{") ? undefined : pairsOf(text);
+        if (!pairs) return json(400, refusal(`the body: {"pairs": [["P…", "P…"], …]}, at most ${PAIRS_MAX} pairs`, "duplicates.body"));
+        const holder = liveHolder(path.join(root, ".strom", "tree.lock"));
+        if (writing || adopting || personWriting || (holder && !(holder.pid === process.pid && holder.host === os.hostname()))) return json(503, { ...refusal("the research is being written: ask again in a while", "research.busy"), retry: 5 }, 5);
+        const tree = Tree.open(root, env);
+        json(200, { rev: qualityRev(tree), verdicts: judgePairs(tree, pairs) });
+      }),
+    );
+  };
+
+  /**
    * No history of a region or at a place in this research, or looked for again (POST /history/skip {region} | {place},
    * "do": "undo"): strom history skip|unskip, the person's. Answered with the skips now ({skip: {regions: [id…], places:
    * [place…]}}). Refused: 400 history.body, 404 history.region (no place of the tree in it) | history.place (no fact
@@ -3520,6 +3626,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
       // what GET /history answers, looked at again at most once a minute while the app follows (its rev and the head)
       let historyChecked = 0;
       let historySeen: { rev: string; head: string } | undefined;
+      // what GET /quality answered when the bridge began: a mark of the person while nobody followed is told at once
+      let qualitySeen: string | undefined = qualityRev({ root }, "0000000");
       const HISTORY_MS = Number(env.STROM_LIVE_HISTORY_MS ?? 60_000);
       // the first a few minutes after it starts, then once a day
       let tidied = Date.now() - Number(env.STROM_TIDY_MS ?? 24 * 3600_000) + 5 * 60_000;
@@ -3584,6 +3692,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
             const rev = historyShown(tree, settings) ? historyRevNow(tree, settings, h, historyRev(tree, settings.shared()?.value, settings)) : undefined;
             if (rev && historySeen && historySeen.head === h && historySeen.rev !== rev) send("history", { rev });
             historySeen = rev ? { rev, head: h } : undefined;
+          }
+          // what GET /quality answers changed (the person marked a finding no error, or took it back): the event quality {rev}
+          // (never while the research is being written: the file before its commit would be told with the head before it)
+          if (!liveHolder(path.join(root, ".strom", "tree.lock"))) {
+            const q = qualityRev({ root }, h || "0000000");
+            if (qualitySeen !== undefined && q.slice(8) !== qualitySeen.slice(8)) send("quality", { rev: q });
+            qualitySeen = q;
           }
           const now = atWork(h);
           const w = JSON.stringify(now);

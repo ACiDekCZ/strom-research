@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.22.0
 
-*Připravuje se: bety do 1.22.0-beta.8. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.22.0-beta.9. Oddíl bude úplný s vydáním.*
 
 - **Jméno jednou v tom, co čeká.** Úkol k materiálu poslanému z aplikace Strom jmenoval ve widgetu a na stránce
   telefonu každého člověka dvakrát (podruhé v hranatých závorkách) a jeho text bez jmen nechal prázdné závorky; menu,
@@ -23,11 +23,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   okamžitý, doctor ukazuje průběh a řekne, když výzkum leží v cloudu nebo na síťovém disku; `strom doctor --timing`
   ukáže, co trvalo dlouho. Na dlouhém výzkumu (stovky lidí, desítky tisíc skenů) ukáže menu hned, co čeká: počet se
   drží vedle výzkumu, dokud se nezmění nic, z čeho vychází, a pak se spočítá znovu za zlomek sekundy.
-- **Archiv, který neodpovídá, zastaví smyčku agenta.** `strom fetch` řekne, kdy to zkusit znovu a co dělat mezitím;
-  stejný dotaz ve stejném sezení skončí hned (exit 8) a nic neodešle. Úkol, jehož archiv má pauzu, počká mimo frontu
-  (plán ho ukáže odložený do té doby) a `strom run --loop` do té doby počká, místo aby pouštěl sezení bez práce.
-- **Čtenáři nečekají na umlklou službu.** Čtenář, jehož agent po opakovaném pokusu služby zmlkne, se jednou obnoví
-  tam, kde skončil; když mlčí dál, hned skončí. Takový výpadek už nezmenšuje dávky čtení.
+- **Archiv, který neodpovídá, zastaví smyčku agenta; čtenáři nečekají na umlklou službu.** `strom fetch` řekne, kdy to
+  zkusit znovu a co dělat mezitím; stejný dotaz ve stejném sezení skončí hned (exit 8) a nic neodešle. Úkol, jehož
+  archiv má pauzu, počká mimo frontu (plán ho ukáže odložený do té doby) a `strom run --loop` do té doby počká, místo
+  aby pouštěl sezení bez práce. Čtenář, jehož agent po opakovaném pokusu služby zmlkne, se jednou obnoví tam, kde
+  skončil; když mlčí dál, hned skončí. Takový výpadek už nezmenšuje dávky čtení.
 - **Brána týdne předplatného pustí víc sezení za sebou.** Když jednou čeká na náskok, pustí znovu až se dvěma body navíc
   (při 15: 17), místo jednoho sezení po každém čekání.
 - **Co předek zažil.** Události v místech stromu – dějiny kraje ze stránek, které strom sám stáhl a ověřil, místní
@@ -58,6 +58,21 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   nikdy jako to, co dělal (u páru jen z let, kdy žili oba); nic skrytého ani smazaného. Schválené vyprávění zůstane, jak je – dějiny přijdou až s jeho
   další verzí, která čeká na schválení. Vypnout se dá v nastavení nebo v aplikaci Strom
   (`strom config set stories.history no`).
+- **Tvary jednoho příjmení.** `strom surname suggest` navrhne, které zapsané tvary příjmení patří jedné rodině: táž
+  osoba zapsaná v záznamech různě (s citacemi), nebo táž hláska zapsaná jinak na stejném místě ve stejných letech –
+  nikdy rodina manžela a otce téže ženy. O nich rozhoduje jen člověk, v terminálu
+  (`strom surname accept|reject|group`); agent jen navrhuje. Tvary jedné rodiny rozšíří hledání záznamů i lidí, kteří
+  mohou být jedna osoba. `strom person compare` řekne o dvou lidech, zda jsou jedna osoba, dvě, nebo nejisté, a proč
+  (už sloučení, jiné pohlaví, roky daleko od sebe, život skončený dřív, než druhý začal, jiní rodiče, jeden zápis pro
+  oba…). Nález označený jako není chyba tak zůstane: `strom quality dismiss|undo|list`, jen rozhodnutí člověka – dva
+  lidé takto označení se už nikdy nenavrhnou jako jedna osoba. `strom check` upozorní na událost nebo sňatek datovaný
+  jistě po smrti (přibližné datum nikdy) a plán výzkumu založí úkol to prověřit, sám hotový, jakmile se datum opraví
+  nebo se nález označí jako není chyba. Účastník události (kmotr, svědek) je jméno a co o něm záznam říká, patří do
+  závorky na konci jako poznámka: `--with "godparent:Jan Lhoták (sedlák, Lhota č. 12)"`; jméno delší než čtyři slova
+  nebo s číslem se odmítne s tím, co dát do závorky, kněz zapsaný jako svědek se má zapsat jako oddávající nebo křtící
+  (`officiant`) a účastník, který může být někdo z rodiny okolo zápisu, se navrhne svým číslem, nikdy se nenapojí sám.
+  Takto zapsaná dřívější jména najde `strom check` a rozdělí `strom fixes show|run participant-names` – zdarma, podle
+  pravidel, i v archivu, vše jedním krokem, vrátí `strom fixes undo participant-names`; rozhoduje jen člověk.
 
 ## 1.21.0
 

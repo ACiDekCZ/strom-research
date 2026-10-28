@@ -420,6 +420,37 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       say(m ? phrase(lang, "log.setting", { key: m[1]! }) : "");
       continue;
     }
+    // the forms of a surname the person made one family (quality/surnames.json): the forms, never the English summary
+    if (o.op.startsWith("surname.")) {
+      const kind = o.op.slice("surname.".length);
+      const forms = /^[^:]*: (.*?)(?: \([^()]*\))?$/su.exec(o.summary)?.[1] ?? "";
+      const k = `log.surname.${kind}` as PhraseKey;
+      say(kind === "undo" ? phrase(lang, "log.surname.undo") : kind in { group: 1, ungroup: 1, reject: 1, unreject: 1 } ? phrase(lang, k, { forms: short(forms, 120) }) : changed(o));
+      continue;
+    }
+    // the names of participants set apart from their notes by strom's fix, or put back (quality/participant-names.json)
+    if (o.op === "participant.fix" || o.op === "participant.unfix") {
+      const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
+      say(phrase(lang, o.op === "participant.fix" ? "log.participant.fix" : "log.participant.unfix", { n }));
+      continue;
+    }
+    // a finding the person marked no error (quality/dismissed.json): its people by name, never the English summary
+    if (o.op === "quality.dismiss" || o.op === "quality.undo") {
+      const m = /^[^:]*: (\S+) ((?:P\d+ ?)+?)(?: \((.*)\))?$/su.exec(o.summary);
+      if (!m) {
+        say(changed(o));
+        continue;
+      }
+      const persons = m[2]!.trim().split(" ").map((id) => name(id)).join(", ");
+      const what =
+        m[1] === "possibleDuplicate"
+          ? phrase(lang, "log.quality.two", { persons })
+          : (m[1] === "eventAfterDeath" || m[1] === "weddingAfterDeath") && m[3]
+            ? phrase(lang, "log.quality.afterdeath", { persons, subject: short(m[3], 60) })
+            : `${persons}${m[3] ? ` (${short(m[3], 60)})` : ""}`;
+      say(o.op === "quality.undo" ? phrase(lang, "log.quality.undo", { what }) : m[1] === "possibleDuplicate" ? what : phrase(lang, "log.quality.dismiss", { what }));
+      continue;
+    }
     // what the Strom app sent: said so, never "material from the family" with the file's name (found on Mac)
     if (o.op === "input.add" || o.op === "input.sync" || o.op === "input.sync.undo") {
       const i = get<Input & { sync?: unknown }>(first);

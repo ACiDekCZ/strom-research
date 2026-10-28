@@ -1,0 +1,39 @@
+{
+  "about": "Words that tell a participant's name (godparent, witness, priest) from what a record says beside it. Compared folded (no accents, lower case). Words of describing and house written with a capital letter count only in the languages listed in nounsCapitalized: elsewhere a capitalized word may be a surname.",
+  "clergy": {
+    "cs": ["farář", "kaplan", "děkan", "kněz", "p.", "páter", "administrátor", "vikář", "kooperátor", "arciděkan"],
+    "de": ["pfarrer", "kaplan", "dechant", "pater", "kooperator", "vikar", "pfarradministrator", "kurat"],
+    "la": ["parochus", "cooperator", "presbyter", "sacerdos", "capellanus", "administrator", "vicarius", "decanus", "curatus", "rev.", "r.d.", "adm."],
+    "pl": ["proboszcz", "wikary", "ksiądz", "ks.", "wikariusz", "kapelan", "dziekan"]
+  },
+  "nounsCapitalized": ["de"],
+  "describing": {
+    "cs": [
+      "sedlák", "sedláka", "sedlačka", "chalupník", "chalupníka", "chalupnice", "domkář", "domkáře", "domkářka", "podruh", "podruha", "podruhyně",
+      "čeledín", "děvečka", "nádeník", "nádeníka", "výměnkář", "výminkář", "gruntovník", "rolník", "rolníka", "mlynář", "mlynáře", "kovář", "kováře",
+      "krejčí", "švec", "ševce", "tkadlec", "tkalce", "truhlář", "tesař", "zedník", "řezník", "pekař", "hostinský", "kupec", "obchodník", "učitel", "učitele",
+      "rychtář", "rychtáře", "starosta", "purkmistr", "mistr", "tovaryš", "měšťan", "měšťana", "soused", "souseda", "poddaný", "hajný", "myslivec", "ovčák",
+      "pastýř", "kočí", "služka", "sluha", "šafář", "kantor", "zahradník", "dělník", "horník", "obyvatel", "obyvatelka", "majitel", "majitelka", "vdova",
+      "vdovec", "manželka", "manžel", "manžela", "choť", "syn", "dcera", "dcery", "bratr", "sestra", "strýc", "teta", "otec", "matka", "děd", "bába",
+      "vnuk", "vnučka", "švagr", "švagrová", "zeť", "snacha", "svobodná", "svobodný", "panna", "mládenec", "obec", "ves", "farnost", "panství",
+      "zápis", "zápisu", "číslo", "čís.", "obč.", "rol.", "chal.", "dom.", "podr.", "manž.", "svob."
+    ],
+    "de": [
+      "bäuerin", "häusler", "kleinhäusler", "inwohner", "inwohnerin", "inleute", "magd", "witwe", "witwer", "ehefrau", "ehemann", "ehewirtin", "gattin",
+      "tochter", "taglöhner", "tagelöhner", "ausnehmer", "auszügler", "halbbauer", "viertelbauer", "besitzer", "besitzerin", "bürger", "insasse",
+      "gemeinde", "pfarrei", "dorf", "eintrag", "ledig", "ledige", "lediger", "jungfrau", "junggeselle", "hausbesitzer", "grundbesitzer"
+    ],
+    "la": [
+      "colonus", "coloni", "inquilinus", "inquilina", "subditus", "subdita", "filius", "filia", "vidua", "viduus", "uxor", "coniux", "conjux", "faber",
+      "sutor", "sartor", "molitor", "textor", "incola", "civis", "rusticus", "hortulanus", "famulus", "ancilla", "virgo", "juvenis", "honestus",
+      "honesta", "laboriosus", "laboriosa", "pudica", "agricola", "domo", "pagus", "pago"
+    ],
+    "pl": [
+      "gospodarz", "gospodyni", "chałupnik", "komornik", "wyrobnik", "parobek", "służąca", "młynarz", "kowal", "krawiec", "szewc", "karczmarz",
+      "wdowa", "wdowiec", "żona", "mąż", "córka", "siostra", "panna", "kawaler", "mieszczanin", "zagrodnik", "kmieć", "włościanin", "rolnik", "wieś",
+      "parafia", "wpis"
+    ]
+  },
+  "house": ["č.", "čp.", "č.p.", "č.d.", "čís.", "nr.", "no.", "nro.", "num.", "hnr.", "hausnr.", "dom", "domu", "n."],
+  "place": ["z", "ze", "v", "ve", "na", "u", "aus", "in", "zu", "bei", "ex", "w", "we", "of", "from", "de"]
+}

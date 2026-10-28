@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.22.0
 
-*In preparation: the betas up to 1.22.0-beta.8. The section is complete with the release.*
+*In preparation: the betas up to 1.22.0-beta.9. The section is complete with the release.*
 
 - **Each name once in what waits.** A task for material sent from the Strom app named each person twice in the
   widget and on the phone's page (the second time in brackets), and its text without names kept empty brackets; the
@@ -24,13 +24,12 @@ The changes of each version in short. The full notes and the install lines are o
   network drive; `strom doctor --timing` tells what took long. On a long research (hundreds of people, tens of
   thousands of scans) the menu shows what waits at once: its count is kept beside the research until something it
   stands on changes, and counted again in a fraction of a second.
-- **An archive that stops answering stops the agent's loop.** `strom fetch` says when to try again and what to do
-  meanwhile; asked again in the same session it ends at once (exit 8) and sends nothing. A task whose archive is left
-  alone waits out of the queue until then (the plan shows it put off until that time), and `strom run --loop` waits
-  for that time instead of starting sessions with nothing to do.
-- **Readers no longer wait out a silent service.** A reader whose agent goes silent after a retry of its service is
-  resumed once where it stopped; still silent, it ends at once. Such a failure no longer makes the reading batches
-  smaller.
+- **An archive that stops answering stops the agent's loop; readers no longer wait out a silent service.** `strom
+  fetch` says when to try again and what to do meanwhile; asked again in the same session it ends at once (exit 8) and
+  sends nothing. A task whose archive is left alone waits out of the queue until then (the plan shows it put off until
+  that time), and `strom run --loop` waits for that time instead of starting sessions with nothing to do. A reader
+  whose agent goes silent after a retry of its service is resumed once where it stopped; still silent, it ends at
+  once. Such a failure no longer makes the reading batches smaller.
 - **The gate of the subscription's week lets several sessions run in a row.** Once it waits for points in hand, it goes again only
   with two more (at 15: 17), instead of one session after every wait.
 - **What the ancestors lived through.** The events at the places of the tree — the history of a region from pages
@@ -67,6 +66,22 @@ The changes of each version in short. The full notes and the install lines are o
   deleted. An approved story stays as it is —
   the history comes only with its next version, waiting for approval. Off in the settings or in the Strom app
   (`strom config set stories.history no`).
+- **The forms of one surname.** `strom surname suggest` suggests which written forms of a surname are one family's: one
+  person written so in the records (with the citations), or one sound spelled otherwise at one place in the same years
+  — never the families of a woman's husband and her father. Only a person decides, in the terminal
+  (`strom surname accept|reject|group`); an agent only suggests. The forms of one family widen the search of records
+  and of people who may be one. `strom person compare` says of two people whether they are one, two or unsure, and why
+  (merged already, a different sex, years far apart, a life that ended before the other began, other parents, one
+  entry for both…). A finding marked no error stays so: `strom quality dismiss|undo|list`, the person's alone — two
+  people marked so are never suggested as one again. `strom check` warns of an event or a marriage dated certainly
+  after a person's death (an approximate date never), and the plan of a research raises a task to look into it, done
+  by itself once the date is corrected or the finding marked no error. A participant of an event (a godparent, a
+  witness) is a name, and what the record says of them goes in closing parentheses as the note:
+  `--with "godparent:Jan Lhoták (sedlák, Lhota č. 12)"`; a name of more than four words or with a number is refused
+  with what to put in the parentheses, a priest named as a witness is told to be the officiant, and a participant
+  who may be one of the family around the entry is suggested by their number, never linked by itself. Names written
+  so before are found by `strom check` and set apart by `strom fixes show|run participant-names` — free, by rules,
+  in an archive too, all in one step, put back with `strom fixes undo participant-names`; only a person decides.
 
 ## 1.21.0
 
