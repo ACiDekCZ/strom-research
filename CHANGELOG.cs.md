@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.22.0
 
-*Připravuje se: bety do 1.22.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.22.0-beta.5. Oddíl bude úplný s vydáním.*
 
 - **Jméno jednou v tom, co čeká.** Úkol k materiálu poslanému z aplikace Strom jmenoval ve widgetu a na stránce
   telefonu každého člověka dvakrát (podruhé v hranatých závorkách) a jeho text bez jmen nechal prázdné závorky; menu,
@@ -26,9 +26,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   tam, kde skončil; když mlčí dál, hned skončí. Takový výpadek už nezmenšuje dávky čtení.
 - **Brána týdne předplatného pustí víc sezení za sebou.** Když jednou čeká na náskok, pustí znovu až se dvěma body navíc
   (při 15: 17), místo jednoho sezení po každém čekání.
-- **Experiment: co předek zažil.** Pokusné a ve výchozím stavu vypnuté: události v místech stromu – dějiny kraje ze
-  stránek, které strom sám stáhl a ověřil, místní události z přečtených záznamů – ukáže aplikace Strom. Zapnout ho
-  může jen člověk; dokud je vypnuté, nic se nehledá.
+- **Co předek zažil.** Události v místech stromu – dějiny kraje ze stránek, které strom sám stáhl a ověřil, místní
+  události z přečtených záznamů – ukáže aplikace Strom; úvodní nastavení ho nabízí zapnuté, instalace nastavená dřív
+  zůstává, jak je, samo se nic nezapne. Zapnout ho může jen člověk; dokud je vypnuté, nic se nehledá. Po zapnutí se místa zmapují hned v dalším sezení a regiony se
+  prohledávají průběžně mezi sezeními rodinného výzkumu: zhruba každé 5. sezení (výchozí), každé 10., nebo jen když
+  není co jiného (`strom config set experiments.historyPace`, úvodní nastavení, Nastavení); kdy, řekne `strom plan`.
+  Nejdřív regiony s nejvíc osobami, země před státem nad ní.
 
 ## 1.21.0
 

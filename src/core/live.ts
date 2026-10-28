@@ -76,10 +76,17 @@
 //   POST <token>/history/hide   an event hidden at a place or a person ({event, place} | {event, person}, "do": "show"
 //                          shows it again): strom history hide|show, the person's; {hidden, head, parent} — refused 400
 //                          history.body, 404 history.event|history.person, 503 research.busy (+ Retry-After); an archive's too
+//   POST <token>/history/first  {region}: that region's history first of the regions (the app's person card: its places'
+//                          region with no catalog yet) — strom history first, the person's; still at history's next turn
+//                          (the pace). {region, task?, first: [{region, at}]}; refused only while the history is on: 409
+//                          history.off (+ link: turning it on is the person's, in the terminal), 409 history.archive |
+//                          history.done, 404 history.region (no place of the tree in it yet), 400 history.body, 503 research.busy
 //   POST <token>/experiments   {"history": false}: the experiment off for this research (its strom.json; the person's
 //                          own config stays) — {experiments, head, parent}; {"history": true} is refused (403
 //                          experiments.link with the link strom-research://experiment…&do=on: only a person turns it on,
-//                          in the terminal the link opens). /status: experiments.history, history.rev; the event
+//                          in the terminal the link opens). /status: experiments.history, experiments.historyPace
+//                          (how often: sometimes|rare|idle — read only: the person's own choice, in the terminal, the
+//                          setup or the settings; a body with it is refused 400 experiments.body), history.rev; the event
 //                          history {rev} when what GET /history answers changed without a new commit
 //
 // Only pages of the Strom app may read it (CORS: https://stromapp.info, its beta, and a
@@ -863,7 +870,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "history.events", "history.hide"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "history.events", "history.hide", "experiments.pace", "history.first"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1367,7 +1374,8 @@ function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): 
     ...linkSchemeOf(env),
     // the experiments searched for this tree, and the fingerprint of what GET /history answers (only for a tree that has
     // anything of it, or with the experiment on: an older app reads nothing new)
-    experiments: { history: historyOn(tree, settings) },
+    // (how often it takes a session: read only — a pace is the person's, chosen in the terminal)
+    experiments: { history: historyOn(tree, settings), historyPace: settings.historyPace(tree.config) },
     ...historyOfStatus(tree, settings, last.head),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
     ...(archive ? { queue: [], queueMore: 0 } : queue(tree, next, all)),
@@ -1853,6 +1861,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     if (req.method === "POST" && t === token && what === "history" && sub === "hide" && !act) {
       writeFor(req, res, origin, historyHide());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "history" && sub === "first" && !act) {
+      writeFor(req, res, origin, historyFirst());
       return;
     }
     if (req.method === "POST" && t === token && what === "experiments" && !sub) {
@@ -2653,6 +2665,40 @@ export function serveLive(root: string, env: Env): Promise<void> {
       refused(_tree, code, why) {
         if (code === "history.body") return { code: 400, body: refusal(why, code) };
         if (code === "history.event" || code === "history.person") return { code: 404, body: refusal(why, code) };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * A region's history first of the regions (POST /history/first {region}): strom history first, the person's word from
+   * the app's person card — still at history's next turn. Refused: 400 history.body; 409 history.off with the link that
+   * turns it on (the person's alone, in the terminal), 409 history.archive | history.done; 404 history.region; 503
+   * research.busy (+ Retry-After).
+   */
+  const historyFirst = (): AppWrite => {
+    const REGION = /^[a-z0-9][a-z0-9-]{0,23}$/u;
+    return {
+      what: "a region's history first",
+      codes: { badBody: "history.body", busy: "research.busy", failed: "history.failed" },
+      busyStatus: 503,
+      ask(_tree, body) {
+        const keys = Object.keys(body);
+        const region = typeof body.region === "string" ? body.region.trim() : "";
+        if (keys.some((k) => k !== "region") || !REGION.test(region)) return { code: 400, body: refusal(`the body: {"region": "<its id>"}`, "history.body") };
+        return { args: ["history", "first", region] };
+      },
+      done(_tree, data, head) {
+        return { region: data.region, ...(data.task ? { task: data.task } : {}), first: Array.isArray(data.first) ? data.first : [], head };
+      },
+      refused(tree, code, why) {
+        if (code === "history.off") {
+          const link = linkText({ action: "experiment", tree: tree.config.id, name: "history", do: "on" }, linkScheme(env));
+          return { code: 409, body: { ...refusal(why, code), link } };
+        }
+        if (code === "history.archive" || code === "history.done") return { code: 409, body: refusal(why, code) };
+        if (code === "history.region") return { code: 404, body: refusal(why, code) };
+        if (code === "history.body") return { code: 400, body: refusal(why, code) };
         return undefined;
       },
     };

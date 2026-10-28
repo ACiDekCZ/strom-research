@@ -17,6 +17,7 @@ import {
   readCatalog,
   readHidden,
   readPlaces,
+  coveredBy,
   regionName,
   regionOfTask,
   regionPeriod,
@@ -108,7 +109,7 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
     required: true,
     pointer: "strom history status",
     text: [
-      `## The history of ${name} (${region}) — an experiment, for the Strom app`,
+      `## The history of ${name} (${region}) — for the Strom app`,
       "What the ancestors lived through: the events of this region's history, shown in the Strom app with the lives of the people of its places. " + NOTHING_ELSE,
       `- period: ${period.from}–${period.to} — this tree's places only (the oldest year of their facts in the region, never before 1600, to this year); another tree sharing the region adds its own years when it takes it`,
       period.places.length
@@ -140,6 +141,23 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
       c?.tried.length ? `Pages strom could not read (never tried again): ${c.tried.slice(-20).map((t) => `${t.url} (${short(t.why, 40)})`).join(" · ")}` : "",
     ].filter(Boolean).join("\n"),
   });
+  // a state whose lands are done: their catalogs hold its events for these places and years — only what they lack
+  const cover = coveredBy(tree, shared, region);
+  if (cover.length) {
+    const theirs = cover.flatMap((id) => (shared ? (readCatalog(shared, id)?.events ?? []) : []).filter((e) => !e.retracted && e.to >= period.from).map((e) => ({ id, e })));
+    out.push({
+      name: "covered",
+      first: true,
+      pointer: "strom history status --app --json",
+      text: [
+        `## Found already for the same places and years: ${cover.join(", ")} (finished, ${theirs.length} events) — the Strom app shows them at these places`,
+        "- write only what they lack: an event of the whole state they do not have; one of them again is never written (not even with --same-as)",
+        `- they lack nothing worth writing: strom history done ${region} at once, no page read`,
+        ...theirs.slice(0, EVENTS_SHOWN).map(({ e }) => `  ${e.id} ${years(e.from, e.to)} ${e.kind} "${short(e.text[lang] ?? e.text.en ?? Object.values(e.text)[0] ?? "")}"`),
+        theirs.length > EVENTS_SHOWN ? `  … ${theirs.length - EVENTS_SHOWN} more: strom history status --app --json` : "",
+      ].filter(Boolean).join("\n"),
+    });
+  }
   const commands = [cmd(["history", "page"]), cmd(["history", "add"]), cmd(["history", "retract"]), cmd(["history", "status"]), cmd(["history", "done"])].filter(Boolean);
   if (commands.length) out.push({ name: "commands", first: true, pointer: "strom help history add", text: ["## Commands (each option as it is)", ...commands].join("\n") });
   out.push(
@@ -184,7 +202,7 @@ function placesSections(tree: Tree, shared: string | undefined, alone: boolean):
       required: true,
       pointer: "strom history status",
       text: [
-        "## The places of the facts on the map of history — an experiment, for the Strom app",
+        "## The places of the facts on the map of history — for the Strom app",
         "Each place of the tree's facts gets the regions it belonged to, with the years: the historical land or province and the state whose history its people lived through (a land of a crown, then the state after it). The events are looked for later, region by region. " + NOTHING_ELSE,
         "- a region's ID: a–z, 0–9 and hyphens, at most 24, the country's code first; a region that exists (below) is used again whenever it is the same unit; a new one gets its names in cs, en and de (strom history region)",
         "- the years each place belonged to a region: --region <id>:<from>-<to> (an open end allowed); a place in two units at once (a land and its state): both",
@@ -234,7 +252,7 @@ export function localEventsSection(): Section | undefined {
     name: "local events",
     pointer: "strom help history local",
     text: [
-      "## Local events (an experiment)",
+      "## Local events",
       "- an event of the place a source read in this session tells of (a fire, a flood, an epidemic, soldiers quartered — the priest's note in a register): written once, as the source says it, never guessed",
       line,
     ].join("\n"),

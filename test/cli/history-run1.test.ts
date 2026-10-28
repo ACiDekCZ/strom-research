@@ -192,7 +192,7 @@ test("history run 1: a page through strom history page — its words found in an
     // the experiment off: no page read for it
     await w.ok(["config", "set", "experiments.history", "off", "--for-tree"]);
     const off = await w.run(["history", "page", url], { env: AGENT });
-    assert.match(off.err, /experiment of history is off/);
+    assert.match(off.err, /history of the places is off/);
   } finally {
     srv.close();
     w.cleanup();

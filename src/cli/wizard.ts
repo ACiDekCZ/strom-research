@@ -17,14 +17,14 @@ import { chooseTerminal, suggestedTerminal } from "./terminals.ts";
 import { terminalsHere } from "../core/terminal.ts";
 import { chooseEffort, chooseModel } from "./model-choice.ts";
 import { ADDON_SWITCHES, PROFILES } from "../agents/profiles.ts";
-import { writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
+import { DEFAULT_HISTORY_PACE, writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
 import { appCopyOfInstall, appOpensLinks, defaultAppUrl, noticeStromApp, researchUrl, STROM_APP_URL, stromAppState, appUrlSetting } from "../core/stromapp.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut } from "../core/shortcut.ts";
 import { appMarkFromInstall, linkFiles, linkHandlerState, linkOwner, linksTakeable, registerLinks, type Sys } from "../core/links.ts";
 import { configDir, desktopDir, isolated, noLinks } from "../core/paths.ts";
-import { ensureShared } from "../commands/setup.ts";
+import { chooseHistory, ensureShared, historySuggested } from "../commands/setup.ts";
 import { moveHome, planMove, repointSettings, sameFolder } from "../core/relocate.ts";
 import type { StromError } from "../core/errors.ts";
 import type { TreeConfig } from "../core/model.ts";
@@ -214,6 +214,19 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
     const ai = await ctx.choose(`${ui(lang, "ui.setup.addons")}\n${ui(lang, "ui.alone.addons.about")}`, [{ label: ui(lang, "ui.setup.addons.yes") }, { label: ui(lang, "ui.setup.addons.no") }], was, keep);
     if ((ai ?? was) === 1) cfg.agentAddons = "on";
     else delete cfg.agentAddons;
+  }
+
+  // 6c. The history of the places — the events at the ancestors' places, looked for between the sessions of the family
+  // research: how often, or off. The first setup suggests it on, sometimes (Milan, 28 Oct 2026: no longer an
+  // experiment); run again, what is now — an older setup never decided is off and stays so on Enter, nothing turned on
+  // by itself. The person's own choice here, in their terminal — as strom config set experiments.history on asks it.
+  if (agent) {
+    const h = await chooseHistory(ctx, ui(lang, "ui.setup.history"), first ? DEFAULT_HISTORY_PACE : historySuggested(ctx), keep);
+    if (h === "off") delete cfg.experimentsHistory;
+    else if (h) {
+      cfg.experimentsHistory = "on";
+      cfg.experimentsHistoryPace = h;
+    }
   }
   s.save();
 

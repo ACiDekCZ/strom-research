@@ -24,7 +24,7 @@ import { sandboxOfRun } from "../core/sandbox.ts";
 import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../agents/effort.ts";
 import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
-import { claimHistoryDay, forHistory, historyHeld, historySessionsToday, raiseHistoryTasks, regionOfTask } from "../core/pastevents.ts";
+import { historyHeld, raiseHistoryTasks, regionOfTask } from "../core/pastevents.ts";
 import { prependPath, type AgentLimit } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
@@ -117,7 +117,7 @@ export function applyFrontier(tree: Tree, research: Research): string[] {
  */
 function historyLine(tree: Tree, t: Task, shared: string | undefined, settings: Settings): string | undefined {
   const why = historyHeld(tree, shared, settings)(t);
-  if (why === "off") return `⚠ ${t.id} is a task of the history experiment, which is off for this research: strom history add refuses — close the session (strom session close --continue …)`;
+  if (why === "off") return `⚠ ${t.id} is a task of the history of the places, which is off for this research: strom history add refuses — close the session (strom session close --continue …)`;
   if (why === "held") return `⚠ another research on this computer builds the catalog of ${regionOfTask(t)} now: its events come from there — close the session (strom session close --continue …) and take another task`;
   return undefined;
 }
@@ -818,7 +818,7 @@ register({
     let followed = false;
     // Why the run stopped: a code for the exit status and for data, words for the user (their language).
     const lang = Tree.open(root, runEnv).lang;
-    type Stop = "done" | "user" | "time" | "empty" | "history" | "asleep" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
+    type Stop = "done" | "user" | "time" | "empty" | "asleep" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
     // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
     let lastLimits: AgentLimit[] | undefined;
     let watch: GateAnswer["watch"];
@@ -894,13 +894,10 @@ register({
         const others = othersAtWork(tree, tree.env, runnerId).tasks;
         // The tasks of history the experiment asks for (core/pastevents.ts), made before the queue is read.
         if (raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings).length) commitNow(tree, "Tasks of the history of the places");
-        // M1: without a gate, one session a day on the history of the places — on this computer, for all the trees
-        // sharing the folder; with a gate, the gate decides.
-        const sharedDir = ctx.settings.shared()?.value;
-        let historyNow = !!gate || historySessionsToday(tree, sharedDir) === 0;
-        // Working alone: now and then a story's turn (in a conversation the user leads); the tasks of history last.
-        const queueOf = (history: boolean) => taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), storyTurn: true, history }).find((t) => !others.has(t.id));
-        const free = () => queueOf(historyNow);
+        // Working alone: now and then a story's turn (in a conversation the user leads); the tasks of history after the
+        // research, and now and then one of them first — how often is experiments.historyPace (core/pastevents.ts
+        // historyTurn); the gate, if any, decides whether a session starts at all.
+        const free = () => taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), storyTurn: true, history: true }).find((t) => !others.has(t.id));
         let task: Task | undefined;
         if (i < picked.length) {
           task = tree.get<Task>(picked[i]!);
@@ -912,11 +909,6 @@ register({
         } else task = free();
         if (!task && research) {
           applyFrontier(tree, research);
-          task = free();
-        }
-        // the day's session of history taken before it starts: another run (here or in another tree) may have had it
-        if (task && !gate && i >= picked.length && forHistory(task) && sharedDir && !claimHistoryDay(sharedDir, tree.config.id)) {
-          historyNow = false;
           task = free();
         }
         if (!task) {
@@ -945,8 +937,7 @@ register({
             stopValues = values;
             break;
           }
-          // only the history of the places left, and its session of today had: tomorrow (M1)
-          stopCode = !historyNow && i >= picked.length && queueOf(true) ? "history" : "empty";
+          stopCode = "empty";
           break;
         }
         // The user's condition, between sessions only: go on, wait and ask again, or stop — in a run that goes on by

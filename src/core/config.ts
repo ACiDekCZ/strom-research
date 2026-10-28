@@ -98,6 +98,8 @@ export interface UserConfig {
   agentAddons?: string;
   /** The experiment of history at the places of the trees (core/pastevents.ts): on, off (default). */
   experimentsHistory?: string;
+  /** How often the experiment of history takes a session of strom run (core/pastevents.ts historyTurn): rare, sometimes (default), idle. */
+  experimentsHistoryPace?: string;
   /** The Strom app on this computer: the user said so ("yes") or does not want to hear of it ("no"). */
   stromApp?: string;
   /** strom-research:// links from the Strom app: the person said yes (set up) or no (never asked again; strom link on changes it). */
@@ -192,6 +194,10 @@ export interface Flags {
  */
 export const DEFAULT_BUDGET = 55_000;
 export const DEFAULT_RUN_MINUTES = 60;
+/** How often the experiment of history takes a session of strom run, from the most often (core/pastevents.ts historyTurn). */
+export const HISTORY_PACES = ["sometimes", "rare", "idle"] as const;
+export type HistoryPace = (typeof HISTORY_PACES)[number];
+export const DEFAULT_HISTORY_PACE: HistoryPace = "sometimes";
 /** Readers of strom read at the same time: the default, and the most one research may set (each reader is an agent process). */
 export const DEFAULT_READ_PARALLEL = 5;
 export const READ_PARALLEL_MAX = 10;
@@ -265,7 +271,9 @@ export const SETTINGS: SettingDef[] = [
   { key: "agent.addons", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the agent's personal add-ons (its skills, plugins, MCP servers, memory) when it works alone (strom run, the readers of strom read): off (default — it loads the research's tools only; the Strom app's connection and the browser work on) or on (as in a conversation, which loads them always) — Claude Code and Codex; Grok without what it takes in of the other agents (their skills, MCP servers, hooks) and its memory, its own skills and plugins kept (it has no switch for them); only you turn it on" },
   // Read from the config files only — no variable: the user's config turns it on (the person alone: a search spends the
   // agent's time and the plan), a tree's strom.json may only turn it off; off is anyone's.
-  { key: "experiments.history", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "experiment: the events of history at the places of the tree (wars, epidemics, censuses, changes of the state), looked for only when the family research has nothing to do: off (default) or on — only you turn it on (for every research on this computer); a tree may only turn it off" },
+  { key: "experiments.history", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "the events of history at the places of the tree (wars, epidemics, censuses, changes of the state), looked for now and then between the sessions of the family research (experiments.historyPace): on or off (unset: off; the first setup suggests on) — only you turn it on (for every research on this computer); a tree may only turn it off" },
+  // How often: the user's config, a tree's strom.json only less often; more often than before is the person's alone.
+  { key: "experiments.historyPace", env: "", tree: true, kind: "choice", choices: HISTORY_PACES, description: "how often the history of the places takes a session when the agent works alone (strom run): sometimes (default — about every 5th session), rare (about every 10th) or idle (only when the family research has nothing to do); a region a session just worked at goes first — only you make it more often; a tree may only make it less often" },
   { key: "mode", env: "", tree: false, kind: "choice", choices: ["research", "archive"], description: "what a new research on this computer is: research (default — an agent works on it; while none is here it waits for one, kept as an archive) or archive (the data come from the Strom app, no agent — the person's choice: the setup wizard asks it with an agent here, the menu's settings) — a research's own: strom mode" },
   { key: "updates", env: "STROM_UPDATES", tree: false, kind: "choice", choices: ["check", "off"], description: "look for new versions of strom: check (default — at most once a day, one small file from the project's releases; strom says so, strom update installs it) or off" },
   { key: "strom.app", env: "", tree: false, kind: "choice", choices: ["yes", "no"], description: "you use the Strom app: yes (strom says which file to import into it), no (strom never mentions it) — unset: strom notices it itself" },
@@ -300,6 +308,7 @@ const FIELDS: Record<string, string> = {
   "agent.browser": "agentBrowser",
   "agent.addons": "agentAddons",
   "experiments.history": "experimentsHistory",
+  "experiments.historyPace": "experimentsHistoryPace",
   "strom.app": "stromApp",
   "strom.app.url": "stromAppUrl",
   "app.browser": "appBrowser",
@@ -661,6 +670,17 @@ export class Settings {
    */
   experimentsHistory(tree?: TreeConfig): boolean {
     return readStored(this.config, "experiments.history", "") === "on" && readStored(tree, "experiments.history", "") !== "off";
+  }
+
+  /**
+   * How often the experiment of history takes a session of strom run (core/pastevents.ts historyTurn): the user's config
+   * (default sometimes), a tree's strom.json only where it is less often — never a variable or a flag.
+   */
+  historyPace(tree?: TreeConfig): HistoryPace {
+    const known = (v: unknown) => (HISTORY_PACES as readonly unknown[]).includes(v) ? (v as HistoryPace) : undefined;
+    const user = known(readStored(this.config, "experiments.historyPace", "")) ?? DEFAULT_HISTORY_PACE;
+    const own = known(readStored(tree, "experiments.historyPace", ""));
+    return own && HISTORY_PACES.indexOf(own) > HISTORY_PACES.indexOf(user) ? own : user;
   }
 
   /** Claude Code's transcripts of the sessions strom started read for tuning (core/transcripts.ts): on unless the user said off. */

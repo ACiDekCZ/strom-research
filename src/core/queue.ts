@@ -15,6 +15,8 @@
 // silent, or asked to slow down: core/leftalone.ts) waits until it takes requests again — a session on it would only be
 // told so. The tasks of history (the experiment experiments.history, core/pastevents.ts: the places of the facts mapped
 // to regions, a region's events) come after everything — after the stories and the work that waits for a download —
+// except at history's turn (experiments.historyPace, core/pastevents.ts historyTurn: now and then by chance between
+// the sessions of the family research), when one of them comes first — the one a recent session made needed first —,
 // and only where they are asked for (`history`: strom run, strom task next --history): in a conversation the user
 // leads, and the agent never takes one by itself. Out of the queue while the experiment is off, in an archive, or
 // while another tree builds the region's catalog (core/pastevents.ts historyHeld). Strategies (setting
@@ -33,7 +35,7 @@ import { setsWithImages } from "./mediaindex.ts";
 import { heldOn, permissionQuestions } from "./archivewait.ts";
 import type { PendingQuestion } from "./terms.ts";
 import { asleepHosts, asleepOn, type Asleep } from "./leftalone.ts";
-import { forHistory, historyHeld } from "./pastevents.ts";
+import { forHistory, HISTORY_PLACES_ORIGIN, historyHeld, historyOrder, historyTurn, type HistoryTurn } from "./pastevents.ts";
 import { Settings } from "./config.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
@@ -128,7 +130,7 @@ export function ancestorLines(tree: Tree, focus: string, max = 50): Map<string, 
  * requests again (strom run asks what would come then). `history`: the tasks of history too (strom run, or asked for by
  * name: strom task next --history) — never otherwise.
  */
-export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean } = {}): Ranked[] {
+export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean; turn?: HistoryTurn } = {}): Ranked[] {
   const today = now().slice(0, 10);
   const researches = tree.list<Research>("research");
   // a direction the user paused or ended: its tasks wait (one at work goes on)
@@ -144,9 +146,9 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   const waits = (t: Task) => t.state !== "doing" && ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? "")) || off(t) || !!decision(t) || !!asleep(t));
   // the tasks of history: only where asked for, and not while the experiment is off, in an archive, or held by another tree
   let held: ((t: Task) => string | undefined) | undefined;
+  const settings = new Settings(tree.env, {});
   const history = (t: Task) => {
     if (!opts.history) return false;
-    const settings = new Settings(tree.env, {});
     held ??= historyHeld(tree, settings.shared()?.value, settings);
     return !held(t);
   };
@@ -180,6 +182,14 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     return !!t && forStory(t);
   });
   const storyDue = !!opts.storyTurn && strategy !== "priority" && (sinceStory === -1 ? ended.length : sinceStory) >= STORY_EVERY;
+  // the places to map: before the research whenever one is open (a small step the regions need); a region's turn
+  // (experiments.historyPace): its first task before the research, once in a while
+  let turn = opts.turn;
+  const histOrder = () => historyOrder((turn ??= historyTurn(tree, settings.shared()?.value, settings)));
+  const histTasks = opts.history ? open.filter(forHistory) : [];
+  const order = histTasks.length ? histOrder() : () => 0;
+  const firstOfHistory = [...histTasks].sort((a, b) => order(a) - order(b) || a.created.localeCompare(b.created))[0];
+  const turnTask = firstOfHistory && (firstOfHistory.origin === HISTORY_PLACES_ORIGIN || turn?.now) ? firstOfHistory.id : undefined;
   const tries = new Map<string, number>();
   for (const s of ended) tries.set(s.task!, (tries.get(s.task!) ?? 0) + 1);
 
@@ -203,7 +213,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     const hist = forHistory(t);
     const why = [
       t.state === "doing" ? "in progress" : undefined,
-      hist ? "the history of the places: after all the research" : undefined,
+      hist ? historyWhy(turn!, t, t.id === turnTask, t.id === firstOfHistory?.id) : undefined,
       first ? `the hypotheses' links first: short, the Strom app waits for them (until tried ${HYPOTHESIS_LINKS_TRIES}×)` : undefined,
       storyTurn ? `a story's turn: none in the last ${STORY_EVERY} sessions` : undefined,
       blocked ? "needs images the user has to download" : undefined,
@@ -214,14 +224,15 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     ]
       .filter(Boolean)
       .join(" · ");
-    return { task: t, why, doing: t.state === "doing" ? 0 : 1, hist: hist ? 1 : 0, first: first ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen };
+    return { task: t, why, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen };
   });
   return rows
     .sort(
       (a, b) =>
         a.doing - b.doing ||
-        // the tasks of history after everything: taken only when nothing else is ready
+        // the tasks of history after everything — but at history's turn its first one before all — the needed one first
         a.hist - b.hist ||
+        a.horder - b.horder ||
         // the links of hypothesis variants before the research and a story's turn
         a.first - b.first ||
         // a story's turn first (working alone); otherwise the stories after all the research
@@ -233,4 +244,14 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
         a.task.created.localeCompare(b.task.created),
     )
     .map(({ task, why }) => ({ task, why }));
+}
+
+/** Why a task of history stands where it does: history's turn now, when it comes, the place that put it first. */
+function historyWhy(turn: HistoryTurn, t: Task, now: boolean, first: boolean): string {
+  if (t.origin === HISTORY_PLACES_ORIGIN) return "the places of the facts to map: before the research whatever the pace — a small step the regions need";
+  const pace = `pace ${turn.pace}`;
+  const prefer = first && turn.prefer ? ` · first of history: a recent session worked at ${turn.prefer.place}` : "";
+  if (now) return `history's turn: ${turn.since} sessions since its last (${pace})${prefer}`;
+  if (turn.pace === "idle" || turn.in === undefined) return `the history of the places: after all the research (${pace})${prefer}`;
+  return `the history of the places: after the research, its turn in ~${turn.in} sessions (${pace})${prefer}`;
 }

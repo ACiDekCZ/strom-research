@@ -1,4 +1,4 @@
-// What the ancestors lived through (an experiment, experiments.history): the events of history at the places of the
+// What the ancestors lived through (experiments.history): the events of history at the places of the
 // tree — wars, epidemics, censuses, changes of the state — and the local ones the research read in its own records.
 //
 // Where it lies, written by strom alone:
@@ -18,15 +18,16 @@ import path from "node:path";
 import { withLock } from "./lock.ts";
 import { readJsonIfExists, stringifyCanonical, writeFileAtomic } from "./json.ts";
 import { foldText } from "./text.ts";
-import { Settings } from "./config.ts";
+import { Settings, type HistoryPace } from "./config.ts";
 import { actsAsArchive } from "./state.ts";
 import { phrase } from "./phrases.ts";
 import { addressesPerson } from "./impersonal.ts";
 import { StromError, UsageError } from "./errors.ts";
 import { create, update } from "./records.ts";
-import { factPlaces } from "../gedcom/export.ts";
+import { factPlaces, factWritten } from "../gedcom/export.ts";
+import { dateYears } from "./gdate.ts";
 import { lineValue } from "../gedcom/lines.ts";
-import type { Person, Place, Session, Source, Task } from "./model.ts";
+import type { Family, Person, Place, Session, Source, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 
 /** The task of a tree that maps its places to regions (core/queue: level enrich, one a tree). */
@@ -64,6 +65,8 @@ const ALSO_CHARS = 200;
 export const PLACES_FILE = "history/places.json";
 export const LOCAL_FILE = "history/local.json";
 export const HIDDEN_FILE = "history/hidden.json";
+/** The regions the person asked to be taken first (strom history first; the app's person card, POST /history/first). */
+export const FIRST_FILE = "history/first.json";
 
 export type Texts = Record<string, string>;
 
@@ -181,7 +184,7 @@ export function historyOn(tree: Tree, settings: Settings = new Settings(tree.env
 /** Refused while the experiment is off (strom history add, local): one sentence and the way, for the agent. */
 export function requireHistoryOn(tree: Tree, settings?: Settings): void {
   if (historyOn(tree, settings)) return;
-  throw new UsageError("the experiment of history is off for this research — nothing is looked for or written", {
+  throw new UsageError("the history of the places is off for this research — nothing is looked for or written", {
     code: "history.off",
     hint: "the user alone turns it on, in their terminal: strom config set experiments.history on (a tree's own off: strom config unset experiments.history --for-tree)",
   });
@@ -287,6 +290,17 @@ export function readLocal(tree: Tree): LocalFile {
 export function readHidden(tree: Tree): Hide[] {
   const f = readTreeFile<HiddenFile>(tree, HIDDEN_FILE);
   return Array.isArray(f?.hidden) ? f!.hidden : [];
+}
+
+/** A region the person asked to be taken first, and when (the newest first). */
+export interface FirstAsk {
+  region: string;
+  at: string;
+}
+
+export function readFirst(tree: Tree): FirstAsk[] {
+  const f = readTreeFile<{ first?: FirstAsk[] }>(tree, FIRST_FILE);
+  return Array.isArray(f?.first) ? f!.first.filter((x) => typeof x?.region === "string" && typeof x.at === "string") : [];
 }
 
 /** Written whole as a sealed operation of the tree (inside its lock). */
@@ -869,18 +883,35 @@ export function historyAnswer(tree: Tree, shared: string | undefined, settings: 
   const replaced = new Map<string, string>();
   const places = new Map<string, AppPlace>();
 
-  // the region's events of each mapped place, by the years it belonged to the region
+  // how many of the tree's places each region has: the one of fewer is the nearer (a land within its state)
+  const reach = new Map<string, number>();
+  for (const m of Object.values(r.maps)) for (const g of m.regions) reach.set(g.id, (reach.get(g.id) ?? 0) + 1);
+  // the region's events of each mapped place, by the years it belonged to the region; the same event of two of its
+  // regions (a land's catalog holds its state's events: the same kind and years, the same day or none) once — the
+  // nearer region's
   const regional = (m: PlaceMap | undefined): string[] => {
-    const ids: string[] = [];
-    if (!m || m.state === "unlocated") return ids;
+    if (!m || m.state === "unlocated") return [];
+    const found: { e: RegionEvent; c: Catalog; reach: number }[] = [];
     for (const g of m.regions) {
       const c = r.catalog(g.id);
       for (const e of c?.events ?? []) {
         if (e.retracted) continue;
         if (!inRegion(e, g)) continue;
-        if (!events.has(e.id)) events.set(e.id, appRegionEvent(e, c!));
-        ids.push(e.id);
+        found.push({ e, c: c!, reach: reach.get(g.id) ?? 0 });
       }
+    }
+    const nearer = [...found].sort((a, b) => a.reach - b.reach);
+    const kept: typeof found = [];
+    for (const x of nearer) {
+      const same = kept.some((k) => k.c.region.id !== x.c.region.id && k.e.kind === x.e.kind && k.e.from === x.e.from && k.e.to === x.e.to && (!k.e.date || !x.e.date || k.e.date === x.e.date));
+      if (!same) kept.push(x);
+    }
+    const keep = new Set(kept.map((x) => x.e.id));
+    const ids: string[] = [];
+    for (const x of found) {
+      if (!keep.has(x.e.id)) continue;
+      if (!events.has(x.e.id)) events.set(x.e.id, appRegionEvent(x.e, x.c));
+      ids.push(x.e.id);
     }
     return ids;
   };
@@ -1114,6 +1145,9 @@ export function regionOfTask(t: Pick<Task, "origin">): string | undefined {
   return typeof t.origin === "string" && t.origin.startsWith(HISTORY_REGION_ORIGIN) ? t.origin.slice(HISTORY_REGION_ORIGIN.length) || undefined : undefined;
 }
 
+/** History is looked for from this year at the earliest. */
+const EARLIEST_YEAR = 1600;
+
 /**
  * The period the events of a region are looked for in, for this tree: from the oldest year of the facts at its places
  * (within the years each place belonged to it; never before 1600) to this year — this tree's places only (each tree
@@ -1132,7 +1166,7 @@ export function regionPeriod(tree: Tree, region: string): { from: number; to: nu
   }
   const to = new Date().getFullYear();
   const oldest = Math.min(...places.flatMap((p) => p.years.length ? p.years : p.from !== undefined ? [p.from] : []));
-  const from = Number.isFinite(oldest) ? Math.min(to, Math.max(1600, oldest)) : 1600;
+  const from = Number.isFinite(oldest) ? Math.min(to, Math.max(EARLIEST_YEAR, oldest)) : EARLIEST_YEAR;
   return { from, to, places: places.sort((a, b) => a.place.localeCompare(b.place)) };
 }
 
@@ -1152,55 +1186,250 @@ export function takeRegion(shared: string, region: string, treeId: string): stri
   });
 }
 
-/** A local day as YYYY-MM-DD (this computer's calendar). */
-function localDay(at: Date): string {
-  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
+// ── how often: history's turn in strom run (experiments.historyPace) ────────
+
+/** About every how many sessions of strom run one is of history, by the pace (idle: only when nothing else is left). */
+export const PACE_EVERY: Record<Exclude<HistoryPace, "idle">, number> = { sometimes: 5, rare: 10 };
+
+/** How far before or after its every-th session the turn may come: a share of it, either way (5: 3–7, 10: 6–14). */
+const PACE_SPREAD = 0.4;
+
+/** How many of the last sessions are looked at for the places they worked at (a region there first). */
+const PREFER_SESSIONS = 10;
+
+/** How many regions asked first are remembered (the newest). */
+const FIRST_MAX = 50;
+
+export interface HistoryTurn {
+  pace: HistoryPace;
+  /** The sessions ended since the last one on a region (none yet: since the first region's task was raised). */
+  since: number;
+  /** A region's turn is the due-th session after the last one on a region (pace idle: none). */
+  due?: number;
+  /** The next session is a region's (a session of one at work elsewhere: not now). */
+  now: boolean;
+  /** Sessions of the family research before a region's turn: 0 — the next one. */
+  in?: number;
+  /** The region the person asked for last (strom history first, the app's person card): its task first of the regions. */
+  asked?: { task: string; region: string; at: string };
+  /** A place a recent session worked at whose region has no finished catalog: its task first. */
+  prefer?: { task: string; place: string; region: string };
+  /** The regions of the open tasks in the order they come, by their weight in the tree (regionOrder). */
+  order?: RegionWeight[];
+  /** The places of the facts to map, open: the next session's whatever the pace — the cheap step the regions need. */
+  places?: string;
 }
 
-/** Which tree had the day's session of history on this computer: <shared>/history/day.json (M1 across the trees). */
-export const DAY_FILE = "day.json";
-
-interface HistoryDay {
-  day: string;
-  tree: string;
-  at: string;
-}
-
-function readDay(shared: string): HistoryDay | undefined {
-  try {
-    const d = readJsonIfExists<HistoryDay>(path.join(historyRoot(shared), DAY_FILE));
-    return d && typeof d.day === "string" && typeof d.tree === "string" ? d : undefined;
-  } catch {
-    return undefined;
-  }
+/** The session history's turn comes at after its last one: every, give or take its spread — drawn from the seed. */
+export function historyDue(every: number, seed: string): number {
+  const spread = Math.floor(every * PACE_SPREAD);
+  const n = crypto.createHash("sha256").update(seed).digest().readUInt32BE(0);
+  return every - spread + (n % (2 * spread + 1));
 }
 
 /**
- * The sessions on tasks of history started today (this computer's calendar day): M1 lets one a day work alone — one
- * for every tree sharing the folder, so the day taken by another tree (<shared>/history/day.json) counts too.
+ * When the tasks of history get a session of strom run. The places of the facts to map: the next session, whatever the
+ * pace — a small step, and the regions wait for it (Milan, 28 Oct 2026). The regions (experiments.historyPace): now and
+ * then between the sessions of the family research, by chance within the pace — the seed is the tree and the last
+ * session on a region, so the turn is the same for the queue, strom plan and the run (nothing written), and moves on
+ * with each such session. One at work (another run) holds the next one off. Nothing left of the family research: taken
+ * anyway (rankTasks).
  */
-export function historySessionsToday(tree: Tree, shared?: string, at = new Date()): number {
-  const day = localDay(at);
+export function historyTurn(tree: Tree, shared: string | undefined, settings: Settings = new Settings(tree.env, {})): HistoryTurn {
+  const pace = settings.historyPace(tree.config);
   const tasks = new Map(tree.list<Task>("task").map((t) => [t.id, t]));
-  const here = tree.list<Session>("session").filter((s) => {
-    const t = s.task ? tasks.get(s.task) : undefined;
-    return !!t && forHistory(t) && localDay(new Date(s.started)) === day;
-  }).length;
-  const taken = shared ? readDay(shared) : undefined;
-  return here + (taken && taken.day === day && taken.tree !== tree.config.id ? 1 : 0);
+  const sessions = tree
+    .list<Session>("session")
+    .filter((s) => s.task && tasks.has(s.task))
+    .sort((a, b) => a.started.localeCompare(b.started) || a.id.localeCompare(b.id));
+  const ofRegion = (t: Task) => forHistory(t) && t.origin !== HISTORY_PLACES_ORIGIN;
+  const lastAt = sessions.findLastIndex((s) => ofRegion(tasks.get(s.task!)!));
+  const last = lastAt >= 0 ? sessions[lastAt] : undefined;
+  // none yet: counted from the first region's task
+  const first = last ? undefined : [...tasks.values()].filter(ofRegion).map((t) => t.created).sort()[0];
+  const after = last ? sessions.slice(lastAt + 1) : first ? sessions.filter((s) => s.started >= first) : [];
+  const ended = after.filter((s) => s.state !== "open");
+  const prefer = preferredOf(tree, shared, [...tasks.values()], ended.slice(-PREFER_SESSIONS));
+  const places = [...tasks.values()].find((t) => t.origin === HISTORY_PLACES_ORIGIN && (t.state === "open" || t.state === "doing"));
+  const open = new Map([...tasks.values()].filter((t) => ofRegion(t) && (t.state === "open" || t.state === "doing")).map((t) => [regionOfTask(t)!, t]));
+  const asked = readFirst(tree)
+    .filter((x) => open.has(x.region))
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .map((x) => ({ task: open.get(x.region)!.id, region: x.region, at: x.at }))[0];
+  const order = open.size ? regionOrder(tree, shared).filter((w) => open.has(w.id)) : [];
+  const base = {
+    pace,
+    since: ended.length,
+    ...(asked ? { asked } : {}),
+    ...(prefer ? { prefer } : {}),
+    ...(places ? { places: places.id } : {}),
+    ...(order.length ? { order } : {}),
+  };
+  if (pace === "idle") return { ...base, now: false };
+  const due = historyDue(PACE_EVERY[pace], `${tree.config.id}:${last?.id ?? "first"}`);
+  const busy = last?.state === "open";
+  return { ...base, due, now: !busy && ended.length >= due - 1, in: Math.max(busy ? 1 : 0, due - 1 - ended.length) };
 }
 
 /**
- * The day's session of history claimed for this tree before it starts (M1, a run without a gate): under the shared
- * lock, so of two runs at once — in one tree or in two — one gets it. False when the day is taken already.
+ * The region's task a recent session made needed: the latest place it worked at — a person's or a family's fact, a
+ * place of the research — that lies in a region with no finished catalog (a place not mapped yet: the places' task goes
+ * first anyway). Only a task open now; undefined without one.
  */
-export function claimHistoryDay(shared: string, treeId: string, at = new Date()): boolean {
-  const day = localDay(at);
-  return withCatalogs(shared, () => {
-    const had = readDay(shared);
-    if (had && had.day === day) return false;
-    writeFileAtomic(path.join(historyRoot(shared), DAY_FILE), stringifyCanonical({ day, tree: treeId, at: at.toISOString() }));
-    return true;
+function preferredOf(tree: Tree, shared: string | undefined, tasks: Task[], recent: Session[]): HistoryTurn["prefer"] {
+  if (!recent.length) return undefined;
+  const open = tasks.filter((t) => forHistory(t) && (t.state === "open" || t.state === "doing"));
+  if (!open.length) return undefined;
+  const since = recent[0]!.started;
+  const r = reading(tree, shared);
+  const touched: { at: string; places: string[] }[] = [];
+  for (const p of tree.list<Person>("person")) if (!p.retracted && p.updated >= since) touched.push({ at: p.updated, places: p.events.map((e) => e.place ?? "") });
+  for (const f of tree.list<Family>("family")) if (f.updated >= since) touched.push({ at: f.updated, places: f.events.map((e) => e.place ?? "") });
+  for (const p of tree.list<Place>("place")) if (!p.retracted && p.updated >= since) touched.push({ at: p.updated, places: p.names.map((n) => n.name) });
+  touched.sort((a, b) => b.at.localeCompare(a.at));
+  for (const { places: at } of touched)
+    for (const raw of at) {
+      const key = lineValue(raw);
+      if (!key) continue;
+      const m = r.mapOf(key);
+      if (!m) continue;
+      for (const g of m.regions) {
+        if (r.catalog(g.id)?.done) continue;
+        const t = open.find((x) => x.origin === regionOrigin(g.id));
+        if (t) return { task: t.id, place: key, region: g.id };
+      }
+    }
+  return undefined;
+}
+
+/**
+ * The order of the tasks of history among themselves: the places to map (the regions need them), the region the
+ * person asked for, the region a recent session made needed (prefer), then the regions by their weight in the tree
+ * (regionOrder). Smaller first.
+ */
+export function historyOrder(turn: HistoryTurn | undefined): (t: Task) => number {
+  const rank = new Map((turn?.order ?? []).map((w, i) => [w.id, i]));
+  return (t) => {
+    if (t.origin === HISTORY_PLACES_ORIGIN) return 0;
+    if (turn?.asked?.task === t.id) return 1;
+    if (turn?.prefer?.task === t.id) return 2;
+    const region = regionOfTask(t);
+    return 3 + (region !== undefined && rank.has(region) ? rank.get(region)! : rank.size);
+  };
+}
+
+/** A region's weight in the tree: the people with a fact at its places in its years, those facts, the places. */
+export interface RegionWeight {
+  id: string;
+  persons: number;
+  facts: number;
+  places: number;
+  /** The finished regions that hold every place of it in its years already (coveredBy): it comes last. */
+  covered?: string[];
+}
+
+/**
+ * The finished regions that hold every place of the tree's facts in a region for all its years — a state whose lands'
+ * catalogs are done, those catalogs having its events already (the history its people lived through). Empty when one
+ * place or year is left out, and for a region without places.
+ */
+function coverOf(r: Reading, region: string): string[] {
+  const by = new Set<string>();
+  let any = false;
+  for (const key of r.facts.keys()) {
+    const m = r.mapOf(key);
+    const own = m?.regions.find((g) => g.id === region);
+    if (!m || !own) continue;
+    any = true;
+    const holds = m.regions.filter(
+      (g) => g.id !== region && !!r.catalog(g.id)?.done && (g.from ?? -Infinity) <= (own.from ?? -Infinity) && (g.to ?? Infinity) >= (own.to ?? Infinity),
+    );
+    if (!holds.length) return [];
+    for (const g of holds) by.add(g.id);
+  }
+  return any ? [...by].sort() : [];
+}
+
+/** The finished regions that hold a region's places and years already (strom's brief of its session says them). */
+export function coveredBy(tree: Tree, shared: string | undefined, region: string): string[] {
+  return coverOf(reading(tree, shared), region);
+}
+
+/**
+ * The tree's regions in the order their history is looked for (Milan, 28 Oct 2026 — history turned on late in a large
+ * tree): the regions of the most people first (then of the most facts); a region whose places all lie in another's
+ * (a land within its state) before it — the state waits for every land of it the tree has; a region of one person (or
+ * none) last; at the very end a region whose places and years a finished catalog holds already (coverOf: a state
+ * after its lands are done — their catalogs have its events; dirigent's finding of 28 Oct 2026, 19 regions of a real
+ * tree). Of the same people and facts, the one of more years first (a land outlasts each of its states). A fact counts
+ * for the regions its place belonged to in its year, one without a year for every region of its place; which region
+ * lies in which is told by the places of the facts, whatever the years. Nothing written.
+ */
+export function regionOrder(tree: Tree, shared: string | undefined): RegionWeight[] {
+  const r = reading(tree, shared);
+  const now = new Date().getFullYear();
+  const of = new Map<string, { persons: Set<string>; facts: number; places: Set<string>; span: number }>();
+  const count = (who: string[], e: Person["events"][number]) => {
+    if (!factWritten(e) || !e.place) return;
+    const key = lineValue(e.place);
+    const m = key ? r.mapOf(key) : undefined;
+    if (!m) return;
+    const years = e.date ? dateYears(e.date) : [];
+    for (const g of m.regions) {
+      if (!regionIdOk(g.id)) continue;
+      const w = of.get(g.id) ?? { persons: new Set<string>(), facts: 0, places: new Set<string>(), span: 0 };
+      of.set(g.id, w);
+      // its places whatever the years (a land within its state), its people and facts in its years
+      if (!w.places.has(foldText(key))) w.span += Math.max(0, Math.min(now, g.to ?? now) - Math.max(EARLIEST_YEAR, g.from ?? EARLIEST_YEAR));
+      w.places.add(foldText(key));
+      if (years.length && !years.some((y) => inRegion({ from: y, to: y }, g))) continue;
+      for (const p of who) w.persons.add(p);
+      w.facts++;
+    }
+  };
+  const persons = tree.list<Person>("person").filter((p) => !p.retracted);
+  const alive = new Set(persons.map((p) => p.id));
+  for (const p of persons) for (const e of p.events) count([p.id], e);
+  for (const f of tree.list<Family>("family")) {
+    const who = f.partners.filter((p) => alive.has(p));
+    if (who.length) for (const e of f.events) count(who, e);
+  }
+  const all = regionsOfTree(tree).map((id) => {
+    const w = of.get(id);
+    return { id, persons: w?.persons.size ?? 0, facts: w?.facts ?? 0, places: w?.places ?? new Set<string>(), span: w?.span ?? 0, covered: r.catalog(id)?.done ? [] : coverOf(r, id) };
+  });
+  const heavier = (a: (typeof all)[number], b: (typeof all)[number]) => b.persons - a.persons || b.facts - a.facts || b.span - a.span || a.id.localeCompare(b.id);
+  // a above b: every place of b is a's, and a has more
+  const above = (a: (typeof all)[number], b: (typeof all)[number]) => b.places.size > 0 && a.places.size > b.places.size && [...b.places].every((k) => a.places.has(k));
+  const left = all.filter((w) => w.persons > 1 && !w.covered.length).sort(heavier);
+  const out: (typeof all)[number][] = [];
+  while (left.length) {
+    const i = left.findIndex((a) => !left.some((b) => b !== a && above(a, b)));
+    out.push(...left.splice(i < 0 ? 0 : i, 1));
+  }
+  out.push(...all.filter((w) => w.persons <= 1 && !w.covered.length).sort(heavier));
+  out.push(...all.filter((w) => w.covered.length).sort(heavier));
+  return out.map((w) => ({ id: w.id, persons: w.persons, facts: w.facts, places: w.places.size, ...(w.covered.length ? { covered: w.covered } : {}) }));
+}
+
+/**
+ * The person asks for a region's history first (strom history first; the app's person card through the bridge): its
+ * task comes first of the regions, still at the turn the pace gives (strom run --task T… takes it now). Only while the
+ * history is on, in a research with its agent; a region of the tree's places, not finished. Inside the tree's lock.
+ */
+export function askFirst(tree: Tree, shared: string | undefined, region: string, settings: Settings = new Settings(tree.env, {})): { first: FirstAsk[]; task?: string } {
+  if (!historyOn(tree, settings)) throw new UsageError("the history of the places is off: only the person turns it on (strom config set experiments.history on)", { code: "history.off" });
+  if (actsAsArchive(tree)) throw new UsageError("an archive looks for nothing", { code: "history.archive" });
+  const id = region.trim();
+  if (!regionIdOk(id) || !regionsOfTree(tree).includes(id)) throw new UsageError(`no place of the tree belongs to the region ${id} (strom history status lists them)`, { code: "history.region", params: { region: id } });
+  if (shared && readCatalog(shared, id)?.done) throw new UsageError(`the history of ${id} is found already (strom history redo ${id}: look again)`, { code: "history.done", params: { region: id } });
+  return tree.withTreeLock(() => {
+    const before = readFirst(tree);
+    const task = tree.list<Task>("task").find((t) => t.origin === regionOrigin(id) && LIVE_STATES.has(t.state))?.id;
+    if (before[0]?.region === id) return { first: before, ...(task ? { task } : {}) };
+    const first = [{ region: id, at: new Date().toISOString() }, ...before.filter((x) => x.region !== id)].slice(0, FIRST_MAX);
+    putTreeFile(tree, FIRST_FILE, { first }, { op: "history.first", targets: [], summary: `History first: ${id}` });
+    return { first, ...(task ? { task } : {}) };
   });
 }
 

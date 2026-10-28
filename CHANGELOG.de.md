@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.22.0
 
-*In Vorbereitung: die Betas bis 1.22.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.22.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Jeder Name einmal in dem, was wartet.** Eine Aufgabe zu Material, das aus der Strom-App gesendet wurde, nannte im
   Widget und auf der Seite des Telefons jede Person zweimal (das zweite Mal in eckigen Klammern), und ihr Text ohne
@@ -30,10 +30,13 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Ausfall verkleinert die Lesestapel nicht mehr.
 - **Das Tor der Abo-Woche lässt mehrere Sitzungen hintereinander laufen.** Wartet es einmal auf Vorsprung, lässt es
   erst mit zwei Punkten mehr wieder los (bei 15: 17), statt einer Sitzung nach jedem Warten.
-- **Ein Experiment: was die Vorfahren erlebten.** Experimentell und standardmäßig aus: die Ereignisse an den Orten des
-  Stammbaums – die Geschichte einer Region aus Seiten, die strom selbst geladen und geprüft hat, örtliche Ereignisse
-  aus gelesenen Einträgen – zeigt die Strom-App. Einschalten kann es nur ein Mensch; solange es aus ist, wird nichts
-  gesucht.
+- **Was die Vorfahren erlebten.** Die Ereignisse an den Orten des Stammbaums – die Geschichte einer Region aus Seiten,
+  die strom selbst geladen und geprüft hat, örtliche Ereignisse aus gelesenen Einträgen – zeigt die Strom-App. Die
+  Ersteinrichtung schlägt es eingeschaltet vor; eine früher eingerichtete Installation bleibt, wie sie ist, nichts
+  schaltet sich von selbst ein. Einschalten kann es nur ein Mensch; solange es aus ist, wird nichts gesucht. Eingeschaltet, werden die Orte in der nächsten Sitzung zugeordnet und die Regionen ab und zu zwischen den
+  Sitzungen der Familienforschung durchsucht: etwa jede 5. Sitzung (Standard), jede 10. oder nur, wenn nichts anderes
+  ansteht (`strom config set experiments.historyPace`, die Ersteinrichtung, die Einstellungen); wann, sagt `strom plan`.
+  Zuerst die Regionen mit den meisten Personen, ein Land vor dem Staat darüber.
 
 ## 1.21.0
 

@@ -810,12 +810,12 @@ test("the Strom app offered gently: the wizard asks once, the menu says what it 
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  // language, folder, model, its effort, stories, level, no shortcut — then the Strom app: not now
-  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "n", "2"] });
+  // language, folder, model, its effort, stories, level, history off, no shortcut — then the Strom app: not now
+  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "", "n", "2"] });
   assert.match(s.out, /Aplikace Strom \(zdarma, v prohlížeči\) ukáže výzkum jako rodokmen[\s\S]*1 {2}Ano – nainstalovat ji teď/);
   assert.equal(cfg().stromApp, "yes");
   // Again: the answer pre-filled; no — never mentioned after.
-  await w.ok(["setup"], { answers: ["", "", "", "", "0", "", "", "", "n", "3"] });
+  await w.ok(["setup"], { answers: ["", "", "", "", "0", "", "", "", "", "n", "3"] });
   assert.equal(cfg().stromApp, "no");
   await w.ok(["init", "Novákovi"]);
   const none = await w.ok([], { tty: true, answers: ["0"] });

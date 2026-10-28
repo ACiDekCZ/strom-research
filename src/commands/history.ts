@@ -18,6 +18,7 @@ import { currentSession } from "../core/session.ts";
 import {
   addLocalEvent,
   addRegionEvent,
+  askFirst,
   checkKind,
   checkTexts,
   checkYears,
@@ -26,6 +27,9 @@ import {
   hideEvent,
   historyAnswer,
   historyStatus,
+  forHistory,
+  historyOrder,
+  historyTurn,
   mapPlace,
   markDone,
   noteTried,
@@ -138,17 +142,40 @@ register(
       const s = historyStatus(tree, sh, ctx.settings);
       const state = historyAnswer(tree, sh, ctx.settings).state;
       const shown = s.places.pending.slice(0, ctx.limit);
+      // the tasks of history not finished, to start one by its ID (strom run --task T…), and when strom run takes the next
+      const turn = s.on ? historyTurn(tree, sh, ctx.settings) : undefined;
+      // in the order strom run takes them: the places first, the region asked for, then by their weight in the tree
+      const order = historyOrder(turn);
+      const tasks = tree
+        .list<Task>("task")
+        .filter((t) => forHistory(t) && ["open", "doing", "parked", "waiting"].includes(t.state))
+        .sort((a, b) => order(a) - order(b) || a.created.localeCompare(b.created));
+      const weight = new Map((turn?.order ?? []).map((w) => [w.id, w]));
+      const why = (t: Task): string => {
+        const region = regionOfTask(t);
+        const w = region ? weight.get(region) : undefined;
+        if (turn?.asked?.task === t.id) return "asked first";
+        if (turn?.prefer?.task === t.id) return `first: ${turn.prefer.place}`;
+        return w ? `${w.persons} people, ${w.facts} facts` : "";
+      };
+      const when = !turn ? undefined : turn.places ? `the next session, the places to map first (${turn.places})` : turn.pace === "idle" ? "when the family research has nothing to do" : turn.now ? "the next session" : `in ~${Math.max(1, turn.in ?? 0)} sessions`;
       return {
         text: lines(
-          `experiment: ${s.on ? "on" : "off (the user alone turns it on: strom config set experiments.history on)"} · search: ${state.search}${state.why ? ` (${state.why})` : ""}`,
+          `history of the places: ${s.on ? "on" : "off (the user alone turns it on: strom config set experiments.history on)"} · search: ${state.search}${state.why ? ` (${state.why})` : ""}`,
           `places of the facts: ${s.places.total} · mapped ${s.places.mapped} · not located ${s.places.unlocated} · waiting ${s.places.pending.length}`,
           shown.length ? `waiting: ${shown.join(" · ")}${s.places.pending.length > shown.length ? ` … (+${s.places.pending.length - shown.length}, --limit)` : ""}` : undefined,
           s.regions.length
             ? table(s.regions.map((r) => [r.id, r.name?.en ?? "(no catalog)", `${r.events} events`, r.retracted ? `${r.retracted} taken back` : "", r.done ? `done ${r.done.slice(0, 10)}` : r.heldBy ? `held by ${r.heldBy}` : "open", r.tried ? `${r.tried} pages not read` : ""]))
             : "no regions yet",
           `local events: ${s.local.events}${s.local.retracted ? ` (${s.local.retracted} taken back)` : ""} · hidden by the person: ${s.hidden.total}`,
+          turn ? `pace: ${turn.pace} (strom config set experiments.historyPace sometimes|rare|idle) · ${turn.since} sessions since the last of history · strom run takes the next: ${when}${turn.asked ? ` · first: ${turn.asked.task} (asked for ${turn.asked.region})` : turn.prefer ? ` · first: ${turn.prefer.task} (a recent session worked at ${turn.prefer.place})` : ""}` : undefined,
+          tasks.length
+            ? lines("tasks of history in the order strom run takes them, one a turn (strom run --task <T…> starts one now):", table(tasks.map((t, i) => [`  ${i + 1}.`, t.id, t.origin, t.state, why(t)])))
+            : s.on
+              ? "no tasks of history yet: strom raises them when the next session of the research ends"
+              : undefined,
         ),
-        data: { ...s, state },
+        data: { ...s, state, tasks: tasks.map((t) => ({ id: t.id, origin: t.origin, state: t.state, what: t.what, ...(regionOfTask(t) && weight.has(regionOfTask(t)!) ? { weight: weight.get(regionOfTask(t)!) } : {}) })), ...(turn ? { turn } : {}) },
       };
     },
   },
@@ -467,6 +494,25 @@ register(
       if (!regionIdOk(id)) requireRegionId(id);
       const c = redoRegion(shared(ctx), id);
       return { text: ui(tree.lang, "ui.history.past.redo", { region: c.region.name[tree.lang] ?? c.region.name.en ?? id }), data: { region: id } };
+    },
+  },
+  {
+    path: ["history", "first"],
+    summary: "Look for a region's history first of the regions (the person's word): still at the turn of the pace",
+    group: "history",
+    tree: true,
+    writes: true,
+    hidden: true,
+    person: "Look for the history of this region first?",
+    description: "The region's task comes first of the regions (after the places to map) at history's next turn (experiments.historyPace); strom run --task T… takes it now. Only while the history of the places is on.",
+    args: [{ name: "region", description: "the region (strom history status lists those of the tree)", required: true }],
+    examples: ["strom history first cz-bohemia"],
+    run(ctx, { args }) {
+      const tree = ctx.tree();
+      const id = args[0]!.trim();
+      const out = askFirst(tree, ctx.settings.shared()?.value, id, ctx.settings);
+      const c = ctx.settings.shared()?.value ? readCatalog(ctx.settings.shared()!.value, id) : undefined;
+      return { text: ui(tree.lang, "ui.history.past.first", { region: c?.region.name[tree.lang] ?? c?.region.name.en ?? id }), data: { region: id, ...(out.task ? { task: out.task } : {}), first: out.first } };
     },
   },
   ...(["hide", "show"] as const).map((verb) => ({

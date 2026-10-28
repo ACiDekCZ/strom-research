@@ -13,7 +13,8 @@ import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./m
 import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
 import { modelStep, shortcutName } from "./wizard.ts";
-import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
+import { DEFAULT_RUN_MINUTES, type HistoryPace } from "../core/config.ts";
+import { chooseHistory, historySuggested } from "../commands/setup.ts";
 import { askGate, ensureGatesDir, listGates, loadGate } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
 import { byHandOnly, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
@@ -363,6 +364,17 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
         },
       });
     }
+    // the experiment of history: how often between the family research's sessions, or off — the person's choice here
+    // (before the test of a gate, which shows only with one set: the numbers never move)
+    const history = ctx.settings.experimentsHistory(undefined);
+    items.push({
+      key: "5",
+      label: t("ui.alone.history", { state: history ? t(`ui.history.pace.${ctx.settings.historyPace(undefined)}` as UIKey) : t("ui.settings.off") }),
+      act: async () => {
+        const h = await chooseHistory(ctx, t("ui.setup.history"), historySuggested(ctx), { back: t("ui.browse.back") });
+        if (h) await applyHistory(ctx, run, h);
+      },
+    });
     if (set && shared)
       items.push({
         key: "3",
@@ -387,6 +399,20 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
       });
     return { title: t("ui.alone.title"), items };
   });
+}
+
+/**
+ * History on at the pace chosen, or off (the settings): through strom config set, as the person would type it — the
+ * pace first, so turning it on asks nothing more.
+ */
+async function applyHistory(ctx: Context, run: Run, choice: HistoryPace | "off"): Promise<void> {
+  const on = ctx.settings.experimentsHistory(undefined);
+  if (choice === "off") {
+    if (on) await run(["config", "set", "experiments.history", "off"], true);
+    return;
+  }
+  if (choice !== ctx.settings.historyPace(undefined) || ctx.settings.config.experimentsHistoryPace === undefined) await run(["config", "set", "experiments.historyPace", choice], true);
+  if (!on) await run(["config", "set", "experiments.history", "on"], true);
 }
 
 /** The gate's name in "claude-usage 10". */

@@ -776,6 +776,8 @@ export interface TreeConfig {
   stories?: string;
   /** The experiment of history at the places of the tree turned off for this tree alone ("off"; on is the user's config). */
   experimentsHistory?: string;
+  /** How often the experiment of history takes a session here, only less often than the user's (core/config.ts historyPace). */
+  experimentsHistoryPace?: string;
   /** The main person of the tree: first in the GEDCOM files, where the Strom app opens. */
   mainPerson?: string;
   /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */

@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.22.0
 
-*In preparation: the betas up to 1.22.0-beta.4. The section is complete with the release.*
+*In preparation: the betas up to 1.22.0-beta.5. The section is complete with the release.*
 
 - **Each name once in what waits.** A task for material sent from the Strom app named each person twice in the
   widget and on the phone's page (the second time in brackets), and its text without names kept empty brackets; the
@@ -28,9 +28,14 @@ The changes of each version in short. The full notes and the install lines are o
   smaller.
 - **The gate of the subscription's week lets several sessions run in a row.** Once it waits for points in hand, it goes again only
   with two more (at 15: 17), instead of one session after every wait.
-- **An experiment: what the ancestors lived through.** Experimental and off by default: the events at the places of
-  the tree — the history of a region from pages strom downloaded and checked itself, local events from the records
-  read — shown by the Strom app. Only a person turns it on; while it is off, nothing is looked for.
+- **What the ancestors lived through.** The events at the places of the tree — the history of a region from pages
+  strom downloaded and checked itself, local events from the records read — shown by the Strom app. The first setup
+  suggests it on; an installation set up before stays as it is, nothing turns on by itself. Only a person turns it
+  on; while it is off, nothing is looked for. Once on, the
+  places are mapped in the next session, and the regions are searched now and then between the family research's
+  sessions: about every 5th (the default), every 10th, or only when nothing else is left
+  (`strom config set experiments.historyPace`, the setup, the settings); `strom plan` says when. The regions
+  of the most people come first, a land before the state above it.
 
 ## 1.21.0
 

@@ -121,6 +121,25 @@ test("the menu: the settings of this computer — the agent working alone, a hoo
   w.cleanup();
 });
 
+test("the menu: the history of the places in the settings of working alone — how often or off, the person's choice; 0 changes nothing", unix, async () => {
+  const w = await world();
+  const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
+  // 8 settings · 2 working alone · 4 history: 2 rare · 0 back · 0 back · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["8", "2", "4", "2", "0", "0", "0"] });
+  assert.match(r.out, / 4 {2}Dějiny míst: vypnuto\n/u);
+  assert.match(r.out, /Hledat i události dějin v místech předků[^\n]*Jak často:\n {3}1 {2}občas – zhruba každé 5\. sezení \(výchozí\)\n {3}2 {2}zřídka – zhruba každé 10\. sezení\n {3}3 {2}jen když rodinný výzkum nemá co dělat\n {3}4 {2}vypnuto – dějiny se nehledají\n {3}0 {2}Zpět\n/u);
+  assert.match(r.out, / 4 {2}Dějiny míst: zřídka – zhruba každé 10\. sezení\n/u);
+  assert.equal(config().experimentsHistory, "on");
+  assert.equal(config().experimentsHistoryPace, "rare");
+  // 0: nothing changes; then off — the pace kept for next time
+  await w.ok([], { tty: true, answers: ["8", "2", "4", "0", "0", "0", "0"] });
+  assert.equal(config().experimentsHistory, "on");
+  await w.ok([], { tty: true, answers: ["8", "2", "4", "4", "0", "0", "0"] });
+  assert.equal(config().experimentsHistory, "off");
+  assert.equal(config().experimentsHistoryPace, "rare");
+  w.cleanup();
+});
+
 /** The numbers of a (sub)menu's items in the last listing that has this title, 0 last. */
 function numbersUnder(out: string, title: string): number[] {
   const at = out.lastIndexOf(`${title}\n`);
@@ -408,7 +427,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   const consents = path.join(w.env.STROM_CONFIG_DIR!, "consents.json");
   fs.writeFileSync(consents, JSON.stringify({ connectors: { zkouska: { dir: path.join(old, "shared", "plugins", "connectors", "zkouska"), hash: "x", hosts: [], at: "2026-01-01" } }, hosts: {} }));
   // 0 for the folder keeps it
-  await w.ok(["setup"], { tty: true, answers: ["", "0", "0", "0", "0", "0", "0", "0", "n", "0"] });
+  await w.ok(["setup"], { tty: true, answers: ["", "0", "0", "0", "0", "0", "0", "0", "0", "n", "0"] });
   assert.equal(config().home, old);
   assert.ok(!fs.existsSync(path.join(w.cwd, "0")) && !fs.existsSync(path.join(w.dir, "0")));
   // moved from the menu's settings into a folder Finder has been in: the menu goes on, with the tree where it is now
@@ -416,7 +435,7 @@ test("what a review of the menu found: a move from the settings, 0 for the folde
   fs.mkdirSync(target);
   fs.writeFileSync(path.join(target, ".DS_Store"), "");
   // 8 settings · 1 the setup · Enter: everything, step by step · …
-  const r = await w.ok([], { tty: true, answers: ["8", "1", "", "", target, "", "0", "0", "0", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
+  const r = await w.ok([], { tty: true, answers: ["8", "1", "", "", target, "", "0", "0", "0", "0", "0", "0", "0", "n", "0", "n", "5", "1", "", "0", "0"] });
   assert.match(r.out, /✓ Výzkum je teď ve složce .*Nové místo\./);
   assert.match(r.out, /Novákovi – přehled výzkumu/, "the menu goes on, the tree opened where it is now");
   assert.doesNotMatch(r.out + r.err, /not a Strom tree|error:/);

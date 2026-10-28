@@ -91,7 +91,7 @@ test("history: the experiment is the person's alone; a tree may only turn it off
     assert.equal((await answer(w)).state.on, false);
     const off = await w.run(["history", "add", "--region", "cz-bohemia", "--from", "1866", "--kind", "epidemic", ...TEXTS("a", "b", "c"), "--url", "https://example.org/", "--quote", "1866"], { env: AGENT });
     assert.notEqual(off.code, 0);
-    assert.match(off.err, /experiment of history is off/);
+    assert.match(off.err, /history of the places is off/);
     await w.ok(["config", "set", "experiments.history", "on"], { tty: true, answers: ["a"] });
     assert.equal((await answer(w)).state.on, true);
     await w.ok(["config", "set", "experiments.history", "off", "--for-tree"]);

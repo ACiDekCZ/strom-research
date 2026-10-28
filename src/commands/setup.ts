@@ -10,7 +10,7 @@ import { spawnSync } from "node:child_process";
 import { APP_URL_INVALID_SETTING, register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, secondsIn, table } from "../cli/format.ts";
-import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
+import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_HISTORY_PACE, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, HISTORY_PACES, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import type { Input, Media, TreeConfig } from "../core/model.ts";
 import { gitVersion, runGit } from "../core/git.ts";
@@ -47,7 +47,7 @@ import type { UIKey } from "../cli/ui.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
 import { placeholders, ui, UI } from "../cli/ui.ts";
 import { foundTrees } from "../cli/seal.ts";
-import { PERMISSION_LEVELS, type AgentPermissions } from "../core/config.ts";
+import { PERMISSION_LEVELS, type AgentPermissions, type HistoryPace } from "../core/config.ts";
 import { PROFILES, type Tier } from "../agents/profiles.ts";
 import { agentSettingsSaid, EFFORTS, hasEffort, ownEffort, raisesEffort, RECOMMENDED_EFFORT } from "../agents/effort.ts";
 import { agentSettingsLine, chooseEffort } from "../cli/model-choice.ts";
@@ -865,6 +865,7 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   if (def.key === "connectors.consent") return { value: "off", source: "default" };
   if (def.key === "agent.addons") return { value: "off", source: "default" };
   if (def.key === "experiments.history") return { value: "off", source: "default" };
+  if (def.key === "experiments.historyPace") return { value: ctx.settings.historyPace(tree), source: "default" };
   if (def.key === "tune.transcripts") return { value: "on", source: "default" };
   if (def.key === "tune.auto") return { value: "on", source: "default" };
   if (def.key === "browser.downloads") return { value: downloadsDir(ctx.env), source: "detected" };
@@ -917,6 +918,7 @@ function addonsDecision(ctx: Context, key: string, value: string | number | unde
  * spends the agent's time and the plan; a tree's strom.json may only turn it off (its research alone); off is anyone's.
  */
 function experimentsDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
+  if (key === "experiments.historyPace") return paceDecision(ctx, value, scope);
   if (key !== "experiments.history") return;
   if (scope === "tree") {
     if (value === "on")
@@ -927,7 +929,81 @@ function experimentsDecision(ctx: Context, key: string, value: string | number |
   }
   const { now, next } = layerChange(ctx, key, value, scope);
   if (next === "on" && now !== "on")
-    ctx.requireHuman("Look for the events of history at the places of every research on this computer (an experiment: only when the family research has nothing to do)?", "strom config set experiments.history on", "experiments.history", ui(ctx.uiLang(), "ui.consent.history"));
+    ctx.requireHuman("Look for the events of history at the places of every research on this computer (now and then between the sessions of the family research)?", "strom config set experiments.history on", "experiments.history", ui(ctx.uiLang(), "ui.consent.history"));
+}
+
+/** A pace more often than another (experiments.historyPace: sometimes before rare before idle). */
+function oftener(a: HistoryPace, b: HistoryPace): boolean {
+  return HISTORY_PACES.indexOf(a) < HISTORY_PACES.indexOf(b);
+}
+
+/**
+ * How often the experiment of history takes a session (experiments.historyPace): more often is the person's alone — a
+ * search spends the agent's time and the plan —, less often anyone's; a tree's strom.json only less often than the user's.
+ */
+function paceDecision(ctx: Context, value: string | number | undefined, scope: "tree" | "user"): void {
+  const user = ctx.settings.historyPace(undefined);
+  if (scope === "tree") {
+    if (value !== undefined && oftener(value as HistoryPace, user))
+      throw new UsageError(`a tree may only make the history less often than the user's own pace (${user})`, {
+        hint: `the user, in their terminal: strom config set experiments.historyPace ${value} (every research on this computer)`,
+      });
+    return;
+  }
+  const next = (value ?? DEFAULT_HISTORY_PACE) as HistoryPace;
+  if (oftener(next, user))
+    ctx.requireHuman(
+      `Look for the events of history more often (${next})?`,
+      `strom config set experiments.historyPace ${next}`,
+      "experiments.historyPace",
+      ui(ctx.uiLang(), "ui.consent.history.pace", { pace: ui(ctx.uiLang(), `ui.history.pace.${next}` as UIKey) }),
+    );
+}
+
+/**
+ * Turned on by the person in their terminal (strom config set experiments.history on, the link of the Strom app):
+ * how often, asked once — while no pace was chosen yet; Enter takes the default. Anywhere else (a window, no
+ * terminal) nothing asked: the default, or the pace chosen before.
+ */
+async function askPace(ctx: Context, key: string, value: string | number | undefined): Promise<HistoryPace | undefined> {
+  if (key !== "experiments.history" || value !== "on" || ctx.settings.experimentsHistory(undefined)) return undefined;
+  if (!ctx.interactive || isAgent(ctx.env) || readStored(ctx.settings.config, "experiments.historyPace", "") !== undefined) return undefined;
+  return choosePace(ctx, DEFAULT_HISTORY_PACE);
+}
+
+/** The pace chosen of the three, in the person's language (Enter: `suggested`; no answer: undefined). */
+export async function choosePace(ctx: Context, suggested: HistoryPace): Promise<HistoryPace | undefined> {
+  const lang = ctx.uiLang();
+  const at = await ctx.choose(
+    ui(lang, "ui.history.pace.ask"),
+    HISTORY_PACES.map((p) => ({ label: `${ui(lang, `ui.history.pace.${p}` as UIKey)}${p === DEFAULT_HISTORY_PACE ? ui(lang, "ui.history.pace.default") : ""}` })),
+    HISTORY_PACES.indexOf(suggested),
+  );
+  if (at === undefined) return undefined;
+  ctx.io.stdout(`${ui(lang, "ui.history.pace.later")}\n`);
+  return HISTORY_PACES[at];
+}
+
+/**
+ * History on at one of the paces, or off (the setup's step, the settings): Enter takes `suggested`, the default pace is
+ * the one marked — on, sometimes (Milan, 28 Oct 2026: no longer an experiment); `back` adds 0 — nothing changes
+ * (undefined, as when a test ran out of answers).
+ */
+export async function chooseHistory(ctx: Context, question: string, suggested: HistoryPace | "off", opts: { back?: string } = {}): Promise<HistoryPace | "off" | undefined> {
+  const lang = ctx.uiLang();
+  const all = [...HISTORY_PACES, "off" as const];
+  const at = await ctx.choose(
+    question,
+    all.map((p) => ({ label: `${ui(lang, `ui.history.pace.${p}` as UIKey)}${p === DEFAULT_HISTORY_PACE ? ui(lang, "ui.history.pace.default") : ""}` })),
+    all.indexOf(suggested),
+    opts,
+  );
+  return at === undefined ? undefined : all[at];
+}
+
+/** What the choice of history suggests now: the pace while it is on, else off. */
+export function historySuggested(ctx: Context): HistoryPace | "off" {
+  return ctx.settings.experimentsHistory(undefined) ? ctx.settings.historyPace(undefined) : "off";
 }
 
 /** The browser in every session (agent.browser always): the user's decision alone, for them or for one tree. */
@@ -1068,6 +1144,7 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
   syncDecisions(ctx, key, value, "user");
   addonsDecision(ctx, key, value, "user");
   experimentsDecision(ctx, key, value, "user");
+  const pace = await askPace(ctx, key, value);
   browserDecision(ctx, key, value, "user");
   effortDecision(ctx, key, value, "user");
   webDecision(ctx, key, value, "user");
@@ -1136,6 +1213,7 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
       if (!(await ctx.requireHumanYes(`Let the Strom app ask up to ${now.hour} readings of documents an hour and ${now.day} a day?`, value === undefined ? "strom config unset read.app" : `strom config set read.app "${value}"`, "read.app", ui(ctx.uiLang(), "ui.consent.read.app", { hour: now.hour, day: now.day })))) return false;
   }
   writeStored(s.config, key, s.agent(treeSettings(ctx)).value, value);
+  if (pace) writeStored(s.config, "experiments.historyPace", "", pace);
   s.save();
   if (key === "shared" && typeof value === "string") ensureShared(value);
   return true;

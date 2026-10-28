@@ -16,6 +16,7 @@ import type { UIKey } from "./ui.ts";
 import { actsAsArchive, kindOf, type Kind } from "../core/state.ts";
 import { Tree } from "../core/tree.ts";
 import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
+import { choosePace } from "../commands/setup.ts";
 import type { Conflict, Family, Person, Research, Session, Source, Task } from "../core/model.ts";
 import { costPartial, monthSpend, sessionCost } from "../core/session.ts";
 import { adoptAskedSince, adoptFailedSince, adoptedAt, adoptionNeverCame, awaitAdoption, nothingSince, removedByItsDecision, SYNC_INBOX, undoSync, withoutImages, type SyncInput } from "../core/sync.ts";
@@ -192,6 +193,11 @@ export async function experimentDo(ctx: Context, run: Run, lang: string, root: s
   const minutes = ctx.settings.number("run.minutes", tree.config, DEFAULT_RUN_MINUTES);
   const note = lines(t(ctx.settings.runGate() ? "ui.link.experiment.note.gate" : "ui.link.experiment.note", { minutes }), userOn ? undefined : t("ui.link.experiment.all"));
   if (!(await asks(ctx, lang, root, t("ui.link.what.experiment.history"), note, false))) return false;
+  // how often, asked once it is on for this computer (the pace chosen before suggested): this computer's too
+  if (!userOn) {
+    const pace = (await choosePace(ctx, ctx.settings.historyPace(undefined))) ?? ctx.settings.historyPace(undefined);
+    if ((await run(["config", "set", "experiments.historyPace", pace], true)) !== 0) return false;
+  }
   if (!userOn && (await run(["config", "set", "experiments.history", "on"], true)) !== 0) return false;
   if (treeOff && (await run(["config", "unset", "experiments.history", "--for-tree"], true)) !== 0) return false;
   out(ctx, t("ui.link.experiment.on.done"));
