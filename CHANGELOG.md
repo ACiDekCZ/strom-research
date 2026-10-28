@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.22.0
 
-*In preparation: the betas up to 1.22.0-beta.6. The section is complete with the release.*
+*In preparation: the betas up to 1.22.0-beta.7. The section is complete with the release.*
 
 - **Each name once in what waits.** A task for material sent from the Strom app named each person twice in the
   widget and on the phone's page (the second time in brackets), and its text without names kept empty brackets; the
@@ -16,9 +16,12 @@ The changes of each version in short. The full notes and the install lines are o
   desktop could open one of the others; it now opens the tree of its own research.
 - **Much smaller session logs.** The logs of sessions and readers no longer keep the images the agent looked at
   (only their size and the view's path), so they are 95–99 % smaller.
-- **Tidying that keeps up.** `strom tidy` handles logs of any size. Views of scans, downloads cut short and other
-  things strom makes again are kept in order even without a yes; logs are only made smaller then, never removed. After
-  a no, the question comes once more when `.strom` grows far beyond the research.
+- **Tidying that keeps up, a start that does not wait.** `strom tidy` handles logs of any size. Views of scans,
+  downloads cut short and other things strom makes again are kept in order even without a yes; logs are only made
+  smaller then, never removed. After a no, the question comes once more when `.strom` grows far beyond the research.
+  Slow start on OneDrive or a network drive found and fixed: the menu and `strom doctor` no longer open every scan,
+  return to the menu at once, doctor shows its progress and says when the research lies in a cloud folder or on a
+  network drive; `strom doctor --timing` tells what took long.
 - **An archive that stops answering stops the agent's loop.** `strom fetch` says when to try again and what to do
   meanwhile; asked again in the same session it ends at once (exit 8) and sends nothing. A task whose archive is left
   alone waits out of the queue until then (the plan shows it put off until that time), and `strom run --loop` waits
@@ -30,15 +33,30 @@ The changes of each version in short. The full notes and the install lines are o
   with two more (at 15: 17), instead of one session after every wait.
 - **What the ancestors lived through.** The events at the places of the tree — the history of a region from pages
   strom downloaded and checked itself, local events from the records read — shown by the Strom app. The first setup
-  suggests it on; an installation set up before stays as it is, nothing turns on by itself. Only a person turns it
-  on; while it is off, nothing is looked for. Once on, the
+  suggests it on; an installation set up before is asked once, at the first menu after the update (Enter: not now),
+  and nothing turns on by itself. Only a person turns it on — then or later in the menu's Settings → The agent working
+  alone → History of the places, from the Strom app, or with `strom config set experiments.history on`; while it is
+  off, nothing is looked for. Once on, the
   places are mapped in the next session, and the regions are searched now and then between the family research's
   sessions: about every 5th (the default), every 10th, or only when nothing else is left
-  (`strom config set experiments.historyPace`, the setup, the settings); `strom plan` says when. The regions
+  (`strom config set experiments.historyPace`, the setup, the settings); `strom plan` says when, and all of them
+  can go first at a person's word (`strom run --history`, the menu's "Look for history now"). The regions
   of the most people come first, a land before the state above it.
   Once a region's events are gathered, the years the tree's people lived there for more than 15 in a row with no
   event are looked through once more; years looked through are not raised again, in any research, until the region
   is asked for again.
+  A region is searched only in the years the tree's people lived at its places (their facts there and five years
+  around them; up to today only when the facts reach the last 30 years) — a few years at a war abroad are those years
+  alone. When an ancestor found later lived there earlier or later, or another research shares the region, only the
+  new years are searched, once. `strom history status` and `strom plan` show each region's years and what waits.
+  What is shown is the person's to manage, in the Strom app or with `strom history`: an event hidden, or deleted —
+  from every research on this computer, never written again — and restored; a region or a place skipped; a place's
+  regions assigned by hand.
+  The stories take it as the background of their time: the events of the years each person lived at their places,
+  each with its source, never as what the person did (a couple's, only the years both lived); nothing hidden or
+  deleted. An approved story stays as it is —
+  the history comes only with its next version, waiting for approval. Off in the settings or in the Strom app
+  (`strom config set stories.history no`).
 
 ## 1.21.0
 

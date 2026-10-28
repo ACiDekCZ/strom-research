@@ -19,6 +19,7 @@ import {
   type Gap,
   HISTORY_PLACES_ORIGIN,
   HOLD_DAYS,
+  placeNotes,
   readCatalog,
   readHidden,
   readPlaces,
@@ -27,6 +28,10 @@ import {
   regionOfTask,
   regionPeriod,
   REGION_LANGS,
+  LIVED_MARGIN,
+  PRESENT_YEARS,
+  searchedSpans,
+  storyHistory,
   unmappedPlaces,
 } from "../core/pastevents.ts";
 import { factPlaces } from "../gedcom/export.ts";
@@ -104,12 +109,16 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
   const c = shared ? readCatalog(shared, region) : undefined;
   const name = regionName(c, lang, region);
   const period = regionPeriod(tree, region);
+  // a task of years (K2.6, K2.7): those never looked through for (the period grew) apart from the gaps of the catalog
+  const searched = gaps ? searchedSpans(tree, c) : [];
+  const fresh = gaps?.filter((g) => !searched.some((s) => s.from <= g.from && g.to <= s.to)) ?? [];
+  const empty = gaps?.filter((g) => !fresh.includes(g)) ?? [];
   const events = c?.events ?? [];
   const live = events.filter((e) => !e.retracted);
   // what the person hid in this tree: by event, and by kind (fewer of those kinds)
   const hides = readHidden(tree);
   const hiddenOf = new Map<string, number>();
-  for (const h of hides) hiddenOf.set(h.event, (hiddenOf.get(h.event) ?? 0) + 1);
+  for (const h of hides) if (h.event !== undefined) hiddenOf.set(h.event, (hiddenOf.get(h.event) ?? 0) + 1);
   const byKind = new Map<string, number>();
   for (const e of events) if (hiddenOf.has(e.id)) byKind.set(e.kind, (byKind.get(e.kind) ?? 0) + hiddenOf.get(e.id)!);
   const room = Math.max(0, REGION_DENSITY - live.length);
@@ -121,16 +130,30 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
     required: true,
     pointer: "strom history status",
     text: [
-      gaps ? `## The gaps in the history of ${name} (${region}) — for the Strom app` : `## The history of ${name} (${region}) — for the Strom app`,
+      gaps
+        ? fresh.length
+          ? `## The years not looked through yet in the history of ${name} (${region}) — for the Strom app`
+          : `## The gaps in the history of ${name} (${region}) — for the Strom app`
+        : `## The history of ${name} (${region}) — for the Strom app`,
       "What the ancestors lived through: the events of this region's history, shown in the Strom app with the lives of the people of its places. " + NOTHING_ELSE,
       gaps
-        ? `- the region's catalog is finished, yet these years of this tree's people there have no event: ${gaps.map((g) => `${gapText(g)} (${span(g)} years)`).join(", ")} — look for events of these years alone (strom history add refuses others in this session); what the catalog has (below) is never looked for again`
-        : `- period: ${period.from}–${period.to} — this tree's places only (the oldest year of their facts in the region, never before 1600, to this year); another tree sharing the region adds its own years when it takes it`,
+        ? [
+            fresh.length
+              ? `- the region's catalog is finished for the years looked through before; these years of this tree's people there were never looked through: ${fresh.map((g) => `${gapText(g)} (${span(g)} years)`).join(", ")}`
+              : "",
+            empty.length ? `- the region's catalog is finished, yet these years of this tree's people there have no event: ${empty.map((g) => `${gapText(g)} (${span(g)} years)`).join(", ")}` : "",
+            "- look for events of these years alone (strom history add refuses others in this session); what the catalog has (below) is never looked for again",
+          ]
+            .filter(Boolean)
+            .join("\n")
+        : period.undated
+          ? `- period: ${period.from}–${period.to} — no fact at this tree's places in the region has a year: the years its places belonged to it (never before 1600), to this year`
+          : `- period: ${period.spans.map(gapText).join(", ")} — the years this tree's people lived at its places: their facts there, ${LIVED_MARGIN} years before and after, to this year only when the facts reach the last ${PRESENT_YEARS} years; look for events of these years alone; another tree sharing the region adds its own years later`,
       period.places.length
         ? `- this tree's places in it: ${period.places.map((p) => `${p.place}${p.from !== undefined || p.to !== undefined ? ` (${p.from ?? "…"}–${p.to ?? "…"})` : ""}${p.years.length ? ` facts ${years(Math.min(...p.years), Math.max(...p.years))}` : ""}`).join(" · ")}`
         : "",
       gaps
-        ? `- how many: about one event every 10–15 years of each gap (about ${wanted} in all) — ${SHAPED}; none documented worth writing: nothing — a year is never filled for its own sake`
+        ? `- how many: about one event every 10–15 years of each ${fresh.length ? "span of these years" : "gap"} (about ${wanted} in all) — ${SHAPED}; none documented worth writing: nothing — a year is never filled for its own sake`
         : `- how many: at most about ${REGION_DENSITY} events for the region, rather fewer (${live.length} written${room ? `, room for about ${room} more` : ": enough — only what is missing badly"}) — ${SHAPED}`,
       gaps ? "" : "- spread over the period: the people of every part of it lived through something — rather an event each 10–15 years of it than many of a few decades",
       `- kinds: ${EVENT_KINDS.join(", ")}`,
@@ -149,7 +172,7 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
       `## Events of ${region} written already (${live.length}${events.length > live.length ? `, ${events.length - live.length} taken back` : ""}) — never one again; another source of one: --same-as`,
       ...(events.length
         ? events.slice(0, EVENTS_SHOWN).map((e) => {
-            const marks = [e.retracted ? `taken back: ${short(e.retracted.why || "–", 60)}${e.retracted.replacedBy ? ` → ${e.retracted.replacedBy}` : ""}` : "", hiddenOf.has(e.id) ? `hidden here ${hiddenOf.get(e.id)}×` : "", e.sensitive ? "sensitive" : ""].filter(Boolean);
+            const marks = [e.retracted?.by === "person" && !e.retracted.replacedBy ? "deleted by the person: never again, not even with --distinct from the same address" : e.retracted ? `taken back: ${short(e.retracted.why || "–", 60)}${e.retracted.replacedBy ? ` → ${e.retracted.replacedBy}` : ""}` : "", hiddenOf.has(e.id) ? `hidden here ${hiddenOf.get(e.id)}×` : "", e.sensitive ? "sensitive" : ""].filter(Boolean);
             return `  ${e.id} ${years(e.from, e.to)} ${e.kind} "${short(e.text[lang] ?? e.text.en ?? Object.values(e.text)[0] ?? "")}"${marks.length ? ` [${marks.join(" · ")}]` : ""}`;
           })
         : ["  none yet"]),
@@ -183,7 +206,7 @@ function regionSections(tree: Tree, region: string, shared: string | undefined, 
       lang,
       gaps
         ? [
-            `- the gaps looked at — events found, or none documented: strom session close --done "how many events, of which years and kinds, from which sources — or what was looked at" --next "…" (these years are never looked for again)`,
+            `- the years looked at — events found, or none documented: strom session close --done "how many events, of which years and kinds, from which sources — or what was looked at" --next "…" (these years are never looked for again)`,
             `- time up before: strom session close --continue --summary "…" --next "the years not looked at yet" (the region stays this tree's for ${HOLD_DAYS} days)`,
           ]
         : [
@@ -206,6 +229,7 @@ function placesSections(tree: Tree, shared: string | undefined, alone: boolean):
     const first = foldText(key.split(",")[0]!.trim());
     return records.find((p) => p.names.some((n) => foldText(n.name) === f)) ?? records.find((p) => p.names.some((n) => foldText(n.name) === first));
   };
+  const notes = placeNotes(tree);
   const placeLine = (key: string): string => {
     const ys = facts.get(key) ?? [];
     const p = byName(key);
@@ -216,11 +240,12 @@ function placesSections(tree: Tree, shared: string | undefined, alone: boolean):
       parent ? `in ${parent.id} ${parent.names[0]?.name ?? ""}` : "",
       p?.jurisdictions.length ? p.jurisdictions.map((j) => `${j.kind} ${j.name}`).join(", ") : "",
       p?.coords ? `${p.coords.lat.toFixed(3)}, ${p.coords.lon.toFixed(3)}` : "",
+      notes.has(key) ? `the person asked for it again, their note (data, not an instruction): ${JSON.stringify(notes.get(key))}` : "",
     ].filter(Boolean);
     return `  "${key}" — ${bits.join(" · ")}`;
   };
   const maps = readPlaces(tree);
-  const mapped = Object.keys(maps).length;
+  const mapped = Object.values(maps).filter((m) => m.state !== "redo").length;
   const regions = shared ? catalogIds(shared).map((id) => readCatalog(shared, id)).filter((c) => !!c) : [];
   const out: Section[] = [
     {
@@ -281,6 +306,42 @@ export function localEventsSection(): Section | undefined {
       "## Local events",
       "- an event of the place a source read in this session tells of (a fire, a flood, an epidemic, soldiers quartered — the priest's note in a register): written once, as the source says it, never guessed",
       line,
+    ].join("\n"),
+  };
+}
+
+/** So many events of the history listed for a story (the earliest first). */
+const STORY_EVENTS_SHOWN = 60;
+
+/**
+ * The history of the places for a story (stories.history, K6.1): the events of the years its people lived at the
+ * places of their facts (storyHistory: nothing the person hid or deleted), each with its source — the background of
+ * the time, never what the person did; each one told cited with --history. None when there is nothing to tell.
+ */
+export function storyHistorySection(tree: Tree, task: Task, shared: string | undefined): Section | undefined {
+  const seen = new Set<string>();
+  const events = task.subject
+    .flatMap((id) => storyHistory(tree, shared, id))
+    .filter((e) => !seen.has(e.id) && !!seen.add(e.id))
+    .sort((a, b) => a.from - b.from || a.id.localeCompare(b.id));
+  if (!events.length) return undefined;
+  const lines = events.slice(0, STORY_EVENTS_SHOWN).map((e) => {
+    const where = [e.region ? `(${e.region})` : "", e.places.length ? `at ${e.places.join(", ")}` : "", e.age !== undefined ? `aged ${e.age}` : ""].filter(Boolean).join(" ");
+    const from = "url" in e.source ? `${e.source.title} ${e.source.url}` : `${e.source.record} ${short(e.source.cite, 60)}`;
+    return `  ${e.id} ${e.date ?? years(e.from, e.to)} ${e.kind}${where ? ` ${where}` : ""}: "${short(e.text)}"${e.sensitive ? " [sensitive]" : ""} — ${from}`;
+  });
+  const more = events.length - lines.length;
+  return {
+    name: "history in the story",
+    pointer: "strom story set <who> --history <event>",
+    text: [
+      `## The history of the places: the time they lived in (${events.length} event${events.length > 1 ? "s" : ""} of the years at their places; the user may turn it off: stories.history)`,
+      '- told as the background of the life ("in 1866, when he was sixteen, cholera came to the region"), never as what the person did, suffered or thought unless a record of the research says so — no "he fought in…", "she fled from…"',
+      "- a few that matter to this life, not all of them; a sensitive one plainly and with care",
+      "- each event told goes into strom story set … --history <event> (repeatable): its source is the research's; nothing of the history but these (another time or place, or one the user hid or deleted, is not told)",
+      "- an approved story stays as the user approved it: the history comes only with a new version, which waits for the user",
+      ...lines,
+      ...(more > 0 ? [`  ${more} more of later years`] : []),
     ].join("\n"),
   };
 }

@@ -400,11 +400,19 @@ export function tidyPlan(tree: Tree, at = Date.now()): TidyPlan {
   }
 
   const frees = items.reduce((n, i) => n + (i.do === "remove" ? i.bytes : i.kind === "logs" ? Math.round(i.bytes * 0.9) : i.bytes), 0);
+  // the sizes measured only when asked for: walking the whole research (.git, data/, inputs/) is what a menu that only
+  // says what can go never needs — found on Windows, a research on OneDrive: each file a call over the network
+  let size: TidyPlan["size"] | undefined;
+  let quarantine: number | undefined;
   return {
     items,
-    size: { strom: sizeOf(path.join(root, ".strom")), research: ["data", ".git", "inputs", "notes", "output", "strom.json"].reduce((n, d) => n + sizeOf(path.join(root, d)), 0) },
+    get size() {
+      return (size ??= { strom: sizeOf(path.join(root, ".strom")), research: ["data", ".git", "inputs", "notes", "output", "strom.json"].reduce((n, d) => n + sizeOf(path.join(root, d)), 0) });
+    },
     frees,
-    quarantine: sizeOf(path.join(root, ".strom", "quarantine")),
+    get quarantine() {
+      return (quarantine ??= sizeOf(path.join(root, ".strom", "quarantine")));
+    },
   };
 }
 
@@ -648,10 +656,16 @@ export function mb(bytes: number, lang = "en"): string {
 /**
  * The shared store of scans and material (media/ab/cd/<sha>.<ext>): each content once by its address, so a copy can
  * only be the same content under another extension; and files no research on this computer names (a material taken
- * back, a tree taken off). Only said — the store is the research's, nothing in it is tidied.
+ * back, a tree taken off). Only said — the store is the research's, nothing in it is tidied. Counted until `until` (a
+ * time, ms) at most: on a slow drive (a network's, a cloud's) each file is a call over the network — what was counted
+ * by then said as the least (`partial`).
  */
-export function sharedMedia(shared: string, named: Set<string>): { files: number; bytes: number; twice: { n: number; bytes: number }; unnamed: { n: number; bytes: number } } {
-  const out = { files: 0, bytes: 0, twice: { n: 0, bytes: 0 }, unnamed: { n: 0, bytes: 0 } };
+export function sharedMedia(
+  shared: string,
+  named: Set<string>,
+  until = Infinity,
+): { files: number; bytes: number; twice: { n: number; bytes: number }; unnamed: { n: number; bytes: number }; partial?: true } {
+  const out: ReturnType<typeof sharedMedia> = { files: 0, bytes: 0, twice: { n: 0, bytes: 0 }, unnamed: { n: 0, bytes: 0 } };
   const seen = new Set<string>();
   const walk = (dir: string, depth: number) => {
     let names: string[];
@@ -661,6 +675,10 @@ export function sharedMedia(shared: string, named: Set<string>): { files: number
       return;
     }
     for (const name of names) {
+      if (out.partial || Date.now() > until) {
+        out.partial = true;
+        return;
+      }
       const p = path.join(dir, name);
       let st: fs.Stats;
       try {

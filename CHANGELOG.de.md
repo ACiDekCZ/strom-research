@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.22.0
 
-*In Vorbereitung: die Betas bis 1.22.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.22.0-beta.7. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Jeder Name einmal in dem, was wartet.** Eine Aufgabe zu Material, das aus der Strom-App gesendet wurde, nannte im
   Widget und auf der Seite des Telefons jede Person zweimal (das zweite Mal in eckigen Klammern), und ihr Text ohne
@@ -17,10 +17,13 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Widget auf dem Mac-Schreibtisch einen der anderen öffnen; jetzt öffnet es den Stammbaum seiner eigenen Forschung.
 - **Viel kleinere Sitzungsprotokolle.** Die Protokolle der Sitzungen und Leser behalten die Bilder, die der Agent
   angesehen hat, nicht mehr (nur ihre Größe und den Pfad der Ansicht) und sind dadurch 95–99 % kleiner.
-- **Aufräumen, das mithält.** `strom tidy` bewältigt Protokolle jeder Größe. Ansichten von Scans, abgebrochene
-  Downloads und anderes, was strom neu erstellen kann, werden auch ohne Zustimmung aufgeräumt; Protokolle werden dann
-  nur verkleinert, nie gelöscht. Nach einem Nein kommt die Frage noch einmal, wenn `.strom` weit über die Forschung
-  hinauswächst.
+- **Aufräumen, das mithält, und ein Start, der nicht wartet.** `strom tidy` bewältigt Protokolle jeder Größe.
+  Ansichten von Scans, abgebrochene Downloads und anderes, was strom neu erstellen kann, werden auch ohne Zustimmung
+  aufgeräumt; Protokolle werden dann nur verkleinert, nie gelöscht. Nach einem Nein kommt die Frage noch einmal, wenn
+  `.strom` weit über die Forschung hinauswächst.
+  Langsamer Start auf OneDrive oder einem Netzlaufwerk: Menü und `strom doctor` öffnen nicht mehr jeden Scan, die
+  Rückkehr ins Menü ist sofort da, doctor zeigt den Fortschritt und meldet, wenn die Forschung in einem Cloud-Ordner
+  oder auf einem Netzlaufwerk liegt; `strom doctor --timing` zeigt, was lange dauerte.
 - **Ein Archiv, das nicht antwortet, beendet die Schleife des Agenten.** `strom fetch` sagt, wann es wieder zu
   versuchen ist und was bis dahin zu tun ist; dieselbe Anfrage in derselben Sitzung endet sofort (Exit 8) und sendet
   nichts. Eine Aufgabe, deren Archiv pausiert, wartet bis dahin außerhalb der Warteschlange (der Plan zeigt sie bis zu
@@ -32,14 +35,30 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   erst mit zwei Punkten mehr wieder los (bei 15: 17), statt einer Sitzung nach jedem Warten.
 - **Was die Vorfahren erlebten.** Die Ereignisse an den Orten des Stammbaums – die Geschichte einer Region aus Seiten,
   die strom selbst geladen und geprüft hat, örtliche Ereignisse aus gelesenen Einträgen – zeigt die Strom-App. Die
-  Ersteinrichtung schlägt es eingeschaltet vor; eine früher eingerichtete Installation bleibt, wie sie ist, nichts
-  schaltet sich von selbst ein. Einschalten kann es nur ein Mensch; solange es aus ist, wird nichts gesucht. Eingeschaltet, werden die Orte in der nächsten Sitzung zugeordnet und die Regionen ab und zu zwischen den
+  Ersteinrichtung schlägt es eingeschaltet vor; eine früher eingerichtete Installation fragt einmal, im ersten Menü
+  nach dem Update (Enter: jetzt nicht), und nichts schaltet sich von selbst ein. Einschalten kann es nur ein Mensch –
+  dann oder später im Menü Einstellungen → Der Agent allein → Geschichte der Orte, aus der Strom-App oder mit
+  `strom config set experiments.history on`; solange es aus ist, wird nichts gesucht. Eingeschaltet, werden die Orte in der nächsten Sitzung zugeordnet und die Regionen ab und zu zwischen den
   Sitzungen der Familienforschung durchsucht: etwa jede 5. Sitzung (Standard), jede 10. oder nur, wenn nichts anderes
-  ansteht (`strom config set experiments.historyPace`, die Ersteinrichtung, die Einstellungen); wann, sagt `strom plan`.
+  ansteht (`strom config set experiments.historyPace`, die Ersteinrichtung, die Einstellungen); wann, sagt `strom plan`,
+  und auf das Wort eines Menschen können alle zuerst laufen (`strom run --history`, im Menü „Geschichte jetzt suchen“).
   Zuerst die Regionen mit den meisten Personen, ein Land vor dem Staat darüber.
   Sind die Ereignisse einer Region gesammelt, werden die Jahre, in denen die Personen des Stammbaums dort mehr als
   15 Jahre in Folge ohne ein Ereignis lebten, noch einmal durchsucht; durchsuchte Jahre werden in keiner Forschung
   erneut aufgegriffen, bis die Region wieder angefragt wird.
+  Eine Region wird nur in den Jahren durchsucht, in denen Personen des Stammbaums an ihren Orten lebten (ihre Angaben
+  dort und fünf Jahre darum; bis heute nur, wenn die Angaben in die letzten 30 Jahre reichen) – ein paar Jahre im
+  Krieg im Ausland sind nur diese Jahre. Lebte ein später gefundener Vorfahre früher oder später dort, oder teilt eine
+  andere Forschung die Region, werden einmal nur die neuen Jahre durchsucht. `strom history status` und `strom plan`
+  zeigen die Jahre jeder Region und was wartet.
+  Was gezeigt wird, verwaltet der Mensch in der Strom-App oder mit `strom history`: ein Ereignis ausgeblendet, oder
+  gelöscht – aus jeder Forschung auf diesem Computer, nie wieder eingetragen – und wiederhergestellt; eine Region oder
+  ein Ort übersprungen; die Regionen eines Orts von Hand zugeordnet.
+  Die Erzählungen nehmen sie als Hintergrund ihrer Zeit: die Ereignisse der Jahre, in denen ein Mensch an den Orten
+  seiner Angaben lebte, jedes mit seiner Quelle, nie als das, was er tat (bei einem Paar nur die Jahre, in denen
+  beide lebten); nichts Ausgeblendetes oder Gelöschtes. Eine
+  freigegebene Erzählung bleibt, wie sie ist – die Geschichte kommt erst mit ihrer nächsten Fassung, die auf Freigabe
+  wartet. Abschaltbar in den Einstellungen oder in der Strom-App (`strom config set stories.history no`).
 
 ## 1.21.0
 

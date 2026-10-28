@@ -137,6 +137,7 @@ test("the menu's settings: the setup's model step alone — the agent's strong o
   const w = new World();
   fakes(w, { grok: listing(w, "grok", GROK, "models") });
   await w.ok(["setup", "--yes"]);
+  w.historyAsked();
   await w.ok(["init", "Novákovi"]);
   w.cwd = w.treeDir("Novákovi");
   // 8 settings · 1 the setup: 2 only the model · 2 grok-4.6 · 0 · 0

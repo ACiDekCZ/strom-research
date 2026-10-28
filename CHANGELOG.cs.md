@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.22.0
 
-*Připravuje se: bety do 1.22.0-beta.6. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.22.0-beta.7. Oddíl bude úplný s vydáním.*
 
 - **Jméno jednou v tom, co čeká.** Úkol k materiálu poslanému z aplikace Strom jmenoval ve widgetu a na stránce
   telefonu každého člověka dvakrát (podruhé v hranatých závorkách) a jeho text bez jmen nechal prázdné závorky; menu,
@@ -16,9 +16,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   otevřít jiný z nich; teď otevře strom svého výzkumu.
 - **Mnohem menší logy sezení.** Logy sezení a čtenářů už neuchovávají obrázky, na které se agent díval (jen jejich
   velikost a cestu k náhledu), takže jsou o 95–99 % menší.
-- **Úklid, který stačí.** `strom tidy` zvládne logy jakékoli velikosti. Náhledy skenů, přerušená stahování a další,
-  co strom umí vyrobit znovu, se uklízejí i bez souhlasu; logy se pak jen zmenší, nikdy nesmažou. Po odmítnutí přijde
-  otázka ještě jednou, když `.strom` výrazně přeroste samotný výzkum.
+- **Úklid, který stačí, a start, který nečeká.** `strom tidy` zvládne logy jakékoli velikosti. Náhledy skenů,
+  přerušená stahování a další, co strom umí vyrobit znovu, se uklízejí i bez souhlasu; logy se pak jen zmenší, nikdy
+  nesmažou. Po odmítnutí přijde otázka ještě jednou, když `.strom` výrazně přeroste samotný výzkum.
+  Pomalý start na OneDrive nebo síťovém disku: menu a `strom doctor` už neotevírají každý sken, návrat do menu je
+  okamžitý, doctor ukazuje průběh a řekne, když výzkum leží v cloudu nebo na síťovém disku; `strom doctor --timing`
+  ukáže, co trvalo dlouho.
 - **Archiv, který neodpovídá, zastaví smyčku agenta.** `strom fetch` řekne, kdy to zkusit znovu a co dělat mezitím;
   stejný dotaz ve stejném sezení skončí hned (exit 8) a nic neodešle. Úkol, jehož archiv má pauzu, počká mimo frontu
   (plán ho ukáže odložený do té doby) a `strom run --loop` do té doby počká, místo aby pouštěl sezení bez práce.
@@ -28,12 +31,25 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   (při 15: 17), místo jednoho sezení po každém čekání.
 - **Co předek zažil.** Události v místech stromu – dějiny kraje ze stránek, které strom sám stáhl a ověřil, místní
   události z přečtených záznamů – ukáže aplikace Strom; úvodní nastavení ho nabízí zapnuté, instalace nastavená dřív
-  zůstává, jak je, samo se nic nezapne. Zapnout ho může jen člověk; dokud je vypnuté, nic se nehledá. Po zapnutí se místa zmapují hned v dalším sezení a regiony se
+  se zeptá jednou, v prvním menu po aktualizaci (Enter: teď ne), a samo se nic nezapne. Zapnout ho může jen člověk –
+  tehdy, nebo později v menu Nastavení → Samostatná práce agenta → Dějiny míst, z aplikace Strom, nebo
+  `strom config set experiments.history on`; dokud je vypnuté, nic se nehledá. Po zapnutí se místa zmapují hned v dalším sezení a regiony se
   prohledávají průběžně mezi sezeními rodinného výzkumu: zhruba každé 5. sezení (výchozí), každé 10., nebo jen když
-  není co jiného (`strom config set experiments.historyPace`, úvodní nastavení, Nastavení); kdy, řekne `strom plan`.
+  není co jiného (`strom config set experiments.historyPace`, úvodní nastavení, Nastavení); kdy, řekne `strom plan`,
+  a na slovo člověka mohou jít všechny napřed (`strom run --history`, v menu „Hledat dějiny teď“).
   Nejdřív regiony s nejvíc osobami, země před státem nad ní.
   Když jsou události regionu sebrané, roky, kdy v něm lidé stromu žili víc než 15 let po sobě bez jediné události,
   se prohledají ještě jednou; prohledané roky se v žádném výzkumu znovu neotevřou, dokud se o region nepožádá znovu.
+  Region se prohledává jen v letech, kdy v jeho místech žili lidé stromu (jejich údaje tam a pět let kolem nich; až
+  do dneška, jen když údaje sahají do posledních 30 let) – pár let ve válce v cizině jsou jen ty roky. Když později
+  nalezený předek žil v regionu dřív nebo později, nebo region sdílí jiný výzkum, prohledají se jednou jen nové roky.
+  `strom history status` a `strom plan` ukážou roky každého regionu a co čeká.
+  Co se ukazuje, spravuje člověk v aplikaci Strom nebo přes `strom history`: událost skrytá, nebo smazaná – ze všech
+  výzkumů na tomto počítači, znovu se nezapíše – a obnovená; region nebo místo vynechané; regiony místa přiřazené ručně.
+  Vyprávění ji berou jako pozadí doby: události z let, kdy člověk žil v místech svých údajů, každou s jejím zdrojem,
+  nikdy jako to, co dělal (u páru jen z let, kdy žili oba); nic skrytého ani smazaného. Schválené vyprávění zůstane, jak je – dějiny přijdou až s jeho
+  další verzí, která čeká na schválení. Vypnout se dá v nastavení nebo v aplikaci Strom
+  (`strom config set stories.history no`).
 
 ## 1.21.0
 

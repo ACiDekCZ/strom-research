@@ -100,6 +100,11 @@ export interface UserConfig {
   experimentsHistory?: string;
   /** How often the experiment of history takes a session of strom run (core/pastevents.ts historyTurn): rare, sometimes (default), idle. */
   experimentsHistoryPace?: string;
+  /**
+   * When the person was asked about the history of the places (the setup, the settings, or once at the menu after an
+   * update to a strom that has it — never again there, whatever the answer).
+   */
+  historyAsked?: string;
   /** The Strom app on this computer: the user said so ("yes") or does not want to hear of it ("no"). */
   stromApp?: string;
   /** strom-research:// links from the Strom app: the person said yes (set up) or no (never asked again; strom link on changes it). */
@@ -252,6 +257,7 @@ export const SETTINGS: SettingDef[] = [
   { key: "gedcom.for", env: "STROM_GEDCOM_FOR", tree: true, kind: "choice", choices: ["both", "standard", "strom"], description: "GEDCOM files written: both (default), standard (any program), strom (the Strom app)" },
   { key: "stories", env: "STROM_STORIES", tree: true, kind: "choice", choices: ["yes", "no"], description: "stories of the ancestors for the family, written from the facts: yes (default — strom proposes one once a person's life is told by records), no — the user is told when the research starts and may say no" },
   { key: "stories.sources", env: "STROM_STORIES_SOURCES", tree: true, kind: "choice", choices: ["yes", "no"], description: "before a story is written, a search beyond the registers — newspapers, directories, military, land and court records, graves, the history of the place — so the story can tell more, every word still on a record: yes (default, while stories are on), no (the story from what the research found)" },
+  { key: "stories.history", env: "STROM_STORIES_HISTORY", tree: true, kind: "choice", choices: ["yes", "no"], description: "the history of the places (experiments.history) in the stories: the events of their time at the ancestors' places, each with its source, told as the background of the life — never as what the person did: yes (default, while the history is on), no (the stories without it); an approved story is never rewritten for it" },
   { key: "sync.edits", env: "STROM_SYNC_EDITS", tree: true, kind: "choice", choices: ["conflict", "user"], description: "your edits in the Strom app (or another program's file) to a fact a record proves, taken by strom sync: conflict (default — the research keeps the record's, a conflict for you to decide) or user (your edit wins, the record's fact is withdrawn with the reason)" },
   // Read from the config files only (the user's or the tree's) — no variable: turning it off is the user's decision.
   { key: "sync.review", env: "", tree: true, kind: "choice", choices: ["off", "on"], description: "what the Strom app sends: off (default — written at once: additions, the leads corrected, a record's fact changed a conflict for you to decide; strom sync undo takes a send back) or on (each send waits for your word: the menu's What waits for you) — an archive writes always" },
@@ -745,6 +751,14 @@ export class Settings {
   /** Before a story, the sources beyond the registers (core/stories.ts): on unless the user said no. */
   storySources(tree?: TreeConfig): boolean {
     return this.resolve("stories.sources", tree)?.value !== "no";
+  }
+
+  /**
+   * The history of the places in the stories (K6.2, core/pastevents.ts storyHistory): on while the history of the places
+   * is on, unless the user said no.
+   */
+  storyHistory(tree?: TreeConfig): boolean {
+    return this.experimentsHistory(tree) && this.resolve("stories.history", tree)?.value !== "no";
   }
 
   /** strom sync: whether the user's edit to a fact a record proves wins, or becomes a conflict. */

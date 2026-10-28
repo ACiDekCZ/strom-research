@@ -72,15 +72,39 @@
 //   GET <token>/history    what the ancestors lived through (the experiment experiments.history, core/pastevents.ts):
 //                          the events at the places of the tree's facts, the places with their state, what the person
 //                          hid, the state of the search and its rev (an archive's too; what was found stays while off);
-//                          at most 3000 events and 5000 places (those with events first): state.truncated
-//   POST <token>/history/hide   an event hidden at a place or a person ({event, place} | {event, person}, "do": "show"
-//                          shows it again): strom history hide|show, the person's; {hidden, head, parent} — refused 400
-//                          history.body, 404 history.event|history.person, 503 research.busy (+ Retry-After); an archive's too
+//                          at most 3000 events and 5000 places (those with events first): state.truncated; the regions
+//                          of the tree's places (never limited): state, order, weight, events, hidden, gaps and fill;
+//                          each place's regions, people, why, manual, redo + note, skip, its record (feature history.regions)
+//   POST <token>/history/hide   an event hidden at a place, a person or in the whole tree ({event, place} | {event,
+//                          person} | {event, tree: true}), or everything of a region ({region}); "do": "show" shows it
+//                          again: strom history hide|show, the person's; {hidden, head, parent} — refused 400
+//                          history.body, 404 history.event|history.person|history.region, 503 research.busy (+
+//                          Retry-After); an archive's too (features history.hide, history.hide.all)
+//   POST <token>/history/skip   {region} | {place}, "do": "undo" to look for it again: no history of a region or at a
+//                          place in this research (strom history skip|unskip, the person's) — {skip: {regions, places},
+//                          head, parent}; refused 400 history.body, 404 history.region|history.place, 503 research.busy
+//                          (feature history.skip)
+//   POST <token>/history/delete {event}, "do": "restore" to bring it back: an event deleted by the person (strom history
+//                          delete|restore) — a region's from every tree on this computer, a local one from this tree;
+//                          never written again by the research until restored. {event, scope, deleted, head, parent};
+//                          GET /history `deleted` lists them with what their row needs. Refused 400 history.body, 404
+//                          history.event, 409 history.retracted, 503 research.busy (features history.delete, history.delete.restore)
+//   POST <token>/history/map    a place's regions as the person knows them ({place, regions: [{id, from?, to?}]}), the
+//                          place determined again ({place, redo: true, note?}: at most 200 characters after NFC) or back
+//                          to the research ({place, do: "auto"}): strom history assign, the person's; the research never
+//                          maps a place so assigned — {place, map, head, parent}; refused 400 history.body, 404
+//                          history.region|history.place, 503 research.busy (feature history.map)
 //   POST <token>/history/first  {region}: that region's history first of the regions (the app's person card: its places'
 //                          region with no catalog yet) — strom history first, the person's; still at history's next turn
 //                          (the pace). {region, task?, first: [{region, at}]}; refused only while the history is on: 409
 //                          history.off (+ link: turning it on is the person's, in the terminal), 409 history.archive |
-//                          history.done, 404 history.region (no place of the tree in it yet), 400 history.body, 503 research.busy
+//                          history.done | history.skipped, 404 history.region (no place of the tree in it yet), 400 history.body,
+//                          503 research.busy
+//   POST <token>/stories   {"history": false|true}: the history of the places in the stories of this research
+//                          (stories.history in its strom.json; the person's own config stays) — {stories, head, parent};
+//                          refused 400 stories.body, 409 history.off (+ link: the history itself is turned on by the
+//                          person, in the terminal), 503 research.busy (feature stories.history). /status: stories.history
+//                          (on while the history is on, unless turned off); an approved story is never rewritten for it
 //   POST <token>/experiments   {"history": false}: the experiment off for this research (its strom.json; the person's
 //                          own config stays) — {experiments, head, parent}; {"history": true} is refused (403
 //                          experiments.link with the link strom-research://experiment…&do=on: only a person turns it on,
@@ -176,7 +200,7 @@ import { SENDABLE, waitKindOf, waitPhaseOf, type WaitKind } from "./waitkind.ts"
 import { agentsHere } from "./apps.ts";
 import { counted } from "../cli/format.ts";
 import { AppReadings, appReadSpend, readAccepts, statusReads, type ReadingsSeen } from "./live-read.ts";
-import { historyAnswer, historyOn, historyRev, MAX_EVENTS, MAX_PLACES } from "./pastevents.ts";
+import { checkNote, historyAnswer, historyOn, historyRev, MAX_EVENTS, MAX_PLACES } from "./pastevents.ts";
 
 export interface LiveInfo {
   port: number;
@@ -212,6 +236,14 @@ const CODES = {
   "ui.experiments.link": "experiments.link",
 } as const;
 /** What the app sends that the research writes (the routes after the secret): refused while it is sealed elsewhere. */
+/** A region's ID as the app sends it (core/pastevents.ts regionIdOk). */
+const REGION_ID = /^[a-z0-9][a-z0-9-]{0,23}$/u;
+
+/** A place as the app sends it: one line of text, at most 300 characters. */
+function placeOk(v: unknown): v is string {
+  return typeof v === "string" && !!v.trim() && v.length <= 300 && !/[\u0000-\u001f\u007f]/u.test(v);
+}
+
 const APP_WRITES = new Set(["sync", "adopt", "media", "batch", "waiting", "group", "material", "read", "history", "experiments"]);
 /** A file refused (its error's code): what the bridge says of it. */
 const REFUSED: Record<string, keyof typeof CODES> = {
@@ -870,7 +902,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "history.events", "history.hide", "experiments.pace", "history.first"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1376,6 +1408,8 @@ function status(root: string, env: Env, version?: string, seen?: ReadingsSeen): 
     // anything of it, or with the experiment on: an older app reads nothing new)
     // (how often it takes a session: read only — a pace is the person's, chosen in the terminal)
     experiments: { history: historyOn(tree, settings), historyPace: settings.historyPace(tree.config) },
+    // the history of the places in the stories (stories.history): on while the history is on, unless turned off
+    stories: { history: settings.storyHistory(tree.config) },
     ...historyOfStatus(tree, settings, last.head),
     // an archive: nobody works on it — its tasks put aside are no queue, nothing spent (Milan's decision, 2026-10-03)
     ...(archive ? { queue: [], queueMore: 0 } : queue(tree, next, all)),
@@ -1865,6 +1899,22 @@ export function serveLive(root: string, env: Env): Promise<void> {
     }
     if (req.method === "POST" && t === token && what === "history" && sub === "first" && !act) {
       writeFor(req, res, origin, historyFirst());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "history" && sub === "delete" && !act) {
+      writeFor(req, res, origin, historyDelete());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "history" && sub === "skip" && !act) {
+      writeFor(req, res, origin, historySkip());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "history" && sub === "map" && !act) {
+      writeFor(req, res, origin, historyMap());
+      return;
+    }
+    if (req.method === "POST" && t === token && what === "stories" && !sub) {
+      writeFor(req, res, origin, storiesWrite());
       return;
     }
     if (req.method === "POST" && t === token && what === "experiments" && !sub) {
@@ -2518,7 +2568,10 @@ export function serveLive(root: string, env: Env): Promise<void> {
       if (writing || adopting || personWriting) return busy("the research is busy — ask again in a moment");
       personWriting = how.what;
       const { command, args } = stromLauncher();
-      const child = spawn(command, [...args, ...asked.args, "--json"], { cwd: root, env: forApp(env, root), stdio: [how.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"], windowsHide: true });
+      // --json before a bare "--" (what follows it is an argument as it is: a place may begin with a hyphen)
+      const end = asked.args.indexOf("--");
+      const words = end < 0 ? [...asked.args, "--json"] : [...asked.args.slice(0, end), "--json", ...asked.args.slice(end)];
+      const child = spawn(command, [...args, ...words], { cwd: root, env: forApp(env, root), stdio: [how.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"], windowsHide: true });
       track(child);
       if (how.stdin !== undefined) {
         child.stdin!.on("error", () => {
@@ -2630,11 +2683,12 @@ export function serveLive(root: string, env: Env): Promise<void> {
     };
   };
   /**
-   * An event of history hidden at a place or a person of the tree, or shown again (POST /history/hide {event, place} |
-   * {event, person}, "do": "show"): strom history hide|show, the person's choice as written in the app — an archive's
-   * too. An unknown place is no error (the app may name one the research has no fact at). Answered with what is hidden
-   * now ({hidden: [{event, place|person, at}]}). Refused: 400 history.body, 404 history.event | history.person, 503
-   * research.busy (+ Retry-After).
+   * An event of history hidden at a place, a person or in the whole tree, or everything of a region, or shown again
+   * (POST /history/hide {event, place} | {event, person} | {event, tree: true} | {region}, "do": "show"): strom history
+   * hide|show, the person's choice as written in the app — an archive's too. An unknown place is no error (the app may
+   * name one the research has no fact at). Answered with what is hidden now ({hidden: [{event, place|person|tree, at} |
+   * {region, at}]}). Refused: 400 history.body, 404 history.event | history.person | history.region, 503 research.busy
+   * (+ Retry-After).
    */
   const historyHide = (): AppWrite => {
     const bad = (why: string) => ({ code: 400, body: refusal(why, "history.body") });
@@ -2644,27 +2698,166 @@ export function serveLive(root: string, env: Env): Promise<void> {
       codes: { badBody: "history.body", busy: "research.busy", failed: "history.failed" },
       busyStatus: 503,
       ask(_tree, body) {
-        const shape = `{"event": "<its id>", "place": "<a place>"} or {"event", "person": "P…"}, and "do": "show" to show it again`;
+        const shape = `{"event": "<its id>", "place": "<a place>"}, {"event", "person": "P…"}, {"event", "tree": true} or {"region": "<its id>"}, and "do": "show" to show it again`;
+        if (body.do !== undefined && body.do !== "show" && body.do !== "hide") return bad(shape);
+        const verb = body.do === "show" ? "show" : "hide";
+        if (body.region !== undefined) {
+          const region = typeof body.region === "string" ? body.region.trim() : "";
+          if (!REGION_ID.test(region) || ["event", "place", "person", "tree"].some((k) => body[k] !== undefined)) return bad(shape);
+          return { args: ["history", verb, `--region=${region}`] };
+        }
         const event = typeof body.event === "string" ? body.event.trim() : "";
         if (!EVENT.test(event)) return bad(shape);
-        if ((body.place === undefined) === (body.person === undefined)) return bad(shape);
-        if (body.do !== undefined && body.do !== "show" && body.do !== "hide") return bad(shape);
+        const wheres = [body.place !== undefined, body.person !== undefined, body.tree !== undefined].filter(Boolean).length;
+        if (wheres !== 1) return bad(shape);
         let where: string;
         if (body.place !== undefined) {
-          if (typeof body.place !== "string" || !body.place.trim() || body.place.length > 300 || /[\u0000-\u001f\u007f]/u.test(body.place)) return bad(shape);
+          if (!placeOk(body.place)) return bad(shape);
           where = `--place=${body.place.trim()}`;
-        } else {
+        } else if (body.person !== undefined) {
           if (typeof body.person !== "string" || !/^P\d{1,9}$/iu.test(body.person.trim())) return bad(shape);
           where = `--person=${body.person.trim().toUpperCase()}`;
+        } else {
+          if (body.tree !== true) return bad(shape);
+          where = "--tree";
         }
-        return { args: ["history", body.do === "show" ? "show" : "hide", event, where] };
+        return { args: ["history", verb, event, where] };
       },
       done(_tree, data, head) {
         return { hidden: Array.isArray(data.hidden) ? data.hidden : [], head };
       },
       refused(_tree, code, why) {
         if (code === "history.body") return { code: 400, body: refusal(why, code) };
-        if (code === "history.event" || code === "history.person") return { code: 404, body: refusal(why, code) };
+        if (code === "history.event" || code === "history.person" || code === "history.region") return { code: 404, body: refusal(why, code) };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * An event of history deleted by the person, or restored (POST /history/delete {event}, "do": "restore"): strom history
+   * delete|restore, the person's — a region's from its shared catalog (every tree on this computer), a local one (L…)
+   * from this tree; never written again by the research until restored (R4; nothing spent, always undone). Answered
+   * with the person's deletions now ({event, scope, deleted: [...]} as GET /history `deleted`). Refused: 400
+   * history.body, 404 history.event, 409 history.retracted (taken back by the research), 503 research.busy (+ Retry-After).
+   */
+  const historyDelete = (): AppWrite => {
+    const bad = () => ({ code: 400, body: refusal(`the body: {"event": "<its id>"}, and "do": "restore" to bring it back`, "history.body") });
+    const EVENT = /^[\p{L}\p{N}][\p{L}\p{N}-]{0,79}$/u;
+    return {
+      what: "an event of history deleted or restored",
+      codes: { badBody: "history.body", busy: "research.busy", failed: "history.failed" },
+      busyStatus: 503,
+      ask(_tree, body) {
+        if (Object.keys(body).some((k) => k !== "event" && k !== "do")) return bad();
+        if (body.do !== undefined && body.do !== "restore" && body.do !== "delete") return bad();
+        const event = typeof body.event === "string" ? body.event.trim() : "";
+        if (!EVENT.test(event)) return bad();
+        return { args: ["history", body.do === "restore" ? "restore" : "delete", event] };
+      },
+      done(_tree, data, head) {
+        return { event: data.event, scope: data.scope, deleted: Array.isArray(data.deleted) ? data.deleted : [], head };
+      },
+      refused(_tree, code, why) {
+        if (code === "history.body") return { code: 400, body: refusal(why, code) };
+        if (code === "history.event") return { code: 404, body: refusal(why, code) };
+        if (code === "history.retracted") return { code: 409, body: refusal(why, code) };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * No history of a region or at a place in this research, or looked for again (POST /history/skip {region} | {place},
+   * "do": "undo"): strom history skip|unskip, the person's. Answered with the skips now ({skip: {regions: [id…], places:
+   * [place…]}}). Refused: 400 history.body, 404 history.region (no place of the tree in it) | history.place (no fact
+   * writes it), 503 research.busy (+ Retry-After).
+   */
+  const historySkip = (): AppWrite => {
+    const bad = () => ({ code: 400, body: refusal(`the body: {"region": "<its id>"} or {"place": "<a place>"}, and "do": "undo" to look for it again`, "history.body") });
+    return {
+      what: "history skipped or looked for again",
+      codes: { badBody: "history.body", busy: "research.busy", failed: "history.failed" },
+      busyStatus: 503,
+      ask(_tree, body) {
+        if (Object.keys(body).some((k) => k !== "region" && k !== "place" && k !== "do")) return bad();
+        if (body.do !== undefined && body.do !== "undo" && body.do !== "skip") return bad();
+        if ((body.region === undefined) === (body.place === undefined)) return bad();
+        const verb = body.do === "undo" ? "unskip" : "skip";
+        if (body.region !== undefined) {
+          const region = typeof body.region === "string" ? body.region.trim() : "";
+          if (!REGION_ID.test(region)) return bad();
+          return { args: ["history", verb, `--region=${region}`] };
+        }
+        if (!placeOk(body.place)) return bad();
+        return { args: ["history", verb, `--place=${body.place.trim()}`] };
+      },
+      done(_tree, data, head) {
+        const skip = (data.skip ?? {}) as { regions?: unknown; places?: unknown };
+        return { skip: { regions: Array.isArray(skip.regions) ? skip.regions : [], places: Array.isArray(skip.places) ? skip.places : [] }, head };
+      },
+      refused(_tree, code, why) {
+        if (code === "history.body") return { code: 400, body: refusal(why, code) };
+        if (code === "history.region" || code === "history.place") return { code: 404, body: refusal(why, code) };
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * A place's regions as the person knows them (POST /history/map {place, regions: [{id, from?, to?}]}), the place
+   * determined again by the research ({place, redo: true, note?}) or back to what it determined ({place, do: "auto"}):
+   * strom history assign, the person's — the research never maps a place so assigned. The note: one line of at most 200
+   * characters after NFC, no broken characters. Answered with the place's entry ({place, map} — map null while it waits).
+   * Refused: 400 history.body, 404 history.region (no catalog) | history.place (no fact writes it), 503 research.busy.
+   */
+  const historyMap = (): AppWrite => {
+    const bad = (why = `the body: {"place", "regions": [{"id", "from"?, "to"?}]}, {"place", "redo": true, "note"?} or {"place", "do": "auto"}`) => ({ code: 400, body: refusal(why, "history.body") });
+    const year = (v: unknown) => v === undefined || (typeof v === "number" && Number.isInteger(v) && v >= 100 && v <= 9999);
+    return {
+      what: "a place's regions",
+      codes: { badBody: "history.body", busy: "research.busy", failed: "history.failed" },
+      busyStatus: 503,
+      ask(_tree, body) {
+        if (Object.keys(body).some((k) => !["place", "regions", "redo", "note", "do"].includes(k))) return bad();
+        if (!placeOk(body.place)) return bad();
+        const place = body.place.trim();
+        const ways = [body.regions !== undefined, body.redo !== undefined, body.do !== undefined].filter(Boolean).length;
+        if (ways !== 1 || (body.note !== undefined && body.redo === undefined)) return bad();
+        if (body.do !== undefined) {
+          if (body.do !== "auto") return bad();
+          return { args: ["history", "assign", "--auto", "--", place] };
+        }
+        if (body.redo !== undefined) {
+          if (body.redo !== true) return bad();
+          if (body.note === undefined || body.note === null) return { args: ["history", "assign", "--redo", "--", place] };
+          if (typeof body.note !== "string") return bad();
+          let note: string;
+          try {
+            note = checkNote(body.note);
+          } catch (e) {
+            return bad(e instanceof Error ? e.message : String(e));
+          }
+          return { args: ["history", "assign", "--redo", ...(note ? [`--note=${note}`] : []), "--", place] };
+        }
+        const regions = body.regions;
+        if (!Array.isArray(regions) || !regions.length || regions.length > 20) return bad();
+        const specs: string[] = [];
+        for (const g of regions as unknown[]) {
+          if (!g || typeof g !== "object" || Array.isArray(g)) return bad();
+          const { id, from, to, ...rest } = g as Record<string, unknown>;
+          if (Object.keys(rest).length || typeof id !== "string" || !REGION_ID.test(id) || !year(from) || !year(to)) return bad();
+          if (typeof from === "number" && typeof to === "number" && to < from) return bad(`${id}: the later year first`);
+          specs.push(`--region=${id}${from !== undefined || to !== undefined ? `:${from ?? ""}-${to ?? ""}` : ""}`);
+        }
+        return { args: ["history", "assign", ...specs, "--", place] };
+      },
+      done(_tree, data, head) {
+        return { place: data.place, map: data.map ?? null, head };
+      },
+      refused(_tree, code, why) {
+        if (code === "history.body" || code === "history.region.years") return { code: 400, body: refusal(why, "history.body") };
+        if (code === "history.region" || code === "history.place") return { code: 404, body: refusal(why, code) };
         return undefined;
       },
     };
@@ -2673,11 +2866,12 @@ export function serveLive(root: string, env: Env): Promise<void> {
   /**
    * A region's history first of the regions (POST /history/first {region}): strom history first, the person's word from
    * the app's person card — still at history's next turn. Refused: 400 history.body; 409 history.off with the link that
-   * turns it on (the person's alone, in the terminal), 409 history.archive | history.done; 404 history.region; 503
+   * turns it on (the person's alone, in the terminal), 409 history.archive | history.done | history.skipped (the person
+   * skipped the region: their word stays until they take it back, POST /history/skip "do": "undo"); 404 history.region; 503
    * research.busy (+ Retry-After).
    */
   const historyFirst = (): AppWrite => {
-    const REGION = /^[a-z0-9][a-z0-9-]{0,23}$/u;
+    const REGION = REGION_ID;
     return {
       what: "a region's history first",
       codes: { badBody: "history.body", busy: "research.busy", failed: "history.failed" },
@@ -2696,7 +2890,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
           const link = linkText({ action: "experiment", tree: tree.config.id, name: "history", do: "on" }, linkScheme(env));
           return { code: 409, body: { ...refusal(why, code), link } };
         }
-        if (code === "history.archive" || code === "history.done") return { code: 409, body: refusal(why, code) };
+        if (code === "history.archive" || code === "history.done" || code === "history.skipped") return { code: 409, body: refusal(why, code) };
         if (code === "history.region") return { code: 404, body: refusal(why, code) };
         if (code === "history.body") return { code: 400, body: refusal(why, code) };
         return undefined;
@@ -2729,6 +2923,41 @@ export function serveLive(root: string, env: Env): Promise<void> {
       },
       done(_tree, _data, h) {
         return { experiments: { history: false }, head: h, parent: before };
+      },
+      refused() {
+        return undefined;
+      },
+    };
+  };
+
+  /**
+   * The history of the places in the stories as the app turns it (POST /stories {"history": false|true}): for this tree
+   * (strom config set stories.history no|yes --for-tree; the person's own config stays) — both ways, nothing spent by
+   * it (the stories are written anyway), an approved story never rewritten for it. On while the history of the places
+   * is off: refused 409 history.off with the link that turns that on (the person's alone, in the terminal). 400 stories.body.
+   */
+  const storiesWrite = (): AppWrite => {
+    let before = "";
+    let on = false;
+    return {
+      what: "the stories of the research",
+      codes: { badBody: "stories.body", busy: "research.busy", failed: "stories.failed" },
+      busyStatus: 503,
+      ask(tree, body) {
+        const keys = Object.keys(body);
+        if (!keys.length || keys.some((k) => k !== "history") || typeof body.history !== "boolean") return { code: 400, body: refusal(`the body: {"history": false} or {"history": true}`, "stories.body") };
+        on = body.history;
+        const settings = new Settings(env, {});
+        if (on && !historyOn(tree, settings)) {
+          const link = linkText({ action: "experiment", tree: tree.config.id, name: "history", do: "on" }, linkScheme(env));
+          return { code: 409, body: { ...said(tree.lang, "ui.experiments.link"), code: "history.off", link } };
+        }
+        before = head(root);
+        if (settings.storyHistory(tree.config) === on) return { code: 200, body: { stories: { history: on }, head: before, parent: before } };
+        return { args: ["config", "set", "stories.history", on ? "yes" : "no", "--for-tree"] };
+      },
+      done(_tree, _data, h) {
+        return { stories: { history: on }, head: h, parent: before };
       },
       refused() {
         return undefined;

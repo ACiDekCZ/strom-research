@@ -40,7 +40,7 @@ async function pages(): Promise<{ base: string; hits: Record<string, number>; cl
     const p = req.url ?? "/";
     hits[p] = (hits[p] ?? 0) + 1;
     if (p === "/robots.txt") return res.writeHead(200, { "content-type": "text/plain" }).end("User-agent: *\nDisallow: /private\n");
-    if (p === "/lhota") return res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(PAGE);
+    if (p === "/lhota" || p === "/lhota-jinde") return res.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(PAGE);
     if (p === "/pdf") return res.writeHead(200, { "content-type": "application/pdf" }).end("%PDF-1.4 1866");
     return res.writeHead(404).end();
   });
@@ -159,12 +159,12 @@ test("history: places by the years they belonged to a region; events from a page
     const done = await answer(w);
     assert.equal(done.places.Lhota.state, undefined);
     assert.equal(done.state.pending, 0);
-    // a place mapped only to a region with nothing in its years, done: left out
+    // a place mapped only to a region with nothing in its years, done: no event, its regions and people still there (R1)
     await w.ok(["event", "add", "P0001", "RESI", "--date", "1990", "--place", "Nová Lhota"]);
     await w.ok(["history", "map", "Nová Lhota", "--region", "cz-czsk:1918-1992"]);
     assert.ok((await answer(w)).places["Nová Lhota"].events.includes("cz-czsk-0001"));
     await w.ok(["history", "map", "Nová Lhota", "--region", "cz-bohemia:1990-"]);
-    assert.equal((await answer(w)).places["Nová Lhota"], undefined, "done, nothing in its years");
+    assert.deepEqual((await answer(w)).places["Nová Lhota"], { events: [], regions: [{ id: "cz-bohemia", from: 1990 }], persons: 1 }, "done, nothing in its years");
     assert.equal((await w.run(["check"])).code, 0);
   } finally {
     srv.close();
@@ -266,6 +266,43 @@ test("history: the same event never twice; --same-as, --distinct, --replaces; wh
   }
 });
 
+test("history: an event the person deleted is never written again by the research — not the same, not --same-as or --replaces it; --distinct only from another address", opts, async () => {
+  const srv = await pages();
+  const w = await world();
+  try {
+    await regions(w);
+    const add = (from: string, kind: string, quote: string, more: string[] = [], page = "lhota") =>
+      w.run(["history", "add", "--region", "cz-bohemia", "--from", from, "--kind", kind, ...TEXTS("Cholera", "Cholera", "Cholera"), "--url", `${srv.base}/${page}`, "--quote", quote, "--json", ...more], { env: AGENT });
+    assert.equal((await add("1866", "epidemic", "V roce 1866 zasáhla Lhotu epidemie cholery")).code, 0);
+    assert.equal((await add("1921", "census", "Sčítání lidu roku 1921")).code, 0);
+    await w.ok(["history", "delete", "cz-bohemia-0001"]);
+    const hits = srv.hits["/lhota"];
+    let r = await add("1866", "epidemic", "V roce 1866 zasáhla Lhotu epidemie cholery");
+    assert.notEqual(r.code, 0);
+    assert.equal(r.json.code, "history.deleted");
+    assert.match(r.json.message, /deleted by the person: cz-bohemia-0001/);
+    assert.equal(srv.hits["/lhota"], hits, "refused before any request");
+    r = await add("1866", "epidemic", "Povodeň roku 1866 vzala mlýn.", ["--distinct", "a flood"]);
+    assert.equal(r.json.code, "history.deleted", "--distinct from the same address: no");
+    for (const more of [["--same-as", "cz-bohemia-0001"], ["--replaces", "cz-bohemia-0001", "--distinct", "better"]]) {
+      r = await add("1866", "epidemic", "V roce 1866 zasáhla Lhotu epidemie cholery", more);
+      assert.equal(r.json.code, "history.deleted", more.join(" "));
+    }
+    assert.equal(catalog(w, "cz-bohemia").events.length, 2, "nothing written");
+    // another event of the same kind and years from another address: written
+    r = await add("1866", "epidemic", "Povodeň roku 1866 vzala mlýn.", ["--distinct", "a flood, not the cholera"], "lhota-jinde");
+    assert.equal(r.code, 0, r.err);
+    // restored: the same is the same again (history.same), as before
+    await w.ok(["history", "restore", "cz-bohemia-0001"]);
+    r = await add("1866", "epidemic", "V roce 1866 zasáhla Lhotu epidemie cholery");
+    assert.equal(r.json.code, "history.same");
+    assert.equal((await w.run(["check"])).code, 0);
+  } finally {
+    srv.close();
+    w.cleanup();
+  }
+});
+
 test("history: a local event read in the tree's own record — its image, its transcript, its years", opts, async () => {
   const w = await world();
   try {
@@ -287,6 +324,19 @@ test("history: a local event read in the tree's own record — its image, its tr
     assert.deepEqual(ev.local, { source: "S0002", cite: "Pohřby Lhota 1842" });
     assert.equal(ev.text.cs, "Požár vsi");
     assert.ok(r.places.Lhota.events.includes("L0001"));
+    // deleted by the person: in this tree only, said with its place; never again, not even --distinct
+    const del = (await w.ok(["history", "delete", "L0001", "--json"])).json;
+    assert.equal(del.scope, "local");
+    assert.match((await w.ok(["history", "restore", "L0001"])).out, /Obnoveno: L0001/);
+    assert.match((await w.ok(["history", "delete", "L0001"])).out, /Smazáno: L0001 – jen v tomto stromu/);
+    const after = await answer(w);
+    assert.ok(!after.events.some((e: any) => e.id === "L0001"));
+    assert.deepEqual(after.deleted.map((d: any) => [d.event, d.scope, d.local.source]), [["L0001", "local", "S0002"]]);
+    const again = (await local("S0002", "1842", ["--distinct", "jiný požár", "--json"])).json;
+    assert.match(again.code, /^history\.deleted$/);
+    // its source is the record itself: no other address to try — the hint never sends the agent to --distinct
+    assert.doesNotMatch(again.hint, /--distinct|another address/);
+    assert.match(again.hint, /leave it out/);
     assert.equal((await w.run(["check"])).code, 0);
   } finally {
     w.cleanup();

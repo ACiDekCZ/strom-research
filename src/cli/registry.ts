@@ -130,6 +130,7 @@ export const GLOBAL_OPTIONS: OptionDef[] = [
   { name: "agent", type: "string", value: "<agent>", description: "AI agent: claude, codex, antigravity, opencode, grok (default from config)" },
   { name: "yes", type: "boolean", description: "accept suggested defaults, never ask" },
   { name: "debug", type: "boolean", description: "show technical details on errors" },
+  { name: "timing", type: "boolean", description: "say how long each step took and how much of the disk it read (stderr; also STROM_TIMING=1): the line to send when strom is slow" },
   { name: "version", type: "boolean", description: "print the version of strom" },
   { name: "help", type: "boolean", short: "h", description: "help for a command" },
 ];

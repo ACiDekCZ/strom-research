@@ -63,6 +63,7 @@ for (const lang of ["cs", "de"] as const) {
       return r;
     };
     await w.ok(["setup", "--yes"]);
+    w.historyAsked();
     await run(["init", "Dvořákovi"]);
     w.cwd = w.treeDir("Dvořákovi");
     await run([]);

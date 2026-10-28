@@ -1054,6 +1054,8 @@ export interface StoryInput {
   facts?: string[] | undefined;
   /** The sources of the background of place and time (S…). */
   sources?: string[] | undefined;
+  /** The events of the history of the places it tells (checked by the caller: core/pastevents.ts checkStoryHistory). */
+  history?: string[] | undefined;
   note?: string | undefined;
   final?: boolean | undefined;
 }
@@ -1079,6 +1081,7 @@ export function setStory(tree: Tree, id: string, input: StoryInput): Person | Fa
       text,
       facts,
       ...(sources.length ? { sources } : {}),
+      ...(input.history?.length ? { history: [...new Set(input.history)] } : {}),
       ...(input.note?.trim() ? { note: input.note.trim() } : {}),
       at: now(),
       by: tree.actor,

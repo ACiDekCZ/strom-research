@@ -125,8 +125,8 @@ test("history gaps: a finished catalog with a gap gets one task to fill it, said
     assert.ok(!(await tasks(w)).some((t) => t.origin === "history:region:cz-lhota" && t.state === "open"), "no region's task for a finished catalog");
     // strom history status: the gap at the region, the task with its ID
     const status = await w.ok(["history", "status"]);
-    assert.match(status.out, /cz-lhota .*done 2026-10-02 .*gaps: 1867–1913/u);
-    assert.match(status.out, new RegExp(`${gap.id} +history:gaps:cz-lhota +open +gaps 1867–1913`, "u"));
+    assert.match(status.out, /cz-lhota .*done 2026-10-02 +period 1845–1930 +gaps: 1867–1913/u);
+    assert.match(status.out, new RegExp(`${gap.id} +history:gaps:cz-lhota +open +years 1867–1913`, "u"));
     const json = (await w.ok(["history", "status", "--json"])).json;
     assert.deepEqual(json.regions.find((r: { id: string }) => r.id === "cz-lhota").gaps, [{ from: 1867, to: 1913 }]);
     // strom plan: the region with its years, in the research language
@@ -134,7 +134,7 @@ test("history gaps: a finished catalog with a gap gets one task to fill it, said
     // the brief: those years alone, about one event in 10–15 years, no strom history done
     const brief = (await w.ok(["brief", gap.id])).out;
     assert.match(brief, /## The gaps in the history of Lhotsko \(cz-lhota\)/);
-    assert.match(brief, /no event: 1867–1913 \(47 years\) — look for events of these years alone/);
+    assert.match(brief, /no event: 1867–1913 \(47 years\)\n- look for events of these years alone/);
     assert.match(brief, /about one event every 10–15 years of each gap \(about 4 in all\)/);
     assert.match(brief, /cz-lhota-0003 1866 other "Událost"/, "what the catalog has, never again");
     assert.match(brief, /strom history add --region <id>/);
@@ -268,6 +268,27 @@ test("history gaps: a waiting task closed by strom says why, truly — looked at
     for (const id of ["cz-lhota-0004", "cz-lhota-0005", "cz-lhota-0006", "cz-lhota-0007"]) await w.ok(["history", "retract", id, "--why", "zkouška"]);
     const again = await waiting();
     assert.notEqual(again.id, t.id);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("history gaps: the person asks for the region again — its open task of the gaps is done at once, why said; the catalog finished again raises it again", opts, async () => {
+  const w = await world();
+  try {
+    events(w, [[1848], [1860], [1866], [1914, 1918], [1921]]);
+    await w.ok(["frontier", "--apply"]);
+    const open = (await gapTasks(w)).find((t) => t.state === "open")!;
+    assert.ok(open);
+    await w.ok(["history", "redo", "cz-lhota"]);
+    const closed = (await gapTasks(w)).find((t) => t.id === open.id)!;
+    assert.equal(closed.state, "done");
+    assert.match(closed.result ?? "", /^události regionu Lhotsko se hledají znovu celé, tyto roky s nimi$/u);
+    await w.ok(["frontier", "--apply"]);
+    assert.ok(!(await gapTasks(w)).some((t) => t.state === "open"), "the region's own task looks for all");
+    await w.ok(["history", "done", "cz-lhota"]);
+    await w.ok(["frontier", "--apply"]);
+    assert.ok((await gapTasks(w)).some((t) => t.state === "open" && t.id !== open.id));
   } finally {
     w.cleanup();
   }

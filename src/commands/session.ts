@@ -24,7 +24,7 @@ import { sandboxOfRun } from "../core/sandbox.ts";
 import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../agents/effort.ts";
 import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
-import { historyHeld, raiseHistoryTasks, regionOfTask } from "../core/pastevents.ts";
+import { historyHeld, raiseHistoryTasks, regionOfTask, requireHistoryOn } from "../core/pastevents.ts";
 import { prependPath, type AgentLimit } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
@@ -118,6 +118,7 @@ export function applyFrontier(tree: Tree, research: Research): string[] {
 function historyLine(tree: Tree, t: Task, shared: string | undefined, settings: Settings): string | undefined {
   const why = historyHeld(tree, shared, settings)(t);
   if (why === "off") return `⚠ ${t.id} is a task of the history of the places, which is off for this research: strom history add refuses — close the session (strom session close --continue …)`;
+  if (why === "skipped") return `⚠ the person asked for no history of ${regionOfTask(t)} in this research (strom history skip): close the session (strom session close --continue …) and take another task`;
   if (why === "held") return `⚠ another research on this computer builds the catalog of ${regionOfTask(t)} now: its events come from there — close the session (strom session close --continue …) and take another task`;
   return undefined;
 }
@@ -747,6 +748,7 @@ register({
   options: [
     { name: "task", type: "string", multiple: true, value: "<T…>", description: "work on these tasks, in this order (repeatable or T0003,T0007; default: the next one of the queue)" },
     { name: "research", type: "string", value: "<G…>", description: "only tasks of this research" },
+    { name: "history", type: "boolean", hidden: true, description: "only the tasks of the history of the places, in their order, whatever its pace (the places to map first)" },
     { name: "max", type: "string", value: "<n>", description: "at most n sessions (default 1; with --until, no limit)" },
     { name: "until", type: "string", value: "<HH:MM>", description: "start no session after this time" },
     { name: "loop", type: "boolean", description: "session after session for as long as there is work (and the gate lets it)" },
@@ -793,6 +795,12 @@ register({
     if (runnerId !== "script" && !which(runner.command, ctx.env))
       throw new StromError(`${runner.command} is not installed`, { hint: runnerId === "claude" ? "install Claude Code: https://claude.com/claude-code — then log in once by running: claude" : `install ${runner.command}` });
     const until = parseUntil(opts.until);
+    // The history of the places first (the person's word): its tasks alone, whatever its pace — only while it is on.
+    const historyOnly = Boolean(opts.history);
+    if (historyOnly) {
+      if (opts.task !== undefined || opts.research !== undefined) throw new UsageError("--history takes the tasks of history in their order: not with --task or --research", { code: "run.history" });
+      requireHistoryOn(ctx.tree(), ctx.settings);
+    }
     // Tasks the user picked: one session each, in their order (then the queue, when --max asks for more).
     const picked = csvOpt(opts.task).map((id) => requireRecord<Task>(Tree.open(root, ctx.env), id, "task").id);
     const max = opts.max === undefined ? (picked.length ? picked.length : until || opts.loop ? Infinity : 1) : Number(opts.max);
@@ -896,8 +904,9 @@ register({
         if (raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings).length) commitNow(tree, "Tasks of the history of the places");
         // Working alone: now and then a story's turn (in a conversation the user leads); the tasks of history after the
         // research, and now and then one of them first — how often is experiments.historyPace (core/pastevents.ts
-        // historyTurn); the gate, if any, decides whether a session starts at all.
-        const free = () => taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), storyTurn: true, history: true }).find((t) => !others.has(t.id));
+        // historyTurn), or with --history those alone in their order; the gate, if any, decides whether a session starts at all.
+        const free = () =>
+          taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), storyTurn: !historyOnly, history: historyOnly ? "only" : true }).find((t) => !others.has(t.id));
         let task: Task | undefined;
         if (i < picked.length) {
           task = tree.get<Task>(picked[i]!);
@@ -916,7 +925,7 @@ register({
           // comes back by itself then. A run that goes on by itself (--loop, --until) waits for that time — no session
           // spent on being told so, nothing sent meanwhile; one the user started for a session or a few ends and says
           // when. Tasks the user named are never held.
-          const back = i < picked.length ? undefined : nextAwake(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config) }, others);
+          const back = i < picked.length || historyOnly ? undefined : nextAwake(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config) }, others);
           if (back) {
             const at = back.until + 1000; // its time off over, and a second for the clock
             const values = { host: back.host, at: clockUp(back.until) };
@@ -1232,7 +1241,7 @@ register({
     }
     // What the research now waits for from the user who started it.
     const waiting = waitingLines(Tree.open(root, runEnv), { shared: ctx.settings.shared()?.value, display: (p) => ctx.display(p) });
-    const reason = ui(lang, `ui.run.stop.${stopCode}` as UIKey, stopValues);
+    const reason = historyOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.history") : ui(lang, `ui.run.stop.${stopCode}` as UIKey, stopValues);
     return {
       text: lines(ui(lang, "ui.run.summary", { n: report.length, reason }), waiting ? `\n${waiting}` : undefined),
       data: { sessions: report, stopped: reason, stop: stopCode, ...(gate ? { gate: { name: gate.name, answers: gates } } : {}) },

@@ -153,11 +153,11 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
 }
 
 /** The open tasks of the queue in the order to work on them (see core/queue.ts). */
-export function taskQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean; history?: boolean } = {}): Task[] {
+export function taskQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean; history?: boolean | "only" } = {}): Task[] {
   return rankedQueue(tree, filter).map((r) => r.task);
 }
 
-export function rankedQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean; history?: boolean } = {}): Ranked[] {
+export function rankedQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean; history?: boolean | "only" } = {}): Ranked[] {
   const scope = filter.research ? scopes(tree).find((s) => s.research.id === filter.research) : undefined;
   const tasks = tree
     .list<Task>("task")

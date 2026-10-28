@@ -84,6 +84,8 @@ test("the setup wizard: the history of the places — the first setup suggests i
   assert.doesNotMatch(r.out.slice(r.out.indexOf("Hledat i události dějin"), r.out.indexOf("Vybrat [1]", r.out.indexOf("Hledat i události dějin"))), /(^|[^\p{L}])(vy|váš|ty|tvůj|experiment|pokus)([^\p{L}]|$)/iu);
   assert.equal(config().experimentsHistory, "on");
   assert.equal(config().experimentsHistoryPace, "sometimes");
+  // asked here: the menu's question after an update never comes for it (K1.6)
+  assert.ok(config().historyAsked, "the answer kept");
   // an installation set up before (history never decided): Enter keeps it off — nothing turns on by itself
   const older = config();
   delete older.experimentsHistory;
@@ -106,6 +108,15 @@ test("the setup wizard: the history of the places — the first setup suggests i
   const quiet = await v.ok(["setup", "--yes"]);
   assert.doesNotMatch(quiet.out, /dějin/u);
   assert.equal(readJsonFile(path.join(v.env.STROM_CONFIG_DIR!, "config.json")).experimentsHistory, undefined);
+  // a first setup: nothing new to tell after an update — the menu never asks it as news (in the settings from the start)
+  assert.ok(readJsonFile(path.join(v.env.STROM_CONFIG_DIR!, "config.json")).historyAsked, "a new installation: no question after an update");
+  // set up before strom had it, the setup run again without its wizard: still never asked — the menu asks once
+  const vfile = path.join(v.env.STROM_CONFIG_DIR!, "config.json");
+  const was = readJsonFile(vfile);
+  delete was.historyAsked;
+  fs.writeFileSync(vfile, JSON.stringify(was, null, 2));
+  await v.ok(["setup", "--yes"]);
+  assert.equal(readJsonFile(vfile).historyAsked, undefined, "set up before: the menu asks once");
   v.cleanup();
   w.cleanup();
 });

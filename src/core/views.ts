@@ -18,6 +18,7 @@ import { now, type Tree } from "./tree.ts";
 import { crop, fileToShown, grid, resize, rotate, shownBoxToFile, shownToFile, stretch, toGrey, turnsAcross, upright, type RawImage } from "../image/image.ts";
 import { decodeImage, encodeImage, exifOrientation, exifOrientationOf, formatOf, ImageFormatError, imageSize } from "../image/index.ts";
 import { readableFile } from "./readable.ts";
+import { knownOrient, rememberOrient } from "./orients.ts";
 import { findImage } from "./media.ts";
 import type { Media, Region } from "./model.ts";
 import { IMAGE_MAX } from "../agents/images.ts";
@@ -327,7 +328,13 @@ export function describeView(v: View, display: (p: string) => string, fetchPart?
 /** The EXIF orientation a registered image is shown turned by (2–8), when its file is here; none for 1 or no file. */
 export function mediaOrient(shared: string | undefined, m: Media | undefined): number | undefined {
   if (!shared || !m || !/^image\/jpeg$/.test(m.mime)) return undefined;
-  const o = exifOrientation(path.join(shared, m.file));
+  // remembered by its content: its file opened once (core/orients.ts)
+  const known = m.sha ? knownOrient(shared, m.sha) : undefined;
+  if (known !== undefined) return known !== 1 ? known : undefined;
+  const file = path.join(shared, m.file);
+  const o = exifOrientation(file);
+  // none said: remembered only of a file that is here (one brought later is read then)
+  if (m.sha && (o !== undefined || fs.existsSync(file))) rememberOrient(shared, m.sha, o ?? 1);
   return o && o !== 1 ? o : undefined;
 }
 

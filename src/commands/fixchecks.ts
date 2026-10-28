@@ -6,6 +6,8 @@
 // Not only a fix: another model or agent reading now (new-model) offers what earlier readings left open to be read
 // again with it — once for each agent and model.
 
+import { spawn } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { Conflict, Family, Media, Person, Region, Source, TreeConfig } from "../core/model.ts";
@@ -14,6 +16,11 @@ import { VERSION } from "../core/tree.ts";
 import { sharperCover } from "../core/media.ts";
 import { shownToFile } from "../image/image.ts";
 import { mediaOrient } from "../core/views.ts";
+import { keepOrients } from "../core/orients.ts";
+import { fileStamp, researchStamp } from "../core/stamp.ts";
+import { readJsonIfExists, writeFileAtomic } from "../core/json.ts";
+import { stromLauncher } from "../core/self.ts";
+import type { Env } from "../core/paths.ts";
 import { median, readJournal } from "../core/readstats.ts";
 import { metricsDir } from "../core/metrics.ts";
 import { runGit } from "../core/git.ts";
@@ -345,7 +352,7 @@ function blindReducedDetect(tree: Tree, env: FixEnv): FixFindings {
           from: use.part.id,
           gain: Math.round(use.gain * 10) / 10,
           estimated: place.estimated,
-          sources: sourcesOf(sources, media, m, place.file),
+          sources: sourcesOf(sources, byId, m, place.file),
           unclear: block.reduce((n, b) => n + unclearOf(b), 0),
           at: new Date(t).toISOString(),
           t,
@@ -374,8 +381,10 @@ function blindReducedDetect(tree: Tree, env: FixEnv): FixFindings {
 }
 
 /** The sources whose entry on the image overlaps the place (of the whole image or a part of it); else those of the image. */
-function sourcesOf(sources: Source[], media: Media[], whole: Media, r: Region): string[] {
-  const byId = new Map(media.map((m) => [m.id, m]));
+function sourcesOf(sources: Source[], byId: Map<string, Media>, whole: Media, place: Region | (() => Region)): string[] {
+  // the place only where a source has an entry on this image (of a reading's crop: its turn read from the image's file)
+  let r: Region | undefined;
+  const at = () => (r ??= typeof place === "function" ? place() : place);
   const inWhole = (c: { media: string; region: Region }): Region | undefined => {
     if (c.media === whole.id) return c.region;
     const m = byId.get(c.media);
@@ -383,8 +392,8 @@ function sourcesOf(sources: Source[], media: Media[], whole: Media, r: Region): 
     return { x: m.part.x + c.region.x * m.part.w, y: m.part.y + c.region.y * m.part.h, w: c.region.w * m.part.w, h: c.region.h * m.part.h };
   };
   const over = sources.filter((s) => (s.clips ?? []).some((c) => {
-    const at = inWhole(c);
-    return !!at && (covered(at, r) > 0 || covered(r, at) > 0);
+    const on = inWhole(c);
+    return !!on && (covered(on, at()) > 0 || covered(at(), on) > 0);
   }));
   return (over.length ? over : sources.filter((s) => (s.media ?? []).includes(whole.id))).map((s) => s.id).sort();
 }
@@ -646,7 +655,7 @@ function newModelDetect(tree: Tree, env: FixEnv): FixFindings {
       const theirs = r.blind ? list.filter((x) => !x.r.blind && x.t <= t && x.r !== r).sort((a, b) => b.t - a.t)[0] : undefined;
       const differ = !!theirs && compareReadings(theirs.blocks, blocks, tree.lang).result === "differ";
       const reg = cropRegion(crop);
-      const src = reg && !m.part ? sourcesOf(sources, media, m, shownToFile(reg, mediaOrient(env.shared, m))) : sources.filter((s) => (s.media ?? []).includes(id) || (s.clips ?? []).some((c) => c.media === id)).map((s) => s.id).sort();
+      const src = reg && !m.part ? sourcesOf(sources, byId, m, () => shownToFile(reg, mediaOrient(env.shared, m))) : sources.filter((s) => (s.media ?? []).includes(id) || (s.clips ?? []).some((c) => c.media === id)).map((s) => s.id).sort();
       const reasons: Reason[] = [...(unclear ? ["unclear" as const] : []), ...(differ ? ["differ" as const] : []), ...(src.some((s) => conflicted.has(s)) ? ["conflict" as const] : [])];
       // a reading of no known model: only where it left places open (nothing says the model changed since)
       if (!reasons.length || (key === UNKNOWN_KEY && !unclear)) continue;
@@ -814,14 +823,20 @@ export function decide(tree: Tree, id: string, decision: FixDecision["decision"]
  * Each check with what it found here and the decision about it. Set right holds for what was read again: what a check
  * still finds after (never read again — a few first, or a place strom took wrongly then) waits again, it alone.
  */
-export function fixStates(tree: Tree, env: FixEnv): FixState[] {
-  return FIX_CHECKS.map((check) => {
+/** (`keep` false: what waits not kept — a research nothing may be written to, its backup not made.) */
+export function fixStates(tree: Tree, env: FixEnv, o: { keep?: boolean } = {}): FixState[] {
+  const before = fixesStamp(tree, env);
+  const states = FIX_CHECKS.map((check) => {
     const found = check.detect(tree, env);
     const key = decisionKeyOf(tree, check, env);
     const decision = decisionOf(tree.config, key);
     const state: FixStateName = decision?.decision === "declined" ? "declined" : found.items.length ? "pending" : decision ? "fixed" : "nothing";
     return { check, key, found, ...(decision ? { decision } : {}), state };
   });
+  // the images' orientation read on the way, and what waits: kept for the next look (nothing changed meanwhile)
+  keepOrients();
+  if (o.keep !== false && fixesStamp(tree, env) === before) keepPending(tree, before, states);
+  return states;
 }
 
 // ── what it would take ──────────────────────────────────────────────────────────────────────────────────────────
@@ -1035,24 +1050,135 @@ function compareRead(a: Read, b: Read): Comparison {
 // ── what waits ──────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** The checks that wait for the person's decision here (none in an archive: nobody reads there). */
-export function pendingFixes(tree: Tree, env: FixEnv): FixState[] {
-  if (isArchive(tree)) return [];
+/** A check that waits for the person's decision, in short: how many readings and places it found. */
+export interface PendingFix {
+  check: FixCheck;
+  key: string;
+  readings: number;
+  items: number;
+}
+
+/** The number a check that waits is said with: its readings, or its places. */
+export function pendingCount(p: PendingFix): number {
+  return p.check.unit === "reading" ? p.readings : p.items;
+}
+
+const PENDING_FORMAT = 1;
+
+interface PendingStored {
+  v: number;
+  stamp: string;
+  pending: { id: string; key: string; readings: number; items: number }[];
+}
+
+function pendingFile(root: string): string {
+  return path.join(root, ".strom", "cache", "fixes.json");
+}
+
+/**
+ * What the checks are found by, told by the files alone (nothing of them read, no git started): the research's last
+ * commit, strom.json, its readings' folder, this computer's records of its readers and views and of its documents
+ * read, the shared folder, the agent and model reading now, this strom. The same stamp: what waits is what was found then.
+ */
+export function fixesStamp(tree: Tree, env: FixEnv): string {
+  const stat = fileStamp;
+  const parts = [
+    VERSION,
+    FIX_CHECKS.map((c) => c.id).join(","),
+    JSON.stringify(env),
+    researchStamp(tree.root),
+    stat(path.join(metricsDir(tree.root), "readers.jsonl")),
+    stat(path.join(tree.root, ".strom", "views", "views.jsonl")),
+    stat(path.join(tree.root, ".strom", "reads")),
+    stat(path.join(tree.root, "notes", "readings")),
+    JSON.stringify(tree.config.fixes ?? {}),
+  ];
+  return crypto.createHash("sha256").update(parts.join("|")).digest("hex").slice(0, 32);
+}
+
+function keepPending(tree: Tree, stamp: string, states: FixState[]): void {
+  if (tree.dryRun) return;
+  const stored: PendingStored = {
+    v: PENDING_FORMAT,
+    stamp,
+    pending: states.filter((s) => s.state === "pending").map((s) => ({ id: s.check.id, key: s.key, readings: s.found.readings, items: s.found.items.length })),
+  };
   try {
-    return fixStates(tree, env).filter((s) => s.state === "pending");
+    writeFileAtomic(pendingFile(tree.root), JSON.stringify(stored));
+  } catch {
+    // a folder that cannot be written: found again next time
+  }
+}
+
+/** What waits as it was kept, while nothing it is found by changed since; else undefined. */
+function keptPending(tree: Tree, env: FixEnv): PendingFix[] | undefined {
+  try {
+    const s = readJsonIfExists<PendingStored>(pendingFile(tree.root));
+    if (!s || s.v !== PENDING_FORMAT || s.stamp !== fixesStamp(tree, env) || !Array.isArray(s.pending)) return undefined;
+    return s.pending.flatMap((p) => {
+      const check = fixCheck(p.id);
+      return check ? [{ check, key: p.key, readings: p.readings, items: p.items }] : [];
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The checks that wait for the person's decision (none in an archive): as kept, while nothing they are found by changed
+ * (fixesStamp), else found now — `kept` only: undefined then, nothing looked through (the menu: found in the
+ * background, refreshFixesSoon).
+ */
+export function pendingFixes(tree: Tree, env: FixEnv, o: { kept?: boolean; keep?: boolean } = {}): PendingFix[] | undefined {
+  if (isArchive(tree)) return [];
+  const kept = keptPending(tree, env);
+  if (kept || o.kept) return kept;
+  try {
+    return fixStates(tree, env, o)
+      .filter((s) => s.state === "pending")
+      .map((s) => ({ check: s.check, key: s.key, readings: s.found.readings, items: s.found.items.length }));
   } catch {
     // a check that cannot look (a record it does not know): nothing said, nothing in the way
     return [];
   }
 }
 
+/** The trees whose checks this process started looking through in the background: once each. */
+const refreshing = new Set<string>();
+
+/**
+ * The checks looked through by a strom of its own (`strom fixes`, which keeps what waits), so that nothing waits for
+ * them: the menu shows what was kept, and this when it is found. STROM_FIXES_REFRESH=now: here and now (the tests).
+ */
+export function refreshFixesSoon(tree: Tree, env: FixEnv, procEnv: Env): PendingFix[] | undefined {
+  if (procEnv.STROM_FIXES_REFRESH === "now") return pendingFixes(tree, env);
+  if (refreshing.has(tree.root) || tree.dryRun) return undefined;
+  refreshing.add(tree.root);
+  try {
+    const { command, args } = stromLauncher();
+    const child = spawn(command, [...args, "fixes", "--json"], {
+      cwd: tree.root,
+      env: { ...(procEnv as NodeJS.ProcessEnv), STROM_TREE: tree.root, STROM_SPAWNED: "1", STROM_TIMING: "" },
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.on("error", () => undefined);
+    child.unref();
+  } catch {
+    // looked through at the next start, or in strom doctor
+  }
+  return undefined;
+}
+
 /** One line of strom doctor: what waits, else nothing (none in an archive). */
-export function fixesDoctorLine(tree: Tree, env: FixEnv, lang: string): { status: "ok" | "warn"; text: string; fix?: string } {
-  const pending = pendingFixes(tree, env);
+export function fixesDoctorLine(tree: Tree, env: FixEnv, lang: string, keep = true): { status: "ok" | "warn"; text: string; fix?: string } {
+  const pending = pendingFixes(tree, env, { keep }) ?? [];
   if (!pending.length) return { status: "ok", text: ui(lang, "ui.doc.fixes.ok") };
   const s = pending[0]!;
   return {
     status: "warn",
-    text: ui(lang, s.check.unit === "reading" ? "ui.doc.fixes.pending.readings" : "ui.doc.fixes.pending", { name: ui(lang, `ui.fixes.${s.check.id}.name` as UIKey), count: s.check.unit === "reading" ? s.found.readings : s.found.items.length }),
+    text: ui(lang, s.check.unit === "reading" ? "ui.doc.fixes.pending.readings" : "ui.doc.fixes.pending", { name: ui(lang, `ui.fixes.${s.check.id}.name` as UIKey), count: pendingCount(s) }),
     fix: `strom fixes show ${s.check.id}`,
   };
 }

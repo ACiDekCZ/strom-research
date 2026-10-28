@@ -175,6 +175,8 @@ export interface Story {
   facts: string[];
   /** The sources of the background of place and time it tells (S…): not facts of the person. */
   sources?: string[];
+  /** The events of the history of the places it tells as the background of its time (stories.history; their IDs). */
+  history?: string[];
   /** The author's caveat. */
   note?: string;
   at: string;
@@ -192,6 +194,7 @@ export interface StoryDraft {
   text: string;
   facts: string[];
   sources?: string[];
+  history?: string[];
   note?: string;
   at: string;
   by: string;

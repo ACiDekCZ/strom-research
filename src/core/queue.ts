@@ -130,7 +130,7 @@ export function ancestorLines(tree: Tree, focus: string, max = 50): Map<string, 
  * requests again (strom run asks what would come then). `history`: the tasks of history too (strom run, or asked for by
  * name: strom task next --history) — never otherwise.
  */
-export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean; turn?: HistoryTurn } = {}): Ranked[] {
+export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean | "only"; turn?: HistoryTurn } = {}): Ranked[] {
   const today = now().slice(0, 10);
   const researches = tree.list<Research>("research");
   // a direction the user paused or ended: its tasks wait (one at work goes on)
@@ -152,7 +152,8 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     held ??= historyHeld(tree, settings.shared()?.value, settings);
     return !held(t);
   };
-  const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)) && (forHistory(t) ? history(t) : !waits(t)));
+  // "only": the tasks of history alone, in their order whatever the pace (strom run --history, the person's word)
+  const open = tasks.filter((t) => ["open", "doing"].includes(effectiveState(t, today)) && (forHistory(t) ? history(t) : opts.history !== "only" && !waits(t)));
   const lines = new Map<string, Map<string, { gen: number; line: string }>>();
   const linesOf = (researchId: string | undefined) => {
     const r = researches.find((x) => x.id === researchId) ?? (researches.length === 1 ? researches[0] : undefined);
@@ -189,7 +190,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   const histTasks = opts.history ? open.filter(forHistory) : [];
   const order = histTasks.length ? histOrder() : () => 0;
   const firstOfHistory = [...histTasks].sort((a, b) => order(a) - order(b) || a.created.localeCompare(b.created))[0];
-  const turnTask = firstOfHistory && (firstOfHistory.origin === HISTORY_PLACES_ORIGIN || turn?.now) ? firstOfHistory.id : undefined;
+  const turnTask = firstOfHistory && (firstOfHistory.origin === HISTORY_PLACES_ORIGIN || turn?.now || opts.history === "only") ? firstOfHistory.id : undefined;
   const tries = new Map<string, number>();
   for (const s of ended) tries.set(s.task!, (tries.get(s.task!) ?? 0) + 1);
 

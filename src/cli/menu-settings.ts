@@ -14,7 +14,7 @@ import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
 import { modelStep, shortcutName } from "./wizard.ts";
 import { DEFAULT_RUN_MINUTES, type HistoryPace } from "../core/config.ts";
-import { chooseHistory, historySuggested } from "../commands/setup.ts";
+import { chooseHistory, historyOfferDue, historySuggested, markHistoryAsked } from "../commands/setup.ts";
 import { askGate, ensureGatesDir, listGates, loadGate } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
 import { byHandOnly, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
@@ -29,8 +29,9 @@ import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
 import { archivePermissions, archiveState, browserOnlyHere } from "./menu-archives.ts";
 import { chooseTerminal, terminalState } from "./terminals.ts";
 import { phoneState } from "../core/phone.ts";
-import { fixEnv, pendingFixes } from "../commands/fixchecks.ts";
+import { fixEnv, pendingCount, pendingFixes } from "../commands/fixchecks.ts";
 import { isArchive as archiveHere } from "../core/mode.ts";
+import { isAgent } from "../core/which.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -229,7 +230,7 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
       if (root) {
         const tree = Tree.open(root, ctx.env);
         if (!archiveHere(tree)) {
-          const waits = pendingFixes(tree, fixEnv(ctx, tree)).reduce((n, s) => n + (s.check.unit === "reading" ? s.found.readings : s.found.items.length), 0);
+          const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).reduce((n, s) => n + pendingCount(s), 0);
           items.push({
             key: "3",
             label: t("ui.maintenance.fixes", { state: waits ? t("ui.maintenance.fixes.waits", { n: waits }) : "" }),
@@ -372,7 +373,11 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
       label: t("ui.alone.history", { state: history ? t(`ui.history.pace.${ctx.settings.historyPace(undefined)}` as UIKey) : t("ui.settings.off") }),
       act: async () => {
         const h = await chooseHistory(ctx, t("ui.setup.history"), historySuggested(ctx), { back: t("ui.browse.back") });
-        if (h) await applyHistory(ctx, run, h);
+        if (!h) return;
+        // the person's answer: the menu's question after an update never comes
+        markHistoryAsked(ctx);
+        ctx.settings.save();
+        await applyHistory(ctx, run, h);
       },
     });
     if (set && shared)
@@ -402,17 +407,37 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
 }
 
 /**
- * History on at the pace chosen, or off (the settings): through strom config set, as the person would type it — the
- * pace first, so turning it on asks nothing more.
+ * An installation that has never been asked about the history of the places (set up before strom had it): asked once,
+ * at the menu of a research with its agent, by a person at a terminal — the setup's question, Enter "not now" (nothing
+ * turns on; later in the settings). Kept as asked before the question, whatever comes of it (Ctrl-C too): never again
+ * (spec 020 K1.6, Milan 28 Oct 2026). Never for an agent, --yes or STROM_NONINTERACTIVE: nothing asked, nothing kept.
  */
-async function applyHistory(ctx: Context, run: Run, choice: HistoryPace | "off"): Promise<void> {
-  const on = ctx.settings.experimentsHistory(undefined);
-  if (choice === "off") {
-    if (on) await run(["config", "set", "experiments.history", "off"], true);
+export async function offerHistory(ctx: Context, run: Run, lang: string): Promise<void> {
+  if (!ctx.interactive || isAgent(ctx.env) || !historyOfferDue(ctx)) return;
+  const t = translator(lang);
+  markHistoryAsked(ctx);
+  ctx.settings.save();
+  ctx.io.stdout(`\n${t("ui.history.offer")}\n`);
+  const h = await chooseHistory(ctx, t("ui.setup.history"), "off", { off: t("ui.history.offer.no") });
+  if (h === undefined) return;
+  if (h === "off") {
+    ctx.io.stdout(`${t("ui.history.offer.later")}\n`);
     return;
   }
-  if (choice !== ctx.settings.historyPace(undefined) || ctx.settings.config.experimentsHistoryPace === undefined) await run(["config", "set", "experiments.historyPace", choice], true);
-  if (!on) await run(["config", "set", "experiments.history", "on"], true);
+  // said as "not now" is: what turned on, and where it changes
+  if (await applyHistory(ctx, run, h)) ctx.io.stdout(`${t("ui.history.offer.on", { pace: t(`ui.history.pace.${h}` as UIKey) })}\n`);
+}
+
+/**
+ * History on at the pace chosen, or off (the settings): through strom config set, as the person would type it — the
+ * pace first, so turning it on asks nothing more. false: a step of it did not go through (it said why).
+ */
+async function applyHistory(ctx: Context, run: Run, choice: HistoryPace | "off"): Promise<boolean> {
+  const on = ctx.settings.experimentsHistory(undefined);
+  if (choice === "off") return on ? (await run(["config", "set", "experiments.history", "off"], true)) === 0 : true;
+  if (choice !== ctx.settings.historyPace(undefined) || ctx.settings.config.experimentsHistoryPace === undefined)
+    if ((await run(["config", "set", "experiments.historyPace", choice], true)) !== 0) return false;
+  return on || (await run(["config", "set", "experiments.history", "on"], true)) === 0;
 }
 
 /** The gate's name in "claude-usage 10". */

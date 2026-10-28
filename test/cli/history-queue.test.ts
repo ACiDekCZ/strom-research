@@ -397,7 +397,7 @@ test("history tasks: turned on late in a large tree — the regions by their wei
     const away = rankTasks(tree(), all, "balanced", { history: true, turn: { ...turn, now: false } }).map((x) => x.task);
     assert.ok(!away[0]!.origin?.startsWith("history:"), "not its turn: none first");
     // strom plan and strom history status say the order
-    assert.match((await w.ok(["plan"])).out, /Regiony na řadě, po jednom: Lhotsko \(osob: 3\) · Podlesí \(osob: 2\) · Velkolhotsko \(osob: 6\) · Lhotečsko \(osob: 1\)/u);
+    assert.match((await w.ok(["plan"])).out, /Regiony na řadě, po jednom: Lhotsko 1845–1930 \(osob: 3\) · Podlesí 1850–1862 \(osob: 2\) · Velkolhotsko 1845–1875 \(osob: 6\) · Lhotečsko 1865–1875 \(osob: 1\)/u);
     const status = await w.ok(["history", "status"]);
     const at = (id: string) => status.out.indexOf(`history:region:${id}`);
     assert.ok(at("cz-lhotsko") < at("cz-podlesi") && at("cz-podlesi") < at("cz-stat") && at("cz-stat") < at("cz-samota"), status.out);
@@ -515,7 +515,7 @@ test("history tasks: the brief of a region's session — its period, the events 
     const region = ofHistory(await tasks(w)).find((t) => t.origin === "history:region:cz-lhota")!;
     const brief = (await w.ok(["brief", region.id])).out;
     assert.match(brief, /## The history of Lhotsko \(cz-lhota\)/);
-    assert.match(brief, /period: 1850–\d{4} — this tree's places only/);
+    assert.match(brief, /period: 1845–1855 — the years this tree's people lived at its places: their facts there, 5 years before and after, to this year only when the facts reach the last 30 years; look for events of these years alone/);
     assert.match(brief, /cz-lhota-0001 1866 epidemic "Cholera ve Lhotě" \[hidden here 1×\]/);
     assert.match(brief, /cz-lhota-0003 1867 epidemic "Cholera znovu" \[taken back: duplicate\]/);
     assert.match(brief, /by kind: epidemic 1/);
@@ -538,6 +538,50 @@ test("history tasks: the brief of a region's session — its period, the events 
     assert.match((await w.ok(["brief", link.id])).out, /## Local events\n.*\n {2}strom history local/);
     await w.ok(["config", "set", "experiments.history", "off"]);
     assert.doesNotMatch((await w.ok(["brief", link.id])).out, /history local/);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("history tasks: strom run --history takes them alone, in their order whatever the pace — the family research waits; strom plan says how many are left", opts, async () => {
+  const w = await world();
+  try {
+    Object.assign(w.env, { STROM_RUNNER_SCRIPT: agent, AGENT_MODE: "idle" });
+    await w.ok(["history", "region", "cz-lhota", ...NAMES]);
+    for (const p of ["Lhota", "Nová Lhota"]) await w.ok(["history", "map", p, "--region", "cz-lhota:1800-"]);
+    await w.ok(["frontier", "--apply"]);
+    await dropOthers(w);
+    for (let i = 1; i <= 3; i++) await w.ok(["task", "add", `Matrika Lhota ${i}`, "--level", "locate", "--where", `Lhota ${i}`, "--why", "a", "--done-when", "b", "--about", "P1", "--priority", "1"]);
+    const region = ofHistory(await tasks(w)).find((t) => t.origin === "history:region:cz-lhota")!;
+    // idle: plain strom run never takes it while the family research has work; --history takes it at once
+    await w.ok(["config", "set", "experiments.historyPace", "idle"]);
+    const plan = await w.ok(["plan", "--json"]);
+    assert.equal(plan.json.history.left, 1);
+    assert.match((await w.ok(["plan"])).out, /Úkolů dějin zbývá: 1 \(všechny napřed: strom run --history\)/u);
+    // the menu: the way last, how many asked (0 goes back: nothing runs)
+    const menu = await w.ok([], { tty: true, env: { STROM_AGENT: "script" }, answers: ["2", "3", "0", "0"] });
+    assert.match(menu.out, / 3 {2}Hledat dějiny teď \(1 úkol dějin\)/u, menu.out);
+    assert.match(menu.out, /Kolik úkolů dějin\? \(0 zpět\)/u);
+    assert.ok(!fs.existsSync(path.join(w.cwd, "data", "sessions", "N0001.json")), "nothing ran");
+    const r = await w.ok(["run", "--agent", "script", "--history", "--json"]);
+    assert.deepEqual((r.json.sessions as { task: string }[]).map((s) => s.task), [region.id], r.err);
+    // like task next --history: nothing of it in help (an experiment)
+    assert.doesNotMatch((await w.ok(["help", "run"])).out, /--history/);
+    // not with --task or --research; not while it is off
+    const both = await w.run(["run", "--agent", "script", "--history", "--task", region.id, "--json"]);
+    assert.equal(both.code, 2);
+    assert.equal(both.json.code, "run.history");
+    // none left: said, the family research untouched
+    await w.ok(["task", "drop", region.id, "--reason", "zkouška"]);
+    const none = await w.ok(["run", "--agent", "script", "--history", "--max", "3", "--json"]);
+    assert.deepEqual(none.json.sessions, []);
+    assert.equal(none.json.stop, "empty");
+    assert.equal(none.json.stopped, "žádné úkoly dějin nezbývají");
+    assert.equal((await tasks(w)).filter((t) => /^Matrika Lhota/.test(t.what) && t.state === "open").length, 3);
+    await w.ok(["config", "set", "experiments.history", "off"]);
+    const off = await w.run(["run", "--agent", "script", "--history", "--json"]);
+    assert.notEqual(off.code, 0);
+    assert.equal(off.json.code, "history.off");
   } finally {
     w.cleanup();
   }

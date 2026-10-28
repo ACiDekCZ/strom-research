@@ -140,6 +140,63 @@ test("the menu: the history of the places in the settings of working alone — h
   w.cleanup();
 });
 
+test("the menu after an update: the history of the places never asked about is asked once — Enter is not now, nothing turns on; never for an agent, without a terminal, or when on or off already", unix, async () => {
+  const w = await world();
+  const file = path.join(w.env.STROM_CONFIG_DIR!, "config.json");
+  const config = () => readJsonFile(file);
+  // set up before strom had it: neither on nor off, never asked
+  const never = () => {
+    const c = config();
+    delete c.historyAsked;
+    delete c.experimentsHistory;
+    delete c.experimentsHistoryPace;
+    fs.writeFileSync(file, JSON.stringify(c, null, 2));
+  };
+  never();
+  // Enter: not now · 0 quit
+  const r = await w.ok([], { tty: true, answers: ["", "0"] });
+  assert.match(r.out, /Novinka této verze: události dějin v místech předků/u);
+  assert.match(r.out, /Hledat i události dějin v místech předků[^\n]*Jak často:\n {3}1 {2}občas – zhruba každé 5\. sezení\n {3}2 {2}zřídka – zhruba každé 10\. sezení\n {3}3 {2}jen když rodinný výzkum nemá co dělat\n {3}4 {2}teď ne – nic se nezapne\nVybrat \[4\]/u);
+  assert.match(r.out, /Dějiny se nehledají\. Později: Nastavení → Samostatná práce agenta → Dějiny míst, nebo z aplikace Strom\./u);
+  const offer = r.out.slice(r.out.indexOf("Novinka"), r.out.indexOf("Vybrat [4]"));
+  assert.doesNotMatch(offer, /(^|[^\p{L}])(vy|váš|vás|ty|tvůj|si|experiment|pokus)([^\p{L}]|$)/iu, "impersonal");
+  assert.equal(config().experimentsHistory, undefined, "nothing turned on");
+  assert.ok(config().historyAsked, "the answer kept");
+  // once: never again, whatever the answer
+  const again = await w.ok([], { tty: true, answers: ["0"] });
+  assert.doesNotMatch(again.out, /Novinka této verze/u);
+  // the person's yes: on at the pace chosen
+  never();
+  const yes = await w.ok([], { tty: true, answers: ["2", "0"] });
+  assert.equal(config().experimentsHistory, "on");
+  assert.equal(config().experimentsHistoryPace, "rare");
+  // said as "not now" is: what turned on, and where it changes
+  assert.match(yes.out, /Dějiny se hledají: zřídka – zhruba každé 10\. sezení\. Jak často, jde změnit: Nastavení → Samostatná práce agenta → Dějiny míst, nebo z aplikace Strom\./u);
+  assert.doesNotMatch(yes.out, /Dějiny se nehledají/u);
+  // never for an agent, without a terminal, --yes or STROM_NONINTERACTIVE: nothing asked, nothing kept
+  never();
+  const ways: [{ tty?: boolean; answers?: string[]; env?: Record<string, string> }, string[]][] = [
+    [{ tty: true, answers: ["0"], env: { CLAUDECODE: "1" } }, []],
+    [{ tty: true, answers: ["0"], env: { STROM_NONINTERACTIVE: "1" } }, []],
+    [{ tty: true, answers: ["0"] }, ["--yes"]],
+    [{}, []],
+  ];
+  for (const [opts, args] of ways) {
+    const q = await w.run(args, opts);
+    assert.doesNotMatch(q.out, /Novinka této verze/u, JSON.stringify(opts));
+    assert.equal(config().historyAsked, undefined, JSON.stringify(opts));
+  }
+  // on or off already (the person's own word, never asked here): no question
+  for (const value of ["on", "off"]) {
+    never();
+    fs.writeFileSync(file, JSON.stringify({ ...config(), experimentsHistory: value }, null, 2));
+    const q = await w.ok([], { tty: true, answers: ["0"] });
+    assert.doesNotMatch(q.out, /Novinka této verze/u, value);
+    assert.equal(config().experimentsHistory, value);
+  }
+  w.cleanup();
+});
+
 /** The numbers of a (sub)menu's items in the last listing that has this title, 0 last. */
 function numbersUnder(out: string, title: string): number[] {
   const at = out.lastIndexOf(`${title}\n`);

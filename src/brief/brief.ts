@@ -35,14 +35,14 @@ import { imagesIndex, weakScans } from "../core/mediaindex.ts";
 import { SHARPER_SCAN } from "../core/views.ts";
 import { HYPOTHESIS_LINKS_ORIGIN, recordedLinks, recordedText } from "../core/hypolinks.ts";
 import { forHistory, historyOn } from "../core/pastevents.ts";
-import { HISTORY_WEB_RULE, historySections, localEventsSection } from "./history.ts";
+import { HISTORY_WEB_RULE, historySections, localEventsSection, storyHistorySection } from "./history.ts";
 
 export { DEFAULT_BUDGET } from "../core/config.ts";
 import { DEFAULT_BUDGET, Settings } from "../core/config.ts";
 import { bookTuned, hostTuned, readingOf, treeTuning, tuningOn, type TuneState } from "../core/tune.ts";
 import { researchKey, viewModel, viewSizes } from "../core/viewsizes.ts";
 import { inWords, PROFILES } from "../agents/profiles.ts";
-import { ENRICH_PAGES, STORY_SOURCES_ORIGIN } from "../core/stories.ts";
+import { ENRICH_PAGES, forStory, STORY_SOURCES_ORIGIN } from "../core/stories.ts";
 import { sandboxOf, WITHOUT_READERS, type Sandbox } from "../core/sandbox.ts";
 import { WEB_SOFT } from "../core/metrics.ts";
 import { indexBriefLines } from "../core/indexfirst.ts";
@@ -1330,6 +1330,11 @@ export function buildBrief(
     if (local) sections.push(local);
   }
 
+  // 8''. the history of the places in the stories (stories.history): the time the people of a story lived in
+  const storyHistoryOn = !!task && forStory(task) && new Settings(tree.env, {}).storyHistory(tree.config);
+  const ofTime = storyHistoryOn && task!.level === "narrate" ? storyHistorySection(tree, task!, opts.shared) : undefined;
+  if (ofTime) sections.push(ofTime);
+
   // 8 bis. the search beyond the registers: its budget of pages, printed pages for the user's model for print where the
   // agent hands work to another model, and what the research has written of the person's places already
   if (task?.origin === STORY_SOURCES_ORIGIN) {
@@ -1345,6 +1350,9 @@ export function buildBrief(
         `- over ${Math.min(WEB_SOFT, new Settings(tree.env, {}).webPerHost(tree.config))} pages of one site: through its connector, built right away when the task needs that site (strom connector new <site> --url https://<host>/, then strom fetch)`,
         print ? `- print: a subagent on ${print} (model.text), never handwriting` : "",
         written.length ? `- of the places, written already (reuse): ${written.join(" · ")}` : "",
+        storyHistoryOn && storyHistorySection(tree, task, opts.shared)
+          ? "- the history of the places (wars, epidemics, changes of the state of the region) is in the research already, the story takes it from there: no pages for it — what is of the person"
+          : "",
       ].filter(Boolean).join("\n"),
     });
   }

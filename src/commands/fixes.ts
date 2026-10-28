@@ -244,7 +244,7 @@ function stateData(ctx: Context, tree: Tree, s: FixState, all = false) {
 function stateOfCheck(ctx: Context, tree: Tree, id: string): FixState {
   const check = fixCheck(id);
   if (!check) throw new UsageError(`no check "${id}"`, { hint: `strom fixes (the checks: ${FIX_CHECKS.map((c) => c.id).join(", ")})` });
-  return fixStates(tree, fixEnv(ctx, tree)).find((s) => s.check.id === id)!;
+  return fixStates(tree, fixEnv(ctx, tree), { keep: !ctx.backupFailed }).find((s) => s.check.id === id)!;
 }
 
 /** The person's own decision: in their terminal alone (an agent, a run nobody watches: exit 4, with the command). */
@@ -561,7 +561,7 @@ register(
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
       // an archive: nobody reads there, nothing of an agent said
       if (isArchive(tree)) return { text: t("ui.fixes.none"), data: { checks: [] } };
-      const states = fixStates(tree, fixEnv(ctx, tree));
+      const states = fixStates(tree, fixEnv(ctx, tree), { keep: !ctx.backupFailed });
       const pending = states.filter((s) => s.state === "pending");
       const text = lines(
         t("ui.fixes.title"),
@@ -626,7 +626,7 @@ register(
       if (typeof opts.model === "string" && !opts.model.trim()) throw new UsageError("--model names a model", { hint: `${set} --model <model>` });
       const first = positive(opts.first, "first");
       const tryN = positive(opts.try, "try", FIX_TRY)!;
-      const states = args[0] ? [stateOfCheck(ctx, tree, args[0])] : fixStates(tree, fixEnv(ctx, tree)).filter((s) => s.state === "pending");
+      const states = args[0] ? [stateOfCheck(ctx, tree, args[0])] : fixStates(tree, fixEnv(ctx, tree), { keep: !ctx.backupFailed }).filter((s) => s.state === "pending");
       // nothing to read again: said so, before who reads or whose choice it is
       if (!states.some((s) => s.found.items.length)) return { text: t("ui.fixes.none"), data: { checks: states.map((s) => ({ id: s.check.id, read: 0, tasks: [] })) } };
       if (ctx.settings.agent(tree.config).source === "flag" || typeof opts.model === "string" || !readyHere(ctx).length) requireReady(ctx, tree, set);

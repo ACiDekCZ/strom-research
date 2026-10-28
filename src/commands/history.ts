@@ -1,4 +1,5 @@
-// history status · map · region · add · page · local · retract · done — and the person's own redo · hide · show: what the
+// history status · map · region · add · page · local · retract · done — and the person's own redo · first · hide · show ·
+// skip · unskip · assign: what the
 // ancestors lived through (the experiment experiments.history, core/pastevents.ts). Behind its gate (hidden): runs
 // when named, shown nowhere until the Strom app shows the events. `strom history` alone stays what changed recently.
 
@@ -19,9 +20,11 @@ import {
   addLocalEvent,
   addRegionEvent,
   askFirst,
+  assignPlace,
   checkKind,
   checkTexts,
   checkYears,
+  deleteEvent,
   ensureRegion,
   factPlaceKey,
   hideEvent,
@@ -32,9 +35,12 @@ import {
   gapsOfTask,
   gapText,
   historyOrder,
+  historyHeld,
   historyTurn,
   mapPlace,
+  raiseHistoryTasks,
   markDone,
+  donePeriod,
   noteTried,
   readCatalog,
   redoRegion,
@@ -45,9 +51,11 @@ import {
   requireHistoryOn,
   requireRegionId,
   retractEvent,
+  skipHistory,
   EVENT_KINDS,
   type RegionLink,
   type Sameness,
+  yearsToSearch,
   type Texts,
 } from "../core/pastevents.ts";
 import type { RecordSet, Source, Task } from "../core/model.ts";
@@ -120,6 +128,13 @@ const SAME_OPTS = [
 ];
 const textOpts = (name: string, what: string) => REGION_LANGS.map((l) => ({ name: `${name}-${l}`, type: "string" as const, value: "<text>", description: `${what} (${l})` }));
 
+/** A region's name in the research's language (its ID when it has no catalog). */
+function regionText(ctx: Context, tree: Tree, id: string): string {
+  const sh = ctx.settings.shared()?.value;
+  const c = sh && regionIdOk(id) ? readCatalog(sh, id) : undefined;
+  return c?.region.name[tree.lang] ?? c?.region.name.en ?? id;
+}
+
 function agentWork(ctx: Context, what: string): Tree {
   const tree = ctx.tree();
   refuseInArchive(tree, what, ctx.settings.agent(tree.config).value);
@@ -153,20 +168,25 @@ register(
         .list<Task>("task")
         .filter((t) => forHistory(t) && ["open", "doing", "parked", "waiting"].includes(t.state))
         .sort((a, b) => order(a) - order(b) || a.created.localeCompare(b.created));
+      // those strom run does not take now (a region skipped, another tree's, the experiment off, an archive): apart, with why
+      const held = historyHeld(tree, sh, ctx.settings);
+      const heldWhy = { skipped: "skipped by the person", held: "another research builds it", off: "history off", archive: "an archive" } as const;
+      const taken = tasks.filter((t) => !held(t));
+      const apart = tasks.filter((t) => !!held(t));
       const weight = new Map((turn?.order ?? []).map((w) => [w.id, w]));
       const why = (t: Task): string => {
         const region = regionOfTask(t);
         const w = region ? weight.get(region) : undefined;
         if (turn?.asked?.task === t.id) return "asked first";
         if (turn?.prefer?.task === t.id) return `first: ${turn.prefer.place}`;
-        const gaps = forGaps(t) ? `gaps ${gapsOfTask(t).map(gapText).join(", ")}` : "";
+        const gaps = forGaps(t) ? `years ${gapsOfTask(t).map(gapText).join(", ")}` : "";
         return [gaps, w ? `${w.persons} people, ${w.facts} facts` : ""].filter(Boolean).join(" · ");
       };
       const when = !turn ? undefined : turn.places ? `the next session, the places to map first (${turn.places})` : turn.pace === "idle" ? "when the family research has nothing to do" : turn.now ? "the next session" : `in ~${Math.max(1, turn.in ?? 0)} sessions`;
       return {
         text: lines(
           `history of the places: ${s.on ? "on" : "off (the user alone turns it on: strom config set experiments.history on)"} · search: ${state.search}${state.why ? ` (${state.why})` : ""}`,
-          `places of the facts: ${s.places.total} · mapped ${s.places.mapped} · not located ${s.places.unlocated} · waiting ${s.places.pending.length}`,
+          `places of the facts: ${s.places.total} · mapped ${s.places.mapped}${s.places.manual ? ` (${s.places.manual} by the person)` : ""} · not located ${s.places.unlocated} · waiting ${s.places.pending.length}${s.places.skipped ? ` · skipped by the person ${s.places.skipped}` : ""}`,
           shown.length ? `waiting: ${shown.join(" · ")}${s.places.pending.length > shown.length ? ` … (+${s.places.pending.length - shown.length}, --limit)` : ""}` : undefined,
           s.regions.length
             ? table(
@@ -175,21 +195,27 @@ register(
                   r.name?.en ?? "(no catalog)",
                   `${r.events} events`,
                   r.retracted ? `${r.retracted} taken back` : "",
-                  r.done ? `done ${r.done.slice(0, 10)}` : r.heldBy ? `held by ${r.heldBy}` : "open",
+                  r.deleted ? `${r.deleted} deleted by the person` : "",
+                  r.skipped ? "skipped by the person" : r.done ? `done ${r.done.slice(0, 10)}` : r.heldBy ? `held by ${r.heldBy}` : "open",
+                  r.period.length ? `period ${r.period.map(gapText).join(", ")}` : "",
+                  r.added?.length ? `not looked through: ${r.added.map(gapText).join(", ")}` : "",
                   r.gaps?.length ? `gaps: ${r.gaps.map(gapText).join(", ")}` : "",
                   r.tried ? `${r.tried} pages not read` : "",
                 ]),
               )
             : "no regions yet",
-          `local events: ${s.local.events}${s.local.retracted ? ` (${s.local.retracted} taken back)` : ""} · hidden by the person: ${s.hidden.total}`,
+          `local events: ${s.local.events}${s.local.retracted ? ` (${s.local.retracted} taken back)` : ""}${s.local.deleted ? ` (${s.local.deleted} deleted by the person)` : ""} · hidden by the person: ${s.hidden.total}`,
           turn ? `pace: ${turn.pace} (strom config set experiments.historyPace sometimes|rare|idle) · ${turn.since} sessions since the last of history · strom run takes the next: ${when}${turn.asked ? ` · first: ${turn.asked.task} (asked for ${turn.asked.region})` : turn.prefer ? ` · first: ${turn.prefer.task} (a recent session worked at ${turn.prefer.place})` : ""}` : undefined,
-          tasks.length
-            ? lines("tasks of history in the order strom run takes them, one a turn (strom run --task <T…> starts one now):", table(tasks.map((t, i) => [`  ${i + 1}.`, t.id, t.origin, t.state, why(t)])))
-            : s.on
+          taken.length
+            ? lines("tasks of history in the order strom run takes them, one a turn (strom run --task <T…> starts one now):", table(taken.map((t, i) => [`  ${i + 1}.`, t.id, t.origin, t.state, why(t)])))
+            : apart.length
+              ? undefined
+              : s.on
               ? "no tasks of history yet: strom raises them when the next session of the research ends"
               : undefined,
+          apart.length ? lines("not taken now:", table(apart.map((t) => ["  –", t.id, t.origin, t.state, heldWhy[held(t)!]]))) : undefined,
         ),
-        data: { ...s, state, tasks: tasks.map((t) => ({ id: t.id, origin: t.origin, state: t.state, what: t.what, ...(regionOfTask(t) && weight.has(regionOfTask(t)!) ? { weight: weight.get(regionOfTask(t)!) } : {}) })), ...(turn ? { turn } : {}) },
+        data: { ...s, state, tasks: [...taken, ...apart].map((t) => ({ id: t.id, origin: t.origin, state: t.state, what: t.what, ...(held(t) ? { held: held(t) } : {}), ...(regionOfTask(t) && weight.has(regionOfTask(t)!) ? { weight: weight.get(regionOfTask(t)!) } : {}) })), ...(turn ? { turn } : {}) },
       };
     },
   },
@@ -317,13 +343,24 @@ register(
       const ownTask = own ? tree.get<Task>(own) : undefined;
       if (ownTask && forGaps(ownTask) && regionOfTask(ownTask) === region) {
         const gaps = gapsOfTask(ownTask);
-        if (gaps.length && !gaps.some((g) => from <= g.to && g.from <= to))
-          throw new UsageError(`this session fills the gaps of ${region} only (${gaps.map(gapText).join(", ")}): ${from === to ? from : `${from}–${to}`} is outside them`, {
+        if (gaps.length && !gaps.some((g) => from <= g.to && g.from <= to)) {
+          // its years said as they are: never looked through (K2.7), gaps (K2.6), or both
+          const added = yearsToSearch(tree, sh, region).added;
+          const fresh = gaps.filter((g) => added.some((a) => g.from <= a.to && a.from <= g.to));
+          const holes = gaps.filter((g) => !fresh.includes(g));
+          const span = from === to ? `${from}` : `${from}–${to}`;
+          const said = !fresh.length
+            ? `fills the gaps of ${region} only (${holes.map(gapText).join(", ")})`
+            : !holes.length
+              ? `looks through the years of ${region} never looked through only (${fresh.map(gapText).join(", ")})`
+              : `looks for ${region} in these years only (never looked through ${fresh.map(gapText).join(", ")}; gaps ${holes.map(gapText).join(", ")})`;
+          throw new UsageError(`this session ${said}: ${span} is outside them`, {
             code: "history.gaps.outside",
             params: { region },
           });
+        }
       }
-      refuseBeforePage(sh, region, { kind, from, to }, s);
+      refuseBeforePage(sh, region, { kind, from, to }, s, url);
       let checked;
       try {
         checked = await checkQuotes(url, quotes, { from, to }, sh, ctx.env);
@@ -500,7 +537,13 @@ register(
     examples: ["strom history done cz-bohemia"],
     run(ctx, { args }) {
       const tree = agentWork(ctx, "strom history done");
-      const c = markDone(shared(ctx), args[0]!.trim(), tree.config.id);
+      const region = args[0]!.trim();
+      const sh = shared(ctx);
+      // the years looked through: this tree's period (K2.7), the events written in them since its session's task was made
+      const had = readCatalog(sh, region);
+      const own = currentSession(tree, ctx.env, ctx.refs)?.task;
+      const since = own ? tree.get<Task>(own)?.created : undefined;
+      const c = markDone(sh, region, tree.config.id, had ? donePeriod(tree, had) : undefined, since);
       return { text: `${c.region.id}: done (${c.events.filter((e) => !e.retracted).length} events)`, data: { region: c.region.id, done: c.done } };
     },
   },
@@ -509,6 +552,7 @@ register(
     summary: "Look for a region's events again (the person's word): those found stay",
     group: "history",
     tree: true,
+    writes: true,
     hidden: true,
     person: "Look for the events of this region again?",
     args: [{ name: "region", description: "the region", required: true }],
@@ -517,7 +561,10 @@ register(
       const tree = ctx.tree();
       const id = args[0]!.trim();
       if (!regionIdOk(id)) requireRegionId(id);
+      if (tree.dryRun) return { text: `would look for the events of ${id} again`, data: { region: id } };
       const c = redoRegion(shared(ctx), id);
+      // its tasks at once: a task of its gaps waiting is done (the whole region is looked for), the region's raised
+      raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
       return { text: ui(tree.lang, "ui.history.past.redo", { region: c.region.name[tree.lang] ?? c.region.name.en ?? id }), data: { region: id } };
     },
   },
@@ -542,23 +589,32 @@ register(
   },
   ...(["hide", "show"] as const).map((verb) => ({
     path: ["history", verb],
-    summary: verb === "hide" ? "Hide an event at a place or a person (the person's choice)" : "Show again an event hidden at a place or a person",
+    summary:
+      verb === "hide"
+        ? "Hide an event at a place, a person or in the whole tree, or everything of a region (the person's choice)"
+        : "Show again an event hidden at a place, a person or in the whole tree, or everything of a region",
     group: "history" as const,
     tree: true,
     writes: true,
     hidden: true,
-    person: verb === "hide" ? "Hide this event?" : "Show this event again?",
-    args: [{ name: "event", description: "the event", required: true }],
+    person: verb === "hide" ? "Hide this?" : "Show this again?",
+    args: [{ name: "event", description: "the event (none with --region)" }],
     options: [
       { name: "place", type: "string" as const, value: "<place>", description: "at this place" },
       { name: "person", type: "string" as const, value: "<P…>", description: "at this person" },
+      { name: "tree", type: "boolean" as const, description: "in the whole tree" },
+      { name: "region", type: "string" as const, value: "<id>", description: "everything of this region (no event)" },
     ],
-    examples: [`strom history ${verb} cz-bohemia-0003 --place "Lhota"`],
+    examples: [`strom history ${verb} cz-bohemia-0003 --place "Lhota"`, `strom history ${verb} cz-bohemia-0003 --tree`, `strom history ${verb} --region cz-bohemia`],
     run(ctx: Context, { args, opts }: { args: string[]; opts: Record<string, unknown> }) {
       const tree = ctx.tree();
       const place = str(opts.place);
       const who = str(opts.person);
-      if ((place === undefined) === (who === undefined)) throw new UsageError("--place or --person (one of them)", { code: "history.body" });
+      const region = str(opts.region)?.trim();
+      const event = args[0]?.trim() || undefined;
+      const wheres = [place !== undefined, who !== undefined, !!opts.tree].filter(Boolean).length;
+      if (region !== undefined ? event !== undefined || wheres > 0 : event === undefined || wheres !== 1)
+        throw new UsageError("an event with --place, --person or --tree (one of them) — or --region alone", { code: "history.body" });
       let person: string | undefined;
       if (who !== undefined) {
         try {
@@ -567,12 +623,130 @@ register(
           throw new UsageError(`there is no person ${who}`, { code: "history.person", params: { person: who } });
         }
       }
-      const event = args[0]!.trim();
-      const out = hideEvent(tree, ctx.settings.shared()?.value, { event, ...(place !== undefined ? { place } : { person: person! }) }, verb === "show");
-      const where = place ?? person!;
+      const out = hideEvent(
+        tree,
+        ctx.settings.shared()?.value,
+        region !== undefined ? { region } : { event, ...(place !== undefined ? { place } : person !== undefined ? { person } : { tree: true as const }) },
+        verb === "show",
+      );
       const changed = tree.written.length > 0;
-      return { text: ui(tree.lang, changed ? (verb === "hide" ? "ui.history.past.hidden" : "ui.history.past.shown") : "ui.history.past.same", { event, where }), data: { hidden: out } };
+      if (region !== undefined) {
+        const name = regionText(ctx, tree, region);
+        return { text: ui(tree.lang, changed ? (verb === "hide" ? "ui.history.past.region.hidden" : "ui.history.past.region.shown") : "ui.history.past.same.region", { region: name }), data: { hidden: out } };
+      }
+      const where = place ?? person ?? ui(tree.lang, "ui.history.past.where.tree");
+      return { text: ui(tree.lang, changed ? (verb === "hide" ? "ui.history.past.hidden" : "ui.history.past.shown") : "ui.history.past.same", { event: event!, where }), data: { hidden: out } };
     },
   })),
+  ...(["delete", "restore"] as const).map((verb) => ({
+    path: ["history", verb],
+    summary:
+      verb === "delete"
+        ? "Delete an event of history (the person's choice): a region's from every tree on this computer, a local one from this tree — never written again until restored"
+        : "Restore an event of history the person deleted",
+    group: "history" as const,
+    tree: true,
+    writes: true,
+    hidden: true,
+    person: verb === "delete" ? "Delete this event?" : "Restore this event?",
+    description:
+      verb === "delete"
+        ? "A region's event goes from its catalog, shared by every research on this computer; the research never writes it again (an event of the same kind and years only from a page at another address). A local event (L…) goes from this tree only. strom history restore brings it back; one the research took back (strom history retract) is not the person's."
+        : undefined,
+    args: [{ name: "event", description: "the event (a region's, or L… of the tree)", required: true }],
+    examples: [`strom history ${verb} cz-bohemia-0003`],
+    run(ctx: Context, { args }: { args: string[]; opts: Record<string, unknown> }) {
+      const tree = ctx.tree();
+      const event = args[0]!.trim();
+      const local = /^L\d+$/u.test(event);
+      if (!local && tree.dryRun) return { text: `would ${verb} ${event}`, data: { event, scope: "region" } };
+      const out = deleteEvent(tree, local ? undefined : shared(ctx), event, verb === "restore");
+      const key = !out.changed ? "ui.history.past.skip.same" : verb === "restore" ? "ui.history.past.restored" : local ? "ui.history.past.deleted.local" : "ui.history.past.deleted.region";
+      return { text: ui(tree.lang, key, { event }), data: { event, scope: out.scope, deleted: out.deleted } };
+    },
+  })),
+  ...(["skip", "unskip"] as const).map((verb) => ({
+    path: ["history", verb],
+    summary:
+      verb === "skip"
+        ? "Look for no history of a region, or at a place, in this research (the person's choice): what was found stays"
+        : "Look for the history of a region, or at a place, again",
+    group: "history" as const,
+    tree: true,
+    writes: true,
+    hidden: true,
+    person: verb === "skip" ? "Look for no history here?" : "Look for the history here again?",
+    description:
+      verb === "skip"
+        ? "A region: its tasks stay out of the queue and none is raised; its events found stay in its catalog (shared by every research on this computer). A place: no event of a region through it, no weight in the order, nothing to map."
+        : undefined,
+    options: [
+      { name: "region", type: "string" as const, value: "<id>", description: "the region (strom history status lists those of the tree)" },
+      { name: "place", type: "string" as const, value: "<place>", description: "the place, as the facts write it" },
+    ],
+    examples: [`strom history ${verb} --region cz-bohemia`, `strom history ${verb} --place "Lhota"`],
+    run(ctx: Context, { opts }: { args: string[]; opts: Record<string, unknown> }) {
+      const tree = ctx.tree();
+      const region = str(opts.region)?.trim();
+      const place = str(opts.place);
+      if ((region === undefined) === (place === undefined)) throw new UsageError("--region or --place (one of them)", { code: "history.body" });
+      const out = skipHistory(tree, region !== undefined ? { region } : { place: place! }, verb === "unskip");
+      const changed = tree.written.length > 0;
+      const key = !changed
+        ? "ui.history.past.skip.same"
+        : region !== undefined
+          ? verb === "skip" ? "ui.history.past.skip.region" : "ui.history.past.unskip.region"
+          : verb === "skip" ? "ui.history.past.skip.place" : "ui.history.past.unskip.place";
+      return {
+        text: ui(tree.lang, key, { region: region !== undefined ? regionText(ctx, tree, region) : "", place: place?.trim() ?? "" }),
+        data: { skip: { regions: out.regions.map((x) => x.region), places: out.places.map((x) => x.place) } },
+      };
+    },
+  })),
+  {
+    path: ["history", "assign"],
+    summary: "A place's regions as the person knows them (the research never maps it otherwise) — or determined again, or back to the research",
+    group: "history",
+    tree: true,
+    writes: true,
+    hidden: true,
+    person: "Change the regions of this place?",
+    description:
+      "--region <id>[:<from>-<to>] once for each region the place belonged to (the regions that exist: strom history status); --redo:\n" +
+      "the research determines the place again at the next session of the places, with --note for it; --auto: back to what the\n" +
+      "research determined before.",
+    args: [{ name: "place", description: "the place, as the facts write it", required: true }],
+    options: [
+      { name: "region", type: "string", multiple: true, value: "<id>[:<from>-<to>]", description: "a region it belonged to, with the years (repeatable)" },
+      { name: "redo", type: "boolean", description: "determined again by the research" },
+      { name: "note", type: "string", value: "<text>", description: "with --redo: what the research should know (at most 200 characters)" },
+      { name: "auto", type: "boolean", description: "back to what the research determined" },
+    ],
+    examples: ['strom history assign "Lhota" --region cz-bohemia:-1918 --region cz-czechoslovakia:1918-', 'strom history assign "Lhota" --redo --note "the one near the river"', 'strom history assign "Lhota" --auto'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const links = listOpt(opts.region).map(regionLink);
+      const note = typeof opts.note === "string" ? opts.note : undefined;
+      if ([links.length > 0, !!opts.redo, !!opts.auto].filter(Boolean).length !== 1)
+        throw new UsageError("--region <id>[:<from>-<to>] (repeatable), --redo or --auto (one of them)", { code: "history.body" });
+      if (note !== undefined && !opts.redo) throw new UsageError("--note goes with --redo", { code: "history.body" });
+      const m = assignPlace(
+        tree,
+        ctx.settings.shared()?.value,
+        args[0]!,
+        links.length ? { regions: links } : opts.redo ? { redo: true, ...(note !== undefined ? { note } : {}) } : { auto: true },
+      );
+      const place = factPlaceKey(tree, args[0]!) ?? args[0]!;
+      const text =
+        tree.written.length === 0
+          ? ui(tree.lang, "ui.history.past.skip.same")
+          : links.length
+            ? ui(tree.lang, "ui.history.past.assign", { place, regions: links.map((l) => `${regionText(ctx, tree, l.id)}${l.from !== undefined || l.to !== undefined ? ` ${l.from ?? "…"}–${l.to ?? "…"}` : ""}`).join(", ") })
+            : ui(tree.lang, opts.redo ? "ui.history.past.assign.redo" : "ui.history.past.assign.auto", { place });
+      // what the research had determined before the person's word stays inside (for --auto)
+      const shown = m ? (({ auto: _auto, ...rest }) => rest)(m) : null;
+      return { text, data: { place, map: shown } };
+    },
+  },
 );
 
