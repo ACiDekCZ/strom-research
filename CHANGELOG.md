@@ -5,6 +5,15 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.22.1
+
+*2026-10-29 · goes with the Strom app 3.17.0.*
+
+- **An event of a place is not written again for its region.** When the history of a place was looked for before the
+  regions it lies in, the region's history could add the same event once more (the same kind, the same years). The
+  region now leaves out what one of its places has already; an event that touched the whole region is still written.
+  What the agent reads for a place also says which of its regions are not looked through yet.
+
 ## 1.22.0
 
 *2026-10-29 · goes with the Strom app 3.17.0.*

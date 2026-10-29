@@ -282,6 +282,36 @@ export function regionEventsAt(tree: Tree, shared: string | undefined, id: strin
   return [...out.values()].sort((a, b) => a.event.from - b.event.from || a.event.id.localeCompare(b.event.id));
 }
 
+/**
+ * The own events of the tree's places that belong to a region in the years of an event (their facts' places mapped to
+ * it): the mirror of regionEventsAt, for a place looked for before its region (spec 020 K7.1a). Not taken back.
+ */
+export function placeEventsIn(tree: Tree, shared: string | undefined, region: string, e: { from: number; to: number }): { event: RegionEvent; place: Place }[] {
+  if (!shared) return [];
+  const maps = readPlaces(tree);
+  const folded = new Map(Object.entries(maps).map(([k, v]) => [foldText(k), v]));
+  const out: { event: RegionEvent; place: Place }[] = [];
+  for (const [id, at] of factsByRecord(tree)) {
+    const inIt = at.keys.some((key) => ((maps[key] ?? folded.get(foldText(key)))?.regions ?? []).some((g) => g.id === region && inRegion(e, g)));
+    const p = inIt ? placeRecord(tree, id) : undefined;
+    if (!p) continue;
+    for (const x of readPlaceCatalog(shared, placeKeyOf(tree, p))?.events ?? []) if (!x.retracted) out.push({ event: x, place: p });
+  }
+  return out.sort((a, b) => a.event.from - b.event.from || a.event.id.localeCompare(b.event.id));
+}
+
+/** An event of one of the region's places of the same kind and years: the region's history never writes it again. */
+export function refusePlaceSame(tree: Tree, shared: string, region: string, e: { kind: string; from: number; to: number }): void {
+  const same = placeEventsIn(tree, shared, region, e).filter((x) => x.event.kind === e.kind && x.event.from <= e.to && e.from <= x.event.to);
+  if (!same.length) return;
+  const ids = same.map((x) => `${x.event.id} (${x.place.id})`);
+  throw new UsageError(`an event of a place of ${region} of the same kind and years is there already: ${ids.join(", ")} — nothing written`, {
+    code: "history.same.place",
+    params: { ids: same.map((x) => x.event.id).join(", ") },
+    hint: `the place's event shows there already — leave it out; an event of the whole region (it touched its other places too): --distinct "<why it is another>"`,
+  });
+}
+
 // ── the person's asks ──────────────────────────────────────────────────────
 
 export function readPlaceAsks(tree: Tree): PlaceAsk[] {

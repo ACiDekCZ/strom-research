@@ -5,6 +5,16 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.22.1
+
+*29.10.2026 · gehört zur Strom-App 3.17.0.*
+
+- **Ein Ereignis eines Ortes wird bei seiner Region nicht noch einmal geschrieben.** Wurde die Geschichte eines Ortes
+  vor den Regionen gesucht, zu denen er gehört, konnte die Geschichte der Region dasselbe Ereignis noch einmal
+  hinzufügen (dieselbe Art, dieselben Jahre). Die Region lässt jetzt aus, was einer ihrer Orte schon hat; ein
+  Ereignis, das die ganze Region betraf, wird weiter geschrieben. Was der Agent zu einem Ort liest, sagt auch, welche
+  seiner Regionen noch nicht durchgesehen sind.
+
 ## 1.22.0
 
 *29.10.2026 · gehört zur Strom-App 3.17.0.*

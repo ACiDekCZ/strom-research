@@ -77,6 +77,7 @@ import {
   placeOfTask,
   readPlaceCatalog,
   refusePlaceBeforePage,
+  refusePlaceSame,
   requirePlace,
   setArea,
   yearsAt,
@@ -408,7 +409,10 @@ register(
         }
       }
       if (place) refusePlaceBeforePage(tree, sh, place, { kind, from, to }, s, url);
-      else refuseBeforePage(sh, region!, { kind, from, to }, s, url);
+      else {
+        refuseBeforePage(sh, region!, { kind, from, to }, s, url);
+        if (!s.sameAs && !s.distinct) refusePlaceSame(tree, sh, region!, { kind, from, to });
+      }
       let checked;
       try {
         checked = await checkQuotes(url, quotes, { from, to }, sh, ctx.env);
@@ -431,6 +435,8 @@ register(
         sha: checked.page.sha,
       };
       const event = { from, to, ...(date ? { date } : {}), kind, text, ...(why ? { why } : {}), ...(tip ? { tip } : {}), ...(opts.sensitive ? { sensitive: true } : {}), source };
+      // a place looked for before its region (K7.1a): its own events checked again once the page is read
+      if (!place && !s.sameAs && !s.distinct) refusePlaceSame(tree, sh, region!, { kind, from, to });
       const r = place ? addPlaceEvent(tree, sh, place, event, s) : addRegionEvent(sh, tree.config.id, { region: region!, ...event }, s);
       const where = place ? `at ${placeLabel(place, "en")} (${place.id}) and its surroundings` : `in ${region}`;
       // who it shows at (their person in the Strom app, their story): for the agent to say to the person who asked

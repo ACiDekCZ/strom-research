@@ -5,6 +5,15 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.22.1
+
+*29. 10. 2026 · patří k aplikaci Strom 3.17.0.*
+
+- **Událost místa se u regionu nezapíše znovu.** Když se dějiny místa hledaly dřív než dějiny regionů, do kterých
+  patří, mohly dějiny regionu přidat tutéž událost ještě jednou (stejný druh, stejné roky). Region teď vynechá, co už
+  má některé z jeho míst; událost, která se týkala celého regionu, se zapíše dál. To, co agent k místu čte, říká
+  i to, které z jeho regionů se ještě neprošly.
+
 ## 1.22.0
 
 *29. 10. 2026 · patří k aplikaci Strom 3.17.0.*
