@@ -1,6 +1,7 @@
 // `strom check` — does the evidence hold together? Findings are either
 // errors (block the automatic commit) or warnings.
 
+import { streetPlaces } from "./streetfix.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { RECORD_TYPES, type Conflict, type Family, type Input, type Media, type Person, type RecordType } from "./model.ts";
@@ -134,6 +135,19 @@ export function check(tree: Tree): Finding[] {
       count: long.count,
       message: `${long.count} participant name${long.count === 1 ? "" : "s"} hold${long.count === 1 ? "s" : ""} more than a name (more than ${NAME_WORDS_MAX} words, or a number)`,
       hint: "strom fixes show participant-names",
+    });
+
+  // 5e. a fact whose place holds a street or a house number (written before strom refused it): one warning, how many —
+  // strom fixes sets them right, as the person decides
+  const streets = streetPlaces(tree);
+  if (streets.count)
+    out.push({
+      level: "warn",
+      code: "street-place",
+      id: streets.first,
+      count: streets.count,
+      message: `${streets.count} fact${streets.count === 1 ? "" : "s"} hold${streets.count === 1 ? "s" : ""} a street or a house number in the place (the place is the municipality, the street and the number the house)`,
+      hint: "strom fixes show street-places",
     });
 
   // 6. counters are ahead of every ID on disk

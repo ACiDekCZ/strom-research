@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.22.0
 
-*Připravuje se: bety do 1.22.0-beta.9. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.22.0-beta.10. Oddíl bude úplný s vydáním.*
 
 - **Jméno jednou v tom, co čeká.** Úkol k materiálu poslanému z aplikace Strom jmenoval ve widgetu a na stránce
   telefonu každého člověka dvakrát (podruhé v hranatých závorkách) a jeho text bez jmen nechal prázdné závorky; menu,
@@ -33,8 +33,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Co předek zažil.** Události v místech stromu – dějiny kraje ze stránek, které strom sám stáhl a ověřil, místní
   události z přečtených záznamů – ukáže aplikace Strom; úvodní nastavení ho nabízí zapnuté, instalace nastavená dřív
   se zeptá jednou, v prvním menu po aktualizaci (Enter: teď ne), a samo se nic nezapne. Zapnout ho může jen člověk –
-  tehdy, nebo později v menu Nastavení → Samostatná práce agenta → Dějiny míst, z aplikace Strom, nebo
-  `strom config set experiments.history on`; dokud je vypnuté, nic se nehledá. Po zapnutí se místa zmapují hned v dalším sezení a regiony se
+  tehdy, nebo později v menu Nastavení → Samostatná práce agenta → Dějiny, z aplikace Strom, nebo
+  `strom config set experiments.history on`; dokud je vypnuté, nic se nehledá. Dějiny regionů a dějiny míst jsou
+  dva vypínače, každý i jen pro jeden výzkum (Nastavení → Samostatná práce agenta, `strom config set
+  experiments.history|experiments.placeHistory on|off --for-tree`, nebo vypnutí z aplikace Strom) – volba výzkumu
+  platí oběma směry; s vypnutými místy se nehledá ani místo, o které se požádá. Co bylo zapnuté, zůstává zapnuté
+  obojí, co vypnuté, obojí vypnuté. Po zapnutí se místa zmapují hned v dalším sezení a regiony se
   prohledávají průběžně mezi sezeními rodinného výzkumu: zhruba každé 5. sezení (výchozí), každé 10., nebo jen když
   není co jiného (`strom config set experiments.historyPace`, úvodní nastavení, Nastavení); kdy, řekne `strom plan`,
   a na slovo člověka mohou jít všechny napřed (`strom run --history`, v menu „Hledat dějiny teď“).
@@ -49,6 +53,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   `strom history status` a `strom plan` ukážou roky každého regionu a co čeká.
   Co se ukazuje, spravuje člověk v aplikaci Strom nebo přes `strom history`: událost skrytá, nebo smazaná – ze všech
   výzkumů na tomto počítači, znovu se nezapíše – a obnovená; region nebo místo vynechané; regiony místa přiřazené ručně.
+  `strom history list [--place L…] [--region <id>]` vypíše události v terminálu: roky, druh, text v jazyce výzkumu,
+  zdroj, co je skryté nebo smazané.
   Dějiny jednoho místa a okolí – požáry, povodně, bitvy poblíž, panství, farnost, škola – se hledají na slovo
   člověka (z karty osoby v aplikaci Strom), první při nejbližším sezení, a zůstanou pro všechny výzkumy na tomto
   počítači s tímto místem. Každé místo se souřadnicemi se může hledat samo, nejdřív místa s nejvíc osobami: Nastavení
@@ -60,7 +66,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   (`strom config set stories.history no`).
 - **Tvary jednoho příjmení.** `strom surname suggest` navrhne, které zapsané tvary příjmení patří jedné rodině: táž
   osoba zapsaná v záznamech různě (s citacemi), nebo táž hláska zapsaná jinak na stejném místě ve stejných letech –
-  nikdy rodina manžela a otce téže ženy. O nich rozhoduje jen člověk, v terminálu
+  nikdy rodina manžela a otce téže ženy; značka čtení za jménem (`[?]`, `[!]`, `[…]`) není samostatný tvar. O nich
+  rozhoduje jen člověk, v terminálu
   (`strom surname accept|reject|group`); agent jen navrhuje. Tvary jedné rodiny rozšíří hledání záznamů i lidí, kteří
   mohou být jedna osoba. `strom person compare` řekne o dvou lidech, zda jsou jedna osoba, dvě, nebo nejisté, a proč
   (už sloučení, jiné pohlaví, roky daleko od sebe, život skončený dřív, než druhý začal, jiní rodiče, jeden zápis pro
@@ -73,6 +80,17 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   (`officiant`) a účastník, který může být někdo z rodiny okolo zápisu, se navrhne svým číslem, nikdy se nenapojí sám.
   Takto zapsaná dřívější jména najde `strom check` a rozdělí `strom fixes show|run participant-names` – zdarma, podle
   pravidel, i v archivu, vše jedním krokem, vrátí `strom fixes undo participant-names`; rozhoduje jen člověk.
+  Aplikace Strom před 3.17 vrací období jako rozpětí (od–do jako mezi–a) a věk bez nulových jednotek (0y 2m 26d jako
+  2m 26d); synchronizace to brala jako úpravu uživatele – rozpor, nebo bydliště přidané jako vodítko vedle téhož. Teď
+  se neupravený strom vrátí beze změny; z aplikace, která je zachová (3.17), je rozpětí místo období zase úprava
+  uživatele, a věk ze samých nul (0y 0m 0d) je totéž co 0y. Co takto zapsaly dřívější synchronizace, najde `strom fixes show app-shapes`
+  a opraví `strom fixes run app-shapes` – zdarma, podle pravidel, i v archivu, vše jedním krokem, vrátí `strom fixes
+  undo app-shapes`; rozhoduje jen člověk.
+  Ulice není místo: místo zapsané s ulicí nebo číslem domu („Lhota, Lhotákova 12“) se při zápisu odmítne s obcí, kterou
+  zapsat, a ulicí a číslem pro `--house`, v kterémkoli jazyce a písmu; dějiny míst se řídí obcí, takže místa lišící
+  se jen ulicí jsou jedno. Co se takto zapsalo dřív, najde `strom check` a opraví `strom fixes show|run street-places`
+  (ulice k domu, kde je prázdný nebo jmenuje tutéž) – zdarma, i v archivu, vše jedním krokem, vrátí `strom fixes
+  undo street-places`; rozhoduje jen člověk.
 
 ## 1.21.0
 

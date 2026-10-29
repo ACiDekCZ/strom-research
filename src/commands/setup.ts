@@ -10,9 +10,10 @@ import { spawnSync } from "node:child_process";
 import { APP_URL_INVALID_SETTING, register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, secondsIn, table } from "../cli/format.ts";
-import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_HISTORY_PACE, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, HISTORY_PACES, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
+import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_HISTORY_PACE, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, HISTORY_PACES, historySwitches, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import type { Input, Media, TreeConfig } from "../core/model.ts";
+import type { UserConfig } from "../core/config.ts";
 import { gitVersion, runGit } from "../core/git.ts";
 import { linuxGitCommand } from "../core/deps.ts";
 import { fixGit, offerAgent } from "../cli/fixes.ts";
@@ -925,6 +926,8 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   if (def.key === "experiments.history") return { value: "off", source: "default" };
   if (def.key === "experiments.historyPace") return { value: ctx.settings.historyPace(tree), source: "default" };
   if (def.key === "experiments.historyPlaces") return { value: "off", source: "default" };
+  // unset: as experiments.history at the same layer (an older strom's one switch kept both)
+  if (def.key === "experiments.placeHistory") return { value: ctx.settings.historyPlace(tree) ? "on" : "off", source: "default" };
   if (def.key === "tune.transcripts") return { value: "on", source: "default" };
   if (def.key === "tune.auto") return { value: "on", source: "default" };
   if (def.key === "browser.downloads") return { value: downloadsDir(ctx.env), source: "detected" };
@@ -973,23 +976,38 @@ function addonsDecision(ctx: Context, key: string, value: string | number | unde
 }
 
 /**
- * The experiment of history (experiments.history): turned on by the person alone, in the user's config — a search
- * spends the agent's time and the plan; a tree's strom.json may only turn it off (its research alone); off is anyone's.
+ * The history of the regions (experiments.history) and of the places (experiments.placeHistory): turned on by the
+ * person alone — a search spends the agent's time and the plan — for every research on this computer (the user's
+ * config) or for one (its strom.json, which wins both ways, K8.1); off is anyone's. Compared as each switch holds before
+ * and after the write in the reach of the layer written: experiments.history moves the places too where their own
+ * switch is unset in that layer (K8.7) — what turns the regions alone writes the places' first (the link, the bridge,
+ * the menu).
  */
 function experimentsDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
   if (key === "experiments.historyPace") return paceDecision(ctx, value, scope);
   if (key === "experiments.historyPlaces") return placesDecision(ctx, value, scope);
-  if (key !== "experiments.history") return;
-  if (scope === "tree") {
-    if (value === "on")
-      throw new UsageError("experiments.history is turned on in the user's own config only — a tree may only turn it off", {
-        hint: "the user, in their terminal: strom config set experiments.history on (every research on this computer); strom config unset experiments.history --for-tree takes this tree's off away",
-      });
-    return;
-  }
-  const { now, next } = layerChange(ctx, key, value, scope);
-  if (next === "on" && now !== "on")
-    ctx.requireHuman("Look for the events of history at the places of every research on this computer (now and then between the sessions of the family research)?", "strom config set experiments.history on", "experiments.history", ui(ctx.uiLang(), "ui.consent.history"));
+  if (key !== "experiments.history" && key !== "experiments.placeHistory") return;
+  const user = ctx.settings.config;
+  const tree = scope === "tree" ? treeSettings(ctx) : undefined;
+  const now = historySwitches(user, tree);
+  const changed = { ...((scope === "tree" ? tree : user) ?? {}) } as UserConfig & TreeConfig;
+  writeStored(changed, key, "", value);
+  const next = scope === "tree" ? historySwitches(user, changed) : historySwitches(changed, undefined);
+  const forTree = scope === "tree" ? " --for-tree" : "";
+  if (key === "experiments.history" && next.regions && !now.regions)
+    ctx.requireHuman(
+      scope === "tree" ? "Look for the events of history of the regions at the places of this research (now and then between the sessions of the family research)?" : "Look for the events of history at the places of every research on this computer (now and then between the sessions of the family research)?",
+      `strom config set experiments.history on${forTree}`,
+      "experiments.history",
+      ui(ctx.uiLang(), scope === "tree" ? "ui.consent.history.tree" : "ui.consent.history"),
+    );
+  if (key === "experiments.placeHistory" && next.places && !now.places)
+    ctx.requireHuman(
+      scope === "tree" ? "Look for the history of a place of this research and its surroundings when it is asked for?" : "Look for the history of a place and its surroundings when it is asked for, in every research on this computer?",
+      `strom config set experiments.placeHistory on${forTree}`,
+      "experiments.placeHistory",
+      ui(ctx.uiLang(), scope === "tree" ? "ui.consent.placeHistory.tree" : "ui.consent.placeHistory"),
+    );
 }
 
 /**

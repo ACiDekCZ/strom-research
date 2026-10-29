@@ -434,6 +434,19 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       say(phrase(lang, o.op === "participant.fix" ? "log.participant.fix" : "log.participant.unfix", { n }));
       continue;
     }
+    // periods and ages of the Strom app taken in the research's own form by strom's fix, or put back (quality/app-shapes.json)
+    if (o.op === "appshape.fix" || o.op === "appshape.unfix") {
+      const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
+      say(phrase(lang, o.op === "appshape.fix" ? "log.appshape.fix" : "log.appshape.unfix", { n }));
+      continue;
+    }
+    // the places of facts set to the municipality by strom's fix (the street and the number to the house), or put back
+    // (quality/street-places.json)
+    if (o.op === "streetplace.fix" || o.op === "streetplace.unfix") {
+      const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
+      say(phrase(lang, o.op === "streetplace.fix" ? "log.streetplace.fix" : "log.streetplace.unfix", { n }));
+      continue;
+    }
     // a finding the person marked no error (quality/dismissed.json): its people by name, never the English summary
     if (o.op === "quality.dismiss" || o.op === "quality.undo") {
       const m = /^[^:]*: (\S+) ((?:P\d+ ?)+?)(?: \((.*)\))?$/su.exec(o.summary);

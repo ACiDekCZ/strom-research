@@ -261,7 +261,7 @@ test("strom fixes participant-names in an archive: shown and set right by rules,
     const { events } = await oldNames(w);
     await w.ok(["mode", "archive"], { tty: true, answers: ["y"] });
     const list = await w.ok(["fixes", "--json"]);
-    assert.deepEqual(list.json.checks.map((c: { id: string }) => c.id), ["participant-names"]);
+    assert.deepEqual(list.json.checks.map((c: { id: string }) => c.id), ["participant-names", "app-shapes", "street-places"]);
     const show = await w.ok(["fixes", "show", "participant-names"]);
     assert.doesNotMatch(show.out, /agent|\bAI\b|umělá inteligence|Claude|Codex|OpenCode|Grok|Antigravity|\bmodel/i);
     const r = await w.ok(["fixes", "run", "participant-names"], { tty: true, answers: ["1"] });

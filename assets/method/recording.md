@@ -63,8 +63,8 @@ creates, `@name` uses it later; a found search comes after the source it found
   conclusion that stands on one hard cell (a house number, an age, a maiden
   name) gets a blind second reading before it is `proven`: `strom read M…
   --blind --crop x,y,w,h --question "Transcribe this entry"`.
-- A place is the settlement only ("Týnec", not "Týnec No. 13"): the house
-  number goes in `--house 13`.
+- A place is the municipality only ("Lhota", not "Lhota No. 13", "Lhota,
+  Dlouhá 12"): the house goes in `--house 13` or `--house "Dlouhá 12"`.
 - What a finding means for other tasks: `strom task edit T… --note "…"`.
 - Records about one person disagree (a name, a date, an age): record both
   claims and your reasoning — `strom conflict add "<question>" --about P…

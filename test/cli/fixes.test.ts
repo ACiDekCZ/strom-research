@@ -281,7 +281,7 @@ test("strom fixes: an archive says nothing of the readings again — only what i
     oldReading(w, 1, [0.05, 0.5, 0.2, 0.15], "Jan Novák [?]", 30);
     await w.ok(["mode", "archive"], { tty: true, answers: ["y"] });
     const r = await w.ok(["fixes", "--json"]);
-    assert.deepEqual(r.json.checks.map((c: { id: string; state: string }) => [c.id, c.state]), [["participant-names", "nothing"]]);
+    assert.deepEqual(r.json.checks.map((c: { id: string; state: string }) => [c.id, c.state]), [["participant-names", "nothing"], ["app-shapes", "nothing"], ["street-places", "nothing"]]);
     const doctor = await w.run(["doctor", "--json"]);
     assert.equal(doctor.json.checks.find((x: { name: string }) => x.name === "fixes"), undefined);
   } finally {

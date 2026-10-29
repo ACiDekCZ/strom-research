@@ -19,6 +19,7 @@ import path from "node:path";
 import { withLock } from "./lock.ts";
 import { readJsonIfExists, stringifyCanonical, writeFileAtomic } from "./json.ts";
 import { foldText } from "./text.ts";
+import { streetsOf } from "./streets.ts";
 import { Settings, type HistoryPace } from "./config.ts";
 import { actsAsArchive } from "./state.ts";
 import { phrase } from "./phrases.ts";
@@ -275,17 +276,43 @@ interface HiddenFile {
 
 // ── the experiment ─────────────────────────────────────────────────────────
 
-/** Is the experiment on for this tree: the user's config on, the tree's strom.json not off. */
+/** Is the history looked for at all in this tree: its regions or its places (core/config.ts historySwitches). */
 export function historyOn(tree: Tree, settings: Settings = new Settings(tree.env, {})): boolean {
   return settings.experimentsHistory(tree.config);
 }
 
-/** Refused while the experiment is off (strom history add, local): one sentence and the way, for the agent. */
-export function requireHistoryOn(tree: Tree, settings?: Settings): void {
-  if (historyOn(tree, settings)) return;
-  throw new UsageError("the history of the places is off for this research — nothing is looked for or written", {
+/** The history of the regions looked for in this tree (experiments.history: the tree's own, else the user's). */
+export function regionsOn(tree: Tree, settings: Settings = new Settings(tree.env, {})): boolean {
+  return settings.historyRegions(tree.config);
+}
+
+/** The history of the places and their surroundings looked for in this tree, asked for or by itself (experiments.placeHistory). */
+export function placesOn(tree: Tree, settings: Settings = new Settings(tree.env, {})): boolean {
+  return settings.historyPlace(tree.config);
+}
+
+/**
+ * Before the regions' switch is written for this tree alone (the link, the bridge, the menu): where the tree's places
+ * have no switch of their own they follow the tree's experiments.history (K8.7), so they are written first as they hold
+ * now — the regions turned never move the places. The command, or undefined when the places have their own.
+ */
+export function placesPinned(tree: Tree, settings: Settings = new Settings(tree.env, {})): string[] | undefined {
+  if (tree.config.experimentsPlaceHistory !== undefined) return undefined;
+  return ["config", "set", "experiments.placeHistory", placesOn(tree, settings) ? "on" : "off", "--for-tree"];
+}
+
+/**
+ * Refused while the history is off (strom history add, local): one sentence and the way, for the agent — `which` the
+ * one switch a command needs (a place's own history: the places'; a region's search: the regions'), else either.
+ */
+export function requireHistoryOn(tree: Tree, settings: Settings = new Settings(tree.env, {}), which?: "regions" | "places"): void {
+  const on = which === "regions" ? regionsOn(tree, settings) : which === "places" ? placesOn(tree, settings) : historyOn(tree, settings);
+  if (on) return;
+  const key = which === "places" ? "experiments.placeHistory" : "experiments.history";
+  const what = which === "places" ? "the history of the places" : which === "regions" ? "the history of the regions" : "the history of the regions and of the places";
+  throw new UsageError(`${what} is off for this research — nothing is looked for or written`, {
     code: "history.off",
-    hint: "the user alone turns it on, in their terminal: strom config set experiments.history on (a tree's own off: strom config unset experiments.history --for-tree)",
+    hint: `the user alone turns it on, in their terminal: strom config set ${key} on --for-tree (this research) or strom config set ${key} on (every research)`,
   });
 }
 
@@ -382,9 +409,88 @@ function readTreeFile<T>(tree: Tree, rel: string): T | undefined {
   }
 }
 
+/**
+ * The places of the facts for the history, by the municipality: a place that holds a street or a house number
+ * ("Lhota, Dlouhá 12", written before strom refused it — core/streets.ts) is its municipality's, as the facts write it
+ * ("Lhota"); one municipality is one place of the history, its years joined.
+ */
+export interface HistoryPlaces {
+  /** Each place of the facts with the years of its facts: the municipalities. */
+  facts: Map<string, number[]>;
+  /** The key of a place in the history: its municipality where it holds a street or a house number, else itself. */
+  keyOf(place: string): string;
+  /** The texts the facts write a municipality with a street or a house number in, by its key (the app pairs them). */
+  variants: Map<string, string[]>;
+}
+
+const historyMemo = new WeakMap<Tree, { version: number; h: HistoryPlaces }>();
+
+export function historyPlaces(tree: Tree): HistoryPlaces {
+  const had = historyMemo.get(tree);
+  if (had && had.version === tree.version) return had.h;
+  const streets = streetsOf(tree);
+  const all = factPlaces(tree);
+  const towns = new Map<string, string>();
+  const townOf = (place: string): string => {
+    let t = towns.get(place);
+    if (t === undefined) towns.set(place, (t = lineValue(streets.placeOf(place)) || place));
+    return t;
+  };
+  const facts = new Map<string, number[]>();
+  const byFold = new Map<string, string>();
+  const variants = new Map<string, string[]>();
+  // the municipalities as the facts write them first, then the places with a street joined to them
+  for (const [k, years] of all)
+    if (townOf(k) === k) {
+      facts.set(k, [...years]);
+      if (!byFold.has(foldText(k))) byFold.set(foldText(k), k);
+    }
+  for (const [k, years] of all) {
+    const t = townOf(k);
+    if (t === k) continue;
+    const key = byFold.get(foldText(t)) ?? t;
+    byFold.set(foldText(t), key);
+    facts.set(key, [...(facts.get(key) ?? []), ...years]);
+    variants.set(key, [...(variants.get(key) ?? []), k]);
+  }
+  const keyOf = (place: string): string => {
+    const v = lineValue(place);
+    if (!v) return v;
+    const t = townOf(v);
+    return t === v ? v : (byFold.get(foldText(t)) ?? t);
+  };
+  const h: HistoryPlaces = { facts, keyOf, variants };
+  historyMemo.set(tree, { version: tree.version, h });
+  return h;
+}
+
+/**
+ * The places mapped, by the municipality: an entry kept under a place with a street or a house number (an older strom
+ * mapped the facts' places as they were written) is read as its municipality's where the municipality has none — the
+ * person's word first, else the latest; the municipality's own entry always stays. Written so at the next change.
+ */
 export function readPlaces(tree: Tree): Record<string, PlaceMap> {
   const f = readTreeFile<PlacesFile>(tree, PLACES_FILE);
-  return f && typeof f.places === "object" && f.places ? f.places : {};
+  const places = f && typeof f.places === "object" && f.places ? f.places : {};
+  const keys = Object.keys(places);
+  if (!keys.length) return places;
+  const h = historyPlaces(tree);
+  const moved = keys.filter((k) => h.keyOf(k) !== k);
+  if (!moved.length) return places;
+  const out: Record<string, PlaceMap> = {};
+  for (const k of keys) if (!moved.includes(k)) out[k] = places[k]!;
+  const own = new Set(Object.keys(out).map((k) => foldText(k)));
+  for (const k of moved) {
+    const key = h.keyOf(k);
+    if (own.has(foldText(key))) continue;
+    const m = places[k]!;
+    const had = placeEntry(out, key);
+    const better = !had || (!!m.manual && !had[1].manual) || (!!m.manual === !!had[1].manual && (m.at ?? "") > (had[1].at ?? ""));
+    if (!better) continue;
+    if (had) delete out[had[0]];
+    out[key] = m;
+  }
+  return out;
 }
 
 export function readLocal(tree: Tree): LocalFile {
@@ -684,7 +790,8 @@ export function addLocalEvent(tree: Tree, e: LocalEventInput, s: Sameness = {}):
  */
 export function mapPlace(tree: Tree, place: string, m: { regions: RegionLink[]; also?: string[] } | { unlocated: true; why?: string }): PlaceMap {
   const places = readPlaces(tree);
-  const key = lineValue(place);
+  // a place with a street or a house number is its municipality's (core/streets.ts)
+  const key = historyPlaces(tree).keyOf(place);
   const had = placeEntry(places, key);
   if (had?.[1].manual)
     throw new UsageError(`the person mapped "${key}" to its regions themselves (${had[1].regions.map(linkText).join(", ")}) — it stays so`, {
@@ -822,12 +929,13 @@ export function skipHistory(tree: Tree, what: { region: string } | { place: stri
     next = { ...before, regions: undo ? before.regions.filter((x) => x.region !== id) : [...before.regions, { region: id, at }] };
     summary = undo ? `History looked for again: region ${id}` : `History not looked for: region ${id}`;
   } else {
-    const f = foldText(lineValue(what.place));
-    const had = before.places.find((x) => foldText(x.place) === f);
+    const h = historyPlaces(tree);
+    const f = foldText(h.keyOf(what.place));
+    const had = before.places.find((x) => foldText(h.keyOf(x.place)) === f);
     const key = factPlaceKey(tree, what.place) ?? (undo ? had?.place : undefined);
     if (!key) throw new UsageError(`"${what.place}" is no place of the tree's facts`, { code: "history.place", params: { place: what.place } });
     if (!!had !== undo) return before;
-    next = { ...before, places: undo ? before.places.filter((x) => foldText(x.place) !== f) : [...before.places, { place: key, at }] };
+    next = { ...before, places: undo ? before.places.filter((x) => foldText(h.keyOf(x.place)) !== f) : [...before.places, { place: key, at }] };
     summary = undo ? `History looked for again: place ${key}` : `History not looked for: place ${key}`;
   }
   putTreeFile(tree, SKIP_FILE, next, { op: undo ? "history.unskip" : "history.skip", targets: [], summary });
@@ -836,7 +944,7 @@ export function skipHistory(tree: Tree, what: { region: string } | { place: stri
 
 /** The regions of every mapped place of the tree's facts — a place the person skipped too. */
 export function regionsOfMaps(tree: Tree): string[] {
-  const facts = new Set([...factPlaces(tree).keys()].map((k) => foldText(k)));
+  const facts = new Set([...historyPlaces(tree).facts.keys()].map((k) => foldText(k)));
   return [...new Set(Object.entries(readPlaces(tree)).flatMap(([k, m]) => (facts.has(foldText(k)) ? m.regions.map((g) => g.id) : [])))].filter(regionIdOk).sort();
 }
 
@@ -1081,7 +1189,7 @@ export function hideEvent(tree: Tree, shared: string | undefined, h: HideAt, sho
   } else {
     if (!eventExists(tree, shared, h.event!)) throw new UsageError(`there is no event ${h.event}`, { code: "history.event", params: { event: h.event! } });
     if (h.person !== undefined && !tree.get<Person>(h.person)) throw new UsageError(`there is no person ${h.person}`, { code: "history.person", params: { person: h.person } });
-    const place = h.place === undefined ? undefined : lineValue(h.place);
+    const place = h.place === undefined ? undefined : historyPlaces(tree).keyOf(h.place);
     const event = current(h.event!).id;
     const person = h.person !== undefined ? (resolvePerson(tree, h.person) ?? h.person) : undefined;
     const at = new Date().toISOString();
@@ -1090,7 +1198,7 @@ export function hideEvent(tree: Tree, shared: string | undefined, h: HideAt, sho
       x.event !== undefined &&
       current(x.event).id === event &&
       (place !== undefined
-        ? x.place !== undefined && foldText(x.place) === foldText(place)
+        ? x.place !== undefined && foldText(historyPlaces(tree).keyOf(x.place)) === foldText(place)
         : person !== undefined
           ? x.person !== undefined && (resolvePerson(tree, x.person) ?? x.person) === person
           : !!x.tree);
@@ -1289,6 +1397,8 @@ export function inRegion(e: { from: number; to: number }, link: RegionLink): boo
 interface Reading {
   facts: Map<string, number[]>;
   maps: Record<string, PlaceMap>;
+  /** The key of a place in the history: its municipality where it holds a street or a house number (historyPlaces). */
+  keyOf: (place: string) => string;
   /** A map by the folded key: the place written otherwise (decomposed) is the same place; none for a place skipped. */
   mapOf: (key: string) => PlaceMap | undefined;
   /** The map of a place skipped too (the app is told its regions). */
@@ -1303,10 +1413,11 @@ interface Reading {
 }
 
 function reading(tree: Tree, shared: string | undefined): Reading {
-  const all = factPlaces(tree);
+  const h = historyPlaces(tree);
+  const all = h.facts;
   const skips = readSkips(tree);
-  const skippedFold = new Set(skips.places.map((p) => foldText(p.place)));
-  const skipped = (k: string) => skippedFold.size > 0 && skippedFold.has(foldText(k));
+  const skippedFold = new Set(skips.places.map((p) => foldText(h.keyOf(p.place))));
+  const skipped = (k: string) => skippedFold.size > 0 && skippedFold.has(foldText(h.keyOf(k)));
   const facts = new Map([...all].filter(([k]) => !skipped(k)));
   const skippedFacts = new Map([...all].filter(([k]) => skipped(k)));
   const maps = readPlaces(tree);
@@ -1317,10 +1428,14 @@ function reading(tree: Tree, shared: string | undefined): Reading {
     if (!catalogs.has(id)) catalogs.set(id, shared ? readCatalog(shared, id) : undefined);
     return catalogs.get(id);
   };
-  const anyMapOf = (k: string) => maps[k] ?? folded.get(foldText(k));
+  const anyMapOf = (place: string) => {
+    const k = h.keyOf(place);
+    return maps[k] ?? folded.get(foldText(k));
+  };
   return {
     facts,
     maps,
+    keyOf: h.keyOf,
     mapOf: (k) => (skipped(k) ? undefined : anyMapOf(k)),
     anyMapOf,
     catalogs,
@@ -1354,7 +1469,8 @@ export function pendingPlaces(tree: Tree, shared: string | undefined): string[] 
 
 /** The regions the tree's places belong to (any years) — a place the person skipped not counted. */
 export function regionsOfTree(tree: Tree): string[] {
-  const skipped = new Set(readSkips(tree).places.map((p) => foldText(p.place)));
+  const h = historyPlaces(tree);
+  const skipped = new Set(readSkips(tree).places.map((p) => foldText(h.keyOf(p.place))));
   return [...new Set(Object.entries(readPlaces(tree)).flatMap(([k, m]) => (skipped.has(foldText(k)) ? [] : m.regions.map((g) => g.id))))].filter(regionIdOk).sort();
 }
 
@@ -1362,6 +1478,8 @@ export function regionsOfTree(tree: Tree): string[] {
 function alsoOf(tree: Tree, records: Place[], key: string, m: PlaceMap | undefined): string[] {
   const f = foldText(key);
   const names = new Set<string>();
+  // the facts' places with a street or a house number in it first: the Strom app pairs the tree's places by them
+  for (const v of historyPlaces(tree).variants.get(key) ?? []) names.add(v);
   for (const p of records) if (!p.retracted && p.names.some((n) => foldText(n.name) === f)) for (const n of p.names) names.add(lineValue(n.name));
   for (const a of m?.also ?? []) names.add(lineValue(a));
   const seen = new Set([f]);
@@ -1496,7 +1614,7 @@ export function historyAnswer(tree: Tree, shared: string | undefined, settings: 
     }
     const s = sources.get(e.local.source);
     if (!s || s.retracted) continue;
-    const key = byFold.get(foldText(e.place)) ?? e.place;
+    const key = byFold.get(foldText(e.place)) ?? byFold.get(foldText(r.keyOf(e.place))) ?? e.place;
     events.set(e.id, appLocalEvent(e));
     localAt.set(key, [...(localAt.get(key) ?? []), e.id]);
   }
@@ -1599,9 +1717,10 @@ export function historyAnswer(tree: Tree, shared: string | undefined, settings: 
 /** The people of the tree with a fact at each place (by its folded key): a family's fact counts for its partners. */
 export function peopleAt(tree: Tree): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
+  const h = historyPlaces(tree);
   const count = (who: string[], e: Person["events"][number]) => {
     if (!factWritten(e) || !e.place) return;
-    const key = foldText(lineValue(e.place));
+    const key = foldText(h.keyOf(e.place));
     if (!key) return;
     const s = out.get(key) ?? new Set<string>();
     out.set(key, s);
@@ -1763,7 +1882,7 @@ export function historyRev(tree: Tree, shared: string | undefined, settings: Set
       return "-";
     }
   };
-  const parts = [historyOn(tree, settings) ? "on" : "off", settings.historyPlacesAuto(tree.config) ? "auto" : "asked"];
+  const parts = [`${regionsOn(tree, settings) ? "regions" : "-"}+${placesOn(tree, settings) ? "places" : "-"}`, settings.historyPlacesAuto(tree.config) ? "auto" : "asked"];
   for (const rel of [PLACES_FILE, LOCAL_FILE, HIDDEN_FILE, SKIP_FILE, FIRST_FILE]) parts.push(stat(path.join(tree.root, ...rel.split("/"))));
   if (shared) {
     for (const id of regionsOfTree(tree)) parts.push(`${id}=${stat(regionFile(shared, id))}`);
@@ -1791,6 +1910,8 @@ function headStat(root: string, stat: (f: string) => string): string {
 
 export interface HistoryStatus {
   on: boolean;
+  /** The two switches of this research (K8): the history of the regions, of the places. */
+  switches: { regions: boolean; places: boolean };
   places: { total: number; pending: string[]; unlocated: number; mapped: number; skipped: number; manual: number };
   /**
    * period: the years its events are looked for in for this tree (regionPeriod); gaps: a finished catalog's years of the
@@ -1837,6 +1958,7 @@ export function historyStatus(tree: Tree, shared: string | undefined, settings?:
   }
   return {
     on: historyOn(tree, settings),
+    switches: { regions: regionsOn(tree, settings), places: placesOn(tree, settings) },
     places: { total: keys.length, pending, unlocated: keys.filter((k) => placeState(r, k) === "unlocated").length, mapped: keys.filter((k) => mapped(r.mapOf(k))).length, skipped: r.skippedFacts.size, manual: keys.filter((k) => !!r.mapOf(k)?.manual).length },
     regions,
     local: { events: r.local.filter((e) => !e.retracted).length, retracted: r.local.filter((e) => e.retracted && !deletedByPerson(e)).length, deleted: r.local.filter(deletedByPerson).length },
@@ -1870,8 +1992,10 @@ function ownPlacesOf(tree: Tree, shared: string | undefined, settings: Settings)
 
 /** A fact place of the tree by its words (decomposed, other spaces): the key as the GEDCOM writes it, or undefined. */
 export function factPlaceKey(tree: Tree, place: string): string | undefined {
-  const facts = factPlaces(tree);
-  const key = lineValue(place);
+  const h = historyPlaces(tree);
+  const facts = h.facts;
+  // a place with a street or a house number: its municipality (core/streets.ts)
+  const key = h.keyOf(place);
   if (facts.has(key)) return key;
   const f = foldText(key);
   return [...facts.keys()].find((k) => foldText(k) === f);
@@ -2543,7 +2667,11 @@ export function regionOrder(tree: Tree, shared: string | undefined): RegionWeigh
  * history is on, in a research with its agent; a region of the tree's places, not finished. Inside the tree's lock.
  */
 export function askFirst(tree: Tree, shared: string | undefined, region: string, settings: Settings = new Settings(tree.env, {})): { first: FirstAsk[]; task?: string } {
-  if (!historyOn(tree, settings)) throw new UsageError("the history of the places is off: only the person turns it on (strom config set experiments.history on)", { code: "history.off" });
+  if (!regionsOn(tree, settings))
+    throw new UsageError("the history of the regions is off for this research: only the person turns it on", {
+      code: "history.off",
+      hint: "the user, in their terminal: strom config set experiments.history on --for-tree (this research) or strom config set experiments.history on (every research)",
+    });
   if (actsAsArchive(tree)) throw new UsageError("an archive looks for nothing", { code: "history.archive" });
   const id = region.trim();
   if (!regionIdOk(id) || !regionsOfTree(tree).includes(id)) throw new UsageError(`no place of the tree belongs to the region ${id} (strom history status lists them)`, { code: "history.region", params: { region: id } });
@@ -2583,7 +2711,9 @@ export function historyHeld(tree: Tree, shared: string | undefined, settings: Se
     if (!forHistory(t)) return undefined;
     if (state === null) state = !historyOn(tree, settings) ? "off" : actsAsArchive(tree) ? "archive" : undefined;
     if (state) return state;
-    if (placeOfTask(t)) return placeHeld(tree, shared, t);
+    // the one switch of the two turned off (K8.2, K8.3): its tasks wait as they are, back when it is on again
+    if (placeOfTask(t)) return placesOn(tree, settings) ? placeHeld(tree, shared, t) : "off";
+    if (t.origin !== HISTORY_PLACES_ORIGIN && !regionsOn(tree, settings)) return "off";
     const region = regionOfTask(t);
     skipped ??= new Set(readSkips(tree).regions.map((x) => x.region));
     if (region && skipped.has(region)) return "skipped";
@@ -2659,9 +2789,10 @@ export function raiseHistoryTasks(tree: Tree, shared: string | undefined, settin
           origin: HISTORY_PLACES_ORIGIN,
         });
     }
-    // the regions of its places — one the person skipped: nothing raised, its task kept as it is (historyHeld)
+    // the regions of its places — one the person skipped: nothing raised, its task kept as it is (historyHeld); none
+    // while the history of the regions is off (K8.2: its tasks wait, out of the queue)
     const skipped = new Set(readSkips(tree).regions.map((x) => x.region));
-    for (const id of regionsOfTree(tree)) {
+    for (const id of regionsOn(tree, settings) ? regionsOfTree(tree) : []) {
       const c = readCatalog(shared, id);
       if (!c || skipped.has(id)) continue;
       const origin = regionOrigin(id);
@@ -2806,7 +2937,7 @@ export function storyHistory(tree: Tree, shared: string | undefined, owner: stri
   }));
   const hiddenRegions = new Set(hides.filter((h) => h.event === undefined && h.region).map((h) => h.region!));
   const hiddenHere = (id: string) => hides.some((h) => h.event === id && (!!h.tree || (h.person !== undefined && persons.includes(h.person))));
-  const hiddenAt = (id: string, place: string) => hides.some((h) => h.event === id && h.place !== undefined && foldText(h.place) === foldText(place));
+  const hiddenAt = (id: string, place: string) => hides.some((h) => h.event === id && h.place !== undefined && foldText(r.keyOf(h.place)) === foldText(r.keyOf(place)));
   // how many of the tree's places each region has: the one of fewer is the nearer (a land within its state)
   const reach = new Map<string, number>();
   for (const m of Object.values(r.maps)) for (const g of m.regions) reach.set(g.id, (reach.get(g.id) ?? 0) + 1);

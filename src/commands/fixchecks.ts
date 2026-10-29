@@ -37,6 +37,8 @@ import { sameLineNewer } from "../agents/models.ts";
 import { kinship } from "../core/kin.ts";
 import { listReadings, loadState, resultPath, type ReadResult } from "../core/document.ts";
 import { participantNames, type NameRewrite } from "../core/participants.ts";
+import { appShapeFixes, type ShapeFix } from "../core/appshapefix.ts";
+import { streetPlaceFixes, type StreetFix, type StreetLeft } from "../core/streetfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -87,9 +89,11 @@ export interface FixFindings {
   unjudged: number;
   /** Earlier readings the items are of. */
   readings: number;
-  /** A check that rewrites (participant-names): what it would set right, and how many it found it cannot. */
-  rewrites?: NameRewrite[];
+  /** A check that rewrites (participant-names, app-shapes, street-places): what it would set right, and how many it found it cannot. */
+  rewrites?: NameRewrite[] | ShapeFix[] | StreetFix[];
   unsplit?: number;
+  /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing). */
+  left?: StreetLeft[];
   /** The agent and model reading now and those the earlier readings were read with, how many each (new-model); `newer`: the
    * model now is a newer version of the same line as each of them (agents/models.ts) — never guessed across lines. */
   models?: { now: string; before: { key: string; readings: number }[]; newer: boolean };
@@ -115,11 +119,12 @@ export interface FixCheck {
   paid: boolean;
   /**
    * How it is set right: read again, as the earlier reading asked (blind-reduced: from the sharper copy); or rewritten
-   * by rules, free, at once, also in an archive, and undone the same way (participant-names: strom fixes undo).
+   * by rules, free, at once, also in an archive, and undone the same way (participant-names, app-shapes: strom fixes undo).
    */
   remedy: "read-again" | "rewrite";
-  /** What it counts: places on images, readings (each read again whole: all its images, a document), or participants. */
-  unit: "place" | "reading" | "participant";
+  /** What it counts: places on images, readings (each read again whole: all its images, a document), participants,
+   * what a sync wrote (app-shapes: conflicts, facts, dates), or facts (street-places). */
+  unit: "place" | "reading" | "participant" | "finding" | "fact";
   /** The phrases of the task where a reading again differs (core/phrases.ts): fix.reread, fix.model (read-again only). */
   phrases?: "fix.reread" | "fix.model";
   detect(tree: Tree, env: FixEnv): FixFindings;
@@ -812,8 +817,44 @@ export const PARTICIPANT_NAMES: FixCheck = {
   },
 };
 
+// ── what an older strom took for the user's edit in a send of the Strom app ──────────────────────────────────────
+
+/**
+ * Until 1.22.0 strom sync took a period the Strom app sent back as a range (FROM x TO y as BET x AND y) and an age
+ * without its units of nothing for the user's edit: a conflict, a fact added beside the research's same one. Since then
+ * they are the research's own (core/appshapes.ts); what was written before is set right by rules (core/appshapefix.ts).
+ */
+export const APP_SHAPES: FixCheck = {
+  id: "app-shapes",
+  since: "1.22.0",
+  paid: false,
+  remedy: "rewrite",
+  unit: "finding",
+  detect: (tree) => ({ items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: appShapeFixes(tree) }),
+};
+
+// ── a street or a house number in the place of a fact ────────────────────────────────────────────────────────────
+
+/**
+ * Until 1.22.0 strom took a fact's place as it was given (--place "Lhota, Dlouhá 12"): the place held the street and the
+ * house number, so one municipality was several places (its place record, the history of the place). Since then a place
+ * so is refused (core/streets.ts); the facts written before are set right by rules (core/streetfix.ts): the municipality
+ * the place, the street and the number the house; a fact whose house says another thing is left and said why.
+ */
+export const STREET_PLACES: FixCheck = {
+  id: "street-places",
+  since: "1.22.0",
+  paid: false,
+  remedy: "rewrite",
+  unit: "fact",
+  detect: (tree) => {
+    const f = streetPlaceFixes(tree);
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.left.length, left: f.left };
+  },
+};
+
 /** Every check strom knows, the oldest fix first. */
-export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES];
+export const FIX_CHECKS: readonly FixCheck[] = [BLIND_REDUCED, NEW_MODEL, PARTICIPANT_NAMES, APP_SHAPES, STREET_PLACES];
 
 /** The checks of this research: in an archive only those that rewrite by rules (nobody reads there). */
 export function checksHere(tree: Tree): readonly FixCheck[] {
@@ -1095,7 +1136,7 @@ export interface PendingFix {
   items: number;
 }
 
-/** The number a check that waits is said with: its readings, or its places (its participants). */
+/** The number a check that waits is said with: its readings, or its places (its participants, its findings). */
 export function pendingCount(p: PendingFix): number {
   return p.check.unit === "reading" ? p.readings : p.items;
 }
@@ -1215,7 +1256,7 @@ export function fixesDoctorLine(tree: Tree, env: FixEnv, lang: string, keep = tr
   const s = pending[0]!;
   return {
     status: "warn",
-    text: ui(lang, s.check.unit === "reading" ? "ui.doc.fixes.pending.readings" : s.check.unit === "participant" ? "ui.doc.fixes.pending.participants" : "ui.doc.fixes.pending", { name: ui(lang, `ui.fixes.${s.check.id}.name` as UIKey), count: pendingCount(s) }),
+    text: ui(lang, s.check.unit === "reading" ? "ui.doc.fixes.pending.readings" : s.check.unit === "participant" ? "ui.doc.fixes.pending.participants" : s.check.unit === "finding" ? "ui.doc.fixes.pending.findings" : s.check.unit === "fact" ? "ui.doc.fixes.pending.facts" : "ui.doc.fixes.pending", { name: ui(lang, `ui.fixes.${s.check.id}.name` as UIKey), count: pendingCount(s) }),
     fix: `strom fixes show ${s.check.id}`,
   };
 }

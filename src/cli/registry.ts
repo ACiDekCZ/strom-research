@@ -108,6 +108,11 @@ export interface CommandDef {
    * adopt) — refused before anything is read or written (cli/main.ts). The question, for the agent.
    */
   person?: string;
+  /**
+   * What refuses the command whoever runs it, before the person is asked (cli/main.ts): never a question whose yes is
+   * refused after it (the history of the places off). Throws its refusal.
+   */
+  refusesFirst?(ctx: Context, input: Input): void;
   /** Takes arguments after "--" and passes them on (to the agent CLI). */
   passthrough?: boolean;
   /**

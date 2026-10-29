@@ -74,8 +74,12 @@ export const LINK_TASK_DOS = ["park", "drop", "wake", "check", "chat", "note", "
 export const LINK_DIRECTION_DOS = ["pause", "done", "resume"] as const;
 /** A tree the app sent that waits in the research's inbox: shown, then written or thrown away on the person's word. */
 export const LINK_SYNC_DOS = ["show"] as const;
-/** The experiments a link turns on (the person's question in the terminal) or off (for the research, at once). */
-export const LINK_EXPERIMENTS = ["history", "places"] as const;
+/**
+ * The experiments a link turns on (the person's question in the terminal) or off (for the research, at once): the
+ * history of the regions, of the places (asked for), both (history: an app before the two were apart), the places
+ * looked for by themselves (places).
+ */
+export const LINK_EXPERIMENTS = ["history", "places", "regions", "placeHistory"] as const;
 /** What a link does with the history of a place: its search asked for (the person's yes in the terminal). */
 export const LINK_HISTORY_DOS = ["search"] as const;
 export const LINK_EXPERIMENT_DOS = ["on", "off"] as const;

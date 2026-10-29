@@ -273,6 +273,13 @@ test("history R5: a place's regions by hand — the research never maps it other
     assert.equal((await post(url, { place: "Nová Lhota", note: "bez redo" })).status, 400);
     assert.equal((await post(url, { place: "Nová Lhota", regions: [{ id: "cz-lhota", from: 1920, to: 1900 }] })).status, 400);
     assert.equal((await post(url, { place: "Nová Lhota", regions: [] })).status, 400);
+    // one region twice, in other years (a state that was and came back): both periods kept; in the same years refused
+    r = await post(url, { place: "Nová Lhota", regions: [{ id: "cz-lhota", from: 1800, to: 1866 }, { id: "cz-lhota", from: 1900 }] });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual((await history(w)).places["Nová Lhota"].regions, [{ id: "cz-lhota", from: 1800, to: 1866 }, { id: "cz-lhota", from: 1900 }]);
+    r = await post(url, { place: "Nová Lhota", regions: [{ id: "cz-lhota", from: 1800, to: 1900 }, { id: "cz-lhota", from: 1890 }] });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.code, "history.body");
     r = await post(url, { place: "Nová Lhota", regions: [{ id: "cz-nikde" }] });
     assert.equal(r.status, 404);
     assert.equal(r.body.code, "history.region");

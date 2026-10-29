@@ -84,7 +84,7 @@ test("bridge: /status says the experiment and its rev only where the tree has it
   try {
     const info = await bridge(off.w);
     const s = (await ask(`${info.url}/status?app=3.16.0`)).body;
-    assert.deepEqual(s.experiments, { history: false, historyPace: "sometimes" });
+    assert.deepEqual(s.experiments, { history: false, regions: false, places: false, historyPace: "sometimes" });
     assert.equal("history" in s, false, "nothing of it for a tree without it");
     for (const f of ["experiments", "experiments.off", "experiments.link", "history.events", "history.hide", "experiments.pace"]) assert.ok(s.features.includes(f), f);
     const h = (await ask(`${info.url}/history`)).body;
@@ -99,7 +99,7 @@ test("bridge: /status says the experiment and its rev only where the tree has it
   try {
     let info = await bridge(w);
     const s = (await ask(`${info.url}/status?app=3.16.0`)).body;
-    assert.deepEqual(s.experiments, { history: true, historyPace: "sometimes" });
+    assert.deepEqual(s.experiments, { history: true, regions: true, places: true, historyPace: "sometimes" });
     assert.match(s.history.rev, /^[0-9a-f]{16}$/);
     const r = await ask(`${info.url}/history?app=3.16.0`);
     assert.equal(r.status, 200);
@@ -239,7 +239,7 @@ test("bridge: POST /experiments turns the history off for this tree only, never 
     assert.notEqual(off.body.parent, off.body.head, "the tree's strom.json committed");
     assert.equal(readJsonFile(path.join(w.cwd, "strom.json")).experimentsHistory, "off");
     assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).experimentsHistory, "on", "the person's own config stays");
-    assert.deepEqual((await ask(`${info.url}/status`)).body.experiments, { history: false, historyPace: "sometimes" });
+    assert.deepEqual((await ask(`${info.url}/status`)).body.experiments, { history: false, regions: false, places: false, historyPace: "sometimes" });
     assert.match((await ask(`${info.url}/status`)).body.history.rev, /^[0-9a-f]{16}$/, "what was found is still said");
     const again = await post(url, { history: false });
     assert.equal(again.status, 200);
@@ -283,10 +283,10 @@ test("bridge: POST /history/first puts a region's history first of the regions (
     const off = await post(url, { region: "cz-lhota" });
     assert.equal(off.status, 409);
     assert.equal(off.body.code, "history.off");
-    assert.equal(off.body.link, `strom-research://experiment?tree=${id}&name=history&do=on`);
+    assert.equal(off.body.link, `strom-research://experiment?tree=${id}&name=regions&do=on`);
     assert.equal(readJsonFile(path.join(w.cwd, "strom.json")).experimentsHistory, "off", "never turned on by it");
     // on again, the region finished: nothing more to put first
-    await w.ok(["config", "unset", "experiments.history", "--for-tree"]);
+    await w.ok(["config", "unset", "experiments.history", "--for-tree"], { tty: true });
     await w.ok(["history", "done", "cz-lhota"]);
     const done = await post(url, { region: "cz-lhota" });
     assert.equal(done.status, 409);
@@ -364,50 +364,115 @@ test("bridge: the event history when what GET /history answers changed without a
   }
 });
 
-test("link experiment: on asks once in the research's terminal (yes: on for this computer, the tree's off taken away), no: nothing; off at once; no terminal: nothing asked or turned on; an archive refused in a sentence", opts, async () => {
+test("link experiment: on asks once in the research's terminal (yes: on for this research alone), no: nothing; off at once; no terminal: nothing asked or turned on; an archive refused in a sentence", opts, async () => {
   assert.ok((LINK_ACTIONS as readonly string[]).includes("experiment"), "said in /status links and _STROM_LINKS");
   assert.throws(() => parseLink("strom-research://experiment?tree=0f8c2d4e-1b2a-4c3d-9e8f-7a6b5c4d3e2f&name=stories&do=on"));
   assert.throws(() => parseLink("strom-research://experiment?tree=0f8c2d4e-1b2a-4c3d-9e8f-7a6b5c4d3e2f&name=history&do=maybe"));
   const { w, id } = await world(false);
   const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).experimentsHistory;
   const treeOwn = () => readJsonFile(path.join(w.cwd, "strom.json")).experimentsHistory;
+  const treePlaces = () => readJsonFile(path.join(w.cwd, "strom.json")).experimentsPlaceHistory;
   const link = (what: "on" | "off") => `strom-research://experiment?tree=${id}&name=history&do=${what}`;
   try {
     // no terminal: nothing asked, nothing turned on
     const quiet = await w.run(["link", "open", link("on"), "--json"]);
-    assert.equal(config(), undefined, quiet.out + quiet.err);
+    assert.equal(treeOwn(), undefined, quiet.out + quiet.err);
     // a no: nothing
     const no = await w.run(["link", "open", link("on")], { tty: true, answers: ["n", ""] });
     assert.match(no.out, /Aplikace Strom žádá: hledat události dějin v místech tohoto stromu – války, epidemie, sčítání, změny státu\nVýzkum: Lhotákovi/u, no.out);
     assert.match(no.out, /Hledá se průběžně mezi sezeními rodinného výzkumu \(jak často, se vybere hned potom\), sezení trvá nejvýš 60 minut\./u);
-    assert.match(no.out, /platí pro všechny výzkumy na něm/u, "this computer's setting changes: said");
     assert.doesNotMatch(no.out, /\b(vy|váš|ty|tvůj)\b/iu);
-    assert.equal(config(), undefined);
-    // off for the tree first, then the yes: on here, the tree's off taken away
-    await w.ok(["link", "open", link("off"), "--json"]);
-    assert.equal(treeOwn(), "off");
+    assert.equal(treeOwn(), undefined);
+    // the yes: both on for this research alone, this computer's own config untouched
     const yes = await w.run(["link", "open", link("on")], { tty: true, answers: ["a", "2", ""] });
     assert.match(yes.out, /Hledání událostí dějin je pro tento výzkum zapnuté\./u, yes.out + yes.err);
-    assert.equal(config(), "on");
-    // how often: asked right after the yes (Enter: sometimes) — here rare
+    assert.equal(treeOwn(), "on");
+    assert.equal(treePlaces(), "on");
+    assert.equal(config(), undefined, "this computer's switch stays");
+    // how often: asked right after the yes (Enter: sometimes) — here rare, this computer's
     assert.match(yes.out, /Jak často hledat události dějin, když agent pracuje sám\?\n.*občas – zhruba každé 5\. sezení \(výchozí\)/u);
     assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).experimentsHistoryPace, "rare");
-    assert.equal(treeOwn(), undefined);
     // on already: nothing asked
     const again = await w.run(["link", "open", link("on")], { tty: true, answers: [""] });
     assert.match(again.out, /zapnuté už/u);
     assert.doesNotMatch(again.out, /Aplikace Strom žádá/u);
-    // off in the terminal: no question
+    // off in the terminal: no question, both off for this research
     const off = await w.run(["link", "open", link("off")], { tty: true, answers: [""] });
     assert.match(off.out, /Hledání událostí dějin je pro tento výzkum vypnuté; co už bylo nalezeno, zůstává\./u, off.out);
     assert.equal(treeOwn(), "off");
-    assert.equal(config(), "on", "the person's own config stays");
+    assert.equal(treePlaces(), "off");
     // an archive: one sentence, nothing of an agent, nothing changed
     await w.ok(["mode", "archive"], { tty: true });
     const archive = await w.run(["link", "open", link("on")], { tty: true, answers: ["a", ""] });
     assert.match(archive.out, /Dokud je výzkum vedený jako archiv, události dějin se nehledají\. Nic se nestalo\./u, archive.out);
     assert.doesNotMatch(archive.out, /agent|AI\b|Claude/iu);
     assert.equal(treeOwn(), "off");
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("the two switches (spec 020 K8): the regions and the places apart for one research — the link turns one and keeps the other, the bridge turns either off, /history/place refused while the places are off", opts, async () => {
+  const { w, id } = await world(true);
+  const own = () => readJsonFile(path.join(w.cwd, "strom.json"));
+  const link = (name: string, what: "on" | "off") => `strom-research://experiment?tree=${id}&name=${name}&do=${what}`;
+  try {
+    // the regions off by the link: the places that followed them kept on, written first
+    const off = await w.run(["link", "open", link("regions", "off")], { tty: true, answers: [""] });
+    assert.match(off.out, /Dějiny regionů jsou pro tento výzkum vypnuté; co se našlo, zůstává\./u, off.out + off.err);
+    assert.equal(own().experimentsHistory, "off");
+    assert.equal(own().experimentsPlaceHistory, "on");
+    const status = await w.ok(["history", "status", "--json"]);
+    assert.ok(status.out.length > 0);
+    // on again by the link: asked, this research alone
+    const on = await w.run(["link", "open", link("regions", "on")], { tty: true, answers: ["a", ""] });
+    assert.match(on.out, /Aplikace Strom žádá: hledat události dějin v regionech tohoto stromu/u, on.out);
+    assert.match(on.out, /Dějiny regionů se v tomto výzkumu hledají\./u);
+    assert.equal(own().experimentsHistory, "on");
+    // no terminal: an agent turns nothing on
+    await w.run(["link", "open", link("placeHistory", "off")], { tty: true, answers: [""] });
+    assert.equal(own().experimentsPlaceHistory, "off");
+    await w.run(["link", "open", link("placeHistory", "on"), "--json"]);
+    assert.equal(own().experimentsPlaceHistory, "off", "nothing asked, nothing turned on");
+    const agent = await w.run(["config", "set", "experiments.placeHistory", "on", "--for-tree"], { env: { CLAUDECODE: "1" } });
+    assert.equal(agent.code, 4, agent.err);
+    // the bridge
+    const info = await bridge(w);
+    try {
+      let s = (await ask(`${info.url}/status`)).body;
+      assert.ok(s.features.includes("experiments.split"));
+      assert.deepEqual(s.experiments, { history: true, regions: true, places: false, historyPace: "sometimes" });
+      // the places off: a place's history refused with the link that turns them on
+      const place = await post(`${info.url}/history/place`, { place: "L0001" });
+      assert.equal(place.status, 409, JSON.stringify(place.body));
+      assert.equal(place.body.code, "history.off");
+      assert.equal(place.body.link, `strom-research://experiment?tree=${id}&name=placeHistory&do=on`);
+      // turning on is the link's
+      const up = await post(`${info.url}/experiments`, { places: true });
+      assert.equal(up.status, 403);
+      assert.equal(up.body.link, `strom-research://experiment?tree=${id}&name=placeHistory&do=on`);
+      // off already: 200, nothing written
+      const again = await post(`${info.url}/experiments`, { places: false });
+      assert.equal(again.status, 200);
+      assert.equal(again.body.head, again.body.parent);
+      // the regions off
+      const r = await post(`${info.url}/experiments`, { regions: false });
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+      assert.deepEqual(r.body.experiments, { regions: false });
+      assert.notEqual(r.body.head, r.body.parent);
+      s = (await ask(`${info.url}/status`)).body;
+      assert.deepEqual(s.experiments, { history: false, regions: false, places: false, historyPace: "sometimes" });
+      const first = await post(`${info.url}/history/first`, { region: "cz-lhota" });
+      assert.equal(first.status, 409);
+      assert.equal(first.body.code, "history.off");
+      assert.equal(first.body.link, `strom-research://experiment?tree=${id}&name=regions&do=on`);
+      // said in the research's language, as /history/place says it
+      assert.equal(first.body.error, "Hledání událostí dějin se zapíná jen v terminálu, který otevře odkaz.");
+      assert.equal(first.body.error, place.body.error);
+      assert.equal(first.body.text, place.body.text);
+    } finally {
+      await w.run(["live", "stop"]);
+    }
   } finally {
     w.cleanup();
   }

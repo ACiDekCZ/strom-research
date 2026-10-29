@@ -4,6 +4,7 @@ import { register, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { suggestionLines, suggestPeople } from "../core/participantlinks.ts";
+import { checkStreetPlace } from "../core/streets.ts";
 import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, mergeFamilies, notRetracted, mergePersons, parseParticipant, retractEvent, retractPerson } from "../core/actions.ts";
 import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
@@ -245,6 +246,9 @@ register(
       // Without --born/--died the citation is on the name: the record names this person.
       if (opts.status && !opts.born && !opts["born-place"] && !opts.died && !opts["died-place"])
         throw new UsageError("--status belongs to the birth or death given here (--born/--died)");
+      // a place is the municipality: a street or a house number in it is refused, with what to write
+      checkStreetPlace(tree, opts["born-place"] as string | undefined, undefined, "--born-place");
+      checkStreetPlace(tree, opts["died-place"] as string | undefined, undefined, "--died-place");
       const p = addPerson(tree, {
         name: args[0]!,
         sex: opts.sex as string | undefined,
@@ -563,6 +567,7 @@ register(
         throw new UsageError("--status and --age belong to the marriage: give --married <date> (or --married-place)", {
           hint: "without a marriage --cite cites the family itself: the record that names these parents",
         });
+      checkStreetPlace(tree, opts["married-place"] as string | undefined, undefined, "--married-place");
       // The same couple twice is almost always a duplicate.
       const existing = partners.length === 2 ? familiesAsPartner(tree, partners[0]!).find((f) => f.partners.includes(partners[1]!)) : undefined;
       const f = addFamily(tree, {
@@ -696,8 +701,8 @@ register(
     ],
     options: [
       { name: "date", type: "string", value: "<date>", description: 'GEDCOM date: "24 JUN 1783", "ABT 1783", "BET 1811 AND 1812"' },
-      { name: "place", type: "string", value: "<place>", description: 'the settlement: "Týnec nad Labem" — never with a house number' },
-      { name: "house", type: "string", value: "<no.>", description: 'house number or address in the place, as the record gives it: "13"' },
+      { name: "place", type: "string", value: "<place>", description: 'the municipality: "Lhota" (with the parts above it the research writes) — never a street or a house number' },
+      { name: "house", type: "string", value: "<no.>", description: 'house number, or the street and the number, as the record gives it: "13", "Dlouhá 12"' },
       { name: "cause", type: "string", value: "<text>", description: "cause of death as the record gives it" },
       { name: "value", type: "string", value: "<text>", description: "value of attribute events, e.g. the occupation" },
       { name: "label", type: "string", value: "<text>", description: "what happened (required for EVEN)" },
@@ -728,6 +733,8 @@ register(
       else if (ages.length > 1) throw new UsageError("one --age for a person's event");
       else age = ages[0];
       const withs = listOpt(opts.with).map((w) => parseParticipant(tree, w));
+      // a place is the municipality: the street and the house number its house
+      checkStreetPlace(tree, opts.place as string | undefined, opts.house as string | undefined);
       const r = addEvent(tree, owner, {
         kind: args[1]!,
         date: opts.date as string | undefined,
@@ -908,8 +915,8 @@ register(
     args: [{ name: "event", description: "event ID (E0001)", required: true }],
     options: [
       { name: "date", type: "string", value: "<date>", description: "new date" },
-      { name: "place", type: "string", value: "<place>", description: "new place (the settlement)" },
-      { name: "house", type: "string", value: "<no.>", description: 'house number in the place ("" removes it)' },
+      { name: "place", type: "string", value: "<place>", description: "new place (the municipality — never a street or a house number)" },
+      { name: "house", type: "string", value: "<no.>", description: 'house number, or the street and the number ("Dlouhá 12"; "" removes it)' },
       { name: "cause", type: "string", value: "<text>", description: "cause of death as the record gives it" },
       { name: "value", type: "string", value: "<text>", description: "new value" },
       { name: "label", type: "string", value: "<text>", description: "new label" },
@@ -938,6 +945,8 @@ register(
       else if (ages.length > 1) throw new UsageError("one --age for a person's event");
       else age = ages[0];
       const withs = listOpt(opts.with).map((w) => parseParticipant(tree, w));
+      // a place is the municipality: the street and the house number its house (the one given, else the fact's)
+      if (typeof opts.place === "string") checkStreetPlace(tree, opts.place, typeof opts.house === "string" ? opts.house : owner.events.find((x) => x.id === id)?.house);
       const e = editEvent(
         tree,
         id,

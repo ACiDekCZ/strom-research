@@ -274,6 +274,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     // What the user does in their own terminal (a login, the seal, a plugin installed): refused to an agent here, after
     // every option is read — the agents' rules match only what follows the command's name (strom --json seal adopt
     // passed Codex's), so they are a second layer and strom the first
+    if (def.refusesFirst) def.refusesFirst(ctx, { args: parsed.positionals, opts: v });
     if (def.person && isAgent(env)) {
       const said = (def.options ?? []).flatMap((o) => (v[o.name] === undefined || v[o.name] === false ? [] : o.type === "boolean" ? [`--${o.name}`] : [`--${o.name}`, String(v[o.name])]));
       ctx.requireHuman(def.person, ["strom", ...def.path, ...[...parsed.positionals, ...said].map(shellArg)].join(" "), def.path[0]!, undefined, { window: false });

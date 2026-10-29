@@ -11,6 +11,8 @@ import { normalizeAge, isGedcomAge } from "../../src/core/age.ts";
 import { validateGedcom } from "../../src/gedcom/validate.ts";
 import { parseGedcomText } from "../../src/gedcom/parse.ts";
 import { GedWriter } from "../../src/gedcom/lines.ts";
+import { Tree } from "../../src/core/tree.ts";
+import type { Person } from "../../src/core/model.ts";
 
 const opts = { skip: !hasGit };
 
@@ -204,7 +206,19 @@ test("a house number is the house, not the place: its own field, ADDR in the GED
   const w = await world();
   await w.ok(["event", "add", "P1", "CHR", "--date", "1885", "--place", "Vavřinec", "--house", "13", "--cite", "S3"]);
   assert.match((await w.ok(["person", "show", "P1"])).out, /CHR\s+1885\s+Vavřinec, house 13/);
-  await w.ok(["event", "add", "P1", "RESI", "--place", "Vavřinec čp. 13"]);
+  // written so now: refused with what to write (strom since 1.22.0)
+  const refused = await w.run(["event", "add", "P1", "RESI", "--place", "Vavřinec čp. 13", "--json"]);
+  assert.equal(refused.json.code, "place.street");
+  assert.match(refused.json.hint, /--place "Vavřinec" --house "13"/);
+  // as an older strom wrote it
+  await w.ok(["event", "add", "P1", "RESI", "--place", "Vavřinec"]);
+  const tree = Tree.open(w.cwd, w.env);
+  tree.withTreeLock(() => {
+    const p = structuredClone(tree.get<Person>("P0001")!);
+    p.events.find((e) => e.id === "E0003")!.place = "Vavřinec čp. 13";
+    tree.put(p, { op: "event.update", targets: ["E0003"], summary: "E0003: the place as an older strom took it" });
+    tree.commit("The place as an older strom wrote it");
+  });
   const check = await w.ok(["check"]);
   assert.match(check.out, /house-in-place\s+E0003\s+place "Vavřinec čp. 13" holds a house number/);
   assert.match(check.out, /strom event edit E0003 --place "Vavřinec" --house 13/);

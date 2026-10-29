@@ -372,3 +372,43 @@ test("history in a conversation (K2.8): an event asked for goes into the region 
     w.cleanup();
   }
 });
+
+test("the two switches (spec 020 K8): the places off — no place asked, its task held, the regions go on; the regions off — the place's task offered, the regions' held; both off: nothing; back when on", opts, async () => {
+  const w = await world();
+  try {
+    await w.ok(["history", "place", "L0001"], { tty: true, answers: ["a"] });
+    const task = ofPlaces(await tasks(w))[0]!;
+    const next = async () => (await w.ok(["task", "next", "--history", "--json"])).json.task?.origin as string | undefined;
+    assert.equal(await next(), "history:place:L0001");
+    // the places off for this research: held, not even asked for (K8.3); the history of the regions still on
+    await w.ok(["config", "set", "experiments.placeHistory", "off", "--for-tree"]);
+    assert.equal((await tasks(w)).find((t) => t.id === task.id)!.state, "open", "kept as it is");
+    await w.ok(["frontier", "--apply"]);
+    assert.equal(await next(), "history:places", "the mapping of the places goes on, the place's task not offered");
+    const asked = await w.run(["history", "place", "L0001"], { tty: true, answers: ["a"] });
+    assert.notEqual(asked.code, 0);
+    assert.match(asked.out + asked.err, /Dějiny míst jsou pro tento výzkum vypnuté|history of the places is off/u);
+    // refused before the person is asked: never a question whose yes is refused after it (an agent, a run nobody watches)
+    for (const env of [AGENT, { STROM_NONINTERACTIVE: "1" }] as Record<string, string>[]) {
+      const x = await w.run(["history", "place", "L0001", "--json"], { env });
+      assert.equal(x.json?.code, "history.off", `${JSON.stringify(env)}: ${x.out}${x.err}`);
+      assert.doesNotMatch(x.out + x.err, /consent/u);
+    }
+    const area = await w.run(["history", "area", "L0001", ...TEXTS("Farnost Lhota", "The parish of Lhota", "Die Pfarrei Lhota")], { env: AGENT });
+    assert.equal(area.json?.code ?? (area.err.match(/history of the places is off/) ? "history.off" : area.err), "history.off");
+    // the regions off as well: nothing of history at all
+    await w.ok(["config", "set", "experiments.history", "off", "--for-tree"]);
+    assert.ok(!(await next())?.startsWith("history:"), "none of history offered");
+    // the places on again, the regions off: the place's task back
+    await w.ok(["config", "set", "experiments.placeHistory", "on", "--for-tree"], { tty: true, answers: ["a"] });
+    assert.equal(await next(), "history:place:L0001", "back, nothing lost");
+    const own = readJsonFile(path.join(w.cwd, "strom.json"));
+    assert.equal(own.experimentsHistory, "off");
+    assert.equal(own.experimentsPlaceHistory, "on");
+    // an agent turns neither on
+    const agent = await w.run(["config", "set", "experiments.history", "on", "--for-tree"], { env: AGENT });
+    assert.equal(agent.code, 4, agent.err);
+  } finally {
+    w.cleanup();
+  }
+});

@@ -165,6 +165,9 @@ A participant's name stands alone, what the record says of them in closing paren
 write is a suggestion: link (godparent:P…) only when the record says so. Old names with notes run together
 (participant-long-name): strom fixes show participant-names; setting them apart (strom fixes run) or back
 (strom fixes undo participant-names) is the user's decision alone, in their terminal — never an agent's.
+A place is the municipality, never a street or a house number: --place "Lhota" --house "Dlouhá 12" (refused:
+place.street, the hint says what to write). Old facts with a street in the place (street-place): strom fixes show
+street-places; setting them right or back is the user's decision alone, in their terminal.
 Many facts from one record in one call — lines of commands, "#name" labels
 what a line creates, "@name" uses it later:
   strom batch 'person add "Anna /Svobodová/" --sex F #anna' 'family add --partner P0001 --partner @anna --married 1910 --cite S0001'

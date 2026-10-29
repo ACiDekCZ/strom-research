@@ -33,8 +33,8 @@ import {
   searchedSpans,
   storyHistory,
   unmappedPlaces,
+  historyPlaces,
 } from "../core/pastevents.ts";
-import { factPlaces } from "../gedcom/export.ts";
 import type { Section } from "./brief.ts";
 import { AREA_KM, defaultArea, factsByRecord, placeKeyOf, placeLabel, placeOfTask, placeRecord, readPlaceCatalog, regionEventsAt, yearsAt } from "../core/placehistory.ts";
 
@@ -292,7 +292,7 @@ function placeSections(tree: Tree, id: string, shared: string | undefined, alone
 
 function placesSections(tree: Tree, shared: string | undefined, alone: boolean): Section[] {
   const lang = tree.lang;
-  const facts = factPlaces(tree);
+  const facts = historyPlaces(tree).facts;
   const pending = unmappedPlaces(tree);
   const records = tree.list<Place>("place").filter((p) => !p.retracted);
   const byName = (key: string): Place | undefined => {

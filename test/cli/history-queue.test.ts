@@ -235,7 +235,7 @@ test("history tasks: strom run takes them between the family research by the pac
     const plan = await w.ok(["plan", "--json"]);
     assert.equal(plan.json.history.pace, "sometimes");
     assert.equal(plan.json.history.in, due - 1);
-    assert.match((await w.ok(["plan"])).out, new RegExp(`Dějiny míst: .* – za ~${due - 1} sezení\\.`, "u"));
+    assert.match((await w.ok(["plan"])).out, new RegExp(`Dějiny: .* – za ~${due - 1} sezení\\.`, "u"));
     // up to its turn only: a second turn of the idle test agent would put the region aside as stuck
     const r = await w.ok(["run", "--agent", "script", "--loop", "--max", String(due), "--json"]);
     const order = (r.json.sessions as { task: string }[]).map((s) => history.has(s.task));
@@ -244,7 +244,7 @@ test("history tasks: strom run takes them between the family research by the pac
     assert.notEqual(r.json.stop, "history", "no stop for the day");
     // idle: none while the family research has work, then taken
     await w.ok(["config", "set", "experiments.historyPace", "idle"]);
-    assert.match((await w.ok(["plan"])).out, /Dějiny míst: .* – až rodinný výzkum nebude mít co dělat\./u);
+    assert.match((await w.ok(["plan"])).out, /Dějiny: .* – až rodinný výzkum nebude mít co dělat\./u);
     const idle = await w.ok(["run", "--agent", "script", "--loop", "--max", "6", "--json"]);
     assert.equal((idle.json.sessions as { task: string }[]).filter((s) => history.has(s.task)).length, 0, idle.err);
     await dropOthers(w);
@@ -266,7 +266,7 @@ test("history tasks: the places to map go first right after it is turned on and 
     for (let i = 1; i <= 6; i++) await w.ok(["task", "add", `Matrika Lhota ${i}`, "--level", "locate", "--where", `Lhota ${i}`, "--why", "a", "--done-when", "b", "--about", "P1", "--priority", "2"]);
     const places = ofHistory(await tasks(w)).find((t) => t.origin === "history:places")!;
     assert.ok(places);
-    assert.match((await w.ok(["plan"])).out, /Dějiny míst: .* – příští sezení – nejdřív zmapovat místa\./u);
+    assert.match((await w.ok(["plan"])).out, /Dějiny: .* – příští sezení – nejdřív zmapovat místa\./u);
     assert.match((await w.ok(["history", "status"])).out, new RegExp(`the next session, the places to map first \\(${places.id}\\)`, "u"));
     // the next session, though the pace is rare and the family research has work
     const first = await w.ok(["run", "--agent", "script", "--loop", "--max", "1", "--json"]);

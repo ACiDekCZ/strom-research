@@ -30,6 +30,7 @@ import { exportGedcom, REFN_TYPE } from "../gedcom/export.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
 import { fromFlexDate, houseOf, importDate, marnmNames, readGedName, readGedSex, stromAppFile } from "./import.ts";
 import { humanAge, normalizeAge } from "./age.ts";
+import { appAge, appDate } from "./appshapes.ts";
 import { dateYears } from "./gdate.ts";
 import { create, update } from "./records.ts";
 import { decodeText, foldText, safeFolderName } from "./text.ts";
@@ -42,7 +43,7 @@ import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
 import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
-import { APP_DATA_SEX_UNKNOWN, appReadsSurnameGroups, isAppVersion } from "./stromapp.ts";
+import { APP_DATA_SEX_UNKNOWN, appKeepsPeriods, appReadsSurnameGroups, isAppVersion } from "./stromapp.ts";
 import { Settings } from "./config.ts";
 import { applySurnameChange, formsSaid, planSurnames, readMarkLines, readSurnames, surnamesAt, undoSurnameChange, type SurnameChange, type SurnameEntry, type SurnameMarks } from "./surnames.ts";
 import { SURNAME_GROUPS_MARK, SURNAME_REJECTIONS_MARK } from "../gedcom/export.ts";
@@ -2276,6 +2277,10 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const base = sentAgain && incoming.head ? snapshotAt(tree, incoming.head) : (since ?? after?.base);
   // a send that wrote damaged characters into the research before: what it gave the app is mended alike
   if (base) mended += mendAll(base, () => [ours]);
+  // a period sent back as a range, an age without its units of nothing (a Strom app before 3.17.0-beta.9, or one whose
+  // version the file does not say): the research's own form, never the user's edit (found on Mac: six conflicts and two
+  // residences as leads from a send of surnames); an app that keeps them sends such a change only as the user's edit
+  if (!appKeepsPeriods(incoming.appVersion)) appShapesKept(incoming, [base, ours], (key) => resolve(tree, key)?.id ?? key);
   // the titles an app that reads none keeps in the name (the research gives them in the NAME line): found there, the
   // person's titles still — in a copy of the app it stands on too (a send it kept: _STROM_SINCE)
   for (const [key, b] of base?.persons ?? []) if (!key.startsWith("x:")) titlesInName(b, [ours.persons.get(resolve(tree, key)?.id ?? key)?.titles]);
@@ -3439,6 +3444,47 @@ function knownNewcomers(incoming: Snapshot, ours: Snapshot): void {
 }
 
 /**
+ * The file's facts in the research's form where they say what it says as the Strom app sends it back (core/appshapes.ts):
+ * a period as a range, an age without its units of nothing. Each fact against the same owner's facts of its kind in what
+ * the app was given and in the research now — one of the same place and value first; a date the research has as the file
+ * says it is left as it is.
+ */
+function appShapesKept(incoming: Snapshot, known: (Snapshot | undefined)[], idOf: (key: string) => string): void {
+  const align = (facts: SFact[], others: SFact[]) => {
+    for (const f of facts) {
+      const kind = others.filter((o) => kindOf(o.kind) === kindOf(f.kind));
+      const rest = (o: SFact) => exact(o.place) === exact(f.place) && exact(o.value) === exact(f.value) && (f.kind !== "EVEN" || fold(o.label) === fold(f.label));
+      if (f.date) {
+        const like = kind.filter((o) => o.date && appDate(o.date) === f.date);
+        const pick = like.find(rest) ?? (like.some((o) => o.date === f.date) ? undefined : like[0]);
+        if (pick?.date) f.date = pick.date;
+      }
+      const at = kind.filter((o) => (o.date ?? "") === (f.date ?? ""));
+      const age = (mine: string | undefined, theirs: (o: SFact) => string | undefined): string | undefined => {
+        if (!mine) return mine;
+        for (const list of [at.filter(rest), at, kind]) {
+          if (list.some((o) => theirs(o) === mine)) return mine;
+          const o = list.find((x) => theirs(x) && appAge(theirs(x)!) === appAge(mine));
+          if (o) return theirs(o);
+        }
+        return mine;
+      };
+      if (f.age) f.age = age(f.age, (o) => o.age);
+      if (f.ages) f.ages = Object.fromEntries(Object.entries(f.ages).map(([k, a]) => [k, age(a, (o) => o.ages?.[k]) ?? a]));
+    }
+  };
+  for (const [key, p] of incoming.persons) {
+    if (key.startsWith("x:")) continue;
+    align(p.facts, known.flatMap((s) => s?.persons.get(key)?.facts ?? s?.persons.get(idOf(key))?.facts ?? []));
+  }
+  for (const f of incoming.families) {
+    if (f.partners.some((k) => k.startsWith("x:"))) continue;
+    const k = famKey(f.partners.map(idOf));
+    align(f.facts, known.flatMap((s) => s?.families.find((o) => famKey(o.partners.map(idOf)) === k)?.facts ?? []));
+  }
+}
+
+/**
  * People the file brings without our ID and no name of ours — renamed in the app before it had them back with their ID
  * (found on Windows: the app keeps its own copy of the tree it handed over, without the research's IDs; a person renamed
  * there came as a new one, with a "new family" of a child that has its parents): the one of ours whose place they take.
@@ -4515,7 +4561,7 @@ function detailEdit(d: Record<string, string>): { cause?: string; age?: string; 
   return out;
 }
 
-function describe(f: { date?: string | undefined; place?: string | undefined; value?: string | undefined; cause?: string | undefined; age?: string | undefined; house?: string | undefined; ages?: Record<string, string> | undefined }): string {
+export function describe(f: { date?: string | undefined; place?: string | undefined; value?: string | undefined; cause?: string | undefined; age?: string | undefined; house?: string | undefined; ages?: Record<string, string> | undefined }): string {
   const ages = Object.entries(f.ages ?? {}).map(([who, a]) => `${who} aged ${a}`);
   return [f.value, f.date, f.place, f.house && `house ${f.house}`, f.age && `aged ${f.age}`, ...ages, f.cause && `cause ${f.cause}`].filter(Boolean).join(", ") || "—";
 }

@@ -69,6 +69,21 @@ export function appWritesSexUnknown(version: string | undefined): boolean {
   return !!v && isAppVersion(v) && compareVersions(v, APP_WRITES_SEX_UNKNOWN) >= 0;
 }
 
+/**
+ * The first Strom app that keeps a period and an age as the research wrote them (its 3eae0d3, the research's 1028): a
+ * period FROM x TO y (FROM x, TO y) apart from the range BET x AND y (AFT x, BEF y), an age with its units of nothing
+ * ("0y 2m 26d"). Before it the app sent a period back as a range and an age without its zero units, which strom sync
+ * takes in the research's own form (core/appshapes.ts) — from it on such a change is the user's edit like any other. A
+ * real pre-release, not a gate: its own betas before it could not keep them.
+ */
+export const APP_KEEPS_PERIODS = "3.17.0-beta.9";
+
+/** Does a file of the Strom app of this version (its HEAD's 2 VERS) keep a period and an age as the research wrote them? From 3.17.0-beta.9 on; no version said: no. */
+export function appKeepsPeriods(version: string | undefined): boolean {
+  const v = version?.trim();
+  return !!v && isAppVersion(v) && compareVersions(v, APP_KEEPS_PERIODS) >= 0;
+}
+
 /** The pages of the Strom app — on the web, its beta, a copy on this computer (its development): the only ones strom opens with a research, and the only ones its bridge lets in. */
 export function isStromAppOrigin(origin: string): boolean {
   return origin === "https://stromapp.info" || origin === "https://beta.stromapp.info" || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);

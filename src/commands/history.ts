@@ -66,6 +66,7 @@ import {
 import {
   addPlaceEvent,
   askPlace,
+  refusePlaceAsk,
   ensurePlaceCatalog,
   markPlaceDone,
   factsByRecord,
@@ -82,6 +83,14 @@ import {
 } from "../core/placehistory.ts";
 import type { Place, RecordSet, Source, Task } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
+// strom history list
+import { moreLine, paginate } from "../cli/format.ts";
+import type { UIKey } from "../cli/ui.ts";
+import { displayName } from "../core/people.ts";
+import { historyOn, readLocal, type AppEvent, type AppPlace, type EventKind, type Hide } from "../core/pastevents.ts";
+import { placeRecord } from "../core/placehistory.ts";
+import { foldText } from "../core/text.ts";
+import type { Person } from "../core/model.ts";
 
 function shared(ctx: Context): string {
   const s = ctx.settings.shared()?.value;
@@ -208,7 +217,7 @@ register(
       const when = !turn ? undefined : turn.places ? `the next session, the places to map first (${turn.places})` : turn.pace === "idle" ? "when the family research has nothing to do" : turn.now ? "the next session" : `in ~${Math.max(1, turn.in ?? 0)} sessions`;
       return {
         text: lines(
-          `history of the places: ${s.on ? "on" : "off (the user alone turns it on: strom config set experiments.history on)"} · search: ${state.search}${state.why ? ` (${state.why})` : ""}`,
+          `history of the regions: ${s.switches.regions ? "on" : "off"} · of the places: ${s.switches.places ? "on" : "off"}${s.on ? "" : " (the user alone turns them on: strom config set experiments.history|experiments.placeHistory on [--for-tree])"} · search: ${state.search}${state.why ? ` (${state.why})` : ""}`,
           `places of the facts: ${s.places.total} · mapped ${s.places.mapped}${s.places.manual ? ` (${s.places.manual} by the person)` : ""} · not located ${s.places.unlocated} · waiting ${s.places.pending.length}${s.places.skipped ? ` · skipped by the person ${s.places.skipped}` : ""}`,
           shown.length ? `waiting: ${shown.join(" · ")}${s.places.pending.length > shown.length ? ` … (+${s.places.pending.length - shown.length}, --limit)` : ""}` : undefined,
           s.regions.length
@@ -666,6 +675,9 @@ register(
       "research on this computer with the place (by its coordinates). Only while the history is on.",
     args: [{ name: "place", description: "the place record (L…; strom place list)", required: true }],
     examples: ["strom history place L0003"],
+    refusesFirst(ctx) {
+      refusePlaceAsk(ctx.tree(), ctx.settings);
+    },
     run(ctx, { args }) {
       const tree = ctx.tree();
       const id = normId(args[0]!, "place");
@@ -690,7 +702,7 @@ register(
     examples: ['strom history area L0003 --text-cs "…" --text-en "…" --text-de "…"'],
     run(ctx, { args, opts }) {
       const tree = agentWork(ctx, "strom history area");
-      requireHistoryOn(tree, ctx.settings);
+      requireHistoryOn(tree, ctx.settings, "places");
       const p = requirePlace(tree, normId(args[0]!, "place"));
       const area = texts(opts, "text");
       if (!area) throw new UsageError("--text-cs, --text-en and --text-de: what was looked through", { code: "history.area" });
@@ -928,4 +940,216 @@ register(
     },
   },
 );
+
+// ── strom history list: the events the research shows, readable in the terminal ──
+
+const KIND_TEXT: Record<EventKind, UIKey> = {
+  war: "ui.history.kind.war",
+  epidemic: "ui.history.kind.epidemic",
+  census: "ui.history.kind.census",
+  state: "ui.history.kind.state",
+  emigration: "ui.history.kind.emigration",
+  law: "ui.history.kind.law",
+  economy: "ui.history.kind.economy",
+  disaster: "ui.history.kind.disaster",
+  other: "ui.history.kind.other",
+};
+
+/** A hide of one event as the list gives it: at a place, at a person, in the whole tree, or everything of its region. */
+type ListedHide = { place: string } | { person: string } | { tree: true } | { region: string };
+
+/** One event of strom history list (--json): stable field names. */
+interface ListedEvent {
+  id: string;
+  from: number;
+  to: number;
+  date?: string;
+  kind: EventKind;
+  scope: "region" | "place" | "local";
+  /** In the research's language (else English, else the first it has). */
+  text: string;
+  region?: { id: string; name: string };
+  place?: { key: string; id?: string; name: string };
+  /** A page's source of a region's or a place's event. */
+  source?: { title: string; publisher?: string; url: string };
+  /** A local event: the research's source it was read in, and the place of that source. */
+  local?: { source: string; title: string; place?: string };
+  /** The places of the tree's facts it shows at. */
+  at: string[];
+  hidden?: ListedHide[];
+  /** Deleted by the person: when. */
+  deleted?: string;
+}
+
+const inLang = (t: Texts | undefined, lang: string): string => (t ? (t[lang] ?? t.en ?? Object.values(t)[0] ?? "") : "");
+
+/** The events of historyAnswer (and those the person deleted) as the list gives them, each with what hides it. */
+function listedEvents(tree: Tree, answer: ReturnType<typeof historyAnswer>): { events: ListedEvent[]; regionHidden: Set<string> } {
+  const lang = tree.lang;
+  const at = new Map<string, string[]>();
+  for (const [k, p] of Object.entries(answer.places)) for (const id of p.events) at.set(id, [...(at.get(id) ?? []), k]);
+  const sources = new Map(tree.list<Source>("source").map((s) => [s.id, s]));
+  const localPlace = new Map(readLocal(tree).events.map((e) => [e.id, e.place]));
+  const hides = new Map<string, ListedHide[]>();
+  const regionHidden = new Set<string>();
+  const personName = (id: string) => {
+    const p = tree.get<Person>(id);
+    return p ? `${displayName(p)} (${id})` : id;
+  };
+  for (const h of answer.hidden as Hide[]) {
+    if (h.event === undefined) {
+      if (h.region) regionHidden.add(h.region);
+      continue;
+    }
+    const one: ListedHide = h.place !== undefined ? { place: h.place } : h.person !== undefined ? { person: h.person } : { tree: true };
+    hides.set(h.event, [...(hides.get(h.event) ?? []), one]);
+  }
+  const listed = (id: string, e: Omit<AppEvent, "id" | "place">, place: AppEvent["place"] | undefined, localAt: string | undefined, deleted?: string): ListedEvent => {
+    const hidden = [...(hides.get(id) ?? []), ...(e.region && regionHidden.has(e.region.id) ? [{ region: e.region.id }] : [])];
+    const s = e.local ? sources.get(e.local.source) : undefined;
+    return {
+      id,
+      from: e.from,
+      to: e.to,
+      ...(e.date ? { date: e.date } : {}),
+      kind: e.kind,
+      scope: e.scope,
+      text: inLang(e.text, lang),
+      ...(e.region ? { region: { id: e.region.id, name: inLang(e.region.name, lang) || e.region.id } } : {}),
+      ...(place ? { place: { key: place.key, ...(place.id ? { id: place.id } : {}), name: inLang(place.name, lang) || place.key } } : {}),
+      ...(e.source ? { source: { title: e.source.title, ...(e.source.publisher ? { publisher: e.source.publisher } : {}), url: e.source.url } } : {}),
+      ...(e.local ? { local: { source: e.local.source, title: s?.title ?? e.local.cite, ...(localAt ? { place: localAt } : {}) } } : {}),
+      at: at.get(id) ?? [],
+      ...(hidden.length ? { hidden: hidden.map((h) => ("person" in h ? { person: personName(h.person) } : h)) } : {}),
+      ...(deleted ? { deleted } : {}),
+    };
+  };
+  const events = answer.events.map((e) => listed(e.id, e, e.place, localPlace.get(e.id)));
+  for (const d of answer.deleted) {
+    const { event, at: when, place, ...rest } = d;
+    const obj = typeof place === "object" ? place : undefined;
+    events.push(listed(event, rest, obj, typeof place === "string" ? place : localPlace.get(event), when));
+  }
+  return { events, regionHidden };
+}
+
+/** The group an event is listed under: its region, its place, or the research's own sources. */
+function groupOf(e: ListedEvent): { key: string; order: number; name: string } {
+  if (e.scope === "region" && e.region) return { key: `r:${e.region.id}`, order: 0, name: e.region.name };
+  if (e.scope === "place" && e.place) return { key: `p:${e.place.id ?? e.place.key}`, order: 1, name: e.place.name };
+  return { key: "l", order: 2, name: "" };
+}
+
+const yearsOf = (e: ListedEvent) => e.date ?? (e.from === e.to ? `${e.from}` : `${e.from}–${e.to}`);
+
+register({
+  path: ["history", "list"],
+  summary: "The events of history the research shows at the tree's places, one line each: year, kind, text, source, hidden or deleted",
+  group: "history",
+  tree: true,
+  hidden: true,
+  description:
+    "The events the Strom app shows (a region's by the years each place belonged to it, a place's own, the local ones read in\n" +
+    "the research's sources), grouped by region and place, by year. Hidden by the person (at a place, a person, the whole tree,\n" +
+    "everything of a region) and deleted ones marked. Read only; in an archive too, with the history off too (what was found\n" +
+    "stays). --place: the events at one place (its record L…, or the place as the facts write it); --region: one region's.",
+  options: [
+    { name: "place", type: "string", value: "<L…|place>", description: "only the events at this place: its record (L…), or the place as the facts write it" },
+    { name: "region", type: "string", value: "<id>", description: "only this region's events (strom history status lists the regions)" },
+  ],
+  examples: ["strom history list", "strom history list --place L0003", "strom history list --region cz-bohemia --json"],
+  run(ctx, { opts }) {
+    const tree = ctx.tree();
+    const lang = tree.lang;
+    const answer = historyAnswer(tree, ctx.settings.shared()?.value, ctx.settings);
+    const { events: all, regionHidden } = listedEvents(tree, answer);
+    let events = all;
+
+    // --place: the events at its places of the facts, and those the person deleted there
+    const givenPlace = str(opts.place)?.trim();
+    let place: { id?: string; keys: string[] } | undefined;
+    if (givenPlace) {
+      const isRecord = /^L\d+$/iu.test(givenPlace);
+      const rec = isRecord ? placeRecord(tree, normId(givenPlace, "place")) : undefined;
+      const key = isRecord ? undefined : factPlaceKey(tree, givenPlace);
+      if (!rec && !key)
+        throw new UsageError(isRecord ? `there is no place ${givenPlace} in the research` : `"${givenPlace}" is no place of the tree's facts`, {
+          code: "history.place",
+          params: { place: givenPlace },
+          hint: "strom place list (the place records), strom history status (the places of the facts)",
+        });
+      const fold = (k: string) => foldText(k);
+      const wanted = new Set<string>(rec ? [...(factsByRecord(tree).get(rec.id)?.keys ?? []), ...Object.entries(answer.places).filter(([, p]) => p.id === rec.id).map(([k]) => k)].map(fold) : [fold(key!)]);
+      const keys = Object.keys(answer.places).filter((k) => wanted.has(fold(k)));
+      const links = keys.flatMap((k) => (answer.places[k] as AppPlace).regions ?? []);
+      place = { ...(rec ? { id: rec.id } : {}), keys };
+      events = events.filter((e) => {
+        if (!e.deleted) return e.at.some((k) => wanted.has(fold(k)));
+        if (e.scope === "place") return !!rec && e.place?.id === rec.id;
+        if (e.scope === "local") return !!e.local?.place && wanted.has(fold(e.local.place));
+        return links.some((g) => g.id === e.region?.id && inRegion(e, g));
+      });
+    }
+    // --region: that region's events
+    const region = str(opts.region)?.trim();
+    if (region !== undefined) {
+      if (!regionIdOk(region) || !answer.regions[region])
+        throw new UsageError(`no region ${region} at the places of the tree`, { code: "history.region.unknown", params: { region }, hint: "strom history status lists the regions of the tree" });
+      events = events.filter((e) => e.scope === "region" && e.region?.id === region);
+    }
+
+    const sorted = [...events].sort((a, b) => {
+      const [ga, gb] = [groupOf(a), groupOf(b)];
+      return ga.order - gb.order || ga.name.localeCompare(gb.name) || ga.key.localeCompare(gb.key) || a.from - b.from || a.to - b.to || a.id.localeCompare(b.id);
+    });
+    const page = paginate(sorted, ctx.limit, ctx.page);
+    const on = historyOn(tree, ctx.settings);
+
+    const out: string[] = [];
+    let group = "";
+    let rows: string[][] = [];
+    const flush = () => {
+      if (rows.length) out.push(table(rows));
+      rows = [];
+    };
+    for (const e of page.items) {
+      const g = groupOf(e);
+      if (g.key !== group) {
+        flush();
+        group = g.key;
+        out.push(
+          e.scope === "region" && e.region
+            ? `${ui(lang, "ui.history.list.region", { region: `${e.region.name} (${e.region.id})` })}${regionHidden.has(e.region.id) ? ` · ${ui(lang, "ui.history.list.hidden.region")}` : ""}`
+            : e.scope === "place" && e.place
+              ? ui(lang, "ui.history.list.place", { place: `${e.place.name}${e.place.id ? ` (${e.place.id})` : ""}` })
+              : ui(lang, "ui.history.list.local"),
+        );
+      }
+      const source = e.source ? `${e.source.title}${e.source.publisher ? `, ${e.source.publisher}` : ""} <${e.source.url}>` : e.local ? `${e.local.title} (${e.local.source})${e.local.place ? ` · ${e.local.place}` : ""}` : "";
+      const marks = [
+        ...(e.hidden ?? []).flatMap((h) =>
+          "place" in h ? [ui(lang, "ui.history.list.hidden.place", { place: h.place })] : "person" in h ? [ui(lang, "ui.history.list.hidden.person", { person: h.person })] : "tree" in h ? [ui(lang, "ui.history.list.hidden.tree")] : [],
+        ),
+        ...(e.deleted ? [ui(lang, "ui.history.list.deleted")] : []),
+      ];
+      rows.push([`  ${yearsOf(e)}`, ui(lang, KIND_TEXT[e.kind] ?? "ui.history.kind.other"), [`${e.text}${source ? ` — ${source}` : ""}`, e.id, ...marks.map((m) => `[${m}]`)].join(" · ")]);
+    }
+    flush();
+    const command = `strom history list${givenPlace ? ` --place ${/\s/u.test(givenPlace) ? `"${givenPlace}"` : givenPlace}` : ""}${region ? ` --region ${region}` : ""}`;
+    return {
+      text: lines(on ? undefined : ui(lang, "ui.history.list.off"), sorted.length ? lines(...out, moreLine(page, command, lang) || undefined) : ui(lang, "ui.history.list.none")),
+      data: {
+        on,
+        lang,
+        ...(place ? { place } : {}),
+        ...(region !== undefined ? { region } : {}),
+        total: page.total,
+        page: page.page,
+        pages: page.pages,
+        ...(answer.state.truncated ? { truncated: true } : {}),
+        events: page.items,
+      },
+    };
+  },
+});
 

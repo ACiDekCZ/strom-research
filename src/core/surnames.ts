@@ -101,6 +101,17 @@ export function byCodePoint(a: string, b: string): number {
 
 const clean = (form: string) => form.normalize("NFC").replace(/\s+/gu, " ").trim();
 
+/** The marks of a reading a transcript gives beside a word: not sure "[?]", so written "[!]", not read "[…]" / "[...]". */
+const READING_MARK = /\[(?:\?|!|…|\.\.\.)\]/gu;
+
+/**
+ * A surname as a form of a family's name: NFC, its reading marks taken out wherever they stand ("Lhoták[?]",
+ * "Lhot[?]ák", "Лхотак[!]" → "Lhoták", "Lhoták", "Лхотак") — a mark tells how sure a reading is, never another form.
+ */
+export function surnameFormOf(surname: string): string {
+  return clean(surname.normalize("NFC").replace(READING_MARK, ""));
+}
+
 /**
  * A form with a woman's ending a language tells apart (-ová, -owa, -ówna, -á, -ska/-cka/-dzka, Cyrillic -ова, -ая) —
  * never one of no such ending (Kalina, Sova): those are men's names too.
@@ -370,7 +381,7 @@ const NOT_A_FORM = new Set(["religious", "alias"]);
 
 /** Two written surnames alike as forms of one name are: similar enough, or of one sound. */
 function alike(a: string, b: string): boolean {
-  const [x, y] = [baseOf(a, new Set()), baseOf(b, new Set())];
+  const [x, y] = [baseOf(surnameFormOf(a), new Set()), baseOf(surnameFormOf(b), new Set())];
   return !!x && !!y && (similarity(x, y) >= SIMILAR || phoneticKey(x) === phoneticKey(y));
 }
 
@@ -393,7 +404,7 @@ interface Node {
   persons: Set<string>;
 }
 
-const usable = (s: string | undefined) => !!s && !!foldText(s).replace(/[?\s.]/gu, "");
+const usable = (s: string | undefined) => !!s && !!foldText(surnameFormOf(s)).replace(/[?\s.]/gu, "");
 
 /** The first part of a place as the GEDCOM writes it (the municipality of 2 PLAC). */
 const placeOf = (place: string) => (lineValue(place).split(",")[0] ?? "").trim();
@@ -406,11 +417,11 @@ export function suggestSurnames(tree: Tree, lang: string = tree.lang, max = SUGG
   const nodes = new Map<string, Node>();
   const allForms = new Map<string, string>();
   const formsOf = new Map(persons.map((p) => [p.id, formsOfPerson(p)]));
-  for (const p of persons) for (const n of formsOf.get(p.id)!) allForms.set(clean(n.surname).toLowerCase(), clean(n.surname));
+  for (const p of persons) for (const n of formsOf.get(p.id)!) allForms.set(surnameFormOf(n.surname).toLowerCase(), surnameFormOf(n.surname));
   const men = new Map<string, string>(); // a folded man's form → its written key
   for (const [k, f] of allForms) if (!isWomansForm(f)) men.set(foldText(f), men.get(foldText(f)) ?? k);
   const nodeKey = (surname: string): string => {
-    const f = clean(surname);
+    const f = surnameFormOf(surname);
     const k = f.toLowerCase();
     if (!isWomansForm(f)) return k;
     const own = foldText(f);
@@ -422,13 +433,13 @@ export function suggestSurnames(tree: Tree, lang: string = tree.lang, max = SUGG
     const key = nodeKey(surname);
     let node = nodes.get(key);
     if (!node) {
-      const shown = allForms.get(key) ?? clean(surname);
+      const shown = allForms.get(key) ?? surnameFormOf(surname);
       const base = baseOf(shown, menFolded);
       node = { key, written: new Map(), base, sound: phoneticKey(base), persons: new Set() };
       nodes.set(key, node);
     }
     // the written form: the man's where a woman's stands for it
-    const shown = key === clean(surname).toLowerCase() ? clean(surname) : (allForms.get(key) ?? clean(surname));
+    const shown = key === surnameFormOf(surname).toLowerCase() ? surnameFormOf(surname) : (allForms.get(key) ?? surnameFormOf(surname));
     node.written.set(shown, (node.written.get(shown) ?? 0) + 1);
     node.persons.add(person);
     return node;
@@ -483,7 +494,7 @@ export function suggestSurnames(tree: Tree, lang: string = tree.lang, max = SUGG
     const c = n.citations?.[0];
     if (!c) return undefined;
     const title = sourceTitle(c.source);
-    return { person: p.id, name: formatName(n), form: clean(n.surname), citation: c.locator ? `${title}, ${c.locator}` : title, source: c.source, ...(c.quote?.trim() ? { quote: quoteOf(c.quote) } : {}) };
+    return { person: p.id, name: formatName(n), form: surnameFormOf(n.surname), citation: c.locator ? `${title}, ${c.locator}` : title, source: c.source, ...(c.quote?.trim() ? { quote: quoteOf(c.quote) } : {}) };
   };
 
   // the woman's safeguard: a form of her husband's family and one of her father's are never one family's forms

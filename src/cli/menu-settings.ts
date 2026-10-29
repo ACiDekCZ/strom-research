@@ -30,11 +30,11 @@ import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
 import { archivePermissions, archiveState, browserOnlyHere } from "./menu-archives.ts";
 import { chooseTerminal, terminalState } from "./terminals.ts";
 import { phoneState } from "../core/phone.ts";
-import { fixEnv, PARTICIPANT_NAMES, pendingCount, pendingFixes } from "../commands/fixchecks.ts";
+import { fixEnv, pendingCount, pendingFixes } from "../commands/fixchecks.ts";
 import { isArchive as archiveHere } from "../core/mode.ts";
 import { isAgent } from "../core/which.ts";
 import { placesWithCoords } from "../core/placehistory.ts";
-import { placeCost } from "./menu-links.ts";
+import { pinPlaces, placeCost } from "./menu-links.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -232,16 +232,15 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
       // what a fix of strom's left behind in this research: what it is, then the person's choice (strom fixes run)
       if (root) {
         const tree = Tree.open(root, ctx.env);
-        // an archive: only what is rewritten by rules (participant-names) — nobody reads there, nothing of an agent said
+        // an archive: only what is rewritten by rules (participant-names, app-shapes, street-places) — nobody reads there, nothing of an agent said
         const archive = archiveHere(tree);
         const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).filter((s) => !archive || s.check.remedy === "rewrite").reduce((n, s) => n + pendingCount(s), 0);
         items.push({
           key: "3",
           label: t("ui.maintenance.fixes", { state: waits ? t("ui.maintenance.fixes.waits", { n: waits }) : "" }),
           act: async () => {
-            if (archive) await run(waits ? ["fixes", "run", PARTICIPANT_NAMES.id] : ["fixes", "show", PARTICIPANT_NAMES.id]);
-            else if (waits) await run(["fixes", "run"]);
-            else await run(["fixes"]);
+            // (an archive: its checks are those that rewrite alone)
+            await run(waits ? ["fixes", "run"] : ["fixes"]);
             await pause(ctx, lang);
           },
         });
@@ -391,7 +390,7 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
       key: "6",
       label: t("ui.alone.places", { state: t(places ? "ui.settings.on" : "ui.settings.off") }),
       act: async () => {
-        if (!places && !ctx.settings.experimentsHistory(tree)) {
+        if (!places && !ctx.settings.historyPlace(tree)) {
           out(t("ui.alone.places.history"));
           await pause(ctx, lang);
           return;
@@ -405,6 +404,22 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
         if (!places && root && tree?.experimentsHistoryPlaces === "off") await run(["config", "unset", "experiments.historyPlaces", "--for-tree"], true);
       },
     });
+    // the two switches of this research (spec 020 K8): its strom.json wins over this computer's both ways
+    if (root)
+      for (const [key, name, on] of [
+        ["7", "experiments.history", ctx.settings.historyRegions(tree)],
+        ["8", "experiments.placeHistory", ctx.settings.historyPlace(tree)],
+      ] as const)
+        items.push({
+          key,
+          label: t(name === "experiments.history" ? "ui.alone.regions.tree" : "ui.alone.placeHistory.tree", { state: t(on ? "ui.settings.on" : "ui.settings.off") }),
+          act: async () => {
+            out(t("ui.alone.tree.about"));
+            if (!(await ctx.confirm(t(on ? "ui.alone.places.off" : "ui.alone.places.on"), false))) return;
+            if (name === "experiments.history" && !(await pinPlaces(run, Tree.open(root, ctx.env), ctx))) return;
+            await run(["config", "set", name, on ? "off" : "on", "--for-tree"], true);
+          },
+        });
     if (set && shared)
       items.push({
         key: "3",

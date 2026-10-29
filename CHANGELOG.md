@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.22.0
 
-*In preparation: the betas up to 1.22.0-beta.9. The section is complete with the release.*
+*In preparation: the betas up to 1.22.0-beta.10. The section is complete with the release.*
 
 - **Each name once in what waits.** A task for material sent from the Strom app named each person twice in the
   widget and on the phone's page (the second time in brackets), and its text without names kept empty brackets; the
@@ -36,8 +36,11 @@ The changes of each version in short. The full notes and the install lines are o
   strom downloaded and checked itself, local events from the records read — shown by the Strom app. The first setup
   suggests it on; an installation set up before is asked once, at the first menu after the update (Enter: not now),
   and nothing turns on by itself. Only a person turns it on — then or later in the menu's Settings → The agent working
-  alone → History of the places, from the Strom app, or with `strom config set experiments.history on`; while it is
-  off, nothing is looked for. Once on, the
+  alone → History, from the Strom app, or with `strom config set experiments.history on`; while it is
+  off, nothing is looked for. The history of the regions and of the places are two switches, each also for one
+  research alone (Settings → The agent working alone, `strom config set experiments.history|experiments.placeHistory
+  on|off --for-tree`, or off from the Strom app) — a research's own choice wins both ways; with the places off, not
+  even a place asked for is looked for. What was on before stays on for both, what was off for both. Once on, the
   places are mapped in the next session, and the regions are searched now and then between the family research's
   sessions: about every 5th (the default), every 10th, or only when nothing else is left
   (`strom config set experiments.historyPace`, the setup, the settings); `strom plan` says when, and all of them
@@ -54,7 +57,8 @@ The changes of each version in short. The full notes and the install lines are o
   those years. `strom history status` and `strom plan` show each region's years and what waits.
   What is shown is the person's to manage, in the Strom app or with `strom history`: an event hidden, or deleted —
   from every research on this computer, never written again — and restored; a region or a place skipped; a place's
-  regions assigned by hand.
+  regions assigned by hand. `strom history list [--place L…] [--region <id>]` lists the events in the terminal: the
+  years, the kind, the text in the research's language, the source, what is hidden or deleted.
   The history of a single place and its surroundings — fires, floods, battles nearby, the estate, the parish, the
   school — is looked for at a person's word (from a person's card in the Strom app), first at the next session, and
   kept for every research on this computer with that place. Each place with coordinates can be looked for by itself,
@@ -68,7 +72,8 @@ The changes of each version in short. The full notes and the install lines are o
   (`strom config set stories.history no`).
 - **The forms of one surname.** `strom surname suggest` suggests which written forms of a surname are one family's: one
   person written so in the records (with the citations), or one sound spelled otherwise at one place in the same years
-  — never the families of a woman's husband and her father. Only a person decides, in the terminal
+  — never the families of a woman's husband and her father; a reading mark after a name (`[?]`, `[!]`, `[…]`) is no
+  form of its own. Only a person decides, in the terminal
   (`strom surname accept|reject|group`); an agent only suggests. The forms of one family widen the search of records
   and of people who may be one. `strom person compare` says of two people whether they are one, two or unsure, and why
   (merged already, a different sex, years far apart, a life that ended before the other began, other parents, one
@@ -82,6 +87,18 @@ The changes of each version in short. The full notes and the install lines are o
   who may be one of the family around the entry is suggested by their number, never linked by itself. Names written
   so before are found by `strom check` and set apart by `strom fixes show|run participant-names` — free, by rules,
   in an archive too, all in one step, put back with `strom fixes undo participant-names`; only a person decides.
+  A Strom app before 3.17 sends a period back as a range (from–to as between–and) and an age without its zero units
+  (0y 2m 26d as 2m 26d); a sync took that for the user's edit — a disagreement, or a residence added as a lead beside
+  the same one. Now an unedited tree comes back with no change; from an app that keeps them (3.17), a period made a
+  range is the user's edit again, and an age of nothing (0y 0m 0d) is the same as 0y. What earlier syncs wrote so is found by `strom fixes
+  show app-shapes` and set right by `strom fixes run app-shapes` — free, by rules, in an archive too, all in one
+  step, put back with `strom fixes undo app-shapes`; only a person decides.
+  A street is no place: a place written with a street or a house number ("Lhota, Lhotak Street 12") is refused on
+  writing with the municipality to write and the street and number for `--house`, in any language and script; the
+  history of places goes by the municipality, so places that differ only by their street are one. What was written
+  so before is found by `strom check` and set right by `strom fixes show|run street-places` (the street to the house
+  where it is empty or names the same) — free, in an archive too, all in one step, put back with `strom fixes undo
+  street-places`; only a person decides.
 
 ## 1.21.0
 

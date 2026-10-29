@@ -34,6 +34,7 @@ function said(f: Finding, lang: string | undefined): string {
   if (lang && f.code === SHARED_MISSING) return ui(lang, "ui.check.sharedmissing", { n: f.count ?? 1, first: f.id ?? "" });
   if (lang && f.code === "after-death" && f.params) return ui(lang, f.params.kind === "weddingAfterDeath" ? "ui.check.afterdeath.wedding" : "ui.check.afterdeath", f.params);
   if (lang && f.code === "participant-long-name") return ui(lang, "ui.check.participantnames", { n: f.count ?? 1 });
+  if (lang && f.code === "street-place") return ui(lang, "ui.check.streetplaces", { n: f.count ?? 1 });
   return f.message;
 }
 

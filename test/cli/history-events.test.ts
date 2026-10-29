@@ -79,19 +79,21 @@ async function regions(w: World): Promise<void> {
   await w.ok(["history", "map", "Lhota", "--region", "cz-bohemia:1800-1918", "--region", "cz-czsk:1918-", ...NAMES("Československo", "Czechoslovakia", "Tschechoslowakei")]);
 }
 
-test("history: the experiment is the person's alone; a tree may only turn it off; off, nothing is written", opts, async () => {
+test("history: the experiment is the person's alone, for every research or for one (the tree's own both ways); off, nothing is written", opts, async () => {
   const w = new World();
   await w.withTree("Lhotákovi");
   try {
     const agent = await w.run(["config", "set", "experiments.history", "on"], { env: AGENT });
     assert.equal(agent.code, 4, agent.err);
-    const tree = await w.run(["config", "set", "experiments.history", "on", "--for-tree"], { tty: true, answers: ["a"] });
-    assert.notEqual(tree.code, 0);
-    assert.match(tree.err, /a tree may only turn it off/);
+    const agentTree = await w.run(["config", "set", "experiments.history", "on", "--for-tree"], { env: AGENT });
+    assert.equal(agentTree.code, 4, agentTree.err);
+    await w.ok(["config", "set", "experiments.history", "on", "--for-tree"], { tty: true, answers: ["a"] });
+    assert.equal((await answer(w)).state.on, true, "the tree's own on");
+    await w.ok(["config", "unset", "experiments.history", "--for-tree"]);
     assert.equal((await answer(w)).state.on, false);
     const off = await w.run(["history", "add", "--region", "cz-bohemia", "--from", "1866", "--kind", "epidemic", ...TEXTS("a", "b", "c"), "--url", "https://example.org/", "--quote", "1866"], { env: AGENT });
     assert.notEqual(off.code, 0);
-    assert.match(off.err, /history of the places is off/);
+    assert.match(off.err, /history of the regions and of the places is off/);
     await w.ok(["config", "set", "experiments.history", "on"], { tty: true, answers: ["a"] });
     assert.equal((await answer(w)).state.on, true);
     await w.ok(["config", "set", "experiments.history", "off", "--for-tree"]);

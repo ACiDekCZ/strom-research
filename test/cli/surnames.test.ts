@@ -393,3 +393,33 @@ test("a man's forms are no woman's two families: his wife bears his name, his tw
   assert.deepEqual(a.suggestions.map((s: any) => [s.id, s.level]), [["lhota|lhotaa", "documented"]]);
   w.cleanup();
 });
+
+test("a mark of a reading is no form: Lhoták[?], Lhot[…]ák, Лхотак[!] are Lhoták and Лхотак — never suggested, by the person's records nor by rules; a real variant still is", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  await w.ok(["source", "add", "Křest Jana Lhotáka 1850", "--kind", "baptism"]); // S1
+  await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M"]); // P1
+  await w.ok(["name", "add", "P1", "Jan /Lhoták/", "--cite", "S1"]);
+  await w.ok(["name", "add", "P1", "Jan /Lhoták[?]/", "--cite", "S1"]);
+  await w.ok(["name", "add", "P1", "Jan /Lhot[…]ák/".normalize("NFD"), "--cite", "S1"]);
+  await w.ok(["name", "add", "P1", "Jan /Lhoták [...]/", "--cite", "S1"]);
+  await w.ok(["person", "add", "Иван /Лхотак/", "--sex", "M"]); // P2
+  await w.ok(["name", "add", "P2", "Иван /Лхотак/", "--cite", "S1"]);
+  await w.ok(["name", "add", "P2", "Иван /Лхотак[!]/", "--cite", "S1"]);
+  // by rules: one sound at one place in the same years
+  for (const [name, year] of [["Petr /Lhotec[?]/", "1860"], ["Pavel /Lhotec/", "1862"]]) {
+    const id = (await w.ok(["person", "add", name!, "--sex", "M", "--json"])).json.person.id;
+    await w.ok(["event", "add", id, "BIRT", "--date", year!, "--place", "Lhota", "--cite", "S1"]);
+  }
+  let a = await suggestions(w);
+  assert.deepEqual(a.suggestions, [], JSON.stringify(a.suggestions));
+  // a real variant beside the marks: suggested, its forms without a mark
+  await w.ok(["name", "add", "P1", "Jan /Lhotak/", "--cite", "S1"]);
+  a = await suggestions(w);
+  assert.deepEqual(a.suggestions.map((s: any) => [s.id, s.forms]), [["lhotak", ["Lhotak", "Lhoták"]]], JSON.stringify(a.suggestions));
+  const forms: string[] = a.suggestions.flatMap((s: any) => [...s.forms, ...s.evidence.map((e: any) => e.form)]);
+  assert.ok(forms.length && !forms.some((f) => f.includes("[")), "no form holds a mark");
+  // the bridge's GET /surnames answers the same (suggestSurnames)
+  assert.deepEqual(suggestSurnames(Tree.open(w.cwd, w.env)).suggestions.map((s) => s.forms), [["Lhotak", "Lhoták"]]);
+  w.cleanup();
+});

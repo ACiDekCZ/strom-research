@@ -141,9 +141,9 @@ test("the menu: the history of the places in the settings of working alone — h
   const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
   // 8 settings · 2 working alone · 4 history: 2 rare · 0 back · 0 back · 0 quit
   const r = await w.ok([], { tty: true, answers: ["8", "2", "4", "2", "0", "0", "0"] });
-  assert.match(r.out, / 4 {2}Dějiny míst: vypnuto\n/u);
+  assert.match(r.out, / 4 {2}Dějiny: vypnuto\n/u);
   assert.match(r.out, /Hledat i události dějin v místech předků[^\n]*Jak často:\n {3}1 {2}občas – zhruba každé 5\. sezení \(výchozí\)\n {3}2 {2}zřídka – zhruba každé 10\. sezení\n {3}3 {2}jen když rodinný výzkum nemá co dělat\n {3}4 {2}vypnuto – dějiny se nehledají\n {3}0 {2}Zpět\n/u);
-  assert.match(r.out, / 4 {2}Dějiny míst: zřídka – zhruba každé 10\. sezení\n/u);
+  assert.match(r.out, / 4 {2}Dějiny: zřídka – zhruba každé 10\. sezení\n/u);
   assert.equal(config().experimentsHistory, "on");
   assert.equal(config().experimentsHistoryPace, "rare");
   // 0: nothing changes; then off — the pace kept for next time
@@ -206,7 +206,7 @@ test("the menu after an update: the history of the places never asked about is a
   const r = await w.ok([], { tty: true, answers: ["", "0"] });
   assert.match(r.out, /Novinka této verze: události dějin v místech předků/u);
   assert.match(r.out, /Hledat i události dějin v místech předků[^\n]*Jak často:\n {3}1 {2}občas – zhruba každé 5\. sezení\n {3}2 {2}zřídka – zhruba každé 10\. sezení\n {3}3 {2}jen když rodinný výzkum nemá co dělat\n {3}4 {2}teď ne – nic se nezapne\nVybrat \[4\]/u);
-  assert.match(r.out, /Dějiny se nehledají\. Později: Nastavení → Samostatná práce agenta → Dějiny míst, nebo z aplikace Strom\./u);
+  assert.match(r.out, /Dějiny se nehledají\. Později: Nastavení → Samostatná práce agenta → Dějiny, nebo z aplikace Strom\./u);
   const offer = r.out.slice(r.out.indexOf("Novinka"), r.out.indexOf("Vybrat [4]"));
   assert.doesNotMatch(offer, /(^|[^\p{L}])(vy|váš|vás|ty|tvůj|si|experiment|pokus)([^\p{L}]|$)/iu, "impersonal");
   assert.equal(config().experimentsHistory, undefined, "nothing turned on");
@@ -220,7 +220,7 @@ test("the menu after an update: the history of the places never asked about is a
   assert.equal(config().experimentsHistory, "on");
   assert.equal(config().experimentsHistoryPace, "rare");
   // said as "not now" is: what turned on, and where it changes
-  assert.match(yes.out, /Dějiny se hledají: zřídka – zhruba každé 10\. sezení\. Jak často, jde změnit: Nastavení → Samostatná práce agenta → Dějiny míst, nebo z aplikace Strom\./u);
+  assert.match(yes.out, /Dějiny se hledají: zřídka – zhruba každé 10\. sezení\. Jak často, jde změnit: Nastavení → Samostatná práce agenta → Dějiny, nebo z aplikace Strom\./u);
   assert.doesNotMatch(yes.out, /Dějiny se nehledají/u);
   // never for an agent, without a terminal, --yes or STROM_NONINTERACTIVE: nothing asked, nothing kept
   never();

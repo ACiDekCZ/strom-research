@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.22.0
 
-*In Vorbereitung: die Betas bis 1.22.0-beta.9. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.22.0-beta.10. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Jeder Name einmal in dem, was wartet.** Eine Aufgabe zu Material, das aus der Strom-App gesendet wurde, nannte im
   Widget und auf der Seite des Telefons jede Person zweimal (das zweite Mal in eckigen Klammern), und ihr Text ohne
@@ -39,8 +39,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   die strom selbst geladen und geprüft hat, örtliche Ereignisse aus gelesenen Einträgen – zeigt die Strom-App. Die
   Ersteinrichtung schlägt es eingeschaltet vor; eine früher eingerichtete Installation fragt einmal, im ersten Menü
   nach dem Update (Enter: jetzt nicht), und nichts schaltet sich von selbst ein. Einschalten kann es nur ein Mensch –
-  dann oder später im Menü Einstellungen → Der Agent allein → Geschichte der Orte, aus der Strom-App oder mit
-  `strom config set experiments.history on`; solange es aus ist, wird nichts gesucht. Eingeschaltet, werden die Orte in der nächsten Sitzung zugeordnet und die Regionen ab und zu zwischen den
+  dann oder später im Menü Einstellungen → Der Agent allein → Geschichte, aus der Strom-App oder mit
+  `strom config set experiments.history on`; solange es aus ist, wird nichts gesucht. Die Geschichte der Regionen
+  und die der Orte sind zwei Schalter, jeder auch nur für eine Forschung (Einstellungen → Der Agent allein, `strom
+  config set experiments.history|experiments.placeHistory on|off --for-tree`, oder aus der Strom-App ausgeschaltet) –
+  die Wahl einer Forschung gilt in beide Richtungen; mit ausgeschalteten Orten wird auch ein erfragter Ort nicht
+  gesucht. Was eingeschaltet war, bleibt es für beide, was aus war, für beide aus. Eingeschaltet, werden die Orte in der nächsten Sitzung zugeordnet und die Regionen ab und zu zwischen den
   Sitzungen der Familienforschung durchsucht: etwa jede 5. Sitzung (Standard), jede 10. oder nur, wenn nichts anderes
   ansteht (`strom config set experiments.historyPace`, die Ersteinrichtung, die Einstellungen); wann, sagt `strom plan`,
   und auf das Wort eines Menschen können alle zuerst laufen (`strom run --history`, im Menü „Geschichte jetzt suchen“).
@@ -57,7 +61,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   und `strom plan` zeigen die Jahre jeder Region und was wartet.
   Was gezeigt wird, verwaltet der Mensch in der Strom-App oder mit `strom history`: ein Ereignis ausgeblendet, oder
   gelöscht – aus jeder Forschung auf diesem Computer, nie wieder eingetragen – und wiederhergestellt; eine Region oder
-  ein Ort übersprungen; die Regionen eines Orts von Hand zugeordnet.
+  ein Ort übersprungen; die Regionen eines Orts von Hand zugeordnet. `strom history list [--place L…] [--region <id>]`
+  listet die Ereignisse im Terminal: die Jahre, die Art, den Text in der Sprache der Forschung, die Quelle, was
+  verborgen oder gelöscht ist.
   Die Geschichte eines einzelnen Ortes und seiner Umgebung – Brände, Hochwasser, Schlachten in der Nähe, die
   Herrschaft, die Pfarrei, die Schule – wird auf das Wort eines Menschen gesucht (aus der Personenkarte der
   Strom-App), zuerst in der nächsten Sitzung, und bleibt für jede Forschung auf diesem Computer mit diesem Ort. Jeder
@@ -72,7 +78,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Die Formen eines Familiennamens.** `strom surname suggest` schlägt vor, welche geschriebenen Formen eines
   Familiennamens zu einer Familie gehören: dieselbe Person in den Einträgen verschieden geschrieben (mit den Belegen),
   oder derselbe Laut anders geschrieben am selben Ort in denselben Jahren – nie die Familien von Ehemann und Vater
-  einer Frau. Entscheiden kann nur ein Mensch, im Terminal (`strom surname accept|reject|group`); ein Agent schlägt
+  einer Frau; eine Lesemarke nach einem Namen (`[?]`, `[!]`, `[…]`) ist keine eigene Form. Entscheiden kann nur ein
+  Mensch, im Terminal (`strom surname accept|reject|group`); ein Agent schlägt
   nur vor. Die Formen einer Familie erweitern die Suche nach Einträgen und nach Personen, die eine sein können.
   `strom person compare` sagt von zwei Personen, ob sie eine sind, zwei oder unsicher, und warum (schon
   zusammengeführt, ein anderes Geschlecht, Jahre weit auseinander, ein Leben, das endete, bevor das andere begann,
@@ -88,6 +95,20 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   wird mit seiner Nummer vorgeschlagen, nie von selbst verknüpft. So früher geschriebene Namen findet `strom check`,
   und `strom fixes show|run participant-names` trennt sie – kostenlos, nach Regeln, auch in einem Archiv, alles in
   einem Schritt, zurück mit `strom fixes undo participant-names`; entscheiden kann nur ein Mensch.
+  Eine Strom-App vor 3.17 gibt einen Zeitraum als Spanne zurück (von–bis als zwischen–und) und ein Alter ohne
+  Einheiten von null (0y 2m 26d als 2m 26d); eine Synchronisation nahm das als Änderung – ein Widerspruch oder ein
+  Wohnort als Hinweis neben demselben. Nun kommt ein unveränderter Baum ohne Änderung zurück; von einer App, die sie
+  behält (3.17), ist eine Spanne statt eines Zeitraums wieder eine Änderung, und ein Alter aus lauter Nullen
+  (0y 0m 0d) ist dasselbe wie 0y. Was frühere
+  Synchronisationen so schrieben, findet `strom fixes show app-shapes` und korrigiert `strom fixes run app-shapes` –
+  kostenlos, nach Regeln, auch in einem Archiv, alles in einem Schritt, zurück mit `strom fixes undo app-shapes`;
+  entscheiden kann nur ein Mensch.
+  Eine Straße ist kein Ort: ein Ort mit Straße oder Nummer („Lhota, Lhotákweg 12“) wird beim Schreiben
+  abgelehnt, mit der Gemeinde zum Schreiben und Straße und Nummer für `--house`, in jeder Sprache und jedem Alphabet; die
+  Geschichte der Orte richtet sich nach der Gemeinde, Orte, die sich nur in der Straße unterscheiden, sind einer. Was
+  früher so geschrieben wurde, findet `strom check` und korrigiert `strom fixes show|run street-places` (die Straße
+  zum Haus, wo es leer ist oder dieselbe nennt) – kostenlos, auch in einem Archiv, alles in einem Schritt, zurück mit
+  `strom fixes undo street-places`; entscheiden kann nur ein Mensch.
 
 ## 1.21.0
 

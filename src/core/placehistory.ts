@@ -22,7 +22,7 @@ import { actsAsArchive } from "./state.ts";
 import { phrase } from "./phrases.ts";
 import { UsageError } from "./errors.ts";
 import { create, update } from "./records.ts";
-import { factPlaces, factWritten } from "../gedcom/export.ts";
+import { factWritten } from "../gedcom/export.ts";
 import { dateYears } from "./gdate.ts";
 import { lineValue } from "../gedcom/lines.ts";
 import {
@@ -31,12 +31,13 @@ import {
   deletedByPerson,
   FIRST_FILE,
   heldElsewhere,
-  historyOn,
+  placesOn,
   historyRoot,
   inRegion,
   nfc,
   PLACE_KEY,
   placeRecordOf,
+  historyPlaces,
   readCatalog,
   readFirst,
   readPlaces,
@@ -212,10 +213,12 @@ export interface AtPlace {
 /** The tree's facts by their place record (a place the person skipped left out: no history through it). */
 export function factsByRecord(tree: Tree): Map<string, AtPlace> {
   const recordOf = placeRecordOf(tree.list<Place>("place"));
-  const skipped = new Set(readSkips(tree).places.map((x) => foldText(x.place)));
+  const h = historyPlaces(tree);
+  const skipped = new Set(readSkips(tree).places.map((x) => foldText(h.keyOf(x.place))));
   const out = new Map<string, AtPlace>();
   const at = (raw: string | undefined) => {
-    const key = raw ? lineValue(raw) : "";
+    // a place with a street or a house number: its municipality's
+    const key = raw ? h.keyOf(raw) : "";
     if (!key || skipped.has(foldText(key))) return undefined;
     const id = recordOf(key);
     if (!id) return undefined;
@@ -251,11 +254,12 @@ export function yearsAt(a: AtPlace | undefined): { from: number; to: number } | 
 
 /** Is a place skipped by the person in this tree (any of its names)? */
 function placeSkipped(tree: Tree, p: Place): boolean {
-  const skipped = new Set(readSkips(tree).places.map((x) => foldText(x.place)));
+  const h = historyPlaces(tree);
+  const skipped = new Set(readSkips(tree).places.map((x) => foldText(h.keyOf(x.place))));
   if (!skipped.size) return false;
   const names = new Set(p.names.map((n) => foldText(n.name)));
   const recordOf = placeRecordOf(tree.list<Place>("place"));
-  for (const [k] of factPlaces(tree)) if (skipped.has(foldText(k)) && (names.has(foldText(k)) || recordOf(k) === p.id)) return true;
+  for (const [k] of h.facts) if (skipped.has(foldText(k)) && (names.has(foldText(k)) || recordOf(k) === p.id)) return true;
   return false;
 }
 
@@ -299,6 +303,19 @@ export function placeTask(tree: Tree, id: string, tasks = tree.list<Task>("task"
 }
 
 /**
+ * What refuses a place's history asked for whoever asks (the history of the places off, an archive): strom history place
+ * says it before the person is asked, never after their yes.
+ */
+export function refusePlaceAsk(tree: Tree, settings: Settings = new Settings(tree.env, {})): void {
+  if (!placesOn(tree, settings))
+    throw new UsageError("the history of the places is off for this research — nothing is looked for, not even when asked", {
+      code: "history.off",
+      hint: "the user, in their terminal: strom config set experiments.placeHistory on --for-tree (this research) or strom config set experiments.placeHistory on (every research)",
+    });
+  if (actsAsArchive(tree)) throw new UsageError("an archive looks for nothing", { code: "history.archive" });
+}
+
+/**
  * The person asks for the history of a place and its surroundings (strom history place L…, the app's link
  * history&do=search after the person's yes in the terminal): its task made or kept, at the top of the queue — the next
  * session of strom run whatever the pace; a place looked for already is looked for again (its events stay). Only while
@@ -306,8 +323,7 @@ export function placeTask(tree: Tree, id: string, tasks = tree.list<Task>("task"
  * tree's lock (the tree's first, then the catalogs').
  */
 export function askPlace(tree: Tree, shared: string | undefined, id: string, settings: Settings = new Settings(tree.env, {})): { task: string; key: string; again: boolean; made: boolean } {
-  if (!historyOn(tree, settings)) throw new UsageError("the history of the places is off: only the person turns it on (strom config set experiments.history on)", { code: "history.off" });
-  if (actsAsArchive(tree)) throw new UsageError("an archive looks for nothing", { code: "history.archive" });
+  refusePlaceAsk(tree, settings);
   if (!shared) throw new UsageError("no shared folder is set — the catalogs of the places live there", { code: "history.shared", hint: "strom setup" });
   const p = requirePlace(tree, id);
   if (placeSkipped(tree, p))
@@ -647,7 +663,7 @@ export interface PlaceHistory {
 
 /** What the app is told of the places' history: each record's state, read once. */
 export function placeHistories(tree: Tree, shared: string | undefined, settings: Settings): (id: string) => PlaceHistory | undefined {
-  const on = historyOn(tree, settings);
+  const on = placesOn(tree, settings);
   const archive = actsAsArchive(tree);
   const tasks = tree.list<Task>("task");
   const asks = new Set(readPlaceAsks(tree).map((x) => x.place));
@@ -692,7 +708,7 @@ export function placeHistories(tree: Tree, shared: string | undefined, settings:
  * an archive.
  */
 export function suggestPlaces(tree: Tree, shared: string | undefined, settings: Settings): string[] {
-  if (!historyOn(tree, settings) || actsAsArchive(tree)) return [];
+  if (!placesOn(tree, settings) || actsAsArchive(tree)) return [];
   const at = factsByRecord(tree);
   const states = placeHistories(tree, shared, settings);
   return [...at]

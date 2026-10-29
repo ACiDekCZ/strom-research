@@ -1,5 +1,6 @@
 // research new · list · show — named goals inside a tree.
 
+import { checkStreetPlace } from "../core/streets.ts";
 import { register, type CommandDef } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, table } from "../cli/format.ts";
@@ -83,6 +84,7 @@ register(
       if (!opts.person === !opts["new-person"]) throw new UsageError("give exactly one of --person <who> or --new-person <name>");
       let focus: Person;
       if (opts["new-person"]) {
+        checkStreetPlace(tree, opts["born-place"] as string | undefined, undefined, "--born-place");
         focus = addPerson(tree, {
           name: opts["new-person"] as string,
           sex: opts.sex as string | undefined,
