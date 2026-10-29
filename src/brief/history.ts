@@ -239,6 +239,9 @@ function placeSections(tree: Tree, id: string, shared: string | undefined, alone
   const events = c?.events ?? [];
   const live = events.filter((e) => !e.retracted);
   const theirs = regionEventsAt(tree, shared, p.id, at);
+  // its regions not looked through yet (K7.1a): what touched the whole region is theirs, written when they are
+  const maps = readPlaces(tree);
+  const waiting = [...new Set((at?.keys ?? []).flatMap((k) => maps[k]?.regions ?? []).map((g) => g.id))].filter((g) => !shared || !readCatalog(shared, g)?.done);
   const out: Section[] = [];
   out.push({
     name: "history",
@@ -276,6 +279,9 @@ function placeSections(tree: Tree, id: string, shared: string | undefined, alone
         : ["  none yet"]),
       theirs.length ? `The regions' events at this place in its years (${theirs.length}) — the Strom app shows them here already, never written for the place (refused):` : "No region's event at this place yet.",
       ...theirs.slice(0, EVENTS_SHOWN).map(({ event: e, region }) => `  ${e.id} ${years(e.from, e.to)} ${e.kind} (${region.region.id}) "${short(e.text[lang] ?? e.text.en ?? Object.values(e.text)[0] ?? "")}"`),
+      waiting.length
+        ? `Regions of this place not looked through yet (${waiting.join(", ")}): what touched the whole region (a war of the land, its epidemic, a reform of the state) is theirs, written when they are — here only what happened at the place or near enough to touch its people`
+        : "",
       c?.tried.length ? `Pages strom could not read (never tried again): ${c.tried.slice(-20).map((t) => `${t.url} (${short(t.why, 40)})`).join(" · ")}` : "",
     ].filter(Boolean).join("\n"),
   });

@@ -117,7 +117,7 @@ test("strom's own changelogs: this version's points in each language", () => {
   for (const lang of ["en", "cs", "de"]) {
     const got = whatsNew(VERSION, lang, "stable");
     assert.equal(got.lang, lang);
-    assert.ok(got.points.length >= 3 && got.points.length <= 8, `${lang}: ${got.points.length}`);
+    assert.ok(got.points.length >= (VERSION.split("-")[0]!.endsWith(".0") ? 3 : 1) && got.points.length <= 8, `${lang}: ${got.points.length}`);
     for (const p of got.points) assert.doesNotMatch(p, /^- |^\*[^*]|\n/, `${lang}: ${p}`);
   }
 });

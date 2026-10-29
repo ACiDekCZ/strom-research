@@ -50,6 +50,26 @@ test("validator: catches structure, tags in the wrong place, bad dates, dangling
   assert.ok(validateGedcom("0 HEAD\n1 CHAR UTF-8\n0 @I1@ INDI\n1 BIRT\n2 _WITN Marie\n0 TRLR", { strict: true }).some((f) => f.level === "error"));
 });
 
+test("validator: every tag of the Strom profile is known where the Strom export writes it — no warning; the standard file refuses them", () => {
+  const strom = [
+    "0 HEAD", "1 SOUR X", "1 SUBM @U1@", "1 CHAR UTF-8", "1 GEDC", "2 VERS 5.5.1", "1 _STROM_MODE archive",
+    "0 @I1@ INDI", "1 NAME Jana /Lhotová/", "2 TYPE birth", "1 NAME Jana /Brkoslavová/", "2 TYPE married", "2 _STROM_PRIMARY Y",
+    "1 BIRT", "2 DATE 1931", "2 _STROM_STATUS probable", "1 FAMS @F1@",
+    "0 @F1@ FAM", "1 WIFE @I1@", "1 _STAT Partners", "1 MARR", "2 _STROM_STATUS lead",
+    "0 @F2@ FAM", "1 CHIL @I1@", "1 _STROM_NO_COUPLE Y",
+    "0 @S1@ SOUR", "1 TITL Křest Jany 1931", "1 _STROM_READ both", "1 _STROM_VERIFIED Y", "1 _STROM_READING D0001", "2 _STROM_ENTRY e1",
+    "1 OBJE", "2 FILE x.jpg", "2 _STROM_KIND excerpt", "2 _STROM_CLIP c1", "2 _STROM_SHA 0123abcd", "2 _STROM_ORIENT 6",
+    "1 _STROM_IMG_OMITTED limit", "2 _STROM_CLIP c2",
+    "0 @U1@ SUBM", "1 NAME X", "0 TRLR", "",
+  ].join("\n");
+  assert.deepEqual(validateGedcom(strom), []);
+  const strict = validateGedcom(strom, { strict: true }).filter((f) => f.level === "error").map((f) => f.message);
+  for (const tag of ["_STROM_MODE", "_STROM_PRIMARY", "_STROM_STATUS", "_STAT", "_STROM_NO_COUPLE", "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_ENTRY", "_STROM_SHA", "_STROM_ORIENT", "_STROM_IMG_OMITTED"])
+    assert.ok(strict.includes(`non-standard tag ${tag}`), `${tag}: ${strict.join("|")}`);
+  // in the wrong place a tag of ours is still said
+  assert.ok(validateGedcom(strom.replace("1 _STROM_NO_COUPLE Y", "1 _STROM_PRIMARY Y")).some((f) => f.message === "_STROM_PRIMARY is not expected under FAM"));
+});
+
 async function richTree(): Promise<World> {
   const w = new World();
   await w.withTree();
@@ -404,15 +424,16 @@ test("N11: a NAME line without slashes, with a GIVN and no SURN, keeps its surna
   w.cleanup();
 });
 
-test("the forms of a surname (header notes) only for an app that reads them: off for production until the gate is set and for an unknown version; its beta and development from 3.17.0-beta.7", opts, async () => {
+test("the forms of a surname (header notes) only for an app that reads them: production from 3.17.0, never an unknown version; its beta and development from 3.17.0-beta.7", opts, async () => {
   const w = new World();
   const m = await import("../../src/core/stromapp.ts");
   const { Settings } = await import("../../src/core/config.ts");
   const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ ...w.env, STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
   // set from the production app's version that reads them (strom:je-venku-brany), never a beta's
-  assert.equal(m.APP_READS_SURNAME_GROUPS, undefined);
-  for (const v of [undefined, "3.14.0", "3.17.0", "9.0.0"]) assert.equal(m.appReadsSurnameGroups(prod, v), false, String(v));
+  assert.equal(m.APP_READS_SURNAME_GROUPS, "3.17.0");
+  for (const v of [undefined, "3.14.0", "3.16.9", "3.17.0-beta.9"]) assert.equal(m.appReadsSurnameGroups(prod, v), false, String(v));
+  for (const v of ["3.17.0", "3.17.1", "9.0.0"]) assert.equal(m.appReadsSurnameGroups(prod, v), true, v);
   assert.equal(m.appReadsSurnameGroups(beta), false, "an unknown version: off, also the beta");
   assert.equal(m.appReadsSurnameGroups(beta, "3.17.0-beta.6"), false);
   for (const v of ["3.17.0-beta.7", "3.17.0", "3.18.0-beta.1"]) assert.equal(m.appReadsSurnameGroups(beta, v), true, v);

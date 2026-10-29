@@ -187,6 +187,47 @@ test("history place: its events from a page strom read, never a region's again; 
   }
 });
 
+test("history place before its region (K7.1a): asked while the region waits, its brief says so; the region looked for after never writes the place's event again unless --distinct", opts, async () => {
+  const srv = await pages();
+  const w = await world();
+  try {
+    await w.ok(["history", "region", "cz-bohemia", ...NAMES("Čechy", "Bohemia", "Böhmen")]);
+    await w.ok(["history", "map", "Lhota", "--region", "cz-bohemia:1800-"]);
+    await w.ok(["history", "map", "Nová Lhota", "--region", "cz-bohemia:1800-"]);
+    assert.equal((await answer(w)).places.Lhota.state, "pending", "the region waits: said as it is");
+    const asked = await w.run(["history", "place", "L0001", "--json"], { tty: true, answers: ["a"] });
+    assert.equal(asked.code, 0, asked.err);
+    const task = JSON.parse(asked.out.slice(asked.out.indexOf("{"))).task;
+    const brief = (await w.ok(["brief", task])).out;
+    assert.match(brief, /No region's event at this place yet\./u);
+    assert.match(brief, /Regions of this place not looked through yet \(cz-bohemia\)/u);
+
+    const add = (where: string[], from: string, kind: string, quote: string, more: string[] = []) =>
+      w.run(["history", "add", ...where, "--from", from, "--kind", kind, ...TEXTS("Cholera ve Lhotě", "Cholera at Lhota", "Cholera in Lhota"), "--url", `${srv.base}/kronika`, "--quote", quote, ...more], { env: AGENT });
+    const cholera = "V roce 1866 zasáhla Lhotu epidemie cholery – zemřelo 42 obyvatel.";
+    const own = await add(["--place", "L0001"], "1866", "epidemic", cholera);
+    assert.equal(own.code, 0, own.err);
+    // the region after the place: the place's event of the same kind and years is refused, before any request
+    const same = await add(["--region", "cz-bohemia"], "1866", "epidemic", cholera);
+    assert.notEqual(same.code, 0);
+    assert.match(same.err, new RegExp(`an event of a place of cz-bohemia of the same kind and years is there already: ${KEY}-0001 \\(L0001\\)`, "u"), same.err);
+    assert.match(same.err, /--distinct/u);
+    assert.equal(readJsonFile(path.join(w.home, "shared", "history", "regions", "cz-bohemia.json")).events.length, 0, "nothing written");
+    // another kind of those years: written
+    assert.equal((await add(["--region", "cz-bohemia"], "1868", "disaster", "Roku 1868 vyhořela ve Lhotě škola i fara.")).code, 0);
+    // the whole region's, said why: written; at the place its own shows, the region's at the region's other places
+    const whole = await add(["--region", "cz-bohemia"], "1866", "epidemic", cholera, ["--distinct", "the epidemic of the whole land"]);
+    assert.equal(whole.code, 0, whole.err);
+    const a = await answer(w);
+    assert.deepEqual(a.places.Lhota.events.sort(), ["cz-bohemia-0001", `${KEY}-0001`]);
+    assert.deepEqual(a.places["Nová Lhota"].events.sort(), ["cz-bohemia-0001", "cz-bohemia-0002"]);
+    assert.equal((await w.run(["check"])).code, 0);
+  } finally {
+    srv.close();
+    w.cleanup();
+  }
+});
+
 test("history place: hidden and deleted like a region's; a place without coordinates is this tree's alone", opts, async () => {
   const srv = await pages();
   const w = await world();

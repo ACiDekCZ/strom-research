@@ -5,9 +5,33 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.23.0
+
+*In Vorbereitung: die Betas bis 1.23.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Eine Person unter dem gewählten Namen.** Eine Frau, unter einem Namen geboren, unter einem anderen verheiratet und
+  nach einer Scheidung wieder beim ersten, lässt sich wieder unter diesem Namen zeigen, ohne dass er ein zweites Mal
+  hinzukommt: `strom name primary <Person> "<Name>"` (und `--clear`) oder `strom name add --primary`. Die Wahl trifft
+  allein der Nutzer, nie wird sie aus einem Eintrag gelesen; Korrekturen, Zitate und der Abgleich mit der Strom-App
+  richten sich weiter nach dem Geburtsnamen. Die Strom-Datei markiert den gewählten Namen, die Standard-GEDCOM-Datei
+  setzt ihn an die erste Stelle.
+- **Die Datei für die Strom-App ohne Warnungen.** Der Export für die Strom-App warnte bei jeder Person mit gewähltem
+  Namen und bei mehreren Kennzeichen von Quellen vor einem nicht standardisierten Tag; die Prüfung kennt jetzt alle
+  eigenen Tags von Strom.
+
+## 1.22.1
+
+*29.10.2026 · gehört zur Strom-App 3.17.0.*
+
+- **Ein Ereignis eines Ortes wird bei seiner Region nicht noch einmal geschrieben.** Wurde die Geschichte eines Ortes
+  vor den Regionen gesucht, zu denen er gehört, konnte die Geschichte der Region dasselbe Ereignis noch einmal
+  hinzufügen (dieselbe Art, dieselben Jahre). Die Region lässt jetzt aus, was einer ihrer Orte schon hat; ein
+  Ereignis, das die ganze Region betraf, wird weiter geschrieben. Was der Agent zu einem Ort liest, sagt auch, welche
+  seiner Regionen noch nicht durchgesehen sind.
+
 ## 1.22.0
 
-*In Vorbereitung: die Betas bis 1.22.0-beta.10. Der Abschnitt ist mit dem Release vollständig.*
+*29.10.2026 · gehört zur Strom-App 3.17.0.*
 
 - **Jeder Name einmal in dem, was wartet.** Eine Aufgabe zu Material, das aus der Strom-App gesendet wurde, nannte im
   Widget und auf der Seite des Telefons jede Person zweimal (das zweite Mal in eckigen Klammern), und ihr Text ohne

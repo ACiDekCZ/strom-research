@@ -170,7 +170,7 @@ function personBlock(tree: Tree, p: Person, depth: number, short = false): strin
   const out = [`  ${label(p)} ${p.sex}`];
   // other names, and where any name comes from
   if (p.names.length > 1 || p.names.some((n) => n.citations?.length))
-    out.push(`    names: ${p.names.map((n) => `${formatName(n)}${n.kind ? ` (${n.kind})` : ""}${n.citations?.length ? ` ← ${citesOf(n.citations)}` : ""}`).join("; ")}`);
+    out.push(`    names: ${p.names.map((n) => `${formatName(n)}${n.kind ? ` (${n.kind})` : ""}${n.primary ? " (shown by it)" : ""}${n.citations?.length ? ` ← ${citesOf(n.citations)}` : ""}`).join("; ")}`);
   for (const e of p.events.filter((x) => !x.retracted)) out.push(eventLine(e));
   const parents = parentsOf(tree, p.id);
   const birthFamily = familiesAsChild(tree, p.id)[0];

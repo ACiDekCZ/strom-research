@@ -46,7 +46,7 @@ test("GET /whats-new: this version's points in the language asked for, else Engl
       assert.equal(got.version, VERSION);
       assert.equal(got.lang, lang, asked);
       assert.equal(got.url, whatsNewUrl(VERSION, "beta", lang), "beta: the branch beta");
-      assert.ok(got.points.length >= 3, `${asked}: ${got.points.length} points`);
+      assert.ok(got.points.length >= (VERSION.split("-")[0]!.endsWith(".0") ? 3 : 1), `${asked}: ${got.points.length} points`);
       assert.deepEqual(got.points, whatsNew(VERSION, lang, "beta").points);
     }
     // no ?lang: English

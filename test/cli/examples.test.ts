@@ -111,6 +111,7 @@ async function seeded(): Promise<World> {
   await w.ok(["name", "add", "P0002", "Josef /Nowak/", "--kind", "alias"]);
   await w.ok(["name", "add", "P0002", "Josef /Nowack/", "--kind", "alias"]);
   await w.ok(["name", "retract", "P0002", "Josef /Nowack/", "--reason", "přepis"]);
+  await w.ok(["name", "primary", "P0002", "Josef /Novák/"]); // shown by a chosen name: name primary --clear has a mark to take off
   await w.ok(["note", "add", "P0003", "Žila v čp. 37"]);
   await w.ok(["note", "add", "P0003", "Kmotra z Lhoty"]);
   await w.ok(["note", "retract", "P0003", "2", "--reason", "jmenovkyně"]);

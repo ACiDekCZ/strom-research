@@ -62,8 +62,9 @@ function checkChangelogs(texts: string[], where: string): void {
     assert.deepEqual([...r.s.keys()], [...en.s.keys()], `${where} ${r.file}: the versions of CHANGELOG.md`);
     for (const [version, points] of r.s) {
       assert.match(version, /^\d+\.\d+\.\d+$/, `${where} ${r.file}: "## ${version}" — a released version, its anchor stable`);
-      // the version being prepared (newer than the sources') grows with its betas: 3–8 points by its release
-      assert.ok(points.length >= (newer(version) ? 1 : 3) && points.length <= 8, `${where} ${r.file} ${version}: ${points.length} points`);
+      // the version being prepared (newer than the sources') grows with its betas: 3–8 points by its release;
+      // a fix release (X.Y.Z, Z > 0) may say only its one fix
+      assert.ok(points.length >= (newer(version) || !version.endsWith(".0") ? 1 : 3) && points.length <= 8, `${where} ${r.file} ${version}: ${points.length} points`);
       assert.equal(points.length, en.s.get(version)!.length, `${where} ${r.file} ${version}: as many points as in English`);
       for (const p of points) assert.equal(addressesPerson(p, r.lang), undefined, `${where} ${r.file} ${version}: "${p}" addresses the person`);
     }
@@ -75,7 +76,7 @@ function checkChangelogs(texts: string[], where: string): void {
   }
 }
 
-test("the changelogs: a section for this version in each language, the same versions in the same order, 3–8 points each (the version being prepared: 1–8), the same number in every language", () => {
+test("the changelogs: a section for this version in each language, the same versions in the same order, 3–8 points each (the version being prepared and a fix release: 1–8), the same number in every language", () => {
   checkChangelogs(FILES.map(([, file]) => fs.readFileSync(path.join(ROOT, file), "utf8")), "main");
   assert.deepEqual(CHANGELOGS.map(([file]) => file), FILES.map(([, file]) => file), "the branch beta's commit notes the same files");
 });

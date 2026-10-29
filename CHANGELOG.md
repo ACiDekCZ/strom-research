@@ -5,9 +5,30 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.23.0
+
+*In preparation: the betas up to 1.23.0-beta.1. The section is complete with the release.*
+
+- **A person shown by the name chosen.** A woman born under one name, married under another and back at the first
+  after a divorce can be shown by that name again without it being added twice: `strom name primary <person>
+  "<name>"` (and `--clear`), or `strom name add --primary`. The choice is the user's alone, never read from a record;
+  corrections, citations and the sync with the Strom app still go by the birth name. The Strom file marks the chosen
+  name, the standard GEDCOM file gives it first.
+- **The file for the Strom app without warnings.** Exporting for the Strom app warned of a non-standard tag on each
+  person with a chosen name and on several marks of sources; the check now knows every tag of Strom's own.
+
+## 1.22.1
+
+*2026-10-29 · goes with the Strom app 3.17.0.*
+
+- **An event of a place is not written again for its region.** When the history of a place was looked for before the
+  regions it lies in, the region's history could add the same event once more (the same kind, the same years). The
+  region now leaves out what one of its places has already; an event that touched the whole region is still written.
+  What the agent reads for a place also says which of its regions are not looked through yet.
+
 ## 1.22.0
 
-*In preparation: the betas up to 1.22.0-beta.10. The section is complete with the release.*
+*2026-10-29 · goes with the Strom app 3.17.0.*
 
 - **Each name once in what waits.** A task for material sent from the Strom app named each person twice in the
   widget and on the phone's page (the second time in brackets), and its text without names kept empty brackets; the

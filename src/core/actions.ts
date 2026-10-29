@@ -33,7 +33,7 @@ import {
   type StoryDraft,
   type Union,
 } from "./model.ts";
-import { cleanTitle, displayName, familiesAsChild, familiesAsPartner, gedcomName, gedcomTitledName, closesCircle, isAncestorOf, isBirthFamily, keepSides, notAName, parseName, primaryName, sameName, slashInName } from "./people.ts";
+import { cleanTitle, displayName, familiesAsChild, familiesAsPartner, gedcomName, gedcomTitledName, closesCircle, isAncestorOf, isBirthFamily, keepSides, notAName, parseName, primaryName, sameName, slashInName, withoutMark } from "./people.ts";
 import { foldText } from "./text.ts";
 import { roleWord } from "./roles.ts";
 import { checkParticipant, trailingNote } from "./participants.ts";
@@ -678,8 +678,10 @@ export interface NameInput {
   name: string;
   kind?: string | undefined;
   citation?: Citation | undefined;
-  /** Show the person by this name. */
+  /** Show the person by this name now (the mark Name.primary): their identity stays the name it was. */
   primary?: boolean | undefined;
+  /** Their name from now on, in front: the name of their identity (primaryName) — a correction the user made in the Strom app. */
+  first?: boolean | undefined;
   /** Another form beside the name the person is shown by, never in its place (a name a sync adds). */
   other?: boolean | undefined;
   /** The titles of the name: before it ("Ing.") and after it ("ml."); "" takes one off. */
@@ -700,7 +702,7 @@ export function addName(tree: Tree, id: string, input: NameInput): { person: Per
     if (!NAME_KINDS.includes(input.kind as Name["kind"] & string)) throw new UsageError(`invalid --kind "${input.kind}"`, { hint: NAME_KINDS.join(", ") });
     name.kind = input.kind as Name["kind"];
   }
-  if (input.primary && name.kind && name.kind !== "birth") throw new UsageError(`a person is shown by a birth name, not a ${name.kind} one`, { hint: "drop --primary, or --kind birth" });
+  if (input.first && name.kind && name.kind !== "birth") throw new UsageError(`a person's identity is a birth name, not a ${name.kind} one`);
   if (input.citation) checkCitation(tree, input.citation);
   return tree.withTreeLock(() => {
     const p = requirePerson(tree, id);
@@ -714,10 +716,12 @@ export function addName(tree: Tree, id: string, input: NameInput): { person: Per
       const rekind = name.kind !== undefined && name.kind !== cur.kind;
       const retitled = withTitles(cur, input.prefix, input.suffix);
       const titles = retitled.prefix !== cur.prefix || retitled.suffix !== cur.suffix;
-      if (!input.citation && !input.primary && !rekind && !titles) throw new UsageError(`${id} already has the name ${gedcomName(name)}`, { hint: `cite it: strom name add ${id} "${gedcomName(name)}" --cite S…` });
-      added = { ...retitled, ...(rekind ? { kind: name.kind } : {}), ...(input.citation ? { citations: withCitation(cur.citations, input.citation, `${id} ${gedcomName(name)}`) } : {}) };
+      const marks = !!input.primary && !cur.primary;
+      if (!input.citation && !marks && !input.first && !rekind && !titles)
+        throw new UsageError(input.primary ? `${id} is shown by ${gedcomName(cur)} already` : `${id} already has the name ${gedcomName(name)}`, { hint: `cite it: strom name add ${id} "${gedcomName(name)}" --cite S…` });
+      added = { ...retitled, ...(rekind ? { kind: name.kind } : {}), ...(input.primary ? { primary: true as const } : {}), ...(input.citation ? { citations: withCitation(cur.citations, input.citation, `${id} ${gedcomName(name)}`) } : {}) };
       names = p.names.map((n, j) => (j === i ? added : n));
-      if (input.primary) names = [added, ...names.filter((n) => n !== added)];
+      if (input.first) names = [added, ...names.filter((n) => n !== added)];
     } else {
       const titled = withTitles(name, input.prefix || undefined, input.suffix || undefined);
       added = input.citation ? { ...titled, citations: [input.citation] } : titled;
@@ -725,17 +729,55 @@ export function addName(tree: Tree, id: string, input: NameInput): { person: Per
       const plain = !name.kind || name.kind === "birth";
       // "Markéta" of the family memory is "Markéta /Růžičková/" of the register: one name, now complete.
       completes = Boolean(!input.other && plain && !primary.surname && name.surname && foldText(primary.given) === foldText(name.given) && !primary.citations?.length);
+      // the name completed was the one the person is shown by: the full one is
+      if (input.primary || (completes && primary.primary)) added = { ...added, primary: true };
       const rest = completes ? p.names.filter((n) => n !== primary) : p.names;
-      names = !input.other && (input.primary || (plain && !primary.surname && name.surname)) ? [added, ...rest] : [...rest, added];
+      names = !input.other && (input.first || (plain && !primary.surname && name.surname)) ? [added, ...rest] : [...rest, added];
     }
+    // one name the person is shown by: the one marked now
+    if (added.primary) names = names.map((n) => (n === added || !n.primary ? n : withoutMark(n)));
     const updated: Person = { ...p, names, updated: now() };
     tree.put(updated, {
       op: "person.name",
       targets: [id],
-      summary: `${id} name ${gedcomTitledName(added)}${added.kind ? ` (${added.kind})` : ""}${input.citation ? ` ← ${input.citation.source}` : ""}`,
+      summary: `${id} name ${gedcomTitledName(added)}${added.kind ? ` (${added.kind})` : ""}${input.citation ? ` ← ${input.citation.source}` : ""}${input.primary ? "; shown by it" : ""}`,
       ...(completes ? { reason: `the name without a surname is completed: ${gedcomName(added)}` } : {}),
     });
     return { person: updated, name: added };
+  });
+}
+
+/**
+ * Show a person by one of their names (the mark Name.primary: a divorced woman back at her birth surname, spec 024),
+ * without adding it again — or, with no name, by the name of their identity again (the mark taken off). The user's
+ * choice: never told from a record, never needs one.
+ */
+export function markPrimaryName(tree: Tree, id: string, text: string | undefined, reason?: string): { person: Person; name: Name; was?: Name } {
+  const wanted = text === undefined ? undefined : parseName(text);
+  if (wanted && !wanted.given && !wanted.surname) throw new UsageError("the name is empty");
+  return tree.withTreeLock(() => {
+    const p = requirePerson(tree, id);
+    const was = p.names.find((n) => n.primary);
+    let name: Name;
+    if (wanted) {
+      const found = p.names.find((n) => sameName(n, wanted));
+      if (!found) {
+        const gone = p.retractedNames?.find((n) => sameName(n, wanted));
+        if (gone) throw new UsageError(`the name ${gedcomName(gone)} of ${id} was retracted: ${gone.retracted.reason}`, { hint: `right after all: strom name restore ${id} "${gedcomName(gone)}" --reason "…"`, code: "name.retracted", params: { name: gedcomName(gone), id, reason: gone.retracted.reason } });
+        throw new UsageError(`${id} has no name ${gedcomName(wanted)}`, { hint: `its names: ${p.names.map((n) => `"${gedcomName(n)}"`).join(", ")} · a new one: strom name add ${id} "${gedcomName(wanted)}" --primary`, code: "name.none" });
+      }
+      if (found.primary) throw new UsageError(`${id} is shown by ${gedcomName(found)} already`, { hint: `back to the name of their identity: strom name primary ${id} --clear` });
+      name = { ...found, primary: true };
+      const names = p.names.map((n) => (n === found ? name : n.primary ? withoutMark(n) : n));
+      const updated: Person = { ...p, names, updated: now() };
+      tree.put(updated, { op: "name.primary", targets: [id], summary: `${id} shown by ${gedcomName(name)}${was ? ` (was ${gedcomName(was)})` : ""}`, ...(reason?.trim() ? { reason: reason.trim() } : {}) });
+      return { person: updated, name, ...(was ? { was } : {}) };
+    }
+    if (!was) throw new UsageError(`no name of ${id} is marked: shown by ${gedcomName(primaryName(p))}`, { hint: `strom name primary ${id} "<Given /Surname/>"` });
+    const updated: Person = { ...p, names: p.names.map((n) => (n === was ? withoutMark(n) : n)), updated: now() };
+    name = primaryName(updated);
+    tree.put(updated, { op: "name.primary", targets: [id], summary: `${id} shown by ${gedcomName(name)} again (the mark of ${gedcomName(was)} taken off)`, ...(reason?.trim() ? { reason: reason.trim() } : {}) });
+    return { person: updated, name, was };
   });
 }
 
@@ -976,11 +1018,16 @@ export function mergePersons(tree: Tree, keepId: string, otherId: string, reason
     const names = keep.names.map((n) => {
       const same = other.names.find((o) => sameName(o, n));
       const cites = [...(n.citations ?? []), ...(same?.citations ?? []).filter((c) => !(n.citations ?? []).some((x) => x.source === c.source && x.locator === c.locator))];
-      return cites.length ? { ...n, citations: cites } : n;
+      // the other shown by this same name, the kept one by none marked: shown by it
+      const mark = same?.primary && !keep.names.some((k) => k.primary) ? { primary: true as const } : {};
+      return cites.length ? { ...n, ...mark, citations: cites } : { ...n, ...mark };
     });
     // a name the person's research took back stays taken back (the other's retracted come along, for the history)
     const retractedNames = [...(keep.retractedNames ?? []), ...(other.retractedNames ?? [])];
     for (const o of other.names) if (!names.some((n) => sameName(n, o)) && !retractedNames.some((n) => sameName(n, o))) names.push(o);
+    // the name they are shown by: the kept person's, else the other's — one
+    const marked = names.find((n) => n.primary);
+    for (let i = 0; i < names.length; i++) if (names[i]!.primary && names[i] !== marked) names[i] = withoutMark(names[i]!);
     const retractedNotes = [...(keep.retractedNotes ?? []), ...(other.retractedNotes ?? [])];
     const refs = [...(keep.refs ?? []), ...(other.refs ?? []).filter((r) => !(keep.refs ?? []).some((k) => k.system === r.system && k.id === r.id))];
     const why = reason.trim();

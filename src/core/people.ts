@@ -190,8 +190,23 @@ export function primaryName(p: Person): Name {
   return p.names.find((n) => !n.kind || n.kind === "birth") ?? p.names[0] ?? { given: "", surname: "" };
 }
 
+/**
+ * The name the person is shown by now: the one marked (Name.primary, the user's choice — a divorced woman back at her
+ * birth surname), else the name of their identity (primaryName). Only for showing them: the identity a correction, a
+ * citation, pairing and a sync go by stays primaryName.
+ */
+export function currentName(p: Person): Name {
+  return p.names.find((n) => n.primary) ?? primaryName(p);
+}
+
+/** A name without the mark of the one the person is shown by (Name.primary). */
+export function withoutMark(n: Name): Name {
+  const { primary: _p, ...rest } = n;
+  return rest;
+}
+
 export function displayName(p: Person): string {
-  return formatName(primaryName(p));
+  return formatName(currentName(p));
 }
 
 const STATUS_RANK: Record<string, number> = { proven: 0, probable: 1, possible: 2, lead: 3 };

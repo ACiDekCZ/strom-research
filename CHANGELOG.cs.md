@@ -5,9 +5,30 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.23.0
+
+*Připravuje se: bety do 1.23.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Osoba ukázaná zvoleným jménem.** Žena narozená pod jedním jménem, provdaná pod druhým a po rozvodu zase u prvního
+  se dá ukazovat tímto jménem znovu, aniž by se přidávalo podruhé: `strom name primary <osoba> "<jméno>"` (a
+  `--clear`), nebo `strom name add --primary`. Volba patří jen uživateli, nikdy se nečte ze záznamu; opravy, citace
+  i synchronizace s aplikací Strom se dál řídí rodným jménem. Soubor pro Strom zvolené jméno označí, standardní soubor
+  GEDCOM ho dá na první místo.
+- **Soubor pro aplikaci Strom bez varování.** Export pro aplikaci Strom varoval před nestandardní značkou u každé
+  osoby se zvoleným jménem a u několika značek zdrojů; kontrola teď zná všechny vlastní značky Stromu.
+
+## 1.22.1
+
+*29. 10. 2026 · patří k aplikaci Strom 3.17.0.*
+
+- **Událost místa se u regionu nezapíše znovu.** Když se dějiny místa hledaly dřív než dějiny regionů, do kterých
+  patří, mohly dějiny regionu přidat tutéž událost ještě jednou (stejný druh, stejné roky). Region teď vynechá, co už
+  má některé z jeho míst; událost, která se týkala celého regionu, se zapíše dál. To, co agent k místu čte, říká
+  i to, které z jeho regionů se ještě neprošly.
+
 ## 1.22.0
 
-*Připravuje se: bety do 1.22.0-beta.10. Oddíl bude úplný s vydáním.*
+*29. 10. 2026 · patří k aplikaci Strom 3.17.0.*
 
 - **Jméno jednou v tom, co čeká.** Úkol k materiálu poslanému z aplikace Strom jmenoval ve widgetu a na stránce
   telefonu každého člověka dvakrát (podruhé v hranatých závorkách) a jeho text bez jmen nechal prázdné závorky; menu,

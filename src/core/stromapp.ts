@@ -510,12 +510,12 @@ export function appShowsStoryDrafts(settings: Settings, version?: string): boole
  * 1 NOTE Strom surname-variant groups and 1 NOTE Strom surname-variant rejections (2 CONT a group, its forms apart by
  * " | ") —, keeps them in the tree, sends them back, and takes the research's when it loads a new version of it. The
  * app reads the markers from its 3.17.0-beta.7 (data version 13), but no app before it merged them, and an older one
- * drops the rejections (the research would take their absence for the person's "unreject"): set to the first
- * production app that carries them, by strom:je-venku-brany. Until then nothing is written. An app of unknown version
- * (strom app from a terminal) stays off — it says nothing of what it keeps; another copy of the app (its beta, its
- * development) gets them at once, as every gate, from the version that reads them (APP_READS_SURNAME_MARKERS).
+ * drops the rejections (the research would take their absence for the person's "unreject"): the first production
+ * app that carries them is 3.17.0. An app of unknown version (strom app from a terminal) stays off — it says nothing
+ * of what it keeps; another copy of the app (its beta, its development) gets them at once, as every gate, from the
+ * version that reads them (APP_READS_SURNAME_MARKERS).
  */
-export const APP_READS_SURNAME_GROUPS: string | undefined = undefined;
+export const APP_READS_SURNAME_GROUPS: string | undefined = "3.17.0";
 
 /** The first app (its beta) that reads the header notes of a surname's forms: another copy of the app gets them from it. */
 export const APP_READS_SURNAME_MARKERS = "3.17.0-beta.7";
@@ -525,6 +525,28 @@ export function appReadsSurnameGroups(settings: Settings, version?: string, gate
   if (!v || !isAppVersion(v)) return false;
   if (anotherCopy(settings)) return compareVersions(v, APP_READS_SURNAME_MARKERS) >= 0;
   return !!gate && compareVersions(v, gate) >= 0;
+}
+
+/**
+ * The first Strom app that knows which name a person is shown by (spec 024, the app's ZADANI_VYZKUM_soucasne-prijmeni.md):
+ * it writes 2 _STROM_PRIMARY Y under the NAME the user chose (its Person.primaryName birth | married, the JSON's field
+ * of that name) and none where the user chose none. The research writes the mark to every app (an older one skips it in
+ * silence and loses nothing); a mark an app sends is the user's choice whatever its version — but a mark missing is
+ * the user's "none" only from an app of this version on: from an older one, or one that says no version, nothing
+ * changed. Not released yet (undefined): set to the version the app's "je venku" names; another copy of the app (its
+ * beta, its development) gets it at once from APP_PRIMARY_NAME_BETA once that is known too.
+ */
+export const APP_KNOWS_PRIMARY_NAME: string | undefined = undefined;
+
+/** The first beta of the app that writes the mark (another copy of the app gets it from it); undefined: none yet. */
+export const APP_PRIMARY_NAME_BETA: string | undefined = undefined;
+
+/** Does a file of the Strom app of this version say every choice of the name a person is shown by — a mark missing the user's "none"? */
+export function appKnowsPrimaryName(settings: Settings, version?: string): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings) && APP_PRIMARY_NAME_BETA) return compareVersions(v, APP_PRIMARY_NAME_BETA) >= 0;
+  return !!APP_KNOWS_PRIMARY_NAME && compareVersions(v, APP_KNOWS_PRIMARY_NAME) >= 0;
 }
 
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */

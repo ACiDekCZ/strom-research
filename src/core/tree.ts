@@ -34,7 +34,7 @@ export const SEAL_FOREIGN = "seal.foreign";
 
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
-export const VERSION = "1.21.0";
+export const VERSION = "1.22.1";
 
 export interface Op {
   at: string;

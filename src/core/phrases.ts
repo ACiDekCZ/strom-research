@@ -285,6 +285,8 @@ export const PHRASES = {
   "log.note.edit": "Note corrected: {name}",
   "log.name.retract": "Name retracted: {name} – {who}",
   "log.name.restore": "Name put back: {name} – {who}",
+  "log.name.primary": "Shown by the name: {name} – {who}",
+  "log.name.primary.clear": "Shown by the birth name again: {name} – {who}",
   "log.note.retract": "Note retracted: {name}",
   "log.note.restore": "Note put back: {name}",
   "log.event.status": "How sure a fact is, changed: {who} – {fact}",
