@@ -3,6 +3,8 @@
 import { register, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
+import { suggestionLines, suggestPeople } from "../core/participantlinks.ts";
+import { checkStreetPlace } from "../core/streets.ts";
 import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, mergeFamilies, notRetracted, mergePersons, parseParticipant, retractEvent, retractPerson } from "../core/actions.ts";
 import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
@@ -188,7 +190,7 @@ function historyLine(h: HistoryItem, w: Words): string {
 
 export function eventLine(e: Event, w: Words = ENGLISH): string {
   const cites = citesOf(e.citations, w);
-  const who = (e.participants ?? []).map((p) => `${w.word("role", p.role)} ${p.person ?? p.name}`).join(", ");
+  const who = (e.participants ?? []).map((p) => `${w.word("role", p.role)} ${p.person ?? p.name}${p.note ? ` (${p.note})` : ""}`).join(", ");
   const ages = e.ages ? Object.entries(e.ages).map(([p, a]) => `${w.word("who", p)} ${a}`).join(", ") : "";
   return [
     e.id,
@@ -244,6 +246,9 @@ register(
       // Without --born/--died the citation is on the name: the record names this person.
       if (opts.status && !opts.born && !opts["born-place"] && !opts.died && !opts["died-place"])
         throw new UsageError("--status belongs to the birth or death given here (--born/--died)");
+      // a place is the municipality: a street or a house number in it is refused, with what to write
+      checkStreetPlace(tree, opts["born-place"] as string | undefined, undefined, "--born-place");
+      checkStreetPlace(tree, opts["died-place"] as string | undefined, undefined, "--died-place");
       const p = addPerson(tree, {
         name: args[0]!,
         sex: opts.sex as string | undefined,
@@ -562,6 +567,7 @@ register(
         throw new UsageError("--status and --age belong to the marriage: give --married <date> (or --married-place)", {
           hint: "without a marriage --cite cites the family itself: the record that names these parents",
         });
+      checkStreetPlace(tree, opts["married-place"] as string | undefined, undefined, "--married-place");
       // The same couple twice is almost always a duplicate.
       const existing = partners.length === 2 ? familiesAsPartner(tree, partners[0]!).find((f) => f.partners.includes(partners[1]!)) : undefined;
       const f = addFamily(tree, {
@@ -695,8 +701,8 @@ register(
     ],
     options: [
       { name: "date", type: "string", value: "<date>", description: 'GEDCOM date: "24 JUN 1783", "ABT 1783", "BET 1811 AND 1812"' },
-      { name: "place", type: "string", value: "<place>", description: 'the settlement: "Týnec nad Labem" — never with a house number' },
-      { name: "house", type: "string", value: "<no.>", description: 'house number or address in the place, as the record gives it: "13"' },
+      { name: "place", type: "string", value: "<place>", description: 'the municipality: "Lhota" (with the parts above it the research writes) — never a street or a house number' },
+      { name: "house", type: "string", value: "<no.>", description: 'house number, or the street and the number, as the record gives it: "13", "Dlouhá 12"' },
       { name: "cause", type: "string", value: "<text>", description: "cause of death as the record gives it" },
       { name: "value", type: "string", value: "<text>", description: "value of attribute events, e.g. the occupation" },
       { name: "label", type: "string", value: "<text>", description: "what happened (required for EVEN)" },
@@ -705,7 +711,7 @@ register(
       { name: "locator", type: "string", value: "<where>", description: "where in the source: folio, entry, line" },
       { name: "quote", type: "string", value: "<text>", description: "the words of the record" },
       { name: "information", type: "string", value: "<kind>", description: "for this fact the source is primary, secondary or unknown (default: the source's)" },
-      { name: "with", type: "string", multiple: true, value: "<role:who>", description: "participant: godparent:Marie Dvořáková, witness:P0012 — roles godparent, witness, officiant, midwife, informant, other (repeatable)" },
+      { name: "with", type: "string", multiple: true, value: "<role:who>", description: "participant: godparent:Marie Dvořáková, witness:P0012 — roles godparent, witness, officiant, midwife, informant, other; what the record says of them in closing parentheses is the note: \"godparent:Jan Lhoták (sedlák, Lhota č. 12)\" (repeatable)" },
       { name: "status", type: "string", value: "<status>", description: "lead (default without citation), possible, probable, proven (with --information primary: a record of the time read yourself), disproven" },
       { name: "note", type: "string", value: "<text>", description: "short note on this fact" },
     ],
@@ -726,6 +732,9 @@ register(
       if (owner.startsWith("F")) partnerAge = partnerAges(tree, ages, tree.get<Family>(owner)?.partners ?? []);
       else if (ages.length > 1) throw new UsageError("one --age for a person's event");
       else age = ages[0];
+      const withs = listOpt(opts.with).map((w) => parseParticipant(tree, w));
+      // a place is the municipality: the street and the house number its house
+      checkStreetPlace(tree, opts.place as string | undefined, opts.house as string | undefined);
       const r = addEvent(tree, owner, {
         kind: args[1]!,
         date: opts.date as string | undefined,
@@ -736,7 +745,7 @@ register(
         label: opts.label as string | undefined,
         age,
         ages: partnerAge,
-        participants: listOpt(opts.with).length ? (opts.with as string[]).map((w) => parseParticipant(tree, w)) : undefined,
+        participants: withs.length ? withs : undefined,
         citations,
         status: opts.status as string | undefined,
         note: opts.note as string | undefined,
@@ -745,7 +754,12 @@ register(
         ? `note: ${r.owner.id} already has ${r.same.kind} ${r.same.id} (${[r.same.date, r.same.place].filter(Boolean).join(", ") || "no date"}, ${r.same.status}). ` +
           `The same fact from another record → strom cite ${r.same.id} <S…> (and retract ${r.event.id}); records that disagree → strom conflict add …`
         : undefined;
-      return { text: lines(written(tree), warn), data: { event: r.event, owner: r.owner.id, ...(r.same ? { same: r.same.id } : {}) } };
+      // a participant named only who may be a person of the tree: said, never linked by itself
+      const suggest = withs.length ? suggestPeople(tree, r.owner, withs) : [];
+      return {
+        text: lines(written(tree), warn, ...suggestionLines(r.event.id, suggest, (x) => withs.find((w) => w.role === x.role && w.name === x.name)?.note)),
+        data: { event: r.event, owner: r.owner.id, ...(r.same ? { same: r.same.id } : {}), ...(suggest.length ? { suggest } : {}) },
+      };
     },
   },
   {
@@ -901,13 +915,13 @@ register(
     args: [{ name: "event", description: "event ID (E0001)", required: true }],
     options: [
       { name: "date", type: "string", value: "<date>", description: "new date" },
-      { name: "place", type: "string", value: "<place>", description: "new place (the settlement)" },
-      { name: "house", type: "string", value: "<no.>", description: 'house number in the place ("" removes it)' },
+      { name: "place", type: "string", value: "<place>", description: "new place (the municipality — never a street or a house number)" },
+      { name: "house", type: "string", value: "<no.>", description: 'house number, or the street and the number ("Dlouhá 12"; "" removes it)' },
       { name: "cause", type: "string", value: "<text>", description: "cause of death as the record gives it" },
       { name: "value", type: "string", value: "<text>", description: "new value" },
       { name: "label", type: "string", value: "<text>", description: "new label" },
       { name: "age", type: "string", multiple: true, value: "<age|who:age>", description: 'age as the record gives it; a family event per partner: "husband:27", "wife:17"' },
-      { name: "with", type: "string", multiple: true, value: "<role:who>", description: "add a participant: witness:Jan Novák, godparent:P0012, officiant:…, midwife:… (repeatable)" },
+      { name: "with", type: "string", multiple: true, value: "<role:who>", description: "add a participant: witness:Jan Novák, godparent:P0012, officiant:…, midwife:…; a note in closing parentheses: \"witness:Jan Novák (soused)\" (repeatable)" },
       { name: "without", type: "string", multiple: true, value: "<role:who>", description: "take off a participant recorded wrongly — with --reason; a wrong role: --without witness:X --with godparent:X" },
       { name: "status", type: "string", value: "<status>", description: "new status — proven needs a record of the time read yourself: strom cite E… S… --information primary --status proven" },
       { name: "note", type: "string", value: "<text>", description: "replace the note on this fact" },
@@ -930,14 +944,17 @@ register(
       if (owner.type === "family") partnerAge = partnerAges(tree, ages, owner.partners);
       else if (ages.length > 1) throw new UsageError("one --age for a person's event");
       else age = ages[0];
+      const withs = listOpt(opts.with).map((w) => parseParticipant(tree, w));
+      // a place is the municipality: the street and the house number its house (the one given, else the fact's)
+      if (typeof opts.place === "string") checkStreetPlace(tree, opts.place, typeof opts.house === "string" ? opts.house : owner.events.find((x) => x.id === id)?.house);
       const e = editEvent(
         tree,
         id,
         {
           age,
           ages: partnerAge,
-          participants: listOpt(opts.with).map((w) => parseParticipant(tree, w)),
-          drop: listOpt(opts.without).map((w) => parseParticipant(tree, w)),
+          participants: withs,
+          drop: listOpt(opts.without).map((w) => parseParticipant(tree, w, { check: false })),
           date: opts.date as string | undefined,
           place: opts.place as string | undefined,
           house: opts.house as string | undefined,
@@ -949,7 +966,13 @@ register(
         },
         opts.reason as string | undefined,
       );
-      return { text: written(tree), data: { event: e } };
+      // a participant named only who may be a person of the tree: said, never linked by itself
+      const added = withs.filter((w) => (e.participants ?? []).some((p) => p.role === w.role && p.name === w.name));
+      const suggest = added.length ? suggestPeople(tree, findEventOwner(tree, id).owner, added) : [];
+      return {
+        text: lines(written(tree), ...suggestionLines(e.id, suggest, (x) => withs.find((w) => w.role === x.role && w.name === x.name)?.note)),
+        data: { event: e, ...(suggest.length ? { suggest } : {}) },
+      };
     },
   },
   {

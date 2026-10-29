@@ -17,14 +17,14 @@ import { chooseTerminal, suggestedTerminal } from "./terminals.ts";
 import { terminalsHere } from "../core/terminal.ts";
 import { chooseEffort, chooseModel } from "./model-choice.ts";
 import { ADDON_SWITCHES, PROFILES } from "../agents/profiles.ts";
-import { writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
+import { DEFAULT_HISTORY_PACE, readStored, writeStored, type AgentPermissions, PERMISSION_LEVELS } from "../core/config.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
 import { appCopyOfInstall, appOpensLinks, defaultAppUrl, noticeStromApp, researchUrl, STROM_APP_URL, stromAppState, appUrlSetting } from "../core/stromapp.ts";
 import { openForUser } from "../core/open.ts";
 import { createShortcut } from "../core/shortcut.ts";
 import { appMarkFromInstall, linkFiles, linkHandlerState, linkOwner, linksTakeable, registerLinks, type Sys } from "../core/links.ts";
 import { configDir, desktopDir, isolated, noLinks } from "../core/paths.ts";
-import { ensureShared } from "../commands/setup.ts";
+import { chooseHistory, ensureShared, historySuggested, markHistoryAsked, setTreeSetting } from "../commands/setup.ts";
 import { moveHome, planMove, repointSettings, sameFolder } from "../core/relocate.ts";
 import type { StromError } from "../core/errors.ts";
 import type { TreeConfig } from "../core/model.ts";
@@ -215,7 +215,35 @@ export async function setupWizard(ctx: Context, opts: { research?: boolean } = {
     if ((ai ?? was) === 1) cfg.agentAddons = "on";
     else delete cfg.agentAddons;
   }
+
+  // 6c. The history of the places — the events at the ancestors' places, looked for between the sessions of the family
+  // research: how often, or off. The first setup suggests it on, sometimes (Milan, 28 Oct 2026: no longer an
+  // experiment); run again, what is now — an older setup never decided is off and stays so on Enter, nothing turned on
+  // by itself. The person's own choice here, in their terminal — as strom config set experiments.history on asks it.
+  if (agent) {
+    const h = await chooseHistory(ctx, ui(lang, "ui.setup.history"), first ? DEFAULT_HISTORY_PACE : historySuggested(ctx), keep);
+    // asked: the menu's question after an update never comes (K1.6)
+    markHistoryAsked(ctx);
+    if (h === "off") delete cfg.experimentsHistory;
+    else if (h) {
+      cfg.experimentsHistory = "on";
+      cfg.experimentsHistoryPace = h;
+    }
+  }
+  // 6d. The history of the places in the stories (stories.history): on by default while both are on — asked when the
+  // setup runs again (the settings), never in the first one; an approved story is never rewritten for it. The tree here
+  // with a value of its own (the Strom app turned it off for it): the person's answer takes its place.
+  let ownStoryHistory = false;
+  if (agent && !first && cfg.stories !== "no" && cfg.experimentsHistory === "on") {
+    const tree = ctx.hasTree() ? ctx.tree().config : undefined;
+    ownStoryHistory = readStored(tree, "stories.history", agent) !== undefined;
+    const was = (ownStoryHistory ? readStored(tree, "stories.history", agent) : readStored(cfg, "stories.history", agent)) === "no" ? 1 : 0;
+    const hi = await ctx.choose(ui(lang, "ui.setup.stories.history"), [{ label: ui(lang, "ui.setup.stories.history.yes") }, { label: ui(lang, "ui.setup.stories.history.no") }], was, keep);
+    if (hi === undefined) ownStoryHistory = false;
+    else writeStored(cfg, "stories.history", agent, hi === 1 ? "no" : undefined);
+  }
   s.save();
+  if (ownStoryHistory) setTreeSetting(ctx, "stories.history", undefined);
 
   // 7. A shortcut on the desktop (asked here, a no suggested again; refreshed quietly after) — none for an isolated
   // installation (found on Windows: asked, while doctor said "none, on purpose")

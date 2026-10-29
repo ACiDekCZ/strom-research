@@ -85,6 +85,8 @@ export class World {
       STROM_PHONE_TEST: "loopback",
       // No agent among strom's parent processes, whatever runs the tests (a test names the ones it wants).
       STROM_TEST_ANCESTRY: "",
+      // strom's checks of the readings looked through at once, not by a strom of their own in the background
+      STROM_FIXES_REFRESH: "now",
     };
     this.cwd = this.dir;
   }
@@ -133,9 +135,19 @@ export class World {
   /** Home set up and one tree created; cwd inside the tree. */
   async withTree(name = "Novákovi"): Promise<string> {
     await this.ok(["setup", "--yes"]);
+    this.historyAsked();
     await this.ok(["init", name]);
     this.cwd = this.treeDir(name);
     return this.cwd;
+  }
+
+  /**
+   * Asked about the history of the places already: the menu's one question after an update (test/cli/menu.test.ts) never
+   * comes between a test's answers — a setup --yes (an agent's, a script's) never asks it.
+   */
+  historyAsked(env: Record<string, string> = {}): void {
+    const config = path.join(env.STROM_CONFIG_DIR ?? this.env.STROM_CONFIG_DIR!, "config.json");
+    fs.writeFileSync(config, JSON.stringify({ ...JSON.parse(fs.readFileSync(config, "utf8")), historyAsked: "2026-10-28T00:00:00.000Z" }, null, 2));
   }
 
   cleanup(): void {

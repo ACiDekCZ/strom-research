@@ -30,6 +30,7 @@ import { exportGedcom, REFN_TYPE } from "../gedcom/export.ts";
 import { children, parseGedcomText, val, type GedNode } from "../gedcom/parse.ts";
 import { fromFlexDate, houseOf, importDate, marnmNames, readGedName, readGedSex, stromAppFile } from "./import.ts";
 import { humanAge, normalizeAge } from "./age.ts";
+import { appAge, appDate } from "./appshapes.ts";
 import { dateYears } from "./gdate.ts";
 import { create, update } from "./records.ts";
 import { decodeText, foldText, safeFolderName } from "./text.ts";
@@ -42,7 +43,10 @@ import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
 import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
-import { APP_DATA_SEX_UNKNOWN, isAppVersion } from "./stromapp.ts";
+import { APP_DATA_SEX_UNKNOWN, appKeepsPeriods, appReadsSurnameGroups, isAppVersion } from "./stromapp.ts";
+import { Settings } from "./config.ts";
+import { applySurnameChange, formsSaid, planSurnames, readMarkLines, readSurnames, surnamesAt, undoSurnameChange, type SurnameChange, type SurnameEntry, type SurnameMarks } from "./surnames.ts";
+import { SURNAME_GROUPS_MARK, SURNAME_REJECTIONS_MARK } from "../gedcom/export.ts";
 import { bestGrade, checkReading, readingGrade, readingResult, readingSource, surer, takeReadingImages, type ReadFact, type ReadGrade, type ReadingCheck, type ReadingMark, type ReadingRefusal } from "./readsync.ts";
 import { earlierNoteTexts } from "./retractions.ts";
 import { mendAll } from "./damaged.ts";
@@ -216,6 +220,13 @@ export interface Snapshot {
   since?: string;
   /** A send taken back, sent again (strom's own mark, _STROM_AGAIN R…): against the research as the undo left it. */
   again?: string;
+  /** The Strom app's version that wrote the file (its HEAD: 1 SOUR STROM, 2 VERS). */
+  appVersion?: string;
+  /**
+   * The groups of a surname's forms the user made one family, and the suggestions rejected (the header's notes "Strom
+   * surname-variant groups|rejections", core/surnames.ts): undefined where neither note is there.
+   */
+  surnames?: SurnameMarks;
   problems: string[];
 }
 
@@ -789,8 +800,12 @@ export function readGedcom(text: string): Snapshot {
   const appTree = val(head, "_STROM_APP_TREE")?.trim();
   const since = val(head, "_STROM_SINCE")?.trim();
   const again = val(head, "_STROM_AGAIN")?.trim();
+  const appVersion = fromApp.app ? val(children(head!, "SOUR")[0], "VERS")?.trim() : undefined;
+  const surnames = head ? surnameMarksOf(head) : undefined;
   return {
     format: "gedcom",
+    ...(appVersion ? { appVersion } : {}),
+    ...(surnames ? { surnames } : {}),
     ...(treeId ? { treeId } : {}),
     ...(at ? { head: at } : {}),
     persons,
@@ -2089,7 +2104,10 @@ export type ChangeKind =
   | "fact.cite"
   | "fact.part"
   | "person.cite"
-  | "family.cite";
+  | "family.cite"
+  | "surname.group"
+  | "surname.reject"
+  | "surname.warning";
 
 /** What strom does with a change: adds it, corrects a lead, a conflict, the user's edit wins, the place's position set, only when picked, nothing, withdrawn, what a record's fact lacks added to it. */
 export type ChangeAction = "add" | "correct" | "conflict" | "user" | "set" | "pick" | "report" | "remove" | "refine";
@@ -2156,6 +2174,8 @@ export interface Change {
   off?: ("date" | "place" | "value")[];
   /** source.new: the reading of a document it says it is an entry of (_STROM_READING), as checked — not ok: the app's own source. */
   reading?: { id: string; ok: boolean; entry?: string; code?: ReadingRefusal; edited?: true };
+  /** surname.*: a group of a surname's forms or a rejection the user decided in the app, as it changes the research's (core/surnames.ts). */
+  surname?: SurnameChange;
 }
 
 export interface Plan {
@@ -2257,6 +2277,10 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
   const base = sentAgain && incoming.head ? snapshotAt(tree, incoming.head) : (since ?? after?.base);
   // a send that wrote damaged characters into the research before: what it gave the app is mended alike
   if (base) mended += mendAll(base, () => [ours]);
+  // a period sent back as a range, an age without its units of nothing (a Strom app before 3.17.0-beta.9, or one whose
+  // version the file does not say): the research's own form, never the user's edit (found on Mac: six conflicts and two
+  // residences as leads from a send of surnames); an app that keeps them sends such a change only as the user's edit
+  if (!appKeepsPeriods(incoming.appVersion)) appShapesKept(incoming, [base, ours], (key) => resolve(tree, key)?.id ?? key);
   // the titles an app that reads none keeps in the name (the research gives them in the NAME line): found there, the
   // person's titles still — in a copy of the app it stands on too (a send it kept: _STROM_SINCE)
   for (const [key, b] of base?.persons ?? []) if (!key.startsWith("x:")) titlesInName(b, [ours.persons.get(resolve(tree, key)?.id ?? key)?.titles]);
@@ -2926,7 +2950,35 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     const left = c.fact.cites.filter((x) => !has.has(sources.get(x.source) ?? x.source)).map((x) => x.source);
     if (left.length) c.uncited = [...new Set(left)];
   }
+  // the groups of a surname's forms and the rejections the user decided in the app: three states as the rest — against
+  // what the research gave the app at _STROM_HEAD, only when it gave them (an app that reads them: APP_READS_SURNAME_GROUPS)
+  if (incoming.surnames) {
+    const given = incoming.head && appReadsSurnameGroups(new Settings(tree.env, {}), incoming.appVersion) ? surnamesAt(tree, incoming.head) : undefined;
+    for (const c of planSurnames(readSurnames(tree), incoming.surnames, given))
+      push({ kind: c.how === "warning" ? "surname.warning" : c.list === "groups" ? "surname.group" : "surname.reject", action: c.how === "kept" || c.how === "warning" ? "report" : c.how, text: formsSaid(c.forms), surname: c });
+  }
   return { changes, sources, readings, base: !!base, ...(incoming.head ? { head: incoming.head } : {}), partial, identity, ...(mended ? { mended } : {}) };
+}
+
+/** The day a file was written (its HEAD's DATE, "28 OCT 2026" → 2026-10-28). */
+function headDay(head: GedNode): string | undefined {
+  const m = /^(\d{1,2}) ([A-Z]{3}) (\d{4})$/u.exec((val(head, "DATE") ?? "").trim().toUpperCase());
+  const month = m ? ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"].indexOf(m[2]!) + 1 : 0;
+  return m && month ? `${m[3]}-${String(month).padStart(2, "0")}-${m[1]!.padStart(2, "0")}` : undefined;
+}
+
+/** The header's notes of a surname's forms (each its marker on its first line, a group a line after it). */
+function surnameMarksOf(head: GedNode): SurnameMarks | undefined {
+  let marks: SurnameMarks | undefined;
+  for (const n of children(head, "NOTE")) {
+    const [first, ...rest] = n.value.replace(/\r\n?/g, "\n").split("\n");
+    const list = first?.trim() === SURNAME_GROUPS_MARK ? "groups" : first?.trim() === SURNAME_REJECTIONS_MARK ? "rejected" : undefined;
+    if (!list) continue;
+    marks ??= { warnings: [] };
+    readMarkLines(list, rest, marks);
+  }
+  const day = marks ? headDay(head) : undefined;
+  return marks && day ? { ...marks, day } : marks;
 }
 
 /**
@@ -3392,6 +3444,47 @@ function knownNewcomers(incoming: Snapshot, ours: Snapshot): void {
 }
 
 /**
+ * The file's facts in the research's form where they say what it says as the Strom app sends it back (core/appshapes.ts):
+ * a period as a range, an age without its units of nothing. Each fact against the same owner's facts of its kind in what
+ * the app was given and in the research now — one of the same place and value first; a date the research has as the file
+ * says it is left as it is.
+ */
+function appShapesKept(incoming: Snapshot, known: (Snapshot | undefined)[], idOf: (key: string) => string): void {
+  const align = (facts: SFact[], others: SFact[]) => {
+    for (const f of facts) {
+      const kind = others.filter((o) => kindOf(o.kind) === kindOf(f.kind));
+      const rest = (o: SFact) => exact(o.place) === exact(f.place) && exact(o.value) === exact(f.value) && (f.kind !== "EVEN" || fold(o.label) === fold(f.label));
+      if (f.date) {
+        const like = kind.filter((o) => o.date && appDate(o.date) === f.date);
+        const pick = like.find(rest) ?? (like.some((o) => o.date === f.date) ? undefined : like[0]);
+        if (pick?.date) f.date = pick.date;
+      }
+      const at = kind.filter((o) => (o.date ?? "") === (f.date ?? ""));
+      const age = (mine: string | undefined, theirs: (o: SFact) => string | undefined): string | undefined => {
+        if (!mine) return mine;
+        for (const list of [at.filter(rest), at, kind]) {
+          if (list.some((o) => theirs(o) === mine)) return mine;
+          const o = list.find((x) => theirs(x) && appAge(theirs(x)!) === appAge(mine));
+          if (o) return theirs(o);
+        }
+        return mine;
+      };
+      if (f.age) f.age = age(f.age, (o) => o.age);
+      if (f.ages) f.ages = Object.fromEntries(Object.entries(f.ages).map(([k, a]) => [k, age(a, (o) => o.ages?.[k]) ?? a]));
+    }
+  };
+  for (const [key, p] of incoming.persons) {
+    if (key.startsWith("x:")) continue;
+    align(p.facts, known.flatMap((s) => s?.persons.get(key)?.facts ?? s?.persons.get(idOf(key))?.facts ?? []));
+  }
+  for (const f of incoming.families) {
+    if (f.partners.some((k) => k.startsWith("x:"))) continue;
+    const k = famKey(f.partners.map(idOf));
+    align(f.facts, known.flatMap((s) => s?.families.find((o) => famKey(o.partners.map(idOf)) === k)?.facts ?? []));
+  }
+}
+
+/**
  * People the file brings without our ID and no name of ours — renamed in the app before it had them back with their ID
  * (found on Windows: the app keeps its own copy of the tree it handed over, without the research's IDs; a person renamed
  * there came as a new one, with a "new family" of a child that has its parents): the one of ours whose place they take.
@@ -3476,7 +3569,8 @@ export interface Applied {
     | "name.cite"
     | "family.cite"
     | "media.add"
-    | "input.sort";
+    | "input.sort"
+    | "surname.set";
   id: string;
   /**
    * event.edit: the fact before; event.detail: its cause, age and house before (JSON); event.retract, event.status:
@@ -3488,7 +3582,8 @@ export interface Applied {
    * given (JSON); name.edit: the name the person was shown by and the corrected one's spelling (JSON); name.primary:
    * the name added in front and the one shown before (JSON); name.drop: the user's name an edit of theirs replaced, and
    * where it stood (JSON); child.relation: the child's link before (JSON); child.move: the child, the family it left,
-   * its link and place there, whether that family was retracted (JSON).
+   * its link and place there, whether that family was retracted (JSON); surname.set (its id the list, groups or
+   * rejected): the entry it added and those it replaced or removed (JSON).
    */
   before?: SFact | string;
 }
@@ -4406,6 +4501,11 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
     );
     applied.push({ do: "task.add", id: t.id });
   }
+  // the groups of a surname's forms and the rejections the user decided in the app (quality/surnames.json)
+  for (const c of plan.changes.filter((x) => x.surname && taken(x))) {
+    const r = applySurnameChange(tree, c.surname!, reason);
+    if (r) applied.push({ do: "surname.set", id: r.list, before: JSON.stringify({ added: r.added ?? null, removed: r.removed }) });
+  }
   return { applied, changes: changes - skipped.length, skipped, ...(asked.length ? { asked } : {}) };
 }
 
@@ -4461,7 +4561,7 @@ function detailEdit(d: Record<string, string>): { cause?: string; age?: string; 
   return out;
 }
 
-function describe(f: { date?: string | undefined; place?: string | undefined; value?: string | undefined; cause?: string | undefined; age?: string | undefined; house?: string | undefined; ages?: Record<string, string> | undefined }): string {
+export function describe(f: { date?: string | undefined; place?: string | undefined; value?: string | undefined; cause?: string | undefined; age?: string | undefined; house?: string | undefined; ages?: Record<string, string> | undefined }): string {
   const ages = Object.entries(f.ages ?? {}).map(([who, a]) => `${who} aged ${a}`);
   return [f.value, f.date, f.place, f.house && `house ${f.house}`, f.age && `aged ${f.age}`, ...ages, f.cause && `cause ${f.cause}`].filter(Boolean).join(", ") || "—";
 }
@@ -5074,6 +5174,11 @@ export function undoSync(tree: Tree, input: SyncInput): number {
       case "place.add":
         update<Place>(tree, a.id, "place", (p) => ({ ...p, retracted: { at: now(), reason } }), { op: "place.retract", summary: `${a.id} retracted: ${reason}`, reason });
         break;
+      case "surname.set": {
+        const b = JSON.parse(String(a.before ?? "{}")) as { added?: string | null; removed?: SurnameEntry[] };
+        undoSurnameChange(tree, a.id === "rejected" ? "rejected" : "groups", b.added ?? undefined, b.removed ?? [], reason);
+        break;
+      }
     }
     n++;
   }

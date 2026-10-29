@@ -34,7 +34,7 @@ export const SEAL_FOREIGN = "seal.foreign";
 
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
-export const VERSION = "1.21.0";
+export const VERSION = "1.22.0";
 
 export interface Op {
   at: string;
@@ -123,9 +123,11 @@ export function typeOfId(id: string): RecordType | undefined {
   return p ? typeOfPrefix(p) : undefined;
 }
 
+/** The type of each prefix (asked for every ID a list goes through: a long research asks it millions of times). */
+const TYPE_OF_PREFIX = new Map(Object.entries(RECORD_TYPES).map(([type, def]) => [def.prefix as string, type as RecordType]));
+
 export function typeOfPrefix(prefix: string): RecordType | undefined {
-  for (const [type, def] of Object.entries(RECORD_TYPES)) if (def.prefix === prefix) return type as RecordType;
-  return undefined;
+  return TYPE_OF_PREFIX.get(prefix);
 }
 
 /**
@@ -725,6 +727,73 @@ export class Tree {
     this.version++;
     this.single.set(record.id, record);
     this.cache.get(record.type)?.set(record.id, record);
+  }
+
+  /**
+   * Write a file of the research outside data/ that strom alone writes (history/: core/pastevents.ts), as a logged,
+   * sealed operation: a change of it without one is an edit outside strom (core/integrity.ts). Call inside withTreeLock.
+   */
+  putFile(rel: string, content: string, op: { op: string; targets: string[]; summary: string }): void {
+    const file = path.join(this.root, ...rel.split("/"));
+    this.appendOp({ ...op, summary: op.summary.normalize("NFC"), files: [{ path: rel, sha: sha256(content) }] });
+    this.version++;
+    if (this.dryRun) return;
+    this.remember(file);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    writeFileAtomic(file, content);
+  }
+
+  /**
+   * Several records, files strom alone writes (quality/) and strom.json changed together as one logged, sealed
+   * operation (a fix of strom's that sets many facts right at once, and its undo: one step of the history). The
+   * records are validated all before anything is written. Call inside withTreeLock.
+   */
+  putMany(
+    inputs: AnyRecord[],
+    files: { rel: string; content: string }[],
+    op: { op: string; targets: string[]; summary: string; reason?: string },
+    config?: (c: TreeConfig) => void,
+  ): void {
+    const records = inputs.map((input) => {
+      const record = settledRecord(composed(input) as AnyRecord);
+      const problems = validateRecord(record);
+      if (problems.length > 0)
+        throw new UsageError(`invalid ${record.type} ${record.id}: ${problems.map((p) => `${p.path} ${p.message}`).join("; ")}`, { details: problems });
+      return { record, file: this.recordPath(record.type, record.id), content: stringifyCanonical(record) };
+    });
+    if (config) config(this.config);
+    const cfg = config ? stringifyCanonical(this.config) : undefined;
+    this.appendOp({
+      ...op,
+      summary: op.summary.normalize("NFC"),
+      ...(op.reason ? { reason: op.reason.normalize("NFC") } : {}),
+      files: [
+        ...records.map((r) => ({ path: this.relative(r.file), sha: sha256(r.content) })),
+        ...files.map((f) => ({ path: f.rel, sha: sha256(f.content) })),
+        ...(cfg !== undefined ? [{ path: TREE_FILE, sha: sha256(cfg) }] : []),
+      ],
+    });
+    this.version++;
+    for (const r of records) {
+      this.single.set(r.record.id, r.record);
+      this.cache.get(r.record.type)?.set(r.record.id, r.record);
+    }
+    if (this.dryRun) return;
+    for (const r of records) {
+      this.remember(r.file);
+      writeFileAtomic(r.file, r.content);
+    }
+    for (const f of files) {
+      const file = path.join(this.root, ...f.rel.split("/"));
+      this.remember(file);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      writeFileAtomic(file, f.content);
+    }
+    if (cfg !== undefined) {
+      const file = path.join(this.root, TREE_FILE);
+      this.remember(file);
+      writeFileAtomic(file, cfg);
+    }
   }
 
   readOps(): Op[] {

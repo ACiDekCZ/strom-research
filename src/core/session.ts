@@ -21,6 +21,10 @@ import { finishAsked, finishByLimit, finishFile, timeSaidFile } from "./clock.ts
 import { isLiveWorker, isWorkerId } from "./workers.ts";
 import { readCodexConfig } from "../agents/effort.ts";
 import { clearSessionWait, permissionWait, waitingForDecision } from "./archivewait.ts";
+import { forgetLeftAlone } from "./leftalone.ts";
+import { Settings } from "./config.ts";
+import { forGaps, regionOfTask, takeRegion } from "./pastevents.ts";
+import { placeOfTask, takePlace } from "./placehistory.ts";
 
 function currentFile(tree: Tree, env: Env = tree.env): string {
   const w = env.STROM_WORKER;
@@ -196,6 +200,13 @@ export function startSession(tree: Tree, opts: { task?: Task; research?: string;
       const doing = { ...rest, state: "doing" as const, updated: now() };
       tree.put(doing, { op: "task.start", targets: [doing.id, s.id], summary: `${doing.id} start` });
     }
+    // a region's task of history: this tree holds the region while it builds its catalog, or fills its gaps (another
+    // tree's task waits); a place's own history likewise (core/placehistory.ts)
+    const region = task ? regionOfTask(task) : undefined;
+    const place = task ? placeOfTask(task) : undefined;
+    const shared = (region || place) && !tree.dryRun ? new Settings(tree.env, {}).shared()?.value : undefined;
+    if (region && shared) takeRegion(shared, region, tree.config.id, forGaps(task!));
+    if (place && shared) takePlace(shared, tree, place);
     setCurrent(tree, s.id);
     return s;
   });
@@ -263,6 +274,7 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
   if (!tree.dryRun) {
     fs.rmSync(finishFile(tree.root, closed.id), { force: true });
     clearSessionWait(tree.root, closed.id);
+    forgetLeftAlone(tree.root, closed.id);
     // the time it was told (core/clock.ts timeLine) and an early close said once: gone with it
     for (const f of [timeSaidFile(tree.root, closed.id), timeSaidFile(tree.root, closed.id).replace(/\.json$/, ".close")]) fs.rmSync(f, { force: true });
   }

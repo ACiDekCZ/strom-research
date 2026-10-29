@@ -25,7 +25,7 @@
 //   older than STROM_READS_TAGS, AGE, CAUS, ADDR and _FREL/_MREL are also said
 //   in notes.
 
-import { GedWriter, clipChars } from "./lines.ts";
+import { GedWriter, clipChars, lineValue } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, HypothesisVariant, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
 import { linkInTree, recordedLinks } from "../core/hypolinks.ts";
@@ -153,7 +153,18 @@ export interface ExportOptions {
    * 1 _STROM_IMG_OMITTED <why> with 2 _STROM_CLIP <mark> for each of them (planExcerpts().omitted).
    */
   omitted?: (s: Source) => ExcerptOmitted | undefined;
+  /**
+   * The Strom profile, for an app that carries them over (APP_READS_SURNAME_GROUPS): the person's groups of a surname's
+   * forms and the suggestions they rejected (core/surnames.ts), in the header as the Strom app writes them —
+   * 1 NOTE Strom surname-variant groups / 1 NOTE Strom surname-variant rejections, 2 CONT a group (its forms apart by
+   * " | "), a long one on in 3 CONC. Both always, empty too (no 2 CONT: none).
+   */
+  surnameGroups?: { groups: string[][]; rejected: string[][] };
 }
+
+/** The header notes of the Strom app with the groups of a surname's forms and the suggestions rejected (its ged-exporter). */
+export const SURNAME_GROUPS_MARK = "Strom surname-variant groups";
+export const SURNAME_REJECTIONS_MARK = "Strom surname-variant rejections";
 
 export interface ExportResult {
   text: string;
@@ -194,6 +205,41 @@ const unknownSurname = (n: Name) => noName(n.given) && foldText(n.surname) === "
 /** GEDCOM NAME TYPE for our kinds of name ("religious" is a user-defined type). */
 const NAME_TYPE: Record<NonNullable<Name["kind"]>, string> = { birth: "birth", married: "married", alias: "aka", religious: "religious" };
 
+/** A fact the GEDCOM writes: never a retracted or disproven one. */
+export function factWritten(e: Event): boolean {
+  return !(e.retracted || e.status === "retracted" || e.status === "disproven");
+}
+
+/** The families the GEDCOM writes: none removed, their partners and children among the persons written, more than `min` of them. */
+function familiesWritten(tree: Tree, personIds: Set<string>, min: number): Family[] {
+  return tree
+    .list<Family>("family")
+    .filter((f) => !f.retracted)
+    .map((f) => ({ ...f, partners: f.partners.filter((p) => personIds.has(p)), children: f.children.filter((c) => personIds.has(c.person)) }))
+    .filter((f) => f.partners.length + f.children.length > min);
+}
+
+/**
+ * The places of the facts exactly as the GEDCOM writes them (`2 PLAC` under a fact of a person or a family, the whole
+ * tree: every person not removed) — each with the years its facts give. One reading for the export and for the history
+ * at the places of the tree (core/pastevents.ts): the key the Strom app pairs its places by.
+ */
+export function factPlaces(tree: Tree): Map<string, number[]> {
+  const persons = tree.list<Person>("person").filter((p) => !p.retracted);
+  const out = new Map<string, number[]>();
+  const add = (e: Event) => {
+    if (!factWritten(e) || !e.place) return;
+    const key = lineValue(e.place);
+    if (!key) return;
+    const years = out.get(key) ?? [];
+    if (e.date) years.push(...dateYears(e.date));
+    out.set(key, years);
+  };
+  for (const p of persons) for (const e of p.events) add(e);
+  for (const f of familiesWritten(tree, new Set(persons.map((p) => p.id)), 0)) for (const e of f.events) add(e);
+  return out;
+}
+
 export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult {
   const lang = tree.config.lang;
   const L = labels(lang);
@@ -216,11 +262,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   const at = persons.findIndex((p) => p.id === main);
   if (at > 0) persons.unshift(...persons.splice(at, 1));
   const personIds = new Set(persons.map((p) => p.id));
-  const families = tree
-    .list<Family>("family")
-    .filter((f) => !f.retracted)
-    .map((f) => ({ ...f, partners: f.partners.filter((p) => personIds.has(p)), children: f.children.filter((c) => personIds.has(c.person)) }))
-    .filter((f) => f.partners.length + f.children.length > (opts.persons ? 1 : 0));
+  const families = familiesWritten(tree, personIds, opts.persons ? 1 : 0);
   // The Strom app gets no source of a sync ("edits in the Strom app"): its own tree cited back at it, one more each send,
   // cluttering its list of sources — the facts it alone stands for are leads (a note says so). Other programs get it.
   const syncs = strict ? new Set<string>() : new Set(tree.list<Input & { sync?: unknown }>("input").filter((i) => i.sync).map((i) => i.id));
@@ -296,6 +338,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   w.line(2, "FORM", "LINEAGE-LINKED");
   w.line(1, "CHAR", "UTF-8");
   w.text(1, "NOTE", `${tree.config.name}\n${L("header")}\n${L("generated")}`);
+  // the person's groups of a surname's forms and the suggestions rejected: the Strom file of an app that keeps them
+  if (!strict && opts.surnameGroups) {
+    for (const [mark, list] of [[SURNAME_GROUPS_MARK, opts.surnameGroups.groups], [SURNAME_REJECTIONS_MARK, opts.surnameGroups.rejected]] as const) {
+      w.line(1, "NOTE", mark);
+      for (const forms of list) w.line(2, "CONT", forms.join(" | "));
+    }
+  }
 
   // ── people ──
   const famc = new Map<string, { fam: string; relation: string }[]>();
@@ -518,7 +567,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
 
   // ── one fact; returns notes that must go one level up (value tags) ──
   function event(e: Event, on: "INDI" | "FAM", couple: { husb?: string | undefined; wife?: string | undefined }, assos: { person: string; rela: string }[]): string[] {
-    if (e.retracted || e.status === "retracted" || e.status === "disproven") {
+    if (!factWritten(e)) {
       stats.skipped++;
       return [];
     }

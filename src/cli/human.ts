@@ -147,7 +147,8 @@ function namesOne(word: string, names: string[]): boolean {
 /**
  * What the agent wrote into a task, for the user: the records it names by ID by their names ("S0001" → its title).
  * `asWritten`: a person's ID right after their name in the text stays the bare ID in brackets ("Václava Nováka P0001" →
- * "Václava Nováka [P0001]"), never the name said twice — the short lines of What waits.
+ * "Václava Nováka [P0001]"), never the name said twice — the short lines of What waits. A person's ID in brackets right
+ * after their name, as strom writes it ("Karel Němec [P0001]"), stays as it is either way.
  */
 export function humanTask(tree: Tree, text: string, lang: string, o: { asWritten?: boolean } = {}): string {
   const named = (id: string, before: string): boolean => {
@@ -167,7 +168,11 @@ export function humanTask(tree: Tree, text: string, lang: string, o: { asWritten
     return r.title;
   };
   // A list of IDs as a list of names, each once (two sessions of one day read as one).
-  return text.replace(/\b[PFSBN]\d{4,}\b(?:, [PFSBN]\d{4,}\b)*/g, (ids: string, at: number) =>
-    o.asWritten && !ids.includes(",") && named(ids, text.slice(0, at)) ? `[${ids}]` : [...new Set(ids.split(", ").map(name))].join(", "),
-  );
+  const names = (ids: string, at: number): string =>
+    o.asWritten && !ids.includes(",") && named(ids, text.slice(0, at)) ? `[${ids}]` : [...new Set(ids.split(", ").map(name))].join(", ");
+  return text.replace(/(\[)?\b([PFSBN]\d{4,}\b(?:, [PFSBN]\d{4,}\b)*)(\])?/g, (all: string, open: string | undefined, ids: string, close: string | undefined, at: number) => {
+    // a person's ID in brackets as strom writes it ("Karel Němec [P0001]"): kept after their name, else their name in its place
+    if (open && close && !ids.includes(",") && tree.get<Person>(ids)?.type === "person") return named(ids, text.slice(0, at)) ? all : name(ids);
+    return `${open ?? ""}${names(ids, at + (open ? 1 : 0))}${close ?? ""}`;
+  });
 }

@@ -19,6 +19,8 @@ import { head as gitHead, resetCache } from "../core/git.ts";
 import type { HeldError } from "../core/json.ts";
 import { newerTree, Tree, VERSION } from "../core/tree.ts";
 import { settleArchive } from "../core/mode.ts";
+import { startTiming, stepEnd, stepStart, stopTiming, timed, timingOn } from "../core/timing.ts";
+import { timingSaid } from "./timing.ts";
 import { raiseHypothesisLinkTasks, settleHypothesisLinks } from "../core/hypolinks.ts";
 import { liveRunning, reviveLive, startLive } from "../core/live.ts";
 import { revivePhone } from "../core/phone.ts";
@@ -198,6 +200,17 @@ function versionSaid(env: Env, cwd: string, io: IO, values: Record<string, strin
 }
 
 export async function main(argv: string[], io: IO, env: Env, cwd: string): Promise<number> {
+  // measured from the start (strom --timing, STROM_TIMING=1): how long each step took, said at the end
+  const timing = env.STROM_TIMING === "1" || argv.includes("--timing");
+  if (timing) startTiming();
+  try {
+    return await mainOf(argv, io, env, cwd);
+  } finally {
+    if (timing) stopTiming();
+  }
+}
+
+async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<number> {
   const json = argv.includes("--json");
   const own = ownCommand(env);
   if (own) io = asOwnCommand(io, own, json, argv);
@@ -216,7 +229,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // "strom 'person list'" (one quoted word) means the same as strom person list.
     if (argv[0] && !argv[0].startsWith("-") && /\s/.test(argv[0].trim())) argv = [...argv[0].trim().split(/\s+/), ...argv.slice(1)];
     // A person at a terminal gets the guided menu; an agent, a script or the app the orientation.
-    if (argv.length === 0 && io.tty && !isAgent(env) && env.STROM_NONINTERACTIVE !== "1") argv = ["menu"];
+    // (strom --timing alone: the menu, measured)
+    if ((argv.length === 0 || (argv.length === 1 && argv[0] === "--timing")) && io.tty && !isAgent(env) && env.STROM_NONINTERACTIVE !== "1") argv = ["menu", ...argv];
     if (argv.length === 1 && (argv[0] === "--version" || argv[0] === "-v")) {
       io.stdout(json ? toJson({ version: VERSION }) : versionSaid(env, cwd, io));
       return EXIT.ok;
@@ -260,6 +274,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     // What the user does in their own terminal (a login, the seal, a plugin installed): refused to an agent here, after
     // every option is read — the agents' rules match only what follows the command's name (strom --json seal adopt
     // passed Codex's), so they are a second layer and strom the first
+    if (def.refusesFirst) def.refusesFirst(ctx, { args: parsed.positionals, opts: v });
     if (def.person && isAgent(env)) {
       const said = (def.options ?? []).flatMap((o) => (v[o.name] === undefined || v[o.name] === false ? [] : o.type === "boolean" ? [`--${o.name}`] : [`--${o.name}`, String(v[o.name])]));
       ctx.requireHuman(def.person, ["strom", ...def.path, ...[...parsed.positionals, ...said].map(shellArg)].join(" "), def.path[0]!, undefined, { window: false });
@@ -329,7 +344,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     const pending = fromSources || hook || guest ? undefined : pendingTransition(ctx.settings.config, VERSION, channelNow);
     if (pending && ctx.settings.home()) {
       try {
-        const made = backupBefore(ctx, pending);
+        const made = timed("start.backup", () => backupBefore(ctx, pending));
         if (made) io.stderr(`${backupSaid(ctx, made)}\n`);
       } catch (e) {
         if (!(e instanceof StromError)) throw e;
@@ -342,6 +357,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
     const lastChannel = lastChannelOf(ctx.settings.config);
     const otherChannel = !!lastChannel && lastChannel !== channelNow;
     if (ctx.settings.home() && !ctx.backupFailed && (last !== VERSION || otherChannel) && env.STROM_SPAWNED !== "1" && def.path.join(" ") !== "live serve" && !fromSources && !hook && !guest) {
+      // (measured: strom --timing — a first run that never ends as one, its settings not kept, is here each time)
+      stepStart("start.newversion");
       // the connectors here when this strom first runs: taken over as they are — they run as before, the person
       // confirms them once (core/terms.ts); a strom new on this computer takes over none (every connector is new)
       try {
@@ -406,6 +423,7 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
           // its next bridge brings it back
         }
       }
+      stepEnd();
     }
     // the folder of the program that runs with these settings (from a strom that ran here before it was kept, once):
     // another installation that runs here later is their guest
@@ -476,6 +494,8 @@ export async function main(argv: string[], io: IO, env: Env, cwd: string): Promi
       if (result.data && typeof result.data === "object" && !Array.isArray(result.data)) result.data = { ...(result.data as object), dryRun: true };
     }
     print(io, ctx, result);
+    // the menu said it when it was first shown
+    if (timingOn() && command !== "menu") io.stderr(`${timingSaid(isAgent(env) ? "en" : ctx.uiLang())}\n`);
     if (!hook) remind(io, ctx, command, Date.now() - startedAt);
     return result.exitCode ?? EXIT.ok;
   } catch (err) {

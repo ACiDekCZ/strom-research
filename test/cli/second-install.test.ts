@@ -363,6 +363,7 @@ test("a second installation's errors of the command line name its own command �
 test("D3b: a second installation names its own command after unpack, at the menu's goodbye and where a text names the program alone — „Dál: strom-beta (nabídka) nebo strom-beta chat.“; a command at the end of a sentence too, never a file", { skip: !hasGit }, async () => {
   const w = new World();
   await w.ok(["setup", "--yes"]);
+  w.historyAsked();
   await w.ok(["init", "Novákovi"]);
   w.cwd = w.treeDir("Novákovi");
   await w.ok(["person", "add", "Jan /Novák/", "--born", "1805"]);
@@ -370,6 +371,7 @@ test("D3b: a second installation names its own command after unpack, at the menu
   await w.ok(["pack", "--out", zip]);
   const env = { STROM_CONFIG_DIR: path.join(w.dir, "config-beta"), STROM_ISOLATED: "1", STROM_COMMAND: "strom-beta", STROM_LANG: "cs", STROM_HOME: path.join(w.dir, "beta-home") };
   await w.ok(["setup", "--yes"], { env, cwd: w.dir });
+  w.historyAsked(env);
   const u = await w.ok(["unpack", zip], { env, cwd: w.dir, answers: ["a"] });
   assert.match(u.out, /Dál: strom-beta \(nabídka\) nebo strom-beta chat\./, u.out);
   assert.doesNotMatch(u.out, /(^|[\s:„(])strom (\(|chat|unpack)/m, u.out);

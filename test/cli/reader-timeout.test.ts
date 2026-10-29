@@ -7,10 +7,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { learnedReaderMinutes, READER_LEARN_RECENT, readerMinutes, READER_MINUTES_CEILING, READER_MINUTES_FLOOR } from "../../src/core/reader.ts";
-import { isHalted } from "../../src/core/readstats.ts";
+import { isHalted, readerLimit } from "../../src/core/readstats.ts";
 
 const unix = { skip: !hasGit || process.platform === "win32" };
 const fixtures = path.join(import.meta.dirname, "..", "fixtures", "images");
@@ -130,5 +131,100 @@ test("strom read: the next reader of the same agent and model gets the time earl
     assert.deepEqual([records().at(-1)!.minutes, records().at(-1)!.minutesFrom], [7, "option"]);
   } finally {
     w.cleanup();
+  }
+});
+
+/**
+ * Claude Code as a reader whose service goes silent after a retry (found live 2026-10-27: api_retry, then 14.5 minutes
+ * of nothing to its time limit): the first start says a retry and goes silent; resumed (--resume), it answers with a
+ * block for each image of its brief (FAKE_MODE recover) or goes silent again (again). Each start written down.
+ */
+function silentClaude(w: World): () => { args: string[]; stdin: string }[] {
+  const bin = path.join(w.dir, "silent-bin");
+  fs.mkdirSync(bin, { recursive: true });
+  const calls = path.join(w.dir, "claude-calls.jsonl");
+  const script = path.join(bin, "claude.mjs");
+  fs.writeFileSync(
+    script,
+    `import fs from "node:fs";
+const args = process.argv.slice(2);
+const stdin = fs.readFileSync(0, "utf8");
+fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify({ args, stdin }) + "\\n");
+const say = (o) => process.stdout.write(JSON.stringify(o) + "\\n");
+say({ type: "system", subtype: "init", session_id: "s", model: "claude-opus-5-5", tools: ["Read", "Edit", "Write"] });
+const brief = JSON.parse(fs.readFileSync(${JSON.stringify(calls)}, "utf8").split("\\n")[0]).stdin;
+if (args.includes("--resume") && process.env.FAKE_MODE === "recover") {
+  const blocks = [...brief.matchAll(/^- (M\\d{4}) · image (\\d+)/gm)].map((m) => "## Image " + m[2] + " · " + m[1] + "\\nresult: nothing\\n");
+  say({ type: "result", result: blocks.join("\\n"), total_cost_usd: 0.03, num_turns: 3 });
+} else {
+  say({ type: "system", subtype: "api_retry", attempt: 1, max_retries: 10, retry_delay_ms: 0, error_status: null, error: "unknown" });
+  setTimeout(() => {}, 60_000);
+}
+`,
+  );
+  fs.writeFileSync(path.join(bin, "claude"), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
+  w.env.PATH = `${bin}${path.delimiter}${w.env.PATH}`;
+  w.env.STROM_READER_STALL_MS = "300";
+  return () => fs.readFileSync(calls, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+}
+
+test("strom read: a reader silent after a retry of its service is resumed once and reads on; silent again, it is halted at once — never a reader without a result", unix, async () => {
+  const w = new World();
+  try {
+    await treeWithScans(w);
+    const calls = silentClaude(w);
+    const file = path.join(w.cwd, ".strom", "metrics", "readers.jsonl");
+    const last = () => JSON.parse(fs.readFileSync(file, "utf8").trim().split("\n").at(-1)!);
+    const read = (mode: string) => w.run(["read", "B1", "--images", "1-2", "--whole", "--question", "Křest Jana Lhotáka (Ткач)", "--agent", "claude", "--parallel", "1"], { env: { FAKE_MODE: mode } });
+
+    const started = Date.now();
+    const ok = await read("recover");
+    assert.ok(Date.now() - started < 60_000);
+    assert.equal(ok.code, 0, ok.out + ok.err);
+    assert.match(ok.out, /^found on: none$/m);
+    const resumed = calls();
+    assert.equal(resumed.length, 2, "the same batch resumed once");
+    assert.ok(resumed[1]!.args.includes("--resume"));
+    assert.doesNotMatch(resumed[1]!.stdin, /THE IMAGES/, "where it stopped: its brief not again");
+    assert.deepEqual([last().outcome, last().stalls, last().stalled], ["ok", 1, undefined]);
+
+    fs.rmSync(path.join(w.dir, "claude-calls.jsonl"));
+    const halted = await read("again");
+    assert.equal(halted.code, 1);
+    assert.equal(calls().length, 2, "resumed once, not more");
+    const said = halted.out + halted.err;
+    assert.match(said, /■ reader 1: its agent's service went silent after a retry, also when resumed — stopped/);
+    assert.match(said, /readers that failed: 1–2 \(its agent's service went silent after a retry, also when resumed — stopped\)/);
+    assert.match(said, /NOT reported: 1–2 — read these again/);
+    // recorded as halted ("error", as an older strom reads it too), never as a reader without a result
+    const rec = last();
+    assert.deepEqual([rec.outcome, rec.stalled, rec.stalls], ["error", true, 2]);
+    assert.equal(isHalted({ kind: "reader", outcome: rec.outcome }), true);
+    const j = (await w.ok(["media", "calibrate", "--report", "--json"])).json;
+    assert.equal(j.readers.halted, 1, JSON.stringify(j.readers));
+    assert.deepEqual(j.readers.haltedBy, { stalled: 1 });
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("a reader its service left silent after a retry teaches the next one's time limit nothing — stopped at its limit so before, or recorded so now", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "strom limit ž "));
+  try {
+    const metrics = path.join(root, ".strom", "metrics");
+    const runs = path.join(root, ".strom", "runs");
+    fs.mkdirSync(metrics, { recursive: true });
+    fs.mkdirSync(runs, { recursive: true });
+    const at = new Date().toISOString();
+    const put = (lines: Record<string, unknown>[]) => fs.writeFileSync(path.join(metrics, "readers.jsonl"), lines.map((l) => JSON.stringify(l)).join("\n") + "\n");
+    const stopped = { at, by: "user", reader: "read-z-1", kind: "read", agent: "claude", key: "claude opus", views: 1, outcome: "timeout", minutes: 6, wallMs: 362_000 };
+    put([stopped]);
+    assert.deepEqual(readerLimit(root, "claude opus", 1), { minutes: 13, from: "learned" }, "a timeout of a reading: more time");
+    fs.writeFileSync(path.join(runs, "read-z-1.log"), [JSON.stringify({ type: "system", subtype: "init" }), JSON.stringify({ type: "system", subtype: "api_retry", attempt: 1, error: "unknown" })].join("\n") + "\n");
+    assert.deepEqual(readerLimit(root, "claude opus", 1), { minutes: readerMinutes(1), from: "default" }, "its log ends at the retry");
+    put([{ ...stopped, reader: "read-z-2", outcome: "error", stalled: true, wallMs: 400_000 }]);
+    assert.deepEqual(readerLimit(root, "claude opus", 1), { minutes: readerMinutes(1), from: "default" });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });

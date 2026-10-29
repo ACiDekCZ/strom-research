@@ -8,6 +8,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { register } from "../cli/registry.ts";
+import { sameFamily } from "../core/surnames.ts";
+import { twoPeople } from "../core/quality.ts";
 import type { Context } from "../cli/context.ts";
 import { counted, lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { readingsLine, readingsOf } from "../core/readsync.ts";
@@ -285,7 +287,7 @@ register(
             if (back) report.push(`  ${ui(tree.lang, "ui.intake.tree.back", { file: ctx.display(file) })}`);
             if (!quiet) {
               const system = `gedcom:${sha.slice(0, 12)}`;
-              const dupes = likelyDuplicates(tree, tree.list<Person>("person").filter((p) => p.refs?.some((r) => r.system === system)).map((p) => p.id));
+              const dupes = likelyDuplicates(tree, tree.list<Person>("person").filter((p) => p.refs?.some((r) => r.system === system)).map((p) => p.id), sameFamily(tree), twoPeople(tree));
               if (dupes.length) report.push(`  ${ui(tree.lang, "ui.intake.dupes", { list: dupes.map((d) => `${d.person.id}≈${d.same.id}`).join(", ") })}`);
             }
           }

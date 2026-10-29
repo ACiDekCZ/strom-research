@@ -9,11 +9,13 @@
 import path from "node:path";
 import type { Context } from "./context.ts";
 import type { UIKey } from "./ui.ts";
+import { lines } from "./format.ts";
 import { claudeHere, pause, subMenu, translator, type Item, type Run } from "./menu-parts.ts";
 import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
 import { modelStep, shortcutName } from "./wizard.ts";
-import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
+import { DEFAULT_RUN_MINUTES, type HistoryPace } from "../core/config.ts";
+import { chooseHistory, historyOfferDue, historySuggested, markHistoryAsked } from "../commands/setup.ts";
 import { askGate, ensureGatesDir, listGates, loadGate } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
 import { byHandOnly, listConnectors, routeOf, routesOf, type Connector } from "../core/connector.ts";
@@ -28,8 +30,11 @@ import { calibrationOffer, viewSizesFor } from "../core/viewsizes.ts";
 import { archivePermissions, archiveState, browserOnlyHere } from "./menu-archives.ts";
 import { chooseTerminal, terminalState } from "./terminals.ts";
 import { phoneState } from "../core/phone.ts";
-import { fixEnv, pendingFixes } from "../commands/fixchecks.ts";
+import { fixEnv, pendingCount, pendingFixes } from "../commands/fixchecks.ts";
 import { isArchive as archiveHere } from "../core/mode.ts";
+import { isAgent } from "../core/which.ts";
+import { placesWithCoords } from "../core/placehistory.ts";
+import { pinPlaces, placeCost } from "./menu-links.ts";
 
 export async function settingsMenu(ctx: Context, run: Run, lang: string, root: string | undefined, newer?: string): Promise<"quit" | void> {
   const t = translator(lang);
@@ -227,18 +232,18 @@ async function maintenance(ctx: Context, run: Run, lang: string, root: string | 
       // what a fix of strom's left behind in this research: what it is, then the person's choice (strom fixes run)
       if (root) {
         const tree = Tree.open(root, ctx.env);
-        if (!archiveHere(tree)) {
-          const waits = pendingFixes(tree, fixEnv(ctx, tree)).reduce((n, s) => n + (s.check.unit === "reading" ? s.found.readings : s.found.items.length), 0);
-          items.push({
-            key: "3",
-            label: t("ui.maintenance.fixes", { state: waits ? t("ui.maintenance.fixes.waits", { n: waits }) : "" }),
-            act: async () => {
-              if (waits) await run(["fixes", "run"]);
-              else await run(["fixes"]);
-              await pause(ctx, lang);
-            },
-          });
-        }
+        // an archive: only what is rewritten by rules (participant-names, app-shapes, street-places) — nobody reads there, nothing of an agent said
+        const archive = archiveHere(tree);
+        const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).filter((s) => !archive || s.check.remedy === "rewrite").reduce((n, s) => n + pendingCount(s), 0);
+        items.push({
+          key: "3",
+          label: t("ui.maintenance.fixes", { state: waits ? t("ui.maintenance.fixes.waits", { n: waits }) : "" }),
+          act: async () => {
+            // (an archive: its checks are those that rewrite alone)
+            await run(waits ? ["fixes", "run"] : ["fixes"]);
+            await pause(ctx, lang);
+          },
+        });
       }
       if (newer)
         items.push({
@@ -363,6 +368,58 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
         },
       });
     }
+    // the experiment of history: how often between the family research's sessions, or off — the person's choice here
+    // (before the test of a gate, which shows only with one set: the numbers never move)
+    const history = ctx.settings.experimentsHistory(undefined);
+    items.push({
+      key: "5",
+      label: t("ui.alone.history", { state: history ? t(`ui.history.pace.${ctx.settings.historyPace(undefined)}` as UIKey) : t("ui.settings.off") }),
+      act: async () => {
+        const h = await chooseHistory(ctx, t("ui.setup.history"), historySuggested(ctx), { back: t("ui.browse.back") });
+        if (!h) return;
+        // the person's answer: the menu's question after an update never comes
+        markHistoryAsked(ctx);
+        ctx.settings.save();
+        await applyHistory(ctx, run, h);
+      },
+    });
+    // the history of each place with coordinates, looked for by itself (spec 020 K7.4): this computer's, off unless the
+    // person turns it on here or from the app's link; a research may have turned it off for itself
+    const places = ctx.settings.historyPlacesAuto(tree);
+    items.push({
+      key: "6",
+      label: t("ui.alone.places", { state: t(places ? "ui.settings.on" : "ui.settings.off") }),
+      act: async () => {
+        if (!places && !ctx.settings.historyPlace(tree)) {
+          out(t("ui.alone.places.history"));
+          await pause(ctx, lang);
+          return;
+        }
+        const tr = root ? Tree.open(root, ctx.env) : undefined;
+        const gps = tr ? placesWithCoords(tr, shared) : undefined;
+        out(lines(t("ui.alone.places.about"), gps ? t("ui.link.experiment.places.count", { n: gps.places, done: gps.done }) : undefined, tr ? placeCost(t, lang, tr) : undefined));
+        if (!(await ctx.confirm(t(places ? "ui.alone.places.off" : "ui.alone.places.on"), false))) return;
+        await run(["config", "set", "experiments.historyPlaces", places ? "off" : "on"], true);
+        // turned on here: a research's own off goes with it (this computer's choice is the person's)
+        if (!places && root && tree?.experimentsHistoryPlaces === "off") await run(["config", "unset", "experiments.historyPlaces", "--for-tree"], true);
+      },
+    });
+    // the two switches of this research (spec 020 K8): its strom.json wins over this computer's both ways
+    if (root)
+      for (const [key, name, on] of [
+        ["7", "experiments.history", ctx.settings.historyRegions(tree)],
+        ["8", "experiments.placeHistory", ctx.settings.historyPlace(tree)],
+      ] as const)
+        items.push({
+          key,
+          label: t(name === "experiments.history" ? "ui.alone.regions.tree" : "ui.alone.placeHistory.tree", { state: t(on ? "ui.settings.on" : "ui.settings.off") }),
+          act: async () => {
+            out(t("ui.alone.tree.about"));
+            if (!(await ctx.confirm(t(on ? "ui.alone.places.off" : "ui.alone.places.on"), false))) return;
+            if (name === "experiments.history" && !(await pinPlaces(run, Tree.open(root, ctx.env), ctx))) return;
+            await run(["config", "set", name, on ? "off" : "on", "--for-tree"], true);
+          },
+        });
     if (set && shared)
       items.push({
         key: "3",
@@ -387,6 +444,41 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
       });
     return { title: t("ui.alone.title"), items };
   });
+}
+
+/**
+ * An installation that has never been asked about the history of the places (set up before strom had it): asked once,
+ * at the menu of a research with its agent, by a person at a terminal — the setup's question, Enter "not now" (nothing
+ * turns on; later in the settings). Kept as asked before the question, whatever comes of it (Ctrl-C too): never again
+ * (spec 020 K1.6, Milan 28 Oct 2026). Never for an agent, --yes or STROM_NONINTERACTIVE: nothing asked, nothing kept.
+ */
+export async function offerHistory(ctx: Context, run: Run, lang: string): Promise<void> {
+  if (!ctx.interactive || isAgent(ctx.env) || !historyOfferDue(ctx)) return;
+  const t = translator(lang);
+  ctx.io.stdout(`\n${t("ui.history.offer")}\n`);
+  const h = await chooseHistory(ctx, t("ui.setup.history"), "off", { off: t("ui.history.offer.no") });
+  if (h === undefined) return;
+  // kept as asked once answered: a terminal closed on the question asks it again (found on Windows)
+  markHistoryAsked(ctx);
+  ctx.settings.save();
+  if (h === "off") {
+    ctx.io.stdout(`${t("ui.history.offer.later")}\n`);
+    return;
+  }
+  // said as "not now" is: what turned on, and where it changes
+  if (await applyHistory(ctx, run, h)) ctx.io.stdout(`${t("ui.history.offer.on", { pace: t(`ui.history.pace.${h}` as UIKey) })}\n`);
+}
+
+/**
+ * History on at the pace chosen, or off (the settings): through strom config set, as the person would type it — the
+ * pace first, so turning it on asks nothing more. false: a step of it did not go through (it said why).
+ */
+async function applyHistory(ctx: Context, run: Run, choice: HistoryPace | "off"): Promise<boolean> {
+  const on = ctx.settings.experimentsHistory(undefined);
+  if (choice === "off") return on ? (await run(["config", "set", "experiments.history", "off"], true)) === 0 : true;
+  if (choice !== ctx.settings.historyPace(undefined) || ctx.settings.config.experimentsHistoryPace === undefined)
+    if ((await run(["config", "set", "experiments.historyPace", choice], true)) !== 0) return false;
+  return on || (await run(["config", "set", "experiments.history", "on"], true)) === 0;
 }
 
 /** The gate's name in "claude-usage 10". */

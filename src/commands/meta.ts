@@ -32,6 +32,7 @@ import { liveWorkers, runAlive } from "../core/workers.ts";
 import { label } from "../core/people.ts";
 import { isArchive } from "../core/mode.ts";
 import { actsAsArchive, stateOf } from "../core/state.ts";
+import { historyOn } from "../core/pastevents.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
 import { questionsWaiting } from "../core/tuneask.ts";
 import { connectorFor, permissionsWaiting, tasksStanding, waysOffered } from "../core/archiveasks.ts";
@@ -306,7 +307,10 @@ register(
         const text = methodPage(page, undefined).trim();
         return { text, data: { guide: text, topic, lang } };
       }
-      const text = guideText(lang, appUrlShown(ctx.settings).url, ctx.settings.webPerHost(ctx.hasTree() ? ctx.tree().config : undefined));
+      const tree = ctx.hasTree() ? ctx.tree() : undefined;
+      // the history of the places in a conversation: only where the user has it on (an archive returned above)
+      const history = !!tree && historyOn(tree, ctx.settings) && !actsAsArchive(tree);
+      const text = guideText(lang, appUrlShown(ctx.settings).url, ctx.settings.webPerHost(tree?.config), process.platform, history);
       return { text, data: { guide: text, lang } };
     },
   },

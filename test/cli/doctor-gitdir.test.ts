@@ -9,6 +9,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { World, hasGit } from "../helpers.ts";
 
+// not on Windows: git stands in as a shell script there is no way to put before git.exe
 const opts = { skip: !hasGit || process.platform === "win32" };
 
 test("B4 strom doctor tries git in the research folder: one that cannot tell where it is gets '!' and the advice of strom init", opts, async () => {

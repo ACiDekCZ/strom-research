@@ -12,13 +12,15 @@ import os from "node:os";
 import path from "node:path";
 import * as git from "./git.ts";
 import { connectorsDir } from "./connector.ts";
+import { mergeCatalog, regionFile, regionIdOk, regionsOfTree, type Catalog } from "./pastevents.ts";
+import { mergePlaceCatalog, placeFile, placeKeyOf, placeKeyOk, type PlaceCatalog } from "./placehistory.ts";
 import { StromError, UsageError } from "./errors.ts";
 import { createKey } from "./seal.ts";
 import { safeFolderName } from "./text.ts";
 import { Tree, VERSION } from "./tree.ts";
 import { verifyFull } from "./integrity.ts";
 import { readZip, unzipTo, ZipWriter } from "./zip.ts";
-import type { Input, Media, Source } from "./model.ts";
+import type { Input, Media, Place, Source } from "./model.ts";
 import type { Env } from "./paths.ts";
 
 export const PACK_MANIFEST = "strom-pack.json";
@@ -38,6 +40,10 @@ export interface PackManifest {
   /** Files of the shared folder in the package (media/…). */
   media: string[];
   connectors: string[];
+  /** The catalogs of the regions of history the tree's places belong to (shared/history/regions/<id>.json); merged on unpack, never written over. */
+  history?: string[];
+  /** The catalogs of the history of the tree's places (shared/history/places/<key>.json); merged on unpack, never written over. */
+  places?: string[];
   /** Images left out (the archive gives them again). */
   left: { count: number; bytes: number };
 }
@@ -197,6 +203,10 @@ export function writePack(
       connectors: plan.connectors,
       left: { count: plan.left.count, bytes: plan.left.bytes },
     };
+    const regions = regionsOfTree(tree).filter((id) => fs.existsSync(regionFile(shared, id)));
+    if (regions.length) manifest.history = regions;
+    const places = [...new Set(tree.list<Place>("place").filter((p) => !p.retracted).map((p) => placeKeyOf(tree, p)))].filter((k) => fs.existsSync(placeFile(shared, k)));
+    if (places.length) manifest.places = places;
     // CRLF: Notepad of an older Windows shows it right too
     zip.add(opts.readme.name, Buffer.from(opts.readme.text.replace(/\n/g, "\r\n"), "utf8"));
     for (const l of launchers(opts.say)) zip.add(l.name, Buffer.from(l.text, "utf8"), { mode: l.mode });
@@ -206,6 +216,8 @@ export function writePack(
     for (const c of plan.connectors) {
       addTree(zip, `shared/plugins/connectors/${c}`, path.join(connectorsDir(shared), c));
     }
+    for (const id of regions) zip.addFile(`shared/history/regions/${id}.json`, regionFile(shared, id));
+    for (const key of places) zip.addFile(`shared/history/places/${key}.json`, placeFile(shared, key));
     zip.close();
     return { file: out, bytes: fs.statSync(out).size, manifest, plan };
   } catch (e) {
@@ -254,6 +266,8 @@ export interface Unpacked {
   connectors: string[];
   connectorsKept: string[];
   adopted: boolean;
+  /** The events of history taken into this computer's catalogs (those it had stay as they are). */
+  historyEvents: number;
 }
 
 /**
@@ -325,7 +339,31 @@ export function unpack(pack: { manifest: PackManifest; dir: string }, treesDir: 
       fs.cpSync(path.join(src, "shared", "plugins", "connectors", c), to, { recursive: true });
       connectors.push(c);
     }
-    return { root, name: tree.config.name, images: media.length - imagesHad, imagesHad, connectors, connectorsKept: kept, adopted };
+    let historyEvents = 0;
+    for (const id of m.history ?? []) {
+      if (!regionIdOk(id)) continue;
+      const file = path.join(src, "shared", "history", "regions", `${id}.json`);
+      let given: Catalog | undefined;
+      try {
+        given = JSON.parse(fs.readFileSync(file, "utf8")) as Catalog;
+      } catch {
+        continue; // a catalog missing or damaged: the research is whole without it (its events are found again)
+      }
+      if (given?.region?.id !== id) continue;
+      historyEvents += mergeCatalog(shared, given).added;
+    }
+    for (const key of m.places ?? []) {
+      if (!placeKeyOk(key)) continue;
+      let given: PlaceCatalog | undefined;
+      try {
+        given = JSON.parse(fs.readFileSync(path.join(src, "shared", "history", "places", `${key}.json`), "utf8")) as PlaceCatalog;
+      } catch {
+        continue; // as a region's: the research is whole without it
+      }
+      if (given?.place?.key !== key) continue;
+      historyEvents += mergePlaceCatalog(shared, given).added;
+    }
+    return { root, name: tree.config.name, images: media.length - imagesHad, imagesHad, connectors, connectorsKept: kept, adopted, historyEvents };
   } catch (e) {
     fs.rmSync(root, { recursive: true, force: true });
     throw e;

@@ -36,6 +36,12 @@ export interface RunOptions {
    */
   wrapUp?: { ms: number; prompt: string };
   /**
+   * A reader whose agent goes silent after a retry of its service (Claude Code's api_retry, then not one line for this
+   * long — found live: 14.5 minutes of nothing, to its time limit): stopped and resumed once with this message, with
+   * the time it had left; silent again, it ends at once as halted (RunResult.stalled), never at its time limit.
+   */
+  stalled?: { ms: number; prompt: string };
+  /**
    * The tree's agent settings (permissions), passed explicitly: Claude Code
    * ignores the allow rules of a project's .claude/settings.json until the
    * user has trusted the folder interactively — a new tree never is.
@@ -106,6 +112,10 @@ export interface RunResult {
   modelRejected?: true;
   /** The limits of the agent's plan as it said them last (Claude Code's rate_limit_event); none from other agents. */
   limits?: AgentLimit[];
+  /** How many times the agent went silent after a retry of its service (RunOptions.stalled): resumed after the first. */
+  stalls?: number;
+  /** It ended so (outcome "error"): its service failed, nothing of the work — never a time limit reached. */
+  stalled?: true;
 }
 
 /**

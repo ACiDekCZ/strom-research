@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Context } from "../cli/context.ts";
 import { StromError, UsageError } from "../core/errors.ts";
-import { readerSettings } from "../core/reader.ts";
+import { READER_STALLED, readerSettings, readerStall } from "../core/reader.ts";
 import { readerLimit } from "../core/readstats.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { which, withoutAgentMarks } from "../core/which.ts";
@@ -182,6 +182,8 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
       // without the user's own add-ons (skills, plugins, MCP servers) unless they said otherwise
       ...(ctx.settings.agentAddons(tree.config) ? {} : { clean: true }),
       timeoutMs: limit.minutes * 60_000,
+      // silent after a retry of its service: resumed once, then halted — never waited for to its limit
+      stalled: readerStall(ctx.env),
       logFile: path.join(tree.root, ".strom", "runs", `${kind}-${stem}-${name}.log`),
       ...(model ? { model } : {}),
       // the reasoning effort the person chose for the agent (model.effort): readers read with it too
@@ -204,6 +206,9 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
         return n + (s ? s.width * s.height : 0);
       }, 0),
       outcome: r.outcome,
+      // its service went silent after a retry (outcome "error": halted, as an older strom reads it too), and how often
+      ...(r.stalled ? { stalled: true } : {}),
+      ...(r.stalls ? { stalls: r.stalls } : {}),
       usd: r.metrics.costUsd,
       ...(r.metrics.costPartial ? { usdPartial: true } : {}),
       tokens: tokensOf(r.metrics),
@@ -219,7 +224,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
     runs++;
     if (r.metrics.costUsd === undefined || r.metrics.costPartial) partial = true;
     // refused by a sandbox that does not say so: said as such, never only "error"
-    if (r.outcome !== "ok") failed.push(`${name} (${r.outcome === "error" && refusedBySandbox(r.text) ? "no reader can start in this sandbox" : r.outcome === "timeout" ? `stopped at its time limit, ${limit.minutes} min` : r.outcome})`);
+    if (r.outcome !== "ok") failed.push(`${name} (${r.outcome === "error" && refusedBySandbox(r.text) ? "no reader can start in this sandbox" : r.stalled ? READER_STALLED : r.outcome === "timeout" ? `stopped at its time limit, ${limit.minutes} min` : r.outcome})`);
     const written = fs.readFileSync(report, "utf8");
     if (!/^##\s/m.test(written) && r.text.trim()) fs.appendFileSync(report, r.text.trim() + "\n");
     return { report, text: fs.readFileSync(report, "utf8"), outcome: r.outcome, ...(r.metrics.costUsd !== undefined ? { costUsd: r.metrics.costUsd } : {}), ...(r.metrics.costPartial ? { costPartial: true } : {}), ...(r.resumeAt ? { resumeAt: r.resumeAt } : {}) };

@@ -243,3 +243,42 @@ test("the numbers reach every agent's texts: the defaults as always, the tuned o
   assert.match(reader, /After about 18 views, stop and report what you have/);
   assert.match(scanReaderPrompt({ ...n, viewsPerCall: 8 }), /at most 8 images and\n8 views a call: 8 whole images, or 2 with 4 views each/);
 });
+
+// N4 (2026-10-27): two readers whose service went silent after a retry (api_retry, then nothing to their time limit)
+// were taken for readers without a result — reading.batch 6 → 3, viewsPerCall 24 → 12, a dearer reading of each scan.
+// Halted now: recorded so by the reader (stalled), or a timeout whose log ends at the retry. Timeouts of a reading
+// still make the batches smaller.
+test("two readers of the last five halted by their service gone silent after a retry: no smaller batches; two timeouts of a reading: smaller", opts, async () => {
+  const { w, tree, settings } = await research();
+  const root = w.cwd;
+  const runs = path.join(root, ".strom", "runs");
+  const metrics = path.join(root, ".strom", "metrics");
+  fs.mkdirSync(runs, { recursive: true });
+  fs.mkdirSync(metrics, { recursive: true });
+  const init = JSON.stringify({ type: "system", subtype: "init", session_id: "s", model: "claude-opus-5-5" });
+  const retry = JSON.stringify({ type: "system", subtype: "api_retry", attempt: 1, max_retries: 10, retry_delay_ms: 600, error: "unknown" });
+  const going = JSON.stringify({ type: "assistant", message: { id: "m2", model: "claude-opus-5-5", content: [] } });
+  const now = Date.now();
+  const line = (name: string, h: number, outcome: string, more: Record<string, unknown> = {}) => ({ at: new Date(now - h * 3600_000).toISOString(), by: "agent", reader: name, kind: "read", agent: "claude", key: KEY, model: "opus", reported: "claude-opus-5-5", images: 6, views: 6, outcome, missing: outcome === "ok" ? 0 : 6, ms: 60_000, ...more });
+  const write = (stalledLogs: boolean) => {
+    // as a strom of before recorded them: stopped at their time limit, their logs ending at the retry (or going on)
+    for (const n of [2, 4]) fs.writeFileSync(path.join(runs, `read-x-${n}.log`), [init, retry, ...(stalledLogs ? [] : [going])].join("\n") + "\n");
+    const plan = [line("read-x-1", 9, "ok"), line("read-x-2", 8, "timeout"), line("read-x-3", 7, "ok"), line("read-x-4", 6, "timeout"), line("read-x-5", 5, "ok")];
+    fs.writeFileSync(path.join(metrics, "readers.jsonl"), plan.map((l) => JSON.stringify(l)).join("\n") + "\n");
+    fs.rmSync(path.join(metrics, "rollup.json"), { force: true });
+  };
+  write(true);
+  const halted = selfTune(tree, { settings: settings(), others: [] });
+  assert.deepEqual(halted.changes, [], JSON.stringify(halted.changes));
+  assert.equal(settings().config.tuning, undefined);
+
+  // as the reader records it now (outcome "error" — halted for an older strom too —, stalled)
+  fs.writeFileSync(path.join(metrics, "readers.jsonl"), [line("read-y-1", 4, "ok"), line("read-y-2", 3, "error", { stalled: true, stalls: 2 }), line("read-y-3", 2, "ok"), line("read-y-4", 1, "error", { stalled: true, stalls: 2 }), line("read-y-5", 0.5, "ok")].map((l) => JSON.stringify(l)).join("\n") + "\n");
+  fs.rmSync(path.join(metrics, "rollup.json"), { force: true });
+  assert.deepEqual(selfTune(tree, { settings: settings(), others: [] }).changes, []);
+
+  write(false);
+  const read = selfTune(tree, { settings: settings(), others: [] });
+  assert.deepEqual(read.changes.map((c) => [c.action, c.to]), [["A2", { batch: 3, viewsPerCall: 12 }]], "timeouts of a reading: M10 as before");
+  w.cleanup();
+});

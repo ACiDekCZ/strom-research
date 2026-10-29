@@ -101,7 +101,8 @@ test("Codex: stopped at its time limit and resumed to write down — two turns' 
     const bin = path.join(dir, "bin");
     fs.mkdirSync(bin, { recursive: true });
     const script = path.join(bin, "agent.mjs");
-    // exec: its turn, then it works on until stopped; exec resume: the short turn of the wrap-up
+    // exec: its turn, then it works on until stopped; exec resume: the short turn of the wrap-up (the time limit long
+    // enough for the stand-in to start and say its turn under a full test run's load)
     fs.writeFileSync(
       script,
       'import fs from "node:fs";\nconst resumed = process.argv.includes("resume");\nprocess.stdout.write(fs.readFileSync(resumed ? process.env.FAKE_RESUME : process.env.FAKE_STREAM, "utf8"));\nif (!resumed) setInterval(() => {}, 1000);\n',
@@ -109,7 +110,7 @@ test("Codex: stopped at its time limit and resumed to write down — two turns' 
     fs.writeFileSync(path.join(bin, "codex"), `#!/bin/sh\nexec "${process.execPath}" "${script}" "$@"\n`, { mode: 0o755 });
     const env = { PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`, HOME: dir, FAKE_STREAM: path.join(fixtures, "codex-stream-exec.jsonl"), FAKE_RESUME: path.join(fixtures, "codex-stream-resume.jsonl") };
     const got: UsageSample[] = [];
-    const r = await codexRunner.run({ cwd: dir, prompt: "Brief", kickoff: "k", env, logFile: path.join(dir, "runs", "N0001.log"), timeoutMs: 1500, wrapUp: { ms: 20_000, prompt: "Time is up" }, onUsage: (u) => got.push(u) });
+    const r = await codexRunner.run({ cwd: dir, prompt: "Brief", kickoff: "k", env, logFile: path.join(dir, "runs", "N0001.log"), timeoutMs: 4000, wrapUp: { ms: 20_000, prompt: "Time is up" }, onUsage: (u) => got.push(u) });
     assert.equal(r.outcome, "timeout");
     assert.deepEqual(got.slice(1), [
       { total: true, in: 7012000, cr: 6800000, out: 41000, turns: 3 },

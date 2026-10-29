@@ -10,7 +10,7 @@ import path from "node:path";
 import { World, hasGit } from "../helpers.ts";
 import { Tree, now } from "../../src/core/tree.ts";
 import { rankTasks } from "../../src/core/queue.ts";
-import { imagesIndex, indexFile } from "../../src/core/mediaindex.ts";
+import { imagesIndex, indexFile, sharperCopies } from "../../src/core/mediaindex.ts";
 import { treeStats } from "../../src/core/overview.ts";
 import type { Media, Task } from "../../src/core/model.ts";
 
@@ -142,4 +142,44 @@ test("images index: a command that fails puts the images back so the folder's st
   assert.notEqual(fs.statSync(dir, { bigint: true }).mtimeNs, before, "the image put back by renaming");
   assert.equal(imagesIndex(Tree.open(w.cwd, w.env)).alive, 61);
   w.cleanup();
+});
+
+test("images index: the sharper copies of a book — a part by the whole scan of most pixels, a new scan by the widest scan before it; one taken back counts for nothing", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    await w.ok(["recordset", "add", "Lhota N 1850–1870", "--kinds", "baptism", "--places", "Lhota", "--years", "1850-1870"]);
+    const tree = Tree.open(w.cwd, w.env);
+    const day = (d: number) => new Date(Date.UTC(2026, 9, d)).toISOString();
+    const add = (image: number, created: string, width: number, extra: Partial<Media> = {}): string => {
+      let id = "";
+      tree.withTreeLock(() => {
+        id = tree.allocate("M");
+        const m: Media = { id, type: "media", created, updated: created, sha: id.padEnd(64, "0"), file: `media/${id}.jpg`, mime: "image/jpeg", size: 1, recordset: "B0001", image, width, height: width, notes: [], ...extra };
+        tree.put(m, { op: "media.add", targets: [id], summary: `image ${id}` });
+      });
+      return id;
+    };
+    // image 1: a scan, a wider one later (2.5×), one wider still taken back, a part of half its width at 1200 px
+    // (measured against the widest standing scan: 0.96×, no sharper)
+    add(1, day(1), 1000);
+    const rescan = add(1, day(2), 2500);
+    add(1, day(3), 5000, { retracted: { at: day(4), reason: "obraz jiné knihy" } });
+    add(1, day(5), 1200, { part: { x: 0, y: 0, w: 0.5, h: 0.5 } });
+    // image 2: a scan and a quarter of it at the same width (4×); an earlier narrower scan of image 3 after a wider one
+    add(2, day(1), 1000);
+    const part = add(2, day(2), 1000, { part: { x: 0.5, y: 0.5, w: 0.25, h: 0.25 } });
+    add(3, day(1), 2000);
+    add(3, day(2), 1500);
+    tree.commit("images");
+    settle(w.cwd);
+    const copies = sharperCopies(Tree.open(w.cwd, w.env), "B0001", 1.5).map((c) => [c.id, c.image, Number(c.gain.toFixed(2)), !!c.part]);
+    assert.deepEqual(copies, [
+      [rescan, 1, 2.5, false],
+      [part, 2, 4, true],
+    ]);
+    assert.deepEqual(sharperCopies(Tree.open(w.cwd, w.env), "B0001", 3).map((c) => c.id), [part]);
+  } finally {
+    w.cleanup();
+  }
 });

@@ -31,7 +31,12 @@ export function parseGedcomText(text: string): { records: GedNode[]; problems: s
     if (m[2]) node.xref = m[2];
     if (node.tag === "CONC" || node.tag === "CONT") {
       const parent = stack[node.level - 1];
-      if (parent) parent.value += (node.tag === "CONT" ? "\n" : "") + node.value;
+      if (!parent) return;
+      parent.value += (node.tag === "CONT" ? "\n" : "") + node.value;
+      // a line continued below its CONT (the Strom app wraps a long one: "2 CONT …" then "3 CONC …"): the same line
+      // goes on — never lost
+      stack.length = node.level;
+      stack[node.level] = parent;
       return;
     }
     stack.length = node.level;

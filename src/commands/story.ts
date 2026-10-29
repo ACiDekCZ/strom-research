@@ -12,6 +12,7 @@ import { displayName, lifespan, resolvePerson } from "../core/people.ts";
 import type { Family, Person, Source } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import { foldText } from "../core/text.ts";
+import { checkStoryHistory, historyEventLine } from "../core/pastevents.ts";
 
 /**
  * The one heading a story has is its title (--title). A first line "# …" is taken as the title when none is given,
@@ -65,6 +66,8 @@ register(
       { name: "title", type: "string", value: "<text>", description: "a heading" },
       { name: "fact", type: "string", multiple: true, value: "<E…>", description: "a fact it leans on (repeatable)" },
       { name: "source", type: "string", multiple: true, value: "<S…>", description: "a source of the background of place and time it tells — not a fact of the person (repeatable)" },
+      // the history of the places in the stories (stories.history): the brief of the story says it, nothing else does
+      { name: "history", type: "string", multiple: true, value: "<event>", hidden: true, description: "an event of the history of the places it tells as the background of its time, from the brief (repeatable)" },
       { name: "note", type: "string", value: "<text>", description: "your caveat: what is inferred, what is unknown" },
       { name: "final", type: "boolean", description: "the user approved it" },
     ],
@@ -74,11 +77,14 @@ register(
       const given = textOpt(opts.text, (p) => fs.readFileSync(ctx.resolvePath(p), "utf8"));
       if (!given?.trim()) throw new UsageError("--text is required", { hint: "--text @notes/story.md (a file) or the text itself" });
       const { text, title } = titleOf(given, opts.title as string | undefined);
-      const rec = setStory(tree, owner(tree, args[0]!), {
+      const who = owner(tree, args[0]!);
+      const history = checkStoryHistory(tree, ctx.settings.shared()?.value, who, csvOpt(opts.history), ctx.settings);
+      const rec = setStory(tree, who, {
         text,
         title,
         facts: csvOpt(opts.fact).map((f) => normId(f)),
         sources: csvOpt(opts.source).map((s) => normId(s)),
+        history,
         note: opts.note as string | undefined,
         final: Boolean(opts.final),
       });
@@ -176,6 +182,8 @@ register(
       if (!rec) throw new UsageError(`no family ${id}`, { code: "record.none", params: { kind: "family", id: id } });
       const st = rec.story;
       if (!st) return { text: `${id} has no story yet → strom story set ${id} --text @file --fact E…`, data: { story: null } };
+      const historyLines = (ids: string[] | undefined) =>
+        ids?.length ? ["the history of the places it tells", ...ids.map((e) => `  ${e} ${historyEventLine(tree, ctx.settings.shared()?.value, e) ?? "(no longer exists)"}`)] : [];
       const facts = st.facts.map((f) => {
         try {
           const { owner: o, event: e } = findEventOwner(tree, f);
@@ -193,6 +201,7 @@ register(
           st.facts.length ? "rests on" : "rests on no recorded fact",
           ...facts,
           ...(st.sources?.length ? ["the background of place and time from", ...st.sources.map((s) => `  ${s} ${tree.get<Source>(s)?.title ?? "(no longer exists)"}`)] : []),
+          ...historyLines(st.history),
           st.note ? `\nnote: ${st.note}` : undefined,
           ...(st.draft
             ? [
@@ -201,6 +210,8 @@ register(
                 st.draft.title ? `“${st.draft.title}”` : undefined,
                 "",
                 st.draft.text,
+                // what of the history it tells, as of the version above (found 2026-10-28: only the approved one's said)
+                ...(st.draft.history?.length ? ["", ...historyLines(st.draft.history)] : []),
                 st.draft.note ? `\nnote: ${st.draft.note}` : undefined,
               ]
             : []),

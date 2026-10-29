@@ -108,8 +108,18 @@ export interface CommandDef {
    * adopt) — refused before anything is read or written (cli/main.ts). The question, for the agent.
    */
   person?: string;
+  /**
+   * What refuses the command whoever runs it, before the person is asked (cli/main.ts): never a question whose yes is
+   * refused after it (the history of the places off). Throws its refusal.
+   */
+  refusesFirst?(ctx: Context, input: Input): void;
   /** Takes arguments after "--" and passes them on (to the agent CLI). */
   passthrough?: boolean;
+  /**
+   * Behind a gate not open yet (an experiment the Strom app has not released): it runs when named, but no help
+   * overview, strom commands, the guide, the brief's sheet or the menu shows it.
+   */
+  hidden?: boolean;
   run(ctx: Context, input: Input): Promise<Result> | Result;
 }
 
@@ -125,6 +135,7 @@ export const GLOBAL_OPTIONS: OptionDef[] = [
   { name: "agent", type: "string", value: "<agent>", description: "AI agent: claude, codex, antigravity, opencode, grok (default from config)" },
   { name: "yes", type: "boolean", description: "accept suggested defaults, never ask" },
   { name: "debug", type: "boolean", description: "show technical details on errors" },
+  { name: "timing", type: "boolean", description: "say how long each step took and how much of the disk it read (stderr; also STROM_TIMING=1): the line to send when strom is slow" },
   { name: "version", type: "boolean", description: "print the version of strom" },
   { name: "help", type: "boolean", short: "h", description: "help for a command" },
 ];
@@ -153,8 +164,9 @@ export function register(...defs: CommandDef[]): void {
   }
 }
 
+/** The commands help, strom commands, the guide and the brief show: every one but those behind a gate (hidden). */
 export function commands(): readonly CommandDef[] {
-  return registry;
+  return registry.filter((c) => !c.hidden);
 }
 
 export function optionsOf(def: CommandDef): OptionDef[] {
@@ -178,7 +190,7 @@ export function match(words: string[]): { def: CommandDef; used: number } | unde
 
 /** Command groups ("person") that have subcommands but no command of their own. */
 export function subcommandsOf(prefix: string[]): CommandDef[] {
-  return registry.filter((c) => c.path.length > prefix.length && prefix.every((w, i) => c.path[i] === w));
+  return registry.filter((c) => !c.hidden && c.path.length > prefix.length && prefix.every((w, i) => c.path[i] === w));
 }
 
 /** An alias's words that begin with these (a group of aliases only: "lesson" has "lesson show" among them). */

@@ -4,6 +4,8 @@
 // description), WHY it matters, and WHEN it is done. A task without "where"
 // is a wish; strom refuses it.
 
+import { Settings } from "../core/config.ts";
+import { finishRegionOf, forHistory, refuseInHistorySession } from "../core/pastevents.ts";
 import { opsLogs } from "../core/opslog.ts";
 import fs from "node:fs";
 import path from "node:path";
@@ -22,7 +24,9 @@ import { resolveResearch } from "./research.ts";
 import { makeNote, makeNotes, splitText } from "../core/actions.ts";
 import { phrase } from "../core/phrases.ts";
 import { readJsonLines } from "../core/json.ts";
-import { lacksImages, rankTasks, waitsForDecision, type Ranked } from "../core/queue.ts";
+import { lacksImages, rankTasks, waitsForArchive, waitsForDecision, type Ranked } from "../core/queue.ts";
+import { clockUp } from "../core/net.ts";
+import type { Asleep } from "../core/leftalone.ts";
 import { joiningHypotheses, offTree } from "../core/kin.ts";
 import { aboutPeople } from "../core/directions.ts";
 import { storiesToApprove } from "../core/stories.ts";
@@ -149,17 +153,17 @@ export function waitingLines(tree: Tree, where: { shared?: string; display?: (p:
 }
 
 /** The open tasks of the queue in the order to work on them (see core/queue.ts). */
-export function taskQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean } = {}): Task[] {
+export function taskQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean; history?: boolean | "only" } = {}): Task[] {
   return rankedQueue(tree, filter).map((r) => r.task);
 }
 
-export function rankedQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean } = {}): Ranked[] {
+export function rankedQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean; history?: boolean | "only" } = {}): Ranked[] {
   const scope = filter.research ? scopes(tree).find((s) => s.research.id === filter.research) : undefined;
   const tasks = tree
     .list<Task>("task")
     .filter((t) => !filter.research || (scope ? ofResearch(tree, t, scope) : t.research === filter.research))
     .filter((t) => !filter.level || t.level === filter.level);
-  return rankTasks(tree, tasks, filter.strategy, { storyTurn: filter.storyTurn });
+  return rankTasks(tree, tasks, filter.strategy, { storyTurn: filter.storyTurn, awake: filter.awake, history: filter.history });
 }
 
 /**
@@ -197,6 +201,40 @@ export function decisionLines(tree: Tree, filter: (t: Task) => boolean = () => t
   return lines(
     ...[...by].map(([host, e]) => `${e.ids.length} more wait out of the queue (${e.ids.join(", ")}): their images are at ${e.title} (${host}), whose question waits for the person since ${e.at.slice(0, 10)} — another source meanwhile, or strom task wait ${e.ids[0]} --images B…:<from-to> --on "…"; never strom fetch there again before the person decides`),
   );
+}
+
+/**
+ * The open tasks out of the queue for a while because strom leaves their archive alone (core/queue.ts
+ * waitsForArchive): one line per archive, for the agent — until when, and that they come back by themselves.
+ */
+export function asleepLines(tree: Tree, filter: (t: Task) => boolean = () => true): string | undefined {
+  const held = waitsForArchive(tree);
+  const by = new Map<string, { until: number; ids: string[] }>();
+  for (const t of tree.list<Task>("task")) {
+    if (t.state !== "open" || !filter(t)) continue;
+    const a = held(t);
+    if (!a) continue;
+    const e = by.get(a.host) ?? { until: a.until, ids: [] };
+    e.ids.push(t.id);
+    by.set(a.host, e);
+  }
+  if (!by.size) return undefined;
+  return lines(
+    ...[...by].map(([host, e]) => `${e.ids.length} more wait out of the queue until ${clockUp(e.until)} (${e.ids.join(", ")}): their books are at ${host}, left alone after it went silent or asked to slow down — back in the queue by themselves then; no strom fetch there before`),
+  );
+}
+
+/**
+ * The queue empty now: the first time a task out of it only because its archive is left alone comes back (another
+ * agent's tasks left out) — what strom run waits for. Undefined: none.
+ */
+export function nextAwake(tree: Tree, filter: { research?: string; strategy?: Strategy }, others: Set<string> = new Set()): Asleep | undefined {
+  const held = waitsForArchive(tree);
+  return taskQueue(tree, { ...filter, awake: true })
+    .filter((t) => !others.has(t.id))
+    .map(held)
+    .filter((a): a is Asleep => !!a)
+    .sort((a, b) => a.until - b.until)[0];
 }
 
 function taskLine(t: Task): string[] {
@@ -272,9 +310,11 @@ export function longResult(tree: Tree, text: string): { result: string; more: No
 export function finishTask(tree: Tree, ref: string, text: string, produced: string[]): { task: Task; said: string[] } {
   const { result, more } = longResult(tree, text);
   const t = stateChange(tree, ref, "done", { result, produced: produced.map((x) => normId(x)) }, undefined, "done", more);
+  // a region's task of history done: its shared catalog finished too (the queue of every tree sees it so)
+  if (forHistory(t)) finishRegionOf(tree, new Settings(tree.env, {}).shared()?.value, t);
   // A search that is not recorded will be done again: nudge when a search task records none.
   const noSearch =
-    ["locate", "link", "verify", "enrich"].includes(t.level) && !tree.list<Search>("search").some((s) => s.task === t.id)
+    ["locate", "link", "verify", "enrich"].includes(t.level) && !forHistory(t) && !tree.list<Search>("search").some((s) => s.task === t.id)
       ? `note: no search is recorded for ${t.id} — record what you looked at, found or not: strom search add "<what>" --task ${t.id} --method web|catalog|index|page-by-page --result found|negative`
       : undefined;
   // A locate task hands over: the link tasks that name no record set yet should now name one.
@@ -491,6 +531,7 @@ register(
     ],
     run(ctx: Context, { args, opts }) {
       const tree = ctx.tree();
+      refuseInHistorySession(tree, currentSession(tree, ctx.env, ctx.refs), "strom task add");
       const missing = [!opts.level && "--level", !listOpt(opts.where).length && "--where", !opts.why && "--why", !opts["done-when"] && "--done-when"].filter(Boolean);
       if (missing.length)
         throw new UsageError(`a task needs ${missing.join(", ")}`, { hint: "a task without where is a wish: name the record set (B…) or describe exactly where to look" });
@@ -575,6 +616,8 @@ register(
     options: [
       { name: "research", type: "string", value: "<G…>", description: "only this research" },
       { name: "level", type: "string", value: "<level>", description: "only this level" },
+      // behind the experiment's gate: the tasks of history only when asked for by name (core/queue.ts)
+      { name: "history", type: "boolean", hidden: true, description: "the tasks of history too (after all the research)" },
     ],
     run(ctx, { opts }) {
       const tree = ctx.tree();
@@ -582,14 +625,18 @@ register(
       const strategy = ctx.settings.strategy(tree.config);
       // never a task another agent works on now (other conversations, runs in this tree)
       const held = othersAtWork(tree, ctx.env).tasks;
-      const queue = rankedQueue(tree, { ...(research ? { research } : {}), ...(opts.level ? { level: String(opts.level) } : {}), strategy }).filter((r) => !held.has(r.task.id));
+      const queue = rankedQueue(tree, { ...(research ? { research } : {}), ...(opts.level ? { level: String(opts.level) } : {}), strategy, ...(opts.history ? { history: true } : {}) }).filter((r) => !held.has(r.task.id));
       const first = queue[0];
       if (!first) {
         const held = tree.list<Task>("task").filter(offTree(tree)).filter((t) => t.state === "open").length;
+        // work whose archive is left alone for a while: it comes back by itself, nothing to add for it
+        const later = asleepLines(tree);
         const text = held
           ? `no open task of the tree — ${held} wait about people nothing links to it yet (strom task list --off-tree): test the hypothesis that would join them, or ask the user`
-          : "no open tasks → strom research show <G…> to see what is missing, then strom task add";
-        return { text: lines(text, decisionLines(tree)), data: { task: null, offTree: held } };
+          : later
+            ? "no open task to work on now"
+            : "no open tasks → strom research show <G…> to see what is missing, then strom task add";
+        return { text: lines(text, decisionLines(tree), later), data: { task: null, offTree: held } };
       }
       const t = first.task;
       return {
@@ -645,6 +692,7 @@ register(
           all.length ? lines(table(page.items.map(taskLine)), moreLine(page, "strom task list")) : ui(tree.lang, "ui.task.none"),
           held ? `${held} more wait out of the queue: about people nothing links to the tree yet (strom task list --off-tree)` : undefined,
           !opts.state && !opts["off-tree"] && !opts.about ? decisionLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
+          !opts.state && !opts["off-tree"] && !opts.about ? asleepLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
         ),
         data: {
           total: page.total,

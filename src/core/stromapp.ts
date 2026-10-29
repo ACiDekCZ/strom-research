@@ -69,6 +69,21 @@ export function appWritesSexUnknown(version: string | undefined): boolean {
   return !!v && isAppVersion(v) && compareVersions(v, APP_WRITES_SEX_UNKNOWN) >= 0;
 }
 
+/**
+ * The first Strom app that keeps a period and an age as the research wrote them (its 3eae0d3, the research's 1028): a
+ * period FROM x TO y (FROM x, TO y) apart from the range BET x AND y (AFT x, BEF y), an age with its units of nothing
+ * ("0y 2m 26d"). Before it the app sent a period back as a range and an age without its zero units, which strom sync
+ * takes in the research's own form (core/appshapes.ts) — from it on such a change is the user's edit like any other. A
+ * real pre-release, not a gate: its own betas before it could not keep them.
+ */
+export const APP_KEEPS_PERIODS = "3.17.0-beta.9";
+
+/** Does a file of the Strom app of this version (its HEAD's 2 VERS) keep a period and an age as the research wrote them? From 3.17.0-beta.9 on; no version said: no. */
+export function appKeepsPeriods(version: string | undefined): boolean {
+  const v = version?.trim();
+  return !!v && isAppVersion(v) && compareVersions(v, APP_KEEPS_PERIODS) >= 0;
+}
+
 /** The pages of the Strom app — on the web, its beta, a copy on this computer (its development): the only ones strom opens with a research, and the only ones its bridge lets in. */
 export function isStromAppOrigin(origin: string): boolean {
   return origin === "https://stromapp.info" || origin === "https://beta.stromapp.info" || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
@@ -487,6 +502,29 @@ export function appShowsStoryDrafts(settings: Settings, version?: string): boole
   const [a, b] = [n(version), n(APP_SHOWS_STORY_DRAFTS)];
   for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
   return true;
+}
+
+/**
+ * The first Strom app that carries the groups of a surname's forms and the suggestions the person rejected over
+ * without loss (spec 021; the app's ZADANI_VYZKUM_kvalita-dat.md, §B): it reads both header notes of the Strom file —
+ * 1 NOTE Strom surname-variant groups and 1 NOTE Strom surname-variant rejections (2 CONT a group, its forms apart by
+ * " | ") —, keeps them in the tree, sends them back, and takes the research's when it loads a new version of it. The
+ * app reads the markers from its 3.17.0-beta.7 (data version 13), but no app before it merged them, and an older one
+ * drops the rejections (the research would take their absence for the person's "unreject"): the first production
+ * app that carries them is 3.17.0. An app of unknown version (strom app from a terminal) stays off — it says nothing
+ * of what it keeps; another copy of the app (its beta, its development) gets them at once, as every gate, from the
+ * version that reads them (APP_READS_SURNAME_MARKERS).
+ */
+export const APP_READS_SURNAME_GROUPS: string | undefined = "3.17.0";
+
+/** The first app (its beta) that reads the header notes of a surname's forms: another copy of the app gets them from it. */
+export const APP_READS_SURNAME_MARKERS = "3.17.0-beta.7";
+
+export function appReadsSurnameGroups(settings: Settings, version?: string, gate: string | undefined = APP_READS_SURNAME_GROUPS): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings)) return compareVersions(v, APP_READS_SURNAME_MARKERS) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
 }
 
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */

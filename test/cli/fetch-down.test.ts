@@ -31,7 +31,7 @@ function silentUntil(w: Parameters<typeof netFile>[0], ms: number): number {
   return until;
 }
 
-test("fetch: an archive left alone after silence — exit 7 at once, the time rounded up, other work or session close --continue; nothing sent", opts, async () => {
+test("fetch: an archive left alone after silence — exit 7 at once, the time rounded up, other work meanwhile; nothing sent", opts, async () => {
   const { w, a } = await world();
   await w.ok(["recordset", "add", "Týnec N 1784–1820", "--kinds", "baptism", "--url", `${a.base}/book/5359`]); // B0001
   const at = silentUntil(w, 50 * 60_000 + 22_000);
@@ -39,7 +39,8 @@ test("fetch: an archive left alone after silence — exit 7 at once, the time ro
   assert.equal(r.code, 7, r.out + r.err);
   assert.match(r.out, /stopped: 127\.0\.0\.1: no answer at .* — left alone until/);
   assert.ok(r.out.includes(`→ 127.0.0.1 is left alone until ${clockUp(at)} (it went silent, or asked to slow down — strom sends it nothing before then): try again at ${clockUp(at)}, not sooner`), r.out);
-  assert.match(r.out, /meanwhile other work, or close the session for later \(strom session close --continue\) — no sleeping, no asking again sooner/);
+  // outside a session (the person at a terminal): other work; a session hears more (fetch-asked-again.test.ts)
+  assert.ok(r.out.includes(`next: other work until ${clockUp(at)} — no sleeping, no asking again sooner`), r.out);
   assert.doesNotMatch(r.out, /limit is used up/);
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 0, "nothing goes to the archive meanwhile");
   // --json: the time to try again, rounded up, and the host
@@ -76,7 +77,7 @@ test("fetch --background: an archive left alone longer than its wait — nothing
   started.add(pid);
   assert.match(bg.out, /fetching 2 images of B0001 \(images 1–2\) in the background/);
   assert.ok(bg.out.includes(`127.0.0.1 is left alone until ${clockUp(at)} (it went silent, or asked to slow down): the fetch waits for it, then goes on by itself`), bg.out);
-  await until("the fetch in the background waits for the archive", async () => /waits for the archive until \d\d:\d\d, then goes on by itself/.test((await w.ok(["fetch", "--status"])).out), { ms: 30_000 });
+  await until("the fetch in the background waits for the archive", async () => /waits for the archive until (\d{4}-\d\d-\d\d )?\d\d:\d\d, then goes on by itself/.test((await w.ok(["fetch", "--status"])).out), { ms: 30_000 });
   assert.equal(a.hits.filter((h) => h.startsWith("/img/")).length, 0);
   // stopped while it waits: it ends at once, no timer keeps it
   assert.doesNotMatch((await w.ok(["fetch", "--stop", "B1"])).out, /still stopping/);

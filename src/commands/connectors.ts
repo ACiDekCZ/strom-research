@@ -113,6 +113,8 @@ import { waitsOnHost } from "../core/archivewait.ts";
 import { waysOffered } from "../core/archiveasks.ts";
 import { archivesOverview, checkEnvironment, gateArchive, levelsOf, levelText, NeedsPermissionError, permissionText, robotsPermits, syncTrees, taskHere, verdictKeeper } from "./archives.ts";
 import { currentSession, othersAtWork } from "../core/session.ts";
+import { refuseInHistorySession } from "../core/pastevents.ts";
+import { askedAgain, noteLeftAlone } from "../core/leftalone.ts";
 import { opsLogsOf } from "../core/opslog.ts";
 
 /** Which session of the research started a connector (strom connector new): its agent may discard it in that session. */
@@ -537,17 +539,58 @@ function measure(ctx: Context, c: Connector, meter: FetchMeter | undefined, rec:
  * A run that ended at a limit used up, or at a host left alone for a while (it went silent, asked to slow down): when
  * to try again (rounded up — never a minute too early), what to do meanwhile, and the exit code that says "later".
  * `background`: the command of a fetch in the background (it waits for a host that frees within FETCH_WAIT_MS).
+ * A host left alone, in a session: the next step said exactly (`next`, the text and --json) — the session is told
+ * once, a fetch of it asking the host again before then ends at once (exit 8, core/leftalone.ts).
  */
-function later(r: RunReport, again: string, background?: string): { line?: string; exitCode?: (typeof EXIT)["later"]; data?: { retryAt: string; leftAlone?: string } } {
+function later(r: RunReport, again: string, background?: string, o: { session?: boolean; run?: boolean } = {}): { line?: string; exitCode?: (typeof EXIT)["later"]; data?: { retryAt: string; leftAlone?: string; next?: string } } {
   if (r.later === undefined) return {};
   const at = clockUp(r.later);
-  const what = r.laterDown ? `${r.laterDown} is left alone until ${at} (it went silent, or asked to slow down — strom sends it nothing before then)` : "the archive's limit is used up";
+  const retryAt = new Date(Math.ceil(r.later / 60_000) * 60_000).toISOString();
   const soon = background && r.later - Date.now() <= FETCH_WAIT_MS ? `; or let it wait by itself: ${background} --background` : "";
+  if (!r.laterDown)
+    return {
+      line: `→ the archive's limit is used up: try again at ${at}, not sooner (${again})${soon}; meanwhile other work, or close the session for later (strom session close --continue) — no sleeping, no asking again sooner`,
+      exitCode: EXIT.later,
+      data: { retryAt },
+    };
+  const h = r.laterDown;
+  const next = o.session
+    ? `work on what needs nothing from ${h} (images here already, another book); the task needs it: back to the queue for later — strom session close --continue --summary "…" --next "…"${o.run ? ' --reason "…"' : ""} — no sleeping, no fetch of ${h} before ${at}: asked again in this session, strom refuses at once (exit 8)`
+    : `other work until ${at} — no sleeping, no asking again sooner`;
   return {
-    line: `→ ${what}: try again at ${at}, not sooner (${again})${soon}; meanwhile other work, or close the session for later (strom session close --continue) — no sleeping, no asking again sooner`,
+    line: lines(`→ ${h} is left alone until ${at} (it went silent, or asked to slow down — strom sends it nothing before then): try again at ${at}, not sooner (${again})${soon}`, `next: ${next}`),
     exitCode: EXIT.later,
-    data: { retryAt: new Date(Math.ceil(r.later / 60_000) * 60_000).toISOString(), ...(r.laterDown ? { leftAlone: r.laterDown } : {}) },
+    data: { retryAt, leftAlone: h, next },
   };
+}
+
+/**
+ * A fetch of a session asking again a host it was told is left alone, the same time off still lasting: refused before
+ * anything (no estimate, no request, no image touched) — exit 8, until when and what to do. A fetch in the background
+ * that waits for it by itself (it frees within its wait) is not refused. Outside a session, and for a fetch in the
+ * background strom started, nothing is kept or refused.
+ */
+function refuseAskedAgain(ctx: Context, c: Connector, session: Session | undefined, background: boolean): void {
+  if (!session) return;
+  const alone = leftAloneHosts(ctx, c);
+  const by = Date.now() + limitWait(ctx).waitMs;
+  const hit = askedAgain(ctx.tree().root, session.id, background ? alone.filter((a) => a.until > by) : alone);
+  if (!hit) return;
+  const at = clockUp(hit.until);
+  throw new StromError(`${hit.host} is left alone until ${at} (it went silent, or asked to slow down) — this session was told so already: nothing done, nothing sent`, {
+    exitCode: EXIT.askedAgain,
+    code: "fetch.left-alone",
+    params: { host: hit.host, until: new Date(Math.ceil(hit.until / 60_000) * 60_000).toISOString() },
+    hint: `no fetch of ${hit.host} before ${at}: work on what needs nothing from it, or back to the queue for later — strom session close --continue --summary "…" --next "…"${deadlineOf(ctx.env) !== undefined ? ' --reason "…"' : ""}`,
+  });
+}
+
+/** A fetch of a session was told a host is left alone (exit 7): kept, so that the session is told once. */
+function noteAskedOnce(ctx: Context, session: Session | undefined, res: Result): void {
+  const d = res.data as { leftAlone?: unknown; retryAt?: unknown } | undefined;
+  if (!session || res.exitCode !== EXIT.later || typeof d?.leftAlone !== "string" || typeof d.retryAt !== "string") return;
+  const until = Date.parse(d.retryAt);
+  if (Number.isFinite(until)) noteLeftAlone(ctx.tree().root, session.id, d.leftAlone, until);
 }
 
 /** Does this strom's task wait take --check <URL> (a check of a site by the person)? Said in the advice only then. */
@@ -904,6 +947,10 @@ register(
       const name = args[0]!;
       if (!NAME_RE.test(name)) throw new UsageError("a connector's name is lowercase letters, digits and dashes", { hint: `e.g. ${suggestName(name) ?? "example-archive"}` });
       if (!opts.url) throw new UsageError("give the portal: --url https://…");
+      if (ctx.hasTree()) {
+        const t = ctx.tree();
+        refuseInHistorySession(t, currentSession(t, ctx.env), "strom connector new");
+      }
       let url: URL;
       try {
         url = new URL(String(opts.url));
@@ -1376,9 +1423,10 @@ register(
       "longer, it ends with exit 7 and the time to try again. An archive that went silent (or asked twice to slow\n" +
       "down) is left alone for an hour (longer when it goes silent again): a fetch then ends at once with exit 7\n" +
       "and the time — other work meanwhile, or close the session with --continue; a fetch with --background waits\n" +
-      "for it by itself when it frees within 30 min. With --recordset the images are registered as they\n" +
-      "come, 10 at a time (strom read of the book may begin meanwhile); Ctrl-C keeps what came, the same command\n" +
-      "fetches the rest;\n" +
+      "for it by itself when it frees within 30 min. A session is told so once: a fetch of it asking that archive\n" +
+      "again before then ends at once with exit 8 (nothing estimated, nothing sent).\n" +
+      "With --recordset the images are registered as they come, 10 at a time (strom read of the book may begin\n" +
+      "meanwhile); Ctrl-C keeps what came, the same command fetches the rest;\n" +
       "without it they go into the inbox, a folder for the book.\n" +
       "It says first how many requests it asks of the archive and how long they take at the host's pace and hourly\n" +
       "cap: fetch whole images first (a request each) and a part only of an image whose entry needs it. From 80 %\n" +
@@ -1470,7 +1518,13 @@ register(
           throw new UsageError("--background fetches images of a book into a record set: --images and --recordset", { hint: `strom fetch ${c.name} <book> --images <from-to> --recordset B… --background` });
         if (routeOf(ctx.env, c).via === "browser") throw new UsageError(`connector ${c.name} fetches through your browser: no fetch in the background — the plan of strom fetch without --background`);
       }
-      return fetchWith(ctx, c, request, recordset, Boolean(opts["no-index"]), false, opts.background ? { again } : undefined, task);
+      // a session told already that a host of the archive is left alone: refused at once (no estimate, nothing sent)
+      const session = backgroundOf(ctx.env) ? undefined : currentSession(tree, ctx.env);
+      const direct = !((request.cmd === "fetch" || request.cmd === "part") && routeOf(ctx.env, c).via === "browser");
+      if (direct && !tree.dryRun) refuseAskedAgain(ctx, c, session, !!opts.background);
+      const res = await fetchWith(ctx, c, request, recordset, Boolean(opts["no-index"]), false, opts.background ? { again } : undefined, task);
+      if (!tree.dryRun) noteAskedOnce(ctx, session, res);
+      return res;
     },
   },
   {
@@ -2394,7 +2448,7 @@ async function startBackground(ctx: Context, c: Connector, request: Extract<Conn
   const tooLong = alone.filter((a) => a.until > by);
   if (tooLong.length) {
     const last = tooLong.reduce((a, b) => (b.until > a.until ? b : a));
-    const wait = later({ later: last.until, laterDown: last.host } as RunReport, `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)} --recordset ${recordset} --background`);
+    const wait = later({ later: last.until, laterDown: last.host } as RunReport, `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)} --recordset ${recordset} --background`, undefined, { session: true, run: deadlineOf(ctx.env) !== undefined });
     return { text: lines(`nothing started in the background: ${last.host} is left alone longer than a fetch in the background waits (${Math.round(limitWait(ctx).waitMs / 60_000)} min)`, wait.line), data: { started: false, ...wait.data }, exitCode: EXIT.later };
   }
   const waits = alone.length ? alone.reduce((a, b) => (b.until > a.until ? b : a)) : undefined;
@@ -2705,7 +2759,7 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     const took = `${Math.round((Date.now() - t0) / 1000)} s`;
     if (request.cmd === "find" || request.cmd === "list") {
       fs.rmSync(workDir, { recursive: true, force: true });
-      const wait = later(r, "the same command");
+      const wait = later(r, "the same command", undefined, { session: !child && !!currentSession(tree, ctx.env), run: deadlineOf(ctx.env) !== undefined });
       return {
         text: lines(describeRun(r, `${request.cmd} (${took})`), r.books.length ? [`books (${r.books.length}):`, ...bookLines(r, c, `strom fetch ${c.name} <id> --list`, tree)].join("\n") : advice ?? (r.stopped ? "no books — the run stopped before any came" : "no books found"), r.books.length ? advice : undefined, wait.line, near),
         data: { ...r, ...wait.data },
@@ -2774,7 +2828,8 @@ async function fetchWith(ctx: Context, c: Connector, request: ConnectorRequest, 
     }
     // the images it got are registered; the rest when the archive takes requests again
     const again = request.cmd === "fetch" ? `strom fetch ${c.name} ${shellArg(String(request.book))} --images ${imagesArg(request.images)}${recordset ? ` --recordset ${recordset}` : ""}` : undefined;
-    const wait = later(r, again ? `${again} — what is here already is not fetched again` : "the same command", again && recordset && !child && currentSession(tree, ctx.env) ? again : undefined);
+    const inSession = !child && !!currentSession(tree, ctx.env);
+    const wait = later(r, again ? `${again} — what is here already is not fetched again` : "the same command", again && recordset && inSession ? again : undefined, { session: inSession, run: deadlineOf(ctx.env) !== undefined });
     // images another strom was fetching: waited for once this one's are here (the foreground)
     const after = joined && !batches?.interrupted() && recordset ? await joinFetch(ctx, recordset, joined, `images ${runs(joined.images)} of ${recordset}: the other fetch`) : undefined;
     const code = wait.exitCode ? wait.exitCode : batches?.stopped() ? 0 : batches?.interrupted() ? EXIT.cancelled : r.stopped && !r.images.length ? 1 : after?.exitCode;

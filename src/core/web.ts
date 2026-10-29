@@ -47,6 +47,7 @@ import { ui } from "../cli/ui.ts";
 import { isAgent } from "./which.ts";
 import { otherWay, webGate, type WebGate } from "./webgate.ts";
 import { searchText } from "./knownterms.ts";
+import { forHistory } from "./pastevents.ts";
 import type { Env } from "./paths.ts";
 
 /**
@@ -225,6 +226,8 @@ export interface ConnectorWay {
   closed?: "refused" | "forbidden" | "browser" | "manual";
   /** The session's task (the commands of the way on name it). */
   of?: string;
+  /** A session on a task of history: its pages through strom history page — never a connector or a task. */
+  history?: true;
 }
 
 /**
@@ -310,7 +313,7 @@ export function connectorWay(o: { host: string; netHost: string; shared: string 
     person ? `--about ${person}` : "",
     research ? `--research ${research}` : "",
   ].filter(Boolean).join(" ");
-  return { ...(have ? { have } : {}), name, url, later, task: add, ...(o.closed ? { closed: o.closed } : {}), ...(task ? { of: task.id } : {}) };
+  return { ...(have ? { have } : {}), name, url, later, task: add, ...(o.closed ? { closed: o.closed } : {}), ...(task ? { of: task.id } : {}), ...(task && forHistory(task) ? { history: true as const } : {}) };
 }
 
 const NEVER = "Never go round it (curl, another tool, another address of the same server). Single searches stay free.";
@@ -335,6 +338,9 @@ export function wayText(host: string, way: ConnectorWay): string {
       ? `Its connector ${way.have} reads its catalogue (strom fetch ${way.have} --find "<place>", --list <book>); its images by hand only: strom task wait ${way.of ?? "T…"} --images B…:<numbers> --on "<the book, its link, which images — impersonal, in the research language>". For the rest another way first. ${GO_ON}`
       : `Its archive allows its images by hand only — no connector to build for its images: strom task wait ${way.of ?? "T…"} --images B…:<numbers> --on "<the book, its link, which images — impersonal, in the research language>"; its catalogue one page at a time within the limit. ${GO_ON}`;
   if (way.closed) return `This site lets strom read no more of it (${way.closed === "refused" ? "it refused strom's client" : way.closed === "forbidden" ? "its terms forbid automated access" : "only a person's browser goes there"}): no connector, no browser. ${otherWay(host, way.url, way.of)}`;
+  // a session of history: a page of it read by strom itself, once — the same read strom history add checks the quote on
+  if (way.history)
+    return `A page of it for an event of history: strom history page <its address> (--find "<words>" for the words to quote) — strom reads it once, at the server's pace, and strom history add checks the quote on that same read; no connector and no task in a session of history.`;
   if (way.have) return `Its connector is here: go on through it — strom connector show ${way.have}, then strom fetch ${way.have} … (it keeps the server's pace, robots.txt and terms).`;
   if (way.later)
     return (

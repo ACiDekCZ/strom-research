@@ -13,7 +13,7 @@ import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { isAgent } from "../core/which.ts";
 import { offerAdopt } from "./seal.ts";
-import { mb, setTidyAsked, tidyAsked, tidyOn, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+import { mb, setTidyAsked, tidyAskAgain, tidyAsked, tidyOn, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
 
 /** A line as a sentence: its first letter capital (a catalog's text that also stands inside a line). */
@@ -30,6 +30,7 @@ import { taskQueue } from "../commands/tasks.ts";
 import { humanTask } from "../commands/browse.ts";
 import { loadGate } from "../core/gate.ts";
 import { lacksImages } from "../core/queue.ts";
+import { historyOn } from "../core/pastevents.ts";
 import { othersAtWork } from "../core/session.ts";
 import { DEFAULT_RUN_MINUTES } from "../core/config.ts";
 import { truncate } from "./format.ts";
@@ -46,10 +47,10 @@ import { expandHome, isolated, ownCommand } from "../core/paths.ts";
 import { pathOf, startAgain } from "../core/userpath.ts";
 import { offerAgent } from "./fixes.ts";
 import { addToResearch } from "./menu-research.ts";
-import { waitingForYou, waitingHere } from "./menu-waiting.ts";
+import { waitingCount, waitingForYou } from "./menu-waiting.ts";
 import { waitingLine } from "../core/waiting.ts";
 import { permissionWaitingLines } from "../core/archiveasks.ts";
-import { settingsMenu } from "./menu-settings.ts";
+import { offerHistory, settingsMenu } from "./menu-settings.ts";
 import { mainPerson } from "../core/kin.ts";
 import { findAgent } from "../core/which.ts";
 import { agentsHere, waysHere, whereToTalk, type Way } from "../core/apps.ts";
@@ -60,7 +61,10 @@ import { isArchive } from "../core/mode.ts";
 import { actsAsArchive } from "../core/state.ts";
 import { switchTo } from "./menu-mode.ts";
 import { appMarkFromInstall, linkScheme } from "../core/links.ts";
-import { fixEnv, pendingFixes } from "../commands/fixchecks.ts";
+import { fixEnv, pendingCount, pendingFixes, refreshFixesSoon } from "../commands/fixchecks.ts";
+import { restartTiming, timed, timedAsync, timingOn } from "../core/timing.ts";
+import { researchStamp } from "../core/stamp.ts";
+import { timingSaid } from "./timing.ts";
 
 
 /** Create a family tree and say so in the user's words (init itself talks to agents). */
@@ -109,7 +113,22 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
   noticeStromApp(ctx.settings, ctx.env, { look: true });
 
   let toldNewer = false;
+  // the research opened, kept between the menu's rounds while it stays as it was (researchStamp: its commit, its
+  // strom.json — every change of its data is committed): its records not read again at each return to the menu
+  // (found on a Mac, 781 people: the menu took a while each time; on Windows, on OneDrive, minutes)
+  let held: { root: string; stamp: string; tree: Tree } | undefined;
+  // …and what it keeps beside it (the line of what can go), while nothing ran from the menu since (strom tidy among them)
+  let ran = 0;
+  const runHere = run;
+  run = (argv, quiet) => {
+    ran++;
+    return runHere(argv, quiet);
+  };
+  let heldDisk: { tree: Tree; ran: number; plan: ReturnType<typeof tidyPlan> } | undefined;
+  let timingShown = false;
   for (;;) {
+    // (a return measured from here: not the time spent in what was chosen)
+    if (timingShown) restartTiming();
     reload();
     const lang = ctx.uiLang();
     const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
@@ -119,10 +138,10 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       toldNewer = true;
       ctx.io.stdout(`\n${t("ui.update.restart", { shortcut: shortcutName(lang) })}\n`);
     }
-    const known = ctx.knownTrees();
+    const known = timed("menu.trees", () => ctx.knownTrees());
     let root: string | undefined;
     try {
-      root = ctx.locateTree();
+      root = timed("menu.trees", () => ctx.locateTree());
     } catch {
       root = undefined;
     }
@@ -153,7 +172,7 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
     const backup = lastBackup(ctx.env, BACKUP_SAID_DAYS);
     if (backup) out(lastBackupLine(lang, backup));
     for (const m of missing) out(t("ui.trees.missing", { name: m.name, path: ctx.display(m.root) }));
-    const newer = await newerVersion(ctx.settings, ctx.env);
+    const newer = await timedAsync("menu.update", () => newerVersion(ctx.settings, ctx.env));
     // a research a newer strom wrote (a beta's): never opened here — why and the way on, then the menu without it
     const locked = root ? newerTree(root, ctx.env) : undefined;
     if (locked) {
@@ -162,24 +181,31 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       root = undefined;
     }
     if (root) {
-      const tree = Tree.open(root, ctx.env);
+      const tree = timed("menu.open", () => {
+        const stamp = researchStamp(root!);
+        if (held?.root !== root || held.stamp !== stamp) held = { root: root!, stamp, tree: Tree.open(root!, ctx.env) };
+        return held.tree;
+      });
       // the bridge the Strom app follows, ended without a word (killed, the computer gone down): back with the menu —
       // an archive has no sessions to bring it back (found on Mac: the app "not running" until strom live start)
       if (!revived.has(root)) {
         revived.add(root);
         try {
-          reviveLive(root, ctx.env);
-          revivePhone(ctx.env);
+          timed("menu.live", () => {
+            reviveLive(root!, ctx.env);
+            revivePhone(ctx.env);
+          });
         } catch {
           // its next start brings it back
         }
       }
       // what waits for the person: the same list What waits shows (each thing once — a task that waits for an archive's
-      // decision is one of its question's)
-      const waits = waitingHere(ctx, tree);
-      const waiting = waits.length;
-      const started = tree.list<Research>("research").length > 0;
-      out(t("ui.menu.tree", { name: tree.config.name, persons: tree.countLive("person") }));
+      // decision is one of its question's); its count kept beside the research while nothing it stands on changed
+      // (counted, a long research's records are read: on a Mac, 781 people and 29 000 scans, six seconds)
+      const waits = timed("menu.waiting", () => waitingCount(ctx, tree));
+      const waiting = waits.all;
+      const started = timed("menu.records", () => tree.list<Research>("research").length > 0);
+      out(t("ui.menu.tree", { name: tree.config.name, persons: timed("menu.records", () => tree.countLive("person")) }));
       // No agent yet (none installed, or not the one chosen): the research waits for it — kept as an archive meanwhile,
       // item 1 gets one, item 2 keeps it an archive for good (nothing of the agent's work offered).
       const ready = agentReady(ctx, tree.config);
@@ -203,30 +229,44 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
       if (waiting) out(waitingLine(lang, waits));
       // an archive's images wait for the person's decision: one line, only until it is answered
       // (since when, and the tasks that stand on it, once it waits long or holds up much)
-      for (const line of permissionWaitingLines(tree, lang)) out(line);
+      for (const line of timed("menu.permissions", () => permissionWaitingLines(tree, lang))) out(line);
       // much kept beside the research that can go (an older strom never tidied it): said, freed in the settings
-      const disk = tidyPlan(tree);
+      const disk = timed("menu.tidy", () => {
+        if (heldDisk?.tree !== tree || heldDisk.ran !== ran) heldDisk = { tree, ran, plan: tidyPlan(tree) };
+        return heldDisk.plan;
+      });
       if (disk.frees >= TIDY_SAID) {
         // never tidied (an older strom gathered it): its first tidy offered once, shown and asked as strom tidy asks
-        // (Enter says no) — nothing goes unasked; then kept in order by itself. Nobody to ask (no terminal,
-        // STROM_NONINTERACTIVE): only said, the offer kept for the person
-        if (!tidyOn(root) && !tidyAsked(root) && !isAgent(ctx.env) && ctx.interactive) {
-          setTidyAsked(root);
-          out(t("ui.tidy.first", { size: mb(disk.frees, lang) }));
+        // (Enter says no) — nothing but what strom makes again goes unasked; then kept in order by itself. Said no and
+        // grown far beyond the research since (tidyAskAgain): offered once more, never again. Nobody to ask (no
+        // terminal, STROM_NONINTERACTIVE): only said, the offer kept for the person
+        const again = tidyAskAgain(root, disk);
+        if (!tidyOn(root) && (!tidyAsked(root) || again) && !isAgent(ctx.env) && ctx.interactive) {
+          setTidyAsked(root, again);
+          out(again ? t("ui.tidy.again", { strom: mb(disk.size.strom, lang), research: mb(disk.size.research, lang), size: mb(disk.frees, lang) }) : t("ui.tidy.first", { size: mb(disk.frees, lang) }));
           out();
           await run(["tidy"]);
           out();
         } else out(t("ui.tidy.hint", { strom: mb(disk.size.strom, lang), size: mb(disk.frees, lang) }));
       }
       // a fix of strom's left something behind here that waits for the person's decision: one line (the settings)
-      const fix = archive ? undefined : pendingFixes(tree, fixEnv(ctx, tree))[0];
+      // (as kept while nothing it is found by changed: else looked through in the background, said at the next look —
+      // the menu never waits for it; found on Windows, a research on OneDrive: minutes before the menu showed)
+      // (an archive: only what is rewritten by rules — nobody reads there)
+      const fix = timed("menu.fixes", () => {
+        const env = fixEnv(ctx, tree);
+        // (a backup not made: nothing written to the research, nothing looked through either)
+        return (pendingFixes(tree, env, { kept: true }) ?? (ctx.backupFailed ? undefined : refreshFixesSoon(tree, env, ctx.env)))?.find((f) => !archive || f.check.remedy === "rewrite");
+      });
       // a fix of strom's said as one; another model reading now, as readings to read again
-      if (fix) out(t(fix.check.id === "new-model" ? "ui.fixes.hint.readings" : "ui.fixes.hint", { name: t(`ui.fixes.${fix.check.id}.name` as UIKey), count: fix.check.unit === "reading" ? fix.found.readings : fix.found.items.length }));
+      if (fix) out(t(fix.check.id === "new-model" ? "ui.fixes.hint.readings" : "ui.fixes.hint", { name: t(`ui.fixes.${fix.check.id}.name` as UIKey), count: pendingCount(fix) }));
       // the scan views tuned before, but for another agent or model: offered again (the settings), never run unasked
-      const offer = !archive && ready ? calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root) : undefined;
+      const offer = !archive && ready ? timed("menu.views", () => calibrationOffer(ctx.settings, ctx.settings.agent(tree.config).value, tree.config, tree.root)) : undefined;
       if (offer) out(sentence(t("ui.views.offer", { before: calibrationLabel(offer.before[0]!, t("ui.settings.model.own")), now: calibrationLabel(offer.now, t("ui.settings.model.own")) })));
-      const runs = runsAtWork(root).length;
+      const runs = timed("menu.runs", () => runsAtWork(root!).length);
       if (runs) out(t(runs > 1 ? "ui.menu.working.more" : "ui.menu.working", { n: runs }));
+      // the history of the places, never asked about here (set up before strom had it): asked once — Enter "not now"
+      if (!archive && ready) await offerHistory(ctx, run, lang);
       items.push(
         ready
           ? { key: "1", label: t(started ? "ui.menu.chat" : "ui.menu.start"), act: async () => void (await run(["chat"])) }
@@ -262,6 +302,8 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
             const held = othersAtWork(fresh, fresh.env).tasks;
             const queue = taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), storyTurn: true }).filter((x) => !held.has(x.id));
             const shown = queue.slice(0, RUN_LIST);
+            // The tasks of history alone, in their order whatever its pace (strom run --history): only while it is on.
+            const history = historyOn(fresh, ctx.settings) ? taskQueue(fresh, { strategy: ctx.settings.strategy(fresh.config), history: "only" }).filter((x) => !held.has(x.id)) : [];
             // Another run already at work: said first, and started beside it only on a yes.
             const running = runsAtWork(root!).length;
             if (running) {
@@ -278,10 +320,18 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
             out(t("ui.run.limit", { minutes: ctx.settings.number("run.minutes", fresh.config, DEFAULT_RUN_MINUTES) }));
             // With a gate of the user's (run.gate): on for as long as there is work and the gate lets it.
             const gate = gateTitle(ctx);
-            const ways = [{ label: t("ui.run.queue") }, { label: t("ui.run.pick") }, ...(gate ? [{ label: t("ui.run.loop", { name: gate }) }] : [])];
-            const how = shown.length ? await ctx.choose(t("ui.run.what"), ways, 0, { back: t("ui.browse.back") }) : 0;
+            const ways = [{ label: t("ui.run.queue") }, { label: t("ui.run.pick") }, ...(gate ? [{ label: t("ui.run.loop", { name: gate }) }] : []), ...(history.length ? [{ label: t("ui.run.history", { n: history.length }) }] : [])];
+            const how = shown.length || history.length ? await ctx.choose(t("ui.run.what"), ways, 0, { back: t("ui.browse.back") }) : 0;
             if (how === undefined) return;
-            if (how === 2) args = ["--loop"];
+            if (history.length && how === ways.length - 1) {
+              let n = -1;
+              while (!(Number.isInteger(n) && n >= 0 && n <= 100)) {
+                if (outOfAnswers()) return;
+                n = Number(await ctx.ask(t("ui.run.history.how"), String(Math.min(3, history.length))));
+              }
+              if (n === 0) return;
+              args = ["--history", "--max", String(n)];
+            } else if (how === 2) args = ["--loop"];
             else if (how === 0) {
               let n = -1;
               while (!(Number.isInteger(n) && n >= 0 && n <= 100)) {
@@ -408,6 +458,12 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
     const numbered = items.filter((it) => it.key !== "0");
     if (appItem && appTip) out(t(appTip, { key: numbered.indexOf(appItem) + 1 }));
     if (newer) out(t("ui.menu.update.where", { version: newer, key: numbered.indexOf(settings) + 1 }));
+
+    // measured (strom --timing): the line to send, each time the menu is shown (what its return took too)
+    if (timingOn()) {
+      out(timingSaid(lang));
+      timingShown = true;
+    }
 
     // Numbered in the order shown; 0 always quits.
     let n = 0;

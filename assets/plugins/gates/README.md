@@ -29,6 +29,10 @@ the gates here. `strom config unset run.gate`: no gate.
   is strom's own Node (TypeScript runs as it is) — best on every system. What
   the user gives the gate after its name (`run.gate "my-gate 20 night"`) is
   added to these arguments.
+
+What a gate remembers between askings it keeps in its own folder (strom asks it
+there): strom never touches a file there but those of the gates it ships
+(`gate.json`, `gate.ts`).
 - `timeout`: seconds it may take (default 120). No answer in time: an error.
 
 ## The answer
@@ -123,6 +127,13 @@ week's last 2 hours (with room for a session), the reset itself (a new week
 starts at once); never past the reset. Every answer says when the week resets
 ("weekly reset in 1.7 h"). A used-up session: until it resets. Another agent
 than Claude Code: it lets the work go on.
+
+Once it waited for want of points in hand, it goes again only with 2 more (at
+15: 17 in hand; early in the week its share, as the number's), and then goes
+until fewer than the number are in hand: several sessions in a row instead of
+one after every wait ("until 17 in hand, then several sessions in a row"). It
+remembers the week it waits in (`hold.json` in its folder); a new week starts
+free.
 
 **A cap** — your own hard stop for the week:
 

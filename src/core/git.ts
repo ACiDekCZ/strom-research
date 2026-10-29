@@ -11,6 +11,7 @@ import type { Env } from "./paths.ts";
 import { configDir, isolated, userHome } from "./paths.ts";
 import { installation } from "./self.ts";
 import { which } from "./which.ts";
+import { noteSpawn } from "./timing.ts";
 import { gitRefusedWhere, gitRefusedWords, gitUnwritable, refusedCode, writeRefusal } from "./writable.ts";
 
 export interface GitResult {
@@ -64,6 +65,7 @@ function gitTimedOut(args: string[], error: Error | undefined): StromError | und
 
 export function runGit(cwd: string, args: string[], input?: string, extraEnv: Record<string, string> = {}): GitResult {
   const t0 = PROFILE ? performance.now() : 0;
+  noteSpawn();
   const r = withStdin(input, (stdin) =>
     spawnSync(gitProgram() ?? "git", args, {
       cwd,

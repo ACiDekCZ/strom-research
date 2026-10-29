@@ -403,3 +403,75 @@ test("N11: a NAME line without slashes, with a GIVN and no SURN, keeps its surna
   for (const n of read) assert.equal(n.surname, n.surname.normalize("NFC"), "kept in NFC");
   w.cleanup();
 });
+
+test("the forms of a surname (header notes) only for an app that reads them: production from 3.17.0, never an unknown version; its beta and development from 3.17.0-beta.7", opts, async () => {
+  const w = new World();
+  const m = await import("../../src/core/stromapp.ts");
+  const { Settings } = await import("../../src/core/config.ts");
+  const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
+  const beta = new Settings({ ...w.env, STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
+  // set from the production app's version that reads them (strom:je-venku-brany), never a beta's
+  assert.equal(m.APP_READS_SURNAME_GROUPS, "3.17.0");
+  for (const v of [undefined, "3.14.0", "3.16.9", "3.17.0-beta.9"]) assert.equal(m.appReadsSurnameGroups(prod, v), false, String(v));
+  for (const v of ["3.17.0", "3.17.1", "9.0.0"]) assert.equal(m.appReadsSurnameGroups(prod, v), true, v);
+  assert.equal(m.appReadsSurnameGroups(beta), false, "an unknown version: off, also the beta");
+  assert.equal(m.appReadsSurnameGroups(beta, "3.17.0-beta.6"), false);
+  for (const v of ["3.17.0-beta.7", "3.17.0", "3.18.0-beta.1"]) assert.equal(m.appReadsSurnameGroups(beta, v), true, v);
+  // the gate set (a version given in its place, as the gate's own parameter)
+  assert.equal(m.appReadsSurnameGroups(prod, "3.16.9", "3.17.0"), false);
+  assert.equal(m.appReadsSurnameGroups(prod, "3.17.0", "3.17.0"), true);
+  assert.equal(m.appReadsSurnameGroups(prod, undefined, "3.17.0"), false, "an unknown version stays off");
+  w.cleanup();
+});
+
+test("the forms of a surname in the header: both notes (an empty one without a line), \" | \" apart, a long line continued; the standard file never", opts, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Jan /Lhota/", "--sex", "M"]);
+  const { Tree } = await import("../../src/core/tree.ts");
+  const { exportGedcom } = await import("../../src/gedcom/export.ts");
+  const tree = Tree.open(w.cwd, w.env);
+  const long = Array.from({ length: 30 }, (_, i) => `Lhotáček${String.fromCodePoint(0x61 + (i % 26))}${i}`);
+  const surnameGroups = { groups: [["Lhota", "Lhotaa", "Lhotha"], long], rejected: [] as string[][] };
+  const t = exportGedcom(tree, { for: "strom", surnameGroups }).text;
+  assert.match(t, /1 NOTE Strom surname-variant groups\r?\n2 CONT Lhota \| Lhotaa \| Lhotha\r?\n2 CONT Lhotáčeka0/);
+  assert.match(t, /1 NOTE Strom surname-variant rejections\r?\n(?!2 CONT)/, "an empty note: none");
+  assert.match(t, /\n3 CONC /, "a long group continued");
+  const { parseGedcomText } = await import("../../src/gedcom/parse.ts");
+  const head = parseGedcomText(t).records.find((r) => r.tag === "HEAD")!;
+  const note = head.children.find((c) => c.tag === "NOTE" && c.value.startsWith("Strom surname-variant groups"))!;
+  assert.equal(note.value.split("\n")[2], long.join(" | "), "the long line whole again");
+  assert.doesNotMatch(exportGedcom(tree, { for: "strom" }).text, /surname-variant/, "nothing without the gate");
+  assert.doesNotMatch(exportGedcom(tree, { surnameGroups }).text, /surname-variant/, "the standard file never");
+  // strom export: the gate closed for an app of unknown version
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none"]);
+  assert.doesNotMatch(fs.readFileSync(path.join(w.cwd, "output", "tree-strom.ged"), "utf8"), /surname-variant/);
+  w.cleanup();
+});
+
+test("the Strom app's importer reads the groups of a surname's forms the research writes", { skip: !hasGit || !fs.existsSync(tsx) }, async () => {
+  const w = new World();
+  await w.withTree();
+  await w.ok(["person", "add", "Jan /Lhota/", "--sex", "M"]);
+  const { Tree } = await import("../../src/core/tree.ts");
+  const { exportGedcom } = await import("../../src/gedcom/export.ts");
+  const ged = path.join(w.cwd, "output", "surnames.ged");
+  fs.mkdirSync(path.dirname(ged), { recursive: true });
+  const groups = [["Lhota", "Lhotaa"], ["Lhoták", "Lhotinka", "Лхотак"]];
+  fs.writeFileSync(ged, exportGedcom(Tree.open(w.cwd, w.env), { for: "strom", surnameGroups: { groups, rejected: [["Lhotinka", "Lhota"]] } }).text);
+  const script = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "strom-sv-")), "sv.ts");
+  fs.writeFileSync(
+    script,
+    `import fs from "node:fs";
+import { parseGedcom, convertToStrom } from ${JSON.stringify(path.join(stromRepo, "src", "ged-parser.ts"))};
+const conv = convertToStrom(parseGedcom(fs.readFileSync(process.argv[2], "utf8")));
+console.log(JSON.stringify({ groups: (conv.data as any).surnameVariants ?? [], persons: Object.keys(conv.data.persons).length }));
+`,
+  );
+  const r = spawnSync(tsx, [script, ged], { cwd: stromRepo, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout.trim().split("\n").pop()!);
+  assert.deepEqual(out.groups, groups, "the groups as written; the rejections' note is not a group");
+  assert.equal(out.persons, 1);
+  w.cleanup();
+});

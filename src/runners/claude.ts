@@ -21,6 +21,8 @@ import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, mergeLimi
 import { effortArgs } from "../agents/effort.ts";
 import type { SessionMetrics } from "../core/model.ts";
 import { addResponses, type Responses } from "./jsonl.ts";
+import { RunLog } from "../core/logimages.ts";
+import { StringDecoder } from "node:string_decoder";
 
 function describeTool(block: { name?: string; input?: Record<string, unknown> }): string {
   const input = block.input ?? {};
@@ -186,6 +188,18 @@ interface Attempt {
   refused: string[];
   /** The plan's limits as the agent said them last. */
   limits?: AgentLimit[];
+  /** Stopped silent after a retry of its service (RunOptions.stalled), so long after its last line. */
+  stalled?: { silentMs: number };
+}
+
+/**
+ * A retry of the agent's service in Claude Code's stream (`{"type":"system","subtype":"api_retry",…}`): how long it
+ * said it waits before the request goes again (retry_delay_ms; none: 0). Undefined for any other line.
+ */
+export function apiRetry(msg: Record<string, unknown>): { delayMs: number } | undefined {
+  if (msg.type !== "system" || msg.subtype !== "api_retry") return undefined;
+  const d = usageNumber(msg.retry_delay_ms);
+  return { delayMs: d !== undefined && d > 0 ? d : 0 };
 }
 
 /** A tool call in one line, as a refusal is listed: "Bash: strom input show I0001", "WebFetch: https://…". */
@@ -216,11 +230,31 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
     const abort = () => stopTree(child);
     opts.signal?.addEventListener("abort", abort, { once: true });
     const a: Attempt = { code: null, timedOut: false, metrics: {}, reported: false, responses: { n: 0 }, text: "", stderr: "", isError: false, denied: [], refused: [] };
+    // A retry of its service (api_retry): a line must follow within opts.stalled.ms and the delay it said, or it is
+    // stopped as stalled (found live: a reader's api_retry, then nothing for 14.5 minutes, to its time limit). Any line
+    // after it is a sign of life; a new retry waits again.
+    const stallMs = opts.interactive ? undefined : opts.stalled?.ms;
+    let stall: ReturnType<typeof setTimeout> | undefined;
+    let lastLine = Date.now();
+    let over = false;
+    const heard = (msg?: Record<string, unknown>) => {
+      lastLine = Date.now();
+      if (stall) clearTimeout(stall);
+      stall = undefined;
+      const retry = msg && stallMs !== undefined && !over ? apiRetry(msg) : undefined;
+      if (!retry) return;
+      stall = setTimeout(() => {
+        a.stalled = { silentMs: Date.now() - lastLine };
+        stopTree(child);
+      }, stallMs! + retry.delayMs);
+    };
     // the calls strom's own hook refused, by their id: its reason begins with "strom: " (refusedByStrom) — said as
     // strom's refusals, not the permissions' (the result's permission_denials lists them too)
     const calls = new Map<string, string>();
     const byStrom = new Set<string>();
     let buffer = "";
+    // the log a whole line at a time, its images left out (core/logimages.ts); what is read here, from the full line
+    const log = new RunLog(opts.logFile);
     // One request's message comes in several lines (a line per block, the same id): its last usage is the request's.
     // Kept per stream (the agent's own, each subagent's) until that stream's next request, then said.
     const pending = new Map<string, { id?: string; sample: UsageSample }>();
@@ -242,8 +276,10 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
       try {
         msg = JSON.parse(line) as Record<string, unknown>;
       } catch {
+        heard();
         return;
       }
+      heard(msg);
       if (msg.type === "system" && msg.subtype === "init" && typeof msg.model === "string") a.metrics.model = msg.model;
       if (msg.type === "system" && msg.subtype === "init" && !opts.interactive) {
         const id = typeof msg.session_id === "string" ? msg.session_id : sid;
@@ -268,7 +304,7 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
         if (missing.length) {
           const said = `Claude Code did not load ${missing.join(", ")} — the session may not manage without; strom config set agent.addons on runs it with everything, as before`;
           opts.onProgress?.(said);
-          appendLog(opts.logFile, `\n[strom] ${said}\n`);
+          log.note(`\n[strom] ${said}\n`);
         }
       }
       if (msg.type === "assistant") {
@@ -306,22 +342,26 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
           if (!(d.tool_use_id && byStrom.has(d.tool_use_id))) a.denied.push(callLabel(d.tool_name, d.tool_input));
       }
     };
+    const text = new StringDecoder("utf8");
     child.stdout?.on("data", (d: Buffer) => {
-      const s = d.toString("utf8");
-      appendLog(opts.logFile, s);
-      buffer += s;
+      buffer += text.write(d);
       let nl: number;
       while ((nl = buffer.indexOf("\n")) >= 0) {
-        handle(buffer.slice(0, nl));
+        const line = buffer.slice(0, nl);
         buffer = buffer.slice(nl + 1);
+        log.line(line);
+        handle(line);
       }
+      log.flush();
     });
     child.stderr?.on("data", (d: Buffer) => {
       a.stderr += d.toString("utf8");
       appendLog(opts.logFile, d.toString("utf8"));
     });
     const end = () => {
+      over = true;
       if (timer) clearTimeout(timer);
+      if (stall) clearTimeout(stall);
       opts.signal?.removeEventListener("abort", abort);
     };
     child.on("error", (err) => {
@@ -330,7 +370,10 @@ function attempt(opts: RunOptions, args: string[], input: string, timeoutMs: num
     });
     child.on("close", (code) => {
       end();
+      buffer += text.end();
       if (buffer) handle(buffer);
+      log.rest(buffer);
+      log.flush();
       flush();
       resolve({ ...a, code, timedOut });
     });
@@ -371,13 +414,35 @@ export const claudeRunner: Runner = {
     // A headless session has an id of strom's choosing: stopped at its limit, it is resumed to write down what it found.
     const id = opts.interactive ? undefined : randomUUID();
     const args = claudeArgs(opts);
+    const started = Date.now();
     let a = await attempt(opts, id ? [...args, "--session-id", id] : args, opts.prompt, opts.timeoutMs, id);
     if (a.failed) return { exitCode: 127, outcome: "error", text: a.failed, metrics: a.metrics };
-    const timedOut = a.timedOut;
     let metrics: SessionMetrics = measured(a);
     const denied = [...a.denied];
     const refused = [...a.refused];
     let limits = a.limits;
+    let stalls = a.stalled ? 1 : 0;
+    // Silent after a retry of its service: resumed once where it stopped (what it read is in its context and its
+    // report, nothing read twice), with the time it had left at its last line; silent again, it ends at once.
+    if (a.stalled && opts.stalled && id && !opts.signal?.aborted) {
+      opts.onProgress?.(`the agent's service went silent after a retry (${Math.round(a.stalled.silentMs / 1000)} s) — the agent is resumed where it stopped`);
+      const left = opts.timeoutMs === undefined ? undefined : Math.max(60_000, opts.timeoutMs - (Date.now() - started - a.stalled.silentMs));
+      const more = await attempt(opts, [...args, "--resume", id], opts.stalled.prompt, left, id);
+      if (!more.failed) {
+        if (more.stalled) {
+          stalls++;
+          opts.onProgress?.("the agent's service went silent again — stopped");
+        }
+        // the first start stopped before its result: its cost unknown, so the whole one's
+        const then = measured(more);
+        metrics = metrics.costPartial || then.costPartial ? { ...together(metrics, then), costPartial: true } : together(metrics, then);
+        denied.push(...more.denied);
+        refused.push(...more.refused);
+        limits = mergeLimits(limits, more.limits);
+        a = { ...more, stderr: a.stderr + more.stderr, text: more.text || a.text };
+      }
+    } else if (a.stalled) opts.onProgress?.("the agent's service went silent after a retry — stopped");
+    const timedOut = a.timedOut;
     if (timedOut) {
       const min = Math.round(opts.timeoutMs! / 60000);
       if (opts.wrapUp && id && !opts.signal?.aborted) {
@@ -398,15 +463,17 @@ export const claudeRunner: Runner = {
     const code = a.code;
     const outcome: RunResult["outcome"] = opts.signal?.aborted
       ? "stopped"
-      : timedOut
-        ? "timeout"
-        : limit.limit
-          ? "limit"
-          : /log ?in|authenticat|api key|unauthori[sz]ed/i.test(all) && (code ?? 0) !== 0
-            ? "auth"
-            : (code ?? 0) !== 0 || a.isError
-              ? "error"
-              : "ok";
-    return { exitCode: code ?? 1, outcome, text: a.text || a.stderr.trim(), metrics, ...(limit.resumeAt ? { resumeAt: limit.resumeAt } : {}), ...(denied.length ? { denied } : {}), ...(refused.length ? { refused } : {}), ...(outcome === "error" && looksLikeModelRejected(all) ? { modelRejected: true as const } : {}), ...(limits ? { limits } : {}) };
+      : a.stalled
+        ? "error"
+        : timedOut
+          ? "timeout"
+          : limit.limit
+            ? "limit"
+            : /log ?in|authenticat|api key|unauthori[sz]ed/i.test(all) && (code ?? 0) !== 0
+              ? "auth"
+              : (code ?? 0) !== 0 || a.isError
+                ? "error"
+                : "ok";
+    return { exitCode: code ?? 1, outcome, text: a.text || a.stderr.trim(), metrics, ...(limit.resumeAt ? { resumeAt: limit.resumeAt } : {}), ...(denied.length ? { denied } : {}), ...(refused.length ? { refused } : {}), ...(outcome === "error" && looksLikeModelRejected(all) ? { modelRejected: true as const } : {}), ...(limits ? { limits } : {}), ...(stalls ? { stalls } : {}), ...(a.stalled && !opts.signal?.aborted ? { stalled: true as const } : {}) };
   },
 };

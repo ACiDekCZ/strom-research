@@ -10,9 +10,10 @@ import { spawnSync } from "node:child_process";
 import { APP_URL_INVALID_SETTING, register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { lines, secondsIn, table } from "../cli/format.ts";
-import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
+import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_HISTORY_PACE, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, HISTORY_PACES, historySwitches, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import type { Input, Media, TreeConfig } from "../core/model.ts";
+import type { UserConfig } from "../core/config.ts";
 import { gitVersion, runGit } from "../core/git.ts";
 import { linuxGitCommand } from "../core/deps.ts";
 import { fixGit, offerAgent } from "../cli/fixes.ts";
@@ -31,8 +32,9 @@ import { mb, sharedMedia, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 /** So many bytes of the shared store no research here names: worth a warning. */
 const MEDIA_UNNAMED_SAID = 500 * 1024 * 1024;
 import { Tree, VERSION } from "../core/tree.ts";
+import { timed } from "../core/timing.ts";
 import { checked, installUpdate, isNewer, knownNewerVersion, lastChannelOf, latestRelease, newerNode, newerVersion, setInstallChannel, updateChannel, whatsNewUrl, type Channel, type Updated } from "../core/update.ts";
-import { configDir, defaultHome, desktopDir, isolated, noLinks, ownCommand } from "../core/paths.ts";
+import { configDir, defaultHome, desktopDir, isolated, noLinks, ownCommand, type Env } from "../core/paths.ts";
 import { backupBefore, backupSaid, lastBackupLine } from "../cli/backups.ts";
 import { BACKUP_SAID_DAYS, lastBackup, type BackupRecord } from "../core/backup.ts";
 import { planMove, sameFolder } from "../core/relocate.ts";
@@ -47,7 +49,7 @@ import type { UIKey } from "../cli/ui.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
 import { placeholders, ui, UI } from "../cli/ui.ts";
 import { foundTrees } from "../cli/seal.ts";
-import { PERMISSION_LEVELS, type AgentPermissions } from "../core/config.ts";
+import { PERMISSION_LEVELS, type AgentPermissions, type HistoryPace } from "../core/config.ts";
 import { PROFILES, type Tier } from "../agents/profiles.ts";
 import { agentSettingsSaid, EFFORTS, hasEffort, ownEffort, raisesEffort, RECOMMENDED_EFFORT } from "../agents/effort.ts";
 import { agentSettingsLine, chooseEffort } from "../cli/model-choice.ts";
@@ -61,6 +63,7 @@ import { loadRollup, manyWeb, type Unit } from "../core/readstats.ts";
 import { WEB_PER_HOST, WEB_SOFT } from "../core/metrics.ts";
 import { isArchive } from "../core/mode.ts";
 import { fixEnv, fixesDoctorLine } from "./fixchecks.ts";
+import { placeOf, sampleFiles } from "../core/clouddrive.ts";
 import { check } from "../core/check.ts";
 import { assertIntact, verifyFull } from "../core/integrity.ts";
 import { ensurePluginsDir } from "../core/connector.ts";
@@ -162,6 +165,9 @@ register({
     if (opts.where !== undefined && opts.where !== "app" && opts.where !== "terminal") throw new UsageError(`strom setup --where takes app or terminal, not "${String(opts.where)}"`, { hint: "strom setup --yes --where terminal" });
     if (!isValidLang(lang)) throw new UsageError(`invalid language code "${lang}"`, { hint: "use a code like cs, en, de" });
 
+    // a first setup without the wizard (--yes, an agent): nothing to tell as new after an update — the history of the
+    // places is in the settings from the start, never asked at the menu as news (K1.6); set up before: asked there once
+    if (!cfg.home) markHistoryAsked(ctx);
     cfg.home = home;
     cfg.lang = lang;
     cfg.agent = agent;
@@ -258,6 +264,34 @@ function diagnose(ctx: Context): Check[] {
   const checks: Check[] = [];
   const add = (name: string, status: Check["status"], detail: string, fix?: string, repair?: Check["repair"]) =>
     checks.push({ name, label: t(`ui.doc.${name}` as UIKey), status, detail, ...(fix ? { fix } : {}), ...(repair ? { repair } : {}) });
+  // what is being checked, on one line of the person's terminal rewritten (a research on a slow drive takes minutes:
+  // found on Windows, a research on OneDrive — doctor said nothing for five and a half)
+  const showing = ctx.io.tty && !ctx.json && !isAgent(ctx.env);
+  const progress = (name: string, of?: string) => {
+    if (showing) ctx.io.stderr(`\r\x1b[K${t("ui.doc.progress", { what: of ? `${t(`ui.doc.${name}` as UIKey)} · ${of}` : t(`ui.doc.${name}` as UIKey) })}`);
+  };
+  try {
+    diagnoseInto(ctx, checks, t, add, progress);
+  } finally {
+    if (showing) ctx.io.stderr("\r\x1b[K");
+  }
+  return checks;
+}
+
+/** How long strom doctor counts the shared scans at most (STROM_DOCTOR_MEDIA_MS: the tests). */
+function mediaMs(env: Env): number {
+  const n = Number(env.STROM_DOCTOR_MEDIA_MS);
+  return Number.isFinite(n) && n >= 0 && env.STROM_DOCTOR_MEDIA_MS ? n : 20_000;
+}
+
+function diagnoseInto(
+  ctx: Context,
+  checks: Check[],
+  t: (key: UIKey, values?: Record<string, string | number>) => string,
+  add: (name: string, status: Check["status"], detail: string, fix?: string, repair?: Check["repair"]) => void,
+  progress: (name: string, of?: string) => void,
+): void {
+  const lang = ctx.uiLang();
 
   // The program itself: the installer's (its own Node), or npm's or the sources' on the Node of the computer.
   // the channel said only when it is beta (the releases are what strom is: nothing said)
@@ -284,7 +318,8 @@ function diagnose(ctx: Context): Check[] {
   const newer = knownNewerVersion(ctx.settings, ctx.env);
   if (newer) add("update", "warn", t("ui.doc.update.new", { version: newer }), "strom update");
 
-  const g = gitVersion(ctx.env);
+  progress("git");
+  const g = timed("doctor.git", () => gitVersion(ctx.env));
   if (g) add("git", "ok", g);
   else add("git", "fail", t("ui.doc.missing"), process.platform === "linux" ? linuxGitCommand() : FIX, "git");
 
@@ -306,12 +341,24 @@ function diagnose(ctx: Context): Check[] {
     // in, and no tree there keeps its history — said as strom init says it
     if (g)
       for (const dir of [...new Set([home.value, ctx.settings.trees()?.value].filter((p): p is string => !!p && fs.existsSync(p)))])
-        if (gitLost(dir)) add("gitdir", "warn", t("ui.doc.gitdir.cwd", { where: ctx.display(dir) }), t("ui.error.init.failed.hint"));
+        if (timed("doctor.gitdir", () => gitLost(dir))) add("gitdir", "warn", t("ui.doc.gitdir.cwd", { where: ctx.display(dir) }), t("ui.error.init.failed.hint"));
     const shared = ctx.settings.shared()!;
     const sharedOk = SHARED_DIRS.every((d) => fs.existsSync(path.join(shared.value, d)));
     if (inProgram(shared.value)) add("shared", "warn", program(shared.value), "strom setup");
     else add("shared", sharedOk ? "ok" : "warn", ctx.display(shared.value), sharedOk ? undefined : "strom setup --yes");
     const trees = ctx.knownTrees();
+    // a network drive, a cloud's folder: each file strom looks at goes over the network, one kept only online is
+    // downloaded whole — said with what to do (the person's; nothing downloaded or changed here, core/clouddrive.ts)
+    progress("place");
+    const place = timed("doctor.place", () =>
+      exists ? placeOf(home.value, sampleFiles([path.join(shared.value, "media"), ...trees.slice(0, 3).map((k) => path.join(k.root, "data"))]), ctx.env) : undefined,
+    );
+    if (place) {
+      const where = ctx.display(home.value);
+      const detail = place.kind === "network" ? t("ui.doc.place.network", { where, what: place.what }) : t("ui.doc.place.cloud", { where, what: place.what });
+      const online = place.online ? ` · ${t("ui.doc.place.online", { looked: place.looked, online: place.online })}` : "";
+      add("place", "warn", detail + online, t(place.kind === "network" && !place.online ? "ui.doc.place.network.fix" : "ui.doc.place.cloud.fix"));
+    }
     // the trees' folder and the trees known elsewhere that lie there — what the home's line said already left out
     const treeFolders = [...new Set([ctx.settings.trees()?.value, ...trees.map((k) => k.root)].filter((p): p is string => inProgram(p)))];
     const treesIn = treeFolders.filter((p) => !(homeIn && holdsPath(home.value, p)) && !treeFolders.some((o) => o !== p && holdsPath(o, p)));
@@ -325,14 +372,20 @@ function diagnose(ctx: Context): Check[] {
     const wrong: string[] = [];
     for (const k of trees) {
       // the history: how much it takes; a check of it that found something wrong (packing it: core/history.ts)
-      const size = gitSize(k.root);
+      progress("disk", k.name);
+      const size = timed("doctor.history", () => gitSize(k.root));
       history += size ? size.loose + size.packed : 0;
       const last = lastCompacted(k.root);
       if (last && !last.ok) wrong.push(t("ui.doc.history.wrong", { name: k.name, error: last.error ?? "" }));
       try {
-        const tree = Tree.open(k.root, ctx.env);
-        for (const r of [...tree.list<Media>("media"), ...tree.list<Input>("input")]) if (r.sha) named.add(r.sha.toLowerCase());
-        const plan = tidyPlan(tree);
+        // one step, the records read once: the research worked on is the one its check reads below (found on Windows,
+        // 2026-10-28: a research on a network's disk read twice)
+        const tree = timed("doctor.records", () => {
+          const opened = ctx.hasTree() && path.resolve(ctx.tree().root) === path.resolve(k.root) ? ctx.tree() : Tree.open(k.root, ctx.env);
+          for (const r of [...opened.list<Media>("media"), ...opened.list<Input>("input")]) if (r.sha) named.add(r.sha.toLowerCase());
+          return opened;
+        });
+        const plan = timed("doctor.tidy", () => tidyPlan(tree));
         beside += plan.size.strom;
         if (plan.frees >= TIDY_SAID) much.push(t("ui.doc.disk.tree", { name: k.name, size: mb(plan.frees, lang) }));
       } catch {
@@ -343,20 +396,23 @@ function diagnose(ctx: Context): Check[] {
     if (trees.length) add("disk", much.length ? "warn" : "ok", much.length ? much.join(" · ") : t("ui.doc.disk.ok", { size: mb(beside, lang) }), much.length ? t("ui.doc.disk.fix") : undefined);
     if (trees.length) add("history", wrong.length ? "warn" : "ok", wrong.length ? wrong.join(" · ") : t("ui.doc.history.ok", { size: mb(history, lang) }));
     if (sharedOk) {
-      const m = sharedMedia(shared.value, named);
+      progress("media");
+      const m = timed("doctor.media", () => sharedMedia(shared.value, named, Date.now() + mediaMs(ctx.env)));
       add(
         "media",
         // files nobody here names, much of them: said as a warning (a material taken back, a tree taken off) — never removed
         m.unnamed.bytes >= MEDIA_UNNAMED_SAID && trees.length ? "warn" : "ok",
         t("ui.doc.media.ok", { size: mb(m.bytes, lang), n: m.files }) +
           (m.twice.n ? t("ui.doc.media.twice", { n: m.twice.n, size: mb(m.twice.bytes, lang) }) : "") +
-          (m.unnamed.n && trees.length ? t("ui.doc.media.unnamed", { n: m.unnamed.n, size: mb(m.unnamed.bytes, lang) }) : ""),
+          (m.unnamed.n && trees.length ? t("ui.doc.media.unnamed", { n: m.unnamed.n, size: mb(m.unnamed.bytes, lang) }) : "") +
+          (m.partial ? t("ui.doc.media.partial", { s: Math.round(mediaMs(ctx.env) / 1000) }) : ""),
       );
     }
   }
 
   // Agents: their CLI or their desktop app — found, never started here.
-  const here = agentsHere(ctx.env);
+  progress("agent");
+  const here = timed("doctor.agents", () => agentsHere(ctx.env));
   const found = here.map((a) => a.id);
   const tree = treeSettings(ctx);
   const chosen = ctx.settings.agent(tree).value;
@@ -401,7 +457,7 @@ function diagnose(ctx: Context): Check[] {
 
   // Archives through the browser: only Claude Code has browser tools, and they work through the Claude in Chrome extension.
   const shared = ctx.settings.shared()?.value;
-  const viaBrowser = shared ? browserConnectors(ctx.env, shared) : [];
+  const viaBrowser = shared ? timed("doctor.browser", () => browserConnectors(ctx.env, shared)) : [];
   if (viaBrowser.length) {
     const names = viaBrowser.map((c) => c.manifest.title ?? c.name).join(", ");
     const ext = claudeInChrome(ctx.env).extension;
@@ -447,7 +503,7 @@ function diagnose(ctx: Context): Check[] {
   } else if (process.platform === "win32") add("terminal", "ok", t("ui.terminal.windows"));
   // …and whether it may start the research here (strom-research:// links): only while the app is wanted
   if (app !== "no" && appOpensLinks(ctx.settings)) {
-    const links = linkHandlerState(ctx.env);
+    const links = timed("doctor.links", () => linkHandlerState(ctx.env));
     if (noLinks(ctx.env)) add("links", "ok", t("ui.doc.links.isolated"));
     else if (links === "ours") add("links", "ok", t("ui.doc.links.ours"));
     else {
@@ -460,12 +516,13 @@ function diagnose(ctx: Context): Check[] {
   if (locked) add("tree", "fail", t("ui.error.tree.newer", locked.params ?? {}), (locked.details as { way?: string } | undefined)?.way);
   else if (ctx.hasTree()) {
     const tr = ctx.tree();
-    const errs = check(tr).filter((f) => f.level === "error").length + verifyFull(tr).findings.filter((f) => f.level === "error").length;
+    progress("tree", tr.config.name);
+    const errs = timed("doctor.check", () => check(tr).filter((f) => f.level === "error").length) + timed("doctor.verify", () => verifyFull(tr).findings.filter((f) => f.level === "error").length);
     if (errs === 0) add("tree", "ok", t("ui.doc.tree.ok", { name: tr.config.name }));
     else add("tree", "fail", t("ui.doc.tree.bad", { name: tr.config.name, n: errs }), "strom verify ; strom check");
     // can it be written — its locks (.strom) and history (.git) tried: found on Windows, an agent's sandbox refused
     // writing while doctor said all was fine; a disk without hard links works, the lock another way (core/lock.ts)
-    const problems = writeProblems(tr.root, isAgent(ctx.env));
+    const problems = timed("doctor.write", () => writeProblems(tr.root, isAgent(ctx.env)));
     const worst = problems.find((p) => p.cause !== "nolink") ?? problems[0];
     if (!worst) add("write", "ok", t("ui.doc.write.ok"));
     else {
@@ -481,7 +538,8 @@ function diagnose(ctx: Context): Check[] {
     }
     // the reading of scans looked at again (core/tune.ts): what only adds accuracy or saves requests set by itself —
     // free, local, never failing; a session at work goes on by the values of its start
-    const tuned = selfTune(tr, { settings: ctx.settings });
+    progress("views");
+    const tuned = timed("doctor.tune", () => selfTune(tr, { settings: ctx.settings }));
     // …and a change of strom's after which the reading got clearly worse (core/tunereset.ts): its way back said, a reset
     // recommended only where the readings got less sure — never run here (strom doctor --fix: on the person's yes)
     for (const w of tuneWorse(tr, ctx, tuned.rollup?.units)) add("tuneworse", w.kind === "accuracy" ? "warn" : "ok", worseText(w, lang), w.command, w.kind === "accuracy" ? "tune" : undefined);
@@ -492,7 +550,8 @@ function diagnose(ctx: Context): Check[] {
     if (many.length) add("web", "warn", t("ui.doc.web.many", { list: many.slice(0, 3).map((h) => `${h.host} (${h.most})`).join(", ") }), "strom connector new");
     // what a fix of strom's left behind here, waiting for the person's decision (strom fixes); nothing in an archive
     if (!isArchive(tr)) {
-      const fixes = fixesDoctorLine(tr, fixEnv(ctx, tr), lang);
+      progress("fixes");
+      const fixes = timed("doctor.fixes", () => fixesDoctorLine(tr, fixEnv(ctx, tr), lang, !ctx.backupFailed));
       add("fixes", fixes.status, fixes.text, fixes.fix);
     }
   }
@@ -500,7 +559,6 @@ function diagnose(ctx: Context): Check[] {
   const sharedNet = ctx.settings.shared()?.value;
   const refused = refusedHosts(ctx.env, sharedNet ? path.join(sharedNet, "net") : undefined);
   if (refused.length) add("refused", "warn", t(refused.length > 1 ? "ui.doc.refused.hosts.more" : "ui.doc.refused.hosts", { hosts: refused.join(", ") }), t("ui.doc.refused.fix", { host: refused[0]! }));
-  return checks;
 }
 
 /** The changes strom made by itself for the research's agent and model after which the reading got worse (none in an archive). */
@@ -798,6 +856,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   "gedcom.for": () => "both",
   stories: () => "yes",
   "stories.sources": () => "yes",
+  "stories.history": () => "yes",
   "sync.edits": () => "conflict",
   "sync.review": () => "off",
   "excerpts.quality": (s, tree) => s.excerpts(tree).quality,
@@ -864,6 +923,11 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   if (def.key === "read.parallel") return { value: DEFAULT_READ_PARALLEL, source: "default" };
   if (def.key === "connectors.consent") return { value: "off", source: "default" };
   if (def.key === "agent.addons") return { value: "off", source: "default" };
+  if (def.key === "experiments.history") return { value: "off", source: "default" };
+  if (def.key === "experiments.historyPace") return { value: ctx.settings.historyPace(tree), source: "default" };
+  if (def.key === "experiments.historyPlaces") return { value: "off", source: "default" };
+  // unset: as experiments.history at the same layer (an older strom's one switch kept both)
+  if (def.key === "experiments.placeHistory") return { value: ctx.settings.historyPlace(tree) ? "on" : "off", source: "default" };
   if (def.key === "tune.transcripts") return { value: "on", source: "default" };
   if (def.key === "tune.auto") return { value: "on", source: "default" };
   if (def.key === "browser.downloads") return { value: downloadsDir(ctx.env), source: "detected" };
@@ -909,6 +973,147 @@ function addonsDecision(ctx: Context, key: string, value: string | number | unde
   const { now, next } = layerChange(ctx, key, value, scope);
   if (next === "on" && now !== "on")
     ctx.requireHuman("Let the agent working alone load your own add-ons (skills, plugins, MCP servers), as in a conversation?", "strom config set agent.addons on", "agent.addons", ui(ctx.uiLang(), "ui.consent.addons"));
+}
+
+/**
+ * The history of the regions (experiments.history) and of the places (experiments.placeHistory): turned on by the
+ * person alone — a search spends the agent's time and the plan — for every research on this computer (the user's
+ * config) or for one (its strom.json, which wins both ways, K8.1); off is anyone's. Compared as each switch holds before
+ * and after the write in the reach of the layer written: experiments.history moves the places too where their own
+ * switch is unset in that layer (K8.7) — what turns the regions alone writes the places' first (the link, the bridge,
+ * the menu).
+ */
+function experimentsDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
+  if (key === "experiments.historyPace") return paceDecision(ctx, value, scope);
+  if (key === "experiments.historyPlaces") return placesDecision(ctx, value, scope);
+  if (key !== "experiments.history" && key !== "experiments.placeHistory") return;
+  const user = ctx.settings.config;
+  const tree = scope === "tree" ? treeSettings(ctx) : undefined;
+  const now = historySwitches(user, tree);
+  const changed = { ...((scope === "tree" ? tree : user) ?? {}) } as UserConfig & TreeConfig;
+  writeStored(changed, key, "", value);
+  const next = scope === "tree" ? historySwitches(user, changed) : historySwitches(changed, undefined);
+  const forTree = scope === "tree" ? " --for-tree" : "";
+  if (key === "experiments.history" && next.regions && !now.regions)
+    ctx.requireHuman(
+      scope === "tree" ? "Look for the events of history of the regions at the places of this research (now and then between the sessions of the family research)?" : "Look for the events of history at the places of every research on this computer (now and then between the sessions of the family research)?",
+      `strom config set experiments.history on${forTree}`,
+      "experiments.history",
+      ui(ctx.uiLang(), scope === "tree" ? "ui.consent.history.tree" : "ui.consent.history"),
+    );
+  if (key === "experiments.placeHistory" && next.places && !now.places)
+    ctx.requireHuman(
+      scope === "tree" ? "Look for the history of a place of this research and its surroundings when it is asked for?" : "Look for the history of a place and its surroundings when it is asked for, in every research on this computer?",
+      `strom config set experiments.placeHistory on${forTree}`,
+      "experiments.placeHistory",
+      ui(ctx.uiLang(), scope === "tree" ? "ui.consent.placeHistory.tree" : "ui.consent.placeHistory"),
+    );
+}
+
+/**
+ * The history of the places by itself (experiments.historyPlaces): turned on by the person alone, in the user's config —
+ * each place a session of the agent; a tree's strom.json may only turn it off; off is anyone's.
+ */
+function placesDecision(ctx: Context, value: string | number | undefined, scope: "tree" | "user"): void {
+  if (scope === "tree") {
+    if (value === "on")
+      throw new UsageError("experiments.historyPlaces is turned on in the user's own config only — a tree may only turn it off", {
+        hint: "the user, in their terminal: strom config set experiments.historyPlaces on; strom config unset experiments.historyPlaces --for-tree takes this tree's off away",
+      });
+    return;
+  }
+  const { now, next } = layerChange(ctx, "experiments.historyPlaces", value, scope);
+  if (next === "on" && now !== "on")
+    ctx.requireHuman(
+      "Look for the history of each place with coordinates and its surroundings by itself (one session of the agent a place)?",
+      "strom config set experiments.historyPlaces on",
+      "experiments.historyPlaces",
+      ui(ctx.uiLang(), "ui.consent.history.places"),
+    );
+}
+
+/** A pace more often than another (experiments.historyPace: sometimes before rare before idle). */
+function oftener(a: HistoryPace, b: HistoryPace): boolean {
+  return HISTORY_PACES.indexOf(a) < HISTORY_PACES.indexOf(b);
+}
+
+/**
+ * How often the experiment of history takes a session (experiments.historyPace): more often is the person's alone — a
+ * search spends the agent's time and the plan —, less often anyone's; a tree's strom.json only less often than the user's.
+ */
+function paceDecision(ctx: Context, value: string | number | undefined, scope: "tree" | "user"): void {
+  const user = ctx.settings.historyPace(undefined);
+  if (scope === "tree") {
+    if (value !== undefined && oftener(value as HistoryPace, user))
+      throw new UsageError(`a tree may only make the history less often than the user's own pace (${user})`, {
+        hint: `the user, in their terminal: strom config set experiments.historyPace ${value} (every research on this computer)`,
+      });
+    return;
+  }
+  const next = (value ?? DEFAULT_HISTORY_PACE) as HistoryPace;
+  if (oftener(next, user))
+    ctx.requireHuman(
+      `Look for the events of history more often (${next})?`,
+      `strom config set experiments.historyPace ${next}`,
+      "experiments.historyPace",
+      ui(ctx.uiLang(), "ui.consent.history.pace", { pace: ui(ctx.uiLang(), `ui.history.pace.${next}` as UIKey) }),
+    );
+}
+
+/**
+ * Turned on by the person in their terminal (strom config set experiments.history on, the link of the Strom app):
+ * how often, asked once — while no pace was chosen yet; Enter takes the default. Anywhere else (a window, no
+ * terminal) nothing asked: the default, or the pace chosen before.
+ */
+async function askPace(ctx: Context, key: string, value: string | number | undefined): Promise<HistoryPace | undefined> {
+  if (key !== "experiments.history" || value !== "on" || ctx.settings.experimentsHistory(undefined)) return undefined;
+  if (!ctx.interactive || isAgent(ctx.env) || readStored(ctx.settings.config, "experiments.historyPace", "") !== undefined) return undefined;
+  return choosePace(ctx, DEFAULT_HISTORY_PACE);
+}
+
+/** The pace chosen of the three, in the person's language (Enter: `suggested`; no answer: undefined). */
+export async function choosePace(ctx: Context, suggested: HistoryPace): Promise<HistoryPace | undefined> {
+  const lang = ctx.uiLang();
+  const at = await ctx.choose(
+    ui(lang, "ui.history.pace.ask"),
+    HISTORY_PACES.map((p) => ({ label: `${ui(lang, `ui.history.pace.${p}` as UIKey)}${p === DEFAULT_HISTORY_PACE ? ui(lang, "ui.history.pace.default") : ""}` })),
+    HISTORY_PACES.indexOf(suggested),
+  );
+  if (at === undefined) return undefined;
+  ctx.io.stdout(`${ui(lang, "ui.history.pace.later")}\n`);
+  return HISTORY_PACES[at];
+}
+
+/**
+ * History on at one of the paces, or off (the setup's step, the settings): Enter takes `suggested`, the default pace is
+ * the one marked — on, sometimes (Milan, 28 Oct 2026: no longer an experiment); `back` adds 0 — nothing changes
+ * (undefined, as when a test ran out of answers). `off` says off otherwise ("not now", the question after an update):
+ * then no pace is marked — Enter takes what is suggested.
+ */
+export async function chooseHistory(ctx: Context, question: string, suggested: HistoryPace | "off", opts: { back?: string; off?: string } = {}): Promise<HistoryPace | "off" | undefined> {
+  const lang = ctx.uiLang();
+  const all = [...HISTORY_PACES, "off" as const];
+  const label = (p: HistoryPace | "off") =>
+    p === "off" && opts.off ? opts.off : `${ui(lang, `ui.history.pace.${p}` as UIKey)}${p === DEFAULT_HISTORY_PACE && !opts.off ? ui(lang, "ui.history.pace.default") : ""}`;
+  const at = await ctx.choose(question, all.map((p) => ({ label: label(p) })), all.indexOf(suggested), opts.back ? { back: opts.back } : {});
+  return at === undefined ? undefined : all[at];
+}
+
+/**
+ * The history of the places never asked about here (an installation set up before strom had it): neither on nor off in the person's own config, no answer kept — asked once at the menu (K1.6).
+ */
+export function historyOfferDue(ctx: Context): boolean {
+  return !ctx.settings.config.historyAsked && readStored(ctx.settings.config, "experiments.history", "") === undefined;
+}
+
+/** The person was asked about the history of the places: kept, never asked again at the menu. */
+export function markHistoryAsked(ctx: Context): void {
+  ctx.settings.config.historyAsked ??= new Date().toISOString();
+}
+
+/** What the choice of history suggests now: the pace while it is on, else off. */
+export function historySuggested(ctx: Context): HistoryPace | "off" {
+  return ctx.settings.experimentsHistory(undefined) ? ctx.settings.historyPace(undefined) : "off";
 }
 
 /** The browser in every session (agent.browser always): the user's decision alone, for them or for one tree. */
@@ -974,6 +1179,7 @@ function webDecision(ctx: Context, key: string, value: string | number | undefin
 export function setTreeSetting(ctx: Context, key: string, value: string | number | undefined): Tree {
   syncDecisions(ctx, key, value, "tree");
   addonsDecision(ctx, key, value, "tree");
+  experimentsDecision(ctx, key, value, "tree");
   browserDecision(ctx, key, value, "tree");
   effortDecision(ctx, key, value, "tree");
   webDecision(ctx, key, value, "tree");
@@ -1047,6 +1253,8 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
   const s = ctx.settings;
   syncDecisions(ctx, key, value, "user");
   addonsDecision(ctx, key, value, "user");
+  experimentsDecision(ctx, key, value, "user");
+  const pace = await askPace(ctx, key, value);
   browserDecision(ctx, key, value, "user");
   effortDecision(ctx, key, value, "user");
   webDecision(ctx, key, value, "user");
@@ -1115,6 +1323,7 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
       if (!(await ctx.requireHumanYes(`Let the Strom app ask up to ${now.hour} readings of documents an hour and ${now.day} a day?`, value === undefined ? "strom config unset read.app" : `strom config set read.app "${value}"`, "read.app", ui(ctx.uiLang(), "ui.consent.read.app", { hour: now.hour, day: now.day })))) return false;
   }
   writeStored(s.config, key, s.agent(treeSettings(ctx)).value, value);
+  if (pace) writeStored(s.config, "experiments.historyPace", "", pace);
   s.save();
   if (key === "shared" && typeof value === "string") ensureShared(value);
   return true;

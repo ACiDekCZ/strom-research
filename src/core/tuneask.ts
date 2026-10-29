@@ -25,7 +25,7 @@ import { calibrationKey, calibrationOf, viewModel } from "./viewsizes.ts";
 import { loadAliases, resolveKey } from "./modelkey.ts";
 import { canonicalAnswers, readTuneLog } from "./tune.ts";
 import { D1_BASIS, D1_BOOKS, groups, isReading, keepBeforeKeys, loadRollup, readJournal, refreshRollup, summarize, THRESHOLDS, wilson, WINDOW_DAYS, READING_DEFAULTS, type BookSummary, type KeyReport, type Unit } from "./readstats.ts";
-import { findImage } from "./media.ts";
+import { connectorOfSet, sharperCopies as setCopies, type SharperCopy } from "./mediaindex.ts";
 import { bareHost, listConnectors, type Connector } from "./connector.ts";
 import { hostPace, hostState, paceOf } from "./net.ts";
 import { PROFILES } from "../agents/profiles.ts";
@@ -36,7 +36,7 @@ import { phrase } from "./phrases.ts";
 import { VERSION } from "./tree.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import type { Settings, UserConfig } from "./config.ts";
-import type { Media, Person, RecordSet, Search, Task } from "./model.ts";
+import type { Person, RecordSet, Search, Task } from "./model.ts";
 import type { Tree } from "./tree.ts";
 
 const DAY = 24 * 3600_000;
@@ -258,7 +258,10 @@ interface Ctx {
   units: Unit[];
   now: number;
   shared?: string;
-  media: Media[];
+  /** The negative searches of each book (not withdrawn). */
+  negatives: Map<string, Search[]>;
+  /** Whether a person is on the tree's edge or in a direction at work (peopleToSearch): reckoned once for all books. */
+  reach: Reach;
   fetches: Record<string, unknown>[];
   connectors: Connector[];
 }
@@ -277,32 +280,14 @@ function numbers(v: string | undefined): Set<number> | undefined {
   return out.size ? out : undefined;
 }
 
-/** How much more detail a copy of a scan has than the scan it is of (a part, a new scan of the same image). */
-function gainOf(m: Media, all: Media[]): number | undefined {
-  if (m.retracted || !m.width || m.recordset === undefined || m.image === undefined) return undefined;
-  if (m.part) {
-    const whole = findImage(all.filter((x) => !x.part), m.recordset, m.image);
-    return whole?.width && m.part.w > 0 ? m.width / m.part.w / whole.width : undefined;
-  }
-  const before = all.filter((x) => x.id !== m.id && !x.part && !x.retracted && x.recordset === m.recordset && x.image === m.image && x.width && x.created < m.created);
-  const w = Math.max(0, ...before.map((x) => x.width!));
-  return w > 0 ? m.width / w : undefined;
-}
-
-/** The sharper copies of a book (part or new scan, ≥ ASK.sharperGain), with their gain. */
-function sharperCopies(media: Media[], rs: string): { m: Media; gain: number }[] {
-  const out: { m: Media; gain: number }[] = [];
-  for (const m of media) {
-    if (m.recordset !== rs) continue;
-    const gain = gainOf(m, media);
-    if (gain !== undefined && gain >= ASK.sharperGain) out.push({ m, gain });
-  }
-  return out;
+/** The sharper copies of a book (part or new scan, ≥ ASK.sharperGain), with their gain (core/mediaindex.ts). */
+function sharperCopies(tree: Tree, rs: string): SharperCopy[] {
+  return setCopies(tree, rs, ASK.sharperGain);
 }
 
 /** The archive a book's images came from: the host of the connector that fetched them. */
 function hostOfBook(c: Ctx, rs: string): { host: string; connector?: Connector } | undefined {
-  const name = c.media.find((m) => m.recordset === rs && m.fetched?.connector)?.fetched?.connector;
+  const name = connectorOfSet(c.tree, rs);
   if (!name) return undefined;
   const connector = c.connectors.find((k) => k.name === name);
   const host = connector?.manifest.hosts[0] ? bareHost(connector.manifest.hosts[0]) : undefined;
@@ -383,25 +368,70 @@ function viewsSmaller(c: Ctx): Draft[] {
   ];
 }
 
-/** The people the tasks of some searches were about, on the tree's edge or in a direction at work, each with the task. */
-function peopleToSearch(tree: Tree, searches: Search[]): { person: Person; task: Task }[] {
+/** The negative searches of each book (not withdrawn). */
+function negativesByBook(tree: Tree): Map<string, Search[]> {
+  const out = new Map<string, Search[]>();
+  for (const s of tree.list<Search>("search")) {
+    if (s.retracted || s.result !== "negative") continue;
+    for (const rs of new Set(s.recordsets)) out.set(rs, [...(out.get(rs) ?? []), s]);
+  }
+  return out;
+}
+
+/** Whether a person is on the tree's edge or in a direction at work; the tasks by ID, the people each is about. */
+interface Reach {
+  reached: (person: string) => boolean;
+  tasks: Map<string, Task>;
+  about: (task: Task) => string[];
+  /** The people a re-reading of weak scans is open for already. */
+  open: Set<string>;
+}
+
+/** The people on the tree's edge, kept while the tree in memory and the day stay (the menu asks at each of its rounds). */
+const edgesHeld = new WeakMap<Tree, { version: number; day: string; people: Set<string> }>();
+
+function edgePeople(tree: Tree): Set<string> {
+  const day = new Date().toISOString().slice(0, 10);
+  const held = edgesHeld.get(tree);
+  if (held && held.version === tree.version && held.day === day) return held.people;
+  const people = new Set(treeEdges(tree).edges.keys());
+  edgesHeld.set(tree, { version: tree.version, day, people });
+  return people;
+}
+
+/** What peopleToSearch asks of the tree, reckoned as it is first asked and once (the tree's edge is long to reckon). */
+function reachOf(tree: Tree): Reach {
   const tasks = new Map(tree.list<Task>("task").map((t) => [t.id, t]));
+  let active: ReturnType<typeof scopes> | undefined;
   let edges: Set<string> | undefined;
-  const active = scopes(tree).filter((s) => !s.research.retracted && s.research.state === "active");
-  const reached = (p: string) => active.some((s) => s.people.has(p)) || (edges ??= new Set(treeEdges(tree).edges.keys())).has(p);
+  const about = new Map<string, string[]>();
+  return {
+    reached: (p) => (active ??= scopes(tree).filter((s) => !s.research.retracted && s.research.state === "active")).some((s) => s.people.has(p)) || (edges ??= edgePeople(tree)).has(p),
+    tasks,
+    about: (t) => {
+      let ids = about.get(t.id);
+      if (!ids) about.set(t.id, (ids = aboutPeople(tree, t.subject)));
+      return ids;
+    },
+    open: new Set(
+      [...tasks.values()]
+        .filter((t) => t.origin === TUNE_NEGATIVES_ORIGIN && ["open", "doing", "parked", "waiting"].includes(t.state))
+        .flatMap((t) => t.subject),
+    ),
+  };
+}
+
+/** The people the tasks of some searches were about, on the tree's edge or in a direction at work, each with the task. */
+function peopleToSearch(tree: Tree, searches: Search[], reach = reachOf(tree)): { person: Person; task: Task }[] {
+  const { tasks, open } = reach;
   // one task per person, never one more where a re-reading of weak scans is open for them already
-  const open = new Set(
-    [...tasks.values()]
-      .filter((t) => t.origin === TUNE_NEGATIVES_ORIGIN && ["open", "doing", "parked", "waiting"].includes(t.state))
-      .flatMap((t) => t.subject),
-  );
   const out = new Map<string, { person: Person; task: Task }>();
   for (const s of searches) {
     const task = s.task ? tasks.get(s.task) : undefined;
     if (!task || task.retracted) continue;
-    for (const id of aboutPeople(tree, task.subject)) {
+    for (const id of reach.about(task)) {
       const p = tree.get<Person>(id);
-      if (!p || p.retracted || open.has(id) || !reached(id)) continue;
+      if (!p || p.retracted || open.has(id) || !reach.reached(id)) continue;
       const had = out.get(id);
       if (!had || task.priority > had.task.priority) out.set(id, { person: p, task });
     }
@@ -414,24 +444,24 @@ function negativesWeak(c: Ctx): Draft[] {
   const out: Draft[] = [];
   for (const b of c.report.books) {
     if (!(b.weakNegatives > 0)) continue;
-    const copies = sharperCopies(c.media, b.id);
+    const copies = sharperCopies(c.tree, b.id);
     if (!copies.length) continue;
-    const negatives = c.tree.list<Search>("search").filter((s) => !s.retracted && s.result === "negative" && s.recordsets.includes(b.id));
+    const negatives = c.negatives.get(b.id) ?? [];
     // the negatives a sharper copy came after, of the images they covered (all of the book when they do not say)
     const weak = negatives.filter((s) => {
       const pages = numbers(s.scope.pages);
-      return copies.some((x) => x.m.created > s.created && (!pages || (x.m.image !== undefined && pages.has(x.m.image))));
+      return copies.some((x) => x.created > s.created && (!pages || pages.has(x.image)));
     });
     if (!weak.length) continue;
-    const later = copies.filter((x) => weak.some((s) => x.m.created > s.created));
+    const later = copies.filter((x) => weak.some((s) => x.created > s.created));
     const gain = Math.max(...later.map((x) => x.gain));
     // the images searched with no sharper copy yet: a part each, at most, if the search goes over them
-    const covered = new Set(copies.map((x) => x.m.image));
+    const covered = new Set(copies.map((x) => x.image));
     const bare = new Set<number>();
     for (const s of weak) for (const n of numbers(s.scope.pages) ?? []) if (!covered.has(n)) bare.add(n);
     const at = hostOfBook(c, b.id);
     const requests = at && bare.size ? [{ host: at.host, n: Math.ceil(bare.size * perPart(c, at.host)), minutes: minutesFor(c, at.host, at.connector, Math.ceil(bare.size * perPart(c, at.host))) }] : [];
-    const people = peopleToSearch(c.tree, weak);
+    const people = peopleToSearch(c.tree, weak, c.reach);
     const title = b.title ?? c.tree.get<RecordSet>(b.id)?.title ?? b.id;
     const more = requests.length ? ` — ${requestsText(c, requests)}` : "";
     const choices: Choice[] = [
@@ -452,7 +482,7 @@ function negativesWeak(c: Ctx): Draft[] {
         metric: "weakNegatives",
         value: b.weakNegatives,
         samples: b.negatives,
-        material: later.map((x) => x.m.id).sort(),
+        material: later.map((x) => x.id).sort(),
         rev: QUESTION_REV["negatives.weak"],
         extra: { gain: Math.round(gain * 100) / 100, searches: weak.length, people: people.length },
       },
@@ -469,9 +499,9 @@ function viewsSharper(c: Ctx): Draft[] {
     const at = hostOfBook(c, b.id);
     if (!at) continue;
     // the portal gives sharper parts of this book: one fetched before shows it
-    const parts = sharperCopies(c.media, b.id).filter((x) => x.m.part && x.m.fetched?.connector);
+    const parts = sharperCopies(c.tree, b.id).filter((x) => x.part && x.connector);
     if (!parts.length) continue;
-    const covered = new Set(sharperCopies(c.media, b.id).map((x) => x.m.image));
+    const covered = new Set(sharperCopies(c.tree, b.id).map((x) => x.image));
     const candidates = Math.max(0, b.unsure - covered.size);
     if (!candidates) continue;
     const n = Math.ceil(candidates * perPart(c, at.host));
@@ -505,7 +535,7 @@ function viewsSharper(c: Ctx): Draft[] {
         value: sig?.value ?? 0,
         samples: metric === "M5" ? b.read : b.views,
         ...(sig?.ratio !== undefined && Number.isFinite(sig.ratio) ? { ratio: Math.round(sig.ratio * 100) / 100 } : {}),
-        material: parts.map((x) => x.m.id).sort(),
+        material: parts.map((x) => x.id).sort(),
         rev: QUESTION_REV["views.sharper"],
         extra: { candidates, requests: n, day },
       },
@@ -762,7 +792,8 @@ export function tuneQuestions(tree: Tree, settings: Settings, o: QuestionsOption
     units: group.units,
     now,
     ...(shared ? { shared } : {}),
-    media: tree.list<Media>("media").filter((m) => !m.retracted),
+    negatives: negativesByBook(tree),
+    reach: reachOf(tree),
     // strom's own fetches (an agent's own web tools fetch no image of an archive)
     fetches: readJournal(path.join(metricsDir(tree.root), "fetch.jsonl")).filter((f) => !isAgentWeb(f)),
     connectors,
@@ -889,11 +920,10 @@ export function keepAnswer(tree: Tree, settings: Settings, key: string, q: Quest
 export function weakNegativeTasks(tree: Tree, q: Question): { person: Person; task: Task; fields: Omit<Task, "id" | "type" | "created" | "updated" | "notes"> & { note?: string } }[] {
   const rs = q.key.recordset;
   if (!rs) return [];
-  const copies = sharperCopies(tree.list<Media>("media").filter((m) => !m.retracted), rs);
-  const searches = tree.list<Search>("search").filter((s) => {
-    if (s.retracted || s.result !== "negative" || !s.recordsets.includes(rs)) return false;
+  const copies = sharperCopies(tree, rs);
+  const searches = (negativesByBook(tree).get(rs) ?? []).filter((s) => {
     const pages = numbers(s.scope.pages);
-    return copies.some((x) => x.m.created > s.created && (!pages || (x.m.image !== undefined && pages.has(x.m.image))));
+    return copies.some((x) => x.created > s.created && (!pages || pages.has(x.image)));
   });
   const lang = tree.lang;
   const book = tree.get<RecordSet>(rs);

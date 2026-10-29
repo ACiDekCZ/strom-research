@@ -39,6 +39,7 @@ test("a person runs strom: the first family tree, straight into the conversation
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
   await w.ok(["setup", "--yes"]);
+  w.historyAsked();
   // name of the tree → the agent opens (fake: ends at once) → the menu → quit
   const r = await w.ok([], { tty: true, answers: ["Novákovi", "0"] });
   assert.match(r.out, /Jak se bude rodokmen jmenovat\?/);
@@ -94,6 +95,7 @@ test("the menu: results and what waits; unknown choices are asked again", unix, 
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
   await w.ok(["setup", "--yes"]);
+  w.historyAsked();
   await w.ok(["init", "Novákovi"]);
   const r = await w.ok([], { tty: true, answers: ["9", "strom help --human", "3", "", "5", "1", "0", "0"] });
   assert.match(r.out, /Čekám jedno z čísel: 1, 2, .*, 0\./);
@@ -110,6 +112,7 @@ test("the menu: a person can always change their mind — the current choice sug
   const w = new World();
   w.env.PATH = pathWith(w, ["claude", "codex"]);
   await w.ok(["setup", "--yes"]);
+  w.historyAsked();
   await w.ok(["init", "Novákovi"]);
   await w.ok(["init", "Svobodovi"]);
   await w.ok(["trees", "use", "Novákovi"]);
@@ -131,6 +134,7 @@ test("the menu: a person can always change their mind — the current choice sug
   const b = new World();
   b.env.PATH = pathWith(b, ["claude"]);
   await b.ok(["setup", "--yes"]);
+  b.historyAsked();
   await b.ok(["init", "Dvořákovi"]);
   const u = await b.ok([], { tty: true, answers: ["6", "4", `'${zip}'`, "a", "", "0"] });
   assert.match(u.out, /Přetáhnout sem soubor ZIP[\s\S]*„Novákovi“ je tady/);
@@ -392,6 +396,7 @@ test("an agent in a desktop app sets strom up: that is where the person talks; o
   w.env.CLAUDE_CODE_ENTRYPOINT = "claude-desktop";
   w.env.CLAUDECODE = "1";
   const s = await w.ok(["setup", "--yes", "--lang", "cs"]);
+  w.historyAsked();
   assert.doesNotMatch(s.out, /not installed yet/, "the app is the agent");
   assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).agentWhere, "app");
   delete w.env.CLAUDE_CODE_ENTRYPOINT;
@@ -810,12 +815,12 @@ test("the Strom app offered gently: the wizard asks once, the menu says what it 
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);
   const cfg = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
-  // language, folder, model, its effort, stories, level, no shortcut — then the Strom app: not now
-  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "n", "2"] });
+  // language, folder, model, its effort, stories, level, history off, no shortcut — then the Strom app: not now
+  const s = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "", "n", "2"] });
   assert.match(s.out, /Aplikace Strom \(zdarma, v prohlížeči\) ukáže výzkum jako rodokmen[\s\S]*1 {2}Ano – nainstalovat ji teď/);
   assert.equal(cfg().stromApp, "yes");
-  // Again: the answer pre-filled; no — never mentioned after.
-  await w.ok(["setup"], { answers: ["", "", "", "", "0", "", "", "", "n", "3"] });
+  // Again: the answer pre-filled (the history in the stories asked too, Enter); no — never mentioned after.
+  await w.ok(["setup"], { answers: ["", "", "", "", "0", "", "", "", "", "", "n", "3"] });
   assert.equal(cfg().stromApp, "no");
   await w.ok(["init", "Novákovi"]);
   const none = await w.ok([], { tty: true, answers: ["0"] });

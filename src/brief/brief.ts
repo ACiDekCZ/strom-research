@@ -20,7 +20,7 @@ import { calibrationLine } from "../core/calibration.ts";
 import { taskRecordsets } from "../core/frontier.ts";
 import { reviewItems } from "../core/review.ts";
 import { byHandOnly, listConnectors, missingConsents, readyConnectors, routeOf, type Connector } from "../core/connector.ts";
-import { clock, hostAllowed, hostState, REFUSED_FOREVER } from "../core/net.ts";
+import { clock, clockUp, hostAllowed, hostState, leftAloneFor, REFUSED_FOREVER } from "../core/net.ts";
 import { archiveLevel, type PendingQuestion } from "../core/terms.ts";
 import { onHost, permissionQuestions, setHosts } from "../core/archivewait.ts";
 import { runs, runsArg, shellArg } from "../cli/format.ts";
@@ -28,19 +28,23 @@ import { readingsLine, readingsOf } from "../core/readsync.ts";
 import { commandSheet } from "./sheet.ts";
 import { foldText } from "../core/text.ts";
 import { subjectPeople } from "../core/records.ts";
+import { familyFormsFor, groupedForms, readSurnames, sameFamily } from "../core/surnames.ts";
+import { twoPeople } from "../core/quality.ts";
 import { searchedAs } from "../core/evidence.ts";
 import { hypothesisPeople } from "../core/directions.ts";
 import type { Tree } from "../core/tree.ts";
 import { imagesIndex, weakScans } from "../core/mediaindex.ts";
 import { SHARPER_SCAN } from "../core/views.ts";
 import { HYPOTHESIS_LINKS_ORIGIN, recordedLinks, recordedText } from "../core/hypolinks.ts";
+import { forHistory, historyOn } from "../core/pastevents.ts";
+import { HISTORY_WEB_RULE, historySections, localEventsSection, storyHistorySection } from "./history.ts";
 
 export { DEFAULT_BUDGET } from "../core/config.ts";
 import { DEFAULT_BUDGET, Settings } from "../core/config.ts";
 import { bookTuned, hostTuned, readingOf, treeTuning, tuningOn, type TuneState } from "../core/tune.ts";
 import { researchKey, viewModel, viewSizes } from "../core/viewsizes.ts";
 import { inWords, PROFILES } from "../agents/profiles.ts";
-import { ENRICH_PAGES, STORY_SOURCES_ORIGIN } from "../core/stories.ts";
+import { ENRICH_PAGES, forStory, STORY_SOURCES_ORIGIN } from "../core/stories.ts";
 import { sandboxOf, WITHOUT_READERS, type Sandbox } from "../core/sandbox.ts";
 import { WEB_SOFT } from "../core/metrics.ts";
 import { indexBriefLines } from "../core/indexfirst.ts";
@@ -435,6 +439,29 @@ function materialText(tree: Tree, inputs: Input[]): MaterialText {
  * place of the task; `general` — it names nothing of the tree; none — it is about other families, places, books or
  * archives.
  */
+/**
+ * The forms of the task's people's surnames the user made one family (core/surnames.ts): a register may write any of
+ * them — searched under each. None when no group holds them.
+ */
+function surnameFormLines(tree: Tree, task: Task): string[] {
+  const groups = readSurnames(tree).groups;
+  if (!groups.length) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const id of task.subject) {
+    const p = /^P\d{4,}$/u.test(id) ? tree.get<Person>(id) : undefined;
+    if (!p || p.type !== "person") continue;
+    for (const n of p.names) {
+      const s = n.surname?.trim();
+      if (!s || seen.has(s)) continue;
+      seen.add(s);
+      const more = groupedForms(tree, s, groups);
+      if (more.length) out.push(`forms: ${s} is also written ${more.join(", ")} (one family, the user's groups) — search under each`);
+    }
+  }
+  return out;
+}
+
 type LessonFit = "named" | "general" | false;
 
 /**
@@ -451,10 +478,12 @@ type LessonFit = "named" | "general" | false;
 function projectLessonFit(tree: Tree, task: Task | undefined, persons: Person[], where: string[], material?: MaterialText): (l: Lesson) => LessonFit {
   if (material?.unknown) return () => "general";
   const known = new Set<string>();
+  // a surname's forms: the language's and those of the groups the person made one family (core/surnames.ts)
+  const formsOf = familyFormsFor(tree);
   const add = (n: string | undefined) => {
     if (!n) return;
     const first = n.trim().split(/[\s,]+/u)[0] ?? "";
-    for (const f of [first, ...surnameForms(first)]) {
+    for (const f of [first, ...formsOf(first)]) {
       const s = stem(f);
       if (s) known.add(s);
     }
@@ -476,7 +505,7 @@ function projectLessonFit(tree: Tree, task: Task | undefined, persons: Person[],
   const knownList = [...known];
   // the names the task gives in its own words, and the surnames of its people in their forms
   const names = new Set([...taskTexts, ...(material?.texts ?? [])].flatMap((t) => textNames(t, true)).filter((w) => [...w].length >= 4 && !given.has(w)));
-  const surnames = [...new Set(persons.flatMap((p) => p.names.flatMap((n) => (n.surname ? [...surnameForms(n.surname)] : []))))];
+  const surnames = [...new Set(persons.flatMap((p) => p.names.flatMap((n) => (n.surname ? [...formsOf(n.surname)] : []))))];
   // a book as a lesson names it: the start of its title ("Lhota 03, N 1700–1750" → "lhota 03"), or its ID
   const bookName = (b: RecordSet) => {
     const head = foldedWords(b.title.split(",")[0] ?? "").join(" ");
@@ -823,7 +852,13 @@ function archiveLine(tree: Tree, b: RecordSet, repo: Repository | undefined, sha
   else if (net) {
     try {
       const st = hostState(net, host);
-      if (st.blockedUntil && st.blockedUntil > Date.now()) parts.push(`${host} left alone until ${clock(st.blockedUntil)}${st.reason ? ` (${st.reason})` : ""} — nothing to it before then`);
+      if (st.blockedUntil && st.blockedUntil > Date.now())
+        parts.push(
+          `${host} left alone until ${clock(st.blockedUntil)}${st.reason ? ` (${st.reason})` : ""} — nothing to it before then${
+            // it went silent, or asked to slow down: the work goes elsewhere meanwhile, never a fetch asked again and again
+            leftAloneFor(st, Date.now()) ? `: work on what needs nothing from it, else back to the queue for later (strom session close --continue) and on after ${clockUp(st.blockedUntil)}` : ""
+          }`,
+        );
     } catch {
       // the host's state unreadable: the level says enough
     }
@@ -946,7 +981,7 @@ export function buildBrief(
         ? `Working alone (strom run): nobody answers here, but the user may read this session afterwards (the run's output, its log) — every message of yours, the last one too, in ${langName(lang)}, about the work and never addressed to the user ("waits for a check", never "waits for you"); a step only the user can take goes into strom task wait.`
         : "",
       STROM_ONLY,
-      webRule(new Settings(tree.env, {}).webPerHost(tree.config)),
+      task && forHistory(task) ? HISTORY_WEB_RULE : webRule(new Settings(tree.env, {}).webPerHost(tree.config)),
       opts.deadline !== undefined ? briefClock(opts.deadline) : "",
     ].filter(Boolean).join("\n"),
   });
@@ -973,12 +1008,17 @@ export function buildBrief(
         `why:   ${task.why}`,
         `done:  ${task.doneWhen}`,
         task.subject.length ? `about: ${task.subject.join(" ")}` : "",
+        ...surnameFormLines(tree, task),
         ...task.notes.slice(-3).map((n) => `note:  ${n.text}`),
         task.notes.length > 3 ? `(notes: the last 3 of ${task.notes.length} — all: strom task show ${task.id})` : "",
         ...personAnswers(tree, task),
         ...filesCame(task),
       ].filter(Boolean).join("\n"),
     });
+
+    // a task of history (the experiment): its own sections, nothing of the records, the method or the queue
+    const history = forHistory(task) ? historySections(tree, task, opts.shared, alone) : undefined;
+    if (history) return assemble([...sections, ...history], budget);
 
   // 2. a review: what each item of the task is, as the tree has it
   if (task.origin.startsWith("review:") && task.where.length)
@@ -991,7 +1031,7 @@ export function buildBrief(
   for (const input of treeInputs) {
     const system = `gedcom:${input.sha!.slice(0, 12)}`;
     const ids = tree.list<Person>("person").filter((p) => !p.retracted && p.refs?.some((r) => r.system === system)).map((p) => p.id);
-    const dupes = likelyDuplicates(tree, ids);
+    const dupes = likelyDuplicates(tree, ids, sameFamily(tree), twoPeople(tree));
     if (dupes.length)
       sections.push({
         name: "duplicates",
@@ -1080,11 +1120,12 @@ export function buildBrief(
     // nothing to tell it by: kept
     return !places.length || (!span && !taskPlaces.size);
   };
-  const named = (s: Search) => (s.scope.surnames ?? []).some((x) => theirs.some((y) => sameFamilyName(x, y)));
+  const sameName = sameFamily(tree);
+  const named = (s: Search) => (s.scope.surnames ?? []).some((x) => theirs.some((y) => sameName(x, y)));
   const premise = tree.list<Search>("search").filter((s) => s.recordsets.some((b) => where.has(b)) || (s.task && s.task === task?.id) || named(s));
   const searches = premise.filter((s) => s.recordsets.some((b) => where.has(b)) || (s.task && s.task === task?.id) || nearby(s));
   const elsewhere = premise.filter((s) => !searches.includes(s));
-  const elsewhereNames = [...new Set(elsewhere.flatMap((s) => theirs.filter((y) => (s.scope.surnames ?? []).some((x) => sameFamilyName(x, y)))))];
+  const elsewhereNames = [...new Set(elsewhere.flatMap((s) => theirs.filter((y) => (s.scope.surnames ?? []).some((x) => sameName(x, y)))))];
   const ofPlace = (id: string) => {
     const pl = tree.get<Place>(id);
     return pl?.type === "place" && [...pl.names.map((n) => n.name), ...pl.jurisdictions.map((j) => j.name)].some((n) => [...bookPlaces].some((b) => b === foldText(n) || b.startsWith(`${foldText(n)},`)));
@@ -1312,6 +1353,17 @@ export function buildBrief(
   const kind = linking ? METHOD_LINKS : task?.level;
   sections.push({ name: "method", first: true, pointer: "strom guide", text: methodFor(kind, conditions) });
 
+  // 8'. the experiment of history on: a session that reads records may write a local event they tell of
+  if (task && ["link", "verify", "intake", "enrich"].includes(kind ?? "") && historyOn(tree)) {
+    const local = localEventsSection();
+    if (local) sections.push(local);
+  }
+
+  // 8''. the history of the places in the stories (stories.history): the time the people of a story lived in
+  const storyHistoryOn = !!task && forStory(task) && new Settings(tree.env, {}).storyHistory(tree.config);
+  const ofTime = storyHistoryOn && task!.level === "narrate" ? storyHistorySection(tree, task!, opts.shared) : undefined;
+  if (ofTime) sections.push(ofTime);
+
   // 8 bis. the search beyond the registers: its budget of pages, printed pages for the user's model for print where the
   // agent hands work to another model, and what the research has written of the person's places already
   if (task?.origin === STORY_SOURCES_ORIGIN) {
@@ -1327,6 +1379,9 @@ export function buildBrief(
         `- over ${Math.min(WEB_SOFT, new Settings(tree.env, {}).webPerHost(tree.config))} pages of one site: through its connector, built right away when the task needs that site (strom connector new <site> --url https://<host>/, then strom fetch)`,
         print ? `- print: a subagent on ${print} (model.text), never handwriting` : "",
         written.length ? `- of the places, written already (reuse): ${written.join(" · ")}` : "",
+        storyHistoryOn && storyHistorySection(tree, task, opts.shared)
+          ? "- the history of the places (wars, epidemics, changes of the state of the region) is in the research already, the story takes it from there: no pages for it — what is of the person"
+          : "",
       ].filter(Boolean).join("\n"),
     });
   }
@@ -1398,6 +1453,13 @@ export function buildBrief(
     ].filter(Boolean).join("\n"),
   });
 
+  return assemble(sections, budget);
+}
+
+/**
+ * The brief within its budget, from its sections in order.
+ */
+function assemble(sections: Section[], budget: number): Brief {
   // Assemble within the budget: required sections always, then the first ones whole when they fit, then the others in
   // order — those in parts in short —, a first one that did not fit whole cut after them, and last the parts given in
   // short made whole while they fit (UPGRADES); each written where it stands. Everything written counts: the blank line

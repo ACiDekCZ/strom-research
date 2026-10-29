@@ -52,6 +52,7 @@ async function seeded(): Promise<World> {
   fs.writeFileSync(path.join(w.dir, "loni.json"), JSON.stringify({ research, persons: { a: jan, k9: { id: "k9", firstName: "Ludmila", lastName: "Nováková", gender: "female" } }, partnerships: {} }));
   await w.ok(["sync", path.join(w.dir, "loni.json"), "--apply"]); // I0002
   fs.writeFileSync(path.join(w.cwd, "zapis.txt"), "Joannes filius Josephi\n");
+  fs.writeFileSync(path.join(w.cwd, "pairs.txt"), "P0001 P0002\n"); // person compare --pairs-from
   fs.mkdirSync(path.join(w.cwd, "notes"), { recursive: true });
   fs.writeFileSync(path.join(w.cwd, "notes", "story-P0001.md"), "Jan byl mlynář v Týnci.\n");
   fs.writeFileSync(path.join(w.cwd, "notes", "request-lhota.md"), "Žádost o opis křestního zápisu.\n"); // task wait --request
@@ -114,6 +115,12 @@ async function seeded(): Promise<World> {
   await w.ok(["note", "add", "P0003", "Kmotra z Lhoty"]);
   await w.ok(["note", "retract", "P0003", "2", "--reason", "jmenovkyně"]);
   await w.ok(["task", "edit", "T0002", "--note", "Kniha 12 prohledána 1801–1820"]);
+  // the forms of a surname: a suggestion (Novák | Nowak), a group (Lhota | Lhotaa), a suggestion rejected (Svobodová | Swobodová)
+  const karel = (await w.ok(["person", "add", "Karel /Novák/", "--sex", "M", "--json"])).json.person.id;
+  await w.ok(["name", "add", karel, "Karel /Nowak/", "--cite", "S0001"]);
+  await w.ok(["surname", "group", "Lhota", "Lhotaa"]);
+  await w.ok(["name", "add", "P0003", "Marie /Swobodová/", "--cite", "S0001"]);
+  await w.ok(["surname", "reject", "svobod|swobod"]);
   // a family tree of another program imported (I0004), its married name (_MARNM) to take in again (input names)
   const ged = ["0 HEAD", "1 SOUR MYHERITAGE", "0 @I1@ INDI", "1 NAME Ludmila /Kopecká/", "2 _MARNM Horká", "1 SEX F", "0 TRLR", ""].join("\n");
   fs.writeFileSync(path.join(w.env.HOME!, "Downloads", "rodokmen.ged"), ged);

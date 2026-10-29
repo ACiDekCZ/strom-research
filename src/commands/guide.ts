@@ -8,8 +8,33 @@ import { appSite } from "../core/stromapp.ts";
 import { WEB_PER_HOST, webRuleLines } from "../core/web.ts";
 import { powershellUtf8Rule } from "../core/self.ts";
 
-/** The guide; appUrl: the Strom app's address it names — the one `strom app` opens (appUrlShown); perHost: web.perHost here. */
-export function guideText(lang: string | undefined, appUrl: string, perHost: number = WEB_PER_HOST, platform: NodeJS.Platform = process.platform): string {
+/**
+ * The history of the places in a conversation (spec 020 K2.8): only in the guide of a research whose user has it on —
+ * otherwise the guide says nothing of it (its commands are hidden, behind the experiment).
+ */
+export const HISTORY_GUIDE = `THE HISTORY OF THE PLACES (the user has it on: what the ancestors lived through, in the Strom app)
+  strom looks for it by itself between the sessions. In a conversation only when the user asks for it:
+  - an event ("add the battle of …"): strom history where <year> [--place "<place>"|L…] says the regions of the
+    tree's places in that year, their catalogs, the people there. It goes to the region it touched — one of those
+    (strom history status lists them); a new one only when none fits: strom history region <id> --name-cs "…"
+    --name-en "…" --name-de "…", and the places in it mapped to it (strom history map "<place>" --region <id>:<from>-<to>
+    with all its regions: the map is replaced) — or, an event of one place and its surroundings, with --place L….
+    The user asked for it: the rule "no battles far away" of strom's own search does not hold against it.
+  - its source: a page strom reads itself — found with your web search, read with strom history page <url>
+    --find "<year>"; then strom history add --region <id> (or --place L…) --from … [--to …] --kind … --text-cs "…"
+    --text-en "…" --text-de "…" --url <page> --quote "<the page's words with the year>" (texts impersonal, ≤ 300
+    characters; refused when the quote is not on the page). There already: --same-as <event> (one more source) or
+    --replaces <event>. No page strom can read: nothing added — tell the user what was tried, never a guess.
+  - then tell the user where it went (the region or the place, the years) and whom it shows at: strom history add
+    says it ("shows at N persons", or "at no person yet": nobody of the tree lived there in those years — say so).
+  - the history of a place and its surroundings ("find the history of <place> and around"): the same, each event
+    with --place L… (strom place list; the place, its parish and estate, ~10 km), then strom history area L…
+    --text-cs "…" --text-en "…" --text-de "…" (what was looked through) and strom history done L…. Or as a session of
+    its own: strom history place L… (the user's yes in their terminal; the next session of strom run takes it).
+`;
+
+/** The guide; appUrl: the Strom app's address it names — the one `strom app` opens (appUrlShown); perHost: web.perHost here; history: the user has the history of the places on here. */
+export function guideText(lang: string | undefined, appUrl: string, perHost: number = WEB_PER_HOST, platform: NodeJS.Platform = process.platform, history = false): string {
   const ps = powershellUtf8Rule("", platform);
   const language = lang
     ? `The research language of this tree is ${langName(lang)} (${lang}): talk to the user in ${langName(lang)} and write notes, tasks and stories in ${langName(lang)}. Keep transcripts of records in their original language.`
@@ -128,6 +153,21 @@ One person recorded twice (an imported tree and the research) — parents
 recorded twice are merged first:
   strom family merge F0002 F0005 --reason "…"
   strom person merge P0001 P0007 --reason "…"
+Forms of one surname (Lhota, Lhotaa): strom surname suggest shows what the records suggest; which forms are
+one family's is the user's decision alone (the Strom app, or strom surname accept|reject|group in their
+terminal) — suggest them to the user, never write them. Searches and matching use the groups by themselves.
+Two people possibly one: strom person compare P0001 P0002 says same, different or unsure, and why (read only).
+A finding the user marked no error (strom quality list) is never reported again — a possible duplicate marked
+so is two people; marking or taking it back is the user's alone (the Strom app, or strom quality dismiss|undo
+in their terminal), never an agent's. strom check warns of an event dated after a death (after-death).
+A participant's name stands alone, what the record says of them in closing parentheses:
+--with "godparent:Jan Lhoták (sedlák, Lhota č. 12)"; a priest is always officiant. "is this P…?" after a
+write is a suggestion: link (godparent:P…) only when the record says so. Old names with notes run together
+(participant-long-name): strom fixes show participant-names; setting them apart (strom fixes run) or back
+(strom fixes undo participant-names) is the user's decision alone, in their terminal — never an agent's.
+A place is the municipality, never a street or a house number: --place "Lhota" --house "Dlouhá 12" (refused:
+place.street, the hint says what to write). Old facts with a street in the place (street-place): strom fixes show
+street-places; setting them right or back is the user's decision alone, in their terminal.
 Many facts from one record in one call — lines of commands, "#name" labels
 what a line creates, "@name" uses it later:
   strom batch 'person add "Anna /Svobodová/" --sex F #anna' 'family add --partner P0001 --partner @anna --married 1910 --cite S0001'
@@ -221,7 +261,7 @@ STORIES OF THE ANCESTORS (the setting stories — on by default; strom shows it)
   want it, or offer it when the research has a pause. A story is a draft until the user approves it (strom story approve P…; the Strom app asks it too). When strom says to tell
   the user (once, not in every conversation): in a sentence, and that they may say no (strom config set
   stories no).
-
+${history ? HISTORY_GUIDE : ""}
 The result: strom export gedcom writes output/tree.ged (standard GEDCOM for any program) and
 output/tree-strom.ged (for the Strom app) — both from the same evidence, also on session close.
 Changes are committed automatically; you never run git yourself.
@@ -261,7 +301,8 @@ OUTPUT AND ERRORS
   user, then run the given command) · 4 needs consent (the USER must run the
   given command in their terminal) · 5 locked by another session · 6 the
   backup before another version could not be made (tell the user why) · 7 an
-  archive's limit is used up (other work; run it again at the time it says).
+  archive's limit is used up (other work; run it again at the time it says)
+  · 8 that archive asked again before that time (other work, never again).
 - Settings and how to override them: strom config where.
 
 MORE

@@ -74,6 +74,53 @@ test("the setup wizard: the user's language, Enter takes the suggestion, agents 
   w.cleanup();
 });
 
+test("the setup wizard: the history of the places — the first setup suggests it on, sometimes; an older setup never asked stays off on Enter; run again, how often (the person's choice); nothing asked without a terminal", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = new World();
+  w.env.PATH = pathWith(w, ["claude"]);
+  const config = () => readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json"));
+  // language, folder, research, model, effort, stories, level, add-ons, history (Enter: sometimes), no shortcut, no app
+  const r = await w.ok(["setup"], { answers: ["cs", "", "", "", "", "", "", "", "", "n", "3"] });
+  assert.match(r.out, /Hledat i události dějin v místech předků[^\n]*Jak často:\n {3}1 {2}občas – zhruba každé 5\. sezení \(výchozí\)\n {3}2 {2}zřídka – zhruba každé 10\. sezení\n {3}3 {2}jen když rodinný výzkum nemá co dělat\n {3}4 {2}vypnuto – dějiny se nehledají\nVybrat \[1\]/u);
+  assert.doesNotMatch(r.out.slice(r.out.indexOf("Hledat i události dějin"), r.out.indexOf("Vybrat [1]", r.out.indexOf("Hledat i události dějin"))), /(^|[^\p{L}])(vy|váš|ty|tvůj|experiment|pokus)([^\p{L}]|$)/iu);
+  assert.equal(config().experimentsHistory, "on");
+  assert.equal(config().experimentsHistoryPace, "sometimes");
+  // asked here: the menu's question after an update never comes for it (K1.6)
+  assert.ok(config().historyAsked, "the answer kept");
+  // an installation set up before (history never decided): Enter keeps it off — nothing turns on by itself
+  const older = config();
+  delete older.experimentsHistory;
+  delete older.experimentsHistoryPace;
+  fs.writeFileSync(path.join(w.env.STROM_CONFIG_DIR!, "config.json"), JSON.stringify(older, null, 2));
+  const before = await w.ok(["setup"], { answers: ["", "", "", "", "", "", "", "", "", "n"] });
+  assert.match(before.out, /vypnuto – dějiny se nehledají\n {3}0 {2}Nechat, jak je\nVybrat \[4\]/u);
+  assert.equal(config().experimentsHistory, undefined);
+  // run again: rare — on, at that pace
+  await w.ok(["setup"], { answers: ["", "", "", "", "", "", "", "", "2", "n"] });
+  assert.equal(config().experimentsHistory, "on");
+  assert.equal(config().experimentsHistoryPace, "rare");
+  // and again: what is now suggested, Enter keeps it
+  const kept = await w.ok(["setup"], { answers: ["", "", "", "", "", "", "", "", "", "n"] });
+  assert.match(kept.out, /Vybrat \[2\]/u);
+  assert.equal(config().experimentsHistory, "on");
+  // no terminal (setup --yes, an agent): nothing of it
+  const v = new World();
+  v.env.PATH = pathWith(v, ["claude"]);
+  const quiet = await v.ok(["setup", "--yes"]);
+  assert.doesNotMatch(quiet.out, /dějin/u);
+  assert.equal(readJsonFile(path.join(v.env.STROM_CONFIG_DIR!, "config.json")).experimentsHistory, undefined);
+  // a first setup: nothing new to tell after an update — the menu never asks it as news (in the settings from the start)
+  assert.ok(readJsonFile(path.join(v.env.STROM_CONFIG_DIR!, "config.json")).historyAsked, "a new installation: no question after an update");
+  // set up before strom had it, the setup run again without its wizard: still never asked — the menu asks once
+  const vfile = path.join(v.env.STROM_CONFIG_DIR!, "config.json");
+  const was = readJsonFile(vfile);
+  delete was.historyAsked;
+  fs.writeFileSync(vfile, JSON.stringify(was, null, 2));
+  await v.ok(["setup", "--yes"]);
+  assert.equal(readJsonFile(vfile).historyAsked, undefined, "set up before: the menu asks once");
+  v.cleanup();
+  w.cleanup();
+});
+
 test("installed from the Strom app, the research kept as an archive (no AI): no agent taught, none named — switching research on teaches them", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
   w.env.PATH = pathWith(w, ["claude"]);

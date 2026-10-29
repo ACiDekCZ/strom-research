@@ -24,6 +24,7 @@ import { sandboxOfRun } from "../core/sandbox.ts";
 import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../agents/effort.ts";
 import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
+import { historyHeld, raiseHistoryTasks, regionOfTask, requireHistoryOn } from "../core/pastevents.ts";
 import { prependPath, type AgentLimit } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
@@ -31,7 +32,8 @@ import { label, parentsOf, resolvePerson } from "../core/people.ts";
 import { storyProposals } from "../core/stories.ts";
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
 import { create, csvOpt, normId, requireRecord, update } from "../core/records.ts";
-import { finishTask, offTreeLine, taskQueue, waitingLines } from "./tasks.ts";
+import { finishTask, nextAwake, offTreeLine, taskQueue, waitingLines } from "./tasks.ts";
+import { clockUp } from "../core/net.ts";
 import { resolveResearch } from "./research.ts";
 import { writeGedcoms } from "./output.ts";
 import { syncAgentFiles } from "../agents/files.ts";
@@ -59,6 +61,8 @@ import { agentBrowser, sessionBrowser, treeBrowserConnectors } from "../core/con
 import { browserNote } from "./connectors.ts";
 import { reviewProposals } from "../core/review.ts";
 import { refuseInArchive } from "../core/state.ts";
+import { isArchive } from "../core/mode.ts";
+import { afterDeathProposals, settleAfterDeath } from "../core/afterdeath.ts";
 import { usageOpt, webOpt } from "../core/metrics.ts";
 import { calibrationKey, viewModel } from "../core/viewsizes.ts";
 
@@ -93,9 +97,13 @@ function offMap(tree: Tree): string | undefined {
 
 type Proposal = Omit<Task, "id" | "type" | "created" | "updated" | "notes" | "state">;
 
-/** The tasks strom would propose for a research now: its frontier, the review of a person, the stories due (unless the user said no). */
+/**
+ * The tasks strom would propose for a research now: its frontier, the review of a person, the stories due (unless the
+ * user said no), a person of it named alive after their death (never in an archive).
+ */
 export function researchProposals(tree: Tree, research: Research): { proposal: Proposal; kind: string }[] {
   const out: { proposal: Proposal; kind: string }[] = [];
+  if (!isArchive(tree)) for (const proposal of afterDeathProposals(tree, research)) out.push({ proposal, kind: "after-death" });
   for (const item of frontier(tree, research)) if (item.proposal) out.push({ proposal: { ...item.proposal, origin: "frontier" }, kind: "frontier" });
   for (const proposal of reviewProposals(tree, research)) out.push({ proposal, kind: "review" });
   if (new Settings(tree.env, {}).stories(tree.config).on) for (const proposal of storyProposals(tree, research)) out.push({ proposal: { ...proposal, origin: proposal.origin ?? "frontier" }, kind: "story" });
@@ -106,7 +114,22 @@ export function researchProposals(tree: Tree, research: Research): { proposal: P
 export function applyFrontier(tree: Tree, research: Research): string[] {
   // a direction paused or ended proposes nothing (resumed: what it would, at once)
   if (research.state !== "active") return [];
+  // what the person marked no error since, or a date corrected: its task waiting is done first
+  settleAfterDeath(tree);
   return researchProposals(tree, research).map(({ proposal, kind }) => create<Task>(tree, "task", { ...proposal, state: "open" }, (id) => `+${id} task "${truncate(proposal.what, 60)}" (${kind})`).id);
+}
+
+/**
+ * What an agent is told of a task of history started by its ID while the queue holds it back: the experiment off, or
+ * the region another tree builds now. Undefined when it may be worked on (or is no task of history).
+ */
+function historyLine(tree: Tree, t: Task, shared: string | undefined, settings: Settings): string | undefined {
+  const why = historyHeld(tree, shared, settings)(t);
+  if (why === "off") return `⚠ ${t.id} is a task of the history of the places, which is off for this research: strom history add refuses — close the session (strom session close --continue …)`;
+  if (why === "skipped") return `⚠ the person asked for no history of ${regionOfTask(t)} in this research (strom history skip): close the session (strom session close --continue …) and take another task`;
+  if (why === "nobody") return `⚠ nobody of this tree lived in ${regionOfTask(t)} in its years (the facts at its places lie in other years): nothing to look for — close the session (strom session close --continue …) and take another task`;
+  if (why === "held") return `⚠ another research on this computer builds the catalog of ${regionOfTask(t)} now: its events come from there — close the session (strom session close --continue …) and take another task`;
+  return undefined;
 }
 
 /** Commit behind the same gate as every write. */
@@ -147,7 +170,8 @@ register(
       const brief = buildBrief(tree, { ...(task ? { task } : {}), session: s, budget: ctx.settings.number("brief.budget", tree.config, DEFAULT_BUDGET), shared, browser: briefBrowser(tree, shared, s, task) });
       // a task the queue holds back, started by its ID: the agent hears why before it begins
       const off = task && args[0] ? offTreeLine(tree, task, true) : undefined;
-      return { text: lines(written(tree), off, "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections, ...(off ? { offTree: true } : {}) } };
+      const held = task && args[0] ? historyLine(tree, task, shared, ctx.settings) : undefined;
+      return { text: lines(written(tree), off, held, "", brief.text), data: { session: s, brief: brief.text, sections: brief.sections, ...(off ? { offTree: true } : {}) } };
     },
   },
   {
@@ -296,6 +320,9 @@ register(
       });
       const research = s.research ? tree.get<Research>(s.research) : undefined;
       const newTasks = research ? applyFrontier(tree, research) : [];
+      // what was written, said before the tasks of history are raised: those are strom run's, never the conversation's
+      const wrote = written(tree);
+      raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
       // a session of strom run whose run is at work: the run exports once the agent ends (with what it adds) — not twice
       const byRun = !!s.runner && runAlive(tree.root, s);
       const geds = tree.dryRun || byRun ? [] : writeGedcoms(ctx, tree);
@@ -304,7 +331,7 @@ register(
       autoTidy(tree);
       return {
         text: lines(
-          written(tree),
+          wrote,
           ...(finished?.said ?? []),
           ...alsoDone.flatMap((a) => a.said),
           ged ? `GEDCOM ${geds.map((g) => ctx.display(g.file)).join(" · ")}: ${ged.stats.persons} persons, ${ged.stats.families} families` : byRun ? "GEDCOM: exported by strom run when the session ends" : undefined,
@@ -409,7 +436,10 @@ register(
       if (!r) throw new UsageError("which research?", { hint: "strom frontier --research G0001" });
       if (opts.apply) {
         const ids = applyFrontier(tree, r);
-        return { text: ids.length ? written(tree) : "nothing to add — every frontier person has a task", data: { created: ids } };
+        const text = ids.length ? written(tree) : "nothing to add — every frontier person has a task";
+        // the tasks of history too (the experiment): strom run's, not said here
+        raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
+        return { text, data: { created: ids } };
       }
       const items = frontier(tree, r);
       const stories = ctx.settings.stories(tree.config).on ? storyProposals(tree, r) : [];
@@ -720,10 +750,14 @@ register({
     "finish when the agent says the cap's window is at 99 %.\n" +
     "Each answer of the gate is said in one line and recorded (time, gate and its arguments, exit status, verdict,\n" +
     "reason, wait, the plan's limits it was given, what the run did) in .strom/gate.log and the next session's log.\n" +
+    "A task whose archive is not answering now (left alone for a while: it went silent, or asked to slow down) waits\n" +
+    "out of the queue until then; when only such tasks are left, --loop and --until wait for that time (within\n" +
+    "--until), any other run ends saying when.\n" +
     "Arguments after -- go to the agent CLI unchanged.",
   options: [
     { name: "task", type: "string", multiple: true, value: "<T…>", description: "work on these tasks, in this order (repeatable or T0003,T0007; default: the next one of the queue)" },
     { name: "research", type: "string", value: "<G…>", description: "only tasks of this research" },
+    { name: "history", type: "boolean", hidden: true, description: "only the tasks of the history of the places, in their order, whatever its pace (the places to map first)" },
     { name: "max", type: "string", value: "<n>", description: "at most n sessions (default 1; with --until, no limit)" },
     { name: "until", type: "string", value: "<HH:MM>", description: "start no session after this time" },
     { name: "loop", type: "boolean", description: "session after session for as long as there is work (and the gate lets it)" },
@@ -770,6 +804,12 @@ register({
     if (runnerId !== "script" && !which(runner.command, ctx.env))
       throw new StromError(`${runner.command} is not installed`, { hint: runnerId === "claude" ? "install Claude Code: https://claude.com/claude-code — then log in once by running: claude" : `install ${runner.command}` });
     const until = parseUntil(opts.until);
+    // The history of the places first (the person's word): its tasks alone, whatever its pace — only while it is on.
+    const historyOnly = Boolean(opts.history);
+    if (historyOnly) {
+      if (opts.task !== undefined || opts.research !== undefined) throw new UsageError("--history takes the tasks of history in their order: not with --task or --research", { code: "run.history" });
+      requireHistoryOn(ctx.tree(), ctx.settings);
+    }
     // Tasks the user picked: one session each, in their order (then the queue, when --max asks for more).
     const picked = csvOpt(opts.task).map((id) => requireRecord<Task>(Tree.open(root, ctx.env), id, "task").id);
     const max = opts.max === undefined ? (picked.length ? picked.length : until || opts.loop ? Infinity : 1) : Number(opts.max);
@@ -795,7 +835,7 @@ register({
     let followed = false;
     // Why the run stopped: a code for the exit status and for data, words for the user (their language).
     const lang = Tree.open(root, runEnv).lang;
-    type Stop = "done" | "user" | "time" | "empty" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
+    type Stop = "done" | "user" | "time" | "empty" | "asleep" | "problems" | "denied" | "limit" | "auth" | "model" | "failed" | "gate" | "gate.error" | "gate.declined" | "gate.cap";
     // The plan's limits as the agent said them last (Claude Code), for the gate; and the window a cap of the gate holds.
     let lastLimits: AgentLimit[] | undefined;
     let watch: GateAnswer["watch"];
@@ -869,8 +909,13 @@ register({
         const research = researchOf(tree, opts.research);
         // Other agents may be at work in this tree (conversations): never their tasks.
         const others = othersAtWork(tree, tree.env, runnerId).tasks;
-        // Working alone: now and then a story's turn (in a conversation the user leads).
-        const free = () => taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), storyTurn: true }).find((t) => !others.has(t.id));
+        // The tasks of history the experiment asks for (core/pastevents.ts), made before the queue is read.
+        if (raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings).length) commitNow(tree, "Tasks of the history of the places");
+        // Working alone: now and then a story's turn (in a conversation the user leads); the tasks of history after the
+        // research, and now and then one of them first — how often is experiments.historyPace (core/pastevents.ts
+        // historyTurn), or with --history those alone in their order; the gate, if any, decides whether a session starts at all.
+        const free = () =>
+          taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), storyTurn: !historyOnly, history: historyOnly ? "only" : true }).find((t) => !others.has(t.id));
         let task: Task | undefined;
         if (i < picked.length) {
           task = tree.get<Task>(picked[i]!);
@@ -885,6 +930,31 @@ register({
           task = free();
         }
         if (!task) {
+          // Nothing now, but work whose archive is left alone for a while (it went silent, or asked to slow down): it
+          // comes back by itself then. A run that goes on by itself (--loop, --until) waits for that time — no session
+          // spent on being told so, nothing sent meanwhile; one the user started for a session or a few ends and says
+          // when. Tasks the user named are never held.
+          const back = i < picked.length || historyOnly ? undefined : nextAwake(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config) }, others);
+          if (back) {
+            const at = back.until + 1000; // its time off over, and a second for the clock
+            const values = { host: back.host, at: clockUp(back.until) };
+            if (gateHolds && !(until && at > until)) {
+              out(ui(lang, "ui.run.asleep.wait", values));
+              stopAwake(); // nothing to do meanwhile: the computer may sleep
+              markPaused(root, worker, { until: new Date(at).toISOString(), reason: ui(lang, "ui.run.asleep.why", values) });
+              try {
+                await pause(at - Date.now(), stop.signal);
+              } finally {
+                markPaused(root, worker, undefined);
+              }
+              stopAwake = keepAwake(ctx.env);
+              i--; // this was no session: the queue again, as it is then
+              continue;
+            }
+            stopCode = "asleep";
+            stopValues = values;
+            break;
+          }
           stopCode = "empty";
           break;
         }
@@ -1180,7 +1250,7 @@ register({
     }
     // What the research now waits for from the user who started it.
     const waiting = waitingLines(Tree.open(root, runEnv), { shared: ctx.settings.shared()?.value, display: (p) => ctx.display(p) });
-    const reason = ui(lang, `ui.run.stop.${stopCode}` as UIKey, stopValues);
+    const reason = historyOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.history") : ui(lang, `ui.run.stop.${stopCode}` as UIKey, stopValues);
     return {
       text: lines(ui(lang, "ui.run.summary", { n: report.length, reason }), waiting ? `\n${waiting}` : undefined),
       data: { sessions: report, stopped: reason, stop: stopCode, ...(gate ? { gate: { name: gate.name, answers: gates } } : {}) },

@@ -175,7 +175,7 @@ export function forPhone(text: string): string {
   return /[\p{L}\p{N}]/u.test(s) ? s : "";
 }
 
-const taskText = (tree: Tree, t: Task) => forPhone(humanTask(tree, t.what, tree.lang));
+const taskText = (tree: Tree, t: Task) => forPhone(humanTask(tree, t.what, tree.lang, { asWritten: true }));
 
 function head(root: string): string {
   const r = runGit(root, ["rev-parse", "HEAD"]);
@@ -262,8 +262,8 @@ export function treeOverview(root: string, env: Env): Overview {
 
 /** One of what waits as the phone shows it, whole; a text of nothing but IDs, paths and links: said in general. */
 function waitingLine(tree: Tree, { item }: Waiting): WaitingLine {
-  const on = item.on ? forPhone(humanTask(tree, item.on, tree.lang)) : "";
-  return { what: forPhone(humanTask(tree, item.what, tree.lang)) || ui(tree.lang, "ui.phone.waiting.item"), ...(on ? { on } : {}) };
+  const on = item.on ? forPhone(humanTask(tree, item.on, tree.lang, { asWritten: true })) : "";
+  return { what: forPhone(humanTask(tree, item.what, tree.lang, { asWritten: true })) || ui(tree.lang, "ui.phone.waiting.item"), ...(on ? { on } : {}) };
 }
 
 /**

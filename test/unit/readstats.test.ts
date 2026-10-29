@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 import {
   CLAUDE_TOKEN_WEIGHTS,
   clearsOf,
@@ -25,6 +26,7 @@ import {
   readingShare,
   recordKey,
   shareSignal,
+  stalledLog,
   streamClears,
   streamTokens,
   summarize,
@@ -376,6 +378,52 @@ test("M10 counts only readers that read: a login, a plan's limit or a failure st
   }
 });
 
+// N4 (2026-10-27): two readers whose service went silent after a retry (api_retry, then nothing until their time limit)
+// were taken for readers without a result, and the batches were made smaller for it. A reader so is halted: recorded so
+// by the reader since (stalled, outcome "error"), and before — a timeout whose log ends at the retry — from its log,
+// plain or compressed by strom tidy; a timeout whose log goes on after a retry, or has none, still counts (M10).
+test("a reader its service left silent after a retry is halted — recorded so, or a timeout whose log ends at the retry; other timeouts stay M10", () => {
+  const now = Date.parse("2026-10-27T12:00:00Z");
+  const { tree, root, done } = fakeTree({});
+  try {
+    const runs = path.join(root, ".strom", "runs");
+    fs.mkdirSync(runs, { recursive: true });
+    const init = JSON.stringify({ type: "system", subtype: "init", session_id: "s", model: "claude-opus-5-5" });
+    const retry = JSON.stringify({ type: "system", subtype: "api_retry", attempt: 1, max_retries: 10, retry_delay_ms: 600, error: "unknown" });
+    const view = JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", content: "x".repeat(200_000) }] } });
+    // ended at the retry: strom's note and the agent's stderr after it are no events; a long line before it (an image)
+    fs.writeFileSync(path.join(runs, "read-a-1.log"), [init, view, assistant("m1", 40_000), retry, "[strom] Lhoták — Пётр", "Terminated"].join("\n") + "\n");
+    // compressed by strom tidy
+    fs.writeFileSync(path.join(runs, "read-a-2.log.gz"), zlib.gzipSync([init, assistant("m1", 40_000), retry].join("\n") + "\n"));
+    // a retry, then the agent went on: stopped at its limit for its reading
+    fs.writeFileSync(path.join(runs, "read-a-3.log"), [init, retry, assistant("m2", 50_000)].join("\n") + "\n");
+    // a line of the image last, longer than the tail looked at: no retry
+    fs.writeFileSync(path.join(runs, "read-a-4.log"), [init, retry, view].join("\n") + "\n");
+    assert.equal(stalledLog(path.join(runs, "read-a-1.log")), true);
+    assert.equal(stalledLog(path.join(runs, "read-a-2.log.gz")), true);
+    assert.equal(stalledLog(path.join(runs, "read-a-3.log")), false);
+    assert.equal(stalledLog(path.join(runs, "read-a-4.log")), false);
+    assert.equal(stalledLog(path.join(runs, "nic.log")), false, "no log: no");
+
+    const line = (name: string, min: number, outcome: string, more: Record<string, unknown> = {}) => ({ at: iso(now - min * 60_000), by: "agent", reader: name, kind: "read", agent: "claude", key: "claude opus", model: "opus", images: 6, imageIds: [], views: 0, outcome, missing: 6, ms: 60_000, ...more });
+    const plan = [line("read-a-1", 600, "timeout"), line("read-a-2", 500, "timeout"), line("read-b-1", 400, "error", { stalled: true, stalls: 2 }), line("read-a-3", 300, "timeout"), line("read-a-4", 200, "timeout"), line("read-a-5", 100, "timeout")];
+    fs.mkdirSync(path.join(root, ".strom", "metrics"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".strom", "metrics", "readers.jsonl"), plan.map((l) => JSON.stringify(l)).join("\n") + "\n");
+    const units = computeUnits(tree, { guess: () => "claude opus", now });
+    assert.deepEqual(units.filter((u) => u.stalled).map((u) => u.id), ["read-a-1", "read-a-2", "read-b-1"]);
+    assert.deepEqual(units.filter((u) => u.noResult).map((u) => u.id), ["read-a-3", "read-a-4", "read-a-5"], "the timeouts of a reading");
+    const r = summarize(groups(units, now)[0]!, { now });
+    assert.deepEqual(r.readers, { n: 3, noResult: 3, halted: 3, haltedBy: { stalled: 3 } });
+    // a unit kept from before (a timeout without a result, more of it known then), its record read now: halted all the same
+    const { stalled: _, ...before } = units[0]!;
+    const kept = mergeUnit({ ...before, noResult: true, books: { B1: { ...emptyBook(), scans: 6, views: 6 } } }, units[0]!);
+    assert.equal(kept.stalled, true);
+    assert.deepEqual(summarize(groups([kept], now)[0]!, { now }).readers, { n: 0, noResult: 0, halted: 1, haltedBy: { stalled: 1 } });
+  } finally {
+    done();
+  }
+});
+
 // G3: "fetched, never read" (M11) only where it is true — the views' record lives in .strom, which a copy of the tree,
 // an unpacked one or a tree of an older strom does not have; what the research itself shows read is read
 function fetchedTree(o: { views?: Record<string, unknown>[]; cited?: number[]; reported?: number[]; web?: Record<string, unknown>[] }) {
@@ -567,6 +615,60 @@ test("web: each request counted once, the tree's hook's and the stream's alike �
     assert.equal(units.find((u) => u.id === "N0006")?.webSearches, 1);
     const host = report.web.hosts.find((h) => h.host === "obec.example")!;
     assert.deepEqual([host.requests, host.sessions, report.web.searches], [8, 3, 1]);
+  } finally {
+    done();
+  }
+});
+
+test("a log without its images (as a run writes it, as strom tidy shrinks it) reads the same as with them", async () => {
+  const { RunLog } = await import("../../src/core/logimages.ts");
+  const { shrinkLog } = await import("../../src/core/tidy.ts");
+  const { root, done } = fakeTree({});
+  try {
+    const data = "/9j/4AAQSkZJRgABAQAAAQABAAD".repeat(25_000);
+    const image = (id: string, sub: string | null) =>
+      JSON.stringify({
+        type: "user",
+        message: { role: "user", content: [{ tool_use_id: id, type: "tool_result", content: [{ type: "image", source: { type: "base64", data, media_type: "image/jpeg" } }] }] },
+        parent_tool_use_id: sub,
+        session_id: "11111111-2222-3333-4444-555555555555",
+        tool_use_result: { type: "image", file: { base64: data, type: "image/jpeg", originalSize: 500_000 } },
+      });
+    const read = (id: string) => ({ type: "tool_use", id, name: "Read", input: { file_path: `/tmp/Lhota/.strom/views/B0001-${id}.jpg` } });
+    const stream = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: "11111111-2222-3333-4444-555555555555" }),
+      assistant("m1", 30_000, { tools: [{ type: "tool_use", id: "tf", name: "Bash", input: { command: "strom fetch lhota-archiv --images 1-3 --recordset B0001" } }] }),
+      JSON.stringify({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: "tf", content: "fetch: 3 requests · 3 images" }] } }),
+      assistant("m2", 32_000, { tools: [read("r1"), { type: "tool_use", id: "ta", name: "Task", input: { prompt: "read" } }] }),
+      image("r1", null),
+      assistant("a1", 20_000, { sub: "ta", cw: 19_000, tools: [read("r2")] }),
+      image("r2", "ta"),
+      assistant("a2", 90_000, { sub: "ta", cw: 70_000 }),
+      assistant("m3", 140_000),
+      assistant("m4", 30_000),
+      JSON.stringify({ type: "result", total_cost_usd: 1.5 }),
+    ];
+    const full = path.join(root, "N0001.log");
+    fs.writeFileSync(full, stream.join("\n") + "\n");
+    // as the run writes it now
+    const ran = path.join(root, "runs", "N0002.log");
+    const log = new RunLog(ran);
+    for (const l of stream) log.line(l);
+    log.flush();
+    assert.ok(fs.statSync(ran).size < fs.statSync(full).size / 50, "the images left out");
+    assert.ok(!fs.readFileSync(ran, "utf8").includes(data.slice(0, 4096)));
+    // as strom tidy shrinks a log with the images in it (in small pieces, several gzip members)
+    const gz = path.join(root, "N0003.log.gz");
+    shrinkLog(full, gz, { chunk: 4096, block: 2048 });
+    const host = new Map([["lhota-archiv", "archiv.lhota.example"]]);
+    const what = (r: ReturnType<typeof fromLog>) => ({ ...r, long: 0 });
+    const want = fromLog(full, host);
+    assert.equal(want.samples.length, 6);
+    assert.equal(want.delegated, 1);
+    assert.deepEqual(want.fetches, [{ host: "archiv.lhota.example", rs: "B0001", requests: 3, waitMs: 0, later: false }]);
+    assert.deepEqual(what(fromLog(ran, host)), what(want));
+    assert.deepEqual(what(fromLog(gz, host)), what(want));
+    assert.deepEqual(clearsOf(fromLog(ran, host).samples), clearsOf(want.samples));
   } finally {
     done();
   }

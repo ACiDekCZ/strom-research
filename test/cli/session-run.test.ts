@@ -87,7 +87,7 @@ test("strom run --until: session after session until then, without --max", opts,
 test("a task written before its book was known: the brief finds the book, task edit points the task at it", opts, async () => {
   const w = new World();
   await w.withTree();
-  await w.ok(["research", "new", "Předci Jana Nováka", "--new-person", "Jan /Novák/", "--sex", "M", "--born", "18 OCT 1862", "--born-place", "Týnec čp. 13"]);
+  await w.ok(["research", "new", "Předci Jana Nováka", "--new-person", "Jan /Novák/", "--sex", "M", "--born", "18 OCT 1862", "--born-place", "Týnec"]);
   await w.ok(["task", "add", "Najít matriky pro Týnec", "--level", "locate", "--where", "farnost Týnce", "--why", "a", "--done-when", "b", "--about", "P1"]);
   await w.ok(["task", "add", "Křest Jana 18. 10. 1862", "--level", "link", "--where", "matrika N pro Týnec, rok 1862", "--why", "rodiče", "--done-when", "zápis nalezen", "--about", "P1"]);
   // the locate task finds the books

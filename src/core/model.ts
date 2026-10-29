@@ -175,6 +175,8 @@ export interface Story {
   facts: string[];
   /** The sources of the background of place and time it tells (S…): not facts of the person. */
   sources?: string[];
+  /** The events of the history of the places it tells as the background of its time (stories.history; their IDs). */
+  history?: string[];
   /** The author's caveat. */
   note?: string;
   at: string;
@@ -192,6 +194,7 @@ export interface StoryDraft {
   text: string;
   facts: string[];
   sources?: string[];
+  history?: string[];
   note?: string;
   at: string;
   by: string;
@@ -774,6 +777,14 @@ export interface TreeConfig {
   queueStrategy?: string;
   /** Stories of the ancestors: yes or no (overrides the user's). */
   stories?: string;
+  /** The history of the regions of the tree's places for this tree alone, both ways ("on" | "off"; unset: the user's config). */
+  experimentsHistory?: string;
+  /** How often the experiment of history takes a session here, only less often than the user's (core/config.ts historyPace). */
+  experimentsHistoryPace?: string;
+  /** The history of each place with coordinates looked for by itself, turned off for this tree alone ("off"; on is the user's config). */
+  experimentsHistoryPlaces?: string;
+  /** The history of the places and their surroundings for this tree alone, both ways ("on" | "off"; unset: as experimentsHistory here, else the user's). */
+  experimentsPlaceHistory?: string;
   /** The main person of the tree: first in the GEDCOM files, where the Strom app opens. */
   mainPerson?: string;
   /** The entries cut out of their scans for the Strom app: quality, whose, limit in MB. */

@@ -45,7 +45,10 @@ creates, `@name` uses it later; a found search comes after the source it found
   grandparents too ("daughter of Jan Novák, cottager in Týnec No. 7"), cited
   `--information secondary`. The next search identifies them by exactly these.
 - Everyone the entry names in a role goes in `--with`: godparent, witness,
-  midwife, officiant, informant, other.
+  midwife, officiant, informant, other — the name alone, what the entry says of
+  them in closing parentheses: `--with "godparent:Jan Lhoták (sedlák, Lhota
+  č. 12)"`. A priest is the officiant. "is this P…?" is linked only when the
+  record says so.
 - A child the record does not name (stillborn, died unbaptised) has no given
   name — never a description in its place: `person add "/Novák/" --sex M`, then
   `event add P… DEAT --date … --age stillborn` (or a `--note`).
@@ -60,8 +63,8 @@ creates, `@name` uses it later; a found search comes after the source it found
   conclusion that stands on one hard cell (a house number, an age, a maiden
   name) gets a blind second reading before it is `proven`: `strom read M…
   --blind --crop x,y,w,h --question "Transcribe this entry"`.
-- A place is the settlement only ("Týnec", not "Týnec No. 13"): the house
-  number goes in `--house 13`.
+- A place is the municipality only ("Lhota", not "Lhota No. 13", "Lhota,
+  Dlouhá 12"): the house goes in `--house 13` or `--house "Dlouhá 12"`.
 - What a finding means for other tasks: `strom task edit T… --note "…"`.
 - Records about one person disagree (a name, a date, an age): record both
   claims and your reasoning — `strom conflict add "<question>" --about P…

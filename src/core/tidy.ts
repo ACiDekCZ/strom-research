@@ -4,14 +4,21 @@
 // what a person or an agent made (data/, .git, inputs/, notes/, output/, the shared images) is never touched, nor a
 // send taken back that the app may still send again (/again) or the research must recognize (takenBack).
 //
-// Old trees: nothing goes by itself. `strom tidy` shows what would go (what, how much, why) and the person says yes;
-// from then on (and in a tree made by a strom that tidies) it is kept in order after each session and once a day
-// by the bridge, logged in .strom/tidy.log. A tree with nothing to tidy is kept in order from the first look.
+// What strom makes again by itself goes in every tree, asked or not, after each session and once a day by the bridge
+// (2026-10-27: 8 GB of views in a tree whose person once said no): views of scans (their record only shortened),
+// work folders of downloads cut short, pictures converted for reading, previews for the app, the briefs of closed
+// sessions — and a closed session's log is made smaller (its images left out, compressed: its text whole), never
+// removed. Everything else (a log removed, measurements, the record of the gates, excerpts, the app's sends, pointers)
+// goes only on the person's yes: `strom tidy` shows what would go (what, how much, why); from then on (and in a tree
+// made by a strom that tidies) all of it is kept in order by itself, logged in .strom/tidy.log. A tree with nothing to
+// tidy is kept in order from the first look. Said no and grown far beyond its research since: asked once more (menu).
 //
 // Every path is checked before it goes: inside the tree's .strom, in a folder of its kind, of its kind of name,
 // never a symbolic link — anything else stays.
 
 import { compactSoon } from "./history.ts";
+import { ImageCut } from "./logimages.ts";
+import { StringDecoder } from "node:string_decoder";
 import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
@@ -40,6 +47,14 @@ export const LIMITS = {
   metrics: { days: 90, bytes: 20 * MB },
   /** The record of the gates asked by runs (.strom/gate.log, core/gate.ts): its old lines go, its newest part stays. */
   gate: { days: 90, bytes: 2 * MB },
+  /**
+   * The logs made smaller in one tidy by itself (after a session, by the bridge once a day — neither may stand for
+   * minutes): about 1 GB of them, or 20 s, whichever comes first; the rest next time. Measured 2026-10-27: ~700 MB/s on
+   * a recent Mac, so 1 GB is a second or two there and still about 20 s on a slow laptop's disk (50 MB/s). The newest
+   * first: they stay longest (the oldest are the first a person's yes removes) and the summary reads the last 30 days.
+   * A log already begun is finished. The person's strom tidy: everything at once.
+   */
+  shrink: { bytes: 1024 * MB, ms: 20_000 },
 } as const;
 
 /** The record of the gates' answers (core/gate.ts GATE_LOG), directly in .strom. */
@@ -47,6 +62,9 @@ const GATE_LOG = "gate.log";
 
 /** So much to free is worth saying (status, the menu, the orientation). */
 export const TIDY_SAID = 100 * MB;
+
+/** A closed log bigger than this is made smaller (its images out, compressed). */
+const SHRINK_FROM = 64 * 1024;
 
 /** A file (or a work folder) only touched this long ago is left: something may still write it. */
 const QUIET_MS = 10 * 60_000;
@@ -94,11 +112,43 @@ export function tidyAsked(root: string): boolean {
   }
 }
 
-export function setTidyAsked(root: string): void {
+/** When the person was asked (again: the second time), kept so neither question is ever repeated. */
+export function setTidyAsked(root: string, again = false): void {
   if (tidyOn(root)) return;
   const file = path.join(root, ".strom", "tidy.json");
+  const now = new Date().toISOString();
+  let asked = now;
+  try {
+    const was = (JSON.parse(fs.readFileSync(file, "utf8")) as { asked?: unknown }).asked;
+    if (typeof was === "string") asked = was;
+  } catch {
+    // never asked
+  }
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ auto: false, asked: new Date().toISOString() }) + "\n");
+  fs.writeFileSync(file, JSON.stringify({ auto: false, asked, ...(again ? { askedAgain: now } : {}) }) + "\n");
+}
+
+/**
+ * When .strom has grown too big beside its research to stay silent after a no: 20 times the research, at least 1 GB
+ * (a small research's few hundred MB of logs are no reason to ask again), at most 5 GB (a big one's 20 times would be
+ * tens of GB on a laptop's disk).
+ */
+export const ASK_AGAIN = { times: 20, least: 1024 * MB, most: 5 * 1024 * MB } as const;
+
+/**
+ * The person said no (or was asked and did not answer) and .strom has grown beyond ASK_AGAIN since: asked once more
+ * (the menu) — once, never again after (tidy.json "askedAgain").
+ */
+export function tidyAskAgain(root: string, plan: Pick<TidyPlan, "size">): boolean {
+  let j: { auto?: unknown; asked?: unknown; askedAgain?: unknown };
+  try {
+    j = JSON.parse(fs.readFileSync(path.join(root, ".strom", "tidy.json"), "utf8")) as typeof j;
+  } catch {
+    return false;
+  }
+  if (j.auto === true || typeof j.asked !== "string" || j.askedAgain !== undefined) return false;
+  const limit = Math.min(ASK_AGAIN.most, Math.max(ASK_AGAIN.least, ASK_AGAIN.times * plan.size.research));
+  return plan.size.strom > limit;
 }
 
 export function setTidyOn(root: string): void {
@@ -186,7 +236,7 @@ export function tidyPlan(tree: Tree, at = Date.now()): TidyPlan {
     }
     if (!e.rel.endsWith(".prompt.md")) kept++;
     keptBytes += after;
-    if (plain && e.bytes > 64 * 1024) items.push({ kind: "logs", path: e.rel, bytes: e.bytes, do: "shrink", why: "a closed session's log: the images in it left out, compressed" });
+    if (plain && e.bytes > SHRINK_FROM) items.push({ kind: "logs", path: e.rel, bytes: e.bytes, do: "shrink", why: "a closed session's log: the images in it left out, compressed" });
   }
   // the briefs: with their session's log, or as old
   for (const e of entries(root, "briefs").filter((x) => x.rel.endsWith(".md"))) {
@@ -350,11 +400,19 @@ export function tidyPlan(tree: Tree, at = Date.now()): TidyPlan {
   }
 
   const frees = items.reduce((n, i) => n + (i.do === "remove" ? i.bytes : i.kind === "logs" ? Math.round(i.bytes * 0.9) : i.bytes), 0);
+  // the sizes measured only when asked for: walking the whole research (.git, data/, inputs/) is what a menu that only
+  // says what can go never needs — found on Windows, a research on OneDrive: each file a call over the network
+  let size: TidyPlan["size"] | undefined;
+  let quarantine: number | undefined;
   return {
     items,
-    size: { strom: sizeOf(path.join(root, ".strom")), research: ["data", ".git", "inputs", "notes", "output", "strom.json"].reduce((n, d) => n + sizeOf(path.join(root, d)), 0) },
+    get size() {
+      return (size ??= { strom: sizeOf(path.join(root, ".strom")), research: ["data", ".git", "inputs", "notes", "output", "strom.json"].reduce((n, d) => n + sizeOf(path.join(root, d)), 0) });
+    },
     frees,
-    quarantine: sizeOf(path.join(root, ".strom", "quarantine")),
+    get quarantine() {
+      return (quarantine ??= sizeOf(path.join(root, ".strom", "quarantine")));
+    },
   };
 }
 
@@ -387,9 +445,57 @@ export function trimJournal(text: string, since: number, keep: number): string {
   return lines.slice(i).join("\n");
 }
 
-/** The image data in a log of an agent's session: left out, its size said. */
-function withoutImages(text: string): string {
-  return text.replace(/"data":"([A-Za-z0-9+/=]{2048,})"/g, (_, d: string) => `"data":"[image ${Math.round((d.length * 3) / 4 / 1024)} kB left out]"`);
+/** Text compressed at a time into the shrunk log: each a gzip member of its own (core/lines.ts reads them as one). */
+const GZ_BLOCK = 8 * MB;
+
+/**
+ * A closed log made smaller: its images left out (core/logimages.ts), compressed — read a piece at a time, memory fixed
+ * whatever its size (one was 692 MB), its text whole. Written beside it first, then put in its place (`dest`).
+ */
+export function shrinkLog(src: string, dest: string, o: { chunk?: number; block?: number } = {}): void {
+  const chunk = o.chunk ?? 1 << 20;
+  const block = o.block ?? GZ_BLOCK;
+  const tmp = `${dest}.${process.pid}`;
+  const inFd = fs.openSync(src, "r");
+  let outFd: number | undefined;
+  try {
+    outFd = fs.openSync(tmp, "w");
+    const text = new StringDecoder("utf8");
+    const cut = new ImageCut();
+    const buf = Buffer.alloc(chunk);
+    let pending: string[] = [];
+    let size = 0;
+    let members = 0;
+    const write = () => {
+      fs.writeSync(outFd!, zlib.gzipSync(pending.join("")));
+      members++;
+      pending = [];
+      size = 0;
+    };
+    const put = (s: string) => {
+      if (!s) return;
+      pending.push(s);
+      size += s.length;
+      if (size >= block) write();
+    };
+    for (;;) {
+      const n = fs.readSync(inFd, buf, 0, buf.length, null);
+      if (!(n > 0)) break;
+      put(cut.push(text.write(buf.subarray(0, n))));
+    }
+    put(cut.push(text.end()));
+    put(cut.end());
+    if (size || !members) write();
+    fs.closeSync(outFd);
+    outFd = undefined;
+    fs.renameSync(tmp, dest);
+  } catch (e) {
+    if (outFd !== undefined) fs.closeSync(outFd);
+    fs.rmSync(tmp, { force: true });
+    throw e;
+  } finally {
+    fs.closeSync(inFd);
+  }
 }
 
 /** The path checked again as it goes: in the tree's .strom, of its kind, no link. */
@@ -417,10 +523,14 @@ function safe(root: string, item: TidyItem): string | undefined {
 }
 
 /** The plan carried out; what went is logged in .strom/tidy.log. What fails is left as it is. */
-export function tidy(tree: Tree, plan: TidyPlan, how: "person" | "auto"): { removed: number; shrunk: number; freed: number } {
+export function tidy(tree: Tree, plan: TidyPlan, how: "person" | "auto", budget: { bytes: number; ms: number } = LIMITS.shrink): { removed: number; shrunk: number; freed: number; left: number } {
   let removed = 0;
   let shrunk = 0;
   let freed = 0;
+  // by itself: the logs made smaller within its budget, the newest first (the plan's order), the rest next time
+  const started = Date.now();
+  let shrinking = 0;
+  let left = 0;
   // the measurements summed up before a journal is shortened or a log of a session goes (what older sessions left is
   // read from their logs while they are here): the figures outlive them (core/readstats.ts)
   if (plan.items.some((i) => i.kind === "metrics" || i.kind === "logs" || (i.kind === "views" && i.do === "shrink")))
@@ -439,11 +549,13 @@ export function tidy(tree: Tree, plan: TidyPlan, how: "person" | "auto"): { remo
         freed += item.bytes;
       } else if (item.kind === "logs") {
         const before = fs.statSync(abs).size;
-        // too big to read at once: left as it is (a person may delete it)
-        if (before > 400 * MB) continue;
+        if (how === "auto" && (shrinking >= budget.bytes || Date.now() - started >= budget.ms)) {
+          left++;
+          continue;
+        }
+        shrinking += before;
         const out = `${abs}.gz`;
-        fs.writeFileSync(`${out}.${process.pid}`, zlib.gzipSync(withoutImages(fs.readFileSync(abs, "utf8"))));
-        fs.renameSync(`${out}.${process.pid}`, out);
+        shrinkLog(abs, out);
         fs.utimesSync(out, new Date(), fs.statSync(abs).mtime);
         fs.rmSync(abs, { force: true });
         shrunk++;
@@ -471,21 +583,37 @@ export function tidy(tree: Tree, plan: TidyPlan, how: "person" | "auto"): { remo
     }
   }
   if (removed || shrunk) {
-    const line = `${new Date().toISOString()} ${how === "person" ? "strom tidy" : "kept in order"}: ${removed} removed, ${shrunk} shrunk, ${(freed / MB).toFixed(1)} MB freed\n`;
+    const line = `${new Date().toISOString()} ${how === "person" ? "strom tidy" : "kept in order"}: ${removed} removed, ${shrunk} shrunk, ${(freed / MB).toFixed(1)} MB freed${left ? `, ${left} logs left for next time` : ""}\n`;
     try {
       fs.appendFileSync(path.join(tree.root, ".strom", "tidy.log"), line);
     } catch {
       // the log is no reason to fail
     }
   }
-  return { removed, shrunk, freed };
+  return { removed, shrunk, freed, left };
 }
 
 /**
- * Kept in order by itself (after a session, by the bridge once a day): only a tree the person tidied once (or made by
- * a strom that tidies, or with nothing to tidy at its first look) — never what an older strom left, unasked. Never fails.
+ * What of an item is done in a tree whose person never said yes: what strom makes again goes (UNASKED); a closed log is
+ * made smaller, also one only the person's yes removes (never removed unasked); nothing else.
  */
-export function autoTidy(tree: Tree): void {
+export function unasked(item: TidyItem): TidyItem | undefined {
+  if ((UNASKED as readonly string[]).includes(item.kind)) return item;
+  if (item.kind !== "logs" || !item.path.endsWith(".log") || item.bytes <= SHRINK_FROM) return undefined;
+  return item.do === "shrink" ? item : { ...item, do: "shrink", why: "a closed session's log: the images in it left out, compressed (removed only on the person's yes)" };
+}
+
+/** The kinds strom makes again by itself when needed: tidied in every tree (their limits and guards as ever). */
+export const UNASKED = ["views", "fetch", "converted", "thumbs", "briefs"] as const satisfies readonly TidyKind[];
+
+/**
+ * Kept in order by itself (after a session, by the bridge once a day): in every tree what strom makes again (UNASKED)
+ * and a closed log made smaller (never removed); all the rest only in a tree the person tidied once (or made by a strom
+ * that tidies, or with nothing to tidy at its first look) — nothing else of what an older strom left goes unasked.
+ * The logs within a budget each time (LIMITS.shrink: neither a session's end nor the bridge stands for minutes).
+ * Never fails.
+ */
+export function autoTidy(tree: Tree, budget: { bytes: number; ms: number } = LIMITS.shrink): void {
   // the history too: packed in the background when it has grown (nothing of the research removed: core/history.ts)
   if (!tree.dryRun) compactSoon(tree.root, tree.env);
   try {
@@ -498,12 +626,18 @@ export function autoTidy(tree: Tree): void {
     } catch {
       // a summary is no reason to fail
     }
-    if (!tidyOn(tree.root)) {
-      // nothing gathered: in order from now on
-      if (tidyPlan(tree).items.length === 0) setTidyOn(tree.root);
+    const plan = tidyPlan(tree);
+    if (tidyOn(tree.root)) {
+      tidy(tree, plan, "auto", budget);
       return;
     }
-    tidy(tree, tidyPlan(tree), "auto");
+    // nothing gathered: in order from now on
+    if (plan.items.length === 0) {
+      setTidyOn(tree.root);
+      return;
+    }
+    const items = plan.items.map(unasked).filter((i) => i !== undefined);
+    if (items.length) tidy(tree, { ...plan, items }, "auto", budget);
   } catch {
     // order is never a reason to fail
   }
@@ -522,10 +656,16 @@ export function mb(bytes: number, lang = "en"): string {
 /**
  * The shared store of scans and material (media/ab/cd/<sha>.<ext>): each content once by its address, so a copy can
  * only be the same content under another extension; and files no research on this computer names (a material taken
- * back, a tree taken off). Only said — the store is the research's, nothing in it is tidied.
+ * back, a tree taken off). Only said — the store is the research's, nothing in it is tidied. Counted until `until` (a
+ * time, ms) at most: on a slow drive (a network's, a cloud's) each file is a call over the network — what was counted
+ * by then said as the least (`partial`).
  */
-export function sharedMedia(shared: string, named: Set<string>): { files: number; bytes: number; twice: { n: number; bytes: number }; unnamed: { n: number; bytes: number } } {
-  const out = { files: 0, bytes: 0, twice: { n: 0, bytes: 0 }, unnamed: { n: 0, bytes: 0 } };
+export function sharedMedia(
+  shared: string,
+  named: Set<string>,
+  until = Infinity,
+): { files: number; bytes: number; twice: { n: number; bytes: number }; unnamed: { n: number; bytes: number }; partial?: true } {
+  const out: ReturnType<typeof sharedMedia> = { files: 0, bytes: 0, twice: { n: 0, bytes: 0 }, unnamed: { n: 0, bytes: 0 } };
   const seen = new Set<string>();
   const walk = (dir: string, depth: number) => {
     let names: string[];
@@ -535,6 +675,10 @@ export function sharedMedia(shared: string, named: Set<string>): { files: number
       return;
     }
     for (const name of names) {
+      if (out.partial || Date.now() > until) {
+        out.partial = true;
+        return;
+      }
       const p = path.join(dir, name);
       let st: fs.Stats;
       try {

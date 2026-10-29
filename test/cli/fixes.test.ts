@@ -275,13 +275,13 @@ test("strom fixes: without a record of the views on this computer, the place is 
   }
 });
 
-test("strom fixes: an archive says nothing of them", opts, async () => {
+test("strom fixes: an archive says nothing of the readings again — only what is set right by rules", opts, async () => {
   const w = await world();
   try {
     oldReading(w, 1, [0.05, 0.5, 0.2, 0.15], "Jan Novák [?]", 30);
     await w.ok(["mode", "archive"], { tty: true, answers: ["y"] });
     const r = await w.ok(["fixes", "--json"]);
-    assert.deepEqual(r.json.checks, []);
+    assert.deepEqual(r.json.checks.map((c: { id: string; state: string }) => [c.id, c.state]), [["participant-names", "nothing"], ["app-shapes", "nothing"], ["street-places", "nothing"]]);
     const doctor = await w.run(["doctor", "--json"]);
     assert.equal(doctor.json.checks.find((x: { name: string }) => x.name === "fixes"), undefined);
   } finally {
@@ -433,4 +433,40 @@ test("compareDocuments: the people and events each reader gave — the same, ano
   assert.equal(compareDocuments(a, doc([{ given: "Jan", surname: "Wondra" }], "1819", "Lipowice")).result, "differ", "another year");
   assert.equal(compareDocuments(a, doc([{ given: "Jan", surname: "Wondra" }, { given: "Marie" }], "1818", "Lipowice")).result, "refined");
   assert.equal(compareDocuments(a, undefined).result, "failed");
+});
+
+test("strom fixes: what waits is kept while nothing it is found by changes — the menu never looks through the readings, a strom of its own does", opts, async () => {
+  const w = await world();
+  try {
+    oldReading(w, 1, [0.05, 0.5, 0.2, 0.15], "Jan Lhoták [?], dům [?]", 30);
+    await w.ok(["fixes", "--json"]);
+    const file = path.join(w.cwd, ".strom", "cache", "fixes.json");
+    const kept = JSON.parse(fs.readFileSync(file, "utf8"));
+    assert.deepEqual(
+      kept.pending.map((p: { id: string; readings: number }) => [p.id, p.readings]),
+      [["blind-reduced", 1]],
+    );
+    // nothing changed: the menu says what was kept, nothing looked through (told by a number nothing could find)
+    fs.writeFileSync(file, JSON.stringify({ ...kept, pending: [{ ...kept.pending[0], readings: 7, items: 7 }] }));
+    assert.match((await w.ok([], { tty: true, answers: ["0"] })).out, /^Oprava stromu čeká na rozhodnutí: .+ \(7\) — /m);
+    // a reading more: what was kept holds no more — the menu does not wait for it, a strom of its own looks through
+    oldReading(w, 2, [0.06, 0.51, 0.2, 0.15], "Marie Lhotáková [?]", 10);
+    const menu = await w.ok([], { tty: true, answers: ["0"], env: { STROM_FIXES_REFRESH: "" } });
+    assert.doesNotMatch(menu.out, /Oprava stromu/);
+    const until = Date.now() + 60_000;
+    let found: { stamp: string; pending: { readings: number }[] } | undefined;
+    while (Date.now() < until) {
+      const now = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (now.stamp !== kept.stamp) {
+        found = now;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    assert.ok(found, "the strom started in the background kept what waits");
+    assert.equal(found.pending[0]!.readings, 2);
+    assert.match((await w.ok([], { tty: true, answers: ["0"], env: { STROM_FIXES_REFRESH: "" } })).out, /^Oprava stromu čeká na rozhodnutí: .+ \(2\) — /m);
+  } finally {
+    w.cleanup();
+  }
 });

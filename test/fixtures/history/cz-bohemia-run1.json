@@ -1,0 +1,861 @@
+{
+  "done": {
+    "at": "2026-10-27T23:26:45.947Z",
+    "tree": "00000000-0000-0000-0000-000000000000"
+  },
+  "events": [
+    {
+      "id": "cz-bohemia-0001",
+      "kind": "law",
+      "at": "2026-10-27T23:17:57.178Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "date": "1848-09-07",
+      "from": 1848,
+      "source": {
+        "title": "Zrušení poddanství",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "Zrušení poddanství v Rakouském císařství vyhlásil 7. září 1848 císař Ferdinand I. na návrh říšského sněmu.",
+        "sha": "40f7133ca2f0ce5940e2395c9460ef32b8ae46c213a75bd24492b3c5bb3f4481",
+        "url": "https://cs.wikipedia.org/wiki/Zrušení_poddanství"
+      },
+      "text": {
+        "cs": "Císařským patentem ze 7. září 1848 bylo v Rakouském císařství včetně Čech zrušeno poddanství a robota; půda držená sedláky přešla do jejich vlastnictví za výkupné.",
+        "de": "Mit dem kaiserlichen Patent vom 7. September 1848 wurden im Kaisertum Österreich, auch in Böhmen, Untertänigkeit und Robot aufgehoben; die bäuerlichen Gründe gingen gegen Ablöse in bäuerliches Eigentum über.",
+        "en": "By the imperial patent of 7 September 1848 serfdom and robot (labour dues) were abolished in the Austrian Empire, Bohemia included; peasant holdings became their property against compensation."
+      },
+      "tip": {
+        "text": {
+          "cs": "Pozemkové knihy a vyvazovací spisy (výkup z poddanských povinností) ve fondech okresních soudů a zemských úřadů.",
+          "de": "Grundbücher und Grundentlastungsakten in den Beständen der Bezirksgerichte und Landesbehörden.",
+          "en": "Land books and relief (redemption) files in the records of district courts and provincial offices."
+        }
+      },
+      "to": 1848,
+      "why": {
+        "cs": "Sedláci a chalupníci přestali být poddanými vrchnosti, mohli se volně stěhovat a ženit bez jejího svolení.",
+        "de": "Bauern und Häusler waren nicht mehr Untertanen der Herrschaft und konnten ohne deren Zustimmung umziehen und heiraten.",
+        "en": "Peasants ceased to be subjects of the manor and could move and marry without its consent."
+      }
+    },
+    {
+      "id": "cz-bohemia-0002",
+      "kind": "epidemic",
+      "at": "2026-10-27T23:18:05.681Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1866,
+      "source": {
+        "title": "Prusko-rakouská válka",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "Bezprostředně po válce vypukla epidemie tzv. pruské cholery … která si v letech 1866 a 1867 vyžádala desetitisíce obětí",
+        "sha": "d802518c8a66a218aff5a96a5ef3ca871661b55bbe23adffc12705e0c8603dce",
+        "url": "https://cs.wikipedia.org/wiki/Prusko-rakouská_válka"
+      },
+      "text": {
+        "cs": "Po prusko-rakouské válce roku 1866 vypukla v Čechách epidemie tzv. pruské cholery, která si v letech 1866 a 1867 vyžádala desetitisíce obětí.",
+        "de": "Nach dem Preußisch-Österreichischen Krieg 1866 brach in Böhmen die sogenannte preußische Cholera aus; 1866 und 1867 forderte sie Zehntausende Todesopfer.",
+        "en": "After the Austro-Prussian War of 1866 an epidemic of so-called Prussian cholera broke out in Bohemia; in 1866 and 1867 it claimed tens of thousands of lives."
+      },
+      "tip": {
+        "text": {
+          "cs": "Matriky zemřelých 1866–1867, u příčiny smrti záznam cholera.",
+          "de": "Sterbematriken 1866–1867, Todesursache Cholera.",
+          "en": "Death registers 1866–1867, cause of death given as cholera."
+        }
+      },
+      "to": 1867,
+      "why": {
+        "cs": "Nákaza zasáhla i venkov; v mnoha farnostech během několika týdnů prudce vzrostl počet pohřbů.",
+        "de": "Die Seuche erreichte auch das Land; in vielen Pfarreien stieg die Zahl der Begräbnisse binnen Wochen stark an.",
+        "en": "The disease reached the countryside too; in many parishes burials rose sharply within weeks."
+      }
+    },
+    {
+      "id": "cz-bohemia-0003",
+      "kind": "state",
+      "at": "2026-10-27T23:18:10.520Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "date": "1918-10-28",
+      "from": 1918,
+      "source": {
+        "title": "Vznik Československa",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "Československo bylo vyhlášeno 28. října 1918.",
+        "sha": "bdbdbf3294293849bd253c62e4d040db0da7104a46cf47eb0e88d57092301e54",
+        "url": "https://cs.wikipedia.org/wiki/Vznik_Československa"
+      },
+      "text": {
+        "cs": "Dne 28. října 1918 bylo vyhlášeno Československo; Čechy přestaly být součástí Rakousko-Uherska a staly se součástí nového státu.",
+        "de": "Am 28. Oktober 1918 wurde die Tschechoslowakei ausgerufen; Böhmen gehörte nicht mehr zu Österreich-Ungarn, sondern zum neuen Staat.",
+        "en": "On 28 October 1918 Czechoslovakia was proclaimed; Bohemia ceased to be part of Austria-Hungary and became part of the new state."
+      },
+      "tip": {
+        "text": {
+          "cs": "Domovské listy a záznamy o státním občanství v okresních úřadech; matriky vedené od 1918 v československé správě.",
+          "de": "Heimatscheine und Staatsbürgerschaftsakten bei den Bezirksbehörden.",
+          "en": "Certificates of domicile and citizenship records at district offices."
+        }
+      },
+      "to": 1918,
+      "why": {
+        "cs": "Obyvatelé získali nové státní občanství, úřady, měnu a zákony.",
+        "de": "Die Bewohner erhielten eine neue Staatsbürgerschaft, neue Behörden, Währung und Gesetze.",
+        "en": "Inhabitants received a new citizenship, new authorities, currency and laws."
+      }
+    },
+    {
+      "id": "cz-bohemia-0004",
+      "kind": "epidemic",
+      "at": "2026-10-27T23:18:14.614Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1918,
+      "source": {
+        "title": "Španělská chřipka",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "v českých zemích excesová mortalita v důsledku španělské chřipky v letech 1918–1920 dosáhla 44 000 až 82 648 civilistů",
+        "sha": "42e99690dad8d4e1546529bfd994393469aea90be0e1d083ccaa4d6f2330a542",
+        "url": "https://cs.wikipedia.org/wiki/Španělská_chřipka"
+      },
+      "text": {
+        "cs": "Pandemie španělské chřipky zasáhla v letech 1918–1920 i české země; nadúmrtnost civilistů se odhaduje na 44 000 až 82 648 osob.",
+        "de": "Die Spanische Grippe traf 1918–1920 auch die böhmischen Länder; die zivile Übersterblichkeit wird auf 44.000 bis 82.648 geschätzt.",
+        "en": "The Spanish flu pandemic struck the Czech lands in 1918–1920; excess civilian deaths are estimated at 44,000 to 82,648."
+      },
+      "tip": {
+        "text": {
+          "cs": "Matriky zemřelých 1918–1920, příčina smrti chřipka (influenza) nebo zápal plic.",
+          "de": "Sterbematriken 1918–1920, Todesursache Influenza oder Lungenentzündung.",
+          "en": "Death registers 1918–1920, cause of death influenza or pneumonia."
+        }
+      },
+      "to": 1920,
+      "why": {
+        "cs": "Umírali často mladí dospělí, v rodinách zůstávali sirotci a vdovy.",
+        "de": "Oft starben junge Erwachsene; Waisen und Witwen blieben zurück.",
+        "en": "It often killed young adults, leaving orphans and widows."
+      }
+    },
+    {
+      "id": "cz-bohemia-0005",
+      "kind": "state",
+      "at": "2026-10-27T23:19:04.386Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "date": "1938-09-29",
+      "from": 1938,
+      "source": {
+        "title": "Mnichovská dohoda",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "Byla dojednána 29. září 1938 v Mnichově",
+        "sha": "80e198e26df284f1daa31adbd646352616aac015aeece0c303402c1d9ff5ff7d",
+        "url": "https://cs.wikipedia.org/wiki/Mnichovská_dohoda"
+      },
+      "text": {
+        "cs": "Mnichovská dohoda dojednaná 29. září 1938 vedla k postoupení pohraničních území Československa Německu; z odstoupeného území odešly desetitisíce Čechů a Židů.",
+        "de": "Das am 29. September 1938 ausgehandelte Münchner Abkommen führte zur Abtretung der Grenzgebiete der Tschechoslowakei an Deutschland; Zehntausende Tschechen und Juden verließen die Gebiete.",
+        "en": "The Munich Agreement, negotiated on 29 September 1938, led to the cession of Czechoslovakia's border regions to Germany; tens of thousands of Czechs and Jews left the ceded areas."
+      },
+      "tip": {
+        "text": {
+          "cs": "Matriky obcí v pohraničí 1938–1945 vedené v němčině; spisy o uprchlících z pohraničí v Národním archivu.",
+          "de": "Matriken der Grenzorte 1938–1945 deutsch geführt; Flüchtlingsakten im Nationalarchiv Prag.",
+          "en": "Registers of border parishes 1938–1945 kept in German; files on refugees from the border areas in the National Archives."
+        }
+      },
+      "to": 1938,
+      "why": {
+        "cs": "Hranice se posunula hluboko do Čech; obce v pohraničí patřily do Říše, mnoho rodin se stěhovalo do vnitrozemí.",
+        "de": "Die Grenze rückte tief nach Böhmen; Grenzorte gehörten zum Reich, viele Familien zogen ins Landesinnere.",
+        "en": "The border moved deep into Bohemia; border villages belonged to the Reich, many families moved inland."
+      }
+    },
+    {
+      "id": "cz-bohemia-0006",
+      "kind": "state",
+      "at": "2026-10-27T23:19:21.047Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "date": "1939-03-16",
+      "from": 1939,
+      "source": {
+        "title": "Protektorát Čechy a Morava",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "Protektorát byl vytvořen výnosem Adolfa Hitlera ze dne 16. března 1939",
+        "sha": "506d9bb8298adfaadd2d87b8868494b5eb176582fb0038818bf4439ffc67a229",
+        "url": "https://cs.wikipedia.org/wiki/Protektorát_Čechy_a_Morava"
+      },
+      "text": {
+        "cs": "Výnosem Adolfa Hitlera ze 16. března 1939 vznikl Protektorát Čechy a Morava pod německou správou; trval do května 1945.",
+        "de": "Durch Erlass Adolf Hitlers vom 16. März 1939 entstand das Protektorat Böhmen und Mähren unter deutscher Herrschaft; es bestand bis Mai 1945.",
+        "en": "By Adolf Hitler's decree of 16 March 1939 the Protectorate of Bohemia and Moravia was created under German rule; it lasted until May 1945."
+      },
+      "tip": {
+        "text": {
+          "cs": "Evidenční karty obyvatel v okresních archivech; fondy Úřadu říšského protektora v Národním archivu.",
+          "de": "Meldekarteien in den Bezirksarchiven; Bestände des Amts des Reichsprotektors im Nationalarchiv.",
+          "en": "Residents' registration cards in district archives; records of the Reich Protector's Office in the National Archives."
+        }
+      },
+      "to": 1939,
+      "why": {
+        "cs": "Obyvatelé žili pod okupací: přídělové hospodářství, cenzura, zatýkání a perzekuce.",
+        "de": "Die Menschen lebten unter Besatzung: Bewirtschaftung, Zensur, Verhaftungen und Verfolgung.",
+        "en": "People lived under occupation: rationing, censorship, arrests and persecution."
+      }
+    },
+    {
+      "id": "cz-bohemia-0007",
+      "kind": "emigration",
+      "at": "2026-10-27T23:19:35.436Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1945,
+      "sensitive": true,
+      "source": {
+        "title": "Vysídlení Němců z Československa",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "v letech 1945–1946 byla masová deportace německého obyvatelstva … Podle ministra vnitra Václava Noska bylo k 1. listopadu 1946 vysídleno 2 170 598 osob",
+        "sha": "cca0e6f7b3b91cef8adb0c4ac99899f0405d4cb97aecdb4295a668e0c28d781c",
+        "url": "https://cs.wikipedia.org/wiki/Vysídlení_Němců_z_Československa"
+      },
+      "text": {
+        "cs": "V letech 1945–1946 bylo z Československa vysídleno německé obyvatelstvo; k 1. listopadu 1946 uvádí ministerstvo vnitra 2 170 598 vysídlených osob.",
+        "de": "1945–1946 wurde die deutsche Bevölkerung aus der Tschechoslowakei ausgesiedelt; bis zum 1. November 1946 zählte das Innenministerium 2.170.598 Ausgesiedelte.",
+        "en": "In 1945–1946 the German population was expelled from Czechoslovakia; by 1 November 1946 the Interior Ministry counted 2,170,598 persons expelled."
+      },
+      "tip": {
+        "text": {
+          "cs": "Spisy národních výborů a osidlovacích úřadů, konfiskační spisy v okresních archivech.",
+          "de": "Akten der Nationalausschüsse und Besiedlungsämter, Konfiskationsakten in den Bezirksarchiven.",
+          "en": "Files of national committees and resettlement offices, confiscation files in district archives."
+        }
+      },
+      "to": 1946,
+      "why": {
+        "cs": "Pohraničí se z velké části vylidnilo a bylo znovu osídleno lidmi z vnitrozemí i ze zahraničí.",
+        "de": "Die Grenzgebiete wurden weitgehend entvölkert und mit Menschen aus dem Inland und dem Ausland neu besiedelt.",
+        "en": "The border regions were largely emptied and resettled by people from inland Bohemia and abroad."
+      }
+    },
+    {
+      "id": "cz-bohemia-0008",
+      "kind": "law",
+      "at": "2026-10-27T23:19:42.868Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1919,
+      "source": {
+        "title": "Pozemková reforma v Československu",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "v dubnu 1919 záborovým zákonem",
+        "sha": "d7994485854fc025d627c090e14d32cff1ce116fc84d9f2f659c6398eccee5a6",
+        "url": "https://cs.wikipedia.org/wiki/Pozemková_reforma_v_Československu"
+      },
+      "text": {
+        "cs": "Pozemková reforma v Československu začala v dubnu 1919 záborovým zákonem, který zabral zemědělskou půdu velkostatků nad 150 ha; část byla přidělena malorolníkům a domkářům.",
+        "de": "Die Bodenreform in der Tschechoslowakei begann im April 1919 mit dem Beschlagnahmegesetz für landwirtschaftlichen Großgrundbesitz über 150 ha; ein Teil ging an Kleinbauern und Häusler.",
+        "en": "Land reform in Czechoslovakia began in April 1919 with the seizure law, which took over estate farmland above 150 ha; part was allotted to smallholders and cottagers."
+      },
+      "tip": {
+        "text": {
+          "cs": "Spisy Státního pozemkového úřadu (Národní archiv) a pozemkové knihy okresních soudů po roce 1919.",
+          "de": "Akten des Staatlichen Bodenamts (Nationalarchiv) und Grundbücher der Bezirksgerichte nach 1919.",
+          "en": "Files of the State Land Office (National Archives) and district court land books after 1919."
+        }
+      },
+      "to": 1919,
+      "why": {
+        "cs": "Mnoho drobných rolníků a bývalých zaměstnanců velkostatků získalo vlastní půdu; velkostatky se zmenšily nebo rozpadly.",
+        "de": "Viele Kleinbauern und frühere Gutsarbeiter erhielten eigenen Boden; Großgüter schrumpften oder zerfielen.",
+        "en": "Many smallholders and former estate workers gained land of their own; great estates shrank or broke up."
+      }
+    },
+    {
+      "id": "cz-bohemia-0009",
+      "kind": "state",
+      "at": "2026-10-27T23:20:38.625Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "date": "1968-08-21",
+      "from": 1968,
+      "source": {
+        "title": "Invaze vojsk Varšavské smlouvy do Československa",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "První oznámení o invazi do Československa ve vysílání Československého rozhlasu z 21. srpna 1968.",
+        "sha": "740c2f26c5736a0aa4485f174d99d22e7f8988861b7ef72d115da084deb5896c",
+        "url": "https://cs.wikipedia.org/wiki/Invaze_vojsk_Varšavské_smlouvy_do_Československa"
+      },
+      "text": {
+        "cs": "V noci na 21. srpna 1968 obsadila Československo vojska pěti států Varšavské smlouvy a ukončila reformy Pražského jara; sovětská vojska v zemi zůstala do roku 1991.",
+        "de": "In der Nacht zum 21. August 1968 besetzten Truppen von fünf Staaten des Warschauer Pakts die Tschechoslowakei und beendeten den Prager Frühling; sowjetische Truppen blieben bis 1991.",
+        "en": "In the night to 21 August 1968 troops of five Warsaw Pact states occupied Czechoslovakia and ended the Prague Spring reforms; Soviet troops stayed until 1991."
+      },
+      "tip": {
+        "text": {
+          "cs": "Spisy o nedovoleném opuštění republiky v Archivu bezpečnostních složek.",
+          "de": "Akten über illegales Verlassen der Republik im Archiv der Sicherheitsdienste (Prag).",
+          "en": "Files on illegal emigration in the Security Services Archive (Prague)."
+        }
+      },
+      "to": 1968,
+      "why": {
+        "cs": "Následovala normalizace s prověrkami a propouštěním; desetitisíce lidí odešly do emigrace.",
+        "de": "Es folgte die Normalisierung mit Überprüfungen und Entlassungen; Zehntausende emigrierten.",
+        "en": "Normalisation followed with political screenings and dismissals; tens of thousands emigrated."
+      }
+    },
+    {
+      "id": "cz-bohemia-0010",
+      "kind": "state",
+      "at": "2026-10-27T23:20:44.589Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1948,
+      "source": {
+        "title": "Únor 1948",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "je pojmenování komunistického státního převratu v Československu, který proběhl mezi 17. a 25. únorem 1948.",
+        "sha": "8bf48aa66c6f80f79e528a10111aa7f18cd629407ef8f3ae36641ec67085d039",
+        "url": "https://cs.wikipedia.org/wiki/Únor_1948"
+      },
+      "text": {
+        "cs": "Mezi 17. a 25. únorem 1948 převzala v Československu moc komunistická strana; následovalo znárodnění, kolektivizace zemědělství a politické procesy.",
+        "de": "Zwischen dem 17. und 25. Februar 1948 übernahm die Kommunistische Partei die Macht in der Tschechoslowakei; Verstaatlichung, Kollektivierung und politische Prozesse folgten.",
+        "en": "Between 17 and 25 February 1948 the Communist Party seized power in Czechoslovakia; nationalisation, collectivisation of farming and political trials followed."
+      },
+      "tip": {
+        "text": {
+          "cs": "Fondy JZD a místních národních výborů v okresních archivech; Archiv bezpečnostních složek.",
+          "de": "Bestände der LPG (JZD) und örtlichen Nationalausschüsse in Bezirksarchiven; Archiv der Sicherheitsdienste.",
+          "en": "Records of collective farms (JZD) and local national committees in district archives; Security Services Archive."
+        }
+      },
+      "to": 1948,
+      "why": {
+        "cs": "Soukromé podniky a později i hospodářství rolníků přešly do státních nebo družstevních rukou; mnoho lidí bylo pronásledováno.",
+        "de": "Privatbetriebe und später Bauernhöfe gingen an Staat oder Genossenschaften über; viele Menschen wurden verfolgt.",
+        "en": "Private businesses and later peasant farms passed to the state or cooperatives; many people were persecuted."
+      }
+    },
+    {
+      "id": "cz-bohemia-0011",
+      "kind": "state",
+      "at": "2026-10-27T23:20:58.900Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "date": "1992-12-31",
+      "from": 1992,
+      "source": {
+        "title": "Rozdělení Československa",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "Československo zaniklo po 74 letech a 64 dnech od svého založení uplynutím 31. prosince 1992",
+        "sha": "02cf43a9d56929791a7c104b53ea46bbd9b1cadbf430c614cff4d27ed0cd9f24",
+        "url": "https://cs.wikipedia.org/wiki/Rozdělení_Československa"
+      },
+      "text": {
+        "cs": "Uplynutím 31. prosince 1992 Československo zaniklo; od 1. ledna 1993 jsou Čechy součástí samostatné České republiky.",
+        "de": "Mit Ablauf des 31. Dezember 1992 endete die Tschechoslowakei; seit 1. Januar 1993 gehört Böhmen zur selbständigen Tschechischen Republik.",
+        "en": "Czechoslovakia ceased to exist at the end of 31 December 1992; from 1 January 1993 Bohemia is part of the independent Czech Republic."
+      },
+      "tip": {
+        "text": {
+          "cs": "Matriční záznamy od 1993 na obecních a matričních úřadech České republiky.",
+          "de": "Personenstandsbücher ab 1993 bei den Standesämtern der Tschechischen Republik.",
+          "en": "Civil registers from 1993 at municipal registry offices of the Czech Republic."
+        }
+      },
+      "to": 1992,
+      "why": {
+        "cs": "Obyvatelé získali české státní občanství; vznikla státní hranice se Slovenskem.",
+        "de": "Die Bewohner wurden tschechische Staatsbürger; eine Staatsgrenze zur Slowakei entstand.",
+        "en": "Inhabitants became Czech citizens; a state border with Slovakia came into being."
+      }
+    },
+    {
+      "id": "cz-bohemia-0012",
+      "kind": "state",
+      "at": "2026-10-27T23:21:02.082Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1989,
+      "source": {
+        "title": "Sametová revoluce",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "prosincem 1989",
+        "sha": "3943271ca00e2a5b814d093e35d3475f254623a443bb182585f3d31a24b86a6a",
+        "url": "https://cs.wikipedia.org/wiki/Sametová_revoluce"
+      },
+      "text": {
+        "cs": "Sametová revoluce mezi 17. listopadem a 29. prosincem 1989 vedla k pádu komunistického režimu v Československu a k obnově demokracie.",
+        "de": "Die Samtene Revolution zwischen dem 17. November und 29. Dezember 1989 führte zum Sturz des kommunistischen Regimes in der Tschechoslowakei und zur Demokratie.",
+        "en": "The Velvet Revolution between 17 November and 29 December 1989 led to the fall of the communist regime in Czechoslovakia and the return of democracy."
+      },
+      "tip": {
+        "text": {
+          "cs": "Restituční spisy pozemkových úřadů a katastrálních úřadů po roce 1991.",
+          "de": "Restitutionsakten der Bodenämter und Katasterämter nach 1991.",
+          "en": "Restitution files of land offices and cadastral offices after 1991."
+        }
+      },
+      "to": 1989,
+      "why": {
+        "cs": "Následovaly svobodné volby, restituce majetku a návrat k soukromému podnikání.",
+        "de": "Freie Wahlen, Restitution von Eigentum und Rückkehr zum Privatunternehmertum folgten.",
+        "en": "Free elections, property restitution and a return to private enterprise followed."
+      }
+    },
+    {
+      "id": "cz-bohemia-0013",
+      "kind": "emigration",
+      "at": "2026-10-27T23:21:45.728Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1907,
+      "source": {
+        "title": "Čechoameričané",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "Imigrace pokračovala a dosáhla vrcholu v roce 1907, kdy 13 554 Čechů vstoupilo do přístavů na východním pobřeží.",
+        "sha": "6bb180ca5c536382704986b374a8b97c2923e076ad2b1357344139cd2e25491a",
+        "url": "https://cs.wikipedia.org/wiki/Čechoameričané"
+      },
+      "text": {
+        "cs": "Vystěhovalectví z Čech do Spojených států vrcholilo roku 1907, kdy do přístavů na východním pobřeží USA připlulo 13 554 Čechů.",
+        "de": "Die Auswanderung aus Böhmen in die USA erreichte 1907 ihren Höhepunkt, als 13.554 Tschechen in Häfen der Ostküste ankamen.",
+        "en": "Emigration from Bohemia to the United States peaked in 1907, when 13,554 Czechs arrived at East Coast ports."
+      },
+      "tip": {
+        "text": {
+          "cs": "Pasové protokoly okresních hejtmanství, lodní seznamy (Hamburk, Brémy), záznamy Ellis Island.",
+          "de": "Passprotokolle der Bezirkshauptmannschaften, Passagierlisten (Hamburg, Bremen), Ellis-Island-Akten.",
+          "en": "Passport registers of district offices, ship passenger lists (Hamburg, Bremen), Ellis Island records."
+        }
+      },
+      "to": 1907,
+      "why": {
+        "cs": "Z venkova odcházeli hlavně chudší rolníci, řemeslníci a čeledíni za prací a půdou; rodiny se rozdělovaly.",
+        "de": "Vor allem ärmere Bauern, Handwerker und Knechte verließen das Land auf der Suche nach Arbeit und Boden; Familien wurden getrennt.",
+        "en": "Mostly poorer peasants, craftsmen and farmhands left the countryside for work and land; families were divided."
+      }
+    },
+    {
+      "id": "cz-bohemia-0014",
+      "kind": "epidemic",
+      "at": "2026-10-27T23:21:52.366Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "date": "2020-03-01",
+      "from": 2020,
+      "source": {
+        "title": "Pandemie covidu-19 v Česku",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Wikipedie",
+        "quote": "Na českém území byly první tři případy onemocnění potvrzeny v neděli 1. března 2020 ve 4 hodiny odpoledne.",
+        "sha": "1e97aebb0cc7ed1a3722b27b51c071421310272693cc629b8e02d831984676fe",
+        "url": "https://cs.wikipedia.org/wiki/Pandemie_covidu-19_v_Česku"
+      },
+      "text": {
+        "cs": "Pandemie covidu-19: první tři případy v Česku byly potvrzeny 1. března 2020; následovala omezení pohybu a uzavření škol a celkový počet zemřelých v roce 2020 byl nejvyšší od roku 1987.",
+        "de": "COVID-19-Pandemie: Die ersten drei Fälle in Tschechien wurden am 1. März 2020 bestätigt; es folgten Ausgangsbeschränkungen und Schulschließungen, 2020 starben so viele Menschen wie seit 1987 nicht.",
+        "en": "COVID-19 pandemic: the first three cases in Czechia were confirmed on 1 March 2020; movement restrictions and school closures followed, and total deaths in 2020 were the highest since 1987."
+      },
+      "tip": {
+        "text": {
+          "cs": "Úmrtní listy a údaje Českého statistického úřadu o zemřelých 2020–2022.",
+          "de": "Sterbeurkunden und Sterbedaten des Tschechischen Statistikamts 2020–2022.",
+          "en": "Death certificates and Czech Statistical Office mortality data 2020–2022."
+        }
+      },
+      "to": 2020,
+      "why": {
+        "cs": "Omezení zasáhla každodenní život, práci, školy i pohřby; zemřelo zvláště mnoho starších lidí.",
+        "de": "Die Einschränkungen betrafen Alltag, Arbeit, Schulen und Begräbnisse; viele ältere Menschen starben.",
+        "en": "Restrictions affected daily life, work, schools and funerals; many older people died."
+      }
+    },
+    {
+      "id": "cz-bohemia-0015",
+      "kind": "census",
+      "at": "2026-10-27T23:22:35.150Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1869,
+      "source": {
+        "title": "Sčítání lidu v Rakousko-Uhersku 1868–1910",
+        "checked": "2026-10-27",
+        "lang": "cs-cz",
+        "publisher": "Český statistický úřad",
+        "quote": "Říšský zákon o sčítání vydaný 29. března 1869 stanovil stálou desetiletou periodicitu sčítání",
+        "sha": "f19237bfe7949e4ebcb180240255de775cd8893e2050dabe387e629987484e0b",
+        "url": "https://csu.gov.cz/scitani-lidu-v-rakousko-uhersku-1868-1910"
+      },
+      "text": {
+        "cs": "Říšský zákon z 29. března 1869 zavedl moderní sčítání lidu s desetiletou periodicitou; první se konalo k 31. prosinci 1869, další 1880, 1890, 1900 a 1910.",
+        "de": "Das Reichsgesetz vom 29. März 1869 führte moderne Volkszählungen im Zehnjahresrhythmus ein; die erste fand zum 31. Dezember 1869 statt, weitere 1880, 1890, 1900 und 1910.",
+        "en": "The imperial law of 29 March 1869 introduced modern censuses held every ten years; the first was taken as of 31 December 1869, followed by 1880, 1890, 1900 and 1910."
+      },
+      "tip": {
+        "text": {
+          "cs": "Sčítací operáty 1869–1910 v okresních (státních) archivech, často ve fondu Archiv obce.",
+          "de": "Zählbögen 1869–1910 in den tschechischen Bezirks-(Staats-)archiven, oft im Gemeindearchiv-Bestand.",
+          "en": "Census sheets 1869–1910 in Czech district (state) archives, often in the municipal archive fonds."
+        }
+      },
+      "to": 1869,
+      "why": {
+        "cs": "Sčítací archy zapsaly každou domácnost jménem: věk, náboženství, řeč, povolání a domovskou obec.",
+        "de": "Die Zählbögen verzeichneten jeden Haushalt namentlich: Alter, Religion, Sprache, Beruf und Heimatgemeinde.",
+        "en": "Census sheets recorded each household by name: age, religion, language, occupation and home parish."
+      }
+    },
+    {
+      "id": "cz-bohemia-0016",
+      "kind": "war",
+      "at": "2026-10-27T23:23:31.662Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1914,
+      "source": {
+        "title": "Češi na frontách 1. světové války",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Česká televize – ČT24",
+        "quote": "v srpnu 1914 zakládají první jednotky … by to bylo něco kolem 1.170.000 vojáků",
+        "sha": "60a6c17252d38f884170a340652beed4291c45305421f6cd53bb6ad85a9b24c3",
+        "url": "https://ct24.ceskatelevize.cz/archiv/1266130-cesi-na-frontach-1-svetove-valky"
+      },
+      "text": {
+        "cs": "S vypuknutím první světové války v létě 1914 byli v Rakousku-Uhersku mobilizováni všichni branní muži; z českých zemí narukovalo za války kolem 1 170 000 vojáků.",
+        "de": "Mit Ausbruch des Ersten Weltkriegs im Sommer 1914 wurden in Österreich-Ungarn alle wehrfähigen Männer mobilisiert; aus den böhmischen Ländern rückten im Krieg etwa 1.170.000 Soldaten ein.",
+        "en": "When the First World War broke out in summer 1914, all men fit for service in Austria-Hungary were mobilised; about 1,170,000 soldiers from the Czech lands served during the war."
+      },
+      "tip": {
+        "text": {
+          "cs": "Kmenové listy vojáků (Vojenský ústřední archiv, VHA), seznamy ztrát (Verlustlisten), matriky zemřelých vojáků.",
+          "de": "Grundbuchblätter (Militärisches Zentralarchiv Prag), Verlustlisten, Militärsterbematriken.",
+          "en": "Soldiers' service records (Military Central Archive, Prague), casualty lists (Verlustlisten), military death registers."
+        }
+      },
+      "to": 1914,
+      "why": {
+        "cs": "Muži z vesnic odešli na frontu, mnozí padli nebo se vrátili zranění; doma chyběla pracovní síla a jídlo bylo na příděl.",
+        "de": "Männer aus den Dörfern zogen an die Front, viele fielen oder kehrten verwundet zurück; daheim fehlten Arbeitskräfte, Lebensmittel waren rationiert.",
+        "en": "Village men went to the front, many fell or came back wounded; at home labour was short and food rationed."
+      }
+    },
+    {
+      "id": "cz-bohemia-0017",
+      "kind": "other",
+      "at": "2026-10-27T23:24:30.545Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1941,
+      "sensitive": true,
+      "source": {
+        "title": "The Holocaust in Bohemia and Moravia",
+        "checked": "2026-10-27",
+        "lang": "en",
+        "publisher": "United States Holocaust Memorial Museum",
+        "quote": "from November 1941 to spring 1945, the German authorities sent nearly 74,000 Czech Jews",
+        "sha": "5e6eff2591f8bfd257936ad412364631d049f85ce027dc4c0150648caed786b6",
+        "url": "https://encyclopedia.ushmm.org/content/en/article/the-holocaust-in-bohemia-and-moravia"
+      },
+      "text": {
+        "cs": "Od listopadu 1941 do jara 1945 deportovaly německé úřady z protektorátu téměř 74 000 českých Židů, většinou přes ghetto Terezín do ghett a vyhlazovacích táborů na východě; většina z nich zahynula.",
+        "de": "Von November 1941 bis Frühjahr 1945 deportierten die deutschen Behörden fast 74.000 tschechische Juden aus dem Protektorat, meist über das Ghetto Theresienstadt in Ghettos und Vernichtungslager im Osten; die meisten kamen um.",
+        "en": "From November 1941 to spring 1945 the German authorities deported nearly 74,000 Czech Jews from the Protectorate, mostly via the Terezín ghetto to ghettos and killing centres in the east; most of them perished."
+      },
+      "tip": {
+        "text": {
+          "cs": "Databáze obětí holocaust.cz, Terezínská pamětní kniha, židovské matriky v Národním archivu.",
+          "de": "Opferdatenbank holocaust.cz, Theresienstädter Gedenkbuch, jüdische Matriken im Nationalarchiv Prag.",
+          "en": "Victims database holocaust.cz, the Terezín Memorial Book, Jewish registers in the National Archives (Prague)."
+        }
+      },
+      "to": 1945,
+      "why": {
+        "cs": "Židovští obyvatelé měst i venkova byli zbaveni majetku a deportováni; jejich obce a domy zůstaly bez nich.",
+        "de": "Jüdische Bewohner von Städten und Dörfern wurden enteignet und deportiert; ihre Gemeinden und Häuser blieben leer.",
+        "en": "Jewish inhabitants of towns and villages were dispossessed and deported; their communities and homes were left empty."
+      }
+    },
+    {
+      "id": "cz-bohemia-0018",
+      "kind": "law",
+      "at": "2026-10-27T23:24:38.008Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "date": "1949-02-23",
+      "from": 1949,
+      "source": {
+        "title": "Zákon o JZD před sedmdesáti lety vykopl brány statků a rozjel kolektivizační násilí",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Česká televize – ČT24",
+        "quote": "poslanci Národního shromáždění pak normu přijali 23. února 1949.",
+        "sha": "0b935cd5499f4cb15a53dba3572c4e514dd01e9e51a1bc72aca091138ef1ad9f",
+        "url": "https://ct24.ceskatelevize.cz/domaci/2740346-zakon-o-jzd-pred-sedmdesati-lety-vykopl-brany-statku-a-rozjel-kolektivizacni-nasili"
+      },
+      "text": {
+        "cs": "Zákon o jednotných zemědělských družstvech (JZD) přijatý 23. února 1949 zahájil kolektivizaci; soukromá hospodářství byla často pod nátlakem slučována do družstev až do 60. let.",
+        "de": "Das am 23. Februar 1949 beschlossene Gesetz über die Einheitlichen Landwirtschaftlichen Genossenschaften (JZD) leitete die Kollektivierung ein; Privathöfe wurden oft unter Druck bis in die 1960er Jahre zusammengelegt.",
+        "en": "The law on unified agricultural cooperatives (JZD), passed on 23 February 1949, began collectivisation; private farms were merged into cooperatives, often under pressure, into the 1960s."
+      },
+      "tip": {
+        "text": {
+          "cs": "Fondy JZD a místních národních výborů v okresních archivech; akce K (vystěhování kulaků) v Archivu bezpečnostních složek.",
+          "de": "Bestände der JZD und örtlichen Nationalausschüsse in Bezirksarchiven; Aktion K (Kulakenaussiedlung) im Archiv der Sicherheitsdienste.",
+          "en": "Records of collective farms and local national committees in district archives; Action K (kulak evictions) files in the Security Services Archive."
+        }
+      },
+      "to": 1949,
+      "why": {
+        "cs": "Sedláci přišli o samostatné hospodaření; větší rolníci jako „kulaci“ čelili trestům, vystěhování a ztrátě statků.",
+        "de": "Bauern verloren die selbständige Wirtschaft; größere Bauern galten als „Kulaken“ und wurden bestraft, ausgesiedelt und enteignet.",
+        "en": "Farmers lost independent farming; larger peasants labelled kulaks faced penalties, eviction and loss of their farms."
+      }
+    },
+    {
+      "id": "cz-bohemia-0019",
+      "kind": "disaster",
+      "at": "2026-10-27T23:24:44.759Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 2002,
+      "source": {
+        "title": "Povodně roku 2002 byly největší v dějinách země",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Česká televize – ČT24",
+        "quote": "Záplavy z roku 2002 označují vědci jako největší v dějinách země.",
+        "sha": "870e4237facba65992922126daba27d6c225c12c23d16e7ef0aa5977a9323661",
+        "url": "https://ct24.ceskatelevize.cz/veda/3519084-povodne-roku-2002-byly-nejvetsi-v-dejinach-zeme"
+      },
+      "text": {
+        "cs": "Povodně v srpnu 2002 zasáhly hlavně jižní, střední a severní Čechy a Prahu; 17 lidí zahynulo, 225 000 bylo evakuováno a škody dosáhly 73,3 miliardy korun.",
+        "de": "Das Hochwasser im August 2002 traf vor allem Süd-, Mittel- und Nordböhmen sowie Prag; 17 Menschen starben, 225.000 wurden evakuiert, der Schaden betrug 73,3 Milliarden Kronen.",
+        "en": "The floods of August 2002 struck mainly southern, central and northern Bohemia and Prague; 17 people died, 225,000 were evacuated and damage reached CZK 73.3 billion."
+      },
+      "tip": {
+        "text": {
+          "cs": "Obecní kroniky 2002; u archiválií zasažených vodou poznámky archivů o restaurování.",
+          "de": "Gemeindechroniken 2002; Hinweise der Archive auf hochwassergeschädigte, restaurierte Bestände.",
+          "en": "Municipal chronicles of 2002; archives' notes on flood-damaged records under restoration."
+        }
+      },
+      "to": 2002,
+      "why": {
+        "cs": "Voda zničila domy, úrodu a místní archivy; mnoho obcí u Vltavy, Labe a Berounky se obnovovalo roky.",
+        "de": "Das Wasser zerstörte Häuser, Ernten und örtliche Archive; viele Orte an Moldau, Elbe und Beraun brauchten Jahre zur Erholung.",
+        "en": "The water destroyed houses, crops and local archives; many places on the Vltava, Elbe and Berounka took years to recover."
+      }
+    },
+    {
+      "id": "cz-bohemia-0020",
+      "kind": "economy",
+      "at": "2026-10-27T23:25:18.089Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "date": "1953-06-01",
+      "from": 1953,
+      "source": {
+        "title": "Měnová reforma",
+        "checked": "2026-10-27",
+        "lang": "cs",
+        "publisher": "Česká televize – ČT24",
+        "quote": "A termín měnová reforma byl spojen s rokem 1953.",
+        "sha": "c09aca3aa9e7544ecad2df81f4e7d604972d75d3d1cf53bc14e176609a67ff7c",
+        "url": "https://ct24.ceskatelevize.cz/archiv/1451248-menova-reforma"
+      },
+      "text": {
+        "cs": "Měnová reforma 1. června 1953 vyměnila staré koruny za nové v poměru 1:5 jen u malých částek, u větších hotovostí 1:50; úspory obyvatel byly z velké části znehodnoceny a přídělové lístky zrušeny.",
+        "de": "Die Währungsreform vom 1. Juni 1953 tauschte alte Kronen nur bei kleinen Beträgen 1:5, bei größeren Bargeldsummen 1:50 um; Ersparnisse wurden weitgehend entwertet, die Lebensmittelkarten abgeschafft.",
+        "en": "The currency reform of 1 June 1953 exchanged old crowns for new at 1:5 only for small sums and 1:50 for larger cash; most savings lost their value and ration cards were abolished."
+      },
+      "tip": {
+        "text": {
+          "cs": "Obecní kroniky 1953, spisy místních národních výborů.",
+          "de": "Gemeindechroniken 1953, Akten der örtlichen Nationalausschüsse.",
+          "en": "Municipal chronicles of 1953, files of local national committees."
+        }
+      },
+      "to": 1953,
+      "why": {
+        "cs": "Rodiny přišly o většinu hotových úspor; v řadě míst vyvolala reforma protesty.",
+        "de": "Familien verloren den Großteil ihrer Ersparnisse; die Reform löste vielerorts Proteste aus.",
+        "en": "Families lost most of their cash savings; the reform caused protests in a number of places."
+      }
+    },
+    {
+      "id": "cz-bohemia-0021",
+      "kind": "state",
+      "at": "2026-10-27T23:25:50.426Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "date": "2004-05-01",
+      "from": 2004,
+      "source": {
+        "title": "Český statistický úřad",
+        "checked": "2026-10-27",
+        "lang": "cs-cz",
+        "publisher": "Český statistický úřad",
+        "quote": "Vstupem České republiky do Evropské unie k 1. květnu 2004 vzniklo automaticky občanům České republiky občanství",
+        "sha": "a45d84a00920e017e8104e8502580e4b9b029b1ac1dd94aa2346ace1e3279a12",
+        "url": "https://csu.gov.cz/produkty-archiv/88002ac4fc"
+      },
+      "text": {
+        "cs": "Česká republika vstoupila 1. května 2004 do Evropské unie; její občané se zároveň stali občany EU. Vstup schválilo referendum v červnu 2003, od roku 2007 je Česko v schengenském prostoru.",
+        "de": "Die Tschechische Republik trat am 1. Mai 2004 der Europäischen Union bei; ihre Bürger wurden zugleich EU-Bürger. Ein Referendum im Juni 2003 billigte den Beitritt, seit 2007 gehört Tschechien zum Schengen-Raum.",
+        "en": "The Czech Republic joined the European Union on 1 May 2004; its citizens thereby became EU citizens. A referendum in June 2003 approved accession; Czechia joined the Schengen area in 2007."
+      },
+      "tip": {
+        "text": {
+          "cs": "Matriční záznamy českých občanů narozených či sezdaných v cizině vede Zvláštní matrika v Brně.",
+          "de": "Geburten und Ehen tschechischer Bürger im Ausland verzeichnet die Sondermatrik in Brno.",
+          "en": "Births and marriages of Czech citizens abroad are recorded by the Special Register Office in Brno."
+        }
+      },
+      "to": 2004,
+      "why": {
+        "cs": "Lidé mohli volně cestovat, pracovat a studovat v dalších zemích EU.",
+        "de": "Menschen konnten frei in andere EU-Länder reisen, dort arbeiten und studieren.",
+        "en": "People could travel, work and study freely in other EU countries."
+      }
+    },
+    {
+      "id": "cz-bohemia-0022",
+      "kind": "economy",
+      "at": "2026-10-27T23:25:57.518Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1933,
+      "retracted": {
+        "at": "2026-10-27T23:26:19.212Z",
+        "replacedBy": "cz-bohemia-0023",
+        "why": "replaced by cz-bohemia-0023"
+      },
+      "source": {
+        "title": "Sebevraždy během vrcholící nezaměstnanosti velké hospodářské krize v Československu",
+        "checked": "2026-10-27",
+        "publisher": "Národní muzeum",
+        "quote": "1933",
+        "sha": "a34732fd39b6ec63025c7bc9aa0c2e1233358cd26962a3e1ca9ac954db9ae102",
+        "url": "https://publikace.nm.cz/periodicke-publikace/amnphl/57-4/sebevrazdy-behem-vrcholici-nezamestnanosti-velke-hospodarske-krize-v-ceskoslovensku"
+      },
+      "text": {
+        "cs": "Velká hospodářská krize zasáhla Československo počátkem 30. let; nezaměstnanost vrcholila v prvních měsících roku 1933, kdy byly bez práce statisíce lidí.",
+        "de": "Die Weltwirtschaftskrise traf die Tschechoslowakei Anfang der 1930er Jahre; die Arbeitslosigkeit erreichte in den ersten Monaten 1933 mit Hunderttausenden Arbeitslosen ihren Höhepunkt.",
+        "en": "The Great Depression hit Czechoslovakia in the early 1930s; unemployment peaked in the first months of 1933, when hundreds of thousands were out of work."
+      },
+      "tip": {
+        "text": {
+          "cs": "Obecní kroniky 1930–1934, spisy o nouzových pracích a podporách nezaměstnaných v okresních archivech.",
+          "de": "Gemeindechroniken 1930–1934, Akten zu Notstandsarbeiten und Arbeitslosenhilfe in den Bezirksarchiven.",
+          "en": "Municipal chronicles 1930–1934, files on relief works and unemployment aid in district archives."
+        }
+      },
+      "to": 1933,
+      "why": {
+        "cs": "Továrny propouštěly, zemědělské ceny klesly; mnoho rodin žilo z podpor a stravovacích lístků.",
+        "de": "Fabriken entließen, Agrarpreise fielen; viele Familien lebten von Unterstützung und Essensmarken.",
+        "en": "Factories laid off workers and farm prices fell; many families lived on relief and food vouchers."
+      }
+    },
+    {
+      "id": "cz-bohemia-0023",
+      "kind": "economy",
+      "at": "2026-10-27T23:26:19.212Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "from": 1933,
+      "source": {
+        "title": "Sebevraždy během vrcholící nezaměstnanosti velké hospodářské krize v Československu",
+        "checked": "2026-10-27",
+        "publisher": "Národní muzeum",
+        "quote": "This paper analyzes the Lidove noviny and Pravo lidu dailies in the first four months … 1933",
+        "sha": "a34732fd39b6ec63025c7bc9aa0c2e1233358cd26962a3e1ca9ac954db9ae102",
+        "url": "https://publikace.nm.cz/periodicke-publikace/amnphl/57-4/sebevrazdy-behem-vrcholici-nezamestnanosti-velke-hospodarske-krize-v-ceskoslovensku"
+      },
+      "text": {
+        "cs": "Velká hospodářská krize zasáhla Československo počátkem 30. let; nezaměstnanost vrcholila v prvních měsících roku 1933, kdy byly bez práce statisíce lidí.",
+        "de": "Die Weltwirtschaftskrise traf die Tschechoslowakei Anfang der 1930er Jahre; die Arbeitslosigkeit erreichte in den ersten Monaten 1933 mit Hunderttausenden Arbeitslosen ihren Höhepunkt.",
+        "en": "The Great Depression hit Czechoslovakia in the early 1930s; unemployment peaked in the first months of 1933, when hundreds of thousands were out of work."
+      },
+      "tip": {
+        "text": {
+          "cs": "Obecní kroniky 1930–1934, spisy o nouzových pracích a podporách nezaměstnaných v okresních archivech.",
+          "de": "Gemeindechroniken 1930–1934, Akten zu Notstandsarbeiten und Arbeitslosenhilfe in den Bezirksarchiven.",
+          "en": "Municipal chronicles 1930–1934, files on relief works and unemployment aid in district archives."
+        }
+      },
+      "to": 1933,
+      "why": {
+        "cs": "Továrny propouštěly, zemědělské ceny klesly; mnoho rodin žilo z podpor a stravovacích lístků.",
+        "de": "Fabriken entließen, Agrarpreise fielen; viele Familien lebten von Unterstützung und Essensmarken.",
+        "en": "Factories laid off workers and farm prices fell; many families lived on relief and food vouchers."
+      }
+    },
+    {
+      "id": "cz-bohemia-0024",
+      "kind": "census",
+      "at": "2026-10-27T23:26:42.657Z",
+      "by": "00000000-0000-0000-0000-000000000000",
+      "date": "1921-02-15",
+      "from": 1921,
+      "source": {
+        "title": "První československé sčítání lidu 1921",
+        "checked": "2026-10-27",
+        "lang": "cs-cz",
+        "publisher": "Český statistický úřad",
+        "quote": "Sčítání lidu se podle nového zákona č. 256/1920 Sb. uskutečnilo 15. února 1921.",
+        "sha": "dbe513bf55aaa280046fcb1e3036467130ce796d4a7e9dd3069e30f91d19e5ac",
+        "url": "https://csu.gov.cz/prvni-ceskoslovenske-scitani-lidu-1921"
+      },
+      "text": {
+        "cs": "První československé sčítání lidu proběhlo 15. února 1921 podle zákona č. 256/1920 Sb.; na území dnešní České republiky napočítalo 10 009 480 obyvatel. Další sčítání následovalo roku 1930.",
+        "de": "Die erste tschechoslowakische Volkszählung fand am 15. Februar 1921 nach Gesetz Nr. 256/1920 statt; sie zählte im Gebiet der heutigen Tschechischen Republik 10.009.480 Einwohner. Die nächste folgte 1930.",
+        "en": "The first Czechoslovak census was taken on 15 February 1921 under Act No. 256/1920; it counted 10,009,480 inhabitants in today's Czech Republic. The next census followed in 1930."
+      },
+      "tip": {
+        "text": {
+          "cs": "Sčítací operáty 1921 a 1930 ve státních okresních archivech.",
+          "de": "Zählbögen von 1921 und 1930 in den tschechischen Staatlichen Bezirksarchiven.",
+          "en": "Census sheets of 1921 and 1930 in Czech state district archives."
+        }
+      },
+      "to": 1921,
+      "why": {
+        "cs": "Sčítací archy zapsaly každou domácnost jménem, s národností, náboženstvím a povoláním.",
+        "de": "Die Zählbögen verzeichneten jeden Haushalt namentlich, mit Nationalität, Religion und Beruf.",
+        "en": "Census sheets recorded each household by name, with nationality, religion and occupation."
+      }
+    }
+  ],
+  "next": 25,
+  "region": {
+    "id": "cz-bohemia",
+    "name": {
+      "cs": "Čechy",
+      "de": "Böhmen",
+      "en": "Bohemia"
+    }
+  },
+  "tried": [
+    {
+      "at": "2026-10-27T23:22:40.757Z",
+      "url": "https://www.novinky.cz/clanek/historie-povinna-skolni-dochazka-slavi-150-let-ma-za-sebou-mnoho-promen-40283037",
+      "why": "it leads to another site"
+    },
+    {
+      "at": "2026-10-27T23:25:22.848Z",
+      "url": "https://www.seznamzpravy.cz/clanek/magazin-historie-velka-hospodarska-krize-ceskoslovensko-284759",
+      "why": "it leads to another site"
+    }
+  ]
+}

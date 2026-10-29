@@ -538,7 +538,12 @@ export function sameFamilyName(a: string, b: string): boolean {
  * the same sex and birth years at most three apart. A hint to check — never
  * merged without a look.
  */
-export function likelyDuplicates(tree: Tree, ids: string[]): { person: Person; same: Person }[] {
+/**
+ * People recorded twice, likely. `family`: two surnames of one family in this research beyond the language's rule (the
+ * groups of forms the person made, core/surnames.ts sameFamily) — given by the caller, as people.ts reads no groups;
+ * `apart`: two people the person said are two (core/quality.ts twoPeople), never suggested as one.
+ */
+export function likelyDuplicates(tree: Tree, ids: string[], family?: (a: string, b: string) => boolean, apart?: (a: string, b: string) => boolean): { person: Person; same: Person }[] {
   const out: { person: Person; same: Person }[] = [];
   const inSet = new Set(ids);
   const others = tree.list<Person>("person").filter((p) => !p.retracted && !inSet.has(p.id));
@@ -549,10 +554,11 @@ export function likelyDuplicates(tree: Tree, ids: string[]): { person: Person; s
     if (!p || p.retracted) continue;
     for (const o of others) {
       if (p.sex !== "U" && o.sex !== "U" && p.sex !== o.sex) continue;
-      const names = p.names.some((n) => o.names.some((m) => first(n) && first(n) === first(m) && sameSurname(n.surname, m.surname)));
+      const names = p.names.some((n) => o.names.some((m) => first(n) && first(n) === first(m) && (sameSurname(n.surname, m.surname) || !!family?.(n.surname, m.surname))));
       if (!names) continue;
       const [a, b] = [year(p), year(o)];
       if (a !== undefined && b !== undefined && Math.abs(a - b) > 3) continue;
+      if (apart?.(p.id, o.id)) continue;
       out.push({ person: p, same: o });
     }
   }
@@ -568,6 +574,7 @@ export function likelyDuplicates(tree: Tree, ids: string[]): { person: Person; s
             const o = tree.get<Person>(oid);
             if (!o || o.retracted || (p.sex !== "U" && o.sex !== "U" && p.sex !== o.sex)) continue;
             if (!p.names.some((n) => o.names.some((m) => first(n) && first(n) === first(m)))) continue;
+            if (apart?.(p.id, o.id)) continue;
             out.push({ person: p, same: o });
             found.add(pid);
           }

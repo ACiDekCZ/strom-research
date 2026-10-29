@@ -20,7 +20,7 @@ import { indexFirstThreshold } from "./tuneask.ts";
 import { imagesIndex } from "./mediaindex.ts";
 import { yearsOverlap } from "./years.ts";
 import { foldText } from "./text.ts";
-import { sameFamilyName } from "./people.ts";
+import { sameFamily } from "./surnames.ts";
 import { subjectPeople } from "./records.ts";
 import { runs, shellArg, truncate } from "../cli/format.ts";
 
@@ -125,10 +125,11 @@ function searchedFor(tree: Tree, index: string, o: { question?: string | undefin
   if (!searches.length) return false;
   const names = [...questionNames(o.question ?? ""), ...taskSurnames(tree, o.task).map(foldText)];
   if (!names.length) return true;
+  const same = sameFamily(tree);
   return searches.some((s) => {
     if (o.task && s.task === o.task.id) return true;
     const words = questionNames(s.question).concat((s.scope.surnames ?? []).map(foldText));
-    return names.some((n) => words.some((x) => sameName(x, n)) || (s.scope.surnames ?? []).some((x) => sameFamilyName(x, n)));
+    return names.some((n) => words.some((x) => sameName(x, n)) || (s.scope.surnames ?? []).some((x) => same(x, n)));
   });
 }
 

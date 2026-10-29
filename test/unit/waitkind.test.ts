@@ -190,6 +190,13 @@ test("a task's words as written: a person's ID after their name only bracketed, 
   assert.equal(humanTask(tree, "Svatba P0208 v Lhotě", "cs", { asWritten: true }), "Svatba Václav Schaniel [P0208] v Lhotě", "no name before it: named");
   assert.equal(humanTask(tree, "Křest Ивана P0300", "cs", { asWritten: true }), "Křest Ивана [P0300]", "another script");
   assert.equal(humanTask(tree, text, "cs"), "Svatba Václava Schaniela Václav Schaniel [P0208] a Doroty Dorota Dvořáková [P0226] v Lhotě", "elsewhere as before");
+  // a person's ID in brackets after their name, as strom writes it: as it is in both — never the name twice
+  const strom = "Rozebrat 1 soubor – Václav Schaniel [P0208], Dorota Dvořáková [P0226]";
+  assert.equal(humanTask(tree, strom, "cs"), strom);
+  assert.equal(humanTask(tree, strom, "cs", { asWritten: true }), strom);
+  assert.equal(humanTask(tree, strom.normalize("NFD"), "cs").normalize("NFC"), strom, "decomposed");
+  assert.equal(humanTask(tree, "Křest Иван Петров [P0300]", "cs"), "Křest Иван Петров [P0300]", "another script");
+  assert.equal(humanTask(tree, "Rozebrat soubor [P0208]", "cs", { asWritten: true }), "Rozebrat soubor Václav Schaniel [P0208]", "no name before it: named once");
 });
 
 test("a text that addresses the person or speaks as the agent: clear cases in Czech, German, English — names and records never", () => {
