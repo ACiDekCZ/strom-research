@@ -10,9 +10,9 @@ import { counted, lines, table } from "../cli/format.ts";
 import { check, SHARED_MISSING, sharedMissing, type Finding } from "../core/check.ts";
 import { guard } from "../core/guard.ts";
 import { unprovenPeople } from "../core/review.ts";
-import { NOT_DOWNLOADED, SEALED_PATHS, notDownloaded, notDownloadedError, verifyFast, verifyFull } from "../core/integrity.ts";
+import { NOT_DOWNLOADED, OTHER_KEY, SEALED_PATHS, notDownloaded, notDownloadedError, otherKeyError, verifyFast, verifyFull } from "../core/integrity.ts";
 import { verifyCommitSeal } from "../core/seal.ts";
-import { adoptSeal } from "../cli/seal.ts";
+import { adoptSeal, keysToUnite } from "../cli/seal.ts";
 import { NeedsConsentError, StromError } from "../core/errors.ts";
 import * as git from "../core/git.ts";
 import { ui } from "../cli/ui.ts";
@@ -30,6 +30,7 @@ function said(f: Finding, lang: string | undefined): string {
   if (lang && f.code === "counter" && f.id) return ui(lang, "ui.check.counter", { prefix: f.id.charAt(0) });
   if (lang && f.code === "unwritable") return ui(lang, "ui.check.unwritable");
   if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal");
+  if (lang && f.code === OTHER_KEY) return ui(lang, "ui.check.otherkey");
   if (lang && f.code === NOT_DOWNLOADED) return ui(lang, "ui.check.notdownloaded", { n: f.count ?? 1, first: f.file ?? "" });
   if (lang && f.code === SHARED_MISSING) return ui(lang, "ui.check.sharedmissing", { n: f.count ?? 1, first: f.id ?? "" });
   if (lang && f.code === "after-death" && f.params) return ui(lang, f.params.kind === "weddingAfterDeath" ? "ui.check.afterdeath.wedding" : "ui.check.afterdeath", f.params);
@@ -41,6 +42,7 @@ function said(f: Finding, lang: string | undefined): string {
 /** Its next step said as its finding is (the research sealed on another computer: taken over by the person). */
 function hintSaid(f: Finding, lang: string | undefined): string | undefined {
   if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal.hint");
+  if (lang && f.code === OTHER_KEY) return ui(lang, "ui.check.otherkey.hint");
   if (lang && f.code === NOT_DOWNLOADED) return ui(lang, "ui.check.notdownloaded.hint");
   if (lang && f.code === SHARED_MISSING) return ui(lang, "ui.check.sharedmissing.hint", { show: `strom ${f.id?.startsWith("M") ? "media" : "input"} show ${f.id ?? ""}` });
   if (lang && f.code === "after-death" && f.params)
@@ -193,7 +195,9 @@ function repair(tree: Tree): Repaired {
       restored.push(rel);
     }
   }
-  if (!headSealed) tree.commit(`Repair: restore the sealed state of ${sealed.slice(0, 8)}\n\nCommits made outside strom were undone for data/, strom.json, history/ and quality/.`, SEALED_PATHS);
+  // sealed again even when the commits outside strom changed nothing of it (an empty one, notes only): else the last
+  // commit stays unsealed and every write refused, with nothing left to repair
+  if (!headSealed) tree.commit(`Repair: restore the sealed state of ${sealed.slice(0, 8)}\n\nCommits made outside strom were undone for data/, strom.json, history/ and quality/.`, SEALED_PATHS, true);
   return { restored, quarantined, from: sealed };
 }
 
@@ -227,20 +231,27 @@ register(
     summary: "Take over a tree sealed on another computer (the user runs this in a terminal)",
     group: "history",
     tree: true,
-    description: "Checks the chain and every record hash, then creates this computer's seal key for the tree.\nAgents must not run this — it needs the user's confirmation.",
+    description:
+      "Checks the chain and every record hash, then creates this computer's seal key for the tree.\n" +
+      "A tree sealed here with a second key of this computer too (a copy of strom's settings an app packaged for Windows\n" +
+      "made): checks every operation of that key with it, then unites the keys — never strom repair, which would undo that work.\n" +
+      "Agents must not run this — it needs the user's confirmation.",
     person: "Taking over this tree on this computer (the seal) is the user's own, in their terminal",
     run: async (ctx: Context) => {
       const tree = ctx.tree();
       // a person reads it in the research's language (the menu, a link's terminal, the setup go the same way)
       const lang = tree.lang;
       const name = tree.config.name;
-      if (tree.key) return { text: ui(lang, "ui.seal.already", { name }), data: { adopted: false } };
+      // sealed here: another key of this computer to unite (strom of a packaged app and of a terminal), else nothing to do
+      const unite = tree.key ? keysToUnite(tree).length > 0 : false;
+      if (tree.key && !unite) return { text: ui(lang, "ui.seal.already", { name }), data: { adopted: false } };
+      if (!ctx.interactive && unite) throw otherKeyError(name);
       if (!ctx.interactive)
         throw new NeedsConsentError([
           { key: "seal", kind: "consent", question: "Take over this tree on this computer?", set: "strom seal adopt" },
         ]);
       const r = await adoptSeal(ctx, tree, lang);
-      if (r.adopted) return { text: ui(lang, "ui.seal.adopted", { name }), data: { adopted: true } };
+      if (r.adopted) return r.united ? { text: ui(lang, "ui.seal.united", { name }), data: { adopted: true, united: r.united } } : { text: ui(lang, "ui.seal.adopted", { name }), data: { adopted: true } };
       if (r.why === "problems") {
         const found = report(r.problems!, "", lang, true);
         return { ...found, text: lines(found.text, ui(lang, "ui.seal.problems")), data: { ...found.data, adopted: false } };

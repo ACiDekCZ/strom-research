@@ -18,9 +18,10 @@ import path from "node:path";
 import * as git from "./git.ts";
 import type { Finding } from "./check.ts";
 import { RECORD_TYPES } from "./model.ts";
-import { fileSha, fingerprint, verifyCommitSeal, verifyOp } from "./seal.ts";
+import { fileSha, fingerprint, otherKeys, readCommitSeal, verifyCommitSeal, verifyOp } from "./seal.ts";
+import { settingsHidden } from "./oldsettings.ts";
 import type { Op, Tree } from "./tree.ts";
-import { StromError } from "./errors.ts";
+import { NeedsConsentError, StromError } from "./errors.ts";
 import { counted } from "../cli/format.ts";
 
 /** What changed since HEAD, with the committed versions — shared by verify and guard. */
@@ -76,8 +77,45 @@ function parseOps(text: string, file: string, findings: Finding[], startLine = 0
   return out;
 }
 
+/**
+ * A research sealed with two keys of this computer: the settings' own and another in an old settings folder (strom of
+ * an app packaged for Windows and of a terminal each had their own: core/oldsettings.ts). Its writes are the person's,
+ * never "outside strom" — united by the person in their terminal (strom seal adopt), never undone by strom repair.
+ */
+export const OTHER_KEY = "other-key";
+const OTHER_KEY_HINT = "the user runs in their terminal: strom seal adopt   (unites the keys — never strom repair, which would undo that work)";
+
+/**
+ * The keys the check knows besides the tree's: `trusted` (strom seal adopt checking every operation of another key of
+ * this computer with it), `united` (the other keys' fingerprints a seal.unite took, each with until when), the other keys
+ * of this computer (read only when an operation or the last commit is not the tree's key's: what to tell).
+ */
+interface Keys {
+  trusted: Map<string, Buffer>;
+  united: Map<string, string>;
+  others: () => Map<string, Buffer>;
+  /** Started by an app packaged for Windows, the terminal's key out of its sight (oldsettings.ts settingsHidden). */
+  hidden: () => boolean;
+}
+
+function keysOf(tree: Tree, trust: Buffer[] = [], united = new Map<string, string>()): Keys {
+  let others: Map<string, Buffer> | undefined;
+  let hidden: boolean | undefined;
+  return {
+    hidden: () => (hidden ??= settingsHidden(tree.env)),
+    trusted: new Map(trust.map((k) => [fingerprint(k), k])),
+    united,
+    others: () => (others ??= new Map(tree.key ? otherKeys(tree.env, tree.config.id, tree.key).map((o) => [fingerprint(o.key), o.key]) : [])),
+  };
+}
+
+/** Is an operation shaped as strom signs one (a key's fingerprint and a signature), whatever key it was? */
+function strommade(op: Op): boolean {
+  return typeof op.k === "string" && /^[0-9a-f]{12}$/u.test(op.k) && typeof op.sig === "string" && /^[0-9a-f]{32}$/u.test(op.sig);
+}
+
 /** Check chain and signatures of a run of operations. */
-function checkOps(tree: Tree, ops: Op[], prevSig: string, file: string, findings: Finding[]): void {
+function checkOps(tree: Tree, ops: Op[], prevSig: string, file: string, findings: Finding[], keys: Keys = keysOf(tree)): void {
   const key = tree.key;
   const fp = key ? fingerprint(key) : undefined;
   let prev = prevSig;
@@ -87,16 +125,25 @@ function checkOps(tree: Tree, ops: Op[], prevSig: string, file: string, findings
     prev = op.sig ?? "";
     if (op.op === "seal.adopt") adopted = true;
     if (!key) continue;
-    if (op.k === fp) {
-      if (!verifyOp(op as unknown as Record<string, unknown>, key))
+    const trusted = keys.trusted.get(op.k);
+    if (op.k === fp || trusted) {
+      if (!verifyOp(op as unknown as Record<string, unknown>, trusted ?? key))
         findings.push({ level: "error", code: "forged-op", file, message: `operation ${op.op} at ${op.at} has an invalid signature (written outside strom)` });
+    } else if ((keys.united.get(op.k) ?? "") >= op.at) {
+      // another key of this computer, its operations until then checked and taken when the person united the keys
     } else if (adopted) {
-      findings.push({ level: "error", code: "forged-op", file, message: `operation ${op.op} at ${op.at} is signed with an unknown key after the tree was adopted` });
+      const other = keys.others().get(op.k);
+      if (other && verifyOp(op as unknown as Record<string, unknown>, other))
+        findings.push({ level: "error", code: OTHER_KEY, file, message: `operation ${op.op} at ${op.at} is signed with another seal key of strom on this computer (a second copy of strom's settings)`, hint: OTHER_KEY_HINT });
+      // a key out of sight only for what strom signs (a fingerprint and a signature): anything else was written outside
+      else if (keys.hidden() && strommade(op))
+        findings.push({ level: "error", code: OTHER_KEY, file, message: `operation ${op.op} at ${op.at} is signed with a key this strom does not see (an app packaged for Windows started it)`, hint: OTHER_KEY_HINT });
+      else findings.push({ level: "error", code: "forged-op", file, message: `operation ${op.op} at ${op.at} is signed with an unknown key after the tree was adopted` });
     }
   }
 }
 
-function headSeal(tree: Tree, findings: Finding[]): void {
+function headSeal(tree: Tree, findings: Finding[], keys: Keys = keysOf(tree)): void {
   const head = git.headInfo(tree.root);
   if (!head) return;
   const key = tree.key;
@@ -109,7 +156,26 @@ function headSeal(tree: Tree, findings: Finding[]): void {
     });
     return;
   }
-  if (!verifyCommitSeal(key, head.tree, head.message))
+  const sealedWith = (k: Buffer) => verifyCommitSeal(k, head.tree, head.message);
+  if (sealedWith(key) || [...keys.trusted.values()].some(sealedWith)) return;
+  if ([...keys.others().values()].some(sealedWith))
+    findings.push({
+      level: "error",
+      code: OTHER_KEY,
+      message: "the last commit was sealed with another seal key of strom on this computer (a second copy of strom's settings)",
+      hint: OTHER_KEY_HINT,
+    });
+  // started by an app packaged for Windows: the terminal's key is out of its sight — the terminal unites them (where
+  // seal adopt checks every seal again: a commit of nobody's stays refused). Only a commit with strom's seal: one
+  // without (git used directly) is said as it always was, never sent to uniting it cannot do
+  else if (keys.hidden() && readCommitSeal(head.message) !== undefined)
+    findings.push({
+      level: "error",
+      code: OTHER_KEY,
+      message: "the last commit was not sealed with a key this strom sees — an app packaged for Windows started it, the key of the terminal's strom is out of its sight",
+      hint: OTHER_KEY_HINT,
+    });
+  else
     findings.push({
       level: "error",
       code: "foreign-commit",
@@ -308,19 +374,44 @@ export function verifyFast(tree: Tree, snap: Snapshot = snapshot(tree)): Integri
   return { findings, tampered: [...tampered] };
 }
 
-/** Full check: every operation and every record. */
-export function verifyFull(tree: Tree): Integrity {
+/**
+ * The other keys of this computer a seal.unite of the tree's own key took, each with when (its operations until then
+ * are the person's).
+ */
+function unitedKeys(tree: Tree, logs: { ops: Op[] }[]): Map<string, string> {
+  const united = new Map<string, string>();
+  const key = tree.key;
+  if (!key) return united;
+  const fp = fingerprint(key);
+  for (const { ops } of logs)
+    for (const op of ops)
+      if (op.op === "seal.unite" && op.k === fp && verifyOp(op as unknown as Record<string, unknown>, key))
+        for (const k of op.keys ?? []) if ((united.get(k) ?? "") < op.at) united.set(k, op.at);
+  return united;
+}
+
+/**
+ * Full check: every operation and every record. `trust`: other keys of this computer whose operations and commits are
+ * checked with them as the tree's own (strom seal adopt, before it unites them).
+ */
+export function verifyFull(tree: Tree, o: { trust?: Buffer[] } = {}): Integrity {
   const findings: Finding[] = [];
   const tampered = new Set<string>();
-  headSeal(tree, findings);
   const latest = new Map<string, string>();
   const all: Op[] = [];
-  for (const file of opsLogs(tree.dataDir)) {
-      const rel = path.relative(tree.root, file).split(path.sep).join("/");
-      const ops = parseOps(fs.readFileSync(file, "utf8"), rel, findings);
-      checkOps(tree, ops, "", rel, findings);
-      all.push(...ops);
-    }
+  const logs = opsLogs(tree.dataDir).map((file) => {
+    const rel = path.relative(tree.root, file).split(path.sep).join("/");
+    return { rel, ops: parseOps(fs.readFileSync(file, "utf8"), rel, findings) };
+  });
+  const keys = keysOf(tree, o.trust, unitedKeys(tree, logs));
+  // the last commit said first, as ever
+  const headFindings: Finding[] = [];
+  headSeal(tree, headFindings, keys);
+  findings.unshift(...headFindings);
+  for (const { rel, ops } of logs) {
+    checkOps(tree, ops, "", rel, findings, keys);
+    all.push(...ops);
+  }
   // Logs are per session: the last word on a file is the newest operation across all of them.
   all.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
   for (const op of all) for (const sf of op.files ?? []) latest.set(sf.path, sf.sha);
@@ -390,6 +481,8 @@ export function assertIntact(tree: Tree): void {
     tree.requireKey();
     return;
   }
+  // the last commit sealed with another key of this computer: the person unites them (never strom repair)
+  if (errors.every((f) => f.code === OTHER_KEY)) throw otherKeyError(tree.config.name);
   // files only in iCloud: downloaded first — what else is wrong is judged then
   if (errors.some((f) => f.code === NOT_DOWNLOADED)) throw notDownloadedError(notDownloaded(tree.root));
   throw new StromError(`data was changed outside strom (${counted(errors.length, "problem")}) — refusing to write`, {
@@ -412,4 +505,17 @@ export function notDownloadedError(files: string[]): StromError {
     params: { n, first },
     details: files.slice(0, 50),
   });
+}
+
+/**
+ * Writing refused while the last commit carries the seal of another key of this computer: a consent of the person in
+ * their terminal (strom seal adopt unites the keys), said in their language (ui.error.seal.other-key).
+ */
+export function otherKeyError(name: string): NeedsConsentError {
+  return new NeedsConsentError(
+    [{ key: "seal", kind: "consent", question: "This tree was sealed with two keys of strom on this computer. Unite them?", set: "strom seal adopt" }],
+    undefined,
+    undefined,
+    { code: "seal.other-key", params: { name, set: "strom seal adopt" } },
+  );
 }

@@ -1,5 +1,5 @@
 // The whole run (`node --test --test-global-setup ./test/global-setup.ts`) never touches the person's own strom: their
-// settings (~/.config/strom, %APPDATA%\strom), their research (~/Documents/Strom) and what strom teaches the agents.
+// settings (~/.config/strom, also on Windows since 1.23 — %APPDATA%\strom before), their research (~/Documents/Strom) and what strom teaches the agents.
 // Read before the first test and after the last; the run fails when a test reached them (found 2026-10-16: an
 // installation built from the sources listed the tests' settings folders in the real settings-folders.json).
 // Only what a test could leave is compared — new names, the list of settings folders, the test folders' paths in a
@@ -27,7 +27,7 @@ function realHome(): string {
 
 // STROM_TEST_GUARD_HOME: another home, to try this check itself
 const home = process.env.STROM_TEST_GUARD_HOME || realHome();
-const settings = process.platform === "win32" ? path.join(home, "AppData", "Roaming", "strom") : path.join(home, ".config", "strom");
+const settings = path.join(home, ".config", "strom");
 const research = path.join(home, "Documents", "Strom");
 const agentFiles = [
   path.join(home, ".claude", "settings.json"),

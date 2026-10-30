@@ -263,6 +263,7 @@ const CODES = {
   "ui.media.large": "media.large",
   "ui.media.full": "media.full",
   "ui.seal.bridge": SEAL_FOREIGN,
+  "ui.seal.bridge.twokeys": "seal.other-key",
   "ui.error.tree.not-downloaded": "tree.not-downloaded",
   "ui.experiments.link": "experiments.link",
   "ui.history.place.link": "history.link",
@@ -2236,6 +2237,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
           }
           // sealed on another computer since it was asked (its key gone meanwhile): said as the bridge says it before
           if (data.code === SEAL_FOREIGN) reply(409, { ...sealRefusal(), intake: sent.intake });
+          // sealed here with two keys of this computer (an app packaged for Windows and a terminal): united in a terminal
+          else if (data.code === "seal.other-key") reply(409, { ...said(lang, "ui.seal.bridge.twokeys", { name: String(data.params?.name ?? ""), set: "strom seal adopt" }), intake: sent.intake });
           // no room on the disk: said as everywhere (507 disk.full), never the system's words with strom's inner path
           else if (data.code === DISK_FULL || isDiskFull(why)) reply(507, { ...diskFullSaid(lang, fullWhere(data, root)), reason: why, intake: sent.intake });
           else reply(500, { ...said(lang, "ui.sync.bridge.failed"), reason: why, ...(data.code ? { reasonCode: data.code } : {}), ...(data.params ? { reasonParams: data.params, reasonNames } : {}), intake: sent.intake });

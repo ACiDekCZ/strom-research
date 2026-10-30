@@ -12,7 +12,7 @@ import path from "node:path";
 import type { Context } from "./context.ts";
 import { ui, type UIKey } from "./ui.ts";
 import { isAgent } from "../core/which.ts";
-import { offerAdopt } from "./seal.ts";
+import { offerAdopt, offerUnite } from "./seal.ts";
 import { mb, setTidyAsked, tidyAskAgain, tidyAsked, tidyOn, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 import { calibrationLabel, calibrationOffer } from "../core/viewsizes.ts";
 
@@ -224,6 +224,11 @@ export async function runMenu(ctx: Context, run: Run): Promise<void> {
           await run(["seal", "adopt", "--tree", root]);
           out();
         }
+      } else if (offerUnite(ctx, tree, !isAgent(ctx.env))) {
+        // sealed here with two keys of this computer (strom of an app packaged for Windows and of a terminal): united on
+        // the person's yes, offered once (as strom seal adopt: every operation and record checked)
+        await run(["seal", "adopt", "--tree", root]);
+        out();
       }
       // what of it the Strom app does not show (only here in the terminal) said, so its number and the app's agree
       if (waiting) out(waitingLine(lang, waits));

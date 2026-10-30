@@ -143,6 +143,27 @@ test("a commit made with git directly is detected and undone by repair", opts, a
   w.cleanup();
 });
 
+test("a commit made with git directly that changed nothing sealed (empty, notes only): repair seals it again", opts, async () => {
+  for (const make of [
+    (w: World) => spawnSync("git", ["commit", "-q", "--allow-empty", "-m", "x"], { cwd: w.cwd }),
+    (w: World) => {
+      fs.mkdirSync(path.join(w.cwd, "notes"), { recursive: true });
+      fs.writeFileSync(path.join(w.cwd, "notes", "x.md"), "x\n");
+      spawnSync("git", ["add", "notes/x.md"], { cwd: w.cwd });
+      spawnSync("git", ["commit", "-qm", "x"], { cwd: w.cwd });
+    },
+  ]) {
+    const w = await seeded();
+    make(w);
+    assert.ok((await w.run(["verify", "--fast", "--json"])).json.findings.some((f: any) => f.code === "foreign-commit"));
+    assert.equal((await w.run(["person", "add", "Z /Z/"])).code, 1);
+    await w.ok(["repair"]);
+    assert.match((await w.ok(["verify"])).out, /^ok/);
+    await w.ok(["person", "add", "Z /Z/"]);
+    w.cleanup();
+  }
+});
+
 test("nothing is committed while data is inconsistent", opts, async () => {
   const w = await seeded();
   const head = () => spawnSync("git", ["rev-parse", "HEAD"], { cwd: w.cwd, encoding: "utf8" }).stdout.trim();

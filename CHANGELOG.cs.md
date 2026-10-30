@@ -5,6 +5,21 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.22.2
+
+*30. 10. 2026 · patří k aplikaci Strom 3.17.1.*
+
+- **Strom z desktopové aplikace agenta a z terminálu zase zapisují do jednoho výzkumu (Windows).** Desktopová aplikace
+  agenta může být pro Windows zabalená (MSIX) a každý soubor, který strom spuštěný z ní vytvořil v nastavení stromu, skončil
+  v soukromé kopii aplikace: strom z aplikace a strom z terminálu měly každý vlastní pečetní klíč a každý bral zápisy
+  druhého jako změnu mimo strom. Nastavení je teď mimo AppData (`%USERPROFILE%\.config\strom`) a samo se převezme ze
+  staré složky i z kopie aplikace (obě zůstanou, jak byly). Rozdvojený výzkum se opraví sám, kde to jde; jinak
+  klíče sjednotí `strom seal adopt` v terminálu (nabídka ho jednou nabídne) – každý záznam zkontrolovaný, nic se
+  neztratí, nikdy `strom repair`. `strom update` spuštěný z takové aplikace nic nenainstaluje (viděla by to jen ona)
+  a řekne, ať se spustí v terminálu; `strom doctor` najde kopii programu, kterou si aplikace drží pro sebe.
+- **`strom repair` po commitu přes git, který nezměnil žádný záznam** (prázdný, jen poznámky), výzkum znovu zapečetí;
+  dřív commit zůstal nezapečetěný, každý zápis byl odmítnut a nebylo co opravit.
+
 ## 1.22.1
 
 *29. 10. 2026 · patří k aplikaci Strom 3.17.0.*

@@ -5,6 +5,23 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.22.2
+
+*30.10.2026 · gehört zur Strom-App 3.17.1.*
+
+- **strom aus der Desktop-App eines Agenten und aus einem Terminal schreiben wieder in eine Forschung (Windows).** Die
+  Desktop-App eines Agenten kann für Windows verpackt sein (MSIX), und jede Datei, die ein von ihr gestartetes strom in den Einstellungen
+  von strom anlegte, landete in der privaten Kopie der App: das strom der App und das des Terminals hatten je einen
+  eigenen Siegelschlüssel, und jedes hielt die Schreibvorgänge des anderen für Änderungen außerhalb von strom. Die
+  Einstellungen liegen jetzt außerhalb von AppData (`%USERPROFILE%\.config\strom`) und werden aus dem alten Ordner
+  und aus der Kopie der App von selbst übernommen (beide bleiben, wie sie waren). Eine so geteilte Forschung heilt sich
+  selbst, wo es geht; sonst vereint `strom seal adopt` in einem Terminal die Schlüssel (das Menü bietet es einmal an) –
+  jeder Datensatz geprüft, nichts geht verloren, nie `strom repair`. Ein aus einer solchen App gestartetes
+  `strom update` installiert nichts (nur die App sähe es) und sagt, es im Terminal auszuführen; `strom doctor` findet
+  eine Kopie des Programms, die eine App für sich behält.
+- **`strom repair` nach einem mit git gemachten Commit, der keinen Datensatz änderte** (leer, nur Notizen), versiegelt
+  die Forschung wieder; vorher blieb der Commit unversiegelt, jeder Schreibvorgang wurde abgelehnt, und es gab nichts zu reparieren.
+
 ## 1.22.1
 
 *29.10.2026 · gehört zur Strom-App 3.17.0.*

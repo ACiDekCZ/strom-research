@@ -19,7 +19,7 @@ import { UI, ui, type UIKey } from "../cli/ui.ts";
 import { actsAsArchive } from "./state.ts";
 
 /** Operations nobody needs to read: what another line says already, or bookkeeping. */
-const QUIET = new Set(["session.metrics", "session.readers", "task.start", "task.continue", "session.note", "tree.settle", "seal.adopt"]);
+const QUIET = new Set(["session.metrics", "session.readers", "task.start", "task.continue", "session.note", "tree.settle", "seal.adopt", "seal.unite"]);
 
 /** The one-line form of an operation, by its kind: {who} a person or family, {name} the record. */
 /** What strom mode logs (core/mode.ts), as the history says it. */

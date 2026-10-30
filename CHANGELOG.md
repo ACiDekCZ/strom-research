@@ -5,6 +5,21 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.22.2
+
+*2026-10-30 · goes with the Strom app 3.17.1.*
+
+- **Strom from an agent's desktop app and from a terminal write to one research again (Windows).** An agent's
+  desktop app can be packaged for Windows (MSIX), and every file a strom it started made in strom's settings went to
+  the app's private copy: the app's strom and the terminal's each had a seal key of their own, and each refused the other's writes as
+  made outside strom. The settings are now outside AppData (`%USERPROFILE%\.config\strom`), taken over from the old
+  folder and from the app's copy by themselves (both left as they were). A research split so heals itself where it can;
+  else `strom seal adopt` in a terminal unites the keys (the menu offers it once) — every record checked, nothing lost,
+  never `strom repair`. `strom update` started from such an app installs nothing (only the app would see it) and says
+  to run it in a terminal; `strom doctor` finds a copy of the program an app keeps for itself.
+- **`strom repair` after a commit made with git that changed no record** (an empty one, notes only) seals the research
+  again; before, the commit stayed unsealed, every write was refused and there was nothing to repair.
+
 ## 1.22.1
 
 *2026-10-29 · goes with the Strom app 3.17.0.*

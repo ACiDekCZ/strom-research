@@ -34,6 +34,8 @@ const MEDIA_UNNAMED_SAID = 500 * 1024 * 1024;
 import { Tree, VERSION } from "../core/tree.ts";
 import { timed } from "../core/timing.ts";
 import { checked, installUpdate, isNewer, knownNewerVersion, lastChannelOf, latestRelease, newerNode, newerVersion, setInstallChannel, updateChannel, whatsNewUrl, type Channel, type Updated } from "../core/update.ts";
+import { privateCopies, writesPrivately } from "../core/packaged.ts";
+import { moveToTrash } from "../core/trash.ts";
 import { configDir, defaultHome, desktopDir, isolated, noLinks, ownCommand, type Env } from "../core/paths.ts";
 import { backupBefore, backupSaid, lastBackupLine } from "../cli/backups.ts";
 import { BACKUP_SAID_DAYS, lastBackup, type BackupRecord } from "../core/backup.ts";
@@ -48,7 +50,7 @@ import type { UIKey } from "../cli/ui.ts";
 
 import { globalTargets, installGlobal } from "../agents/global.ts";
 import { placeholders, ui, UI } from "../cli/ui.ts";
-import { foundTrees } from "../cli/seal.ts";
+import { adoptSeal, foundTrees } from "../cli/seal.ts";
 import { PERMISSION_LEVELS, type AgentPermissions, type HistoryPace } from "../core/config.ts";
 import { PROFILES, type Tier } from "../agents/profiles.ts";
 import { agentSettingsSaid, EFFORTS, hasEffort, ownEffort, raisesEffort, RECOMMENDED_EFFORT } from "../agents/effort.ts";
@@ -65,7 +67,7 @@ import { isArchive } from "../core/mode.ts";
 import { fixEnv, fixesDoctorLine } from "./fixchecks.ts";
 import { placeOf, sampleFiles } from "../core/clouddrive.ts";
 import { check } from "../core/check.ts";
-import { assertIntact, verifyFull } from "../core/integrity.ts";
+import { assertIntact, OTHER_KEY, verifyFull } from "../core/integrity.ts";
 import { ensurePluginsDir } from "../core/connector.ts";
 import { checkGate, ensureGatesDir } from "../core/gate.ts";
 import { ensureHooksDir } from "../core/hooks.ts";
@@ -224,7 +226,7 @@ interface Check {
   detail: string;
   fix?: string;
   /** What strom doctor --fix can do about it itself. */
-  repair?: "git" | "agent" | "knows" | "shortcut" | "app" | "links" | "tune";
+  repair?: "git" | "agent" | "knows" | "shortcut" | "app" | "links" | "tune" | "packaged" | "unite";
   /** What a program reads of a problem (--json), where the detail alone would not say it. */
   code?: string;
 }
@@ -302,6 +304,9 @@ function diagnoseInto(
   else if (ownCommand(ctx.env) && nodeOk(process.version)) add("program", "ok", `${t("ui.doc.innode", { version: VERSION, node: process.version })}${beta}${secondLine(ctx, t)}`);
   else if (nodeOk(process.version)) add("program", "ok", `${t("ui.doc.innode", { version: VERSION, node: process.version })}${beta}`);
   else add("program", "fail", t("ui.doc.oldnode", { node: process.version }), "https://nodejs.org");
+  // an update an app packaged for Windows installed for itself alone (core/packaged.ts): that app runs another strom
+  const copies = installation().kind === "installed" ? privateCopies(ctx.env, installation().root!) : [];
+  if (copies.length) add("packaged", "warn", t("ui.doc.packaged.copy", { folders: copies.map((c) => ctx.display(c)).join(", ") }), "strom doctor --fix", "packaged");
   // The backup before another channel or an older version: one that could not be made (nothing switches until it is),
   // else where the last one is, for a month
   const backup = lastBackup(ctx.env, BACKUP_SAID_DAYS);
@@ -517,8 +522,11 @@ function diagnoseInto(
   else if (ctx.hasTree()) {
     const tr = ctx.tree();
     progress("tree", tr.config.name);
-    const errs = timed("doctor.check", () => check(tr).filter((f) => f.level === "error").length) + timed("doctor.verify", () => verifyFull(tr).findings.filter((f) => f.level === "error").length);
+    const sealErrs = timed("doctor.verify", () => verifyFull(tr).findings.filter((f) => f.level === "error"));
+    const errs = timed("doctor.check", () => check(tr).filter((f) => f.level === "error").length) + sealErrs.length;
     if (errs === 0) add("tree", "ok", t("ui.doc.tree.ok", { name: tr.config.name }));
+    // two seal keys of this computer (strom of an app packaged for Windows and of a terminal): united, never repaired
+    else if (sealErrs.length === errs && sealErrs.every((f) => f.code === OTHER_KEY)) add("tree", "fail", t("ui.doc.tree.twokeys", { name: tr.config.name }), "strom seal adopt", "unite");
     else add("tree", "fail", t("ui.doc.tree.bad", { name: tr.config.name, n: errs }), "strom verify ; strom check");
     // can it be written — its locks (.strom) and history (.git) tried: found on Windows, an agent's sandbox refused
     // writing while doctor said all was fine; a disk without hard links works, the lock another way (core/lock.ts)
@@ -625,6 +633,19 @@ async function repair(ctx: Context, checks: Check[], out: (line: string) => void
     for (const f of createShortcut(shortcutName(lang), ctx.env)) out(ui(lang, "ui.setup.shortcut.done", { file: ctx.display(f) }));
   }
   if (todo.has("links") && person) await offerLinks(ctx, lang);
+  // two seal keys of this computer united: as strom seal adopt, the person's yes at a terminal (never an agent)
+  if (todo.has("unite") && person && ctx.hasTree()) {
+    const r = await adoptSeal(ctx, ctx.tree(), lang);
+    if (r.adopted) out(ui(lang, "ui.seal.united", { name: ctx.tree().config.name }));
+  }
+  // the private copies of the program into the trash, on the person's yes in a terminal of their own (from the packaged
+  // app itself the copy is what it reads: nothing done there)
+  if (todo.has("packaged") && person && !writesPrivately(ctx.env, installation().root!) && (await ctx.confirm(ui(lang, "ui.fix.packaged"), true))) {
+    for (const c of privateCopies(ctx.env, installation().root!)) {
+      moveToTrash(c, ctx.env, "Strom (copy of an app)");
+      out(ui(lang, "ui.fix.packaged.done", { folder: ctx.display(c) }));
+    }
+  }
   // a change of strom's that made the reading less sure: returned on the person's yes (a window when an agent asks)
   if (todo.has("tune")) await fixTuneWorse(ctx, out);
   // (never into the address of an invalid strom.app.url: its check says how to put it right)
@@ -729,6 +750,8 @@ register({
       return { text: inst.kind === "npm" ? t("ui.update.npm", { version: newest, tag: channel === "beta" ? "beta" : "latest" }) : t("ui.update.source", { version: newest }), data: { current: VERSION, latest: newest, newer: true, npm: inst.kind === "npm" } };
     // the research where the update replaces the program: nothing asked, backed up or installed
     refuseResearchInProgram(ctx, inst.root!);
+    // started by a packaged app (Claude's desktop app): the update would be that app's alone (core/packaged.ts)
+    refusePackaged(ctx, inst.root!);
     const older = newer && isNewer(VERSION, newest);
     const question = switching
       ? `${t(`ui.update.channel.${to!}.sure` as UIKey, { version: newest, current: VERSION })} ${older ? t("ui.update.older", { version: newest, current: VERSION }) : t("ui.update.stays")}`
@@ -793,6 +816,15 @@ function refuseResearchInProgram(ctx: Context, root: string): void {
     code: "update.in-program",
     params: { folder: ctx.display(hit), entry: ctx.display(entry) },
     details: { folder: hit, entry },
+  });
+}
+
+function refusePackaged(ctx: Context, root: string): void {
+  if (!writesPrivately(ctx.env, root)) return;
+  throw new StromError(`this strom was started by an app packaged for Windows (MSIX): what it installed into ${ctx.display(root)} only that app would see, the terminal would stay at ${VERSION}; nothing was installed`, {
+    hint: "the user runs strom update in their own terminal (PowerShell); the app takes the new version from there",
+    code: "update.packaged",
+    params: { folder: ctx.display(root), current: VERSION },
   });
 }
 
