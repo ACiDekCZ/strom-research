@@ -36,6 +36,8 @@ import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
 import { quay } from "../core/evidence.ts";
 import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/excerpt.ts";
+import { excerptPage, sourcePage } from "../core/scanlink.ts";
+import { numbersOnly } from "../core/streets.ts";
 import { mainPerson } from "../core/kin.ts";
 import { hypothesisPeople } from "../core/directions.ts";
 import * as git from "../core/git.ts";
@@ -509,6 +511,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (page) w.text(1, "PAGE", page);
     // The words of the record are the source's TEXT (in both files: Strom reads it there).
     if (s.transcript) w.text(1, "TEXT", s.transcript);
+    // the page of its scan in the online archive, for Strom: the app links it (its excerpts' own _URL first); GEDCOM
+    // 5.5.1 has no WWW on a source, so another program gets the address in the note
+    const www = strict ? undefined : sourcePage(s, (id) => tree.get<Media>(id));
+    if (www) w.text(1, "WWW", www);
     const url = s.url ?? set?.url;
     const head = [
       set ? `${L("recordset")}: ${set.title}${set.callNumber && (strict || repeat) ? ` (${set.callNumber})` : ""}` : "",
@@ -549,7 +555,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       w.line(2, "FORM", "jpg");
       w.line(2, "_STROM_KIND", "excerpt");
       if (opts.clips && e.clip) w.line(2, "_STROM_CLIP", e.clip);
-      if (e.url) w.text(2, "_URL", e.url);
+      const page = excerptPage(e.url, s);
+      if (page) w.text(2, "_URL", page);
       w.wrapped(2, "FILE", dataUrl(e));
       // the original it is cut from, by its content: the app knows the research has it (and sends it not again)
       const original = tree.get<Media | Input>(e.media);
@@ -610,11 +617,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       }
     }
     const noteParts: string[] = [];
-    // A house is an address within the place: "2 ADDR čp. 13" (the value on the line, as Strom reads it).
+    // A house is an address within the place: "2 ADDR čp. 13" (the value on the line, as Strom reads it); the word for
+    // a house number only before numbers alone — a street with its number ("Dlouhá 12") is said as it is.
     if (e.house) {
-      w.line(2, "ADDR", `${L("house")} ${e.house}`);
+      const addr = numbersOnly(e.house) ? `${L("house")} ${e.house}` : e.house;
+      w.line(2, "ADDR", addr);
       if (strict && e.place) w.line(3, "CITY", e.place.split(",")[0]!.trim());
-      if (repeat) noteParts.push(`${L("house")} ${e.house}`);
+      if (repeat) noteParts.push(addr);
     }
     if (e.cause) {
       w.line(2, "CAUS", e.cause);

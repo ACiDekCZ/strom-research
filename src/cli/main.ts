@@ -32,7 +32,7 @@ import { isAgent } from "../core/which.ts";
 import { noPermission } from "../core/writable.ts";
 import { completePath, pathOf, pathToRemember } from "../core/userpath.ts";
 import { appUrlShown, noticeStromApp } from "../core/stromapp.ts";
-import { lastChannelOf, pendingTransition, updateChannel, whatsNewUrl } from "../core/update.ts";
+import { lastChannelOf, npmChannelKept, pendingTransition, updateChannel, whatsNewUrl } from "../core/update.ts";
 import { backupBefore, backupSaid } from "./backups.ts";
 import { guestOf, installation, ownFolder, refreshTreeShim } from "../core/self.ts";
 import { refreshGlobal } from "../agents/global.ts";
@@ -344,7 +344,7 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
     // settings are backed up first — before this strom opens any of them, before any migration (Milan, 2026-10-07:
     // "přechod beta ↔ produkce nikdy nepřijde o data"). Made once (strom update made it already, or another strom of
     // this version a moment ago); in any strom of this version, a bridge too (it may write what the app sends).
-    const channelNow = updateChannel(env);
+    const channelNow = updateChannel(env, undefined, undefined, ctx.settings.config);
     // an agent's hook (strom net web --hook, before each of its web requests; strom agents delegate --hook, before each
     // subagent call) does none of a new version's first run: it answers within the hook's time and changes nothing
     // outside the research's measurements
@@ -376,9 +376,17 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
       } catch {
         // asked again at the first look at an archive
       }
+      // …and its channel: another one than last time is a change of channel (npm's: a beta installed after strom update
+      // --channel stable, or an older release after --channel beta, is a choice made with npm since — taken as it is;
+      // the channel before the version is noted: a release older than the last one is a way back to npm's latest)
+      if (installation().kind === "npm") {
+        const kept = npmChannelKept(ctx.settings.config, VERSION);
+        if (kept) ctx.settings.config.npmChannel = kept;
+        else delete ctx.settings.config.npmChannel;
+      }
+      const channel = updateChannel(env, undefined, undefined, ctx.settings.config);
       ctx.settings.config.lastVersion = VERSION;
-      // …and its channel: another one than last time is a change of channel
-      ctx.settings.config.lastChannel = updateChannel(env);
+      ctx.settings.config.lastChannel = channel;
       ctx.settings.save();
       refreshGlobal(env);
       // …and the links from the Strom app lead to this strom again (where strom made them on this person's yes —

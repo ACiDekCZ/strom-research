@@ -5,16 +5,48 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.24.0
+
+*In Vorbereitung: die Betas bis 1.24.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Orte einmal zugeordnet für jede Forschung auf diesem Computer.** Ein Ort, den eine andere Forschung hier schon den
+  Regionen der Geschichte zugeordnet hat, wird übernommen, wenn es sicher derselbe Ort ist (derselbe Name und dieselben
+  Koordinaten, Pfarrei oder derselbe Bezirk) und jede Forschung ihn gleich zuordnet; nur die Zuordnung des Orts geht
+  über, nichts von der Familie. Ein Ort gleichen Namens, der nicht sicher derselbe ist, geht als Vorschlag an den
+  Agenten; er ordnet nur den Rest zu. `strom history adopt --dry-run` sagt, was übernommen würde.
+- **Die Korrekturen einer Forschung für die Strom-App.** Die Brücke listet, was `strom fixes` in der Forschung anbietet
+  (Titel, was sie tut, wie viele Einträge, ihr Stand, ob sie sich zurücknehmen lässt), kostenlos und ohne etwas zu
+  schreiben; der Link `strom-research://fixes` öffnet eine Korrektur im Terminal der Forschung, wo sie und ihre
+  Rücknahme immer zuerst bestätigt werden.
+- **Die Seite jedes Scans in der Strom-App.** Die Strom-Datei gibt jetzt jeder Quelle die Seite ihres Scans im
+  Online-Archiv: die Seite ihres ersten Bildes, sonst die eigene Adresse der Quelle. Die Strom-App verlinkt sie bei den
+  Ausschnitten, die die Datei auslässt, und bei Quellen ohne Ausschnitt. Nur eine öffentliche Webseite, nie die Adresse
+  eines Bestands; die Standard-GEDCOM-Datei behält die Adresse in der Notiz.
+- **Hausnummer und Alter, wie sie geschrieben wurden.** Das Wort für eine Hausnummer („No.“, „čp.“) steht nur vor
+  einer Zahl allein; eine Straße mit Nummer geht so in die Datei, wie sie ist. Ein Alter „05y“ gilt als 5 Jahre.
+  Beides kommt aus der Strom-App gleich zurück, keine Änderung des Benutzers.
+- **Die Frage nach der Geschichte sagt, wo sie gilt.** Die Ereignisse der Geschichte ein- oder auszuschalten gilt für
+  jede Forschung auf diesem Computer; die Frage sagt es, und wie es sich für eine Forschung allein ändern lässt.
+- **Ein schwaches oder abgelehntes Modell des Agenten meldet der Doctor.** Ist für die Forschung kein Modell gewählt und
+  das eigene Standardmodell des Agenten eines, das die Forschung für ihre Arbeit schwach oder abgelehnt fand, warnt
+  `strom doctor` und nennt den Befehl zur Wahl; selbst wählt er nie.
+- **strom aus npm behält seinen Kanal.** Mit npm installiertes strom bleibt auf dem Kanal, aus dem es installiert
+  wurde, auch nach einer Veröffentlichung; ein mit `strom update --channel` gewählter Kanal bleibt dafür ebenfalls
+  gemerkt.
+- **Ein gescheiterter Befehl nimmt nur das Seine zurück.** Ein Befehl, der unterwegs gespeichert hat und dann scheitert,
+  nimmt nur zurück, was nach dieser Speicherung kam, so wirkt die Forschung nie außerhalb von strom geändert.
+
 ## 1.23.0
 
-*In Vorbereitung: die Betas bis 1.23.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*30.10.2026 · gehört zur Strom-App 3.18.0.*
 
 - **Eine Person unter dem gewählten Namen.** Eine Frau, unter einem Namen geboren, unter einem anderen verheiratet und
   nach einer Scheidung wieder beim ersten, lässt sich wieder unter diesem Namen zeigen, ohne dass er ein zweites Mal
   hinzukommt: `strom name primary <Person> "<Name>"` (und `--clear`) oder `strom name add --primary`. Die Wahl trifft
   allein der Nutzer, nie wird sie aus einem Eintrag gelesen; Korrekturen, Zitate und der Abgleich mit der Strom-App
   richten sich weiter nach dem Geburtsnamen. Die Strom-Datei markiert den gewählten Namen, die Standard-GEDCOM-Datei
-  setzt ihn an die erste Stelle.
+  setzt ihn an die erste Stelle. Die Strom-App 3.18.0 zeigt die Person unter diesem Namen, und ein dort gewählter Name
+  kommt mit dem Abgleich zurück.
 - **Die Datei für die Strom-App ohne Warnungen.** Der Export für die Strom-App warnte bei jeder Person mit gewähltem
   Namen und bei mehreren Kennzeichen von Quellen vor einem nicht standardisierten Tag; die Prüfung kennt jetzt alle
   eigenen Tags von Strom.

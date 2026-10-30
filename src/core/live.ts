@@ -138,6 +138,12 @@
 //                          400 quality.body, 404 person.no-match {person}, 503 research.busy (feature quality.dismiss)
 //   GET <token>/quality    what the person marked no error (quality/dismissed.json): {rev, dismissed}; read in an archive
 //                          too (feature quality.read). /status: quality.rev; the event quality {rev} when the file changed
+//   GET <token>/fixes      strom's fixes of this research (strom fixes, commands/fixchecks.ts): {rev, fixes: [{id, title,
+//                          summary ({cs, en, de}), unit, count, left?, state pending|declined|fixed|nothing, undoable,
+//                          applied?, at?, cost? free|cheap|medium|expensive, since, paid}]} — free (no agent, no network,
+//                          nothing written); where nobody researches only those that rewrite by rules; 503 research.busy
+//                          (+ Retry-After) while the research is being written (feature fixes.list). Set right or put
+//                          back only by the person, in the terminal: the link fixes?tree=…&id=…[&do=undo]
 //
 // Only pages of the Strom app may read it (CORS: https://stromapp.info, its beta, and a
 // local copy on localhost for its development), and a browser asks first
@@ -182,6 +188,7 @@ import { ancestorGenerations } from "./people.ts";
 import { phrase } from "./phrases.ts";
 import { exportGedcom } from "../gedcom/export.ts";
 import { dataUrl, excerptLevel, excerptMarks, excerptSettings, excerptSizes, INPUT_MARK, LEVELS, planExcerpts, sourceExcerpts, turned, type ExcerptOmitted } from "./excerpt.ts";
+import { excerptPage } from "./scanlink.ts";
 import { adoptedAt, adoptedEmpty, adoptionWait, noteAdoptAsked, markSentAgain, undoneSend, undoneSince, failReceived, inboxTrees, markAdopted, noteAdoptFailed, noteNothingSent, pendingAdoption, receiveAdopted, receivedAll, receivedPending, receiveTree, recentSends, stampAppVersion, syncConflicts, SYNC_INBOX, SYNC_MAX_BYTES, namesOf, type Change, type Skipped } from "./sync.ts";
 import { isArchive, modeOf, settleArchive } from "./mode.ts";
 import { actsAsArchive, kindOf, stateOf } from "./state.ts";
@@ -935,7 +942,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1785,6 +1792,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
     const excerpts = got.excerpts.map(({ excerpt, region }) => {
       const e = turns ? excerpt : turned(excerpt);
       const original = tree.get<Media | Input>(e.media);
+      const page = excerptPage(e.url, s);
       return {
         clip: e.clip,
         ...(original?.sha ? { sha: original.sha } : {}),
@@ -1794,7 +1802,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         height: e.height,
         mime: "image/jpeg",
         bytes: e.jpeg.length,
-        ...(e.url ? { url: e.url } : {}),
+        ...(page ? { url: page } : {}),
         ...(each ? {} : { dataUrl: dataUrl(e) }),
       };
     });
@@ -1805,6 +1813,23 @@ export function serveLive(root: string, env: Env): Promise<void> {
   // quietMaxMs after it was asked for), and then from the newest; a tree already made for the head now: at once.
   const quietMs = Number(env.STROM_LIVE_QUIET_MS ?? 2000);
   const quietMaxMs = Number(env.STROM_LIVE_QUIET_MAX_MS ?? 6000);
+  // strom's fixes as the app was last told them, while nothing they are found by changed (fixesStamp) and the research
+  // is as much of an archive as then
+  let fixesKept: { key: string; text: string } | undefined;
+  const giveFixes = (req: http.IncomingMessage, res: http.ServerResponse) => {
+    import("../commands/fixchecks.ts").then(
+      (m) =>
+        safely(req, res, () => {
+          const tree = Tree.open(root, env);
+          const settings = new Settings(env, {});
+          const archive = actsAsArchive(tree);
+          const key = `${m.fixesStamp(tree, m.fixEnvOf(settings, env, tree))}|${archive}`;
+          if (fixesKept?.key !== key) fixesKept = { key, text: JSON.stringify(m.fixesForApp(tree, settings, env, { archive })) };
+          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(fixesKept.text);
+        }),
+      (e) => failed(req, res, e),
+    );
+  };
   const afterQuiet = (fn: () => void) => {
     const asked = Date.now();
     const look = () => {
@@ -2066,6 +2091,13 @@ export function serveLive(root: string, env: Env): Promise<void> {
         // what the person marked no error: read in an archive too
         const tree = Tree.open(root, env);
         res.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }).end(JSON.stringify({ rev: qualityRev(tree), dismissed: readDismissed(tree).dismissed }));
+      } else if (what === "fixes" && !sub) {
+        // strom's fixes of this research, as strom fixes finds them: free, nothing written — set right or put back only
+        // by the person, in the terminal the link fixes opens; never while the research is written
+        const holder = liveHolder(path.join(root, ".strom", "tree.lock"));
+        if (writing || adopting || personWriting || (holder && !(holder.pid === process.pid && holder.host === os.hostname())))
+          res.writeHead(503, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Retry-After": "5" }).end(JSON.stringify({ ...refusal("the research is being written: ask again in a while", "research.busy"), retry: 5 }));
+        else giveFixes(req, res);
       } else if (what === "group" && act === "note") {
         // the request texts of one place, for one e-mail: read only
         const got = groupNote(decoded(sub));
@@ -3519,20 +3551,23 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const how = !last ? "a new address" : last.port === port ? (last.token ? "the address of the last bridge" : "the port of the last bridge, a new secret (it was ended for good)") : last.token ? "the token of the last bridge, another port" : "a new address";
       noteLive(root, `started: strom ${VERSION}, port ${port}, ${how}`);
 
-      // A read that fails (another strom writing that moment) is tried again at the next tick; written down once.
-      let trouble: { text: string; times: number } | undefined;
+      // A read that fails (another strom writing that moment) is tried again at the next tick; written down once — each
+      // part of the tick on its own (another part working meanwhile, the readings, the widget, is no "works again")
+      const troubles = new Map<string, { text: string; times: number }>();
       const safe = <T>(what: string, fn: () => T): T | undefined => {
+        const trouble = troubles.get(what);
         try {
           const got = fn();
-          if (trouble) noteLive(root, `works again (${trouble.times}× failed)`);
-          trouble = undefined;
+          if (trouble) noteLive(root, `${what} works again (${trouble.times}× failed)`);
+          troubles.delete(what);
           return got;
         } catch (e) {
-          const text = errorText(e);
+          // the same error met at another place of the part (its stack another) is the same trouble
+          const text = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
           if (trouble?.text === text) trouble.times++;
           else {
-            trouble = { text, times: 1 };
-            noteLive(root, `${what} failed (tried again): ${text}`);
+            troubles.set(what, { text, times: 1 });
+            noteLive(root, `${what} failed (tried again): ${errorText(e)}`);
           }
           return undefined;
         }

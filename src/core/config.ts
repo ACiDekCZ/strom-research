@@ -137,6 +137,11 @@ export interface UserConfig {
   lastVersion?: string;
   /** The channel of that strom (beta, stable): another one than last time is a change of channel. */
   lastChannel?: "beta" | "stable";
+  /**
+   * The channel strom installed with npm takes for a release (strom update --channel; npm keeps no word of its tag, and
+   * its beta moves to each release too): unset, the channel it was on (core/update.ts npmChannel).
+   */
+  npmChannel?: "beta" | "stable";
   /** The folder of that strom's program (core/self.ts ownFolder): another installation running here is its guest. */
   lastProgram?: string;
   /** The PATH of the last strom the person ran in a terminal: a strom the system starts (a link, the bridge) gets it (core/userpath.ts). */

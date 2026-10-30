@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { compareVersions, installUpdate, isNewer, knownNewerVersion, latestRelease, newestTag, nodeArchive, setInstallChannel, updateChannel } from "../../src/core/update.ts";
+import { compareVersions, installUpdate, isNewer, knownNewerVersion, latestRelease, newestTag, nodeArchive, npmChannel, npmChannelKept, setInstallChannel, updateChannel } from "../../src/core/update.ts";
 import { Settings } from "../../src/core/config.ts";
 import { launchersToTake, notOurs, ownProcesses, uninstallPlan, windowsRemoval } from "../../src/core/uninstall.ts";
 import { insideProgram, installationAt, replacedHolding, withInstallEnv } from "../../src/core/self.ts";
@@ -392,9 +392,35 @@ test("the channel: STROM_CHANNEL, then install.json, then a prerelease not run f
   assert.equal(updateChannel({ STROM_CHANNEL: "stable" }, { ...installed, channel: "beta" }, "1.13.0-beta.1"), "stable", "the environment wins");
   assert.equal(updateChannel({ STROM_CHANNEL: "beta" }, installed, "1.13.0"), "beta");
   assert.equal(updateChannel({}, { kind: "npm" }, "1.13.0-beta.2"), "beta", "npm install -g strom-research@beta");
-  assert.equal(updateChannel({}, { kind: "npm" }, "1.13.0"), "stable");
+  assert.equal(updateChannel({}, { kind: "npm" }, "1.13.0", {}), "stable");
   assert.equal(updateChannel({}, { kind: "source" }, "1.13.0-rc.4"), "stable", "a candidate in the sources is no beta");
   assert.equal(updateChannel({ STROM_CHANNEL: "nonsense" }, { kind: "source" }, "1.13.0"), "stable");
+});
+
+test("npm's strom: a release after a beta stays on the beta (npm's beta moves to each release), until the person says otherwise or goes back to an older release", () => {
+  const npm = { kind: "npm" as const };
+  const onBeta = { lastVersion: "1.24.0-beta.2", lastChannel: "beta" as const };
+  // npm install -g strom-research@beta after the release of 1.24.0: the release itself, on the beta still
+  assert.equal(updateChannel({}, npm, "1.24.0", onBeta), "beta");
+  assert.equal(updateChannel({}, npm, "1.24.0", { lastVersion: "1.24.0", lastChannel: "beta" }), "beta", "its next runs too");
+  assert.equal(npmChannel({ lastVersion: "1.24.1", lastChannel: "beta" }, "1.25.0"), "beta");
+  // npm install -g strom-research@latest back from a beta: an older release is stable
+  assert.equal(updateChannel({}, npm, "1.23.0", onBeta), "stable");
+  assert.equal(updateChannel({}, npm, "1.24.0", { lastVersion: "1.23.0", lastChannel: "stable" }), "stable", "the releases stay the releases");
+  assert.equal(updateChannel({}, npm, "1.24.0", {}), "stable", "a first run ever");
+  // strom update --channel: the person's word holds for a release; a beta is a beta whatever was said
+  assert.equal(updateChannel({}, npm, "1.24.0", { ...onBeta, npmChannel: "stable" }), "stable");
+  assert.equal(updateChannel({}, npm, "1.24.0", { lastVersion: "1.23.0", lastChannel: "stable", npmChannel: "beta" }), "beta");
+  assert.equal(updateChannel({}, npm, "1.25.0-beta.1", { npmChannel: "stable" }), "beta");
+  assert.equal(updateChannel({ STROM_CHANNEL: "stable" }, npm, "1.24.0", onBeta), "stable", "the environment wins");
+  // as a new version first runs: a beta installed after "stable", an older release after "beta" — npm's choice since
+  assert.equal(npmChannelKept({ lastVersion: "1.24.0", npmChannel: "stable" }, "1.25.0-beta.1"), undefined);
+  assert.equal(npmChannelKept({ lastVersion: "1.24.0", npmChannel: "stable" }, "1.24.1"), "stable");
+  assert.equal(npmChannelKept({ lastVersion: "1.25.0-beta.1", npmChannel: "beta" }, "1.24.0"), undefined);
+  assert.equal(npmChannelKept({ lastVersion: "1.25.0-beta.1", npmChannel: "beta" }, "1.25.0"), "beta");
+  assert.equal(npmChannelKept({ lastVersion: "1.24.0" }, "1.25.0"), undefined);
+  // the installer's strom: install.json says it, the memory of npm's never counts
+  assert.equal(updateChannel({}, { kind: "installed", root: "/x" }, "1.24.0", onBeta), "stable");
 });
 
 test("a long process (the bridge) takes the channel as install.json says it now — a switch to the releases said at once; what it runs stays what it started with", () => {

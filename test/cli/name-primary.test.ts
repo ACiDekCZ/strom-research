@@ -2,7 +2,7 @@
 // back at her birth surname — the user marks the name (strom name primary), every other name stays, the identity stays
 // the birth name. The Strom file says it with 2 _STROM_PRIMARY Y (the marked married name last: the app takes the last
 // one as the married surname), the standard file puts the marked name first; a sync takes the user's choice from the
-// app, a file without the mark changes nothing.
+// app, a file without the mark changes nothing (from the app 3.18.0 on: the user chose none).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -218,11 +218,34 @@ test("sync: an older app's file without the mark changes nothing — the researc
     await w.ok(["sync", file, "--apply"]);
     assert.deepEqual(shown(await names(w)), ["Lhotová*", "Pěnkavová"]);
   }
-  // the gate is not on yet: no version of the app says a missing mark is the user's "none"
-  assert.equal(appKnowsPrimaryName(new Settings({}, {}), "3.17.0"), false);
-  assert.equal(appKnowsPrimaryName(new Settings({}, {}), "99.0.0"), APP_KNOWS_PRIMARY_NAME !== undefined);
-  assert.equal(appKnowsPrimaryName(new Settings({}, {}), undefined), false);
+  // the gate: from the app 3.18.0 on a missing mark is the user's "none"; an older app, or one that says no version, not
+  const prod = new Settings({ STROM_APP_URL: "https://stromapp.info/run/" }, {});
+  const beta = new Settings({ STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
+  assert.equal(APP_KNOWS_PRIMARY_NAME, "3.18.0");
+  for (const v of [undefined, "", "3.17.1", "3.18.0-beta.6", "neznámá"]) assert.equal(appKnowsPrimaryName(prod, v), false, String(v));
+  for (const v of ["3.18.0", "3.18.1", "4.0.0"]) assert.equal(appKnowsPrimaryName(prod, v), true, v);
+  // another copy of the app (its beta) from the first beta that writes the mark
+  for (const v of [undefined, "3.17.1", "3.18.0-beta.1"]) assert.equal(appKnowsPrimaryName(beta, v), false, String(v));
+  for (const v of ["3.18.0-beta.2", "3.18.0-beta.6", "3.18.0"]) assert.equal(appKnowsPrimaryName(beta, v), true, v);
   assert.ok((BRIDGE_FEATURES as readonly string[]).includes("person.primary"));
+  w.cleanup();
+});
+
+test("sync: the app 3.18.0's file without the mark is the user's 'none' — the research's mark taken off, undone as it was", opts, async () => {
+  const w = await world();
+  await w.ok(["name", "primary", "P1", "Jana /Pěnkavová/"]);
+  const t = await given(w);
+  // sent back unchanged (the mark kept): nothing
+  assert.deepEqual((await w.ok(["sync", send(w, asApp(t, "3.18.0")), "--json"])).json.changes, []);
+  // the user chose no name in the app: the mark missing
+  const file = send(w, unmark(asApp(t, "3.18.0")));
+  const plan = (await w.ok(["sync", file, "--json"])).json.changes as { kind: string; action: string; person?: string; shown?: { theirs: string } }[];
+  assert.deepEqual(plan.map((c) => [c.kind, c.action, c.person, c.shown?.theirs]), [["name.shown", "correct", "P0001", "none"]], JSON.stringify(plan));
+  const input = (await w.ok(["sync", file, "--apply", "--json"])).json.input as string;
+  assert.deepEqual(shown(await names(w)), ["Lhotová", "Pěnkavová"]);
+  await w.ok(["sync", "undo", input]);
+  assert.deepEqual(shown(await names(w)), ["Lhotová", "Pěnkavová*"]);
+  assert.match((await w.ok(["check"])).out, /^ok/);
   w.cleanup();
 });
 

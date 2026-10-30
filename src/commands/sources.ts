@@ -199,7 +199,7 @@ register(
       { name: "language", type: "string", value: "<code>", description: "language of the record, e.g. la, de, cs" },
       { name: "information", type: "string", value: "<kind>", description: "primary (eyewitness), secondary, unknown (default)" },
       { name: "form", type: "string", value: "<form>", description: "original (default), derivative (copy, index — the default for --kind index and in a record set of kind index only), authored (compiled work)" },
-      { name: "url", type: "string", value: "<url>", description: "link to the image or catalog entry" },
+      { name: "url", type: "string", value: "<url>", description: "link to the record: the lasting address of its page in the archive's viewer (a permalink, not the image's own address), else the catalog entry — the Strom app links it" },
       { name: "media", type: "string", multiple: true, value: "<M…|B…:n>", description: "the registered image(s) the record is on (repeatable)" },
       {
         name: "clip",

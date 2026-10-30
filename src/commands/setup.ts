@@ -58,6 +58,7 @@ import { agentSettingsLine, chooseEffort } from "../cli/model-choice.ts";
 import { calibrationKey, calibrationLabel, calibrationOffer, forgetCalibration, researchKey, sizesText, viewModel, viewSizesFor } from "../core/viewsizes.ts";
 import { bookTuned, bookViewSizes, forgetTuning, keyTuningOf, readingOf, selfTune, treeTuning, type KeyTuning, type Tuned } from "../core/tune.ts";
 import { loadAliases } from "../core/modelkey.ts";
+import { ownModel } from "../agents/models.ts";
 import { EXIT, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
 import { worsenings, type Worsening } from "../core/tunereset.ts";
 import { resetReading } from "../cli/tunereset.ts";
@@ -448,6 +449,16 @@ function diagnoseInto(
     add("level", "ok", t(`ui.setup.level.${level}` as UIKey));
     const model = ctx.settings.models(chosen, tree).lead;
     if (model) add("model", "ok", model);
+    else {
+      // none chosen: the agent's own, when strom knows it is weak or refused — said with the command, never set here
+      // (the model is the person's choice); the code for a program (--json)
+      const own = ownModel(chosen, ctx.env, tree ? loadAliases(rootHere(ctx)) : undefined);
+      if (own && (own.refused || own.weak)) {
+        const why = own.refused ? "refused" : "weak";
+        add("model", "warn", t(`ui.doc.model.own.${why}`, { agent: PROFILES[chosen]?.name ?? chosen, model: own.model }), placeholders(lang, "strom config set model.lead <model>"));
+        checks.at(-1)!.code = `model.own.${why}`;
+      }
+    }
     // the size of the scan views: the defaults, a calibration of this agent and model, or one of another (offered again)
     const views = viewSizesFor(ctx.settings, chosen, tree, undefined, tree ? rootHere(ctx) : undefined);
     const offer = calibrationOffer(ctx.settings, chosen, tree, tree ? rootHere(ctx) : undefined);
@@ -722,7 +733,12 @@ register({
     ctx.settings.save();
     const inst = installation();
     // npm's strom is npm's to update: its tag of the channel
-    if (to && inst.kind === "npm") return { text: t("ui.update.npm.channel", { tag: to === "beta" ? "beta" : "latest" }), data: { current: VERSION, latest: newest, channel: to, npm: true } };
+    // (and kept: npm keeps no word of its tag, and its beta moves to each release too — the channel holds for a release)
+    if (to && inst.kind === "npm") {
+      ctx.settings.config.npmChannel = to;
+      ctx.settings.save();
+      return { text: t("ui.update.npm.channel", { tag: to === "beta" ? "beta" : "latest" }), data: { current: VERSION, latest: newest, channel: to, npm: true } };
+    }
     // another channel: its newest version, an older one too (back from a beta); the installer's only
     const switching = !!to && inst.kind === "installed";
     // The installer's Node: the newest release of its line (security fixes) is taken along.

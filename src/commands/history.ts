@@ -1,4 +1,4 @@
-// history status · map · region · add · page · local · retract · done — and the person's own redo · first · hide · show ·
+// history status · map · adopt · region · add · page · local · retract · done — and the person's own redo · first · hide · show ·
 // skip · unskip · assign: what the
 // ancestors lived through (the experiment experiments.history, core/pastevents.ts). Behind its gate (hidden): runs
 // when named, shown nowhere until the Strom app shows the events. `strom history` alone stays what changed recently.
@@ -82,6 +82,7 @@ import {
   setArea,
   yearsAt,
 } from "../core/placehistory.ts";
+import { adoptPlaces, regionArg } from "../core/placeadopt.ts";
 import type { Place, RecordSet, Source, Task } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 // strom history list
@@ -318,6 +319,40 @@ register(
       }
       const m = mapPlace(tree, key, { regions: links, also: listOpt(opts.also) });
       return { text: lines(...tree.written.map((o) => o.summary), missing.length && tree.dryRun ? `would make the region ${missing[0]}` : undefined), data: { place: key, map: m } };
+    },
+  },
+  {
+    path: ["history", "adopt"],
+    summary: "Take the places of the facts another research on this computer maps surely the same; list those it maps where nothing tells",
+    group: "history",
+    tree: true,
+    writes: true,
+    hidden: true,
+    description:
+      "For each place of the facts not mapped yet, the maps of the other researches on this computer are read (their place\n" +
+      "map and place records alone). Taken: the same name, the records agree (coordinates within 2 km, the same parish, the same\n" +
+      "district or county), every research that has it maps it the same, every region's catalog here. Suggested: a place of the\n" +
+      "name mapped elsewhere where nothing tells it is the same place, or the researches differ — strom history map decides.\n" +
+      "strom does it by itself before it raises the task of the places; --dry-run says what it would take.",
+    examples: ["strom history adopt --dry-run", "strom history adopt --json"],
+    run(ctx) {
+      const tree = agentWork(ctx, "strom history adopt");
+      requireHistoryOn(tree, ctx.settings);
+      const plan = adoptPlaces(tree, ctx.settings.shared()?.value, ctx.settings);
+      const regions = (rs: RegionLink[]) => rs.map(regionArg).join(", ");
+      const by = { coords: "the same coordinates", parish: "the same parish", district: "the same district" } as const;
+      const take = tree.dryRun ? "would take" : "taken";
+      return {
+        text: lines(
+          `${take} ${plan.taken.length} · suggested ${plan.suggested.length} · left ${plan.left.length}`,
+          ...plan.taken.slice(0, ctx.limit).map((t) => `  ${take}: "${t.place}" → ${regions(t.regions)} (${by[t.by]})`),
+          ...plan.suggested.slice(0, ctx.limit).map(
+            (p) => `  suggested: "${p.place}" → ${p.options.map((o) => regions(o.regions)).join(" | ")}${p.options.length > 1 ? " (the researches differ)" : " (nothing tells it is the same place)"} — strom history map decides`,
+          ),
+          plan.left.length ? `  left to map: ${plan.left.slice(0, ctx.limit).join(" · ")}${plan.left.length > ctx.limit ? " …" : ""}` : undefined,
+        ),
+        data: plan,
+      };
     },
   },
   {

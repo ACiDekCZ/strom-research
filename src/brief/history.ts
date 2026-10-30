@@ -6,7 +6,6 @@
 import type { Place, Task } from "../core/model.ts";
 import type { Tree } from "../core/tree.ts";
 import { langName } from "../core/lang.ts";
-import { foldText } from "../core/text.ts";
 import { match } from "../cli/registry.ts";
 import { synopsis } from "./sheet.ts";
 import {
@@ -34,8 +33,10 @@ import {
   storyHistory,
   unmappedPlaces,
   historyPlaces,
+  placeNamed,
 } from "../core/pastevents.ts";
 import type { Section } from "./brief.ts";
+import { adoptionPlan, regionArg, SAME_KM, type SuggestedPlace } from "../core/placeadopt.ts";
 import { AREA_KM, defaultArea, factsByRecord, placeKeyOf, placeLabel, placeOfTask, placeRecord, readPlaceCatalog, regionEventsAt, yearsAt } from "../core/placehistory.ts";
 
 /** About so many events a region at most: rather fewer. */
@@ -300,12 +301,7 @@ function placesSections(tree: Tree, shared: string | undefined, alone: boolean):
   const lang = tree.lang;
   const facts = historyPlaces(tree).facts;
   const pending = unmappedPlaces(tree);
-  const records = tree.list<Place>("place").filter((p) => !p.retracted);
-  const byName = (key: string): Place | undefined => {
-    const f = foldText(key);
-    const first = foldText(key.split(",")[0]!.trim());
-    return records.find((p) => p.names.some((n) => foldText(n.name) === f)) ?? records.find((p) => p.names.some((n) => foldText(n.name) === first));
-  };
+  const byName = placeNamed(tree.list<Place>("place"));
   const notes = placeNotes(tree);
   const placeLine = (key: string): string => {
     const ys = facts.get(key) ?? [];
@@ -349,6 +345,7 @@ function placesSections(tree: Tree, shared: string | undefined, alone: boolean):
         pending.length > PLACES_SHOWN ? `  … ${pending.length - PLACES_SHOWN} more: strom history status` : "",
       ].filter(Boolean).join("\n"),
     },
+    ...othersSection(tree, shared),
     {
       name: "regions",
       first: true,
@@ -370,6 +367,51 @@ function placesSections(tree: Tree, shared: string | undefined, alone: boolean):
     ]),
   );
   return out;
+}
+
+/** What a place record of another research says of where the place is (its parish, district, coordinates). */
+function signsText(o: SuggestedPlace["options"][number]): string {
+  const s = o.signs;
+  if (!s) return "no place record there";
+  return [
+    s.kind ?? "",
+    s.parish?.length ? `parish ${s.parish.join(", ")}` : "",
+    s.district?.length ? `district ${s.district.join(", ")}` : "",
+    s.coords ? `${s.coords.lat.toFixed(3)}, ${s.coords.lon.toFixed(3)}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ") || "its record says nothing of where it is";
+}
+
+/**
+ * The places waiting that another research on this computer maps (core/placeadopt.ts): those it maps surely the same
+ * (strom history adopt takes them; strom takes them by itself before the next task), and a place of the name it maps
+ * where nothing tells it is the same place — the agent decides.
+ */
+function othersSection(tree: Tree, shared: string | undefined): Section[] {
+  const plan = adoptionPlan(tree, shared);
+  if (!plan.taken.length && !plan.suggested.length) return [];
+  const map = (place: string, regions: SuggestedPlace["options"][number]["regions"]) => `strom history map ${JSON.stringify(place)} ${regions.map((r) => `--region ${regionArg(r)}`).join(" ")}`;
+  return [
+    {
+      name: "other research",
+      first: true,
+      pointer: "strom history adopt --dry-run",
+      text: [
+        "## Places another research on this computer maps",
+        plan.taken.length
+          ? `- the same place surely (coordinates within ${SAME_KM} km, the same parish or district), mapped the same: ${plan.taken.length} — strom history adopt takes them as they are: ${plan.taken.slice(0, PLACES_SHOWN).map((t) => `"${t.place}"`).join(", ")}`
+          : "",
+        ...plan.suggested.slice(0, PLACES_SHOWN).flatMap((p) =>
+          p.options.map(
+            (o) =>
+              `  "${p.place}" — another research on this computer maps "${p.place}" (${signsText(o)}${o.sure ? `; the same ${o.sure === "coords" ? "coordinates" : o.sure} as here` : ""}) to ${o.regions.map(regionArg).join(", ")}${p.options.length > 1 ? " (the researches differ)" : ""} — use it only if it is the same place: ${map(p.place, o.regions)}`,
+          ),
+        ),
+        plan.suggested.length > PLACES_SHOWN ? `  … ${plan.suggested.length - PLACES_SHOWN} more: strom history adopt --dry-run` : "",
+      ].filter(Boolean).join("\n"),
+    },
+  ];
 }
 
 /** One short section for a session that reads records while the experiment is on: a local event read in them. */

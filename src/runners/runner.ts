@@ -65,11 +65,14 @@ export interface RunOptions {
   /** A reader (strom read, clips, transcripts): it opens the views it is given and writes its report — nothing else. */
   reader?: boolean;
   /**
-   * A reader's files: the views it opens and the report it writes. Claude Code is fenced to them by its settings file;
-   * Codex and OpenCode by their own switches (Codex's sandbox writes the report's folder alone, OpenCode's rules allow
-   * these files alone) — found live: Codex's sandbox refused the report outside the folder the reader works in.
+   * A reader's files: the views it opens and the report it writes, and `room`, a folder of this reader's own (its
+   * caller's, beside its settings). Claude Code (its settings file), OpenCode (its rules) and Grok (its allow rules)
+   * are fenced to these files by name. Codex and agy fence by folders only (runners/room.ts): Codex writes its report in
+   * the room (its sandbox writes that folder alone besides the folder it works in — found live: it refused the report
+   * outside them), agy opens copies of its views in the room. Codex's sandbox still reads the whole disk (Codex has no
+   * switch to narrow it): what such a reader reads beyond its views is held only by what it is told.
    */
-  readerFiles?: { views: string[]; report: string };
+  readerFiles?: { views: string[]; report: string; room?: string };
   /** What the agent may do without asking (the user's setting agent.permissions). */
   permissions?: AgentPermissions;
   /** The shared folder (inbox, plugins): a workspace folder of the agent besides the tree. */
@@ -208,6 +211,14 @@ export interface Runner {
  */
 export function refusedByStrom(text: string): boolean {
   return /\bhook (?:error|denied): strom: /i.test(text);
+}
+
+/** A command as a run's progress shows it: "$ " and its first line, cut at 140 characters — a cut ends in "…". */
+export function commandLine(command: string): string {
+  const lines = command.split("\n");
+  const first = [...lines[0]!];
+  const cut = first.length > 140 || lines.slice(1).some((l) => l.trim());
+  return `$ ${first.slice(0, cut ? 139 : 140).join("")}${cut ? "…" : ""}`;
 }
 
 /** Recognise a subscription/usage limit in an agent's message. */

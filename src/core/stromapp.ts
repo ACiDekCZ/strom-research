@@ -533,13 +533,13 @@ export function appReadsSurnameGroups(settings: Settings, version?: string, gate
  * of that name) and none where the user chose none. The research writes the mark to every app (an older one skips it in
  * silence and loses nothing); a mark an app sends is the user's choice whatever its version — but a mark missing is
  * the user's "none" only from an app of this version on: from an older one, or one that says no version, nothing
- * changed. Not released yet (undefined): set to the version the app's "je venku" names; another copy of the app (its
- * beta, its development) gets it at once from APP_PRIMARY_NAME_BETA once that is known too.
+ * changed. Released with the app 3.18.0; another copy of the app (its beta, its development) gets it from
+ * APP_PRIMARY_NAME_BETA.
  */
-export const APP_KNOWS_PRIMARY_NAME: string | undefined = undefined;
+export const APP_KNOWS_PRIMARY_NAME: string | undefined = "3.18.0";
 
 /** The first beta of the app that writes the mark (another copy of the app gets it from it); undefined: none yet. */
-export const APP_PRIMARY_NAME_BETA: string | undefined = undefined;
+export const APP_PRIMARY_NAME_BETA: string | undefined = "3.18.0-beta.2";
 
 /** Does a file of the Strom app of this version say every choice of the name a person is shown by — a mark missing the user's "none"? */
 export function appKnowsPrimaryName(settings: Settings, version?: string): boolean {

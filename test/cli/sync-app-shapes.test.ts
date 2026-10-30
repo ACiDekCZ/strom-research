@@ -170,3 +170,26 @@ test("an age of nothing at all in any of its units sent back as the old app's 0y
     w.cleanup();
   }
 });
+
+test("an age the research wrote with a leading zero (05y) comes back from the app as 5y: no edit, also from an app that keeps every shape", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree();
+    await w.ok(["person", "add", "Vojtěch /Lhoták/", "--sex", "M"]); // P1
+    await w.ok(["event", "add", "P1", "DEAT", "--date", "1866", "--place", "Lhota", "--age", "05y"]);
+    const ged = path.join(w.dir, "strom.ged");
+    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", ged]);
+    const t = fs.readFileSync(ged, "utf8");
+    assert.match(t, /^2 AGE 5y$/m, "written without the zero");
+    const file = path.join(w.dir, "z-aplikace.ged");
+    for (const version of ["3.18.0", undefined]) {
+      fs.writeFileSync(file, fromApp(t, version));
+      assert.deepEqual((await w.ok(["sync", file, "--json"])).json.changes, [], String(version));
+    }
+    // another age is still the user's edit
+    fs.writeFileSync(file, fromApp(t, "3.18.0").replace("2 AGE 5y", "2 AGE 6y"));
+    assert.ok(said(await w.ok(["sync", file, "--json"])).some((k) => /DEAT 1866 6y/.test(k)));
+  } finally {
+    w.cleanup();
+  }
+});

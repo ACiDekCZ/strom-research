@@ -11,6 +11,8 @@ import { userHome } from "../core/paths.ts";
 import { findAgent, withoutAgentMarks } from "../core/which.ts";
 import { spawnAgent, stopTree } from "../runners/runner.ts";
 import { PROFILES } from "./profiles.ts";
+import { agentSettingsSaid } from "./effort.ts";
+import { resolveKey, splitKey, type Aliases } from "../core/modelkey.ts";
 
 export interface ModelOption {
   /** What the agent takes (--model). */
@@ -105,13 +107,18 @@ export function sameLineNewer(before: string, now: string): boolean {
 
 const id = (m: string) => m.trim().toLowerCase();
 
+/** Whether a model's name, or its maker's description of it, says it is a fast, small, cheap or older one. */
+export function weakModel(m: ModelOption & { about?: string }): boolean {
+  return words(m.id).some((w) => WEAK.has(w)) || words(m.label ?? "").some((w) => WEAK.has(w)) || words(m.about ?? "").some((w) => WEAK_ABOUT.has(w));
+}
+
 /**
  * The strong models of a list, in the order to offer them: never a fast, small or cheap one; the strongest line of a
  * maker first (Opus, Pro, Astra), then the one below (Sonnet, Sol), then the rest; makers in the order the agent lists
  * them (its own first), the newest version first, at most two of one line, three in all.
  */
 export function strongModels(list: (ModelOption & { about?: string })[], max = 3): ModelOption[] {
-  const kept = list.filter((m) => !words(m.id).some((w) => WEAK.has(w)) && !words(m.label ?? "").some((w) => WEAK.has(w)) && !words(m.about ?? "").some((w) => WEAK_ABOUT.has(w)));
+  const kept = list.filter((m) => !weakModel(m));
   const tier = (m: ModelOption) => {
     const w = [...words(m.id), ...words(m.label ?? "")];
     return w.some((x) => TOP.has(x)) ? 2 : w.some((x) => HIGH.has(x)) ? 1 : 0;
@@ -268,4 +275,51 @@ export async function modelChoices(agent: string, env: Env, ms = Number(env.STRO
   const strong = strongModels(list);
   if (!strong.length) return fallback();
   return { models: strong, source: "agent", ...(agentDefault ? { agentDefault } : {}) };
+}
+
+/** The model an agent takes on its own, as strom knows it (ownModel). */
+export interface OwnModel {
+  model: string;
+  from: "config" | "seen" | "known";
+  weak: boolean;
+  refused: boolean;
+}
+
+/** Antigravity's own model when this was written (it names no model in its stream): a Flash one. */
+const OWN_KNOWN: Record<string, string> = { antigravity: "Gemini Flash" };
+
+/** Codex's catalog for the account as it keeps it beside its config (every model, hidden ones too; none: unknown). */
+function codexCatalog(env: Env): { id: string; about?: string; label?: string }[] {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(env.CODEX_HOME || path.join(userHome(env), ".codex"), "models_cache.json"), "utf8")) as { models?: unknown };
+    if (!Array.isArray(raw?.models)) return [];
+    return raw.models
+      .filter((m): m is { slug: string; display_name?: string; description?: string } => typeof m?.slug === "string")
+      .map((m) => ({ id: m.slug, ...(m.display_name ? { label: m.display_name } : {}), ...(m.description ? { about: m.description } : {}) }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The model an agent takes on its own (none set in strom), as strom knows it without starting anything: Codex's from
+ * its config.toml (its profile's too); another agent's as this research saw it run (.strom/metrics/models.json: what
+ * the agent alone ran on); Antigravity names none it runs on — its own when this was written is a Flash one (why its
+ * readers read with the research's model: core/config.ts models). `weak`: by its name or the maker's description; `refused`: Codex's catalog for the account
+ * (models_cache.json) is known and does not hold it — Codex says "the model is not supported" to it. Nothing known:
+ * undefined (never a guess).
+ */
+export function ownModel(agent: string, env: Env, aliases?: Aliases): OwnModel | undefined {
+  if (agent === "codex") {
+    const said = agentSettingsSaid(env, "codex", {});
+    if (said.model) {
+      const catalog = codexCatalog(env);
+      const known = catalog.find((m) => m.id === said.model);
+      return { model: said.model, from: "config", weak: weakModel(known ?? { id: said.model }), refused: catalog.length > 0 && !known };
+    }
+  }
+  const seen = aliases ? splitKey(resolveKey(agent, aliases)).model : undefined;
+  if (seen) return { model: seen, from: "seen", weak: weakModel({ id: seen }), refused: false };
+  const known = OWN_KNOWN[agent];
+  return known ? { model: known, from: "known", weak: true, refused: false } : undefined;
 }

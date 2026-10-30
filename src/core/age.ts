@@ -84,7 +84,8 @@ export function normalizeAge(input: string): string | undefined {
   // the keywords in words, as programs write them back ("kojenec", "mrtvě narozené", "Säugling")
   const word = WORDS[raw.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()];
   if (word) return word;
-  if (isGedcomAge(raw)) return raw;
+  // "05y" as the research had it is the app's "5y": a number without its leading zeros (its units of nothing stay, "0y 2m")
+  if (isGedcomAge(raw)) return raw.replace(/\d+/g, (n) => String(Number(n)));
   let rest = plainFractions(raw.replace(/,(?!\d)/g, " ")).trim();
   let sign = "";
   if (/^[<>]/.test(rest)) {

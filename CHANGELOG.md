@@ -5,15 +5,46 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.24.0
+
+*In preparation: the betas up to 1.24.0-beta.1. The section is complete with the release.*
+
+- **Places mapped once for every research on this computer.** A place another research here has mapped to its
+  regions of history is taken over when it is surely the same place (the same name and the same coordinates, parish
+  or district) and every research maps it alike; only the place's map crosses, nothing of the family. A place of the
+  same name that is not surely the same is offered to the agent as a suggestion; the agent maps only the rest.
+  `strom history adopt --dry-run` says what would be taken.
+- **The fixes of a research for the Strom app.** The bridge lists what `strom fixes` offers in the research (title,
+  what it does, how many items, its state, whether it can be put back), free and without writing anything; the link
+  `strom-research://fixes` opens a fix in the research's terminal, where setting it right or putting it back is
+  always asked first.
+- **The page of each scan in the Strom app.** The Strom file now gives each source the page of its scan in the online
+  archive: the page of its first image, else the source's own address. The Strom app links it for the excerpts the
+  file leaves out and for the sources without an excerpt. Only a public web page, never a recordset's address; the
+  standard GEDCOM file keeps the address in the note.
+- **A house number and an age as they were written.** The word for a house number ("No.", "čp.") is put only before
+  a number standing alone; a street with its number goes into the file as it is. An age of "05y" is read as 5 years.
+  Both come back from the Strom app the same, no edit of the user's.
+- **The question about history says where it holds.** Turning the events of history on or off holds for every
+  research on this computer; the question says so, and how to change it for one research alone.
+- **A weak or refused model of the agent said by the doctor.** When no model is chosen for the research and the
+  agent's own default is one the research found weak or refused for its work, `strom doctor` warns and gives the
+  command to choose one; it never chooses itself.
+- **strom from npm keeps its channel.** strom installed with npm stays on the channel it was installed from, also
+  after a release; a channel chosen with `strom update --channel` is kept for it too.
+- **A failed command takes back only its own.** A command that saved on the way and then failed takes back only what
+  came after its save, so the research never looks changed outside strom.
+
 ## 1.23.0
 
-*In preparation: the betas up to 1.23.0-beta.4. The section is complete with the release.*
+*2026-10-30 · goes with the Strom app 3.18.0.*
 
 - **A person shown by the name chosen.** A woman born under one name, married under another and back at the first
   after a divorce can be shown by that name again without it being added twice: `strom name primary <person>
   "<name>"` (and `--clear`), or `strom name add --primary`. The choice is the user's alone, never read from a record;
   corrections, citations and the sync with the Strom app still go by the birth name. The Strom file marks the chosen
-  name, the standard GEDCOM file gives it first.
+  name, the standard GEDCOM file gives it first. The Strom app 3.18.0 shows the person by it, and a name chosen there
+  comes back with the sync.
 - **The file for the Strom app without warnings.** Exporting for the Strom app warned of a non-standard tag on each
   person with a chosen name and on several marks of sources; the check now knows every tag of Strom's own.
 - **A commit made with git on top of a research sealed with two keys (Windows).** `strom check` advised `strom repair`

@@ -115,3 +115,41 @@ test("a command taken back after its git add (its commit not made): nothing of i
   assert.equal(fs.existsSync(file), false);
   assert.equal(status(w), "");
 });
+
+test("a command that committed on the way and then fails at its last commit: only what came after the commit on the way is taken back", { skip: !hasGit }, async (t) => {
+  const w = await world(t);
+  const tree = Tree.open(w.cwd, w.env);
+  const jan = JSON.parse(fs.readFileSync(path.join(w.cwd, "data", "persons", "P0001.json"), "utf8"));
+  const note = path.join(w.cwd, "notes", "Lhota ř.md");
+  let first = "";
+  let second = "";
+  assert.throws(() =>
+    tree.withTreeLock(() => {
+      try {
+        first = tree.allocate("P");
+        tree.put({ ...jan, id: first }, { op: "person.add", targets: [first], summary: `Add ${first}` });
+        // outside the pathspec of the commit on the way: not in it, taken back with the rest
+        tree.remember(note);
+        fs.mkdirSync(path.dirname(note), { recursive: true });
+        fs.writeFileSync(note, "Lhoták\n");
+        assert.ok(tree.commit(`Add ${first}`, ["data"]));
+        second = tree.allocate("P");
+        tree.put({ ...jan, id: second }, { op: "person.add", targets: [second], summary: `Add ${second}` });
+        // its last commit fails (found on Windows: _counters.json held by another program)
+        counterHeldForRename(t);
+        tree.commit(`Add ${second}`, ["data"]);
+      } catch (e) {
+        t.mock.restoreAll();
+        tree.rollback();
+        throw e;
+      }
+    }),
+  );
+  t.mock.restoreAll();
+  assert.ok(fs.existsSync(path.join(w.cwd, "data", "persons", `${first}.json`)), "what the commit on the way holds stays");
+  assert.ok(!fs.existsSync(path.join(w.cwd, "data", "persons", `${second}.json`)));
+  assert.ok(!fs.existsSync(note));
+  const all = spawnSync("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: w.cwd, encoding: "utf8" }).stdout;
+  assert.equal(all, "", "the folder as the history has it: nothing changed outside strom");
+  await w.ok(["check"]);
+});

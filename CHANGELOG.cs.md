@@ -5,15 +5,44 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.24.0
+
+*Připravuje se: bety do 1.24.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Místa zmapovaná jednou pro všechny výzkumy na tomto počítači.** Místo, které jiný výzkum tady už přiřadil k regionům
+  dějin, se převezme, když jde jistě o totéž místo (stejný název a stejné souřadnice, farnost nebo okres) a všechny
+  výzkumy ho přiřazují stejně; přechází jen přiřazení místa, nic z rodiny. Místo stejného jména, které jistě totéž
+  není, dostane agent jako návrh; sám přiřazuje jen zbytek. `strom history adopt --dry-run` řekne, co by se převzalo.
+- **Opravy výzkumu pro aplikaci Strom.** Most vypíše, co `strom fixes` ve výzkumu nabízí (název, co dělá, kolik
+  položek, stav, jestli jde vrátit), zdarma a bez zápisu; odkaz `strom-research://fixes` otevře opravu v terminálu
+  výzkumu, kde se oprava i její vrácení vždy nejdřív potvrzuje.
+- **Stránka každého skenu v aplikaci Strom.** Soubor pro Strom dává teď každému prameni stránku jeho skenu v online
+  archivu: stránku jeho prvního obrázku, jinak vlastní adresu pramene. Aplikace Strom ji nabídne u výřezů, které soubor
+  vynechává, a u pramenů bez výřezu. Jen veřejná webová stránka, nikdy adresa fondu; standardní soubor GEDCOM nechává
+  adresu v poznámce.
+- **Číslo domu a věk tak, jak byly zapsány.** Slovo pro číslo domu („No.“, „čp.“) se dává jen před samotné číslo;
+  ulice s číslem jde do souboru tak, jak je. Věk „05y“ se čte jako 5 let. Obojí se z aplikace Strom vrací stejné,
+  není to úprava uživatele.
+- **Otázka na dějiny říká, kde platí.** Zapnutí nebo vypnutí událostí dějin platí pro všechny výzkumy na tomto
+  počítači; otázka to říká, i jak to změnit jen pro jeden výzkum.
+- **Slabý nebo odmítnutý model agenta hlásí doctor.** Když výzkum nemá zvolený model a vlastní výchozí model agenta je
+  ten, který výzkum shledal pro svou práci slabým nebo odmítnutým, `strom doctor` varuje a dá příkaz k volbě; sám
+  nikdy nevolí.
+- **strom z npm drží svůj kanál.** strom nainstalovaný přes npm zůstává na kanálu, ze kterého byl nainstalován, i po
+  vydání; kanál zvolený přes `strom update --channel` se pro něj také pamatuje.
+- **Příkaz, který selže, vrátí jen své.** Příkaz, který cestou uložil a pak selhal, vrátí jen to, co přišlo po jeho
+  uložení, takže výzkum nikdy nevypadá změněný mimo strom.
+
 ## 1.23.0
 
-*Připravuje se: bety do 1.23.0-beta.4. Oddíl bude úplný s vydáním.*
+*30. 10. 2026 · patří k aplikaci Strom 3.18.0.*
 
 - **Osoba ukázaná zvoleným jménem.** Žena narozená pod jedním jménem, provdaná pod druhým a po rozvodu zase u prvního
   se dá ukazovat tímto jménem znovu, aniž by se přidávalo podruhé: `strom name primary <osoba> "<jméno>"` (a
   `--clear`), nebo `strom name add --primary`. Volba patří jen uživateli, nikdy se nečte ze záznamu; opravy, citace
   i synchronizace s aplikací Strom se dál řídí rodným jménem. Soubor pro Strom zvolené jméno označí, standardní soubor
-  GEDCOM ho dá na první místo.
+  GEDCOM ho dá na první místo. Aplikace Strom 3.18.0 osobu tímto jménem ukazuje a jméno zvolené v ní se synchronizací
+  vrací do výzkumu.
 - **Soubor pro aplikaci Strom bez varování.** Export pro aplikaci Strom varoval před nestandardní značkou u každé
   osoby se zvoleným jménem a u několika značek zdrojů; kontrola teď zná všechny vlastní značky Stromu.
 - **Commit gitem navrch výzkumu zapečetěného dvěma klíči (Windows).** `strom check` radil zároveň `strom repair` i

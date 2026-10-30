@@ -26,19 +26,21 @@ import { metricsDir } from "../core/metrics.ts";
 import { runGit } from "../core/git.ts";
 import { READER_MS_MAX, readExpectDefault } from "../core/live-read.ts";
 import { foldText } from "../core/text.ts";
-import type { Finding } from "../core/reader.ts";
 import { loadReadings, type Block, type Reading } from "./readings.ts";
 import { isArchive } from "../core/mode.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import type { Context } from "../cli/context.ts";
-import { readerAgent } from "./readers.ts";
+import { readerAgentOf } from "./readers.ts";
+import type { Settings } from "../core/config.ts";
+import { calibrationLabel } from "../core/viewsizes.ts";
+import { BATCH, type Finding } from "../core/reader.ts";
 import { calibrationKey, fits, keyOf, loadAliases, resolveKey, splitKey, UNKNOWN_KEY, type Aliases } from "../core/modelkey.ts";
 import { sameLineNewer } from "../agents/models.ts";
 import { kinship } from "../core/kin.ts";
 import { listReadings, loadState, resultPath, type ReadResult } from "../core/document.ts";
-import { participantNames, type NameRewrite } from "../core/participants.ts";
-import { appShapeFixes, type ShapeFix } from "../core/appshapefix.ts";
-import { streetPlaceFixes, type StreetFix, type StreetLeft } from "../core/streetfix.ts";
+import { nameRewritesDone, participantNames, type NameRewrite } from "../core/participants.ts";
+import { appShapeFixes, appShapesDone, type ShapeFix } from "../core/appshapefix.ts";
+import { streetPlaceFixes, streetPlacesDone, type StreetFix, type StreetLeft } from "../core/streetfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -107,8 +109,13 @@ export interface FixEnv {
 
 /** The agent and model of strom read's readers here now, and the shared folder. */
 export function fixEnv(ctx: Context, tree: Tree): FixEnv {
-  const agent = readerAgent(ctx, tree);
-  return { shared: ctx.settings.shared()?.value, reader: { agent, model: ctx.settings.models(agent, tree.config).vision } };
+  return fixEnvOf(ctx.settings, ctx.env, tree);
+}
+
+/** The same without a command's context (the bridge): its settings and environment. */
+export function fixEnvOf(settings: Settings, env: Env, tree: Tree): FixEnv {
+  const agent = readerAgentOf(settings, env, tree);
+  return { shared: settings.shared()?.value, reader: { agent, model: settings.models(agent, tree.config).vision } };
 }
 
 export interface FixCheck {
@@ -130,6 +137,8 @@ export interface FixCheck {
   detect(tree: Tree, env: FixEnv): FixFindings;
   /** Where its decision is kept in strom.json "fixes" (new-model: once for each agent and model): else its id. */
   decisionKey?(tree: Tree, env: FixEnv): string;
+  /** A check that rewrites: how many of what it set right are still as it left them (strom fixes undo puts them back). */
+  applied?(tree: Tree): number;
 }
 
 /** A decision about a check, kept in strom.json: the person's no (left as it is), or set right. */
@@ -138,6 +147,8 @@ export interface FixDecision {
   at: string;
   /** The strom it was decided with. */
   version: string;
+  /** Declined by putting back what it had set right (strom fixes undo), not left as it was from the start. */
+  undone?: true;
 }
 
 export type FixStateName = "pending" | "declined" | "fixed" | "nothing";
@@ -815,6 +826,7 @@ export const PARTICIPANT_NAMES: FixCheck = {
     const f = participantNames(tree);
     return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.rewrites, unsplit: f.unsplit };
   },
+  applied: (tree) => nameRewritesDone(tree).length,
 };
 
 // ── what an older strom took for the user's edit in a send of the Strom app ──────────────────────────────────────
@@ -831,6 +843,7 @@ export const APP_SHAPES: FixCheck = {
   remedy: "rewrite",
   unit: "finding",
   detect: (tree) => ({ items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: appShapeFixes(tree) }),
+  applied: (tree) => appShapesDone(tree).length,
 };
 
 // ── a street or a house number in the place of a fact ────────────────────────────────────────────────────────────
@@ -851,6 +864,7 @@ export const STREET_PLACES: FixCheck = {
     const f = streetPlaceFixes(tree);
     return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.left.length, left: f.left };
   },
+  applied: (tree) => streetPlacesDone(tree).length,
 };
 
 /** Every check strom knows, the oldest fix first. */
@@ -888,10 +902,10 @@ export function decide(tree: Tree, id: string, decision: FixDecision["decision"]
 }
 
 /** The change of strom.json a decision makes (in an operation of its own, or in the one of the fix it goes with). */
-export function decisionChange(id: string, decision: FixDecision["decision"] | undefined): (c: TreeConfig) => void {
+export function decisionChange(id: string, decision: FixDecision["decision"] | undefined, o: { undone?: boolean } = {}): (c: TreeConfig) => void {
   return (c) => {
     const all = { ...(c.fixes ?? {}) };
-    if (decision) all[id] = { decision, at: new Date().toISOString(), version: VERSION };
+    if (decision) all[id] = { decision, at: new Date().toISOString(), version: VERSION, ...(o.undone && decision === "declined" ? { undone: true as const } : {}) };
     else delete all[id];
     if (Object.keys(all).length) c.fixes = all;
     else delete c.fixes;
@@ -1261,3 +1275,157 @@ export function fixesDoctorLine(tree: Tree, env: FixEnv, lang: string, keep = tr
   };
 }
 
+
+// ── the places read together, and what a check's texts say beside its counts ─────────────────────────────────────
+
+/**
+ * The places read together as their earlier reading read them: the images of one reading with the same question, part
+ * and blindness are one strom read again (its batches as strom read makes them); a document alone.
+ */
+export function readsOf(items: FixItem[]): FixItem[][] {
+  const out = new Map<string, FixItem[]>();
+  for (const i of items) {
+    const key = i.document ? `doc|${i.key}` : [i.reading, i.question, i.crop ?? "", i.blind ? "blind" : "", i.context ?? ""].join("|");
+    out.set(key, [...(out.get(key) ?? []), i]);
+  }
+  return [...out.values()];
+}
+
+/** The readers the places take: a document read by two takes two; a reading of more images than a batch, more. */
+export const readersOf = (items: FixItem[]) => readsOf(items).reduce((n, g) => n + (g[0]!.document ? (g[0]!.readers ?? 1) : Math.ceil(g.length / BATCH)), 0);
+
+type Say = (key: UIKey, values?: Record<string, string | number>) => string;
+
+/** "Claude Code · claude-opus-5-5" — "model unknown" where nothing says. */
+export const fixModelText = (t: Say, key: string) => (key === UNKNOWN_KEY ? t("ui.fixes.model.unknown") : calibrationLabel(key, t("ui.settings.model.own")));
+
+/** What a check's texts say beside its counts: the version that fixed it; of new-model the models before and now. */
+export function fixTextValues(t: Say, s: FixState): Record<string, string | number> {
+  const m = s.found.models;
+  if (!m) return { since: s.check.since };
+  return {
+    since: s.check.since,
+    now: fixModelText(t, m.now),
+    before: m.before.map((b) => `${fixModelText(t, b.key)} (${t("ui.fixes.readings", { n: b.readings })})`).join(", "),
+    newer: m.newer ? t("ui.fixes.new-model.newer") : "",
+  };
+}
+
+// ── for the Strom app (the bridge's GET /fixes) ─────────────────────────────────────────────────────────────────
+
+/** The languages a fix's title and summary are given to the app in. */
+export const APP_FIX_LANGS = ["cs", "en", "de"] as const;
+
+/** One check as the app shows it: what it is, what it found here, its state, whether strom fixes undo takes it back. */
+/** At most this many IDs of each kind in an app's fix (`count` says how many it found). */
+export const APP_FIX_TARGETS = 200;
+
+export interface AppFixTargets {
+  persons?: string[];
+  families?: string[];
+  places?: string[];
+  sources?: string[];
+  media?: string[];
+}
+
+/** The records a check's findings are of, by their kind: the owners of what it rewrites, the sources and images it reads again. */
+export function fixTargets(f: FixFindings): AppFixTargets | undefined {
+  const ids = new Set<string>();
+  for (const r of (f.rewrites ?? []) as { owner?: string; record?: string }[]) for (const id of [r.owner, r.record]) if (id) ids.add(id);
+  for (const l of f.left ?? []) ids.add(l.owner);
+  for (const i of f.items) {
+    for (const s of i.sources) ids.add(s);
+    if (i.media) ids.add(i.media);
+    for (const p of i.document?.persons ?? []) ids.add(p);
+  }
+  const kinds: [keyof AppFixTargets, string][] = [["persons", "P"], ["families", "F"], ["places", "L"], ["sources", "S"], ["media", "M"]];
+  const out: AppFixTargets = {};
+  for (const [kind, prefix] of kinds) {
+    const of = [...ids].filter((id) => new RegExp(`^${prefix}\\d+$`, "u").test(id)).sort();
+    if (of.length) out[kind] = of.slice(0, APP_FIX_TARGETS);
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+export interface AppFix {
+  id: string;
+  title: Record<(typeof APP_FIX_LANGS)[number], string>;
+  summary: Record<(typeof APP_FIX_LANGS)[number], string>;
+  /** What `count` counts: readings (each read again whole), places, participants, findings of a sync, facts. */
+  unit: FixCheck["unit"];
+  /** How many it found to set right (of readings again: the readings). */
+  count: number;
+  /** Found and left as it is by its rules, each with why (strom fixes show): participant-names, street-places. */
+  left?: number;
+  state: FixStateName;
+  /** strom fixes undo can put back what it set right (a check that rewrites, something of it still as it left it). */
+  undoable: boolean;
+  /** Of them, how many (with undoable). */
+  applied?: number;
+  /** When it was decided: set right or left as it is. */
+  at?: string;
+  /** Declined by putting back what it had set right (strom fixes undo): put back at `at`. */
+  undone?: true;
+  /** The records what it found is of — persons, families, places, sources, images (each at most APP_FIX_TARGETS, sorted). */
+  targets?: AppFixTargets;
+  /** What setting it right takes: free (rules, no agent), else the level of the readings again — only when found. */
+  cost?: "free" | CostLevel;
+  since: string;
+  paid: boolean;
+}
+
+/**
+ * strom's fixes of this research for the app: each check, what it found, its state and what it would take — free, as
+ * strom fixes says it (no agent, no network, nothing written: what waits is not kept, the readings' cost only estimated
+ * from the earlier readers here). Where nobody researches (`archive`: an archive, a research waiting for its agent) only
+ * the checks that rewrite by rules — nothing of an agent said. A check that cannot look here is left out.
+ */
+export function fixesForApp(tree: Tree, settings: Settings, env: Env, o: { archive: boolean }): { rev: string; fixes: AppFix[] } {
+  const fenv = fixEnvOf(settings, env, tree);
+  const rev = fixesStamp(tree, fenv);
+  const checks = o.archive ? FIX_CHECKS.filter((c) => c.remedy === "rewrite") : FIX_CHECKS;
+  const fixes = checks.flatMap((check): AppFix[] => {
+    let s: FixState;
+    try {
+      s = fixStates(tree, fenv, { checks: [check], keep: false })[0]!;
+    } catch {
+      return [];
+    }
+    const said = (key: UIKey, values?: (t: Say) => Record<string, string | number>) =>
+      Object.fromEntries(APP_FIX_LANGS.map((lang) => {
+        const t: Say = (k, v = {}) => ui(lang, k, v);
+        return [lang, t(key, values?.(t))];
+      })) as AppFix["title"];
+    const summary = !s.found.models && check.id === "new-model" ? said(`ui.fixes.${check.id}.idle` as UIKey) : said(`ui.fixes.${check.id}.what` as UIKey, (t) => fixTextValues(t, s));
+    const count = check.unit === "reading" ? s.found.readings : foundCount(s.found);
+    const applied = check.applied?.(tree) ?? 0;
+    const found = foundCount(s.found);
+    const targets = fixTargets(s.found);
+    const cost =
+      check.remedy === "rewrite"
+        ? "free"
+        : found
+          ? estimateFix(tree.root, { agent: fenv.reader!.agent, model: fenv.reader!.model, calls: readersOf(s.found.items), parallel: settings.readParallel(tree.config) }).level
+          : undefined;
+    return [
+      {
+        id: check.id,
+        title: said(`ui.fixes.${check.id}.name` as UIKey),
+        summary,
+        unit: check.unit,
+        count,
+        ...(s.found.unsplit ? { left: s.found.unsplit } : {}),
+        state: s.state,
+        undoable: applied > 0,
+        ...(applied ? { applied } : {}),
+        ...(s.decision ? { at: s.decision.at } : {}),
+        ...(s.decision?.undone ? { undone: true as const } : {}),
+        ...(targets ? { targets } : {}),
+        ...(cost ? { cost } : {}),
+        since: check.since,
+        paid: check.paid,
+      },
+    ];
+  });
+  return { rev, fixes };
+}

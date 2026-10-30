@@ -8,10 +8,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runJsonLines, type Heard } from "./jsonl.ts";
-import { looksLikeLimit, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { commandLine, looksLikeLimit, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 import type { AgentWeb } from "../core/metrics.ts";
 import { codexModel, effortArgs } from "../agents/effort.ts";
 import { isolated, type Env } from "../core/paths.ts";
+import { inRoom, readerRoom } from "./room.ts";
 
 /**
  * What Codex's sandbox lets it write besides the tree folder: the tree's .git — its sandbox keeps a .git
@@ -26,6 +27,8 @@ export function codexWritable(root: string, shared: string | undefined): string[
  * A reader's sandbox: the folder of its report the one place it writes besides the folder it works in (found live: the
  * report in the tree's notes/readings was refused, "writing outside of the project"), and no network — it reads the
  * views it is given, it fetches nothing. Whatever the person's level: a reader opens its views and writes its report.
+ * Its report is in its room (runners/room.ts), a folder that holds it alone — never notes/readings itself, where the
+ * reports and results of every other reading are.
  */
 export function codexReaderWritable(files: NonNullable<RunOptions["readerFiles"]>): string[] {
   return ["-c", `sandbox_workspace_write.writable_roots=${JSON.stringify([path.dirname(path.resolve(files.report))])}`];
@@ -109,60 +112,66 @@ export const codexRunner: Runner = {
   id: "codex",
   command: "codex",
   run(opts: RunOptions): Promise<RunResult> {
-    const resume = (id: string, message: string) => ({ args: codexResumeArgs(id, opts), input: message });
-    // the model it runs on as strom knows it (Codex says none): started with, else its config.toml's
-    const model = codexModel(opts.env, opts.model, opts.extraArgs);
-    // the steps since the use was said last (each sample carries its own)
-    let steps = 0;
-    // A turn's use: Codex says it at the turn's end (turn.completed; a failed turn only if it carries one — 0.155 does not).
-    const used = (u: Record<string, number>, heard: Heard) => {
-      const m = heard.metrics;
-      m.inputTokens = (m.inputTokens ?? 0) + (u.input_tokens ?? 0);
-      m.outputTokens = (m.outputTokens ?? 0) + (u.output_tokens ?? 0);
-      m.cacheReadTokens = (m.cacheReadTokens ?? 0) + (u.cached_input_tokens ?? 0);
-      // a turn's use as a whole — exec runs the session as one turn of many requests, so its input is the sum of theirs,
-      // never a context: no ctx (a resumed turn's smaller sum would read as the context cleared); no cost said
-      tellUsage(opts, { total: true, in: usageNumber(u.input_tokens), cr: usageNumber(u.cached_input_tokens), out: usageNumber(u.output_tokens), turns: steps || undefined });
-      steps = 0;
-    };
-    return runJsonLines("codex", codexArgs(opts), opts.env, opts, resume, (msg, heard) => {
-      if (msg.type === "thread.started" && typeof msg.thread_id === "string") {
-        heard.sessionId = msg.thread_id;
-        // its stream names no model: the one strom knows it runs on is the session's (the measure of the reading goes by it)
-        if (model) heard.metrics.model = model;
-        tellUsage(opts, { agentSession: msg.thread_id, ...(model ? { model } : {}) });
-      }
-      const item = msg.item as { type?: string; text?: string; command?: string; exit_code?: number | null; aggregated_output?: string } | undefined;
-      if (msg.type === "item.started" && item?.type === "command_execution" && item.command) opts.onProgress?.(`$ ${item.command.replace(/^\S*sh -lc '(.*)'$/s, "$1").split("\n")[0]!.slice(0, 140)}`);
-      if (msg.type === "item.completed" && item?.type === "agent_message" && item.text) {
-        heard.text = item.text;
-        opts.onProgress?.(item.text.trim().split("\n")[0]!.slice(0, 160));
-      }
-      // The sandbox refused a command (a write outside the tree, the network off): counted like a denial.
-      if (msg.type === "item.completed" && item?.type === "command_execution" && item.exit_code !== 0 && /operation not permitted|sandbox|read-only file system/i.test(item.aggregated_output ?? ""))
-        heard.denied.push(`Bash: ${String(item.command ?? "").replace(/^\S*sh -lc '(.*)'$/s, "$1").slice(0, 120)}`);
-      // its web search, once its item is done (counted after the fact: core/metrics.ts)
-      if (msg.type === "item.completed") {
-        const w = codexWeb(msg.item as Record<string, unknown> | undefined);
-        if (w) tellWeb(opts, w);
-      }
-      if (msg.type === "item.completed" && item?.type && STEPS.has(item.type)) {
-        steps++;
-        heard.metrics.turns = (heard.metrics.turns ?? 0) + 1;
-      }
-      if (msg.type === "turn.completed") used((msg.usage ?? {}) as Record<string, number>, heard);
-      if (msg.type === "turn.failed" && msg.usage && typeof msg.usage === "object") used(msg.usage as Record<string, number>, heard);
-      else if (msg.type === "turn.failed") {
-        // the failed turn's use is not said (a plan's limit, an error of the service): more was used than is known
-        heard.metrics.costPartial = true;
-        tellUsage(opts, { turns: steps || undefined, partial: true });
-        steps = 0;
-      }
-      if (msg.type === "turn.failed" || msg.type === "error") {
-        heard.isError = true;
-        const e = msg.error as { message?: string } | undefined;
-        heard.text = failure(String(e?.message ?? msg.message ?? ""), heard.text);
-      }
-    });
+    // a reader writes its report in its room, a folder of its own (mirrored to its report as it goes)
+    return opts.readerFiles ? inRoom(readerRoom(opts, { report: true }), runCodex) : runCodex(opts);
   },
 };
+
+/** A run of Codex, a reader's in its room. */
+function runCodex(opts: RunOptions): Promise<RunResult> {
+  const resume = (id: string, message: string) => ({ args: codexResumeArgs(id, opts), input: message });
+  // the model it runs on as strom knows it (Codex says none): started with, else its config.toml's
+  const model = codexModel(opts.env, opts.model, opts.extraArgs);
+  // the steps since the use was said last (each sample carries its own)
+  let steps = 0;
+  // A turn's use: Codex says it at the turn's end (turn.completed; a failed turn only if it carries one — 0.155 does not).
+  const used = (u: Record<string, number>, heard: Heard) => {
+    const m = heard.metrics;
+    m.inputTokens = (m.inputTokens ?? 0) + (u.input_tokens ?? 0);
+    m.outputTokens = (m.outputTokens ?? 0) + (u.output_tokens ?? 0);
+    m.cacheReadTokens = (m.cacheReadTokens ?? 0) + (u.cached_input_tokens ?? 0);
+    // a turn's use as a whole — exec runs the session as one turn of many requests, so its input is the sum of theirs,
+    // never a context: no ctx (a resumed turn's smaller sum would read as the context cleared); no cost said
+    tellUsage(opts, { total: true, in: usageNumber(u.input_tokens), cr: usageNumber(u.cached_input_tokens), out: usageNumber(u.output_tokens), turns: steps || undefined });
+    steps = 0;
+  };
+  return runJsonLines("codex", codexArgs(opts), opts.env, opts, resume, (msg, heard) => {
+    if (msg.type === "thread.started" && typeof msg.thread_id === "string") {
+      heard.sessionId = msg.thread_id;
+      // its stream names no model: the one strom knows it runs on is the session's (the measure of the reading goes by it)
+      if (model) heard.metrics.model = model;
+      tellUsage(opts, { agentSession: msg.thread_id, ...(model ? { model } : {}) });
+    }
+    const item = msg.item as { type?: string; text?: string; command?: string; exit_code?: number | null; aggregated_output?: string } | undefined;
+    if (msg.type === "item.started" && item?.type === "command_execution" && item.command) opts.onProgress?.(commandLine(item.command.replace(/^\S*sh -lc '(.*)'$/s, "$1")));
+    if (msg.type === "item.completed" && item?.type === "agent_message" && item.text) {
+      heard.text = item.text;
+      opts.onProgress?.(item.text.trim().split("\n")[0]!.slice(0, 160));
+    }
+    // The sandbox refused a command (a write outside the tree, the network off): counted like a denial.
+    if (msg.type === "item.completed" && item?.type === "command_execution" && item.exit_code !== 0 && /operation not permitted|sandbox|read-only file system/i.test(item.aggregated_output ?? ""))
+      heard.denied.push(`Bash: ${String(item.command ?? "").replace(/^\S*sh -lc '(.*)'$/s, "$1").slice(0, 120)}`);
+    // its web search, once its item is done (counted after the fact: core/metrics.ts)
+    if (msg.type === "item.completed") {
+      const w = codexWeb(msg.item as Record<string, unknown> | undefined);
+      if (w) tellWeb(opts, w);
+    }
+    if (msg.type === "item.completed" && item?.type && STEPS.has(item.type)) {
+      steps++;
+      heard.metrics.turns = (heard.metrics.turns ?? 0) + 1;
+    }
+    if (msg.type === "turn.completed") used((msg.usage ?? {}) as Record<string, number>, heard);
+    if (msg.type === "turn.failed" && msg.usage && typeof msg.usage === "object") used(msg.usage as Record<string, number>, heard);
+    else if (msg.type === "turn.failed") {
+      // the failed turn's use is not said (a plan's limit, an error of the service): more was used than is known
+      heard.metrics.costPartial = true;
+      tellUsage(opts, { turns: steps || undefined, partial: true });
+      steps = 0;
+    }
+    if (msg.type === "turn.failed" || msg.type === "error") {
+      heard.isError = true;
+      const e = msg.error as { message?: string } | undefined;
+      heard.text = failure(String(e?.message ?? msg.message ?? ""), heard.text);
+    }
+  });
+}

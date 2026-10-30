@@ -15,6 +15,8 @@ import { which, withoutAgentMarks } from "../core/which.ts";
 import { permissionPath } from "../agents/files.ts";
 import { viewSizesFor } from "../core/viewsizes.ts";
 import type { Tree } from "../core/tree.ts";
+import type { Settings } from "../core/config.ts";
+import type { Env } from "../core/paths.ts";
 import { refuseReadersWhenFinishing } from "../core/clock.ts";
 import { recordReader, tokensOf, usageOpt } from "../core/metrics.ts";
 import { imageSizeOfFile } from "../image/index.ts";
@@ -56,9 +58,14 @@ export interface ReadMore {
  * started with (strom run --agent, a conversation of another agent), else the tree's.
  */
 export function readerAgent(ctx: Context, tree: Tree): string {
-  const said = ctx.settings.agent(tree.config);
+  return readerAgentOf(ctx.settings, ctx.env, tree);
+}
+
+/** The same without a command's context (the bridge): its settings and environment. */
+export function readerAgentOf(settings: Settings, env: Env, tree: Tree): string {
+  const said = settings.agent(tree.config);
   if (said.source === "flag" || said.source === "env") return said.value;
-  const s = currentSession(tree, ctx.env);
+  const s = currentSession(tree, env);
   return [s?.runner, s?.agent].find((a): a is string => !!a && !!RUNNERS[a]) ?? said.value;
 }
 
@@ -178,7 +185,7 @@ export function readers(ctx: Context, tree: Tree, shared: string, kind: string, 
       env: { ...withoutAgentMarks(env), STROM_NONINTERACTIVE: "1", STROM_READER: "1" },
       settingsFile,
       reader: true,
-      readerFiles: { views, report },
+      readerFiles: { views, report, room: own },
       // without the user's own add-ons (skills, plugins, MCP servers) unless they said otherwise
       ...(ctx.settings.agentAddons(tree.config) ? {} : { clean: true }),
       timeoutMs: limit.minutes * 60_000,

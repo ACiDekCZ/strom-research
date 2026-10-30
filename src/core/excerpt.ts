@@ -14,6 +14,7 @@ import { clipText, inputPath, sharperPart } from "./media.ts";
 import { kinship } from "./kin.ts";
 import { convertedDir, readableFile } from "./readable.ts";
 import { Settings } from "./config.ts";
+import { excerptPage } from "./scanlink.ts";
 import { crop, resize, toGrey, upright, type RawImage } from "../image/image.ts";
 import { decodeImage, encodeImage, exifOrientation, imageSize } from "../image/index.ts";
 
@@ -520,7 +521,7 @@ export function fullExcerpt(tree: Tree, shared: string, s: Source, mark: string)
   const region = sharper?.crop ?? wanted;
   const file = path.join(shared, src.file);
   if (!fs.existsSync(file)) {
-    const url = m.url ?? src.url;
+    const url = excerptPage(m.url ?? src.url, s);
     return url ? { url } : { missing: "scan" };
   }
   const key = crypto.createHash("sha256").update(JSON.stringify({ sha: src.sha, region, full: 1 })).digest("hex").slice(0, 16);

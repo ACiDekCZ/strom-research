@@ -17,7 +17,7 @@
 // is on: --strict-mcp-config, --tools <what strom uses>, no auto-memory.
 
 import { randomUUID } from "node:crypto";
-import { appendLog, feedStdin, looksLikeLimit, looksLikeModelRejected, mergeLimits, refusedByStrom, OWN_GROUP, usageNumber, spawnAgent, stopTree, tellUsage, type AgentLimit, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
+import { appendLog, commandLine, feedStdin, looksLikeLimit, looksLikeModelRejected, mergeLimits, refusedByStrom, OWN_GROUP, usageNumber, spawnAgent, stopTree, tellUsage, type AgentLimit, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
 import { effortArgs } from "../agents/effort.ts";
 import type { SessionMetrics } from "../core/model.ts";
 import { addResponses, type Responses } from "./jsonl.ts";
@@ -26,7 +26,7 @@ import { StringDecoder } from "node:string_decoder";
 
 function describeTool(block: { name?: string; input?: Record<string, unknown> }): string {
   const input = block.input ?? {};
-  if (block.name === "Bash" && typeof input.command === "string") return `$ ${input.command.split("\n")[0]!.slice(0, 140)}`;
+  if (block.name === "Bash" && typeof input.command === "string") return commandLine(input.command);
   if (typeof input.file_path === "string") return `${block.name} ${input.file_path}`;
   if (typeof input.url === "string") return `${block.name} ${input.url}`;
   if (typeof input.query === "string") return `${block.name} "${input.query}"`;

@@ -11,7 +11,7 @@
 import path from "node:path";
 import { runJsonLines, webUse } from "./jsonl.ts";
 import { OPENCODE_RUN_AGENT } from "../agents/files.ts";
-import { usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { commandLine, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 
 /** OpenCode's own web tools (OpenCode 2: webfetch with its url, websearch with its query), counted once each call is done. */
 export const OPENCODE_WEB = { page: ["webfetch"], search: ["websearch"] } as const;
@@ -89,7 +89,7 @@ export const opencodeRunner: Runner = {
         const state = (part.state ?? {}) as { status?: string; input?: Record<string, unknown>; error?: string };
         const input = state.input ?? {};
         const what = typeof input.command === "string" ? `$ ${input.command}` : typeof input.filePath === "string" ? `${String(part.tool)} ${input.filePath}` : String(part.tool ?? "tool");
-        opts.onProgress?.(what.split("\n")[0]!.slice(0, 140));
+        opts.onProgress?.(typeof input.command === "string" ? commandLine(input.command) : what.split("\n")[0]!.slice(0, 140));
         // (its shell tool: "bash", "shell" from OpenCode 2 — named "Bash" like Claude Code's, so a refused strom stops the run)
         const refused = state.status === "error" && /reject|denied|not allowed|permission/i.test(state.error ?? "");
         if (refused) heard.denied.push(typeof input.command === "string" ? `Bash: ${input.command.slice(0, 120)}` : `${String(part.tool)}: ${what.slice(0, 120)}`);

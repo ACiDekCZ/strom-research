@@ -114,7 +114,7 @@ test("registered on Linux and Windows through the system's own tools (here faked
   const entry = fs.readFileSync(file, "utf8");
   assert.match(entry, /^Exec=\/usr\/bin\/env "STROM_CONFIG_DIR=[^"]+config" .* link open %u$/m, "its settings folder goes along");
   assert.equal(linkHandlerState(env, "linux", linux), "ours");
-  assert.deepEqual(linkActions("ours"), ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history"]);
+  assert.deepEqual(linkActions("ours"), ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes"]);
   // strom moved (its entry runs another place): not ours — the app is told nothing
   fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace(/^Exec=.*$/m, "Exec=/old/node /old/cli.js link open %u"));
   assert.equal(linkHandlerState(env, "linux", linux), "other");
