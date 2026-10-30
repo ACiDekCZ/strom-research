@@ -166,6 +166,40 @@ test("strom doctor names two keys of this computer and unites them on the person
   w.cleanup();
 });
 
+test("a key taken from a packaged app's copy goes also where the terminal's older strom looks, nothing there replaced", opts, async () => {
+  const w = new World();
+  const P = path.join(w.dir, "old-app");
+  const T = path.join(w.dir, "old-terminal");
+  const N = path.join(w.dir, "settings");
+  // 1.22.1: the research made in the app (its key in the app's copy alone), the terminal's own settings without that key
+  await w.ok(["setup", "--yes"], { env: { STROM_CONFIG_DIR: P } });
+  w.historyAsked({ STROM_CONFIG_DIR: P });
+  await w.ok(["init", "Lhotákovi"], { env: { STROM_CONFIG_DIR: P } });
+  w.cwd = w.treeDir("Lhotákovi");
+  await w.ok(["person", "add", "Jan /Lhoták/", "--sex", "M"], { env: { STROM_CONFIG_DIR: P } });
+  await w.ok(["setup", "--yes"], { env: { STROM_CONFIG_DIR: T } });
+  const id = readJsonFile(path.join(w.cwd, "strom.json")).id as string;
+  const keyOf = (dir: string) => path.join(dir, "keys", `${id}.key`);
+  assert.equal(fs.existsSync(keyOf(T)), false);
+  // the terminal after the update: the app's key taken, and put where 1.22.1 of the terminal reads
+  const terminal = { STROM_CONFIG_DIR: N, STROM_TEST_OLD_SETTINGS: [T, P].join(path.delimiter) };
+  await w.ok(["check"], { env: terminal });
+  assert.equal(fs.readFileSync(keyOf(N), "utf8"), fs.readFileSync(keyOf(P), "utf8"));
+  assert.equal(fs.readFileSync(keyOf(T), "utf8"), fs.readFileSync(keyOf(P), "utf8"));
+  // taken over by an update before this one (today's folder has it, the old one not): put there by the next command
+  fs.rmSync(keyOf(T));
+  await w.ok(["person", "add", "Eva /Lhotáková/", "--sex", "F"], { env: terminal });
+  assert.equal(fs.readFileSync(keyOf(T), "utf8"), fs.readFileSync(keyOf(N), "utf8"));
+  // back on the older strom of the terminal: written on, nothing refused
+  await w.ok(["person", "add", "Petr /Lhoták/", "--sex", "M"], { env: { STROM_CONFIG_DIR: T } });
+  await w.ok(["verify"], { env: { STROM_CONFIG_DIR: T } });
+  // a key of its own there stays
+  fs.writeFileSync(keyOf(T), "ab".repeat(32) + "\n");
+  await w.run(["check"], { env: terminal });
+  assert.equal(fs.readFileSync(keyOf(T), "utf8"), "ab".repeat(32) + "\n");
+  w.cleanup();
+});
+
 /**
  * One key, the research made in the app (its strom sees its own copy only, the terminal's key out of its sight), then the
  * same research seen from the terminal: what the app's strom and the terminal's both see.
@@ -204,7 +238,7 @@ test("a commit made with git in the packaged app's research is git used directly
   // and what both advise does it: back to the last sealed state, both sides write on — said as it is: sealed again
   const repair = await w.ok(["repair", "--json"], { env: terminal });
   assert.equal(repair.json.resealed, true);
-  assert.match((await w.run(["repair"], { env: terminal })).out, /nothing to repair/, "sealed already: nothing more");
+  assert.match((await w.run(["repair"], { env: terminal })).out, /není co opravit/, "sealed already: nothing more");
   for (const env of [app, terminal]) await w.ok(["check"], { env });
   await w.ok(["person", "add", "Petr /Lhoták/", "--sex", "M"], { env: app });
   await w.ok(["verify"], { env: terminal });
@@ -274,6 +308,15 @@ test("a commit made with git on top of the terminal's work: one way, strom repai
   const hints = agentCheck.json.findings.map((f: { hint?: string }) => f.hint ?? "").join("\n");
   assert.match(hints, /the user runs in their terminal: strom repair/, hints);
   assert.doesNotMatch(hints, /never strom repair/, hints);
+  // the app's agent refused to write: the same way, never first the app's strom repair, which refuses
+  const write = await w.run(["person", "add", "Petr /Lhoták/", "--sex", "M", "--json"], { env: { ...app, CLAUDECODE: "1" } });
+  assert.equal(write.code, 1, write.out + write.err);
+  assert.match(write.json.hint, /the user runs in their terminal: strom repair.+then strom seal adopt/, write.json.hint);
+  assert.doesNotMatch(write.json.hint, /^strom repair/m, write.json.hint);
+  // the terminal's agent: its own strom repair, which says what next (strom seal adopt)
+  const there = await w.run(["person", "add", "Petr /Lhoták/", "--sex", "M", "--json"], { env: { ...terminal, CLAUDECODE: "1" } });
+  assert.match(there.json.hint, /^strom repair/m, there.json.hint);
+  assert.doesNotMatch(there.json.hint, /in their terminal/, there.json.hint);
   // uniting first refused (a change outside strom), saying the same way
   const unite = await w.run(["seal", "adopt"], { env: terminal, tty: true, answers: [""] });
   assert.notEqual(unite.code, 0, unite.out);
@@ -323,7 +366,7 @@ test("strom repair on two keys of this computer alone undoes nothing: the keys u
   await w.run(["check"], { env: app });
   const head = git(w.cwd, "rev-parse", "HEAD");
   const repair = await w.ok(["repair"], { env: terminal, tty: true });
-  assert.match(repair.out, /nothing to repair.+\n.+strom seal adopt/, repair.out);
+  assert.match(repair.out, /^není co opravit – každý záznam odpovídá své pečeti\ndál: .+strom seal adopt$/m, repair.out);
   assert.equal(git(w.cwd, "rev-parse", "HEAD"), head, "no commit of its own");
   assert.deepEqual(await names(w, terminal), ["Eva Lhotáková", "Jan Lhoták"]);
   w.cleanup();

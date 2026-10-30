@@ -496,6 +496,21 @@ export function writableUnasked(tree: Tree): boolean {
   }
 }
 
+/**
+ * The newest commit any key of this computer sealed (strom of an app packaged for Windows and of a terminal each had
+ * their own), and whether strom repair is the terminal's: started by such an app, a commit above it with strom's seal may
+ * be the terminal's key out of its sight — never undone from here, the terminal's strom sees both keys.
+ */
+export function lastSealed(tree: Tree, key: Buffer): { sealed: string | undefined; inTerminal: boolean } {
+  const keys = [key, ...otherKeys(tree.env, tree.config.id, key).map((o) => o.key)];
+  const above: string[] = [];
+  const sealed = git.findCommit(tree.root, (t, m) => keys.some((k) => verifyCommitSeal(k, t, m)) || (above.push(m), false));
+  return { sealed, inTerminal: !!sealed && above.some((m) => readCommitSeal(m) !== undefined) && settingsHidden(tree.env) };
+}
+
+/** What strom repair started by an app packaged for Windows says instead (lastSealed inTerminal). */
+export const REPAIR_IN_TERMINAL_HINT = "the user runs in their terminal: strom repair, then strom seal adopt   (it sees both keys and undoes only what was done outside strom)";
+
 /** Refuse to write on top of data that was changed outside strom. */
 export function assertIntact(tree: Tree): void {
   const { findings } = verifyFast(tree);
@@ -508,8 +523,15 @@ export function assertIntact(tree: Tree): void {
   if (errors.every((f) => f.code === OTHER_KEY)) throw otherKeyError(tree.config.name);
   // files only in iCloud: downloaded first — what else is wrong is judged then
   if (errors.some((f) => f.code === NOT_DOWNLOADED)) throw notDownloadedError(notDownloaded(tree.root));
+  // with another key of this computer: the one way strom check says (oneWay); started by an app packaged for Windows
+  // above the terminal's work, strom repair in the terminal — never first the app's own, which refuses (found 2026-10-30)
+  const way = errors.some((f) => f.code === OTHER_KEY)
+    ? errors.find((f) => f.code !== OTHER_KEY && f.hint?.endsWith("then strom seal adopt"))?.hint
+    : tree.key && errors.some((f) => f.code === "foreign-commit") && lastSealed(tree, tree.key).inTerminal
+      ? REPAIR_IN_TERMINAL_HINT
+      : undefined;
   throw new StromError(`data was changed outside strom (${counted(errors.length, "problem")}) — refusing to write`, {
-    hint: "strom verify   (details)\nstrom repair   (restore the last sealed state)",
+    hint: `strom verify   (details)\n${way ?? "strom repair   (restore the last sealed state)"}`,
     details: errors,
   });
 }

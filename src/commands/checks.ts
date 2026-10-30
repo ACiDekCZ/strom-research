@@ -10,9 +10,8 @@ import { counted, lines, table } from "../cli/format.ts";
 import { check, SHARED_MISSING, sharedMissing, type Finding } from "../core/check.ts";
 import { guard } from "../core/guard.ts";
 import { unprovenPeople } from "../core/review.ts";
-import { AFTER_REPAIR_HINT, NOT_DOWNLOADED, OTHER_KEY, SEALED_PATHS, notDownloaded, notDownloadedError, otherKeyError, verifyFast, verifyFull } from "../core/integrity.ts";
-import { otherKeys, readCommitSeal, verifyCommitSeal } from "../core/seal.ts";
-import { settingsHidden } from "../core/oldsettings.ts";
+import { AFTER_REPAIR_HINT, NOT_DOWNLOADED, OTHER_KEY, REPAIR_IN_TERMINAL_HINT, SEALED_PATHS, lastSealed, notDownloaded, notDownloadedError, otherKeyError, verifyFast, verifyFull } from "../core/integrity.ts";
+import { otherKeys } from "../core/seal.ts";
 import { adoptSeal, keysToUnite } from "../cli/seal.ts";
 import { NeedsConsentError, StromError } from "../core/errors.ts";
 import * as git from "../core/git.ts";
@@ -169,17 +168,13 @@ function repair(tree: Tree): Repaired {
   const key = tree.requireKey();
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const head = git.headInfo(tree.root);
-  // the newest commit any key of this computer sealed (strom of an app packaged for Windows and of a terminal each had
-  // their own): only what was done outside strom undone, the other key's work kept — strom seal adopt unites them after
-  const keys = [key, ...otherKeys(tree.env, tree.config.id, key).map((o) => o.key)];
-  const above: string[] = [];
-  const sealed = git.findCommit(tree.root, (t, m) => keys.some((k) => verifyCommitSeal(k, t, m)) || (above.push(m), false));
+  // the newest commit any key of this computer sealed: only what was done outside strom undone, the other key's work
+  // kept — strom seal adopt unites them after
+  const { sealed, inTerminal } = lastSealed(tree, key);
   if (!sealed) throw new StromError("no sealed commit found — nothing to restore from", { hint: "ask the user; the history may have been rewritten" });
-  // started by an app packaged for Windows: a commit above it with strom's seal may be the terminal's key out of its
-  // sight — never undone from here, the terminal's strom sees both keys
-  if (above.some((m) => readCommitSeal(m) !== undefined) && settingsHidden(tree.env))
+  if (inTerminal)
     throw new StromError(`"${tree.config.name}" holds work sealed with the key of the terminal's strom, which this strom (started by an app packaged for Windows) does not see — nothing repaired`, {
-      hint: "the user runs in their terminal: strom repair, then strom seal adopt   (it sees both keys and undoes only what was done outside strom)",
+      hint: REPAIR_IN_TERMINAL_HINT,
       code: "seal.repair-in-terminal",
       params: { name: tree.config.name },
     });
@@ -241,12 +236,12 @@ register(
         r.restored.length + r.quarantined.length === 0
           ? r.resealed
             ? lines(ui(lang, "ui.repair.resealed"), next)
-            : lines("nothing to repair — every record matches its seal", next)
+            : lines(ui(lang, "ui.repair.nothing"), next)
           : lines(
-              ...r.restored.map((f) => `restored  ${f}`),
-              ...r.quarantined.map((f) => `removed   ${f}`),
-              `sealed state: ${r.from.slice(0, 8)} · copies of replaced files: .strom/quarantine/`,
-              after.length ? `still ${counted(after.length, "problem")} → strom verify` : next,
+              ...r.restored.map((file) => ui(lang, "ui.repair.restored", { file })),
+              ...r.quarantined.map((file) => ui(lang, "ui.repair.removed", { file })),
+              ui(lang, "ui.repair.from", { commit: r.from.slice(0, 8) }),
+              after.length ? ui(lang, "ui.repair.still", { n: after.length }) : next,
             );
       return { text, data: { ...r, ok: after.length === 0, ...(unite ? { unite: "strom seal adopt" } : {}) }, exitCode: after.length ? 1 : 0 };
     },

@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.23.0
 
-*In Vorbereitung: die Betas bis 1.23.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.23.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Eine Person unter dem gewählten Namen.** Eine Frau, unter einem Namen geboren, unter einem anderen verheiratet und
   nach einer Scheidung wieder beim ersten, lässt sich wieder unter diesem Namen zeigen, ohne dass er ein zweites Mal
@@ -25,7 +25,16 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   check` nennt beide Schritte in dieser Reihenfolge. Aus der für Windows paketierten Desktop-App eines Agenten
   gestartet, lässt `strom repair` eine solche Forschung unverändert und verweist auf das Terminal. Nach einem Commit
   mit git, der keinen Eintrag änderte, sagt `strom repair`, dass es die Forschung neu versiegelt hat, nicht mehr
-  „nothing to repair“.
+  „nothing to repair“. Ein dort abgelehnter Schreibvorgang verweist ebenfalls auf das Terminal, nicht mehr zuerst auf
+  `strom repair`.
+- **Der Siegelschlüssel auch dort, wo ein älteres strom sucht (Windows).** Ein aus der Kopie einer für Windows
+  paketierten App übernommener Schlüssel liegt jetzt auch in `%APPDATA%\strom\keys`, wo ihn strom 1.22.1 oder älter
+  im Terminal sucht: zurück bei einer älteren Version bleibt die Forschung auf diesem Computer versiegelt. Ein Schlüssel,
+  der dort schon liegt, wird nie ersetzt.
+- **Die Erzählung eines Paares, aus der Strom-App freigegeben.** Die Frage im Terminal nennt jetzt die Erzählung des
+  Paares, nicht mehr die einer Person.
+- **`strom repair` in einer Sprache.** Jede Zeile („wiederhergestellt“, „nichts zu reparieren“ …) steht für eine
+  Person in der Sprache der Forschung; ein Agent liest sie wie bisher auf Englisch.
 
 ## 1.22.2
 

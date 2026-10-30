@@ -401,7 +401,9 @@ export async function approveStory(ctx: Context, run: Run, lang: string, root: s
   if (how === "keep") return stop(ctx, t("ui.link.story.nonew", { person: who }));
   if (st.status === "final") return stop(ctx, t("ui.link.story.final", { person: who }));
   out(ctx, lines(st.title ? `„${st.title}“` : undefined, "", st.text.replace(/\*\*/g, ""), ""));
-  if (!(await asks(ctx, lang, root, t("ui.link.what.story", { person: who })))) return false;
+  // a couple's story said as the couple's, never as a person's
+  const what = person.type === "family" ? t("ui.link.what.story.couple", { couple: who }) : t("ui.link.what.story", { person: who });
+  if (!(await asks(ctx, lang, root, what))) return false;
   if ((await run(["story", "approve", person.id], true)) !== 0) return false;
   out(ctx, t("ui.link.story.done"));
   return true;

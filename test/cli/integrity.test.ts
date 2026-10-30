@@ -47,6 +47,30 @@ test("a record created by hand is unsealed and goes to quarantine", opts, async 
   w.cleanup();
 });
 
+test("strom repair speaks one language: the research's to a person, English to an agent", opts, async () => {
+  const w = await seeded();
+  const file = person(w, "P0001");
+  const edit = () => fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace('"sex": "M"', '"sex": "F"'));
+  edit();
+  fs.writeFileSync(person(w, "P0050"), fs.readFileSync(person(w, "P0002"), "utf8").replace("P0002", "P0050"));
+  const human = await w.ok(["repair"]);
+  assert.match(human.out, /^obnoveno {2}data\/persons\/P0001\.json$/mu, human.out);
+  assert.match(human.out, /^odebráno {2}data\/persons\/P0050\.json$/mu, human.out);
+  assert.match(human.out, /^zapečetěný stav: [0-9a-f]{8} · kopie nahrazených souborů: \.strom\/quarantine\/$/mu, human.out);
+  assert.doesNotMatch(human.out, /restored|removed|sealed state|nothing to repair/, human.out);
+  assert.match((await w.ok(["repair"])).out, /^není co opravit – každý záznam odpovídá své pečeti$/mu);
+  edit();
+  const agent = await w.ok(["repair"], { env: { CLAUDECODE: "1" } });
+  assert.match(agent.out, /^restored {2}data\/persons\/P0001\.json$/mu, agent.out);
+  assert.match(agent.out, /^sealed state: [0-9a-f]{8}/mu, agent.out);
+  assert.match((await w.ok(["repair"], { env: { CLAUDECODE: "1" } })).out, /^nothing to repair — every record matches its seal$/mu);
+  // without a terminal too (a script, PowerShell): a person reads the research's language; only an agent's shell (its
+  // marks, as a Claude Code session running a test on Windows passes on) reads English (found 2026-10-30)
+  assert.match((await w.ok(["check"])).out, /^ok — data souhlasí/mu);
+  assert.match((await w.ok(["check"], { env: { CLAUDECODE: "1" } })).out, /^ok — data consistent/mu);
+  w.cleanup();
+});
+
 test("a deleted record is detected", opts, async () => {
   const w = await seeded();
   fs.rmSync(person(w, "P0002"));

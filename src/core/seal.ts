@@ -17,7 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { configDir, type Env } from "./paths.ts";
 import { canonicalize } from "./json.ts";
-import { oldKeys, oldSettingsDirs } from "./oldsettings.ts";
+import { oldKeys, oldSettingsDir } from "./oldsettings.ts";
 
 export interface SealedFile {
   path: string;
@@ -61,7 +61,10 @@ export function loadKey(env: Env, treeId: string): Buffer | undefined {
  */
 export function settleKey(env: Env, treeId: string, prefer: (key: Buffer) => boolean): Buffer | undefined {
   const own = readKey(keyFile(env, treeId));
-  if (own) return own;
+  if (own) {
+    mirrorKey(env, treeId, own);
+    return own;
+  }
   const old = oldKeys(env, treeId);
   if (!old.length) return undefined;
   const key = (old.length > 1 ? old.find((o) => prefer(o.key)) : undefined)?.key ?? old[0]!.key;
@@ -72,7 +75,26 @@ export function settleKey(env: Env, treeId: string, prefer: (key: Buffer) => boo
   } catch {
     // taken over next time
   }
+  mirrorKey(env, treeId, key);
   return key;
+}
+
+/**
+ * The key also where an older strom looks (Windows: %APPDATA%\strom\keys), made if need be — back on an older version,
+ * the research is still sealed here. Only added: a key of its own there already stays (found 2026-10-30: a key taken
+ * from a packaged app's copy, never in the folder the terminal's older strom reads).
+ */
+function mirrorKey(env: Env, treeId: string, key: Buffer): void {
+  const old = oldSettingsDir(env);
+  if (!old) return;
+  const file = path.join(old, "keys", `${treeId}.key`);
+  if (fs.existsSync(file)) return;
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, key.toString("hex") + "\n", { mode: 0o600, flag: "wx" });
+  } catch {
+    // a key of its own there already: the older strom keeps it
+  }
 }
 
 /** The tree's other keys on this computer: those of the old settings folders that are not `key` (strom seal adopt unites them). */
@@ -89,17 +111,7 @@ export function createKey(env: Env, treeId: string): Buffer {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const key = crypto.randomBytes(32);
   fs.writeFileSync(file, key.toString("hex") + "\n", { mode: 0o600, flag: "wx" });
-  // also where an older strom looks (Windows: %APPDATA%\strom), made if need be — back on an older version, the research
-  // is still sealed here
-  const old = oldSettingsDirs(env)[0];
-  if (old) {
-    try {
-      fs.mkdirSync(path.join(old, "keys"), { recursive: true });
-      fs.writeFileSync(path.join(old, "keys", `${treeId}.key`), key.toString("hex") + "\n", { mode: 0o600, flag: "wx" });
-    } catch {
-      // a key of its own there already: the older strom keeps it
-    }
-  }
+  mirrorKey(env, treeId, key);
   return key;
 }
 

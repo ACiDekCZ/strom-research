@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.23.0
 
-*Připravuje se: bety do 1.23.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.23.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Osoba ukázaná zvoleným jménem.** Žena narozená pod jedním jménem, provdaná pod druhým a po rozvodu zase u prvního
   se dá ukazovat tímto jménem znovu, aniž by se přidávalo podruhé: `strom name primary <osoba> "<jméno>"` (a
@@ -20,8 +20,16 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   „nikdy `strom repair`“ a `strom repair` vrátil zpět práci zapsanou klíčem terminálu. `strom repair` teď vrací jen
   to, co se udělalo mimo strom, práce obou klíčů zůstává; potom klíče sjednotí `strom seal adopt` ve vlastním
   terminálu – `strom check` říká oba kroky v tomto pořadí. Spuštěný z aplikace agenta balené pro Windows nechá `strom
-  repair` takový výzkum beze změny a odkáže na terminál. Po commitu gitem, který nezměnil žádný záznam, `strom repair`
-  řekne, že výzkum znovu zapečetil, už ne „nothing to repair“.
+  repair` takový výzkum beze změny a odkáže na terminál; odmítnutý zápis tam odkáže na terminál také, už ne nejdřív
+  na `strom repair`. Po commitu gitem, který nezměnil žádný záznam, `strom repair` řekne, že výzkum znovu zapečetil,
+  už ne „nothing to repair“.
+- **Pečetní klíč i tam, kde ho hledá starší strom (Windows).** Klíč převzatý z kopie aplikace balené pro Windows se
+  teď ukládá i do `%APPDATA%\strom\keys`, kde ho hledá strom 1.22.1 nebo starší v terminálu: po návratu ke starší verzi
+  zůstává výzkum na tomto počítači zapečetěný. Klíč, který tam už je, se nikdy nepřepíše.
+- **Vyprávění páru schválené z aplikace Strom.** Dotaz v terminálu teď mluví o vyprávění páru, už ne o vyprávění
+  osoby.
+- **`strom repair` jedním jazykem.** Každý jeho řádek („obnoveno“, „není co opravit“ …) je pro člověka v jazyce
+  výzkumu; agent je čte anglicky jako dřív.
 
 ## 1.22.2
 

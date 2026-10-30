@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.23.0
 
-*In preparation: the betas up to 1.23.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.23.0-beta.3. The section is complete with the release.*
 
 - **A person shown by the name chosen.** A woman born under one name, married under another and back at the first
   after a divorce can be shown by that name again without it being added twice: `strom name primary <person>
@@ -20,8 +20,16 @@ The changes of each version in short. The full notes and the install lines are o
   and never `strom repair` at once, and `strom repair` undid the work written with the terminal's key. `strom repair`
   now undoes only what was done outside strom, the work of both keys stays; then `strom seal adopt` in a terminal
   unites the keys — `strom check` says the two steps in this order. Started by an agent's desktop app packaged for
-  Windows, `strom repair` leaves such a research as it is and points to the terminal. After a commit made with git
-  that changed no record, `strom repair` says it sealed the research again, no longer "nothing to repair".
+  Windows, `strom repair` leaves such a research as it is and points to the terminal; a write refused there points to
+  the terminal too, no longer to `strom repair` first. After a commit made with git that changed no record, `strom
+  repair` says it sealed the research again, no longer "nothing to repair".
+- **The seal key also where an older strom looks (Windows).** A key taken over from the copy of an app packaged for
+  Windows is now kept in `%APPDATA%\strom\keys` too, where a terminal's strom 1.22.1 or older looks for it: back on an
+  older version, the research is still sealed on this computer. A key there already is never replaced.
+- **A couple's story approved from the Strom app.** The question in the terminal now names the story of the couple,
+  no longer of a person.
+- **`strom repair` in one language.** Every line it writes ("restored", "nothing to repair", …) is in the research's
+  language for a person; an agent reads them in English as before.
 
 ## 1.22.2
 
