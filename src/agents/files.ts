@@ -16,6 +16,7 @@ import { isArchive } from "../core/mode.ts";
 import { Settings } from "../core/config.ts";
 import { agentAppUrl, appSite } from "../core/stromapp.ts";
 import { configDir, ownCommand } from "../core/paths.ts";
+import { oldSettingsDirs, packagedSettingsPattern } from "../core/oldsettings.ts";
 import { within } from "../core/relocate.ts";
 import { agentBrowser } from "../core/connector.ts";
 import { CHROME_ALLOW, CHROME_DENY, chromeDomain } from "../core/browser.ts";
@@ -219,6 +220,16 @@ export function settingsKeptFrom(dir: string, research: string[], platform: Node
   });
 }
 
+/**
+ * What of strom's settings is kept from the agents: of today's folder, of each it was kept in before (oldsettings.ts),
+ * and every packaged app's copy whole, one made after these rules too.
+ */
+function keptSettings(tree: Tree, settings: Settings): { path: string; folder: boolean }[] {
+  const research = researchFolders(tree, settings);
+  const packaged = packagedSettingsPattern(tree.env);
+  return [...[configDir(tree.env), ...oldSettingsDirs(tree.env)].flatMap((d) => settingsKeptFrom(d, research)), ...(packaged ? [{ path: packaged, folder: true }] : [])];
+}
+
 /** The folders of the research the agent works in: its home, the shared folder, the tree. */
 function researchFolders(tree: Tree, settings: Settings): string[] {
   return [settings.home()?.value, settings.shared()?.value, tree.root].filter((p): p is string => !!p);
@@ -241,7 +252,7 @@ function treeRules(tree: Tree, agent: "claude" | "grok"): Rules {
   const shared = settings.shared()?.value;
   const claude = agent === "claude";
   const at = (abs: string) => (claude ? permissionPath(abs) : abs.replace(/\\/g, "/"));
-  const kept = settingsKeptFrom(configDir(tree.env), researchFolders(tree, settings)).map((k) => (k.folder ? `${at(k.path)}/**` : at(k.path)));
+  const kept = keptSettings(tree, settings).map((k) => (k.folder ? `${at(k.path)}/**` : at(k.path)));
   // Browser tools (Claude in Chrome): for the sites of the connectors fetching through the browser — or, agent.browser
   // always, of every archive of the research (anything else is asked in a conversation, not used in a run).
   const web = claude ? agentBrowser(tree, shared) : { on: false, hosts: [] };
@@ -424,7 +435,7 @@ export function opencodeConfig(tree: Tree): Record<string, unknown> {
           }
         : {}),
       // the seal keys and the person's settings, and what the browser downloads (strom's to take over)
-      ...Object.fromEntries(settingsKeptFrom(configDir(tree.env), researchFolders(tree, settings)).map((k) => [k.folder ? `${abs(k.path)}/*` : abs(k.path), "deny"])),
+      ...Object.fromEntries(keptSettings(tree, settings).map((k) => [k.folder ? `${abs(k.path)}/*` : abs(k.path), "deny"])),
       [`${abs(settings.downloads())}/*`]: "deny",
     },
     webfetch: "allow",

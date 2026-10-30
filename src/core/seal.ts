@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { configDir, type Env } from "./paths.ts";
 import { canonicalize } from "./json.ts";
+import { oldKeys, oldSettingsDirs } from "./oldsettings.ts";
 
 export interface SealedFile {
   path: string;
@@ -39,20 +40,66 @@ export function keyFile(env: Env, treeId: string): string {
   return path.join(configDir(env), "keys", `${treeId}.key`);
 }
 
-export function loadKey(env: Env, treeId: string): Buffer | undefined {
+function readKey(file: string): Buffer | undefined {
   try {
-    return Buffer.from(fs.readFileSync(keyFile(env, treeId), "utf8").trim(), "hex");
+    const key = Buffer.from(fs.readFileSync(file, "utf8").trim(), "hex");
+    return key.length ? key : undefined;
   } catch {
     return undefined;
   }
 }
 
-/** Create the key for a tree on this computer (0600). Fails if it exists. */
+/** The tree's key on this computer: the settings' own, else one of the old settings folders (core/oldsettings.ts). */
+export function loadKey(env: Env, treeId: string): Buffer | undefined {
+  return readKey(keyFile(env, treeId)) ?? oldKeys(env, treeId)[0]?.key;
+}
+
+/**
+ * The tree's key, the one in an old settings folder taken over into the settings of today where they have none: of two
+ * different ones (strom of a packaged app and of a terminal, each its own) the one `prefer` says (the one that sealed the
+ * last commit, the side that could still write), else the first.
+ */
+export function settleKey(env: Env, treeId: string, prefer: (key: Buffer) => boolean): Buffer | undefined {
+  const own = readKey(keyFile(env, treeId));
+  if (own) return own;
+  const old = oldKeys(env, treeId);
+  if (!old.length) return undefined;
+  const key = (old.length > 1 ? old.find((o) => prefer(o.key)) : undefined)?.key ?? old[0]!.key;
+  try {
+    const file = keyFile(env, treeId);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, key.toString("hex") + "\n", { mode: 0o600, flag: "wx" });
+  } catch {
+    // taken over next time
+  }
+  return key;
+}
+
+/** The tree's other keys on this computer: those of the old settings folders that are not `key` (strom seal adopt unites them). */
+export function otherKeys(env: Env, treeId: string, key: Buffer): { file: string; key: Buffer }[] {
+  return oldKeys(env, treeId).filter((o) => !o.key.equals(key));
+}
+
+/**
+ * Create the key for a tree on this computer (0600). Fails if it exists. Also into the old settings folder (Windows),
+ * made if need be: an older strom, after a switch back, reads it there.
+ */
 export function createKey(env: Env, treeId: string): Buffer {
   const file = keyFile(env, treeId);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const key = crypto.randomBytes(32);
   fs.writeFileSync(file, key.toString("hex") + "\n", { mode: 0o600, flag: "wx" });
+  // also where an older strom looks (Windows: %APPDATA%\strom), made if need be — back on an older version, the research
+  // is still sealed here
+  const old = oldSettingsDirs(env)[0];
+  if (old) {
+    try {
+      fs.mkdirSync(path.join(old, "keys"), { recursive: true });
+      fs.writeFileSync(path.join(old, "keys", `${treeId}.key`), key.toString("hex") + "\n", { mode: 0o600, flag: "wx" });
+    } catch {
+      // a key of its own there already: the older strom keeps it
+    }
+  }
   return key;
 }
 

@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.23.0
 
-*Připravuje se: bety do 1.23.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.23.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Osoba ukázaná zvoleným jménem.** Žena narozená pod jedním jménem, provdaná pod druhým a po rozvodu zase u prvního
   se dá ukazovat tímto jménem znovu, aniž by se přidávalo podruhé: `strom name primary <osoba> "<jméno>"` (a
@@ -16,6 +16,27 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   GEDCOM ho dá na první místo.
 - **Soubor pro aplikaci Strom bez varování.** Export pro aplikaci Strom varoval před nestandardní značkou u každé
   osoby se zvoleným jménem a u několika značek zdrojů; kontrola teď zná všechny vlastní značky Stromu.
+- **Commit gitem navrch výzkumu zapečetěného dvěma klíči (Windows).** `strom check` radil zároveň `strom repair` i
+  „nikdy `strom repair`“ a `strom repair` vrátil zpět práci zapsanou klíčem terminálu. `strom repair` teď vrací jen
+  to, co se udělalo mimo strom, práce obou klíčů zůstává; potom klíče sjednotí `strom seal adopt` ve vlastním
+  terminálu – `strom check` říká oba kroky v tomto pořadí. Spuštěný z aplikace agenta balené pro Windows nechá `strom
+  repair` takový výzkum beze změny a odkáže na terminál. Po commitu gitem, který nezměnil žádný záznam, `strom repair`
+  řekne, že výzkum znovu zapečetil, už ne „nothing to repair“.
+
+## 1.22.2
+
+*30. 10. 2026 · patří k aplikaci Strom 3.17.1.*
+
+- **Strom z desktopové aplikace agenta a z terminálu zase zapisují do jednoho výzkumu (Windows).** Desktopová aplikace
+  agenta může být pro Windows zabalená (MSIX) a každý soubor, který strom spuštěný z ní vytvořil v nastavení stromu, skončil
+  v soukromé kopii aplikace: strom z aplikace a strom z terminálu měly každý vlastní pečetní klíč a každý bral zápisy
+  druhého jako změnu mimo strom. Nastavení je teď mimo AppData (`%USERPROFILE%\.config\strom`) a samo se převezme ze
+  staré složky i z kopie aplikace (obě zůstanou, jak byly). Rozdvojený výzkum se opraví sám, kde to jde; jinak
+  klíče sjednotí `strom seal adopt` v terminálu (nabídka ho jednou nabídne) – každý záznam zkontrolovaný, nic se
+  neztratí, nikdy `strom repair`. `strom update` spuštěný z takové aplikace nic nenainstaluje (viděla by to jen ona)
+  a řekne, ať se spustí v terminálu; `strom doctor` najde kopii programu, kterou si aplikace drží pro sebe.
+- **`strom repair` po commitu přes git, který nezměnil žádný záznam** (prázdný, jen poznámky), výzkum znovu zapečetí;
+  dřív commit zůstal nezapečetěný, každý zápis byl odmítnut a nebylo co opravit.
 
 ## 1.22.1
 

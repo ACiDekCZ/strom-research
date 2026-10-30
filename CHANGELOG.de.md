@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.23.0
 
-*In Vorbereitung: die Betas bis 1.23.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.23.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Eine Person unter dem gewählten Namen.** Eine Frau, unter einem Namen geboren, unter einem anderen verheiratet und
   nach einer Scheidung wieder beim ersten, lässt sich wieder unter diesem Namen zeigen, ohne dass er ein zweites Mal
@@ -18,6 +18,31 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Die Datei für die Strom-App ohne Warnungen.** Der Export für die Strom-App warnte bei jeder Person mit gewähltem
   Namen und bei mehreren Kennzeichen von Quellen vor einem nicht standardisierten Tag; die Prüfung kennt jetzt alle
   eigenen Tags von Strom.
+- **Ein Commit mit git über einer mit zwei Schlüsseln versiegelten Forschung (Windows).** `strom check` riet zugleich
+  zu `strom repair` und zu „nie `strom repair`“, und `strom repair` machte die mit dem Schlüssel des Terminals
+  geschriebene Arbeit rückgängig. `strom repair` macht jetzt nur rückgängig, was außerhalb von strom geschah, die
+  Arbeit beider Schlüssel bleibt; danach vereint `strom seal adopt` in einem eigenen Terminal die Schlüssel – `strom
+  check` nennt beide Schritte in dieser Reihenfolge. Aus der für Windows paketierten Desktop-App eines Agenten
+  gestartet, lässt `strom repair` eine solche Forschung unverändert und verweist auf das Terminal. Nach einem Commit
+  mit git, der keinen Eintrag änderte, sagt `strom repair`, dass es die Forschung neu versiegelt hat, nicht mehr
+  „nothing to repair“.
+
+## 1.22.2
+
+*30.10.2026 · gehört zur Strom-App 3.17.1.*
+
+- **strom aus der Desktop-App eines Agenten und aus einem Terminal schreiben wieder in eine Forschung (Windows).** Die
+  Desktop-App eines Agenten kann für Windows verpackt sein (MSIX), und jede Datei, die ein von ihr gestartetes strom in den Einstellungen
+  von strom anlegte, landete in der privaten Kopie der App: das strom der App und das des Terminals hatten je einen
+  eigenen Siegelschlüssel, und jedes hielt die Schreibvorgänge des anderen für Änderungen außerhalb von strom. Die
+  Einstellungen liegen jetzt außerhalb von AppData (`%USERPROFILE%\.config\strom`) und werden aus dem alten Ordner
+  und aus der Kopie der App von selbst übernommen (beide bleiben, wie sie waren). Eine so geteilte Forschung heilt sich
+  selbst, wo es geht; sonst vereint `strom seal adopt` in einem Terminal die Schlüssel (das Menü bietet es einmal an) –
+  jeder Datensatz geprüft, nichts geht verloren, nie `strom repair`. Ein aus einer solchen App gestartetes
+  `strom update` installiert nichts (nur die App sähe es) und sagt, es im Terminal auszuführen; `strom doctor` findet
+  eine Kopie des Programms, die eine App für sich behält.
+- **`strom repair` nach einem mit git gemachten Commit, der keinen Datensatz änderte** (leer, nur Notizen), versiegelt
+  die Forschung wieder; vorher blieb der Commit unversiegelt, jeder Schreibvorgang wurde abgelehnt, und es gab nichts zu reparieren.
 
 ## 1.22.1
 

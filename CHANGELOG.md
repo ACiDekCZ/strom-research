@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.23.0
 
-*In preparation: the betas up to 1.23.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.23.0-beta.2. The section is complete with the release.*
 
 - **A person shown by the name chosen.** A woman born under one name, married under another and back at the first
   after a divorce can be shown by that name again without it being added twice: `strom name primary <person>
@@ -16,6 +16,27 @@ The changes of each version in short. The full notes and the install lines are o
   name, the standard GEDCOM file gives it first.
 - **The file for the Strom app without warnings.** Exporting for the Strom app warned of a non-standard tag on each
   person with a chosen name and on several marks of sources; the check now knows every tag of Strom's own.
+- **A commit made with git on top of a research sealed with two keys (Windows).** `strom check` advised `strom repair`
+  and never `strom repair` at once, and `strom repair` undid the work written with the terminal's key. `strom repair`
+  now undoes only what was done outside strom, the work of both keys stays; then `strom seal adopt` in a terminal
+  unites the keys — `strom check` says the two steps in this order. Started by an agent's desktop app packaged for
+  Windows, `strom repair` leaves such a research as it is and points to the terminal. After a commit made with git
+  that changed no record, `strom repair` says it sealed the research again, no longer "nothing to repair".
+
+## 1.22.2
+
+*2026-10-30 · goes with the Strom app 3.17.1.*
+
+- **Strom from an agent's desktop app and from a terminal write to one research again (Windows).** An agent's
+  desktop app can be packaged for Windows (MSIX), and every file a strom it started made in strom's settings went to
+  the app's private copy: the app's strom and the terminal's each had a seal key of their own, and each refused the other's writes as
+  made outside strom. The settings are now outside AppData (`%USERPROFILE%\.config\strom`), taken over from the old
+  folder and from the app's copy by themselves (both left as they were). A research split so heals itself where it can;
+  else `strom seal adopt` in a terminal unites the keys (the menu offers it once) — every record checked, nothing lost,
+  never `strom repair`. `strom update` started from such an app installs nothing (only the app would see it) and says
+  to run it in a terminal; `strom doctor` finds a copy of the program an app keeps for itself.
+- **`strom repair` after a commit made with git that changed no record** (an empty one, notes only) seals the research
+  again; before, the commit stayed unsealed, every write was refused and there was nothing to repair.
 
 ## 1.22.1
 

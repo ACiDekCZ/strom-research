@@ -14,6 +14,7 @@ import { commands, match, type CommandDef, type Result } from "./registry.ts";
 import { asCommand, asCommandJson, shellArg } from "./format.ts";
 import { groupHelpAs, helpAs } from "./help.ts";
 import { autoCommit } from "./commit.ts";
+import { takeOverOldSettings } from "../core/oldsettings.ts";
 import { assertIntact } from "../core/integrity.ts";
 import { head as gitHead, resetCache } from "../core/git.ts";
 import type { HeldError } from "../core/json.ts";
@@ -220,6 +221,13 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
   resetCache(undefined, "command");
   // the app's install line in its one variable (STROM_FROM): read as the five of an older line
   expandFromLine(env);
+  // strom's settings on Windows before (%APPDATA%\strom and a packaged app's copy of it) taken over, before anything
+  // reads them (core/oldsettings.ts)
+  try {
+    takeOverOldSettings(env);
+  } catch {
+    // taken over next time; the old ones are read meanwhile
+  }
   // what ran and how long, for the reminder of the session's time
   const startedAt = Date.now();
   let ran: Context | undefined;

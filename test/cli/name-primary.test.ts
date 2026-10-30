@@ -85,8 +85,8 @@ test("name primary: the person shown by the name chosen, every name kept, the id
   // a person's history says it in the research's language
   await w.ok(["lang", "cs"]);
   const log = (await w.ok(["history"])).out;
-  assert.match(log, /Hlavní jméno: Jana Pěnkavová – Jana Lhotová/u, log);
-  assert.match(log, /Hlavní jméno zase rodné: Jana Lhotová – /u, log);
+  assert.match(log, /Za hlavní zvoleno jméno: Jana Pěnkavová – Jana Lhotová/u, log);
+  assert.match(log, /Za hlavní zase rodné jméno: Jana Lhotová – /u, log);
   assert.match((await w.ok(["check"])).out, /^ok/);
   w.cleanup();
 });

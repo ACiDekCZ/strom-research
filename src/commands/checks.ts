@@ -10,9 +10,10 @@ import { counted, lines, table } from "../cli/format.ts";
 import { check, SHARED_MISSING, sharedMissing, type Finding } from "../core/check.ts";
 import { guard } from "../core/guard.ts";
 import { unprovenPeople } from "../core/review.ts";
-import { NOT_DOWNLOADED, SEALED_PATHS, notDownloaded, notDownloadedError, verifyFast, verifyFull } from "../core/integrity.ts";
-import { verifyCommitSeal } from "../core/seal.ts";
-import { adoptSeal } from "../cli/seal.ts";
+import { AFTER_REPAIR_HINT, NOT_DOWNLOADED, OTHER_KEY, SEALED_PATHS, notDownloaded, notDownloadedError, otherKeyError, verifyFast, verifyFull } from "../core/integrity.ts";
+import { otherKeys, readCommitSeal, verifyCommitSeal } from "../core/seal.ts";
+import { settingsHidden } from "../core/oldsettings.ts";
+import { adoptSeal, keysToUnite } from "../cli/seal.ts";
 import { NeedsConsentError, StromError } from "../core/errors.ts";
 import * as git from "../core/git.ts";
 import { ui } from "../cli/ui.ts";
@@ -30,6 +31,7 @@ function said(f: Finding, lang: string | undefined): string {
   if (lang && f.code === "counter" && f.id) return ui(lang, "ui.check.counter", { prefix: f.id.charAt(0) });
   if (lang && f.code === "unwritable") return ui(lang, "ui.check.unwritable");
   if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal");
+  if (lang && f.code === OTHER_KEY) return ui(lang, "ui.check.otherkey");
   if (lang && f.code === NOT_DOWNLOADED) return ui(lang, "ui.check.notdownloaded", { n: f.count ?? 1, first: f.file ?? "" });
   if (lang && f.code === SHARED_MISSING) return ui(lang, "ui.check.sharedmissing", { n: f.count ?? 1, first: f.id ?? "" });
   if (lang && f.code === "after-death" && f.params) return ui(lang, f.params.kind === "weddingAfterDeath" ? "ui.check.afterdeath.wedding" : "ui.check.afterdeath", f.params);
@@ -41,6 +43,7 @@ function said(f: Finding, lang: string | undefined): string {
 /** Its next step said as its finding is (the research sealed on another computer: taken over by the person). */
 function hintSaid(f: Finding, lang: string | undefined): string | undefined {
   if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal.hint");
+  if (lang && f.code === OTHER_KEY) return ui(lang, f.hint === AFTER_REPAIR_HINT ? "ui.check.otherkey.afterrepair.hint" : "ui.check.otherkey.hint");
   if (lang && f.code === NOT_DOWNLOADED) return ui(lang, "ui.check.notdownloaded.hint");
   if (lang && f.code === SHARED_MISSING) return ui(lang, "ui.check.sharedmissing.hint", { show: `strom ${f.id?.startsWith("M") ? "media" : "input"} show ${f.id ?? ""}` });
   if (lang && f.code === "after-death" && f.params)
@@ -145,6 +148,8 @@ interface Repaired {
   restored: string[];
   quarantined: string[];
   from: string;
+  /** Commits made outside strom on top: sealed again, whether or not they changed a record. */
+  resealed: boolean;
 }
 
 function quarantine(tree: Tree, rel: string, stamp: string): void {
@@ -164,9 +169,21 @@ function repair(tree: Tree): Repaired {
   const key = tree.requireKey();
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const head = git.headInfo(tree.root);
-  const sealed = git.findCommit(tree.root, (t, m) => verifyCommitSeal(key, t, m));
+  // the newest commit any key of this computer sealed (strom of an app packaged for Windows and of a terminal each had
+  // their own): only what was done outside strom undone, the other key's work kept — strom seal adopt unites them after
+  const keys = [key, ...otherKeys(tree.env, tree.config.id, key).map((o) => o.key)];
+  const above: string[] = [];
+  const sealed = git.findCommit(tree.root, (t, m) => keys.some((k) => verifyCommitSeal(k, t, m)) || (above.push(m), false));
   if (!sealed) throw new StromError("no sealed commit found — nothing to restore from", { hint: "ask the user; the history may have been rewritten" });
-  const headSealed = head !== undefined && verifyCommitSeal(key, head.tree, head.message);
+  // started by an app packaged for Windows: a commit above it with strom's seal may be the terminal's key out of its
+  // sight — never undone from here, the terminal's strom sees both keys
+  if (above.some((m) => readCommitSeal(m) !== undefined) && settingsHidden(tree.env))
+    throw new StromError(`"${tree.config.name}" holds work sealed with the key of the terminal's strom, which this strom (started by an app packaged for Windows) does not see — nothing repaired`, {
+      hint: "the user runs in their terminal: strom repair, then strom seal adopt   (it sees both keys and undoes only what was done outside strom)",
+      code: "seal.repair-in-terminal",
+      params: { name: tree.config.name },
+    });
+  const headSealed = head !== undefined && head.hash === sealed;
 
   // Paths to compare: whatever differs between the sealed commit and the working tree.
   const candidates = new Set<string>();
@@ -193,8 +210,10 @@ function repair(tree: Tree): Repaired {
       restored.push(rel);
     }
   }
-  if (!headSealed) tree.commit(`Repair: restore the sealed state of ${sealed.slice(0, 8)}\n\nCommits made outside strom were undone for data/, strom.json, history/ and quality/.`, SEALED_PATHS);
-  return { restored, quarantined, from: sealed };
+  // sealed again even when the commits outside strom changed nothing of it (an empty one, notes only): else the last
+  // commit stays unsealed and every write refused, with nothing left to repair
+  if (!headSealed) tree.commit(`Repair: restore the sealed state of ${sealed.slice(0, 8)}\n\nCommits made outside strom were undone for data/, strom.json, history/ and quality/.`, SEALED_PATHS, true);
+  return { restored, quarantined, from: sealed, resealed: !headSealed };
 }
 
 register(
@@ -205,21 +224,31 @@ register(
     tree: true,
     description:
       "Edited records are restored, records created outside strom are removed; copies of everything\n" +
-      "that was replaced are kept in .strom/quarantine/. Commits made with git directly are undone for data/.",
+      "that was replaced are kept in .strom/quarantine/. Commits made with git directly are undone for data/.\n" +
+      "A tree sealed with two keys of this computer (an app packaged for Windows and a terminal): the work of both kept,\n" +
+      "the keys united after it with strom seal adopt.",
     run(ctx) {
       const tree = ctx.tree();
+      // what a person meets here in the research's language, an agent in English
+      const lang = isAgent(ctx.env) ? "en" : tree.lang;
       const r = tree.withTreeLock(() => repair(tree));
-      const after = verifyFast(tree).findings.filter((f) => f.level === "error");
+      // the work of another key of this computer kept: united next, by the person in their terminal (no problem left of
+      // what strom repair undoes)
+      const after = verifyFast(tree).findings.filter((f) => f.level === "error" && f.code !== OTHER_KEY);
+      const unite = !!tree.key && otherKeys(tree.env, tree.config.id, tree.key).length > 0 && keysToUnite(tree).length > 0;
+      const next = unite ? ui(lang, "ui.repair.unite") : undefined;
       const text =
         r.restored.length + r.quarantined.length === 0
-          ? "nothing to repair — every record matches its seal"
+          ? r.resealed
+            ? lines(ui(lang, "ui.repair.resealed"), next)
+            : lines("nothing to repair — every record matches its seal", next)
           : lines(
               ...r.restored.map((f) => `restored  ${f}`),
               ...r.quarantined.map((f) => `removed   ${f}`),
               `sealed state: ${r.from.slice(0, 8)} · copies of replaced files: .strom/quarantine/`,
-              after.length ? `still ${counted(after.length, "problem")} → strom verify` : undefined,
+              after.length ? `still ${counted(after.length, "problem")} → strom verify` : next,
             );
-      return { text, data: { ...r, ok: after.length === 0 }, exitCode: after.length ? 1 : 0 };
+      return { text, data: { ...r, ok: after.length === 0, ...(unite ? { unite: "strom seal adopt" } : {}) }, exitCode: after.length ? 1 : 0 };
     },
   },
   {
@@ -227,20 +256,27 @@ register(
     summary: "Take over a tree sealed on another computer (the user runs this in a terminal)",
     group: "history",
     tree: true,
-    description: "Checks the chain and every record hash, then creates this computer's seal key for the tree.\nAgents must not run this — it needs the user's confirmation.",
+    description:
+      "Checks the chain and every record hash, then creates this computer's seal key for the tree.\n" +
+      "A tree sealed here with a second key of this computer too (a copy of strom's settings an app packaged for Windows\n" +
+      "made): checks every operation of that key with it, then unites the keys — never strom repair, which would undo that work.\n" +
+      "Agents must not run this — it needs the user's confirmation.",
     person: "Taking over this tree on this computer (the seal) is the user's own, in their terminal",
     run: async (ctx: Context) => {
       const tree = ctx.tree();
       // a person reads it in the research's language (the menu, a link's terminal, the setup go the same way)
       const lang = tree.lang;
       const name = tree.config.name;
-      if (tree.key) return { text: ui(lang, "ui.seal.already", { name }), data: { adopted: false } };
+      // sealed here: another key of this computer to unite (strom of a packaged app and of a terminal), else nothing to do
+      const unite = tree.key ? keysToUnite(tree).length > 0 : false;
+      if (tree.key && !unite) return { text: ui(lang, "ui.seal.already", { name }), data: { adopted: false } };
+      if (!ctx.interactive && unite) throw otherKeyError(name);
       if (!ctx.interactive)
         throw new NeedsConsentError([
           { key: "seal", kind: "consent", question: "Take over this tree on this computer?", set: "strom seal adopt" },
         ]);
       const r = await adoptSeal(ctx, tree, lang);
-      if (r.adopted) return { text: ui(lang, "ui.seal.adopted", { name }), data: { adopted: true } };
+      if (r.adopted) return r.united ? { text: ui(lang, "ui.seal.united", { name }), data: { adopted: true, united: r.united } } : { text: ui(lang, "ui.seal.adopted", { name }), data: { adopted: true } };
       if (r.why === "problems") {
         const found = report(r.problems!, "", lang, true);
         return { ...found, text: lines(found.text, ui(lang, "ui.seal.problems")), data: { ...found.data, adopted: false } };

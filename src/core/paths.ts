@@ -54,13 +54,16 @@ export function userHome(env: Env): string {
   return env.HOME || env.USERPROFILE || os.homedir();
 }
 
-/** Directory holding the small user config (the pointer to the Strom home). */
+/**
+ * Directory holding the small user config (the pointer to the Strom home) and the seal keys. On Windows outside AppData
+ * (%USERPROFILE%\.config\strom, as ~/.config/strom elsewhere): an app packaged as MSIX (Claude's desktop app) gets
+ * every new file of AppData as a private copy of its own, which no strom of a terminal sees — a research had two seal
+ * keys, each side's writes "outside strom" to the other (found 2026-10-30). The folder before: core/oldsettings.ts.
+ */
 export function configDir(env: Env, platform: NodeJS.Platform = process.platform): string {
   if (env.STROM_CONFIG_DIR) return path.resolve(env.STROM_CONFIG_DIR);
-  if (platform === "win32") {
-    const appData = env.APPDATA || path.join(userHome(env), "AppData", "Roaming");
-    return path.join(appData, "strom");
-  }
+  // the profile's own folder (HOME is Git Bash's, which may name another)
+  if (platform === "win32") return path.join(env.USERPROFILE || userHome(env), ".config", "strom");
   const xdg = env.XDG_CONFIG_HOME || path.join(userHome(env), ".config");
   return path.join(xdg, "strom");
 }

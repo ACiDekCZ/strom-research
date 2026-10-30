@@ -23,7 +23,7 @@ import { settledRecord, validateRecord } from "./validate.ts";
 import { NeedsConsentError, StromError, UsageError } from "./errors.ts";
 import * as git from "./git.ts";
 import { opsLogs } from "./opslog.ts";
-import { commitSeal, createKey, fingerprint, loadKey, sha256, signOp, type SealedFile } from "./seal.ts";
+import { commitSeal, createKey, fingerprint, loadKey, settleKey, sha256, signOp, verifyCommitSeal, type SealedFile } from "./seal.ts";
 import { stringifyCanonical } from "./json.ts";
 import type { Env } from "./paths.ts";
 import { lastBackup } from "./backup.ts";
@@ -34,7 +34,7 @@ export const SEAL_FOREIGN = "seal.foreign";
 
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
-export const VERSION = "1.22.1";
+export const VERSION = "1.22.2";
 
 export interface Op {
   at: string;
@@ -51,6 +51,8 @@ export interface Op {
   k: string;
   /** HMAC signature with the tree's seal key. */
   sig: string;
+  /** seal.unite: the fingerprints of the other keys of this computer whose operations until then were checked and taken. */
+  keys?: string[];
 }
 
 const GITIGNORE = `# Strom Research — local state and large files are not versioned
@@ -606,7 +608,7 @@ export class Tree {
 
   /** The tree's seal key on this computer, or undefined (tree moved here). */
   get key(): Buffer | undefined {
-    if (this.keyCache === undefined) this.keyCache = loadKey(this.env, this.config.id) ?? null;
+    if (this.keyCache === undefined) this.keyCache = settleKey(this.env, this.config.id, (key) => this.headSealedWith(key)) ?? null;
     return this.keyCache ?? undefined;
   }
 
@@ -621,6 +623,12 @@ export class Tree {
   /** Operation logs appended to by this process (tree-relative). */
   opsFilesTouched(): string[] {
     return [...this.touchedOps].map((f) => this.relative(f));
+  }
+
+  /** Whether the last commit carries the seal of this key. */
+  headSealedWith(key: Buffer): boolean {
+    const head = git.headInfo(this.root);
+    return !!head && verifyCommitSeal(key, head.tree, head.message);
   }
 
   /** Forget the cached key (after one was created on this computer). */
@@ -652,14 +660,15 @@ export class Tree {
   }
 
   /** Sealed commit of everything under pathspec. */
-  commit(message: string, pathspec: string[] = ["."]): string | undefined {
+  /** `always`: a commit even when nothing changed (strom repair sealing again what was committed outside strom). */
+  commit(message: string, pathspec: string[] = ["."], always = false): string | undefined {
     const key = this.requireKey();
     // its IDs on disk before it commits (written once here, not after every record: a sync of 2 200 people wrote the
     // counters thousands of times)
     this.flushCounters();
     // another process may have committed since this one last looked — under the lock it read HEAD afresh already
     if (this.lockDepth === 0) git.resetCache(this.root);
-    const hash = git.commitAll(this.root, message, pathspec, (treeHash) => commitSeal(key, treeHash));
+    const hash = git.commitAll(this.root, message, pathspec, (treeHash) => commitSeal(key, treeHash), always);
     // the logs this commit holds are closed: what comes next goes into new ones
     this.opsNow.clear();
     if (hash) {

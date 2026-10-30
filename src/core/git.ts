@@ -312,6 +312,7 @@ export function commitAll(
   message: string,
   pathspec: string[] = ["."],
   seal?: (treeHash: string) => string,
+  always = false,
 ): string | undefined {
   // Paths that no longer exist are fine for `add -A` only if git knows them;
   // filter missing, untracked-never-seen paths out to keep `add` from failing.
@@ -321,7 +322,7 @@ export function commitAll(
   if (specs.length) git(dir, ["add", "-A", "--", ...specs]);
   const tree = git(dir, ["write-tree"]).trim();
   const parent = headInfo(dir);
-  if (parent && parent.tree === tree) return undefined;
+  if (parent && parent.tree === tree && !always) return undefined;
   const full = seal ? `${message}\n\n${seal(tree)}\n` : `${message}\n`;
   const r = commitTree(dir, tree, parent?.hash, full);
   if (r.status !== 0) throw gitFailed(dir, ["commit-tree"], r, "git commit");

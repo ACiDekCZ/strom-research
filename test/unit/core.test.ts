@@ -127,7 +127,8 @@ test("settings: flag > env > config > default", () => {
 
 test("paths: platform defaults", () => {
   assert.equal(configDir({ HOME: "/u" }, "darwin"), path.join("/u", ".config", "strom"));
-  assert.equal(configDir({ APPDATA: "C:\\AppData" }, "win32"), path.join("C:\\AppData", "strom"));
+  // Windows: outside AppData, which an app packaged as MSIX gets as a copy of its own; the profile's (not Git Bash's HOME)
+  assert.equal(configDir({ APPDATA: "C:\\AppData", USERPROFILE: "C:\\Users\\jan", HOME: "/h" }, "win32"), path.join("C:\\Users\\jan", ".config", "strom"));
   assert.equal(defaultHome({ HOME: "/u" }, "darwin"), path.join("/u", "Documents", "Strom"));
   // (STROM_DOCUMENTS is resolved: on Windows /u gains the drive it is on)
   assert.equal(defaultHome({ HOME: "/u", STROM_DOCUMENTS: "~/Dokumenty" }, "darwin"), path.resolve("/u", "Dokumenty", "Strom"), "another Documents folder");
