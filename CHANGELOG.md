@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.23.0
 
-*In preparation: the betas up to 1.23.0-beta.3. The section is complete with the release.*
+*In preparation: the betas up to 1.23.0-beta.4. The section is complete with the release.*
 
 - **A person shown by the name chosen.** A woman born under one name, married under another and back at the first
   after a divorce can be shown by that name again without it being added twice: `strom name primary <person>
@@ -28,6 +28,12 @@ The changes of each version in short. The full notes and the install lines are o
   older version, the research is still sealed on this computer. A key there already is never replaced.
 - **A couple's story approved from the Strom app.** The question in the terminal now names the story of the couple,
   no longer of a person.
+- **A couple's story proposed by the research.** Once records tell a couple's life together (their wedding or a
+  child, and two more facts) and one of the two has a story of their own, the research proposes the couple's story
+  as it does a person's — their life together alone (the wedding, the household, the homes, the children, the
+  widowhood), the partners' stories referred to, never told again. A person's story written after it says the
+  marriage in a sentence; no story written already is shortened for it. `strom config set stories no` turns these off
+  too.
 - **`strom repair` in one language.** Every line it writes ("restored", "nothing to repair", …) is in the research's
   language for a person; an agent reads them in English as before.
 

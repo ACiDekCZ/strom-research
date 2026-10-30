@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.23.0
 
-*Připravuje se: bety do 1.23.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.23.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **Osoba ukázaná zvoleným jménem.** Žena narozená pod jedním jménem, provdaná pod druhým a po rozvodu zase u prvního
   se dá ukazovat tímto jménem znovu, aniž by se přidávalo podruhé: `strom name primary <osoba> "<jméno>"` (a
@@ -28,6 +28,11 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   zůstává výzkum na tomto počítači zapečetěný. Klíč, který tam už je, se nikdy nepřepíše.
 - **Vyprávění páru schválené z aplikace Strom.** Dotaz v terminálu teď mluví o vyprávění páru, už ne o vyprávění
   osoby.
+- **Vyprávění páru navrhuje výzkum sám.** Jakmile záznamy vyprávějí společný život páru (svatbu nebo dítě a další
+  dva údaje) a jeden z dvojice už má vlastní vyprávění, výzkum navrhne vyprávění páru stejně jako vyprávění osoby –
+  jen společný život (svatba, domácnost, bydliště, děti, ovdovění); vyprávění partnerů odkáže, neopakuje je.
+  Vyprávění osoby napsané potom shrne manželství jednou větou; žádné už napsané vyprávění se kvůli tomu nezkracuje.
+  `strom config set stories no` vypne i tato.
 - **`strom repair` jedním jazykem.** Každý jeho řádek („obnoveno“, „není co opravit“ …) je pro člověka v jazyce
   výzkumu; agent je čte anglicky jako dřív.
 

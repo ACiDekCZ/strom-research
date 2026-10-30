@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.23.0
 
-*In Vorbereitung: die Betas bis 1.23.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.23.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Eine Person unter dem gewählten Namen.** Eine Frau, unter einem Namen geboren, unter einem anderen verheiratet und
   nach einer Scheidung wieder beim ersten, lässt sich wieder unter diesem Namen zeigen, ohne dass er ein zweites Mal
@@ -33,6 +33,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   der dort schon liegt, wird nie ersetzt.
 - **Die Erzählung eines Paares, aus der Strom-App freigegeben.** Die Frage im Terminal nennt jetzt die Erzählung des
   Paares, nicht mehr die einer Person.
+- **Die Erzählung eines Paares, von der Forschung vorgeschlagen.** Sobald Einträge das gemeinsame Leben eines Paares
+  erzählen (die Hochzeit oder ein Kind und zwei weitere Angaben) und einer der beiden schon eine eigene Erzählung hat,
+  schlägt die Forschung die Erzählung des Paares vor wie die einer Person – nur das gemeinsame Leben (Hochzeit,
+  Haushalt, Wohnorte, Kinder, Witwenschaft); auf die Erzählungen der Partner wird verwiesen, sie werden nicht
+  wiederholt. Eine danach geschriebene Erzählung einer Person fasst die Ehe in einem Satz zusammen; keine schon
+  geschriebene wird dafür gekürzt. `strom config set stories no` schaltet auch diese aus.
 - **`strom repair` in einer Sprache.** Jede Zeile („wiederhergestellt“, „nichts zu reparieren“ …) steht für eine
   Person in der Sprache der Forschung; ein Agent liest sie wie bisher auf Englisch.
 

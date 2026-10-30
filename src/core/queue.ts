@@ -26,8 +26,7 @@ import type { Research, Session, Strategy, Task } from "./model.ts";
 import { parentsOf } from "./people.ts";
 import { taskRecordsets } from "./frontier.ts";
 import { now, type Tree } from "./tree.ts";
-import { subjectPeople } from "./records.ts";
-import { directionOf, scopes } from "./directions.ts";
+import { aboutPeople, directionOf, scopes } from "./directions.ts";
 import { offTree } from "./kin.ts";
 import { forStory } from "./stories.ts";
 import { HYPOTHESIS_LINKS_TRIES, linksFirst } from "./hypolinks.ts";
@@ -165,7 +164,8 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   const place = (t: Task) => {
     // a task of no research of its own: the direction its people are in (directions.ts), as the menu and the app say
     const map = linesOf(t.research ?? directionOf(tree, t, all));
-    const found = [...t.subject, ...subjectPeople(tree, t.subject)].map((s) => map?.get(s)).filter((x): x is { gen: number; line: string } => !!x);
+    // a family's task: its partners' (a couple's story)
+    const found = [...t.subject, ...aboutPeople(tree, t.subject)].map((s) => map?.get(s)).filter((x): x is { gen: number; line: string } => !!x);
     return found.sort((a, b) => a.gen - b.gen)[0];
   };
   const tasksById = new Map(tree.list<Task>("task").map((t) => [t.id, t]));
