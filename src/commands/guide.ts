@@ -256,7 +256,8 @@ STORIES OF THE ANCESTORS (the setting stories — on by default; strom shows it)
   task: write the story for the family book — plain words, the research language, every statement on a
   recorded fact (strom story set P… --text @notes/story-P….md --title "…" --fact E… …; paragraphs,
   "## " subheadings, "- " bullets, **bold**, *italic* — nothing else shows in the app). More facts later: it
-  proposes adding to it. Stories wait behind all the research; working alone
+  proposes adding to it. Once one of a couple has a story, the couple's (strom story set F…): their life
+  together alone, the partners' stories referred to, not retold. Stories wait behind all the research; working alone
   (strom run), every few sessions one comes first. In a conversation the user leads: write one when they
   want it, or offer it when the research has a pause. A story is a draft until the user approves it (strom story approve P…; the Strom app asks it too). When strom says to tell
   the user (once, not in every conversation): in a sentence, and that they may say no (strom config set

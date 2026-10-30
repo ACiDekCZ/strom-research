@@ -6,7 +6,7 @@
 import { UsageError } from "./errors.ts";
 import { findEventOwner, makeNote } from "./actions.ts";
 import { EMBEDDED_PREFIXES, type AnyRecord, type Event, type Family, type Name, type Note, type NoteEdit, type Person, type RetractedName, type RetractedNote, type Retraction } from "./model.ts";
-import { gedcomName, parseName, primaryName, sameName } from "./people.ts";
+import { currentName, gedcomName, parseName, primaryName, sameName, withoutMark } from "./people.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
 
 function needsReason(reason: string | undefined, what: string): string {
@@ -50,8 +50,8 @@ export function retractName(tree: Tree, id: string, text: string, reason: string
       });
     const gone: RetractedName = { ...name, retracted: retraction(tree, why) };
     const updated: Person = { ...p, names: p.names.filter((n) => n !== name), retractedNames: [...(p.retractedNames ?? []), gone], updated: now() };
-    const shown = primaryName(updated);
-    const moved = name === primaryName(p);
+    const shown = currentName(updated);
+    const moved = name === currentName(p);
     tree.put(updated, {
       op: "name.retract",
       targets: [id],
@@ -70,7 +70,9 @@ export function restoreName(tree: Tree, id: string, text: string, reason: string
     const gone = p.retractedNames?.find((n) => sameName(n, wanted));
     if (!gone) throw new UsageError(`${id} has no retracted name ${gedcomName(wanted)}`, { hint: `its retracted names: ${nameList(p.retractedNames ?? [])}`, code: "name.none" });
     if (p.names.some((n) => sameName(n, gone))) throw new UsageError(`${id} has the name ${gedcomName(gone)} again`, { hint: `nothing to restore: strom person show ${id}` });
-    const { retracted: _was, ...name } = gone;
+    // the name they were shown by, back as that one unless another is marked since
+    const { retracted: _was, ...back } = gone;
+    const name: Name = back.primary && p.names.some((n) => n.primary) ? withoutMark(back) : back;
     const rest = (p.retractedNames ?? []).filter((n) => n !== gone);
     const { retractedNames: _all, ...base } = p;
     const updated: Person = { ...base, names: [...p.names, name], ...(rest.length ? { retractedNames: rest } : {}), updated: now() };

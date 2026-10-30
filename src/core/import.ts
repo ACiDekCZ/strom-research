@@ -13,7 +13,7 @@ import { roleWord } from "./roles.ts";
 import { validateRecord } from "./validate.ts";
 import { normalizeDate } from "./gdate.ts";
 import { isRetractedName } from "./retractions.ts";
-import { appNoSurname, cleanTitle, gedcomName, noName, notAName, parseName, sameName, surnameAfterGiven, withoutTitles } from "./people.ts";
+import { appNoSurname, cleanTitle, gedcomName, noName, notAName, parseName, sameName, surnameAfterGiven, withoutMark, withoutTitles } from "./people.ts";
 import { update } from "./records.ts";
 import { now, type Tree } from "./tree.ts";
 import { appUnknownIsNoSurname, appWritesSexUnknown } from "./stromapp.ts";
@@ -388,9 +388,13 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
           // a word that describes the person in place of a name (stillborn, son): the name is "?", the word goes to a note
           if (notAName(found.given)) found.given = "?";
           // a slash inside a name ("/⟨K/Č⟩emenská/") is kept as "|": the name stays one GEDCOM can write
-          return { ...found, given: found.given.replace(/\//g, "|"), surname: found.surname.replace(/\//g, "|") };
+          const name: Name = { ...found, given: found.given.replace(/\//g, "|"), surname: found.surname.replace(/\//g, "|") };
+          // the name the person is shown by now (the Strom file's mark, the user's choice): the first one marked
+          if (/^y(es)?$/i.test(val(n, "_STROM_PRIMARY")?.trim() ?? "")) name.primary = true;
+          return name;
         })
-        .map((n) => (n.given || n.surname ? n : { ...n, given: "?", surname: "" }));
+        .map((n) => (n.given || n.surname ? n : { ...n, given: "?", surname: "" }))
+        .map((n, i, all) => (n.primary && all.findIndex((m) => m.primary) !== i ? withoutMark(n) : n));
       // a married name other programs give apart (_MARNM): a name of the married kind, unless the person has it already
       return [...names, ...importedMarnm(r, fromApp).filter((m) => !names.some((n) => sameName(n, m)))];
     };
@@ -422,7 +426,8 @@ export function importGedcom(tree: Tree, text: string, opts: { input: string; na
         const facts = incoming.filter((e) => !knownFact(cur.events, e));
         result.events -= incoming.length - facts.length;
         // a name the research took back is not taken again from a file that still has it
-        const names = namesOf(r).filter((n) => n.given !== "?" && !cur.names.some((x) => sameName(x, n)) && !isRetractedName(cur, n));
+        // the names another file adds: never the one the person is shown by (theirs stands)
+        const names = namesOf(r).filter((n) => n.given !== "?" && !cur.names.some((x) => sameName(x, n)) && !isRetractedName(cur, n)).map(withoutMark);
         if (!facts.length && !names.length) continue;
         const next: Person = { ...cur, names: [...cur.names, ...names], events: [...cur.events, ...facts], refs: [...(cur.refs ?? []), { system, id: r.xref! }], updated: now() };
         const what = [...facts.map((e) => [e.kind, e.date].filter(Boolean).join(" ")), ...names.map((n) => `name ${[n.given, n.surname].filter(Boolean).join(" ")}`)].join(", ");

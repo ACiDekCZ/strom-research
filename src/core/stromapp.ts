@@ -527,6 +527,28 @@ export function appReadsSurnameGroups(settings: Settings, version?: string, gate
   return !!gate && compareVersions(v, gate) >= 0;
 }
 
+/**
+ * The first Strom app that knows which name a person is shown by (spec 024, the app's ZADANI_VYZKUM_soucasne-prijmeni.md):
+ * it writes 2 _STROM_PRIMARY Y under the NAME the user chose (its Person.primaryName birth | married, the JSON's field
+ * of that name) and none where the user chose none. The research writes the mark to every app (an older one skips it in
+ * silence and loses nothing); a mark an app sends is the user's choice whatever its version — but a mark missing is
+ * the user's "none" only from an app of this version on: from an older one, or one that says no version, nothing
+ * changed. Released with the app 3.18.0; another copy of the app (its beta, its development) gets it from
+ * APP_PRIMARY_NAME_BETA.
+ */
+export const APP_KNOWS_PRIMARY_NAME: string | undefined = "3.18.0";
+
+/** The first beta of the app that writes the mark (another copy of the app gets it from it); undefined: none yet. */
+export const APP_PRIMARY_NAME_BETA: string | undefined = "3.18.0-beta.2";
+
+/** Does a file of the Strom app of this version say every choice of the name a person is shown by — a mark missing the user's "none"? */
+export function appKnowsPrimaryName(settings: Settings, version?: string): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings) && APP_PRIMARY_NAME_BETA) return compareVersions(v, APP_PRIMARY_NAME_BETA) >= 0;
+  return !!APP_KNOWS_PRIMARY_NAME && compareVersions(v, APP_KNOWS_PRIMARY_NAME) >= 0;
+}
+
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */
 export function sendAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;

@@ -177,8 +177,10 @@ function checkPerson(p: Partial<Person>, out: Problem[]): void {
       if (!n.given && !n.surname) out.push({ path: `names[${i}]`, message: "needs a given name or a surname" });
       for (const t of ["prefix", "suffix"] as const) if (n[t] !== undefined && (typeof n[t] !== "string" || !n[t].trim())) out.push({ path: `names[${i}].${t}`, message: "must be a title (a string, not empty)" });
       if (n.kind !== undefined && !NAME_KINDS.includes(n.kind)) out.push({ path: `names[${i}].kind`, message: `must be one of ${NAME_KINDS.join(", ")}` });
+      if (n.primary !== undefined && n.primary !== true) out.push({ path: `names[${i}].primary`, message: "must be true, or left out" });
       checkCitations(n.citations, `names[${i}].citations`, out);
     });
+  if (Array.isArray(p.names) && p.names.filter((n) => isObj(n) && n.primary).length > 1) out.push({ path: "names", message: "at most one name is the one the person is shown by (primary)" });
   if (p.retractedNames !== undefined) {
     if (!Array.isArray(p.retractedNames)) out.push({ path: "retractedNames", message: "must be an array" });
     else

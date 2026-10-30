@@ -4,7 +4,7 @@
 // commands in commands/browse.ts show them in the research language.
 
 import type { Event, Family, Person, Place, Session, Source, Status, Task } from "./model.ts";
-import { ancestorGenerations, birthEvent, displayName, familiesAsPartner, formatName, lifespan, parentsOf, primaryName, sameName, titledName } from "./people.ts";
+import { ancestorGenerations, birthEvent, currentName, displayName, familiesAsPartner, formatName, lifespan, parentsOf, sameName, titledName } from "./people.ts";
 import { dateYears } from "./gdate.ts";
 import { informationOf } from "./evidence.ts";
 import type { Tree } from "./tree.ts";
@@ -232,7 +232,8 @@ export function cardFact(tree: Tree, e: Event): CardFact {
 }
 
 export function personCard(tree: Tree, p: Person): Card {
-  const main = primaryName(p);
+  // the name they are shown by (the one the user chose, else their birth name): the others beside it
+  const main = currentName(p);
   const families = familiesAsPartner(tree, p.id).map((f) => {
     const other = f.partners.filter((x) => x !== p.id).map((x) => tree.get<Person>(x)).find((x) => x && !x.retracted);
     return {

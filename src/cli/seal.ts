@@ -3,7 +3,8 @@
 
 import type { Context } from "./context.ts";
 import { ui } from "./ui.ts";
-import { verifyFull } from "../core/integrity.ts";
+import { oneWay, verifyFull } from "../core/integrity.ts";
+import { settingsHidden } from "../core/oldsettings.ts";
 import { createKey, fingerprint, otherKeys } from "../core/seal.ts";
 import { sealedHere, type Tree } from "../core/tree.ts";
 import type { Finding } from "../core/check.ts";
@@ -82,7 +83,8 @@ export function keysToUnite(tree: Tree): Buffer[] {
 async function uniteSeal(ctx: Context, tree: Tree, lang: string): Promise<Adopted> {
   const others = keysToUnite(tree);
   if (!others.length) return { adopted: false, why: "already" };
-  const problems = verifyFull(tree, { trust: others }).findings.filter((f) => f.level === "error");
+  // a change outside strom too: strom repair first (it keeps the work of both keys), then this again
+  const problems = oneWay(verifyFull(tree, { trust: others }).findings.filter((f) => f.level === "error"), () => settingsHidden(tree.env));
   if (problems.length) return { adopted: false, why: "problems", problems };
   if (!(await ctx.confirm(ui(lang, "ui.seal.unite.ask", { name: tree.config.name }), true))) return { adopted: false, why: "cancelled" };
   const united = others.map(fingerprint);

@@ -75,6 +75,17 @@ test("the second wave in the research's terminal: a task put aside, given up and
   assert.equal((await w.ok(["story", "show", fam, "--json"])).json.story.text, "Jan a Anna se vzali v Týnci.");
   assert.match((await open("story", `&person=${anna}&partner=P0001&do=keep`, [""])).out, /Žádná nová verze vyprávění o Anna Svobodová[^\n]* & Jan Novák[^\n]* nečeká/);
   assert.match((await open("story", "&person=P0001&partner=P0001&do=final", [""])).out, /nejsou ve výzkumu pár/);
+  // a couple's first story, still a draft: read, approved as the couple's (never "the story of a person")
+  const petr = (await w.ok(["person", "add", "Petr /Lhoták/", "--sex", "M", "--json"])).json.person.id;
+  const eva = (await w.ok(["person", "add", "Eva /Lhotáková/", "--sex", "F", "--json"])).json.person.id;
+  const lhota = (await w.ok(["family", "add", "--partner", petr, "--partner", eva, "--json"])).json.family.id;
+  await w.ok(["story", "set", lhota, "--text", "Petr a Eva se vzali v Lhotě.", "--fact", "E0001"]);
+  const first = await open("story", `&person=${eva}&partner=${petr}&do=final`, ["a", ""]);
+  assert.match(first.out, /Petr a Eva se vzali v Lhotě\.\n\nAplikace Strom žádá: schválit vyprávění páru Eva Lhotáková[^\n]* & Petr Lhoták[^\n]*, jak je/, first.out);
+  assert.doesNotMatch(first.out, /vyprávění osoby/);
+  assert.match(first.out, /✓ Vyprávění je schválené/);
+  assert.equal((await w.ok(["story", "show", lhota, "--json"])).json.story.status, "final");
+  assert.match((await open("story", `&person=${petr}&partner=${eva}&do=final`, [""])).out, /už je schválené/);
 
   assert.match((await open("sessions", "", [""])).out, /Sezení agenta – Novákovi\n {2}Agent na tomto výzkumu zatím nepracoval\./);
   assert.match((await open("sync-undo", "&intake=I0042", [""])).out, /I0042 není v tomto výzkumu poslání z aplikace Strom/);

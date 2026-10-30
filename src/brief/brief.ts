@@ -170,7 +170,7 @@ function personBlock(tree: Tree, p: Person, depth: number, short = false): strin
   const out = [`  ${label(p)} ${p.sex}`];
   // other names, and where any name comes from
   if (p.names.length > 1 || p.names.some((n) => n.citations?.length))
-    out.push(`    names: ${p.names.map((n) => `${formatName(n)}${n.kind ? ` (${n.kind})` : ""}${n.citations?.length ? ` ← ${citesOf(n.citations)}` : ""}`).join("; ")}`);
+    out.push(`    names: ${p.names.map((n) => `${formatName(n)}${n.kind ? ` (${n.kind})` : ""}${n.primary ? " (shown by it)" : ""}${n.citations?.length ? ` ← ${citesOf(n.citations)}` : ""}`).join("; ")}`);
   for (const e of p.events.filter((x) => !x.retracted)) out.push(eventLine(e));
   const parents = parentsOf(tree, p.id);
   const birthFamily = familiesAsChild(tree, p.id)[0];
@@ -341,6 +341,41 @@ function familyBlock(tree: Tree, f: Family, short = false): string[] {
   if (f.citations?.length) out.push(`    sources: ${citesOf(f.citations)}`);
   for (const n of f.notes.slice(short ? -1 : -3)) out.push(`    note: ${noteStart(n.text, short ? NOTE_LINE : NOTE_SHOWN)}`);
   return out;
+}
+
+/**
+ * What the other stories tell already, for a story to write (spec 027 K6.3–K6.4): a couple's — the partners' own
+ * stories, to be referred to and not told again; a person's — the couples' stories of theirs, the marriage in a
+ * sentence pointing to it, and what the person's story told already never shortened for it.
+ */
+function storiesTold(tree: Tree, task: Task): Section | undefined {
+  const subject = task.subject.map((id) => tree.get<Person | Family>(id)).find((r) => r?.type === "family" || r?.type === "person");
+  if (!subject) return undefined;
+  if (subject.type === "family") {
+    const partners = subject.partners.map((x) => tree.get<Person>(x)).filter((x): x is Person => !!x && !x.retracted);
+    const text = [
+      `## The couple's story (${subject.id}): their life together alone — the wedding, the household, the homes, the children, the widowhood`,
+      "- each one's life before the wedding and after it is their own story's: referred to in a sentence, never told again",
+      "- every statement on a recorded fact (--fact), as in a person's story",
+    ];
+    // who has no story comes before the stories: a line under a partner's story would read as part of it
+    for (const p of partners) if (!(p.story?.draft ?? p.story)) text.push(`- ${label(p)}: no story of their own yet — their life outside the marriage stays out of this one too`);
+    for (const p of partners) {
+      const st = p.story?.draft ?? p.story;
+      if (!st) continue;
+      text.push(`### The story of ${label(p)}${p.story?.draft ? " (its new version, waiting for the user)" : ` (${p.story!.status})`}${st.title ? `: ${st.title}` : ""}`, st.text.trim());
+    }
+    return { name: "stories told", first: true, pointer: `strom story show ${partners.map((p) => p.id).join(" · strom story show ")}`, text: text.join("\n") };
+  }
+  const couples = familiesAsPartner(tree, subject.id).filter((f) => !f.retracted && f.story);
+  if (!couples.length) return undefined;
+  const text = [`## The couples' stories of ${label(subject)}: told already`];
+  for (const f of couples) {
+    const others = f.partners.filter((x) => x !== subject.id).map((x) => tree.get<Person>(x)).filter((x): x is Person => !!x).map(label);
+    text.push(`- ${f.id}${others.length ? ` with ${others.join(", ")}` : ""} has a story of its own (strom story show ${f.id}): the marriage in one sentence pointing to it — their life together not told again`);
+  }
+  if (subject.story) text.push("- what the story told already stays — never shortened because of a couple's story");
+  return { name: "stories told", first: true, pointer: `strom story show ${couples.map((f) => f.id).join(" · strom story show ")}`, text: text.join("\n") };
 }
 
 /** A small text file of an input, as strom input show gives it; unreadable: nothing. */
@@ -1363,6 +1398,8 @@ export function buildBrief(
   const storyHistoryOn = !!task && forStory(task) && new Settings(tree.env, {}).storyHistory(tree.config);
   const ofTime = storyHistoryOn && task!.level === "narrate" ? storyHistorySection(tree, task!, opts.shared) : undefined;
   if (ofTime) sections.push(ofTime);
+  const told = task?.level === "narrate" ? storiesTold(tree, task) : undefined;
+  if (told) sections.push(told);
 
   // 8 bis. the search beyond the registers: its budget of pages, printed pages for the user's model for print where the
   // agent hands work to another model, and what the research has written of the person's places already

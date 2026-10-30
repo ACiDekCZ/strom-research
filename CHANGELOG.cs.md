@@ -5,6 +5,38 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.23.0
+
+*30. 10. 2026 · patří k aplikaci Strom 3.18.0.*
+
+- **Osoba ukázaná zvoleným jménem.** Žena narozená pod jedním jménem, provdaná pod druhým a po rozvodu zase u prvního
+  se dá ukazovat tímto jménem znovu, aniž by se přidávalo podruhé: `strom name primary <osoba> "<jméno>"` (a
+  `--clear`), nebo `strom name add --primary`. Volba patří jen uživateli, nikdy se nečte ze záznamu; opravy, citace
+  i synchronizace s aplikací Strom se dál řídí rodným jménem. Soubor pro Strom zvolené jméno označí, standardní soubor
+  GEDCOM ho dá na první místo. Aplikace Strom 3.18.0 osobu tímto jménem ukazuje a jméno zvolené v ní se synchronizací
+  vrací do výzkumu.
+- **Soubor pro aplikaci Strom bez varování.** Export pro aplikaci Strom varoval před nestandardní značkou u každé
+  osoby se zvoleným jménem a u několika značek zdrojů; kontrola teď zná všechny vlastní značky Stromu.
+- **Commit gitem navrch výzkumu zapečetěného dvěma klíči (Windows).** `strom check` radil zároveň `strom repair` i
+  „nikdy `strom repair`“ a `strom repair` vrátil zpět práci zapsanou klíčem terminálu. `strom repair` teď vrací jen
+  to, co se udělalo mimo strom, práce obou klíčů zůstává; potom klíče sjednotí `strom seal adopt` ve vlastním
+  terminálu – `strom check` říká oba kroky v tomto pořadí. Spuštěný z aplikace agenta balené pro Windows nechá `strom
+  repair` takový výzkum beze změny a odkáže na terminál; odmítnutý zápis tam odkáže na terminál také, už ne nejdřív
+  na `strom repair`. Po commitu gitem, který nezměnil žádný záznam, `strom repair` řekne, že výzkum znovu zapečetil,
+  už ne „nothing to repair“.
+- **Pečetní klíč i tam, kde ho hledá starší strom (Windows).** Klíč převzatý z kopie aplikace balené pro Windows se
+  teď ukládá i do `%APPDATA%\strom\keys`, kde ho hledá strom 1.22.1 nebo starší v terminálu: po návratu ke starší verzi
+  zůstává výzkum na tomto počítači zapečetěný. Klíč, který tam už je, se nikdy nepřepíše.
+- **Vyprávění páru schválené z aplikace Strom.** Dotaz v terminálu teď mluví o vyprávění páru, už ne o vyprávění
+  osoby.
+- **Vyprávění páru navrhuje výzkum sám.** Jakmile záznamy vyprávějí společný život páru (svatbu nebo dítě a další
+  dva údaje) a jeden z dvojice už má vlastní vyprávění, výzkum navrhne vyprávění páru stejně jako vyprávění osoby –
+  jen společný život (svatba, domácnost, bydliště, děti, ovdovění); vyprávění partnerů odkáže, neopakuje je.
+  Vyprávění osoby napsané potom shrne manželství jednou větou; žádné už napsané vyprávění se kvůli tomu nezkracuje.
+  `strom config set stories no` vypne i tato.
+- **`strom repair` jedním jazykem.** Každý jeho řádek („obnoveno“, „není co opravit“ …) je pro člověka v jazyce
+  výzkumu; agent je čte anglicky jako dřív.
+
 ## 1.22.2
 
 *30. 10. 2026 · patří k aplikaci Strom 3.17.1.*

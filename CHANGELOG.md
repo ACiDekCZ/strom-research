@@ -5,6 +5,39 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.23.0
+
+*2026-10-30 · goes with the Strom app 3.18.0.*
+
+- **A person shown by the name chosen.** A woman born under one name, married under another and back at the first
+  after a divorce can be shown by that name again without it being added twice: `strom name primary <person>
+  "<name>"` (and `--clear`), or `strom name add --primary`. The choice is the user's alone, never read from a record;
+  corrections, citations and the sync with the Strom app still go by the birth name. The Strom file marks the chosen
+  name, the standard GEDCOM file gives it first. The Strom app 3.18.0 shows the person by it, and a name chosen there
+  comes back with the sync.
+- **The file for the Strom app without warnings.** Exporting for the Strom app warned of a non-standard tag on each
+  person with a chosen name and on several marks of sources; the check now knows every tag of Strom's own.
+- **A commit made with git on top of a research sealed with two keys (Windows).** `strom check` advised `strom repair`
+  and never `strom repair` at once, and `strom repair` undid the work written with the terminal's key. `strom repair`
+  now undoes only what was done outside strom, the work of both keys stays; then `strom seal adopt` in a terminal
+  unites the keys — `strom check` says the two steps in this order. Started by an agent's desktop app packaged for
+  Windows, `strom repair` leaves such a research as it is and points to the terminal; a write refused there points to
+  the terminal too, no longer to `strom repair` first. After a commit made with git that changed no record, `strom
+  repair` says it sealed the research again, no longer "nothing to repair".
+- **The seal key also where an older strom looks (Windows).** A key taken over from the copy of an app packaged for
+  Windows is now kept in `%APPDATA%\strom\keys` too, where a terminal's strom 1.22.1 or older looks for it: back on an
+  older version, the research is still sealed on this computer. A key there already is never replaced.
+- **A couple's story approved from the Strom app.** The question in the terminal now names the story of the couple,
+  no longer of a person.
+- **A couple's story proposed by the research.** Once records tell a couple's life together (their wedding or a
+  child, and two more facts) and one of the two has a story of their own, the research proposes the couple's story
+  as it does a person's — their life together alone (the wedding, the household, the homes, the children, the
+  widowhood), the partners' stories referred to, never told again. A person's story written after it says the
+  marriage in a sentence; no story written already is shortened for it. `strom config set stories no` turns these off
+  too.
+- **`strom repair` in one language.** Every line it writes ("restored", "nothing to repair", …) is in the research's
+  language for a person; an agent reads them in English as before.
+
 ## 1.22.2
 
 *2026-10-30 · goes with the Strom app 3.17.1.*

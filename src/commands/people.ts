@@ -5,7 +5,7 @@ import type { Context } from "../cli/context.ts";
 import { lines, moreLine, paginate, table, truncate } from "../cli/format.ts";
 import { suggestionLines, suggestPeople } from "../core/participantlinks.ts";
 import { checkStreetPlace } from "../core/streets.ts";
-import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, mergeFamilies, notRetracted, mergePersons, parseParticipant, retractEvent, retractPerson } from "../core/actions.ts";
+import { addChild, addEvent, addFamily, addName, addNote, addPerson, citeEvent, citeRecord, editEvent, editFamily, editPerson, findEventOwner, markPrimaryName, mergeFamilies, notRetracted, mergePersons, parseParticipant, retractEvent, retractPerson } from "../core/actions.ts";
 import { listOpt, normId, requireRecord } from "../core/records.ts";
 import { SINGLE_KINDS } from "../core/actions.ts";
 import { UsageError } from "../core/errors.ts";
@@ -13,6 +13,7 @@ import { INFORMATION } from "../core/evidence.ts";
 import { EVENT_KINDS, NAME_KINDS, type Citation, type Event, type Family, type Name, type Note, type Person, type Research, type RetractedNote, type Task } from "../core/model.ts";
 import {
   ancestorGenerations,
+  currentName,
   displayName,
   familiesAsChild,
   familiesAsPartner,
@@ -149,7 +150,7 @@ function citesOf(citations: Citation[] | undefined, w: Words = ENGLISH): string 
 
 function nameLine(n: Name, w: Words = ENGLISH): string {
   const cites = citesOf(n.citations, w);
-  return `${titledName(n)}${n.kind ? ` (${w.word("name", n.kind)})` : ""}${cites ? `  ← ${cites}` : ""}`;
+  return `${titledName(n)}${n.kind ? ` (${w.word("name", n.kind)})` : ""}${n.primary ? ` · ${w.word("name", "current")}` : ""}${cites ? `  ← ${cites}` : ""}`;
 }
 
 /** What was taken back or corrected on a person and their facts, oldest first: the name or text as it was, when, by whom, why. */
@@ -341,7 +342,7 @@ register(
       const who = (x: Person) => (shown.add(x), relative(x, w));
       const out: (string | undefined)[] = [
         ...(removed ? [removed.line, ""] : []),
-        `${p.id} ${titledName(primaryName(p))}${lifespan(p) ? ` (${lifespan(p)})` : ""}  ${w.lang ? w.word("sex", p.sex) : `sex ${p.sex}`}`,
+        `${p.id} ${titledName(currentName(p))}${lifespan(p) ? ` (${lifespan(p)})` : ""}  ${w.lang ? w.word("sex", p.sex) : `sex ${p.sex}`}`,
         ...(p.names.length > 1 || p.names.some((n) => n.citations?.length) ? ["", w.say("ui.show.names", "names"), ...p.names.map((n) => `  ${nameLine(n, w)}`)] : []),
         "",
         w.say("ui.show.facts", "facts"),
@@ -466,14 +467,15 @@ register(
     writes: true,
     description:
       "A name without a surname (\"Markéta\") is completed by the full one and the person is shown by it; the same\n" +
-      "name again only adds its citation. A woman is shown by her birth name; --kind married keeps the married one aside.",
+      "name again only adds its citation. A woman is shown by her birth name; --kind married keeps the married one aside.\n" +
+      "--primary shows the person by this name from now on (strom name primary marks a name they have already).",
     args: [
       { name: "person", description: "ID (P0001) or name", required: true },
       { name: "name", description: 'the name, surname in slashes: "Markéta /Růžičková/"', required: true },
     ],
     options: [
       { name: "kind", type: "string", value: "<kind>", description: `${NAME_KINDS.join(", ")} (default: plain)` },
-      { name: "primary", type: "boolean", description: "show the person by this name" },
+      { name: "primary", type: "boolean", description: "show the person by this name now (their identity stays the birth name)" },
       ...TITLE_OPTIONS,
       ...CITE_OPTIONS.filter((o) => o.name !== "status"),
     ],
@@ -493,6 +495,34 @@ register(
         });
       const r = addName(tree, p.id, { name: args[1]!, kind: opts.kind as string | undefined, citation: citationOf(opts), primary: Boolean(opts.primary), prefix: opts.prefix as string | undefined, suffix: opts.suffix as string | undefined });
       return { text: written(tree), data: { person: r.person, name: r.name } };
+    },
+  },
+  {
+    path: ["name", "primary"],
+    summary: "Show a person by one of their names now — a divorced woman back at her birth surname — without adding it again",
+    group: "people",
+    tree: true,
+    writes: true,
+    description:
+      "The user's choice, never told from a record (a divorce does not say it): the name is marked, every other name\n" +
+      "stays as it is. person show, lists, the brief, the Strom app show the person by it; their identity — what a\n" +
+      "correction (person edit --name), a citation of the person and pairing go by — stays the birth name. --clear takes\n" +
+      "the mark off: shown by the birth name again (the Strom app: by the married surname, as before).",
+    args: [
+      { name: "person", description: "ID (P0001) or name", required: true },
+      { name: "name", description: 'one of their names, surname in slashes: "Jana /Lhotová/" (none with --clear)' },
+    ],
+    options: [
+      { name: "clear", type: "boolean", description: "take the mark off: no name chosen" },
+    ],
+    examples: ['strom name primary P0002 "Josef /Nowak/"', "strom name primary P0002 --clear"],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const p = resolvePerson(tree, args[0]!);
+      if (opts.clear && args[1] !== undefined) throw new UsageError("a name or --clear, not both", { hint: `strom name primary ${p.id} "<Given /Surname/>" · strom name primary ${p.id} --clear` });
+      if (!opts.clear && args[1] === undefined) throw new UsageError("which name?", { hint: `its names: ${p.names.map((n) => `"${gedcomName(n)}"`).join(", ")} · strom name primary ${p.id} "<Given /Surname/>" · --clear` });
+      const r = markPrimaryName(tree, p.id, opts.clear ? undefined : args[1], opts.reason as string | undefined);
+      return { text: written(tree), data: { person: r.person, name: r.name, ...(r.was ? { was: r.was } : {}) } };
     },
   },
   {

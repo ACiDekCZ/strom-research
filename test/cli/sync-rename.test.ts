@@ -143,8 +143,8 @@ test("undone, a name the sync added goes even when it is the one shown; a person
   const file = send("Karel /Dvořák/", "Marie");
   fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("1 NAME Marie\n", "1 NAME Marie\n1 NAME Marie /Nováková/\n"));
   const input = (await w.ok(["sync", file, "--apply", "--json"])).json.input as string;
-  await w.ok(["name", "add", "P0002", "Marie /Nováková/", "--primary"]);
-  assert.deepEqual(await names(w, "P0002"), ["Marie Nováková", "Marie"]);
+  await w.ok(["name", "primary", "P0002", "Marie /Nováková/"]);
+  assert.match((await w.ok(["person", "show", "P0002"])).out, /^P0002 Marie Nováková/, "shown by the app's name now");
   const undone = await w.ok(["sync", "undo", input]);
   // the line says which name goes, and whose (found on Windows: the person only, not the name)
   assert.match(undone.out, /^Odebrané jméno: Marie Nováková – Marie \[P0002\]$/m, undone.out);

@@ -14,7 +14,7 @@ export interface GedFinding {
 
 const LINE = /^(\d{1,2}) (?:(@[^@ ]+@) )?([A-Za-z0-9_]+)(?: (.*))?$/;
 
-const EVENT_DETAIL = ["TYPE", "DATE", "PLAC", "AGE", "SOUR", "NOTE", "ASSO", "_WITN", "CAUS", "ADDR", "AGNC", "RELI", "OBJE", "HUSB", "WIFE"];
+const EVENT_DETAIL = ["TYPE", "DATE", "PLAC", "AGE", "SOUR", "NOTE", "ASSO", "_WITN", "CAUS", "ADDR", "AGNC", "RELI", "OBJE", "HUSB", "WIFE", "_STROM_STATUS"];
 const INDI_EVENTS = [
   "BIRT", "DEAT", "BAPM", "CHR", "CHRA", "CONF", "FCOM", "BARM", "BASM", "ORDN", "EDUC", "GRAD", "OCCU", "RESI", "EMIG", "IMMI",
   "NATU", "RELI", "TITL", "NATI", "ADOP", "WILL", "PROB", "BURI", "CREM", "CENS", "EVEN", "RETI", "BLES", "CAST", "DSCR", "IDNO",
@@ -24,7 +24,7 @@ const FAM_EVENTS = ["MARR", "DIV", "MARB", "MARC", "MARL", "MARS", "ANUL", "DIVF
 
 /** Allowed child tags by parent context ("INDI", "INDI.BIRT", …). CONC/CONT are allowed under anything with text. */
 const CHILDREN: Record<string, string[]> = {
-  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF"],
+  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE"],
   "HEAD.SOUR": ["VERS", "NAME", "CORP", "DATA"],
   "HEAD._STROM_LINKS": ["_SCHEME"],
   "HEAD.GEDC": ["VERS", "FORM"],
@@ -43,14 +43,16 @@ const CHILDREN: Record<string, string[]> = {
   "_STROM_EDGE._JOIN": ["_VAR", "_ISLAND", "_HELD"],
   // a value of a conflict the app decides by side: its side, a sex as M, F or U
   _STROM_VALUE: ["SOUR", "_STROM_SIDE", "_STROM_RAW"],
-  "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE"],
+  "INDI.NAME": ["TYPE", "GIVN", "SURN", "NPFX", "NSFX", "NICK", "SPFX", "SOUR", "NOTE", "_STROM_PRIMARY"],
   "INDI.FAMC": ["PEDI", "NOTE"],
   "INDI.FAMS": ["NOTE"],
   "FAM.CHIL": ["_FREL", "_MREL"],
   "INDI.ASSO": ["RELA", "SOUR", "NOTE"],
-  FAM: ["HUSB", "WIFE", "CHIL", "NOTE", "SOUR", "REFN", "OBJE", "RIN", "CHAN", "_STORY", ...FAM_EVENTS],
+  FAM: ["HUSB", "WIFE", "CHIL", "NOTE", "SOUR", "REFN", "OBJE", "RIN", "CHAN", "_STORY", "_STAT", "_STROM_NO_COUPLE", ...FAM_EVENTS],
   // the Strom profile also writes PAGE on the record: where in the book the source is (the Strom app's reference)
-  SOUR: ["TITL", "AUTH", "ABBR", "PUBL", "TEXT", "REPO", "NOTE", "REFN", "DATA", "OBJE", "RIN", "CHAN"],
+  SOUR: ["TITL", "AUTH", "ABBR", "PUBL", "TEXT", "REPO", "NOTE", "REFN", "DATA", "OBJE", "RIN", "CHAN", "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_IMG_OMITTED"],
+  "SOUR._STROM_READING": ["_STROM_ENTRY"],
+  "SOUR._STROM_IMG_OMITTED": ["_STROM_CLIP"],
   "SOUR.REPO": ["CALN", "NOTE"],
   REPO: ["NAME", "ADDR", "NOTE", "REFN", "RIN", "CHAN"],
   SUBM: ["NAME", "ADDR", "LANG", "NOTE", "RIN", "CHAN"],
@@ -84,6 +86,12 @@ const EXTENSIONS = new Set([
   "_VAR", "_LINK", "_PERS", "_FAM", "_PAR", "_CHOSEN", "_INTREE",
   // a source's excerpts the file leaves out, and why
   "_STROM_IMG_OMITTED",
+  // the name a person is shown by; a couple's state; parents who are no couple; an archive
+  "_STROM_PRIMARY", "_STAT", "_STROM_NO_COUPLE", "_STROM_MODE",
+  // who read a source, the user's verification, the reading it is an entry of; how sure a fact is
+  "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_ENTRY", "_STROM_STATUS",
+  // an excerpt's original by its content, and how its picture lies
+  "_STROM_SHA", "_STROM_ORIENT",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */

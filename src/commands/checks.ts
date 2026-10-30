@@ -10,8 +10,8 @@ import { counted, lines, table } from "../cli/format.ts";
 import { check, SHARED_MISSING, sharedMissing, type Finding } from "../core/check.ts";
 import { guard } from "../core/guard.ts";
 import { unprovenPeople } from "../core/review.ts";
-import { NOT_DOWNLOADED, OTHER_KEY, SEALED_PATHS, notDownloaded, notDownloadedError, otherKeyError, verifyFast, verifyFull } from "../core/integrity.ts";
-import { verifyCommitSeal } from "../core/seal.ts";
+import { AFTER_REPAIR_HINT, NOT_DOWNLOADED, OTHER_KEY, REPAIR_IN_TERMINAL_HINT, SEALED_PATHS, lastSealed, notDownloaded, notDownloadedError, otherKeyError, verifyFast, verifyFull } from "../core/integrity.ts";
+import { otherKeys } from "../core/seal.ts";
 import { adoptSeal, keysToUnite } from "../cli/seal.ts";
 import { NeedsConsentError, StromError } from "../core/errors.ts";
 import * as git from "../core/git.ts";
@@ -42,7 +42,7 @@ function said(f: Finding, lang: string | undefined): string {
 /** Its next step said as its finding is (the research sealed on another computer: taken over by the person). */
 function hintSaid(f: Finding, lang: string | undefined): string | undefined {
   if (lang && f.code === "foreign-seal") return ui(lang, "ui.check.foreignseal.hint");
-  if (lang && f.code === OTHER_KEY) return ui(lang, "ui.check.otherkey.hint");
+  if (lang && f.code === OTHER_KEY) return ui(lang, f.hint === AFTER_REPAIR_HINT ? "ui.check.otherkey.afterrepair.hint" : "ui.check.otherkey.hint");
   if (lang && f.code === NOT_DOWNLOADED) return ui(lang, "ui.check.notdownloaded.hint");
   if (lang && f.code === SHARED_MISSING) return ui(lang, "ui.check.sharedmissing.hint", { show: `strom ${f.id?.startsWith("M") ? "media" : "input"} show ${f.id ?? ""}` });
   if (lang && f.code === "after-death" && f.params)
@@ -147,6 +147,8 @@ interface Repaired {
   restored: string[];
   quarantined: string[];
   from: string;
+  /** Commits made outside strom on top: sealed again, whether or not they changed a record. */
+  resealed: boolean;
 }
 
 function quarantine(tree: Tree, rel: string, stamp: string): void {
@@ -166,9 +168,17 @@ function repair(tree: Tree): Repaired {
   const key = tree.requireKey();
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const head = git.headInfo(tree.root);
-  const sealed = git.findCommit(tree.root, (t, m) => verifyCommitSeal(key, t, m));
+  // the newest commit any key of this computer sealed: only what was done outside strom undone, the other key's work
+  // kept — strom seal adopt unites them after
+  const { sealed, inTerminal } = lastSealed(tree, key);
   if (!sealed) throw new StromError("no sealed commit found — nothing to restore from", { hint: "ask the user; the history may have been rewritten" });
-  const headSealed = head !== undefined && verifyCommitSeal(key, head.tree, head.message);
+  if (inTerminal)
+    throw new StromError(`"${tree.config.name}" holds work sealed with the key of the terminal's strom, which this strom (started by an app packaged for Windows) does not see — nothing repaired`, {
+      hint: REPAIR_IN_TERMINAL_HINT,
+      code: "seal.repair-in-terminal",
+      params: { name: tree.config.name },
+    });
+  const headSealed = head !== undefined && head.hash === sealed;
 
   // Paths to compare: whatever differs between the sealed commit and the working tree.
   const candidates = new Set<string>();
@@ -198,7 +208,7 @@ function repair(tree: Tree): Repaired {
   // sealed again even when the commits outside strom changed nothing of it (an empty one, notes only): else the last
   // commit stays unsealed and every write refused, with nothing left to repair
   if (!headSealed) tree.commit(`Repair: restore the sealed state of ${sealed.slice(0, 8)}\n\nCommits made outside strom were undone for data/, strom.json, history/ and quality/.`, SEALED_PATHS, true);
-  return { restored, quarantined, from: sealed };
+  return { restored, quarantined, from: sealed, resealed: !headSealed };
 }
 
 register(
@@ -209,21 +219,31 @@ register(
     tree: true,
     description:
       "Edited records are restored, records created outside strom are removed; copies of everything\n" +
-      "that was replaced are kept in .strom/quarantine/. Commits made with git directly are undone for data/.",
+      "that was replaced are kept in .strom/quarantine/. Commits made with git directly are undone for data/.\n" +
+      "A tree sealed with two keys of this computer (an app packaged for Windows and a terminal): the work of both kept,\n" +
+      "the keys united after it with strom seal adopt.",
     run(ctx) {
       const tree = ctx.tree();
+      // what a person meets here in the research's language, an agent in English
+      const lang = isAgent(ctx.env) ? "en" : tree.lang;
       const r = tree.withTreeLock(() => repair(tree));
-      const after = verifyFast(tree).findings.filter((f) => f.level === "error");
+      // the work of another key of this computer kept: united next, by the person in their terminal (no problem left of
+      // what strom repair undoes)
+      const after = verifyFast(tree).findings.filter((f) => f.level === "error" && f.code !== OTHER_KEY);
+      const unite = !!tree.key && otherKeys(tree.env, tree.config.id, tree.key).length > 0 && keysToUnite(tree).length > 0;
+      const next = unite ? ui(lang, "ui.repair.unite") : undefined;
       const text =
         r.restored.length + r.quarantined.length === 0
-          ? "nothing to repair — every record matches its seal"
+          ? r.resealed
+            ? lines(ui(lang, "ui.repair.resealed"), next)
+            : lines(ui(lang, "ui.repair.nothing"), next)
           : lines(
-              ...r.restored.map((f) => `restored  ${f}`),
-              ...r.quarantined.map((f) => `removed   ${f}`),
-              `sealed state: ${r.from.slice(0, 8)} · copies of replaced files: .strom/quarantine/`,
-              after.length ? `still ${counted(after.length, "problem")} → strom verify` : undefined,
+              ...r.restored.map((file) => ui(lang, "ui.repair.restored", { file })),
+              ...r.quarantined.map((file) => ui(lang, "ui.repair.removed", { file })),
+              ui(lang, "ui.repair.from", { commit: r.from.slice(0, 8) }),
+              after.length ? ui(lang, "ui.repair.still", { n: after.length }) : next,
             );
-      return { text, data: { ...r, ok: after.length === 0 }, exitCode: after.length ? 1 : 0 };
+      return { text, data: { ...r, ok: after.length === 0, ...(unite ? { unite: "strom seal adopt" } : {}) }, exitCode: after.length ? 1 : 0 };
     },
   },
   {

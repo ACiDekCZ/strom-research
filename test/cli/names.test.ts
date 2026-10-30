@@ -35,7 +35,7 @@ test("name add: the maiden name a record gives completes the name; variants keep
   const show = (await w.ok(["person", "show", "P2"])).out;
   assert.match(show, /^P0002 Markéta Růžičková/);
   assert.match(show, /names\n  Markéta Růžičková \(birth\)  ← S0001 pag. 228 \(secondary\)\n  Markéta Víšková \(married\)/);
-  assert.equal((await w.run(["name", "add", "P2", "Marie /Víšková/", "--kind", "married", "--primary"])).code, 2);
+  assert.equal((await w.run(["name", "primary", "P2", "Marie /Víšková/"])).code, 2, "only a name the person has can be the one shown");
   // the same words are one name: a weaker record's name becomes an alias with its citation, not a second entry
   await w.ok(["source", "add", "Křest 1862", "--kind", "baptism"]); // S2
   await w.ok(["name", "add", "P2", "Markéta /Víšková/", "--kind", "alias", "--cite", "S2"]);

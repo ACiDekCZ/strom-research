@@ -18,6 +18,11 @@ A story is written from the facts, for the family.
 - Write it to a file in notes/, then `strom story set P… --text @notes/story-P….md
   --title "…" --fact E… --fact E… --source S… --note "what is inferred"`: every fact it leans on goes
   in --fact, every source of its background in --source. A couple's story goes on the family (F…).
+- A couple's story tells their life together: the wedding, the household, the
+  homes, the children, the widowhood. Each one's life before and after it is
+  their own story's — referred to in a sentence, never told again.
+- A person whose couple has a story: the marriage in one sentence pointing to
+  it. What a story told already stays; it is never shortened for a couple's.
 - It stays a draft; when the user says it is right: `strom story approve P…`
   (the Strom app asks them too). An approved story is locked — the user liked
   it: written again (more facts, a better reading), the new version waits

@@ -5,6 +5,44 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.23.0
+
+*30.10.2026 · gehört zur Strom-App 3.18.0.*
+
+- **Eine Person unter dem gewählten Namen.** Eine Frau, unter einem Namen geboren, unter einem anderen verheiratet und
+  nach einer Scheidung wieder beim ersten, lässt sich wieder unter diesem Namen zeigen, ohne dass er ein zweites Mal
+  hinzukommt: `strom name primary <Person> "<Name>"` (und `--clear`) oder `strom name add --primary`. Die Wahl trifft
+  allein der Nutzer, nie wird sie aus einem Eintrag gelesen; Korrekturen, Zitate und der Abgleich mit der Strom-App
+  richten sich weiter nach dem Geburtsnamen. Die Strom-Datei markiert den gewählten Namen, die Standard-GEDCOM-Datei
+  setzt ihn an die erste Stelle. Die Strom-App 3.18.0 zeigt die Person unter diesem Namen, und ein dort gewählter Name
+  kommt mit dem Abgleich zurück.
+- **Die Datei für die Strom-App ohne Warnungen.** Der Export für die Strom-App warnte bei jeder Person mit gewähltem
+  Namen und bei mehreren Kennzeichen von Quellen vor einem nicht standardisierten Tag; die Prüfung kennt jetzt alle
+  eigenen Tags von Strom.
+- **Ein Commit mit git über einer mit zwei Schlüsseln versiegelten Forschung (Windows).** `strom check` riet zugleich
+  zu `strom repair` und zu „nie `strom repair`“, und `strom repair` machte die mit dem Schlüssel des Terminals
+  geschriebene Arbeit rückgängig. `strom repair` macht jetzt nur rückgängig, was außerhalb von strom geschah, die
+  Arbeit beider Schlüssel bleibt; danach vereint `strom seal adopt` in einem eigenen Terminal die Schlüssel – `strom
+  check` nennt beide Schritte in dieser Reihenfolge. Aus der für Windows paketierten Desktop-App eines Agenten
+  gestartet, lässt `strom repair` eine solche Forschung unverändert und verweist auf das Terminal. Nach einem Commit
+  mit git, der keinen Eintrag änderte, sagt `strom repair`, dass es die Forschung neu versiegelt hat, nicht mehr
+  „nothing to repair“. Ein dort abgelehnter Schreibvorgang verweist ebenfalls auf das Terminal, nicht mehr zuerst auf
+  `strom repair`.
+- **Der Siegelschlüssel auch dort, wo ein älteres strom sucht (Windows).** Ein aus der Kopie einer für Windows
+  paketierten App übernommener Schlüssel liegt jetzt auch in `%APPDATA%\strom\keys`, wo ihn strom 1.22.1 oder älter
+  im Terminal sucht: zurück bei einer älteren Version bleibt die Forschung auf diesem Computer versiegelt. Ein Schlüssel,
+  der dort schon liegt, wird nie ersetzt.
+- **Die Erzählung eines Paares, aus der Strom-App freigegeben.** Die Frage im Terminal nennt jetzt die Erzählung des
+  Paares, nicht mehr die einer Person.
+- **Die Erzählung eines Paares, von der Forschung vorgeschlagen.** Sobald Einträge das gemeinsame Leben eines Paares
+  erzählen (die Hochzeit oder ein Kind und zwei weitere Angaben) und einer der beiden schon eine eigene Erzählung hat,
+  schlägt die Forschung die Erzählung des Paares vor wie die einer Person – nur das gemeinsame Leben (Hochzeit,
+  Haushalt, Wohnorte, Kinder, Witwenschaft); auf die Erzählungen der Partner wird verwiesen, sie werden nicht
+  wiederholt. Eine danach geschriebene Erzählung einer Person fasst die Ehe in einem Satz zusammen; keine schon
+  geschriebene wird dafür gekürzt. `strom config set stories no` schaltet auch diese aus.
+- **`strom repair` in einer Sprache.** Jede Zeile („wiederhergestellt“, „nichts zu reparieren“ …) steht für eine
+  Person in der Sprache der Forschung; ein Agent liest sie wie bisher auf Englisch.
+
 ## 1.22.2
 
 *30.10.2026 · gehört zur Strom-App 3.17.1.*

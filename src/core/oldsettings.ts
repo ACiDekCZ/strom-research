@@ -15,6 +15,17 @@ import { writesPrivately } from "./packaged.ts";
 import { installation, type Installation } from "./self.ts";
 
 /**
+ * %APPDATA%\strom alone, as this process sees it (oldSettingsDirs' first), without looking through the packaged apps:
+ * where an older strom looks for its keys.
+ */
+export function oldSettingsDir(env: Env, platform: NodeJS.Platform = process.platform, inst: Installation = installation()): string | undefined {
+  if (inst.kind === "source" && env.STROM_TEST_OLD_SETTINGS !== undefined) return env.STROM_TEST_OLD_SETTINGS.split(path.delimiter).filter(Boolean)[0];
+  if (env.STROM_CONFIG_DIR || platform !== "win32") return undefined;
+  const home = env.USERPROFILE || userHome(env);
+  return path.join(env.APPDATA || path.join(home, "AppData", "Roaming"), "strom");
+}
+
+/**
  * The folders strom kept its settings in before, as this process sees them: %APPDATA%\strom first (in a packaged app
  * its private copy where there is one, else the real one), then each packaged app's copy, read by its path. None with
  * settings of their own (STROM_CONFIG_DIR) and none off Windows. STROM_TEST_OLD_SETTINGS (the sources only): the folders
@@ -22,9 +33,9 @@ import { installation, type Installation } from "./self.ts";
  */
 export function oldSettingsDirs(env: Env, platform: NodeJS.Platform = process.platform, inst: Installation = installation()): string[] {
   if (inst.kind === "source" && env.STROM_TEST_OLD_SETTINGS !== undefined) return env.STROM_TEST_OLD_SETTINGS.split(path.delimiter).filter(Boolean);
-  if (env.STROM_CONFIG_DIR || platform !== "win32") return [];
+  const roaming = oldSettingsDir(env, platform, inst);
+  if (!roaming) return [];
   const home = env.USERPROFILE || userHome(env);
-  const roaming = path.join(env.APPDATA || path.join(home, "AppData", "Roaming"), "strom");
   const packages = path.join(env.LOCALAPPDATA || path.join(home, "AppData", "Local"), "Packages");
   let apps: string[] = [];
   try {

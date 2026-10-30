@@ -131,6 +131,13 @@ export interface Name {
   prefix?: string;
   suffix?: string;
   kind?: (typeof NAME_KINDS)[number];
+  /**
+   * The name the person is shown by now — the user's choice, never told from a record (a divorced woman back at her
+   * birth surname, spec 024): at most one name of a person; none marked, the name of their identity (primaryName).
+   * Only how the person is shown (currentName): the identity a correction, a citation, pairing and a sync go by stays
+   * primaryName. GEDCOM NAME > _STROM_PRIMARY Y.
+   */
+  primary?: true;
   /** The records that give the person this name (in this form). */
   citations?: Citation[];
 }
@@ -538,6 +545,11 @@ export interface Conflict extends BaseRecord {
    * the parents the user gave — what `strom conflict resolve --take user` writes (the child moved to those parents).
    */
   parents?: { child: string; from: string; partners: string[]; to?: string };
+  /**
+   * A conflict of which name the person is shown by (NAME, the mark Name.primary): each claim's value the name marked
+   * ("Given /Surname/"), "" none — what `strom conflict resolve --take` marks.
+   */
+  primary?: true;
   state: "open" | "resolved";
   resolution?: string;
   reasoning?: string;

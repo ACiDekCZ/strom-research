@@ -29,7 +29,7 @@ import { GedWriter, clipChars, lineValue } from "./lines.ts";
 import { labels, RELA, type LabelKey } from "./labels.ts";
 import type { ChildRelation, Citation, Conflict, Event, Family, Hypothesis, HypothesisVariant, Input, Media, Name, Participant, Person, Place, RecordSet, Repository, Search, Source, Story, Task } from "../core/model.ts";
 import { linkInTree, recordedLinks } from "../core/hypolinks.ts";
-import { birthEvent, claimText, conflictTitle, coupleSides, displayName, familySides, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
+import { birthEvent, claimText, conflictTitle, coupleSides, currentName, displayName, familySides, formatName, gedcomTitledName, noName, preferredOrder, primaryName, relationTo } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { dateYears } from "../core/gdate.ts";
 import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
@@ -359,7 +359,18 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     w.record(x(p.id), "INDI");
     const primary = primaryName(p);
     const nameQuotes: string[] = [];
-    for (const n of [primary, ...p.names.filter((n) => n !== primary)]) {
+    // the name the person is shown by now (Name.primary): first for any program (GEDCOM 7: the preferred name first);
+    // the Strom file keeps the name of their identity first (the app's birth surname) and says the mark — a married
+    // name marked last of them (the app keeps one name after a marriage: the last), so even an app that reads no mark
+    // shows it
+    const current = currentName(p);
+    const rest = p.names.filter((n) => n !== primary && n !== current);
+    const order =
+      current === primary ? [primary, ...rest]
+      : strict ? [current, primary, ...rest]
+      : current.kind === "married" ? [primary, ...rest, current]
+      : [primary, ...p.names.filter((n) => n !== primary)];
+    for (const n of order) {
       // a name with a title says it in the line (any program shows it) and spells its parts out below: NPFX, GIVN, SURN,
       // NSFX — for any program (GEDCOM 5.5.1's own tags), for the Strom app from its 3.10 (titles; an older one reads
       // the line). A part holding a comma gets no GIVN / SURN (GEDCOM reads commas there as a list); the line has it.
@@ -376,6 +387,7 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       }
       // "birth" says something only next to another name
       if (n.kind && (n.kind !== "birth" || p.names.length > 1)) w.line(2, "TYPE", NAME_TYPE[n.kind]);
+      if (!strict && n.primary) w.line(2, "_STROM_PRIMARY", "Y");
       for (const c of n.citations ?? []) {
         const q = citation(2, c);
         if (q) nameQuotes.push(`${L("name")} ${formatName(n)} — ${L("quote")}: „${q}“`);
