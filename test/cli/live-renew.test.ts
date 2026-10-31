@@ -79,7 +79,9 @@ test("never while the bridge writes a send: after it", opts, async () => {
     const release = acquireLock(path.join(b.w.cwd, ".strom", "tree.lock"), { owner: "a test", waitMs: 1000 });
     const ged = ["0 HEAD", "1 GEDC", "2 VERS 5.5.1", "1 CHAR UTF-8", `1 _STROM_TREE ${id}`, "0 @I1@ INDI", "1 NAME Karel /Dvořák/", "1 SEX M", "0 TRLR", ""].join("\n");
     const sent = fetch(`${b.info.url}/sync`, { method: "POST", body: ged, headers: { Origin: "https://beta.stromapp.info", "Content-Type": "text/plain; charset=utf-8" } });
-    await new Promise((r) => setTimeout(r, 300));
+    // the send in the inbox: the bridge took it and holds it as being written (one synchronous step)
+    const inbox = path.join(b.w.cwd, ".strom", "sync");
+    await until("the send taken in", () => fs.existsSync(inbox) && fs.readdirSync(inbox).some((f) => /^strom-app-.*\.ged$/.test(f)));
     b.update();
     await new Promise((r) => setTimeout(r, 1500));
     assert.equal(b.live().pid, b.info.pid, "not while a send is written");

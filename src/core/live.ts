@@ -9,7 +9,9 @@
 //
 //   GET <token>/status     the tree, its researches, who is at work, what waits; what the research takes from
 //                          the app (accepts). ?poll=1: the app asking now and then — the bridge's idle time goes on
-//   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*)
+//   GET <token>/tree.ged   the tree for the Strom app, as it is now, each entry with its image (the settings excerpts.*);
+//                          for an app that keeps them the bounds of a lineage the person set (_STROM_LINE, _STROM_LINES;
+//                          feature lineage.read: strom sync takes them back)
 //   GET <token>/images.ged the same (the address an older strom gave)
 //   GET <token>/log        what the research saved, newest first (each commit: when, what, for which task;
 //                          text: its lines as the user reads them, kinds: what each is about, sources: the S… each
@@ -218,8 +220,9 @@ import { whatsNew } from "./whatsnew.ts";
 import type { SyncInput } from "./sync.ts";
 import { gitProgram, runGit } from "./git.ts";
 import { RECENT_HOURS, recentChanges, recentNow, type Recent } from "./recent.ts";
-import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appReadsSurnameGroups, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
+import { appKnowsArchive, appKnowsNoCouple, appShowsHypothesisLinks, appShowsOmittedImages, appShowsReadings, appDecidesConflicts, appOpensLinks, appReadsTitles, appShowsCoupleEvents, appShowsEdges, appShowsFactStatus, appShowsSourceReads, appShowsStoryDrafts, appTurnsExcerpts, appReadsSurnameGroups, appReadsLines, appUrlSetting, isAppVersion, isStromAppOrigin, stromAppState } from "./stromapp.ts";
 import { suggestSurnames, surnamesForExport } from "./surnames.ts";
+import { lineMarks } from "./lineages.ts";
 import { judgePairs, pairsOf, PAIRS_MAX } from "./duplicates.ts";
 import { askOf, qualityRev, readDismissed } from "./quality.ts";
 import { Settings } from "./config.ts";
@@ -942,7 +945,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1711,6 +1714,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
       const omitted = !!images && appShowsOmittedImages(new Settings(env, {}), version);
       // …and the groups of surname forms and the suggestions rejected, for an app that reads them (strom sync takes them back)
       const surnameGroups = appReadsSurnameGroups(new Settings(env, {}), version) ? surnamesForExport(tree) : undefined;
+      // …and the bounds of a lineage the person set, for an app that keeps them (strom sync takes them back)
+      const lines = appReadsLines(new Settings(env, {}), version) ? lineMarks(tree) : undefined;
       left = {
         head: h,
         level: set?.quality ?? LEVELS[1]!.name,
@@ -1721,7 +1726,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         head: h,
         links: offered.join(" "),
         version: version ?? "",
-        text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
+        text: exportGedcom(tree, { for: "strom", ...(h ? { head: h } : {}), ...(surnameGroups ? { surnameGroups } : {}), ...(lines ? { lines } : {}), ...(images ? { excerpts: images.of } : {}), ...(opens ? { clips: true, research: true } : {}), ...(edges ? { edges } : {}), ...(storyDrafts ? { storyDrafts } : {}), ...(coupleResi ? { coupleResi } : {}), ...(sourceReads ? { sourceReads } : {}), ...(factStatus ? { factStatus } : {}), ...(archive ? { archive } : {}), ...(turnsExcerpts ? { turnsExcerpts } : {}), ...(noCouple ? { noCouple } : {}), ...(titles ? { titles } : {}), ...(hypothesisLinks ? { hypothesisLinks } : {}), ...(conflictSides ? { conflictSides } : {}), ...(readings ? { readings } : {}), ...(omitted ? { omitted: images.omitted } : {}), ...(offered.length ? { links: offered, ...(linkScheme(env) !== LINK_SCHEME ? { linkScheme: linkScheme(env) } : {}) } : {}) }).text,
       };
     }
     return h;
@@ -3754,7 +3759,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
             const tree = Tree.open(root, env);
             const settings = new Settings(env, {});
             const rev = historyShown(tree, settings) ? historyRevNow(tree, settings, h, historyRev(tree, settings.shared()?.value, settings)) : undefined;
-            if (rev && historySeen && historySeen.head === h && historySeen.rev !== rev) send("history", { rev });
+            // (a commit made since the head was read changes the rev too: its change says it, never a history of its own)
+            if (rev && historySeen && historySeen.head === h && historySeen.rev !== rev && tip(root).head === h) send("history", { rev });
             historySeen = rev ? { rev, head: h } : undefined;
           }
           // what GET /quality answers changed (the person marked a finding no error, or took it back): the event quality {rev}

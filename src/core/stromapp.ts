@@ -549,6 +549,27 @@ export function appKnowsPrimaryName(settings: Settings, version?: string): boole
   return !!APP_KNOWS_PRIMARY_NAME && compareVersions(v, APP_KNOWS_PRIMARY_NAME) >= 0;
 }
 
+/**
+ * The first Strom app that keeps the person's own bounds of a lineage (spec 028; the app's ZADANI_VYZKUM_rody.md):
+ * it reads 1 _STROM_LINE FOUNDER|NOCARRY on a person and 1 _STROM_LINES Y in the header of the Strom file, keeps them
+ * as its lineageOverrides and sends them back. An older app skips the tags and sends none back (a send of it says
+ * nothing of them: no header mark). Not released yet (the app's 3.19.0); an app of unknown version (strom app from a
+ * terminal) stays off, as the groups of a surname's forms; another copy of the app (its beta, its development) gets
+ * them from APP_READS_LINES_BETA.
+ */
+export const APP_READS_LINES: string | undefined = undefined;
+
+/** The first beta of the app that reads and writes the bounds of a lineage (another copy of the app gets them from it). */
+export const APP_READS_LINES_BETA: string | undefined = "3.19.0-beta.4";
+
+/** Does the Strom app of this version keep the bounds of a lineage the person set (_STROM_LINE, _STROM_LINES)? */
+export function appReadsLines(settings: Settings, version?: string, gate: string | undefined = APP_READS_LINES): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings) && APP_READS_LINES_BETA) return compareVersions(v, APP_READS_LINES_BETA) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
+}
+
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */
 export function sendAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;

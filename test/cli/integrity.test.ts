@@ -28,7 +28,16 @@ test("a manual edit is detected and blocks further writes until repaired", opts,
   assert.equal(v.json.findings[0].code, "manual-edit");
   const blocked = await w.run(["person", "add", "Karel /Novák/"]);
   assert.equal(blocked.code, 1);
-  assert.match(blocked.err, /changed outside strom/);
+  assert.equal((await w.run(["person", "add", "Karel /Novák/", "--json"])).json.code, "tree.changed-outside");
+  // a person in a Czech research reads it in Czech, its way too; an agent reads the English
+  const said = await w.run(["person", "add", "Karel /Novák/"], { tty: true });
+  assert.match(said.err, /data výzkumu se změnila mimo strom \(1 problém\): nic se nezapsalo/u, said.err);
+  assert.match(said.err, /strom repair {3}\(vrátí poslední zapečetěný stav\)/u, said.err);
+  assert.doesNotMatch(said.err, /refusing to write/);
+  w.env.CLAUDECODE = "1";
+  const agent = await w.run(["person", "add", "Karel /Novák/"]);
+  assert.match(agent.err, /changed outside strom \(1 problem\) — refusing to write/, agent.err);
+  delete w.env.CLAUDECODE;
   await w.ok(["repair"]);
   assert.equal(readJsonFile(file).sex, "M");
   await w.ok(["person", "add", "Karel /Novák/"]);

@@ -99,6 +99,12 @@ function changeLine(tree: Tree, c: Change, incoming: Snapshot, lang: string, rea
     const p = tree.get<Person>(key);
     return p ? `${(p.names[0] ? `${p.names[0].given} ${p.names[0].surname}` : key).trim()} [${key}]` : key;
   };
+  // a person's bound of a lineage the user set in the app (core/lineages.ts)
+  if (c.line) {
+    const key = c.line.mark === "FOUNDER" ? "ui.sync.lineage.founder" : c.line.mark === "NOCARRY" ? "ui.sync.lineage.nocarry" : "ui.sync.lineage.none";
+    const does = c.takenBack ? "ui.sync.do.taken" : c.action === "report" ? "ui.sync.do.surname.report" : "ui.sync.do.lineage";
+    return `${ui(lang, key, { n: c.n, name: name(c.person) })} → ${ui(lang, does)}`;
+  }
   const who = c.partners ? c.partners.map(name).join(" & ") || c.family || "?" : name(c.person);
   // a partner in their age: the given name
   const short = (key: string) => (key.startsWith("x:") ? name(key) : (tree.get<Person>(key)?.names[0]?.given ?? key));

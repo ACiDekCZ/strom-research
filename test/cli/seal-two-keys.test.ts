@@ -257,6 +257,10 @@ test("a record changed and committed with git in the packaged app's research: ch
   const write = await w.run(["person", "add", "Petr /Lhoták/", "--sex", "M", "--json"], { env: { ...app, CLAUDECODE: "1" } });
   assert.notEqual(write.code, 0);
   assert.doesNotMatch(write.out + write.err, /seal\.other-key/, write.out + write.err);
+  assert.equal(write.json.code, "tree.changed-outside");
+  // the person reads it in the research's language
+  const said = await w.run(["person", "add", "Petr /Lhoták/", "--sex", "M"], { env: app, tty: true });
+  assert.match(said.err, /data výzkumu se změnila mimo strom/u, said.err);
   w.cleanup();
 });
 
@@ -313,6 +317,12 @@ test("a commit made with git on top of the terminal's work: one way, strom repai
   assert.equal(write.code, 1, write.out + write.err);
   assert.match(write.json.hint, /the user runs in their terminal: strom repair.+then strom seal adopt/, write.json.hint);
   assert.doesNotMatch(write.json.hint, /^strom repair/m, write.json.hint);
+  // the person in the app reads the same way in the research's language; in the terminal, its own strom repair first
+  const said = await w.run(["person", "add", "Petr /Lhoták/", "--sex", "M"], { env: app, tty: true });
+  assert.match(said.err, /ve vlastním terminálu: strom repair, pak strom seal adopt/u, said.err);
+  const saidThere = await w.run(["person", "add", "Petr /Lhoták/", "--sex", "M"], { env: terminal, tty: true });
+  assert.match(saidThere.err, /^→ strom repair/mu, saidThere.err);
+  assert.doesNotMatch(saidThere.err, /ve vlastním terminálu/u, saidThere.err);
   // the terminal's agent: its own strom repair, which says what next (strom seal adopt)
   const there = await w.run(["person", "add", "Petr /Lhoták/", "--sex", "M", "--json"], { env: { ...terminal, CLAUDECODE: "1" } });
   assert.match(there.json.hint, /^strom repair/m, there.json.hint);

@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.24.0
 
-*In preparation: the betas up to 1.24.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.24.0-beta.2. The section is complete with the release.*
 
 - **Places mapped once for every research on this computer.** A place another research here has mapped to its
   regions of history is taken over when it is surely the same place (the same name and the same coordinates, parish
@@ -21,10 +21,12 @@ The changes of each version in short. The full notes and the install lines are o
 - **The page of each scan in the Strom app.** The Strom file now gives each source the page of its scan in the online
   archive: the page of its first image, else the source's own address. The Strom app links it for the excerpts the
   file leaves out and for the sources without an excerpt. Only a public web page, never a recordset's address; the
-  standard GEDCOM file keeps the address in the note.
-- **A house number and an age as they were written.** The word for a house number ("No.", "čp.") is put only before
+  standard GEDCOM file keeps the address in the note. The date of the research's version in the Strom file carries its
+  time too, so the app shows the day it was made also around midnight.
+- **A house number, an age and a period as they were written.** The word for a house number ("No.", "čp.") is put only before
   a number standing alone; a street with its number goes into the file as it is. An age of "05y" is read as 5 years.
-  Both come back from the Strom app the same, no edit of the user's.
+  Both come back from the Strom app the same, no edit of the user's. A period the Strom app keeps ("1871/1882", or
+  open at one end) comes into the research as from … to …, never as a date somewhere between.
 - **The question about history says where it holds.** Turning the events of history on or off holds for every
   research on this computer; the question says so, and how to change it for one research alone.
 - **A weak or refused model of the agent said by the doctor.** When no model is chosen for the research and the
@@ -33,7 +35,9 @@ The changes of each version in short. The full notes and the install lines are o
 - **strom from npm keeps its channel.** strom installed with npm stays on the channel it was installed from, also
   after a release; a channel chosen with `strom update --channel` is kept for it too.
 - **A failed command takes back only its own.** A command that saved on the way and then failed takes back only what
-  came after its save, so the research never looks changed outside strom.
+  came after its save, so the research never looks changed outside strom. Where writing is refused because the
+  research was changed outside strom, the person reads it in the research's language, with the way out that fits; an
+  agent still reads it in English.
 
 ## 1.23.0
 

@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.24.0
 
-*Připravuje se: bety do 1.24.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.24.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Místa zmapovaná jednou pro všechny výzkumy na tomto počítači.** Místo, které jiný výzkum tady už přiřadil k regionům
   dějin, se převezme, když jde jistě o totéž místo (stejný název a stejné souřadnice, farnost nebo okres) a všechny
@@ -19,10 +19,12 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Stránka každého skenu v aplikaci Strom.** Soubor pro Strom dává teď každému prameni stránku jeho skenu v online
   archivu: stránku jeho prvního obrázku, jinak vlastní adresu pramene. Aplikace Strom ji nabídne u výřezů, které soubor
   vynechává, a u pramenů bez výřezu. Jen veřejná webová stránka, nikdy adresa fondu; standardní soubor GEDCOM nechává
-  adresu v poznámce.
-- **Číslo domu a věk tak, jak byly zapsány.** Slovo pro číslo domu („No.“, „čp.“) se dává jen před samotné číslo;
+  adresu v poznámce. Datum verze výzkumu v souboru pro Strom nese i čas, takže aplikace ukáže den, kdy vznikla, i kolem
+  půlnoci.
+- **Číslo domu, věk a období tak, jak byly zapsány.** Slovo pro číslo domu („No.“, „čp.“) se dává jen před samotné číslo;
   ulice s číslem jde do souboru tak, jak je. Věk „05y“ se čte jako 5 let. Obojí se z aplikace Strom vrací stejné,
-  není to úprava uživatele.
+  není to úprava uživatele. Období, které vede aplikace Strom („1871/1882“, nebo otevřené na jednom konci), přijde do
+  výzkumu jako od … do …, nikdy jako datum někde mezi nimi.
 - **Otázka na dějiny říká, kde platí.** Zapnutí nebo vypnutí událostí dějin platí pro všechny výzkumy na tomto
   počítači; otázka to říká, i jak to změnit jen pro jeden výzkum.
 - **Slabý nebo odmítnutý model agenta hlásí doctor.** Když výzkum nemá zvolený model a vlastní výchozí model agenta je
@@ -31,7 +33,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **strom z npm drží svůj kanál.** strom nainstalovaný přes npm zůstává na kanálu, ze kterého byl nainstalován, i po
   vydání; kanál zvolený přes `strom update --channel` se pro něj také pamatuje.
 - **Příkaz, který selže, vrátí jen své.** Příkaz, který cestou uložil a pak selhal, vrátí jen to, co přišlo po jeho
-  uložení, takže výzkum nikdy nevypadá změněný mimo strom.
+  uložení, takže výzkum nikdy nevypadá změněný mimo strom. Když se zápis odmítne, protože se výzkum změnil mimo strom,
+  člověk to čte v jazyce výzkumu i s cestou, která sedí; agent to dál čte anglicky.
 
 ## 1.23.0
 

@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.24.0
 
-*In Vorbereitung: die Betas bis 1.24.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.24.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Orte einmal zugeordnet für jede Forschung auf diesem Computer.** Ein Ort, den eine andere Forschung hier schon den
   Regionen der Geschichte zugeordnet hat, wird übernommen, wenn es sicher derselbe Ort ist (derselbe Name und dieselben
@@ -21,10 +21,12 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Die Seite jedes Scans in der Strom-App.** Die Strom-Datei gibt jetzt jeder Quelle die Seite ihres Scans im
   Online-Archiv: die Seite ihres ersten Bildes, sonst die eigene Adresse der Quelle. Die Strom-App verlinkt sie bei den
   Ausschnitten, die die Datei auslässt, und bei Quellen ohne Ausschnitt. Nur eine öffentliche Webseite, nie die Adresse
-  eines Bestands; die Standard-GEDCOM-Datei behält die Adresse in der Notiz.
-- **Hausnummer und Alter, wie sie geschrieben wurden.** Das Wort für eine Hausnummer („No.“, „čp.“) steht nur vor
+  eines Bestands; die Standard-GEDCOM-Datei behält die Adresse in der Notiz. Das Datum der Version der
+  Forschung in der Strom-Datei trägt auch die Uhrzeit, so zeigt die App den Tag ihrer Entstehung auch um Mitternacht.
+- **Hausnummer, Alter und Zeitraum, wie sie geschrieben wurden.** Das Wort für eine Hausnummer („No.“, „čp.“) steht nur vor
   einer Zahl allein; eine Straße mit Nummer geht so in die Datei, wie sie ist. Ein Alter „05y“ gilt als 5 Jahre.
-  Beides kommt aus der Strom-App gleich zurück, keine Änderung des Benutzers.
+  Beides kommt aus der Strom-App gleich zurück, keine Änderung des Benutzers. Ein Zeitraum der Strom-App
+  („1871/1882“ oder an einem Ende offen) kommt als von … bis … in die Forschung, nie als ein Datum irgendwo dazwischen.
 - **Die Frage nach der Geschichte sagt, wo sie gilt.** Die Ereignisse der Geschichte ein- oder auszuschalten gilt für
   jede Forschung auf diesem Computer; die Frage sagt es, und wie es sich für eine Forschung allein ändern lässt.
 - **Ein schwaches oder abgelehntes Modell des Agenten meldet der Doctor.** Ist für die Forschung kein Modell gewählt und
@@ -34,7 +36,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   wurde, auch nach einer Veröffentlichung; ein mit `strom update --channel` gewählter Kanal bleibt dafür ebenfalls
   gemerkt.
 - **Ein gescheiterter Befehl nimmt nur das Seine zurück.** Ein Befehl, der unterwegs gespeichert hat und dann scheitert,
-  nimmt nur zurück, was nach dieser Speicherung kam, so wirkt die Forschung nie außerhalb von strom geändert.
+  nimmt nur zurück, was nach dieser Speicherung kam, so wirkt die Forschung nie außerhalb von strom geändert. Wird das
+  Schreiben abgelehnt, weil die Forschung außerhalb von strom geändert wurde, liest die Person das in der Sprache der
+  Forschung, mit dem passenden Weg; ein Agent liest es weiter auf Englisch.
 
 ## 1.23.0
 

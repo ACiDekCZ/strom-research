@@ -1,5 +1,6 @@
 // The tests need a newer Node than strom itself: `npm test` and `npm run test:quick` on an older Node say so in one
-// sentence (pretest, pretest:quick) and npm checks devEngines; strom's own engines for the people who run it stay.
+// sentence (pretest, pretest:quick); npm only warns of devEngines, so `npm install`, a typecheck and a build still run
+// on the Node strom itself runs on; strom's own engines for the people who run it stay.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -12,7 +13,7 @@ const ROOT = path.resolve(import.meta.dirname, "..", "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
 
 test("package.json: the tests need Node 24 (devEngines), strom itself runs on Node 22.18, both test scripts check first", () => {
-  assert.deepEqual(pkg.devEngines, { runtime: { name: "node", version: ">=24", onFail: "error" } });
+  assert.deepEqual(pkg.devEngines, { runtime: { name: "node", version: ">=24", onFail: "warn" } });
   assert.equal(pkg.engines.node, ">=22.18");
   assert.equal(pkg.scripts.pretest, "node scripts/dev-node.ts");
   assert.equal(pkg.scripts["pretest:quick"], "node scripts/dev-node.ts");

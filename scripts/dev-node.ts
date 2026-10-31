@@ -1,7 +1,8 @@
 // Which Node the development of strom needs: the tests run with `node --test --test-global-setup`, which Node 24 has
 // first. strom itself (package.json "engines") still runs on an older Node. Run by `pretest` and `pretest:quick`:
 // an older Node is said in one sentence and the tests do not start. The minimum is package.json's
-// devEngines.runtime.version (npm checks it too, for `npm run` and `npm install`, when it knows devEngines).
+// devEngines.runtime.version (npm only warns of it, onFail "warn": `npm install`, a typecheck and a build run on the
+// Node strom itself runs on — the tests alone refused here).
 //
 //   node scripts/dev-node.ts            this Node
 //   node scripts/dev-node.ts 22.18.0    a Node of that version (how it is tested)

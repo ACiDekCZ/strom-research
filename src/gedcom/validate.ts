@@ -24,12 +24,12 @@ const FAM_EVENTS = ["MARR", "DIV", "MARB", "MARC", "MARL", "MARS", "ANUL", "DIVF
 
 /** Allowed child tags by parent context ("INDI", "INDI.BIRT", …). CONC/CONT are allowed under anything with text. */
 const CHILDREN: Record<string, string[]> = {
-  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE"],
+  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_LINES"],
   "HEAD.SOUR": ["VERS", "NAME", "CORP", "DATA"],
   "HEAD._STROM_LINKS": ["_SCHEME"],
   "HEAD.GEDC": ["VERS", "FORM"],
   "HEAD.DATE": ["TIME"],
-  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_STROM_EDGE", "_STROM_ISLAND", ...INDI_EVENTS],
+  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_STROM_EDGE", "_STROM_ISLAND", "_STROM_LINE", ...INDI_EVENTS],
   "INDI._STROM_CONFLICT": ["TYPE", "TITL", "STAT", "_STROM_TAKE", "VAL", "DECI"],
   "INDI._STROM_HYPO": ["TITL", "STAT", "_CHOSEN", "NOTE", "_VAR"],
   // what a variant of a hypothesis would connect (the Strom profile)
@@ -93,6 +93,8 @@ const EXTENSIONS = new Set([
   "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_ENTRY", "_STROM_STATUS",
   // an excerpt's original by its content, and how its picture lies
   "_STROM_SHA", "_STROM_ORIENT",
+  // the bounds of a lineage the person set (on a person), and the header's mark that the file says them
+  "_STROM_LINE", "_STROM_LINES",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */
