@@ -714,16 +714,24 @@ export function isStromJson(data: unknown): data is { persons: Record<string, St
   return !!data && typeof data === "object" && "persons" in data && "partnerships" in data;
 }
 
-/** Strom flexible date ("~1900", "<1900-05", "1900-05-03") → GEDCOM. */
+/** Strom flexible date ("~1900", "<1900-05", "1900-05-03", a range "1785..1804", a period "1871/1882") → GEDCOM. */
 export function fromFlexDate(flex: string | undefined): string | undefined {
   if (!flex) return undefined;
+  // a period ("1871/1882", "1871/", "/1882"): from the one to the other, each side a plain date
+  const period = /^([^/]*)\/([^/]*)$/.exec(flex.trim());
+  if (period) {
+    const plain = (s: string) => (/^\d{3,4}(?:-\d{1,2}(?:-\d{1,2})?)?$/.test(s) ? fromFlexDate(s) : undefined);
+    const [a, b] = [period[1] ? plain(period[1]) : "", period[2] ? plain(period[2]) : ""];
+    if (a === undefined || b === undefined || (!a && !b)) return undefined;
+    return normalizeDate(a && b ? `FROM ${a} TO ${b}` : a ? `FROM ${a}` : `TO ${b}`);
+  }
   // a range ("1785..1804"): between the two
   const range = /^(.+?)\.\.(.+)$/.exec(flex.trim());
   if (range) {
     const [a, b] = [fromFlexDate(range[1]), fromFlexDate(range[2])];
     return a && b && !/^(ABT|BEF|AFT|BET|FROM|TO) /.test(a) && !/^(ABT|BEF|AFT|BET|FROM|TO) /.test(b) ? normalizeDate(`BET ${a} AND ${b}`) : undefined;
   }
-  const m = /^([~<>])?(\d{3,4})(?:-(\d{2}))?(?:-(\d{2}))?$/.exec(flex.trim());
+  const m = /^([~<>])?(\d{3,4})(?:-(\d{1,2}))?(?:-(\d{1,2}))?$/.exec(flex.trim());
   if (!m) return importDate(flex);
   const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
   const core = [m[4] ? String(Number(m[4])) : "", m[3] ? months[Number(m[3]) - 1] ?? "" : "", m[2]].filter(Boolean).join(" ");

@@ -76,6 +76,13 @@ test("dates written by other programs", () => {
   assert.equal(fromFlexDate("1785..1804"), "BET 1785 AND 1804");
   assert.equal(fromFlexDate("1900-05..1901"), "BET MAY 1900 AND 1901");
   assert.equal(fromFlexDate("~1785..1804"), undefined);
+  // a period of the app ("A/B", "A/", "/B"): FROM … TO …, never a range
+  assert.equal(fromFlexDate("1871/1882"), "FROM 1871 TO 1882");
+  assert.equal(fromFlexDate("1871-3/1882-11-02"), "FROM MAR 1871 TO 2 NOV 1882");
+  assert.equal(fromFlexDate("1871/"), "FROM 1871");
+  assert.equal(fromFlexDate("/1882-05"), "TO MAY 1882");
+  assert.equal(fromFlexDate("~1871/1882"), undefined);
+  assert.equal(fromFlexDate("/"), undefined);
 });
 
 test("intake a folder: every file an input, one task for the folder; hidden files skipped; duplicates skipped", opts, async () => {

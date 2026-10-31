@@ -21,9 +21,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { addResponses, heardResponse, runJsonLines, webUse, type Heard } from "./jsonl.ts";
 import type { AgentWeb } from "../core/metrics.ts";
-import { usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
+import { commandLine, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner, type UsageSample } from "./runner.ts";
 import { effortArgs } from "../agents/effort.ts";
 import { DOC_NEXT } from "../core/document.ts";
+import { inRoom, readerRoom } from "./room.ts";
 
 /** Command-line arguments of a headless run (exported for tests); `first` is its first message. */
 export function antigravityArgs(opts: Pick<RunOptions, "model" | "effort" | "extraArgs" | "permissions" | "shared" | "timeoutMs">, first: string): string[] {
@@ -42,8 +43,8 @@ export function antigravityArgs(opts: Pick<RunOptions, "model" | "effort" | "ext
 }
 
 /**
- * A reader in agy: its views in its workspace (--add-dir: read without asking); never a skipped permission, whatever the
- * level. agy refuses every file it would write in a headless run, its own folder's too (only rules in the person's
+ * A reader in agy: its views in its workspace (--add-dir: read without asking) — copies in its room (runners/room.ts),
+ * so the folder holds its own views alone; never a skipped permission, whatever the level. agy refuses every file it would write in a headless run, its own folder's too (only rules in the person's
  * settings would allow one, and strom writes none there): its report is its answer, which strom adds to the report
  * (found live 2026-10-20 — the views refused outside its folder, then the report).
  */
@@ -100,8 +101,7 @@ function describe(s: Step): { line: string; denied: string } {
   const p = s.tool_info?.parameters ?? {};
   const tool = String(s.tool_name ?? s.tool_info?.name ?? "tool");
   if (typeof p.CommandLine === "string") {
-    const cmd = p.CommandLine.split("\n")[0]!.slice(0, 140);
-    return { line: `$ ${cmd}`, denied: `Bash: ${cmd.slice(0, 120)}` };
+    return { line: commandLine(p.CommandLine), denied: `Bash: ${p.CommandLine.split("\n")[0]!.slice(0, 120)}` };
   }
   const file = p.AbsolutePath ?? p.TargetFile ?? p.DirectoryPath ?? p.Url;
   const line = typeof file === "string" ? `${tool} ${file}` : tool;
@@ -145,11 +145,14 @@ export const antigravityRunner: Runner = {
     const web = { seen: new Set<string>(), on: (w: AgentWeb) => tellWeb(opts, w) };
     const reader = opts.readerFiles;
     if (reader) {
-      // a reader: its report is its answer, and it is never told to go on through strom
-      const args = antigravityReaderArgs(opts, reader, first + antigravityReaderNote(reader.report));
-      return runJsonLines("agy", args, opts.env, { ...opts, prompt: "" }, undefined, (msg, heard) => readEvent(msg, heard, said, opts.onProgress, opts.onUsage, web), { totalsAtEnd: true }).then((r) => {
-        if (r.outcome === "ok") addReaderAnswer(reader.report, r.text, DOC_NEXT);
-        return r;
+      // a reader: copies of its views in its room (a folder that holds them alone — never every document's views), its
+      // report is its answer, and it is never told to go on through strom (its prompt is its first message)
+      return inRoom(readerRoom(opts, { views: true }), (o) => {
+        const args = antigravityReaderArgs(o, o.readerFiles!, o.kickoff + antigravityReaderNote(reader.report));
+        return runJsonLines("agy", args, o.env, { ...o, prompt: "" }, undefined, (msg, heard) => readEvent(msg, heard, said, o.onProgress, o.onUsage, web), { totalsAtEnd: true }).then((r) => {
+          if (r.outcome === "ok") addReaderAnswer(reader.report, r.text, DOC_NEXT);
+          return r;
+        });
       });
     }
     return runJsonLines("agy", antigravityArgs(opts, first), opts.env, { ...opts, prompt: "" }, undefined, (msg, heard) => readEvent(msg, heard, said, opts.onProgress, opts.onUsage, web), { totalsAtEnd: true, goOn });

@@ -35,6 +35,10 @@ import {
   byReading,
   defaultStage,
   readBefore,
+  readersOf,
+  readsOf,
+  fixModelText as modelText,
+  fixTextValues as textValues,
   stagesOf,
   type Compared,
   type Comparison,
@@ -57,7 +61,6 @@ import { Settings } from "../core/config.ts";
 import { RUNNERS } from "../runners/index.ts";
 import { loadReadings, type Block } from "./readings.ts";
 import { pool } from "./read.ts";
-import { BATCH } from "../core/reader.ts";
 import { readerAgent } from "./readers.ts";
 import { which } from "../core/which.ts";
 
@@ -68,22 +71,6 @@ const EXAMPLES = 5;
 export const FIX_ORIGIN = "fix:";
 
 type T = (key: UIKey, values?: Record<string, string | number>) => string;
-
-/**
- * The places read together as their earlier reading read them: the images of one reading with the same question, part
- * and blindness are one strom read again (its batches as strom read makes them); a document alone.
- */
-function readsOf(items: FixItem[]): FixItem[][] {
-  const out = new Map<string, FixItem[]>();
-  for (const i of items) {
-    const key = i.document ? `doc|${i.key}` : [i.reading, i.question, i.crop ?? "", i.blind ? "blind" : "", i.context ?? ""].join("|");
-    out.set(key, [...(out.get(key) ?? []), i]);
-  }
-  return [...out.values()];
-}
-
-/** The readers the places take: a document read by two takes two; a reading of more images than a batch, more. */
-const readersOf = (items: FixItem[]) => readsOf(items).reduce((n, g) => n + (g[0]!.document ? (g[0]!.readers ?? 1) : Math.ceil(g.length / BATCH)), 0);
 
 /** An agent and model that reads the places again. */
 interface Reader {
@@ -132,8 +119,6 @@ const stateText = (t: T, s: FixState) =>
       ? t("ui.fixes.state.nothing")
       : t(`ui.fixes.state.${s.state}` as UIKey, { date: s.decision!.at.slice(0, 10) });
 
-/** "Claude Code · claude-opus-5-5" — "model unknown" where nothing says. */
-const modelText = (t: T, key: string) => (key === UNKNOWN_KEY ? t("ui.fixes.model.unknown") : calibrationLabel(key, t("ui.settings.model.own")));
 
 const REASONS: Reason[] = ["unclear", "differ", "conflict", "unconfirmed"];
 
@@ -172,18 +157,6 @@ function exampleText(t: T, g: FixItem[]): string {
     unclear: unclear ? ` · ${t("ui.fixes.unclear", { n: unclear })}` : "",
     estimated: g.some((x) => x.estimated) ? ` · ${t("ui.fixes.estimated")}` : "",
   });
-}
-
-/** What a check's texts say beside its counts: the version that fixed it; of new-model the models before and now. */
-function textValues(t: T, s: FixState): Record<string, string | number> {
-  const m = s.found.models;
-  if (!m) return { since: s.check.since };
-  return {
-    since: s.check.since,
-    now: modelText(t, m.now),
-    before: m.before.map((b) => `${modelText(t, b.key)} (${t("ui.fixes.readings", { n: b.readings })})`).join(", "),
-    newer: m.newer ? t("ui.fixes.new-model.newer") : "",
-  };
 }
 
 /**
@@ -929,7 +902,7 @@ register(
       personOnly(ctx, t, w.askUndo, set, "ui.fixes.person.decide");
       const key = decisionKeyOf(tree, check, fixEnv(ctx, tree));
       const r = tree.withTreeLock(() => {
-        const done = w.undo(tree, decisionChange(key, "declined"));
+        const done = w.undo(tree, decisionChange(key, "declined", { undone: true }));
         tree.commit(w.undone(key, done.restored, done.left));
         return done;
       });

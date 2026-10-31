@@ -5,6 +5,44 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.24.0
+
+*31.10.2026 · gehört zur Strom-App 3.19.0.*
+
+- **Orte einmal zugeordnet für jede Forschung auf diesem Computer.** Ein Ort, den eine andere Forschung hier schon den
+  Regionen der Geschichte zugeordnet hat, wird übernommen, wenn es sicher derselbe Ort ist (derselbe Name und dieselben
+  Koordinaten, Pfarrei oder derselbe Bezirk) und jede Forschung ihn gleich zuordnet; nur die Zuordnung des Orts geht
+  über, nichts von der Familie. Ein Ort gleichen Namens, der nicht sicher derselbe ist, geht als Vorschlag an den
+  Agenten; er ordnet nur den Rest zu. `strom history adopt --dry-run` sagt, was übernommen würde. Die Frage, die Ereignisse der Geschichte ein- oder
+  auszuschalten, sagt, dass es für jede Forschung auf diesem Computer gilt, und wie es sich für eine allein ändern lässt.
+- **Die Korrekturen einer Forschung für die Strom-App.** Die Brücke listet, was `strom fixes` in der Forschung anbietet
+  (Titel, was sie tut, wie viele Einträge, ihr Stand, ob sie sich zurücknehmen lässt), kostenlos und ohne etwas zu
+  schreiben; der Link `strom-research://fixes` öffnet eine Korrektur im Terminal der Forschung, wo sie und ihre
+  Rücknahme immer zuerst bestätigt werden.
+- **Die Seite jedes Scans in der Strom-App.** Die Strom-Datei gibt jetzt jeder Quelle die Seite ihres Scans im
+  Online-Archiv: die Seite ihres ersten Bildes, sonst die eigene Adresse der Quelle. Die Strom-App verlinkt sie bei den
+  Ausschnitten, die die Datei auslässt, und bei Quellen ohne Ausschnitt. Nur eine öffentliche Webseite, nie die Adresse
+  eines Bestands; die Standard-GEDCOM-Datei behält die Adresse in der Notiz. Das Datum der Version der
+  Forschung in der Strom-Datei trägt auch die Uhrzeit, so zeigt die App den Tag ihrer Entstehung auch um Mitternacht.
+- **Die eigene Linie einer Person aus der Strom-App.** Markiert die Strom-App, dass eine Person eine eigene Linie
+  gründet oder die der Familie nicht trägt, behält `strom sync` das in der Forschung, und die Strom-Datei gibt es
+  zurück, so zeigen die nächste Sendung und ein anderes Gerät dieselben Linien; das Zusammenführen zweier Personen
+  behält die Markierung. Die Standard-GEDCOM-Datei sagt nichts davon. Es braucht die Strom-App 3.19.0.
+- **Hausnummer, Alter und Zeitraum, wie sie geschrieben wurden.** Das Wort für eine Hausnummer („No.“, „čp.“) steht nur vor
+  einer Zahl allein; eine Straße mit Nummer geht so in die Datei, wie sie ist. Ein Alter „05y“ gilt als 5 Jahre.
+  Beides kommt aus der Strom-App gleich zurück, keine Änderung des Benutzers. Ein Zeitraum der Strom-App
+  („1871/1882“ oder an einem Ende offen) kommt als von … bis … in die Forschung, nie als ein Datum irgendwo dazwischen.
+- **Ein schwaches oder abgelehntes Modell des Agenten meldet der Doctor.** Ist für die Forschung kein Modell gewählt und
+  das eigene Standardmodell des Agenten eines, das die Forschung für ihre Arbeit schwach oder abgelehnt fand, warnt
+  `strom doctor` und nennt den Befehl zur Wahl; selbst wählt er nie.
+- **strom aus npm behält seinen Kanal.** Mit npm installiertes strom bleibt auf dem Kanal, aus dem es installiert
+  wurde, auch nach einer Veröffentlichung; ein mit `strom update --channel` gewählter Kanal bleibt dafür ebenfalls
+  gemerkt.
+- **Ein gescheiterter Befehl nimmt nur das Seine zurück.** Ein Befehl, der unterwegs gespeichert hat und dann scheitert,
+  nimmt nur zurück, was nach dieser Speicherung kam, so wirkt die Forschung nie außerhalb von strom geändert. Wird das
+  Schreiben abgelehnt, weil die Forschung außerhalb von strom geändert wurde, liest die Person das in der Sprache der
+  Forschung, mit dem passenden Weg; ein Agent liest es weiter auf Englisch.
+
 ## 1.23.0
 
 *30.10.2026 · gehört zur Strom-App 3.18.0.*

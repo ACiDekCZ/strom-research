@@ -36,6 +36,8 @@ import { humanAge, isGedcomAge, normalizeAge } from "../core/age.ts";
 import { quay } from "../core/evidence.ts";
 import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/excerpt.ts";
+import { excerptPage, sourcePage } from "../core/scanlink.ts";
+import { numbersOnly } from "../core/streets.ts";
 import { mainPerson } from "../core/kin.ts";
 import { hypothesisPeople } from "../core/directions.ts";
 import * as git from "../core/git.ts";
@@ -160,6 +162,12 @@ export interface ExportOptions {
    * " | "), a long one on in 3 CONC. Both always, empty too (no 2 CONT: none).
    */
   surnameGroups?: { groups: string[][]; rejected: string[][] };
+  /**
+   * The Strom profile, for an app that keeps them (APP_READS_LINES): the bounds of a lineage the person set
+   * (core/lineages.ts) — 1 _STROM_LINE FOUNDER|NOCARRY on each person who has one (after SEX), and 1 _STROM_LINES Y in
+   * the header always, no person with one too (the file says them all: none is none).
+   */
+  lines?: Map<string, "FOUNDER" | "NOCARRY">;
 }
 
 /** The header notes of the Strom app with the groups of a surname's forms and the suggestions rejected (its ged-exporter). */
@@ -328,9 +336,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       w.line(1, "_STROM_LINKS", opts.links.join(" "));
       if (opts.linkScheme) w.line(2, "_SCHEME", opts.linkScheme);
     }
-    if (opts.research) w.line(1, "_STROM_ASOF", new Date().toISOString().slice(0, 10));
+    // when the research wrote it, to the second in UTC (the app shows the local day; DATE stays the day): every app takes
+    // its first ten characters as the day before (N23)
+    if (opts.research) w.line(1, "_STROM_ASOF", asOfNow());
     // an archive (no agent; the app's data written as they come): for an app that knows it (APP_KNOWS_ARCHIVE)
     if (opts.archive && tree.config.mode === "archive") w.line(1, "_STROM_MODE", "archive");
+    // the file says the bounds of a lineage the person set, all of them (none: none), for an app that keeps them
+    if (opts.lines) w.line(1, "_STROM_LINES", "Y");
   }
   w.line(1, "SUBM", "@U1@");
   w.line(1, "GEDC");
@@ -394,6 +406,9 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       }
     }
     w.line(1, "SEX", p.sex);
+    // the person's bound of a lineage (the Strom profile, an app that keeps it)
+    const line = opts.for === "strom" ? opts.lines?.get(p.id) : undefined;
+    if (line) w.line(1, "_STROM_LINE", line);
     w.line(1, "REFN", p.id);
     w.line(2, "TYPE", REFN_TYPE);
     const deferred: string[] = [];
@@ -509,6 +524,10 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (page) w.text(1, "PAGE", page);
     // The words of the record are the source's TEXT (in both files: Strom reads it there).
     if (s.transcript) w.text(1, "TEXT", s.transcript);
+    // the page of its scan in the online archive, for Strom: the app links it (its excerpts' own _URL first); GEDCOM
+    // 5.5.1 has no WWW on a source, so another program gets the address in the note
+    const www = strict ? undefined : sourcePage(s, (id) => tree.get<Media>(id));
+    if (www) w.text(1, "WWW", www);
     const url = s.url ?? set?.url;
     const head = [
       set ? `${L("recordset")}: ${set.title}${set.callNumber && (strict || repeat) ? ` (${set.callNumber})` : ""}` : "",
@@ -549,7 +568,8 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       w.line(2, "FORM", "jpg");
       w.line(2, "_STROM_KIND", "excerpt");
       if (opts.clips && e.clip) w.line(2, "_STROM_CLIP", e.clip);
-      if (e.url) w.text(2, "_URL", e.url);
+      const page = excerptPage(e.url, s);
+      if (page) w.text(2, "_URL", page);
       w.wrapped(2, "FILE", dataUrl(e));
       // the original it is cut from, by its content: the app knows the research has it (and sends it not again)
       const original = tree.get<Media | Input>(e.media);
@@ -610,11 +630,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
       }
     }
     const noteParts: string[] = [];
-    // A house is an address within the place: "2 ADDR čp. 13" (the value on the line, as Strom reads it).
+    // A house is an address within the place: "2 ADDR čp. 13" (the value on the line, as Strom reads it); the word for
+    // a house number only before numbers alone — a street with its number ("Dlouhá 12") is said as it is.
     if (e.house) {
-      w.line(2, "ADDR", `${L("house")} ${e.house}`);
+      const addr = numbersOnly(e.house) ? `${L("house")} ${e.house}` : e.house;
+      w.line(2, "ADDR", addr);
       if (strict && e.place) w.line(3, "CITY", e.place.split(",")[0]!.trim());
-      if (repeat) noteParts.push(`${L("house")} ${e.house}`);
+      if (repeat) noteParts.push(addr);
     }
     if (e.cause) {
       w.line(2, "CAUS", e.cause);
@@ -924,4 +946,9 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
 function gedDate(d: Date): string {
   const m = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"][d.getUTCMonth()];
   return `${d.getUTCDate()} ${m} ${d.getUTCFullYear()}`;
+}
+
+/** When the research wrote the file (1 _STROM_ASOF): ISO 8601 to the second in UTC ("2026-10-31T06:12:05Z"). */
+export function asOfNow(d: Date = new Date()): string {
+  return `${d.toISOString().slice(0, 19)}Z`;
 }

@@ -530,9 +530,14 @@ export function assertIntact(tree: Tree): void {
     : tree.key && errors.some((f) => f.code === "foreign-commit") && lastSealed(tree, tree.key).inTerminal
       ? REPAIR_IN_TERMINAL_HINT
       : undefined;
+  // a person reads it in the research's language (ui.error.tree.changed-outside), the way said as one of three hints
+  const inTerminal = way !== undefined && (way === REPAIR_IN_TERMINAL_HINT || way.startsWith("the user runs in their terminal"));
   throw new StromError(`data was changed outside strom (${counted(errors.length, "problem")}) — refusing to write`, {
     hint: `strom verify   (details)\n${way ?? "strom repair   (restore the last sealed state)"}`,
     details: errors,
+    code: "tree.changed-outside",
+    params: { n: String(errors.length) },
+    ...(way ? { hintCode: inTerminal ? "tree.changed-outside.terminal" : "tree.changed-outside.keys" } : {}),
   });
 }
 

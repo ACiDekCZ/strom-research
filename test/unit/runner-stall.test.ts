@@ -43,8 +43,8 @@ say(${JSON.stringify(INIT)});
 if (mode === "lively") {
   say(${JSON.stringify(RETRY)});
   // each line within the watch, all of them together longer than it
-  setTimeout(() => say(${JSON.stringify(JSON.stringify({ type: "assistant", message: { id: "m1", content: [{ type: "text", text: "Image 1" }] } }))}), 1000);
-  setTimeout(() => say(${JSON.stringify(RESULT("## Image 1 · M0001\nresult: nothing"))}), 2000);
+  setTimeout(() => say(${JSON.stringify(JSON.stringify({ type: "assistant", message: { id: "m1", content: [{ type: "text", text: "Image 1" }] } }))}), 1200);
+  setTimeout(() => say(${JSON.stringify(RESULT("## Image 1 · M0001\nresult: nothing"))}), 2700);
 } else if (!args.includes("--resume")) { say(${JSON.stringify(RETRY)}); silent(); }
 else if (mode === "recover") say(${JSON.stringify(RESULT("## Image 1 · M0001\nresult: nothing"))});
 else { say(${JSON.stringify(RETRY)}); silent(); }
@@ -120,11 +120,11 @@ test("silent again when resumed: it ends at once as halted (error, stalled) — 
 });
 
 test("a retry followed by more lines is no silence; a session without the watch (the main agent's) waits to its limit as before", unix, async () => {
-  const lively = await reader("lively", { stalled: { ms: 1500, prompt: "Go on where you stopped." } });
+  const lively = await reader("lively", { stalled: { ms: 2500, prompt: "Go on where you stopped." } });
   assert.equal(lively.r.outcome, "ok");
   assert.equal(lively.r.stalls, undefined);
   assert.equal(lively.calls.length, 1);
-  const plain = await reader("again", { reader: false, timeoutMs: 1500 }, false);
+  const plain = await reader("again", { reader: false, timeoutMs: 6000 }, false);
   assert.equal(plain.r.outcome, "timeout");
   assert.equal(plain.r.stalls, undefined);
   assert.equal(plain.calls.length, 1);

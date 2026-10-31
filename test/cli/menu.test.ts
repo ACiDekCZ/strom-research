@@ -220,7 +220,7 @@ test("the menu after an update: the history of the places never asked about is a
   assert.equal(config().experimentsHistory, "on");
   assert.equal(config().experimentsHistoryPace, "rare");
   // said as "not now" is: what turned on, and where it changes
-  assert.match(yes.out, /Dějiny se hledají: zřídka – zhruba každé 10\. sezení\. Jak často, jde změnit: Nastavení → Samostatná práce agenta → Dějiny, nebo z aplikace Strom\./u);
+  assert.match(yes.out, /Dějiny se hledají ve všech výzkumech na tomto počítači: zřídka – zhruba každé 10\. sezení\. Jak často, jde změnit: Nastavení → Samostatná práce agenta → Dějiny, nebo z aplikace Strom\. Jen pro jeden výzkum: Nastavení → Samostatná práce agenta → Dějiny regionů v tomto výzkumu \(v menu toho výzkumu\), nebo strom config set experiments\.history off --for-tree\./u);
   assert.doesNotMatch(yes.out, /Dějiny se nehledají/u);
   // never for an agent, without a terminal, --yes or STROM_NONINTERACTIVE: nothing asked, nothing kept
   never();

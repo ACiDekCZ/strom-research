@@ -495,3 +495,32 @@ console.log(JSON.stringify({ groups: (conv.data as any).surnameVariants ?? [], p
   assert.equal(out.persons, 1);
   w.cleanup();
 });
+
+test("the word for a house number only before numbers alone: a street with its number goes as it is, and comes back the same", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree();
+    await w.ok(["lang", "cs"]);
+    await w.ok(["person", "add", "Vojtěch /Lhoták/", "--sex", "M"]); // P1
+    await w.ok(["event", "add", "P1", "BIRT", "--date", "1850", "--place", "Lhota", "--house", "12"]);
+    await w.ok(["event", "add", "P1", "RESI", "--date", "1870", "--place", "Lhota", "--house", "13a"]);
+    await w.ok(["event", "add", "P1", "RESI", "--date", "1880", "--place", "Lhota", "--house", "14/2"]);
+    await w.ok(["event", "add", "P1", "RESI", "--date", "1890", "--place", "Lhota", "--house", "Dlouhá 12"]);
+    await w.ok(["event", "add", "P1", "DEAT", "--date", "1900", "--place", "Lhota", "--house", "Ringstraße 5"]);
+    const ged = path.join(w.dir, "strom.ged");
+    await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", ged]);
+    const t = fs.readFileSync(ged, "utf8");
+    const addr = (t.match(/^2 ADDR .+$/gm) ?? []).sort();
+    assert.deepEqual(addr, ["2 ADDR Dlouhá 12", "2 ADDR Ringstraße 5", "2 ADDR čp. 12", "2 ADDR čp. 13a", "2 ADDR čp. 14/2"]);
+    assert.doesNotMatch(t, /čp\. (?:Dlouhá|Ringstraße)/u);
+    // the standard file the same
+    await w.ok(["export", "gedcom", "--images-for", "none"]);
+    assert.match(fs.readFileSync(path.join(w.cwd, "output", "tree.ged"), "utf8"), /^2 ADDR Dlouhá 12$/m);
+    // back from the app unedited: no change, the houses as they were
+    assert.deepEqual((await w.ok(["sync", ged, "--json"])).json.changes, []);
+    const p = readJsonFile(path.join(w.cwd, "data", "persons", fs.readdirSync(path.join(w.cwd, "data", "persons"))[0]!));
+    assert.deepEqual(p.events.map((e: { house?: string }) => e.house).sort(), ["12", "13a", "14/2", "Dlouhá 12", "Ringstraße 5"]);
+  } finally {
+    w.cleanup();
+  }
+});

@@ -24,12 +24,12 @@ const FAM_EVENTS = ["MARR", "DIV", "MARB", "MARC", "MARL", "MARS", "ANUL", "DIVF
 
 /** Allowed child tags by parent context ("INDI", "INDI.BIRT", …). CONC/CONT are allowed under anything with text. */
 const CHILDREN: Record<string, string[]> = {
-  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE"],
+  HEAD: ["SOUR", "DEST", "DATE", "SUBM", "SUBN", "FILE", "COPR", "GEDC", "CHAR", "LANG", "PLAC", "NOTE", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_ASOF", "_STROM_MODE", "_STROM_LINES"],
   "HEAD.SOUR": ["VERS", "NAME", "CORP", "DATA"],
   "HEAD._STROM_LINKS": ["_SCHEME"],
   "HEAD.GEDC": ["VERS", "FORM"],
   "HEAD.DATE": ["TIME"],
-  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_STROM_EDGE", "_STROM_ISLAND", ...INDI_EVENTS],
+  INDI: ["NAME", "SEX", "FAMC", "FAMS", "NOTE", "SOUR", "REFN", "ASSO", "ALIA", "OBJE", "RESN", "RIN", "CHAN", "_STORY", "_STROM_CONFLICT", "_STROM_HYPO", "_STROM_SEARCHED", "_STROM_EDGE", "_STROM_ISLAND", "_STROM_LINE", ...INDI_EVENTS],
   "INDI._STROM_CONFLICT": ["TYPE", "TITL", "STAT", "_STROM_TAKE", "VAL", "DECI"],
   "INDI._STROM_HYPO": ["TITL", "STAT", "_CHOSEN", "NOTE", "_VAR"],
   // what a variant of a hypothesis would connect (the Strom profile)
@@ -50,6 +50,7 @@ const CHILDREN: Record<string, string[]> = {
   "INDI.ASSO": ["RELA", "SOUR", "NOTE"],
   FAM: ["HUSB", "WIFE", "CHIL", "NOTE", "SOUR", "REFN", "OBJE", "RIN", "CHAN", "_STORY", "_STAT", "_STROM_NO_COUPLE", ...FAM_EVENTS],
   // the Strom profile also writes PAGE on the record: where in the book the source is (the Strom app's reference)
+  // and WWW: the page of its scan in the online archive (the app links it)
   SOUR: ["TITL", "AUTH", "ABBR", "PUBL", "TEXT", "REPO", "NOTE", "REFN", "DATA", "OBJE", "RIN", "CHAN", "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_IMG_OMITTED"],
   "SOUR._STROM_READING": ["_STROM_ENTRY"],
   "SOUR._STROM_IMG_OMITTED": ["_STROM_CLIP"],
@@ -72,7 +73,7 @@ const CHILDREN: Record<string, string[]> = {
 
 /** Values the Strom app joins from CONC lines though GEDCOM 5.5.1 gives them none: a long place, name, label (its file). */
 const JOINED_TAGS = new Set(["PLAC", "NAME", "_WITN", "PAGE", "TYPE", "SOUR", "REFN", "AGE"]);
-const TEXT_TAGS = new Set(["NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "VAL", "DECI"]);
+const TEXT_TAGS = new Set(["NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "WWW", "VAL", "DECI"]);
 const EXTENSIONS = new Set([
   "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
   "_STROM_ASOF", "_SCHEME", "_STROM_CONFLICT", "_STROM_TAKE", "_STROM_SIDE", "_STROM_RAW", "_STROM_HYPO", "_STROM_SEARCHED", "_AT",
@@ -92,6 +93,8 @@ const EXTENSIONS = new Set([
   "_STROM_READ", "_STROM_VERIFIED", "_STROM_READING", "_STROM_ENTRY", "_STROM_STATUS",
   // an excerpt's original by its content, and how its picture lies
   "_STROM_SHA", "_STROM_ORIENT",
+  // the bounds of a lineage the person set (on a person), and the header's mark that the file says them
+  "_STROM_LINE", "_STROM_LINES",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */
@@ -159,7 +162,7 @@ export function validateGedcom(text: string, opts: { strict?: boolean } = {}): G
       const parentTag = stack[level - 1]!;
       if (tag === "CONC" || tag === "CONT") {
         if (!TEXT_TAGS.has(parentTag) && !["CONC", "CONT"].includes(parentTag) && (opts.strict || !JOINED_TAGS.has(parentTag))) add("warn", n, `${tag} under ${parentTag}`);
-      } else if (allowed && !allowed.includes(tag) && !(ctx === "SOUR" && tag === "PAGE" && !opts.strict)) add(tag.startsWith("_") ? "warn" : "error", n, `${tag} is not expected under ${ctx}`);
+      } else if (allowed && !allowed.includes(tag) && !(ctx === "SOUR" && (tag === "PAGE" || tag === "WWW") && !opts.strict)) add(tag.startsWith("_") ? "warn" : "error", n, `${tag} is not expected under ${ctx}`);
     }
     stack[level] = tag;
     if (tag.startsWith("_") && (opts.strict || !EXTENSIONS.has(tag))) add(opts.strict ? "error" : "warn", n, `non-standard tag ${tag}`);

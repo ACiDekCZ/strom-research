@@ -59,3 +59,15 @@ test("the hint of an age not read shows a fraction", () => {
   assert.equal(parseAge("½ roku"), "6m");
   assert.throws(() => parseAge("sedm"), (e: Error & { hint?: string }) => /cannot read the age "sedm"/.test(e.message) && /½ roku/.test(String(e.hint)));
 });
+
+test("a number's leading zeros go, as the Strom app sends the age back: 05y is 5y; a unit of nothing stays", () => {
+  check([
+    ["05y", "5y"],
+    ["027y 03m", "27y 3m"],
+    [">05y", ">5y"],
+    ["0y 02m 026d", "0y 2m 26d"],
+    ["0y", "0y"],
+    ["00d", "0d"],
+    ["5y", "5y"],
+  ]);
+});

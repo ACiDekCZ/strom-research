@@ -433,6 +433,21 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       say(kind === "undo" ? phrase(lang, "log.surname.undo") : kind in { group: 1, ungroup: 1, reject: 1, unreject: 1 } ? phrase(lang, k, { forms: short(forms, 120) }) : changed(o));
       continue;
     }
+    // the bound of a lineage the person set in the Strom app (quality/lineages.json): the person by name, never the summary
+    if (o.op === "lineage.set" || o.op === "lineage.undo") {
+      const m = /^(\S+) (begins a lineage|carries no lineage|lineage as computed)/u.exec(o.summary);
+      const person = who(o.targets[0] ?? m?.[1]);
+      say(
+        o.op === "lineage.undo"
+          ? phrase(lang, "log.lineage.undo", { who: person })
+          : m?.[2] === "begins a lineage"
+            ? phrase(lang, "log.lineage.founder", { who: person })
+            : m?.[2] === "carries no lineage"
+              ? phrase(lang, "log.lineage.nocarry", { who: person })
+              : phrase(lang, "log.lineage.none", { who: person }),
+      );
+      continue;
+    }
     // the names of participants set apart from their notes by strom's fix, or put back (quality/participant-names.json)
     if (o.op === "participant.fix" || o.op === "participant.unfix") {
       const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);

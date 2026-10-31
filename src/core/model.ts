@@ -806,7 +806,7 @@ export interface TreeConfig {
   /** What a newer strom did once in this research (core/hypolinks.ts: "hypothesis-links"); an older one keeps it. */
   settled?: string[];
   /** The person's decision about each check of strom's fixes (commands/fixchecks.ts), by its id; an older strom keeps it. */
-  fixes?: Record<string, { decision: "declined" | "fixed"; at: string; version: string }>;
+  fixes?: Record<string, { decision: "declined" | "fixed"; at: string; version: string; undone?: true }>;
 }
 
 /** How sharp the entries cut out for the Strom app are, and whose they are (core/excerpt.ts). */

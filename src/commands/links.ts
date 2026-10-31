@@ -26,6 +26,7 @@ import { systemNotice } from "../core/dialog.ts";
 import { configDir, noLinks } from "../core/paths.ts";
 import { startLive } from "../core/live.ts";
 import { stateOf } from "../core/state.ts";
+import { fixCheck } from "./fixchecks.ts";
 
 /** The researches here with this id — a copy of a research folder has its id too; the current one first. */
 function researchesWithId(ctx: Context, id: string): { name: string; root: string }[] {
@@ -137,7 +138,8 @@ function refusedHere(ctx: Context, root: string, link: TreeLink): { key: UIKey; 
     link.action === "research" ||
     link.action === "history" ||
     (link.action === "conflict" && link.do === "agent") ||
-    (link.action === "task" && link.do === "chat");
+    (link.action === "task" && link.do === "chat") ||
+    (link.action === "fixes" && link.id !== undefined && fixCheck(link.id)?.remedy !== "rewrite");
   if (!forAgent) return undefined;
   const tree = Tree.open(root, ctx.env);
   const state = stateOf(tree);
@@ -279,6 +281,11 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       const { placeSearch } = await import("../cli/menu-links.ts");
       return end(await placeSearch(ctx, run, treeLang, root, link.place));
     }
+    case "fixes": {
+      // strom's fixes: shown here; set right or put back only on the person's word, asked by strom fixes itself
+      const { fixesDo } = await import("../cli/menu-links.ts");
+      return end(await fixesDo(ctx, run, treeLang, root, link.id, link.do));
+    }
   }
   const named = "person" in link ? link.person : undefined;
   const person = named ? personOf(root, ctx, named) : undefined;
@@ -410,6 +417,8 @@ register(
       "strom-research://finish?tree=<id>&session=N0012 — the session at work asked to finish (strom session finish).\n" +
       "strom-research://archive?tree=<id>&host=www.example.org — the question about an archive's images (slowly, through the\n" +
       "browser, by hand), answered in the terminal as in the menu's What waits; the answer is never in the link.\n" +
+      "strom-research://fixes?tree=<id>[&id=street-places][&do=undo] — strom's fixes of the research (strom fixes), one of them\n" +
+      "  shown, or what it set right to be put back: set right or put back only on the person's word in the terminal.\n" +
       "strom-research://update|sessions|setup?tree=<id> — strom update, the agent's sessions and their cost, strom setup.\n" +
       "strom-research://new?app=<the app's mark> — a tree of the app becomes a new research: named, made, the app hands the\n" +
       "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app. Family trees here already:\n" +

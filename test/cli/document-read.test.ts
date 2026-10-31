@@ -17,10 +17,11 @@ const READER = `import fs from "node:fs";
 const p = process.env.STROM_PROMPT ?? "";
 const report = /Write your report to (.+) AS YOU GO/.exec(p)[1];
 const blind = p.includes("This is a BLIND reading");
-if (process.env.DOC_MARK) fs.appendFileSync(process.env.DOC_MARK, (blind ? "blind" : "first") + "\\n");
 const body = fs.readFileSync(blind ? process.env.DOC_BLIND : process.env.DOC_FIRST, "utf8");
 const was = fs.readFileSync(report, "utf8");
 fs.writeFileSync(report, was.replace("<!-- next block -->", body.trim() + "\\n<!-- next block -->"));
+// marked once the report holds the reading: a test waiting on the mark reads it whole
+if (process.env.DOC_MARK) fs.appendFileSync(process.env.DOC_MARK, (blind ? "blind" : "first") + "\\n");
 if (process.env.DOC_WAIT) await new Promise((r) => setTimeout(r, Number(process.env.DOC_WAIT)));
 console.log("cost: 0.25");
 `;

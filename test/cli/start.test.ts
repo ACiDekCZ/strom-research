@@ -990,8 +990,10 @@ test("the live bridge does not end because of one error, says what happened in i
     const broken = await ask(`${first.url}/status`);
     assert.equal(broken.status, 500);
     assert.ok(JSON.parse(broken.body).error, "a short JSON");
+    // broken for a few ticks: the parts of a tick that work meanwhile (the readings, the widget) say no "works again" of it
+    await new Promise((r) => setTimeout(r, 600));
     writeFileAtomic(config, good);
-    await until("the tick works again", () => /works again/u.test(logText()));
+    await until("the tick works again", () => /a tick works again/u.test(logText()));
     assert.equal((await ask(`${first.url}/status`)).status, 200, "it goes on");
     events.destroy();
     leave();
@@ -999,7 +1001,8 @@ test("the live bridge does not end because of one error, says what happened in i
     assert.match(said, /started: strom .*a new address/);
     assert.match(said, /a tick failed \(tried again\): .*\n\s+at /, "the error with its stack");
     assert.equal(said.match(/a tick failed/g)!.length, 1, "written once, not at every tick");
-    assert.match(said, /works again \(\d+× failed\)/);
+    assert.match(said, /a tick works again \(\d+× failed\)/);
+    assert.equal(said.match(/a tick works again/g)!.length, 1);
     assert.match(said, /GET \/…\/status failed/, "the secret is not written");
     assert.doesNotMatch(said, new RegExp(first.token));
     // Stopped (for good) and started again: its port, a new secret — the app needs the new address.

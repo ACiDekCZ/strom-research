@@ -276,6 +276,14 @@ export function tracked(dir: string, p: string): boolean {
   return runGit(dir, ["ls-files", "--error-unmatch", "--", p]).status === 0;
 }
 
+/** Which of these paths git ignores (a path git tracks is never ignored) — one process for all of them. */
+export function ignoredOf(dir: string, paths: string[]): Set<string> {
+  if (!paths.length) return new Set();
+  const r = runGit(dir, ["check-ignore", "-z", "--stdin"], `${paths.join("\0")}\0`);
+  // 0: some ignored, 1: none; anything else (no repository): none said ignored
+  return new Set(r.status === 0 ? r.stdout.split("\0").filter(Boolean) : []);
+}
+
 /** Which of these paths (files or folders) git knows — one process for all of them. */
 function trackedOf(dir: string, paths: string[]): Set<string> {
   const files = runGit(dir, ["ls-files", "-z", "--", ...paths]).stdout.split("\0").filter(Boolean);

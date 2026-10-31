@@ -49,6 +49,7 @@ import { SENDABLE, waitGroupOf, waitKindOf } from "../core/waitkind.ts";
 import { openForUser } from "../core/open.ts";
 import { fileRefused } from "../core/taskfiles.ts";
 import { placesPinned } from "../core/pastevents.ts";
+import { fixCheck, fixEnv, pendingFixes } from "../commands/fixchecks.ts";
 import { placeEstimate, placeLabel, placeRecord, placesWithCoords, placeTask } from "../core/placehistory.ts";
 
 /** What the Strom app asks, said before anything is done; true when the person goes on. */
@@ -274,6 +275,36 @@ export async function placeSearch(ctx: Context, run: Run, lang: string, root: st
   out(ctx, t("ui.link.history.place.done", { place }));
   if (!task || !(await ctx.confirm(t("ui.link.history.place.now"), false))) return true;
   return (await run(["run", "--task", task.id])) === 0;
+}
+
+/**
+ * strom's fixes from a link (strom-research://fixes): what it names shown, and set right or put back only by the person
+ * here — strom fixes run and undo ask them themselves (never --yes, never the link's own answer). No fix named: the list,
+ * or each that waits in turn, as the menu's Maintenance does it; where nobody reads (an archive, a research waiting for
+ * its agent) only the checks that rewrite. A paid check named there is refused before (commands/links.ts).
+ */
+export async function fixesDo(ctx: Context, run: Run, lang: string, root: string, id?: string, what?: "undo"): Promise<boolean> {
+  const tree = Tree.open(root, ctx.env);
+  const check = id ? fixCheck(id) : undefined;
+  if (!check) {
+    const quiet = actsAsArchive(tree);
+    const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).filter((p) => !quiet || p.check.remedy === "rewrite");
+    if (!waits.length) return (await run(["fixes"])) === 0;
+    if (!quiet || isArchive(tree)) return (await run(["fixes", "run"])) === 0;
+    let done = true;
+    for (const p of waits) done = (await run(["fixes", "run", p.check.id])) === 0 && done;
+    return done;
+  }
+  // put back: only what rewrites keeps what it set right — shown first, then the person's question here (strom fixes
+  // undo itself asks nothing more at a terminal); one that reads again is shown (nothing to put back)
+  if (what === "undo") {
+    if ((await run(["fixes", "show", check.id])) !== 0 || check.remedy !== "rewrite" || !check.applied?.(tree)) return false;
+    const t = translator(lang);
+    if (!(await asks(ctx, lang, root, t("ui.link.what.fixes.undo", { name: t(`ui.fixes.${check.id}.name` as UIKey) }), undefined, false))) return false;
+    return (await run(["fixes", "undo", check.id])) === 0;
+  }
+  const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).some((p) => p.check.id === check.id);
+  return (await run(waits ? ["fixes", "run", check.id] : ["fixes", "show", check.id])) === 0;
 }
 
 /** A direction of the research paused, ended (each with the person's reason, if they give one) or taken up again. */

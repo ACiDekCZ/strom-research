@@ -13,7 +13,8 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
-import { tarProgram, type Env } from "./paths.ts";
+import { configDir, tarProgram, type Env } from "./paths.ts";
+import { readJsonIfExists } from "./json.ts";
 import { VERSION } from "./tree.ts";
 import type { Settings } from "./config.ts";
 import { installation, replacedHolding, type Installation } from "./self.ts";
@@ -28,15 +29,44 @@ export const RELEASE_DOWNLOAD = "https://github.com/ACiDekCZ/strom-research/rele
 /**
  * Which versions this strom takes: "stable" (the releases) or "beta" (the newest of every release, prereleases too).
  * STROM_CHANNEL, else what the installation was installed with (install.json channel), else a prerelease version not
- * run from the sources (npm install -g strom-research@beta), else stable.
+ * run from the sources (npm install -g strom-research@beta), else — installed with npm — the channel npm's strom was on
+ * (npmChannel), else stable.
  */
 export type Channel = "beta" | "stable";
-export function updateChannel(env: Env, inst: Installation = installation(), version: string = VERSION): Channel {
+export function updateChannel(env: Env, inst: Installation = installation(), version: string = VERSION, last?: ChannelMemory): Channel {
   const said = (env.STROM_CHANNEL ?? "").trim().toLowerCase();
   if (said === "beta" || said === "stable") return said;
   if (inst.kind === "installed" && inst.channel) return inst.channel;
   if (inst.kind !== "source" && /^\d+\.\d+\.\d+-/.test(version)) return "beta";
+  if (inst.kind === "npm") return npmChannel(last ?? (readJsonIfExists<ChannelMemory>(path.join(configDir(env), "config.json")) ?? {}), version);
   return "stable";
+}
+
+/** What the user config keeps of the channel (core/config.ts UserConfig). */
+export interface ChannelMemory {
+  lastVersion?: string;
+  lastChannel?: Channel;
+  npmChannel?: Channel;
+}
+
+/**
+ * The channel of a release installed with npm. npm keeps no word of the tag it was installed from, and its beta moves
+ * to each release too (the release's CI): a release after a beta is on the beta still — strom update --channel says
+ * otherwise (npmChannel), and a release older than the strom that ran here last is a way back to npm's latest.
+ */
+export function npmChannel(m: ChannelMemory, version: string): Channel {
+  if (m.npmChannel === "beta" || m.npmChannel === "stable") return m.npmChannel;
+  return m.lastChannel === "beta" && !(m.lastVersion && isNewer(m.lastVersion, version)) ? "beta" : "stable";
+}
+
+/**
+ * The channel said for npm's strom (strom update --channel) as a new version first runs: a beta installed after
+ * "stable", or an older release after "beta", is a choice made with npm since — the word said before gives way.
+ */
+export function npmChannelKept(m: ChannelMemory, version: string): Channel | undefined {
+  if (m.npmChannel === "stable" && /^\d+\.\d+\.\d+-/.test(version)) return undefined;
+  if (m.npmChannel === "beta" && m.lastVersion && isNewer(m.lastVersion, version)) return undefined;
+  return m.npmChannel;
 }
 
 /**

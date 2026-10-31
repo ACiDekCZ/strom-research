@@ -518,7 +518,7 @@ register({
         env: { ...withoutAgentMarks(env), STROM_NONINTERACTIVE: "1", STROM_READER: "1" },
         settingsFile,
         reader: true,
-        readerFiles: { views: seen, report },
+        readerFiles: { views: seen, report, room: own },
         // without the user's own add-ons (skills, plugins, MCP servers) unless they said otherwise
         ...(ctx.settings.agentAddons(tree.config) ? {} : { clean: true }),
         timeoutMs: minutes * 60_000,

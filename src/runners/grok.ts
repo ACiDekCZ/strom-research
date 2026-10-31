@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { heardResponse, runJsonLines, webUse } from "./jsonl.ts";
-import { refusedByStrom, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { commandLine, refusedByStrom, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 import { effortArgs } from "../agents/effort.ts";
 import { isolated, type Env } from "../core/paths.ts";
 import type { AgentWeb } from "../core/metrics.ts";
@@ -105,7 +105,7 @@ export function grokEnv(env: RunOptions["env"], timeoutMs: number | undefined, r
 /** What a tool call was, in one line: its command, else the tool and its file (a page: its address). */
 function describe(e: Record<string, unknown>): string {
   const input = (e.rawInput ?? {}) as Record<string, unknown>;
-  if (typeof input.command === "string") return `$ ${input.command.split("\n")[0]!.slice(0, 140)}`;
+  if (typeof input.command === "string") return commandLine(input.command);
   const file = input.target_file ?? input.file_path ?? input.path ?? input.target_directory ?? input.url;
   return typeof file === "string" ? `${String(e.toolName ?? e.title ?? "tool")} ${file}` : String(e.toolName ?? e.title ?? "tool");
 }

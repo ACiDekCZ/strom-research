@@ -34,7 +34,7 @@ export const SEAL_FOREIGN = "seal.foreign";
 
 // between releases the candidate being made (a bridge run from the sources says what it is: the Strom app goes by it);
 // at a release the release's own (package.json)
-export const VERSION = "1.23.0";
+export const VERSION = "1.24.0";
 
 export interface Op {
   at: string;
@@ -449,6 +449,24 @@ export class Tree {
     this.undo.clear();
   }
 
+  /**
+   * Forget the undo log of the files a commit on the way holds (a command that commits as it goes: strom read with a
+   * session, clips, transcripts, fetch): put back after it, they would differ from the history — changed outside strom.
+   * What lies outside its pathspec, or what git ignores there, stays to be taken back.
+   */
+  private settleCommitted(pathspec: string[]): void {
+    const specs = pathspec.map((p) => p.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, ""));
+    const held = (rel: string) => specs.some((p) => p === "." || p === "" || rel === p || rel.startsWith(`${p}/`));
+    const files = [...new Set([...this.undo.keys(), ...(this.lineUndo?.keys() ?? [])])].filter((f) => held(this.relative(f)));
+    if (!files.length) return;
+    const ignored = git.ignoredOf(this.root, files.map((f) => this.relative(f)));
+    for (const f of files) {
+      if (ignored.has(this.relative(f))) continue;
+      this.undo.delete(f);
+      this.lineUndo?.delete(f);
+    }
+  }
+
   recordPath(type: RecordType, id: string): string {
     return path.join(this.dataDir, RECORD_TYPES[type].dir, `${id}.json`);
   }
@@ -672,6 +690,8 @@ export class Tree {
     // the logs this commit holds are closed: what comes next goes into new ones
     this.opsNow.clear();
     if (hash) {
+      // what it holds is in the history now: a failure later in the command takes back only what came after it
+      this.settleCommitted(pathspec);
       const ops = this.written.slice(this.told);
       this.told = this.written.length;
       try {

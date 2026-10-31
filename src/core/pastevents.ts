@@ -51,6 +51,7 @@ import {
   type PlaceHistoryState,
   type PlaceWeight,
 } from "./placehistory.ts";
+import { adoptPlaces } from "./placeadopt.ts";
 
 /** The task of a tree that maps its places to regions (core/queue: level enrich, one a tree). */
 export const HISTORY_PLACES_ORIGIN = "history:places";
@@ -241,6 +242,11 @@ export interface PlaceMap {
   auto?: Omit<PlaceMap, "auto" | "manual" | "note">;
   /** The person's note for the agent determining it again (data, never an instruction). */
   note?: string;
+  /**
+   * Taken by strom from another research on this computer that maps the same place so (core/placeadopt.ts): its id —
+   * never the person's word here; the agent may map it otherwise.
+   */
+  from?: { tree: string };
   at: string;
 }
 
@@ -1753,6 +1759,20 @@ export function placeRecordOf(records: Place[]): (key: string) => string | undef
   };
 }
 
+/**
+ * The place record a place of the facts is (the brief of the places' task, the places taken from another research): the
+ * first record that bears its name (any of its names, any accent), else the first that bears its first part ("Lhota,
+ * okres Horní" → "Lhota").
+ */
+export function placeNamed(records: Place[]): (key: string) => Place | undefined {
+  const live = records.filter((p) => !p.retracted);
+  return (key) => {
+    const f = foldText(key);
+    const first = foldText(key.split(",")[0]!.trim());
+    return live.find((p) => p.names.some((n) => foldText(n.name) === f)) ?? live.find((p) => p.names.some((n) => foldText(n.name) === first));
+  };
+}
+
 /** A session mapping the places of the facts at work now: so many mapped of so many (the app's header). */
 function mappingNow(tree: Tree, r: Reading): { mapped: number; mappable: number } | undefined {
   const tasks = new Map(tree.list<Task>("task").map((t) => [t.id, t]));
@@ -2774,8 +2794,9 @@ export function raiseHistoryTasks(tree: Tree, shared: string | undefined, settin
         origin,
       });
     };
-    // the places of the facts
-    const unmapped = unmappedPlaces(tree);
+    // the places of the facts — those another research on this computer maps so, surely, taken first (core/placeadopt.ts)
+    let unmapped = unmappedPlaces(tree);
+    if (unmapped.length && adoptPlaces(tree, shared, settings).written) unmapped = unmappedPlaces(tree);
     const ofPlaces = tasks.filter((t) => t.origin === HISTORY_PLACES_ORIGIN);
     if (unmapped.length && !ofPlaces.some((t) => LIVE_STATES.has(t.state))) {
       const last = ofPlaces.sort((a, b) => b.updated.localeCompare(a.updated))[0];

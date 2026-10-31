@@ -43,7 +43,8 @@ import * as git from "./git.ts";
 import { now, Tree, typeOfId } from "./tree.ts";
 import { actsAsArchive } from "./state.ts";
 import { appSides } from "./conflicts.ts";
-import { APP_DATA_SEX_UNKNOWN, appKeepsPeriods, appKnowsPrimaryName, appReadsSurnameGroups, isAppVersion } from "./stromapp.ts";
+import { APP_DATA_SEX_UNKNOWN, appKeepsPeriods, appKnowsPrimaryName, appReadsLines, appReadsSurnameGroups, isAppVersion } from "./stromapp.ts";
+import { lineMarkOf, lineMarks, lineagesAt, planLines, setLineMark, undoLineMark, type LineChange, type LineMark } from "./lineages.ts";
 import { Settings } from "./config.ts";
 import { applySurnameChange, formsSaid, planSurnames, readMarkLines, readSurnames, surnamesAt, undoSurnameChange, type SurnameChange, type SurnameEntry, type SurnameMarks } from "./surnames.ts";
 import { SURNAME_GROUPS_MARK, SURNAME_REJECTIONS_MARK } from "../gedcom/export.ts";
@@ -138,6 +139,8 @@ export interface SPerson {
   primary?: string;
   /** A husband (HUSB) in a family of the file: the sex the Strom app gives someone of none (male, else female). */
   husb?: true;
+  /** Their bound of a lineage the user set in the Strom app (1 _STROM_LINE): read only where the file says them (Snapshot.lines). */
+  line?: LineMark;
   /**
    * The titles of the name they are shown by (NPFX / NSFX, the app's titleBefore / titleAfter): never part of
    * `names[0]`, which is the name without them.
@@ -233,6 +236,11 @@ export interface Snapshot {
    * surname-variant groups|rejections", core/surnames.ts): undefined where neither note is there.
    */
   surnames?: SurnameMarks;
+  /**
+   * The file says the bounds of a lineage the user set (its header's 1 _STROM_LINES Y, the Strom app from 3.19): each
+   * person's `line` is all of them, none is none. Undefined: the file says nothing of them (an older app).
+   */
+  lines?: true;
   problems: string[];
 }
 
@@ -743,6 +751,8 @@ export function readGedcom(text: string): Snapshot {
     }
     // the sources of the person: the Strom app's (1 SOUR), the research's of their names
     const cites = [...children(r, "SOUR"), ...children(r, "NAME").flatMap((n) => children(n, "SOUR"))].map(cite).filter((x): x is SCite => !!x);
+    // their bound of a lineage (a value of a later app: none)
+    const line = children(r, "_STROM_LINE").map((n) => lineMarkOf(n.value)).reduce<LineMark | undefined>((a, m) => (a === "FOUNDER" || m === "FOUNDER" ? "FOUNDER" : (a ?? m)), undefined);
     persons.set(key, {
       key,
       names,
@@ -754,6 +764,7 @@ export function readGedcom(text: string): Snapshot {
       ...(titles ? { titles } : {}),
       ...(married.length ? { married } : {}),
       ...(primary ? { primary } : {}),
+      ...(line ? { line } : {}),
     });
   }
   // how a child belongs to a family (the child's FAMC + PEDI: adopted, foster, step): none said is birth
@@ -817,10 +828,12 @@ export function readGedcom(text: string): Snapshot {
   const again = val(head, "_STROM_AGAIN")?.trim();
   const appVersion = fromApp.app ? val(children(head!, "SOUR")[0], "VERS")?.trim() : undefined;
   const surnames = head ? surnameMarksOf(head) : undefined;
+  const lines = /^y(es)?$/i.test(val(head, "_STROM_LINES")?.trim() ?? "");
   return {
     format: "gedcom",
     ...(appVersion ? { appVersion } : {}),
     ...(surnames ? { surnames } : {}),
+    ...(lines ? { lines: true as const } : {}),
     ...(treeId ? { treeId } : {}),
     ...(at ? { head: at } : {}),
     persons,
@@ -2128,7 +2141,8 @@ export type ChangeKind =
   | "family.cite"
   | "surname.group"
   | "surname.reject"
-  | "surname.warning";
+  | "surname.warning"
+  | "lineage.mark";
 
 /** What strom does with a change: adds it, corrects a lead, a conflict, the user's edit wins, the place's position set, only when picked, nothing, withdrawn, what a record's fact lacks added to it. */
 export type ChangeAction = "add" | "correct" | "conflict" | "user" | "set" | "pick" | "report" | "remove" | "refine";
@@ -2199,6 +2213,8 @@ export interface Change {
   reading?: { id: string; ok: boolean; entry?: string; code?: ReadingRefusal; edited?: true };
   /** surname.*: a group of a surname's forms or a rejection the user decided in the app, as it changes the research's (core/surnames.ts). */
   surname?: SurnameChange;
+  /** lineage.mark: a person's bound of a lineage the user set in the app, and the research's (core/lineages.ts). */
+  line?: LineChange;
 }
 
 export interface Plan {
@@ -2965,6 +2981,23 @@ export function planSync(tree: Tree, incoming: Snapshot, edits: "conflict" | "us
     const action = !here || (given && samePoint(given, here)) || mirror ? "set" : "pick";
     push({ kind: "place.coords", action, place: { ...p, ...(mine ? { id: mine.id } : {}), ...(here ? { was: here } : {}) } });
   }
+  // the bounds of a lineage the user set in the app: where the file says them (_STROM_LINES), against what the research
+  // gave the app at _STROM_HEAD when it gave them (an app that keeps them: APP_READS_LINES) — else the file's are the truth
+  if (incoming.lines) {
+    const theirs = new Map<string, LineMark>();
+    const present = new Set<string>();
+    for (const [key, p] of incoming.persons) {
+      const id = key.startsWith("x:") ? key : resolve(tree, key)?.id;
+      if (!id) continue;
+      present.add(id);
+      if (p.line && theirs.get(id) !== "FOUNDER") theirs.set(id, p.line);
+    }
+    const given = incoming.head && appReadsLines(new Settings(tree.env, {}), incoming.appVersion) ? lineagesAt(tree, incoming.head) : undefined;
+    for (const c of planLines(lineMarks(tree), theirs, (id) => !partial && present.has(id), given ? lineMarks(tree, given) : undefined)) {
+      const p = incoming.persons.get(c.person);
+      push({ kind: "lineage.mark", action: "set", person: c.person, ...(p?.names[0] ? { name: p.names[0] } : {}), text: c.mark ?? "", line: c });
+    }
+  }
   if (incoming.head && opts.takenBack !== false && !sentAgain) takenBack(tree, incoming, edits, changes);
   // a send of the app (`sent`: it came through the bridge) with nothing to stand on (no _STROM_HEAD, no _STROM_SINCE the research still has —
   // found on Mac after the app set itself back to its state before a load): nobody picks from a send the bridge wrote,
@@ -3622,7 +3655,8 @@ export interface Applied {
     | "family.cite"
     | "media.add"
     | "input.sort"
-    | "surname.set";
+    | "surname.set"
+    | "lineage.set";
   id: string;
   /**
    * event.edit: the fact before; event.detail: its cause, age and house before (JSON); event.retract, event.status:
@@ -3636,7 +3670,8 @@ export interface Applied {
    * user's choice ("Given /Surname/", "" none); name.drop: the user's name an edit of theirs replaced, and
    * where it stood (JSON); child.relation: the child's link before (JSON); child.move: the child, the family it left,
    * its link and place there, whether that family was retracted (JSON); surname.set (its id the list, groups or
-   * rejected): the entry it added and those it replaced or removed (JSON).
+   * rejected): the entry it added and those it replaced or removed (JSON); lineage.set (its id the person): the
+   * person's mark before and the one set (JSON {was, mark}, null none).
    */
   before?: SFact | string;
 }
@@ -4589,6 +4624,17 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
     const r = applySurnameChange(tree, c.surname!, reason);
     if (r) applied.push({ do: "surname.set", id: r.list, before: JSON.stringify({ added: r.added ?? null, removed: r.removed }) });
   }
+  // the bounds of a lineage the user set in the app (quality/lineages.json): a new person's by the ID they got
+  for (const c of plan.changes.filter((x) => x.line && taken(x))) {
+    const id = who(c.line!.person);
+    const p = id ? resolve(tree, id) : undefined;
+    if (!p) {
+      skipped.push({ n: c.n, kind: c.kind, why: `${c.line!.person} is not in the research`, code: "person.no-match", params: { person: c.line!.person } });
+      continue;
+    }
+    const r = setLineMark(tree, p.id, c.line!.mark, reason);
+    if (r) applied.push({ do: "lineage.set", id: p.id, before: JSON.stringify({ was: r.was, mark: c.line!.mark }) });
+  }
   return { applied, changes: changes - skipped.length, skipped, ...(asked.length ? { asked } : {}) };
 }
 
@@ -5292,6 +5338,11 @@ export function undoSync(tree: Tree, input: SyncInput): number {
       case "surname.set": {
         const b = JSON.parse(String(a.before ?? "{}")) as { added?: string | null; removed?: SurnameEntry[] };
         undoSurnameChange(tree, a.id === "rejected" ? "rejected" : "groups", b.added ?? undefined, b.removed ?? [], reason);
+        break;
+      }
+      case "lineage.set": {
+        const b = JSON.parse(String(a.before ?? "{}")) as { was?: LineMark | null; mark?: LineMark | null };
+        undoLineMark(tree, a.id, b.mark ?? null, b.was ?? null, reason);
         break;
       }
     }

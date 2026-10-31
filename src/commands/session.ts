@@ -910,7 +910,9 @@ register({
         // Other agents may be at work in this tree (conversations): never their tasks.
         const others = othersAtWork(tree, tree.env, runnerId).tasks;
         // The tasks of history the experiment asks for (core/pastevents.ts), made before the queue is read.
-        if (raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings).length) commitNow(tree, "Tasks of the history of the places");
+        // (and the places another research on this computer maps so, taken: core/placeadopt.ts)
+        raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
+        if (tree.uncommitted().length) commitNow(tree, "Tasks of the history of the places");
         // Working alone: now and then a story's turn (in a conversation the user leads); the tasks of history after the
         // research, and now and then one of them first — how often is experiments.historyPace (core/pastevents.ts
         // historyTurn), or with --history those alone in their order; the gate, if any, decides whether a session starts at all.
