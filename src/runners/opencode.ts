@@ -60,22 +60,33 @@ export function opencodeArgs(opts: Pick<RunOptions, "model" | "extraArgs" | "per
   const level = opts.permissions === "full" ? ["--auto"] : ["--agent", OPENCODE_RUN_AGENT];
   return ["run", "--format", "json", ...level, ...(opts.model ? ["--model", opts.model] : []), ...(opts.extraArgs ?? []), opts.kickoff];
 }
+/** A clean OpenCode stop plus an already closed Strom session can finish the task
+ * despite exit 1. Preserve the raw process status and never override real failures. */
+export function closedOpenCodeResult(result: RunResult, state: string): RunResult {
+  if (state !== "closed" || result.outcome !== "error" || !result.normalStop ||
+      result.exitCode !== 1 || result.processExit?.code !== 1 ||
+      result.processExit.signal !== null || result.processExit.stderr ||
+      result.modelRejected || result.denied?.length || result.refused?.length) return result;
+  return { ...result, outcome: "ok", exitWarning: true };
+}
 
 export const opencodeRunner: Runner = {
   id: "opencode",
   command: "opencode",
-  run(opts: RunOptions): Promise<RunResult> {
+  async run(opts: RunOptions): Promise<RunResult> {
     // a reader: its own agent and rules, given for this run (no tree's opencode.json where it works)
     const reader = opts.readerFiles;
     const env = reader ? { ...opts.env, OPENCODE_CONFIG_CONTENT: JSON.stringify(opencodeReaderConfig(reader)) } : opts.env;
     const args = reader ? opencodeReaderArgs(opts) : opencodeArgs({ ...opts, kickoff: "Your brief is above. Work only through `strom` in this folder, as it says." });
     const tokens = { input: 0, output: 0, cacheRead: 0 };
     let main: string | undefined;
+    let normalStop = false;
+    let streamError = false;
     // the web tools' calls passed on (a call is said again as its state changes)
     const webSeen = new Set<string>();
     // Resumed: its session by id, the message as the prompt.
     const resume = (id: string, message: string) => ({ args: [...(reader ? opencodeReaderArgs(opts) : opencodeArgs({ ...opts, kickoff: message })).slice(0, -1), "--session", id, message], input: "" });
-    return runJsonLines("opencode", args, env, opts, resume, (msg, heard) => {
+    const result = await runJsonLines("opencode", args, env, opts, resume, (msg, heard) => {
       const part = (msg.part ?? {}) as Record<string, unknown>;
       // the run's own session is the first one named; another one is a subagent's (its scan reader) — the run's own
       // is the one resumed at the time limit, never the subagent's that spoke last
@@ -85,6 +96,8 @@ export const opencodeRunner: Runner = {
         heard.sessionId = sid;
         tellUsage(opts, { agentSession: sid });
       }
+      if (sid === main && msg.type === "step_start") normalStop = false;
+      if (sid === main && msg.type === "step_finish") normalStop = part.reason === "stop";
       if (msg.type === "tool_use") {
         const state = (part.state ?? {}) as { status?: string; input?: Record<string, unknown>; error?: string };
         const input = state.input ?? {};
@@ -130,10 +143,13 @@ export const opencodeRunner: Runner = {
         m.turns = (m.turns ?? 0) + 1;
       }
       if (msg.type === "error") {
+        streamError = true;
+        normalStop = false;
         heard.isError = true;
         const e = (msg.error ?? {}) as { name?: string; data?: { message?: string } };
         heard.text = e.data?.message ?? e.name ?? "error";
       }
     });
+    return { ...result, normalStop: !reader && normalStop && !streamError };
   },
 };

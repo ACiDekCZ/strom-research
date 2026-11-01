@@ -99,6 +99,12 @@ export interface RunOptions {
 
 export interface RunResult {
   exitCode: number;
+  /** Raw subprocess status; diagnostic only, never a change to another runner's policy. */
+  processExit?: { code: number | null; signal: string | null; stderr: boolean };
+  /** OpenCode alone: its own last step stopped normally without a protocol error. */
+  normalStop?: boolean;
+  /** OpenCode alone: exit 1 accepted only after the Strom session closed. */
+  exitWarning?: true;
   outcome: "ok" | "limit" | "auth" | "timeout" | "stopped" | "error";
   text: string;
   metrics: SessionMetrics;

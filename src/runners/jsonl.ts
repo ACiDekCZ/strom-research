@@ -175,6 +175,7 @@ export async function runJsonLines(
             : "ok";
   return {
     exitCode: code ?? 1,
+    processExit: { code, signal: a.signal ?? null, stderr: Boolean(a.stderr.trim()) },
     outcome,
     text: heard.text || a.stderr.trim(),
     metrics: heard.metrics,
@@ -195,7 +196,7 @@ function attempt(
   timeoutMs: number | undefined,
   heard: Heard,
   onEvent: (msg: Record<string, unknown>, heard: Heard) => void,
-): Promise<{ code: number | null; timedOut: boolean; stderr: string; failed?: string }> {
+): Promise<{ code: number | null; signal?: string | null; timedOut: boolean; stderr: string; failed?: string }> {
   return new Promise((resolve) => {
     const child = spawnAgent(command, args, { cwd: opts.cwd, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: OWN_GROUP });
     feedStdin(child, input);
@@ -246,13 +247,14 @@ function attempt(
       end();
       resolve({ code: 127, timedOut, stderr, failed: String(err.message) });
     });
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
       end();
       buffer += text.end();
       if (buffer) handle(buffer);
       log.rest(buffer);
       log.flush();
-      resolve({ code, timedOut, stderr });
+      if (command === "opencode") appendLog(opts.logFile + ".exit.jsonl", JSON.stringify({ at: new Date().toISOString(), code, signal: signal ?? null, stderr: Boolean(stderr.trim()) }) + "\n");
+      resolve({ code, signal: signal ?? null, timedOut, stderr });
     });
   });
 }

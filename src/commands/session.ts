@@ -40,6 +40,7 @@ import { syncAgentFiles } from "../agents/files.ts";
 import { claudeAgentsFile } from "../agents/scanreader.ts";
 import { setTreeSetting } from "./setup.ts";
 import { RUNNERS } from "../runners/index.ts";
+import { closedOpenCodeResult } from "../runners/opencode.ts";
 import { PROFILES } from "../agents/profiles.ts";
 import { AGENTS, detectAgent, isAgent, which, withoutAgentMarks } from "../core/which.ts";
 import { askGate, checkGateSpec, ensureGatesDir, gateLogLine, gateRecord, loadGate, recordGate, type Gate, type GateAnswer, type GateRecord } from "../core/gate.ts";
@@ -1096,7 +1097,7 @@ register({
           ...(opts.interactive ? {} : { STROM_NONINTERACTIVE: "1" }),
         };
         atWorkOn = session.id;
-        const result = await runner.run({
+        let result = await runner.run({
           cwd: root,
           prompt,
           kickoff,
@@ -1158,6 +1159,10 @@ register({
         // Close what the agent left open, record the metrics, export, commit.
         const after = Tree.open(root, runEnv);
         let s = after.get<Session>(session.id)!;
+        if (runnerId === "opencode") {
+          result = closedOpenCodeResult(result, s.state);
+          if (result.exitWarning) out("  · OpenCode exit 1 after a normal stop; Strom session closed — continuing (raw exit retained in log)");
+        }
         // strom worked for the agent when it closed the session itself or recorded something
         const ranStrom = s.state !== "open" || sessionWrites(after, s.id) > 0;
         // the user asked it to finish (strom session finish, the Strom app's "finish and stop"): no next session
