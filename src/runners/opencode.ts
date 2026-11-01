@@ -9,9 +9,10 @@
 // session (sessionID), which `--session` resumes.
 
 import path from "node:path";
-import { runJsonLines, webUse } from "./jsonl.ts";
+import { setTimeout as delay } from "node:timers/promises";
+import { runJsonLines, webUse, type Heard } from "./jsonl.ts";
 import { OPENCODE_RUN_AGENT } from "../agents/files.ts";
-import { commandLine, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
+import { appendLog, commandLine, usageNumber, tellUsage, tellWeb, type RunOptions, type RunResult, type Runner } from "./runner.ts";
 
 /** OpenCode's own web tools (OpenCode 2: webfetch with its url, websearch with its query), counted once each call is done. */
 export const OPENCODE_WEB = { page: ["webfetch"], search: ["websearch"] } as const;
@@ -61,6 +62,44 @@ export function opencodeArgs(opts: Pick<RunOptions, "model" | "extraArgs" | "per
   return ["run", "--format", "json", ...level, ...(opts.model ? ["--model", opts.model] : []), ...(opts.extraArgs ?? []), opts.kickoff];
 }
 
+/** Only explicit transport failures may resume; permanent and permission failures never do. */
+export function opencodeTransportFailure(result: RunResult): boolean {
+  return result.outcome === "error" && !result.modelRejected &&
+    !result.denied?.length && !result.refused?.length &&
+    /\b(?:EPROTO|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ENOTFOUND)\b/.test(result.text) &&
+    !/certificate|CERT_|unauthori[sz]ed|api.?key|quota|rate.?limit|usage.?limit/i.test(result.text);
+}
+
+/** At most two retries in the same session, using the original deadline, never a fresh time budget. */
+export async function recoverOpenCode(
+  opts: RunOptions,
+  runOnce: (session: string | undefined, remaining: number | undefined) => Promise<RunResult>,
+  sessionId: () => string | undefined,
+  wait: (ms: number, value: undefined, options: { signal?: AbortSignal }) => Promise<unknown> = delay,
+  now: () => number = Date.now,
+): Promise<RunResult> {
+  const started = now();
+  if (opts.signal?.aborted) return { outcome: "stopped", exitCode: 130, text: "", metrics: { durationMs: 0 } };
+  let result = await runOnce(undefined, opts.timeoutMs);
+  for (const [index, ms] of [5000, 15000].entries()) {
+    const id = sessionId();
+    const remaining = opts.timeoutMs === undefined ? undefined : opts.timeoutMs - (now() - started);
+    if (!id || opts.signal?.aborted || !opencodeTransportFailure(result) ||
+        (remaining !== undefined && remaining < ms + 60000)) break;
+    const line = "OpenCode transport failure — resuming the same session (" + (index + 1) + "/2) after " + (ms / 1000) + " s";
+    opts.onProgress?.(line);
+    appendLog(opts.logFile, "\n[strom] " + line + "\n");
+    try { await wait(ms, undefined, { signal: opts.signal }); }
+    catch (error) { if (!(error instanceof Error) || error.name !== "AbortError") throw error; }
+    if (opts.signal?.aborted) { result = { ...result, outcome: "stopped" }; break; }
+    const left = opts.timeoutMs === undefined ? undefined : opts.timeoutMs - (now() - started);
+    if (left !== undefined && left < 60000) break;
+    result = await runOnce(id, left);
+  }
+  result.metrics.durationMs = now() - started;
+  return result;
+}
+
 export const opencodeRunner: Runner = {
   id: "opencode",
   command: "opencode",
@@ -71,11 +110,12 @@ export const opencodeRunner: Runner = {
     const args = reader ? opencodeReaderArgs(opts) : opencodeArgs({ ...opts, kickoff: "Your brief is above. Work only through `strom` in this folder, as it says." });
     const tokens = { input: 0, output: 0, cacheRead: 0 };
     let main: string | undefined;
+    let turns = 0;
     // the web tools' calls passed on (a call is said again as its state changes)
     const webSeen = new Set<string>();
     // Resumed: its session by id, the message as the prompt.
     const resume = (id: string, message: string) => ({ args: [...(reader ? opencodeReaderArgs(opts) : opencodeArgs({ ...opts, kickoff: message })).slice(0, -1), "--session", id, message], input: "" });
-    return runJsonLines("opencode", args, env, opts, resume, (msg, heard) => {
+    const onEvent = (msg: Record<string, unknown>, heard: Heard) => {
       const part = (msg.part ?? {}) as Record<string, unknown>;
       // the run's own session is the first one named; another one is a subagent's (its scan reader) — the run's own
       // is the one resumed at the time limit, never the subagent's that spoke last
@@ -85,6 +125,7 @@ export const opencodeRunner: Runner = {
         heard.sessionId = sid;
         tellUsage(opts, { agentSession: sid });
       }
+      if (main) heard.sessionId = main;
       if (msg.type === "tool_use") {
         const state = (part.state ?? {}) as { status?: string; input?: Record<string, unknown>; error?: string };
         const input = state.input ?? {};
@@ -127,13 +168,26 @@ export const opencodeRunner: Runner = {
         m.inputTokens = tokens.input;
         m.outputTokens = tokens.output;
         m.cacheReadTokens = tokens.cacheRead;
-        m.turns = (m.turns ?? 0) + 1;
+        m.turns = ++turns;
       }
       if (msg.type === "error") {
         heard.isError = true;
-        const e = (msg.error ?? {}) as { name?: string; data?: { message?: string } };
-        heard.text = e.data?.message ?? e.name ?? "error";
+        const e = (msg.error ?? {}) as { name?: string; message?: string; data?: { message?: string } };
+        heard.text = e.data?.message ?? e.message ?? e.name ?? "error";
       }
-    });
+    };
+    return recoverOpenCode(opts, async (id, timeoutMs) => {
+      const message = reader
+        ? "A transient network error stopped the previous response. Continue the original reading task in this same session, using only the supplied views and report. Check the report for what was already saved; do not repeat completed work. Keep the original restrictions: no shell, no strom commands, no other files or tools."
+        : "A transient network error stopped the previous response. Continue this same Strom session from the recorded evidence. First run strom and strom brief; check what was already saved before any write, avoid duplicate facts, and finish with strom session close.";
+      const next = id ? resume(id, message) : { args, input: opts.prompt };
+      const result = await runJsonLines("opencode", next.args, env, { ...opts, prompt: next.input, timeoutMs }, resume, onEvent);
+      // Totals span processes, including a final attempt with no step_finish event.
+      result.metrics.inputTokens = tokens.input;
+      result.metrics.outputTokens = tokens.output;
+      result.metrics.cacheReadTokens = tokens.cacheRead;
+      result.metrics.turns = turns;
+      return result;
+    }, () => main);
   },
 };

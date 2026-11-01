@@ -3,7 +3,10 @@
 import { spawnSync } from "node:child_process";
 
 const strom = (...args: string[]) => {
-  const r = spawnSync("strom", args, { encoding: "utf8", env: process.env, shell: process.platform === "win32" });
+  // Node concatenates shell:true arguments without escaping them. Keep each CLI argument whole on Windows.
+  const windows = process.platform === "win32";
+  const command = windows ? "strom " + args.map((arg) => '"' + arg.replace(/"/g, '""') + '"').join(" ") : "strom";
+  const r = spawnSync(command, windows ? [] : args, { encoding: "utf8", env: process.env, shell: windows });
   process.stdout.write(`$ strom ${args.join(" ")} → ${r.status}\n`);
   if (r.status !== 0) process.stdout.write(r.stdout + r.stderr);
   return r;
