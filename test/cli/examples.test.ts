@@ -19,7 +19,7 @@ import { makePdf } from "../image-samples.ts";
 const opts = { skip: !hasGit };
 
 /** Commands whose examples change the environment or start an agent (checked for syntax below, not run). */
-const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "trees forget", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test", "phone remove"]); // uninstall, update, unpack, trees remove, trees forget: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired
+const NOT_RUN = new Set(["setup", "init", "run", "read", "document read", "document again", "seal adopt", "unpack", "trees remove", "trees forget", "connector add", "connector remove", "connector discard", "connector probe", "allow connector", "allow host", "allow archive", "login", "uninstall", "update", "gate test", "hook on", "hook test", "phone remove", "history back"]); // uninstall, update, unpack, trees remove, trees forget: the user's yes, the network; gate test, hook on/test: a program of the user's (their own tests); phone remove: a phone paired; history back: a change of the research's own history (its hash known only there) and the person's yes (test/cli/history-back.test.ts)
 
 async function seeded(): Promise<World> {
   const w = new World();

@@ -23,7 +23,7 @@ import { runGit } from "./git.ts";
 import { factSaid } from "./changelog.ts";
 import { conflictTitle, displayName, lifespan } from "./people.ts";
 import { ownerName } from "./overview.ts";
-import { forPhone } from "./phone-watch.ts";
+import { forPhone, PERSON } from "./phone-watch.ts";
 import { eventName } from "../cli/human.ts";
 import type { Conflict, Family, Hypothesis, Person, Source } from "./model.ts";
 
@@ -46,6 +46,8 @@ export interface FindLine {
   fact?: { kind: string; name: string; what: string };
   /** A child: the years of its life ("1861–1890"). */
   span?: string;
+  /** A child: its record ID (phone-watch.ts PERSON: never in JSON). */
+  [PERSON]?: string;
 }
 
 export interface FindGroup {
@@ -57,6 +59,8 @@ export interface FindGroup {
   /** A person: the name alone, and the years of the life ("1762–1820") — the title is both. */
   name?: string;
   span?: string;
+  /** A person: its record ID (phone-watch.ts PERSON: never in JSON). */
+  [PERSON]?: string;
   /** Its newest line's moment. */
   at: string;
   lines: FindLine[];
@@ -165,7 +169,7 @@ export function findGroups(tree: Tree, ops: Op[], lang = tree.lang): FindGroup[]
       if (r.type === "person") {
         const span = lifespan(r);
         const title = forPhone(`${displayName(r)}${span ? ` (${span})` : ""}`);
-        return title ? { kind: "person", title, name: forPhone(displayName(r)), ...(span ? { span } : {}) } : undefined;
+        return title ? { kind: "person", title, name: forPhone(displayName(r)), ...(span ? { span } : {}), [PERSON]: r.id } : undefined;
       }
       const title = forPhone(ownerName(tree, r.id));
       return title ? { kind: "family", title } : undefined;
@@ -203,7 +207,7 @@ export function findGroups(tree: Tree, ops: Op[], lang = tree.lang): FindGroup[]
         if (!r || !child || child.type !== "person") break;
         const span = lifespan(child);
         const text = forPhone(`${displayName(child)}${span ? ` (${span})` : ""}`);
-        if (text) add(ofRecord(r), { kind: "child", text, at, ...(span ? { span } : {}) });
+        if (text) add(ofRecord(r), { kind: "child", text, at, ...(span ? { span } : {}), [PERSON]: child.id });
         break;
       }
       case "event.add":

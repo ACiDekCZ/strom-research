@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { hostPace, politeGet, NetError } from "../../src/core/net.ts";
+import { hostPace, politeGet, robotsVerdict, NetError } from "../../src/core/net.ts";
 import { knownDisallow, knownPaceMs, shippedTerms } from "../../src/core/knownterms.ts";
 import { allows, archiveLevel, pendingQuestions, takeOverConnectors, termsFor, termsHooks, type ConnectorLike } from "../../src/core/terms.ts";
 
@@ -51,6 +51,20 @@ test("the list: each archive with its level, terms and the sentence quoted, the 
   assert.equal(hostPace({ recent: [] }, { minIntervalMs: 300_000, source: "slower still" }, undefined, "geneteka.genealodzy.pl").minIntervalMs, 300_000);
   assert.equal(hostPace({ recent: [] }, { minIntervalMs: 2000, source: "x" }, undefined, "archive.example.org").minIntervalMs, 2000);
   assert.ok(knownDisallow("data.matricula-online.eu").includes("/*/suchen"));
+});
+
+test("ČÚZK and RÚIAN: the open RÚIAN map service allowed, the archive's old maps and the robots-disallowed WMS/WFS never automated", () => {
+  const known = (h: string) => termsFor({}, h);
+  for (const h of ["ags.cuzk.gov.cz", "services.cuzk.gov.cz", "vdp.cuzk.gov.cz"]) {
+    assert.equal(known(h)?.level, "allowed", h);
+    assert.match((shippedTerms().find((k) => k.host === h) as { license?: string } | undefined)?.license ?? "", /creativecommons\.org\/licenses\/by\/4\.0/u, h);
+    assert.equal(known(h)?.checked, "2026-11-01", h);
+  }
+  const off = (h: string, p: string) => !robotsVerdict({ at: 0, status: 200, groups: [{ agents: ["*"], allow: [], disallow: knownDisallow(h) }] }, p).allowed;
+  assert.equal(off("ags.cuzk.gov.cz", "/arcgis/rest/services/RUIAN/MapServer/1/query?where=1%3D1&f=json"), false);
+  assert.equal(off("ags.cuzk.gov.cz", "/archiv/"), true);
+  assert.equal(off("ags.cuzk.gov.cz", "/arcgis4/rest/services/Archiv/CO/ImageServer/exportImage"), true);
+  assert.equal(off("services.cuzk.gov.cz", "/wfs/inspire-ad-wfs.asp?service=WFS"), true);
 });
 
 test("a level of the list is confirmed: a new connector's allowed there needs no word; anything stricter still holds", () => {

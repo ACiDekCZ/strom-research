@@ -346,6 +346,8 @@ export const PHRASES = {
   "log.appshape.unfix": "Periods and ages of the Strom app put back as the syncs left them: {n}",
   "log.streetplace.fix": "Streets and house numbers taken out of the places of facts into their houses: {n}",
   "log.streetplace.unfix": "Places and houses of facts put back as they were: {n}",
+  "log.tree.return": "Return to the state of {when}",
+  "log.streetplace.towns": "Numbers after the name of a municipality answered (houses or not): {n}",
   "afterdeath.what": "Look into {name}: an event dated after the death ({year})",
   "afterdeath.wedding.what": "Look into {name}: a marriage dated after the death ({year})",
   "afterdeath.why": "The death: {death}. Dated after it: {event}. One of the dates is misread, or the records are of two people.",

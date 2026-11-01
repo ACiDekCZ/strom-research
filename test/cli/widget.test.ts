@@ -12,11 +12,12 @@ import os from "node:os";
 import path from "node:path";
 import { World, hasGit, until } from "../helpers.ts";
 import { treeOverview } from "../../src/core/phone-watch.ts";
+import { treeFinds } from "../../src/core/phone-finds.ts";
 import { foldText } from "../../src/core/text.ts";
 import { Tree, VERSION } from "../../src/core/tree.ts";
 import { uninstallPlan } from "../../src/core/uninstall.ts";
 import type { Task } from "../../src/core/model.ts";
-import { appSlug, dropWidgetTree, isoSecond, markWidget, treeUrl, widgetDir, widgetTree, widgetWriter, writeWidgetTree, stemsOfNames, withoutNames, WIDGET_SCHEMA, type WidgetIndex, type WidgetTree } from "../../src/core/widget.ts";
+import { appSlug, dropWidgetTree, isoSecond, markWidget, personUrl, treeUrl, waitingUrl, widgetDir, widgetTree, widgetWriter, writeWidgetTree, stemsOfNames, withoutNames, WIDGET_SCHEMA, type WidgetIndex, type WidgetTree } from "../../src/core/widget.ts";
 
 const AGENT = { env: { AI_AGENT: "1" } };
 const ID = /(?<![\p{L}\p{N}])[PFSEXHTMRB]\d{4,}(?![\p{L}\p{N}])/u;
@@ -77,7 +78,13 @@ test("the widget's file: the shape it reads (schemaVersion 1), now, the finds of
     await until("the day worked out", () => treeOverview(w.cwd, w.env).day !== undefined, { ms: 20_000 });
     const t = widgetTree(w.cwd, w.env, { running: true })!;
     const said = JSON.stringify(t);
-    assert.doesNotMatch(said, ID, said);
+    // a record's ID only in a link to one person (the app's &person=), never in a text
+    assert.doesNotMatch(JSON.stringify(t, (k, v) => (k === "openUrl" ? undefined : v)), ID, said);
+    for (const u of [t.openUrl, ...t.now.lines.map((l) => l.openUrl), ...t.findings.items.map((f) => f.openUrl), t.pending.openUrl])
+      assert.deepEqual([...new URL(u).searchParams.keys()].filter((k) => k !== "person" && k !== "show"), ["tree", "research"], u);
+    // the phone's page gets none of it (the person's ID is a symbol's key there, JSON leaves it out)
+    assert.doesNotMatch(JSON.stringify(treeOverview(w.cwd, w.env)), ID);
+    assert.doesNotMatch(JSON.stringify(treeFinds(w.cwd, w.env)), ID);
     assert.ok(!said.includes(w.env.HOME!), "no path of this computer");
     assert.doesNotMatch(said, /\$|USD|claude-|opus|sonnet/iu, "no spend, no model");
 
@@ -96,7 +103,7 @@ test("the widget's file: the shape it reads (schemaVersion 1), now, the finds of
     // now: the line of the agent at work, its direction, task and since when
     assert.equal(t.now.lines.length, 1);
     const line = t.now.lines[0]!;
-    assert.deepEqual([line.dir, line.title, line.titleNoNames, line.since, line.pausedUntil, line.openUrl], ["up", "Předci Kryštofa Lhotáka", "Předci osoby (*1784)", isoSecond(since), null, t.openUrl]);
+    assert.deepEqual([line.dir, line.title, line.titleNoNames, line.since, line.pausedUntil, line.openUrl], ["up", "Předci Kryštofa Lhotáka", "Předci osoby (*1784)", isoSecond(since), null, `${t.openUrl}&person=P0001`]);
     assert.match(line.task!, /Kryštofa Lhotáka/u);
     assert.equal(line.taskNoNames, "Hledat křest … v matrice Třeboň", "the place stays, the names go");
     assert.equal(t.now.lastWorkedAt, undefined, "somebody works on it now");
@@ -118,7 +125,24 @@ test("the widget's file: the shape it reads (schemaVersion 1), now, the finds of
     assert.deepEqual([find("source_new", /Matrika/u)?.text, find("source_new", /Matrika/u)?.textNoNames], ["Matrika N Třeboň 1780–1790", "Matrika N Třeboň 1780–1790"]);
     const resolved = items.find((f) => f.kind === "resolved")!;
     assert.deepEqual([resolved.resolved, resolved.text, resolved.textNoNames], ["conflict", "Rok narození Žofie Lhotákové", "Rok narození …"]);
-    for (const f of items) assert.equal(f.openUrl, t.openUrl);
+    // a find of one person opens that person (the app's &person=<its REFN>), any other the tree
+    const person = (u: string) => new URL(u).searchParams.get("person");
+    assert.deepEqual(
+      items.map((f) => [f.kind, f.text, person(f.openUrl)]).sort(),
+      [
+        ["child", "Matěj Lhoták", "P0003"],
+        ["fact", "Kryštof Lhoták, sládek", "P0001"],
+        ["fact", "Žofie Lhotáková, 1762, Třeboň", "P0002"],
+        ["fact", "Žofie Lhotáková, 1820, Třeboň", "P0002"],
+        ["family_new", items.find((f) => f.kind === "family_new")!.text, null],
+        ["person_new", "Matěj Lhoták", "P0003"],
+        ["person_new", "Žofie Lhotáková (1762–1820)", "P0002"],
+        ["resolved", "Rok narození Žofie Lhotákové", null],
+        ["source_new", "Matrika N Třeboň 1780–1790", null],
+      ].sort(),
+      said,
+    );
+    for (const f of items) assert.equal(f.openUrl, person(f.openUrl) ? `${t.openUrl}&person=${person(f.openUrl)}` : t.openUrl);
 
     // what waits: as the Strom app counts it (its /status waiting, only what is to do) — the sent letter waits for a
     // reply, it is not counted; the terminal's own neither
@@ -126,7 +150,8 @@ test("the widget's file: the shape it reads (schemaVersion 1), now, the finds of
     assert.equal(t.pending.count, 1);
     assert.equal(t.pending.items.length, 1);
     assert.match(t.pending.items[0]!.text, /Matěj/u);
-    assert.equal(t.pending.openUrl, t.openUrl);
+    // what waits opens the app's "Waiting" of this research
+    assert.equal(t.pending.openUrl, `${t.openUrl}&show=waiting`);
     // the day, as the phone's
     assert.deepEqual(t.stats24h, treeOverview(w.cwd, w.env).day);
     assert.equal(t.stats24h!.persons, 3);
@@ -474,6 +499,38 @@ test("strom uninstall takes the widget's files (macOS, Windows) — only what st
   }
 });
 
+test("strom uninstall in a widget folder of the person's own (STROM_WIDGET_DIR): only index.json and the trees' files that say so, never another .json", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "strom-widget-own-"));
+  try {
+    const dir = path.join(home, "Lhotín složka");
+    const env = { HOME: home, STROM_CONFIG_DIR: path.join(home, "config"), STROM_WIDGET_DIR: dir };
+    const install = { kind: "npm" as const };
+    const key = "0f8fad5b-d9cb-469f-a165-70867728950e";
+    const at = isoSecond(Date.now());
+    const data: WidgetTree = {
+      schemaVersion: 1, treeKey: key, treeName: "Lhotákovi", lang: "cs", generatedAt: at, running: false, lastActiveAt: at, openUrl: "https://stromapp.info/",
+      now: { lines: [] }, findings: { windowStart: at, items: [] }, pending: { count: 0, items: [], openUrl: "https://stromapp.info/" },
+    };
+    assert.ok(writeWidgetTree(dir, data));
+    fs.writeFileSync(path.join(dir, `.${key}.json.123.abcd1234.tmp`), "{");
+    // the person's own files: a .json of another program (a name strom could have written too), a broken one, one being written of no tree
+    fs.writeFileSync(path.join(dir, "settings.json"), '{"theme":"dark"}');
+    fs.writeFileSync(path.join(dir, "Lhota-1.json"), '{"treeKey":"Lhota-2"}');
+    fs.writeFileSync(path.join(dir, "broken.json"), "{");
+    fs.writeFileSync(path.join(dir, ".notes.json.9.ff.tmp"), "x");
+    const widget = uninstallPlan(env, [], { platform: "darwin", install }).remove.find((r) => r.kind === "widget");
+    assert.equal(widget?.path, dir);
+    assert.equal(widget!.remove(), true);
+    assert.deepEqual(fs.readdirSync(dir).sort(), [".notes.json.9.ff.tmp", "Lhota-1.json", "broken.json", "settings.json"], "only strom's files taken");
+    assert.ok(!uninstallPlan(env, [], { platform: "darwin", install }).remove.some((r) => r.kind === "widget"), "nothing of strom's left: nothing to take");
+    // an index.json that is not strom's stays too
+    fs.writeFileSync(path.join(dir, "index.json"), '{"pages":[]}');
+    assert.ok(!uninstallPlan(env, [], { platform: "darwin", install }).remove.some((r) => r.kind === "widget"));
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test("the widget's address of a tree: ?tree=<slug> for an older app, &research=<the tree's UUID, lowercase> — an ID that is no UUID: the name alone", () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "strom-widget-url-"));
   try {
@@ -488,6 +545,56 @@ test("the widget's address of a tree: ?tree=<slug> for an older app, &research=<
     assert.deepEqual([...new URL(treeUrl(env, "Жуковы", id)).searchParams], [["research", id.toLowerCase()]]);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("the widget's address of one person (&person=<its REFN>) and of what waits (&show=waiting): beside the tree's own — no person's ID, a wrong one or a tree without a UUID as before", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "strom-widget-person-"));
+  try {
+    const env = { HOME: home, STROM_CONFIG_DIR: path.join(home, "config"), STROM_APP_URL: "https://beta.stromapp.info/run/" };
+    const id = "0f8fad5b-d9cb-469f-a165-70867728950e";
+    const tree = treeUrl(env, "Lhotákovi ze Lhoty", id);
+    assert.equal(personUrl(tree, "P0012"), `https://beta.stromapp.info/run/?tree=lhotakovi-ze-lhoty&research=${id}&person=P0012`);
+    assert.equal(personUrl(tree, "P1234567"), `${tree}&person=P1234567`);
+    assert.equal(waitingUrl(tree), `https://beta.stromapp.info/run/?tree=lhotakovi-ze-lhoty&research=${id}&show=waiting`);
+    for (const bad of [undefined, "", "F0001", "P", "P12345678", "p0012", "P0012&show=waiting", "P٠١٢", " P0012"]) assert.equal(personUrl(tree, bad), tree, String(bad));
+    // a tree whose ID is no UUID: its name alone, as before, and the person or what waits beside it
+    const named = treeUrl(env, "Lhotákovi ze Lhoty", "lhotakovi");
+    assert.deepEqual([...new URL(personUrl(named, "P0003")).searchParams], [["tree", "lhotakovi-ze-lhoty"], ["person", "P0003"]]);
+    assert.deepEqual([...new URL(waitingUrl(named)).searchParams], [["tree", "lhotakovi-ze-lhoty"], ["show", "waiting"]]);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("the widget's links of one person: a line of a person's research opens the person, a question the tree; a family's fact the tree, a fact of a person the person", { skip, timeout: 120_000 }, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi ze Lhoty");
+    await w.ok(["lang", "cs"]);
+    await w.ok(["research", "new", "Bořivoj Lhoták", "--new-person", "Bořivoj /Lhoták/", "--sex", "M", "--direction", "person"]); // P0001, G0001
+    await w.ok(["person", "add", "Dobromila /Lhotáková/", "--sex", "F"]); // P0002
+    await w.ok(["research", "new", "Kdo byl otec Dobromily?", "--person", "P2", "--direction", "question", "--question", "Kdo byl její otec?"]); // G0002
+    await w.ok(["family", "add", "--partner", "P1", "--partner", "P2"], AGENT); // F0001
+    await w.ok(["event", "add", "F1", "MARR", "--date", "1810", "--place", "Lhota"], AGENT);
+    await w.ok(["event", "add", "P2", "DEAT", "--date", "1850", "--place", "Lhota"], AGENT);
+    await w.ok(["task", "add", "Oddací zápis v matrice Lhota", "--level", "locate", "--where", "farnost Lhota", "--why", "sňatek", "--done-when", "zápis", "--about", "P1", "--research", "G1"]); // T0001
+    await w.ok(["task", "add", "Otec Dobromily v matrice Lhota", "--level", "locate", "--where", "farnost Lhota", "--why", "otec", "--done-when", "zápis", "--about", "P2", "--research", "G2"]); // T0002
+    await w.ok(["session", "start", "T1"], { env: { CLAUDECODE: "1", STROM_WORKER: "chat-1" } });
+    await w.ok(["session", "start", "T2"], { env: { CLAUDECODE: "1", STROM_WORKER: "chat-2" } });
+    const workers = path.join(w.cwd, ".strom", "workers");
+    fs.mkdirSync(workers, { recursive: true });
+    const since = new Date(Date.now() - 3_600_000).toISOString();
+    for (const n of ["chat-1", "chat-2"]) fs.writeFileSync(path.join(workers, `${n}.json`), JSON.stringify({ pid: process.pid, host: os.hostname(), at: since, owner: "Claude Code conversation" }));
+    const t = widgetTree(w.cwd, w.env, { running: true })!;
+    const person = (u: string) => new URL(u).searchParams.get("person");
+    assert.deepEqual(t.now.lines.map((l) => [l.title, person(l.openUrl)]).sort(), [["Bořivoj Lhoták", "P0001"], ["Kdo byl otec Dobromily?", null]].sort(), JSON.stringify(t.now.lines));
+    for (const l of t.now.lines) assert.ok(l.openUrl.startsWith(t.openUrl), l.openUrl);
+    const facts = t.findings.items.filter((f) => f.kind === "fact").map((f) => [f.fact, person(f.openUrl)]).sort();
+    assert.deepEqual(facts, [["death", "P0002"], ["marriage", null]], JSON.stringify(t.findings.items));
+    assert.equal(t.findings.items.find((f) => f.fact === "marriage")!.openUrl, t.openUrl, "a family's fact: the tree");
+  } finally {
+    w.cleanup();
   }
 });
 

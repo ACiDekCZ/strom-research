@@ -40,7 +40,7 @@ import { kinship } from "../core/kin.ts";
 import { listReadings, loadState, resultPath, type ReadResult } from "../core/document.ts";
 import { nameRewritesDone, participantNames, type NameRewrite } from "../core/participants.ts";
 import { appShapeFixes, appShapesDone, type ShapeFix } from "../core/appshapefix.ts";
-import { streetPlaceFixes, streetPlacesDone, type StreetFix, type StreetLeft } from "../core/streetfix.ts";
+import { streetPlaceFixes, streetPlacesDone, type StreetFix, type StreetLeft, type StreetTown } from "../core/streetfix.ts";
 
 /** One earlier reading of one place, to be read again. */
 export interface FixItem {
@@ -96,6 +96,11 @@ export interface FixFindings {
   unsplit?: number;
   /** What it found and leaves as it is, each with why (street-places: a fact whose house says another thing). */
   left?: StreetLeft[];
+  /**
+   * Municipalities with numbers alone after the name ("Lhota 16"), set right only once a person says for the whole
+   * municipality that they are houses (street-places): counted in what waits.
+   */
+  towns?: StreetTown[];
   /** The agent and model reading now and those the earlier readings were read with, how many each (new-model); `newer`: the
    * model now is a newer version of the same line as each of them (agents/models.ts) — never guessed across lines. */
   models?: { now: string; before: { key: string; readings: number }[]; newer: boolean };
@@ -862,7 +867,7 @@ export const STREET_PLACES: FixCheck = {
   unit: "fact",
   detect: (tree) => {
     const f = streetPlaceFixes(tree);
-    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.left.length, left: f.left };
+    return { items: [], exact: 0, estimated: 0, unjudged: 0, readings: 0, rewrites: f.fixes, unsplit: f.left.length, left: f.left, ...(f.towns.length ? { towns: f.towns } : {}) };
   },
   applied: (tree) => streetPlacesDone(tree).length,
 };
@@ -877,7 +882,12 @@ export function checksHere(tree: Tree): readonly FixCheck[] {
 
 /** How many a check found to set right: what it would rewrite, or the places to read again. */
 export function foundCount(f: FixFindings): number {
-  return f.rewrites ? f.rewrites.length : f.items.length;
+  return f.rewrites ? f.rewrites.length + townCount(f) : f.items.length;
+}
+
+/** The facts of the municipalities waiting for a person's answer whether their bare numbers are houses (street-places). */
+export function townCount(f: FixFindings): number {
+  return (f.towns ?? []).reduce((n, t) => n + t.fixes.length, 0);
 }
 
 export function fixCheck(id: string): FixCheck | undefined {
@@ -1333,6 +1343,7 @@ export function fixTargets(f: FixFindings): AppFixTargets | undefined {
   const ids = new Set<string>();
   for (const r of (f.rewrites ?? []) as { owner?: string; record?: string }[]) for (const id of [r.owner, r.record]) if (id) ids.add(id);
   for (const l of f.left ?? []) ids.add(l.owner);
+  for (const t of f.towns ?? []) for (const r of t.fixes) for (const id of [r.owner, r.record]) if (id) ids.add(id);
   for (const i of f.items) {
     for (const s of i.sources) ids.add(s);
     if (i.media) ids.add(i.media);
@@ -1372,6 +1383,33 @@ export interface AppFix {
   cost?: "free" | CostLevel;
   since: string;
   paid: boolean;
+  /**
+   * street-places: the municipalities whose numbers alone after the name wait for the person's answer (houses, or parts
+   * of it) — only those strom would ask about now (answered ones never): the name as the research writes it most, its
+   * key (folded, what the answer is kept by), how many facts and the places as written (each once, at most
+   * APP_FIX_TOWN_PLACES). At most APP_FIX_TOWNS, the most facts first.
+   */
+  towns?: AppFixTown[];
+}
+
+export interface AppFixTown {
+  town: string;
+  key: string;
+  count: number;
+  places: string[];
+}
+
+/** How many municipalities /fixes names, and how many places of each. */
+export const APP_FIX_TOWNS = 200;
+export const APP_FIX_TOWN_PLACES = 20;
+
+/** The municipalities waiting for the person's answer, as the app is told them (the most facts first). */
+export function appFixTowns(f: FixFindings): AppFixTown[] | undefined {
+  if (!f.towns?.length) return undefined;
+  return [...f.towns]
+    .sort((a, b) => b.fixes.length - a.fixes.length || a.key.localeCompare(b.key))
+    .slice(0, APP_FIX_TOWNS)
+    .map((t) => ({ town: t.town, key: t.key, count: t.fixes.length, places: t.places.slice(0, APP_FIX_TOWN_PLACES) }));
 }
 
 /**
@@ -1401,6 +1439,7 @@ export function fixesForApp(tree: Tree, settings: Settings, env: Env, o: { archi
     const applied = check.applied?.(tree) ?? 0;
     const found = foundCount(s.found);
     const targets = fixTargets(s.found);
+    const towns = appFixTowns(s.found);
     const cost =
       check.remedy === "rewrite"
         ? "free"
@@ -1424,6 +1463,7 @@ export function fixesForApp(tree: Tree, settings: Settings, env: Env, o: { archi
         ...(cost ? { cost } : {}),
         since: check.since,
         paid: check.paid,
+        ...(towns ? { towns } : {}),
       },
     ];
   });

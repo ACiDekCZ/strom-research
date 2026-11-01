@@ -50,6 +50,7 @@ import { openForUser } from "../core/open.ts";
 import { fileRefused } from "../core/taskfiles.ts";
 import { placesPinned } from "../core/pastevents.ts";
 import { fixCheck, fixEnv, pendingFixes } from "../commands/fixchecks.ts";
+import { historyRows } from "../commands/checks.ts";
 import { placeEstimate, placeLabel, placeRecord, placesWithCoords, placeTask } from "../core/placehistory.ts";
 
 /** What the Strom app asks, said before anything is done; true when the person goes on. */
@@ -305,6 +306,26 @@ export async function fixesDo(ctx: Context, run: Run, lang: string, root: string
   }
   const waits = (pendingFixes(tree, fixEnv(ctx, tree)) ?? []).some((p) => p.check.id === check.id);
   return (await run(waits ? ["fixes", "run", check.id] : ["fixes", "show", check.id])) === 0;
+}
+
+/**
+ * The research back in time from a link (strom-research://back): the change the app names by its hash, else the earlier
+ * changes to pick from as the menu's look through the family tree offers them — then strom history back itself: the
+ * preview and the person's yes here (never the link's own answer). A change that is no return (the state now, one not of
+ * this research) is said by it. Its exit code; undefined when nothing was run (none to pick, or 0 for back).
+ */
+export async function backDo(ctx: Context, run: Run, lang: string, root: string, change?: string): Promise<number | undefined> {
+  if (change) return run(["history", "back", change]);
+  const t = translator(lang);
+  // the newest change is the state now: the earlier ones offered
+  const rows = historyRows(Tree.open(root, ctx.env), 10).filter((r) => !r.now).slice(0, 9);
+  if (!rows.length) {
+    out(ctx, t("ui.back.none"));
+    return undefined;
+  }
+  const i = await ctx.choose(t("ui.back.pick"), rows.map((r) => ({ label: `${r.when} — ${r.text}` })), 0, { back: t("ui.browse.back") });
+  if (i === undefined) return undefined;
+  return run(["history", "back", rows[i]!.change]);
 }
 
 /** A direction of the research paused, ended (each with the person's reason, if they give one) or taken up again. */

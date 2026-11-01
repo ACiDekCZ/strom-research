@@ -7,12 +7,24 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.25.0
 
-*In preparation: the betas up to 1.25.0-beta.1. The section is complete with the release.*
+*In preparation: the betas up to 1.25.0-beta.2. The section is complete with the release.*
 
 - **Data for the Strom widget on Windows too.** A research now writes what the Strom widget shows of it (what it works
   on, the finds of the last 24 hours, what waits) also on Windows, into `%USERPROFILE%\.config\strom\widget`, with a
   mark of the strom that wrote it. A widget reading its file never holds up the bridge. `strom uninstall` takes the
   widget's files too, on a Mac as well; the research and the settings stay.
+- **The widget opens the person.** A line or a find of the Strom widget about one person opens that person in the
+  Strom app (its page, the tree around it), what waits opens the research's "Waiting" (an app that cannot open them
+  yet opens the tree as before).
+- **House numbers after the name of a village.** Places written as the name with a number alone (`Lhota 16`) can
+  now be set right too (`strom fixes run street-places`): the place becomes the municipality, the number its house —
+  only once the person says, for each municipality on its own, that its numbers are houses, with the facts it changes
+  shown first. Parts of a town with a number (`Praha 5`) are never offered. The answer is kept with the research and
+  `strom fixes undo street-places` puts everything back.
+- **Back in time.** `strom history back <change>` returns the research to its state after an earlier change: first
+  what would come back and what would be put aside, then only on the person's yes in the terminal. Nothing is deleted:
+  records added since are put aside, and the return itself can be taken back the same way. The link
+  `strom-research://back` opens it for one change; the bridge's log says a return apart.
 
 ## 1.24.0
 

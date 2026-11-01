@@ -33,7 +33,7 @@ const ARCHIVE_COMMANDS = new Set([
   "init", "trees", "trees use", "trees remove", "mode", "lang", "pack", "unpack", "backup", "sync", "sync undo", "sync discard",
   "intake", "input list", "input show", "conflict list", "conflict show", "conflict resolve",
   "person list", "person show", "person card", "family show", "source list", "source show", "media list", "media show",
-  "find", "stats", "pedigree", "recent", "history",
+  "find", "stats", "pedigree", "recent", "history", "history back",
   "export gedcom", "gedcom validate", "app", "app install", "live", "live start", "live stop",
   "check", "verify", "repair", "seal adopt",
   "phone", "phone status", "phone on", "phone qr", "phone off", "phone list", "phone remove",
@@ -216,7 +216,7 @@ export const HUMAN_COMMANDS = [
   "init", "trees", "trees use", "trees remove", "lang", "mode",
   "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "review",
   "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "task list", "task wake", "story approve", "story discard",
-  "stats", "recent", "plan", "history", "person card", "person list", "pedigree", "find",
+  "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find",
   "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "backup", "tidy", "check", "media calibrate",
   "config get", "config set", "login", "connector use", "link on", "link off", "hook on", "hook off",
 ];

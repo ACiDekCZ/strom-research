@@ -40,6 +40,7 @@ import {
   fixModelText as modelText,
   fixTextValues as textValues,
   stagesOf,
+  townCount,
   type Compared,
   type Comparison,
   type FixCheck,
@@ -52,7 +53,8 @@ import type { ReadResult } from "../core/document.ts";
 import { VERSION } from "../core/tree.ts";
 import { applyNameRewrites, nameRewritesDone, undoNameRewrites, type NameNote, type NameRewrite } from "../core/participants.ts";
 import { applyAppShapes, appShapesDone, undoAppShapes, type ShapeFix } from "../core/appshapefix.ts";
-import { applyStreetPlaces, streetPlacesDone, undoStreetPlaces, type StreetFix, type StreetLeft } from "../core/streetfix.ts";
+import { applyStreetPlaces, forgetTownAnswers, streetPlacesDone, undoStreetPlaces, type StreetFix, type StreetLeft, type StreetTown, type TownAnswers } from "../core/streetfix.ts";
+import { townAnswers } from "../core/streets.ts";
 import type { TreeConfig } from "../core/model.ts";
 import { calibrationLabel } from "../core/viewsizes.ts";
 import { calibrationKey, loadAliases, resolveKey, splitKey, UNKNOWN_KEY } from "../core/modelkey.ts";
@@ -204,7 +206,8 @@ interface Rewriter {
   example(t: T, item: unknown): string;
   /** One it found and leaves as it is, with why (street-places). */
   left?(t: T, item: unknown): string;
-  apply(tree: Tree, items: unknown[], config: (c: TreeConfig) => void): { changed: number; records: number };
+  /** `towns`: a person's answers on bare numbers kept with it (street-places). */
+  apply(tree: Tree, items: unknown[], config: ((c: TreeConfig) => void) | undefined, towns?: TownAnswers): { changed: number; records: number };
   done(tree: Tree): number;
   undo(tree: Tree, config: (c: TreeConfig) => void): { restored: number; records: number; left: number };
   ask: string;
@@ -264,7 +267,7 @@ const REWRITERS: Record<string, Rewriter> = {
       const r = item as StreetLeft;
       return t("ui.fixes.street-places.kept", { event: r.event, place: r.place, house: r.house, street: r.street });
     },
-    apply: (tree, items, config) => applyStreetPlaces(tree, items as StreetFix[], VERSION, config),
+    apply: (tree, items, config, towns) => applyStreetPlaces(tree, items as StreetFix[], VERSION, config, towns),
     done: (tree) => streetPlacesDone(tree).length,
     undo: (tree, config) => undoStreetPlaces(tree, config),
     ask: "Set the streets and house numbers out of the places of facts into their houses?",
@@ -280,22 +283,34 @@ const rewriterOf = (id: string): Rewriter => {
   return r;
 };
 
+/** The places of a municipality with numbers alone after its name, as written: the first few, how many in all. */
+const townPlaces = (town: StreetTown) => (town.places.length > 3 ? `${town.places.slice(0, 3).join(", ")} … (${town.places.length})` : town.places.join(", "));
+
 /** A check that rewrites by rules: what it is, what it found, examples, what setting it right does and does not. */
 function rewriteDetail(t: T, s: FixState): string[] {
   const f = s.found;
   const rewrites = f.rewrites ?? [];
+  const towns = f.towns ?? [];
   const id = s.check.id;
   return [
     `${id} · ${t(`ui.fixes.${id}.name` as UIKey)} — ${stateText(t, s)}`,
     t(`ui.fixes.${id}.what` as UIKey, { since: s.check.since }),
-    rewrites.length || f.unsplit ? t(`ui.fixes.${id}.found` as UIKey, { found: rewrites.length + (f.unsplit ?? 0), split: rewrites.length, unsplit: f.unsplit ?? 0 }) : t("ui.fixes.found.none"),
+    rewrites.length || f.unsplit
+      ? t(`ui.fixes.${id}.found` as UIKey, { found: rewrites.length + (f.unsplit ?? 0), split: rewrites.length, unsplit: f.unsplit ?? 0 })
+      : towns.length
+        ? undefined
+        : t("ui.fixes.found.none"),
     ...rewrites.slice(0, EXAMPLES).map((r) => rewriterOf(id).example(t, r)),
     rewrites.length > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: rewrites.length - EXAMPLES, id }) : undefined,
     // what it leaves as it is, each with why
     ...(f.left ?? []).slice(0, EXAMPLES).map((r) => rewriterOf(id).left?.(t, r) ?? ""),
     (f.left?.length ?? 0) > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: f.left!.length - EXAMPLES, id }) : undefined,
-    rewrites.length ? t(`ui.fixes.${id}.does` as UIKey, { id }) : undefined,
-    rewrites.length ? t(`ui.fixes.${id}.not` as UIKey, { id }) : undefined,
+    // numbers alone after a municipality: each municipality, set right only on a person's word for all of it
+    towns.length ? t("ui.fixes.street-places.bare") : undefined,
+    ...towns.slice(0, EXAMPLES).map((x) => t("ui.fixes.street-places.town", { town: x.town, n: x.fixes.length, places: townPlaces(x) })),
+    towns.length > EXAMPLES ? t(`ui.fixes.${id}.more` as UIKey, { n: towns.length - EXAMPLES, id }) : undefined,
+    rewrites.length || towns.length ? t(`ui.fixes.${id}.does` as UIKey, { id }) : undefined,
+    rewrites.length || towns.length ? t(`ui.fixes.${id}.not` as UIKey, { id }) : undefined,
   ].filter((l): l is string => l !== undefined);
 }
 
@@ -331,9 +346,25 @@ function stateData(ctx: Context, tree: Tree, s: FixState, all = false) {
       remedy: s.check.remedy,
       state: s.state,
       ...(s.decision ? { decision: s.decision } : {}),
-      found: { count: rewrites.length + (s.found.unsplit ?? 0), split: rewrites.length, unsplit: s.found.unsplit ?? 0 },
+      found: {
+        count: rewrites.length + (s.found.unsplit ?? 0) + townCount(s.found),
+        split: rewrites.length,
+        unsplit: s.found.unsplit ?? 0,
+        ...(s.found.towns ? { bare: townCount(s.found) } : {}),
+      },
       items: all ? rewrites : rewrites.slice(0, EXAMPLES),
       ...(s.found.left ? { left: all ? s.found.left : s.found.left.slice(0, EXAMPLES) } : {}),
+      // municipalities with numbers alone after the name: set right only on a person's answer for each (strom fixes run)
+      ...(s.found.towns
+        ? {
+            towns: s.found.towns.map((x) => ({
+              town: x.town,
+              count: x.fixes.length,
+              places: all ? x.places : x.places.slice(0, EXAMPLES),
+              items: all ? x.fixes : x.fixes.slice(0, EXAMPLES),
+            })),
+          }
+        : {}),
     };
   }
   const items = all ? s.found.items : s.found.items.slice(0, EXAMPLES);
@@ -370,30 +401,57 @@ async function runRewrite(ctx: Context, tree: Tree, t: T, s: FixState): Promise<
   const out = (l = "") => ctx.io.stdout(l + "\n");
   for (const l of detail(ctx, tree, t, s)) out(l);
   const rewrites = s.found.rewrites ?? [];
-  if (!rewrites.length) return { changed: 0, records: 0 };
-  const choices = [{ label: t(`ui.fixes.${id}.all` as UIKey, { n: rewrites.length }) }, { label: t("ui.fixes.decline") }];
-  const pick = await ctx.choose(t(`ui.fixes.${id}.ask` as UIKey), choices, choices.length, { back: t("ui.fixes.later") });
-  if (pick === undefined) {
+  const towns = s.found.towns ?? [];
+  if (!rewrites.length && !towns.length) return { changed: 0, records: 0 };
+  const take: unknown[] = [];
+  if (rewrites.length) {
+    const choices = [{ label: t(`ui.fixes.${id}.all` as UIKey, { n: rewrites.length }) }, { label: t("ui.fixes.decline") }];
+    const pick = await ctx.choose(t(`ui.fixes.${id}.ask` as UIKey), choices, choices.length, { back: t("ui.fixes.later") });
+    if (pick === undefined) {
+      out(t("ui.fixes.later.said", { id }));
+      return { changed: 0, records: 0 };
+    }
+    if (pick === 1) {
+      tree.withTreeLock(() => {
+        decide(tree, s.key, "declined");
+        tree.commit(`Fix ${s.key}: left as it is`);
+      });
+      out(t("ui.fixes.declined", { id }));
+      return { decided: "declined", changed: 0, records: 0 };
+    }
+    take.push(...rewrites);
+  }
+  // numbers alone after a municipality ("Lhota 16"): the person's word for each municipality, its facts shown first
+  // (Enter: later, nothing kept)
+  const answers: TownAnswers = {};
+  const kept: string[] = [];
+  for (const town of towns) {
+    out("");
+    out(t("ui.fixes.street-places.town", { town: town.town, n: town.fixes.length, places: townPlaces(town) }));
+    for (const r of town.fixes.slice(0, EXAMPLES)) out(rewriterOf(id).example(t, r));
+    if (town.fixes.length > EXAMPLES) out(t(`ui.fixes.${id}.more` as UIKey, { n: town.fixes.length - EXAMPLES, id }));
+    const choices = [{ label: t("ui.fixes.street-places.town.yes", { town: town.town, n: town.fixes.length }) }, { label: t("ui.fixes.street-places.town.no", { town: town.town }) }];
+    const a = await ctx.choose(t("ui.fixes.street-places.town.ask", { town: town.town }), choices, choices.length, { back: t("ui.fixes.later") });
+    if (a === undefined) continue;
+    answers[town.key] = { town: town.town, houses: a === 0 };
+    if (a === 0) take.push(...town.fixes);
+    else kept.push(town.town);
+  }
+  if (!take.length && !Object.keys(answers).length) {
     out(t("ui.fixes.later.said", { id }));
     return { changed: 0, records: 0 };
   }
-  if (pick === 1) {
-    tree.withTreeLock(() => {
-      decide(tree, s.key, "declined");
-      tree.commit(`Fix ${s.key}: left as it is`);
-    });
-    out(t("ui.fixes.declined", { id }));
-    return { decided: "declined", changed: 0, records: 0 };
-  }
   const r = tree.withTreeLock(() => {
-    // what it sets right and the decision: one operation, one commit
+    // what it sets right, the answers and the decision: one operation, one commit
     const w = rewriterOf(id);
-    const done = w.apply(tree, rewrites, decisionChange(s.key, "fixed"));
+    const done = w.apply(tree, take, take.length ? decisionChange(s.key, "fixed") : undefined, answers);
     if (done.changed) tree.commit(w.fixed(s.key, done.changed, done.records));
+    else tree.commit(`Fix ${s.key}: numbers after a municipality answered (${Object.keys(answers).length})`);
     return done;
   });
-  out(t(`ui.fixes.${id}.done` as UIKey, { n: r.changed, records: r.records, id }));
-  return { decided: "fixed", changed: r.changed, records: r.records };
+  if (take.length) out(t(`ui.fixes.${id}.done` as UIKey, { n: r.changed, records: r.records, id }));
+  if (kept.length) out(t("ui.fixes.street-places.town.kept", { towns: kept.join(", "), id }));
+  return { ...(take.length ? { decided: "fixed" as const } : {}), changed: r.changed, records: r.records };
 }
 
 /** The person's own decision: in their terminal alone (an agent, a run nobody watches: exit 4, with the command). */
@@ -720,7 +778,13 @@ register(
       "thing is left and listed with why (--json: left). A street is told by its word (ulice, nám., Straße, ул.), a house\n" +
       "number's marker (č. p., Nr.), a part after the municipality of words and a house number (Lhota, Dlouhá 12 — never\n" +
       "the municipality's own name with a number), or as a street the research's own houses name at that municipality.\n" +
-      "One operation, one commit; strom fixes undo street-places puts it back.\n" +
+      "A number alone after the name (Lhota 16) is no street by the rules — it may be a house or a part of the\n" +
+      "municipality (Praha 5): each municipality the research writes is offered on its own, with its facts (--json: towns),\n" +
+      "and the person says at their terminal whether its numbers are houses — yes sets them right with the rest (a new\n" +
+      "number there refused from then on), no is not asked again (strom fixes reopen street-places asks again); never\n" +
+      "offered where the number names a part: a municipality numbered by its parts (assets/terms/streets.json), a place\n" +
+      "record of the name with its number, a street there (Lhota 2, Dlouhá 12). The answers are kept with the research.\n" +
+      "One operation, one commit; strom fixes undo street-places puts it back, the answers with it.\n" +
       SET_RIGHT_HELP,
     examples: ["strom fixes", "strom fixes show blind-reduced", "strom fixes show new-model", "strom fixes show participant-names", "strom fixes show app-shapes", "strom fixes show street-places", "strom fixes --json"],
     run: (ctx: Context) => {
@@ -866,9 +930,12 @@ register(
       const t: T = (key, values = {}) => ui(tree.lang, key, values);
       const s = stateOfCheck(ctx, tree, args[0]!);
       personOnly(ctx, t, `Ask ${s.check.id} again?`, `strom fixes reopen ${s.check.id}`, "ui.fixes.person.decide");
-      if (s.decision)
+      // street-places: the answers on numbers after a municipality asked again too
+      const answered = s.check.id === "street-places" && Object.keys(townAnswers(tree.root)).length > 0;
+      if (s.decision || answered)
         tree.withTreeLock(() => {
-          decide(tree, s.key, undefined);
+          if (answered) forgetTownAnswers(tree, s.decision ? decisionChange(s.key, undefined) : undefined);
+          else decide(tree, s.key, undefined);
           tree.commit(`Fix ${s.key}: asked again`);
         });
       return { text: t("ui.fixes.reopened", { id: s.check.id }), data: { id: s.check.id, decision: null } };

@@ -7,12 +7,23 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.25.0
 
-*Připravuje se: bety do 1.25.0-beta.1. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.25.0-beta.2. Oddíl bude úplný s vydáním.*
 
 - **Data pro widget Strom i na Windows.** Výzkum teď zapisuje to, co z něj ukazuje widget Strom (na čem se pracuje,
   nálezy za posledních 24 hodin, co čeká), i na Windows, do `%USERPROFILE%\.config\strom\widget`, se značkou verze
   strom, která je zapsala. Widget, který zrovna čte svůj soubor, most nikdy nezdrží. `strom uninstall` odebere i soubory
   widgetu, také na Macu; výzkum a nastavení zůstávají.
+- **Widget otevře osobu.** Řádek nebo nález widgetu Strom o jedné osobě otevře v aplikaci Strom právě tu osobu (její
+  stránku, strom kolem ní), to, co čeká, otevře oddíl Čeká výzkumu (aplikace, která je ještě otevřít neumí,
+  otevře strom jako dosud).
+- **Čísla domů za jménem obce.** Místa zapsaná jako jméno se samotným číslem (`Lhota 16`) teď jde opravit také
+  (`strom fixes run street-places`): místem bude obec a číslo jejím domem – jen když člověk za každou obec zvlášť
+  potvrdí, že její čísla jsou domy, a předtím vidí, kterých údajů se to týká. Části města s číslem (`Praha 5`) se
+  nikdy nenabízejí. Odpověď se pamatuje ve výzkumu a `strom fixes undo street-places` vše vrátí.
+- **Návrat v čase.** `strom history back <změna>` vrátí výzkum do stavu po dřívější změně: nejdřív ukáže, co se vrátí
+  a co se vyřadí, a pak jen na „ano“ člověka v terminálu. Nic se nemaže: záznamy přidané od té doby se vyřadí a i sám
+  návrat jde stejně vrátit. Odkaz `strom-research://back` ho otevře k jedné změně;
+  přehled mostu návrat odliší.
 
 ## 1.24.0
 

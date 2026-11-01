@@ -285,6 +285,41 @@
       "robots": "Disallow: /ark:/61903/1: · Disallow: /ark:/61903/2: · Disallow: /Search/ · Disallow: /tree/person …",
       "scope": "no automated request at all: links and a task for the person",
       "checked": "2026-10-11"
+    },
+    {
+      "host": "ags.cuzk.gov.cz",
+      "name": "ČÚZK – mapové služby (RÚIAN; Archiv ÚAZK)",
+      "level": "allowed",
+      "terms": "https://cuzk.gov.cz/Predpisy/Podminky-poskytovani-prostor-dat-a-sitovych-sluzeb/Podminky-poskytovani-sitovych-sluzeb-CUZK.aspx",
+      "quote": "Služby jsou poskytovány jako otevřené a lze je užívat bez omezení komerčně i nekomerčně, pokud rozsah užití není na újmu poskytovatele",
+      "license": "https://creativecommons.org/licenses/by/4.0/legalcode.cs",
+      "robots": "none (404)",
+      "disallow": ["/archiv/", "/arcgis4/rest/services/Archiv/"],
+      "scope": "the RÚIAN map service only (/arcgis/rest/services/RUIAN/MapServer: a house's address point, building, cadastral area, municipality — one query at a time, credited \"ČÚZK – on-line\"); never the Archiv application or its map images of the archive (old cadastral maps are no open data: \"s výjimkou leteckých měřických snímků a archiválií\", copies sold) — a person looks at them in the browser",
+      "checked": "2026-11-01"
+    },
+    {
+      "host": "services.cuzk.gov.cz",
+      "name": "ČÚZK – síťové služby WMS/WFS (INSPIRE)",
+      "level": "allowed",
+      "terms": "https://cuzk.gov.cz/Predpisy/Podminky-poskytovani-prostor-dat-a-sitovych-sluzeb/Podminky-poskytovani-sitovych-sluzeb-CUZK.aspx",
+      "quote": "Služby jsou poskytovány jako otevřené a lze je užívat bez omezení komerčně i nekomerčně, pokud rozsah užití není na újmu poskytovatele",
+      "license": "https://creativecommons.org/licenses/by/4.0/legalcode.cs",
+      "robots": "User-agent: * · Disallow: /*.asp · Disallow: /cgi-bin/ · Disallow: /css/ · Disallow: /cuzk/ · Disallow: /html/ · Disallow: /images/ · Disallow: /ini/ · Disallow: /scripts/ · Disallow: /test/",
+      "disallow": ["/*.asp", "/cgi-bin/", "/css/", "/cuzk/", "/html/", "/images/", "/ini/", "/scripts/", "/test/"],
+      "scope": "open by its terms, but its robots.txt disallows /*.asp — every WMS/WFS address (e.g. /wfs/inspire-ad-wfs.asp): no automated request; the RÚIAN map service on ags.cuzk.gov.cz serves the same",
+      "checked": "2026-11-01"
+    },
+    {
+      "host": "vdp.cuzk.gov.cz",
+      "name": "RÚIAN – Veřejný dálkový přístup (VDP)",
+      "level": "allowed",
+      "terms": "https://cuzk.gov.cz/ruian/Poskytovani-udaju-ISUI-RUIAN-VDP/Vymenny-format-RUIAN-(VFR)/FAQ-casto-kladene-otazky-k-VFR/4-Je-mozne-ziskat-data-RUIAN-i-pro-komercni-ucely.aspx",
+      "quote": "ČÚZK je poskytuje od 1. 1. 2020 bezúplatně na základě licence Creative Commons CC-BY 4.0.",
+      "license": "https://creativecommons.org/licenses/by/4.0/legalcode.cs",
+      "robots": "not read (the connection reset, 2026-11-01): strom reads it before the first request",
+      "scope": "RÚIAN open data (credited \"ČÚZK, [rok]\", with its metadata); its exchange files cover a whole municipality — for one house the RÚIAN map service on ags.cuzk.gov.cz is lighter",
+      "checked": "2026-11-01"
     }
   ]
 }

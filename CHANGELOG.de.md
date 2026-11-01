@@ -7,13 +7,26 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.25.0
 
-*In Vorbereitung: die Betas bis 1.25.0-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.25.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Daten für das Strom-Widget auch unter Windows.** Eine Forschung schreibt jetzt, was das Strom-Widget von ihr zeigt
   (woran gearbeitet wird, die Funde der letzten 24 Stunden, was wartet), auch unter Windows, nach
   `%USERPROFILE%\.config\strom\widget`, mit einer Marke des strom, der es geschrieben hat. Ein Widget, das gerade seine
   Datei liest, hält die Brücke nie auf. `strom uninstall` entfernt auch die Dateien des Widgets, auch auf dem Mac; die
   Forschung und die Einstellungen bleiben.
+- **Das Widget öffnet die Person.** Eine Zeile oder ein Fund des Strom-Widgets zu einer Person öffnet in der Strom-App
+  genau diese Person (ihre Seite, den Stammbaum um sie), was wartet, den Abschnitt „Wartet“ der Forschung (eine App,
+  die sie noch nicht öffnen kann, öffnet den Stammbaum wie bisher).
+- **Eine Nummer allein nach dem Namen einer Gemeinde.** Orte, geschrieben als Name mit einer Nummer allein (`Lhota 16`),
+  lassen sich jetzt auch richtigstellen (`strom fixes run street-places`): der Ort wird die Gemeinde, die Nummer ihr
+  Haus – erst wenn eine Person für jede Gemeinde einzeln sagt, dass ihre Nummern Häuser sind, nachdem die betroffenen
+  Angaben gezeigt wurden. Teile einer Stadt mit Nummer (`Praha 5`) werden nie angeboten. Die Antwort bleibt in der
+  Forschung, und `strom fixes undo street-places` stellt alles wieder her.
+- **Zurück in der Zeit.** `strom history back <Änderung>` bringt die Forschung auf ihren Stand nach einer früheren
+  Änderung zurück: zuerst, was zurückkommt und was beiseitegelegt wird, dann nur auf das Ja einer Person im Terminal.
+  Nichts wird gelöscht: seither hinzugefügte Einträge werden beiseitegelegt, und die Rückkehr selbst lässt sich ebenso
+  zurücknehmen. Der Link `strom-research://back` öffnet sie zu einer Änderung; das
+  Protokoll der Brücke weist eine Rückkehr eigens aus.
 
 ## 1.24.0
 

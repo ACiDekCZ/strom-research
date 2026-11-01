@@ -15,7 +15,9 @@
 //   GET <token>/images.ged the same (the address an older strom gave)
 //   GET <token>/log        what the research saved, newest first (each commit: when, what, for which task;
 //                          text: its lines as the user reads them, kinds: what each is about, sources: the S… each
-//                          names — only when one does)
+//                          names — only when one does; head: the change, as strom history back and the link back take
+//                          it; a return in time: kind "return", to: the change it went back to, toAt: when that was —
+//                          feature history.back)
 //   GET <token>/whats-new  what is new in this strom (?lang=cs|en|de, else en): {version, lang, url, points} — the
 //                          running version's section of the changelog shipped with it; asking keeps no bridge running
 //   GET <token>/recent     what the research added in the last hours (?hours=1…168, 24 when not given): the people and
@@ -142,7 +144,9 @@
 //                          too (feature quality.read). /status: quality.rev; the event quality {rev} when the file changed
 //   GET <token>/fixes      strom's fixes of this research (strom fixes, commands/fixchecks.ts): {rev, fixes: [{id, title,
 //                          summary ({cs, en, de}), unit, count, left?, state pending|declined|fixed|nothing, undoable,
-//                          applied?, at?, cost? free|cheap|medium|expensive, since, paid}]} — free (no agent, no network,
+//                          applied?, at?, cost? free|cheap|medium|expensive, since, paid, towns?}]} — street-places'
+//                          towns: [{town, key, count, places}] the municipalities whose bare numbers wait for the
+//                          person's answer, never one answered (feature fixes.towns) — free (no agent, no network,
 //                          nothing written); where nobody researches only those that rewrite by rules; 503 research.busy
 //                          (+ Retry-After) while the research is being written (feature fixes.list). Set right or put
 //                          back only by the person, in the terminal: the link fixes?tree=…&id=…[&do=undo]
@@ -185,6 +189,7 @@ import { configDir, userHome, type Env } from "./paths.ts";
 import { newerTree, SEAL_FOREIGN, sealedHere, Tree, TREE_FILE, VERSION, type Op } from "./tree.ts";
 import { readJsonIfExists } from "./json.ts";
 import { changeLines, type ChangeKind } from "./changelog.ts";
+import { RETURN_OP } from "./timetravel.ts";
 import { directionOf, scopes, type Scope } from "./directions.ts";
 import { ancestorGenerations } from "./people.ts";
 import { phrase } from "./phrases.ts";
@@ -945,7 +950,7 @@ function idsOf(applied: { do: string; id: string; before?: unknown }[], known?: 
 }
 
 /** What the bridge does that an app may ask about (each added once, never taken away). */
-export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list"] as const;
+export const BRIDGE_FEATURES = ["sync.again", "sync.undoneSince", "sync.takenBack", "sync.conflictEdit", "sync.since", "sync.ids", "family.noCouple", "family.alone", "adopt.transfer", "adopt.empty", "material.list", "person.titles", "media.codes", "hypothesis.links", "status.recent", "spend.readers", "hypothesis.intree", "archive.permission", "task.check", "waiting.groups", "waiting.sent", "waiting.note", "batch.kept", "live.end", "whats.new", "terminal.choice", "person.marriedSurname", "phone", "read.now", "read.sync", "excerpt.get", "log.sources", "material.assign", "material.thumb", "seal.foreign", "tree.state", "disk.full", "tree.notDownloaded", "sync.removed", "tree.kind", "experiments", "experiments.off", "experiments.link", "experiments.split", "history.events", "history.hide", "experiments.pace", "history.first", "history.regions", "history.hide.all", "history.skip", "history.map", "history.delete", "history.delete.restore", "stories.history", "history.place", "surnames.suggest", "surnames.read", "lineage.read", "duplicates.judge", "quality.dismiss", "quality.read", "person.primary", "fixes.list", "fixes.towns", "history.back"] as const;
 
 /** /status recent, when it is ready. */
 function recentOf(root: string, env: Env, head: string): { recent?: Recent } {
@@ -1022,8 +1027,18 @@ function rendered(tree: Tree, raws: RawCommit[]): HistoryEntry[] {
     const research = s ? sessionResearch(tree, s, s.research ? [] : (all ??= scopes(tree))) : undefined;
     // the sources each line names, for the app to open them (only when one does)
     const sources = lines.some((l) => l.sources?.length) ? { sources: lines.map((l) => l.sources ?? []) } : {};
-    return { head, at, what: saved(subject.trim(), body), text: lines.map((l) => l.text), kinds: lines.map((l) => l.kind), ...sources, ...taskOf(s), ...(research ? { research } : {}) };
+    return { head, at, what: saved(subject.trim(), body), text: lines.map((l) => l.text), kinds: lines.map((l) => l.kind), ...sources, ...taskOf(s), ...(research ? { research } : {}), ...returnOf(ops) };
   });
+}
+
+/**
+ * A return in time (strom history back), for the app to show it apart: the change it went back to (its first 8, as
+ * strom history back takes it) and when that change was. Nothing for any other commit.
+ */
+function returnOf(ops: Op[]): { kind?: "return"; to?: string; toAt?: string } {
+  const o = ops.find((x) => x.op === RETURN_OP);
+  const m = o ? /^Return to the state of (\S+) \(([0-9a-f]{7,40})\)/u.exec(o.summary) : null;
+  return m ? { kind: "return", to: m[2]!, toAt: m[1]! } : {};
 }
 
 export interface HistoryEntry {
@@ -1036,6 +1051,10 @@ export interface HistoryEntry {
   sources?: string[][];
   task?: string;
   research?: string;
+  /** A return in time (strom history back): `to` the change it went back to (its first 8), `toAt` when that was. */
+  kind?: "return";
+  to?: string;
+  toAt?: string;
 }
 
 export function history(root: string, tree: Tree, range: string[] = [`-n${LOG_MAX}`]): HistoryEntry[] {

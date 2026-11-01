@@ -2,7 +2,9 @@
 // into a file the widget reads — who works on what now, the finds of the last 24 hours, what waits for the person in
 // the Strom app, the last 24 hours — worked out by the same functions as the phone's page (phone-watch.ts,
 // phone-finds.ts) and cleaned as for it (forPhone): never a path, a record's ID, a spend or a model. Beside each text
-// that names a person, the same without the names (the widget's "hide names").
+// that names a person, the same without the names (the widget's "hide names"). A record's ID only in a link: a line or
+// a find of one person opens that person in the app (`&person=P0012`, the GEDCOM's REFN), what waits the app's
+// "Waiting" (`&show=waiting`) — an older app passes over both and opens the tree.
 //
 // Written by the tree's bridge (strom live) while it runs, on macOS (~/Library/Application Support/Strom/widget/) and
 // Windows (%USERPROFILE%\.config\strom\widget\, the Windows 11 widget of strom-win): <tree id>.json and index.json
@@ -22,7 +24,7 @@ import { actsAsArchive } from "./state.ts";
 import { foldText } from "./text.ts";
 import { writeFileAtomic, HELD } from "./json.ts";
 import { appUrlSetting } from "./stromapp.ts";
-import { forPhone, treeOverview, type NowLine } from "./phone-watch.ts";
+import { forPhone, PERSON, treeOverview, type NowLine } from "./phone-watch.ts";
 import { treeFinds, type FindGroup, type FindLine } from "./phone-finds.ts";
 import { waitingFor, inApp, type Waiting } from "./waiting.ts";
 import { scopes } from "./directions.ts";
@@ -141,6 +143,24 @@ export function treeUrl(env: Env, name: string, id: string): string {
   return url.href;
 }
 
+/** A person's record ID as the app finds it (its REFN): what a link to a person may carry. */
+const PERSON_ID = /^P\d{1,7}$/u;
+
+/** The tree's link opening one person in the app (its page, the tree around it); not a person's ID: the tree's link. */
+export function personUrl(tree: string, id: string | undefined): string {
+  if (!id || !PERSON_ID.test(id)) return tree;
+  const url = new URL(tree);
+  url.searchParams.set("person", id);
+  return url.href;
+}
+
+/** The tree's link opening what waits for the person in the app ("Waiting" of its research). */
+export function waitingUrl(tree: string): string {
+  const url = new URL(tree);
+  url.searchParams.set("show", "waiting");
+  return url.href;
+}
+
 // ── names out of a text ─────────────────────────────────────────────────────────────────────────────────────────────
 
 /** The stems of every name of the tree's people, folded: a word is a name when it is one of them and a few letters more. */
@@ -252,18 +272,20 @@ function findItems(tree: Tree, groups: FindGroup[], stems: Set<string>, openUrl:
       const who = g.kind === "person" ? (g.name ?? g.title ?? "") : (g.title ?? "");
       const whoNoNames = g.kind === "person" ? person : ui(lang, "ui.widget.family");
       const base = { at: at(l), openUrl };
+      // a find of one person opens that person: the person's group, a child the child; a family's fact the tree
+      const own = { at: at(l), openUrl: personUrl(openUrl, g.kind === "person" ? g[PERSON] : undefined) };
       switch (l.kind) {
         case "person":
-          out.push({ kind: "person_new", text: g.title ?? "", textNoNames: anon(g.span), ...base });
+          out.push({ kind: "person_new", text: g.title ?? "", textNoNames: anon(g.span), ...own });
           break;
         case "family":
           out.push({ kind: "family_new", text: g.title ?? "", textNoNames: whoNoNames, ...base });
           break;
         case "name":
-          out.push({ kind: "name", text: l.text, textNoNames: anon(g.span), ...base });
+          out.push({ kind: "name", text: l.text, textNoNames: anon(g.span), ...own });
           break;
         case "child":
-          out.push({ kind: "child", text: l.text, textNoNames: anon(l.span), ...base });
+          out.push({ kind: "child", text: l.text, textNoNames: anon(l.span), at: at(l), openUrl: personUrl(openUrl, l[PERSON]) });
           break;
         case "fact":
         case "fixed":
@@ -276,7 +298,7 @@ function findItems(tree: Tree, groups: FindGroup[], stems: Set<string>, openUrl:
             label: fact === "other" && l.fact?.name ? heading(l.fact.name, lang) : null,
             text: [who, what].filter(Boolean).join(", "),
             textNoNames: [whoNoNames, withoutNames(what, stems)].filter(Boolean).join(", "),
-            ...base,
+            ...own,
           });
           break;
         }
@@ -343,7 +365,8 @@ export function widgetTree(root: string, env: Env, opts: { running: boolean; now
       ...(taskNoNames ? { taskNoNames } : {}),
       since: isoSecond(l.since),
       pausedUntil: l.paused ? isoSecond(l.paused.until) : null,
-      openUrl,
+      // ancestors, descendants or one person: that person; a question, the agent itself: the tree
+      openUrl: personUrl(openUrl, l[PERSON]),
     };
   });
   const windowStart = now - 24 * 3_600_000;
@@ -366,7 +389,7 @@ export function widgetTree(root: string, env: Env, opts: { running: boolean; now
     openUrl,
     now: { lines, ...(o.lastWorked ? { lastWorkedAt: isoSecond(o.lastWorked) } : {}) },
     findings: { windowStart: isoSecond(finds.since), items: findItems(tree, finds.groups, stems, openUrl) },
-    pending: { count: waits.length, items: pendingItems, openUrl },
+    pending: { count: waits.length, items: pendingItems, openUrl: waitingUrl(openUrl) },
     ...(o.day ? { stats24h: o.day } : {}),
   };
 }

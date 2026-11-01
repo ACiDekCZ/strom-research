@@ -13,14 +13,18 @@ import { unprovenPeople } from "../core/review.ts";
 import { AFTER_REPAIR_HINT, NOT_DOWNLOADED, OTHER_KEY, REPAIR_IN_TERMINAL_HINT, SEALED_PATHS, lastSealed, notDownloaded, notDownloadedError, otherKeyError, verifyFast, verifyFull } from "../core/integrity.ts";
 import { otherKeys } from "../core/seal.ts";
 import { adoptSeal, keysToUnite } from "../cli/seal.ts";
-import { NeedsConsentError, StromError } from "../core/errors.ts";
+import { NeedsConsentError, StromError, UsageError } from "../core/errors.ts";
 import * as git from "../core/git.ts";
-import { ui } from "../cli/ui.ts";
+import { ui, type UIKey } from "../cli/ui.ts";
 import { history } from "../core/live.ts";
 import { humanWhen } from "../cli/human.ts";
 import { isAgent } from "../core/which.ts";
 import { writeProblems } from "../core/writable.ts";
 import type { Tree } from "../core/tree.ts";
+import type { RecordType } from "../core/model.ts";
+import { applyReturn, planReturn, resolveTarget, type ReturnPlan } from "../core/timetravel.ts";
+import { liveWorkers, runsAtWork } from "../core/workers.ts";
+import { receivedPending } from "../core/sync.ts";
 
 /**
  * A finding a person may meet with nothing gone wrong, said in their language (found on Windows: "counter P is behind
@@ -291,14 +295,95 @@ register(
       // show a person (the agents' files, the tree made) left out of the lines, never out of --json (found 2026-10-04:
       // "strom sync undo: 5 changes" in a German research)
       const lang = tree.lang;
-      const said = new Map(history(tree.root, tree, [`-n${Math.max(1, ctx.limit)}`]).map((e) => [e.head, e.text]));
-      const rows = commits.flatMap((c) => {
-        // no operation behind it (only its English subject): nothing for a person
-        const text = (said.get(c.hash) ?? []).filter((t) => t !== c.subject);
-        if (!text.length) return [];
-        return [[c.hash.slice(0, 8), humanWhen(c.at, lang), text.length > 1 ? `${text[0]} ${ui(lang, "ui.recent.morechanges", { n: text.length - 1 })}` : text[0]!]];
-      });
-      return { text: rows.length ? table(rows) : ui(lang, "ui.history.none"), data: { commits } };
+      const rows = historyRows(tree, ctx.limit).map((r) => [r.change, r.when, r.text]);
+      // the way back to one of them, for a person reading it (the command is theirs alone)
+      return { text: rows.length ? lines(table(rows), "", ui(lang, "ui.history.back.hint")) : ui(lang, "ui.history.none"), data: { commits } };
+    },
+  },
+  {
+    path: ["history", "back"],
+    summary: "Return the research to its state after an earlier change (a new change: nothing deleted; the person's own)",
+    group: "history",
+    tree: true,
+    writes: true,
+    description:
+      "The people, families, sources, places and the rest of the tree's evidence as they were right after the change named\n" +
+      "(its hash from strom history, or a day YYYY-MM-DD: the state at its end), the person's decisions on the tree's\n" +
+      "quality with them. Written as one new change: records added later are retracted, never deleted, and the whole\n" +
+      "history stays — a return is taken back the same way (the command it prints). What stays as it is: the tasks,\n" +
+      "sessions, directions and lessons, the settings, the history of the places, the images in the shared folder.\n" +
+      "--preview says what would return (read only, anyone may). The return itself is the person's own decision, at their\n" +
+      "own terminal — an agent tells the user the command, never runs it; never while somebody works on the research.",
+    args: [{ name: "change", description: "the change from strom history (e.g. 1a2b3c4d), or a day YYYY-MM-DD", required: true }],
+    options: [{ name: "preview", type: "boolean", description: "only say what would return; nothing written" }],
+    examples: ["strom history back 1a2b3c4d --preview", "strom history back 2026-01-15"],
+    async run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      const lang = tree.lang;
+      const target = resolveTarget(tree, args[0]!);
+      const change = target.hash.slice(0, 8);
+      const when = humanWhen(target.at, lang);
+      const head = git.runGit(tree.root, ["rev-parse", "HEAD"]).stdout.trim();
+      if (target.hash === head) return { text: ui(lang, "ui.back.now", { when, change }), data: { change: target.hash, at: target.at, same: true, returned: false } };
+      const plan = planReturn(tree, target);
+      const set = `strom history back ${change}`;
+      const said = backPreview(tree, plan, lang);
+      const inbox = receivedPending(tree.root).length;
+      const data = { change: target.hash, at: target.at, counts: plan.counts, facts: plan.facts, quality: plan.quality, same: plan.same, ...(inbox ? { inbox } : {}) };
+      if (plan.same) return { text: lines(said, ui(lang, "ui.back.nothing")), data: { ...data, returned: false } };
+      if (opts.preview) return { text: lines(said, "", ui(lang, "ui.back.person", { command: set })), data: { ...data, returned: false, run: set } };
+      // nobody's work is cut short: what an agent writes now would be returned over
+      if (liveWorkers(tree.root).length > 0 || runsAtWork(tree.root).length > 0)
+        throw new UsageError("somebody is at work on this research: a return only once they finished", { hint: "strom session finish, then " + set, code: "back.busy", params: { command: set } });
+      if (ctx.yes) throw new UsageError("--yes never returns the research: a person chooses at their terminal", { hint: set });
+      ctx.requireHuman(`Return the research to its state after the change of ${target.at} (${change})?`, set, "history.back", ui(lang, "ui.back.person", { command: set }), { window: false });
+      ctx.io.stdout(said + "\n");
+      if (!(await ctx.confirm(ui(lang, "ui.back.ask"), false))) return { text: ui(lang, "ui.cancelled"), data: { ...data, returned: false } };
+      tree.withTreeLock(() => applyReturn(tree, plan));
+      const undo = `strom history back ${plan.head.slice(0, 8)}`;
+      return { text: ui(lang, "ui.back.done", { when, undo }), data: { ...data, returned: true, undo } };
     },
   },
 );
+
+/**
+ * The changes of the history as a person reads them (the newest first): its short hash, its day and what it was, in the
+ * research's language — a change with nothing to show a person (only its English subject) left out.
+ */
+export function historyRows(tree: Tree, limit: number): { change: string; now: boolean; at: string; when: string; text: string }[] {
+  const lang = tree.lang;
+  const said = new Map(history(tree.root, tree, [`-n${Math.max(1, limit)}`]).map((e) => [e.head, e.text]));
+  return git.log(tree.root, limit).flatMap((c, i) => {
+    const text = (said.get(c.hash) ?? []).filter((t) => t !== c.subject);
+    if (!text.length) return [];
+    return [{ change: c.hash.slice(0, 8), now: i === 0, at: c.at, when: humanWhen(c.at, lang), text: text.length > 1 ? `${text[0]} ${ui(lang, "ui.recent.morechanges", { n: text.length - 1 })}` : text[0]! }];
+  });
+}
+
+/** What a return changes, as a person reads it: the change returned to, then a line for each kind of record. */
+function backPreview(tree: Tree, plan: ReturnPlan, lang: string): string {
+  const waiting = receivedPending(tree.root).length;
+  const what = history(tree.root, tree, ["-n1", plan.target.hash])[0]?.text.find((t) => t !== plan.target.subject);
+  const groups: [UIKey, RecordType[]][] = [
+    ["ui.back.g.people", ["person"]],
+    ["ui.back.g.families", ["family"]],
+    ["ui.back.g.sources", ["source", "recordset", "repository", "media"]],
+    ["ui.back.g.other", ["place", "search", "conflict", "hypothesis", "input"]],
+  ];
+  const rows = groups.flatMap(([key, types]) => {
+    const back = types.reduce((n, t) => n + (plan.counts[t]?.back ?? 0), 0);
+    const out = types.reduce((n, t) => n + (plan.counts[t]?.out ?? 0), 0);
+    if (!back && !out) return [];
+    const parts = [back ? ui(lang, "ui.back.asthen", { n: back }) : "", out ? ui(lang, "ui.back.out", { n: out }) : ""].filter(Boolean).join(", ");
+    return [`  ${ui(lang, key)}: ${parts}`];
+  });
+  if (plan.facts) rows.push(`  ${ui(lang, "ui.back.facts", { n: plan.facts })}`);
+  if (plan.quality) rows.push(`  ${ui(lang, "ui.back.quality", { n: plan.quality })}`);
+  return lines(
+    ui(lang, "ui.back.title", { when: humanWhen(plan.target.at, lang), change: plan.target.hash.slice(0, 8) }),
+    what ? `  ${what}` : undefined,
+    ...(plan.same ? [] : ["", ...rows, "", ui(lang, actsAsArchive(tree) ? "ui.back.kept.archive" : "ui.back.kept")]),
+    // trees the app sent that wait in the inbox (sync.review on): the return leaves them, decided after it they come on top
+    ...(plan.same || !waiting ? [] : [ui(lang, "ui.back.inbox", { n: waiting })]),
+  );
+}

@@ -1,5 +1,5 @@
 {
-  "about": "Words that tell a street or a house number in the place of a fact (\"Lhota, Dlouhá ulice 12\"): the place is the municipality, the street and the number its house. Compared folded (no accents, lower case), word by word, in any script. words: a word of a street anywhere in a part; suffixes: a word ending so (German Hauptstraße, Dutch Kerkstraat); last: only as the last word of a part (\"Main St.\" — \"St. Martin\" is a saint); house: what stands before a house number (\"č. p. 12\", \"Nr. 3\") — counted only with a number after it.",
+  "about": "Words that tell a street or a house number in the place of a fact (\"Lhota, Dlouhá ulice 12\"): the place is the municipality, the street and the number its house. Compared folded (no accents, lower case), word by word, in any script. words: a word of a street anywhere in a part; suffixes: a word ending so (German Hauptstraße, Dutch Kerkstraat); last: only as the last word of a part (\"Main St.\" — \"St. Martin\" is a saint); house: what stands before a house number (\"č. p. 12\", \"Nr. 3\") — counted only with a number after it; numbered: municipalities whose number after the name is a part of them (\"Praha 5\"), never a house — a number alone after any other municipality (\"Lhota 16\") is a house only when a person says so for the whole municipality.",
   "words": {
     "cs": ["ulice", "ul.", "náměstí", "nám.", "třída", "tř.", "nábřeží", "nábř.", "alej"],
     "sk": ["ulica", "námestie", "nábrežie", "trieda"],
@@ -19,5 +19,6 @@
   },
   "suffixes": ["straße", "strasse", "str.", "gasse", "platz", "weg", "allee", "straat", "plein", "gracht", "gatan", "gade", "vej", "vägen"],
   "last": ["st.", "st"],
-  "house": ["č. p.", "č.p.", "čp.", "č.", "čís.", "č. d.", "nr.", "nr", "no.", "nro.", "num.", "hnr.", "hausnr.", "haus", "house", "№", "д.", "дом"]
+  "house": ["č. p.", "č.p.", "čp.", "č.", "čís.", "č. d.", "nr.", "nr", "no.", "nro.", "num.", "hnr.", "hausnr.", "haus", "house", "№", "д.", "дом"],
+  "numbered": ["Praha", "Prag", "Brno", "Brünn", "Plzeň", "Pilsen", "Wien", "Budapest", "Paris", "Lyon", "Marseille"]
 }

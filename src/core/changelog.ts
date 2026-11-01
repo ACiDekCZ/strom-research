@@ -14,7 +14,7 @@ import { conflictTitle, displayName, lifespan } from "./people.ts";
 import { ownerName, cardFact } from "./overview.ts";
 import { phrase, type PhraseKey } from "./phrases.ts";
 import { clock } from "./net.ts";
-import { eventName, humanDate, humanPlace, humanTask } from "../cli/human.ts";
+import { eventName, humanDate, humanPlace, humanTask, humanWhen } from "../cli/human.ts";
 import { UI, ui, type UIKey } from "../cli/ui.ts";
 import { actsAsArchive } from "./state.ts";
 
@@ -465,6 +465,21 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
     if (o.op === "streetplace.fix" || o.op === "streetplace.unfix") {
       const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);
       say(phrase(lang, o.op === "streetplace.fix" ? "log.streetplace.fix" : "log.streetplace.unfix", { n }));
+      continue;
+    }
+    // the research returned to its state after an earlier change (strom history back): one line, the day of then
+    if (o.op === "tree.return") {
+      // the sources it brought back as they were — never one it took out (the app would open a retracted record)
+      const taken = (id: string) => !!get<Source>(id)?.retracted;
+      cites = sourcesOf(tree, { ...o, targets: o.targets.filter((id) => !taken(id) || get<Source>(id)?.mergedInto) }).filter((id) => !taken(id));
+      const at = /^Return to the state of (\S+) \(/u.exec(o.summary)?.[1];
+      say(at ? phrase(lang, "log.tree.return", { when: humanWhen(at, lang) }) : changed(o));
+      continue;
+    }
+    // the person's answers whether the numbers after a municipality's name are houses (quality/street-places.json)
+    if (o.op === "streetplace.towns") {
+      const n = /: (\d+) answer/u.exec(o.summary)?.[1];
+      if (n) say(phrase(lang, "log.streetplace.towns", { n }));
       continue;
     }
     // a finding the person marked no error (quality/dismissed.json): its people by name, never the English summary

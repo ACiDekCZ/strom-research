@@ -167,7 +167,12 @@ write is a suggestion: link (godparent:P…) only when the record says so. Old n
 (strom fixes undo participant-names) is the user's decision alone, in their terminal — never an agent's.
 A place is the municipality, never a street or a house number: --place "Lhota" --house "Dlouhá 12" (refused:
 place.street, the hint says what to write). Old facts with a street in the place (street-place): strom fixes show
-street-places; setting them right or back is the user's decision alone, in their terminal.
+street-places; setting them right or back is the user's decision alone, in their terminal. A number alone
+after the name ("Lhota 16") is written as the record gives it: whether a municipality's numbers are houses only the
+user says (strom fixes run street-places), never an agent.
+Back in time: strom history lists the changes; strom history back <change> --preview says what a return to the
+state after one would bring back (read only). The return itself is the user's decision alone, in their terminal:
+tell them the command, never run it. It is a new change (nothing deleted), taken back the same way.
 Many facts from one record in one call — lines of commands, "#name" labels
 what a line creates, "@name" uses it later:
   strom batch 'person add "Anna /Svobodová/" --sex F #anna' 'family add --partner P0001 --partner @anna --married 1910 --cite S0001'

@@ -55,12 +55,13 @@ function handlerName(env: Env): string {
  * here (strom seal adopt: checked, then the person's yes in the terminal — never by itself); an experiment turned on (the
  * person's question in the terminal) or off for the research (at once); the history of a place and its surroundings
  * looked for (the estimate and the person's question in the terminal); strom's fixes of the research, one of them, or one
- * put back (shown, then set right or put back only on the person's word in the terminal).
+ * put back (shown, then set right or put back only on the person's word in the terminal); the research back in time (the
+ * earlier changes to pick from, or the one the app names by its hash: the preview, then the person's yes in the terminal).
  */
 /** A story: approved (or, beside an approved one, its new version approved in its place), or that new version not wanted. */
 export const LINK_STORY_DOS = ["final", "keep"] as const;
 
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
@@ -107,6 +108,8 @@ const INPUT = /^I\d{1,9}$/;
 const RECEIVED = /^R\d{17}-[0-9a-f]{4}$/;
 const RESEARCH = /^G\d{1,9}$/;
 const SESSION = /^N\d{1,9}$/;
+/** A change of the research's history by its commit hash (the app's /log head, or its first 8 as strom history shows it). */
+const CHANGE = /^[0-9a-f]{7,40}$/;
 /** An archive's host, as a connector names it (www.example.org): letters, digits, hyphens and dots only. */
 const HOST = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 /** The name the app gives the tree's file of a move (its strom-prenos-<8 of its mark>.json). */
@@ -185,6 +188,7 @@ export type Link =
   | { action: "experiment"; tree: string; name: (typeof LINK_EXPERIMENTS)[number]; do: (typeof LINK_EXPERIMENT_DOS)[number] }
   | { action: "history"; tree: string; place: string; do: (typeof LINK_HISTORY_DOS)[number] }
   | { action: "fixes"; tree: string; id?: (typeof LINK_FIX_IDS)[number]; do?: (typeof LINK_FIX_DOS)[number] }
+  | { action: "back"; tree: string; change?: string }
   | { action: "new"; app: string; browser?: BrowserKind; file?: string }
   | { action: "menu" };
 
@@ -314,6 +318,13 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
       }
       const fix = oneOf(q, "id", LINK_FIX_IDS);
       return { action, tree: id, id: fix, ...(q.has("do") ? { do: oneOf(q, "do", LINK_FIX_DOS) } : {}) };
+    }
+    case "back": {
+      // back in time: the change by its hash only (never a day or a text); none: the earlier changes to pick from
+      if (!q.has("change")) return { action, tree: id };
+      const change = (q.get("change") ?? "").toLowerCase();
+      if (!CHANGE.test(change)) throw new LinkError("no change named");
+      return { action, tree: id, change };
     }
   }
   throw new LinkError(`unknown action "${action.slice(0, 32)}"`);

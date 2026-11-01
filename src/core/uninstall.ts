@@ -375,8 +375,11 @@ export function uninstallPlan(
   }
   // the widget's files (macOS, Windows): only what strom wrote there, the folder when nothing else is left in it — the
   // widget would show the research as not at work for ever
+  // a folder of the person's own (STROM_WIDGET_DIR): only the files that say they are strom's widget's
   const widget = widgetDir(env, platform);
-  if (widget && widgetFiles(widget).length && !holdsKept(widget, keep, platform)) remove.push({ kind: "widget", path: widget, remove: () => removeWidgetFiles(widget) });
+  const own = !!env.STROM_WIDGET_DIR?.trim();
+  if (widget && widgetFiles(widget, own).length && !holdsKept(widget, keep, platform))
+    remove.push({ kind: "widget", path: widget, remove: () => removeWidgetFiles(widget, own) });
   const program = inst.kind === "installed" ? inst.root : undefined;
   // install.json's launchers: those of a launcher's name outside the research only
   const chosen = launchersToTake(inst.launchers ?? [], keep, platform);
@@ -396,22 +399,60 @@ export function uninstallPlan(
 
 /** What strom writes into the widget's folder: index.json, each tree's <ID>.json and a file being written beside one. */
 const WIDGET_FILE = /^(?:index|[0-9A-Za-z-]{1,64})\.json$|^\..+\.json\.\d+\.[0-9a-f]+\.tmp$/u;
+/** A file being written beside a tree's: `.<ID>.json.<pid>.<hex>.tmp`, its tree's ID. */
+const WIDGET_TMP = /^\.([0-9A-Za-z-]{1,64})\.json\.\d+\.[0-9a-f]+\.tmp$/u;
 
-export function widgetFiles(dir: string): string[] {
+const jsonOf = (file: string): Record<string, unknown> | undefined => {
   try {
-    return fs.readdirSync(dir).filter((n) => WIDGET_FILE.test(n) && fs.statSync(path.join(dir, n)).isFile());
+    const v = JSON.parse(fs.readFileSync(file, "utf8")) as unknown;
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * strom's files in the widget's folder. `own`: a folder the person named (STROM_WIDGET_DIR), other files may be theirs —
+ * only those that say they are the widget's: index.json with its schema and trees, each tree's <treeKey>.json whose
+ * treeKey is its name, a file being written beside one of those trees (by its name: being written, it cannot be read).
+ */
+export function widgetFiles(dir: string, own = false): string[] {
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir).filter((n) => WIDGET_FILE.test(n) && fs.statSync(path.join(dir, n)).isFile());
   } catch {
     return [];
   }
+  if (!own) return names;
+  const keys = new Set<string>();
+  const out: string[] = [];
+  const index = names.includes("index.json") ? jsonOf(path.join(dir, "index.json")) : undefined;
+  if (index && typeof index.schemaVersion === "number" && Array.isArray(index.trees)) {
+    out.push("index.json");
+    for (const t of index.trees as { treeKey?: unknown }[]) if (typeof t?.treeKey === "string") keys.add(t.treeKey);
+  }
+  for (const n of names) {
+    if (n === "index.json" || n.startsWith(".")) continue;
+    const key = n.slice(0, -".json".length);
+    if (jsonOf(path.join(dir, n))?.treeKey === key) {
+      out.push(n);
+      keys.add(key);
+    }
+  }
+  for (const n of names) {
+    const m = WIDGET_TMP.exec(n);
+    if (m && keys.has(m[1]!)) out.push(n);
+  }
+  return out;
 }
 
 /** The widget's files taken; the folder too when nothing else is in it (never what strom did not write there). */
-export function removeWidgetFiles(dir: string): boolean {
-  for (const n of widgetFiles(dir)) fs.rmSync(path.join(dir, n), { force: true });
+export function removeWidgetFiles(dir: string, own = false): boolean {
+  for (const n of widgetFiles(dir, own)) fs.rmSync(path.join(dir, n), { force: true });
   try {
     if (!fs.readdirSync(dir).length) fs.rmdirSync(dir);
   } catch {
     // gone already, or another program's file in it: it stays
   }
-  return !widgetFiles(dir).length;
+  return !widgetFiles(dir, own).length;
 }

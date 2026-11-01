@@ -286,6 +286,11 @@ async function inTerminal(ctx: Context, link: TreeLink) {
       const { fixesDo } = await import("../cli/menu-links.ts");
       return end(await fixesDo(ctx, run, treeLang, root, link.id, link.do));
     }
+    case "back": {
+      // back in time: the change named (or one picked here) — strom history back shows what returns, the person decides
+      const { backDo } = await import("../cli/menu-links.ts");
+      return end((await backDo(ctx, run, treeLang, root, link.change)) === 0);
+    }
   }
   const named = "person" in link ? link.person : undefined;
   const person = named ? personOf(root, ctx, named) : undefined;
@@ -419,6 +424,9 @@ register(
       "browser, by hand), answered in the terminal as in the menu's What waits; the answer is never in the link.\n" +
       "strom-research://fixes?tree=<id>[&id=street-places][&do=undo] — strom's fixes of the research (strom fixes), one of them\n" +
       "  shown, or what it set right to be put back: set right or put back only on the person's word in the terminal.\n" +
+      "strom-research://back?tree=<id>[&change=<hash>] — the research back in time (strom history back): the change named by\n" +
+      "  its hash (the bridge's /log head, or its first 8), else the earlier changes to pick from — what returns shown, the\n" +
+      "  return only on the person's word in the terminal.\n" +
       "strom-research://update|sessions|setup?tree=<id> — strom update, the agent's sessions and their cost, strom setup.\n" +
       "strom-research://new?app=<the app's mark> — a tree of the app becomes a new research: named, made, the app hands the\n" +
       "tree to its bridge (?adopt=, GET/POST /adopt), taken in as leads, sent back to the app. Family trees here already:\n" +
