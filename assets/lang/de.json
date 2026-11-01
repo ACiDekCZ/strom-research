@@ -881,6 +881,7 @@
   "ui.uninstall.links": "die Links aus der Strom-App",
   "ui.uninstall.git": "strom's eigenes git",
   "ui.uninstall.path": "der PATH-Eintrag des Installationsprogramms",
+  "ui.uninstall.widget": "die Dateien des Strom-Widgets",
   "ui.uninstall.program": "das Programm",
   "ui.uninstall.list": "strom entfernt von diesem Computer:",
   "ui.uninstall.keeps": "Die Forschungen bleiben ({home}), ebenso die Einstellungen mit den Schlüsseln, die sie versiegeln ({config}) – sie nur dann selbst löschen, wenn sie nie wieder gebraucht werden.",

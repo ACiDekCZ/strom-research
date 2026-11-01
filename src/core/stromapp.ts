@@ -553,11 +553,11 @@ export function appKnowsPrimaryName(settings: Settings, version?: string): boole
  * The first Strom app that keeps the person's own bounds of a lineage (spec 028; the app's ZADANI_VYZKUM_rody.md):
  * it reads 1 _STROM_LINE FOUNDER|NOCARRY on a person and 1 _STROM_LINES Y in the header of the Strom file, keeps them
  * as its lineageOverrides and sends them back. An older app skips the tags and sends none back (a send of it says
- * nothing of them: no header mark). Not released yet (the app's 3.19.0); an app of unknown version (strom app from a
+ * nothing of them: no header mark). Released with the app 3.19.0; an app of unknown version (strom app from a
  * terminal) stays off, as the groups of a surname's forms; another copy of the app (its beta, its development) gets
  * them from APP_READS_LINES_BETA.
  */
-export const APP_READS_LINES: string | undefined = undefined;
+export const APP_READS_LINES: string | undefined = "3.19.0";
 
 /** The first beta of the app that reads and writes the bounds of a lineage (another copy of the app gets them from it). */
 export const APP_READS_LINES_BETA: string | undefined = "3.19.0-beta.4";

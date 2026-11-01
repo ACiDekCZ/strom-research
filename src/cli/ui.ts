@@ -724,6 +724,7 @@ export const UI = {
   "ui.uninstall.links": "the links from the Strom app",
   "ui.uninstall.git": "strom's own git",
   "ui.uninstall.path": "the installer's PATH entry",
+  "ui.uninstall.widget": "the Strom widget's files",
   "ui.uninstall.program": "the program",
   "ui.uninstall.list": "strom takes this off the computer:",
   "ui.uninstall.keeps": "The research stays ({home}), and so do the settings with the keys that seal it ({config}) — delete them by hand only if they are never wanted again.",

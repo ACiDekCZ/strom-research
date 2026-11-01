@@ -181,7 +181,9 @@ function snapshot(inst: Install, tree: string): Snapshot {
     git: spawnSync("git", ["log", "--format=%H"], { cwd: tree, encoding: "utf8" }).stdout.trim().split("\n"),
     data: { ...files(path.join(tree, "data"), () => false), ...Object.fromEntries(Object.entries(files(path.join(tree, "inputs"))).map(([k, v]) => [path.join("..", "inputs", k), v])) },
     shared: files(shared, (rel) => rel.split(path.sep).includes(".incoming")),
-    settings: files(inst.cfg, (rel) => rel.endsWith(".lock") || rel === "config.json" || rel.split(path.sep)[0] === "Strom research"),
+    // (the widget's files of an isolated installation: what each strom writes of the research for the widget, its
+    // version in index.json — no setting)
+    settings: files(inst.cfg, (rel) => rel.endsWith(".lock") || rel === "config.json" || ["Strom research", "widget"].includes(rel.split(path.sep)[0]!)),
     config,
   };
 }

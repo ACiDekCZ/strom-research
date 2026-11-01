@@ -5,14 +5,24 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.25.0
+
+*Připravuje se: bety do 1.25.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Data pro widget Strom i na Windows.** Výzkum teď zapisuje to, co z něj ukazuje widget Strom (na čem se pracuje,
+  nálezy za posledních 24 hodin, co čeká), i na Windows, do `%USERPROFILE%\.config\strom\widget`, se značkou verze
+  strom, která je zapsala. Widget, který zrovna čte svůj soubor, most nikdy nezdrží. `strom uninstall` odebere i soubory
+  widgetu, také na Macu; výzkum a nastavení zůstávají.
+
 ## 1.24.0
 
-*Připravuje se: bety do 1.24.0-beta.2. Oddíl bude úplný s vydáním.*
+*31. 10. 2026 · patří k aplikaci Strom 3.19.0.*
 
 - **Místa zmapovaná jednou pro všechny výzkumy na tomto počítači.** Místo, které jiný výzkum tady už přiřadil k regionům
   dějin, se převezme, když jde jistě o totéž místo (stejný název a stejné souřadnice, farnost nebo okres) a všechny
   výzkumy ho přiřazují stejně; přechází jen přiřazení místa, nic z rodiny. Místo stejného jména, které jistě totéž
-  není, dostane agent jako návrh; sám přiřazuje jen zbytek. `strom history adopt --dry-run` řekne, co by se převzalo.
+  není, dostane agent jako návrh; sám přiřazuje jen zbytek. `strom history adopt --dry-run` řekne, co by se převzalo. Otázka na zapnutí nebo vypnutí událostí
+  dějin říká, že platí pro všechny výzkumy na tomto počítači, i jak to změnit jen pro jeden výzkum.
 - **Opravy výzkumu pro aplikaci Strom.** Most vypíše, co `strom fixes` ve výzkumu nabízí (název, co dělá, kolik
   položek, stav, jestli jde vrátit), zdarma a bez zápisu; odkaz `strom-research://fixes` otevře opravu v terminálu
   výzkumu, kde se oprava i její vrácení vždy nejdřív potvrzuje.
@@ -21,12 +31,14 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   vynechává, a u pramenů bez výřezu. Jen veřejná webová stránka, nikdy adresa fondu; standardní soubor GEDCOM nechává
   adresu v poznámce. Datum verze výzkumu v souboru pro Strom nese i čas, takže aplikace ukáže den, kdy vznikla, i kolem
   půlnoci.
+- **Vlastní rod osoby z aplikace Strom.** Když aplikace Strom u osoby označí, že zakládá vlastní rod nebo rod
+  rodiny nenese, `strom sync` to uloží do výzkumu a soubor pro Strom to vrací, takže další odeslání i jiné zařízení
+  ukážou stejné rody; sloučení dvou osob značku zachová. Standardní soubor GEDCOM o tom nic neříká. Potřebuje aplikaci
+  Strom 3.19.0.
 - **Číslo domu, věk a období tak, jak byly zapsány.** Slovo pro číslo domu („No.“, „čp.“) se dává jen před samotné číslo;
   ulice s číslem jde do souboru tak, jak je. Věk „05y“ se čte jako 5 let. Obojí se z aplikace Strom vrací stejné,
   není to úprava uživatele. Období, které vede aplikace Strom („1871/1882“, nebo otevřené na jednom konci), přijde do
   výzkumu jako od … do …, nikdy jako datum někde mezi nimi.
-- **Otázka na dějiny říká, kde platí.** Zapnutí nebo vypnutí událostí dějin platí pro všechny výzkumy na tomto
-  počítači; otázka to říká, i jak to změnit jen pro jeden výzkum.
 - **Slabý nebo odmítnutý model agenta hlásí doctor.** Když výzkum nemá zvolený model a vlastní výchozí model agenta je
   ten, který výzkum shledal pro svou práci slabým nebo odmítnutým, `strom doctor` varuje a dá příkaz k volbě; sám
   nikdy nevolí.

@@ -75,6 +75,7 @@ import { ensureHooksDir } from "../core/hooks.ts";
 import { claudeInChrome, CLAUDE_IN_CHROME_URL, downloadsDir } from "../core/browser.ts";
 import { browserConnectors, fenceKeepsNetOff, listConnectors } from "../core/connector.ts";
 import { appReadLimits } from "../core/live-read.ts";
+import { markWidget } from "../core/widget.ts";
 
 export const SHARED_DIRS = ["media", "catalog", "tools", "cache", "inbox"];
 
@@ -104,6 +105,8 @@ register({
     const s = ctx.settings;
     if (ctx.interactive && !isAgent(ctx.env)) {
       const r = await setupWizard(ctx, { research: Boolean(opts.research) });
+      // the widget on the desktop (macOS, Windows) learns this strom writes its files
+      markWidget(ctx.env);
       // run in an archive (the Strom app's link to the research's settings too): research offered beside it
       let root: string | undefined;
       try {
@@ -181,6 +184,7 @@ register({
     if (trees) cfg.trees = trees;
     s.save();
     fs.mkdirSync(home, { recursive: true });
+    markWidget(ctx.env);
     const sharedDir = s.shared()!.value;
     const treesDir = s.trees()!.value;
     fs.mkdirSync(treesDir, { recursive: true });

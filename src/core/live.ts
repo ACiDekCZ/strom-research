@@ -3600,8 +3600,8 @@ export function serveLive(root: string, env: Env): Promise<void> {
         return atWorkNow;
       };
       let workers = safe("the start", () => JSON.stringify(atWork(seen))) ?? "";
-      // the research on the desktop of a Mac (the Strom Widget): the tree's overview written while the bridge runs
-      // (core/widget.ts; none off macOS) — the first a moment after the start, never in its way
+      // the research on the desktop (the Strom Widget of a Mac, the widget of Windows 11): the tree's overview written
+      // while the bridge runs (core/widget.ts; none but on macOS and Windows) — the first a moment after the start, never in its way
       const widget = widgetWriter(root, env);
       if (widget) setTimeout(() => safe("the widget", () => widget.tick(true)), 1000).unref?.();
       const send = (event: string, data: unknown) => {

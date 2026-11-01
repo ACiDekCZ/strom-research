@@ -881,6 +881,7 @@
   "ui.uninstall.links": "odkazy z aplikace Strom",
   "ui.uninstall.git": "vlastní git stromu",
   "ui.uninstall.path": "záznam instalátoru v PATH",
+  "ui.uninstall.widget": "soubory widgetu Strom",
   "ui.uninstall.program": "program",
   "ui.uninstall.list": "strom z počítače odebere:",
   "ui.uninstall.keeps": "Výzkumy zůstávají ({home}), stejně jako nastavení s klíči, které je pečetí ({config}) – smazat je ručně, jen pokud už nikdy nebudou potřeba.",

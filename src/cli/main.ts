@@ -40,6 +40,7 @@ import { expandFromLine, refreshLinks } from "../core/links.ts";
 import { clockLine, FINISH_LINE, finishLimitLine, finishOf, timeLine } from "../core/clock.ts";
 import { currentSession } from "../core/session.ts";
 import { backgroundOf } from "../core/fetching.ts";
+import { markWidget } from "../core/widget.ts";
 import { callMistake, checkArgs, GroupOnly, parseOptions, resolveCommand, firstWord, severalRecords, splitPassthrough, usageOf } from "./execute.ts";
 import { placeholders, UI, ui, type UIKey } from "./ui.ts";
 import { catalog, localized, placeholdersOf, sayCommandAs } from "../core/phrases.ts";
@@ -389,6 +390,8 @@ async function mainOf(argv: string[], io: IO, env: Env, cwd: string): Promise<nu
       ctx.settings.config.lastChannel = channel;
       ctx.settings.save();
       refreshGlobal(env);
+      // …and the widget on the desktop (macOS, Windows) learns this strom writes its files: index.json, even with no tree
+      markWidget(env);
       // …and the links from the Strom app lead to this strom again (where strom made them on this person's yes —
       // never another installation's: one with its own settings asks)
       try {

@@ -21,12 +21,13 @@ const bridged = { skip: !hasGit || process.platform === "win32" };
 const BETA = { STROM_APP_URL: "https://beta.stromapp.info/run/", STROM_APP_VERSION: "3.19.0-beta.4" };
 const file = (w: World) => path.join(w.cwd, "quality", "lineages.json");
 
-test("the gate: production off until the app that keeps the marks is out, an unknown version always off; its beta and development from 3.19.0-beta.4", () => {
+test("the gate: production from the app 3.19.0, an unknown version always off; its beta and development from 3.19.0-beta.4", () => {
   const prod = new Settings({ STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
-  assert.equal(APP_READS_LINES, undefined, "set only from a production app's version (strom:je-venku-brany)");
+  assert.equal(APP_READS_LINES, "3.19.0", "the first production app that keeps the marks (strom:je-venku-brany)");
   assert.equal(APP_READS_LINES_BETA, "3.19.0-beta.4");
-  for (const v of [undefined, "3.18.0", "3.19.0-beta.4", "3.19.0", "9.0.0"]) assert.equal(appReadsLines(prod, v), false, String(v));
+  for (const v of [undefined, "3.18.0", "3.18.9", "3.19.0-beta.4"]) assert.equal(appReadsLines(prod, v), false, String(v));
+  for (const v of ["3.19.0", "3.19.1", "3.20.0", "9.0.0"]) assert.equal(appReadsLines(prod, v), true, v);
   assert.equal(appReadsLines(beta), false, "an unknown version: off, also the beta");
   for (const v of ["3.18.0", "3.19.0-beta.3"]) assert.equal(appReadsLines(beta, v), false, v);
   for (const v of ["3.19.0-beta.4", "3.19.0", "3.20.0-beta.1"]) assert.equal(appReadsLines(beta, v), true, v);
@@ -157,6 +158,30 @@ test("sync with an app that keeps them: given back in the Strom file, the round 
   r = await synced(w, asApp(text, { P0003: "NOCARRY" }), "changed.ged");
   assert.deepEqual(lineChanges(r), [["P0002", ""], ["P0003", "NOCARRY"]]);
   assert.deepEqual(stored(w), { lineFounders: [], lineNotCarriers: ["P0003"] });
+  w.cleanup();
+});
+
+test("the production app 3.19.0: the marks given back in the Strom file, a round trip changes nothing, another device's change taken", opts, async () => {
+  const w = new World();
+  await w.withTree("Lhotákovi");
+  Object.assign(w.env, { STROM_APP_URL: "https://stromapp.info/run/", STROM_APP_VERSION: "3.19.0" });
+  let text = await family(w);
+  assert.match(text, /^1 _STROM_LINES Y$/m, "the production app keeps them");
+  let r = await synced(w, asApp(text, { P0002: "FOUNDER" }, true, "3.19.0"), "first.ged");
+  assert.deepEqual(lineChanges(r), [["P0002", "FOUNDER"]]);
+  const given = path.join(w.dir, "again.ged");
+  await w.ok(["export", "gedcom", "--for", "strom", "--images-for", "none", "--out", given]);
+  text = fs.readFileSync(given, "utf8");
+  assert.match(text, /1 _STROM_LINE FOUNDER\r?\n1 REFN P0002/, "given back to the production app");
+  // a second device opens what the research gave and sends it back unchanged: nothing taken back
+  const keep = text.replace(/^1 SOUR STROM_RESEARCH\r?\n2 VERS .*\r?\n2 NAME .*\r?\n/m, "1 SOUR STROM\n2 VERS 3.19.0\n2 NAME Strom\n");
+  r = await synced(w, keep, "same.ged");
+  assert.deepEqual(lineChanges(r), []);
+  assert.deepEqual(stored(w), { lineFounders: ["P0002"], lineNotCarriers: [] });
+  // its own change: taken
+  r = await synced(w, asApp(text, { P0002: "FOUNDER", P0003: "NOCARRY" }, true, "3.19.0"), "changed.ged");
+  assert.deepEqual(lineChanges(r), [["P0003", "NOCARRY"]]);
+  assert.deepEqual(stored(w), { lineFounders: ["P0002"], lineNotCarriers: ["P0003"] });
   w.cleanup();
 });
 

@@ -1,8 +1,9 @@
 // What strom put on this computer outside the research, and taking it away
 // again (strom uninstall): what the agents were taught, the shortcut, strom's
-// own git, the PATH lines of the installer and the program itself. The
-// research stays, and so do the settings with the keys that seal it — they
-// are the user's; strom says where they are.
+// own git, the PATH lines of the installer, the widget's files (what it
+// showed of the research) and the program itself. The research stays, and so
+// do the settings with the keys that seal it — they are the user's; strom
+// says where they are.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -15,13 +16,14 @@ import { globalTargets, isInstalled, uninstallGlobal } from "../agents/global.ts
 import { PROFILES } from "../agents/profiles.ts";
 import { holdsPath, installation, pathForms, PROGRAM_ENTRIES, type Installation } from "./self.ts";
 import { linkFiles, linkOwner, unregisterLinks } from "./links.ts";
+import { widgetDir } from "./widget.ts";
 
 /** The mark the installer (install/install.sh) puts on the PATH line it adds. */
 const MARK = "# strom research";
 
 export interface Removal {
-  /** What it is: what an agent was taught, the shortcut, strom's own git, a PATH entry, the program. */
-  kind: "agent" | "shortcut" | "links" | "git" | "path" | "program";
+  /** What it is: what an agent was taught, the shortcut, strom's own git, a PATH entry, the widget's files, the program. */
+  kind: "agent" | "shortcut" | "links" | "git" | "path" | "widget" | "program";
   /** The agent's name (kind agent). */
   agent?: string;
   path: string;
@@ -371,6 +373,10 @@ export function uninstallPlan(
       // none
     }
   }
+  // the widget's files (macOS, Windows): only what strom wrote there, the folder when nothing else is left in it — the
+  // widget would show the research as not at work for ever
+  const widget = widgetDir(env, platform);
+  if (widget && widgetFiles(widget).length && !holdsKept(widget, keep, platform)) remove.push({ kind: "widget", path: widget, remove: () => removeWidgetFiles(widget) });
   const program = inst.kind === "installed" ? inst.root : undefined;
   // install.json's launchers: those of a launcher's name outside the research only
   const chosen = launchersToTake(inst.launchers ?? [], keep, platform);
@@ -386,4 +392,26 @@ export function uninstallPlan(
   const taken = new Set(program ? ourEntries(program, keep, platform).filter((e) => !e.dir).flatMap((e) => pathForms(path.join(program, e.name), platform)) : []);
   const skipped = chosen.skipped.filter((l) => !pathForms(l, platform).some((f) => taken.has(f)));
   return { remove, npm: inst.kind === "npm", ...(program ? { program, launchers: chosen.take, skipped } : {}) };
+}
+
+/** What strom writes into the widget's folder: index.json, each tree's <ID>.json and a file being written beside one. */
+const WIDGET_FILE = /^(?:index|[0-9A-Za-z-]{1,64})\.json$|^\..+\.json\.\d+\.[0-9a-f]+\.tmp$/u;
+
+export function widgetFiles(dir: string): string[] {
+  try {
+    return fs.readdirSync(dir).filter((n) => WIDGET_FILE.test(n) && fs.statSync(path.join(dir, n)).isFile());
+  } catch {
+    return [];
+  }
+}
+
+/** The widget's files taken; the folder too when nothing else is in it (never what strom did not write there). */
+export function removeWidgetFiles(dir: string): boolean {
+  for (const n of widgetFiles(dir)) fs.rmSync(path.join(dir, n), { force: true });
+  try {
+    if (!fs.readdirSync(dir).length) fs.rmdirSync(dir);
+  } catch {
+    // gone already, or another program's file in it: it stays
+  }
+  return !widgetFiles(dir).length;
 }

@@ -1,7 +1,9 @@
 // The research on the desktop of a Mac (the Strom Widget): each tree's overview written by its bridge into a file the
 // widget reads — the shape the widget was built for (schemaVersion 1), each text that names a person also without the
 // names, what waits counted as the Strom app counts it, each file written whole, `running: false` when the bridge ends,
-// nothing written but on macOS, and a test's research never in the person's own ~/Library.
+// nothing written but on macOS and Windows (%USERPROFILE%\.config\strom\widget, never AppData: Claude's desktop app is
+// MSIX), a reader holding a file on Windows never holding the bridge, index.json as the mark of this strom from its first
+// run on, and a test's research never in the person's own ~/Library or profile.
 
 import { mock, test } from "node:test";
 import assert from "node:assert/strict";
@@ -11,14 +13,16 @@ import path from "node:path";
 import { World, hasGit, until } from "../helpers.ts";
 import { treeOverview } from "../../src/core/phone-watch.ts";
 import { foldText } from "../../src/core/text.ts";
-import { Tree } from "../../src/core/tree.ts";
+import { Tree, VERSION } from "../../src/core/tree.ts";
+import { uninstallPlan } from "../../src/core/uninstall.ts";
 import type { Task } from "../../src/core/model.ts";
-import { appSlug, isoSecond, treeUrl, widgetDir, widgetTree, widgetWriter, stemsOfNames, withoutNames, WIDGET_SCHEMA, type WidgetIndex, type WidgetTree } from "../../src/core/widget.ts";
+import { appSlug, dropWidgetTree, isoSecond, markWidget, treeUrl, widgetDir, widgetTree, widgetWriter, writeWidgetTree, stemsOfNames, withoutNames, WIDGET_SCHEMA, type WidgetIndex, type WidgetTree } from "../../src/core/widget.ts";
 
 const AGENT = { env: { AI_AGENT: "1" } };
 const ID = /(?<![\p{L}\p{N}])[PFSEXHTMRB]\d{4,}(?![\p{L}\p{N}])/u;
 const SECOND = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/u;
-const skip = !hasGit || process.platform === "win32";
+// (the bridge's own test below runs on macOS alone; the rest on Windows too)
+const skip = !hasGit;
 const NAMES = ["Kryštof", "Lhoták", "Žofie", "Matěj"].map(foldText);
 const named = (s: string) => NAMES.some((n) => foldText(s).includes(n.slice(0, 5)));
 
@@ -246,6 +250,7 @@ test("the widget's files: written whole (renamed over), index.json of the trees 
     assert.equal(first.running, true);
     const index = JSON.parse(fs.readFileSync(path.join(dir, "index.json"), "utf8")) as WidgetIndex;
     assert.equal(index.schemaVersion, 1);
+    assert.equal(index.strom, VERSION, "the strom that wrote it");
     assert.deepEqual(index.trees.map((t) => [t.treeKey, t.treeName, t.lang, t.running]), [[id, "Lhotákovi ze Lhoty", "cs", true]]);
 
     // looked at again soon: nothing; after the check, the same: not written before the minute
@@ -291,20 +296,182 @@ test("the widget's files: written whole (renamed over), index.json of the trees 
   }
 });
 
-test("only on macOS, never the person's own ~/Library from a test: the HOME strom runs with, an isolated installation its own settings folder", () => {
+test("only on macOS and Windows, never the person's own ~/Library or profile from a test: the HOME strom runs with, on Windows the profile's own folder, an isolated installation its own settings folder", () => {
   const home = path.join(os.tmpdir(), "strom-widget-home");
   const env = { HOME: home, STROM_CONFIG_DIR: path.join(home, "config") };
-  for (const platform of ["linux", "win32"] as const) {
-    assert.equal(widgetDir(env, platform), undefined);
-    assert.equal(widgetWriter(home, env, platform), undefined, "no writer: nothing written");
-  }
+  assert.equal(widgetDir(env, "linux"), undefined);
+  assert.equal(widgetWriter(home, env, "linux"), undefined, "no writer: nothing written");
   assert.equal(widgetDir(env, "darwin"), path.join(home, "Library", "Application Support", "Strom", "widget"));
   const iso = widgetDir({ ...env, STROM_ISOLATED: "1" }, "darwin")!;
   assert.equal(iso, path.join(home, "config", "widget"));
   assert.ok(!iso.includes(path.join("Library", "Application Support")));
   assert.equal(widgetDir({ ...env, STROM_WIDGET_DIR: path.join(home, "w") }, "darwin"), path.join(home, "w"));
+  // Windows: %USERPROFILE%\.config\strom\widget — the profile's own folder, not Git Bash's HOME, also with settings
+  // elsewhere (STROM_CONFIG_DIR), never under AppData (an MSIX app's private copy)
+  const profile = path.join(os.tmpdir(), "strom-widget-Jiří");
+  const win = { ...env, USERPROFILE: profile, APPDATA: path.join(profile, "AppData", "Roaming"), LOCALAPPDATA: path.join(profile, "AppData", "Local") };
+  assert.equal(widgetDir(win, "win32"), path.join(profile, ".config", "strom", "widget"));
+  assert.ok(!widgetDir(win, "win32")!.includes("AppData"));
+  assert.equal(widgetDir({ HOME: home }, "win32"), path.join(home, ".config", "strom", "widget"), "no USERPROFILE: the HOME");
+  assert.equal(widgetDir({ ...win, STROM_ISOLATED: "1" }, "win32"), path.join(home, "config", "widget"), "an isolated installation: its own settings folder");
+  assert.equal(widgetDir({ ...win, STROM_WIDGET_DIR: path.join(home, "w") }, "win32"), path.join(home, "w"));
   assert.equal(appSlug("Rodina Fíšek–Łódź"), "rodina-fisek-lodz");
   assert.equal(appSlug("Жуковы"), "");
+});
+
+test("the mark of this strom: index.json (no tree, the version that wrote it) on macOS and Windows, none elsewhere — written again only by another strom", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "strom-widget-mark-"));
+  try {
+    const profile = path.join(home, "Lhoták Ondřej".normalize("NFD"));
+    const env = { HOME: path.join(home, "git-bash"), USERPROFILE: profile, STROM_CONFIG_DIR: path.join(home, "config") };
+    markWidget(env, "linux");
+    assert.deepEqual(fs.readdirSync(home), [], "nothing on Linux");
+    markWidget(env, "win32");
+    const file = path.join(profile, ".config", "strom", "widget", "index.json");
+    const index = JSON.parse(fs.readFileSync(file, "utf8")) as WidgetIndex;
+    assert.deepEqual([index.schemaVersion, index.strom, index.trees], [1, VERSION, []]);
+    assert.match(index.generatedAt, SECOND);
+    assert.ok(!fs.existsSync(path.join(home, "git-bash")), "not Git Bash's HOME");
+    // the same strom again: untouched; an older strom's index (no strom in it): this one's
+    const was = fs.readFileSync(file, "utf8");
+    fs.utimesSync(file, new Date(0), new Date(0));
+    markWidget(env, "win32");
+    assert.equal(fs.statSync(file).mtimeMs, 0, "nothing new to say");
+    fs.writeFileSync(file, JSON.stringify({ schemaVersion: 1, generatedAt: index.generatedAt, trees: [] }));
+    markWidget(env, "win32");
+    assert.equal(fs.readFileSync(file, "utf8"), was);
+    markWidget(env, "darwin");
+    assert.ok(fs.existsSync(path.join(home, "git-bash", "Library", "Application Support", "Strom", "widget", "index.json")));
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("strom's first run and its setup write the mark: index.json in the widget's folder of the HOME the test runs with, before any bridge ran", { skip: skip || process.platform !== "darwin" }, async () => {
+  const w = new World();
+  try {
+    await w.ok(["setup", "--yes"]);
+    const file = path.join(w.env.HOME!, "Library", "Application Support", "Strom", "widget", "index.json");
+    const index = JSON.parse(fs.readFileSync(file, "utf8")) as WidgetIndex;
+    assert.deepEqual([index.schemaVersion, index.strom, index.trees], [1, VERSION, []]);
+    // the first run of another version writes it again (the settings say an older strom ran last)
+    fs.rmSync(file);
+    const config = path.join(w.env.STROM_CONFIG_DIR!, "config.json");
+    const settings = JSON.parse(fs.readFileSync(config, "utf8")) as Record<string, unknown>;
+    fs.writeFileSync(config, JSON.stringify({ ...settings, lastVersion: "1.0.0" }));
+    await w.ok(["config", "where"]);
+    assert.equal((JSON.parse(fs.readFileSync(file, "utf8")) as WidgetIndex).strom, VERSION);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("Windows: the bridge's writer into %USERPROFILE%\\.config\\strom\\widget, settings elsewhere all the same — a file the widget holds is written at the next tick, never waited for; the bridge goes on", { skip }, async () => {
+  const w = new World();
+  const now = { ms: Date.now() };
+  try {
+    await w.withTree("Lhotákovi z Lhoty");
+    await w.ok(["lang", "cs"]);
+    await w.ok(["person", "add", "Ondřej /Lhoták/", "--sex", "M"], AGENT);
+    const profile = path.join(w.env.HOME!, "Profil Ondřej");
+    const env = { ...w.env, USERPROFILE: profile };
+    const dir = path.join(profile, ".config", "strom", "widget");
+    const id = JSON.parse(fs.readFileSync(path.join(w.cwd, "strom.json"), "utf8")).id as string;
+    const file = path.join(dir, `${id}.json`);
+    const writer = widgetWriter(w.cwd, env, "win32", () => now.ms)!;
+    assert.ok(writer, "a writer on Windows");
+    writer.tick(true);
+    assert.equal((JSON.parse(fs.readFileSync(file, "utf8")) as WidgetTree).running, true);
+    assert.ok(!fs.existsSync(path.join(w.env.STROM_CONFIG_DIR!, "widget")), "not into the settings folder");
+
+    // the widget reads the file this moment (Windows: the rename over it fails): tried once, the bridge's tick goes on
+    await w.ok(["person", "add", "Anna /Lhotáková/", "--sex", "F"], AGENT);
+    const real = fs.renameSync;
+    let tries = 0;
+    const held = mock.method(fs, "renameSync", (from: fs.PathLike, to: fs.PathLike) => {
+      if (String(to) === file) {
+        tries++;
+        throw Object.assign(new Error("EPERM: operation not permitted, rename"), { code: "EPERM" });
+      }
+      return real(from, to);
+    });
+    try {
+      now.ms += 16_000;
+      const t0 = Date.now();
+      writer.tick();
+      assert.ok(Date.now() - t0 < 1000, "never waited for the reader");
+    } finally {
+      held.mock.restore();
+    }
+    assert.equal(tries, 1, "tried once");
+    assert.deepEqual(fs.readdirSync(dir).filter((n) => n.endsWith(".tmp")), [], "nothing left beside it");
+    assert.ok(!(JSON.parse(fs.readFileSync(file, "utf8")) as WidgetTree).findings.items.some((f) => /Anna/u.test(f.text)));
+    // the next tick (2 s later, before the next look) writes it
+    now.ms += 2000;
+    writer.tick();
+    const t = JSON.parse(fs.readFileSync(file, "utf8")) as WidgetTree;
+    assert.ok(t.findings.items.some((f) => f.kind === "person_new" && f.text === "Anna Lhotáková"), JSON.stringify(t.findings.items));
+    assert.equal(t.generatedAt, isoSecond(now.ms));
+
+    // the research gone while the widget holds its file without letting it go: it says at least running: false
+    const rm = fs.rmSync;
+    const holds = mock.method(fs, "rmSync", (p: fs.PathLike, o?: fs.RmOptions) => {
+      if (String(p) === file) throw Object.assign(new Error("EBUSY: resource busy or locked, unlink"), { code: "EBUSY" });
+      return rm(p, o);
+    });
+    try {
+      writer.end(true);
+    } finally {
+      holds.mock.restore();
+    }
+    assert.equal((JSON.parse(fs.readFileSync(file, "utf8")) as WidgetTree).running, false);
+    const index = JSON.parse(fs.readFileSync(path.join(dir, "index.json"), "utf8")) as WidgetIndex;
+    assert.deepEqual(index.trees.map((x) => [x.treeKey, x.running]), [[id, false]]);
+    // let go: taken away
+    dropWidgetTree(dir, id);
+    assert.ok(!fs.existsSync(file));
+    assert.deepEqual((JSON.parse(fs.readFileSync(path.join(dir, "index.json"), "utf8")) as WidgetIndex).trees, []);
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("strom uninstall takes the widget's files (macOS, Windows) — only what strom wrote there, the folder when nothing else is in it", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "strom-widget-uninstall-"));
+  try {
+    const profile = path.join(home, "Lhota");
+    const env = { HOME: path.join(home, "git-bash"), USERPROFILE: profile, STROM_CONFIG_DIR: path.join(home, "config") };
+    const dir = path.join(profile, ".config", "strom", "widget");
+    const install = { kind: "npm" as const };
+    assert.ok(!uninstallPlan(env, [], { platform: "win32", install }).remove.some((r) => r.kind === "widget"), "nothing there: nothing to take");
+    const key = "0f8fad5b-d9cb-469f-a165-70867728950e";
+    const at = isoSecond(Date.now());
+    const data: WidgetTree = {
+      schemaVersion: 1, treeKey: key, treeName: "Lhotákovi", lang: "cs", generatedAt: at, running: false, lastActiveAt: at, openUrl: "https://stromapp.info/",
+      now: { lines: [] }, findings: { windowStart: at, items: [] }, pending: { count: 0, items: [], openUrl: "https://stromapp.info/" },
+    };
+    assert.ok(writeWidgetTree(dir, data));
+    fs.writeFileSync(path.join(dir, `.${key}.json.123.abcd1234.tmp`), "{");
+    const plan = uninstallPlan(env, [], { platform: "win32", install });
+    const widget = plan.remove.find((r) => r.kind === "widget");
+    assert.equal(widget?.path, dir);
+    // a file strom did not write stays, and so does its folder
+    fs.writeFileSync(path.join(dir, "poznámka.txt"), "x");
+    assert.equal(widget!.remove(), true);
+    assert.deepEqual(fs.readdirSync(dir), ["poznámka.txt"]);
+    fs.rmSync(path.join(dir, "poznámka.txt"));
+    writeWidgetTree(dir, data);
+    assert.equal(uninstallPlan(env, [], { platform: "win32", install }).remove.find((r) => r.kind === "widget")!.remove(), true);
+    assert.ok(!fs.existsSync(dir), "the folder too: nothing else in it");
+    assert.ok(fs.existsSync(path.dirname(dir)), "the settings folder stays");
+    // macOS: its own folder; Linux: none
+    const mac = path.join(home, "git-bash", "Library", "Application Support", "Strom", "widget");
+    writeWidgetTree(mac, data);
+    assert.equal(uninstallPlan(env, [], { platform: "darwin", install }).remove.find((r) => r.kind === "widget")?.path, mac);
+    assert.ok(!uninstallPlan(env, [], { platform: "linux", install }).remove.some((r) => r.kind === "widget"));
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test("the widget's address of a tree: ?tree=<slug> for an older app, &research=<the tree's UUID, lowercase> — an ID that is no UUID: the name alone", () => {

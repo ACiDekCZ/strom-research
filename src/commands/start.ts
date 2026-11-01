@@ -515,7 +515,7 @@ register(
   },
   {
     path: ["uninstall"],
-    summary: "Take strom off this computer: what the agents were taught, the shortcut, its own git, its PATH lines and the program — the research and the settings stay",
+    summary: "Take strom off this computer: what the agents were taught, the shortcut, its own git, its PATH lines, the widget's files and the program — the research and the settings stay",
     group: "setup",
     description:
       "The user's decision: a person at their terminal is asked there (--yes: no question); asked by an agent, strom asks\n" +

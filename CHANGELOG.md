@@ -5,15 +5,25 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md)
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.25.0
+
+*In preparation: the betas up to 1.25.0-beta.1. The section is complete with the release.*
+
+- **Data for the Strom widget on Windows too.** A research now writes what the Strom widget shows of it (what it works
+  on, the finds of the last 24 hours, what waits) also on Windows, into `%USERPROFILE%\.config\strom\widget`, with a
+  mark of the strom that wrote it. A widget reading its file never holds up the bridge. `strom uninstall` takes the
+  widget's files too, on a Mac as well; the research and the settings stay.
+
 ## 1.24.0
 
-*In preparation: the betas up to 1.24.0-beta.2. The section is complete with the release.*
+*2026-10-31 · goes with the Strom app 3.19.0.*
 
 - **Places mapped once for every research on this computer.** A place another research here has mapped to its
   regions of history is taken over when it is surely the same place (the same name and the same coordinates, parish
   or district) and every research maps it alike; only the place's map crosses, nothing of the family. A place of the
   same name that is not surely the same is offered to the agent as a suggestion; the agent maps only the rest.
-  `strom history adopt --dry-run` says what would be taken.
+  `strom history adopt --dry-run` says what would be taken. The question about turning the events of history on or off
+  says it holds for every research on this computer, and how to change it for one research alone.
 - **The fixes of a research for the Strom app.** The bridge lists what `strom fixes` offers in the research (title,
   what it does, how many items, its state, whether it can be put back), free and without writing anything; the link
   `strom-research://fixes` opens a fix in the research's terminal, where setting it right or putting it back is
@@ -23,12 +33,14 @@ The changes of each version in short. The full notes and the install lines are o
   file leaves out and for the sources without an excerpt. Only a public web page, never a recordset's address; the
   standard GEDCOM file keeps the address in the note. The date of the research's version in the Strom file carries its
   time too, so the app shows the day it was made also around midnight.
+- **A person's own lineage from the Strom app.** Where the Strom app marks that a person founds a lineage of their
+  own or carries none of the family's, `strom sync` keeps it in the research and the Strom file gives it back, so the
+  next send and another device show the same lineages; a merge of two people keeps the mark. The standard GEDCOM file
+  says nothing of it. It needs the Strom app 3.19.0.
 - **A house number, an age and a period as they were written.** The word for a house number ("No.", "čp.") is put only before
   a number standing alone; a street with its number goes into the file as it is. An age of "05y" is read as 5 years.
   Both come back from the Strom app the same, no edit of the user's. A period the Strom app keeps ("1871/1882", or
   open at one end) comes into the research as from … to …, never as a date somewhere between.
-- **The question about history says where it holds.** Turning the events of history on or off holds for every
-  research on this computer; the question says so, and how to change it for one research alone.
 - **A weak or refused model of the agent said by the doctor.** When no model is chosen for the research and the
   agent's own default is one the research found weak or refused for its work, `strom doctor` warns and gives the
   command to choose one; it never chooses itself.

@@ -46,7 +46,7 @@ export function stringifyCanonical(value: unknown): string {
 export const RENAME_PATIENCE = 1500;
 const RENAME_FIRST_WAIT = 25;
 /** What another program holding the target (an antivirus, the search indexer, a backup) makes a rename fail with. */
-const HELD = new Set(["EPERM", "EBUSY", "EACCES"]);
+export const HELD = new Set(["EPERM", "EBUSY", "EACCES"]);
 
 /** An error of a file another program held past the waits (cli/main.ts says so in plain words): the file it was about. */
 export interface HeldError extends NodeJS.ErrnoException {
@@ -101,14 +101,18 @@ export function removeRetrying(file: string, platform: NodeJS.Platform = process
   retryingHeld(file, platform, () => fs.rmSync(file, { force: true }));
 }
 
-/** Write via a temp file in the same directory and rename: never a half file. */
-export function writeFileAtomic(file: string, content: string): void {
+/**
+ * Write via a temp file in the same directory and rename: never a half file. `patient: false`: the rename tried once,
+ * never waited for a file another program holds (the widget's files: the bridge's tick is never held up by a reader).
+ */
+export function writeFileAtomic(file: string, content: string, opts: { patient?: boolean } = {}): void {
   const dir = path.dirname(file);
   fs.mkdirSync(dir, { recursive: true });
   const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`);
   fs.writeFileSync(tmp, content, "utf8");
   try {
-    renameRetrying(tmp, file);
+    if (opts.patient === false) fs.renameSync(tmp, file);
+    else renameRetrying(tmp, file);
   } catch (err) {
     fs.rmSync(tmp, { force: true });
     throw err;
