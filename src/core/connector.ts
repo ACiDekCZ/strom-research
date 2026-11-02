@@ -34,7 +34,7 @@ import type { Tree } from "./tree.ts";
 import { decodeImage, encodeImage, imageSize, imageSizeOfFile } from "../image/index.ts";
 import { blank, paste, toRgb, type RawImage } from "../image/image.ts";
 import { botCheck, type PageAnswer, type PageRequest } from "./browser.ts";
-import { allows, archiveLevel, browserPermitted } from "./terms.ts";
+import { allows, archiveLevel, browserPermitted, termsOpen } from "./terms.ts";
 
 /** The newest version of the contract. */
 export const INTERFACE = 1;
@@ -1128,6 +1128,7 @@ export async function runConnector(c: Connector, request: ConnectorRequest, opts
           ...(paced ? { human: paced.human } : {}),
           ...(permit ? { robotsPermit: permit } : {}),
           robots: true,
+          termsOpen: (h) => termsOpen(opts.env, h),
           run: asked,
           login: !!c.manifest.login,
           ...(opts.onVerdict ? { onVerdict: opts.onVerdict } : {}),

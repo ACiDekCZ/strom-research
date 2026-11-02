@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.25.0
 
-*Připravuje se: bety do 1.25.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.25.0-beta.3. Oddíl bude úplný s vydáním.*
 
 - **Data pro widget Strom i na Windows.** Výzkum teď zapisuje to, co z něj ukazuje widget Strom (na čem se pracuje,
   nálezy za posledních 24 hodin, co čeká), i na Windows, do `%USERPROFILE%\.config\strom\widget`, se značkou verze
@@ -24,6 +24,17 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   a co se vyřadí, a pak jen na „ano“ člověka v terminálu. Nic se nemaže: záznamy přidané od té doby se vyřadí a i sám
   návrat jde stejně vrátit. Odkaz `strom-research://back` ho otevře k jedné změně;
   přehled mostu návrat odliší.
+- **Ztotožnění míst.** Výzkum ztotožňuje místa svých záznamů (`strom place identify`, `propose`, `unlocated`): místo
+  jisté ze záznamů dostane souřadnice, jména a farnost v čase; kde jistota není, zeptá se člověka s nejvýš třemi
+  kandidáty, nebo řekne, co by rozhodlo. Otázky čekají v oddílu Čeká, most je nabízí aplikaci Strom a `strom place
+  undo` vezme poslední odpověď zpět.
+- **Druhy dějin.** `history.kinds` určuje, jaké druhy událostí dějiny míst hledají (války, epidemie…). `strom history
+  align` nejdřív řekne, co by skryl, znovu ukázal a hledal, a provede to jen na „ano“ člověka; nic nalezeného se nemaže.
+- **Vedlejší větve nakonec.** Ve výzkumu s více liniemi čeká práce, která žádné linii nepomáhá, až linie nebudou mít
+  co dělat (`queue.offLine`: nakonec, podle priority, nebo nikdy).
+- **Aktualizace bez přerušení práce.** `strom update` instaluje každou verzi do vlastní složky, takže rozběhnutá práce
+  nebo rozhovor pokračuje se svou verzí; starší verze odstraní další aktualizace nebo `strom tidy` a `strom doctor`
+  je vypíše. Most aplikaci Strom odpovídá i během vlastní obnovy a během sestavování souboru stromu.
 
 ## 1.24.0
 

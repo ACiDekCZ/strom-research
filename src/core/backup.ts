@@ -10,6 +10,12 @@
 // (views of scans, excerpts, previews, files converted for reading, work folders of downloads cut short, a lock, the
 // shared cache and the pace of hosts) and an upload of the app not yet whole (media/.incoming: taken in or gone).
 //
+// Each research is copied under its own lock — the one every writing command holds from its first read to its commit —
+// so the copy is never of a write half made (an operation logged, its commit not yet). A writer holds it for moments:
+// the backup waits for it. One held longer than a while (STROM_BACKUP_LOCK_WAIT_MS, a minute; a stuck process, a very
+// long write) is left out of the backup and said so — never copied in the middle of a write, and never the whole
+// update or switch stopped by one research busy; the research itself stays where it is, untouched.
+//
 // strom update makes it before it installs (the running strom), the first run of the other version when nothing made
 // it for this very change yet (the installers, npm, a strom copied by hand). A backup that cannot be made switches
 // nothing: strom update installs nothing; the other version opens no research for writing and migrates none until it
@@ -19,7 +25,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { configDir, type Env } from "./paths.ts";
 import { readJsonIfExists } from "./json.ts";
-import { acquireLock } from "./lock.ts";
+import { acquireLock, readLock } from "./lock.ts";
+import { LockedError } from "./errors.ts";
 
 /** One backup made: when, between which versions and channels, where, how large. */
 export interface BackupRecord {
@@ -33,6 +40,16 @@ export interface BackupRecord {
   bytes: number;
   /** The shared images (shared/media): how many, their size, and how they are in the backup. */
   media?: SharedMedia;
+  /** Researches left out: written for longer than the backup waits (their folder's name in the backup, who held it). */
+  skipped?: SkippedTree[];
+}
+
+/** A research left out of a backup: being written all the while the backup waited for it. */
+export interface SkippedTree {
+  /** Its name in the backup (its folder's name). */
+  tree: string;
+  /** Who held its lock (a strom command, an agent's session). */
+  by: string;
 }
 
 /** The shared images in a backup: linked (no room taken twice), copied, or left out (no room for a copy: said). */
@@ -54,6 +71,15 @@ export interface Transition {
 export const BACKUP_SAID_DAYS = 30;
 /** So many backups the user config remembers (the folders stay where they are). */
 const KEPT = 20;
+/** How long the backup waits for the researches being written (STROM_BACKUP_LOCK_WAIT_MS): all of them together. */
+function treeLockWaitMs(env: Env): number {
+  const n = Number(env.STROM_BACKUP_LOCK_WAIT_MS);
+  return env.STROM_BACKUP_LOCK_WAIT_MS !== undefined && Number.isFinite(n) && n >= 0 ? n : 60_000;
+}
+
+/** The wait each research gets at least, once the others took the rest (a write of a moment is never a reason to leave one out). */
+const TREE_LOCK_LEAST_MS = 5000;
+
 /** What is left free on the disk after a backup at least (the system needs room too). */
 export const BACKUP_RESERVE = 256 * 1024 * 1024;
 
@@ -256,19 +282,19 @@ export class BackupFailed extends Error {
  * folder into shared/ (its images linked where the disk can), the settings into settings/, a README.txt beside them
  * (`readme` gets how the shared images are in it). Throws BackupFailed and leaves nothing of itself when it cannot.
  */
-export function makeBackup(opts: { home: string; env: Env; trees: string[]; transition: Transition; readme: string | ((media: SharedMedia | undefined) => string); at?: Date; /** Folders of the research besides the home and the trees (the folder of the trees, the shared one): never copied as part of the settings. */ research?: string[]; /** The shared folder: its images and plugins go with the backup. */ shared?: string }): BackupRecord {
+export function makeBackup(opts: { home: string; env: Env; trees: string[]; transition: Transition; readme: string | ((media: SharedMedia | undefined, skipped: SkippedTree[]) => string); at?: Date; /** Folders of the research besides the home and the trees (the folder of the trees, the shared one): never copied as part of the settings. */ research?: string[]; /** The shared folder: its images and plugins go with the backup. */ shared?: string }): BackupRecord {
   const at = opts.at ?? new Date();
   const top = backupsDir(opts.home);
   const settings = configDir(opts.env);
   const skip = path.resolve(top);
-  const sources: { from: string; to: string; keep: (src: string) => boolean }[] = [];
+  const sources: { from: string; to: string; keep: (src: string) => boolean; lock?: string }[] = [];
   const taken = new Set<string>();
   for (const root of opts.trees) {
     // two trees of one name (one from another folder): the second gets a number
     let name = path.basename(root);
     for (let n = 2; taken.has(name); n++) name = `${path.basename(root)} ${n}`;
     taken.add(name);
-    sources.push({ from: root, to: path.join("trees", name), keep: filterFor(root, "tree", [skip]) });
+    sources.push({ from: root, to: path.join("trees", name), keep: filterFor(root, "tree", [skip]), lock: path.join(root, ".strom", "tree.lock") });
   }
   if (fs.existsSync(settings)) sources.push({ from: settings, to: "settings", keep: filterFor(settings, "settings", [skip, opts.home, ...opts.trees, ...(opts.research ?? [])]) });
   // the shared folder: what is not its images copied (plugins, what waits for the person), its images apart
@@ -291,9 +317,30 @@ export function makeBackup(opts: { home: string; env: Env; trees: string[]; tran
   const media: SharedMedia | undefined = shared ? { files: images.length, bytes: imageBytes, how } : undefined;
   let dir = path.join(top, backupName(opts.transition, at));
   for (let n = 2; fs.existsSync(dir); n++) dir = path.join(top, `${backupName(opts.transition, at)} ${n}`);
+  const skipped: SkippedTree[] = [];
+  const waitUntil = Date.now() + treeLockWaitMs(opts.env);
   try {
     fs.mkdirSync(dir, { recursive: true });
-    for (const s of sources) copyInto(s.from, path.join(dir, s.to), s.keep);
+    for (const s of sources) {
+      // a research under its lock, as a writer takes it: never a write half made in the copy
+      let release: (() => void) | undefined;
+      if (s.lock && fs.existsSync(path.dirname(s.lock)))
+        try {
+          release = acquireLock(s.lock, { owner: "strom backup", waitMs: Math.max(Math.min(TREE_LOCK_LEAST_MS, treeLockWaitMs(opts.env)), waitUntil - Date.now()), staleMs: 60_000 });
+        } catch (e) {
+          // written all the while: left out, said so; a research whose folder takes no lock (only read): nobody writes
+          // it either — copied as it is
+          if (e instanceof LockedError) {
+            skipped.push({ tree: path.basename(s.to), by: readLock(s.lock)?.owner ?? "strom" });
+            continue;
+          }
+        }
+      try {
+        copyInto(s.from, path.join(dir, s.to), s.keep);
+      } finally {
+        release?.();
+      }
+    }
     if (shared && how !== "left")
       for (const f of images) {
         const to = path.join(dir, "shared", "media", path.relative(path.join(shared, "media"), f.file));
@@ -306,7 +353,7 @@ export function makeBackup(opts: { home: string; env: Env; trees: string[]; tran
           fs.copyFileSync(f.file, to, fs.constants.COPYFILE_EXCL);
         }
       }
-    const readme = typeof opts.readme === "function" ? opts.readme(media) : opts.readme;
+    const readme = typeof opts.readme === "function" ? opts.readme(media, skipped) : opts.readme;
     fs.writeFileSync(path.join(dir, "README.txt"), readme.endsWith("\n") ? readme : `${readme}\n`);
   } catch (e) {
     // nothing half made stays: a backup is whole or none
@@ -318,7 +365,7 @@ export function makeBackup(opts: { home: string; env: Env; trees: string[]; tran
     const code = (e as NodeJS.ErrnoException).code;
     throw new BackupFailed(code === "ENOSPC" ? `the disk is full: the backup needs ${mb(need)}` : (e as Error).message, undefined, code);
   }
-  return { at: at.toISOString(), from: opts.transition.from, to: opts.transition.to, ...(opts.transition.fromChannel ? { fromChannel: opts.transition.fromChannel } : {}), ...(opts.transition.toChannel ? { toChannel: opts.transition.toChannel } : {}), path: dir, bytes: need, ...(media ? { media } : {}) };
+  return { at: at.toISOString(), from: opts.transition.from, to: opts.transition.to, ...(opts.transition.fromChannel ? { fromChannel: opts.transition.fromChannel } : {}), ...(opts.transition.toChannel ? { toChannel: opts.transition.toChannel } : {}), path: dir, bytes: need, ...(media ? { media } : {}), ...(skipped.length ? { skipped } : {}) };
 }
 
 /**
@@ -348,7 +395,7 @@ export function mb(bytes: number): string {
  * once make one), nothing made when one for this change is recorded already. `record` keeps it in the user config.
  * Returns the backup made now, or undefined when one was made before.
  */
-export function backupOnce(opts: { home: string; env: Env; trees: () => string[]; research?: string[]; shared?: string; transition: Transition; readme: string | ((media: SharedMedia | undefined) => string); record: (b: BackupRecord, before: BackupRecord[]) => void }): BackupRecord | undefined {
+export function backupOnce(opts: { home: string; env: Env; trees: () => string[]; research?: string[]; shared?: string; transition: Transition; readme: string | ((media: SharedMedia | undefined, skipped: SkippedTree[]) => string); record: (b: BackupRecord, before: BackupRecord[]) => void }): BackupRecord | undefined {
   const release = acquireLock(path.join(configDir(opts.env), "backup.lock"), { owner: "strom backup", waitMs: 30 * 60_000, staleMs: 6 * 3600_000 });
   try {
     const before = backupsMade(opts.env);

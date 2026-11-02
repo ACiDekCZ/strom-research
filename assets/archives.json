@@ -1,5 +1,5 @@
 {
-  "about": "Known terms of archives, shipped with strom: a host (with its subdomains) and the level its published terms give automated access — allowed < restricted (unknown: the terms not found, as restricted) < manual < forbidden. A level here is a confirmed one: a connector's allowed needs no person's word, a connector taken over no confirmation; the strictest of all that is known still holds (a connector, the tree's archive, robots.txt, a refusal stricter than this keeps it stricter). browserOnly: only a person's browser goes there. pace: the site's Crawl-delay, a floor (only ever slower). disallow: paths no automated request takes. scope: what the level covers. quoteFrom robots: the quote is the site's robots.txt (its address in terms), not its terms of use. Only public terms, quoted word for word from the address given, on the day checked; a release adds an archive.",
+  "about": "Known terms of archives, shipped with strom: a host (with its subdomains) and the level its published terms give automated access — allowed < restricted (unknown: the terms not found, as restricted) < manual < forbidden. A level here is a confirmed one: a connector's allowed needs no person's word, a connector taken over no confirmation; the strictest of all that is known still holds (a connector, the tree's archive, robots.txt, a refusal stricter than this keeps it stricter). browserOnly: only a person's browser goes there. pace: the site's Crawl-delay, a floor (only ever slower). disallow: paths no automated request takes. scope: what the level covers. quoteFrom robots: the quote is the site's robots.txt (its address in terms), not its terms of use. automatedUse: the terms quoted expressly allow automated use (open data, any use, an interface for programs) — a Disallow of the site's robots.txt alone then yields, carefully (one request after another, at least its Crawl-delay, strom's User-Agent, its limits as ever); never a robots.txt that names AI agents, never the paths of disallow here. Only public terms, quoted word for word from the address given, on the day checked; a release adds an archive.",
   "archives": [
     {
       "host": "mza.cz",
@@ -293,6 +293,7 @@
       "terms": "https://cuzk.gov.cz/Predpisy/Podminky-poskytovani-prostor-dat-a-sitovych-sluzeb/Podminky-poskytovani-sitovych-sluzeb-CUZK.aspx",
       "quote": "Služby jsou poskytovány jako otevřené a lze je užívat bez omezení komerčně i nekomerčně, pokud rozsah užití není na újmu poskytovatele",
       "license": "https://creativecommons.org/licenses/by/4.0/legalcode.cs",
+      "automatedUse": true,
       "robots": "none (404)",
       "disallow": ["/archiv/", "/arcgis4/rest/services/Archiv/"],
       "scope": "the RÚIAN map service only (/arcgis/rest/services/RUIAN/MapServer: a house's address point, building, cadastral area, municipality — one query at a time, credited \"ČÚZK – on-line\"); never the Archiv application or its map images of the archive (old cadastral maps are no open data: \"s výjimkou leteckých měřických snímků a archiválií\", copies sold) — a person looks at them in the browser",
@@ -306,8 +307,8 @@
       "quote": "Služby jsou poskytovány jako otevřené a lze je užívat bez omezení komerčně i nekomerčně, pokud rozsah užití není na újmu poskytovatele",
       "license": "https://creativecommons.org/licenses/by/4.0/legalcode.cs",
       "robots": "User-agent: * · Disallow: /*.asp · Disallow: /cgi-bin/ · Disallow: /css/ · Disallow: /cuzk/ · Disallow: /html/ · Disallow: /images/ · Disallow: /ini/ · Disallow: /scripts/ · Disallow: /test/",
-      "disallow": ["/*.asp", "/cgi-bin/", "/css/", "/cuzk/", "/html/", "/images/", "/ini/", "/scripts/", "/test/"],
-      "scope": "open by its terms, but its robots.txt disallows /*.asp — every WMS/WFS address (e.g. /wfs/inspire-ad-wfs.asp): no automated request; the RÚIAN map service on ags.cuzk.gov.cz serves the same",
+      "automatedUse": true,
+      "scope": "open by its terms, which expressly allow automated use: its robots.txt (Disallow: /*.asp — every WMS/WFS address, e.g. /wfs/inspire-ad-wfs.asp) yields, carefully — one query at a time for the house or place the research needs, at least its Crawl-delay, never a whole municipality or layer downloaded; the RÚIAN map service on ags.cuzk.gov.cz serves the same",
       "checked": "2026-11-01"
     },
     {

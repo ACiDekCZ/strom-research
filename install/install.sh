@@ -170,10 +170,50 @@ fetch "$BASE/strom-app.tar.gz" "$tmp/strom-app.tar.gz"
 fetch "$BASE/SHASUMS256.txt" "$tmp/SHASUMS256.txt"
 check "$tmp/strom-app.tar.gz" "$tmp/SHASUMS256.txt" "strom-app.tar.gz"
 tar -xzf "$tmp/strom-app.tar.gz" -C "$tmp"
-rm -rf "$ROOT/app.old"
-if [ -d "$ROOT/app" ]; then mv "$ROOT/app" "$ROOT/app.old"; fi
-mv "$tmp/app" "$ROOT/app"
-rm -rf "$ROOT/app.old"
+entry_dir() { sed -n 's|^await import("\.\./\.\./\([^"/]*\)/dist/cli\.js");$|\1|p' "$ROOT/app/dist/cli.js" 2>/dev/null || true; }
+before=$(entry_dir)
+# A release before 1.25 knows only the whole program in app/ (its package.json says no "stromLayout" 2 or more): run
+# from a folder of its own it would take itself for npm's and never update again — installed in app/ the way it knows,
+# the marks of the researches' shims kept, install.json without "app".
+if grep -Eq '"stromLayout"[[:space:]]*:[[:space:]]*([2-9]|[1-9][0-9])' "$tmp/app/package.json" 2>/dev/null; then
+  layout=2
+else
+  layout=1
+fi
+if [ "$layout" = 1 ]; then
+  rm -rf "$ROOT/app.old"
+  if [ -d "$ROOT/app" ]; then mv "$ROOT/app" "$ROOT/app.old"; fi
+  mv "$tmp/app" "$ROOT/app"
+  for f in "$ROOT/app.old/dist"/.strom-shim-*; do
+    if [ -f "$f" ] && [ ! -e "$ROOT/app/dist/${f##*/}" ]; then cp "$f" "$ROOT/app/dist/"; fi
+  done
+  rm -rf "$ROOT/app.old"
+  dir=
+else
+  # Each version in a folder of its own (app-<version>): nothing a strom at work runs from is moved. app/dist/cli.js,
+  # the entry every launcher, shortcut, link and research's shim runs, is written again whole to name it (with
+  # app/package.json: the version in use). The version before stays until strom update or strom tidy removes it.
+  if [ -z "$before" ] && [ -f "$ROOT/app/dist/cli.js" ]; then before=app; fi
+  dir="app-$version"
+  n=1
+  while [ -e "$ROOT/$dir" ]; do
+    # a leftover of this version nobody runs (not the one in use): removed, else another name
+    if [ "$dir" != "$before" ] && rm -rf "$ROOT/$dir" 2>/dev/null && [ ! -e "$ROOT/$dir" ]; then break; fi
+    n=$((n + 1))
+    dir="app-${version}_$n"
+  done
+  mv "$tmp/app" "$ROOT/$dir"
+  mkdir -p "$ROOT/app/dist"
+  printf '{\n  "name": "strom-research",\n  "version": "%s",\n  "type": "module",\n  "private": true\n}\n' "$version" >"$ROOT/app/package.json.$$.tmp"
+  mv -f "$ROOT/app/package.json.$$.tmp" "$ROOT/app/package.json"
+  {
+    echo "// Strom research: the entry every launcher, shortcut, link and research's shim runs. strom update and the"
+    echo "// installer write it again, whole, to name the version in use; each version lies in a folder of its own."
+    echo "await import(\"../../$dir/dist/cli.js\");"
+  } >"$ROOT/app/dist/cli.js.$$.tmp"
+  mv -f "$ROOT/app/dist/cli.js.$$.tmp" "$ROOT/app/dist/cli.js"
+  rm -rf "$ROOT/app.old"
+fi
 
 # The command on PATH (in place of an older strom there), and what strom reads about its installation.
 mkdir -p "$DEST"
@@ -204,6 +244,9 @@ if [ -n "$ISOLATED" ]; then add_env HOME "$HOME"; add_env STROM_ISOLATED 1; fi
 if [ -n "$COMMAND" ]; then add_env STROM_COMMAND "$COMMAND"; fi
 {
   printf '{\n  "launchers": [%s],\n  "node": "%s",\n  "version": "%s"' "$launchers" "$nv" "$version"
+  if [ -n "$dir" ]; then printf ',\n  "app": "%s"' "$dir"; fi
+  # (the version that ran until now, kept while a strom started before may read it)
+  if [ -n "$before" ] && [ "$before" != "$dir" ] && { [ -n "$dir" ] || [ "$before" != app ]; }; then printf ',\n  "previous": "%s"' "$before"; fi
   if [ -n "$CHANNEL" ]; then printf ',\n  "channel": "%s"' "$CHANNEL"; fi
   if [ -n "$COMMAND" ]; then printf ',\n  "command": "%s"' "$COMMAND"; fi
   if [ -n "$env_json" ]; then printf ',\n  "env": {%s}' "$env_json"; fi

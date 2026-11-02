@@ -21,8 +21,12 @@
 // leads, and the agent never takes one by itself. Out of the queue while the experiment is off, in an archive, or
 // while another tree builds the region's catalog (core/pastevents.ts historyHeld). Strategies (setting
 // queue.strategy): balanced (the default), depth (stay on the line of the last sessions), priority (strict priority).
+// Work off the lines of a research with several (core/offline.ts: a side branch no line reaches, helping none) comes
+// after all the lines' work — also after their stories and what waits for a download, before the tasks of history —,
+// whatever the strategy (setting queue.offLine: last, the default; normal — as the lines' work; never — out of the
+// queue); a task that helps a line goes with that line. A session at work on it goes on.
 
-import type { Research, Session, Strategy, Task } from "./model.ts";
+import type { OffLine, Research, Session, Strategy, Task } from "./model.ts";
 import { parentsOf } from "./people.ts";
 import { taskRecordsets } from "./frontier.ts";
 import { now, type Tree } from "./tree.ts";
@@ -36,6 +40,8 @@ import type { PendingQuestion } from "./terms.ts";
 import { asleepHosts, asleepOn, type Asleep } from "./leftalone.ts";
 import { forHistory, HISTORY_PLACES_ORIGIN, historyHeld, historyOrder, historyTurn, type HistoryTurn } from "./pastevents.ts";
 import { Settings } from "./config.ts";
+import { personQueued, placesFirst } from "./placeid.ts";
+import { placer, type Placed } from "./offline.ts";
 
 export const LEVEL_ORDER: Record<string, number> = { intake: 0, locate: 1, link: 2, verify: 3, enrich: 4, request: 5, narrate: 6 };
 
@@ -55,6 +61,10 @@ export interface Ranked {
   task: Task;
   /** Why it stands where it does, in a few words. */
   why: string;
+  /** Off the lines, helping none: after the lines' work (queue.offLine last; normal: in its place). */
+  offLine?: OffLine;
+  /** It belongs to no line but helps this one (or the tree, when the line is not known): how. */
+  helps?: { by: NonNullable<Placed["helps"]>; research?: string };
 }
 
 /**
@@ -129,12 +139,16 @@ export function ancestorLines(tree: Tree, focus: string, max = 50): Map<string, 
  * requests again (strom run asks what would come then). `history`: the tasks of history too (strom run, or asked for by
  * name: strom task next --history) — never otherwise.
  */
-export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean | "only"; turn?: HistoryTurn } = {}): Ranked[] {
+export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balanced", opts: { storyTurn?: boolean; awake?: boolean; history?: boolean | "only"; turn?: HistoryTurn; offLine?: OffLine } = {}): Ranked[] {
   const today = now().slice(0, 10);
   const researches = tree.list<Research>("research");
   // a direction the user paused or ended: its tasks wait (one at work goes on)
   const stopped = new Set(researches.filter((r) => r.state !== "active").map((r) => r.id));
   const all = scopes(tree);
+  // where each task stands among the lines: its own, the one it helps, or off them (core/offline.ts)
+  const placeOf = placer(tree, all);
+  const placed = new Map<string, Placed>();
+  const placing = (t: Task) => placed.get(t.id) ?? (placed.set(t.id, placeOf(t)), placed.get(t.id)!);
   // work about people nothing links to the tree waits for the user or for the hypothesis that joins them (core/kin.ts)
   const off = offTree(tree);
   const withImages = setsWithImages(tree);
@@ -142,10 +156,15 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   const decision = waitsForDecision(tree, permissionQuestions(tree.env), withImages);
   // work whose archive is left alone for a while (silent, slow down): a session on it would only be told so
   const asleep = opts.awake ? () => undefined : waitsForArchive(tree, asleepHosts(tree), withImages);
-  const waits = (t: Task) => t.state !== "doing" && ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? "")) || off(t) || !!decision(t) || !!asleep(t));
+  // work off the lines: last (the default), as the lines' work, or never taken (one at work goes on)
+  const settings = new Settings(tree.env, {});
+  const offLine = opts.offLine ?? settings.offLine(tree.config);
+  const offLines = (t: Task) => offLine !== "normal" && t.state !== "doing" && !!placing(t).off;
+  // a task that helps a line waits with it while it is paused or ended
+  const waits = (t: Task) =>
+    t.state !== "doing" && ((stopped.size > 0 && stopped.has(directionOf(tree, t, all) ?? placing(t).research ?? "")) || off(t) || !!decision(t) || !!asleep(t) || (offLine === "never" && offLines(t)));
   // the tasks of history: only where asked for, and not while the experiment is off, in an archive, or held by another tree
   let held: ((t: Task) => string | undefined) | undefined;
-  const settings = new Settings(tree.env, {});
   const history = (t: Task) => {
     if (!opts.history) return false;
     held ??= historyHeld(tree, settings.shared()?.value, settings);
@@ -193,6 +212,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
   // the places to map and a place whose history the person asked for: the next session's, whatever the pace
   const turnTask =
     firstOfHistory && (firstOfHistory.origin === HISTORY_PLACES_ORIGIN || turn?.placeAsked?.task === firstOfHistory.id || turn?.now || opts.history === "only") ? firstOfHistory.id : undefined;
+  let asked: boolean | undefined;
   const tries = new Map<string, number>();
   for (const s of ended) tries.set(s.task!, (tries.get(s.task!) ?? 0) + 1);
 
@@ -213,11 +233,18 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     const storyTurn = storyDue && forStory(t);
     // what the variants of hypotheses would connect: short work the Strom app waits for — before all else (core/hypolinks.ts)
     const first = linksFirst(t, tried);
+    // the places the person asked to be identified (the app, a link, the terminal): on top of the research's queue
+    const placesAsked = !first && placesFirst(t, () => (asked ??= personQueued(tree)));
     const hist = forHistory(t);
+    const p = hist ? {} : placing(t);
+    const last = !hist && offLines(t);
     const why = [
       t.state === "doing" ? "in progress" : undefined,
+      last ? "off the lines, helping none: after the lines' work (queue.offLine last; how it helps a line: strom task edit --helps)" : undefined,
+      p.helps ? `helps ${p.research ?? "the tree"}: ${p.helps === "question" ? "a hypothesis or conflict of the line" : p.helps === "joins" ? "it would join people to the tree" : "the agent's reason (--helps)"}` : undefined,
       hist ? historyWhy(turn!, t, t.id === turnTask, t.id === firstOfHistory?.id) : undefined,
       first ? `the hypotheses' links first: short, the Strom app waits for them (until tried ${HYPOTHESIS_LINKS_TRIES}×)` : undefined,
+      placesAsked ? "places the person asked to be identified: on top of the queue" : undefined,
       storyTurn ? `a story's turn: none in the last ${STORY_EVERY} sessions` : undefined,
       blocked ? "needs images the user has to download" : undefined,
       `p${t.priority}`,
@@ -227,7 +254,8 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
     ]
       .filter(Boolean)
       .join(" · ");
-    return { task: t, why, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen };
+    const extra = { ...(last ? { offLine: "last" as const } : {}), ...(p.helps ? { helps: { by: p.helps, ...(p.research ? { research: p.research } : {}) } } : {}) };
+    return { task: t, why, extra, offLine: last ? 1 : 0, doing: t.state === "doing" ? 0 : 1, hist: !hist ? 0 : t.id === turnTask ? -1 : 1, horder: hist ? order(t) : 0, first: first || placesAsked ? 0 : 1, blocked: blocked ? 1 : 0, story: storyTurn ? 0 : forStory(t) ? 2 : 1, score, gen };
   });
   return rows
     .sort(
@@ -236,6 +264,8 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
         // the tasks of history after everything — but at history's turn its first one before all — the needed one first
         a.hist - b.hist ||
         a.horder - b.horder ||
+        // work off the lines after all the lines' work, whatever the strategy (core/offline.ts)
+        a.offLine - b.offLine ||
         // the links of hypothesis variants before the research and a story's turn
         a.first - b.first ||
         // a story's turn first (working alone); otherwise the stories after all the research
@@ -246,7 +276,7 @@ export function rankTasks(tree: Tree, tasks: Task[], strategy: Strategy = "balan
         (LEVEL_ORDER[a.task.level] ?? 9) - (LEVEL_ORDER[b.task.level] ?? 9) ||
         a.task.created.localeCompare(b.task.created),
     )
-    .map(({ task, why }) => ({ task, why }));
+    .map(({ task, why, extra }) => ({ task, why, ...extra }));
 }
 
 /** Why a task of history stands where it does: history's turn now, when it comes, the place that put it first. */

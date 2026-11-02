@@ -32,6 +32,8 @@ function release(dir: string): Record<string, string> {
   fs.mkdirSync(path.join(stage, "app", "dist"), { recursive: true });
   fs.mkdirSync(rel, { recursive: true });
   fs.writeFileSync(path.join(stage, "app", "dist", "cli.js"), "// strom\n");
+  // a release that knows the versions' folders (core/update.ts layoutOf)
+  fs.writeFileSync(path.join(stage, "app", "package.json"), JSON.stringify({ name: "strom-research", version: "9.9.9", type: "module", stromLayout: 2 }));
   spawnSync("tar", ["-czf", path.join(rel, "strom-app.tar.gz"), "app"], { cwd: stage });
   const sum = (f: string) => crypto.createHash("sha256").update(fs.readFileSync(f)).digest("hex");
   fs.writeFileSync(path.join(rel, "SHASUMS256.txt"), `${sum(path.join(rel, "strom-app.tar.gz"))}  strom-app.tar.gz\n`);
@@ -90,6 +92,7 @@ test("the installer with STROM_COMMAND: its own command beside strom in ~/.local
     launchers: [path.join(inst, "strom"), launcher],
     node: "24.99.0",
     version: "9.9.9",
+    app: "app-9.9.9",
     command: "strom-beta",
     env: { STROM_CONFIG_DIR: cfg, HOME: home, STROM_ISOLATED: "1", STROM_COMMAND: "strom-beta" },
   });

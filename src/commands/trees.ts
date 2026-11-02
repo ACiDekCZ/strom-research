@@ -21,7 +21,9 @@ import { compactHistory } from "../core/history.ts";
 import { globalTargets, installGlobal } from "../agents/global.ts";
 import { agentsHere } from "../core/apps.ts";
 import { placeholders, ui, type UIKey } from "../cli/ui.ts";
-import { mb, setTidyOn, tidy, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+import { mb, setTidyOn, sizeOf, tidy, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
+import { installation } from "../core/self.ts";
+import { appDirsInUse, oldVersions, removeOldVersions } from "../core/update.ts";
 import { EXIT } from "../core/errors.ts";
 import { atWork } from "../core/relocate.ts";
 import { MODES, isArchive, modeOf, switchMode, type Mode } from "../core/mode.ts";
@@ -374,6 +376,27 @@ register({
   },
 });
 
+/**
+ * The older versions of strom in the installer's folder strom tidy may remove now (update.ts oldVersions: never the
+ * one in use, the one before it, nor one a research works with): how many, how big; undefined when none.
+ */
+function oldProgram(ctx: Context): { root: string; inUse: string[]; keep: string[]; n: number; bytes: number; leftBytes: () => number } | undefined {
+  const inst = installation();
+  if (inst.kind !== "installed" || !inst.root) return undefined;
+  const root = inst.root;
+  const inUse = appDirsInUse(root, ctx.knownTrees().map((k) => k.root));
+  const keep = ctx.researchFolders();
+  const old = oldVersions(root, inUse, keep);
+  const n = old.dirs.length + (old.prune ? 1 : 0);
+  if (!n) return undefined;
+  // app/ made the entry alone: all of it but its entry (two small files)
+  const measure = () => {
+    const o = oldVersions(root, inUse, keep);
+    return o.dirs.reduce((a, d) => a + sizeOf(path.join(root, d)), 0) + (o.prune ? sizeOf(path.join(root, "app")) : 0);
+  };
+  return { root, inUse, keep, n, bytes: measure(), leftBytes: measure };
+}
+
 register({
   path: ["tidy"],
   summary: "Free the disk of what strom keeps beside a research for itself — old logs of work sessions, views and excerpts of scans, sends of the Strom app written long ago: shown, then the person's yes",
@@ -386,12 +409,16 @@ register({
     "person's yes (a window of the system when an agent asks). From then on strom keeps it in order by itself after each\n" +
     "session and once a day by the bridge (logged in .strom/tidy.log). What strom makes again (views of scans, downloads\n" +
     "cut short, pictures converted, previews, briefs of closed sessions) goes by itself in every tree, and a closed\n" +
-    "session's log is made smaller (images left out, compressed) — no log is removed unasked.",
+    "session's log is made smaller (images left out, compressed) — no log is removed unasked. Installed with the\n" +
+    "installer: the older versions of strom in its folder too (never the one in use, the one before it, nor one somebody\n" +
+    "works with), on the same yes.",
   examples: ["strom tidy", "strom tidy --dry-run"],
   async run(ctx) {
     const tree = ctx.tree();
     const lang = tree.lang;
     const plan = tidyPlan(tree);
+    // the older versions of strom in the installer's folder (spec 037 K1.4): on the same yes
+    const program = oldProgram(ctx);
     const groups = new Map<string, { what: string; does: string; n: number; bytes: number }>();
     for (const i of plan.items) {
       const k = `${i.kind}|${i.do}`;
@@ -405,22 +432,28 @@ register({
       ui(lang, "ui.tidy.title", { name: tree.config.name, research: mb(plan.size.research, lang), strom: mb(plan.size.strom, lang) }),
       ...[...groups.values()].map((g) => ui(lang, "ui.tidy.row", { what: g.what, n: g.n, size: mb(g.bytes, lang), does: g.does })),
       plan.quarantine ? ui(lang, "ui.tidy.quarantine", { size: mb(plan.quarantine, lang) }) : undefined,
+      program ? ui(lang, "ui.tidy.row", { what: ui(lang, "ui.tidy.kind.program"), n: program.n, size: mb(program.bytes, lang), does: ui(lang, "ui.tidy.does.remove") }) : undefined,
     );
-    if (!plan.items.length) {
+    if (!plan.items.length && !program) {
       if (!tree.dryRun) setTidyOn(tree.root);
       return { text: lines(ui(lang, "ui.tidy.none", { size: mb(plan.size.strom, lang) }), plan.quarantine ? ui(lang, "ui.tidy.quarantine", { size: mb(plan.quarantine, lang) }) : undefined), data: { ...data, removed: 0 } };
     }
-    const preview = lines(shown, "", ui(lang, "ui.tidy.frees", { size: mb(plan.frees, lang) }));
+    const preview = lines(shown, "", ui(lang, "ui.tidy.frees", { size: mb(plan.frees + (program?.bytes ?? 0), lang) }));
     if (tree.dryRun) return { text: preview, data };
     // the person's: in their terminal asked after what goes is shown (Enter says no), else a window of the system
-    const where = ctx.requireHuman("Free the disk of strom's old logs, views and sends beside the research?", "strom tidy", "tidy", ui(lang, "ui.consent.tidy", { size: mb(plan.frees, lang), name: tree.config.name }));
+    const where = ctx.requireHuman("Free the disk of strom's old logs, views and sends beside the research?", "strom tidy", "tidy", ui(lang, "ui.consent.tidy", { size: mb(plan.frees + (program?.bytes ?? 0), lang), name: tree.config.name }));
     if (where === "terminal") {
       ctx.io.stdout(preview + "\n\n");
       if (!(await ctx.confirm(ui(lang, "ui.tidy.ask"), false))) return { text: ui(lang, "ui.tidy.no"), data: { ...data, removed: 0 } };
     }
     const done = tidy(tree, plan, "person");
     setTidyOn(tree.root);
-    return { text: lines(where === "window" ? preview : undefined, ui(lang, "ui.tidy.done", { size: mb(done.freed, lang) })), data: { ...data, removed: done.removed, shrunk: done.shrunk, freed: done.freed } };
+    const versions = program ? removeOldVersions(program.root, program.inUse, undefined, program.keep) : [];
+    const freed = done.freed + (program ? Math.max(0, program.bytes - program.leftBytes()) : 0);
+    return {
+      text: lines(where === "window" ? preview : undefined, ui(lang, "ui.tidy.done", { size: mb(freed, lang) })),
+      data: { ...data, removed: done.removed, shrunk: done.shrunk, freed, ...(program ? { versions } : {}) },
+    };
   },
 });
 

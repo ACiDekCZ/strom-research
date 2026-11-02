@@ -27,6 +27,8 @@ import { commitSeal, createKey, fingerprint, loadKey, settleKey, sha256, signOp,
 import { stringifyCanonical } from "./json.ts";
 import type { Env } from "./paths.ts";
 import { lastBackup } from "./backup.ts";
+import { diskVersion } from "./self.ts";
+import { compareVersions } from "./semver.ts";
 
 export const TREE_FILE = "strom.json";
 /** The code of a write refused because the research is sealed on another computer (CLI, the bridge: 409). */
@@ -140,6 +142,16 @@ export function typeOfPrefix(prefix: string): RecordType | undefined {
  */
 export function newerTreeError(config: Pick<TreeConfig, "schema" | "createdWith" | "migratedWith">, env: Env): StromError {
   const by = config.migratedWith ?? config.createdWith ?? "?";
+  // strom was updated while this process ran, and the new one brought the research to its format (an agent's call in
+  // a session of a run): nothing to go back to, no backup of another switch — the next start runs on the new version
+  const updated = updatedTo(by, env);
+  if (updated)
+    return new StromError(`strom was updated to ${updated} while this strom ${VERSION} ran, and the research is already in its format (data schema ${config.schema}): this strom stops here; the next start runs on the new version`, {
+      hint: `run the same strom command again: it runs on strom ${updated}`,
+      code: "tree.updated",
+      params: { by, version: updated, was: VERSION, schema: String(config.schema) },
+      details: { locked: true, by, schema: config.schema, updated, way: "start strom again" },
+    });
   const beta = /^v?\d+\.\d+\.\d+-/.test(by);
   const release = by.replace(/^v/, "").replace(/-.*$/s, "");
   const backup = lastBackup(env)?.path;
@@ -150,6 +162,17 @@ export function newerTreeError(config: Pick<TreeConfig, "schema" | "createdWith"
     params: { by, version: VERSION, schema: String(config.schema), release, ...(backup ? { backup } : {}) },
     details: { locked: true, by, schema: config.schema, way: beta ? "strom update --channel beta" : "strom update", ...(backup ? { backup } : {}) },
   });
+}
+
+/**
+ * The version of strom on disk when it is newer than this running one and not older than the strom that wrote the
+ * research `by`: strom was updated while this process ran, and the new one can open it. Else none (run from the
+ * sources: never — core/self.ts diskVersion).
+ */
+export function updatedTo(by: string, env: Env): string | undefined {
+  const disk = diskVersion(env)?.version;
+  if (!disk || compareVersions(disk, VERSION) <= 0) return undefined;
+  return by === "?" || compareVersions(disk, by) >= 0 ? disk : undefined;
 }
 
 /**

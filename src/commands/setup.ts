@@ -9,8 +9,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { APP_URL_INVALID_SETTING, register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
-import { lines, secondsIn, table } from "../cli/format.ts";
-import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_HISTORY_PACE, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, HISTORY_PACES, historySwitches, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
+import { lines, secondsIn, shellArg, table } from "../cli/format.ts";
+import { appWebPages, checkValue, configFile, DEFAULT_BUDGET, DEFAULT_HISTORY_PACE, DEFAULT_LIVE_IDLE_MINUTES, DEFAULT_READ_PARALLEL, DEFAULT_RUN_MINUTES, HISTORY_PACES, historySwitches, OTHER_ENV, readStored, SETTINGS, settingDef, settingDescription, writeStored, type SettingDef } from "../core/config.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import type { Input, Media, TreeConfig } from "../core/model.ts";
 import type { UserConfig } from "../core/config.ts";
@@ -25,7 +25,9 @@ import { agentName, sandboxHere, writeProblems } from "../core/writable.ts";
 import { agentInAncestry } from "../core/trust.ts";
 import { agentsHere, DESKTOP_APPS, inDesktopApp, whereToTalk } from "../core/apps.ts";
 import { setupWizard } from "../cli/wizard.ts";
-import { holdsPath, insideProgram, installation, replacedHolding, shimNeedsCodePage, stromLauncher } from "../core/self.ts";
+import { holdsPath, insideProgram, installation, lastingLauncher, replacedHolding, shimNeedsCodePage, stromLauncher } from "../core/self.ts";
+import { busyIn, isBusy, type Busy } from "../core/busy.ts";
+import { otherVersionsAtWork } from "../core/workers.ts";
 import { liveRunning } from "../core/live.ts";
 import { mb, sharedMedia, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 
@@ -33,10 +35,11 @@ import { mb, sharedMedia, tidyPlan, TIDY_SAID } from "../core/tidy.ts";
 const MEDIA_UNNAMED_SAID = 500 * 1024 * 1024;
 import { Tree, VERSION } from "../core/tree.ts";
 import { timed } from "../core/timing.ts";
-import { checked, installUpdate, isNewer, knownNewerVersion, lastChannelOf, latestRelease, newerNode, newerVersion, setInstallChannel, updateChannel, whatsNewUrl, type Channel, type Updated } from "../core/update.ts";
+import { appDirsInUse, checked, installUpdate, oldVersions, isNewer, knownNewerVersion, lastChannelOf, latestRelease, newerNode, newerVersion, setInstallChannel, updateChannel, UpdateHeld, whatsNewUrl, type Channel, type Updated } from "../core/update.ts";
 import { privateCopies, writesPrivately } from "../core/packaged.ts";
 import { moveToTrash } from "../core/trash.ts";
-import { configDir, defaultHome, desktopDir, isolated, noLinks, ownCommand, type Env } from "../core/paths.ts";
+import { configDir, defaultHome, desktopDir, expandHome, isolated, noLinks, ownCommand, type Env } from "../core/paths.ts";
+import { claudeConfigDir } from "../core/claudedir.ts";
 import { backupBefore, backupSaid, lastBackupLine } from "../cli/backups.ts";
 import { BACKUP_SAID_DAYS, lastBackup, type BackupRecord } from "../core/backup.ts";
 import { planMove, sameFolder } from "../core/relocate.ts";
@@ -52,6 +55,7 @@ import { globalTargets, installGlobal } from "../agents/global.ts";
 import { placeholders, ui, UI } from "../cli/ui.ts";
 import { adoptSeal, foundTrees } from "../cli/seal.ts";
 import { PERMISSION_LEVELS, type AgentPermissions, type HistoryPace } from "../core/config.ts";
+import { kindsAdded, kindsOf } from "../core/eventkinds.ts";
 import { PROFILES, type Tier } from "../agents/profiles.ts";
 import { agentSettingsSaid, EFFORTS, hasEffort, ownEffort, raisesEffort, RECOMMENDED_EFFORT } from "../agents/effort.ts";
 import { agentSettingsLine, chooseEffort } from "../cli/model-choice.ts";
@@ -312,6 +316,13 @@ function diagnoseInto(
   // an update an app packaged for Windows installed for itself alone (core/packaged.ts): that app runs another strom
   const copies = installation().kind === "installed" ? privateCopies(ctx.env, installation().root!) : [];
   if (copies.length) add("packaged", "warn", t("ui.doc.packaged.copy", { folders: copies.map((c) => ctx.display(c)).join(", ") }), "strom doctor --fix", "packaged");
+  // the older versions of strom an update could not remove (another program held them): strom tidy takes them
+  if (installation().kind === "installed") {
+    const root = installation().root!;
+    const old = oldVersions(root, appDirsInUse(root, ctx.knownTrees().map((k) => k.root)), ctx.researchFolders());
+    const names = [...old.dirs, ...(old.prune ? ["app"] : [])];
+    if (names.length) add("versions", "warn", t("ui.doc.versions.left", { names: names.join(", ") }), "strom tidy");
+  }
   // The backup before another channel or an older version: one that could not be made (nothing switches until it is),
   // else where the last one is, for a month
   const backup = lastBackup(ctx.env, BACKUP_SAID_DAYS);
@@ -715,9 +726,13 @@ register({
   description:
     "strom looks for a new version at most once a day and says so (the menu, strom, strom doctor); the setting updates off\n" +
     "stops it. A person at their terminal is asked there (--yes: no question); asked by an agent, strom asks in a window of the\n" +
-    "system. Installed with npm: npm install -g strom-research@latest.",
+    "system. Installed with npm: npm install -g strom-research@latest.\n" +
+    "Each version lies in a folder of its own: work under way (a run, a conversation, an open session) finishes with the\n" +
+    "version it started with (a run all its sessions), what starts after it the new one. While work goes on a person is asked first (update\n" +
+    "now, wait for the session to end, or back); without a terminal it ends with needs-input (code update.busy) unless --now.",
   options: [
     { name: "check", type: "boolean", description: "only say whether there is a new version" },
+    { name: "now", type: "boolean", description: "update while work goes on in a research (it finishes with the version it started with)" },
     // which versions the installation takes from now on: the newest of that channel installed, an older one too
     { name: "channel", type: "string", value: "<beta|stable>", description: "the versions to take from now on", hidden: true },
   ],
@@ -779,7 +794,14 @@ register({
         ? t("ui.update.sure", { version: newest, current: VERSION })
         : t("ui.update.node.sure", { from: inst.node ?? "?", to: node!.version });
     const again = to ? `strom update --channel ${to}` : "strom update";
-    if (isAgent(ctx.env) || !ctx.yes) {
+    // Work under way in a research (spec 037 K2.1): it goes on with the version it started with. A person at the
+    // terminal chooses once the new version is downloaded; without a terminal (an agent, a script): needs-input, unless --now.
+    const working = opts.now ? [] : workUnderWay(ctx);
+    const askBusy = working.length > 0 && !isAgent(ctx.env) && ctx.interactive;
+    if (working.length && !askBusy) throw busyError(ctx, working, again);
+    if (askBusy) {
+      // the question once the download is checked (installUpdate's ready)
+    } else if (isAgent(ctx.env) || !ctx.yes) {
       // said no: said so, nothing installed and the version it stays at, and not ok (exit 1) — never a quiet 0 that
       // reads as done (found: strom update --channel beta ended 0 at the old version, nobody knew why)
       if (!isAgent(ctx.env) && ctx.interactive) {
@@ -792,20 +814,29 @@ register({
     if (backup) ctx.io.stderr(`${backupSaid(ctx, backup)}\n`);
     if (ctx.interactive) ctx.io.stdout(`${t("ui.update.downloading", { version: newest })}\n`);
     let done: Updated;
+    const trees = ctx.knownTrees().map((k) => k.root);
     try {
-      done = await installUpdate(ctx.env, inst.root!, process.platform, { release: latest, keep: ctx.researchFolders(), ...(switching ? { channel: to! } : {}) });
+      done = await installUpdate(ctx.env, inst.root!, process.platform, {
+        release: latest,
+        keep: ctx.researchFolders(),
+        inUse: appDirsInUse(inst.root!, trees),
+        ...(switching ? { channel: to! } : {}),
+        ...(askBusy ? { ready: (version: string) => busyChoice(ctx, version) } : {}),
+      });
     } catch (e) {
+      if (e instanceof UpdateHeld) return { text: t("ui.update.later", { current: VERSION, command: again }), data: { current: VERSION, latest: newest, updated: false, refused: true, ...extra }, exitCode: EXIT.error };
       // the person's language for a person (ui.error.update.failed and its hint), the English for an agent and a program
       const params = { detail: (e as Error).message, current: VERSION, command: again };
       throw new StromError(ui("en", "ui.error.update.failed", params), { hint: ui("en", "ui.error.update.failed.hint", params), code: "update.failed", params });
     }
-    // The agents learn what the new version tells them.
-    const { command, args } = stromLauncher();
+    // The agents learn what the new version tells them (the new version through the entry: this process is the one before).
+    const { command, args } = lastingLauncher(inst);
     spawnSync(command, [...args, "agents", "install"], { stdio: "ignore", env: ctx.env as NodeJS.ProcessEnv, windowsHide: true });
-    // The bridges the Strom app follows go on with the new version, at their addresses (the app goes on by itself)
+    // The bridges the Strom app follows go on with the new version, at their addresses (the app goes on by itself) —
+    // where another version still works the bridge stays until that work ends (it renews itself then: core/live.ts)
     let bridges = 0;
     for (const k of ctx.knownTrees()) {
-      if (!liveRunning(k.root)) continue;
+      if (!liveRunning(k.root) || otherVersionsAtWork(k.root, done.version).length > 0) continue;
       const r = spawnSync(command, [...args, "live", "start", "--current", "--json"], { cwd: k.root, env: { ...(ctx.env as NodeJS.ProcessEnv), STROM_TREE: k.root }, stdio: "ignore", windowsHide: true, timeout: 60_000 });
       if (r.status === 0) bridges++;
     }
@@ -816,11 +847,129 @@ register({
         newer ? t("ui.update.whatsnew", { url: whatsNewUrl(done.version, channel, lang) }) : undefined,
         done.node ? t("ui.update.node.done", done.node) : undefined,
         bridges ? t("ui.update.bridges", { n: bridges }) : undefined,
+        stillWorking(ctx).length ? t("ui.update.busy.went", { previous: VERSION, version: done.version }) : undefined,
       ),
       data: { previous: VERSION, version: done.version, updated: true, ...(done.node ? { node: done.node } : {}), bridges, ...extra, ...(backup ? { backup: { path: backup.path, bytes: backup.bytes } } : {}) },
     };
   },
 });
+
+/** The researches with work under way now (an archive has none), each with what works there. */
+function workUnderWay(ctx: Context): { name: string; root: string; busy: Busy }[] {
+  const out: { name: string; root: string; busy: Busy }[] = [];
+  for (const k of ctx.knownTrees()) {
+    try {
+      const tree = Tree.open(k.root, ctx.env);
+      if (isArchive(tree)) continue;
+      const busy = busyIn(tree);
+      if (isBusy(busy)) out.push({ name: k.name, root: k.root, busy });
+    } catch {
+      // a research this strom cannot open (a newer one's): not its work to wait for
+    }
+  }
+  return out;
+}
+
+/** workUnderWay, never an error (said after the update). */
+function stillWorking(ctx: Context): { name: string }[] {
+  try {
+    return workUnderWay(ctx);
+  } catch {
+    return [];
+  }
+}
+
+/** What works in one research, in the person's words: "session N0011 (task T0004), a run of tasks". */
+function busyWords(lang: string, b: Busy): string {
+  const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
+  return [
+    ...b.sessions.map((s) => (s.task ? t("ui.update.busy.session.task", { id: s.id, task: s.task }) : t("ui.update.busy.session", { id: s.id }))),
+    ...(b.runs === 1 ? [t("ui.update.busy.run")] : b.runs > 1 ? [t("ui.update.busy.runs", { n: b.runs })] : []),
+    ...(b.conversations === 1 ? [t("ui.update.busy.chat")] : b.conversations > 1 ? [t("ui.update.busy.chats", { n: b.conversations })] : []),
+  ].join(", ");
+}
+
+/** Work under way and no terminal to ask at: needs-input (code update.busy), what works and the way on. */
+class UpdateBusyError extends StromError {
+  readonly work: { tree: string; sessions: { id: string; task?: string }[]; runs: number; conversations: number }[];
+  readonly set: string;
+  constructor(message: string, hint: string, work: UpdateBusyError["work"], set: string, params: Record<string, string>) {
+    super(message, { exitCode: EXIT.needsInput, hint, code: "update.busy", params, details: { work } });
+    this.name = "UpdateBusyError";
+    this.work = work;
+    this.set = set;
+  }
+
+  override toJSON(): Record<string, unknown> {
+    return {
+      status: "needs-input",
+      code: "update.busy",
+      message: this.message,
+      hint: this.hint,
+      work: this.work,
+      needs: [{ key: "update.now", kind: "config", question: "update while this work goes on (it finishes with the version it started with)?", set: this.set }],
+    };
+  }
+}
+
+function busyError(ctx: Context, working: { name: string; busy: Busy }[], again: string): StromError {
+  const work = working.map((w) => `"${w.name}": ${busyWords("en", w.busy)}`).join("; ");
+  const set = `${again} --yes --now`;
+  return new UpdateBusyError(
+    `work goes on in a research: ${work}`,
+    `the user decides: ${set} (the work under way finishes with the version it started with — a run all its sessions —, what starts after it runs the new one), or wait for it to end (strom status) and update then`,
+    working.map((w) => ({ tree: w.name, ...w.busy })),
+    set,
+    { work: working.map((w) => `„${w.name}“: ${busyWords(ctx.uiLang(), w.busy)}`).join("; "), command: set },
+  );
+}
+
+/** How long the wait for the sessions' end looks again (ms). */
+const BUSY_POLL_MS = 2000;
+
+/**
+ * The new version downloaded and checked while work goes on: update now, wait for the sessions open now to end, or
+ * back (nothing changes). Whether to put it in place.
+ */
+async function busyChoice(ctx: Context, version: string): Promise<boolean> {
+  const lang = ctx.uiLang();
+  const t = (key: UIKey, values: Record<string, string | number> = {}) => ui(lang, key, values);
+  const working = workUnderWay(ctx);
+  if (!working.length) return true; // it ended meanwhile
+  const question = lines(...working.map((w) => t("ui.update.busy.tree", { name: w.name, work: busyWords(lang, w.busy) })), t("ui.update.busy.ready", { version }));
+  const pick = await ctx.choose(question, [{ label: t("ui.update.busy.now") }, { label: t("ui.update.busy.wait") }], 0, { back: t("ui.update.busy.back") });
+  if (pick === undefined) return false;
+  if (pick === 0) return true;
+  // the sessions open now (in each research), till each is closed; Ctrl-C: nothing installed
+  const waited = new Map(working.map((w) => [w.root, new Set(w.busy.sessions.map((s) => s.id))]));
+  const names = working.flatMap((w) => w.busy.sessions.map((s) => s.id));
+  ctx.io.stdout(`${t("ui.update.busy.waiting", { sessions: names.join(", ") || "—" })}
+`);
+  let stop = false;
+  const onSignal = () => {
+    stop = true;
+  };
+  process.on("SIGINT", onSignal);
+  try {
+    for (;;) {
+      const left = [...waited].some(([root, ids]) => {
+        try {
+          return busyIn(Tree.open(root, ctx.env)).sessions.some((s) => ids.has(s.id));
+        } catch {
+          return false;
+        }
+      });
+      if (!left) break;
+      await new Promise((r) => setTimeout(r, BUSY_POLL_MS));
+      if (stop) return false;
+    }
+  } finally {
+    process.off("SIGINT", onSignal);
+  }
+  ctx.io.stdout(`${t("ui.update.busy.waited")}
+`);
+  return true;
+}
 
 /**
  * strom update replaces app/ and node/ of the installer's folder (app.old/ goes): a research, its backups, the settings
@@ -904,7 +1053,9 @@ function readingKey(ctx: Context, tree: TreeConfig | undefined): string {
 /** The defaults of the settings read with one where nobody set them (the others have none: the agent's own, noticed, …). */
 const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | undefined) => string | number> = {
   terminal: () => "system",
+  "agent.claudeConfigDir": (s) => claudeConfigDir(s.env, s.config),
   "queue.strategy": (s, tree) => s.strategy(tree),
+  "queue.offLine": (s, tree) => s.offLine(tree),
   "gedcom.for": () => "both",
   stories: () => "yes",
   "stories.sources": () => "yes",
@@ -920,6 +1071,7 @@ const FALLBACKS: Record<string, (s: Context["settings"], tree: TreeConfig | unde
   updates: () => "check",
   "archive.pace": () => "auto",
   "read.app": () => "auto",
+  "live.idleMinutes": () => DEFAULT_LIVE_IDLE_MINUTES,
 };
 
 /** Effective value of a setting, with the default filled in (views.size of one book: `recordset`). */
@@ -978,6 +1130,7 @@ function effective(ctx: Context, def: SettingDef, recordset?: string): { value: 
   if (def.key === "experiments.history") return { value: "off", source: "default" };
   if (def.key === "experiments.historyPace") return { value: ctx.settings.historyPace(tree), source: "default" };
   if (def.key === "experiments.historyPlaces") return { value: "off", source: "default" };
+  if (def.key === "history.kinds") return { value: "all", source: "default" };
   // unset: as experiments.history at the same layer (an older strom's one switch kept both)
   if (def.key === "experiments.placeHistory") return { value: ctx.settings.historyPlace(tree) ? "on" : "off", source: "default" };
   if (def.key === "tune.transcripts") return { value: "on", source: "default" };
@@ -1038,6 +1191,7 @@ function addonsDecision(ctx: Context, key: string, value: string | number | unde
 function experimentsDecision(ctx: Context, key: string, value: string | number | undefined, scope: "tree" | "user"): void {
   if (key === "experiments.historyPace") return paceDecision(ctx, value, scope);
   if (key === "experiments.historyPlaces") return placesDecision(ctx, value, scope);
+  if (key === "history.kinds") return kindsDecision(ctx, value, scope);
   if (key !== "experiments.history" && key !== "experiments.placeHistory") return;
   const user = ctx.settings.config;
   const tree = scope === "tree" ? treeSettings(ctx) : undefined;
@@ -1083,6 +1237,27 @@ function placesDecision(ctx: Context, value: string | number | undefined, scope:
       ui(ctx.uiLang(), "ui.consent.history.places"),
     );
 }
+
+/**
+ * The kinds of events the history looks for (history.kinds): a kind added is the person's alone — its search spends
+ * sessions, and strom history align would look for it back where the history was searched already —; a kind left out
+ * is anyone's. Compared in the reach of the layer written (a tree's own value wins both ways, as the switches).
+ */
+function kindsDecision(ctx: Context, value: string | number | undefined, scope: "tree" | "user"): void {
+  const { now, next } = layerChange(ctx, "history.kinds", value, scope);
+  const added = kindsAdded(kindsOf(now), kindsOf(next));
+  if (added.length === 0) return;
+  const forTree = scope === "tree" ? " --for-tree" : "";
+  ctx.requireHuman(
+    `Look for events of the kinds ${added.join(", ")} in the history${scope === "tree" ? " of this research" : " of every research on this computer"} too?`,
+    `strom config set history.kinds ${value ?? "all"}${forTree}`,
+    "history.kinds",
+    ui(ctx.uiLang(), scope === "tree" ? "ui.consent.history.kinds.tree" : "ui.consent.history.kinds", { kinds: added.map((k) => ui(ctx.uiLang(), `ui.history.kind.${k}` as UIKey)).join(", ") }),
+  );
+}
+
+/** Said after history.kinds changes: nothing found is hidden or looked for again by the change itself. */
+const KINDS_ALIGN = "What was found already stays as it is: strom history align says what the kinds now set would hide and look for again, and does it on the person's yes.";
 
 /** A pace more often than another (experiments.historyPace: sometimes before rare before idle). */
 function oftener(a: HistoryPace, b: HistoryPace): boolean {
@@ -1300,6 +1475,14 @@ export function refuseInProgram(ctx: Context, key: "home" | "trees" | "shared", 
   ctx.refuseProgramFolder(key, target);
 }
 
+function isFolder(p: string): boolean {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 /** false: the person said no in their terminal to what needs their own yes there (requireHumanYes) — nothing changed. */
 async function setUserSetting(ctx: Context, key: string, value: string | number | undefined): Promise<boolean> {
   const s = ctx.settings;
@@ -1311,6 +1494,11 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
   effortDecision(ctx, key, value, "user");
   webDecision(ctx, key, value, "user");
   if ((key === "home" || key === "trees" || key === "shared") && value !== undefined) refuseInProgram(ctx, key, String(value));
+  // Claude Code's folder: one that is there (Claude Code logged in there first), never a file or a typo
+  if (key === "agent.claudeConfigDir" && typeof value === "string" && !isFolder(value))
+    throw new UsageError(`agent.claudeConfigDir: no folder ${ctx.display(value)}`, {
+      hint: `Claude Code's own folder, there already — logged in there first (CLAUDE_CONFIG_DIR=<folder> claude), then: strom config set agent.claudeConfigDir <folder>; unset: ~/.claude`,
+    });
   guardResearchFolder(ctx, key, value === undefined ? undefined : String(value));
   // the calibration of the research's agent and model forgotten: the defaults again (anybody may go back to them)
   if (key === "views.size") {
@@ -1364,6 +1552,16 @@ async function setUserSetting(ctx: Context, key: string, value: string | number 
       value === undefined ? "strom config unset archive.pace" : `strom config set archive.pace "${value}"`,
       "archive.pace",
       ui(ctx.uiLang(), "ui.consent.archive.pace", { seconds: secondsIn(ctx.uiLang(), pace.minIntervalMs), n: pace.perHour }),
+    );
+  }
+  // Which Claude Code folder — whose login, which subscription pays — is the person's alone, never an agent's.
+  if (key === "agent.claudeConfigDir" && value !== (s.config.claudeConfigDir ?? undefined)) {
+    const dir = typeof value === "string" && value ? value : "~/.claude";
+    ctx.requireHuman(
+      `Let the research's Claude Code use the folder ${dir} (its login: which subscription pays)?`,
+      value === undefined ? "strom config unset agent.claudeConfigDir" : `strom config set agent.claudeConfigDir ${shellArg(String(value))}`,
+      "agent.claudeConfigDir",
+      ui(ctx.uiLang(), "ui.consent.claude.dir", { dir }),
     );
   }
   // What the Strom app may spend on readings of documents: raised by the person alone, their yes in a terminal too
@@ -1463,6 +1661,14 @@ register(
         if (!(await setUserSetting(ctx, def.key, value))) return kept(ctx, def);
         text = `${def.key} = ${display(ctx, def, value)}${who}`;
         data = { key: def.key, value, scope: "user", ...(forAgent ? { agent: forAgent } : {}) };
+        // Claude Code's folder: the variable of the environment, when it says another, wins — said in one sentence
+        const said = def.key === "agent.claudeConfigDir" ? ctx.env.CLAUDE_CONFIG_DIR?.trim() : undefined;
+        if (said && path.resolve(expandHome(said, ctx.env)) !== value) {
+          text += `\nCLAUDE_CONFIG_DIR is set in this environment (${ctx.display(path.resolve(expandHome(said, ctx.env)))}) and wins over this setting: a strom started with it uses that folder.`;
+          data.envWins = { CLAUDE_CONFIG_DIR: said };
+        }
+        // the skill and permissions strom gives Claude Code live in its folder: taught there too
+        if (def.key === "agent.claudeConfigDir") text += "\nClaude Code in that folder learns strom with: strom agents install";
       }
       // with the model of the research its reasoning effort: a person at the terminal chooses it (high recommended),
       // anybody else is told how
@@ -1479,6 +1685,10 @@ register(
             data.effort = e.value ?? null;
           }
         } else if (!kept) text += `\nreasoning effort: the agent's own — strom config set model.effort ${RECOMMENDED_EFFORT}${opts["for-tree"] ? " --for-tree" : ""} (recommended: old handwriting read with the best setting; a plan's limit runs out sooner)`;
+      }
+      if (def.key === "history.kinds") {
+        text += `\n${KINDS_ALIGN}`;
+        data.align = "strom history align";
       }
       return { text, data };
     },
@@ -1497,7 +1707,7 @@ register(
       const r = effective(ctx, def);
       // a setting with no default: nothing holds now, said once (never "now (unset) (unset)")
       const now = r.value === undefined ? "nothing set now" : `now ${display(ctx, def, r.value)} (${r.source})`;
-      return { text: `${def.key} unset — ${now}`, data: { key: def.key, value: r.value, source: r.source } };
+      return { text: `${def.key} unset — ${now}${def.key === "history.kinds" ? `\n${KINDS_ALIGN}` : ""}`, data: { key: def.key, value: r.value, source: r.source } };
     },
   },
 );

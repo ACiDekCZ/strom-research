@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { hostPace, politeGet, robotsVerdict, NetError } from "../../src/core/net.ts";
 import { knownDisallow, knownPaceMs, shippedTerms } from "../../src/core/knownterms.ts";
-import { allows, archiveLevel, pendingQuestions, takeOverConnectors, termsFor, termsHooks, type ConnectorLike } from "../../src/core/terms.ts";
+import { allows, archiveLevel, pendingQuestions, takeOverConnectors, termsFor, termsHooks, termsOpen, type ConnectorLike } from "../../src/core/terms.ts";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "strom known terms "));
 const dirs: string[] = [];
@@ -53,7 +53,7 @@ test("the list: each archive with its level, terms and the sentence quoted, the 
   assert.ok(knownDisallow("data.matricula-online.eu").includes("/*/suchen"));
 });
 
-test("ČÚZK and RÚIAN: the open RÚIAN map service allowed, the archive's old maps and the robots-disallowed WMS/WFS never automated", () => {
+test("ČÚZK and RÚIAN: the open RÚIAN map service allowed, the archive's old maps never automated; the WMS/WFS open by its terms (its robots.txt yields)", () => {
   const known = (h: string) => termsFor({}, h);
   for (const h of ["ags.cuzk.gov.cz", "services.cuzk.gov.cz", "vdp.cuzk.gov.cz"]) {
     assert.equal(known(h)?.level, "allowed", h);
@@ -64,7 +64,9 @@ test("ČÚZK and RÚIAN: the open RÚIAN map service allowed, the archive's old 
   assert.equal(off("ags.cuzk.gov.cz", "/arcgis/rest/services/RUIAN/MapServer/1/query?where=1%3D1&f=json"), false);
   assert.equal(off("ags.cuzk.gov.cz", "/archiv/"), true);
   assert.equal(off("ags.cuzk.gov.cz", "/arcgis4/rest/services/Archiv/CO/ImageServer/exportImage"), true);
-  assert.equal(off("services.cuzk.gov.cz", "/wfs/inspire-ad-wfs.asp?service=WFS"), true);
+  // the terms of the services expressly allow automated use: the list keeps no path of them off, robots.txt alone yields
+  assert.equal(off("services.cuzk.gov.cz", "/wfs/inspire-ad-wfs.asp?service=WFS"), false);
+  assert.equal(termsOpen({}, "services.cuzk.gov.cz"), true);
 });
 
 test("a level of the list is confirmed: a new connector's allowed there needs no word; anything stricter still holds", () => {

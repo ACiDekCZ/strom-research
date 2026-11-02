@@ -12,7 +12,9 @@
 //   · the strictest level strom ever saw for the host (`floor`), which only the person lowers;
 //   · the host's robots.txt as strom read it (core/net.ts): one that keeps automated tools off the whole site makes the
 //     archive restricted with the person's browser as its only way (`browserOnly`: no direct request at all, the
-//     permission "through the browser" or by hand) — a path it keeps them off is refused request by request;
+//     permission "through the browser" or by hand) — a path it keeps them off is refused request by request; where
+//     strom's list says the terms expressly allow automated use (`automatedUse`), robots.txt alone yields, unless it
+//     names AI agents or strom (core/net.ts robotsYields) — the terms are what the person reads then;
 //   · a refusal of strom's client by the host (core/net.ts): forbidden until the person lifts it.
 //
 // Levels, from the most to the least strom does by itself:
@@ -36,9 +38,9 @@ import { spawnSync } from "node:child_process";
 import { configDir, type Env } from "./paths.ts";
 import { readJsonIfExists, writeJson } from "./json.ts";
 import { acquireLock } from "./lock.ts";
-import { bare, loopbackGuard, readPack, shippedTerms, strictestEntry, within, type KnownTerms } from "./knownterms.ts";
+import { bare, loopbackGuard, openByTerms, readPack, shippedTerms, strictestEntry, within, type KnownTerms } from "./knownterms.ts";
 import { webDomain } from "./metrics.ts";
-import { HUMAN_PACE, MIN_INTERVAL_MS, readHostState, REFUSED_FOREVER, robotsAll, type NetVerdict, type Pace, type RefusedKind, type ServicePace } from "./net.ts";
+import { HUMAN_PACE, MIN_INTERVAL_MS, readHostState, REFUSED_FOREVER, robotsAll, robotsNamesAi, type NetVerdict, type Pace, type RefusedKind, type ServicePace } from "./net.ts";
 import { loadUserConfig, Settings } from "./config.ts";
 import { installation, type Installation } from "./self.ts";
 import { settingsTrust } from "./trust.ts";
@@ -144,6 +146,14 @@ export function knownTerms(env: Env): KnownTerms[] {
 /** What strom's known terms say of a host: the strictest entry for it or a site above it. */
 export function termsFor(env: Env, host: string): KnownTerms | undefined {
   return strictestEntry(knownTerms(env).filter((k) => within(host, k.host)));
+}
+
+/**
+ * A host's known terms expressly allow automated use (core/knownterms.ts openByTerms; strom's list, a test's own as
+ * well): a Disallow of its robots.txt alone yields there, carefully (core/net.ts robotsYields).
+ */
+export function termsOpen(env: Env, host: string): boolean {
+  return openByTerms(termsFor(env, host));
 }
 
 /** Every host of a connector is in strom's known terms: its level is a confirmed one (no takeover to confirm). */
@@ -601,7 +611,9 @@ export function archiveLevel(env: Env, input: LevelInput): ArchiveLevel {
   const nets = [input.net, trust.sharedNamed ? path.join(trust.sharedNamed, "net") : undefined].filter((d): d is string => !!d);
   const net = nets.length ? mergeNet(nets.map((d) => netOf(d, [host, hostOf(input.url)]))) : undefined;
   let browserOnly: ArchiveLevel["browserOnly"];
-  const robotsLine = net?.robotsAll ?? rec.robots?.line ?? other.robots?.line;
+  // terms that expressly allow automated use: robots.txt alone yields — only as strom read it last, naming no AI agent
+  const robotsYield = openByTerms(known) && net?.robotsNamesAi === false;
+  const robotsLine = robotsYield ? undefined : (net?.robotsAll ?? rec.robots?.line ?? other.robots?.line);
   if (robotsLine) browserOnly = { by: "robots", line: robotsLine };
   else if (known?.browserOnly) browserOnly = known.quoteFrom === "robots" ? { by: "robots", ...(known.quote ? { line: known.quote } : {}) } : { by: "terms" };
   if (browserOnly) from.push({ level: "restricted", by: browserOnly.by === "robots" ? "robots" : "terms" });
@@ -673,13 +685,16 @@ function mergeNet(all: ReturnType<typeof netOf>[]): ReturnType<typeof netOf> {
   for (const n of all) {
     if (!out.client && n.client) out.client = n.client;
     if (!out.robotsAll && n.robotsAll) out.robotsAll = n.robotsAll;
-    if (!out.robots && n.robots) out.robots = n.robots;
+    if (!out.robots && n.robots) {
+      out.robots = n.robots;
+      out.robotsNamesAi = n.robotsNamesAi;
+    }
   }
   return out;
 }
 
 /** What the limiter's state says of hosts (the first that says it): a refusal of the client, robots.txt, one unreadable. */
-function netOf(dir: string, hosts: string[]): { client?: { host: string; until: number }; robotsAll?: string; robots?: ArchiveLevel["robots"]; unreadable: boolean } {
+function netOf(dir: string, hosts: string[]): { client?: { host: string; until: number }; robotsAll?: string; robots?: ArchiveLevel["robots"]; robotsNamesAi?: boolean; unreadable: boolean } {
   const out: ReturnType<typeof netOf> = { unreadable: false };
   for (const h of [...new Set(hosts.filter(Boolean))]) {
     let read: ReturnType<typeof readHostState>;
@@ -695,6 +710,7 @@ function netOf(dir: string, hosts: string[]): { client?: { host: string; until: 
     if (s.robots && !out.robots) {
       out.robots = { at: s.robots.at, status: s.robots.status, disallow: [...new Set(s.robots.groups.flatMap((g) => g.disallow))] };
       out.robotsAll = robotsAll(s.robots);
+      out.robotsNamesAi = !!robotsNamesAi(s.robots);
     }
   }
   return out;

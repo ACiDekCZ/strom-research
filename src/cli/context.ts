@@ -11,7 +11,8 @@ import { backupsDir } from "../core/backup.ts";
 import { insideProgram } from "../core/self.ts";
 import { Cancelled, InputEnded, NeedsConsentError, NeedsInputError, StromError, UsageError } from "../core/errors.ts";
 import { migrate } from "../core/migrate.ts";
-import { Tree, findTreeUpwards, isTreeDir, knownTreesIn } from "../core/tree.ts";
+import { Tree, VERSION, findTreeUpwards, isTreeDir, knownTreesIn } from "../core/tree.ts";
+import { otherVersionsAtWork } from "../core/workers.ts";
 import { SCHEMA_VERSION, type TreeConfig } from "../core/model.ts";
 import { canonicalize, readJsonIfExists } from "../core/json.ts";
 import { foldText } from "../core/text.ts";
@@ -547,6 +548,14 @@ export class Context {
     }
     const opened = Tree.open(root, this.env);
     if (this.backupFailed && (opened.config.schema ?? 1) < SCHEMA_VERSION) throw this.backupFailed;
+    // An older strom still works here (a run, a conversation started before strom update): its data never brought to
+    // a newer schema under it — the next command once its work ends does it (spec 037 K1.2).
+    if ((opened.config.schema ?? 1) < SCHEMA_VERSION && otherVersionsAtWork(root, VERSION).length > 0)
+      throw new StromError(`an older strom still works in "${opened.config.name}" (a run or a conversation); its data are brought to this version once that work ends`, {
+        hint: "wait for the run or the conversation to end (strom status), then run the command again",
+        code: "tree.migrate.busy",
+        params: { name: opened.config.name },
+      });
     this.opened = opened;
     // Data an older strom wrote under an older schema: brought forward first (a dry run too — it is not the command's change).
     // said in the person's language: each step by its own sentence (the commit keeps the English one)

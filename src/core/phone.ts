@@ -16,7 +16,7 @@ import { configDir, type Env } from "./paths.ts";
 import { readJsonIfExists, writeJson } from "./json.ts";
 import { acquireLock, withLock } from "./lock.ts";
 import { canShowDialog, WAIT_SECONDS, yesNoCommand, type DialogText } from "./dialog.ts";
-import { diskVersion, stromLauncher } from "./self.ts";
+import { diskVersion, lastingLauncher, stromLauncher } from "./self.ts";
 import { VERSION } from "./tree.ts";
 import { ui, UI, type UIKey } from "../cli/ui.ts";
 import { assetPath, readAsset } from "./assets.ts";
@@ -362,7 +362,7 @@ function startedJustNow(env: Env): number | undefined {
 }
 
 function spawnPhone(env: Env, extra: Record<string, string> = {}): number | undefined {
-  const { command, args } = stromLauncher();
+  const { command, args } = lastingLauncher();
   const dir = configDir(env);
   let log: number | "ignore" = "ignore";
   try {

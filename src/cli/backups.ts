@@ -45,7 +45,11 @@ export function backupBefore(ctx: Context, t: Transition, opts: { update?: { cha
       research: [ctx.settings.trees()?.value, ctx.settings.shared()?.value].filter((p): p is string => !!p),
       ...(ctx.settings.shared()?.value ? { shared: ctx.settings.shared()!.value } : {}),
       transition: t,
-      readme: (media) => ui(lang, "ui.backup.readme", { ...said, date: when(new Date().toISOString()), media: mediaSaid(lang, media) }),
+      readme: (media, skipped) => {
+        const text = ui(lang, "ui.backup.readme", { ...said, date: when(new Date().toISOString()), media: mediaSaid(lang, media) });
+        // the researches left out (written all the while it waited): said in it too
+        return skipped.length ? `${text.trimEnd()}\n\n${ui(lang, "ui.backup.readme.skipped", { trees: skipped.map((k) => k.tree).join(", ") })}\n` : text;
+      },
       record: (made, before) => {
         ctx.settings.config.backups = [...before, made];
         ctx.settings.save();
@@ -101,9 +105,12 @@ function mediaSaid(lang: string, media: SharedMedia | undefined): string {
 
 /** Where the backup is, in a line: the person's language, or JSON for an agent (--json). Shared images left out are said. */
 export function backupSaid(ctx: Context, b: BackupRecord): string {
-  if (ctx.json) return JSON.stringify({ backup: { path: b.path, bytes: b.bytes, from: b.from, to: b.to, ...(b.media ? { media: b.media } : {}) } });
-  const made = ui(ctx.uiLang(), "ui.backup.made", { ...sides(b), path: b.path, size: mb(b.bytes) });
-  return b.media?.how === "left" ? `${made}\n${ui(ctx.uiLang(), "ui.backup.media.left.line", { size: sizeIn(b.media.bytes, ctx.uiLang()) })}` : made;
+  if (ctx.json) return JSON.stringify({ backup: { path: b.path, bytes: b.bytes, from: b.from, to: b.to, ...(b.media ? { media: b.media } : {}), ...(b.skipped ? { skipped: b.skipped } : {}) } });
+  const lines = [ui(ctx.uiLang(), "ui.backup.made", { ...sides(b), path: b.path, size: mb(b.bytes) })];
+  if (b.media?.how === "left") lines.push(ui(ctx.uiLang(), "ui.backup.media.left.line", { size: sizeIn(b.media.bytes, ctx.uiLang()) }));
+  // a research being written all the while: not in it, said by name
+  for (const k of b.skipped ?? []) lines.push(ui(ctx.uiLang(), "ui.backup.skipped.line", { tree: k.tree, by: k.by }));
+  return lines.join("\n");
 }
 
 /** The last backup in a line (the menu, strom doctor). */

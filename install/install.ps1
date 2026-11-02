@@ -214,11 +214,58 @@ try {
   Test-Sum (Join-Path $tmp 'strom-app.tar.gz') (Join-Path $tmp 'SHASUMS256.txt') 'strom-app.tar.gz'
   & $tar -xzf (Join-Path $tmp 'strom-app.tar.gz') -C $tmp
   if ($LASTEXITCODE -ne 0) { throw (T 'The download could not be unpacked.' 'Stažený soubor se nepodařilo rozbalit.' 'Die Datei ließ sich nicht entpacken.') }
+  # Each version in a folder of its own (app-<version>): nothing a strom at work runs from is moved (Windows holds a
+  # folder whose files are open). app\dist\cli.js, the entry every launcher, shortcut, link and research's shim runs,
+  # is written again whole to name it (with app\package.json: the version in use). The version before stays until
+  # strom update or strom tidy removes it.
   $app = Join-Path $dest 'app'
-  Remove-Item -Recurse -Force (Join-Path $dest 'app.old') -ErrorAction SilentlyContinue
-  if (Test-Path $app) { Move-Item -Force $app (Join-Path $dest 'app.old') }
-  Move-Item -Force (Join-Path $tmp 'app') $app
-  Remove-Item -Recurse -Force (Join-Path $dest 'app.old') -ErrorAction SilentlyContinue
+  $entry = Join-Path $app 'dist\cli.js'
+  $before = $null
+  if (Test-Path $entry) {
+    $m = [regex]::Match([IO.File]::ReadAllText($entry), '(?m)^await import\("\.\./\.\./([^"/\\]+)/dist/cli\.js"\);$')
+    $before = if ($m.Success) { $m.Groups[1].Value } else { 'app' }
+  }
+  # A release before 1.25 knows only the whole program in app\ (its package.json says no "stromLayout" 2 or more): run
+  # from a folder of its own it would take itself for npm's and never update again — installed in app\ the way it
+  # knows, the marks of the researches' shims kept, install.json without "app".
+  $layout = 1
+  try {
+    $declared = ([IO.File]::ReadAllText((Join-Path $tmp 'app\package.json')) | ConvertFrom-Json).stromLayout
+    if ($declared -is [int] -or $declared -is [long]) { $layout = [int]$declared }
+  } catch { }
+  if ($layout -lt 2) {
+    if ($before -eq 'app') { $before = $null }
+    $old = Join-Path $dest 'app.old'
+    Remove-Item -Recurse -Force $old -ErrorAction SilentlyContinue
+    if (Test-Path $app) { Move-Item $app $old }
+    Move-Item (Join-Path $tmp 'app') $app
+    Get-ChildItem -Force (Join-Path $old 'dist') -Filter '.strom-shim-*' -ErrorAction SilentlyContinue | ForEach-Object {
+      if (-not $_.PSIsContainer -and -not (Test-Path (Join-Path $app "dist\$($_.Name)"))) { Copy-Item $_.FullName (Join-Path $app 'dist') }
+    }
+    Remove-Item -Recurse -Force $old -ErrorAction SilentlyContinue
+    $dir = $null
+  } else {
+    $dir = "app-$version"
+    $n = 1
+    while (Test-Path (Join-Path $dest $dir)) {
+      # a leftover of this version nobody runs (not the one in use): removed, else another name
+      if ($dir -ne $before) {
+        Remove-Item -Recurse -Force (Join-Path $dest $dir) -ErrorAction SilentlyContinue
+        if (-not (Test-Path (Join-Path $dest $dir))) { break }
+      }
+      $n++
+      $dir = "app-$($version)_$n"
+    }
+    Move-Item (Join-Path $tmp 'app') (Join-Path $dest $dir)
+    New-Item -ItemType Directory -Force -Path (Join-Path $app 'dist') | Out-Null
+    $aside = Join-Path $app "package.json.$PID.tmp"
+    Write-Text $aside "{`n  `"name`": `"strom-research`",`n  `"version`": `"$version`",`n  `"type`": `"module`",`n  `"private`": true`n}`n"
+    Move-Item -Force $aside (Join-Path $app 'package.json')
+    $aside = Join-Path $app "dist\cli.js.$PID.tmp"
+    Write-Text $aside ("// Strom research: the entry every launcher, shortcut, link and research's shim runs. strom update and the`n" + "// installer write it again, whole, to name the version in use; each version lies in a folder of its own.`n" + "await import(`"../../$dir/dist/cli.js`");`n")
+    Move-Item -Force $aside $entry
+    Remove-Item -Recurse -Force (Join-Path $dest 'app.old') -ErrorAction SilentlyContinue
+  }
 
   # The commands: strom.cmd for PowerShell and cmd, strom for Git Bash (what agents often use).
   Write-Text (Join-Path $dest 'strom.cmd') "@echo off`r`n`"%~dp0node\node.exe`" `"%~dp0app\dist\cli.js`" %*`r`n"
@@ -226,6 +273,8 @@ try {
   # An older strom (a single strom.exe) goes.
   Remove-Item -Force (Join-Path $dest 'strom.exe') -ErrorAction SilentlyContinue
   $info = [ordered]@{ launchers = @((Join-Path $dest 'strom.cmd'), (Join-Path $dest 'strom')); node = $nv; version = $version }
+  if ($dir) { $info.app = $dir }
+  if ($before -and $before -ne $dir) { $info.previous = $before }
   # a second installation's own command: the same two, one folder down (bin, on the user's PATH)
   if ($command) {
     New-Item -ItemType Directory -Force -Path $bin | Out-Null

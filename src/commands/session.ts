@@ -9,7 +9,7 @@ import { opsLogsOf } from "../core/opslog.ts";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { register } from "../cli/registry.ts";
+import { register, type CommandDef, type Input } from "../cli/registry.ts";
 import { ui, type UIKey } from "../cli/ui.ts";
 import type { Context } from "../cli/context.ts";
 import { addressesPerson } from "../core/impersonal.ts";
@@ -25,6 +25,7 @@ import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../age
 import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
 import { historyHeld, raiseHistoryTasks, regionOfTask, requireHistoryOn } from "../core/pastevents.ts";
+import { keepPlacesTask } from "../core/placeid.ts";
 import { prependPath, type AgentLimit } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
@@ -47,7 +48,7 @@ import { keepAwake } from "../core/awake.ts";
 import { askFinish, deadlineOf, earlyClose, finishAsked, finishByLimit, WRAP_UP_MS } from "../core/clock.ts";
 import { openUnclear } from "./readings.ts";
 import { OWN_GROUP } from "../runners/runner.ts";
-import { stromLauncher, writeShim } from "../core/self.ts";
+import { stromLauncher, unpinShim, writeShim } from "../core/self.ts";
 import { phrase } from "../core/phrases.ts";
 import { permissionWait } from "../core/archivewait.ts";
 import { enterWorker, markPaused, runAlive, runsAtWork } from "../core/workers.ts";
@@ -56,7 +57,7 @@ import { assertIntact, snapshot, verifyFast } from "../core/integrity.ts";
 import { guard } from "../core/guard.ts";
 import { hasErrors } from "../core/check.ts";
 import { autoTidy } from "../core/tidy.ts";
-import { Tree } from "../core/tree.ts";
+import { Tree, VERSION } from "../core/tree.ts";
 import { agentBrowser, sessionBrowser, treeBrowserConnectors } from "../core/connector.ts";
 import { browserNote } from "./connectors.ts";
 import { reviewProposals } from "../core/review.ts";
@@ -323,6 +324,7 @@ register(
       // what was written, said before the tasks of history are raised: those are strom run's, never the conversation's
       const wrote = written(tree);
       raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
+      keepPlacesTask(tree);
       // a session of strom run whose run is at work: the run exports once the agent ends (with what it adds) — not twice
       const byRun = !!s.runner && runAlive(tree.root, s);
       const geds = tree.dryRun || byRun ? [] : writeGedcoms(ctx, tree);
@@ -439,6 +441,7 @@ register(
         const text = ids.length ? written(tree) : "nothing to add — every frontier person has a task";
         // the tasks of history too (the experiment): strom run's, not said here
         raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
+        keepPlacesTask(tree);
         return { text, data: { created: ids } };
       }
       const items = frontier(tree, r);
@@ -678,9 +681,13 @@ register(
 
 // ── run ────────────────────────────────────────────────────────────────────
 
-/** A `strom` on PATH for the agent, pointing at this very installation. */
-export function shimDir(tree: Tree): string {
-  return writeShim(tree.root);
+/**
+ * A `strom` on PATH for the agent, pointing at this very installation: the version in use, or `pin` — this very
+ * version, for a run's or a conversation's agent (each call of its goes on with the strom that prepared its work,
+ * whatever strom update changes meanwhile; `unpinShim` when it ends).
+ */
+export function shimDir(tree: Tree, opts: { pin?: boolean } = {}): string {
+  return writeShim(tree.root, process.env, undefined, opts);
 }
 
 function parseUntil(v: unknown): number | undefined {
@@ -726,7 +733,8 @@ function idleSessions(tree: Tree, taskId: string): number {
   return n;
 }
 
-register({
+register(
+  updatedDuringRun({
   path: ["run"],
   summary: "Run research sessions with an AI agent: pick task → brief → agent → close → export → commit",
   group: "research",
@@ -822,7 +830,7 @@ register({
     const runEnv: Env = { ...ctx.env, STROM_WORKER: worker };
     // Present in the tree for the others at work (conversations with agents): strom shows who works.
     const beside = runsAtWork(root);
-    const leave = enterWorker(root, worker, `${PROFILES[runnerId]?.name ?? runnerId} on its own`);
+    const leave = enterWorker(root, worker, `${PROFILES[runnerId]?.name ?? runnerId} on its own`, VERSION);
     let stopAwake = keepAwake(ctx.env);
     // Progress goes to stderr when stdout carries JSON.
     const out = (s: string) => (ctx.json ? ctx.io.stderr : ctx.io.stdout)(s + "\n");
@@ -875,7 +883,7 @@ register({
           out(ui(lang, "ui.run.gone", { session: s.id, back: s.task ? ui(lang, "ui.run.back", { task: s.task }) : "" }));
         }
       }
-      const bin = shimDir(Tree.open(root, runEnv));
+      const bin = shimDir(Tree.open(root, runEnv), { pin: true });
       // How the agent is let work, said once: browser tools for whose sites, and a loosening the user chose.
       // Browser tools only for the archives this tree works with (the plugins folder is shared by every tree).
       const browser = runnerId === "claude" ? treeBrowserConnectors(Tree.open(root, runEnv), ctx.settings.shared()?.value) : [];
@@ -912,6 +920,7 @@ register({
         // The tasks of history the experiment asks for (core/pastevents.ts), made before the queue is read.
         // (and the places another research on this computer maps so, taken: core/placeadopt.ts)
         raiseHistoryTasks(tree, ctx.settings.shared()?.value, ctx.settings);
+        keepPlacesTask(tree);
         if (tree.uncommitted().length) commitNow(tree, "Tasks of the history of the places");
         // Working alone: now and then a story's turn (in a conversation the user leads); the tasks of history after the
         // research, and now and then one of them first — how often is experiments.historyPace (core/pastevents.ts
@@ -1249,6 +1258,7 @@ register({
       for (const sig of signals) process.off(sig, onSignal);
       stopAwake();
       leave();
+      unpinShim(root);
     }
     // What the research now waits for from the user who started it.
     const waiting = waitingLines(Tree.open(root, runEnv), { shared: ctx.settings.shared()?.value, display: (p) => ctx.display(p) });
@@ -1259,7 +1269,63 @@ register({
       exitCode: ["failed", "problems", "auth", "model", "denied", "gate.error"].includes(stopCode) ? 1 : 0,
     };
   },
-});
+  }),
+);
+
+/**
+ * strom updated while a run worked (an agent's call in a session ran the new strom, which brought the research to its
+ * format — tree.updated): the run ends, said so with the same run to start again — never the way back of a beta nor a
+ * backup of another switch. The standard GEDCOM the session's end would have written is written first by the new
+ * strom on disk, in a process of its own (output/tree.ged: quick, committed under the tree's lock as any export; the
+ * Strom file with its images, which may take long, comes with the next run or the bridge). It failing changes nothing:
+ * the next start exports, and the person is told so.
+ */
+function updatedDuringRun(def: CommandDef): CommandDef {
+  return {
+    ...def,
+    run: async (ctx, input) => {
+      try {
+        return await def.run(ctx, input);
+      } catch (e) {
+        if (!(e instanceof StromError) || e.code !== "tree.updated") throw e;
+        const root = ctx.openedRoot();
+        const exported = root ? exportByStromOnDisk(root, ctx.env) : false;
+        const again = commandAgain(def, input);
+        const version = e.params?.version ?? "?";
+        throw new StromError(
+          `strom was updated to ${version} during this run and the research is already in its format: the run ended; the next start runs on the new version${exported ? "" : " and writes the export this run could not"}`,
+          {
+            hint: `start the run again: ${again}`,
+            code: exported ? "tree.updated.run" : "tree.updated.run.later",
+            params: { ...e.params, again },
+            details: { ...(e.details as Record<string, unknown> | undefined), again, exported },
+          },
+        );
+      }
+    },
+  };
+}
+
+/** The standard GEDCOM written by the strom on disk now (the launcher's path holds the new code): whether it was. */
+function exportByStromOnDisk(root: string, env: Env): boolean {
+  const { command, args } = stromLauncher();
+  const { STROM_SESSION: _s, STROM_WORKER: _w, ...rest } = env;
+  const r = spawnSync(command, [...args, "export", "gedcom", "--for", "standard"], { cwd: root, env: { ...rest, STROM_NONINTERACTIVE: "1" }, encoding: "utf8", windowsHide: true, timeout: 120_000 });
+  return r.status === 0;
+}
+
+/** The command as it was started, from its options (the person's own, and the agent chosen for it): to start it again. */
+function commandAgain(def: CommandDef, { opts, extra }: Input): string {
+  const parts = ["strom", ...def.path];
+  for (const name of [...(def.options ?? []).map((o) => o.name), "agent"]) {
+    const v = opts[name];
+    if (v === undefined || v === false) continue;
+    if (v === true) parts.push(`--${name}`);
+    else for (const x of Array.isArray(v) ? v : [v]) parts.push(`--${name}`, shellArg(x));
+  }
+  if (extra?.length) parts.push("--", ...extra.map(shellArg));
+  return parts.join(" ");
+}
 
 /**
  * The gate this run asks (run.gate, or --gate), or none (--no-gate). Going round the user's gate is the user's

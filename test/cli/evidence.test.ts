@@ -191,7 +191,7 @@ test("the places of the facts on the map: those off it are listed, the most fact
   await w.ok(["place", "add", "Týnec nad Labem", "--lat", "50.042", "--lon", "15.358"]); // on the map
   await w.ok(["person", "add", "Anna /Nováková/", "--born", "1890", "--born-place", "Týnec nad Labem"]);
   const list = await w.ok(["place", "list", "--off-map"]);
-  assert.match(list.out, /^Lhota \(2 facts, L0001\): strom place edit L0001 --lat … --lon …\nBorovnice \(1 fact, no place yet\): strom place add "Borovnice" --kind … --lat … --lon …\nidentify each first/);
+  assert.match(list.out, /^Lhota \(2 facts, L0001\): strom place identify L0001 --lat … --lon … --why "…"\nBorovnice \(1 fact, no place yet\): strom place identify "Borovnice" --lat … --lon … --why "…"\nidentify each first/);
   assert.match((await w.ok(["check"])).out, /^ok/, "not a fault of the evidence");
   await w.ok(["session", "start"]);
   const close = await w.ok(["session", "close", "--summary", "s", "--next", "n"]);

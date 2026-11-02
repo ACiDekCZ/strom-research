@@ -16,7 +16,8 @@ import { REVIEW_SCOPES, type Person, type Research, type Session, type Task } fr
 import { ancestorGenerations, displayName, label, lifespan, parentsOf, resolvePerson } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { now, type Tree } from "../core/tree.ts";
-import { directionOf, scopes } from "../core/directions.ts";
+import { scopes } from "../core/directions.ts";
+import { lineOf } from "../core/offline.ts";
 import { otherKind, otherKindHint, update } from "../core/records.ts";
 import { detectAgent, isAgent } from "../core/which.ts";
 import { actsAsArchive, refuseInArchive } from "../core/state.ts";
@@ -153,9 +154,10 @@ register(
       const r = resolveResearch(tree, args[0]!);
       const state = act === "pause" ? "paused" : act === "resume" ? "active" : "done";
       const reason = typeof opts.reason === "string" && opts.reason.trim() ? opts.reason.trim() : undefined;
+      // its own tasks and those that help it (core/offline.ts)
       const waiting = (id: string) => {
-        const all = scopes(tree);
-        return tree.list<Task>("task").filter((t) => ["open", "parked", "waiting"].includes(t.state) && directionOf(tree, t, all) === id).length;
+        const line = lineOf(tree, scopes(tree));
+        return tree.list<Task>("task").filter((t) => ["open", "parked", "waiting"].includes(t.state) && line(t) === id).length;
       };
       if (r.state === state) return { text: `${r.id} is ${state} already`, data: { research: r, changed: false, tasks: waiting(r.id) } };
       const next = update<Research>(tree, r.id, "research", (x) => ({ ...x, state, stateSince: now(), notes: reason ? [...x.notes, { text: `${state}: ${reason}`, at: new Date().toISOString(), by: tree.actor }] : x.notes }), {

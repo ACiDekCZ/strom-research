@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.25.0
 
-*In Vorbereitung: die Betas bis 1.25.0-beta.2. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.25.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Daten für das Strom-Widget auch unter Windows.** Eine Forschung schreibt jetzt, was das Strom-Widget von ihr zeigt
   (woran gearbeitet wird, die Funde der letzten 24 Stunden, was wartet), auch unter Windows, nach
@@ -27,6 +27,19 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Nichts wird gelöscht: seither hinzugefügte Einträge werden beiseitegelegt, und die Rückkehr selbst lässt sich ebenso
   zurücknehmen. Der Link `strom-research://back` öffnet sie zu einer Änderung; das
   Protokoll der Brücke weist eine Rückkehr eigens aus.
+- **Orte bestimmen.** Die Forschung bestimmt die Orte ihrer Einträge (`strom place identify`, `propose`,
+  `unlocated`): ein aus den Einträgen sicherer Ort erhält Koordinaten, Namen und Pfarrei im Lauf der Zeit; wo es nicht
+  sicher ist, fragt sie eine Person mit höchstens drei Kandidaten oder sagt, was entscheiden würde. Die Fragen warten
+  unter „Wartet“, die Brücke bietet sie der Strom-App an, und `strom place undo` nimmt die letzte Antwort zurück.
+- **Arten der Geschichte.** `history.kinds` legt fest, welche Arten von Ereignissen die Geschichte der Orte sucht
+  (Kriege, Epidemien …). `strom history align` sagt zuerst, was es verbergen, wieder zeigen und suchen würde, und tut
+  es nur auf das Ja einer Person; nichts Gefundenes wird gelöscht.
+- **Nebenzweige zuletzt.** In einer Forschung mit mehreren Linien wartet Arbeit, die keiner Linie hilft, bis die
+  Linien nichts mehr zu tun haben (`queue.offLine`: zuletzt, nach Priorität oder nie).
+- **Aktualisieren, ohne die Arbeit anzuhalten.** `strom update` installiert jede Version in einen eigenen Ordner, so
+  geht eine laufende Arbeit oder ein Gespräch mit ihrer Version weiter; ältere Versionen gehen beim nächsten Update
+  oder mit `strom tidy`, und `strom doctor` nennt sie. Die Brücke antwortet der Strom-App auch, während sie sich
+  erneuert und während sie die Datei des Stammbaums erstellt.
 
 ## 1.24.0
 

@@ -52,6 +52,10 @@ import { placesPinned } from "../core/pastevents.ts";
 import { fixCheck, fixEnv, pendingFixes } from "../commands/fixchecks.ts";
 import { historyRows } from "../commands/checks.ts";
 import { placeEstimate, placeLabel, placeRecord, placesWithCoords, placeTask } from "../core/placehistory.ts";
+import { BATCH_MAX, identifyEstimate, PLACES_IDENTIFY_ORIGIN } from "../core/placeid.ts";
+import { placeView, queueView } from "../core/placesview.ts";
+import { kindsAdded, kindsOf, kindsSetting } from "../core/eventkinds.ts";
+import { alignEmpty, kindNames, planAlign } from "../core/historyalign.ts";
 
 /** What the Strom app asks, said before anything is done; true when the person goes on. */
 export async function asks(ctx: Context, lang: string, root: string, what: string, note?: string, suggested = true): Promise<boolean> {
@@ -217,6 +221,54 @@ export async function experimentDo(ctx: Context, run: Run, lang: string, root: s
   return true;
 }
 
+/**
+ * The kinds of history looked for, as the Strom app asks to set them where one is added (strom-research://history-kinds):
+ * what is added and left out, about how many sessions the history would take to look for the added kinds back where
+ * it was looked through (this research's own estimate), then strom config set (unset: this computer's again) on the
+ * person's yes — and strom history align offered (its preview and its own question). A kind left out comes through the
+ * bridge at once; this link only when one is added (the whole change, here).
+ */
+export async function historyKindsDo(ctx: Context, run: Run, lang: string, root: string, scope: "tree" | "default", kinds?: string, inherit = false): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const mine = readStored(tree.config, "history.kinds", "");
+  const now = scope === "tree" ? ctx.settings.historyKinds(tree.config) : ctx.settings.historyKinds(undefined);
+  const next = inherit ? ctx.settings.historyKinds(undefined) : kindsOf(kinds);
+  if (inherit ? mine === undefined : now.join() === next.join()) return stop(ctx, t("ui.link.history.kinds.same"));
+  const added = kindsAdded(now, next);
+  const removed = kindsAdded(next, now);
+  // this research's estimate, when the change reaches it (its own value, or none of its own for this computer's)
+  const reaches = scope === "tree" || mine === undefined;
+  const plan = reaches ? planAlign(tree, ctx.settings.shared()?.value, ctx.settings, next) : undefined;
+  const note = lines(
+    added.length ? t("ui.link.history.kinds.added", { kinds: kindNames(lang, added) }) : undefined,
+    removed.length ? t("ui.link.history.kinds.removed", { kinds: kindNames(lang, removed) }) : undefined,
+    plan && plan.backfill.length ? t("ui.link.history.kinds.estimate", { n: plan.backfill.length, sessions: plan.sessions }) : undefined,
+    scope === "default" ? t("ui.link.history.kinds.all") : undefined,
+  );
+  const what = t(scope === "default" ? "ui.link.what.history.kinds.default" : "ui.link.what.history.kinds", { kinds: next.length ? kindNames(lang, next) : t("ui.history.kinds.none") });
+  if (!(await asks(ctx, lang, root, what, note, !added.length))) return false;
+  const args = inherit ? ["config", "unset", "history.kinds", "--for-tree"] : ["config", "set", "history.kinds", kinds ?? kindsSetting(next), ...(scope === "tree" ? ["--for-tree"] : [])];
+  if ((await run(args, true)) !== 0) return false;
+  out(ctx, t("ui.link.history.kinds.done"));
+  ctx.settings.reload();
+  // what was found stays as it is: align says what the kinds now set would hide and look for again, and asks itself
+  if (alignEmpty(planAlign(Tree.open(root, ctx.env), ctx.settings.shared()?.value, ctx.settings))) return true;
+  if (!(await ctx.confirm(t("ui.link.history.kinds.align"), true))) return true;
+  return (await run(["history", "align"])) === 0;
+}
+
+/**
+ * The history aligned with the kinds looked for, asked from the Strom app (strom-research://history-align, prune=1 the
+ * shared catalogs too): strom history align says here what it would hide, show again and look for (about how many
+ * sessions) and does it on the person's yes — the bridge itself only hides and shows again.
+ */
+export async function historyAlignDo(ctx: Context, run: Run, lang: string, root: string, prune = false): Promise<boolean> {
+  const t = translator(lang);
+  out(ctx, t("ui.link.asks", { what: t("ui.link.what.history.align"), name: Tree.open(root, ctx.env).config.name }));
+  return (await run(["history", "align", ...(prune ? ["--prune-shared"] : [])])) === 0;
+}
+
 /** The places of this tree that follow its regions' switch written first as they hold (core/pastevents.ts placesPinned). */
 export async function pinPlaces(run: Run, tree: Tree, ctx: Context): Promise<boolean> {
   const pin = placesPinned(tree, ctx.settings);
@@ -275,6 +327,49 @@ export async function placeSearch(ctx: Context, run: Run, lang: string, root: st
   const task = placeTask(Tree.open(root, ctx.env), p.id);
   out(ctx, t("ui.link.history.place.done", { place }));
   if (!task || !(await ctx.confirm(t("ui.link.history.place.now"), false))) return true;
+  return (await run(["run", "--task", task.id])) === 0;
+}
+
+/**
+ * The places of the facts identified by the agent, asked for from the Strom app (strom-research://places?…&do=run, one
+ * place with &place=L…): the queue said here — how many places, in how many sessions by area, one session's estimate
+ * and the whole queue's, the gate of the runs and the limit of a session, what goes to searches — and on the person's
+ * yes the place queued (when it is not), the task of identification on top of the queue, then one session started now
+ * if wanted. The bridge never starts it (403 places.link).
+ */
+export async function placesRun(ctx: Context, run: Run, lang: string, root: string, id?: string): Promise<boolean> {
+  const t = translator(lang);
+  const tree = Tree.open(root, ctx.env);
+  const p = id ? placeRecord(tree, id) : undefined;
+  if (id && !p) return stop(ctx, t("ui.link.history.place.none", { place: id }));
+  const queue = queueView(tree);
+  const state = p ? placeView(tree, p.id)?.state : undefined;
+  const inQueue = state === "queued" || state === "running";
+  if (p && p.coords && !inQueue) return stop(ctx, t("ui.link.places.placed", { place: placeLabel(p, lang) }));
+  if (!p && !queue.queued) return stop(ctx, t("ui.link.places.empty"));
+  const n = queue.queued + (p && !inQueue ? 1 : 0);
+  const batches = Math.max(1, queue.batches + (p && !inQueue && !queue.batches ? 1 : 0));
+  const est = identifyEstimate(tree, batches);
+  const minutes = ctx.settings.number("run.minutes", tree.config, DEFAULT_RUN_MINUTES);
+  const note = lines(
+    t("ui.link.places.queue", { n, batches, max: BATCH_MAX }),
+    t("ui.link.history.place.minutes", { from: est.session.minutes[0], to: est.session.minutes[1] }),
+    est.session.usd ? t("ui.link.history.place.usd", { from: humanCost(est.session.usd[0], lang), to: humanCost(est.session.usd[1], lang) }) : undefined,
+    batches > 1 && est.queue ? t("ui.link.places.whole", { from: est.queue.minutes[0], to: est.queue.minutes[1] }) : undefined,
+    batches > 1 && est.queue?.usd ? t("ui.link.places.whole.usd", { from: humanCost(est.queue.usd[0], lang), to: humanCost(est.queue.usd[1], lang) }) : undefined,
+    batches > 1 ? t(ctx.settings.runGate() ? "ui.link.places.later.gate" : "ui.link.places.later", { minutes }) : undefined,
+    t("ui.link.places.private"),
+    t("ui.link.cost"),
+  );
+  const what = p ? t("ui.link.what.places.one", { place: placeLabel(p, lang) }) : t("ui.link.what.places");
+  if (!(await asks(ctx, lang, root, what, note, false))) return false;
+  // the place queued by the person (a place queued already, the whole queue: shown, its task kept with it)
+  if ((await run(p && !inQueue ? ["place", "queue", p.id] : ["place", "queue"], true)) !== 0) return false;
+  const task = Tree.open(root, ctx.env)
+    .list<Task>("task")
+    .find((x) => x.origin === PLACES_IDENTIFY_ORIGIN && (x.state === "open" || x.state === "doing"));
+  out(ctx, t("ui.link.places.done"));
+  if (!task || task.state === "doing" || !(await ctx.confirm(t("ui.link.places.now"), false))) return true;
   return (await run(["run", "--task", task.id])) === 0;
 }
 

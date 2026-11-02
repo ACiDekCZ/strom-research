@@ -13,6 +13,8 @@ export interface Worker {
   /** What it is, for people: "Claude Code conversation". */
   label: string;
   since: string;
+  /** The version of strom it works with (a worker of a strom before 1.25: none). */
+  version?: string;
   /** A run waiting for its gate: when it asks again, and what the gate said. */
   paused?: Paused;
 }
@@ -52,9 +54,9 @@ export function isWorkerId(id: string | undefined): id is string {
   return !!id && /^[\w.-]{1,80}$/.test(id);
 }
 
-/** Be present in the tree until the returned function is called (or the process ends). */
-export function enterWorker(root: string, id: string, label: string): () => void {
-  return acquireLock(path.join(dir(root), `${id}.json`), { owner: label, waitMs: 0, staleMs: 7 * 24 * 3600_000 });
+/** Be present in the tree until the returned function is called (or the process ends); `version`: the strom it works with. */
+export function enterWorker(root: string, id: string, label: string, version?: string): () => void {
+  return acquireLock(path.join(dir(root), `${id}.json`), { owner: label, waitMs: 0, staleMs: 7 * 24 * 3600_000, ...(version ? { version } : {}) });
 }
 
 /** The workers present now; files of workers that are gone are cleared away. */
@@ -72,7 +74,7 @@ export function liveWorkers(root: string): Worker[] {
     const info = liveHolder(file, 7 * 24 * 3600_000);
     if (info) {
       const paused = pausedOf(root, id);
-      out.push({ id, label: info.owner, since: info.at, ...(paused ? { paused } : {}) });
+      out.push({ id, label: info.owner, since: info.at, ...(info.version ? { version: info.version } : {}), ...(paused ? { paused } : {}) });
     } else {
       fs.rmSync(file, { force: true });
       fs.rmSync(pauseFile(root, id), { force: true });
@@ -90,6 +92,24 @@ export function anyoneAtWork(root: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * The versions of strom other than `version` that work in the tree now (read only, nothing cleared away): a worker that
+ * says none is of a strom before 1.25 — "" stands for it.
+ */
+export function otherVersionsAtWork(root: string, version: string): string[] {
+  const out = new Set<string>();
+  try {
+    for (const f of fs.readdirSync(dir(root))) {
+      if (!f.endsWith(".json")) continue;
+      const info = liveHolder(path.join(dir(root), f), 7 * 24 * 3600_000);
+      if (info && info.version !== version) out.add(info.version ?? "");
+    }
+  } catch {
+    // no workers
+  }
+  return [...out];
 }
 
 export function isLiveWorker(root: string, id: string): boolean {

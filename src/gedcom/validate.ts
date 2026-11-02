@@ -61,7 +61,13 @@ const CHILDREN: Record<string, string[]> = {
   EVENT: EVENT_DETAIL,
   CITATION: ["PAGE", "QUAY", "NOTE", "DATA", "EVEN"],
   "CITATION.DATA": ["DATE", "TEXT"],
-  PLAC: ["MAP", "FORM", "NOTE"],
+  PLAC: ["MAP", "FORM", "NOTE", "_STROM_PLACE"],
+  // the research's place record (the Strom profile, APP_READS_PLACE_RECORDS)
+  _STROM_PLACE: ["NAME", "MAP", "_STROM_JUR", "_STROM_IN", "_STROM_BY", "_STROM_AT", "_STROM_WHY", "_STROM_SRC", "_STROM_VERIFIED", "_STROM_UNLOCATED"],
+  "_STROM_PLACE.NAME": ["LANG", "DATE"],
+  "_STROM_PLACE._STROM_JUR": ["DATE"],
+  "_STROM_PLACE._STROM_SRC": ["WWW"],
+  "_STROM_PLACE._STROM_UNLOCATED": ["_STROM_NEEDS"],
   MAP: ["LATI", "LONG"],
   "EVENT.ASSO": ["RELA", "NOTE"],
   "EVENT.HUSB": ["AGE"],
@@ -73,7 +79,7 @@ const CHILDREN: Record<string, string[]> = {
 
 /** Values the Strom app joins from CONC lines though GEDCOM 5.5.1 gives them none: a long place, name, label (its file). */
 const JOINED_TAGS = new Set(["PLAC", "NAME", "_WITN", "PAGE", "TYPE", "SOUR", "REFN", "AGE"]);
-const TEXT_TAGS = new Set(["NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "WWW", "VAL", "DECI"]);
+const TEXT_TAGS = new Set(["_STROM_WHY", "_STROM_SRC", "_STROM_UNLOCATED", "_STROM_NEEDS", "NOTE", "TEXT", "TITL", "PAGE", "AUTH", "PUBL", "_STORY", "DATA", "COPR", "ADDR", "CAUS", "FILE", "_URL", "WWW", "VAL", "DECI"]);
 const EXTENSIONS = new Set([
   "_STORY", "_WITN", "_FREL", "_MREL", "_STROM_KIND", "_URL", "_STROM_TREE", "_STROM_HEAD", "_STROM_LINKS", "_STROM_CLIP",
   "_STROM_ASOF", "_SCHEME", "_STROM_CONFLICT", "_STROM_TAKE", "_STROM_SIDE", "_STROM_RAW", "_STROM_HYPO", "_STROM_SEARCHED", "_AT",
@@ -95,6 +101,8 @@ const EXTENSIONS = new Set([
   "_STROM_SHA", "_STROM_ORIENT",
   // the bounds of a lineage the person set (on a person), and the header's mark that the file says them
   "_STROM_LINE", "_STROM_LINES",
+  // the research's place records and each fact's place pointing to its record
+  "_STROM_PLACE", "_STROM_JUR", "_STROM_IN", "_STROM_BY", "_STROM_AT", "_STROM_WHY", "_STROM_SRC", "_STROM_UNLOCATED", "_STROM_NEEDS",
 ]);
 
 /** Context of the children of the last tag in `anc` (the ancestors of a line). */

@@ -570,6 +570,26 @@ export function appReadsLines(settings: Settings, version?: string, gate: string
   return !!gate && compareVersions(v, gate) >= 0;
 }
 
+/**
+ * The first Strom app that reads the research's place records (spec 034; the app's ZADANI_VYZKUM_ztotozneni-mist.md,
+ * point 10): 0 @L…@ _STROM_PLACE with its names, position, jurisdictions, parent, who put it on the map and why, and
+ * 3 _STROM_PLACE @L…@ under each PLAC of a fact that belongs to one — in the Strom file and the bridge's /tree.ged.
+ * An older app counts an unknown record as unsupported: not released yet (undefined); an app of unknown version stays
+ * off; another copy of the app (its beta, its development) from APP_READS_PLACE_RECORDS_BETA.
+ */
+export const APP_READS_PLACE_RECORDS: string | undefined = undefined;
+
+/** The first beta of the app that reads the place records (another copy of the app gets them from it); undefined: none yet. */
+export const APP_READS_PLACE_RECORDS_BETA: string | undefined = undefined;
+
+/** Does the Strom app of this version read the research's place records (0 @L…@ _STROM_PLACE, 3 _STROM_PLACE)? */
+export function appReadsPlaceRecords(settings: Settings, version?: string, gate: string | undefined = APP_READS_PLACE_RECORDS, beta: string | undefined = APP_READS_PLACE_RECORDS_BETA): boolean {
+  const v = version?.trim();
+  if (!v || !isAppVersion(v)) return false;
+  if (anotherCopy(settings) && beta) return compareVersions(v, beta) >= 0;
+  return !!gate && compareVersions(v, gate) >= 0;
+}
+
 /** The address that opens the Strom app to send the user's edited tree to the bridge. */
 export function sendAppUrl(bridge: string, settings: Settings): string {
   return `${stromAppUrl(settings)}?send=${encodeURIComponent(bridge)}`;

@@ -9,8 +9,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
-import { World, hasGit, readJsonFile } from "../helpers.ts";
+import { spawn, spawnSync } from "node:child_process";
+import { World, hasGit, readJsonFile, until } from "../helpers.ts";
 import { VERSION } from "../../src/core/tree.ts";
 import { backupFor, type BackupRecord } from "../../src/core/backup.ts";
 import { UI } from "../../src/cli/ui.ts";
@@ -287,9 +287,12 @@ test("strom update --channel stable: the running strom backs every research up b
   assert.deepEqual([made[0].from, made[0].to, made[0].fromChannel, made[0].toChannel], [VERSION, "1.0.0", "beta", "stable"]);
   assert.equal(out.backup.path, made[0].path);
   assert.equal(gitLog(path.join(made[0].path, "trees", "Novákovi")), gitLog(tree));
-  // installed after it: the old program gone, the channel the releases'
+  // installed after it: a version before 1.25 (no stromLayout in its package.json) the whole of it in app/, as it knows
+  // the installer's folder; the channel the releases'
   assert.equal(fs.readFileSync(path.join(app, "dist", "cli.js"), "utf8"), "// 1.0.0\n");
+  assert.equal(fs.existsSync(path.join(root, "app-1.0.0")), false);
   assert.equal("channel" in readJsonFile(path.join(root, "install.json")), false);
+  assert.equal("app" in readJsonFile(path.join(root, "install.json")), false);
   w.cleanup();
 });
 
@@ -307,7 +310,9 @@ test("the backup's own pieces: what strom makes again stays out, a lock of the s
   fs.writeFileSync(path.join(tree, ".strom", "excerpts", "b.png"), "x");
   fs.writeFileSync(path.join(tree, ".strom", "fetch", "x", "c"), "x");
   fs.writeFileSync(path.join(tree, ".strom", "runs", "N0001.log"), "log");
-  fs.writeFileSync(path.join(tree, ".strom", "tree.lock"), "{}");
+  // a lock left by a strom that is gone (the backup copies each research under its lock: one of nobody's is taken)
+  const gone = spawnSync(process.execPath, ["-e", ""]).pid;
+  fs.writeFileSync(path.join(tree, ".strom", "tree.lock"), JSON.stringify({ pid: gone, host: os.hostname(), at: new Date().toISOString(), owner: "strom" }));
   fs.writeFileSync(path.join(tree, "data", "person.jsonl"), "{}\n");
   const cfg = path.join(dir, "cfg");
   fs.mkdirSync(cfg);
@@ -421,4 +426,65 @@ test("a refused backup is said alike in every language: a person's words name no
       assert.doesNotMatch(text, /sandbox|agent/i, `${key}: ${text}`);
       assert.match(text, /\{where\}/);
     }
+});
+
+/** Another strom writing the research: holds its lock (as a writing command does) with a file half written, written whole as it lets go. */
+function writer(tree: string, holdMs: number): { done: Promise<void>; stop: () => void } {
+  const lock = path.join(tree, ".strom", "tree.lock");
+  const file = path.join(tree, "notes", "zapis.txt");
+  const code = `const fs=require("fs"),os=require("os");const [lock,file,ms]=process.argv.slice(1);fs.writeFileSync(file,"napůl");fs.writeFileSync(lock,JSON.stringify({pid:process.pid,host:os.hostname(),at:new Date().toISOString(),owner:"strom Lhoták"}));setTimeout(()=>{fs.writeFileSync(file,"celý");fs.rmSync(lock);process.exit(0)},Number(ms))`;
+  const c = spawn(process.execPath, ["-e", code, lock, file, String(holdMs)], { stdio: "ignore" });
+  const done = new Promise<void>((r) => (c.exitCode !== null || c.signalCode ? r() : c.once("exit", () => r())));
+  return { done, stop: () => c.kill("SIGKILL") };
+}
+
+test("each research is copied under its lock: one being written for a moment is waited for (its write whole in the copy); one written longer than the backup waits is left out and said so — the rest backed up", { skip: !hasGit || process.platform === "win32" }, async () => {
+  const w = new World();
+  const tree = await w.withTree("Lhotákovi");
+  await w.ok(["person", "add", "Jan /Lhoták/", "--born", "1905"]);
+  await w.ok(["init", "Lhotečtí"]);
+  const other = fs.readdirSync(w.home).find((n) => n !== "Lhotákovi" && fs.existsSync(path.join(w.home, n, "strom.json")))!;
+  const held = async (holdMs: number) => {
+    const wr = writer(tree, holdMs);
+    await until("the lock held", () => fs.existsSync(path.join(tree, ".strom", "tree.lock")));
+    return wr;
+  };
+  // being written for a moment: the backup waits for it, the copy has the write whole — never half
+  setConfig(w, { lastVersion: "99.0.0-beta.3", lastChannel: "beta" });
+  w.env.STROM_CHANNEL = "beta";
+  w.env.STROM_BACKUP_LOCK_WAIT_MS = "20000";
+  const brief = await held(1500);
+  try {
+    const r = await w.ok(["status"], { cwd: path.join(w.home, other) });
+    assert.match(r.err, /Záloha před přechodem z 99\.0\.0-beta\.3 na /);
+    assert.doesNotMatch(r.err, /v ní není/);
+    const made = config(w).backups[0];
+    assert.equal(made.skipped, undefined);
+    assert.equal(fs.readFileSync(path.join(made.path, "trees", "Lhotákovi", "notes", "zapis.txt"), "utf8"), "celý", "copied once the write was whole");
+    assert.equal(fs.existsSync(path.join(made.path, "trees", "Lhotákovi", ".strom", "tree.lock")), false, "the backup's own lock not in it");
+    assert.equal(fs.existsSync(path.join(tree, ".strom", "tree.lock")), false, "its lock let go");
+  } finally {
+    brief.stop();
+    await brief.done;
+  }
+  // written all the while it waits: left out, said by name in the person's language (and in its README); the other
+  // research backed up; the lock never taken from the writer
+  setConfig(w, { lastVersion: "99.0.0-beta.4", lastChannel: "beta", backups: [] });
+  w.env.STROM_BACKUP_LOCK_WAIT_MS = "300";
+  const long = await held(120_000);
+  try {
+    const r = await w.ok(["status"], { cwd: path.join(w.home, other) });
+    assert.match(r.err, /Záloha před přechodem z 99\.0\.0-beta\.4 na /);
+    assert.match(r.err, /Rodokmen Lhotákovi v ní není: zapisovalo se do něj déle, než záloha čeká \(strom Lhoták\)\. Zůstává na svém místě beze změny\./);
+    const made = config(w).backups.at(-1);
+    assert.deepEqual(made.skipped, [{ tree: "Lhotákovi", by: "strom Lhoták" }]);
+    assert.deepEqual(fs.readdirSync(path.join(made.path, "trees")), [other], "the other research backed up");
+    assert.match(fs.readFileSync(path.join(made.path, "README.txt"), "utf8"), /Chybí: Lhotákovi – zapisovalo se do nich déle, než záloha čeká/);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(tree, ".strom", "tree.lock"), "utf8")).owner, "strom Lhoták", "the writer keeps its lock");
+    assert.equal(fs.readFileSync(path.join(tree, "notes", "zapis.txt"), "utf8"), "napůl", "the research untouched");
+  } finally {
+    long.stop();
+    await long.done;
+    w.cleanup();
+  }
 });

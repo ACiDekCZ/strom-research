@@ -108,7 +108,7 @@ import type { FetchedImage } from "../core/connector.ts";
 import { now } from "../core/tree.ts";
 import { FetchMeter, metricsDir, recordFetch, requestsPerImage, webDomain } from "../core/metrics.ts";
 import { siteConnector } from "../core/web.ts";
-import { allows, forgetConnector, grantWay, keyHost, latchedPace, liftRefusal, loadArchives, pendingQuestions, termsFor, type ArchiveLevel } from "../core/terms.ts";
+import { allows, forgetConnector, grantWay, keyHost, latchedPace, liftRefusal, loadArchives, pendingQuestions, termsFor, termsOpen, type ArchiveLevel } from "../core/terms.ts";
 import { waitsOnHost } from "../core/archivewait.ts";
 import { waysOffered } from "../core/archiveasks.ts";
 import { archivesOverview, checkEnvironment, gateArchive, levelsOf, levelText, NeedsPermissionError, permissionText, robotsPermits, syncTrees, taskHere, verdictKeeper } from "./archives.ts";
@@ -1283,6 +1283,7 @@ register(
           ...(opts.body !== undefined ? { body: String(opts.body) } : {}),
           cookies,
           robots: true,
+          termsOpen: (h) => termsOpen(ctx.env, h),
           login: !!c.manifest.login,
           ...metered(meter),
           ...netWords(ctx, c, level ? [level] : []),

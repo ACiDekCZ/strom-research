@@ -1,6 +1,8 @@
 // source · cite · repo · recordset · place — where the evidence comes from.
 
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
+import { personsHand } from "../core/placeid.ts";
+import { isAgent } from "../core/which.ts";
 import fs from "node:fs";
 import { commands, register, type CommandDef, type Input } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
@@ -89,7 +91,7 @@ function clipRefs(tree: Tree, specs: string[], shared: string | undefined): Clip
 }
 
 /** "Teinitz an der Elbe@de:1850-1918" → another name of a place. */
-function altName(a: string): Place["names"][number] {
+export function altName(a: string): Place["names"][number] {
   const m = /^(.+?)(?:@([a-z]{2,3}))?(?::(\d{3,4})?-(\d{3,4})?)?$/.exec(a);
   if (!m) throw new UsageError(`invalid --alt "${a}"`, { hint: 'e.g. "Teinitz an der Elbe@de:1850-1918"' });
   const n: Place["names"][number] = { name: m[1]!.trim() };
@@ -646,6 +648,11 @@ function placeName(p: Place): string {
   return p.names[0]?.name ?? p.id;
 }
 
+/** Who writes a place's coordinates: an agent (a session of the research) or the person by hand. */
+function byWhom(ctx: Context): "research" | "person" {
+  return isAgent(ctx.env) || ctx.env.STROM_SESSION ? "research" : "person";
+}
+
 export function findPlaces(tree: Tree, q: string): Place[] {
   const key = foldText(q);
   return tree.list<Place>("place").filter((p) => p.names.some((n) => foldText(n.name) === key || foldText(n.name).startsWith(key)));
@@ -687,6 +694,8 @@ register(
           coords: lat !== undefined && lon !== undefined ? { lat, lon } : undefined,
           unlocated: lat === undefined ? str(opts.unlocated) : undefined,
           parent: opts.parent ? normId(opts.parent as string) : undefined,
+          // who put it on the map: the person by hand, an agent (the research) — core/placeid.ts
+          locating: lat !== undefined ? { by: byWhom(ctx), at: new Date().toISOString() } : undefined,
           jurisdictions: [],
           note: str(opts.note),
         },
@@ -969,6 +978,14 @@ register(
       if ((lat === undefined) !== (lon === undefined)) throw new UsageError("give both --lat and --lon");
       if ((lat !== undefined && !Number.isFinite(lat)) || (lon !== undefined && !Number.isFinite(lon))) throw new UsageError("--lat and --lon are numbers, e.g. 50.042");
       if (opts.parent) requireRecord(tree, opts.parent as string, "place");
+      const by = byWhom(ctx);
+      const had = requireRecord<Place>(tree, args[0]!, "place");
+      // the person's hand wins (spec 034 K2.5): an agent never moves coordinates the person gave
+      if (lat !== undefined && by === "research" && personsHand(had))
+        throw new UsageError(`${had.id}: the coordinates were given by the person${had.locating ? "" : " (or before the research kept who)"} — the research does not change them`, {
+          code: "place.manual",
+          hint: `the records say otherwise: strom place propose ${had.id} --conflict --candidate …`,
+        });
       const alt = listOpt(opts.alt).map(altName);
       const p = editFields<Place>(
         tree,
@@ -984,8 +1001,12 @@ register(
         opts,
         (cur) => {
           const add = alt.filter((n) => !cur.names.some((x) => foldText(x.name) === foldText(n.name) && x.lang === n.lang));
-          // located at last: no longer "not identified"
-          return { ...(add.length ? { names: [...cur.names, ...add] } : {}), ...(lat !== undefined && cur.unlocated ? { unlocated: undefined } : {}) };
+          // located at last: no longer "not identified"; who put it there kept, any question of it closed
+          return {
+            ...(add.length ? { names: [...cur.names, ...add] } : {}),
+            ...(lat !== undefined && cur.unlocated ? { unlocated: undefined } : {}),
+            ...(lat !== undefined ? { locating: { by, at: new Date().toISOString() } } : {}),
+          };
         },
       );
       return { text: written(tree), data: { place: p } };

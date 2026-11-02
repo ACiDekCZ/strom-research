@@ -334,3 +334,23 @@ export function adoptPlaces(tree: Tree, shared: string | undefined, settings: Se
     return { ...plan, taken, written: true };
   });
 }
+
+/**
+ * The place records of the other trees on this computer that bear a name (spec 034 K2.1a: the free step before any
+ * search) — read only, as their maps are: each with its tree's id (never its name) and what it says of where the
+ * place is; only records with coordinates or a parish or district. Keyed by the folded name asked for.
+ */
+export function othersRecords(tree: Tree, names: string[], settings: Settings = new Settings(tree.env, {})): Map<string, (PlaceSigns & { tree: string })[]> {
+  const out = new Map<string, (PlaceSigns & { tree: string })[]>();
+  if (!names.length) return out;
+  const others = otherTrees(tree, settings);
+  for (const name of names) {
+    const found: (PlaceSigns & { tree: string })[] = [];
+    for (const o of others) {
+      const s = signsOf(namedIn(o)(name));
+      if (s && (s.coords || s.parish || s.district)) found.push({ ...s, tree: o.id });
+    }
+    if (found.length) out.set(foldText(name), found);
+  }
+  return out;
+}

@@ -25,6 +25,7 @@ import { claudeArgs } from "../runners/claude.ts";
 import { codexTrust, codexWritable } from "../runners/codex.ts";
 import { grokOwnEnv, grokTrust } from "../runners/grok.ts";
 import type { Env } from "../core/paths.ts";
+import { claudeEnv } from "../core/claudedir.ts";
 import { effortArgs } from "./effort.ts";
 import type { AgentPermissions } from "../core/config.ts";
 
@@ -53,10 +54,11 @@ export interface LaunchOptions {
 
 /**
  * What a conversation's agent gets in its environment besides strom's (an isolated installation: Grok's folder trust
- * off, and no skill of another installation's taken in). A conversation keeps the person's add-ons.
+ * off, and no skill of another installation's taken in; Claude Code its folder, agent.claudeConfigDir). A conversation
+ * keeps the person's add-ons.
  */
 export function conversationEnv(agent: string, env: Env): Record<string, string> {
-  return agent === "grok" ? grokOwnEnv(env) : {};
+  return agent === "grok" ? grokOwnEnv(env) : agent === "claude" ? claudeEnv(env) : {};
 }
 
 /** The command line of a conversation with this agent. */

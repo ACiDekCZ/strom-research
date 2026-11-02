@@ -11,6 +11,10 @@ import path from "node:path";
 import http from "node:http";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { LINK_ACTIONS, parseLink } from "../../src/core/links.ts";
+import { EVENT_KINDS } from "../../src/core/eventkinds.ts";
+
+/** The kinds of history /status says of a research that never chose them: all, this computer's. */
+const KINDS = { kinds: [...EVENT_KINDS], kindsOwn: false, kindsDefault: [...EVENT_KINDS] };
 
 const opts = { skip: !hasGit || process.platform === "win32", timeout: 180_000 };
 const APP = "https://beta.stromapp.info";
@@ -84,7 +88,7 @@ test("bridge: /status says the experiment and its rev only where the tree has it
   try {
     const info = await bridge(off.w);
     const s = (await ask(`${info.url}/status?app=3.16.0`)).body;
-    assert.deepEqual(s.experiments, { history: false, regions: false, places: false, historyPace: "sometimes" });
+    assert.deepEqual(s.experiments, { history: false, regions: false, places: false, historyPace: "sometimes", ...KINDS });
     assert.equal("history" in s, false, "nothing of it for a tree without it");
     for (const f of ["experiments", "experiments.off", "experiments.link", "history.events", "history.hide", "experiments.pace"]) assert.ok(s.features.includes(f), f);
     const h = (await ask(`${info.url}/history`)).body;
@@ -99,7 +103,7 @@ test("bridge: /status says the experiment and its rev only where the tree has it
   try {
     let info = await bridge(w);
     const s = (await ask(`${info.url}/status?app=3.16.0`)).body;
-    assert.deepEqual(s.experiments, { history: true, regions: true, places: true, historyPace: "sometimes" });
+    assert.deepEqual(s.experiments, { history: true, regions: true, places: true, historyPace: "sometimes", ...KINDS });
     assert.match(s.history.rev, /^[0-9a-f]{16}$/);
     const r = await ask(`${info.url}/history?app=3.16.0`);
     assert.equal(r.status, 200);
@@ -239,7 +243,7 @@ test("bridge: POST /experiments turns the history off for this tree only, never 
     assert.notEqual(off.body.parent, off.body.head, "the tree's strom.json committed");
     assert.equal(readJsonFile(path.join(w.cwd, "strom.json")).experimentsHistory, "off");
     assert.equal(readJsonFile(path.join(w.env.STROM_CONFIG_DIR!, "config.json")).experimentsHistory, "on", "the person's own config stays");
-    assert.deepEqual((await ask(`${info.url}/status`)).body.experiments, { history: false, regions: false, places: false, historyPace: "sometimes" });
+    assert.deepEqual((await ask(`${info.url}/status`)).body.experiments, { history: false, regions: false, places: false, historyPace: "sometimes", ...KINDS });
     assert.match((await ask(`${info.url}/status`)).body.history.rev, /^[0-9a-f]{16}$/, "what was found is still said");
     const again = await post(url, { history: false });
     assert.equal(again.status, 200);
@@ -441,7 +445,7 @@ test("the two switches (spec 020 K8): the regions and the places apart for one r
     try {
       let s = (await ask(`${info.url}/status`)).body;
       assert.ok(s.features.includes("experiments.split"));
-      assert.deepEqual(s.experiments, { history: true, regions: true, places: false, historyPace: "sometimes" });
+      assert.deepEqual(s.experiments, { history: true, regions: true, places: false, historyPace: "sometimes", ...KINDS });
       // the places off: a place's history refused with the link that turns them on
       const place = await post(`${info.url}/history/place`, { place: "L0001" });
       assert.equal(place.status, 409, JSON.stringify(place.body));
@@ -461,7 +465,7 @@ test("the two switches (spec 020 K8): the regions and the places apart for one r
       assert.deepEqual(r.body.experiments, { regions: false });
       assert.notEqual(r.body.head, r.body.parent);
       s = (await ask(`${info.url}/status`)).body;
-      assert.deepEqual(s.experiments, { history: false, regions: false, places: false, historyPace: "sometimes" });
+      assert.deepEqual(s.experiments, { history: false, regions: false, places: false, historyPace: "sometimes", ...KINDS });
       const first = await post(`${info.url}/history/first`, { region: "cz-lhota" });
       assert.equal(first.status, 409);
       assert.equal(first.body.code, "history.off");

@@ -14,7 +14,7 @@ import { ownGitDir } from "./git.ts";
 import { shortcutCmdDir } from "./shortcut.ts";
 import { globalTargets, isInstalled, uninstallGlobal } from "../agents/global.ts";
 import { PROFILES } from "../agents/profiles.ts";
-import { holdsPath, installation, pathForms, PROGRAM_ENTRIES, type Installation } from "./self.ts";
+import { holdsPath, installation, isVersionDir, pathForms, PROGRAM_ENTRIES, type Installation } from "./self.ts";
 import { linkFiles, linkOwner, unregisterLinks } from "./links.ts";
 import { widgetDir } from "./widget.ts";
 
@@ -168,13 +168,13 @@ function onWindowsPath(dir: string): boolean {
  * What the installer, strom update and strom's own git put into an installation's folder — the one thing strom
  * uninstall takes from it (found 2026-10-07: the whole folder went, an isolated installation's research and its
  * backups in it). Folders: Node, strom's code (and the one an update or the installer set aside), strom's own git
- * (MinGit on Windows) with what its download leaves; files: install.json, the launchers (strom, strom.cmd; strom.exe of
- * an older strom). Besides: the update's work folders (.update-…), bin with a second installation's launchers (only
+ * (MinGit on Windows) with what its download leaves; files: install.json, update.log, the launchers (strom, strom.cmd; strom.exe of
+ * an older strom). Besides: each version's folder (app-<version>), the update's work folders (.update-…), bin with a second installation's launchers (only
  * when nothing else is left in it), and what a system leaves in any folder it shows (.DS_Store, Thumbs.db,
  * desktop.ini). Anything else — a research, backups, a file the person put there — stays, and so does the folder.
  */
 const OUR_DIRS = new Set<string>(PROGRAM_ENTRIES);
-const OUR_FILES = new Set(["install.json", "strom", "strom.cmd", "strom.exe", "git.zip", ".DS_Store", "Thumbs.db", "desktop.ini"]);
+const OUR_FILES = new Set(["install.json", "update.log", "strom", "strom.cmd", "strom.exe", "git.zip", ".DS_Store", "Thumbs.db", "desktop.ini"]);
 
 /** One entry of an installation's folder that strom uninstall takes away. */
 export interface OurEntry {
@@ -208,7 +208,7 @@ export function ourEntries(root: string, keep: string[] = [], platform: NodeJS.P
       continue;
     }
     const dir = st.isDirectory();
-    const ours = dir ? OUR_DIRS.has(name) || /^\.update-/.test(name) : OUR_FILES.has(name);
+    const ours = dir ? OUR_DIRS.has(name) || isVersionDir(name) || /^\.update-/.test(name) : OUR_FILES.has(name);
     if (!ours || holdsKept(path.join(root, name), keep, platform)) continue;
     out.push({ name, dir });
   }

@@ -14,9 +14,10 @@ import { register } from "../cli/registry.ts";
 import type { Context } from "../cli/context.ts";
 import { LIST_PAGE_MAX, lines, moreLine, paginate, runs, table, truncate } from "../cli/format.ts";
 import { UsageError } from "../core/errors.ts";
-import { CHECK_ANSWERS, TASK_LEVELS, type CheckAnswer, type PersonAnswer, type Input, type Lesson, type Note, type RecordSet, type Research, type Search, type Session, type Source, type Strategy, type Task } from "../core/model.ts";
+import { CHECK_ANSWERS, TASK_LEVELS, type CheckAnswer, type PersonAnswer, type Input, type Lesson, type Note, type RecordSet, type Research, type Search, type OffLine, type Session, type Source, type Strategy, type Task } from "../core/model.ts";
 import { create, csvOpt, listOpt, normId, requireRecord, update } from "../core/records.ts";
 import { directionOf, ofResearch, scopes } from "../core/directions.ts";
+import { lineOf, placer } from "../core/offline.ts";
 import { resolvePerson } from "../core/people.ts";
 import { foldText } from "../core/text.ts";
 import { now, typeOfId, type Tree } from "../core/tree.ts";
@@ -158,12 +159,44 @@ export function taskQueue(tree: Tree, filter: { research?: string; level?: strin
 }
 
 export function rankedQueue(tree: Tree, filter: { research?: string; level?: string; strategy?: Strategy; storyTurn?: boolean; awake?: boolean; history?: boolean | "only" } = {}): Ranked[] {
-  const scope = filter.research ? scopes(tree).find((s) => s.research.id === filter.research) : undefined;
+  const all = filter.research ? scopes(tree) : [];
+  const scope = all.find((s) => s.research.id === filter.research);
+  // one line's work: its own, about its people, or helping it (core/offline.ts) — never work off the lines
+  const line = scope ? lineOf(tree, all) : undefined;
   const tasks = tree
     .list<Task>("task")
-    .filter((t) => !filter.research || (scope ? ofResearch(tree, t, scope) : t.research === filter.research))
+    .filter((t) => !filter.research || (scope ? ofResearch(tree, t, scope) || line!(t) === scope.research.id : t.research === filter.research))
     .filter((t) => !filter.level || t.level === filter.level);
   return rankTasks(tree, tasks, filter.strategy, { storyTurn: filter.storyTurn, awake: filter.awake, history: filter.history });
+}
+
+/** --helps: what the agent said, trimmed; empty takes it off. */
+const HELPS_DESCRIPTION = "how this task helps a line though none of its people is in one (G… names the line): an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor — without it, work off the lines waits until the lines have nothing to do";
+const helpsOpt = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+
+/** --json of a task: where it stands among the lines — off them (and how it waits), or the line it helps. */
+export function offLineData(tree: Tree, t: Task, offLine: OffLine): { offLine?: OffLine; helps?: { by: string; research?: string } } {
+  const p = placer(tree, scopes(tree))(t);
+  if (p.off) return offLine === "normal" ? {} : { offLine };
+  return p.helps ? { helps: { by: p.helps, ...(p.research ? { research: p.research } : {}) } } : {};
+}
+
+/** With queue.offLine never: how many open tasks off the lines are not taken (undefined: none, or another setting). */
+function neverLine(tree: Tree, offLine: OffLine): string | undefined {
+  if (offLine !== "never") return undefined;
+  const place = placer(tree, scopes(tree));
+  const n = tree.list<Task>("task").filter((t) => t.state === "open" && place(t).off).length;
+  return n ? `${n} more off the lines are not taken (queue.offLine never): strom task list --state open` : undefined;
+}
+
+/**
+ * What an agent is told of a task off the lines of a research with several (core/offline.ts): it waits until the lines
+ * have nothing to do (queue.offLine last) or is not taken (never), unless it says how it helps a line. Undefined for a
+ * task of a line, one that helps one, or while the setting takes it as the lines' work.
+ */
+export function offLineLine(tree: Tree, t: Task, offLine: OffLine): string | undefined {
+  if (offLine === "normal" || t.state !== "open" || !placer(tree, scopes(tree))(t).off) return undefined;
+  return `· ${t.id} is off the lines: none of its people is in a line of the research and it names no hypothesis or conflict of one — ${offLine === "never" ? "it is not taken (queue.offLine never)" : "it waits until the lines have nothing to do (queue.offLine last)"}. If it helps a line (an ancestor's sibling as godparent or witness, the same house, a surname for an ancestor, joining people to the tree), say how: strom task edit ${t.id} --helps "<how it helps G…>"`;
 }
 
 /**
@@ -513,7 +546,11 @@ register(
       "Levels: intake (process an input), locate (find where records are), link (prove a parent/marriage),\n" +
       "verify (independent second reading), enrich (details of a placed person), request (ask an archive),\n" +
       "narrate (write the story). Priority 1 (low) – 5 (urgent), default 3 — added in a session, at most the priority of\n" +
-      "the session's task (a follow-up never goes before the work it came from).",
+      "the session's task (a follow-up never goes before the work it came from).\n" +
+      "Off the lines (a research of several lines, none of the task's people in one — a side branch): it waits until the\n" +
+      "lines have nothing to do (setting queue.offLine), unless it names a hypothesis or conflict of a line (--about H…),\n" +
+      "would join people to the tree, or says how it helps a line: --helps (an ancestor's sibling as a godparent or\n" +
+      "witness, the same house, a surname for an ancestor — not the sibling's own family for its own sake).",
     args: [{ name: "what", description: 'what to find, one line: "Baptism of Jan Novák (~1905)"', required: true }],
     options: [
       { name: "level", type: "string", value: "<level>", description: TASK_LEVELS.join(", ") },
@@ -523,6 +560,7 @@ register(
       { name: "priority", type: "string", value: "1-5", description: "default 3" },
       { name: "about", type: "string", multiple: true, value: "<who>", description: "person/record the task is about, also a conflict X… or hypothesis H… it decides (repeatable)" },
       { name: "research", type: "string", value: "<G…>", description: "research it belongs to (default: the only active one)" },
+      { name: "helps", type: "string", value: "<text>", description: HELPS_DESCRIPTION, max: 500 },
       { name: "note", type: "string", value: "<text>", description: "short note" },
       { name: "anyway", type: "boolean", description: "add it although an open task of the same person and level reads the same (it is really other work)" },
     ],
@@ -583,6 +621,7 @@ register(
           research,
           state: "open",
           origin: tree.actor,
+          ...(helpsOpt(opts.helps) ? { helps: helpsOpt(opts.helps) } : {}),
           note: [whatMore, typeof opts.note === "string" ? opts.note : undefined].filter(Boolean).join("\n") || undefined,
         },
         (id) => `+${id} task "${truncate(what, 60)}"`,
@@ -602,9 +641,10 @@ register(
           held.line?.replace("T…", t.id),
           ...similar.map((x) => `⚠ similar ${x.state} task ${x.id} "${truncate(x.what, 60)}" — if it is the same, keep one: strom task drop ${t.id} --reason "duplicate of ${x.id}" and strom task edit ${x.id} --where … --note "…"`),
           offTreeLine(tree, t),
+          offLineLine(tree, t, ctx.settings.offLine(tree.config)),
           noImages ? `· no images for it here yet — if the user has to download them, say which now: strom task wait ${t.id} --images B…:<numbers> --on "<the book, its link, which images>"` : undefined,
         ),
-        data: { task: t, similar: similar.map((x) => x.id), needsImages: noImages, ...(held.lowered ? { priorityLowered: held.lowered } : {}) },
+        data: { task: t, similar: similar.map((x) => x.id), needsImages: noImages, ...offLineData(tree, t, ctx.settings.offLine(tree.config)), ...(held.lowered ? { priorityLowered: held.lowered } : {}) },
       };
     },
   },
@@ -636,12 +676,12 @@ register(
           : later
             ? "no open task to work on now"
             : "no open tasks → strom research show <G…> to see what is missing, then strom task add";
-        return { text: lines(text, decisionLines(tree), later), data: { task: null, offTree: held } };
+        return { text: lines(text, decisionLines(tree), later, neverLine(tree, ctx.settings.offLine(tree.config))), data: { task: null, offTree: held } };
       }
       const t = first.task;
       return {
         text: lines(taskDetail(tree, t), "", `first because: ${first.why} (queue: ${strategy})`, `start it: strom task start ${t.id}`),
-        data: { task: t, why: first.why, strategy, queueLength: queue.length },
+        data: { task: t, why: first.why, ...(first.offLine ? { offLine: first.offLine } : {}), ...(first.helps ? { helps: first.helps } : {}), strategy, queueLength: queue.length },
       };
     },
   },
@@ -667,11 +707,15 @@ register(
       const research = typeof opts.research === "string" ? resolveResearch(tree, opts.research).id : undefined;
       let all: Task[];
       const why = new Map<string, string>();
+      const ranks = new Map<string, Ranked>();
       const off = offTree(tree);
       if (opts["off-tree"]) all = tree.list<Task>("task").filter((t) => t.state === "open" && off(t) && (!opts.level || t.level === opts.level));
       else if (!opts.state) {
         const ranked = rankedQueue(tree, { ...(research ? { research } : {}), ...(opts.level ? { level: String(opts.level) } : {}), strategy: ctx.settings.strategy(tree.config) });
-        for (const r of ranked) why.set(r.task.id, r.why);
+        for (const r of ranked) {
+          why.set(r.task.id, r.why);
+          ranks.set(r.task.id, r);
+        }
         all = ranked.map((r) => r.task);
       } else {
         all = tree.list<Task>("task").filter((t) => opts.state === "all" || t.state === opts.state);
@@ -692,6 +736,7 @@ register(
           all.length ? lines(table(page.items.map(taskLine)), moreLine(page, "strom task list")) : ui(tree.lang, "ui.task.none"),
           held ? `${held} more wait out of the queue: about people nothing links to the tree yet (strom task list --off-tree)` : undefined,
           !opts.state && !opts["off-tree"] && !opts.about ? decisionLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
+          !opts.state && !opts["off-tree"] && !opts.about && !research ? neverLine(tree, ctx.settings.offLine(tree.config)) : undefined,
           !opts.state && !opts["off-tree"] && !opts.about ? asleepLines(tree, (t) => (!opts.level || t.level === opts.level) && (!research || t.research === research)) : undefined,
         ),
         data: {
@@ -699,6 +744,8 @@ register(
           tasks: page.items.map((t) => ({
             ...(opts.full ? t : { id: t.id, priority: t.priority, level: t.level, state: t.state, what: t.what, subject: t.subject, ...(t.wait ? { wait: t.wait } : {}) }),
             ...(why.has(t.id) ? { why: why.get(t.id) } : {}),
+            ...(ranks.get(t.id)?.offLine ? { offLine: ranks.get(t.id)!.offLine } : {}),
+            ...(ranks.get(t.id)?.helps ? { helps: ranks.get(t.id)!.helps } : {}),
             ...waitState(tree, t),
           })),
         },
@@ -735,6 +782,7 @@ register(
       { name: "done-when", type: "string", value: "<text>", description: "what counts as done", aliases: ["done"] },
       { name: "priority", type: "string", value: "1-5", description: "priority" },
       { name: "about", type: "string", multiple: true, value: "<who>", description: "person/record the task is about, also a conflict X… or hypothesis H… it decides (repeatable; replaces)" },
+      { name: "helps", type: "string", value: "<text>", description: `${HELPS_DESCRIPTION} ("" takes it off)`, max: 500 },
       { name: "note", type: "string", value: "<text>", description: "add a short note (what a later finding means for this task)" },
       { name: "on", type: "string", value: "<for the user: impersonal, research language>", description: "a waiting task: what it waits for, for the user" },
       ...WAIT_OPTIONS.map((o) => ({ ...o, description: `a waiting task: ${o.description}` })),
@@ -760,6 +808,9 @@ register(
         change.priority = held.priority;
       }
       if (listOpt(opts.about).length) change.subject = subjects(tree, listOpt(opts.about));
+      // how it helps a line: said, or taken off ("")
+      const helps = typeof opts.helps === "string" ? helpsOpt(opts.helps) : undefined;
+      if (typeof opts.helps === "string") change.helps = helps;
       // what a waiting task waits for: only a waiting task's
       const waitAsked = ["on", "kind", "to", "request", "url"].filter((k) => opts[k] !== undefined);
       if (waitAsked.length) {
@@ -784,7 +835,11 @@ register(
         summary: `${id} ${fields.map((f) => (f === "doneWhen" ? "done-when" : f === "subject" ? "about" : f === "waitingOn" ? "on" : f)).join(", ")}${change.where ? ` → ${truncate(change.where.join("; "), 50)}` : ""}`,
         reason: opts.reason as string | undefined,
       });
-      return { text: lines(written(tree), held?.line, change.subject ? offTreeLine(tree, t) : undefined), data: { task: t, ...(held?.lowered ? { priorityLowered: held.lowered } : {}) } };
+      const offLine = ctx.settings.offLine(tree.config);
+      return {
+        text: lines(written(tree), held?.line, change.subject ? offTreeLine(tree, t) : undefined, change.subject || "helps" in change ? offLineLine(tree, t, offLine) : undefined),
+        data: { task: t, ...offLineData(tree, t, offLine), ...(held?.lowered ? { priorityLowered: held.lowered } : {}) },
+      };
     },
   },
   {

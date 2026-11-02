@@ -38,6 +38,7 @@ import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/excerpt.ts";
 import { excerptPage, sourcePage } from "../core/scanlink.ts";
 import { numbersOnly } from "../core/streets.ts";
+import { recordIndex } from "../core/placeid.ts";
 import { mainPerson } from "../core/kin.ts";
 import { hypothesisPeople } from "../core/directions.ts";
 import * as git from "../core/git.ts";
@@ -168,6 +169,14 @@ export interface ExportOptions {
    * the header always, no person with one too (the file says them all: none is none).
    */
   lines?: Map<string, "FOUNDER" | "NOCARRY">;
+  /**
+   * The Strom profile, for an app that reads them (APP_READS_PLACE_RECORDS): under each PLAC of a fact that belongs to
+   * a place record of the research (one of its names, any accent; a street by its town) 3 _STROM_PLACE @L…@, and each
+   * record something points to (a PLAC, another's _STROM_IN) as 0 @L…@ _STROM_PLACE — its names (the first today's,
+   * 2 LANG, 2 DATE FROM/TO), MAP, _STROM_JUR, _STROM_IN, who put it on the map and when, why, from what, verified, or not
+   * located and what would decide it. The app never sends them back as edits: the research is where they live.
+   */
+  placeRecords?: boolean;
 }
 
 /** The header notes of the Strom app with the groups of a surname's forms and the suggestions rejected (its ged-exporter). */
@@ -292,6 +301,9 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
   // Places with coordinates, looked up by folded name.
   const coords = new Map<string, { lat: number; lon: number }>();
   for (const pl of tree.list<Place>("place")) if (pl.coords && !pl.retracted) for (const n of pl.names) coords.set(foldText(n.name), pl.coords);
+  // The research's place record of each fact's place, for an app that reads them; the records pointed to, written last.
+  const placeOf = opts.placeRecords && !strict ? recordIndex(tree) : undefined;
+  const placesPointed = new Set<string>();
 
   // What the research knows beyond the facts (the Strom profile, opts.research): read once.
   const research = {
@@ -592,10 +604,63 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     if (r.url) w.text(1, "NOTE", `${L("url")}: ${r.url}`);
   }
 
+  if (placeOf) placeRecordsOut();
+
   w.record("@U1@", "SUBM");
   w.line(1, "NAME", "Strom Research");
   w.line(0, "TRLR");
   return { text: w.toString(), lines: w.lines, stats };
+
+  // ── the research's place records something points to (and their parents, which they point to) ──
+  function placeRecordsOut(): void {
+    const all = new Map(tree.list<Place>("place").filter((p) => !p.retracted).map((p) => [p.id, p]));
+    const todo = [...placesPointed];
+    const out = new Set<string>();
+    while (todo.length) {
+      const id = todo.pop()!;
+      const p = all.get(id);
+      if (!p || out.has(id)) continue;
+      out.add(id);
+      if (p.parent && all.has(p.parent)) todo.push(p.parent);
+    }
+    const span = (from?: number, to?: number) => (from !== undefined && to !== undefined ? `FROM ${from} TO ${to}` : from !== undefined ? `FROM ${from}` : to !== undefined ? `TO ${to}` : undefined);
+    for (const id of [...out].sort()) {
+      const p = all.get(id)!;
+      w.record(x(p.id), "_STROM_PLACE");
+      for (const n of p.names) {
+        w.line(1, "NAME", n.name);
+        if (n.lang) w.line(2, "LANG", n.lang);
+        const d = span(n.from, n.to);
+        if (d) w.line(2, "DATE", d);
+      }
+      if (p.coords) {
+        w.line(1, "MAP");
+        w.line(2, "LATI", `${p.coords.lat < 0 ? "S" : "N"}${Math.abs(p.coords.lat)}`);
+        w.line(2, "LONG", `${p.coords.lon < 0 ? "W" : "E"}${Math.abs(p.coords.lon)}`);
+      }
+      for (const j of p.jurisdictions) {
+        w.line(1, "_STROM_JUR", `${j.kind} ${j.name}`);
+        const d = span(j.from, j.to);
+        if (d) w.line(2, "DATE", d);
+      }
+      if (p.parent && all.has(p.parent)) w.line(1, "_STROM_IN", x(p.parent));
+      const loc = p.locating;
+      // who put it on the map: coordinates of no known origin (before identification was kept) are the person's
+      const by = loc?.by ?? (p.coords ? "person" : undefined);
+      if (by) w.line(1, "_STROM_BY", by);
+      if (loc?.at) w.line(1, "_STROM_AT", loc.at.slice(0, 10));
+      if (loc?.why) w.text(1, "_STROM_WHY", loc.why);
+      if (loc?.source) {
+        w.text(1, "_STROM_SRC", loc.source.title);
+        if (loc.source.url) w.line(2, "WWW", loc.source.url);
+      }
+      if (loc?.verified) w.line(1, "_STROM_VERIFIED", loc.verified.slice(0, 10));
+      if (!p.coords && p.unlocated) {
+        w.text(1, "_STROM_UNLOCATED", p.unlocated);
+        if (loc?.needs) w.text(2, "_STROM_NEEDS", loc.needs);
+      }
+    }
+  }
 
   // ── one fact; returns notes that must go one level up (value tags) ──
   function event(e: Event, on: "INDI" | "FAM", couple: { husb?: string | undefined; wife?: string | undefined }, assos: { person: string; rela: string }[]): string[] {
@@ -627,6 +692,11 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
         w.line(3, "MAP");
         w.line(4, "LATI", `${c.lat < 0 ? "S" : "N"}${Math.abs(c.lat)}`);
         w.line(4, "LONG", `${c.lon < 0 ? "W" : "E"}${Math.abs(c.lon)}`);
+      }
+      const record = placeOf?.(e.place);
+      if (record) {
+        w.line(3, "_STROM_PLACE", x(record.id));
+        placesPointed.add(record.id);
       }
     }
     const noteParts: string[] = [];

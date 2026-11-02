@@ -23,6 +23,7 @@ import { configDir, isolated, userHome } from "../core/paths.ts";
 import { writeFileAtomic } from "../core/json.ts";
 import { installation } from "../core/self.ts";
 import { agentAppUrl, appSite } from "../core/stromapp.ts";
+import { claudeConfigDir } from "../core/claudedir.ts";
 
 const BEGIN = "<!-- strom: begin (strom agents install; removed by strom agents uninstall) -->";
 const END = "<!-- strom: end -->";
@@ -231,7 +232,7 @@ function opencodeDir(env: Env): string {
 /** Claude Code starts its own conversations with Remote Control (its setting remoteControlAtStartup, the user's own). */
 export function claudeRemoteAtStartup(env: Env): boolean {
   try {
-    const file = path.join(env.CLAUDE_CONFIG_DIR ?? path.join(userHome(env), ".claude"), "settings.json");
+    const file = path.join(claudeConfigDir(env), "settings.json");
     return (JSON.parse(fs.readFileSync(file, "utf8")) as { remoteControlAtStartup?: unknown }).remoteControlAtStartup === true;
   } catch {
     return false; // no settings, or not readable: not on
@@ -245,8 +246,8 @@ export function globalTargets(env: Env): GlobalTarget[] {
   // the app's address as strom app opens it now: a run of another channel (its first) writes the texts again
   const app = agentAppUrl(env);
   const targets: Omit<GlobalTarget, "app" | "made">[] = [
-    { agent: "claude", file: path.join(env.CLAUDE_CONFIG_DIR ?? path.join(home, ".claude"), "skills", "strom", "SKILL.md"), kind: "own" },
-    { agent: "claude", file: path.join(env.CLAUDE_CONFIG_DIR ?? path.join(home, ".claude"), "settings.json"), kind: "allow" },
+    { agent: "claude", file: path.join(claudeConfigDir(env, undefined, home), "skills", "strom", "SKILL.md"), kind: "own" },
+    { agent: "claude", file: path.join(claudeConfigDir(env, undefined, home), "settings.json"), kind: "allow" },
     { agent: "codex", file: path.join(env.CODEX_HOME ?? path.join(home, ".codex"), "AGENTS.md"), kind: "block" },
     // Antigravity CLI reads its global rules where Gemini CLI did, and its permissions from its settings.
     { agent: "antigravity", file: path.join(home, ".gemini", "GEMINI.md"), kind: "block" },

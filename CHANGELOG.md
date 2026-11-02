@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.25.0
 
-*In preparation: the betas up to 1.25.0-beta.2. The section is complete with the release.*
+*In preparation: the betas up to 1.25.0-beta.3. The section is complete with the release.*
 
 - **Data for the Strom widget on Windows too.** A research now writes what the Strom widget shows of it (what it works
   on, the finds of the last 24 hours, what waits) also on Windows, into `%USERPROFILE%\.config\strom\widget`, with a
@@ -25,6 +25,19 @@ The changes of each version in short. The full notes and the install lines are o
   what would come back and what would be put aside, then only on the person's yes in the terminal. Nothing is deleted:
   records added since are put aside, and the return itself can be taken back the same way. The link
   `strom-research://back` opens it for one change; the bridge's log says a return apart.
+- **Identifying places.** The research identifies the places of its records (`strom place identify`, `propose`,
+  `unlocated`): a place sure from its records gets its coordinates, names and parish over time; where it is not sure,
+  it asks the person with up to three candidates, or says what would decide it. The questions wait in "What waits",
+  the bridge offers them to the Strom app, and `strom place undo` takes back the last answer.
+- **Kinds of history.** `history.kinds` sets which kinds of events the history of the places looks for (wars,
+  epidemics, …). `strom history align` says first what it would hide, show again and look for, and does it only on
+  the person's yes; nothing found is deleted.
+- **Side branches last.** In a research of several lines, work that helps no line waits until the lines have nothing
+  to do (`queue.offLine`: last, by priority, or never).
+- **Updates without stopping the work.** `strom update` installs each version into a folder of its own, so a run or a
+  conversation under way goes on with its version; older versions go at the next update or with `strom tidy`, and
+  `strom doctor` tells of them. The bridge keeps answering the Strom app while it renews itself and while it makes the
+  tree's file.
 
 ## 1.24.0
 

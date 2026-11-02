@@ -26,9 +26,10 @@ import path from "node:path";
 import { execFile, spawnSync } from "node:child_process";
 import type { Env } from "./paths.ts";
 import { noLinks, ownSuffix, userHome } from "./paths.ts";
-import { holdsPath, installation, mayTakeOver, ownFolder, stromLauncher, type Installation } from "./self.ts";
+import { holdsPath, installation, lastingLauncher, mayTakeOver, ownFolder, stromLauncher, type Installation } from "./self.ts";
 import { ICON } from "./shortcut.ts";
 import { browserKind, type BrowserKind } from "./chromium.ts";
+import { normalizeKinds } from "./eventkinds.ts";
 
 export const LINK_SCHEME = "strom-research";
 
@@ -54,14 +55,15 @@ function handlerName(env: Env): string {
  * archive's images (the answer is the person's, in the terminal); the research sealed on another computer taken over
  * here (strom seal adopt: checked, then the person's yes in the terminal — never by itself); an experiment turned on (the
  * person's question in the terminal) or off for the research (at once); the history of a place and its surroundings
- * looked for (the estimate and the person's question in the terminal); strom's fixes of the research, one of them, or one
+ * looked for (the estimate and the person's question in the terminal); the places to identify, the queue or one place
+ * (the queue and the estimate, the session on the person's yes in the terminal); strom's fixes of the research, one of them, or one
  * put back (shown, then set right or put back only on the person's word in the terminal); the research back in time (the
  * earlier changes to pick from, or the one the app names by its hash: the preview, then the person's yes in the terminal).
  */
 /** A story: approved (or, beside an approved one, its new version approved in its place), or that new version not wanted. */
 export const LINK_STORY_DOS = ["final", "keep"] as const;
 
-export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back"] as const;
+export const LINK_ACTIONS = ["send", "excerpt", "app", "open", "chat", "task", "review", "research", "new", "update", "sessions", "conflict", "story", "sync-undo", "setup", "live", "direction", "finish", "sync", "media", "archive", "seal", "experiment", "history", "fixes", "back", "places", "history-kinds", "history-align"] as const;
 /** A person's review: the person, with the family, with the ancestors (strom review --scope). */
 export const LINK_SCOPES = ["person", "family", "line"] as const;
 /** A new direction from a person (strom research new --direction). */
@@ -84,6 +86,11 @@ export const LINK_SYNC_DOS = ["show"] as const;
 export const LINK_EXPERIMENTS = ["history", "places", "regions", "placeHistory"] as const;
 /** What a link does with the history of a place: its search asked for (the person's yes in the terminal). */
 export const LINK_HISTORY_DOS = ["search"] as const;
+/**
+ * What a link does with the places to identify: the queue (or one place) identified by the agent — the queue and the
+ * estimate shown, the session started only on the person's yes in the terminal (the bridge never starts one).
+ */
+export const LINK_PLACES_DOS = ["run"] as const;
 export const LINK_EXPERIMENT_DOS = ["on", "off"] as const;
 /**
  * strom's fixes a link names (commands/fixchecks.ts FIX_CHECKS, the same ids — a test holds them together): only one of
@@ -92,6 +99,8 @@ export const LINK_EXPERIMENT_DOS = ["on", "off"] as const;
 export const LINK_FIX_IDS = ["blind-reduced", "new-model", "participant-names", "app-shapes", "street-places"] as const;
 /** What a link does with a fix besides showing it: put back what it set right (strom fixes undo asks the person). */
 export const LINK_FIX_DOS = ["undo"] as const;
+/** For whom a link sets the kinds of history looked for: this research, or this computer (the researches without their own). */
+export const LINK_KINDS_SCOPES = ["tree", "default"] as const;
 /** What a link does with a conflict: the user decides it, or leaves it to the agent. */
 export const LINK_CONFLICT_DOS = ["decide", "agent"] as const;
 /** The side a conflict of the user's edit is decided for, picked in the app: the terminal asks only to confirm and why. */
@@ -187,8 +196,11 @@ export type Link =
   | { action: "archive"; tree: string; host: string }
   | { action: "experiment"; tree: string; name: (typeof LINK_EXPERIMENTS)[number]; do: (typeof LINK_EXPERIMENT_DOS)[number] }
   | { action: "history"; tree: string; place: string; do: (typeof LINK_HISTORY_DOS)[number] }
+  | { action: "places"; tree: string; do: (typeof LINK_PLACES_DOS)[number]; place?: string }
   | { action: "fixes"; tree: string; id?: (typeof LINK_FIX_IDS)[number]; do?: (typeof LINK_FIX_DOS)[number] }
   | { action: "back"; tree: string; change?: string }
+  | { action: "history-kinds"; tree: string; scope: (typeof LINK_KINDS_SCOPES)[number]; kinds?: string; inherit?: "1" }
+  | { action: "history-align"; tree: string; prune?: "1" }
   | { action: "new"; app: string; browser?: BrowserKind; file?: string }
   | { action: "menu" };
 
@@ -309,6 +321,12 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
     case "history":
       // a place's record and the one thing done: only its ID, never its name
       return { action, tree: id, place: idOf(q, "place", PLACE, true)!, do: oneOf(q, "do", LINK_HISTORY_DOS) };
+    case "places": {
+      // the places to identify: the one thing done (required), one place by its ID or the whole queue — never a name
+      if (!q.has("do")) throw new LinkError("nothing to do named");
+      const place = idOf(q, "place", PLACE, false);
+      return { action, tree: id, do: oneOf(q, "do", LINK_PLACES_DOS), ...(place ? { place } : {}) };
+    }
     case "fixes": {
       // strom's fixes: all of them, one of strom's own by its id, or what one set right put back — only shown in the
       // terminal, set right or put back on the person's word there
@@ -318,6 +336,30 @@ export function parseLink(text: string | undefined, scheme: string = LINK_SCHEME
       }
       const fix = oneOf(q, "id", LINK_FIX_IDS);
       return { action, tree: id, id: fix, ...(q.has("do") ? { do: oneOf(q, "do", LINK_FIX_DOS) } : {}) };
+    }
+    case "history-kinds": {
+      // the kinds of history looked for: only the known kinds (normalized as strom config writes them), all or none,
+      // or this computer's again (inherit=1, the research's own only) — the change, its estimate and the person's yes
+      // in the terminal
+      const scope = oneOf(q, "scope", LINK_KINDS_SCOPES, "tree");
+      if (q.get("inherit") === "1") {
+        if (scope !== "tree" || q.has("kinds")) throw new LinkError("inherit only for the research, without kinds");
+        return { action, tree: id, scope, inherit: "1" };
+      }
+      if (q.has("inherit")) throw new LinkError("inherit=1 only");
+      let kinds: string;
+      try {
+        kinds = normalizeKinds(q.get("kinds") ?? "");
+      } catch {
+        throw new LinkError("no kinds named");
+      }
+      return { action, tree: id, scope, kinds };
+    }
+    case "history-align": {
+      // the history aligned with the kinds looked for: the preview and the person's yes in the terminal; prune=1 the
+      // shared catalogs too (asked there again)
+      if (q.has("prune") && q.get("prune") !== "1") throw new LinkError("prune=1 only");
+      return { action, tree: id, ...(q.get("prune") === "1" ? { prune: "1" as const } : {}) };
     }
     case "back": {
       // back in time: the change by its hash only (never a day or a text); none: the earlier changes to pick from
@@ -350,7 +392,8 @@ export type HandlerState = "ours" | "other" | "none" | "unknown";
  * (STROM_CONFIG_DIR) gives its links that folder too (macOS, Linux: through env) — the same researches answer them.
  */
 function handlerArgv(env: Env = {}, platform: NodeJS.Platform = process.platform): string[] {
-  const { command, args } = stromLauncher();
+  // the version in use (the entry), never this version's own folder an update removes later
+  const { command, args } = lastingLauncher();
   const own = env.STROM_CONFIG_DIR && platform !== "win32" ? ["/usr/bin/env", `STROM_CONFIG_DIR=${env.STROM_CONFIG_DIR}`] : [];
   return [...own, command, ...args, "link", "open"];
 }
