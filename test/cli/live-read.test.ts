@@ -126,7 +126,7 @@ test("a document read for the Strom app: sent with no intake task, asked, follow
     assert.equal(read.readers, 2);
     assert.deepEqual(read.types, ["image/jpeg", "image/png"], "nothing converted here (STROM_NO_CONVERT)");
     assert.deepEqual([read.max, read.pages], [50 * 1024 * 1024, 10]);
-    assert.deepEqual(read.langs, ["cs", "de", "en"]);
+    assert.deepEqual(read.langs, ["cs", "de", "en", "pl"]);
     assert.equal(read.expectSecs, 60, "no reader of this agent ended here yet: what an agent's readers take");
     assert.deepEqual(status.reads, []);
 

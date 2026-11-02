@@ -64,7 +64,7 @@ const CHILDREN: Record<string, string[]> = {
   PLAC: ["MAP", "FORM", "NOTE", "_STROM_PLACE"],
   // the research's place record (the Strom profile, APP_READS_PLACE_RECORDS)
   _STROM_PLACE: ["NAME", "MAP", "_STROM_JUR", "_STROM_IN", "_STROM_BY", "_STROM_AT", "_STROM_WHY", "_STROM_SRC", "_STROM_VERIFIED", "_STROM_UNLOCATED"],
-  "_STROM_PLACE.NAME": ["LANG", "DATE"],
+  "_STROM_PLACE.NAME": ["LANG", "DATE", "TYPE"],
   "_STROM_PLACE._STROM_JUR": ["DATE"],
   "_STROM_PLACE._STROM_SRC": ["WWW"],
   "_STROM_PLACE._STROM_UNLOCATED": ["_STROM_NEEDS"],

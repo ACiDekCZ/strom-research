@@ -530,7 +530,7 @@ register(
       // never taken, nor a folder that holds it: the research and what is the person's (found 2026-10-07: an isolated
       // installation's research and its backups lay in its folder, which went whole)
       const keep = ctx.researchFolders();
-      const plan = uninstallPlan(ctx.env, ["en", "cs", "de"].map(shortcutName), { keep });
+      const plan = uninstallPlan(ctx.env, ["en", "cs", "de", "pl"].map(shortcutName), { keep });
       const label = (r: Removal) => ui(lang, `ui.uninstall.${r.kind}`, { agent: r.agent ?? "" });
       const keeps = ui(lang, "ui.uninstall.keeps", { home: home ? ctx.display(home) : "—", config: ctx.display(configDir(ctx.env)) });
       if (!plan.remove.length)

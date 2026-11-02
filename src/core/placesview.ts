@@ -6,15 +6,16 @@
 // questions of places in What waits (kind place).
 
 import { createHash } from "node:crypto";
-import type { Place, PlaceBy, PlaceQuestion } from "./model.ts";
+import type { Place, PlaceBy, PlaceNameKind, PlaceQuestion } from "./model.ts";
 import type { Tree } from "./tree.ts";
-import { factForms, identifyEstimate, identifyingNow, offMapForms, placedForms, placeState, queueBatches, readPlacesFile, recordIndex, type FactForm, type PlaceState, type PlacesFile } from "./placeid.ts";
+import { factForms, identifyEstimate, identifyingNow, offMapForms, otherNames, placedForms, placeState, queueBatches, readPlacesFile, recordIndex, type FactForm, type PlaceState, type PlacesFile } from "./placeid.ts";
 import { stringifyCanonical } from "./json.ts";
 
 /** One place record as the app reads it (GET /places `places[L…]`). */
 export interface PlaceView {
   name: string;
-  names: { name: string; lang?: string; from?: number; to?: number }[];
+  /** After today's, each once; kind: a form the facts write (form) or another name (alt); none = not known (written before 1.25.0). */
+  names: { name: string; lang?: string; from?: number; to?: number; kind?: PlaceNameKind }[];
   country?: string;
   district?: string;
   parish?: string;
@@ -99,7 +100,7 @@ function view(k: Known, p: Place): PlaceView {
   const current = q?.kind === "conflict" ? (q.current ?? (p.coords ? { lat: p.coords.lat, lon: p.coords.lon } : undefined)) : undefined;
   return {
     name: p.names[0]?.name ?? p.id,
-    names: p.names.slice(1).map((n) => ({ name: n.name, ...(n.lang ? { lang: n.lang } : {}), ...(n.from !== undefined ? { from: n.from } : {}), ...(n.to !== undefined ? { to: n.to } : {}) })),
+    names: otherNames(p).map((n) => ({ name: n.name, ...(n.lang ? { lang: n.lang } : {}), ...(n.from !== undefined ? { from: n.from } : {}), ...(n.to !== undefined ? { to: n.to } : {}), ...(n.kind ? { kind: n.kind } : {}) })),
     ...(country ? { country } : {}),
     ...(district ? { district } : {}),
     ...(parish ? { parish } : {}),

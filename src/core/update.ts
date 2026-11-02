@@ -110,9 +110,9 @@ export function isNewer(a: string, b: string): boolean {
   return compareVersions(a, b) > 0;
 }
 
-/** The changelog of the project on GitHub: CHANGELOG.md (en), CHANGELOG.cs.md, CHANGELOG.de.md in the repository's root. */
+/** The changelog of the project on GitHub: CHANGELOG.md (en), CHANGELOG.cs.md, CHANGELOG.de.md, CHANGELOG.pl.md in the repository's root. */
 export const CHANGELOG_BASE = "https://github.com/ACiDekCZ/strom-research/blob";
-const CHANGELOG_LANGS = new Set(["cs", "de"]);
+const CHANGELOG_LANGS = new Set(["cs", "de", "pl"]);
 
 /**
  * What's new in a version: its section of the changelog in the person's language (another language: English), on the

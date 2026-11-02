@@ -21,10 +21,11 @@ type Rec = Record<string, unknown> & { id?: string };
 const KEPT_ARRAYS: Record<string, (item: unknown) => string> = {
   events: (i) => String((i as { id?: string }).id),
   notes: (i) => JSON.stringify(i),
-  // a person's name is its words (its kind or a citation added is no change of it); a place's name is all of it
+  // a person's name is its words (its kind or a citation added is no change of it); a place's name is its words and
+  // language (what it is — a form, another name — or its years filled in is no change of it)
   names: (i) => {
-    const n = i as { given?: string; surname?: string; name?: string };
-    if (n.given === undefined && n.surname === undefined) return JSON.stringify(i);
+    const n = i as { given?: string; surname?: string; name?: string; lang?: string };
+    if (n.given === undefined && n.surname === undefined) return typeof n.name === "string" ? `${n.name}${n.lang ? `@${n.lang}` : ""}` : JSON.stringify(i);
     return `${n.given ?? ""} /${n.surname ?? ""}/`;
   },
   partners: (i) => String(i),
@@ -104,6 +105,8 @@ export function guard(tree: Tree, snap: Snapshot = snapshot(tree)): Finding[] {
       if (!Array.isArray(a)) continue;
       const b = cur[field];
       const remaining = new Set(Array.isArray(b) ? b.map(keyOf) : []);
+      // a place's name of no language is kept by the same words with a language (a form become another name)
+      if (field === "names" && Array.isArray(b)) for (const n of b as { name?: unknown; lang?: unknown }[]) if (typeof n.name === "string" && n.lang) remaining.add(n.name);
       for (const item of a) {
         const key = keyOf(item);
         if (remaining.has(key) || justified.has(id) || justified.has(key)) continue;

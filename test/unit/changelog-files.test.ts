@@ -1,4 +1,4 @@
-// What is new in each version, for a person: CHANGELOG.md (en), CHANGELOG.cs.md, CHANGELOG.de.md in the repository's
+// What is new in each version, for a person: CHANGELOG.md (en), CHANGELOG.cs.md, CHANGELOG.de.md, CHANGELOG.pl.md in the repository's
 // root — strom --version and strom update link to the section of the version, in the research language, on the branch
 // of the installation's channel (main: the released versions, beta: the version being prepared).
 
@@ -16,11 +16,12 @@ const FILES: [lang: string, file: string][] = [
   ["en", "CHANGELOG.md"],
   ["cs", "CHANGELOG.cs.md"],
   ["de", "CHANGELOG.de.md"],
+  ["pl", "CHANGELOG.pl.md"],
 ];
 const BASE = "https://github.com/ACiDekCZ/strom-research/blob";
 
 test("what's new: the changelog of the person's language (another one: English), the channel's branch, the section of the version without its prerelease part", () => {
-  for (const [lang, file] of [["cs", "CHANGELOG.cs.md"], ["de", "CHANGELOG.de.md"], ["en", "CHANGELOG.md"], ["pl", "CHANGELOG.md"], ["uk", "CHANGELOG.md"], ["cs-CZ", "CHANGELOG.cs.md"], ["DE_at", "CHANGELOG.de.md"], ["", "CHANGELOG.md"]] as const) {
+  for (const [lang, file] of [["cs", "CHANGELOG.cs.md"], ["de", "CHANGELOG.de.md"], ["en", "CHANGELOG.md"], ["pl", "CHANGELOG.pl.md"], ["PL_pl", "CHANGELOG.pl.md"], ["uk", "CHANGELOG.md"], ["cs-CZ", "CHANGELOG.cs.md"], ["DE_at", "CHANGELOG.de.md"], ["", "CHANGELOG.md"]] as const) {
     assert.equal(whatsNewUrl("1.15.0", "stable", lang), `${BASE}/main/${file}#1150`, lang);
     assert.equal(whatsNewUrl("1.15.0-beta.4", "beta", lang), `${BASE}/beta/${file}#1150`, lang);
   }
@@ -51,7 +52,7 @@ function withoutBetaNote(text: string, note: (version: string) => string): strin
   return text.replace(new RegExp(`${before}\\d+\\.\\d+\\.\\d+-beta\\.\\d+${after}`, "g"), "");
 }
 
-/** The checks of the three changelogs (en first): on main, and as the branch beta's commit gives them. */
+/** The checks of the changelogs (en first): on main, and as the branch beta's commit gives them. */
 function checkChangelogs(texts: string[], where: string): void {
   const read = FILES.map(([lang, file], i) => ({ lang, file, text: texts[i]!, s: sections(texts[i]!) }));
   const en = read[0]!;
@@ -71,7 +72,7 @@ function checkChangelogs(texts: string[], where: string): void {
     // nothing of an assistant as an author, nothing of a beta on main (the branch beta's commit adds its note)
     const note = CHANGELOGS.find(([file]) => file === r.file)![1];
     assert.doesNotMatch(withoutBetaNote(r.text, note), /Claude|Anthropic|Co-Authored|Generated with|beta/i, `${where} ${r.file}`);
-    // each links the other two
+    // each links the others
     for (const [, other] of FILES) if (other !== r.file) assert.ok(r.text.includes(`(${other})`), `${where} ${r.file} links ${other}`);
   }
 }
@@ -88,5 +89,5 @@ test("the changelogs as the branch beta's commit gives them pass the same checks
   assert.match(beta[0]!, /betas up to/);
   checkChangelogs(beta, "beta");
   // the note is let through only as the commit writes it
-  assert.throws(() => checkChangelogs([beta[0]!.replace("betas up to", "beta builds up to"), beta[1]!, beta[2]!], "beta"), /beta/);
+  assert.throws(() => checkChangelogs([beta[0]!.replace("betas up to", "beta builds up to"), ...beta.slice(1)], "beta"), /beta/);
 });

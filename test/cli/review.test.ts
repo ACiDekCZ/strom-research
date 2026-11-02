@@ -12,6 +12,7 @@ import { enterWorker } from "../../src/core/workers.ts";
 import { World, hasGit, readJsonFile } from "../helpers.ts";
 import { acquireLock } from "../../src/core/lock.ts";
 import { LockedError } from "../../src/core/errors.ts";
+import { ui } from "../../src/cli/ui.ts";
 import { prependPath } from "../../src/runners/runner.ts";
 import { claudeArgs, headlessEnv } from "../../src/runners/claude.ts";
 import { codexResumeArgs } from "../../src/runners/codex.ts";
@@ -129,7 +130,7 @@ test("short errors: a similar command, unknown options, --version, a quoted two-
   const { VERSION } = await import("../../src/core/tree.ts");
   const anchor = VERSION.split("-")[0]!.replace(/\D/g, "");
   const changelog = "https://github.com/ACiDekCZ/strom-research/blob";
-  for (const [lang, line] of [["cs", `Co je nového: ${changelog}/main/CHANGELOG.cs.md`], ["de", `Was ist neu: ${changelog}/main/CHANGELOG.de.md`], ["en", `What's new: ${changelog}/main/CHANGELOG.md`], ["pl", `What's new: ${changelog}/main/CHANGELOG.md`]]) {
+  for (const [lang, line] of [["cs", `Co je nového: ${changelog}/main/CHANGELOG.cs.md`], ["de", `Was ist neu: ${changelog}/main/CHANGELOG.de.md`], ["en", `What's new: ${changelog}/main/CHANGELOG.md`], ["pl", ui("pl", "ui.update.whatsnew", { url: `${changelog}/main/CHANGELOG.pl.md` })], ["uk", `What's new: ${changelog}/main/CHANGELOG.md`]]) {
     assert.equal((await w.ok(["--version"], { env: { STROM_LANG: lang! } })).out, `strom ${VERSION}\n${line}#${anchor}\n`, lang);
   }
   assert.equal((await w.ok(["person", "add", "--version"], { env: { STROM_LANG: "de" } })).out, `strom ${VERSION}\nWas ist neu: ${changelog}/main/CHANGELOG.de.md#${anchor}\n`);

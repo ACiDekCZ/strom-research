@@ -119,7 +119,7 @@ export function betaFollows(release: string, beta: string | undefined): boolean 
 }
 
 /** The files of a beta's npm tarball beside dist/ and assets/ (npm adds package.json; `files` and README.md, LICENSE). */
-const PACKAGE_FILES = ["package.json", "LICENSE", "README.md", "CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md"];
+const PACKAGE_FILES = ["package.json", "LICENSE", "README.md", "CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md", "CHANGELOG.pl.md"];
 
 /** The entries of a .tar.gz, read from its headers (ustar: the prefix, then the name), with their contents. */
 export function tarEntries(file: string): { name: string; data: Buffer }[] {

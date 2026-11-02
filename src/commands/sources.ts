@@ -1,7 +1,7 @@
 // source · cite · repo · recordset · place — where the evidence comes from.
 
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
-import { personsHand } from "../core/placeid.ts";
+import { addPlaceName, otherNames, personsHand } from "../core/placeid.ts";
 import { isAgent } from "../core/which.ts";
 import fs from "node:fs";
 import { commands, register, type CommandDef, type Input } from "../cli/registry.ts";
@@ -678,8 +678,9 @@ register(
     examples: ['strom place add "Týnec nad Labem" --alt "Teinitz an der Elbe@de" --kind town --lat 50.042 --lon 15.358', 'strom place add "Lhota" --kind village --unlocated "which Lhota: the record gives no parish"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const names: Place["names"] = [{ name: args[0]!.trim() }];
-      for (const a of listOpt(opts.alt)) names.push(altName(a));
+      const named = { names: [{ name: args[0]!.trim() }] } as Place;
+      for (const n of listOpt(opts.alt).map(altName)) addPlaceName(named, n.name, "alt", n);
+      const names = named.names;
       const lat = opts.lat === undefined ? undefined : Number(opts.lat);
       const lon = opts.lon === undefined ? undefined : Number(opts.lon);
       if ((lat === undefined) !== (lon === undefined)) throw new UsageError("give both --lat and --lon");
@@ -725,7 +726,7 @@ register(
       const all = args[0] ? tree.list<Place>("place").filter((p) => p.names.some((n) => matches(n.name, args[0]!))) : tree.list<Place>("place");
       return {
         text: all.length
-          ? table(all.map((p) => [p.id, placeName(p), p.names.slice(1).map((n) => n.name).join(", "), p.jurisdictions.map((j) => `${j.kind}: ${j.name}`).join("; ")]))
+          ? table(all.map((p) => [p.id, placeName(p), otherNames(p).map((n) => n.name).join(", "), p.jurisdictions.map((j) => `${j.kind}: ${j.name}`).join("; ")]))
           : "no places match",
         data: { places: all },
       };
@@ -733,7 +734,7 @@ register(
   },
   {
     path: ["place", "show"],
-    summary: "One place: names, jurisdictions over time, where its records are",
+    summary: "One place: names, the forms the facts write, jurisdictions over time, where its records are",
     group: "sources",
     tree: true,
     args: [{ name: "place", description: "place ID (L0001) or name", required: true }],
@@ -748,9 +749,11 @@ register(
         p = hits[0]!;
       }
       const span = (from?: number, to?: number) => (from || to ? ` (${from ?? ""}–${to ?? ""})` : "");
+      const others = otherNames(p);
       const text = lines(
         `${p.id} ${placeName(p)}${p.kind ? ` · ${p.kind}` : ""}${p.coords ? ` · ${p.coords.lat}, ${p.coords.lon}` : ""}`,
-        p.names.length > 1 ? `names  ${p.names.map((n) => `${n.name}${n.lang ? `@${n.lang}` : ""}${span(n.from, n.to)}`).join(" · ")}` : undefined,
+        others.some((n) => n.kind !== "form") ? `names  ${[p.names[0]!, ...others.filter((n) => n.kind !== "form")].map((n) => `${n.name}${n.lang ? `@${n.lang}` : ""}${span(n.from, n.to)}`).join(" · ")}` : undefined,
+        others.some((n) => n.kind === "form") ? `forms  ${others.filter((n) => n.kind === "form").map((n) => n.name).join(" · ")}` : undefined,
         p.parent ? `in     ${p.parent}` : undefined,
         p.jurisdictions.length
           ? "jurisdictions\n" +
@@ -1000,10 +1003,12 @@ register(
         {},
         opts,
         (cur) => {
-          const add = alt.filter((n) => !cur.names.some((x) => foldText(x.name) === foldText(n.name) && x.lang === n.lang));
+          const named = { names: cur.names.map((n) => ({ ...n })) } as Place;
+          for (const n of alt) addPlaceName(named, n.name, "alt", n);
+          const add = JSON.stringify(named.names) !== JSON.stringify(cur.names);
           // located at last: no longer "not identified"; who put it there kept, any question of it closed
           return {
-            ...(add.length ? { names: [...cur.names, ...add] } : {}),
+            ...(add ? { names: named.names } : {}),
             ...(lat !== undefined && cur.unlocated ? { unlocated: undefined } : {}),
             ...(lat !== undefined ? { locating: { by, at: new Date().toISOString() } } : {}),
           };

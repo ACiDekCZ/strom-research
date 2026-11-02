@@ -1,20 +1,23 @@
 # Was ist neu in Strom Ahnenforschung
 
-[English](CHANGELOG.md) · [Čeština](CHANGELOG.cs.md) · Deutsch
+[English](CHANGELOG.md) · [Čeština](CHANGELOG.cs.md) · Deutsch · [Polski](CHANGELOG.pl.md)
 
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
 ## 1.25.0
 
-*In Vorbereitung: die Betas bis 1.25.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.25.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
 
-- **Daten für das Strom-Widget auch unter Windows.** Eine Forschung schreibt jetzt, was das Strom-Widget von ihr zeigt
+- **Auf Polnisch.** Die Forschung spricht Polnisch: das Menü, seine Meldungen, was sie in die Forschung schreibt, der
+  Installer und die Seite des Telefons; die Notizen und Rollen der Strom-Datei sind polnisch. Ein polnisches System wird von
+  selbst erkannt, sonst `strom config set lang pl`. Die Hilfe für den Agenten bleibt englisch.
+- **Das Strom-Widget auch unter Windows, und es öffnet die Person.** Eine Forschung schreibt jetzt, was das Strom-Widget von ihr zeigt
   (woran gearbeitet wird, die Funde der letzten 24 Stunden, was wartet), auch unter Windows, nach
   `%USERPROFILE%\.config\strom\widget`, mit einer Marke des strom, der es geschrieben hat. Ein Widget, das gerade seine
   Datei liest, hält die Brücke nie auf. `strom uninstall` entfernt auch die Dateien des Widgets, auch auf dem Mac; die
   Forschung und die Einstellungen bleiben.
-- **Das Widget öffnet die Person.** Eine Zeile oder ein Fund des Strom-Widgets zu einer Person öffnet in der Strom-App
+  Eine Zeile oder ein Fund des Strom-Widgets zu einer Person öffnet in der Strom-App
   genau diese Person (ihre Seite, den Stammbaum um sie), was wartet, den Abschnitt „Wartet“ der Forschung (eine App,
   die sie noch nicht öffnen kann, öffnet den Stammbaum wie bisher).
 - **Eine Nummer allein nach dem Namen einer Gemeinde.** Orte, geschrieben als Name mit einer Nummer allein (`Lhota 16`),
@@ -32,7 +35,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   sicher ist, fragt sie eine Person mit höchstens drei Kandidaten oder sagt, was entscheiden würde. Die Fragen warten
   unter „Wartet“, die Brücke bietet sie der Strom-App an, und `strom place undo` nimmt die letzte Antwort zurück. Eine
   Warteschlange von Orten, die die Strom-App jetzt bestimmen lässt, läuft in so vielen Sitzungen nacheinander, wie die
-  Person wählt, jede Zahl mit Zeit und Preis.
+  Person wählt, jede Zahl mit Zeit und Preis. Bei jedem Namen eines Ortes ist erkennbar, ob er eine Schreibweise der
+  Einträge oder ein anderer Name des Ortes ist (eine andere Sprache, ein alter Name), und ein auf beide Arten
+  angegebener Name steht nur einmal da.
 - **Arten der Geschichte.** `history.kinds` legt fest, welche Arten von Ereignissen die Geschichte der Orte sucht
   (Kriege, Epidemien …). `strom history align` sagt zuerst, was es verbergen, wieder zeigen und suchen würde, und tut
   es nur auf das Ja einer Person; nichts Gefundenes wird gelöscht.

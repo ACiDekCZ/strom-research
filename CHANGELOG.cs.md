@@ -1,19 +1,22 @@
 # Co je nového ve Strom výzkumu
 
-[English](CHANGELOG.md) · Čeština · [Deutsch](CHANGELOG.de.md)
+[English](CHANGELOG.md) · Čeština · [Deutsch](CHANGELOG.de.md) · [Polski](CHANGELOG.pl.md)
 
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
 ## 1.25.0
 
-*Připravuje se: bety do 1.25.0-beta.4. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.25.0-beta.5. Oddíl bude úplný s vydáním.*
 
-- **Data pro widget Strom i na Windows.** Výzkum teď zapisuje to, co z něj ukazuje widget Strom (na čem se pracuje,
+- **Polsky.** Výzkum mluví polsky: menu, jeho hlášky, co zapisuje do výzkumu, instalátor i stránka telefonu; poznámky
+  a role v souboru pro Strom jsou polsky. Polský systém se pozná sám, jinak `strom config set lang pl`. Nápověda pro
+  agenta zůstává anglicky.
+- **Widget Strom i na Windows, a otevře osobu.** Výzkum teď zapisuje to, co z něj ukazuje widget Strom (na čem se pracuje,
   nálezy za posledních 24 hodin, co čeká), i na Windows, do `%USERPROFILE%\.config\strom\widget`, se značkou verze
   strom, která je zapsala. Widget, který zrovna čte svůj soubor, most nikdy nezdrží. `strom uninstall` odebere i soubory
   widgetu, také na Macu; výzkum a nastavení zůstávají.
-- **Widget otevře osobu.** Řádek nebo nález widgetu Strom o jedné osobě otevře v aplikaci Strom právě tu osobu (její
+  Řádek nebo nález widgetu Strom o jedné osobě otevře v aplikaci Strom právě tu osobu (její
   stránku, strom kolem ní), to, co čeká, otevře oddíl Čeká výzkumu (aplikace, která je ještě otevřít neumí,
   otevře strom jako dosud).
 - **Čísla domů za jménem obce.** Místa zapsaná jako jméno se samotným číslem (`Lhota 16`) teď jde opravit také
@@ -28,7 +31,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   jisté ze záznamů dostane souřadnice, jména a farnost v čase; kde jistota není, zeptá se člověka s nejvýš třemi
   kandidáty, nebo řekne, co by rozhodlo. Otázky čekají v oddílu Čeká, most je nabízí aplikaci Strom a `strom place
   undo` vezme poslední odpověď zpět. Frontu míst, kterou aplikace Strom zadá ztotožnit hned, lze pustit v tolika
-  sezeních za sebou, kolik člověk zvolí, každý počet s časem a cenou.
+  sezeních za sebou, kolik člověk zvolí, každý počet s časem a cenou. U každého jména místa je poznat, zda je to zápis
+  ze záznamů, nebo jiné jméno místa (jiný jazyk, starý název), a jméno zadané oběma způsoby je v místě jednou.
 - **Druhy dějin.** `history.kinds` určuje, jaké druhy událostí dějiny míst hledají (války, epidemie…). `strom history
   align` nejdřív řekne, co by skryl, znovu ukázal a hledal, a provede to jen na „ano“ člověka; nic nalezeného se nemaže.
 - **Vedlejší větve nakonec.** Ve výzkumu s více liniemi čeká práce, která žádné linii nepomáhá, až linie nebudou mít

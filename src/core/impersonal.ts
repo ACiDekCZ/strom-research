@@ -16,7 +16,12 @@ const words = (list: string, flags = "iu") => new RegExp(`${B}(?:${list})${E}`, 
 const CS_NOT_IMPERATIVE = new Set(["dítěte", "hraběte", "markraběte", "nemluvněte", "roběte", "kotěte", "štěněte", "hříběte", "jehněte", "prasátěte"]);
 /** Forms of "váš" that are also a surname's (Vaša: Vaši, Vaše) — after a name inside a sentence ("rychtáře Matěje Vaši") the surname. */
 const CS_SURNAME_LIKE = new Set(["vaši", "vaše", "vaší", "vašim", "vaším"]);
-const AFTER_NAME = /[^\s.!?:;]\s+\p{Lu}[\p{L}\p{M}]*\s+$/u;
+/**
+ * Polish nouns that end like a verb of the second person (-esz, -isz, -ysz): a key of the keyboard, a poster. And the
+ * buttons of -pisz (Zapisz, Wpisz, Opisz): a short command on a button, as every Polish program says it.
+ */
+const PL_NOT_VERB = new Set(["klawisz", "afisz", "kapelusz", "tysz", "pelesz"]);
+const AFTER_NAME =/[^\s.!?:;]\s+\p{Lu}[\p{L}\p{M}]*\s+$/u;
 
 interface Markers {
   /** Clear in any text of the language. */
@@ -64,6 +69,25 @@ const MARKERS: Record<string, Markers> = {
     ],
     thorough: [words("Sie|Ihr|Ihre|Ihren|Ihrem|Ihrer|Ihres|Ihnen", "u")],
     agent: [words("bitte|ich|mich|mir|mein|meine|meinen|meinem|meiner|meines")],
+  },
+  pl: {
+    clear: [
+      // the forms of ty, wy, twój, wasz listed whole; the verbs of the second person a sentence would address with
+      words(
+        "ty|ciebie|cię|tobie|tobą|twój|twoja|twoje|twojego|twojej|twojemu|twoim|twoją|twoi|twoich|twoimi|wy|wam|wami|wasz|wasza|wasze|waszego|waszej|waszemu|waszym|waszą|wasi|waszych|waszymi|masz|możesz|musisz|chcesz|jesteś|będziesz|znajdziesz|macie|możecie|musicie|chcecie|jesteście|będziecie|znajdziecie",
+      ),
+      // the polite form inside a sentence ("… jeśli Pan …"); at a sentence's start, or lowercase, "pan", "pani" is a
+      // record's word (Mister, Lady)
+      new RegExp(`(?<=[\\p{L}\\p{M}\\p{N},;)]\\s+)(?:Pan|Pani|Pana|Panu|Panią|Państwo|Państwa|Państwu|Państwem)${E}`, "u"),
+    ],
+    // the second person singular of the present (-esz, -isz, -ysz: robisz, piszesz); a key of the keyboard is no verb, a
+    // button's Zapisz no sentence
+    thorough: [words("was|Pan|Pani|Pana|Panu|Panią|Państwo|Państwa|Państwu|Państwem", "u"), words("\\p{L}{2,}(?:esz|isz|ysz)")],
+    agent: [words("proszę|mi|mnie|ja|potrzebuję|ustalę|sprawdzę|przeczytam|wyślę|napiszę|znajdę")],
+    not: (w) => {
+      const l = w.toLocaleLowerCase("pl");
+      return PL_NOT_VERB.has(l) || l.endsWith("pisz");
+    },
   },
 };
 

@@ -618,9 +618,9 @@ export function importAppUrl(file: string, settings: Settings): string {
 /** The page for people starting research with an AI agent: what an agent is, which one, how to install it. */
 export const RESEARCH_URL = "https://stromapp.info/research/";
 
-/** That page in the user's language (it speaks en, cs, de), at a section: "agents". */
+/** That page in the user's language (it speaks en, cs, de, pl), at a section: "agents". */
 export function researchUrl(lang: string, section?: string): string {
-  return `${RESEARCH_URL}${["cs", "de"].includes(lang) ? `?lang=${lang}` : ""}${section ? `#${section}` : ""}`;
+  return `${RESEARCH_URL}${["cs", "de", "pl"].includes(lang) ? `?lang=${lang}` : ""}${section ? `#${section}` : ""}`;
 }
 
 export interface InstalledApp {

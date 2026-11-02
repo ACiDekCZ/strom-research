@@ -72,7 +72,7 @@ function Undo-Misread($s) {
   }
   $out.ToString()
 }
-function T($en, $czech, $german) { Undo-Misread $(if ($lang -eq 'cs') { $czech } elseif ($lang -eq 'de') { $german } else { $en }) }
+function T($en, $czech, $german, $polish) { Undo-Misread $(if ($lang -eq 'cs') { $czech } elseif ($lang -eq 'de') { $german } elseif ($lang -eq 'pl' -and $polish) { $polish } else { $en }) }
 # An error ends the installation with its sentence. Started from Win+R (powershell -c "irm … | iex") the window would
 # close at once and take the sentence with it: it stays open until Enter — only when somebody can press it (input not
 # redirected); never `exit`, which would close a PowerShell the line was pasted into.
@@ -82,7 +82,7 @@ trap {
   $typed = $false
   try { $typed = -not [Console]::IsInputRedirected } catch { $typed = $false }
   if ($typed) {
-    Write-Host (T 'The installation did not finish. Enter closes the window.' 'Instalace se nedokončila. Enter zavře okno.' 'Die Installation wurde nicht abgeschlossen. Enter schließt das Fenster.')
+    Write-Host (T 'The installation did not finish. Enter closes the window.' 'Instalace se nedokončila. Enter zavře okno.' 'Die Installation wurde nicht abgeschlossen. Enter schließt das Fenster.' 'Instalacja nie została ukończona. Enter zamyka okno.')
     try { [void][Console]::ReadLine() } catch { }
   }
   break
@@ -94,18 +94,18 @@ $command = if ($env:STROM_COMMAND) { $env:STROM_COMMAND } else { $null }
 $bin = Join-Path $dest 'bin'
 $channel = if ($env:STROM_CHANNEL -and $env:STROM_CHANNEL.Trim() -eq 'beta') { 'beta' } else { $null }
 if ($isolated -and (-not $env:STROM_INSTALL_DIR -or -not $env:STROM_CONFIG_DIR)) {
-  throw (T 'STROM_ISOLATED needs folders of its own: STROM_INSTALL_DIR and STROM_CONFIG_DIR.' 'STROM_ISOLATED potřebuje vlastní složky: STROM_INSTALL_DIR a STROM_CONFIG_DIR.' 'STROM_ISOLATED braucht eigene Ordner: STROM_INSTALL_DIR und STROM_CONFIG_DIR.')
+  throw (T 'STROM_ISOLATED needs folders of its own: STROM_INSTALL_DIR and STROM_CONFIG_DIR.' 'STROM_ISOLATED potřebuje vlastní složky: STROM_INSTALL_DIR a STROM_CONFIG_DIR.' 'STROM_ISOLATED braucht eigene Ordner: STROM_INSTALL_DIR und STROM_CONFIG_DIR.' 'STROM_ISOLATED wymaga własnych folderów: STROM_INSTALL_DIR i STROM_CONFIG_DIR.')
 }
 if ($command) {
-  if (-not $isolated) { throw (T 'STROM_COMMAND is for an isolated installation only: STROM_ISOLATED=1 with its own STROM_INSTALL_DIR and STROM_CONFIG_DIR.' 'STROM_COMMAND je jen pro izolovanou instalaci: STROM_ISOLATED=1 s vlastními STROM_INSTALL_DIR a STROM_CONFIG_DIR.' 'STROM_COMMAND gibt es nur für eine isolierte Installation: STROM_ISOLATED=1 mit eigenem STROM_INSTALL_DIR und STROM_CONFIG_DIR.') }
+  if (-not $isolated) { throw (T 'STROM_COMMAND is for an isolated installation only: STROM_ISOLATED=1 with its own STROM_INSTALL_DIR and STROM_CONFIG_DIR.' 'STROM_COMMAND je jen pro izolovanou instalaci: STROM_ISOLATED=1 s vlastními STROM_INSTALL_DIR a STROM_CONFIG_DIR.' 'STROM_COMMAND gibt es nur für eine isolierte Installation: STROM_ISOLATED=1 mit eigenem STROM_INSTALL_DIR und STROM_CONFIG_DIR.' 'STROM_COMMAND jest tylko dla instalacji izolowanej: STROM_ISOLATED=1 z własnymi STROM_INSTALL_DIR i STROM_CONFIG_DIR.') }
   # (\z, never $: .NET's $ lets a line break through at the end)
-  if ($command -cnotmatch '^strom-[a-z0-9]{1,20}\z') { throw ((T 'STROM_COMMAND is strom-<lowercase letters and digits, at most 20>, e.g. strom-next' 'STROM_COMMAND má tvar strom-<malá písmena a číslice, nejvýš 20>, např. strom-next' 'STROM_COMMAND hat die Form strom-<Kleinbuchstaben und Ziffern, höchstens 20>, z. B. strom-next') + ": $command") }
+  if ($command -cnotmatch '^strom-[a-z0-9]{1,20}\z') { throw ((T 'STROM_COMMAND is strom-<lowercase letters and digits, at most 20>, e.g. strom-next' 'STROM_COMMAND má tvar strom-<malá písmena a číslice, nejvýš 20>, např. strom-next' 'STROM_COMMAND hat die Form strom-<Kleinbuchstaben und Ziffern, höchstens 20>, z. B. strom-next' 'STROM_COMMAND ma postać strom-<małe litery i cyfry, najwyżej 20>, np. strom-next') + ": $command") }
   # a command of that name from elsewhere (another installation's, the person's own): never shadowed or overwritten
   $there = Get-Command $command -All -ErrorAction SilentlyContinue | Where-Object { $_.Source -and ((Split-Path -Parent $_.Source).TrimEnd('\') -ine $bin.TrimEnd('\')) } | Select-Object -First 1
-  if ($there) { throw ((T 'The command is there already, written by another installation - nothing is overwritten. Another name, or remove first' 'Příkaz už existuje a zapsala ho jiná instalace – nic se nepřepisuje. Zvolit jiný název, nebo nejdřív odebrat' 'Der Befehl existiert schon, von einer anderen Installation geschrieben – nichts wird überschrieben. Einen anderen Namen wählen oder zuerst entfernen') + ": $($there.Source)") }
+  if ($there) { throw ((T 'The command is there already, written by another installation - nothing is overwritten. Another name, or remove first' 'Příkaz už existuje a zapsala ho jiná instalace – nic se nepřepisuje. Zvolit jiný název, nebo nejdřív odebrat' 'Der Befehl existiert schon, von einer anderen Installation geschrieben – nichts wird überschrieben. Einen anderen Namen wählen oder zuerst entfernen' 'Polecenie już istnieje i zapisała je inna instalacja – nic nie zostaje nadpisane. Inna nazwa albo najpierw usunąć') + ": $($there.Source)") }
 }
 
-if (-not [Environment]::Is64BitOperatingSystem) { throw (T 'Strom research needs 64-bit Windows.' 'Strom výzkum potřebuje 64bitová Windows.' 'Strom Ahnenforschung braucht 64-Bit-Windows.') }
+if (-not [Environment]::Is64BitOperatingSystem) { throw (T 'Strom research needs 64-bit Windows.' 'Strom výzkum potřebuje 64bitová Windows.' 'Strom Ahnenforschung braucht 64-Bit-Windows.' 'Badania Strom wymagają 64-bitowego systemu Windows.') }
 $cpu = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') { 'arm64' } else { 'x64' }
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
@@ -121,7 +121,7 @@ function Test-Sum($file, $sums, $name) {
   $sha = [Security.Cryptography.SHA256]::Create()
   $in = [IO.File]::OpenRead($file)
   try { $got = -join ($sha.ComputeHash($in) | ForEach-Object { $_.ToString('x2') }) } finally { $in.Dispose(); $sha.Dispose() }
-  if (-not $want -or $want -ne $got) { throw (T 'The download is damaged (checksum mismatch) - try again.' 'Stažený soubor je poškozený (kontrolní součet nesedí) – zkusit to znovu.' 'Die Datei ist beschädigt (Prüfsumme stimmt nicht) – erneut versuchen.') }
+  if (-not $want -or $want -ne $got) { throw (T 'The download is damaged (checksum mismatch) - try again.' 'Stažený soubor je poškozený (kontrolní součet nesedí) – zkusit to znovu.' 'Die Datei ist beschädigt (Prüfsumme stimmt nicht) – erneut versuchen.' 'Pobrany plik jest uszkodzony (suma kontrolna się nie zgadza) – spróbować ponownie.') }
 }
 # Semver precedence of two tags (v1.3.0-beta.10 > v1.3.0-beta.2, v1.3.0-rc.1 > v1.3.0-beta.9, v1.3.0 > v1.3.0-rc.1).
 function Compare-Version($a, $b) {
@@ -166,7 +166,7 @@ try {
     $releases = if ($api -like '*://*' -and $api -notlike 'file://*') { Invoke-RestMethod -UseBasicParsing -Uri $api -Headers @{ 'User-Agent' = 'strom-research-installer'; 'Accept' = 'application/vnd.github+json' } }
       else { [IO.File]::ReadAllText($(if ($api -like 'file://*') { ([Uri]$api).LocalPath } else { $api })) | ConvertFrom-Json }
     $tag = Get-NewestTag $releases
-    if (-not $tag) { throw (T 'No release could be found - try again later.' 'Nepodařilo se najít žádné vydání – zkusit to později.' 'Es ließ sich keine Version finden – später erneut versuchen.') }
+    if (-not $tag) { throw (T 'No release could be found - try again later.' 'Nepodařilo se najít žádné vydání – zkusit to později.' 'Es ließ sich keine Version finden – später erneut versuchen.' 'Nie udało się znaleźć żadnego wydania – spróbować później.') }
     $dl = if ($env:STROM_RELEASE_DOWNLOAD) { $env:STROM_RELEASE_DOWNLOAD } else { 'https://github.com/ACiDekCZ/strom-research/releases/download' }
     $base = "$dl/$tag"
   }
@@ -186,17 +186,17 @@ try {
   $ndir = if ($want -match '\.') { "$nodeBase/v$want" } else { "$nodeBase/latest-v$want.x" }
   Get-File "$ndir/SHASUMS256.txt" (Join-Path $tmp 'node-sums.txt')
   $found = Select-String -Path (Join-Path $tmp 'node-sums.txt') -Pattern "node-v(\d+\.\d+\.\d+)-win-$cpu\.zip" | Select-Object -First 1
-  if (-not $found) { throw (T "nodejs.org has no Node $want for this computer." "Na nodejs.org není Node $want pro tento počítač." "Auf nodejs.org gibt es kein Node $want für diesen Computer.") }
+  if (-not $found) { throw (T "nodejs.org has no Node $want for this computer." "Na nodejs.org není Node $want pro tento počítač." "Auf nodejs.org gibt es kein Node $want für diesen Computer." "Na nodejs.org nie ma Node $want dla tego komputera.") }
   $name = $found.Matches[0].Value
   $nv = $found.Matches[0].Groups[1].Value
   $node = Join-Path $dest 'node\node.exe'
   $have = if (Test-Path $node) { (& $node --version) 2>$null } else { '' }
   if ($have -ne "v$nv") {
-    Write-Host (T "Downloading Node.js from nodejs.org ($nv, $cpu)…" "Stahuji Node.js z nodejs.org ($nv, $cpu)…" "Node.js wird von nodejs.org heruntergeladen ($nv, $cpu)…")
+    Write-Host (T "Downloading Node.js from nodejs.org ($nv, $cpu)…" "Stahuji Node.js z nodejs.org ($nv, $cpu)…" "Node.js wird von nodejs.org heruntergeladen ($nv, $cpu)…" "Pobieranie Node.js z nodejs.org ($nv, $cpu)…")
     Get-File "$ndir/$name" (Join-Path $tmp $name)
     Test-Sum (Join-Path $tmp $name) (Join-Path $tmp 'node-sums.txt') $name
     & $tar -xf (Join-Path $tmp $name) -C $tmp
-    if ($LASTEXITCODE -ne 0) { throw (T 'The download could not be unpacked.' 'Stažený soubor se nepodařilo rozbalit.' 'Die Datei ließ sich nicht entpacken.') }
+    if ($LASTEXITCODE -ne 0) { throw (T 'The download could not be unpacked.' 'Stažený soubor se nepodařilo rozbalit.' 'Die Datei ließ sich nicht entpacken.' 'Nie udało się rozpakować pobranego pliku.') }
     $unpacked = Join-Path $tmp "node-v$nv-win-$cpu"
     # A running node.exe cannot be overwritten, but it can be moved aside.
     $old = Join-Path $dest 'node\node.old.exe'
@@ -208,12 +208,12 @@ try {
   }
 
   # strom's code (tar is part of Windows 10 and later).
-  Write-Host (T "Downloading Strom research $($version)…" "Stahuji Strom výzkum $($version)…" "Strom Ahnenforschung $($version) wird heruntergeladen…")
+  Write-Host (T "Downloading Strom research $($version)…" "Stahuji Strom výzkum $($version)…" "Strom Ahnenforschung $($version) wird heruntergeladen…" "Pobieranie programu Badania Strom $($version)…")
   Get-File "$base/strom-app.tar.gz" (Join-Path $tmp 'strom-app.tar.gz')
   Get-File "$base/SHASUMS256.txt" (Join-Path $tmp 'SHASUMS256.txt')
   Test-Sum (Join-Path $tmp 'strom-app.tar.gz') (Join-Path $tmp 'SHASUMS256.txt') 'strom-app.tar.gz'
   & $tar -xzf (Join-Path $tmp 'strom-app.tar.gz') -C $tmp
-  if ($LASTEXITCODE -ne 0) { throw (T 'The download could not be unpacked.' 'Stažený soubor se nepodařilo rozbalit.' 'Die Datei ließ sich nicht entpacken.') }
+  if ($LASTEXITCODE -ne 0) { throw (T 'The download could not be unpacked.' 'Stažený soubor se nepodařilo rozbalit.' 'Die Datei ließ sich nicht entpacken.' 'Nie udało się rozpakować pobranego pliku.') }
   # Each version in a folder of its own (app-<version>): nothing a strom at work runs from is moved (Windows holds a
   # folder whose files are open). app\dist\cli.js, the entry every launcher, shortcut, link and research's shim runs,
   # is written again whole to name it (with app\package.json: the version in use). The version before stays until
@@ -304,10 +304,10 @@ if ($command) {
   $parts = @(($userPath -split ';') | Where-Object { $_ })
   if (-not ($parts | Where-Object { $_.TrimEnd('\') -ieq $bin.TrimEnd('\') })) { [Environment]::SetEnvironmentVariable('Path', ((@($parts) + @($bin)) -join ';'), 'User') }
   if (-not (($env:Path -split ';') | Where-Object { $_ -and $_.TrimEnd('\') -ieq $bin.TrimEnd('\') })) { $env:Path = "$env:Path;$bin" }
-  Write-Host ((T 'A second installation beside the regular strom: its own folders and settings. Start it with the command' 'Druhá instalace vedle běžného stromu: vlastní složky a nastavení. Spouští se příkazem' 'Zweite Installation neben dem regulären strom: eigene Ordner und Einstellungen. Start mit dem Befehl') + ": $command")
+  Write-Host ((T 'A second installation beside the regular strom: its own folders and settings. Start it with the command' 'Druhá instalace vedle běžného stromu: vlastní složky a nastavení. Spouští se příkazem' 'Zweite Installation neben dem regulären strom: eigene Ordner und Einstellungen. Start mit dem Befehl' 'Druga instalacja obok zwykłego programu strom: własne foldery i ustawienia. Uruchamia się poleceniem') + ": $command")
 } elseif ($isolated) {
   # nothing outside its folders: started by its full path
-  Write-Host (T "Isolated installation: nothing outside these folders (no PATH, no links, nothing taught to the agents). Start it as: & `"$cmd`"" "Izolovaná instalace: nic mimo tyto složky (žádný PATH, odkazy ani učení agentů). Spouští se takto: & `"$cmd`"" "Isolierte Installation: nichts außerhalb dieser Ordner (kein PATH, keine Links, den Agenten nichts beigebracht). Start so: & `"$cmd`"")
+  Write-Host (T "Isolated installation: nothing outside these folders (no PATH, no links, nothing taught to the agents). Start it as: & `"$cmd`"" "Izolovaná instalace: nic mimo tyto složky (žádný PATH, odkazy ani učení agentů). Spouští se takto: & `"$cmd`"" "Isolierte Installation: nichts außerhalb dieser Ordner (kein PATH, keine Links, den Agenten nichts beigebracht). Start so: & `"$cmd`"" "Instalacja izolowana: nic poza tymi folderami (bez PATH, linków i uczenia agentów). Uruchamia się tak: & `"$cmd`"")
 } else {
   # PATH for the user: this folder first (new windows see it; this one gets it now). An older strom further on it
   # (from npm: %APPDATA%\npm, which npm puts on the user's PATH too) would else be the one `strom` starts.
@@ -317,12 +317,12 @@ if ($command) {
     [Environment]::SetEnvironmentVariable('Path', ((@($dest) + @($parts | Where-Object { -not (Test-Here $_) })) -join ';'), 'User')
   }
   $env:Path = (@($dest) + @(($env:Path -split ';') | Where-Object { $_ -and -not (Test-Here $_) })) -join ';'
-  Write-Host ((T 'Installed' 'Nainstalováno' 'Installiert') + ": $(Join-Path $dest 'strom.cmd')")
+  Write-Host ((T 'Installed' 'Nainstalováno' 'Installiert' 'Zainstalowano') + ": $(Join-Path $dest 'strom.cmd')")
 
   # Another strom still first (the system's PATH comes before the user's): said; the one from npm taken away on a yes.
   $first = Get-Command strom -All -ErrorAction SilentlyContinue | Where-Object { $_.Source } | Select-Object -First 1
   if ($first -and -not (Test-Here (Split-Path -Parent $first.Source))) {
-    Write-Host (T "Note: the command strom starts another, older strom: $($first.Source)" "Pozor: příkaz strom spouští jiný, starší strom: $($first.Source)" "Achtung: der Befehl strom startet ein anderes, älteres strom: $($first.Source)")
+    Write-Host (T "Note: the command strom starts another, older strom: $($first.Source)" "Pozor: příkaz strom spouští jiný, starší strom: $($first.Source)" "Achtung: der Befehl strom startet ein anderes, älteres strom: $($first.Source)" "Uwaga: polecenie strom uruchamia inny, starszy strom: $($first.Source)")
     # npm.cmd, never npm.ps1 (a script the execution policy may block); its errors are not ours to stop on
     $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue | Select-Object -First 1
     $fromNpm = $false
@@ -333,17 +333,17 @@ if ($command) {
     }
     if ($fromNpm) {
       $ask = -not $env:STROM_INSTALL_ONLY -and -not [Console]::IsInputRedirected
-      $a = if ($ask) { Read-Host (T 'It came with npm. Remove it? (y/n) [y]' 'Je nainstalovaný přes npm. Odebrat ho? (a/n) [a]' 'Es kam mit npm. Entfernen? (j/n) [j]') } else { 'n' }
-      if ($a -match '^\s*(n|ne|no|nein)\s*$') { Write-Host (T 'Remove it with: npm uninstall -g strom-research' 'Odebrat příkazem: npm uninstall -g strom-research' 'Entfernen mit: npm uninstall -g strom-research') }
+      $a = if ($ask) { Read-Host (T 'It came with npm. Remove it? (y/n) [y]' 'Je nainstalovaný přes npm. Odebrat ho? (a/n) [a]' 'Es kam mit npm. Entfernen? (j/n) [j]' 'Zainstalowano go przez npm. Usunąć? (t/n) [t]') } else { 'n' }
+      if ($a -match '^\s*(n|ne|no|nein|nie)\s*$') { Write-Host (T 'Remove it with: npm uninstall -g strom-research' 'Odebrat příkazem: npm uninstall -g strom-research' 'Entfernen mit: npm uninstall -g strom-research' 'Usunięcie poleceniem: npm uninstall -g strom-research') }
       else {
         $was = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
         & $npm.Source uninstall -g strom-research
         $ErrorActionPreference = $was
       }
-    } else { Write-Host (T "Delete it, or put $dest before its folder in PATH." "Smazat ho, nebo dát $dest v PATH před jeho složku." "Löschen oder $dest im PATH vor seinen Ordner setzen.") }
+    } else { Write-Host (T "Delete it, or put $dest before its folder in PATH." "Smazat ho, nebo dát $dest v PATH před jeho složku." "Löschen oder $dest im PATH vor seinen Ordner setzen." "Usunąć go albo umieścić $dest w PATH przed jego folderem.") }
   }
 }
 
 # Start strom: its setup wizard.
 # (STROM_INSTALLER: strom looks over what the setup put here when settings were kept from before)
-if (-not $env:STROM_INSTALL_ONLY) { $env:STROM_INSTALLER = '1'; & $cmd; Remove-Item Env:STROM_INSTALLER -ErrorAction SilentlyContinue } elseif (-not $isolated) { Write-Host (T 'Next time start it with: strom' 'Příště se spouští příkazem: strom' 'Nächstes Mal startet es mit: strom') }
+if (-not $env:STROM_INSTALL_ONLY) { $env:STROM_INSTALLER = '1'; & $cmd; Remove-Item Env:STROM_INSTALLER -ErrorAction SilentlyContinue } elseif (-not $isolated) { Write-Host (T 'Next time start it with: strom' 'Příště se spouští příkazem: strom' 'Nächstes Mal startet es mit: strom' 'Następnym razem uruchamia się poleceniem: strom') }

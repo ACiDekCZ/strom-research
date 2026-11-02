@@ -69,7 +69,7 @@ test("a release carries the changelogs: in strom-app.tar.gz and a beta's npm tar
   const listed = (file: string) => spawnSync("tar", ["-tzf", file], { encoding: "utf8" }).stdout.split("\n");
   const app = listed(path.join(rel.beta, "strom-app.tar.gz"));
   const npm = fs.readdirSync(rel.beta).find((f) => f.endsWith(".tgz"));
-  for (const f of ["CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md"]) {
+  for (const f of ["CHANGELOG.md", "CHANGELOG.cs.md", "CHANGELOG.de.md", "CHANGELOG.pl.md"]) {
     assert.ok(app.includes(`app/${f}`), `strom-app.tar.gz: ${f}`);
     if (npm) assert.ok(listed(path.join(rel.beta, npm)).includes(`package/${f}`), `${npm}: ${f}`);
   }

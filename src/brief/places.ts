@@ -97,7 +97,7 @@ export function placesIdentifySections(tree: Tree, task: Task, alone: boolean, s
         "3. the web last, for what is still open: gazetteers, the registers of municipalities, historical maps and the Wikipedia in the region's language. Only the place's name with its parish or district goes into a search — never a person's name, a date or anything else of the tree",
         "",
         "Three degrees, never guessed:",
-        "- sure (the parish of the records, the district and the years agree; no other place of the name fits): strom place identify \"<form>\" --lat … --lon … --why \"on what\" [--name, --form for each other writing, --jurisdiction kind:name:from-to, --source-title/--source-url of the reference read]",
+        "- sure (the parish of the records, the district and the years agree; no other place of the name fits): strom place identify \"<form>\" --lat … --lon … --why \"on what\" [--name, --form for each other writing of the facts, --alt for another language or an old name (name@lang:from-to), --jurisdiction kind:name:from-to, --source-title/--source-url of the reference read]",
         "- probable (1–3 places fit): strom place propose \"<form>\" --candidate \"name|lat|lon|why|district|country|title|url\" for each — the person chooses",
         "- not to be decided: strom place unlocated \"<form>\" --why \"…\" --needs \"what would decide it\" — it comes back by itself when that is known; a wrong place is worse than none",
         "- a place on the map the person put there is never moved: the records agree — strom place verify L… --ok --why \"…\"; they do not — strom place propose L… --conflict --candidate …; it cannot be told — strom place verify L… --undecided \"why\"",

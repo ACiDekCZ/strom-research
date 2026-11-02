@@ -394,9 +394,25 @@ export interface Jurisdiction {
   recordsets?: string[];
 }
 
+/**
+ * What a name of a place record is, after the first (today's): a form the facts write that was identified as the place
+ * ("form"), or another name of it — another language, a historical name ("alt"). Optional: a name written before it
+ * was kept has none (an older strom keeps it and ignores it; no SCHEMA_VERSION raised).
+ */
+export const PLACE_NAME_KINDS = ["form", "alt"] as const;
+export type PlaceNameKind = (typeof PLACE_NAME_KINDS)[number];
+
+export interface PlaceName {
+  name: string;
+  lang?: string;
+  from?: number;
+  to?: number;
+  kind?: PlaceNameKind;
+}
+
 export interface Place extends BaseRecord {
   type: "place";
-  names: { name: string; lang?: string; from?: number; to?: number }[];
+  names: PlaceName[];
   kind?: string;
   coords?: { lat: number; lon: number };
   /** Why it has no coordinates: not identified yet (which of the villages of this name). Given coordinates clear it. */

@@ -13,7 +13,8 @@
     "LICENSE",
     "CHANGELOG.md",
     "CHANGELOG.cs.md",
-    "CHANGELOG.de.md"
+    "CHANGELOG.de.md",
+    "CHANGELOG.pl.md"
   ],
   "engines": {
     "node": ">=22.18"

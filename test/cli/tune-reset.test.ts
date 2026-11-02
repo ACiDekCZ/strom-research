@@ -336,6 +336,7 @@ test("the reason a person reads: the research language, its numbers as the langu
   assert.equal(reasonText("cs", item({ action: "A2", basis: {} })), "z naměřených čtení");
   assert.equal(reasonText("de", item({ source: "calibrated", sample: 6 })), "gemessen an 6 bekannten Einträgen");
   assert.equal(reasonText("cs", item({ source: "answered", by: "app" })), "zodpovězeno v aplikaci Strom");
+  assert.equal(reasonText("pl", item({ source: "calibrated", sample: 6 })), "zmierzono na 6 znanych zapisach");
   // a language without a catalog reads English
-  assert.equal(reasonText("pl", item({ source: "calibrated", sample: 6 })), "measured on 6 known records");
+  assert.equal(reasonText("uk", item({ source: "calibrated", sample: 6 })), "measured on 6 known records");
 });

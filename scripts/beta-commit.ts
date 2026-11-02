@@ -5,7 +5,7 @@
 // installers from the branch beta, run with STROM_CHANNEL=beta (a redirect cannot pass it on), the source's link to the
 // branch beta. The branch main keeps the stable lines. Every rewrite must find its text: a changed AGENTS.md stops
 // the beta instead of quietly giving an agent the stable channel on the beta web.
-// And the changelogs (CHANGELOG.md, .cs.md, .de.md — what strom --version and strom update link to): the section of the
+// And the changelogs (CHANGELOG.md, .cs.md, .de.md, .pl.md — what strom --version and strom update link to): the section of the
 // version being prepared says so, in its language, on the branch beta only — main gets the section at the release,
 // without the note. A beta whose version has no section in each of them stops: every beta writes its changes there.
 //
@@ -65,6 +65,7 @@ export const CHANGELOGS: [file: string, note: (version: string) => string][] = [
   ["CHANGELOG.md", (v) => `*In preparation: the betas up to ${v}. The section is complete with the release.*`],
   ["CHANGELOG.cs.md", (v) => `*Připravuje se: bety do ${v}. Oddíl bude úplný s vydáním.*`],
   ["CHANGELOG.de.md", (v) => `*In Vorbereitung: die Betas bis ${v}. Der Abschnitt ist mit dem Release vollständig.*`],
+  ["CHANGELOG.pl.md", (v) => `*W przygotowaniu: bety do ${v}. Sekcja będzie kompletna z wydaniem.*`],
 ];
 
 /** A changelog as the branch beta gives it: the note under the section of the version (X.Y.Z of X.Y.Z-beta.N). */
@@ -72,7 +73,7 @@ export function betaChangelog(text: string, file: string, note: (version: string
   const base = version.split("-")[0]!;
   const heading = new RegExp(`^## ${base.replace(/\./g, "\\.")}[ \\t]*$`, "gm");
   const found = [...text.matchAll(heading)];
-  if (found.length !== 1) throw new Error(`${file}: ${found.length ? "more than one section" : "no section"} "## ${base}" — each beta writes its changes there (en, cs, de)`);
+  if (found.length !== 1) throw new Error(`${file}: ${found.length ? "more than one section" : "no section"} "## ${base}" — each beta writes its changes there (en, cs, de, pl)`);
   const at = found[0]!.index! + found[0]![0].length;
   return `${text.slice(0, at)}\n\n${note(version)}${text.slice(at)}`;
 }

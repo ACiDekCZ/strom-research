@@ -12,7 +12,7 @@
 // quality/places.json (sealed, written whole). Nothing here raises SCHEMA_VERSION: only optional fields.
 
 import { UsageError } from "./errors.ts";
-import type { Event, Family, Jurisdiction, Person, Place, PlaceBy, PlaceCandidate, PlaceLocating, PlaceQuestion, Session, Source, Task } from "./model.ts";
+import type { Event, Family, Jurisdiction, Person, Place, PlaceBy, PlaceCandidate, PlaceLocating, PlaceName, PlaceNameKind, PlaceQuestion, Session, Source, Task } from "./model.ts";
 import { JURISDICTIONS } from "./model.ts";
 import { readJsonIfExists, stringifyCanonical } from "./json.ts";
 import { splitStreet } from "./streets.ts";
@@ -418,12 +418,47 @@ function target(tree: Tree, ref: string, forms: Map<string, FactForm>): Target {
   return { place: made, made: true, keys: [key] };
 }
 
-/** A name added to a record when it has none like it (any accent folded alike); the facts' forms are its names (K3.2, K4.5). */
-function addName(p: Place, name: string, extra: Omit<Place["names"][number], "name"> = {}): void {
+/**
+ * A name added to a place record when it has none like it (any accent folded alike): a form the facts write (K3.2,
+ * K4.5) or another name of the place (another language, a historical name). Each name once: a form that is a name of
+ * the record already (the same words, or alike with no language) adds nothing; another name given to a form of the
+ * facts of the same words takes its place (it says more — the language, the years), and the same name of the same
+ * language already there (a form, or of no known kind: written before kinds were kept) becomes it, its years filled in
+ * where it had none. Today's name (the first) is never changed.
+ */
+export function addPlaceName(p: Place, name: string, kind: PlaceNameKind, extra: Omit<PlaceName, "name" | "kind"> = {}): void {
   const n = name.normalize("NFC").trim();
   if (!n) return;
-  if (p.names.some((x) => foldText(x.name) === foldText(n) && (x.lang ?? "") === (extra.lang ?? ""))) return;
-  p.names.push({ name: n, ...extra });
+  const key = foldText(n);
+  const same = p.names.map((x, i) => ({ x, i })).filter(({ x }) => foldText(x.name) === key);
+  if (kind === "form") {
+    if (!same.some(({ x }) => x.name === n || !x.lang)) p.names.push({ name: n, kind });
+    return;
+  }
+  const whole: PlaceName = { name: n, ...(extra.lang ? { lang: extra.lang } : {}), ...(extra.from !== undefined ? { from: extra.from } : {}), ...(extra.to !== undefined ? { to: extra.to } : {}), kind };
+  const like = same.find(({ x }) => (x.lang ?? "") === (extra.lang ?? ""));
+  // the same name already: what it is and its years filled in, never changed
+  if (like) {
+    if (like.i > 0) p.names[like.i] = { ...like.x, ...(extra.from !== undefined && like.x.from === undefined ? { from: extra.from } : {}), ...(extra.to !== undefined && like.x.to === undefined ? { to: extra.to } : {}), kind };
+    return;
+  }
+  const form = same.find(({ x, i }) => i > 0 && x.kind === "form" && x.name === n);
+  if (form) p.names[form.i] = whole;
+  else p.names.push(whole);
+}
+
+/**
+ * A place's names after today's, each once: a plain one (a form of the facts, no language or years) that is also
+ * written as another name of the place is shown as that name alone — the one that says more.
+ */
+export function otherNames(p: Place): PlaceName[] {
+  const rest = p.names.slice(1);
+  const plain = (n: PlaceName) => n.kind !== "alt" && !n.lang && n.from === undefined && n.to === undefined;
+  return rest.filter((n) => !plain(n) || !rest.some((m) => m !== n && !plain(m) && foldText(m.name) === foldText(n.name)));
+}
+
+function addName(p: Place, name: string): void {
+  addPlaceName(p, name, "form");
 }
 
 /** Coordinates checked. */
@@ -495,10 +530,14 @@ export function identifyPlace(tree: Tree, ref: string, input: IdentifyInput): Pl
     }
     if (input.name) {
       const name = text(input.name, 300, "--name")!;
-      const rest = p.names.filter((n) => !(foldText(n.name) === foldText(name) && !n.lang));
+      const was = p.names[0];
+      // the name that was first stays as what it is: a form of the facts, or another name of the place
+      const rest = p.names
+        .map((n) => (n === was && !n.kind ? { ...n, kind: forms.has(foldText(n.name)) ? ("form" as const) : ("alt" as const) } : n))
+        .filter((n) => !(foldText(n.name) === foldText(name) && !n.lang));
       p.names = [{ name }, ...rest];
     }
-    for (const a of input.alt ?? []) addName(p, a.name, { ...(a.lang ? { lang: a.lang } : {}), ...(a.from !== undefined ? { from: a.from } : {}), ...(a.to !== undefined ? { to: a.to } : {}) });
+    for (const a of input.alt ?? []) addPlaceName(p, a.name, "alt", a);
     for (const k of t.keys) addName(p, forms.get(k)?.form ?? k);
     const more: string[] = [];
     for (const f of input.forms ?? []) {

@@ -38,7 +38,7 @@ import { VERSION, type Tree } from "../core/tree.ts";
 import { dataUrl, turned, type Excerpt, type ExcerptOmitted } from "../core/excerpt.ts";
 import { excerptPage, sourcePage } from "../core/scanlink.ts";
 import { numbersOnly } from "../core/streets.ts";
-import { recordIndex } from "../core/placeid.ts";
+import { otherNames, recordIndex } from "../core/placeid.ts";
 import { mainPerson } from "../core/kin.ts";
 import { hypothesisPeople } from "../core/directions.ts";
 import * as git from "../core/git.ts";
@@ -173,7 +173,7 @@ export interface ExportOptions {
    * The Strom profile, for an app that reads them (APP_READS_PLACE_RECORDS): under each PLAC of a fact that belongs to
    * a place record of the research (one of its names, any accent; a street by its town) 3 _STROM_PLACE @L…@, and each
    * record something points to (a PLAC, another's _STROM_IN) as 0 @L…@ _STROM_PLACE — its names (the first today's,
-   * 2 LANG, 2 DATE FROM/TO), MAP, _STROM_JUR, _STROM_IN, who put it on the map and when, why, from what, verified, or not
+   * 2 LANG, 2 DATE FROM/TO, after it 2 TYPE form|alt when known), MAP, _STROM_JUR, _STROM_IN, who put it on the map and when, why, from what, verified, or not
    * located and what would decide it. The app never sends them back as edits: the research is where they live.
    */
   placeRecords?: boolean;
@@ -627,11 +627,13 @@ export function exportGedcom(tree: Tree, opts: ExportOptions = {}): ExportResult
     for (const id of [...out].sort()) {
       const p = all.get(id)!;
       w.record(x(p.id), "_STROM_PLACE");
-      for (const n of p.names) {
+      // each name once (core/placeid.ts otherNames); after today's, what it is: a form the facts write, another name
+      for (const n of [...p.names.slice(0, 1), ...otherNames(p)]) {
         w.line(1, "NAME", n.name);
         if (n.lang) w.line(2, "LANG", n.lang);
         const d = span(n.from, n.to);
         if (d) w.line(2, "DATE", d);
+        if (n.kind) w.line(2, "TYPE", n.kind);
       }
       if (p.coords) {
         w.line(1, "MAP");
