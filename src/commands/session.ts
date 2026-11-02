@@ -25,7 +25,7 @@ import { agentSettingsSaid, effortInArgs, ownEffort, raisesEffort } from "../age
 import { agentSettingsLine } from "../cli/model-choice.ts";
 import { DEFAULT_BUDGET, DEFAULT_RUN_MINUTES, Settings } from "../core/config.ts";
 import { historyHeld, raiseHistoryTasks, regionOfTask, requireHistoryOn } from "../core/pastevents.ts";
-import { keepPlacesTask } from "../core/placeid.ts";
+import { keepPlacesTask, PLACES_IDENTIFY_ORIGIN } from "../core/placeid.ts";
 import { prependPath, type AgentLimit } from "../runners/runner.ts";
 import { frontier } from "../core/frontier.ts";
 import { treeEdges, type Edge, type Island } from "../core/edge.ts";
@@ -766,6 +766,7 @@ register(
     { name: "task", type: "string", multiple: true, value: "<T…>", description: "work on these tasks, in this order (repeatable or T0003,T0007; default: the next one of the queue)" },
     { name: "research", type: "string", value: "<G…>", description: "only tasks of this research" },
     { name: "history", type: "boolean", hidden: true, description: "only the tasks of the history of the places, in their order, whatever its pace (the places to map first)" },
+    { name: "places", type: "boolean", hidden: true, description: "only the task of identifying the places of the facts: one session for each batch of its queue, for as long as places wait (at most --max, default 1)" },
     { name: "max", type: "string", value: "<n>", description: "at most n sessions (default 1; with --until, no limit)" },
     { name: "until", type: "string", value: "<HH:MM>", description: "start no session after this time" },
     { name: "loop", type: "boolean", description: "session after session for as long as there is work (and the gate lets it)" },
@@ -818,6 +819,11 @@ register(
       if (opts.task !== undefined || opts.research !== undefined) throw new UsageError("--history takes the tasks of history in their order: not with --task or --research", { code: "run.history" });
       requireHistoryOn(ctx.tree(), ctx.settings);
     }
+    // The places of the facts the person asked to be identified (the Strom app's link): that task alone, session after
+    // session — each takes the next batch of the queue (a task done with places still queued is raised again).
+    const placesOnly = Boolean(opts.places);
+    if (placesOnly && (historyOnly || opts.task !== undefined || opts.research !== undefined))
+      throw new UsageError("--places takes the task of identifying the places alone: not with --task, --research or --history", { code: "run.places" });
     // Tasks the user picked: one session each, in their order (then the queue, when --max asks for more).
     const picked = csvOpt(opts.task).map((id) => requireRecord<Task>(Tree.open(root, ctx.env), id, "task").id);
     const max = opts.max === undefined ? (picked.length ? picked.length : until || opts.loop ? Infinity : 1) : Number(opts.max);
@@ -928,7 +934,13 @@ register(
         const free = () =>
           taskQueue(tree, { ...(research ? { research: research.id } : {}), strategy: ctx.settings.strategy(tree.config), storyTurn: !historyOnly, history: historyOnly ? "only" : true }).find((t) => !others.has(t.id));
         let task: Task | undefined;
-        if (i < picked.length) {
+        if (placesOnly) {
+          task = tree.list<Task>("task").find((t) => t.origin === PLACES_IDENTIFY_ORIGIN && (t.state === "open" || t.state === "doing") && !others.has(t.id));
+          if (!task) {
+            stopCode = "empty";
+            break;
+          }
+        } else if (i < picked.length) {
           task = tree.get<Task>(picked[i]!);
           const left = !task || !["open", "doing", "parked", "waiting"].includes(task.state) ? task?.state : others.has(task.id) ? "held" : undefined;
           if (left) {
@@ -1262,7 +1274,8 @@ register(
     }
     // What the research now waits for from the user who started it.
     const waiting = waitingLines(Tree.open(root, runEnv), { shared: ctx.settings.shared()?.value, display: (p) => ctx.display(p) });
-    const reason = historyOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.history") : ui(lang, `ui.run.stop.${stopCode}` as UIKey, stopValues);
+    const reason =
+      historyOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.history") : placesOnly && stopCode === "empty" ? ui(lang, "ui.run.stop.places") : ui(lang, `ui.run.stop.${stopCode}` as UIKey, stopValues);
     return {
       text: lines(ui(lang, "ui.run.summary", { n: report.length, reason }), waiting ? `\n${waiting}` : undefined),
       data: { sessions: report, stopped: reason, stop: stopCode, ...(gate ? { gate: { name: gate.name, answers: gates } } : {}) },

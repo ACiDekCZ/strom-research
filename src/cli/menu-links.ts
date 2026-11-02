@@ -334,8 +334,10 @@ export async function placeSearch(ctx: Context, run: Run, lang: string, root: st
  * The places of the facts identified by the agent, asked for from the Strom app (strom-research://places?…&do=run, one
  * place with &place=L…): the queue said here — how many places, in how many sessions by area, one session's estimate
  * and the whole queue's, the gate of the runs and the limit of a session, what goes to searches — and on the person's
- * yes the place queued (when it is not), the task of identification on top of the queue, then one session started now
- * if wanted. The bridge never starts it (403 places.link).
+ * yes the place queued (when it is not), the task of identification on top of the queue, then sessions started now if
+ * wanted: one batch, one session (asked yes or no); more, how many of them (placesSessions), run one after another by
+ * strom run --places (Ctrl-C after the session at work; the places left stay queued). The bridge never starts it
+ * (403 places.link).
  */
 export async function placesRun(ctx: Context, run: Run, lang: string, root: string, id?: string): Promise<boolean> {
   const t = translator(lang);
@@ -365,12 +367,38 @@ export async function placesRun(ctx: Context, run: Run, lang: string, root: stri
   if (!(await asks(ctx, lang, root, what, note, false))) return false;
   // the place queued by the person (a place queued already, the whole queue: shown, its task kept with it)
   if ((await run(p && !inQueue ? ["place", "queue", p.id] : ["place", "queue"], true)) !== 0) return false;
-  const task = Tree.open(root, ctx.env)
-    .list<Task>("task")
-    .find((x) => x.origin === PLACES_IDENTIFY_ORIGIN && (x.state === "open" || x.state === "doing"));
+  const queued = Tree.open(root, ctx.env);
+  const task = queued.list<Task>("task").find((x) => x.origin === PLACES_IDENTIFY_ORIGIN && (x.state === "open" || x.state === "doing"));
   out(ctx, t("ui.link.places.done"));
-  if (!task || task.state === "doing" || !(await ctx.confirm(t("ui.link.places.now"), false))) return true;
-  return (await run(["run", "--task", task.id])) === 0;
+  if (!task || task.state === "doing") return true;
+  // one batch: one session, asked as it was; more: how many now, each count with its estimate
+  const now = queueView(queued).batches;
+  if (now <= 1) {
+    if (!(await ctx.confirm(t("ui.link.places.now"), false))) return true;
+    return (await run(["run", "--task", task.id])) === 0;
+  }
+  const count = await placesSessions(ctx, t, lang, queued, now);
+  if (!count) return true;
+  if (count === 1) return (await run(["run", "--task", task.id])) === 0;
+  out(ctx, t("ui.link.places.stop"));
+  return (await run(["run", "--places", "--max", String(count)])) === 0;
+}
+
+/**
+ * How many sessions of identification now, the queue in `batches` sessions: 1, 2, 3 and the whole queue (at most four
+ * answers and 0), each with its minutes and, measured, its price. Suggested: the whole queue when it is three sessions
+ * or fewer — what "run now" asks for, a small spend — else one: a long queue is the person's own choice, said in full.
+ * undefined: none now (0), the task first in the queue.
+ */
+export async function placesSessions(ctx: Context, t: ReturnType<typeof translator>, lang: string, tree: Tree, batches: number): Promise<number | undefined> {
+  const counts = [...new Set([1, 2, 3].filter((k) => k < batches).concat(batches))];
+  const choices = counts.map((k) => {
+    const e = identifyEstimate(tree, k).queue!;
+    const usd = e.usd ? t("ui.link.places.count.usd", { from: humanCost(e.usd[0], lang), to: humanCost(e.usd[1], lang) }) : "";
+    return { label: t(k === batches ? "ui.link.places.count.all" : "ui.link.places.count", { n: k, from: e.minutes[0], to: e.minutes[1], usd }) };
+  });
+  const i = await ctx.choose(t("ui.link.places.how", { batches }), choices, batches <= 3 ? counts.length - 1 : 0, { back: t("ui.link.places.none") });
+  return i === undefined ? undefined : counts[i];
 }
 
 /**

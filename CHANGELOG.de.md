@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.25.0
 
-*In Vorbereitung: die Betas bis 1.25.0-beta.3. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.25.0-beta.4. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Daten für das Strom-Widget auch unter Windows.** Eine Forschung schreibt jetzt, was das Strom-Widget von ihr zeigt
   (woran gearbeitet wird, die Funde der letzten 24 Stunden, was wartet), auch unter Windows, nach
@@ -30,7 +30,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 - **Orte bestimmen.** Die Forschung bestimmt die Orte ihrer Einträge (`strom place identify`, `propose`,
   `unlocated`): ein aus den Einträgen sicherer Ort erhält Koordinaten, Namen und Pfarrei im Lauf der Zeit; wo es nicht
   sicher ist, fragt sie eine Person mit höchstens drei Kandidaten oder sagt, was entscheiden würde. Die Fragen warten
-  unter „Wartet“, die Brücke bietet sie der Strom-App an, und `strom place undo` nimmt die letzte Antwort zurück.
+  unter „Wartet“, die Brücke bietet sie der Strom-App an, und `strom place undo` nimmt die letzte Antwort zurück. Eine
+  Warteschlange von Orten, die die Strom-App jetzt bestimmen lässt, läuft in so vielen Sitzungen nacheinander, wie die
+  Person wählt, jede Zahl mit Zeit und Preis.
 - **Arten der Geschichte.** `history.kinds` legt fest, welche Arten von Ereignissen die Geschichte der Orte sucht
   (Kriege, Epidemien …). `strom history align` sagt zuerst, was es verbergen, wieder zeigen und suchen würde, und tut
   es nur auf das Ja einer Person; nichts Gefundenes wird gelöscht.

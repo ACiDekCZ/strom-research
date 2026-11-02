@@ -19,6 +19,7 @@ import { splitStreet } from "./streets.ts";
 import { foldText } from "./text.ts";
 import { actsAsArchive } from "./state.ts";
 import { readPlaces } from "./pastevents.ts";
+import { phrase } from "./phrases.ts";
 import { now, type Tree } from "./tree.ts";
 import path from "node:path";
 
@@ -950,24 +951,33 @@ export function raisePlacesTask(tree: Tree, archive: boolean): string | undefine
     const live = tasks.find((t) => t.state === "open" || t.state === "doing" || t.state === "parked");
     if (!queued) {
       for (const t of tasks.filter((x) => x.state === "open" || x.state === "parked"))
-        tree.putMany([{ ...t, state: "done", result: "every place of the queue identified, asked about or found not located", updated: now() } as Task], [], {
+        tree.putMany([{ ...t, state: "done", result: phrase(tree.lang, "places.identify.result"), updated: now() } as Task], [], {
           op: "task.done",
           targets: [t.id],
           summary: `${t.id} done: the queue of places is empty`,
         });
       return undefined;
     }
-    if (live) return undefined;
+    // in the research's language, the count as the queue is now: the task kept so (one made by an older strom, in
+    // English, too), never written again while nothing of it changed
+    const text = {
+      what: phrase(tree.lang, "places.identify.what", { n: queued }),
+      where: waiting.slice(0, 10).map((e) => e.form),
+      why: phrase(tree.lang, "places.identify.why"),
+      doneWhen: phrase(tree.lang, "places.identify.done"),
+    };
+    if (live) {
+      if (live.what !== text.what || live.why !== text.why || live.doneWhen !== text.doneWhen || (live.where ?? []).join("\n") !== text.where.join("\n"))
+        tree.putMany([{ ...live, ...text, updated: now() } as Task], [], { op: "task.edit", targets: [live.id], summary: `${live.id} the queue of places: ${queued}` });
+      return undefined;
+    }
     const t = now();
     const task: Task = {
       id: tree.allocate("T"),
       type: "task",
       level: "enrich",
       priority: 5,
-      what: `Identify the places of the facts in the queue (${queued})`,
-      where: waiting.slice(0, 10).map((e) => e.form),
-      why: "The person asked: which place of the name each is, where it lies, its names and jurisdictions — for the map, the history and the houses.",
-      doneWhen: "Every place of the queue identified, asked about or found not located.",
+      ...text,
       subject: [],
       state: "open",
       origin: PLACES_IDENTIFY_ORIGIN,

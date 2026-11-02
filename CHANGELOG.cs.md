@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.25.0
 
-*Připravuje se: bety do 1.25.0-beta.3. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.25.0-beta.4. Oddíl bude úplný s vydáním.*
 
 - **Data pro widget Strom i na Windows.** Výzkum teď zapisuje to, co z něj ukazuje widget Strom (na čem se pracuje,
   nálezy za posledních 24 hodin, co čeká), i na Windows, do `%USERPROFILE%\.config\strom\widget`, se značkou verze
@@ -27,7 +27,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 - **Ztotožnění míst.** Výzkum ztotožňuje místa svých záznamů (`strom place identify`, `propose`, `unlocated`): místo
   jisté ze záznamů dostane souřadnice, jména a farnost v čase; kde jistota není, zeptá se člověka s nejvýš třemi
   kandidáty, nebo řekne, co by rozhodlo. Otázky čekají v oddílu Čeká, most je nabízí aplikaci Strom a `strom place
-  undo` vezme poslední odpověď zpět.
+  undo` vezme poslední odpověď zpět. Frontu míst, kterou aplikace Strom zadá ztotožnit hned, lze pustit v tolika
+  sezeních za sebou, kolik člověk zvolí, každý počet s časem a cenou.
 - **Druhy dějin.** `history.kinds` určuje, jaké druhy událostí dějiny míst hledají (války, epidemie…). `strom history
   align` nejdřív řekne, co by skryl, znovu ukázal a hledal, a provede to jen na „ano“ člověka; nic nalezeného se nemaže.
 - **Vedlejší větve nakonec.** Ve výzkumu s více liniemi čeká práce, která žádné linii nepomáhá, až linie nebudou mít

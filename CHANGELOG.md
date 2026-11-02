@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.25.0
 
-*In preparation: the betas up to 1.25.0-beta.3. The section is complete with the release.*
+*In preparation: the betas up to 1.25.0-beta.4. The section is complete with the release.*
 
 - **Data for the Strom widget on Windows too.** A research now writes what the Strom widget shows of it (what it works
   on, the finds of the last 24 hours, what waits) also on Windows, into `%USERPROFILE%\.config\strom\widget`, with a
@@ -28,7 +28,8 @@ The changes of each version in short. The full notes and the install lines are o
 - **Identifying places.** The research identifies the places of its records (`strom place identify`, `propose`,
   `unlocated`): a place sure from its records gets its coordinates, names and parish over time; where it is not sure,
   it asks the person with up to three candidates, or says what would decide it. The questions wait in "What waits",
-  the bridge offers them to the Strom app, and `strom place undo` takes back the last answer.
+  the bridge offers them to the Strom app, and `strom place undo` takes back the last answer. A queue of places the
+  Strom app asks to identify now runs in as many sessions as the person picks, each count with its time and price.
 - **Kinds of history.** `history.kinds` sets which kinds of events the history of the places looks for (wars,
   epidemics, …). `strom history align` says first what it would hide, show again and look for, and does it only on
   the person's yes; nothing found is deleted.

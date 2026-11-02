@@ -3524,7 +3524,7 @@ export function serveLive(root: string, env: Env): Promise<void> {
         if (added.length) {
           // the whole change through the terminal: what it adds, the estimate, the person's yes
           const link = linkText(
-            { action: "history-kinds", tree: tree.config.id, ...(inherit ? { inherit: "1" } : { kinds: kindsSetting(next, String(scope === "tree" ? (mine ?? computer ?? "") : (computer ?? ""))) }), scope: scope as "tree" | "default" },
+            { action: "history-kinds", tree: tree.config.id, scope: scope as "tree" | "default", ...(inherit ? { inherit: "1" as const } : { kinds: kindsSetting(next, String(scope === "tree" ? (mine ?? computer ?? "") : (computer ?? ""))) }) },
             linkScheme(env),
           );
           return { code: 403, body: { ...said(tree.lang, "ui.history.kinds.link"), link, added } };

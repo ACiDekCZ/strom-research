@@ -130,6 +130,8 @@ test("bridge: /status says the kinds looked for; POST /history/kinds leaves a ki
     const more = await post(url, { kinds: ALL, scope: "default" });
     assert.equal(more.status, 403);
     assert.deepEqual(parseLink(more.body.link), { action: "history-kinds", tree: id, scope: "default", kinds: "all" });
+    // its parameters in the order the Strom app writes them (tree, scope, kinds|inherit)
+    assert.equal(more.body.link, `strom-research://history-kinds?tree=${id}&scope=default&kinds=all`);
     assert.equal(userKinds(w), "all,-census,-state,-emigration,-law,-economy,-disaster,-other");
     // the status says it as it is now
     const now = await status();

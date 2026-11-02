@@ -440,7 +440,8 @@ register(
       "browser, by hand), answered in the terminal as in the menu's What waits; the answer is never in the link.\n" +
       "strom-research://places?tree=<id>&do=run[&place=L0012] — the places of the facts identified by the agent: the queue\n" +
       "  (or the one place, queued when it is not) with its sessions and estimate, the task on top of the queue on the\n" +
-      "  person's yes in the terminal, then started now if wanted (the bridge never starts it).\n" +
+      "  person's yes in the terminal, then started now if wanted — a queue of more sessions: how many, each with its\n" +
+      "  estimate, run one after another (the bridge never starts it).\n" +
       "strom-research://fixes?tree=<id>[&id=street-places][&do=undo] — strom's fixes of the research (strom fixes), one of them\n" +
       "  shown, or what it set right to be put back: set right or put back only on the person's word in the terminal.\n" +
       "strom-research://back?tree=<id>[&change=<hash>] — the research back in time (strom history back): the change named by\n" +
