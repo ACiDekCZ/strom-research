@@ -5,9 +5,27 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.25.1
+
+*Připravuje se: bety do 1.25.1-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Podmínky archivů ověřené znovu, přibyly polské zdroje.** Podmínky a robots.txt všech archivů, které strom zná,
+  byly 3. listopadu 2026 přečteny znovu. eBadatelna SOA Praha nově nepouští k digitalizátům žádné roboty (její
+  robots.txt z 2. listopadu): její snímky jen přes prohlížeč člověka, stejně jako u třeboňského archivu, který
+  požadavky stromu nově odmítá. Podmínky Porta fontium jsou ocitované (po jedné stránce, pro vlastní výzkum, s
+  uvedením zdroje a adresy). Nově: Skanoteka PTG (minuta mezi požadavky), GenBaza,
+  BaSIA, Genealogia w Archiwach, litevské Metrikai a archivy ve Lvově, Žytomyru a Rivném (za ověřením robota nebo
+  zavřené AI agentům: jen prohlížeč člověka), Polona a Slezská digitální knihovna (volná díla), Malopolská digitální knihovna (jen pro vlastní potřebu, nikdy hromadně) a pro místa v Polsku
+  názvy z PRNG Geoportalu a Słownik geograficzny, s vlastním hledáním.
+- **Polské texty opravené, zkopírovaný příkaz funguje.** Polské menu, zprávy, instalátor i tyto poznámky prošly
+  revizí: všude stejné pojmy jako v aplikaci Strom 3.21.1 (Księga rodu, krátké pomlčky), opravená gramatika a tvary
+  čísel; data se píšou jako v aplikaci, bez úvodních nul (3.11.2026), měsíc v pádu, který chce předložka
+  (przed majem 1880). Příkaz `strom unpack "…"`, který se ukáže po
+  zabalení výzkumu nebo před jeho odstraněním, má teď ve všech jazycích rovné uvozovky, takže po zkopírování funguje.
+
 ## 1.25.0
 
-*Připravuje se: bety do 1.25.0-beta.5. Oddíl bude úplný s vydáním.*
+*3. 11. 2026 · patří k aplikaci Strom 3.21.0.*
 
 - **Polsky.** Výzkum mluví polsky: menu, jeho hlášky, co zapisuje do výzkumu, instalátor i stránka telefonu; poznámky
   a role v souboru pro Strom jsou polsky. Polský systém se pozná sám, jinak `strom config set lang pl`. Nápověda pro
@@ -32,7 +50,8 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   kandidáty, nebo řekne, co by rozhodlo. Otázky čekají v oddílu Čeká, most je nabízí aplikaci Strom a `strom place
   undo` vezme poslední odpověď zpět. Frontu míst, kterou aplikace Strom zadá ztotožnit hned, lze pustit v tolika
   sezeních za sebou, kolik člověk zvolí, každý počet s časem a cenou. U každého jména místa je poznat, zda je to zápis
-  ze záznamů, nebo jiné jméno místa (jiný jazyk, starý název), a jméno zadané oběma způsoby je v místě jednou.
+  ze záznamů, nebo jiné jméno místa (jiný jazyk, starý název), a jméno zadané oběma způsoby je v místě jednou. Soubor
+  Strom dává aplikaci Strom 3.21.0 ztotožněná místa s jejich jmény, polohou a farností.
 - **Druhy dějin.** `history.kinds` určuje, jaké druhy událostí dějiny míst hledají (války, epidemie…). `strom history
   align` nejdřív řekne, co by skryl, znovu ukázal a hledal, a provede to jen na „ano“ člověka; nic nalezeného se nemaže.
 - **Vedlejší větve nakonec.** Ve výzkumu s více liniemi čeká práce, která žádné linii nepomáhá, až linie nebudou mít

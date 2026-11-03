@@ -5,9 +5,29 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.25.1
+
+*In Vorbereitung: die Betas bis 1.25.1-beta.1. Der Abschnitt ist mit dem Release vollständig.*
+
+- **Die Bedingungen der Archive erneut geprüft, polnische Quellen dazu.** Bedingungen und robots.txt jedes Archivs,
+  das strom kennt, wurden am 3. November 2026 neu gelesen. Die eBadatelna des SOA Praha lässt jetzt keinen Roboter
+  mehr an ihre Digitalisate (ihre robots.txt vom 2. November): ihre Bilder nur über den Browser der Person, wie beim
+  Archiv Třeboň, das die Anfragen von strom jetzt abweist. Die Bedingungen von Porta fontium sind zitiert (eine Seite
+  nach der anderen, für die eigene Forschung, mit Quelle und Adresse). Neu: die
+  Skanoteka der PTG (eine Minute zwischen Anfragen), GenBaza, BaSIA, Genealogia w Archiwach, die litauischen Metrikai
+  und die Archive in Lwiw, Schytomyr und Riwne (hinter einer Bot-Prüfung oder für KI-Agenten gesperrt: nur der
+  Browser der Person), Polona und die Schlesische Digitale Bibliothek (gemeinfrei), die Kleinpolnische Digitale Bibliothek (nur für den eigenen Gebrauch, nie massenhaft) und für Orte in Polen die Namen
+  aus dem PRNG des Geoportals und der Słownik geograficzny, mit eigener Suche.
+- **Polnische Texte berichtigt; ein kopierter Befehl funktioniert.** Das polnische Menü, die Meldungen, der
+  Installer und diese Notizen wurden durchgesehen: überall dieselben Begriffe wie in der Strom-App 3.21.1 (Księga
+  rodu, Halbgeviertstriche), Grammatik und Pluralformen berichtigt; Daten stehen wie in der App ohne führende Nullen
+  (3.11.2026), ein Monat im Fall, den sein Wort verlangt (przed majem 1880).
+  Der Befehl `strom unpack "…"` nach dem Packen einer Forschung oder vor dem Entfernen hat jetzt in jeder Sprache
+  gerade Anführungszeichen und funktioniert so auch kopiert.
+
 ## 1.25.0
 
-*In Vorbereitung: die Betas bis 1.25.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*3.11.2026 · gehört zur Strom-App 3.21.0.*
 
 - **Auf Polnisch.** Die Forschung spricht Polnisch: das Menü, seine Meldungen, was sie in die Forschung schreibt, der
   Installer und die Seite des Telefons; die Notizen und Rollen der Strom-Datei sind polnisch. Ein polnisches System wird von
@@ -37,7 +57,8 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   Warteschlange von Orten, die die Strom-App jetzt bestimmen lässt, läuft in so vielen Sitzungen nacheinander, wie die
   Person wählt, jede Zahl mit Zeit und Preis. Bei jedem Namen eines Ortes ist erkennbar, ob er eine Schreibweise der
   Einträge oder ein anderer Name des Ortes ist (eine andere Sprache, ein alter Name), und ein auf beide Arten
-  angegebener Name steht nur einmal da.
+  angegebener Name steht nur einmal da. Die Strom-Datei gibt der Strom-App 3.21.0 die bestimmten Orte mit ihren Namen,
+  ihrer Lage und Pfarrei.
 - **Arten der Geschichte.** `history.kinds` legt fest, welche Arten von Ereignissen die Geschichte der Orte sucht
   (Kriege, Epidemien …). `strom history align` sagt zuerst, was es verbergen, wieder zeigen und suchen würde, und tut
   es nur auf das Ja einer Person; nichts Gefundenes wird gelöscht.

@@ -648,6 +648,18 @@ function placeName(p: Place): string {
   return p.names[0]?.name ?? p.id;
 }
 
+/**
+ * The other names of a place as place list shows them (words alone, no language or years): each once, never today's
+ * again — a form of the facts made today's name and given as another name in a language too (--form X --alt X@de)
+ * shows as X once; place show keeps the language apart.
+ */
+function listedNames(p: Place): string[] {
+  const seen = new Set([placeName(p).normalize("NFC")]);
+  return otherNames(p)
+    .map((n) => n.name.normalize("NFC"))
+    .filter((n) => !seen.has(n) && !!seen.add(n));
+}
+
 /** Who writes a place's coordinates: an agent (a session of the research) or the person by hand. */
 function byWhom(ctx: Context): "research" | "person" {
   return isAgent(ctx.env) || ctx.env.STROM_SESSION ? "research" : "person";
@@ -726,7 +738,7 @@ register(
       const all = args[0] ? tree.list<Place>("place").filter((p) => p.names.some((n) => matches(n.name, args[0]!))) : tree.list<Place>("place");
       return {
         text: all.length
-          ? table(all.map((p) => [p.id, placeName(p), otherNames(p).map((n) => n.name).join(", "), p.jurisdictions.map((j) => `${j.kind}: ${j.name}`).join("; ")]))
+          ? table(all.map((p) => [p.id, placeName(p), listedNames(p).join(", "), p.jurisdictions.map((j) => `${j.kind}: ${j.name}`).join("; ")]))
           : "no places match",
         data: { places: all },
       };

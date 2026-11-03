@@ -29,15 +29,22 @@ test("the list: each archive with its level, terms and the sentence quoted, the 
   const level = (h: string) => termsFor({}, h)?.level;
   assert.equal(level("www.mza.cz"), "restricted");
   assert.equal(level("www.szukajwarchiwach.gov.pl"), "restricted");
-  for (const h of ["ebadatelna.soapraha.cz", "aron.vychodoceskearchivy.cz", "imgx.vychodoceskearchivy.cz", "content.landesarchiv-berlin.de", "www.landesarchiv-berlin.de", "portal.nacr.cz", "data.matricula-online.eu", "kramerius.mzk.cz", "kramerius5.nkp.cz", "ndk.cz", "geneteka.genealodzy.pl", "metryki.genealodzy.pl"])
+  assert.equal(level("photos.szukajwarchiwach.gov.pl"), "restricted");
+  for (const h of ["aron.vychodoceskearchivy.cz", "imgx.vychodoceskearchivy.cz", "content.landesarchiv-berlin.de", "www.landesarchiv-berlin.de", "portal.nacr.cz", "data.matricula-online.eu", "kramerius.mzk.cz", "kramerius5.nkp.cz", "ndk.cz", "geneteka.genealodzy.pl", "metryki.genealodzy.pl", "skanoteka.genealodzy.pl", "polona.pl", "www.sbc.org.pl", "dir.icm.edu.pl"])
     assert.equal(level(h), "allowed", h);
-  for (const h of ["digi.soalitomerice.cz", "digi.archives.cz", "digi2.archives.cz", "katalog.ahmp.cz"]) {
+  for (const h of ["digi.soalitomerice.cz", "digi.archives.cz", "digi2.archives.cz", "katalog.ahmp.cz", "ebadatelna.soapraha.cz", "www.szukajwarchiwach.gov.pl", "swietogen.genbaza.pl", "www.basia.famula.pl", "www.metrikai.lt"]) {
     assert.equal(level(h), "restricted", h);
     assert.equal(termsFor({}, h)?.browserOnly, true, h);
   }
   assert.equal(level("digi.ceskearchivy.cz"), "manual");
+  assert.equal(termsFor({}, "digi.ceskearchivy.cz")?.browserOnly, true);
   assert.equal(level("www.familysearch.org"), "forbidden");
-  assert.equal(level("www.portafontium.eu"), "unknown");
+  assert.equal(level("www.portafontium.eu"), "restricted");
+  assert.equal(level("mapy.geoportal.gov.pl"), "restricted");
+  for (const h of ["genealogiawarchiwach.pl", "fbc.pionier.net.pl", "tsdial.archives.gov.ua"]) {
+    assert.equal(level(h), "unknown", h);
+    assert.equal(termsFor({}, h)?.browserOnly, true, h);
+  }
   assert.equal(level("digital.martin-opitz-bibliothek.de"), "unknown");
   assert.equal(level("www.example.org"), undefined);
   for (const k of shippedTerms()) {
@@ -47,10 +54,14 @@ test("the list: each archive with its level, terms and the sentence quoted, the 
   // the site's Crawl-delay: a floor, slower only; the paths its robots.txt keeps off
   assert.equal(knownPaceMs("geneteka.genealodzy.pl"), 120_000);
   assert.equal(knownPaceMs("metryki.genealodzy.pl"), 60_000);
+  assert.equal(knownPaceMs("skanoteka.genealodzy.pl"), 60_000);
+  assert.equal(knownPaceMs("pomerania.genbaza.pl"), 10_000);
+  assert.equal(knownPaceMs("www.portafontium.eu"), 10_000);
   assert.equal(hostPace({ recent: [] }, { minIntervalMs: 2000, source: "its terms" }, undefined, "geneteka.genealodzy.pl").minIntervalMs, 120_000);
   assert.equal(hostPace({ recent: [] }, { minIntervalMs: 300_000, source: "slower still" }, undefined, "geneteka.genealodzy.pl").minIntervalMs, 300_000);
   assert.equal(hostPace({ recent: [] }, { minIntervalMs: 2000, source: "x" }, undefined, "archive.example.org").minIntervalMs, 2000);
   assert.ok(knownDisallow("data.matricula-online.eu").includes("/*/suchen"));
+  assert.deepEqual(knownDisallow("ebadatelna.soapraha.cz"), ["/d/", "/a/"]);
 });
 
 test("ČÚZK and RÚIAN: the open RÚIAN map service allowed, the archive's old maps never automated; the WMS/WFS open by its terms (its robots.txt yields)", () => {
@@ -58,7 +69,7 @@ test("ČÚZK and RÚIAN: the open RÚIAN map service allowed, the archive's old 
   for (const h of ["ags.cuzk.gov.cz", "services.cuzk.gov.cz", "vdp.cuzk.gov.cz"]) {
     assert.equal(known(h)?.level, "allowed", h);
     assert.match((shippedTerms().find((k) => k.host === h) as { license?: string } | undefined)?.license ?? "", /creativecommons\.org\/licenses\/by\/4\.0/u, h);
-    assert.equal(known(h)?.checked, "2026-11-01", h);
+    assert.equal(known(h)?.checked, "2026-11-03", h);
   }
   const off = (h: string, p: string) => !robotsVerdict({ at: 0, status: 200, groups: [{ agents: ["*"], allow: [], disallow: knownDisallow(h) }] }, p).allowed;
   assert.equal(off("ags.cuzk.gov.cz", "/arcgis/rest/services/RUIAN/MapServer/1/query?where=1%3D1&f=json"), false);
@@ -72,15 +83,15 @@ test("ČÚZK and RÚIAN: the open RÚIAN map service allowed, the archive's old 
 test("a level of the list is confirmed: a new connector's allowed there needs no word; anything stricter still holds", () => {
   const env = settings();
   const level = (c: ConnectorLike, url = c.manifest.hosts[0]!) => archiveLevel(env, { connector: c, url, readOnly: true });
-  const praha = level(connector("praha", ["ebadatelna.soapraha.cz"], "allowed"));
-  assert.equal(praha.level, "allowed");
-  assert.ok(praha.from.includes("terms"));
-  assert.deepEqual(allows(praha, "images"), { ok: true, human: false }, "no question");
+  const hk = level(connector("hk", ["aron.vychodoceskearchivy.cz"], "allowed"));
+  assert.equal(hk.level, "allowed");
+  assert.ok(hk.from.includes("terms"));
+  assert.deepEqual(allows(hk, "images"), { ok: true, human: false }, "no question");
   // a connector that found no terms says nothing where the list knows them
-  assert.equal(level(connector("praha2", ["ebadatelna.soapraha.cz"], "unknown")).level, "allowed");
+  assert.equal(level(connector("hk2", ["aron.vychodoceskearchivy.cz"], "unknown")).level, "allowed");
   // stricter than the list: the stricter holds — the connector's own reading, a bot check
-  assert.equal(level(connector("praha3", ["ebadatelna.soapraha.cz"], "manual")).level, "manual");
-  assert.equal(level(connector("praha4", ["ebadatelna.soapraha.cz"], "allowed", { browser: { pages: true } })).level, "restricted");
+  assert.equal(level(connector("hk3", ["aron.vychodoceskearchivy.cz"], "manual")).level, "manual");
+  assert.equal(level(connector("hk4", ["aron.vychodoceskearchivy.cz"], "allowed", { browser: { pages: true } })).level, "restricted");
   // the list stricter than the connector: the list holds
   assert.equal(level(connector("mza", ["www.mza.cz"], "allowed")).level, "restricted");
   assert.equal(level(connector("fs", ["www.familysearch.org"], "allowed")).level, "forbidden");
@@ -98,10 +109,10 @@ test("a level of the list is confirmed: a new connector's allowed there needs no
 
 test("the connectors taken over: only those whose hosts the list does not know are to be confirmed — all known, no question", () => {
   const env = settings();
-  takeOverConnectors(env, [connector("praha", ["ebadatelna.soapraha.cz"], "allowed"), connector("mza", ["www.mza.cz"], "allowed"), connector("jiny", ["archive.example.org"], "allowed")], false);
+  takeOverConnectors(env, [connector("hk", ["aron.vychodoceskearchivy.cz"], "allowed"), connector("mza", ["www.mza.cz"], "allowed"), connector("jiny", ["archive.example.org"], "allowed")], false);
   assert.deepEqual(pendingQuestions(env).find((q) => q.kind === "takeover")?.connectors, ["jiny"]);
   const all = settings();
-  takeOverConnectors(all, [connector("praha", ["ebadatelna.soapraha.cz"], "allowed"), connector("vca", ["aron.vychodoceskearchivy.cz", "imgx.vychodoceskearchivy.cz"], "allowed")], false);
+  takeOverConnectors(all, [connector("hk", ["aron.vychodoceskearchivy.cz"], "allowed"), connector("vca", ["aron.vychodoceskearchivy.cz", "imgx.vychodoceskearchivy.cz"], "allowed")], false);
   assert.deepEqual(pendingQuestions(all), []);
   // …and they run as before: their reading kept as it was taken over
   assert.equal(archiveLevel(all, { connector: connector("vca", ["aron.vychodoceskearchivy.cz", "imgx.vychodoceskearchivy.cz"], "allowed"), url: "imgx.vychodoceskearchivy.cz", readOnly: true }).level, "allowed");

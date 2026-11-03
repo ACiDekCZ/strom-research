@@ -525,18 +525,20 @@ test("the word for a house number only before numbers alone: a street with its n
   }
 });
 
-test("the place records (APP_READS_PLACE_RECORDS) not released yet: off for every version, unknown too; the gate given, from it on; its beta and development from the beta's", opts, async () => {
+test("the place records (APP_READS_PLACE_RECORDS) from the app 3.21.0 on, an unknown version off; its beta and development from 3.21.0-beta.2", opts, async () => {
   const w = new World();
   const m = await import("../../src/core/stromapp.ts");
   const { Settings } = await import("../../src/core/config.ts");
   const prod = new Settings({ ...w.env, STROM_APP_URL: "https://stromapp.info/run/" }, {});
   const beta = new Settings({ ...w.env, STROM_APP_URL: "https://beta.stromapp.info/run/" }, {});
-  // set from the app's version that reads them (strom:je-venku-brany), never before
-  assert.equal(m.APP_READS_PLACE_RECORDS, undefined);
-  assert.equal(m.APP_READS_PLACE_RECORDS_BETA, undefined);
-  for (const v of [undefined, "3.20.0", "9.0.0", "3.21.0-beta.1"]) {
-    assert.equal(m.appReadsPlaceRecords(prod, v), false, String(v));
-    assert.equal(m.appReadsPlaceRecords(beta, v), false, `beta ${v}`);
+  // set from the app's version that reads them (strom:je-venku-brany), never a beta for the production app
+  assert.equal(m.APP_READS_PLACE_RECORDS, "3.21.0");
+  assert.equal(m.APP_READS_PLACE_RECORDS_BETA, "3.21.0-beta.2");
+  for (const [v, on] of [[undefined, false], ["3.20.0", false], ["3.21.0-beta.5", false], ["3.21.0", true], ["9.0.0", true]] as const) {
+    assert.equal(m.appReadsPlaceRecords(prod, v), on, String(v));
+  }
+  for (const [v, on] of [[undefined, false], ["3.20.0", false], ["3.21.0-beta.1", false], ["3.21.0-beta.2", true], ["3.21.0", true]] as const) {
+    assert.equal(m.appReadsPlaceRecords(beta, v), on, `beta ${v}`);
   }
   // the gates set (given in their place, as their own parameters)
   assert.equal(m.appReadsPlaceRecords(prod, "3.20.9", "3.21.0"), false);

@@ -105,7 +105,7 @@ if ($command) {
   if ($there) { throw ((T 'The command is there already, written by another installation - nothing is overwritten. Another name, or remove first' 'Příkaz už existuje a zapsala ho jiná instalace – nic se nepřepisuje. Zvolit jiný název, nebo nejdřív odebrat' 'Der Befehl existiert schon, von einer anderen Installation geschrieben – nichts wird überschrieben. Einen anderen Namen wählen oder zuerst entfernen' 'Polecenie już istnieje i zapisała je inna instalacja – nic nie zostaje nadpisane. Inna nazwa albo najpierw usunąć') + ": $($there.Source)") }
 }
 
-if (-not [Environment]::Is64BitOperatingSystem) { throw (T 'Strom research needs 64-bit Windows.' 'Strom výzkum potřebuje 64bitová Windows.' 'Strom Ahnenforschung braucht 64-Bit-Windows.' 'Badania Strom wymagają 64-bitowego systemu Windows.') }
+if (-not [Environment]::Is64BitOperatingSystem) { throw (T 'Strom research needs 64-bit Windows.' 'Strom výzkum potřebuje 64bitová Windows.' 'Strom Ahnenforschung braucht 64-Bit-Windows.' 'Strom Research wymaga 64-bitowego systemu Windows.') }
 $cpu = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64' -or $env:PROCESSOR_ARCHITEW6432 -eq 'ARM64') { 'arm64' } else { 'x64' }
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 

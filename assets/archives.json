@@ -8,16 +8,26 @@
       "terms": "https://www.mza.cz/actapublica/page/view/napoveda",
       "quote": "Lze stáhnout snímek? Ano, lze, i pro neregistrované uživatele, ale pouze standardními prostředky webových prohlížečů - pravé tlačítko myši a uložit obrázek.",
       "robots": "User-agent: * · Disallow: /wp-admin/ · Disallow: /wp-includes/ (nothing on /actapublica)",
-      "checked": "2026-10-11"
+      "checked": "2026-11-03",
+      "scope": "one image at a time, as a browser saves it, for the person's own research; never a whole book; its images never published elsewhere without the owner's written consent (its Podmínky užití služeb of 20 May 2024: https://www.mza.cz/actapublica/page/view/podminky-uziti-sluzeb)"
     },
     {
       "host": "ebadatelna.soapraha.cz",
       "name": "Státní oblastní archiv v Praze (eBadatelna)",
-      "level": "allowed",
-      "terms": "https://soapraha.gov.cz/castokladenedotazy/",
-      "quote": "Prohlížení digitálních studijních kopií je umožněno všem bez nutnosti registrace. Registrovaní uživatelé však mají navíc možnost stahování celých archiválií v ZIP balíčcích",
-      "robots": "none (the address leads to the portal's error page)",
-      "checked": "2026-10-11"
+      "level": "restricted",
+      "terms": "https://ebadatelna.soapraha.cz/robots.txt",
+      "quote": "# Ostatní roboty - zákaz stahování digitalizátů / User-agent: * / Disallow: /d/ / Disallow: /a/",
+      "robots": "User-agent: rodokmen · Disallow: / · User-agent: ClaudeBot · Disallow: / · User-agent: GPTBot · Disallow: / · User-agent: Amazonbot · Disallow: / · User-agent: * · Disallow: /d/ · Disallow: /a/ (since 2 November 2026)",
+      "checked": "2026-11-03",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "termsPage": "https://soapraha.gov.cz/castokladenedotazy/",
+      "termsPageSays": "Prohlížení digitálních studijních kopií je umožněno všem bez nutnosti registrace. Registrovaní uživatelé však mají navíc možnost stahování celých archiválií v ZIP balíčcích",
+      "disallow": [
+        "/d/",
+        "/a/"
+      ],
+      "scope": "a person's browser only: its robots.txt names AI agents and keeps every robot off its digitised records (/d/, /a/); the person opens and saves the image, the agent reads the saved file"
     },
     {
       "host": "digi.ceskearchivy.cz",
@@ -25,28 +35,34 @@
       "level": "manual",
       "terms": "https://digi.ceskearchivy.cz/DA?subject=2&menu=8",
       "quote": "Snímky jsou poskytnuty pouze za účelem on-line prohlížení v DigiArchivu SOA v Třeboni, jejich kopírování, distribuování, prodávání, využití v jiných projektech apod. je zakázáno.",
-      "robots": "Allow: /index.php · Allow: /index_main.php · Allow: /DA* · Disallow: /help/* · Disallow: /pages/* · Disallow: /oai/* · Disallow: /Assets/*",
-      "disallow": ["/help/", "/pages/", "/oai/", "/Assets/"],
-      "scope": "the catalogue only; its images by hand (the server refuses clients that call themselves genealogy tools)",
-      "checked": "2026-10-11"
+      "robots": "403 Forbidden for strom's User-Agent, robots.txt and the terms page too (2026-11-03); before: Allow: /DA* · Disallow: /help/* · /pages/* · /oai/* · /Assets/*",
+      "disallow": [
+        "/help/",
+        "/pages/",
+        "/oai/",
+        "/Assets/"
+      ],
+      "scope": "a person's browser only: the server refuses strom's requests (403, even robots.txt and the catalogue); its images by hand, for viewing only (the terms quoted as read on 2026-10-11)",
+      "checked": "2026-10-11",
+      "browserOnly": true
     },
     {
       "host": "aron.vychodoceskearchivy.cz",
       "name": "Východočeské archivy (ARchiv ONline)",
       "level": "allowed",
       "terms": "https://soahradec.gov.cz/napoveda-archivu-online/jak-nalezt-matriku/",
-      "quote": "Chci si stáhnout jednotlivý snímek nebo celou matriku. Jednotlivý snímek: Klikněte na symbol šipky (1). Celá matrika: Klikněte na odkaz Stáhnout všechny snímky (2).",
+      "quote": "Chci si stáhnout jednotlivý snímek nebo celou matriku … Jednotlivý snímek: Klikněte na symbol šipky (1). Celá matrika: Klikněte na odkaz Stáhnout všechny snímky (2).",
       "robots": "none (/robots.txt answers the application's page)",
-      "checked": "2026-10-11"
+      "checked": "2026-11-03"
     },
     {
       "host": "imgx.vychodoceskearchivy.cz",
       "name": "Východočeské archivy (ARchiv ONline)",
       "level": "allowed",
       "terms": "https://soahradec.gov.cz/napoveda-archivu-online/jak-nalezt-matriku/",
-      "quote": "Chci si stáhnout jednotlivý snímek nebo celou matriku. Jednotlivý snímek: Klikněte na symbol šipky (1). Celá matrika: Klikněte na odkaz Stáhnout všechny snímky (2).",
+      "quote": "Chci si stáhnout jednotlivý snímek nebo celou matriku … Jednotlivý snímek: Klikněte na symbol šipky (1). Celá matrika: Klikněte na odkaz Stáhnout všechny snímky (2).",
       "robots": "none (404)",
-      "checked": "2026-10-11"
+      "checked": "2026-11-03"
     },
     {
       "host": "katalog.ahmp.cz",
@@ -59,17 +75,18 @@
       "termsPage": "https://katalog.ahmp.cz/pragapublica/pages/podminky_uziti.jsp",
       "termsPageSays": "Text se připravuje.",
       "robots": "User-agent: * · Disallow: /",
-      "checked": "2026-10-11"
+      "checked": "2026-11-03"
     },
     {
-      "host": "www.szukajwarchiwach.gov.pl",
+      "host": "szukajwarchiwach.gov.pl",
       "name": "Archiwa Państwowe (Szukaj w Archiwach)",
       "level": "restricted",
       "terms": "https://www.szukajwarchiwach.gov.pl/ponowne-wykorzystanie",
       "quote": "including downloading, copying and distributing using any technology unless otherwise stated in the descriptions of the materials or on the digital copies",
-      "robots": "User-Agent: * · Disallow: (nothing)",
-      "scope": "behind a bot check (Imperva): its pages and images only through the person's browser, the check passed by the person",
-      "checked": "2026-10-11"
+      "robots": "behind Imperva: robots.txt answered by its bot check (2026-11-03); before: User-Agent: * · Disallow: (nothing)",
+      "scope": "behind a bot check (Imperva) on www. and photos. (its scans): its pages and images only through the person's browser, the check passed by the person (it may not load outside Poland); each image's rights mark decides any further use; the terms quoted as read on 2026-10-11",
+      "checked": "2026-10-11",
+      "browserOnly": true
     },
     {
       "host": "content.landesarchiv-berlin.de",
@@ -99,7 +116,7 @@
       "terms": "https://digi.soalitomerice.cz/robots.txt",
       "quote": "User-agent: * / Disallow: /",
       "robots": "User-agent: * · Disallow: / (and a bot check on every page)",
-      "checked": "2026-10-11"
+      "checked": "2026-11-03"
     },
     {
       "host": "vademecum.soalitomerice.cz",
@@ -107,19 +124,19 @@
       "level": "restricted",
       "quoteFrom": "robots",
       "browserOnly": true,
-      "robots": "/robots.txt answers 403 Forbidden",
-      "checked": "2026-10-11"
+      "robots": "/robots.txt redirects to digi.soalitomerice.cz's bot check (\"Ověřujeme, že jste člověk\")",
+      "checked": "2026-11-03"
     },
     {
       "host": "portal.nacr.cz",
       "name": "Národní archiv (Národní archivní portál)",
       "level": "allowed",
       "terms": "https://portal.nacr.cz/cro/o-portalu/",
-      "quote": "© Národní archiv 2016-2021 | v. 2.0",
+      "quote": "© Národní archiv 2016-2022 | v. 2.0",
       "license": "http://creativecommons.org/licenses/by-nc-sa/4.0/",
       "robots": "none (404)",
       "scope": "the catalogue only (its digitised records are behind a login and an approval)",
-      "checked": "2026-10-11"
+      "checked": "2026-11-03"
     },
     {
       "host": "data.matricula-online.eu",
@@ -128,7 +145,12 @@
       "terms": "https://data.matricula-online.eu/de/nutzungsbedingungen/",
       "quote": "Sämtliche Bilder von und aus Kirchen- bzw. Matrikenbüchern stehen unter der Lizenz CC BY-NC-ND 2.0 zur Verfügung. Eine kommerzielle Weiterverwertung der Bilder ist demnach nicht gestattet.",
       "robots": "User-agent: * · Disallow: /*?pg= · Disallow: /*/suchen · Disallow: /*/landkarte-features · Disallow: /*/accounts (and Disallow: / for AI crawlers)",
-      "disallow": ["/*?pg=", "/*/suchen", "/*/landkarte-features", "/*/accounts"],
+      "disallow": [
+        "/*?pg=",
+        "/*/suchen",
+        "/*/landkarte-features",
+        "/*/accounts"
+      ],
       "scope": "the fonds and parishes browsed and their images — never its search (/…/suchen)",
       "checked": "2026-10-11"
     },
@@ -143,12 +165,15 @@
     {
       "host": "www.portafontium.eu",
       "name": "Porta fontium",
-      "level": "unknown",
-      "terms": "https://www.portafontium.eu/faq",
-      "quote": "U některých materiálů (matriky) je možné pomocí příslušné ikony stáhnout aktuálně zobrazenou část stránky. … Umožnit stahování kompletních snímků všech zobrazovaných materiálů z uživatelského rozhraní aplikace Porta fontium není plánováno.",
+      "level": "restricted",
+      "terms": "https://www.portafontium.eu/terms-of-use",
+      "quote": "Jakékoli užívání těchto kopií nebo jejich rozmnoženin mimo uvedený informační systém není dovoleno. … Výjimku z užívání těchto kopií nebo jejich rozmnoženin mimo databázi poskytuje § 92 autorského zákona, který umožňuje takové užívání pro svou osobní potřebu, pro účely vědecké nebo vyučovací v rozsahu odůvodněném sledovaným nevýdělečným účelem za podmínky, že je uveden konkrétní zdroj těchto kopií včetně internetové adresy",
       "robots": "User-agent: * · Crawl-delay: 10",
-      "pace": { "minIntervalMs": 10000 },
-      "checked": "2026-10-11"
+      "pace": {
+        "minIntervalMs": 10000
+      },
+      "checked": "2026-11-03",
+      "scope": "the person's own research only: one page at a time (its viewer saves the part shown), each image cited with its source and address; never the database or a whole book downloaded"
     },
     {
       "host": "digi.archives.cz",
@@ -159,7 +184,7 @@
       "terms": "https://digi.archives.cz/robots.txt",
       "quote": "User-agent: * / Disallow: /",
       "robots": "User-agent: * · Disallow: / (and a bot check)",
-      "checked": "2026-10-11"
+      "checked": "2026-11-03"
     },
     {
       "host": "digi2.archives.cz",
@@ -170,76 +195,106 @@
       "terms": "https://digi2.archives.cz/robots.txt",
       "quote": "User-agent: * / Disallow: /",
       "robots": "User-agent: * · Disallow: / (leads to digi.archives.cz's)",
-      "checked": "2026-10-11"
+      "checked": "2026-11-03"
     },
     {
       "host": "kramerius.mzk.cz",
       "name": "Moravská zemská knihovna (Kramerius)",
       "level": "allowed",
-      "terms": "https://www.digitalniknihovna.cz/assets/shared/terms/mzk/terms.cs.html",
-      "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
+      "terms": "https://www.mzk.cz/katalogy-zdroje/databaze/multioborove-databaze/digitalni-knihovna",
+      "quote": "veřejné - jedná se buď o volná díla, na něž se nevztahují autorská ani nakladatelská práva, … Jsou přístupné odkudkoliv i bez přihlášení. Autorsky volná díla je možné z digitální knihovny stahovat jako dokumenty ve formátu PDF i tisknout.",
       "robots": "none",
       "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
-      "checked": "2026-10-11",
+      "checked": "2026-11-03",
       "search": [
-        {"what": "full text of its books and newspapers (Solr: q a word, or (word OR word); the years in it; public works only: accessibility)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/search?q=text_ocr%3A{q}%20AND%20date_range_start.year%3A%5B{from}%20TO%20{to}%5D&fl=pid,root.title,date.str,page.number,accessibility&rows=50"},
-        {"what": "the text of a page found (its pid)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/items/{pid}/ocr/text"}
+        {
+          "what": "full text of its books and newspapers (Solr: q a word, or (word OR word); the years in it; public works only: accessibility)",
+          "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/search?q=text_ocr%3A{q}%20AND%20date_range_start.year%3A%5B{from}%20TO%20{to}%5D&fl=pid,root.title,date.str,page.number,accessibility&rows=50"
+        },
+        {
+          "what": "the text of a page found (its pid)",
+          "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/items/{pid}/ocr/text"
+        }
       ]
     },
     {
       "host": "www.digitalniknihovna.cz",
       "name": "Digitální knihovna (Kramerius)",
       "level": "allowed",
-      "terms": "https://www.digitalniknihovna.cz/assets/shared/terms/mzk/terms.cs.html",
-      "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
+      "terms": "https://www.mzk.cz/katalogy-zdroje/databaze/multioborove-databaze/digitalni-knihovna",
+      "quote": "veřejné - jedná se buď o volná díla, na něž se nevztahují autorská ani nakladatelská práva, … Jsou přístupné odkudkoliv i bez přihlášení. Autorsky volná díla je možné z digitální knihovny stahovat jako dokumenty ve formátu PDF i tisknout.",
       "robots": "none (the application's page)",
       "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
-      "checked": "2026-10-11",
+      "checked": "2026-11-03",
       "search": [
-        {"what": "full text of its books and newspapers (Solr: q a word, or (word OR word); the years in it; public works only: accessibility)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/search?q=text_ocr%3A{q}%20AND%20date_range_start.year%3A%5B{from}%20TO%20{to}%5D&fl=pid,root.title,date.str,page.number,accessibility&rows=50"},
-        {"what": "the text of a page found (its pid)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/items/{pid}/ocr/text"}
+        {
+          "what": "full text of its books and newspapers (Solr: q a word, or (word OR word); the years in it; public works only: accessibility)",
+          "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/search?q=text_ocr%3A{q}%20AND%20date_range_start.year%3A%5B{from}%20TO%20{to}%5D&fl=pid,root.title,date.str,page.number,accessibility&rows=50"
+        },
+        {
+          "what": "the text of a page found (its pid)",
+          "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/items/{pid}/ocr/text"
+        }
       ]
     },
     {
       "host": "api.kramerius.mzk.cz",
       "name": "Moravská zemská knihovna (Kramerius API)",
       "level": "allowed",
-      "terms": "https://www.digitalniknihovna.cz/assets/shared/terms/mzk/terms.cs.html",
-      "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
+      "terms": "https://www.mzk.cz/katalogy-zdroje/databaze/multioborove-databaze/digitalni-knihovna",
+      "quote": "veřejné - jedná se buď o volná díla, na něž se nevztahují autorská ani nakladatelská práva, … Jsou přístupné odkudkoliv i bez přihlášení. Autorsky volná díla je možné z digitální knihovny stahovat jako dokumenty ve formátu PDF i tisknout.",
       "robots": "none (404)",
       "scope": "public-domain works only (works under copyright or DNNT need an institution's login: never)",
-      "checked": "2026-10-11",
+      "checked": "2026-11-03",
       "search": [
-        {"what": "full text of its books and newspapers (Solr: q a word, or (word OR word); the years in it; public works only: accessibility)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/search?q=text_ocr%3A{q}%20AND%20date_range_start.year%3A%5B{from}%20TO%20{to}%5D&fl=pid,root.title,date.str,page.number,accessibility&rows=50"},
-        {"what": "the text of a page found (its pid)", "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/items/{pid}/ocr/text"}
+        {
+          "what": "full text of its books and newspapers (Solr: q a word, or (word OR word); the years in it; public works only: accessibility)",
+          "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/search?q=text_ocr%3A{q}%20AND%20date_range_start.year%3A%5B{from}%20TO%20{to}%5D&fl=pid,root.title,date.str,page.number,accessibility&rows=50"
+        },
+        {
+          "what": "the text of a page found (its pid)",
+          "url": "https://api.kramerius.mzk.cz/search/api/client/v7.0/items/{pid}/ocr/text"
+        }
       ]
     },
     {
       "host": "kramerius5.nkp.cz",
       "name": "Národní knihovna ČR (Kramerius)",
       "level": "allowed",
-      "terms": "https://ndk.cz/assets/pages/terms.cs.html",
-      "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
+      "terms": "https://www.nkp.cz/katalogy-databaze-digitalni-knihovny/narodni-digitalni-knihovna-ndk",
+      "quote": "veřejné dokumenty – tato část NDK je volně přístupná bez omezení, dokumenty si můžete tisknout nebo uložit na počítač, mezi veřejné dokumenty patří zejména starší díla",
       "robots": "none (the application's page)",
       "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
-      "checked": "2026-10-11",
+      "checked": "2026-11-03",
       "search": [
-        {"what": "full text of its books and newspapers (Solr: q a word, or (word OR word); fq the years)", "url": "https://kramerius5.nkp.cz/search/api/v5.0/search?q=text_ocr%3A{q}&fq=datum_begin%3A%5B{from}%20TO%20{to}%5D&fl=PID,root_title,datum_str,details,root_pid&rows=30&wt=json"},
-        {"what": "the text of a page found (its PID)", "url": "https://kramerius5.nkp.cz/search/api/v5.0/item/{pid}/streams/TEXT_OCR"}
+        {
+          "what": "full text of its books and newspapers (Solr: q a word, or (word OR word); fq the years)",
+          "url": "https://kramerius5.nkp.cz/search/api/v5.0/search?q=text_ocr%3A{q}&fq=datum_begin%3A%5B{from}%20TO%20{to}%5D&fl=PID,root_title,datum_str,details,root_pid&rows=30&wt=json"
+        },
+        {
+          "what": "the text of a page found (its PID)",
+          "url": "https://kramerius5.nkp.cz/search/api/v5.0/item/{pid}/streams/TEXT_OCR"
+        }
       ]
     },
     {
       "host": "ndk.cz",
       "name": "Národní digitální knihovna (Kramerius)",
       "level": "allowed",
-      "terms": "https://ndk.cz/assets/pages/terms.cs.html",
-      "quote": "actions: { pdf: 'available', print: 'available', jpeg: 'available', text: 'available' …",
+      "terms": "https://www.nkp.cz/katalogy-databaze-digitalni-knihovny/narodni-digitalni-knihovna-ndk",
+      "quote": "veřejné dokumenty – tato část NDK je volně přístupná bez omezení, dokumenty si můžete tisknout nebo uložit na počítač, mezi veřejné dokumenty patří zejména starší díla",
       "robots": "none (the application's page)",
       "scope": "public-domain works only, through its API (works under copyright or DNNT need an institution's login: never)",
-      "checked": "2026-10-11",
+      "checked": "2026-11-03",
       "search": [
-        {"what": "full text of its books and newspapers (Solr: q a word, or (word OR word); fq the years)", "url": "https://kramerius5.nkp.cz/search/api/v5.0/search?q=text_ocr%3A{q}&fq=datum_begin%3A%5B{from}%20TO%20{to}%5D&fl=PID,root_title,datum_str,details,root_pid&rows=30&wt=json"},
-        {"what": "the text of a page found (its PID)", "url": "https://kramerius5.nkp.cz/search/api/v5.0/item/{pid}/streams/TEXT_OCR"}
+        {
+          "what": "full text of its books and newspapers (Solr: q a word, or (word OR word); fq the years)",
+          "url": "https://kramerius5.nkp.cz/search/api/v5.0/search?q=text_ocr%3A{q}&fq=datum_begin%3A%5B{from}%20TO%20{to}%5D&fl=PID,root_title,datum_str,details,root_pid&rows=30&wt=json"
+        },
+        {
+          "what": "the text of a page found (its PID)",
+          "url": "https://kramerius5.nkp.cz/search/api/v5.0/item/{pid}/streams/TEXT_OCR"
+        }
       ]
     },
     {
@@ -249,7 +304,10 @@
       "robots": "User-agent: * · Disallow: /core/, /profiles/, /admin/, /search/, /user/… (nothing on /anno-suche or /cgi-content)",
       "checked": "2026-10-21",
       "search": [
-        {"what": "full text of its newspapers and journals (text a word; the years; from=0 the first hits) — the search page itself is empty without a browser", "url": "https://anno.onb.ac.at/anno-suche/rest/search/complex?text={q}&dateFrom={from}&dateTo={to}&from=0&facets=false"}
+        {
+          "what": "full text of its newspapers and journals (text a word; the years; from=0 the first hits) — the search page itself is empty without a browser",
+          "url": "https://anno.onb.ac.at/anno-suche/rest/search/complex?text={q}&dateFrom={from}&dateTo={to}&from=0&facets=false"
+        }
       ]
     },
     {
@@ -259,10 +317,14 @@
       "terms": "https://geneteka.genealodzy.pl/ogenetece.php",
       "quote": "PTG umożliwia i wyraża zgodę na bezpłatne wykorzystywanie danych … w celach … popularyzatorskich i hobbystycznych · 8. PTG przysługuje prawo przeciwdziałania nieuprawnionemu pobieraniu i wtórnemu wykorzystywaniu całości lub istotnej części zawartości bazy danych.",
       "robots": "Disallow: (empty) · Crawl-delay: 120 · Disallow: /cgi-bin/",
-      "pace": { "minIntervalMs": 120000 },
-      "disallow": ["/cgi-bin/"],
+      "pace": {
+        "minIntervalMs": 120000
+      },
+      "disallow": [
+        "/cgi-bin/"
+      ],
       "scope": "single queries only, never a whole parish or a substantial part of the database",
-      "checked": "2026-10-11"
+      "checked": "2026-11-03"
     },
     {
       "host": "metryki.genealodzy.pl",
@@ -271,10 +333,103 @@
       "terms": "https://geneteka.genealodzy.pl/ogenetece.php",
       "quote": "PTG umożliwia i wyraża zgodę na bezpłatne wykorzystywanie danych … w celach … popularyzatorskich i hobbystycznych · 8. PTG przysługuje prawo przeciwdziałania nieuprawnionemu pobieraniu i wtórnemu wykorzystywaniu całości lub istotnej części zawartości bazy danych.",
       "robots": "Disallow: (empty) · Crawl-delay: 60 · Disallow: /cgi-bin/",
-      "pace": { "minIntervalMs": 60000 },
-      "disallow": ["/cgi-bin/"],
+      "pace": {
+        "minIntervalMs": 60000
+      },
+      "disallow": [
+        "/cgi-bin/"
+      ],
       "scope": "single images only, never a whole parish or a substantial part of the database",
-      "checked": "2026-10-11"
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "skanoteka.genealodzy.pl",
+      "name": "Polskie Towarzystwo Genealogiczne (Skanoteka)",
+      "level": "allowed",
+      "terms": "https://geneteka.genealodzy.pl/ogenetece.php",
+      "quote": "PTG umożliwia i wyraża zgodę na bezpłatne wykorzystywanie danych zawartych w jej bazach i serwisach internetowych w celach … popularyzatorskich i hobbystycznych · 8. PTG przysługuje prawo przeciwdziałania nieuprawnionemu pobieraniu i wtórnemu wykorzystywaniu całości lub istotnej części zawartości bazy danych.",
+      "robots": "Disallow: (empty) · Crawl-delay: 60 · Disallow: /cgi-bin/",
+      "pace": {
+        "minIntervalMs": 60000
+      },
+      "disallow": [
+        "/cgi-bin/"
+      ],
+      "scope": "single images only (state, parish and diocesan registers, the Tarnów diocesan archive among them), never a whole parish or a substantial part of the database",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "genbaza.pl",
+      "name": "GenBaza (Świętogen, Pomerania, Warmia, Kurpie, PolishGenealogy)",
+      "level": "restricted",
+      "browserOnly": true,
+      "terms": "https://genbaza.pl/regulamin",
+      "quote": "Czytać Serwis wolno, również za pomocą narzędzi i agentów sztucznej inteligencji. … Kolejne strony mają się jednak otwierać nie szybciej, niż otwierałby je człowiek. Masowe pobieranie zasobów jest zabronione. Za masowe uznajemy przede wszystkim: seryjne, zautomatyzowane albo systematyczne pobieranie skanów i innych plików graficznych, w tym kafli obrazu, a także indeksów, opisów i wyników wyszukiwania · Na potrzeby poszukiwań genealogicznych Użytkownik może przeglądać, pobierać, zapisywać i przechowywać pojedyncze skany i ich fragmenty, indeksy oraz wyniki wyszukiwania dotyczące szukanych osób.",
+      "robots": "User-agent: * · Content-Signal: search=yes, ai-input=yes, ai-train=no · Disallow: /obraz/ · /pobierz/ · /indeksy/*? · /metryki/*? · /omnindeks/*? · /osadzenie/ · Crawl-delay: 10 (its subdomains' robots.txt redirects to a Cloudflare challenge)",
+      "pace": {
+        "minIntervalMs": 10000
+      },
+      "scope": "the indexes and scans of all its subdomains (swietogen, pomerania, warmia, kurpie, polishgenealogy) behind a Cloudflare check: the person searches in their own browser, at a person's pace, and saves the single scans and results for the people sought (its terms allow that); never many scans, tiles or results in a row; an index leads to the register — the scan is the evidence",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "basia.famula.pl",
+      "name": "BaSIA – Baza Systemu Indeksacji Archiwalnej (WTG Gniazdo)",
+      "level": "restricted",
+      "browserOnly": true,
+      "terms": "https://www.basia.famula.pl/regulamin",
+      "quote": "Wyniki wyszukiwania można wykorzystywać do własnych badań genealogicznych i historycznych … Zabronione jest masowe, automatyczne pobieranie danych z Serwisu (np. przez roboty) oraz udostępnianie bazy lub jej znacznych części w innych serwisach bez zgody Administratora.",
+      "robots": "User-agent: * · Crawl-delay: 10 · Disallow: /search.php · /search_ajax.php · /*?lname= · /show_record.php · /skany.php · /getjson.php · /getcsv.php · /gedcom_download.php …",
+      "scope": "an index of Greater Poland's registers: the person searches it in their own browser, one query at a time for their own research; the record's signature leads to the scan in Szukaj w Archiwach (the evidence)",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "genealogiawarchiwach.pl",
+      "name": "Genealogia w Archiwach (Archiwum Państwowe w Toruniu, w Bydgoszczy)",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "none (the path answers the application's page)",
+      "scope": "registers of Kuyavia-Pomerania and their index in a JavaScript application without links to a book or an image: only in the person's browser; no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "metrikai.lt",
+      "name": "Metrikai (Lietuvos valstybės istorijos archyvas)",
+      "level": "restricted",
+      "quoteFrom": "robots",
+      "browserOnly": true,
+      "terms": "https://www.metrikai.lt/robots.txt",
+      "quote": "# AI botai - draudziama (2026-10-21) / User-agent: ClaudeBot / User-agent: Claude-SearchBot / User-agent: Claude-User / User-agent: anthropic-ai / User-agent: GPTBot / … / Disallow: /",
+      "robots": "User-agent: * · Allow: / · Content-Signal: search=yes, ai-train=no, use=reference · ClaudeBot, Claude-User, anthropic-ai, GPTBot, ChatGPT-User … · Disallow: /",
+      "scope": "its robots.txt keeps AI agents off by name: its pages and images only through the person's browser, never fetched by strom or a connector",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "tsdial.archives.gov.ua",
+      "name": "Центральний державний історичний архів України, м. Львів (TsDIAL)",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "/robots.txt answers 403 (Akamai bot check)",
+      "scope": "behind a bot check: its pages and any scans only through the person's browser, the check passed by the person; no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "zhytomyr.archives.gov.ua",
+      "name": "Державний архів Житомирської області (Zhytomyr)",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "/robots.txt answers 403 (Cloudflare bot check)",
+      "scope": "behind a bot check: its pages and any scans only through the person's browser, the check passed by the person; no terms of use found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "rv.archives.gov.ua",
+      "name": "Державний архів Рівненської області (Rivne)",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "/robots.txt answers 403 (Cloudflare bot check)",
+      "scope": "behind a bot check: its pages and any scans only through the person's browser, the check passed by the person; no terms of use found",
+      "checked": "2026-11-03"
     },
     {
       "host": "familysearch.org",
@@ -295,9 +450,12 @@
       "license": "https://creativecommons.org/licenses/by/4.0/legalcode.cs",
       "automatedUse": true,
       "robots": "none (404)",
-      "disallow": ["/archiv/", "/arcgis4/rest/services/Archiv/"],
+      "disallow": [
+        "/archiv/",
+        "/arcgis4/rest/services/Archiv/"
+      ],
       "scope": "the RÚIAN map service only (/arcgis/rest/services/RUIAN/MapServer: a house's address point, building, cadastral area, municipality — one query at a time, credited \"ČÚZK – on-line\"); never the Archiv application or its map images of the archive (old cadastral maps are no open data: \"s výjimkou leteckých měřických snímků a archiválií\", copies sold) — a person looks at them in the browser",
-      "checked": "2026-11-01"
+      "checked": "2026-11-03"
     },
     {
       "host": "services.cuzk.gov.cz",
@@ -309,7 +467,7 @@
       "robots": "User-agent: * · Disallow: /*.asp · Disallow: /cgi-bin/ · Disallow: /css/ · Disallow: /cuzk/ · Disallow: /html/ · Disallow: /images/ · Disallow: /ini/ · Disallow: /scripts/ · Disallow: /test/",
       "automatedUse": true,
       "scope": "open by its terms, which expressly allow automated use: its robots.txt (Disallow: /*.asp — every WMS/WFS address, e.g. /wfs/inspire-ad-wfs.asp) yields, carefully — one query at a time for the house or place the research needs, at least its Crawl-delay, never a whole municipality or layer downloaded; the RÚIAN map service on ags.cuzk.gov.cz serves the same",
-      "checked": "2026-11-01"
+      "checked": "2026-11-03"
     },
     {
       "host": "vdp.cuzk.gov.cz",
@@ -318,9 +476,89 @@
       "terms": "https://cuzk.gov.cz/ruian/Poskytovani-udaju-ISUI-RUIAN-VDP/Vymenny-format-RUIAN-(VFR)/FAQ-casto-kladene-otazky-k-VFR/4-Je-mozne-ziskat-data-RUIAN-i-pro-komercni-ucely.aspx",
       "quote": "ČÚZK je poskytuje od 1. 1. 2020 bezúplatně na základě licence Creative Commons CC-BY 4.0.",
       "license": "https://creativecommons.org/licenses/by/4.0/legalcode.cs",
-      "robots": "not read (the connection reset, 2026-11-01): strom reads it before the first request",
+      "robots": "not read (the connection reset, 2026-11-01 and 2026-11-03): strom reads it before the first request",
       "scope": "RÚIAN open data (credited \"ČÚZK, [rok]\", with its metadata); its exchange files cover a whole municipality — for one house the RÚIAN map service on ags.cuzk.gov.cz is lighter",
-      "checked": "2026-11-01"
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "polona.pl",
+      "name": "Polona (Biblioteka Narodowa)",
+      "level": "allowed",
+      "terms": "https://polona.pl/static/polona/polona-faq",
+      "quote": "a) Domena Publiczna. Wolno zwielokrotniać, zmieniać i rozpowszechniać oraz wykonywać utwór, nawet w celach komercyjnych, bez konieczności pytania o zgodę.",
+      "robots": "none (the application's page)",
+      "scope": "objects marked \"Domena Publiczna\" only, one object at a time; works under copyright are never fetched; the site is a JavaScript application: a person finds the object in the browser, the agent fetches the object found",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "sbc.org.pl",
+      "name": "Śląska Biblioteka Cyfrowa",
+      "level": "allowed",
+      "terms": "https://www.sbc.org.pl/dlibra/text?id=faq",
+      "quote": "Pod oknem publikacji znajduje się menu \"Pobierz\", skąd można nieodpłatnie pobierać pliki publikacji w dostępnym formacie. Pliki źródłowe w formacie TIFF można pobierać pojedynczo, po wybranym pliku-skanie.",
+      "robots": "User-agent: * · Disallow: /Content/*/zip* · /Content/*/download* · /dlibra/results* · /dlibra/metadatasearch* · /dlibra/indexsearch* …",
+      "scope": "publications whose field \"Prawa\" says public domain (none said: personal use only), one file at a time; its search pages are closed to programs by its robots.txt — a person finds the publication, the agent fetches its file",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "mbc.malopolska.pl",
+      "name": "Małopolska Biblioteka Cyfrowa",
+      "level": "restricted",
+      "terms": "https://mbc.malopolska.pl/pl/regulamin-mbc/",
+      "quote": "Zabroniona jest masowa reprodukcja, redystrybucja, a także czerpanie korzyści materialnych (odsprzedaż) z Zasobów informacyjnych zamieszczonych na Portalu. Kopię Utworu można wykonać wyłącznie na własny użytek oraz dla celów edukacyjnych lub badawczych, z powołaniem się na źródło, z którego została wykonana.",
+      "robots": "User-agent: * (nothing disallowed)",
+      "scope": "a copy for the research's own use only, the work cited (\"Publikacja pochodzi ze zbiorów Małopolskiej Biblioteki Cyfrowej\" with its link or identifier); never many works or whole volumes — no mass copying; non-commercial",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "fbc.pionier.net.pl",
+      "name": "Federacja Bibliotek Cyfrowych (FBC)",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "User-agent: * · Disallow: /Content/*/zip* · /Content/*/download* · /dlibra/results* · /dlibra/metadatasearch* · /dlibra/indexsearch* …",
+      "scope": "an index of the Polish digital libraries (dLibra): it finds a publication and links to the library holding it; behind a browser check (\"High Load - Verifying Browser\") — only a person's browser",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "wbc.poznan.pl",
+      "name": "Wielkopolska Biblioteka Cyfrowa",
+      "level": "unknown",
+      "browserOnly": true,
+      "robots": "User-agent: * · Disallow: /Content/*/zip* · /Content/*/download* · /dlibra/results* · /dlibra/metadatasearch* · /dlibra/indexsearch* …",
+      "scope": "a browser check (\"High Load - Verifying Browser\") comes unannounced — only a person's browser",
+      "checked": "2026-11-03"
+    },
+    {
+      "host": "mapy.geoportal.gov.pl",
+      "name": "Geoportal krajowy (GUGiK) – PRNG",
+      "level": "restricted",
+      "terms": "https://www.geoportal.gov.pl/pl/o-geoportalu/regulamin/",
+      "quote": "Informacje publikowane w Serwisie zgodnie z art. 4 ust. 2 ustawy z dnia 4 lutego 1994 r. o prawie autorskim i prawach pokrewnych (Dz. U. z 2022 r. poz. 2509) nie podlegają ochronie przewidzianej ww. ustawą. Publikacja materiałów z Serwisu jest dozwolona pod warunkiem umieszczenia informacji o źródle pochodzenia.",
+      "robots": "none (404)",
+      "scope": "the PRNG name service (a place's official, other and historical names, its gmina, powiat, województwo): one query for the place the research needs, credited \"GUGiK, PRNG\"; never a layer downloaded (an older regulamin of its data services, 2010, forbids programs automating them: hence not allowed)",
+      "checked": "2026-11-03",
+      "search": [
+        {
+          "what": "a place in Poland by its official name (exact, diacritics as written): its kind, gmina, powiat, województwo, other and historical names (NAZWYOBOCZNE, NAZWYHISTORYCZNE)",
+          "url": "https://mapy.geoportal.gov.pl/wss/service/PZGiK/PRNG/WFS/GeographicalNames?SERVICE=WFS&VERSION=1.1.0&REQUEST=GetFeature&TYPENAME=ms:M1_UrzedoweNazwyMiejscowosci&MAXFEATURES=20&FILTER=%3CFilter%3E%3CPropertyIsEqualTo%3E%3CPropertyName%3ENAZWAGLOWNA%3C/PropertyName%3E%3CLiteral%3E{q}%3C/Literal%3E%3C/PropertyIsEqualTo%3E%3C/Filter%3E"
+        }
+      ]
+    },
+    {
+      "host": "dir.icm.edu.pl",
+      "name": "Słownik geograficzny Królestwa Polskiego (DIR, ICM)",
+      "level": "allowed",
+      "terms": "https://dir.icm.edu.pl/Slownik_geograficzny/?help",
+      "quote": "Uzywając linku \"pobierz skan\", umieszczonego nad skanem, można zapisać go na dysku (jako plik TIFF)",
+      "robots": "none (404)",
+      "scope": "the gazetteer (1880–1902) a page at a time: the page's text first (its \"pobierz tekst\" link), its scan when the text needs checking; never whole volumes",
+      "checked": "2026-11-03",
+      "search": [
+        {
+          "what": "a place in the gazetteer: its entries and mentions in the text of all volumes (q a name of three letters or more; % any letters; diacritics as written)",
+          "url": "https://dir.icm.edu.pl/?find_in=fulltext&volume_id=13&find_text={q}&search_volume=all"
+        }
+      ]
     }
   ]
 }

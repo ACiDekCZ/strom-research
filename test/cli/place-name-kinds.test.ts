@@ -100,6 +100,13 @@ test("identified: each name says what it is — on the record, through the bridg
     // place list: Lhötz once
     const list = (await w.ok(["place", "list"])).out;
     assert.equal(list.match(/Lhötz/gu)?.length, 1, list);
+    // the facts' form made today's name and given as a German name too (decomposed): place list says it once, place show
+    // keeps the language apart
+    await w.ok(["event", "add", "P0002", "BURI", "--date", "1920", "--place", "Lhotín"]);
+    await w.ok(["place", "identify", "Lhotín", "--lat", "49.7", "--lon", "15.1", "--form", "Lhotín", "--alt", "Lhotín@de".normalize("NFD"), "--why", "fara Lhotov v matrikách"], agent); // L0005
+    assert.deepEqual(place(w, "L0005").names, [{ name: "Lhotín" }, { name: "Lhotín", lang: "de", kind: "alt" }]);
+    assert.match((await w.ok(["place", "list"])).out, /^L0005 +Lhotín *$/mu);
+    assert.match((await w.ok(["place", "show", "L0005"])).out, /^names {2}Lhotín · Lhotín@de$/mu);
     const show = (await w.ok(["place", "show", "L0001"])).out;
     assert.match(show, /^names {2}Horní Lhota · Ober Lhota@de \(–1945\)$/mu);
     assert.match(show, /^forms {2}H\. Lhota · Lhota Horní$/mu);

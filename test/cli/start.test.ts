@@ -895,6 +895,40 @@ async function until(what: string, ok: () => boolean, ms = 20_000): Promise<void
   }
 }
 
+/**
+ * Every bridge running in a tree's folder (`… live serve` whose working folder it is: on macOS and Linux a bridge runs
+ * in its tree's — the stand-ins of a stuck one too), ended. What a test of the bridge leaves when it fails midway (found
+ * 2026-11-03: a bridge left running after a live start failed). Its PIDs.
+ */
+function endBridgesIn(dir: string): number[] {
+  let real: string;
+  try {
+    real = fs.realpathSync(dir).normalize("NFC");
+  } catch {
+    return [];
+  }
+  const cwdOf = (pid: number): string | undefined => {
+    try {
+      return fs.realpathSync(`/proc/${pid}/cwd`).normalize("NFC");
+    } catch {
+      const found = /^n(.+)$/mu.exec(spawnSync("lsof", ["-a", "-p", String(pid), "-d", "cwd", "-Fn"], { encoding: "utf8" }).stdout ?? "");
+      return found?.[1]?.normalize("NFC");
+    }
+  };
+  const ended: number[] = [];
+  for (const line of (spawnSync("ps", ["-A", "-o", "pid=,command="], { encoding: "utf8" }).stdout ?? "").split("\n")) {
+    const m = /^\s*(\d+)\s+(.*)$/u.exec(line);
+    if (!m || !m[2]!.trimEnd().endsWith(" live serve") || Number(m[1]) === process.pid || cwdOf(Number(m[1])) !== real) continue;
+    try {
+      process.kill(Number(m[1]), "SIGKILL");
+      ended.push(Number(m[1]));
+    } catch {
+      // gone meanwhile
+    }
+  }
+  return ended;
+}
+
 function ask(url: string, opts: { method?: string; headers?: Record<string, string> } = {}): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
   return new Promise((resolve, reject) => {
     const req = http.request(url, { method: opts.method ?? "GET", headers: opts.headers ?? {} }, (res) => {
@@ -968,14 +1002,15 @@ test("the live bridge: the Strom app reads the tree and hears what changes — t
 
 test("the live bridge does not end because of one error, says what happened in its log, and comes back on its address", { skip: !hasGit || process.platform === "win32" }, async () => {
   const w = new World();
-  await w.withTree();
-  w.env.STROM_LIVE_POLL_MS = "100";
-  const log = path.join(w.cwd, ".strom", "live.log");
-  const first = (await w.ok(["live", "start", "--json"])).json;
-  // The app follows it; meanwhile the tree cannot be read (another strom writing it that moment).
-  const events = http.get(`${first.url}/events`);
-  events.on("error", () => {});
+  let following: http.ClientRequest | undefined;
   try {
+    await w.withTree();
+    w.env.STROM_LIVE_POLL_MS = "100";
+    const log = path.join(w.cwd, ".strom", "live.log");
+    const first = (await w.ok(["live", "start", "--json"])).json;
+    // The app follows it; meanwhile the tree cannot be read (another strom writing it that moment).
+    const events = (following = http.get(`${first.url}/events`));
+    events.on("error", () => {});
     // its hello: the bridge has read the tree once (a slow start would find it broken and say "the start failed")
     await new Promise((r) => events.on("response", (res) => res.once("data", r)));
     const config = path.join(w.cwd, "strom.json");
@@ -1095,10 +1130,13 @@ test("the live bridge does not end because of one error, says what happened in i
     assert.equal(await exited(stuck2), "SIGKILL");
     assert.match(fs.readFileSync(log, "utf8"), new RegExp(`the bridge before \\(${stuck2.pid}\\) still held port ${last.port}: ended`));
   } finally {
-    events.destroy();
+    following?.destroy();
     await w.run(["live", "stop"]);
+    // whatever failed midway (a live start, an assertion between two bridges): no bridge of this tree left running —
+    // the stuck stand-ins and one started that live stop does not know of included
+    endBridgesIn(w.cwd);
+    w.cleanup();
   }
-  w.cleanup();
 });
 
 test("strom app opens this research in an app that can take it: the tree by its id, followed while somebody is at work", { skip: !hasGit || process.platform === "win32" }, async () => {

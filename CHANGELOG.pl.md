@@ -1,26 +1,46 @@
-# Co nowego w Badaniach Strom
+# Co nowego w Strom Research
 
 [English](CHANGELOG.md) · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · Polski
 
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.25.1
+
+*W przygotowaniu: bety do 1.25.1-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Warunki archiwów sprawdzone ponownie, doszły źródła polskie.** Warunki i robots.txt każdego archiwum, które zna
+  strom, zostały 3 listopada 2026 przeczytane na nowo. eBadatelna SOA Praha nie wpuszcza już żadnych robotów do swoich
+  skanów (jej robots.txt z 2 listopada): jej obrazy tylko przez przeglądarkę osoby, tak jak w archiwum w Třeboniu,
+  które teraz odrzuca zapytania stromu. Warunki Porta fontium są zacytowane (po jednej stronie, do własnych badań,
+  ze wskazaniem źródła i adresu). Nowe: Skanoteka PTG (minuta między zapytaniami), GenBaza, BaSIA, Genealogia
+  w Archiwach, litewskie Metrikai oraz archiwa we Lwowie, Żytomierzu i Równem (za sprawdzeniem robota lub zamknięte
+  dla agentów AI: tylko przeglądarka osoby), Polona i Śląska Biblioteka Cyfrowa (domena publiczna), Małopolska
+  Biblioteka Cyfrowa (tylko na własny użytek, nigdy masowo), a dla miejscowości w Polsce nazwy z PRNG Geoportalu
+  i Słownik geograficzny, z własnym wyszukiwaniem.
+- **Polskie teksty poprawione; skopiowane polecenie działa.** Polskie menu, komunikaty, instalator i te notatki
+  zostały przejrzane: wszędzie te same pojęcia co w aplikacji Strom 3.21.1 (Księga rodu, półpauzy), poprawiona
+  gramatyka i formy liczby mnogiej; daty jak w aplikacji, bez zer na początku (3.11.2026), a miesiąc w przypadku,
+  którego wymaga przyimek (przed majem 1880). Polecenie
+  `strom unpack "…"`, pokazywane po spakowaniu badań lub przed ich usunięciem, ma teraz we wszystkich językach
+  proste cudzysłowy, więc po skopiowaniu działa.
+
 ## 1.25.0
 
-*W przygotowaniu: bety do 1.25.0-beta.5. Sekcja będzie kompletna z wydaniem.*
+*3.11.2026 · współpracuje z aplikacją Strom 3.21.0.*
 
 - **Po polsku.** Badanie mówi po polsku: menu, jego komunikaty, to, co zapisuje w badaniu, instalator i strona
-  telefonu; notatki i role w pliku dla Strom są po polsku. Polski system jest rozpoznawany sam, w przeciwnym razie
+  telefonu; notatki i role w pliku dla Stromu są po polsku. Polski system jest rozpoznawany automatycznie, w przeciwnym razie
   `strom config set lang pl`. Pomoc dla agenta pozostaje po angielsku.
-- **Widżet Strom także w Windows i otwiera osobę.** Badanie zapisuje teraz to, co pokazuje z niego widżet Strom (nad czym
-  trwa praca, znaleziska z ostatnich 24 godzin, co czeka), także w Windows, do `%USERPROFILE%\.config\strom\widget`,
+- **Widżet Strom także w systemie Windows i otwiera osobę.** Badanie zapisuje teraz to, co pokazuje z niego widżet Strom (nad czym
+  trwa praca, ustalenia z ostatnich 24 godzin, co czeka), także w systemie Windows, do `%USERPROFILE%\.config\strom\widget`,
   ze znacznikiem programu strom, który je zapisał. Widżet czytający swój plik nigdy nie wstrzymuje mostka.
   `strom uninstall` usuwa także pliki widżetu, również na Macu; badanie i ustawienia zostają.
-  Wiersz lub znalezisko widżetu Strom dotyczące jednej osoby otwiera tę osobę w aplikacji
-  Strom (jej stronę, drzewo wokół niej), a to, co czeka, otwiera „Czeka” badania (aplikacja, która jeszcze tego nie
+  Wiersz lub ustalenie widżetu Strom dotyczące jednej osoby otwiera tę osobę w aplikacji
+  Strom (jej stronę, drzewo wokół niej), a to, co czeka, otwiera „Czeka na decyzję” badania (aplikacja, która jeszcze tego nie
   potrafi, otwiera drzewo jak dotąd).
 - **Numery domów po nazwie wsi.** Miejsca zapisane jako nazwa z samym numerem (`Lhota 16`) można teraz także
-  poprawić (`strom fixes run street-places`): miejscem staje się gmina, a numer – jej domem; tylko gdy człowiek
+  poprawić (`strom fixes run street-places`): miejscem staje się gmina, a numer – numerem domu w niej; tylko gdy człowiek
   potwierdzi, osobno dla każdej gminy, że jej numery to domy, a wcześniej zobaczy dane, które to zmienia. Części
   miasta z numerem (`Praha 5`) nigdy nie są proponowane. Odpowiedź jest zapamiętana w badaniu, a
   `strom fixes undo street-places` przywraca wszystko.
@@ -34,7 +54,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   czeka”, mostek proponuje je aplikacji Strom, a `strom place undo` cofa ostatnią odpowiedź. Kolejka miejsc, które
   aplikacja Strom zleca zidentyfikować, przebiega teraz w tylu sesjach, ile wybierze człowiek, każda liczba z czasem
   i ceną. Każda nazwa miejsca mówi, czy jest formą zapisaną w aktach, czy inną nazwą miejsca (inny język, dawna
-  nazwa), a nazwa podana na oba sposoby jest przechowywana raz.
+  nazwa), a nazwa podana na oba sposoby jest przechowywana raz. Plik Strom przekazuje aplikacji Strom 3.21.0
+  zidentyfikowane miejsca z ich nazwami, położeniem i parafią.
 - **Rodzaje historii.** `history.kinds` określa, jakich rodzajów wydarzeń szuka historia miejsc (wojny,
   epidemie…). `strom history align` najpierw mówi, co by ukrył, ponownie pokazał i czego by szukał, i robi to tylko
   na „tak” człowieka; nic znalezionego nie jest usuwane.
@@ -43,7 +64,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Aktualizacje bez przerywania pracy.** `strom update` instaluje każdą wersję we własnym folderze, więc trwający
   przebieg lub rozmowa toczy się dalej w swojej wersji; starsze wersje znikają przy następnej aktualizacji lub dzięki
   `strom tidy`, a `strom doctor` o nich informuje. Mostek odpowiada aplikacji Strom także podczas własnego
-  odnawiania i podczas tworzenia pliku drzewa.
+  ponownego uruchamiania i podczas tworzenia pliku drzewa.
 
 ## 1.24.0
 
@@ -57,7 +78,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   o włączenie lub wyłączenie wydarzeń historycznych mówi, że dotyczy wszystkich badań na tym komputerze, i jak
   zmienić to tylko dla jednego badania.
 - **Poprawki drzewa z badania w aplikacji Strom.** Mostek wymienia, co `strom fixes` proponuje w badaniu (tytuł, co robi,
-  ile pozycji, stan, czy można ją cofnąć), bezpłatnie i bez zapisywania czegokolwiek; odnośnik
+  ile pozycji, stan, czy można to cofnąć), bezpłatnie i bez zapisywania czegokolwiek; odnośnik
   `strom-research://fixes` otwiera naprawę w terminalu badania, gdzie naprawa i jej cofnięcie są zawsze najpierw
   potwierdzane.
 - **Strona każdego skanu w aplikacji Strom.** Plik dla Stromu podaje teraz przy każdym źródle stronę jego skanu
@@ -98,11 +119,11 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   przy każdej osobie z wybranym nazwiskiem i przy kilku znacznikach źródeł; kontrola zna teraz wszystkie własne
   znaczniki Stromu.
 - **Commit zrobiony gitem na badaniu zapieczętowanym dwoma kluczami (Windows).** `strom check` radził jednocześnie
-  `strom repair` i „nigdy `strom repair`”, a `strom repair` cofał pracę zapisaną kluczem terminalu. `strom repair`
+  `strom repair` i „nigdy `strom repair`”, a `strom repair` cofał pracę zapisaną kluczem terminala. `strom repair`
   cofa teraz tylko to, co zrobiono poza strom, praca obu kluczy zostaje; potem `strom seal adopt` w terminalu łączy
   klucze – `strom check` podaje oba kroki w tej kolejności. Uruchomiony z aplikacji desktopowej agenta spakowanej
-  dla Windows, `strom repair` zostawia takie badanie bez zmian i odsyła do terminalu; odrzucony tam zapis również
-  odsyła do terminalu, już nie najpierw do `strom repair`. Po commicie zrobionym gitem, który nie zmienił żadnego
+  dla Windows, `strom repair` zostawia takie badanie bez zmian i odsyła do terminala; odrzucony tam zapis również
+  odsyła do terminala, już nie najpierw do `strom repair`. Po commicie zrobionym gitem, który nie zmienił żadnego
   zapisu, `strom repair` mówi, że ponownie zapieczętował badanie, już nie „nie ma czego naprawiać”.
 - **Klucz pieczęci także tam, gdzie szuka go starszy strom (Windows).** Klucz przejęty z kopii aplikacji spakowanej
   dla Windows jest teraz przechowywany również w `%APPDATA%\strom\keys`, gdzie szuka go strom 1.22.1 lub starszy
@@ -122,15 +143,15 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 *30.10.2026 · współpracuje z aplikacją Strom 3.17.1.*
 
-- **Strom z aplikacji desktopowej agenta i z terminalu znów zapisuje do jednego badania (Windows).** Aplikacja
+- **Strom z aplikacji desktopowej agenta i z terminala znów zapisuje do jednego badania (Windows).** Aplikacja
   desktopowa agenta może być spakowana dla Windows (MSIX), a każdy plik, który uruchomiony z niej strom utworzył
-  w ustawieniach programu strom, trafiał do prywatnej kopii aplikacji: strom aplikacji i strom terminalu miały każdy
+  w ustawieniach programu strom, trafiał do prywatnej kopii aplikacji: strom aplikacji i strom terminala miały każdy
   własny klucz pieczęci i każdy odrzucał zapisy drugiego jako zrobione poza strom. Ustawienia są teraz poza AppData
   (`%USERPROFILE%\.config\strom`), przejmowane samoczynnie ze starego folderu i z kopii aplikacji (oba zostają bez
   zmian). Badanie rozdzielone w ten sposób naprawia się samo, gdzie to możliwe; w przeciwnym razie `strom seal
   adopt` w terminalu łączy klucze (menu proponuje to raz) – każdy zapis sprawdzony, nic nie ginie, nigdy `strom
   repair`. `strom update` uruchomiony z takiej aplikacji nic nie instaluje (widziałaby to tylko ona) i odsyła do
-  terminalu; `strom doctor` znajduje kopię programu, którą aplikacja trzyma dla siebie.
+  terminala; `strom doctor` znajduje kopię programu, którą aplikacja trzyma dla siebie.
 - **`strom repair` po commicie zrobionym gitem, który nie zmienił żadnego zapisu** (pusty, same notatki), ponownie
   pieczętuje badanie; wcześniej commit pozostawał niezapieczętowany, każdy zapis był odrzucany i nie było czego
   naprawiać.
@@ -252,13 +273,13 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **„Czeka” mówi, czego aplikacja Strom nie pokazuje.** Wiersz w menu i `strom plan` mówią, ile z oczekujących spraw
   jest tylko tutaj w terminalu, a ile czeka na odpowiedź; reszta to liczba, którą pokazuje aplikacja Strom, więc obie
   się zgadzają.
-- **„Co czeka” stawia sprawy samego terminalu na początku.** To, co pokazuje tylko terminal (sprzeczność własnej
+- **„Co czeka” stawia sprawy samego terminala na początku.** To, co pokazuje tylko terminal (sprzeczność własnej
   zmiany, przesłanie z aplikacji, pytanie o odczyt skanów), jest wymienione pod „Tylko tutaj w terminalu”, reszta
   pod „Także w aplikacji Strom”.
 - **`strom input assign`, `hide` i `unskip` mówią, co się zmieniło**, w języku badania: każdy plik, każde zwolnione
   lub utworzone zadanie, osoby z imienia i nazwiska oraz jak to cofnąć. Ich JSON pozostaje taki sam.
 - **Podsumowanie badania dla widżetu na pulpicie macOS.** Dopóki działa mostek (`strom live`), podsumowanie każdego
-  drzewa jest przechowywane w pliku dla widżetu na pulpicie Maca: nad czym teraz trwa praca, znaleziska z ostatniej
+  drzewa jest przechowywane w pliku dla widżetu na pulpicie Maca: nad czym teraz trwa praca, ustalenia z ostatniej
   doby i co czeka, każdy tekst także bez imion i nazwisk osób. Poza macOS nic nie jest zapisywane.
 
 ## 1.20.0
@@ -266,7 +287,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 *25.10.2026 · współpracuje z aplikacją Strom 3.16.0.*
 
 - **Menu bez nikogo przy terminalu mówi to od razu.** Uruchomione tam, gdzie nikt nie może odpowiedzieć (zamknięte
-  wejście, okno bez terminalu), menu kończy się jednym zdaniem w języku badania i tym, co zrobić zamiast tego, już nie
+  wejście, okno bez terminala), menu kończy się jednym zdaniem w języku badania i tym, co zrobić zamiast tego, już nie
   błędem programu; pytanie, którego wejście kończy się przed odpowiedzią, kończy menu tak samo.
 - **`strom check` mówi jednym językiem.** Dla człowieka każde ustalenie, suma i uwagi są w języku badania; dla
   agenta wszystko po angielsku, nigdy mieszanka obu. Mówi też, czego brakuje na tym komputerze: plików folderu
@@ -280,9 +301,9 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 - **Archiwum Strom nie uruchamia płatnego odczytu.** `strom read`, `strom clips` i `strom transcripts` są odrzucane
   w archiwum (i w badaniu czekającym na swojego agenta) tym samym jednym zdaniem co inne odmowy; nic nie jest czytane
   ani zapisywane.
-  Jego teksty niczego nie obiecują: materiał jest „zapisany w archiwum Strom” i podawana jest liczba, nic więcej;
+  Jego teksty niczego nie obiecują: materiał jest „zapisany w Archiwum Strom” i podawana jest liczba, nic więcej;
   folder z ponad 20 obrazami proponuje zapisanie ich jako dokumentów rodzinnych; strona telefonu w archiwum mówi
-  „Zapisz w archiwum Strom”; telefon jest w pomocy archiwum. Pomoc archiwum i badania czekającego na swojego agenta
+  „Zapisz w Archiwum Strom”; telefon jest w pomocy archiwum. Pomoc archiwum i badania czekającego na swojego agenta
   proponuje tylko to, co w nim działa, bez zadań i kolejki; instrukcja w spakowanym archiwum (`strom pack`) prowadzi
   do aplikacji Strom. Nie zapowiada też nowego zadania, którego potem nie pokazuje. **Jego sprzeczności rozstrzyga
   się w nim:** otwarta (ta sama dana zmieniona inaczej w aplikacji Strom i tutaj) jest podawana w podsumowaniu
@@ -326,7 +347,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   dawnym folderem i sposobem dodania nowego (`strom trees use <folder>`, od tej pory zapamiętywanego); `strom app`,
   `strom live start` ani żadne polecenie nie otwiera w jego miejsce innego, a `strom trees forget` zdejmuje z listy
   drzewo, które nie jest już potrzebne. `strom trees` i `/status` mostka mówią, czym jest każde drzewo: badaniem,
-  badaniem czekającym na swojego agenta albo archiwum Strom – dla aplikacji (`kind`) badanie czekające na agenta
+  badaniem czekającym na swojego agenta albo Archiwum Strom – dla aplikacji (`kind`) badanie czekające na agenta
   jest archiwum, dopóki agent nie zacznie nad nim pracy. Pusta aplikacja Strom (z wyczyszczonymi danymi
   przeglądarki), prosząca o nowe badanie, dostaje najpierw propozycję drzew, które już tu są, by otworzyć jedno
   z nich w aplikacji.
@@ -379,21 +400,21 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   tutaj czytać nie może, jest od razu odrzucany wraz z tymi, które mogą. Czas naprawy jest zaokrąglany w górę i po
   próbie przeliczany ponownie według odczytów, tak jak przebiegały równolegle.
 - **Drzewo genealogiczne, do którego strom nie może zapisywać, mówi dlaczego.** strom zapisuje do folderu badania
-  reguły dla Codexa: polecenie strom uruchamiane samodzielnie wychodzi poza sandbox Codexa – także w Windows, gdzie
+  reguły dla Codexa: polecenie strom uruchamiane samodzielnie wychodzi poza sandbox Codexa – także w systemie Windows, gdzie
   sandbox trzymał historię badania zamkniętą i nie wpuszczał niczego innego – a to, o czym decyduje człowiek, i sam
   git pozostają zabronione. Gdy sandbox agenta mimo to nie pozwala programowi strom zapisywać do folderu drzewa,
   strom to mówi i podpowiada agentowi, co robić w jego sytuacji – uruchamiać strom samodzielnie, uruchomić Codexa
   w folderze badania, któremu ufa, albo dać polecenie do zatwierdzenia poza sandboxem – zamiast gołego „brak
   uprawnień”, które agent przekazywał dalej jako brak dostępu do drzewa. Gdzie agent nie zostawia własnego znaku,
   strom rozpoznaje go po własnym znaku na agentach, które uruchamia, albo po programach, które go uruchomiły, i jako
-  prawdopodobną przyczynę wskazuje jego sandbox, potem OneDrive lub kontrolowany dostęp do folderów w Windows. Zapis
+  prawdopodobną przyczynę wskazuje jego sandbox, potem OneDrive lub kontrolowany dostęp do folderów w systemie Windows. Zapis
   odrzucony przez historię nie jest już zgłaszany jako brak uprawnień do samego gita, a kopia zapasowa lub
   aktualizacja, której nie udało się zapisać, prosi o folder z prawem zapisu, już nie o zwolnienie miejsca na dysku.
   `strom doctor` i `strom check` próbują zapisać do badania i mówią, gdy to nie działa, także tam, gdzie folderu nie
   można nawet wylistować. Na dysku bez twardych dowiązań (udział sieciowy, dysk przekierowany przez Pulpit zdalny)
   strom znów zapisuje, z blokadą tworzoną w inny sposób, a blokada, której wolny dysk jeszcze nie pokazuje, nie jest
   już przejmowana po chwili; drzewo, którego nie można tam utworzyć, nie zostawia nic po sobie i mówi to w języku
-  badania. Po instalacji przez npm w Windows `strom.cmd` uruchamia strom tam, gdzie PowerShell odmawia skryptów.
+  badania. Po instalacji przez npm w systemie Windows `strom.cmd` uruchamia strom tam, gdzie PowerShell odmawia skryptów.
 
 ## 1.18.0
 
@@ -432,7 +453,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   głównego jako ikonę, która otwiera ją bez ponownego parowania. To, co czeka, i zmiany można przeczytać na telefonie
   w całości: żaden tekst tego, co czeka, nie jest obcinany, więcej niż pierwszych 20 pojawia się po dotknięciu,
   zmiana wielu wierszy rozwija się w całości; „Co czeka” jest ostatnią częścią strony. Zmiana starsza niż dzisiejsza
-  ma obok godziny datę (rok tylko wtedy, gdy nie jest bieżący). Znaleziska pod „Teraz” mówią, co badanie znalazło od
+  ma obok godziny datę (rok tylko wtedy, gdy nie jest bieżący). Ustalenia pod „Teraz” mówią, co badanie znalazło od
   ostatniego spojrzenia z telefonu (co najmniej ostatnie 24 godziny, starsze po dotknięciu) – nowe osoby, źródła,
   dane znalezione, poprawione lub nowo udokumentowane, rozstrzygnięte sprzeczności – z oznaczeniem nowych; coś
   nowego przy otwartej stronie pojawia się tylko jako liczba w tytule karty i mała etykieta.
@@ -449,7 +470,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   `strom find` – więc aplikacja Strom nie pokazuje tego po wczytaniu drzewa, a synchronizacja tego nie przywraca;
   `strom person show --history` mówi, co to było, kiedy i dlaczego, a `strom name restore` lub `strom note restore`
   to przywraca.
-- **Poprawki ze zgłoszeń.** Pożegnanie menu mówi, jak ponownie uruchomić strom tam, gdzie okno terminalu jeszcze nie
+- **Poprawki ze zgłoszeń.** Pożegnanie menu mówi, jak ponownie uruchomić strom tam, gdzie okno terminala jeszcze nie
   zna polecenia (po instalacji jednym wierszem: `strom` w nowym oknie, pełna ścieżka w tym; pełna ścieżka także tam,
   gdzie na nazwę wcześniej odpowiada inny `strom`), oraz kiedy mostek aplikacji Strom działa dalej i jak go
   zatrzymać; wybór drzewa w menu można cofnąć przez 0. Mostek nie trzyma już folderu drzewa, więc Windows może go
@@ -486,7 +507,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   `strom check`), to, co zapisał `strom export gedcom`, i ostrzeżenie licznika w `strom check` są podawane w języku
   badania, także ich liczby – rozmiar i jakość obrazów tak, jak zapisuje je język (po czesku 0,4 MB · kvalita
   běžná).
-- **Zapis w Windows czeka na antywirus.** Plik zapisywany, gdy antywirus lub indeksowanie wyszukiwania na chwilę go
+- **Zapis w systemie Windows czeka na antywirus.** Plik zapisywany, gdy antywirus lub indeksowanie wyszukiwania na chwilę go
   trzyma, jest zapisywany – lub odczytywany – po krótkim czekaniu zamiast błędu. Plik trzymany dłużej zatrzymuje
   polecenie w całości, bez niczego zapisanego do połowy, a komunikat mówi, że plik trzyma inny program i polecenie
   można po prostu uruchomić ponownie.
@@ -499,8 +520,8 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 - **Terminal dla okien badania (macOS).** To, co aplikacja Strom otwiera w terminalu, i rozmowa przekazana do
   nowego okna mogą otwierać się w iTerm2 zamiast w terminalu systemu: pierwsza pozycja ustawień, ustawienia
-  początkowe, gdy oba są dostępne, albo `strom config set terminal iterm2`. Zamiast niezainstalowanego terminalu
-  otwiera się terminal systemu, a okno to zgłasza; `strom doctor` podaje wybrany. W Windows decyduje system.
+  początkowe, gdy oba są dostępne, albo `strom config set terminal iterm2`. Zamiast niezainstalowanego terminala
+  otwiera się terminal systemu, a okno to zgłasza; `strom doctor` podaje wybrany. W systemie Windows decyduje system.
 - **Każda osoba na skraju drzewa z własnymi wariantami.** Gdy otwarta hipoteza łączy się z drzewem przy kilku
   osobach, każda z nich niesie warianty, które ją wymieniają, i rodzinę spoza drzewa, do której należy, więc
   aplikacja Strom może pokazać wszystkie, nie tylko pierwszą.
@@ -522,9 +543,9 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 *16.10.2026 · współpracuje z aplikacją Strom 3.12.0.*
 
 - **Archiwum Strom z wyboru, także z agentem AI.** Ustawienia początkowe pytają, czy nowe drzewa genealogiczne są
-  badaniami z agentem, czy tylko archiwum Strom; w ustawieniach można to zmienić dla jednego drzewa lub dla nowych.
+  badaniami z agentem, czy tylko Archiwum Strom; w ustawieniach można to zmienić dla jednego drzewa lub dla nowych.
 - **Badanie czekające na swojego agenta.** Drzewo genealogiczne, którego agenta AI nie ma na tym komputerze,
-  przechowuje to, co wysyła aplikacja Strom, tak jak archiwum Strom. Gdy agent zostanie zainstalowany, badanie samo
+  przechowuje to, co wysyła aplikacja Strom, tak jak Archiwum Strom. Gdy agent zostanie zainstalowany, badanie samo
   toczy się dalej.
 - **Jedna księga archiwum pobierana raz.** Księga, która już jest w badaniu, zostaje wskazana zamiast ponownej
   rejestracji i pobierania, więc archiwum nigdy nie dostaje dwa razy zapytania o te same obrazy.
@@ -533,12 +554,12 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   obrazy są rejestrowane po dziesięć, a to, co nie przyszło, jest podawane dokładnie; Ctrl-C zachowuje to, co
   przyszło. Archiwum dostaje te same zapytania w tym samym tempie. Księgę można też pobierać w tle, gdy agent pracuje
   dalej (`strom fetch --background`), nigdy z archiwum, które pozwala tylko na tempo człowieka. Szukanie jednego
-  aktu może zakończyć się przy znalezisku (`strom read --until-found`): odczytane obrazy są podawane dokładnie
+  aktu może zakończyć się, gdy akt się znajdzie (`strom read --until-found`): odczytane obrazy są podawane dokładnie
   i tylko one liczą się jako przeszukane.
 - **Drzewa genealogiczne z innych programów.** Plik GEDCOM zapisany ze znacznikiem kolejności bajtów (BOM) lub
-  w UTF-16 (jak zapisują go niektóre programy w Windows) jest odczytywany jako drzewo genealogiczne; drzewo innego
+  w UTF-16 (jak zapisują go niektóre programy w systemie Windows) jest odczytywany jako drzewo genealogiczne; drzewo innego
   badania jest przyjmowane jako obce.
-- **Czysto na jednym komputerze.** Podgląd na żywo kończy się czysto w każdym systemie, także w Windows, a aplikacja
+- **Czysto na jednym komputerze.** Podgląd na żywo kończy się czysto w każdym systemie, także w systemie Windows, a aplikacja
   Strom dowiaduje się, że się zakończył. Inny strom na tym samym komputerze (z npm albo zbudowany ze źródeł) nigdy
   nie przejmuje odnośników aplikacji Strom ani kanału aktualizacji.
 - **Poprawki z prawdziwych badań.** Dzienny przydział samodzielnej pracy pozwala nowemu tygodniowi zacząć się od

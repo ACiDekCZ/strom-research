@@ -11,19 +11,42 @@ import type { Tree } from "../core/tree.ts";
 import type { Family, Person, RecordSet, Session, Source } from "../core/model.ts";
 
 /**
+ * Polish month names by the case a preposition asks for, as the Strom app writes them (`formatFlexDate`, 3.21.1):
+ * the nominative alone ("maj 1880"), the genitive after ok./od/do ("ok. maja 1880"), the instrumental after
+ * przed/między ("przed majem 1880"), the locative after po ("po maju 1880").
+ */
+type PlCase = "nom" | "gen" | "ins" | "loc";
+const MONTH_PL: Record<PlCase, readonly string[]> = {
+  nom: ["styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec", "lipiec", "sierpień", "wrzesień", "październik", "listopad", "grudzień"],
+  gen: ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia"],
+  ins: ["styczniem", "lutym", "marcem", "kwietniem", "majem", "czerwcem", "lipcem", "sierpniem", "wrześniem", "październikiem", "listopadem", "grudniem"],
+  loc: ["styczniu", "lutym", "marcu", "kwietniu", "maju", "czerwcu", "lipcu", "sierpniu", "wrześniu", "październiku", "listopadzie", "grudniu"],
+};
+
+const isPolish = (lang: string) => lang === "pl" || lang.startsWith("pl-");
+
+/**
  * English reads "31 Aug 1830"; the others their own numeric form ("31. 8. 1830", "31.8.1830"). A month and
  * year alone are named ("srpen 1830") — after a word ("před 3/1853") in numbers, which no grammatical case bends.
+ * Polish writes the numbers without leading zeros ("3.11", "5.8.1830", which Intl would pad to "5.08.1830") and
+ * names a month also after a word, in the case the word asks for ("przed majem 1853"), as the Strom app does.
  */
-function format(lang: string, date: Date, parts: "day" | "month" | "monthafter" | "daymonth"): string {
+function format(lang: string, date: Date, parts: "day" | "month" | "monthafter" | "daymonth", plCase: PlCase = "nom"): string {
+  if (isPolish(lang)) {
+    const [d, m, y] = [date.getUTCDate(), date.getUTCMonth() + 1, date.getUTCFullYear()];
+    return parts === "daymonth" ? `${d}.${m}` : parts === "day" ? `${d}.${m}.${y}` : `${MONTH_PL[plCase][m - 1]} ${y}`;
+  }
   const en = lang === "en";
+  const day = "numeric";
+  const month = en ? "short" : "numeric";
   const opts: Intl.DateTimeFormatOptions =
     parts === "month"
       ? { month: "long", year: "numeric" }
       : parts === "monthafter"
         ? { month: en ? "short" : "numeric", year: "numeric" }
         : parts === "daymonth"
-        ? { day: "numeric", month: en ? "short" : "numeric" }
-        : { day: "numeric", month: en ? "short" : "numeric", year: "numeric" };
+        ? { day, month }
+        : { day, month, year: "numeric" };
   try {
     return new Intl.DateTimeFormat(en ? "en-GB" : lang, { ...opts, timeZone: "UTC" }).format(date);
   } catch {
@@ -32,14 +55,14 @@ function format(lang: string, date: Date, parts: "day" | "month" | "monthafter" 
 }
 
 /** One date without a qualifier: "31 AUG 1830", "AUG 1830", "1830" — `after` a word ("before", "between"). */
-function simple(s: string, lang: string, after = true): string {
+function simple(s: string, lang: string, after = true, plCase: PlCase = "nom"): string {
   const m = /^(?:(\d{1,2}) )?(?:([A-Z]{3}) )?(\d{3,4})$/.exec(s.trim());
   if (!m) return s;
   const month = m[2] ? MONTHS.indexOf(m[2] as (typeof MONTHS)[number]) : -1;
   if (month < 0) return m[3]!;
   const date = new Date(Date.UTC(2000, month, m[1] ? Number(m[1]) : 1));
   date.setUTCFullYear(Number(m[3]));
-  return format(lang, date, m[1] ? "day" : after ? "monthafter" : "month");
+  return format(lang, date, m[1] ? "day" : after ? "monthafter" : "month", plCase);
 }
 
 /** A GEDCOM date as a person says it: "31. 8. 1830", "asi 1830", "před 1853", "mezi 1811 a 1812". */
@@ -47,13 +70,14 @@ export function humanDate(date: string | undefined, lang: string): string {
   if (!date) return "";
   const d = date.trim().toUpperCase();
   let m = /^BET (.+) AND (.+)$/.exec(d);
-  if (m) return ui(lang, "ui.date.between", { a: simple(m[1]!, lang), b: simple(m[2]!, lang) });
+  if (m) return ui(lang, "ui.date.between", { a: simple(m[1]!, lang, true, "ins"), b: simple(m[2]!, lang, true, "ins") });
   m = /^FROM (.+) TO (.+)$/.exec(d);
-  if (m) return ui(lang, "ui.date.fromto", { a: simple(m[1]!, lang), b: simple(m[2]!, lang) });
+  if (m) return ui(lang, "ui.date.fromto", { a: simple(m[1]!, lang, true, "gen"), b: simple(m[2]!, lang, true, "gen") });
   m = /^(FROM|TO|ABT|CAL|EST|BEF|AFT) (.+)$/.exec(d);
   if (m) {
     const key: Record<string, UIKey> = { FROM: "ui.date.from", TO: "ui.date.to", ABT: "ui.date.about", CAL: "ui.date.about", EST: "ui.date.about", BEF: "ui.date.before", AFT: "ui.date.after" };
-    return ui(lang, key[m[1]!]!, { date: simple(m[2]!, lang) });
+    const plCase: Record<string, PlCase> = { BEF: "ins", AFT: "loc" };
+    return ui(lang, key[m[1]!]!, { date: simple(m[2]!, lang, true, plCase[m[1]!] ?? "gen") });
   }
   return simple(d, lang, false);
 }
