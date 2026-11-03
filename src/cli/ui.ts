@@ -2551,6 +2551,7 @@ export const UI = {
   "ui.conflict.titleAfter": "title after the name",
   "ui.conflict.parents": "parents",
   "ui.conflict.removed": "in the tree",
+  "ui.conflict.title": "{who}: {what} — {ours} × {theirs}",
   "ui.conflict.removed.ours": "removed in the Strom app ({day}, {sync})",
   "ui.conflict.removed.theirs": "edited in another copy of the app",
   "ui.conflict.removing.ours": "edited later in another copy of the app",

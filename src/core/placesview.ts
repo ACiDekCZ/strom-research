@@ -28,6 +28,7 @@ export interface PlaceView {
   why?: string;
   source?: { title: string; url?: string };
   verified?: string;
+  verifiedSource?: { title: string; url?: string };
   checkWhy?: string;
   needs?: string;
   /** A question waits (proposed, conflict): the item of What waits (its id is the place's). */
@@ -113,6 +114,7 @@ function view(k: Known, p: Place): PlaceView {
     ...(why ? { why } : {}),
     ...(loc?.source ? { source: loc.source } : {}),
     ...(loc?.verified ? { verified: loc.verified } : {}),
+    ...(loc?.verifiedSource ? { verifiedSource: loc.verifiedSource } : {}),
     ...(loc?.checkWhy ? { checkWhy: loc.checkWhy } : {}),
     ...(!p.coords && p.unlocated && loc?.needs ? { needs: loc.needs } : {}),
     ...(q && (state === "proposed" || state === "conflict") ? { waiting: p.id } : {}),

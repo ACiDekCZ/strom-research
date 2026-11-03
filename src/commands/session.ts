@@ -66,6 +66,7 @@ import { isArchive } from "../core/mode.ts";
 import { afterDeathProposals, settleAfterDeath } from "../core/afterdeath.ts";
 import { usageOpt, webOpt } from "../core/metrics.ts";
 import { calibrationKey, viewModel } from "../core/viewsizes.ts";
+import { claudeConfigSet, claudeLoggedIn, claudeLoginCommand } from "../core/claudedir.ts";
 
 function written(tree: Tree): string {
   return lines(...tree.written.map((o) => o.summary));
@@ -910,7 +911,14 @@ register(
       const gateHolds = Boolean(opts.loop || until);
       let gateAnswered = false;
       if (gate) out(ui(lang, gateHolds ? "ui.run.gate" : "ui.run.gate.once", { name: gate.manifest.title ?? gate.name }));
-      for (let i = 0; i < max; i++) {
+      // Claude Code of a folder said outright (CLAUDE_CONFIG_DIR, agent.claudeConfigDir) not logged in there: no session
+      // would work — said before the first one, with how to log in (found 2026-11-03)
+      const loggedOut = runnerId === "claude" && claudeConfigSet(runEnv) !== undefined && claudeLoggedIn(runEnv, runner.command) === false;
+      if (loggedOut) {
+        stopCode = "auth";
+        stopValues = { command: claudeLoginCommand(runEnv) };
+      }
+      for (let i = 0; i < (loggedOut ? 0 : max); i++) {
         if (stop.signal.aborted || finishing) {
           stopCode = "user";
           break;
@@ -1251,7 +1259,7 @@ register(
         }
         if (result.outcome === "auth") {
           stopCode = "auth";
-          stopValues = { command: runner.command };
+          stopValues = { command: runnerId === "claude" ? claudeLoginCommand(runEnv) : runner.command };
           break;
         }
         // the agent does not take its model: said with what to do, never only its raw error

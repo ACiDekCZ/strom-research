@@ -5,6 +5,34 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.25.2
+
+*3. 11. 2026 · patří k aplikaci Strom 3.21.2.*
+
+- **Brána týdne předplatného už neukončí běh kvůli jedné nepřečtené odpovědi.** Zeptá se znovu, pak čtvrt hodiny počká
+  a řekne, co dostala. Nepřihlášený agent se ohlásí už před prvním sezením i s postupem přihlášení; výchozí složka
+  agenta zadaná v prostředí se vynechá, takže agent zůstane u svého obvyklého přihlášení.
+- **Ztotožnění míst: kontrola zapíše, co zjistí, do záznamu místa.** Staré názvy a pravopisy, jiné tvary místa
+  v údajích a chybná fara (odebraná i s důvodem) se zapíší do záznamu i tam, kde souřadnice zadala osoba, nikdy jen
+  do dějin. Tvar blízko místa, které záznam už má, se odmítne a řekne se, jak ho k tomu záznamu přidat; dva záznamy
+  jednoho místa jde sloučit. Na prvním místě je dnešní název (místo dnes v Polsku polsky, německý název jako
+  historický). Otázka u místa nikdy nebere osobě její souřadnice. Už ztotožněná místa se jednou samy srovnají (názvy
+  zapsané i s jazykem a roky jako text, dnešní název první, souřadnice osoby, staré názvy jen v dějinách) a krok jde
+  vrátit. Souhrn sezení o místech začíná tím, co se udělalo – ztotožněno, ověřeno, s otázkou, nedohledáno – a jedno
+  sezení vezme víc míst sousedních oblastí. Z „v Lhotě v čp. 12“ už nezůstane místo „v Lhotě v“:
+  místem je obec, jak ji výzkum píše jinde, i když ji věta skloňuje. Každý název se do záznamu místa zapíše jen jednou.
+- **Fronta míst se po vyřízení míst vyprázdní.** Místo ztotožněné, ověřené, předané k otázce nebo nedohledané odejde z
+  fronty se všemi svými tvary, i s tím, který fakta mezitím píší jinak; místa, která sezení už udělalo, se znovu neberou
+  a počet čekajících sedí. Co ve frontě nechala dřívější verze, se odebere samo (jen vyřízená místa, krok jde vrátit);
+  kontrola vyžádaná u místa, které čeká na ztotožnění, zůstane jako kontrola, a kontrola čekající u tvaru, který fakta
+  nově píší jako jiné místo, přejde s nimi k tomu místu. Každý krok nad místy jde vrátit vlastním
+  číslem, i když čeká jiný (také odpovědi člověka). Chybné jméno v záznamu místa — překlep ze záznamu, který už žádný
+  fakt nepíše, jméno jiného místa — jde odebrat i s důvodem (`strom place names L… --drop`); sezení nad místy vidí další
+  jména záznamu s jazykem a roky; kontrola může uvést, o jaký zdroj se opřela; příslušnost jde zadat i k jednomu roku.
+- V rozporech úpravy z aplikace už číslo domu, které značku má, nedostane značku podruhé (polsky „nr domu nr domu 12“),
+  a pomlčka v titulku je podle jazyka výzkumu.
+- Plán toho, co agent udělá dál, už nespadne na čekajícím vyprávění o manželích: jmenuje oba manžele.
+
 ## 1.25.1
 
 *3. 11. 2026 · patří k aplikaci Strom 3.21.1.*

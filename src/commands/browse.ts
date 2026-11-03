@@ -237,7 +237,15 @@ register(
         ...shown.map((t) => [`  ${t.state === "doing" ? ui(lang, "ui.plan.now") : `${++n}.`}`, `${truncate(humanTask(tree, t.what, lang), 110)}${lacksImages(tree, t) ? ui(lang, "ui.plan.images") : ""}${offLines.has(t.id) ? ui(lang, "ui.plan.offline") : ""}`]),
         ...later.slice(0, 5).map(({ t, a }) => [`  ${ui(lang, "ui.plan.later")}`, `${truncate(humanTask(tree, t.what, lang), 110)}${ui(lang, "ui.plan.asleep", { at: clockUp(a.until), host: a.host })}`]),
       ];
-      const storyNames = [...new Set(stories.map((t) => tree.get<Person>(t.subject[0] ?? "")).filter((p): p is Person => !!p).map((p) => `${displayName(p)} [${p.id}]`))];
+      // whose story: a person's, or a couple's (strom story set F…: the partners' names)
+      const whose = (id: string): string | undefined => {
+        const rec = tree.get<Person | Family>(id);
+        if (rec?.type === "person") return `${displayName(rec)} [${rec.id}]`;
+        if (rec?.type !== "family") return undefined;
+        const names = rec.partners.map((x) => tree.get<Person>(x)).filter((p): p is Person => p?.type === "person").map((p) => displayName(p));
+        return `${names.join(" & ") || rec.id} [${rec.id}]`;
+      };
+      const storyNames = [...new Set(stories.map((t) => whose(t.subject[0] ?? "")).filter((x): x is string => !!x))];
       const out: (string | undefined)[] = [ui(lang, "ui.plan.title", { name: tree.config.name })];
       if (!queue.length && !later.length) out.push(`  ${ui(lang, "ui.plan.none")}`);
       else {

@@ -22,6 +22,8 @@ import { readPlaces } from "./pastevents.ts";
 import { phrase } from "./phrases.ts";
 import { now, type Tree } from "./tree.ts";
 import path from "node:path";
+import fs from "node:fs";
+import { opsLogsOf } from "./opslog.ts";
 
 export const PLACES_IDENTIFY_ORIGIN = "places:identify";
 export const PLACE_QUEUE_FILE = "quality/places.json";
@@ -49,6 +51,8 @@ export interface QueueEntry {
   flag?: PlaceFlag;
   /** Who queued it: the person (the app, a link, the terminal), or the research itself (K2.3: something new of it). */
   by: "person" | "research";
+  /** Put back by the person's undo of the queue's tidying: never taken out by it again. */
+  back?: true;
 }
 
 /** A fact's place set right (K3), as it was and as it is made. */
@@ -66,13 +70,20 @@ export interface PlacesUndo {
   /** Each place record before the step (null: made by it) and its `updated` after. */
   places: Record<string, { before: Place | null; after: string }>;
   facts?: FormChange[];
+  /** Queue entries the step took out (settleQueue): put back. */
+  queue?: Record<string, QueueEntry>;
 }
 
 export interface PlacesFile {
   queue: Record<string, QueueEntry>;
+  /** The newest step on places to be undone. */
   undo?: PlacesUndo;
+  /** The steps before it still to be undone, oldest first (UNDO_KEPT in all): each one undone by its own ID. */
+  undos?: PlacesUndo[];
   /** When the places not located in history/places.json were taken into the place records (once). */
   converted?: string;
+  /** The repairs of the place records done (repairPlaces, PLACES_REPAIR). */
+  repaired?: number;
 }
 
 export function readPlacesFile(tree: Tree): PlacesFile {
@@ -80,10 +91,29 @@ export function readPlacesFile(tree: Tree): PlacesFile {
     const f = readJsonIfExists<Partial<PlacesFile>>(path.join(tree.root, ...PLACE_QUEUE_FILE.split("/")));
     const queue: Record<string, QueueEntry> = {};
     for (const [k, v] of Object.entries(f?.queue ?? {})) if (v && typeof v.form === "string" && v.form.trim()) queue[k] = v;
-    return { queue, ...(f?.undo ? { undo: f.undo } : {}), ...(f?.converted ? { converted: f.converted } : {}) };
+    const undos = Array.isArray(f?.undos) ? f.undos.filter((u) => u && typeof u.id === "string") : [];
+    return { queue, ...(f?.undo ? { undo: f.undo } : {}), ...(undos.length ? { undos } : {}), ...(f?.converted ? { converted: f.converted } : {}), ...(typeof f?.repaired === "number" ? { repaired: f.repaired } : {}) };
   } catch {
     return { queue: {} };
   }
+}
+
+/** How many steps on places can be undone, each by its own ID (the oldest go first). */
+export const UNDO_KEPT = 20;
+
+/** A step to be undone kept: the newest; the one before it waits among the others, never lost to it. */
+function keepUndo(file: PlacesFile, u: PlacesUndo): string {
+  if (file.undo) file.undos = [...(file.undos ?? []), file.undo].slice(-(UNDO_KEPT - 1));
+  file.undo = u;
+  return u.id;
+}
+
+/** A new step's undo ID: never one waiting already (two steps in one millisecond). */
+function undoId(file: PlacesFile): string {
+  const taken = new Set([file.undo?.id, ...(file.undos ?? []).map((u) => u.id)]);
+  let t = Date.now();
+  while (taken.has(`u${t.toString(36)}`)) t++;
+  return `u${t.toString(36)}`;
 }
 
 function fileContent(f: PlacesFile): string {
@@ -151,8 +181,13 @@ export function factForms(tree: Tree): Map<string, FactForm> {
  * okres Horní"); none when two do — a place two records could be belongs to none until its writing is set right.
  */
 export function recordIndex(tree: Tree): (form: string) => Place | undefined {
+  return recordIndexOf(tree.list<Place>("place"));
+}
+
+/** recordIndex over the given records (the records as a step leaves them). */
+function recordIndexOf(places: Place[]): (form: string) => Place | undefined {
   const byName = new Map<string, Place[]>();
-  for (const p of tree.list<Place>("place")) {
+  for (const p of places) {
     if (p.retracted) continue;
     for (const k of new Set(p.names.map((n) => foldText(n.name)))) byName.set(k, [...(byName.get(k) ?? []), p]);
   }
@@ -197,7 +232,11 @@ function areaOf(f: FactForm | undefined): string {
   return [...f.areas.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]![0];
 }
 
-/** The queue cut into sessions: the places of one area together, at most BATCH_MAX in each, in the queue's order. */
+/**
+ * The queue cut into sessions: the places of one area together, at most BATCH_MAX in each, in the queue's order — the
+ * small areas packed into one session as long as it has room (a session's start is the same price for one place as
+ * for fifteen; 1.25 ran most sessions on one or two places), an area never split where it fits whole.
+ */
 export function queueBatches(tree: Tree, file: PlacesFile = readPlacesFile(tree), forms: Map<string, FactForm> = factForms(tree)): [string, QueueEntry][][] {
   const byArea = new Map<string, [string, QueueEntry][]>();
   for (const row of queueOrder(file)) {
@@ -205,8 +244,21 @@ export function queueBatches(tree: Tree, file: PlacesFile = readPlacesFile(tree)
     byArea.set(area, [...(byArea.get(area) ?? []), row]);
   }
   const out: [string, QueueEntry][][] = [];
-  for (const rows of byArea.values()) for (let i = 0; i < rows.length; i += BATCH_MAX) out.push(rows.slice(i, i + BATCH_MAX));
+  let open: [string, QueueEntry][] = [];
+  for (const rows of byArea.values()) {
+    let i = 0;
+    for (; i + BATCH_MAX <= rows.length; i += BATCH_MAX) out.push(rows.slice(i, i + BATCH_MAX));
+    if (i < rows.length) open = pack(out, open, rows.slice(i));
+  }
+  if (open.length) out.push(open);
   return out;
+}
+
+/** An area's places into the open session when they fit, else the open one closed and a new one begun with them. */
+function pack(out: [string, QueueEntry][][], open: [string, QueueEntry][], rows: [string, QueueEntry][]): [string, QueueEntry][] {
+  if (open.length + rows.length <= BATCH_MAX) return [...open, ...rows];
+  if (open.length) out.push(open);
+  return [...rows];
 }
 
 /** Places in the queue the person asked for (the app, a link, the terminal): their task comes first (core/queue.ts). */
@@ -335,7 +387,17 @@ export function queuePlaces(tree: Tree, req: QueueRequest, by: QueueEntry["by"] 
         skipped.push({ form: w.form, why: "running" });
         continue;
       }
-      if ([w.key, ...others].some((k) => file.queue[k])) {
+      const had = [w.key, ...others].find((k) => file.queue[k]);
+      if (had) {
+        const e = file.queue[had]!;
+        // queued to be looked for, and on the map since: the check asked now takes its place (the tidying would take
+        // the old entry out as identified, and the person's check with it)
+        if (req.check && w.place?.coords && !e.check) {
+          const { back: _b, ...rest } = e;
+          file.queue[had] = { ...rest, at, by, check: true };
+          queued.push(e.form);
+          continue;
+        }
         skipped.push({ form: w.form, why: "queued" });
         continue;
       }
@@ -421,10 +483,11 @@ function target(tree: Tree, ref: string, forms: Map<string, FactForm>): Target {
 /**
  * A name added to a place record when it has none like it (any accent folded alike): a form the facts write (K3.2,
  * K4.5) or another name of the place (another language, a historical name). Each name once: a form that is a name of
- * the record already (the same words, or alike with no language) adds nothing; another name given to a form of the
- * facts of the same words takes its place (it says more — the language, the years), and the same name of the same
- * language already there (a form, or of no known kind: written before kinds were kept) becomes it, its years filled in
- * where it had none. Today's name (the first) is never changed.
+ * the record already (the same words, or alike with no language) adds nothing; another name of no language the record
+ * has already (with a language or without, today's too) adds nothing; another name given to a form of the facts of the
+ * same words, or to another name of no language and no years, takes its place (it says more — the language, the years),
+ * and the same name of the same language already there (a form, or of no known kind: written before kinds were kept)
+ * becomes it, its years filled in where it had none. Today's name (the first) is never changed.
  */
 export function addPlaceName(p: Place, name: string, kind: PlaceNameKind, extra: Omit<PlaceName, "name" | "kind"> = {}): void {
   const n = name.normalize("NFC").trim();
@@ -436,13 +499,16 @@ export function addPlaceName(p: Place, name: string, kind: PlaceNameKind, extra:
     return;
   }
   const whole: PlaceName = { name: n, ...(extra.lang ? { lang: extra.lang } : {}), ...(extra.from !== undefined ? { from: extra.from } : {}), ...(extra.to !== undefined ? { to: extra.to } : {}), kind };
+  // a name of no language the record has already (with a language or without, today's too): it says nothing more
+  if (!extra.lang && same.length && !same.some(({ x }) => !x.lang)) return;
   const like = same.find(({ x }) => (x.lang ?? "") === (extra.lang ?? ""));
   // the same name already: what it is and its years filled in, never changed
   if (like) {
     if (like.i > 0) p.names[like.i] = { ...like.x, ...(extra.from !== undefined && like.x.from === undefined ? { from: extra.from } : {}), ...(extra.to !== undefined && like.x.to === undefined ? { to: extra.to } : {}), kind };
     return;
   }
-  const form = same.find(({ x, i }) => i > 0 && x.kind === "form" && x.name === n);
+  // a form of the facts of the same words, or another name of no language and no years: the one that says more takes its place
+  const form = same.find(({ x, i }) => i > 0 && ((x.kind === "form" && x.name === n) || (x.kind === "alt" && !x.lang && x.from === undefined && x.to === undefined)));
   if (form) p.names[form.i] = whole;
   else p.names.push(whole);
 }
@@ -461,6 +527,165 @@ function addName(p: Place, name: string): void {
   addPlaceName(p, name, "form");
 }
 
+/** "<name>[@<lang>][:<from>-<to>]" — a single year (":1844") is the year the name is known from; undefined: no such syntax. */
+const ALT = /^(.+?)(?:@(\p{L}{2,3}))?(?::(\d{3,4})?(?:(-)(\d{3,4})?)?)?$/u;
+
+/**
+ * Another name of a place as the agent or the person writes it: "Ober Lhota@de:-1945", "Lhotau@de", "Lhotow:1650-1700",
+ * "Lhotow@cs:1844" (one year: known so then). A name still carrying the syntax ("…@xx:…" not understood) is refused.
+ */
+export function parseAltName(a: string): PlaceName {
+  const s = a.normalize("NFC").trim();
+  const m = ALT.exec(s);
+  const name = m?.[1]?.trim();
+  if (!m || !name || /@\p{L}*(?::|$)/u.test(name)) throw new UsageError(`invalid name "${a}": <name>[@<lang>][:<from>-<to>]`, { code: "place.name", hint: 'e.g. "Ober Lhota@de:1850-1918", "Lhotau@de", "Lhotow@cs:1654"' });
+  const n: PlaceName = { name };
+  if (m[2]) n.lang = m[2].toLowerCase();
+  const from = m[3] ? Number(m[3]) : undefined;
+  const to = m[5] ? Number(m[5]) : undefined;
+  if (from !== undefined) n.from = from;
+  if (to !== undefined) n.to = to;
+  // one year, no dash: the year the name is known from — from and to alike
+  else if (from !== undefined && !m[4]) n.to = from;
+  if (n.from !== undefined && n.to !== undefined && n.from > n.to) throw new UsageError(`invalid name "${a}": the years ${n.from}-${n.to} go backwards`, { code: "place.name" });
+  return n;
+}
+
+/** A name written with the syntax of another name as its text ("Lhotow@cs:1844" kept whole by an older strom): parsed, else undefined. */
+export function nameWithSyntax(n: PlaceName): PlaceName | undefined {
+  if (!/[@:]/u.test(n.name) || n.lang || n.from !== undefined || n.to !== undefined) return undefined;
+  try {
+    const p = parseAltName(n.name);
+    return p.name !== n.name ? { ...p, ...(n.kind ? { kind: n.kind } : {}) } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The distance of two points, km. */
+export function placeKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Two place records nearer than this are one place until the agent says otherwise (--separate). */
+export const NEAR_KM = 1.5;
+
+/** The years of the facts writing any name of a place record. */
+function yearsOf(p: Place, forms: Map<string, FactForm>): number[] {
+  return [...new Set(p.names.map((n) => foldText(n.name)))].flatMap((k) => forms.get(k)?.years ?? []);
+}
+
+/**
+ * Today's name of a place, when its first is not it: the one other name in use since a year with no end
+ * ("Lhotowo@pl:1945-"), while the first is a name of before — it ended before that year, or the facts write it only
+ * before then. Undefined where nothing says so plainly (no such name, or two of them, or the first in use still).
+ */
+export function todayName(p: Place, years: number[]): PlaceName | undefined {
+  const first = p.names[0];
+  if (!first || (first.from !== undefined && first.to === undefined)) return undefined;
+  const open = p.names.slice(1).filter((n) => n.kind === "alt" && n.from !== undefined && n.to === undefined && foldText(n.name) !== foldText(first.name));
+  if (open.length !== 1) return undefined;
+  const a = open[0]!;
+  if (first.to !== undefined) return first.to <= a.from! ? a : undefined;
+  return years.every((y) => y < a.from!) ? a : undefined;
+}
+
+/** A name made the first (today's); the one first before kept as what it is (a form of the facts, or another name of the place). */
+function setFirst(p: Place, today: PlaceName, forms: Map<string, FactForm>): void {
+  const was = p.names[0];
+  const rest = p.names
+    .filter((n) => n !== today)
+    .map((n) => (n === was && !n.kind ? { ...n, kind: forms.has(foldText(n.name)) && !n.lang && n.from === undefined && n.to === undefined ? ("form" as const) : ("alt" as const) } : n))
+    .filter((n) => !(foldText(n.name) === foldText(today.name) && !n.lang));
+  const { kind: _k, ...first } = today;
+  p.names = [first, ...rest];
+}
+
+/** What the research writes of a place beside its coordinates (identify, verify): names, kind, parent, jurisdictions. */
+export interface PlaceDetails {
+  /** Today's name, when the record's first is not it. */
+  name?: string;
+  /** Other names (another language, a historical name, the facts' variants). */
+  alt?: PlaceName[];
+  kind?: string;
+  parent?: string;
+  jurisdictions?: Jurisdiction[];
+  /** Jurisdictions found wrong ("parish:Lhotov"): taken off the record, the reason in the operation (--why). */
+  drop?: { kind: string; name: string }[];
+  /** Other forms of the facts that are the same place (K3.2): their names on the record. */
+  forms?: string[];
+}
+
+/** "<kind>:<name>" of a jurisdiction to take off. */
+export function parseDrop(s: string): { kind: string; name: string } {
+  const m = /^([^:]+):(.+?)(?::\d{0,4}-\d{0,4}|:\d{3,4})?$/u.exec(s.normalize("NFC").trim());
+  if (!m || !(JURISDICTIONS as readonly string[]).includes(m[1]!.trim())) throw new UsageError(`--drop-jurisdiction "${s}": "<kind>:<name>", kind one of ${JURISDICTIONS.join(", ")}`, { code: "place.jurisdiction" });
+  return { kind: m[1]!.trim(), name: m[2]!.trim() };
+}
+
+/**
+ * The details written into a copy of a place record: today's name (given, or the one other name in use since a year
+ * with no end), the other names, the forms of the facts, kind, parent, jurisdictions added and taken off. The folded
+ * forms it took in (out of the queue too), what it took off, and today's name when it was made the first by itself.
+ */
+function applyDetails(tree: Tree, p: Place, t: Target, d: PlaceDetails, forms: Map<string, FactForm>): { more: string[]; dropped: Jurisdiction[]; today?: string } {
+  if (d.parent) {
+    const parent = tree.get<Place>(d.parent);
+    if (!parent || parent.type !== "place" || parent.id === p.id) throw new UsageError(`no place ${d.parent} to be its parent`, { code: "place.unknown" });
+    p.parent = parent.id;
+  }
+  const dropped: Jurisdiction[] = [];
+  for (const x of d.drop ?? []) {
+    const hit = p.jurisdictions.filter((j) => j.kind === x.kind && foldText(j.name) === foldText(x.name));
+    if (!hit.length)
+      throw new UsageError(`${p.id} has no ${x.kind} "${x.name}" to take off${p.jurisdictions.length ? ` (it has ${p.jurisdictions.map((j) => `${j.kind}:${j.name}`).join(", ")})` : ""}`, { code: "place.jurisdiction" });
+    dropped.push(...hit);
+    p.jurisdictions = p.jurisdictions.filter((j) => !hit.includes(j));
+  }
+  if (d.name) {
+    const name = text(d.name, 300, "--name")!;
+    setFirst(p, nameWithSyntax({ name }) ?? { name }, forms);
+  }
+  for (const a of d.alt ?? []) addPlaceName(p, a.name, "alt", a);
+  for (const k of t.keys) addName(p, forms.get(k)?.form ?? k);
+  const more: string[] = [];
+  for (const f of d.forms ?? []) {
+    const key = foldText(f.normalize("NFC").trim());
+    if (!key) continue;
+    addName(p, forms.get(key)?.form ?? f.normalize("NFC").trim());
+    more.push(key);
+  }
+  let today: string | undefined;
+  if (!d.name) {
+    const a = todayName(p, yearsOf(p, forms));
+    if (a) {
+      setFirst(p, a, forms);
+      today = a.name;
+    }
+  }
+  if (d.kind) p.kind = d.kind;
+  for (const j of d.jurisdictions ?? [])
+    if (!p.jurisdictions.some((x) => x.kind === j.kind && foldText(x.name) === foldText(j.name) && x.from === j.from && x.to === j.to)) p.jurisdictions.push(j);
+  return { more, dropped, today };
+}
+
+/**
+ * The records nearer than NEAR_KM to coordinates (the record itself, its parent, its parts and those said apart
+ * left out): the same place written twice, until the agent says it is another.
+ */
+function nearRecords(tree: Tree, p: Place, at: { lat: number; lon: number }, separate: ReadonlySet<string>): { place: Place; km: number }[] {
+  return tree
+    .list<Place>("place")
+    .filter((o) => !o.retracted && o.id !== p.id && !!o.coords && !separate.has(o.id) && o.id !== p.parent && o.parent !== p.id)
+    .map((o) => ({ place: o, km: placeKm(o.coords!, at) }))
+    .filter((x) => x.km <= NEAR_KM)
+    .sort((a, b) => a.km - b.km);
+}
+
 /** Coordinates checked. */
 export function checkCoords(lat: number, lon: number): { lat: number; lon: number } {
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180)
@@ -477,31 +702,93 @@ function text(v: string | undefined, max: number, what: string): string | undefi
   return t;
 }
 
+/**
+ * Where a place stands when nobody kept who put it there: coordinates are the person's (personsHand) — a question asked
+ * of it never makes them the research's; no coordinates, nothing to keep.
+ */
+function originUnknown(p: Place): PlaceLocating {
+  return p.coords ? { by: "person", at: p.updated } : { by: "research", at: now() };
+}
+
 /** Coordinates a person gave, or whose origin nobody knows (before identification was kept): the research never changes them. */
 export function personsHand(p: Place): boolean {
   return !!p.coords && (!p.locating || p.locating.by === "person");
 }
 
-export interface IdentifyInput {
+export interface IdentifyInput extends PlaceDetails {
   lat: number;
   lon: number;
   why: string;
   source?: { title: string; url?: string };
-  /** Today's name, when the record's first is not it. */
-  name?: string;
-  /** Other names (another language, a historical name, the facts' variants). */
-  alt?: Place["names"];
-  kind?: string;
-  parent?: string;
-  jurisdictions?: Jurisdiction[];
-  /** Other forms of the facts that are the same place (K3.2): their names on the record. */
-  forms?: string[];
   by?: PlaceBy;
+  /** Records nearer than NEAR_KM that are another place (a part, a neighbour): said so by the agent. */
+  separate?: string[];
 }
 
-/** The forms queued for a place, and the place's forms, out of the queue. */
-function unqueue(file: PlacesFile, keys: string[]): void {
+/** What a step of identification wrote beside the place: today's name made first by itself, jurisdictions taken off. */
+export interface PlaceStep {
+  place: Place;
+  today?: string;
+  dropped: Jurisdiction[];
+}
+
+/**
+ * A step done on a place takes out of the queue every entry that leads to it now — the forms of its facts, and any
+ * form the queue keeps whose writing is a name of the record as the step leaves it (the facts written otherwise since,
+ * a rewrite, a merge) — and only those. `keys`: forms the step names itself. `only`: which entries go (all by default).
+ */
+function unqueue(tree: Tree, file: PlacesFile, changed: Place[], keys: string[], only: (e: QueueEntry, p: Place) => boolean = () => true): void {
+  const ids = new Set(changed.filter((p) => !p.retracted).map((p) => p.id));
+  const byId = new Set(changed.map((p) => p.id));
+  const recordOf = recordIndexOf([...tree.list<Place>("place").filter((p) => !byId.has(p.id)), ...changed]);
+  for (const [k, e] of Object.entries(file.queue)) {
+    const p = recordOf(e.form);
+    if ((keys.includes(k) && only(e, changed[0]!)) || (p && ids.has(p.id) && only(e, p))) delete file.queue[k];
+  }
+}
+
+/**
+ * A queue entry whose place was dealt with after it was queued (identified, checked, asked, not located) — what an
+ * earlier strom left in the queue when the facts' form of it was written otherwise before the step. An entry the
+ * person put back (`back`) is never taken out so.
+ */
+export function settledBy(p: Place, e: QueueEntry): boolean {
+  if (e.back) return false;
+  const l = p.locating;
+  const asked = !!l?.question && l.question.at >= e.at;
+  // checked after it was queued: the time of the check (an earlier strom kept only the day of a check found right — a
+  // later day; the same day, or a check undecided of no time, is not known to come after)
+  if (e.check) return !!p.coords && (asked || (l?.checked ? l.checked >= e.at : !!l?.verified && l.verified > e.at.slice(0, 10)));
+  // a place on the map is never queued to be looked for (queuePlaces): on the map since, it was identified
+  return !!p.coords || asked || (!!p.unlocated && (l?.at ?? "") >= e.at);
+}
+
+/**
+ * The entries of the queue whose place was dealt with already (settledBy) taken out — nothing else: an entry of no
+ * record, of a record two places bear, or of a place still to be done stays. One operation; while the person has no
+ * step to undo, `strom place undo` puts them back (and they stay then). Inside the tree's lock; the forms taken out.
+ */
+export function settleQueue(tree: Tree): string[] {
+  const file = readPlacesFile(tree);
+  if (!Object.keys(file.queue).length) return [];
+  const recordOf = recordIndex(tree);
+  const gone: Record<string, QueueEntry> = {};
+  for (const [k, e] of Object.entries(file.queue)) {
+    const p = recordOf(e.form);
+    if (p && settledBy(p, e)) gone[k] = e;
+  }
+  const keys = Object.keys(gone);
+  if (!keys.length) return [];
   for (const k of keys) delete file.queue[k];
+  const undo = keepUndo(file, { id: undoId(file), at: now(), places: {}, queue: gone });
+  const forms = keys.map((k) => gone[k]!.form);
+  write(tree, [], file, {
+    op: "place.settle",
+    targets: [],
+    reason: "queue entries of places dealt with already, left by an earlier version; nothing else taken out",
+    summary: `out of the queue, dealt with already: ${forms.length === 1 ? `place "${forms[0]}"` : `${forms.length} places (${forms.join(", ").slice(0, 600)})`} — undo: strom place undo ${undo}`,
+  });
+  return forms;
 }
 
 /**
@@ -509,7 +796,7 @@ function unqueue(file: PlacesFile, keys: string[]): void {
  * when there is none), who and why and from what; out of the queue, no longer "not located", any question of it closed.
  * Refused where the person's hand is (K2.5). Inside the tree's lock.
  */
-export function identifyPlace(tree: Tree, ref: string, input: IdentifyInput): Place {
+export function identifyPlace(tree: Tree, ref: string, input: IdentifyInput): PlaceStep {
   return tree.withTreeLock(() => {
     const forms = factForms(tree);
     const t = target(tree, ref, forms);
@@ -518,37 +805,33 @@ export function identifyPlace(tree: Tree, ref: string, input: IdentifyInput): Pl
     if (by !== "person" && personsHand(p))
       throw new UsageError(
         `${p.id} ${p.names[0]?.name}: the coordinates were given by the person${p.locating ? "" : " (or before the research kept who)"} — the research does not change them`,
-        { code: "place.manual", params: { place: p.id }, hint: `the records say otherwise: strom place propose ${p.id} --conflict --candidate …; they agree: strom place verify ${p.id} --ok` },
+        { code: "place.manual", params: { place: p.id }, hint: `the records say otherwise: strom place propose ${p.id} --conflict --candidate …; they agree: strom place verify ${p.id} --ok (with --alt, --form, --jurisdiction of what was found)` },
       );
     const coords = checkCoords(input.lat, input.lon);
     const why = text(input.why, 1000, "--why");
     if (!why) throw new UsageError("why it is this place: --why \"…\" (the parish of the records, the district, the years)", { code: "place.why" });
-    if (input.parent) {
-      const parent = tree.get<Place>(input.parent);
-      if (!parent || parent.type !== "place" || parent.id === p.id) throw new UsageError(`no place ${input.parent} to be its parent`, { code: "place.unknown" });
-      p.parent = parent.id;
+    // one place, one record: another record this near is the same place until the agent says it is not
+    if (by !== "person") {
+      const near = nearRecords(tree, p, coords, new Set((input.separate ?? []).map((s) => placeIdOf(s) ?? s)));
+      if (near.length) {
+        const o = near[0]!.place;
+        const form = t.made ? p.names[0]!.name : p.id;
+        throw new UsageError(
+          `${t.made ? `"${form}"` : `${p.id} ${p.names[0]!.name}`} would lie ${near[0]!.km.toFixed(1)} km from ${near.map((x) => `${x.place.id} ${x.place.names[0]!.name}`).join(", ")} — the same place written twice?`,
+          {
+            code: "place.near",
+            params: { place: o.id },
+            hint: [
+              t.made
+                ? `the same place: its record takes the form — strom place verify ${o.id} --ok --form "${form}" --why "…"`
+                : `the same place: strom place merge ${p.id} --into ${o.id} --reason "…"`,
+              `another place close by (a part of it, a neighbour): the same command with --separate ${near.map((x) => x.place.id).join(" --separate ")}`,
+            ].join("\n"),
+          },
+        );
+      }
     }
-    if (input.name) {
-      const name = text(input.name, 300, "--name")!;
-      const was = p.names[0];
-      // the name that was first stays as what it is: a form of the facts, or another name of the place
-      const rest = p.names
-        .map((n) => (n === was && !n.kind ? { ...n, kind: forms.has(foldText(n.name)) ? ("form" as const) : ("alt" as const) } : n))
-        .filter((n) => !(foldText(n.name) === foldText(name) && !n.lang));
-      p.names = [{ name }, ...rest];
-    }
-    for (const a of input.alt ?? []) addPlaceName(p, a.name, "alt", a);
-    for (const k of t.keys) addName(p, forms.get(k)?.form ?? k);
-    const more: string[] = [];
-    for (const f of input.forms ?? []) {
-      const key = foldText(f.normalize("NFC").trim());
-      if (!key) continue;
-      addName(p, forms.get(key)?.form ?? f);
-      more.push(key);
-    }
-    if (input.kind) p.kind = input.kind;
-    for (const j of input.jurisdictions ?? [])
-      if (!p.jurisdictions.some((x) => x.kind === j.kind && foldText(x.name) === foldText(j.name) && x.from === j.from && x.to === j.to)) p.jurisdictions.push(j);
+    const { more, dropped, today } = applyDetails(tree, p, t, input, forms);
     const kept = p.locating?.kept;
     p.coords = coords;
     delete p.unlocated;
@@ -562,14 +845,19 @@ export function identifyPlace(tree: Tree, ref: string, input: IdentifyInput): Pl
     p.locating = locating;
     p.updated = now();
     const file = readPlacesFile(tree);
-    unqueue(file, [...t.keys, ...more]);
+    unqueue(tree, file, [p], [...t.keys, ...more]);
     write(tree, [p], file, {
       op: "place.identify",
       targets: [p.id],
-      summary: `${p.id} ${p.names[0]!.name} identified (${by}): ${coords.lat}, ${coords.lon} — ${why.slice(0, 80)}`,
+      summary: `${p.id} ${p.names[0]!.name} identified (${by}): ${coords.lat}, ${coords.lon} — ${why.slice(0, 80)}${detailsSaid(today, dropped)}`,
+      ...(dropped.length ? { reason: why } : {}),
     });
-    return p;
+    return { place: p, ...(today ? { today } : {}), dropped };
   });
+}
+
+function detailsSaid(today: string | undefined, dropped: Jurisdiction[]): string {
+  return `${today ? `; today's name ${today} first` : ""}${dropped.length ? `; taken off as wrong: ${dropped.map((j) => `${j.kind} ${j.name}`).join(", ")}` : ""}`;
 }
 
 /** Not determined (K2.2): the one state "not located", with why and what would decide it; out of the queue. */
@@ -593,7 +881,7 @@ export function unlocatePlace(tree: Tree, ref: string, why: string, needs?: stri
     if (!n) delete p.locating.needs;
     p.updated = now();
     const file = readPlacesFile(tree);
-    unqueue(file, t.keys);
+    unqueue(tree, file, [p], t.keys);
     write(tree, [p], file, { op: "place.unlocated", targets: [p.id], summary: `${p.id} ${p.names[0]!.name} not located: ${w.slice(0, 80)}` });
     return p;
   });
@@ -645,36 +933,120 @@ export function proposePlace(tree: Tree, ref: string, q: Omit<PlaceQuestion, "at
       ...(q.change ? { change: q.change } : {}),
       ...(why ? { why } : {}),
     };
-    p.locating = { ...(p.locating ?? { by: "research", at: now() }), question };
+    p.locating = { ...(p.locating ?? originUnknown(p)), question };
     p.updated = now();
     const file = readPlacesFile(tree);
-    unqueue(file, t.keys);
+    unqueue(tree, file, [p], t.keys);
     write(tree, [p], file, { op: "place.propose", targets: [p.id], summary: `${p.id} ${p.names[0]!.name}: a question for the person (${q.kind}${q.candidates ? `, ${q.candidates.length} candidates` : ""})` });
     return p;
   });
 }
 
-/** The coordinates checked by the research (K6.6): right (the day kept), or why it cannot be decided; out of the queue. */
-export function verifyPlace(tree: Tree, ref: string, result: { ok: true; why?: string } | { ok: false; why: string }): Place {
+/**
+ * The coordinates checked by the research (K6.6): right (the day kept, and on what), or why it cannot be decided; out
+ * of the queue. What the check found of the place beside its coordinates is written too — its other names, the forms
+ * of the facts that are it, its jurisdictions (a wrong one taken off, said why) — the coordinates never moved.
+ */
+export function verifyPlace(
+  tree: Tree,
+  ref: string,
+  result: ({ ok: true; why?: string } | { ok: false; why: string }) & { source?: { title: string; url?: string } },
+  details: PlaceDetails = {},
+): PlaceStep {
   return tree.withTreeLock(() => {
     const forms = factForms(tree);
     const t = target(tree, ref, forms);
     const p = t.place;
-    if (!p.coords) throw new UsageError(`${p.id} has no coordinates to check: strom place identify ${p.id} …`, { code: "place.coords" });
+    if (t.made || !p.coords) throw new UsageError(`${t.made ? `"${p.names[0]!.name}"` : p.id} has no coordinates to check: strom place identify ${t.made ? `"${p.names[0]!.name}"` : p.id} …`, { code: "place.coords" });
     const why = text(result.why, 1000, "--why");
+    if (details.drop?.length && !why) throw new UsageError('why the jurisdiction is wrong: --why "…" (what the records or the reference say)', { code: "place.why" });
+    const { more, dropped, today } = applyDetails(tree, p, t, details, forms);
     const base: PlaceLocating = p.locating ?? { by: "person", at: p.updated };
+    const { verifiedSource: _s, ...kept } = base;
+    const source = result.source ? { verifiedSource: { title: text(result.source.title, 300, "--source-title")!, ...(result.source.url ? { url: result.source.url.trim() } : {}) } } : {};
     if (result.ok) {
-      const { checkWhy: _c, ...rest } = base;
-      p.locating = { ...rest, verified: now().slice(0, 10) };
+      const { checkWhy: _c, verifiedWhy: _w, ...rest } = kept;
+      const at = now();
+      p.locating = { ...rest, verified: at.slice(0, 10), checked: at, ...(why ? { verifiedWhy: why } : {}), ...source };
     } else {
       if (!why) throw new UsageError('why it cannot be decided: --undecided "…"', { code: "place.why" });
-      p.locating = { ...base, checkWhy: why };
+      p.locating = { ...kept, checkWhy: why, checked: now(), ...source };
     }
     p.updated = now();
     const file = readPlacesFile(tree);
-    unqueue(file, t.keys);
-    write(tree, [p], file, { op: "place.verify", targets: [p.id], summary: `${p.id} ${p.names[0]!.name}: ${result.ok ? "checked, right" : `checked, cannot be decided — ${why!.slice(0, 60)}`}` });
-    return p;
+    unqueue(tree, file, [p], [...t.keys, ...more]);
+    write(tree, [p], file, {
+      op: "place.verify",
+      targets: [p.id],
+      summary: `${p.id} ${p.names[0]!.name}: ${result.ok ? "checked, right" : `checked, cannot be decided — ${why!.slice(0, 60)}`}${detailsSaid(today, dropped)}`,
+      ...(dropped.length ? { reason: why! } : {}),
+    });
+    return { place: p, ...(today ? { today } : {}), dropped };
+  });
+}
+
+/**
+ * Two records of one place made one (the research sure, with the reason): the duplicate's names, forms and
+ * jurisdictions taken into the other, its parts moved under it, the duplicate retracted with where it went. The
+ * person's coordinates win: the duplicate's go over when the other has none or only the research's. Two places further
+ * apart than NEAR_KM are not merged — that is the person's question. Inside the tree's lock.
+ */
+export function mergePlaces(tree: Tree, dupRef: string, intoRef: string, reason: string): Place {
+  return tree.withTreeLock(() => {
+    const get = (ref: string) => {
+      const id = placeIdOf(ref);
+      const p = id ? tree.get<Place>(id) : undefined;
+      if (!p || p.type !== "place" || p.retracted) throw new UsageError(`no place ${ref}: place IDs (L0012)`, { code: "place.unknown", hint: "strom place list" });
+      return p;
+    };
+    const dup = get(dupRef);
+    const into = structuredClone(get(intoRef));
+    if (dup.id === into.id) throw new UsageError(`${dup.id} is one record`, { code: "place.merge" });
+    if (into.parent === dup.id || dup.parent === into.id) throw new UsageError(`${dup.id} and ${into.id}: one is a part of the other — not one place`, { code: "place.merge" });
+    const why = text(reason, 1000, "--reason");
+    if (!why) throw new UsageError('why it is one place: --reason "…"', { code: "place.why" });
+    if (dup.coords && into.coords) {
+      const d = placeKm(dup.coords, into.coords);
+      if (d > NEAR_KM)
+        throw new UsageError(`${dup.id} and ${into.id} lie ${d.toFixed(1)} km apart — not merged by the research`, {
+          code: "place.far",
+          hint: `the map is wrong on one: strom place propose ${personsHand(into) ? into.id : dup.id} --conflict --candidate …`,
+        });
+    }
+    const forms = factForms(tree);
+    if (dup.coords && (!into.coords || (personsHand(dup) && !personsHand(into)))) {
+      into.coords = { ...dup.coords };
+      if (dup.locating) into.locating = { ...structuredClone(dup.locating) };
+      else into.locating = { by: "person", at: dup.updated };
+      delete into.unlocated;
+    }
+    for (const n of dup.names) {
+      const plain = !n.lang && n.from === undefined && n.to === undefined;
+      addPlaceName(into, n.name, n.kind ?? (plain && forms.has(foldText(n.name)) ? "form" : "alt"), n);
+    }
+    for (const j of dup.jurisdictions)
+      if (!into.jurisdictions.some((x) => x.kind === j.kind && foldText(x.name) === foldText(j.name) && x.from === j.from && x.to === j.to)) into.jurisdictions.push(structuredClone(j));
+    if (!into.kind && dup.kind) into.kind = dup.kind;
+    if (!into.parent && dup.parent && dup.parent !== into.id) into.parent = dup.parent;
+    into.notes = [...into.notes, ...dup.notes.map((n) => structuredClone(n))];
+    const t = now();
+    into.updated = t;
+    const parts = tree
+      .list<Place>("place")
+      .filter((x) => !x.retracted && x.parent === dup.id && x.id !== into.id)
+      .map((x) => ({ ...structuredClone(x), parent: into.id, updated: t }));
+    const gone: Place = { ...structuredClone(dup), retracted: { at: t, reason: `the same place as ${into.id}: ${why}` }, mergedInto: into.id, updated: t };
+    // the queue's forms of the duplicate lead to the one record now: out where it was dealt with already
+    const file = readPlacesFile(tree);
+    const was = JSON.stringify(file.queue);
+    unqueue(tree, file, [into, gone, ...parts], [], (e, p) => settledBy(p, e));
+    write(tree, [into, gone, ...parts], JSON.stringify(file.queue) !== was ? file : undefined, {
+      op: "place.merge",
+      targets: [into.id, dup.id, ...parts.map((x) => x.id)].sort(),
+      summary: `${dup.id} ${dup.names[0]!.name} merged into ${into.id} ${into.names[0]!.name}${parts.length ? ` (its parts ${parts.map((x) => x.id).join(", ")} with it)` : ""}`,
+      reason: why,
+    });
+    return into;
   });
 }
 
@@ -751,7 +1123,7 @@ export function rewriteForm(
     if (opts.propose) {
       const why = text(opts.why ?? opts.reason, 1000, "--why");
       place.locating = {
-        ...(place.locating ?? { by: "research", at: now() }),
+        ...(place.locating ?? originUnknown(place)),
         question: { kind: "form", at: now(), change: { from: { place: form.normalize("NFC").trim() }, to: { place: name, ...(to.house ? { house: to.house } : {}) }, facts: changes.length }, ...(why ? { why } : {}) },
       };
       place.updated = now();
@@ -762,7 +1134,32 @@ export function rewriteForm(
     if (!reason) throw new UsageError('why the facts write it so: --reason "…"', { code: "place.why" });
     const { records, done, left: gone } = applyChanges(tree, changes, "before");
     place.updated = now();
-    write(tree, [place, ...records], undefined, {
+    // the form's entry of the queue leads to the record now: out where the place was dealt with already
+    const file = readPlacesFile(tree);
+    const was = JSON.stringify(file.queue);
+    // the form's entry no fact writes now and no one record bears (another place of that name: found on 1.26.0-beta.2)
+    // goes with the facts to their place — the person's check never left of no place, and checked only there
+    const key = foldText(form.normalize("NFC").trim());
+    const e = file.queue[key];
+    const recordOf = recordIndexOf([...tree.list<Place>("place").filter((x) => x.id !== place.id), place]);
+    if (e && !left.length && !gone && recordOf(e.form)?.id !== place.id) {
+      const to = foldText(name);
+      const there = file.queue[to];
+      const check = !!place.coords && (!!e.check || !!there?.check);
+      const flag = there?.flag ?? e.flag;
+      const back = !!there?.back || !!e.back;
+      delete file.queue[key];
+      file.queue[to] = {
+        form: there?.form ?? name,
+        at: there && there.at > e.at ? there.at : e.at,
+        by: there?.by === "person" || e.by === "person" ? "person" : "research",
+        ...(check ? { check: true } : {}),
+        ...(flag ? { flag } : {}),
+        ...(back ? { back: true as const } : {}),
+      };
+    }
+    unqueue(tree, file, [place], [], (e, x) => settledBy(x, e));
+    write(tree, [place, ...records], JSON.stringify(file.queue) !== was ? file : undefined, {
       op: "place.rewrite",
       targets: [place.id, ...records.map((r) => r.id)].sort(),
       summary: `the facts' place "${form}" → ${name}${to.house ? ` (house ${to.house})` : ""}: ${done.length} facts in ${records.length} records${left.length ? `, ${left.length} left (another house)` : ""}`,
@@ -871,12 +1268,12 @@ export function answerPlaces(tree: Tree, ids: string[], take: PlaceTake, opts: {
     const file = readPlacesFile(tree);
     const before = new Map(places.map((p) => [p.id, tree.get<Place>(p.id)!]));
     const undo: PlacesUndo = {
-      id: `u${Date.now().toString(36)}`,
+      id: undoId(file),
       at: now(),
       places: Object.fromEntries(places.map((p) => [p.id, { before: before.get(p.id)!, after: p.updated }])),
       ...(done.length ? { facts: done } : {}),
     };
-    file.undo = undo;
+    keepUndo(file, undo);
     write(tree, [...places, ...records], file, {
       op: "place.answer",
       targets: [...places.map((p) => p.id), ...records.map((r) => r.id)].sort(),
@@ -888,14 +1285,15 @@ export function answerPlaces(tree: Tree, ids: string[], take: PlaceTake, opts: {
 }
 
 /**
- * The person's last step on places undone (answers, a whole batch of them): each place as it was where nothing changed
- * it since, the facts' places back where still so. Inside the tree's lock.
+ * A step on places undone by its ID (the person's answers, a whole batch of them; names taken off; the queue tidied —
+ * each of the last UNDO_KEPT once): each place as it was where nothing changed it since, the facts' places back where
+ * still so, the queue's entries back. Inside the tree's lock.
  */
 export function undoPlaces(tree: Tree, id: string): { restored: string[]; left: string[] } {
   return tree.withTreeLock(() => {
     const file = readPlacesFile(tree);
-    const u = file.undo;
-    if (!u || u.id !== id) throw new UsageError("nothing to undo of that step (only the last step on places, once)", { code: "places.undo.later" });
+    const u = file.undo?.id === id ? file.undo : file.undos?.find((x) => x.id === id);
+    if (!u) throw new UsageError(`nothing to undo of that step (each step on places once, the last ${UNDO_KEPT})`, { code: "places.undo.later" });
     const restored: string[] = [];
     const left: string[] = [];
     const records: (Place | Person | Family)[] = [];
@@ -908,13 +1306,35 @@ export function undoPlaces(tree: Tree, id: string): { restored: string[]; left: 
       if (before) records.push({ ...before, updated: now() });
       restored.push(pid);
     }
-    if (left.length) throw new UsageError(`changed since: ${left.join(", ")} — the step is not undone`, { code: "places.undo.later", params: { places: left.join(", ") } });
+    if (left.length)
+      throw new UsageError(`changed since: ${left.join(", ")} — the step is not undone (a later step on the same place is undone first)`, {
+        code: "places.undo.later",
+        params: { places: left.join(", ") },
+      });
+    // an earlier step still to be undone that left a place as this undo puts it back: it knows the place by its new time
+    for (const r of records) {
+      const was = u.places[r.id]!.before!.updated;
+      for (const x of [file.undo, ...(file.undos ?? [])]) if (x && x !== u && x.places[r.id]?.after === was) x.places[r.id] = { ...x.places[r.id]!, after: r.updated };
+    }
     const back = applyChanges(tree, u.facts ?? [], "after");
-    delete file.undo;
+    // the queue's entries the step took out: back, and kept there (never taken out by the tidying again)
+    let queued = 0;
+    for (const [k, e] of Object.entries(u.queue ?? {})) {
+      if (file.queue[k]) continue;
+      file.queue[k] = { ...e, back: true };
+      queued++;
+    }
+    // out of the steps to be undone; the one before it the newest again
+    if (file.undo === u) {
+      const before = file.undos?.pop();
+      if (before) file.undo = before;
+      else delete file.undo;
+    } else file.undos = file.undos!.filter((x) => x !== u);
+    if (!file.undos?.length) delete file.undos;
     write(tree, [...records, ...back.records], file, {
       op: "place.undo",
       targets: [...restored, ...back.records.map((r) => r.id)].sort(),
-      summary: `the last step on places undone: ${restored.length} places${back.done.length ? `, ${back.done.length} facts' places back` : ""}`,
+      summary: `a step on places undone (${u.id}): ${restored.length} places${back.done.length ? `, ${back.done.length} facts' places back` : ""}${queued ? `, ${queued} back in the queue` : ""}`,
     });
     return { restored, left };
   });
@@ -972,6 +1392,8 @@ export function convertHistoryUnlocated(tree: Tree, entries: Record<string, { st
 export function raisePlacesTask(tree: Tree, archive: boolean): string | undefined {
   if (tree.dryRun || archive) return undefined;
   return tree.withTreeLock(() => {
+    // what an earlier version left in the queue of places dealt with already: out first, so the count is right
+    settleQueue(tree);
     const file = readPlacesFile(tree);
     const forms = factForms(tree);
     const recordOf = recordIndex(tree);
@@ -1030,20 +1452,244 @@ export function raisePlacesTask(tree: Tree, archive: boolean): string | undefine
 }
 
 /**
+ * Names of a place record found wrong (a slip of a record kept as a form, another place's name) taken off, with the
+ * reason: never today's name (the first), never a name a fact of the tree still writes for this place (set the facts
+ * right first: strom place rewrite). One operation; while the person has no step to undo, `strom place undo` puts them
+ * back. Inside the tree's lock.
+ */
+export function dropPlaceNames(tree: Tree, ref: string, names: string[], reason: string): { place: Place; dropped: PlaceName[]; undo: string } {
+  return tree.withTreeLock(() => {
+    const id = placeIdOf(ref);
+    const was = id ? tree.get<Place>(id) : undefined;
+    if (!was || was.type !== "place" || was.retracted) throw new UsageError(`no place ${ref}: a place ID (L0012)`, { code: "place.unknown", hint: "strom place list" });
+    const why = text(reason, 1000, "--why");
+    if (!why) throw new UsageError('why the name is wrong: --why "…"', { code: "place.why" });
+    if (!names.length) throw new UsageError('which name: --drop "<name>"', { code: "place.name" });
+    const p = structuredClone(was);
+    const forms = factForms(tree);
+    const recordOf = recordIndex(tree);
+    const dropped: PlaceName[] = [];
+    for (const raw of names) {
+      const n = raw.normalize("NFC").trim();
+      const key = foldText(n);
+      // the very writing first, else any of the same letters (any accent)
+      const exact = p.names.findIndex((x) => x.name === n);
+      const hit = exact >= 0 ? exact : p.names.findIndex((x) => foldText(x.name) === key);
+      if (hit < 0) throw new UsageError(`${p.id} has no name "${n}" (it has ${p.names.map((x) => x.name).join(", ")})`, { code: "place.name" });
+      if (hit === 0) throw new UsageError(`"${n}" is the first name of ${p.id} — today's name is set with --name (strom place verify ${p.id} --ok --name "…")`, { code: "place.name" });
+      const f = forms.get(foldText(p.names[hit]!.name));
+      if (f && recordOf(f.form)?.id === p.id && !p.names.some((x, i) => i !== hit && foldText(x.name) === foldText(p.names[hit]!.name)))
+        throw new UsageError(`${f.facts === 1 ? "a fact" : `${f.facts} facts`} of the tree still write "${f.form}" — set them right first: strom place rewrite "${f.form}" --to ${p.id} --reason "…"`, { code: "place.form" });
+      dropped.push(p.names[hit]!);
+      p.names.splice(hit, 1);
+    }
+    p.updated = now();
+    const file = readPlacesFile(tree);
+    const undo = keepUndo(file, { id: undoId(file), at: now(), places: { [p.id]: { before: was, after: p.updated } } });
+    write(tree, [p], file, {
+      op: "place.names",
+      targets: [p.id],
+      reason: why,
+      summary: `${p.id} ${p.names[0]!.name}: name${dropped.length === 1 ? "" : "s"} taken off as wrong: ${dropped.map((x) => `${x.name}${x.lang ? `@${x.lang}` : ""}`).join(", ")} — ${why.slice(0, 80)} — undo: strom place undo ${undo}`,
+    });
+    return { place: p, dropped, undo };
+  });
+}
+
+/**
+ * The other names history's map is told of a place (strom history map --also) written among its record's names too —
+ * the record is where the app and the identification read them. Nothing where the facts' place has no one record.
+ * Inside the tree's lock.
+ */
+export function addOtherNames(tree: Tree, form: string, also: string[]): Place | undefined {
+  if (!also.length || tree.dryRun) return undefined;
+  return tree.withTreeLock(() => {
+    const r = recordIndex(tree)(form);
+    if (!r) return undefined;
+    const p = structuredClone(r);
+    for (const a of also) {
+      let n: PlaceName;
+      try {
+        n = parseAltName(a);
+      } catch {
+        continue;
+      }
+      addPlaceName(p, n.name, "alt", n);
+    }
+    if (JSON.stringify(p.names) === JSON.stringify(r.names)) return undefined;
+    p.updated = now();
+    write(tree, [p], undefined, { op: "place.names", targets: [p.id], summary: `${p.id} ${p.names[0]!.name}: other names ${also.join(", ")}` });
+    return p;
+  });
+}
+
+/** The repairs of the place records done once per tree (repairPlaces): raised when a new one is added. */
+export const PLACES_REPAIR = 1;
+
+/** A question asked of coordinates nobody kept the origin of, written by 1.25 as the research's (its origin the question's moment). */
+function originByQuestion(p: Place): boolean {
+  const l = p.locating;
+  const q = l?.question;
+  return !!p.coords && !!l && !!q && l.by === "research" && !l.why && !l.source && !l.verified && Math.abs(Date.parse(l.at) - Date.parse(q.at)) < 1000;
+}
+
+/**
+ * Another name of no language a record has twice (addPlaceName of an older strom): the same words are today's name, or
+ * another name with a language whose years are the same or this one has none.
+ */
+function twiceWithLanguage(p: Place, n: PlaceName): boolean {
+  if (n.kind !== "alt" || n.lang) return false;
+  const key = foldText(n.name);
+  const noYears = n.from === undefined && n.to === undefined;
+  return p.names.some((m, i) => m !== n && foldText(m.name) === key && (i === 0 ? noYears : !!m.lang && (noYears || (m.from === n.from && m.to === n.to))));
+}
+
+/**
+ * Once per tree (PLACES_REPAIR), what earlier versions wrote wrong into the place records set right — nothing taken
+ * away: a name kept with its language and years as its text ("Lhotow@cs:1844") read as what it says; coordinates a
+ * question made the research's (their origin unknown) the person's again; today's name first on a place the research
+ * identified while the old name was first; the other names history's map keeps of a place (strom history map --also)
+ * written among the record's names too; a name written twice (once with its language, once of none) kept once. One
+ * operation; while the person has no step to undo, `strom place undo` takes it back. Inside the tree's lock.
+ */
+export function repairPlaces(tree: Tree): string[] {
+  const file = readPlacesFile(tree);
+  if ((file.repaired ?? 0) >= PLACES_REPAIR) return [];
+  const forms = factForms(tree);
+  const recordOf = recordIndex(tree);
+  const changed = new Map<string, Place>();
+  const said: string[] = [];
+  const copy = (p: Place) => changed.get(p.id) ?? structuredClone(p);
+  for (const p0 of tree.list<Place>("place")) {
+    if (p0.retracted) continue;
+    let p = copy(p0);
+    const notes: string[] = [];
+    // a name with its syntax as text
+    p.names = p.names.map((n, i) => {
+      const parsed = nameWithSyntax(n);
+      if (!parsed) return n;
+      notes.push(`"${n.name}" read as ${parsed.name}`);
+      const { kind: _k, ...name } = parsed;
+      return i === 0 ? name : { ...name, kind: n.kind ?? "alt" };
+    });
+    if (originByQuestion(p)) {
+      p.locating = { ...p.locating!, by: "person", at: p.updated };
+      notes.push("the coordinates the person's again (a question had made them the research's)");
+    }
+    if (p.locating && p.locating.by !== "person") {
+      const a = todayName(p, yearsOf(p, forms));
+      if (a) {
+        setFirst(p, a, forms);
+        notes.push(`today's name ${a.name} first`);
+      }
+    }
+    if (notes.length) {
+      p.updated = now();
+      changed.set(p.id, p);
+      said.push(`${p.id} ${notes.join("; ")}`);
+    }
+  }
+  // the other names history's map keeps of a place: among the record's names too
+  for (const [key, m] of Object.entries(readPlaces(tree))) {
+    if (!m?.also?.length) continue;
+    const r = recordOf(key);
+    if (!r) continue;
+    const p = copy(r);
+    const before = JSON.stringify(p.names);
+    for (const a of m.also) {
+      let n: PlaceName;
+      try {
+        n = parseAltName(a);
+      } catch {
+        continue;
+      }
+      addPlaceName(p, n.name, "alt", n);
+    }
+    if (JSON.stringify(p.names) !== before) {
+      p.updated = now();
+      changed.set(p.id, p);
+      said.push(`${p.id} the names of history's map: ${m.also.join(", ")}`);
+    }
+  }
+  // a name written twice by an older strom: another name of no language (and no years of its own) beside the same words
+  // with a language, or the same as today's — the one of no language goes, nothing it said is lost
+  for (const p0 of tree.list<Place>("place")) {
+    if (p0.retracted) continue;
+    const p = copy(p0);
+    const twice = p.names.filter((n, i) => i > 0 && twiceWithLanguage(p, n));
+    if (!twice.length) continue;
+    p.names = p.names.filter((n) => !twice.includes(n));
+    p.updated = now();
+    changed.set(p.id, p);
+    said.push(`${p.id} written twice: ${twice.map((n) => n.name).join(", ")}`);
+  }
+  const records = [...changed.values()];
+  // nothing to set right: nothing written (looked at again next time — a tree that never had places stays without the file)
+  if (!records.length) return [];
+  file.repaired = PLACES_REPAIR;
+  const undo = keepUndo(file, {
+    id: undoId(file),
+    at: now(),
+    places: Object.fromEntries(records.map((p) => [p.id, { before: tree.get<Place>(p.id)!, after: p.updated }])),
+  });
+  write(tree, records, file, {
+    op: "place.repair",
+    targets: records.map((p) => p.id).sort(),
+    // a name read from its syntax, or written twice, is no name lost: the data check takes the step as reasoned
+    reason: "what an earlier version wrote into the place records set right, nothing lost (undo kept)",
+    summary: `place records set right (${records.length}): ${said.join(" · ").slice(0, 1500)} — undo: strom place undo ${undo}`,
+  });
+  return said;
+}
+
+/**
+ * What a session on the places did, counted by strom from its own log and said in the research's language — the
+ * agent's summary follows it. Checked is never identified: a place whose coordinates were right already is "verified".
+ */
+export function placesSessionCounts(tree: Tree, sessionId: string): string {
+  const n = { identified: 0, verified: 0, undecided: 0, asked: 0, unlocated: 0, merged: 0 };
+  for (const file of opsLogsOf(tree.dataDir, sessionId)) {
+    for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+      if (!line.trim()) continue;
+      let op: { op?: string; summary?: string };
+      try {
+        op = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (op.op === "place.identify") n.identified++;
+      else if (op.op === "place.verify") n[/: checked, right/.test(op.summary ?? "") ? "verified" : "undecided"]++;
+      else if (op.op === "place.propose") n.asked++;
+      else if (op.op === "place.unlocated") n.unlocated++;
+      else if (op.op === "place.merge") n.merged++;
+    }
+  }
+  return (Object.keys(n) as (keyof typeof n)[])
+    .filter((k) => n[k] > 0)
+    .map((k) => phrase(tree.lang, `places.count.${k}`, { n: n[k] }))
+    .join(", ");
+}
+
+/**
  * Where tasks are raised (a session's start and end, the frontier applied): history's places not located taken into
- * the records once, then the task of identification kept with the queue. Never in an archive or a dry run.
+ * the records once, what earlier versions wrote wrong set right once, then the task of identification kept with the
+ * queue. Never in an archive or a dry run.
  */
 export function keepPlacesTask(tree: Tree): string | undefined {
   if (tree.dryRun || actsAsArchive(tree)) return undefined;
   tree.withTreeLock(() => convertHistoryUnlocated(tree, readPlaces(tree)));
+  tree.withTreeLock(() => repairPlaces(tree));
   return raisePlacesTask(tree, false);
 }
 
-/** The jurisdiction of "<kind>:<name>[:from-to]". */
+/** The jurisdiction of "<kind>:<name>[:from-to]" — one year (":1899"): known so in that year, from and to alike. */
 export function parseJurisdiction(s: string): Jurisdiction {
-  const m = /^([^:]+):([^:]+?)(?::(\d{3,4})?-(\d{3,4})?)?$/u.exec(s.normalize("NFC").trim());
+  const m = /^([^:]+):([^:]+?)(?::(?:(\d{3,4})?-(\d{3,4})?|(\d{3,4})))?$/u.exec(s.normalize("NFC").trim());
   const kind = m?.[1]?.trim();
   if (!m || !kind || !(JURISDICTIONS as readonly string[]).includes(kind))
-    throw new UsageError(`--jurisdiction "${s}": "<kind>:<name>[:from-to]", kind one of ${JURISDICTIONS.join(", ")}`, { code: "place.jurisdiction" });
-  return { kind: kind as Jurisdiction["kind"], name: m[2]!.trim(), recordsets: [], ...(m[3] ? { from: Number(m[3]) } : {}), ...(m[4] ? { to: Number(m[4]) } : {}) };
+    throw new UsageError(`--jurisdiction "${s}": "<kind>:<name>[:from-to]" or one year "<kind>:<name>:<year>", kind one of ${JURISDICTIONS.join(", ")}`, { code: "place.jurisdiction" });
+  const from = m[3] ?? m[5];
+  const to = m[4] ?? m[5];
+  if (from && to && Number(from) > Number(to)) throw new UsageError(`--jurisdiction "${s}": the years ${from}-${to} go backwards`, { code: "place.jurisdiction" });
+  return { kind: kind as Jurisdiction["kind"], name: m[2]!.trim(), recordsets: [], ...(from ? { from: Number(from) } : {}), ...(to ? { to: Number(to) } : {}) };
 }

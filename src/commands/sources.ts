@@ -1,7 +1,7 @@
 // source · cite · repo · recordset · place — where the evidence comes from.
 
 import { OFF_MAP_HOW, offMapLine, placesOffMap } from "../core/places.ts";
-import { addPlaceName, otherNames, personsHand } from "../core/placeid.ts";
+import { addPlaceName, nameWithSyntax, otherNames, parseAltName, personsHand } from "../core/placeid.ts";
 import { isAgent } from "../core/which.ts";
 import fs from "node:fs";
 import { commands, register, type CommandDef, type Input } from "../cli/registry.ts";
@@ -21,6 +21,7 @@ import {
   type Media,
   type Person,
   type Place,
+  type PlaceName,
   type RecordSet,
   type Repository,
   type Source,
@@ -92,13 +93,7 @@ function clipRefs(tree: Tree, specs: string[], shared: string | undefined): Clip
 
 /** "Teinitz an der Elbe@de:1850-1918" → another name of a place. */
 export function altName(a: string): Place["names"][number] {
-  const m = /^(.+?)(?:@([a-z]{2,3}))?(?::(\d{3,4})?-(\d{3,4})?)?$/.exec(a);
-  if (!m) throw new UsageError(`invalid --alt "${a}"`, { hint: 'e.g. "Teinitz an der Elbe@de:1850-1918"' });
-  const n: Place["names"][number] = { name: m[1]!.trim() };
-  if (m[2]) n.lang = m[2];
-  if (m[3]) n.from = Number(m[3]);
-  if (m[4]) n.to = Number(m[4]);
-  return n;
+  return parseAltName(a);
 }
 
 /**
@@ -690,7 +685,9 @@ register(
     examples: ['strom place add "Týnec nad Labem" --alt "Teinitz an der Elbe@de" --kind town --lat 50.042 --lon 15.358', 'strom place add "Lhota" --kind village --unlocated "which Lhota: the record gives no parish"'],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
-      const named = { names: [{ name: args[0]!.trim() }] } as Place;
+      // the name written with the syntax of another name ("Lhotau@de:1850"): its name, language and years, never kept whole
+      const first: PlaceName = { name: args[0]!.normalize("NFC").trim() };
+      const named = { names: [nameWithSyntax(first) ?? first] } as Place;
       for (const n of listOpt(opts.alt).map(altName)) addPlaceName(named, n.name, "alt", n);
       const names = named.names;
       const lat = opts.lat === undefined ? undefined : Number(opts.lat);

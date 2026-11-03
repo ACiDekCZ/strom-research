@@ -19,7 +19,7 @@ import { decodeText, safeFolderName } from "../core/text.ts";
 import { humanAge } from "../core/age.ts";
 import { now, Tree } from "../core/tree.ts";
 import { actsAsArchive } from "../core/state.ts";
-import { applySync, discardReceived, nothingSince, withoutImages, planSync, readTreeFile, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput } from "../core/sync.ts";
+import { applySync, houseWords, discardReceived, nothingSince, withoutImages, planSync, readTreeFile, receivedAll, receivedPending, receivedSince, receivedOf, removedByItsDecision, settleReceived, SYNC_INBOX, syncConflicts, undoReceived, undoSync, type Change, type Plan, type Received, type SFact, type SPart, type Skipped, type Snapshot, type SyncInput } from "../core/sync.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { startLive } from "../core/live.ts";
 import { appSendsChanges, sendAppUrl, stromAppUrl } from "../core/stromapp.ts";
@@ -71,7 +71,7 @@ function factText(f: SFact | undefined, lang: string, name: (key: string) => str
 function detailText(f: SFact | undefined, lang: string, name: (key: string) => string = (k) => k): string {
   if (!f) return "";
   const ages = Object.entries(f.ages ?? {}).map(([who, a]) => `${name(who)} ${humanAge(a, lang)}`);
-  return [f.house && ui(lang, "ui.sync.house", { x: f.house }), f.age && humanAge(f.age, lang), ...ages, f.cause && ui(lang, "ui.sync.cause", { x: f.cause })].filter(Boolean).join(", ");
+  return [f.house && houseWords(lang, f.house), f.age && humanAge(f.age, lang), ...ages, f.cause && ui(lang, "ui.sync.cause", { x: f.cause })].filter(Boolean).join(", ");
 }
 
 /** A position on the map as a map shows it: degrees, six decimals at most. */

@@ -39,6 +39,8 @@ async function seeded(): Promise<World> {
   await w.ok(["recordset", "add", "Týnec 17", "--repo", "R0001"]);
   await w.ok(["place", "add", "Týnec nad Labem"]);
   await w.ok(["place", "add", "Horní Lhota", "--lat", "49.61", "--lon", "15.23"]); // L0002: place verify, rewrite --to, queue
+  await w.ok(["place", "jurisdiction", "L0002", "--kind", "parish", "--name", "Lhotov"]); // place verify --drop-jurisdiction
+  await w.ok(["place", "verify", "L0002", "--ok", "--form", "v Lhotě v", "--why", "a form of the register"]); // place names --drop
   await w.ok(["event", "add", "P0002", "RESI", "--date", "1890", "--place", "H. Lhota"]); // place identify|queue|rewrite
   await w.ok(["event", "add", "P0003", "RESI", "--date", "1895", "--place", "Lhota"]); // place unlocated|propose
   await w.ok(["event", "add", "P0002", "DEAT", "--date", "1930", "--place", "Lhota, Dlouhá"]); // place rewrite --house
@@ -138,6 +140,9 @@ async function seeded(): Promise<World> {
   const reads = path.join(w.cwd, ".strom", "reads");
   fs.mkdirSync(reads, { recursive: true });
   const at = "2026-01-01T12:00:00.000Z";
+  // a second record of Horní Lhota close by (place merge)
+  const dup = (await w.ok(["place", "add", "Nová Lhota", "--lat", "49.611", "--lon", "15.231", "--json"])).json.place.id;
+  assert.equal(dup, "L0003", "the place merge example's ID");
   fs.writeFileSync(path.join(reads, "D20260101120000-ab12.json"), JSON.stringify({ id: "D20260101120000-ab12", state: "done", version: 1, readers: 1, lang: "cs", pages: [{ n: 1, file: "I0005", name: "dopis.pdf", page: 1 }], groups: [[1]], reports: [], at, since: at }));
   return w;
 }

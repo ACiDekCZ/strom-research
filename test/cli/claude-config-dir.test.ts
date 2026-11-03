@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { World } from "../helpers.ts";
-import { claudeConfigDir, claudeConfigSet, claudeEnv, claudeStateFile, isClaudeCommand } from "../../src/core/claudedir.ts";
+import { claudeConfigDir, claudeConfigSet, claudeEnv, claudeLoggedIn, claudeLoginCommand, claudeStateFile, forClaude, isClaudeCommand, isDefaultClaudeDir, saysDefaultClaudeDir } from "../../src/core/claudedir.ts";
 import { configFile, Settings } from "../../src/core/config.ts";
 import { claudeRunner } from "../../src/runners/claude.ts";
 import { spawnAgent } from "../../src/runners/runner.ts";
@@ -17,6 +17,7 @@ import { askGate } from "../../src/core/gate.ts";
 import { transcriptFile, projectSlug } from "../../src/core/transcripts.ts";
 import { conversationEnv } from "../../src/agents/launch.ts";
 import { globalTargets } from "../../src/agents/global.ts";
+import { opts as sessionOpts, world } from "./session.helpers.ts";
 
 const posix = { skip: process.platform === "win32" };
 
@@ -168,6 +169,90 @@ test("strom config set agent.claudeConfigDir: a folder that is there, ~ expanded
     // unset: Claude Code's own default again
     await w.ok(["config", "unset", "agent.claudeConfigDir"], { tty: true });
     assert.equal(claudeConfigDir(w.env), path.join(home, ".claude"));
+  } finally {
+    w.cleanup();
+  }
+});
+
+test("Claude Code's default folder said outright (CLAUDE_CONFIG_DIR=~/.claude, with a separator at the end, or the setting) is no folder: every claude strom starts goes without the variable", posix, async () => {
+  // found 2026-11-03: Claude Code with its default folder said outright looks for another login and is not logged in
+  const p = place();
+  const keyed = place("~/.claude");
+  try {
+    const def = path.join(p.home, ".claude");
+    for (const said of [def, `${def}/`, "~/.claude", "~/.claude/"]) {
+      const env = { ...p.env, CLAUDE_CONFIG_DIR: said };
+      assert.ok(isDefaultClaudeDir(said, env) && saysDefaultClaudeDir(env), said);
+      assert.equal(claudeConfigSet(env), undefined, said);
+      assert.equal(claudeConfigDir(env), def);
+      assert.equal(claudeStateFile(env), path.join(p.home, ".claude.json"), "Claude Code's state where a plain claude keeps it");
+      assert.equal("CLAUDE_CONFIG_DIR" in forClaude(env), false, said);
+      assert.equal(claudeLoginCommand(env), "claude");
+    }
+    // another folder stays as it is said
+    const second = { ...p.env, CLAUDE_CONFIG_DIR: p.second };
+    assert.ok(!saysDefaultClaudeDir(second) && !isDefaultClaudeDir(path.join(p.home, ".claude2"), p.env));
+    assert.equal(forClaude(second).CLAUDE_CONFIG_DIR, p.second);
+    assert.match(claudeLoginCommand(second), process.platform === "win32" ? /CLAUDE_CONFIG_DIR=/ : /^CLAUDE_CONFIG_DIR='.*\.claude-lhota' claude$/);
+    // the setting saying the default: nothing added
+    assert.equal(claudeConfigSet(keyed.env), undefined);
+    assert.deepEqual(claudeEnv(keyed.env), {});
+    assert.equal("CLAUDE_CONFIG_DIR" in forClaude(keyed.env), false);
+
+    // what a run's claude and the gate get
+    const s = standIns(p.dir);
+    const env = { ...p.env, PATH: `${s.bin}${path.delimiter}${p.env.PATH}`, CLAUDE_CONFIG_DIR: `${def}/` };
+    await claudeRunner.run({ cwd: p.dir, prompt: "brief", kickoff: "k", env, logFile: path.join(p.dir, "run.log") });
+    assert.equal(s.out("claude"), "<none>", "the run's claude: no variable");
+    await ended(spawnAgent("codex", [], { env, stdio: ["ignore", "ignore", "ignore"] }));
+    assert.equal(s.out("codex"), `${def}/`, "another agent: its environment as it is");
+    const gateDir = path.join(p.dir, "gate");
+    fs.mkdirSync(gateDir);
+    fs.writeFileSync(path.join(gateDir, "gate.mjs"), "console.log(JSON.stringify({ reason: process.env.CLAUDE_CONFIG_DIR ?? '<none>' }));\n");
+    const gate = { name: "probe", dir: gateDir, manifest: { interface: 1, command: ["node", "gate.mjs"] }, args: [] };
+    assert.equal(askGate(gate, env, { tree: p.dir, lang: "cs", agent: "claude", sessions: 0, costUsd: 0 }).reason, "<none>");
+  } finally {
+    p.done();
+    keyed.done();
+  }
+});
+
+test("claudeLoggedIn: false only when `claude auth status` says so; a stand-in or an older Claude Code that cannot tell decides nothing", posix, () => {
+  const p = place();
+  try {
+    const bin = path.join(p.dir, "bin");
+    fs.mkdirSync(bin);
+    const env = { ...p.env, PATH: `${bin}${path.delimiter}${p.env.PATH}` };
+    for (const [said, is] of [['{"loggedIn": false, "authMethod": "none"}', false], ['{"loggedIn": true}', true], ["Not logged in. Run claude auth login to authenticate.", undefined], ["", undefined]] as const) {
+      fs.writeFileSync(path.join(bin, "claude"), `#!/bin/sh\n[ "$1 $2" = "auth status" ] && printf '%s\\n' '${said}'\nexit 1\n`, { mode: 0o755 });
+      assert.equal(claudeLoggedIn(env), is, said);
+    }
+  } finally {
+    p.done();
+  }
+});
+
+test("strom run with Claude Code of a folder said outright, not logged in there: stopped before the first session, saying how to log in", { skip: process.platform === "win32" || sessionOpts.skip }, async () => {
+  const w = await world();
+  try {
+    await w.ok(["task", "add", "Křest Jana", "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
+    const bin = path.join(w.dir, "bin");
+    fs.mkdirSync(bin);
+    const asked = path.join(w.dir, "claude.asked");
+    fs.writeFileSync(path.join(bin, "claude"), `#!/bin/sh\necho "$*" >> "${asked}"\nif [ "$1" = "auth" ]; then echo '{"loggedIn": false, "authMethod": "none"}'; exit 1; fi\ncat >/dev/null\nexit 1\n`, { mode: 0o755 });
+    const second = path.join(w.env.HOME!, ".claude-lhota");
+    const r = await w.run(["run", "--agent", "claude", "--json"], { env: { PATH: `${bin}${path.delimiter}${w.env.PATH}`, CLAUDE_CONFIG_DIR: second } });
+    assert.equal(r.code, 1, r.out + r.err);
+    assert.equal(r.json.stop, "auth");
+    assert.equal(r.json.sessions.length, 0);
+    assert.ok(r.json.stopped.includes(`CLAUDE_CONFIG_DIR='${second}' claude`), r.json.stopped);
+    assert.deepEqual(fs.readFileSync(asked, "utf8").trim().split("\n"), ["auth status"], "no session started");
+    assert.equal(JSON.parse(fs.readFileSync(path.join(w.cwd, "data", "tasks", "T0001.json"), "utf8")).state, "open");
+    // the default folder said outright: no variable, no check — the plain claude's own login counts
+    fs.writeFileSync(asked, "");
+    const plain = await w.run(["run", "--agent", "claude", "--json"], { env: { PATH: `${bin}${path.delimiter}${w.env.PATH}`, CLAUDE_CONFIG_DIR: path.join(w.env.HOME!, ".claude") } });
+    assert.notEqual(plain.json.sessions.length, 0, plain.out + plain.err);
+    assert.ok(!fs.readFileSync(asked, "utf8").includes("auth status"));
   } finally {
     w.cleanup();
   }

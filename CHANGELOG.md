@@ -5,6 +5,36 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.25.2
+
+*2026-11-03 · goes with the Strom app 3.21.2.*
+
+- **The gate of the subscription's week no longer ends a run over one answer it cannot read.** It asks again, then
+  waits a quarter of an hour and says what it got. An agent not logged in is said before the first session, with how to
+  log in; the agent's default folder named in the environment is left out, so the agent keeps its usual login.
+- **Identifying places: a check writes what it finds into the place's record.** Old names and spellings, the facts'
+  other forms of the place and a wrong parish (taken off with the reason) go into the record also where the coordinates
+  are the person's, never only into the history. A form close to a place with a record already is refused with the way
+  to add it to that record; two records of one place can be merged. Today's name comes first (a place now in Poland
+  under its Polish name, the German one as historical). A question on a place never takes the person's coordinates
+  away from them. The places identified before are set right once by themselves (names written with their language
+  and years as text, today's name first, the person's coordinates, old names kept only in the history), and the step
+  can be undone. A session on the places begins its summary with what it did — identified, verified, asked, not
+  located — and takes more places of neighbouring areas at once. "in Lhota in no. 12" no longer leaves "in Lhota in" as
+  a place: the place is the municipality as the research writes it elsewhere, also where the sentence declined it. Each
+  name goes into a place's record once.
+- **The queue of places empties as the places are done.** A place identified, checked, asked about or not located leaves
+  the queue with every form of it, also one the facts write otherwise since; the places a session already did are no
+  longer taken again, and the count of what waits is right. What an earlier version left in the queue is taken out by
+  itself (only places dealt with, the step can be undone); a check asked of a place waiting to be identified is kept as
+  the check, and a check waiting for a form the facts now write as another place goes with them to that place. Each step on places is undone by its own number, also while another waits (the person's answers among
+  them). A wrong name of a place's record — a slip of a record no fact writes any more, another place's name — can be
+  taken off with the reason (`strom place names L… --drop`); the session on the places sees the record's other names
+  with their language and years; a check can name the reference it stood on; a jurisdiction can be given for one year.
+- In the conflicts of an edit from the app a house that says it is one already no longer gets its marker twice ("nr domu nr
+  domu 12" in Polish), and the title's dash is the one of the research's language.
+- The plan of what the agent does next no longer fails on a couple's story waiting: it names the two partners.
+
 ## 1.25.1
 
 *2026-11-03 · goes with the Strom app 3.21.1.*

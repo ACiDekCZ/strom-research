@@ -5,6 +5,43 @@
 Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Installationszeilen stehen bei
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (auf Englisch).
 
+## 1.25.2
+
+*3.11.2026 · gehört zur Strom-App 3.21.2.*
+
+- **Das Tor der Abo-Woche beendet einen Lauf nicht mehr wegen einer unlesbaren Antwort.** Es fragt erneut, wartet dann
+  eine Viertelstunde und nennt, was es erhielt. Ein nicht angemeldeter Agent wird schon vor der ersten Sitzung gemeldet,
+  mit dem Weg zur Anmeldung; der in der Umgebung genannte Standardordner des Agenten wird weggelassen, so bleibt der
+  Agent bei seiner üblichen Anmeldung.
+- **Orte zuordnen: eine Prüfung schreibt, was sie findet, in den Datensatz des Ortes.** Alte Namen und Schreibweisen,
+  andere Formen des Ortes in den Angaben und eine falsche Pfarrei (mit Grund entfernt) kommen in den Datensatz, auch
+  wo die Koordinaten von der Person stammen, nie nur in die Geschichte. Eine Form nahe einem Ort, der schon einen
+  Datensatz hat, wird abgelehnt, mit dem Weg, sie diesem Datensatz hinzuzufügen; zwei Datensätze eines Ortes lassen sich
+  zusammenführen. Der heutige Name steht vorn (ein Ort heute in Polen polnisch, der deutsche Name als historischer).
+  Eine Frage zu einem Ort nimmt der Person nie ihre Koordinaten. Schon zugeordnete Orte werden einmal von selbst
+  berichtigt (Namen mit Sprache und Jahren als Text, der heutige Name vorn, die Koordinaten der Person, alte Namen nur
+  in der Geschichte), und der Schritt lässt sich zurücknehmen. Die Zusammenfassung einer Sitzung zu Orten beginnt mit
+  dem, was getan wurde – zugeordnet, bestätigt, mit Frage, nicht gefunden –, und eine Sitzung nimmt mehr Orte
+  benachbarter Gebiete. Aus „in Lhota in Nr. 12“ bleibt kein Ort „in Lhota in“ mehr:
+  Ort ist die Gemeinde, wie die Forschung sie sonst schreibt, auch wenn der Satz sie beugt. Jeder Name steht nur einmal
+  im Eintrag eines Ortes.
+- **Die Warteschlange der Orte leert sich, wenn die Orte erledigt sind.** Ein Ort, der bestimmt, geprüft, erfragt oder
+  nicht gefunden wurde, verlässt die Warteschlange mit allen seinen Formen, auch mit einer, die die Fakten inzwischen
+  anders schreiben; Orte, die eine Sitzung schon erledigt hat, werden nicht erneut genommen, und die Zahl des Wartenden
+  stimmt. Was eine frühere Version in der Warteschlange ließ, wird von selbst entfernt (nur erledigte Orte, der Schritt
+  lässt sich rückgängig machen); eine Prüfung, die für einen Ort verlangt wird, der auf die Bestimmung wartet, bleibt
+  als Prüfung, und eine Prüfung, die bei einer Form wartet, die die Fakten jetzt als anderen Ort schreiben, geht mit
+  ihnen zu diesem Ort. Jeder Schritt bei den Orten lässt sich mit seiner eigenen Nummer rückgängig machen, auch wenn ein anderer
+  wartet (auch die Antworten der Person). Ein falscher Name im Datensatz eines Ortes — ein Versehen eines Eintrags, das
+  kein Faktum mehr schreibt, der Name eines anderen Ortes — lässt sich mit Begründung entfernen (`strom place names L…
+  --drop`); die Sitzung über die Orte sieht die weiteren Namen des Datensatzes mit Sprache und Jahren; eine Prüfung kann
+  die Quelle nennen, auf die sie sich stützt; eine Zugehörigkeit lässt sich auch für ein einzelnes Jahr angeben.
+- In den Widersprüchen einer Änderung aus der App bekommt eine Hausnummer, die ihre Bezeichnung schon trägt, sie nicht
+  ein zweites Mal (polnisch „nr domu nr domu 12“), und der Gedankenstrich im Titel richtet sich nach der Sprache der
+  Forschung.
+- Der Plan dessen, was der Agent als Nächstes tut, bricht bei einer wartenden Geschichte eines Paares nicht mehr ab:
+  er nennt beide Partner.
+
 ## 1.25.1
 
 *3.11.2026 · gehört zur Strom-App 3.21.1.*

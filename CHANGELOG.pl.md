@@ -5,6 +5,38 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.25.2
+
+*3.11.2026 · współpracuje z aplikacją Strom 3.21.2.*
+
+- **Warunek tygodnia subskrypcji nie kończy już przebiegu z powodu jednej nieodczytanej odpowiedzi.** Pyta ponownie,
+  potem czeka kwadrans i podaje, co otrzymał. Niezalogowany agent jest zgłaszany już przed pierwszą sesją, ze sposobem
+  logowania; domyślny folder agenta podany w środowisku jest pomijany, więc agent zostaje przy swoim zwykłym logowaniu.
+- **Identyfikacja miejsc: sprawdzenie zapisuje to, co ustali, w rekordzie miejsca.** Dawne nazwy i pisownie, inne formy
+  miejsca w danych i błędna parafia (usunięta wraz z powodem) trafiają do rekordu także tam, gdzie współrzędne podała
+  osoba, nigdy tylko do historii. Forma blisko miejsca, które ma już rekord, zostaje odrzucona ze wskazaniem, jak ją
+  do tego rekordu dodać; dwa rekordy jednego miejsca można scalić. Na pierwszym miejscu jest dzisiejsza nazwa
+  (miejscowość dziś w Polsce po polsku, niemiecka nazwa jako historyczna). Pytanie o miejsce nigdy nie odbiera osobie
+  jej współrzędnych. Miejsca już zidentyfikowane zostają raz same poprawione (nazwy zapisane z językiem i latami jako
+  tekst, dzisiejsza nazwa pierwsza, współrzędne osoby, dawne nazwy tylko w historii), a krok można cofnąć.
+  Podsumowanie sesji o miejscach zaczyna się od tego, co zrobiono – zidentyfikowano, potwierdzono, z pytaniem, nie
+  odnaleziono – a jedna sesja bierze więcej miejsc z sąsiednich obszarów. Z „w Lhocie w nr 12” nie zostaje już
+  miejsce „w Lhocie w”: miejscem jest miejscowość tak, jak badanie zapisuje ją gdzie indziej, także gdy zdanie ją
+  odmienia. Każda nazwa trafia do rekordu miejsca tylko raz.
+- **Kolejka miejsc opróżnia się, gdy miejsca są załatwione.** Miejsce zidentyfikowane, sprawdzone, przekazane jako
+  pytanie albo nieustalone opuszcza kolejkę ze wszystkimi swoimi formami, także z tą, którą fakty zapisują teraz
+  inaczej; miejsca, które sesja już zrobiła, nie są brane ponownie, a liczba oczekujących się zgadza. To, co w kolejce
+  zostawiła wcześniejsza wersja, usuwa się samo (tylko załatwione miejsca, krok można cofnąć); sprawdzenie zlecone dla
+  miejsca czekającego na identyfikację zostaje jako sprawdzenie, a sprawdzenie czekające przy formie, którą fakty
+  zapisują teraz jako inne miejsce, przechodzi z nimi do tego miejsca. Każdy krok przy miejscach można cofnąć jego własnym
+  numerem, także gdy czeka inny (również odpowiedzi osoby). Błędną nazwę w rekordzie miejsca — pomyłkę z zapisu, której
+  żaden fakt już nie zapisuje, nazwę innego miejsca — można usunąć z uzasadnieniem (`strom place names L… --drop`);
+  sesja nad miejscami widzi pozostałe nazwy rekordu z językiem i latami; sprawdzenie może podać źródło, na którym się
+  oparło; przynależność można podać także dla jednego roku.
+- W sprzecznościach zmian z aplikacji numer domu, który ma już oznaczenie, nie dostaje go po raz drugi („nr domu nr
+  domu 12”), a myślnik w tytule zależy od języka badania.
+- Plan tego, co agent zrobi dalej, nie przerywa się już na oczekującej opowieści o parze: podaje oboje partnerów.
+
 ## 1.25.1
 
 *3.11.2026 · współpracuje z aplikacją Strom 3.21.1.*

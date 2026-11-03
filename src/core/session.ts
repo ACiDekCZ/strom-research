@@ -25,6 +25,7 @@ import { forgetLeftAlone } from "./leftalone.ts";
 import { Settings } from "./config.ts";
 import { forGaps, regionOfTask, takeRegion } from "./pastevents.ts";
 import { placeOfTask, takePlace } from "./placehistory.ts";
+import { PLACES_IDENTIFY_ORIGIN, placesSessionCounts } from "./placeid.ts";
 
 function currentFile(tree: Tree, env: Env = tree.env): string {
   const w = env.STROM_WORKER;
@@ -254,6 +255,9 @@ export function closeSession(tree: Tree, s: Session, input: CloseInput): Session
         tree.put(back, { op: "task.continue", targets: [task.id, s.id], summary: `${task.id} back to the queue` });
       }
     }
+    // a session on the places: what it did counted by strom (identified, verified, asked …) before the agent's words
+    const counts = task?.origin === PLACES_IDENTIFY_ORIGIN ? placesSessionCounts(tree, s.id) : "";
+    if (counts) input = { ...input, summary: input.summary.trim() ? `${counts} — ${input.summary.trim()}` : counts };
     const closed: Session = {
       ...s,
       state: input.interrupted ? "interrupted" : "closed",

@@ -23,6 +23,7 @@ interface TermsFile {
   last: string[];
   house: string[];
   numbered: string[];
+  prepositions?: Record<string, string[]>;
 }
 
 interface Terms {
@@ -33,6 +34,8 @@ interface Terms {
   house: string[][];
   /** Municipalities whose number after the name is a part of them ("Praha 5"), folded. */
   numbered: Set<string>;
+  /** Words before a municipality written in a sentence ("v", "in"), folded. */
+  prepositions: Set<string>;
 }
 
 /** A word as written: letters, marks and numbers, a dot at its end kept ("č.", "nám."); "№" a word of its own. */
@@ -59,6 +62,7 @@ export function streetTerms(): Terms {
     last: new Set((f.last ?? []).map((w) => foldText(w))),
     house: (f.house ?? []).map(words).filter((w) => w.length).sort((a, b) => b.length - a.length),
     numbered: new Set((f.numbered ?? []).map((w) => foldText(w))),
+    prepositions: new Set(Object.values(f.prepositions ?? {}).flat().map((w) => foldText(w))),
   };
   return terms;
 }
@@ -80,6 +84,11 @@ function markerAt(toks: Tok[], i: number): number {
 }
 
 const isNumber = (t: Tok | undefined) => !!t && NUMBER.test(t.fold);
+
+/** A house that says it is a house already ("č. p. 12", "Nr. 3", "nr domu 12"): a marker of a house number at its beginning. */
+export function hasHouseMark(text: string): boolean {
+  return markerAt(tokens(text.normalize("NFC")), 0) > 0;
+}
 
 /** A house of numbers alone ("12", "13/2"). */
 export function numbersOnly(text: string): boolean {
@@ -148,6 +157,11 @@ export interface StreetSplit {
    * or a number alone after a municipality whose numbers a person said are houses (`town`).
    */
   by: "word" | "known" | "town";
+  /**
+   * The municipality stood in a sentence ("v Lhotici v čp. 46"): a preposition taken off — its name may be in another
+   * case than the research writes it ("Lhotici" of "Lhotice").
+   */
+  sentence?: true;
 }
 
 /**
@@ -165,6 +179,7 @@ export function splitStreet(place: string, known?: (town: string) => ReadonlySet
   const keep: string[] = [];
   const house: string[] = [];
   let by: StreetSplit["by"] = "word";
+  let sentence = false;
   for (const [i, part] of parts.entries()) {
     const toks = tokens(part);
     if (!toks.length) continue;
@@ -195,14 +210,32 @@ export function splitStreet(place: string, known?: (town: string) => ReadonlySet
     }
     // a house number with its marker at the end of a part ("Lhota č. p. 12", "Lhota, Horní Lhota Nr. 3"): the number
     if (tail && tail.at < tail.number && tail.at > 0) {
-      keep.push(part.slice(0, toks[tail.at]!.start).replace(/[\s,;:–-]+$/u, "").trim());
+      const words = sentenceWords(part, toks.slice(0, tail.at));
+      if (!words.town) continue;
+      if (words.sentence) sentence = true;
+      keep.push(words.town);
       house.push(part.slice(toks[tail.number]!.start).trim());
       continue;
     }
     keep.push(part);
   }
   if (!house.length || !keep.length || !keep[0]) return undefined;
-  return { town: keep.join(", "), house: house.join(" "), by };
+  return { town: keep.join(", "), house: house.join(" "), by, ...(sentence ? { sentence: true as const } : {}) };
+}
+
+/**
+ * The words before a house number without the sentence they stood in: a preposition at the end taken off ("v Lhotici v"
+ * of "v Lhotici v čp. 46"), and one in lower case at the beginning ("v Lhotici" → "Lhotici"; "U Lípy", a name, stays).
+ */
+function sentenceWords(part: string, toks: Tok[]): { town: string; sentence: boolean } {
+  const prep = streetTerms().prepositions;
+  let a = 0;
+  let b = toks.length;
+  while (b > a + 1 && prep.has(toks[b - 1]!.fold)) b--;
+  const first = toks[a]!;
+  const word = part.slice(first.start, first.end);
+  if (b > a + 1 && prep.has(first.fold) && word === word.toLowerCase() && word !== word.toUpperCase()) a++;
+  return { town: part.slice(toks[a]!.start, toks[b - 1]!.end).replace(/[\s,;:–-]+$/u, "").trim(), sentence: a > 0 || b < toks.length };
 }
 
 /** A number alone after the municipality's name: the name, the place without the number, the number. */
@@ -291,9 +324,11 @@ export interface Streets {
   bare(place: string): BareOffer | undefined;
   /**
    * The place as the research writes the municipality: its own spelling of it where its facts write it so, else the one
-   * form its facts write of that first part ("Lhota, okres Horní"), else the municipality as split.
+   * form its facts write of that first part ("Lhota, okres Horní"), else the municipality as split. `sentence`: the
+   * municipality stood in a sentence (StreetSplit.sentence) — a name of it in another case ("Lhotici") is the one
+   * municipality the research writes of the same word but its ending ("Lhotice"), where there is one alone.
    */
-  townOf(town: string): string;
+  townOf(town: string, sentence?: boolean): string;
   /** The place a fact's place stands for: the municipality where it holds a street or a house number, else itself. */
   placeOf(place: string): string;
 }
@@ -355,11 +390,16 @@ export function streetsOf(tree: Tree): Streets {
     else if (!bareNumber(p)) towns.add(foldText(p.split(",")[0]!));
   }
   for (const t of known.keys()) partOf(t);
+  // the municipalities' names as the research writes them, by their name folded (the facts' spelling first)
+  const named = new Map<string, string>();
+  for (const f of spellings.keys()) if (!f.includes(",")) named.set(f, f);
   for (const r of tree.list<Place>("place")) {
     if (r.retracted) continue;
     for (const n of r.names) {
       if (bareNumber(n.name)) partOf(n.name.split(",")[0]!);
       else towns.add(foldText(n.name.split(",")[0]!));
+      const f = foldText(n.name);
+      if (!f.includes(",") && !named.has(f)) named.set(f, n.name.normalize("NFC").trim());
     }
   }
   const bare = (place: string): BareOffer | undefined => {
@@ -372,13 +412,21 @@ export function streetsOf(tree: Tree): Streets {
     return { ...b, key, ...(a ? { houses: a.houses } : {}) };
   };
   const most = (m: Map<string, number>) => [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]![0];
-  const townOf = (town: string) => {
+  const townOf = (town: string, sentence?: boolean): string => {
     const f = foldText(town);
     const exact = spellings.get(f);
     if (exact) return most(exact);
     if (!town.includes(",")) {
       const forms = byFirst.get(f);
       if (forms?.size === 1) return most(spellings.get([...forms][0]!)!);
+      if (sentence && !named.has(f)) {
+        const like = [...named.keys()].filter((k) => otherCase(f, k));
+        if (like.length === 1) {
+          const k = like[0]!;
+          const m = spellings.get(k);
+          return m ? most(m) : named.get(k)!;
+        }
+      }
     }
     return town;
   };
@@ -388,11 +436,26 @@ export function streetsOf(tree: Tree): Streets {
     townOf,
     placeOf: (place) => {
       const s = split(place);
-      return s ? townOf(s.town) : place;
+      return s ? townOf(s.town, s.sentence) : place;
     },
   };
   memo.set(tree, { version: tree.version, answers: answersKey, streets });
   return streets;
+}
+
+/**
+ * A municipality's name in a sentence in another case than the research writes it (folded): the same words but the
+ * ending of the last — the word as written ending in at most three letters of its own, the research's in at most one,
+ * three letters alike before ("lhotici" of "lhotice", "lhote" of "lhota", "lhotowie" of "lhotow"; never "lhote" of
+ * "lhotka", another municipality).
+ */
+function otherCase(written: string, research: string): boolean {
+  if (written === research) return false;
+  let p = 0;
+  while (p < written.length && p < research.length && written[p] === research[p]) p++;
+  const a = written.slice(p);
+  const b = research.slice(p);
+  return p >= 3 && !/\s/u.test(written.slice(0, p).slice(-1)) && a.length <= 3 && b.length <= 1 && !/[\s,]/u.test(a + b);
 }
 
 /**
@@ -405,7 +468,7 @@ export function checkStreetPlace(tree: Tree, place: string | undefined, house: s
   const streets = streetsOf(tree);
   const s = streets.split(place);
   if (!s) return;
-  const town = streets.townOf(s.town);
+  const town = streets.townOf(s.town, s.sentence);
   const given = house?.trim();
   const both = houseWith(s.house, given);
   const set = both ?? s.house;

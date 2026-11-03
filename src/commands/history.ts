@@ -99,7 +99,7 @@ import { displayName } from "../core/people.ts";
 import { historyOn, readLocal, type AppEvent, type AppPlace, type EventKind, type Hide } from "../core/pastevents.ts";
 import { placeRecord } from "../core/placehistory.ts";
 import { foldText } from "../core/text.ts";
-import { recordIndex, unlocatePlace } from "../core/placeid.ts";
+import { addOtherNames, recordIndex, unlocatePlace } from "../core/placeid.ts";
 import type { Person } from "../core/model.ts";
 
 function shared(ctx: Context): string {
@@ -321,7 +321,7 @@ register(
     args: [{ name: "place", description: "the place, as the facts write it", required: true }],
     options: [
       { name: "region", type: "string", multiple: true, value: "<id>[:<from>-<to>]", description: "a region it belonged to, with the years (repeatable)" },
-      { name: "also", type: "string", multiple: true, value: "<name>", description: "another name of the place (another language, a historical name; repeatable)" },
+      { name: "also", type: "string", multiple: true, value: "<name[@lang][:from-to]>", description: "another name of the place (another language, a historical name; kept in its place record too; repeatable)" },
       { name: "unlocated", type: "boolean", description: "the place cannot be located" },
       { name: "why", type: "string", value: "<text>", description: "why it cannot be located" },
       ...textOpts("name", "the name of a new region"),
@@ -353,6 +353,8 @@ register(
         if (!tree.dryRun) ensureRegion(sh, missing[0]!, name);
       }
       const m = mapPlace(tree, key, { regions: links, also: listOpt(opts.also) });
+      // the names are the place's: its record keeps them too (spec 034 — the app and the identification read them there)
+      addOtherNames(tree, key, listOpt(opts.also));
       return { text: lines(...tree.written.map((o) => o.summary), missing.length && tree.dryRun ? `would make the region ${missing[0]}` : undefined), data: { place: key, map: m } };
     },
   },

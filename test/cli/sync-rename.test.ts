@@ -215,7 +215,7 @@ test("the sex the user set in the app: written where no record gives the person'
   assert.equal((await w.ok(["person", "show", "P0001", "--json"])).json.person.sex, "M", "the record's kept meanwhile");
   // its title in the research's language, as the Strom app shows it (found on Mac: "SEX — U × F")
   const listed = (await w.ok(["conflict", "list"])).out;
-  assert.match(listed, /Karel Dvořák: Pohlaví — muž × žena/, listed);
+  assert.match(listed, /Karel Dvořák: Pohlaví – muž × žena/, listed);
   w.cleanup();
 });
 
@@ -323,7 +323,7 @@ test("a sex the research does not know, guessed by the app and set otherwise the
   assert.deepEqual(petr.changes.map((c: { kind: string; action: string; person: string }) => [c.kind, c.action, c.person]), [["sex.changed", "conflict", "P0001"]]);
   assert.equal(petr.conflicts.length, 1, JSON.stringify(petr));
   assert.equal(await sex("P0001"), "U");
-  assert.match((await w.ok(["conflict", "show", petr.conflicts[0].id])).out, /Petr Novák: Pohlaví — neznámé × žena[\s\S]*\s neznámé$[\s\S]*: žena$/m);
+  assert.match((await w.ok(["conflict", "show", petr.conflicts[0].id])).out, /Petr Novák: Pohlaví – neznámé × žena[\s\S]*\s neznámé$[\s\S]*: žena$/m);
   // Eva set male, a record of her baptism: the same
   const s = (await w.ok(["source", "add", "Křest Evy Malé 1901", "--kind", "baptism", "--locator", "fol. 9", "--json"])).json;
   await w.ok(["event", "add", "P0003", "CHR", "--date", "1901", "--cite", (s.id ?? s.source?.id) as string, "--status", "probable"]);
@@ -331,7 +331,7 @@ test("a sex the research does not know, guessed by the app and set otherwise the
   assert.equal(eva.conflicts.filter((c: { person?: string }) => c.person === "P0003").length, 1, JSON.stringify(eva));
   assert.equal(await sex("P0003"), "U");
   const shown = (await w.ok(["conflict", "show", eva.conflicts.find((c: { person?: string }) => c.person === "P0003").id])).out;
-  assert.match(shown, /Eva Malá: Pohlaví — neznámé × muž/, shown);
+  assert.match(shown, /Eva Malá: Pohlaví – neznámé × muž/, shown);
   assert.match(shown, /: muž$/m, shown);
   assert.doesNotMatch(shown, /^\S+\s+(?:\S+: )?[MFU]$/m, shown);
   w.cleanup();

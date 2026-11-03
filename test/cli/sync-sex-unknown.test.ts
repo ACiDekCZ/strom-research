@@ -210,8 +210,8 @@ test("U01 (GEDCOM): a sex set unknown in the Strom app (its header's mark, or it
   const r = (await w.ok(["sync", asApp(await given(), EDITED), "--apply", "--json"])).json;
   assert.deepEqual([await sex("P0001"), await sex("P0002"), await sex("P0003"), await sex("P0004"), await sex("P0005")], ["M", "U", "U", "F", "U"]);
   const conflict = (id: string) => (r.conflicts as { id: string; person?: string }[]).find((c) => c.person === id)!.id;
-  assert.match((await w.ok(["conflict", "show", conflict("P0001")])).out, /Jan Novák: Pohlaví — muž × neznámé/);
-  assert.match((await w.ok(["conflict", "show", conflict("P0005")])).out, /Vojtěch Novák: Pohlaví — neznámé × muž/);
+  assert.match((await w.ok(["conflict", "show", conflict("P0001")])).out, /Jan Novák: Pohlaví – muž × neznámé/);
+  assert.match((await w.ok(["conflict", "show", conflict("P0005")])).out, /Vojtěch Novák: Pohlaví – neznámé × muž/);
   await w.ok(["conflict", "resolve", conflict("P0001"), "--take", "user", "--reasoning", "the family does not know"]);
   await w.ok(["conflict", "resolve", conflict("P0005"), "--take", "user", "--reasoning", "the family knows"]);
   assert.deepEqual([await sex("P0001"), await sex("P0005")], ["U", "M"]);

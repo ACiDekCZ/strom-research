@@ -72,6 +72,7 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
       { mode: 0o755 },
     );
   w.env.PATH = `${bin}${path.delimiter}${w.env.PATH}`;
+  w.env.CLAUDE_USAGE_RETRY_MS = "10"; // an answer it cannot read is asked again after this pause (45 s by itself)
   const ask = async (spec: string) => (await w.ok(["gate", "test", spec, "--json"])).json;
   usage(10, 30);
   const go = await ask("claude-usage 10");
@@ -108,14 +109,16 @@ test("claude-usage <n>: the daily ration — a session starts only while the wee
   assert.equal((await ask("claude-usage x")).verdict, "stop", "not a number");
   fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\necho 'something else'\n", { mode: 0o755 });
   const unread = await ask("claude-usage 10");
-  assert.equal(unread.verdict, "stop", "a form it cannot read: stop, never spend blind");
-  // why, in the research language — the gate's own words too, never an English detail in a Czech research
-  assert.equal(unread.reason, "nelze přečíst `claude -p /usage`: chybí řádek „Current week … resets …“");
+  // a form it cannot read: asked again, then a wait — never a session spent blind, never a run ended for one answer
+  assert.equal(unread.verdict, "wait");
+  assert.ok(Math.abs(Date.parse(unread.until) - (Date.now() + 15 * 60_000)) < 60_000, unread.until);
+  // why, in the research language — the gate's own words too, never an English detail in a Czech research; what it got, its first line
+  assert.equal(unread.reason, "nelze přečíst `claude -p /usage` (3×): chybí řádek „Current week … resets …“; vypsalo: „something else“ — znovu za 15 minut");
   // what the program itself said is data: said as it is; nothing said, the gate says how it ended
-  fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\necho 'Error: not logged in' >&2\nexit 3\n", { mode: 0o755 });
-  assert.equal((await ask("claude-usage 10")).reason, "nelze přečíst `claude -p /usage`: Error: not logged in");
+  fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\necho 'Error: overloaded' >&2\nexit 3\n", { mode: 0o755 });
+  assert.equal((await ask("claude-usage 10")).reason, "nelze přečíst `claude -p /usage` (3×): skončilo s kódem 3; vypsalo: „Error: overloaded“ — znovu za 15 minut");
   fs.writeFileSync(path.join(bin, "claude"), "#!/bin/sh\nexit 3\n", { mode: 0o755 });
-  assert.equal((await ask("claude-usage 10")).reason, "nelze přečíst `claude -p /usage`: skončilo s kódem 3");
+  assert.equal((await ask("claude-usage 10")).reason, "nelze přečíst `claude -p /usage` (3×): skončilo s kódem 3; nevypsalo nic — znovu za 15 minut");
   w.cleanup();
 });
 

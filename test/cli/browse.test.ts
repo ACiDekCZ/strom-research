@@ -138,16 +138,18 @@ test("what the agent will do next: the queue in its order, for the user — reco
   await task("Oddavky Josefa a Marie", "link", "--where", "B0001", "--priority", "5");
   await task("Přečíst celý zápis S0001", "enrich", "--where", "S0001");
   await task("Vyprávění o Josefovi", "narrate", "--where", "fakta");
+  // a couple's story (strom story set F…): the partners' names, never a family read as a person
+  await w.ok(["task", "add", "Vyprávění o manželích", "--level", "narrate", "--why", "jejich společný život", "--done-when", "napsáno", "--about", "F0001", "--where", "fakta"]);
   await w.ok(["task", "start", "T0002"]);
   const plan = (await w.ok(["plan"])).out;
   assert.match(plan, /^Co agent udělá dál – Novákovi:\n {2}právě teď +Přečíst celý zápis Křest Jana Nováka 1905\n/, "in progress first; a record by its title");
   assert.match(plan, /\n {2}1\. +Oddavky Josefa a Marie \(nejdřív potřebuje snímky\)\n/);
-  assert.match(plan, /Potom vyprávění: 1 \(Josef Novák \[P0002\]\)/);
+  assert.match(plan, /Potom vyprávění: 2 \(Josef Novák \[P0002\], Josef Novák & Marie Dvořáková \[F0001\]\)/);
   assert.match(plan, /Pořadí se mění v rozhovoru s agentem/);
   assert.doesNotMatch(plan, /T000|B0001|S0001|narrate|link/, "no IDs, no levels");
   const json = (await w.ok(["plan", "--json"])).json;
   assert.deepEqual(json.tasks.map((t: { id: string }) => t.id).slice(0, 2), ["T0002", "T0001"]);
-  assert.equal(json.stories.length, 1);
+  assert.equal(json.stories.length, 2);
   assert.ok(empty.startsWith("Co agent udělá dál"));
   w.cleanup();
 });

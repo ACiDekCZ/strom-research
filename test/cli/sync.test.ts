@@ -45,7 +45,7 @@ test("sync: shown first; the user's edits against what the research gave — a c
   assert.match(done.out, /Zapsáno 7 změn z z-aplikace\.ged \(I0001\) — vrátit: strom sync undo I0001/);
   const p1 = (await w.ok(["person", "show", "P1"])).out;
   assert.match(p1, /CHR\s+3 MAR 1885\s+Kamenice\s+\[probable\]/, "the record's fact stays");
-  assert.match((await w.ok(["conflict", "list"])).out, /X0001\s+otevřený\s+Josef Novák: Křest — 3\. 3\. 1885, Kamenice × 4\. 3\. 1885, Kam/);
+  assert.match((await w.ok(["conflict", "list"])).out, /X0001\s+otevřený\s+Josef Novák: Křest – 3\. 3\. 1885, Kamenice × 4\. 3\. 1885, Kam/);
   const p2 = (await w.ok(["person", "show", "P2"])).out;
   assert.match(p2, /BIRT\s+1889\s+\[lead\]/);
   assert.match(p2, /DEAT\s+1960\s+Týnec\s+\[lead\]/);

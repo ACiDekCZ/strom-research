@@ -623,7 +623,7 @@ export function claimText(tree: Tree, c: Conflict, claim: Conflict["claims"][num
   const ofApp = !!(c.edit || c.parents || c.claims.some((x) => x.note === "the user's edit"));
   // a title cut at its length says one side no more
   if (ofApp && c.claims.length === 2 && i >= 0 && c.title.length < 200) {
-    const m = / — (.*) × (.*)$/s.exec(conflictTitle(tree, c));
+    const m = / [—–] (.*) × (.*)$/s.exec(conflictTitle(tree, c));
     if (m && !m[1]!.includes(" × ")) return m[i + 1]!;
   }
   return claim.value;
