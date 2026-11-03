@@ -107,7 +107,7 @@ test("a child the research knows as born to other parents, given one parent in t
   // asked once
   assert.deepEqual((await w.ok(["sync", send(lines), "--json"])).json.changes.filter((c: { kind: string }) => c.kind === "child.parents"), []);
   const x = (await w.ok(["conflict", "list", "--json"])).json.conflicts as { id: string; title: string }[];
-  assert.deepEqual(x.map((c) => c.title), ["Jan Dvořák: Rodiče — Karel Dvořák & Marie Dvořáková × Petr Novák"]);
+  assert.deepEqual(x.map((c) => c.title), ["Jan Dvořák: Rodiče – Karel Dvořák & Marie Dvořáková × Petr Novák"]);
   // the user's parents taken: Jan Petr's son in a family of Petr's own — never put with Petr's other child Eva
   const taken = (await w.ok(["conflict", "resolve", x[0]!.id, "--take", "user", "--reasoning", "the register says so"])).out;
   assert.match(taken, /Dítě rodiny Petr Novák: Jan Dvořák/, taken);

@@ -279,7 +279,7 @@ test("the link with the side picked in the app: only confirmed and why — that 
   const open = (query: string, answers: string[]) => w.run(["link", "open", `strom-research://conflict?tree=${id}${query}`], { tty: true, answers });
   const r = await open("&id=X0003&do=decide&take=user", ["a", "Titul nezískal", ""]);
   assert.equal(r.code, 0, r.err + r.out);
-  assert.match(r.out, /rozhodnout rozpor: Josef Novák: Titul před jménem — Ing\. × — — ponechat hodnotu z aplikace: \(prázdné\)/);
+  assert.match(r.out, /rozhodnout rozpor: Josef Novák: Titul před jménem – Ing\. × — — ponechat hodnotu z aplikace: \(prázdné\)/);
   assert.equal(((await w.ok(["person", "show", "P1", "--json"])).json.person as Person).names[0]!.prefix, undefined);
   const x = await conflict(w, "X3");
   assert.deepEqual([x.taken, x.decidedBy, x.reasoning], ["user", "user", "Titul nezískal (rozhodnutí uživatele)"]);

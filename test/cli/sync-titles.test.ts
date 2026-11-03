@@ -106,7 +106,7 @@ test("a title the research's name lacks, added in the app: added; a record's nam
   assert.deepEqual([now.given, now.surname, now.prefix, now.suffix], ["Jan", "Novák", "MUDr.", "st."], "the record's title kept until the user decides");
   assert.deepEqual(await plan(w, send(w, named(fs.readFileSync(file, "utf8"), ["1 NAME MUDr. Jan /Novák/ ml.", "2 NPFX MUDr.", "2 NSFX ml."]), "again.ged")), [], "asked once");
   const x = (await w.ok(["conflict", "list", "--json"])).json.conflicts[0];
-  assert.match(x.title, /Jan Novák: Titul za jménem — st\. × ml\./);
+  assert.match(x.title, /Jan Novák: Titul za jménem – st\. × ml\./);
   await w.ok(["conflict", "resolve", x.id, "--take", "user", "--reasoning", "the user knows him"]);
   now = await shown(w);
   assert.equal(now.suffix, "ml.");

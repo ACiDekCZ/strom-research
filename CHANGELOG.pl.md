@@ -5,9 +5,30 @@
 Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia instalacji są na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (po angielsku).
 
+## 1.26.0
+
+*W przygotowaniu: bety do 1.26.0-beta.1. Sekcja będzie kompletna z wydaniem.*
+
+- **Warunek tygodnia subskrypcji nie kończy już przebiegu z powodu jednej nieodczytanej odpowiedzi.** Pyta ponownie,
+  potem czeka kwadrans i podaje, co otrzymał. Niezalogowany agent jest zgłaszany już przed pierwszą sesją, ze sposobem
+  logowania; domyślny folder agenta podany w środowisku jest pomijany, więc agent zostaje przy swoim zwykłym logowaniu.
+- **Identyfikacja miejsc: sprawdzenie zapisuje to, co ustali, w rekordzie miejsca.** Dawne nazwy i pisownie, inne formy
+  miejsca w danych i błędna parafia (usunięta wraz z powodem) trafiają do rekordu także tam, gdzie współrzędne podała
+  osoba, nigdy tylko do historii. Forma blisko miejsca, które ma już rekord, zostaje odrzucona ze wskazaniem, jak ją
+  do tego rekordu dodać; dwa rekordy jednego miejsca można scalić. Na pierwszym miejscu jest dzisiejsza nazwa
+  (miejscowość dziś w Polsce po polsku, niemiecka nazwa jako historyczna). Pytanie o miejsce nigdy nie odbiera osobie
+  jej współrzędnych. Miejsca już zidentyfikowane zostają raz same poprawione (nazwy zapisane z językiem i latami jako
+  tekst, dzisiejsza nazwa pierwsza, współrzędne osoby, dawne nazwy tylko w historii), a krok można cofnąć.
+  Podsumowanie sesji o miejscach zaczyna się od tego, co zrobiono – zidentyfikowano, potwierdzono, z pytaniem, nie
+  odnaleziono – a jedna sesja bierze więcej miejsc z sąsiednich obszarów. Z „w Lhocie w nr 12” nie zostaje już
+  miejsce „w Lhocie w”: miejscem jest miejscowość tak, jak badanie zapisuje ją gdzie indziej, także gdy zdanie ją
+  odmienia. Każda nazwa trafia do rekordu miejsca tylko raz.
+- W sprzecznościach zmian z aplikacji numer domu, który ma już oznaczenie, nie dostaje go po raz drugi („nr domu nr
+  domu 12”), a myślnik w tytule zależy od języka badania.
+
 ## 1.25.1
 
-*W przygotowaniu: bety do 1.25.1-beta.1. Sekcja będzie kompletna z wydaniem.*
+*3.11.2026 · współpracuje z aplikacją Strom 3.21.1.*
 
 - **Warunki archiwów sprawdzone ponownie, doszły źródła polskie.** Warunki i robots.txt każdego archiwum, które zna
   strom, zostały 3 listopada 2026 przeczytane na nowo. eBadatelna SOA Praha nie wpuszcza już żadnych robotów do swoich

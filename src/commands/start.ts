@@ -47,7 +47,7 @@ import { phrase } from "../core/phrases.ts";
 import { imageSettings, qualityIn, writeGedcoms, writeTreeGed } from "./output.ts";
 import { shortcutName } from "../cli/wizard.ts";
 import { refuseInArchive } from "../core/state.ts";
-import { claudeStateFile } from "../core/claudedir.ts";
+import { claudeStateFile, saysDefaultClaudeDir } from "../core/claudedir.ts";
 
 /** Has the user trusted this folder in Claude Code already? (Its own record, read only.) */
 function claudeTrusts(root: string, env: Env): boolean {
@@ -234,7 +234,10 @@ register({
     const agentEnv = conversationEnv(agent, ctx.env);
     if (opts.print) {
       const vars = Object.entries(agentEnv).map(([k, v]) => `${k}=${shellQuote(v)}`);
-      return { text: [...(vars.length && process.platform !== "win32" ? ["env", ...vars] : []), ...[program ?? profile.command, ...args].map(shellQuote)].join(" "), data: { command: program ?? profile.command, args, cwd: tree.root, ...(vars.length ? { env: agentEnv } : {}) } };
+      // Claude Code's default folder said outright: the conversation goes without it, as every `claude` of strom (forClaude)
+      const unset = agent === "claude" && saysDefaultClaudeDir(ctx.env) ? ["CLAUDE_CONFIG_DIR"] : [];
+      const envLine = (vars.length || unset.length) && process.platform !== "win32" ? ["env", ...unset.flatMap((k) => ["-u", k]), ...vars] : [];
+      return { text: [...envLine, ...[program ?? profile.command, ...args].map(shellQuote)].join(" "), data: { command: program ?? profile.command, args, cwd: tree.root, ...(vars.length ? { env: agentEnv } : {}), ...(unset.length ? { unset } : {}) } };
     }
 
     // Other agents may work in this tree too: this one gets a name of its own, is present while it

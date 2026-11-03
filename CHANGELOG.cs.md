@@ -5,9 +5,28 @@
 Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou na
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases) (anglicky).
 
+## 1.26.0
+
+*Připravuje se: bety do 1.26.0-beta.1. Oddíl bude úplný s vydáním.*
+
+- **Brána týdne předplatného už neukončí běh kvůli jedné nepřečtené odpovědi.** Zeptá se znovu, pak čtvrt hodiny počká
+  a řekne, co dostala. Nepřihlášený agent se ohlásí už před prvním sezením i s postupem přihlášení; výchozí složka
+  agenta zadaná v prostředí se vynechá, takže agent zůstane u svého obvyklého přihlášení.
+- **Ztotožnění míst: kontrola zapíše, co zjistí, do záznamu místa.** Staré názvy a pravopisy, jiné tvary místa
+  v údajích a chybná fara (odebraná i s důvodem) se zapíší do záznamu i tam, kde souřadnice zadala osoba, nikdy jen
+  do dějin. Tvar blízko místa, které záznam už má, se odmítne a řekne se, jak ho k tomu záznamu přidat; dva záznamy
+  jednoho místa jde sloučit. Na prvním místě je dnešní název (místo dnes v Polsku polsky, německý název jako
+  historický). Otázka u místa nikdy nebere osobě její souřadnice. Už ztotožněná místa se jednou samy srovnají (názvy
+  zapsané i s jazykem a roky jako text, dnešní název první, souřadnice osoby, staré názvy jen v dějinách) a krok jde
+  vrátit. Souhrn sezení o místech začíná tím, co se udělalo – ztotožněno, ověřeno, s otázkou, nedohledáno – a jedno
+  sezení vezme víc míst sousedních oblastí. Z „v Lhotě v čp. 12“ už nezůstane místo „v Lhotě v“:
+  místem je obec, jak ji výzkum píše jinde, i když ji věta skloňuje. Každý název se do záznamu místa zapíše jen jednou.
+- V rozporech úpravy z aplikace už číslo domu, které značku má, nedostane značku podruhé (polsky „nr domu nr domu 12“),
+  a pomlčka v titulku je podle jazyka výzkumu.
+
 ## 1.25.1
 
-*Připravuje se: bety do 1.25.1-beta.1. Oddíl bude úplný s vydáním.*
+*3. 11. 2026 · patří k aplikaci Strom 3.21.1.*
 
 - **Podmínky archivů ověřené znovu, přibyly polské zdroje.** Podmínky a robots.txt všech archivů, které strom zná,
   byly 3. listopadu 2026 přečteny znovu. eBadatelna SOA Praha nově nepouští k digitalizátům žádné roboty (její

@@ -32,15 +32,19 @@ import {
   unlocatePlace,
   verifyPlace,
   identifyingNow,
+  mergePlaces,
+  parseAltName,
+  parseDrop,
   placeIdOf,
   PLACE_FLAGS,
   REQUEST_MAX,
+  type PlaceDetails,
   type PlaceFlag,
+  type PlaceStep,
   type PlaceTake,
   type QueueRequest,
 } from "../core/placeid.ts";
 import { actsAsArchive } from "../core/state.ts";
-import { altName } from "./sources.ts";
 
 function str(v: unknown): string | undefined {
   return typeof v === "string" && v.trim() ? v.trim() : undefined;
@@ -51,6 +55,18 @@ function written(tree: { written: { summary: string }[] }): string {
 }
 
 const name = (p: Place) => p.names[0]?.name ?? p.id;
+
+/** What identify and verify write of a place beside its coordinates. */
+const DETAIL_OPTIONS = [
+  { name: "name", type: "string", value: "<name>", description: "today's (official) name, when the record's first is not it: the old one stays as a form or an old name" },
+  { name: "alt", type: "string", multiple: true, value: "<name[@lang][:from-to]>", description: 'another name of the place (another language, an old name, an old spelling), e.g. "Ober Lhota@de:-1945"; one year: "Lhotow@cs:1654"; a --form of the same name is kept as this name alone (repeatable)' },
+  { name: "form", type: "string", multiple: true, value: "<place>", description: "another form of the facts that is the same place (kept among the record's names as a form, out of the queue; repeatable)" },
+  { name: "kind", type: "string", value: "<kind>", description: "village, town, part of a municipality, …" },
+  { name: "parent", type: "string", value: "<L…>", description: "the place it is part of" },
+  { name: "jurisdiction", type: "string", multiple: true, value: "<kind:name[:from-to]>", description: 'e.g. "parish:Lhotov:1784-" or "district:Lhotov" (repeatable)' },
+  { name: "drop-jurisdiction", type: "string", multiple: true, value: "<kind:name>", description: "a jurisdiction of the record found wrong: taken off, --why says why (repeatable)" },
+] as const;
+
 
 register(
   {
@@ -68,15 +84,12 @@ register(
       { name: "why", type: "string", value: "<text>", description: "why it is this place (the records' parish, district, years)" },
       { name: "source-title", type: "string", value: "<title>", description: "the reference it stands on (a gazetteer, a register of places)" },
       { name: "source-url", type: "string", value: "<url>", description: "its address" },
-      { name: "name", type: "string", value: "<name>", description: "today's name, when the record's first is not it" },
-      { name: "alt", type: "string", multiple: true, value: "<name[@lang][:from-to]>", description: 'another name of the place (another language, an old name), e.g. "Ober Lhota@de:-1945"; a --form of the same name is kept as this name alone (repeatable)' },
-      { name: "form", type: "string", multiple: true, value: "<place>", description: "another form of the facts that is the same place (kept among the record's names as a form; repeatable)" },
-      { name: "kind", type: "string", value: "<kind>", description: "village, town, part of a municipality, …" },
-      { name: "parent", type: "string", value: "<L…>", description: "the place it is part of" },
-      { name: "jurisdiction", type: "string", multiple: true, value: "<kind:name[:from-to]>", description: 'e.g. "parish:Lhotov:1784-" or "district:Lhotov" (repeatable)' },
+      ...DETAIL_OPTIONS,
+      { name: "separate", type: "string", multiple: true, value: "<L…>", description: "a record nearer than 1.5 km that is another place (a part of it, a neighbour) — said, never assumed (repeatable)" },
     ],
     examples: [
       'strom place identify "H. Lhota" --lat 49.61 --lon 15.23 --name "Horní Lhota" --jurisdiction "parish:Lhotov" --why "the parish of the registers; the other Horní Lhota is 200 km away" --source-title "Register of places"',
+      'strom place identify "Lhota" --lat 50.2 --lon 15.9 --name "Lhotów" --alt "Lhotau@de:-1945" --why "…"',
     ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
@@ -86,21 +99,17 @@ register(
       const title = str(opts["source-title"]);
       const url = str(opts["source-url"]);
       if (url && !title) throw new UsageError("--source-url with its --source-title");
-      const p = identifyPlace(tree, args[0]!, {
+      const r = identifyPlace(tree, args[0]!, {
         lat,
         lon,
         why: String(opts.why ?? ""),
         ...(title ? { source: { title, ...(url ? { url } : {}) } } : {}),
-        ...(str(opts.name) ? { name: str(opts.name) } : {}),
-        alt: listOpt(opts.alt).map(altName),
-        forms: listOpt(opts.form),
-        ...(str(opts.kind) ? { kind: str(opts.kind) } : {}),
-        ...(str(opts.parent) ? { parent: placeRef(String(opts.parent)) } : {}),
-        jurisdictions: listOpt(opts.jurisdiction).map(parseJurisdiction),
+        ...detailsOf(opts),
+        separate: listOpt(opts.separate),
         by: isAgent(ctx.env) || ctx.env.STROM_SESSION ? "research" : "person",
       });
       raisePlacesTask(tree, actsAsArchive(tree));
-      return { text: written(tree), data: { place: p } };
+      return stepResult(tree, r);
     },
   },
   {
@@ -152,18 +161,48 @@ register(
     group: "sources",
     tree: true,
     writes: true,
+    description:
+      "The coordinates are never moved; what the check found of the place is written with it: its other and old names (--alt), the forms of the facts that are it (--form: no second record of one place), today's name (--name), its jurisdictions (--jurisdiction; a wrong one taken off with --drop-jurisdiction and --why).",
     options: [
       { name: "ok", type: "boolean", description: "the records agree with the coordinates" },
       { name: "undecided", type: "string", value: "<why>", description: "it cannot be decided, and why" },
-      { name: "why", type: "string", value: "<text>", description: "with --ok: on what" },
+      { name: "why", type: "string", value: "<text>", description: "with --ok: on what (kept with the check); with --drop-jurisdiction: why it is wrong" },
+      ...DETAIL_OPTIONS,
     ],
     args: [{ name: "place", description: "place ID (L0012) or the place as the facts write it", required: true }],
-    examples: ['strom place verify L0002 --ok', 'strom place verify L0002 --undecided "the records name no parish"'],
+    examples: [
+      'strom place verify L0002 --ok --why "the parish of the registers"',
+      'strom place verify L0002 --ok --alt "Lhotau@de:-1945" --form "Nová Lhota" --drop-jurisdiction "parish:Lhotov" --jurisdiction "parish:Horní Lhota" --why "the town had its own parish; Lhotov was the source\'s"',
+      'strom place verify L0002 --undecided "the records name no parish"',
+    ],
     run(ctx, { args, opts }) {
       const tree = ctx.tree();
       refuseInArchive(tree, "place verify", ctx.settings.agent(tree.config).value);
-      if (!!opts.ok === !!opts.undecided) throw new UsageError("--ok or --undecided \"<why>\"");
-      const p = verifyPlace(tree, args[0]!, opts.ok ? { ok: true, ...(str(opts.why) ? { why: str(opts.why) } : {}) } : { ok: false, why: String(opts.undecided) });
+      if (!!opts.ok === !!opts.undecided)
+        throw new UsageError("--ok or --undecided \"<why>\"", { hint: `strom place verify ${args[0] ?? "L…"} --ok --why "on what" (names found: --alt, --form)` });
+      const r = verifyPlace(tree, args[0]!, opts.ok ? { ok: true, ...(str(opts.why) ? { why: str(opts.why) } : {}) } : { ok: false, why: String(opts.undecided) }, detailsOf(opts));
+      raisePlacesTask(tree, actsAsArchive(tree));
+      return stepResult(tree, r);
+    },
+  },
+  {
+    path: ["place", "merge"],
+    summary: "Two records of one place made one: names, forms and jurisdictions into the other, the duplicate retracted",
+    group: "sources",
+    tree: true,
+    writes: true,
+    description:
+      "Only when sure it is one place (the same parish and district, an old name of the town); --reason says why. The person's coordinates win. Records further than 1.5 km apart are not merged: ask the person with strom place propose --conflict.",
+    args: [{ name: "place", description: "the duplicate's ID (L0012)", required: true }],
+    options: [
+      { name: "into", type: "string", value: "<L…>", description: "the record it is the same place as" },
+    ],
+    examples: ['strom place merge L0003 --into L0002 --reason "Nová Lhota is the old name of Horní Lhota; the same parish"'],
+    run(ctx, { args, opts }) {
+      const tree = ctx.tree();
+      refuseInArchive(tree, "place merge", ctx.settings.agent(tree.config).value);
+      if (!str(opts.into)) throw new UsageError("--into <L…>: the record it is the same place as", { hint: `strom place merge ${args[0]} --into L… --reason "…"` });
+      const p = mergePlaces(tree, args[0]!, String(opts.into), String(opts.reason ?? ""));
       raisePlacesTask(tree, actsAsArchive(tree));
       return { text: written(tree), data: { place: p } };
     },
@@ -408,6 +447,25 @@ const SKIP_SAID: Record<string, string> = {
   unknown: "no fact of the tree has it",
   unlocated: "not located",
 };
+
+function detailsOf(opts: Record<string, unknown>): PlaceDetails {
+  return {
+    ...(str(opts.name) ? { name: str(opts.name) } : {}),
+    alt: listOpt(opts.alt).map(parseAltName),
+    forms: listOpt(opts.form),
+    ...(str(opts.kind) ? { kind: str(opts.kind) } : {}),
+    ...(str(opts.parent) ? { parent: placeRef(String(opts.parent)) } : {}),
+    jurisdictions: listOpt(opts.jurisdiction).map(parseJurisdiction),
+    drop: listOpt(opts["drop-jurisdiction"]).map(parseDrop),
+  };
+}
+
+function stepResult(tree: { written: { summary: string }[] }, r: PlaceStep) {
+  return {
+    text: lines(written(tree), r.today ? `today's name first: ${r.today} (the one other name in use since a year with no end; --name sets another)` : undefined),
+    data: { place: r.place, ...(r.today ? { today: r.today } : {}), ...(r.dropped.length ? { dropped: r.dropped } : {}) },
+  };
+}
 
 function placeRef(ref: string): string {
   const m = /^[Ll](\d+)$/u.exec(ref.trim());

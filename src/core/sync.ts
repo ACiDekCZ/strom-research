@@ -34,6 +34,7 @@ import { appAge, appDate } from "./appshapes.ts";
 import { dateYears } from "./gdate.ts";
 import { create, update } from "./records.ts";
 import { decodeText, foldText, safeFolderName } from "./text.ts";
+import { hasHouseMark } from "./streets.ts";
 import { roleWord } from "./roles.ts";
 import { labels, type LabelKey } from "../gedcom/labels.ts";
 import { eventName, humanDate, humanDay } from "../cli/human.ts";
@@ -4044,7 +4045,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
             toVerify(owner, citations);
             toCheck(owner, gr);
           } else {
-            const title = editTitle(c.name ?? owner, eventName(c.fact.kind, tree.lang, c.fact.label), factWords(tree, incoming, mine), factWords(tree, incoming, c.fact));
+            const title = editTitle(tree.lang, c.name ?? owner, eventName(c.fact.kind, tree.lang, c.fact.label), factWords(tree, incoming, mine), factWords(tree, incoming, c.fact));
             conflictOfEdit(tree, applied, owner, c.fact.kind, title, [
               { ...(mine.citations[0] ? { source: mine.citations[0].source } : {}), value: describe(mine), note: `the research: ${mine.id}`, text: factWords(tree, incoming, mine) },
               { source: source.id, value: claimValue(c.fact), note: "the user's edit", text: factWords(tree, incoming, c.fact) },
@@ -4057,7 +4058,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           if (!owner || !c.fact || !mine) break;
           // picked without the state it was given: a record's fact is not overwritten
           if (c.action === "conflict" || (c.action === "pick" && recordBacked(tree, mine))) {
-            const title = editTitle(c.name ?? owner, eventName(c.fact.kind, tree.lang, c.fact.label), factWords(tree, incoming, mine), factWords(tree, incoming, c.fact));
+            const title = editTitle(tree.lang, c.name ?? owner, eventName(c.fact.kind, tree.lang, c.fact.label), factWords(tree, incoming, mine), factWords(tree, incoming, c.fact));
             conflictOfEdit(tree, applied, owner, c.fact.kind, title, [
               { ...(mine.citations[0] ? { source: mine.citations[0].source } : {}), value: describe(mine), note: `the research: ${mine.id}`, text: factWords(tree, incoming, mine) },
               { source: source.id, value: describe(c.fact), note: "the user's edit", text: factWords(tree, incoming, c.fact) },
@@ -4103,7 +4104,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           const at = c.wasPart ? before.findIndex((x) => x.role === c.wasPart!.role && (c.wasPart!.person ? x.person === c.wasPart!.person : !x.person && nameKey(x.name ?? "") === nameKey(c.wasPart!.name ?? ""))) : -1;
           const kindOfRec = owner.startsWith("F") ? "family" : "person";
           if (c.action === "conflict") {
-            const title = editTitle(c.name ?? owner, eventName(mine.kind, tree.lang, mine.label), partWords(c.wasPart!, incoming, tree.lang), partWords(c.part!, incoming, tree.lang));
+            const title = editTitle(tree.lang, c.name ?? owner, eventName(mine.kind, tree.lang, mine.label), partWords(c.wasPart!, incoming, tree.lang), partWords(c.part!, incoming, tree.lang));
             conflictOfEdit(tree, applied, owner, mine.kind, title, [
               { ...(mine.citations[0] ? { source: mine.citations[0].source } : {}), value: `${c.wasPart!.role} ${c.wasPart!.name ?? c.wasPart!.person ?? "?"}`, note: `the research: ${mine.id}`, text: partWords(c.wasPart!, incoming, tree.lang) },
               { source: source.id, value: partText(c.part!, incoming), note: "the user's edit", text: partWords(c.part!, incoming, tree.lang) },
@@ -4254,7 +4255,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           const day = humanDay(p.retracted!.at, tree.lang);
           const ours = ui(tree.lang, "ui.conflict.removed.ours", { day, sync: c.removedBy ?? "—" });
           const theirs = ui(tree.lang, "ui.conflict.removed.theirs");
-          const { open } = conflictOfEdit(tree, applied, p.id, "PERSON", editTitle(name, ui(tree.lang, "ui.conflict.removed"), ours, theirs), [
+          const { open } = conflictOfEdit(tree, applied, p.id, "PERSON", editTitle(tree.lang, name, ui(tree.lang, "ui.conflict.removed"), ours, theirs), [
             { value: `removed${c.removedBy ? ` ${c.removedBy}` : ""}`, note: "the research: removed by an earlier send", text: ours },
             { source: source.id, value: "edited", note: "the user's edit", text: theirs },
           ]);
@@ -4271,7 +4272,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
             const ours = ui(tree.lang, by === "app" ? "ui.conflict.removing.ours" : `ui.conflict.removing.${by}`);
             const theirs = ui(tree.lang, "ui.conflict.removing.theirs");
             const where = by === "app" ? "in another copy" : by === "research" ? "in the research" : "in another copy and in the research";
-            const { open } = conflictOfEdit(tree, applied, p.id, "PERSON", editTitle(name, ui(tree.lang, "ui.conflict.removed"), ours, theirs), [
+            const { open } = conflictOfEdit(tree, applied, p.id, "PERSON", editTitle(tree.lang, name, ui(tree.lang, "ui.conflict.removed"), ours, theirs), [
               { value: "edited", note: `the research: edited since ${where}`, text: ours },
               { source: source.id, value: "removed", note: "the user's edit", text: theirs },
             ]);
@@ -4344,7 +4345,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           } else {
             // a record gives the name: the user decides; their name kept as another form meanwhile (sent again, it
             // asks nothing new)
-            const title = editTitle(c.wasName ?? owner, ui(tree.lang, "ui.conflict.name"), (c.wasName ?? "").replace(/\//g, "").replace(/\s+/g, " ").trim() || "—", c.text.replace(/\//g, "").replace(/\s+/g, " ").trim());
+            const title = editTitle(tree.lang, c.wasName ?? owner, ui(tree.lang, "ui.conflict.name"), (c.wasName ?? "").replace(/\//g, "").replace(/\s+/g, " ").trim() || "—", c.text.replace(/\//g, "").replace(/\s+/g, " ").trim());
             const { was } = conflictOfEdit(tree, applied, owner, "NAME", title, [
               { ...(shown.citations?.[0] ? { source: shown.citations[0].source } : {}), value: c.wasName ?? "", note: "the research: the name the person is shown by", text: (c.wasName ?? "").replace(/\//g, "").replace(/\s+/g, " ").trim() || "—" },
               { source: source.id, value: c.text, note: "the user's edit", text: c.text.replace(/\//g, "").replace(/\s+/g, " ").trim() },
@@ -4371,7 +4372,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
               applied,
               owner,
               "NAME",
-              editTitle(who, ui(tree.lang, "ui.conflict.primary"), said(was), said(target)),
+              editTitle(tree.lang, who, ui(tree.lang, "ui.conflict.primary"), said(was), said(target)),
               [
                 { value: was ? gedcomName(was) : "", note: "the research: the name it shows the person by", text: said(was) },
                 { source: source.id, value: target ? gedcomName(target) : "", note: "the user's edit", text: said(target) },
@@ -4394,7 +4395,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
             // a record gives the name: the user decides (strom conflict resolve --take user|research)
             const said = (v: string) => v || "—";
             const what = ui(tree.lang, c.title.part === "before" ? "ui.conflict.titleBefore" : "ui.conflict.titleAfter");
-            conflictOfEdit(tree, applied, owner, titleTag(c.title.part), editTitle(formatName(shown), what, said(c.title.was), said(now)), [
+            conflictOfEdit(tree, applied, owner, titleTag(c.title.part), editTitle(tree.lang, formatName(shown), what, said(c.title.was), said(now)), [
               { ...(shown.citations?.[0] ? { source: shown.citations[0].source } : {}), value: c.title.was, note: "the research: the title of the name the person is shown by", text: said(c.title.was) },
               { source: source.id, value: now, note: "the user's edit", text: said(now) },
             ]);
@@ -4429,7 +4430,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           const p = tree.get<Person>(owner)!;
           if (c.action === "conflict") {
             const who = gedcomName(primaryName(p)).replace(/\//g, "").replace(/\s+/g, " ").trim();
-            conflictOfEdit(tree, applied, owner, "SEX", editTitle(who, ui(tree.lang, "ui.conflict.sex"), sexWord(p.sex, tree.lang), sexWord(c.text, tree.lang)), [
+            conflictOfEdit(tree, applied, owner, "SEX", editTitle(tree.lang, who, ui(tree.lang, "ui.conflict.sex"), sexWord(p.sex, tree.lang), sexWord(c.text, tree.lang)), [
               { value: p.sex, note: "the research: the sex its records give", text: sexWord(p.sex, tree.lang) },
               { source: source.id, value: c.text, note: "the user's edit", text: sexWord(c.text, tree.lang) },
             ]);
@@ -4544,7 +4545,7 @@ export function applySync(tree: Tree, plan: Plan, incoming: Snapshot, source: So
           const partners = (c.partners ?? []).map((k) => who(k)).filter((k): k is string => !!k);
           // the family of the user's parents: the research's the file named, or the one this send made — else made when taken
           const to = c.family ?? families.get(famKey(partners));
-          conflictOfEdit(tree, applied, child, "FAMC", editTitle(name, ui(tree.lang, "ui.conflict.parents"), ours, theirs), [
+          conflictOfEdit(tree, applied, child, "FAMC", editTitle(tree.lang, name, ui(tree.lang, "ui.conflict.parents"), ours, theirs), [
             { value: `${born.id}: ${ours}`, note: "the research: the parents it gives", text: ours },
             { source: source.id, value: theirs, note: "the user's edit", text: theirs },
           ], undefined, partners.length ? { child, from: born.id, partners, ...(to ? { to } : {}) } : undefined);
@@ -4729,8 +4730,18 @@ function nameOfView(p: Person, view: string): Name | null | undefined {
   return key === undefined ? undefined : p.names.find((n) => n !== first && nameKey(gedcomName(n)) === key);
 }
 
-function editTitle(who: string, what: string, ours: string, theirs: string): string {
-  return `${who.replace(/\//g, "").replace(/\s+/g, " ").trim()}: ${what.charAt(0).toUpperCase()}${what.slice(1)} — ${ours} × ${theirs}`;
+function editTitle(lang: string, who: string, what: string, ours: string, theirs: string): string {
+  return ui(lang, "ui.conflict.title", { who: who.replace(/\//g, "").replace(/\s+/g, " ").trim(), what: `${what.charAt(0).toUpperCase()}${what.slice(1)}`, ours, theirs });
+}
+
+/**
+ * A fact's house as a person reads it, in the research's language: "čp. 12" of "12" — a house that says it is one
+ * already ("nr domu 12", "Nr. 3") as it is, never "nr domu nr domu 12".
+ */
+export function houseWords(lang: string, house: string): string {
+  const prefix = foldText(ui(lang, "ui.sync.house", { x: "" }).trim());
+  if (hasHouseMark(house) || (prefix && foldText(house).startsWith(prefix))) return house;
+  return ui(lang, "ui.sync.house", { x: house });
 }
 
 /** A fact as a conflict's title says it, in the research's language: "1904, Praha, čp. 12, věk 45 let". */
@@ -4738,7 +4749,7 @@ function factWords(tree: Tree, incoming: Snapshot, f: Parameters<typeof describe
   const lang = tree.lang;
   const given = (k: string) => (k.startsWith("x:") ? undefined : tree.get<Person>(k)?.names[0]?.given) ?? (incoming.persons.get(k)?.names[0]?.split("/")[0]?.trim() || k);
   const ages = Object.entries(f.ages ?? {}).map(([who, a]) => `${given(who)} ${humanAge(a, lang)}`);
-  return [f.value, humanDate(f.date, lang), f.place, f.house && ui(lang, "ui.sync.house", { x: f.house }), f.age && humanAge(f.age, lang), ...ages, f.cause && ui(lang, "ui.sync.cause", { x: f.cause })].filter(Boolean).join(", ") || "—";
+  return [f.value, humanDate(f.date, lang), f.place, f.house && houseWords(lang, f.house), f.age && humanAge(f.age, lang), ...ages, f.cause && ui(lang, "ui.sync.cause", { x: f.cause })].filter(Boolean).join(", ") || "—";
 }
 
 /** Who the record names, as a conflict's title says it: "kmotr Jan Novák". */

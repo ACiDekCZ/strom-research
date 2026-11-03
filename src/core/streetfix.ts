@@ -101,7 +101,7 @@ export function streetPlaceFixes(tree: Tree): StreetFindings {
         towns.set(b.key, t);
         continue;
       }
-      const place = streets.townOf(s.town);
+      const place = streets.townOf(s.town, s.sentence);
       const had = e.house?.trim();
       // the house: the street and the number where the fact has none, the street before a number alone
       const house = houseWith(s.house, had);
@@ -112,6 +112,24 @@ export function streetPlaceFixes(tree: Tree): StreetFindings {
       const record = recordOf(place);
       out.fixes.push({ owner: o.id, event: e.id, before: placeHouse(e.place, e.house), after: placeHouse(place, house), ...(record ? { record } : {}) });
     }
+  }
+  // what an older fix left of a sentence in the place ("v Lhotici v" of "v Lhotici v čp. 46", before prepositions were
+  // known): the place as the rules split it now, the fact's house kept — only where the fact is as that fix left it
+  const ownerOf = new Map<string, { owner: Person | Family; place?: string; house?: string }>();
+  for (const o of owners(tree)) {
+    if (o.retracted || (o as Person).mergedInto) continue;
+    for (const e of o.events) if (!e.retracted && e.status !== "retracted") ownerOf.set(e.id, { owner: o, place: e.place, house: e.house });
+  }
+  const taken = new Set(out.fixes.map((f) => f.event));
+  for (const it of readStreetsFile(tree).runs.flatMap((r) => r.items)) {
+    const now = ownerOf.get(it.event);
+    if (!now || taken.has(it.event) || !same(now.place, now.house, it.after)) continue;
+    const s = streets.split(it.before.place);
+    const place = s ? streets.townOf(s.town, s.sentence) : undefined;
+    if (!place || place === it.after.place) continue;
+    const record = recordOf(place);
+    out.fixes.push({ owner: now.owner.id, event: it.event, before: it.after, after: placeHouse(place, it.after.house), ...(record ? { record } : {}) });
+    taken.add(it.event);
   }
   out.towns = [...towns]
     .map(([key, t]) => ({ town: t.town, key, fixes: t.fixes, places: [...t.places].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([p]) => p) }))

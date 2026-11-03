@@ -109,6 +109,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
         why: S({ max: 1000 }),
         source: { t: "object", of: { title: S({ req: true, max: 300 }), url: S({ max: 2000 }) } },
         verified: S(),
+        verifiedWhy: S({ max: 1000 }),
         checkWhy: S({ max: 1000 }),
         needs: S({ max: 300 }),
         context: { t: "number", int: true, min: 0 },

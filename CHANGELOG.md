@@ -5,9 +5,30 @@ English · [Čeština](CHANGELOG.cs.md) · [Deutsch](CHANGELOG.de.md) · [Polski
 The changes of each version in short. The full notes and the install lines are on
 [GitHub Releases](https://github.com/ACiDekCZ/strom-research/releases).
 
+## 1.26.0
+
+*In preparation: the betas up to 1.26.0-beta.1. The section is complete with the release.*
+
+- **The gate of the subscription's week no longer ends a run over one answer it cannot read.** It asks again, then
+  waits a quarter of an hour and says what it got. An agent not logged in is said before the first session, with how to
+  log in; the agent's default folder named in the environment is left out, so the agent keeps its usual login.
+- **Identifying places: a check writes what it finds into the place's record.** Old names and spellings, the facts'
+  other forms of the place and a wrong parish (taken off with the reason) go into the record also where the coordinates
+  are the person's, never only into the history. A form close to a place with a record already is refused with the way
+  to add it to that record; two records of one place can be merged. Today's name comes first (a place now in Poland
+  under its Polish name, the German one as historical). A question on a place never takes the person's coordinates
+  away from them. The places identified before are set right once by themselves (names written with their language
+  and years as text, today's name first, the person's coordinates, old names kept only in the history), and the step
+  can be undone. A session on the places begins its summary with what it did — identified, verified, asked, not
+  located — and takes more places of neighbouring areas at once. "in Lhota in no. 12" no longer leaves "in Lhota in" as
+  a place: the place is the municipality as the research writes it elsewhere, also where the sentence declined it. Each
+  name goes into a place's record once.
+- In the conflicts of an edit from the app a house that says it is one already no longer gets its marker twice ("nr domu nr
+  domu 12" in Polish), and the title's dash is the one of the research's language.
+
 ## 1.25.1
 
-*In preparation: the betas up to 1.25.1-beta.1. The section is complete with the release.*
+*2026-11-03 · goes with the Strom app 3.21.1.*
 
 - **The archives' terms checked again, Polish sources added.** The terms and robots.txt of every archive strom knows
   were read again on 3 November 2026. SOA Praha's eBadatelna now keeps every robot off its scans (its robots.txt of

@@ -92,9 +92,16 @@ export function placesIdentifySections(tree: Tree, task: Task, alone: boolean, s
       pointer: "strom help place identify",
       text: [
         "## How — from the cheap steps up, the web last",
-        "1. free, the tree first: the sources of the facts there (their archive, parish, register — strom source show S…), the other places of the same people and years (strom person card P…), the place records (strom place show L…), the records of other research on this computer (above); a place the tree tells apart already needs nothing else",
+        "1. free, the tree first: the sources of the facts there (their archive, parish, register — strom show S… or B…, any record by its ID), the other places of the same people and years (strom person card P…), the place records (strom place show L…), the records of other research on this computer (above); a place the tree tells apart already needs nothing else",
         "2. free, the writing: abbreviations and other spellings of one place (strom place rewrite … --to L…); a street or a house number written as a place (\"Lhota, Dlouhá\", \"Horní 12\"): the place is the municipality, the street goes into the house (--house), a house written there is never replaced",
         "3. the web last, for what is still open: gazetteers, the registers of municipalities, historical maps and the Wikipedia in the region's language. Only the place's name with its parish or district goes into a search — never a person's name, a date or anything else of the tree",
+        "",
+        "",
+        "The record of a place:",
+        "- its first name is the official name of today in the language of the country it lies in now (a village now in Poland: Polish; the German name is historical) — the names of the facts and the old names go in as --form and --alt name@lang:from-to (an old name: from-to its years; one year: name@lang:1844)",
+        "- what is found of a place goes into its record, also where the coordinates are right already: strom place verify L… --ok --why \"…\" --alt … --form … (never only into the history)",
+        "- a jurisdiction found wrong (another parish): strom place verify L… --ok --why \"what the records say\" --drop-jurisdiction parish:<name> --jurisdiction parish:<right one>:from-to",
+        "- a form of the facts that is a place with a record already (\"Nové Lhoty\" of Lhoty): strom place identify L… --form \"<form>\" — never a second record; two records of one place: strom place merge L… --into L… --reason \"…\"",
         "",
         "Three degrees, never guessed:",
         "- sure (the parish of the records, the district and the years agree; no other place of the name fits): strom place identify \"<form>\" --lat … --lon … --why \"on what\" [--name, --form for each other writing of the facts, --alt for another language or an old name (name@lang:from-to), --jurisdiction kind:name:from-to, --source-title/--source-url of the reference read]",
@@ -102,7 +109,12 @@ export function placesIdentifySections(tree: Tree, task: Task, alone: boolean, s
         "- not to be decided: strom place unlocated \"<form>\" --why \"…\" --needs \"what would decide it\" — it comes back by itself when that is known; a wrong place is worse than none",
         "- a place on the map the person put there is never moved: the records agree — strom place verify L… --ok --why \"…\"; they do not — strom place propose L… --conflict --candidate …; it cannot be told — strom place verify L… --undecided \"why\"",
         "- one place written several ways in the facts: strom place rewrite \"<form>\" --to L… (a street: --house \"<street>\"; a house written there is kept) when sure; else --propose --why \"…\" — the person says yes",
-        ...(history ? ["- the history of the places is on: each place identified gets its regions too — strom history map \"<form>\" --region <id>:<from>-<to> (strom help history map)"] : []),
+        ...(history
+          ? [
+              "- the history of the places is on: each place identified gets its regions too — strom history map \"<form>\" --region <id>:<from>-<to> [--region …] (each region's ID as strom history status lists it; every period of the place covered, none left out)",
+            ]
+          : []),
+        "- this session is on the places only: no searches of records are written here (strom search add), nothing of the people",
       ].join("\n"),
     },
   ];
@@ -112,6 +124,7 @@ export function placesIdentifySections(tree: Tree, task: Task, alone: boolean, s
     cmd(["place", "unlocated"]),
     cmd(["place", "verify"]),
     cmd(["place", "rewrite"]),
+    cmd(["place", "merge"]),
     cmd(["place", "show"]),
     ...(history ? [cmd(["history", "map"])] : []),
   ].filter(Boolean);
@@ -123,7 +136,7 @@ export function placesIdentifySections(tree: Tree, task: Task, alone: boolean, s
     pointer: "",
     text: [
       "## Finishing",
-      `- every place above identified, proposed or not located: strom session close --done "how many identified, proposed, not located"${more ? ' --next "the next places of the queue"' : ""}`,
+      `- every place above identified, proposed or not located: strom session close --done "what was found of the places, in a few words" (strom puts the counts before it: identified, verified, asked, not located)${more ? ' --next "the next places of the queue"' : ""}`,
       `- time up before: strom session close --continue --summary "…" --next "the places left"`,
       alone
         ? `- the summary: plain words for the record (the menu, the Strom app), in ${langName(tree.lang)}, never addressed to the user, no advice; after strom session close you are done: a last message of one line at most`

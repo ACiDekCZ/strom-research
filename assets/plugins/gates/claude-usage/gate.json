@@ -6,5 +6,5 @@
     "node",
     "gate.ts"
   ],
-  "timeout": 120
+  "timeout": 660
 }

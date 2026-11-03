@@ -464,6 +464,8 @@ export interface PlaceLocating {
   source?: { title: string; url?: string };
   /** The day the research checked the coordinates and found them right (K6.6). */
   verified?: string;
+  /** On what the research found them right. */
+  verifiedWhy?: string;
   /** Checked, and why it could not be decided. */
   checkWhy?: string;
   /** Not identified: what would decide it. */

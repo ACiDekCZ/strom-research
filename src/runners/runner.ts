@@ -9,7 +9,7 @@ import type { Env } from "../core/paths.ts";
 import type { AgentPermissions } from "../core/config.ts";
 import type { AgentWeb } from "../core/metrics.ts";
 import { findAgent } from "../core/which.ts";
-import { claudeEnv, isClaudeCommand } from "../core/claudedir.ts";
+import { forClaude, isClaudeCommand } from "../core/claudedir.ts";
 
 export interface RunOptions {
   cwd: string;
@@ -266,10 +266,10 @@ function cmdQuote(arg: string): string {
 /**
  * Start an agent CLI found on PATH. npm installs agents on Windows as .cmd
  * launchers, which Node can only start through cmd.exe. Claude Code gets its folder (agent.claudeConfigDir) when the
- * environment says none: every `claude` strom starts goes through here.
+ * environment says none, and none when it says the default one (forClaude): every `claude` strom starts goes through here.
  */
 export function spawnAgent(command: string, args: string[], given: SpawnOptions & { env: Env }): ChildProcess {
-  const opts = isClaudeCommand(command) ? { ...given, env: { ...given.env, ...claudeEnv(given.env) } } : given;
+  const opts = isClaudeCommand(command) ? { ...given, env: forClaude(given.env) } : given;
   const found = findAgent(command, opts.env) ?? command;
   if (process.platform === "win32" && /\.(cmd|bat)$/i.test(found)) {
     const line = [cmdQuote(found), ...args.map(cmdQuote)].join(" ");

@@ -22,7 +22,7 @@ import { NAME_RE, pluginsDir } from "./connector.ts";
 import { readAsset } from "./assets.ts";
 import type { AgentLimit } from "../runners/runner.ts";
 import { ui } from "../cli/ui.ts";
-import { claudeEnv } from "./claudedir.ts";
+import { forClaude } from "./claudedir.ts";
 
 export const GATE_INTERFACE = 1;
 const MANIFEST = "gate.json";
@@ -218,9 +218,9 @@ export function askGate(gate: Gate, env: Env, facts: GateFacts): GateAnswer {
     timeout,
     windowsHide: true,
     env: {
-      ...inherited,
       // a gate that asks Claude Code (claude-usage) asks the one of agent.claudeConfigDir, as the runs it decides about
-      ...claudeEnv(inherited),
+      // (and the default folder said outright: none — a plain `claude`, logged in)
+      ...forClaude(inherited),
       STROM_GATE: gate.name,
       STROM_TREE: facts.tree,
       STROM_LANG: facts.lang,

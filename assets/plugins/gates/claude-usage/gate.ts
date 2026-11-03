@@ -35,6 +35,13 @@
 // limits in this run (STROM_AGENT_LIMITS, at most 15 minutes old) is read
 // instead of asking `claude -p /usage`.
 //
+// What `claude -p /usage` says is not always read: an answer without the
+// week's line, an exit status, no answer in time. It asks again (ATTEMPTS, a
+// pause between), and then waits a while (UNREAD_WAIT) rather than stopping
+// the run for good — what it got is in its reason (the first line, shortened).
+// A Claude Code not logged in (`claude auth status`; its /usage is then a bare
+// /cost) stops the run, saying how to log in.
+//
 // strom writes this file; a copy of your own goes into a folder of its own name.
 
 import fs from "node:fs";
@@ -65,6 +72,18 @@ const RESERVE = 2;
 /** The week it waits in for the reserve, in the gate's own folder — only when strom asks it (STROM_GATE). */
 const HOLD = process.env.STROM_GATE ? "hold.json" : undefined;
 const lang = (process.env.STROM_LANG ?? "en").slice(0, 2);
+/**
+ * How many times `claude -p /usage` is asked before the gate waits; each asking may take ASK_MS — it reads the
+ * computer's own sessions for its advice too, which took over a minute on a busy computer (2026-11-03: 75 s).
+ */
+const ATTEMPTS = 3;
+const ASK_MS = 180_000;
+/** The pause between two askings (tests give a shorter one: CLAUDE_USAGE_RETRY_MS). */
+const RETRY_MS = /^\d+$/.test(process.env.CLAUDE_USAGE_RETRY_MS ?? "") ? Number(process.env.CLAUDE_USAGE_RETRY_MS) : 30_000;
+/** All the askings within this, inside the gate's timeout (gate.json: 660 s). */
+const BUDGET_MS = 600_000;
+/** Unread after every asking: asked again this much later — a run is not stopped for one answer it could not read. */
+const UNREAD_WAIT = 15 * 60_000;
 
 const T: Record<string, Record<string, string>> = {
   en: {
@@ -84,8 +103,15 @@ const T: Record<string, Record<string, string>> = {
     badcap: "the cap must be 1 to 100 (\"--cap 95\"), not \"{arg}\"",
     cap: "week {used} % used — the cap of {cap} % reached; it resets {resets}",
     unread: "cannot read `claude -p /usage`: {detail}",
+    unreadWait: "cannot read `claude -p /usage` ({tries}×): {detail} — asked again in {min} minutes",
     noweek: "no line \"Current week … resets …\"",
+    said: "{detail}; it said: \"{line}\"",
+    nothing: "{detail}; it said nothing",
+    unused: "week 0 % used — nothing used yet",
     exit: "it ended with exit status {status}",
+    timeout: "no answer in {s} s",
+    login: "Claude Code is not logged in — to log in once: claude, then /login",
+    loginDir: "Claude Code is not logged in with CLAUDE_CONFIG_DIR={dir} — to log in once with the same variable (CLAUDE_CONFIG_DIR={dir} claude, then /login), or to start strom without it",
   },
   cs: {
     other: "agent není Claude Code — není co hlídat",
@@ -104,8 +130,15 @@ const T: Record<string, Record<string, string>> = {
     badcap: "strop musí být 1 až 100 (\"--cap 95\"), ne \"{arg}\"",
     cap: "týden: využito {used} % – strop {cap} % dosažen; obnoví se {resets}",
     unread: "nelze přečíst `claude -p /usage`: {detail}",
+    unreadWait: "nelze přečíst `claude -p /usage` ({tries}×): {detail} — znovu za {min} minut",
     noweek: "chybí řádek „Current week … resets …“",
+    said: "{detail}; vypsalo: „{line}“",
+    nothing: "{detail}; nevypsalo nic",
+    unused: "týden: využito 0 % — zatím nic",
     exit: "skončilo s kódem {status}",
+    timeout: "bez odpovědi do {s} s",
+    login: "Claude Code není přihlášený — přihlásit jednou: claude, pak /login",
+    loginDir: "Claude Code není přihlášený s CLAUDE_CONFIG_DIR={dir} — přihlásit jednou se stejnou proměnnou (CLAUDE_CONFIG_DIR={dir} claude, pak /login), nebo spustit strom bez ní",
   },
   de: {
     other: "der Agent ist nicht Claude Code — nichts zu prüfen",
@@ -124,8 +157,42 @@ const T: Record<string, Record<string, string>> = {
     badcap: "die Obergrenze muss 1 bis 100 sein (\"--cap 95\"), nicht \"{arg}\"",
     cap: "Woche: {used} % genutzt – Obergrenze {cap} % erreicht; zurückgesetzt {resets}",
     unread: "`claude -p /usage` nicht lesbar: {detail}",
+    unreadWait: "`claude -p /usage` nicht lesbar ({tries}×): {detail} — erneut in {min} Minuten",
     noweek: "keine Zeile „Current week … resets …“",
+    said: "{detail}; Ausgabe: „{line}“",
+    nothing: "{detail}; keine Ausgabe",
+    unused: "Woche: 0 % genutzt — noch nichts",
     exit: "mit Exit-Status {status} beendet",
+    timeout: "keine Antwort in {s} s",
+    login: "Claude Code ist nicht angemeldet — einmal anmelden: claude, dann /login",
+    loginDir: "Claude Code ist mit CLAUDE_CONFIG_DIR={dir} nicht angemeldet — einmal mit derselben Variable anmelden (CLAUDE_CONFIG_DIR={dir} claude, dann /login) oder strom ohne sie starten",
+  },
+  pl: {
+    other: "agent to nie Claude Code — nie ma czego pilnować",
+    api: "Claude Code działa na kluczu API, nie w subskrypcji — bez limitów planu",
+    head: "tydzień: wykorzystano {used} %, upłynęło {gone} %, zapas {behind} (potrzeba co najmniej {min}{early})",
+    early: " – na początku tygodnia połowa tego, co upłynęło",
+    resetIn: "; tydzień odnowi się za {reset}",
+    hold: " — czeka na zapas {target}, potem kilka sesji z rzędu; tydzień odnowi się za {reset}",
+    last: " — do ostatnich {window} przed odnowieniem tygodnia za {reset}",
+    reset: " — do odnowienia tygodnia za {reset}",
+    end: "tydzień: wykorzystano {used} %, odnowi się za {reset} — pozostałe {room} % wystarczy na sesję",
+    session: "sesja wyczerpana — do jej odnowienia; tydzień odnowi się za {reset}",
+    hours: "{n} godz.",
+    days: "{n} dni",
+    bad: "liczba musi wynosić od 0 do 99, nie \"{arg}\"",
+    badcap: "limit musi wynosić od 1 do 100 (\"--cap 95\"), nie \"{arg}\"",
+    cap: "tydzień: wykorzystano {used} % – osiągnięto limit {cap} %; odnowi się {resets}",
+    unread: "nie można odczytać `claude -p /usage`: {detail}",
+    unreadWait: "nie można odczytać `claude -p /usage` ({tries}×): {detail} — ponownie za {min} minut",
+    noweek: "brak wiersza „Current week … resets …”",
+    said: "{detail}; wypisało: „{line}”",
+    nothing: "{detail}; nic nie wypisało",
+    unused: "tydzień: wykorzystano 0 % — jeszcze nic",
+    exit: "zakończyło się kodem {status}",
+    timeout: "brak odpowiedzi w ciągu {s} s",
+    login: "Claude Code nie jest zalogowany — zalogować się raz: claude, potem /login",
+    loginDir: "Claude Code nie jest zalogowany z CLAUDE_CONFIG_DIR={dir} — zalogować się raz z tą samą zmienną (CLAUDE_CONFIG_DIR={dir} claude, potem /login) albo uruchomić strom bez niej",
   },
 };
 function say(key: string, v: Record<string, string | number> = {}): string {
@@ -167,26 +234,39 @@ let week: Use | undefined;
 const said = fromAgent(process.env.STROM_AGENT_LIMITS);
 if (said) ({ session, week } = said);
 else {
-  // ── what Claude Code says ─────────────────────────────────────────────────
-  const r = spawnSync("claude", ["-p", "/usage"], { encoding: "utf8", timeout: 90_000, shell: process.platform === "win32", windowsHide: true });
-  // what Claude Code or the system said is said as it is; the gate's own words in the research language (STROM_LANG)
-  if (r.error || r.status !== 0) answer(2, say("unread", { detail: r.error?.message ?? ((r.stderr || r.stdout || "").trim().split("\n")[0] || say("exit", { status: String(r.status) })) }));
-  const text = r.stdout;
-  if (/API key/i.test(text) && !/Current week/i.test(text)) {
-    cap = undefined;
-    answer(0, say("api"));
+  // ── what Claude Code says: asked again when it cannot be read, then a wait — never a stop for one answer ─────
+  const began = Date.now();
+  let detail = "";
+  let tries = 0;
+  for (;;) {
+    tries++;
+    const read = askUsage(Math.min(ASK_MS, BUDGET_MS - (Date.now() - began)));
+    if ("api" in read) {
+      cap = undefined;
+      answer(0, say("api"));
+    }
+    if ("week" in read) {
+      ({ session, week } = read);
+      break;
+    }
+    detail = read.detail;
+    // not logged in (its /usage a bare /cost): no asking again makes it read — said with how to log in
+    if (tries === 1 && loggedIn() === false) {
+      cap = undefined;
+      const dir = process.env.CLAUDE_CONFIG_DIR?.trim();
+      answer(2, dir ? say("loginDir", { dir }) : say("login"));
+    }
+    if (tries >= ATTEMPTS || BUDGET_MS - (Date.now() - began) < RETRY_MS + ASK_MS / 2) break;
+    sleep(RETRY_MS);
   }
-  const LINE = /^Current (session|week)(?: \(([^)]+)\))?:\s*(\d+)%\s*used(?:\s*·\s*resets\s*(.+))?$/i;
-  for (const raw of text.split(/\r?\n/)) {
-    const m = LINE.exec(raw.trim());
-    if (!m) continue;
-    const item = { used: Number(m[3]), ...(m[4] ? { resets: resetAt(m[4]) } : {}) };
-    if (m[1]!.toLowerCase() === "session") session = item;
-    // the limit of all models is the one that stops the work; a model's own week only if there is no other
-    else if (!week || /all models/i.test(m[2] ?? "")) week = item;
-  }
+  if (!week) answer(1, say("unreadWait", { tries, detail, min: UNREAD_WAIT / 60_000 }), new Date(Date.now() + UNREAD_WAIT));
 }
-if (!week?.resets) answer(2, say("unread", { detail: say("noweek") }));
+if (!week) answer(2, say("unread", { detail: say("noweek") }));
+// the week's line without its reset: nothing used yet goes (a new week), else what it says is not read
+if (!week.resets) {
+  if (week.used === 0) answer(0, say("unused"));
+  answer(1, say("unreadWait", { tries: 1, detail: say("noweek"), min: UNREAD_WAIT / 60_000 }), new Date(Date.now() + UNREAD_WAIT));
+}
 // the cap first: the user's own hard stop, whatever the pace
 if (cap !== undefined && week.used >= cap)
   answer(2, say("cap", { used: Math.floor(week.used), cap, resets: week.resets.toLocaleString(lang, { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) }), undefined, true);
@@ -230,6 +310,59 @@ const at = Math.min(caught, last, after);
 const tail =
   at === caught ? say("hold", { reset, target: Math.ceil(need + reserve) }) : at === last ? say("last", { reset, window: say("hours", { n: END_WINDOW / 3_600_000 }) }) : say("reset", { reset });
 answer(1, say("head", { ...v, min: Math.ceil(need) }) + tail, new Date(Math.max(at, now + 5 * 60_000)));
+
+/**
+ * `claude -p /usage` once: the session's and the week's use, an API key's answer, or why it was not read — with the
+ * first line it said (shortened, no e-mail address), so the gate's log says what Claude Code answered.
+ */
+function askUsage(timeout: number): { session?: Use; week: Use } | { api: true } | { detail: string } {
+  const r = spawnSync("claude", ["-p", "/usage"], { encoding: "utf8", timeout: Math.max(5_000, timeout), shell: process.platform === "win32", windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+  // what Claude Code or the system said is said as it is; the gate's own words in the research language (STROM_LANG)
+  const out = `${r.stdout ?? ""}\n${r.stderr ?? ""}`;
+  const line = firstLine(r.status === 0 ? (r.stdout ?? "") : out);
+  const why = (detail: string) => ({ detail: line ? say("said", { detail, line }) : say("nothing", { detail }) });
+  if (r.error) return (r.error as NodeJS.ErrnoException).code === "ETIMEDOUT" ? why(say("timeout", { s: Math.round(timeout / 1000) })) : { detail: r.error.message };
+  if (r.status !== 0) return why(say("exit", { status: String(r.status) }));
+  const text = r.stdout ?? "";
+  if (/API key/i.test(text) && !/Current week/i.test(text)) return { api: true };
+  let session: Use | undefined;
+  let week: Use | undefined;
+  const LINE = /^Current (session|week)(?: \(([^)]+)\))?:\s*(\d+(?:\.\d+)?)\s*%\s*used(?:\s*·\s*resets\s*(.+))?$/i;
+  for (const raw of text.split(/\r?\n/)) {
+    const m = LINE.exec(raw.trim());
+    if (!m) continue;
+    const at = m[4] ? resetAt(m[4]) : undefined;
+    const item = { used: Number(m[3]), ...(at ? { resets: at } : {}) };
+    if (m[1]!.toLowerCase() === "session") session = item;
+    // the limit of all models is the one that stops the work; a model's own week only if there is no other
+    else if (!week || /all models/i.test(m[2] ?? "")) week = item;
+  }
+  if (!week || (!week.resets && week.used !== 0)) return why(say("noweek"));
+  return { week, ...(session ? { session } : {}) };
+}
+
+/** The first line said that is not empty, shortened, without an e-mail address (an account's name stays out of the log). */
+function firstLine(text: string): string {
+  const line = text.split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? "";
+  const clean = line.replace(/[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+/gu, "…@…");
+  return clean.length > 80 ? `${clean.slice(0, 79)}…` : clean;
+}
+
+/** `claude auth status` says whether it is logged in; undefined when it cannot tell (an older Claude Code). */
+function loggedIn(): boolean | undefined {
+  try {
+    const r = spawnSync("claude", ["auth", "status"], { encoding: "utf8", timeout: 20_000, shell: process.platform === "win32", windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
+    const said = JSON.parse((r.stdout ?? "").trim()) as { loggedIn?: unknown };
+    return typeof said?.loggedIn === "boolean" ? said.loggedIn : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Waits here (the gate is one short program: nothing else to do meanwhile). */
+function sleep(ms: number): void {
+  if (ms > 0) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
 
 /** It waits for the reserve in this week (the week it remembers ends within a day of this one's reset). */
 function holding(resets: number): boolean {
@@ -287,16 +420,33 @@ function fromAgent(json: string | undefined): { session?: Use; week: Use } | und
   return { week, ...(session ? { session } : {}) };
 }
 
-/** "Sep 30 at 2pm (Europe/Prague)", "Oct 2 at 11:30am (UTC)" → the moment. */
+/**
+ * "Sep 30 at 2pm (Europe/Prague)", "Oct 2 at 11:30am (UTC)", "Nov 4 at 13:00 (Europe/Prague)", "Nov 4, 1pm (UTC)" → the
+ * moment; a time alone ("6pm (Europe/Prague)", a session's) → its next coming.
+ */
 function resetAt(s: string): Date | undefined {
-  const m = /^(\w{3})\w*\s+(\d{1,2})\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s*\(([^)]+)\)/i.exec(s.trim());
+  const m = /^(?:([A-Za-z]{3})[A-Za-z]*\.?\s+(\d{1,2})(?:\s+at|,)?\s+)?(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([ap]\.?m\.?)?\s*\(([^)]+)\)/i.exec(s.trim());
   if (!m) return undefined;
-  const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(m[1]!.toLowerCase());
-  if (month < 0) return undefined;
-  const hour = (Number(m[3]) % 12) + (m[5]!.toLowerCase() === "pm" ? 12 : 0);
+  const ampm = m[5]?.replace(/\./g, "").toLowerCase();
+  const h = Number(m[3]);
+  if (ampm ? h < 1 || h > 12 : h > 23) return undefined;
+  const hour = ampm ? (h % 12) + (ampm === "pm" ? 12 : 0) : h;
+  const minute = Number(m[4] ?? 0);
   const zone = m[6]!;
+  if (!m[1]) {
+    // a time alone: today's in the zone, else tomorrow's
+    const [y, mo, d] = new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()).split("-").map(Number) as [number, number, number];
+    for (const add of [0, 1]) {
+      const guess = Date.UTC(y, mo - 1, d + add, hour, minute);
+      const at = guess - offsetMs(guess, zone);
+      if (at > Date.now()) return new Date(at);
+    }
+    return undefined;
+  }
+  const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(m[1].toLowerCase());
+  if (month < 0) return undefined;
   for (const year of [new Date().getUTCFullYear(), new Date().getUTCFullYear() + 1]) {
-    const guess = Date.UTC(year, month, Number(m[2]), hour, Number(m[4] ?? 0));
+    const guess = Date.UTC(year, month, Number(m[2]), hour, minute);
     const at = guess - offsetMs(guess, zone);
     if (at > Date.now() - DAY) return new Date(at);
   }
