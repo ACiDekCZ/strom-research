@@ -56,13 +56,21 @@
     <p id="noTrees" class="quiet" hidden></p>
     <section id="pairedCard" class="card" hidden><h2 id="pairedTitle"></h2><p id="pairedText" class="quiet"></p></section>
     <section id="archiveCard" class="card" hidden><p id="archiveText" class="strong"></p><p id="archivePhotos" class="quiet"></p></section>
-    <!-- what the research does now, what it found, the last 24 hours, the progress and what waits: to look at alone (nothing here
-         answers, starts or decides anything) -->
+    <!-- what the research does now, its lines, what it found, the last 24 hours, the progress and what waits: to look at
+         alone (nothing here answers, starts or decides anything) — but a line moved one place or paused / started again,
+         the same as on the computer -->
     <div id="overview" hidden>
       <section id="nowCard" class="card">
         <h2 id="nowTitle" class="cap"></h2>
         <ul id="nowLines" class="lines"></ul>
         <div id="nowIdle" hidden><p class="idle-row"><span class="ring" aria-hidden="true"></span><span id="nowIdleText"></span></p><p id="nowIdleLast" class="quiet small"></p></div>
+      </section>
+      <!-- the lines in the order of work, each with its number; a line opened on a tap: ▲ ▼ and pause / start again -->
+      <section id="linesCard" class="card" hidden>
+        <h2 id="linesTitle" class="cap"></h2>
+        <ol id="linesList" class="dirs"></ol>
+        <p id="linesNote" class="quiet small"></p>
+        <p id="linesError" class="warn-text small" role="status" hidden></p>
       </section>
       <!-- what the research found since this phone looked last (the last 24 hours at least), the new ones marked -->
       <section id="findsCard" class="card">

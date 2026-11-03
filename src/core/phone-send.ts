@@ -19,6 +19,10 @@
 //                                  (`batch` in the answer when it is another)
 //   POST /phone/batch/<id>/done?tree=  {note, person}: the batch handed over to the research, with the one(s) that took
 //                                  over from it ({empty: true} when no photo of it was new)
+//   POST /phone/line/<key>?tree=   {do: up|down|pause|resume}: a line of the research (by its key on the phone, never its
+//                                  ID) moved one place or paused / resumed — strom research move|pause|resume, the
+//                                  person's ({ok, head}); 404 phone.line, 409 for a research nobody researches, 503
+//                                  research.busy
 //
 // A phone's batch nobody handed over is closed an hour after its last photo by this server too (a bridge may not run),
 // and the parts of uploads cut short are cleared from the shared store.
@@ -32,14 +36,14 @@ import { knownTreesIn, Tree, type KnownTree } from "./tree.ts";
 import { actsAsArchive } from "./state.ts";
 import { BATCH_ID, idleBatches, phoneBatch, readBatch } from "./batches.ts";
 import { cleanIncoming, knownOriginal, originalMax } from "./originals.ts";
-import { closeBatchBy, receiveOriginal, refusal, replyJson, type Receiver } from "./receive.ts";
+import { closeBatchBy, receiveOriginal, refusal, replyJson, stromBy, type Receiver } from "./receive.ts";
 import { waysHere } from "./readable.ts";
 import { birthEvent, deathEvent, displayName, findPersons } from "./people.ts";
 import { yearLabel } from "./gdate.ts";
 import { foldText } from "./text.ts";
 import { treeFinds } from "./phone-finds.ts";
-import { LOG_PHONE, WAITING_ASKED, WAITING_SHOWN, treeLog, treeMarks, treeOverview, treeWaiting } from "./phone-watch.ts";
-import type { Person } from "./model.ts";
+import { LOG_PHONE, WAITING_ASKED, WAITING_SHOWN, phoneLineKey, treeLog, treeMarks, treeOverview, treeWaiting } from "./phone-watch.ts";
+import type { Person, Research } from "./model.ts";
 
 /** How often the batches of a phone are looked at, and the parts of uploads cut short. */
 const INCOMING_EVERY_MS = 60 * 60_000;
@@ -216,6 +220,37 @@ export function phoneSend(env: Env, note: (text: string) => void): PhoneSend {
         // the batch closed meanwhile (an hour without a photo, handed over): the one that took over from it
         const batch = phoneBatch(t.root, asked, () => crypto.randomUUID());
         receiveOriginal(receiver(t), req, res, { sha, name, persons: [], batch, phone: true });
+      };
+
+    // a line moved or paused from the phone: the same commands as the terminal's, the person's
+    const line = /^\/phone\/line\/([0-9a-f]{12})$/.exec(p);
+    if (line && req.method === "POST")
+      return () => {
+        if (foreign()) return refuse(403, refusal("only the phone's page changes a line", "phone.origin"));
+        const t = treeOf();
+        if (!t) return gone();
+        let body = "";
+        req.setEncoding("utf8");
+        req.on("data", (d: string) => {
+          if (body.length < 1024) body += d;
+        });
+        req.on("error", () => {});
+        req.on("end", () => {
+          let said: { do?: unknown } = {};
+          try {
+            said = body.trim() ? ((JSON.parse(body) as typeof said) ?? {}) : {};
+          } catch {
+            said = {};
+          }
+          const act = said.do;
+          if (act !== "up" && act !== "down" && act !== "pause" && act !== "resume") return reply(400, refusal(`the body: {"do": "up"|"down"|"pause"|"resume"}`, "phone.line.body"));
+          const tree = Tree.open(t.root, env);
+          if (actsAsArchive(tree)) return reply(409, refusal("nobody researches here: no line is changed", "directions.archive"));
+          const r = tree.list<Research>("research").find((x) => phoneLineKey(tree, x.id) === line[1]);
+          if (!r) return reply(404, refusal("no such line", "phone.line"));
+          const argv = act === "up" || act === "down" ? ["research", "move", r.id, `--${act}`] : ["research", act, r.id];
+          stromBy(receiver(t), argv, (code, answer) => reply(code, code === 200 ? { ok: true, head: answer.head } : answer));
+        });
       };
 
     const done = /^\/phone\/batch\/([^/]+)\/done$/.exec(p);

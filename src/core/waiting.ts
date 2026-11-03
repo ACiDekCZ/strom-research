@@ -27,9 +27,9 @@ import { onHost } from "./archivewait.ts";
 import { storiesToApprove } from "./stories.ts";
 import { receivedPending, type Received } from "./sync.ts";
 import { tuneQuestions, type Question } from "./tuneask.ts";
-import type { Settings } from "./config.ts";
+import { Settings } from "./config.ts";
 import { scopes, type Scope } from "./directions.ts";
-import { lineOf } from "./offline.ts";
+import { lineOf, offLineView, type BranchView } from "./offline.ts";
 import { collectFiles, IMAGE_FILE_EXT, parseImageList } from "./media.ts";
 import { conflictTitle, displayName } from "./people.ts";
 import { conflictsToDecide } from "./conflicts.ts";
@@ -40,7 +40,7 @@ import { ui } from "../cli/ui.ts";
 import { humanDay } from "../cli/human.ts";
 
 /** What waits: a task's kind, a question about an archive, a story, and the terminal's own (a send of the app, a question about the reading of scans). */
-export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict" | "place";
+export type WaitingKind = WaitKind | "takeover" | "milder" | "story" | "send" | "tune" | "conflict" | "place" | "branch";
 export type WaitSection = "decide" | "images" | "letter" | "family" | "web" | "other";
 /** What a link of the Strom app does with an item (strom-research://task?…&do=): answer, a file to it, the request's text, the folder, sent, a conversation. */
 export type WaitAction = "answer" | "file" | "note" | "folder" | "sent" | "chat";
@@ -58,6 +58,7 @@ const SECTION: Record<string, WaitSection> = {
   tune: "decide",
   conflict: "decide",
   place: "decide",
+  branch: "decide",
   images: "images",
   letter: "letter",
   family: "family",
@@ -72,7 +73,7 @@ export function sectionOf(kind: string): WaitSection {
 /** To be done: the decisions, then images and sites, then letters and the family, then the rest. */
 const SECTION_RANK: Record<WaitSection, number> = { decide: 0, images: 1, web: 1, letter: 2, family: 2, other: 3 };
 /** Among the decisions: the person's own edits first, the archives (they hold work up), then the rest. */
-const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, tune: 6 };
+const DECIDE_RANK: Record<string, number> = { send: 0, conflict: 0, permission: 1, takeover: 2, milder: 3, check: 4, story: 5, place: 5, branch: 5, tune: 6 };
 
 /** The actions each kind of task allows (those links do now: ACTIONS_OFFERED). */
 function actionsOf(kind: WaitingKind, phase: WaitPhase, note: boolean): WaitAction[] {
@@ -116,6 +117,8 @@ export interface Waiting {
   conflict?: Conflict;
   /** A question of a place the research asks (core/placeid.ts): which of the candidates, the position, the facts' writing. */
   place?: PlaceAsked;
+  /** A branch off the lines that grows: a line proposed for it (core/offline.ts). */
+  branch?: BranchView;
   /** Shown only in the terminal: the Strom app never gets it (/status `waiting` asks for none of these — TERMINAL_ONLY). */
   terminalOnly?: true;
 }
@@ -419,6 +422,31 @@ export function waitingFor(tree: Tree, o: WaitingOptions = {}): Waiting[] {
           ...(q.kind === "conflict" ? { current: q.current ?? (a.place.coords ? { lat: a.place.coords.lat, lon: a.place.coords.lon } : undefined), ...(by ? { by } : {}) } : {}),
           ...(q.kind === "form" && q.change ? { change: q.change } : {}),
           ...(q.why ? { why: q.why } : {}),
+        },
+      });
+    }
+  // a branch off the lines that grows: a line proposed for it (K7.0 d) — computed now, nothing written until answered
+  if (!actsAsArchive(tree))
+    for (const b of offLineView(tree, o.tune ?? new Settings(tree.env, {}), o.scopes)?.branches.filter((x) => x.grows) ?? []) {
+      const p = tree.get<Person>(b.person);
+      const at = b.tasks.map((t) => t.created).sort().pop() ?? "";
+      out.push({
+        branch: b,
+        item: {
+          id: `W-${b.id}`,
+          what: ui(lang, "ui.waiting.branch", { who: p ? displayName(p) : b.person, tasks: b.tasks.length, persons: b.persons.length }),
+          on: "",
+          at,
+          kind: "branch",
+          section: "decide",
+          group: { key: "branches", name: phrase(lang, "wait.group.branches"), kind: "other" },
+          phase: "todo",
+          actions: ["answer"],
+          branch: b.id,
+          person: b.person,
+          ...(b.nearest ? { research: b.nearest } : {}),
+          tasks: b.tasks.length,
+          persons: b.persons.length,
         },
       });
     }

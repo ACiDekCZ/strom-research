@@ -448,6 +448,11 @@ export function changeLines(tree: Tree, ops: Op[], subject: string, lang: string
       );
       continue;
     }
+    // the person's choice for a branch off the lines, or an answer to a line proposed for it (quality/offline.json)
+    if (o.op === "offline.set" || o.op === "offline.answer") {
+      say(phrase(lang, o.op === "offline.set" ? "log.offline.set" : "log.offline.answer", { who: who(o.targets[0]) }));
+      continue;
+    }
     // the names of participants set apart from their notes by strom's fix, or put back (quality/participant-names.json)
     if (o.op === "participant.fix" || o.op === "participant.unfix") {
       const n = /: (\d+) in /u.exec(o.summary)?.[1] ?? String(o.targets.length);

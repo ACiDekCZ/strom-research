@@ -7,7 +7,27 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.26.0
 
-*W przygotowaniu: bety do 1.26.0-beta.2. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.26.0-beta.4. Sekcja będzie kompletna z wydaniem.*
+
+- **Linie badania z aplikacji Strom: założyć, zmienić, wstrzymać, uporządkować.** Linię można w aplikacji założyć lub
+  zmienić (osoba, kierunek, pytanie, granice), wstrzymać, zakończyć lub wznowić; kolejność linii to kolejność pracy,
+  a strona na telefon przesuwa linię w górę lub w dół i ją wstrzymuje. Praca poza liniami – boczna gałąź, do której nie
+  sięga żadna linia, na przykład siostra przodka i jej rodzina – przychodzi teraz czasem, jedno zadanie na dziesięć
+  sesji, a nie tylko na końcu. Każda taka gałąź może mieć własny wybór (czasem, na końcu, jak praca linii, nigdy albo
+  dodana do linii), a dla rosnącej gałęzi w „Co czeka” proponowana jest linia: dodać do linii, założyć dla niej linię,
+  zostawić bez zmian albo nie badać. Mąż lub żona przodka należą do linii przodka. Każde zadanie można wziąć od razu lub
+  przenieść na koniec, a każde zadanie w kolejce mówi, dlaczego stoi tam, gdzie stoi. W terminalu: Ustawienia →
+  Samodzielna praca agenta → Praca poza liniami, `strom offline`, `strom task order`.
+
+- **Opowieść napisana na nowo niczego nie traci.** Gdy badanie pisze opowieść od nowa – więcej danych, lepszy odczyt,
+  opowieść przejęta ze starszego badania – każda dana, źródło i link poprzedniej wersji zostają albo odchodzą tylko
+  celowo z powodem, zapisanym przy opowieści. Źródła, na których opiera się opowieść, są przy niej widoczne, tytuł
+  i adres pod każdą daną, także gdy tekst ich nie wymienia, a aplikacja Strom dostaje je z opowieścią. Dana
+  z poszlaki mówi w tekście, skąd pochodzi.
+
+## 1.25.2
+
+*3.11.2026 · współpracuje z aplikacją Strom 3.21.2.*
 
 - **Warunek tygodnia subskrypcji nie kończy już przebiegu z powodu jednej nieodczytanej odpowiedzi.** Pyta ponownie,
   potem czeka kwadrans i podaje, co otrzymał. Niezalogowany agent jest zgłaszany już przed pierwszą sesją, ze sposobem

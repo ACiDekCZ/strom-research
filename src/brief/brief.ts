@@ -32,6 +32,7 @@ import { familyFormsFor, groupedForms, readSurnames, sameFamily } from "../core/
 import { twoPeople } from "../core/quality.ts";
 import { searchedAs } from "../core/evidence.ts";
 import { hypothesisPeople } from "../core/directions.ts";
+import { neverPeople } from "../core/offline.ts";
 import type { Tree } from "../core/tree.ts";
 import { imagesIndex, weakScans } from "../core/mediaindex.ts";
 import { SHARPER_SCAN } from "../core/views.ts";
@@ -1477,8 +1478,10 @@ export function buildBrief(
       "- new questions → strom task add … (what, where, why, done-when)",
       // a research of several lines: work off them waits for them unless it says how it helps one (core/offline.ts)
       tree.list<Research>("research").filter((r) => !r.retracted).length > 1
-        ? '- a task none of whose people is in a line (a side branch): only with --helps "<how it helps G…>" (an ancestor\'s sibling as godparent or witness, the same house, a surname for an ancestor, joining people to the tree) — else it waits until the lines have nothing to do'
+        ? '- a task none of whose people is in a line (a side branch): only with --helps "<how it helps G…>" (an ancestor\'s sibling as godparent or witness, the same house, a surname for an ancestor, joining people to the tree) — else it comes only now and then or after the lines\' work (the person\'s choice: strom offline list)'
         : "",
+      // the branches the person chose not to research: no new work there
+      ((b) => (b.length ? `- not researched, the person's choice: the branches ${b.join(", ")} (strom offline show <B-…>) — no new task about their people` : ""))(neverPeople(tree).branches),
       task
         ? '- done: strom session close --done "what was proven, what was searched in vain" --next "the next cheapest step" (the task and the session in one call; a complete negative search is a result)'
         : '- then: strom session close --summary "what was proven, what was searched in vain" --next "the next cheapest step"',

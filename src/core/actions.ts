@@ -1,7 +1,8 @@
 // Domain write operations. Every change to the evidence goes through here,
 // under the tree lock, validated and sealed by Tree.put.
 
-import { UsageError } from "./errors.ts";
+import { DirectionExists, UsageError } from "./errors.ts";
+import { workOrder } from "./order.ts";
 import { normalizeDate, reversedRange } from "./gdate.ts";
 import { normalizeAge } from "./age.ts";
 import { checkStatus, defaultStatus } from "./evidence.ts";
@@ -35,6 +36,7 @@ import {
 } from "./model.ts";
 import { cleanTitle, displayName, familiesAsChild, familiesAsPartner, gedcomName, gedcomTitledName, closesCircle, isAncestorOf, isBirthFamily, keepSides, notAName, parseName, primaryName, sameName, slashInName, withoutMark } from "./people.ts";
 import { foldText } from "./text.ts";
+import { latestVersion, linkKey, linksIn, sourcesNamed, storyLosses, storySources, type StoryLoss } from "./storykeep.ts";
 import { roleWord } from "./roles.ts";
 import { checkParticipant, trailingNote } from "./participants.ts";
 import { now, typeOfId, type Tree } from "./tree.ts";
@@ -579,6 +581,9 @@ export function addResearch(tree: Tree, input: ResearchInput): Research {
   requirePerson(tree, input.focus);
   if (direction === "question" && !input.question?.trim()) throw new UsageError("--question is required for direction question");
   return tree.withTreeLock(() => {
+    const existing = tree.list<Research>("research");
+    const same = sameDirection(existing, input.focus, direction, input.question);
+    if (same) throw new DirectionExists({ id: same.id, name: same.name, state: same.state });
     const t = now();
     const r: Research = {
       id: tree.allocate("G"),
@@ -597,9 +602,29 @@ export function addResearch(tree: Tree, input: ResearchInput): Research {
     if (input.before) limits.before = input.before;
     if (Object.keys(limits).length) r.limits = limits;
     if (input.question?.trim()) r.question = input.question.trim();
-    tree.put(r, { op: "research.add", targets: [r.id, input.focus], summary: `+${r.id} research "${r.name}"` });
+    const op = { op: "research.add", targets: [r.id, input.focus], summary: `+${r.id} research "${r.name}"` };
+    // the new line goes last in the order of work; lines of an older strom without a place get theirs as they stand
+    const unplaced = existing.some((x) => x.order === undefined);
+    if (!unplaced) {
+      r.order = Math.max(0, ...existing.map((x) => x.order ?? 0)) + 1;
+      tree.put(r, op);
+      return r;
+    }
+    const placed = workOrder(existing).flatMap((x, i) => (x.order === i + 1 ? [] : [{ ...x, order: i + 1, updated: t }]));
+    r.order = existing.length + 1;
+    tree.putMany([...placed, r], [], { ...op, targets: [...op.targets, ...placed.map((x) => x.id)] });
     return r;
   });
+}
+
+/**
+ * The line a new one would repeat: the same person and kind, for a question also the same question (any state). A
+ * review (strom review) is not one: it has its own.
+ */
+export function sameDirection(lines: Research[], focus: string, direction: string, question?: string): Research | undefined {
+  if (direction === "person") return undefined;
+  const q = question !== undefined ? foldText(question.trim().normalize("NFC")) : "";
+  return lines.find((x) => x.focus === focus && x.direction === direction && (direction !== "question" || foldText((x.question ?? "").trim().normalize("NFC")) === q));
 }
 
 /** Find the person or family that holds an event. */
@@ -1117,6 +1142,8 @@ export interface StoryInput {
   history?: string[] | undefined;
   note?: string | undefined;
   final?: boolean | undefined;
+  /** What it leaves out on purpose of the version before it, each with the reason (E…, S… or a link). */
+  drop?: { ref: string; why: string }[] | undefined;
 }
 
 /**
@@ -1145,17 +1172,58 @@ export function setStory(tree: Tree, id: string, input: StoryInput): Person | Fa
       at: now(),
       by: tree.actor,
     };
+    // Written again: what the version before had stays, or goes on purpose with its reason — never without a word.
+    const drop = dropsOf(input.drop, facts, sources);
+    const before = latestVersion(rec.story);
+    if (before) {
+      const lost = storyLosses(tree, before, version, drop.map((d) => d.ref));
+      if (lost.length) throw storyLossError(id, lost);
+      const had = new Set([...before.facts, ...storySources(tree, before).map((x) => x.id), ...sourcesNamed(tree, [before.title, before.text, before.note].filter(Boolean).join("\n")), ...linksIn([before.title, before.text, before.note].filter(Boolean).join("\n")).map(linkKey)]);
+      const meant = drop.filter((d) => had.has(/^https?:/iu.test(d.ref) ? linkKey(d.ref) : d.ref));
+      if (meant.length) version.dropped = meant;
+    }
     const words = text.split(/\s+/).length;
+    const left = version.dropped?.length ? `; left out on purpose: ${version.dropped.map((d) => d.ref).join(", ")}` : "";
+    const reason = version.dropped?.map((d) => `${d.ref}: ${d.why}`).join("; ");
     if (rec.story?.status === "final" && !input.final) {
       const updated = { ...rec, story: { ...rec.story, draft: version }, updated: now() } as Person | Family;
-      tree.put(updated, { op: "story.set", targets: [id], summary: `${id} story: a new version (${words} words) waits for the user's approval; the approved one stays` });
+      tree.put(updated, { op: "story.set", targets: [id], summary: `${id} story: a new version (${words} words) waits for the user's approval; the approved one stays${left}`, ...(reason ? { reason } : {}) });
       return updated;
     }
     const story: Story = { ...version, status: input.final ? "final" : "draft" };
     const updated = { ...rec, story, updated: now() } as Person | Family;
-    tree.put(updated, { op: "story.set", targets: [id], summary: `${id} story${rec.story ? " rewritten" : ""}: ${words} words, ${story.status}` });
+    tree.put(updated, { op: "story.set", targets: [id], summary: `${id} story${rec.story ? " rewritten" : ""}: ${words} words, ${story.status}${left}`, ...(reason ? { reason } : {}) });
     return updated;
   });
+}
+
+/** The --drop of a story: each a fact, a source or a link with a reason — never one the new version keeps. */
+function dropsOf(given: StoryInput["drop"], facts: string[], sources: string[]): { ref: string; why: string }[] {
+  const out = new Map<string, { ref: string; why: string }>();
+  for (const d of given ?? []) {
+    const link = /^https?:/iu.test(d.ref);
+    const ref = link ? d.ref.trim() : d.ref.trim().toUpperCase();
+    if (!ref || !d.why.trim())
+      throw new UsageError(`--drop needs what and why: "${d.ref}"`, { hint: '--drop "E0012 told in the couple\'s story" (a fact E…, a source S… or a link, then the reason)', code: "story.drop" });
+    if (!link && !/^[ES]\d+$/u.test(ref)) throw new UsageError(`--drop takes a fact (E…), a source (S…) or a link: "${d.ref}"`, { hint: '--drop "S0003 the page says nothing of him"', code: "story.drop" });
+    if (facts.includes(ref) || sources.includes(ref)) throw new UsageError(`${ref} is both kept (--fact/--source) and left out (--drop)`, { hint: "say one of them", code: "story.drop" });
+    out.set(link ? linkKey(ref) : ref, { ref, why: d.why.trim() });
+  }
+  return [...out.values()];
+}
+
+/** The story written again would lose what the version before had: what, and how to keep it or leave it out. */
+function storyLossError(id: string, lost: StoryLoss[]): UsageError {
+  const kinds = { fact: "a fact", source: "a source", link: "a link" } as const;
+  return new UsageError(
+    `the story of ${id} had what this version leaves out — keep it, or leave it out on purpose with the reason:\n` +
+      lost.map((l) => `  ${l.what} (${kinds[l.kind]}) → ${l.keep}`).join("\n"),
+    {
+      hint: `strom story show ${id} shows the version before; leave one out: --drop "<E…|S…|link> <why>" (repeatable; the reason is kept with the story)`,
+      code: "story.loses",
+      details: { lost: lost.map((l) => ({ ref: l.ref, kind: l.kind, what: l.what })) },
+    },
+  );
 }
 
 /** The new version of an approved story is not wanted: it goes, the approved story stays (the history keeps it). */

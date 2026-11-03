@@ -186,6 +186,8 @@ export interface Story {
   history?: string[];
   /** The author's caveat. */
   note?: string;
+  /** What it left out on purpose of the version before it, and why (strom story set --drop). */
+  dropped?: { ref: string; why: string }[];
   at: string;
   by: string;
   /**
@@ -203,6 +205,7 @@ export interface StoryDraft {
   sources?: string[];
   history?: string[];
   note?: string;
+  dropped?: { ref: string; why: string }[];
   at: string;
   by: string;
 }
@@ -279,6 +282,8 @@ export interface Research extends BaseRecord {
   /** When its state last changed (strom research pause|done|resume); before, its creation. */
   stateSince?: string;
   priority: number;
+  /** Its place in the order of work (1 = first; core/order.ts). Missing in a research of an older strom: by priority. */
+  order?: number;
   limits?: { generations?: number; before?: number };
   /**
    * A person research that reviews what is recorded (strom review): whom, and a second reading by this model.
@@ -502,8 +507,12 @@ export interface Search extends BaseRecord {
 /** How the task queue is ordered (core/queue.ts). */
 export const STRATEGIES = ["balanced", "depth", "priority"] as const;
 export type Strategy = (typeof STRATEGIES)[number];
-/** Work off the lines of a research with several (setting queue.offLine, core/offline.ts). */
-export const OFF_LINE_CHOICES = ["last", "normal", "never"] as const;
+/**
+ * Work off the lines of a research with several (setting queue.offLine, core/offline.ts): now and then (the default — one
+ * task off the lines in queue.offLineShare), after the lines' work, as the lines' work, never. An older strom that knows no
+ * "occasional" takes it as its default (last).
+ */
+export const OFF_LINE_CHOICES = ["occasional", "last", "normal", "never"] as const;
 export type OffLine = (typeof OFF_LINE_CHOICES)[number];
 
 /** The person's answer to a task's check of a site: the book and its images there, only to be viewed there, nothing there. */
@@ -613,6 +622,12 @@ export interface Task extends BaseRecord {
    * an older strom keeps it and ignores it.
    */
   helps?: string;
+  /**
+   * The person's word on when it comes (strom task order, the Strom app's "do it now" / "at the end"): next — before all
+   * else but the task at work, once (gone when a session on it ends); last — after everything in the queue, until it is
+   * done or set back. Optional: an older strom keeps it and ignores it.
+   */
+  queueAt?: { do: "next" | "last"; at: string };
   origin: string;
   notes: Note[];
 }
@@ -877,8 +892,15 @@ export interface TreeConfig {
   readParallel?: number;
   /** Order of the task queue: balanced (default), depth, priority. */
   queueStrategy?: string;
-  /** Work off the lines (core/offline.ts): last (default), normal, never. */
+  /** Work off the lines (core/offline.ts): occasional (default), last, normal, never. */
   queueOffLine?: string;
+  /** One task off the lines in so many (queue.offLineShare, occasional). */
+  queueOffLineShare?: number;
+  /** A line proposed for a branch off the lines that grows: yes (default) or no. */
+  queueSuggestLines?: string;
+  /** The tasks and the people of a branch from which a line is proposed for it. */
+  queueSuggestTasks?: number;
+  queueSuggestPersons?: number;
   /** Stories of the ancestors: yes or no (overrides the user's). */
   stories?: string;
   /** The history of the regions of the tree's places for this tree alone, both ways ("on" | "off"; unset: the user's config). */

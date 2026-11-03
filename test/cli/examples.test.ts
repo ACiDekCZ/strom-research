@@ -143,6 +143,8 @@ async function seeded(): Promise<World> {
   // a second record of Horní Lhota close by (place merge)
   const dup = (await w.ok(["place", "add", "Nová Lhota", "--lat", "49.611", "--lon", "15.231", "--json"])).json.place.id;
   assert.equal(dup, "L0003", "the place merge example's ID");
+  // a second line, the ancestors of Marie Nováková (G0002): Josef Víšek, the son of her husband Antonín, is a branch off the lines (strom offline, B-P0006)
+  await w.ok(["research", "new", "Předci Marie Novákové", "--person", "P0005"]);
   fs.writeFileSync(path.join(reads, "D20260101120000-ab12.json"), JSON.stringify({ id: "D20260101120000-ab12", state: "done", version: 1, readers: 1, lang: "cs", pages: [{ n: 1, file: "I0005", name: "dopis.pdf", page: 1 }], groups: [[1]], reports: [], at, since: at }));
   return w;
 }

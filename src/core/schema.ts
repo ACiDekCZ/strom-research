@@ -154,6 +154,7 @@ export const SCHEMAS: Partial<Record<RecordType, Record<string, Spec>>> = {
     produced: { t: "strings" },
     origin: S({ req: true }),
     helps: S({ max: 500 }),
+    queueAt: { t: "object", of: { do: S({ req: true, enum: ["next", "last"] }), at: S({ req: true }) } },
     kinds: { t: "strings" },
   },
   conflict: {

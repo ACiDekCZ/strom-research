@@ -111,7 +111,8 @@ export function storyProposals(tree: Tree, research: Research): StoryProposal[] 
       level: "narrate",
       priority: 1, // the research first; a story when there is a moment for it
       what: phrase(lang, p.story ? "story.more.what" : "story.what", { name, count: fresh.length }),
-      where: [phrase(lang, "story.where", { id })],
+      // written again: what the story tells now stays, or goes on purpose (strom story set --drop)
+      where: [phrase(lang, "story.where", { id }), ...(p.story ? [phrase(lang, "story.keep", { id })] : [])],
       why: phrase(lang, "story.why", { count: facts.length, generation, research: research.name }),
       doneWhen: phrase(lang, "story.done", { id }),
       subject: [id],
@@ -136,7 +137,7 @@ export function storyProposals(tree: Tree, research: Research): StoryProposal[] 
       level: "narrate",
       priority: 1, // like a person's: after the research
       what: phrase(lang, f.story ? "story.couple.more.what" : "story.couple.what", { ...names, count: fresh.length }),
-      where: [phrase(lang, "story.couple.where", { id: f.id }), ...[a, b].filter((x) => x.story).map((x) => phrase(lang, "story.couple.partner", { name: displayName(x), id: x.id }))],
+      where: [phrase(lang, "story.couple.where", { id: f.id }), ...(f.story ? [phrase(lang, "story.keep", { id: f.id })] : []), ...[a, b].filter((x) => x.story).map((x) => phrase(lang, "story.couple.partner", { name: displayName(x), id: x.id }))],
       why: phrase(lang, "story.couple.why", { count: facts.length, generation, research: research.name }),
       doneWhen: phrase(lang, "story.couple.done", { id: f.id }),
       subject: [f.id],

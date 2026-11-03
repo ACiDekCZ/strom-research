@@ -15,7 +15,10 @@ import { Tree, VERSION } from "../core/tree.ts";
 import { replacedOnDisk } from "../core/self.ts";
 import { modelStep, shortcutName } from "./wizard.ts";
 import { DEFAULT_RUN_MINUTES, type HistoryPace } from "../core/config.ts";
-import { OFF_LINE_CHOICES } from "../core/model.ts";
+import { OFF_LINE_CHOICES, type OffLine, type Person, type Research, type Task, type TreeConfig } from "../core/model.ts";
+import { byTree, offLineView, type BranchView } from "../core/offline.ts";
+import { displayName } from "../core/people.ts";
+import { humanTask } from "./human.ts";
 import { chooseHistory, historyOfferDue, historySuggested, markHistoryAsked } from "../commands/setup.ts";
 import { askGate, ensureGatesDir, listGates, loadGate } from "../core/gate.ts";
 import { ensureHooksDir, hooksDir, listHooks } from "../core/hooks.ts";
@@ -400,19 +403,13 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
         if (!places && root && tree?.experimentsHistoryPlaces === "off") await run(["config", "unset", "experiments.historyPlaces", "--for-tree"], true);
       },
     });
-    // work off the lines (spec 036, core/offline.ts): at the end (the default), as the lines' work, never — a research with
-    // a value of its own: the change is for it, else this computer's
+    // work off the lines (spec 036, 038 K7, core/offline.ts): a submenu — when (occasional by default), lines proposed
+    // for a branch that grows, the branches and tasks with a choice of their own
     const offLine = ctx.settings.offLine(tree);
     items.push({
       key: "9",
       label: t("ui.alone.offline", { state: t(`ui.alone.offline.${offLine}` as UIKey) }),
-      act: async () => {
-        out(t("ui.alone.offline.about"));
-        const i = await ctx.choose(t("ui.alone.offline.pick"), OFF_LINE_CHOICES.map((c) => ({ label: t(`ui.alone.offline.${c}` as UIKey) })), OFF_LINE_CHOICES.indexOf(offLine), { back: t("ui.browse.back") });
-        if (i === undefined || OFF_LINE_CHOICES[i] === offLine) return;
-        const own = root ? ctx.settings.resolve("queue.offLine", tree)?.source === "tree" : false;
-        await run(["config", "set", "queue.offLine", OFF_LINE_CHOICES[i]!, ...(own ? ["--for-tree"] : [])], true);
-      },
+      act: () => offLineMenu(ctx, run, lang, root),
     });
     // the two switches of this research (spec 020 K8): its strom.json wins over this computer's both ways
     if (root)
@@ -454,6 +451,109 @@ async function alone(ctx: Context, run: Run, lang: string, root: string | undefi
       });
     return { title: t("ui.alone.title"), items };
   });
+}
+
+/**
+ * The work off the lines (Settings → the agent working alone → Work off the lines, spec 038 K7): when it comes — each
+ * choice with what it does and how many open tasks it decides —, whether a line is proposed for a branch that grows,
+ * and the branches and tasks the person gave a choice of their own, each back to the default. A research with a value
+ * of its own: the change is for it, else this computer's. The numbers never move: what shows only sometimes comes last.
+ */
+async function offLineMenu(ctx: Context, run: Run, lang: string, root: string | undefined): Promise<"quit" | void> {
+  const t = translator(lang);
+  const out = (line = "") => ctx.io.stdout(line + "\n");
+  const own = (key: string, tree: TreeConfig | undefined) => (root ? ctx.settings.resolve(key, tree)?.source === "tree" : false);
+  out(t("ui.alone.offline.about"));
+  return subMenu(
+    ctx,
+    lang,
+    () => {
+      ctx.settings.reload();
+      const tr = root ? Tree.open(root, ctx.env) : undefined;
+      const tree = tr?.config;
+      const mode = ctx.settings.offLine(tree);
+      const suggest = ctx.settings.suggestLines(tree);
+      const view = tr ? offLineView(tr, ctx.settings) : undefined;
+      const branches = view?.branches.filter((b) => b.own) ?? [];
+      const turns = tr ? tr.list<Task>("task").filter((x) => x.state === "open" && x.queueAt) : [];
+      const title = !tr ? t("ui.offline.title") : view ? t("ui.offline.title.tree", { tasks: view.tasks, queued: view.queued }) : t("ui.offline.title.one");
+      const items: Item[] = [
+        {
+          key: "1",
+          label: t("ui.offline.when", { state: t(`ui.alone.offline.${mode}` as UIKey) }),
+          act: async () => {
+            const n = tr && view ? byTree(tr) : undefined;
+            const share = ctx.settings.offLineShare(tree);
+            const i = await ctx.choose(
+              t("ui.alone.offline.pick"),
+              OFF_LINE_CHOICES.map((c) => ({ label: `${t(`ui.alone.offline.${c}` as UIKey)} – ${t(`ui.offline.says.${c}` as UIKey, { share })}${n === undefined ? "" : ` · ${t("ui.offline.tasks", { n })}`}` })),
+              OFF_LINE_CHOICES.indexOf(mode),
+              { back: t("ui.browse.back") },
+            );
+            if (i === undefined || OFF_LINE_CHOICES[i] === mode) return;
+            await run(["config", "set", "queue.offLine", OFF_LINE_CHOICES[i]!, ...(own("queue.offLine", tree) ? ["--for-tree"] : [])], true);
+          },
+        },
+        {
+          key: "2",
+          label: t(mode === "never" ? "ui.offline.suggest.idle" : "ui.offline.suggest", { state: t(suggest.on ? "ui.settings.on" : "ui.settings.off") }),
+          act: async () => {
+            // with never nothing off the lines is taken: no branch grows into the queue, nothing proposed — said so
+            out(mode === "never" ? t("ui.offline.suggest.never") : t("ui.offline.suggest.about", { tasks: suggest.tasks, persons: suggest.persons }));
+            if (!(await ctx.confirm(t(suggest.on ? "ui.offline.suggest.off" : "ui.offline.suggest.on"), false))) return;
+            await run(["config", "set", "queue.suggestLines", suggest.on ? "no" : "yes", ...(own("queue.suggestLines", tree) ? ["--for-tree"] : [])], true);
+          },
+        },
+      ];
+      if (tr && branches.length)
+        items.push({ key: "3", label: t("ui.offline.branches", { n: branches.length }), act: () => ownBranches(ctx, run, lang, tr, branches, mode) });
+      if (tr && turns.length)
+        items.push({ key: "4", label: t("ui.offline.turns", { n: turns.length }), act: () => ownTurns(ctx, run, lang, tr, turns) });
+      return { title, items };
+    },
+    { fixed: true },
+  );
+}
+
+/** A person of a branch for the person reading: "Anna Lhotáková [P0004]". */
+const whoIs = (tree: Tree, id: string) => {
+  const p = tree.get<Person>(id);
+  return p ? `${displayName(p)} [${id}]` : id;
+};
+
+/** The branches with a choice of their own: one picked, said how it hangs on a line, back to the tree's choice on a yes. */
+async function ownBranches(ctx: Context, run: Run, lang: string, tree: Tree, branches: BranchView[], mode: OffLine): Promise<void> {
+  const t = translator(lang);
+  const out = (line = "") => ctx.io.stdout(line + "\n");
+  const how = (b: BranchView) => (b.mode === "line" ? t("ui.offline.branch.line", { line: tree.get<Research>(b.line ?? "")?.name ?? b.line ?? "" }) : t(`ui.alone.offline.${b.mode}` as UIKey));
+  const i = await ctx.choose(
+    t("ui.offline.branches.pick"),
+    branches.map((b) => ({ label: `${whoIs(tree, b.person)} – ${how(b)} · ${t("ui.offline.tasks", { n: b.tasks.length })}` })),
+    branches.length,
+    { back: t("ui.browse.back") },
+  );
+  if (i === undefined) return;
+  const b = branches[i]!;
+  out(t("ui.offline.via", { who: whoIs(tree, b.via.person), rel: t(`ui.offline.rel.${b.via.rel}` as UIKey) }));
+  if (!(await ctx.confirm(t("ui.offline.default.branch", { mode: t(`ui.alone.offline.${mode}` as UIKey) }), false))) return;
+  if ((await run(["offline", "set", b.id, "--default"], true)) !== 0) return;
+  out(t("ui.offline.default.done"));
+}
+
+/** The tasks with a turn of their own (next, last): one picked, back to the queue's own order on a yes. */
+async function ownTurns(ctx: Context, run: Run, lang: string, tree: Tree, tasks: Task[]): Promise<void> {
+  const t = translator(lang);
+  const out = (line = "") => ctx.io.stdout(line + "\n");
+  const i = await ctx.choose(
+    t("ui.offline.turns.pick"),
+    tasks.map((x) => ({ label: `${humanTask(tree, x.what, lang, { asWritten: true })} [${x.id}] – ${t(x.queueAt!.do === "next" ? "ui.offline.turn.next" : "ui.offline.turn.last")}` })),
+    tasks.length,
+    { back: t("ui.browse.back") },
+  );
+  if (i === undefined) return;
+  if (!(await ctx.confirm(t("ui.offline.default.task"), false))) return;
+  if ((await run(["task", "order", tasks[i]!.id, "--default"], true)) !== 0) return;
+  out(t("ui.offline.default.done"));
 }
 
 /**

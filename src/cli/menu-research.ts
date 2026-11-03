@@ -12,6 +12,8 @@ import { scopes } from "../core/directions.ts";
 import { lineOf } from "../core/offline.ts";
 import type { UIKey } from "./ui.ts";
 import type { Research, Task } from "../core/model.ts";
+import { sameDirection } from "../core/actions.ts";
+import { workOrder } from "../core/order.ts";
 import { displayName, lifespan } from "../core/people.ts";
 import { DEATH_AFTER_YEARS, unprovenPeople } from "../core/review.ts";
 import { planSync, readTreeFile, receivedAll, receivedSince, SYNC_INBOX, type Received, type SyncInput } from "../core/sync.ts";
@@ -186,19 +188,15 @@ async function newResearch(ctx: Context, run: Run, lang: string, root: string): 
  * A new direction for someone chosen (the menu, a link of the Strom app): its title and what the person knows of
  * it asked, the research made; the same research still going is only named.
  */
-export async function startDirection(ctx: Context, run: Run, lang: string, root: string, direction: "ancestors" | "descendants" | "question", who: string[], name: string, question?: string): Promise<void> {
+export async function startDirection(ctx: Context, run: Run, lang: string, root: string, direction: "ancestors" | "descendants" | "question", who: string[], name: string, question?: string, branch?: string): Promise<void> {
   const t = translator(lang);
   // The same research again (this person, this direction, still going): said which one it is, nothing made.
   const focus = who[0] === "--person" ? who[1] : undefined;
-  const same =
-    focus && direction !== "question"
-      ? Tree.open(root, ctx.env)
-          .list<Research>("research")
-          .find((r) => r.focus === focus && r.direction === direction && r.state === "active")
-      : undefined;
-  if (same) return void ctx.io.stdout(t("ui.research.exists", { name: same.name }) + "\n");
+  // (a question: the same question of the same person)
+  const found = focus ? sameDirection(Tree.open(root, ctx.env).list<Research>("research"), focus, direction, question) : undefined;
+  if (found?.state === "active") return void ctx.io.stdout(t("ui.research.exists", { name: found.name }) + "\n");
   // …paused or ended: taken up again rather than made twice
-  const stopped = focus && direction !== "question" ? Tree.open(root, ctx.env).list<Research>("research").find((r) => r.focus === focus && r.direction === direction) : undefined;
+  const stopped = found;
   if (stopped) {
     if (await ctx.confirm(t("ui.research.resume", { name: stopped.name, state: t(`ui.dirs.${stopped.state}` as UIKey) }))) await setDirection(ctx, run, lang, root, stopped, "resume");
     return;
@@ -212,7 +210,8 @@ export async function startDirection(ctx: Context, run: Run, lang: string, root:
       .list<Research>("research")
       .map((r) => r.id),
   );
-  if ((await run(["research", "new", ...who, "--direction", direction, ...(question ? [`--question=${question}`] : []), "--", title || suggested], true)) !== 0) return;
+  // a line for a branch off the lines (What waits): its tasks go with the new line
+  if ((await run(["research", "new", ...who, "--direction", direction, ...(question ? [`--question=${question}`] : []), ...(branch ? ["--branch", branch] : []), "--", title || suggested], true)) !== 0) return;
   const made = Tree.open(root, ctx.env)
     .list<Research>("research")
     .find((r) => !before.has(r.id));
@@ -228,19 +227,81 @@ export function directionTasks(tree: Tree, research: string): number {
   return tree.list<Task>("task").filter((x) => ["open", "doing", "parked", "waiting"].includes(x.state) && line(x) === research).length;
 }
 
-/** The directions of the research, each with how it goes and its tasks: one paused, ended or taken up again. */
+/**
+ * The directions of the research in the order of work (the first is worked on first), each with how it goes and its
+ * tasks: one paused, ended or taken up again, moved in the order, or changed (its name, question, limits). The keys of
+ * the actions never move: what is offered only sometimes keeps its own number.
+ */
 async function directions(ctx: Context, run: Run, lang: string, root: string): Promise<void> {
   const t = translator(lang);
   const tree = Tree.open(root, ctx.env);
-  const all = tree.list<Research>("research");
+  const all = workOrder(tree.list<Research>("research"));
   const label = (r: Research) => t("ui.dirs.item", { name: r.name, state: t(`ui.dirs.${r.state}` as UIKey), n: directionTasks(tree, r.id) });
   const i = await ctx.choose(t("ui.dirs.pick"), all.map((r) => ({ label: label(r) })), all.length, { back: t("ui.browse.back") });
   if (i === undefined) return;
   const r = all[i]!;
-  const acts = r.state === "active" ? (["pause", "done"] as const) : r.state === "paused" ? (["resume", "done"] as const) : (["resume"] as const);
-  const a = await ctx.choose(t("ui.dirs.what", { name: r.name }), acts.map((x) => ({ label: t(`ui.dirs.do.${x}` as UIKey) })), acts.length, { back: t("ui.browse.back") });
+  type Act = "pause" | "resume" | "done" | "up" | "down" | "first" | "edit";
+  const offered: { key: string; act: Act }[] = [
+    ...(r.state === "active" ? [{ key: "1", act: "pause" as const }] : [{ key: "1", act: "resume" as const }]),
+    ...(r.state !== "done" ? [{ key: "2", act: "done" as const }] : []),
+    ...(i > 0 ? [{ key: "3", act: "up" as const }] : []),
+    ...(i < all.length - 1 ? [{ key: "4", act: "down" as const }] : []),
+    ...(i > 1 ? [{ key: "5", act: "first" as const }] : []),
+    { key: "6", act: "edit" as const },
+  ];
+  const a = await ctx.choose(t("ui.dirs.what", { name: r.name }), offered.map((x) => ({ key: x.key, label: t(`ui.dirs.do.${x.act}` as UIKey) })), 0, { back: t("ui.browse.back") });
   if (a === undefined) return;
-  await setDirection(ctx, run, lang, root, r, acts[a]!);
+  const act = offered[a]!.act;
+  if (act === "pause" || act === "resume" || act === "done") return setDirection(ctx, run, lang, root, r, act);
+  if (act === "edit") return editDirection(ctx, run, lang, root, r);
+  if ((await run(["research", "move", r.id, `--${act}`], true)) !== 0) return;
+  const now = workOrder(Tree.open(root, ctx.env).list<Research>("research"));
+  ctx.io.stdout(t("ui.dirs.moved", { name: r.name, n: now.findIndex((x) => x.id === r.id) + 1, of: now.length }) + "\n");
+}
+
+/** A direction changed: its name, its question, a limit, why it waits — one at a time, Enter or 0 changes nothing. */
+async function editDirection(ctx: Context, run: Run, lang: string, root: string, r: Research): Promise<void> {
+  const t = translator(lang);
+  type Field = "name" | "question" | "generations" | "before" | "reason";
+  const fields: { key: string; field: Field }[] = [
+    { key: "1", field: "name" },
+    ...(r.direction === "question" ? [{ key: "2", field: "question" as const }] : []),
+    ...(r.direction !== "person" ? [{ key: "3", field: "generations" as const }] : []),
+    ...(r.direction === "ancestors" ? [{ key: "4", field: "before" as const }] : []),
+    ...(r.state === "paused" ? [{ key: "5", field: "reason" as const }] : []),
+  ];
+  const now = (f: Field): string =>
+    f === "name" ? r.name : f === "question" ? (r.question ?? "") : f === "generations" ? String(r.limits?.generations ?? t("ui.dirs.edit.nolimit")) : f === "before" ? String(r.limits?.before ?? t("ui.dirs.edit.nolimit")) : "";
+  const f = await ctx.choose(t("ui.dirs.edit.what", { name: r.name }), fields.map((x) => ({ key: x.key, label: t(`ui.dirs.edit.${x.field}` as UIKey, { now: now(x.field) }) })), 0, { back: t("ui.browse.back") });
+  if (f === undefined) return;
+  const field = fields[f]!.field;
+  let value: string;
+  if (field === "generations" || field === "before") {
+    // a number, or no limit at all
+    const how = await ctx.choose(t(`ui.dirs.edit.${field}.how` as UIKey), [{ label: t("ui.dirs.edit.set") }, { label: t("ui.dirs.edit.none") }], 0, { back: t("ui.browse.back") });
+    if (how === undefined) return;
+    if (how === 1) value = "none";
+    else {
+      for (;;) {
+        if (outOfAnswers(ctx)) return;
+        value = (await ctx.ask(t(`ui.dirs.edit.${field}.ask` as UIKey))).trim();
+        if (!value || value === "0") return;
+        if (/^\p{N}+$/u.test(value) && Number(value) >= 1) break;
+        ctx.io.stdout(t("ui.dirs.edit.number") + "\n");
+      }
+    }
+  } else {
+    value = (await ctx.ask(t(`ui.dirs.edit.${field}.ask` as UIKey))).trim().replace(/\s+/gu, " ");
+    if (!value || value === "0") return;
+  }
+  const tasks = directionTasks(Tree.open(root, ctx.env), r.id);
+  if ((await run(["research", "edit", r.id, `--${field}=${value}`], true)) !== 0) return;
+  const tree = Tree.open(root, ctx.env);
+  const after = directionTasks(tree, r.id);
+  const name = tree.get<Research>(r.id)?.name ?? r.name;
+  ctx.io.stdout(
+    [t("ui.dirs.edited", { name }), after < tasks ? t("ui.dirs.effect.outside", { n: tasks - after }) : after > tasks ? t("ui.dirs.effect.back", { n: after - tasks }) : ""].filter(Boolean).join(" ") + "\n",
+  );
 }
 
 /** A direction paused, ended or taken up again (with the person's reason), and what that means for its tasks. */

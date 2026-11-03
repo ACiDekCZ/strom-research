@@ -14,7 +14,7 @@ import { NeedsConsentError, StromError, UsageError } from "../core/errors.ts";
 import { refusedCode } from "../core/writable.ts";
 import { verifyFast } from "../core/integrity.ts";
 import * as git from "../core/git.ts";
-import type { Research } from "../core/model.ts";
+import type { Person, Research } from "../core/model.ts";
 import { ensureShared, setTreeSetting } from "./setup.ts";
 import { syncAgentFiles } from "../agents/files.ts";
 import { compactHistory } from "../core/history.ts";
@@ -27,7 +27,9 @@ import { appDirsInUse, oldVersions, removeOldVersions } from "../core/update.ts"
 import { EXIT } from "../core/errors.ts";
 import { atWork } from "../core/relocate.ts";
 import { MODES, isArchive, modeOf, switchMode, type Mode } from "../core/mode.ts";
-import { kindOf, stateOf } from "../core/state.ts";
+import { actsAsArchive, kindOf, stateOf } from "../core/state.ts";
+import { offLineJson, offLineView } from "../core/offline.ts";
+import { displayName } from "../core/people.ts";
 import { liveWorkers, runsAtWork } from "../core/workers.ts";
 import { moveToTrash } from "../core/trash.ts";
 import { history, stopLive } from "../core/live.ts";
@@ -38,6 +40,7 @@ import { archiveWaitingItems } from "../core/archiveasks.ts";
 import { agentReady, claudeHere } from "../cli/menu-parts.ts";
 import { agentFirst, agentStepsSkipped } from "../cli/menu-mode.ts";
 import { isAgent } from "../core/which.ts";
+import { workOrder } from "../core/order.ts";
 
 /** Take away what an init that failed made: the folder it created, or what it put into the empty one given. */
 function undoInit(root: string, existed: boolean): void {
@@ -306,7 +309,8 @@ register({
   tree: true,
   run(ctx) {
     const tree = ctx.tree();
-    const researches = tree.list<Research>("research");
+    // in the order of work (core/order.ts), the first first
+    const researches = workOrder(tree.list<Research>("research"));
     const findings = verifyFast(tree).findings;
     const errors = findings.filter((f) => f.level === "error");
     const recent = git.log(tree.root, 5);
@@ -325,11 +329,25 @@ register({
     const refused = refusedHosts(ctx.env, sharedDir ? path.join(sharedDir, "net") : undefined);
     // the questions about archives that wait for the person, as the bridge's /status gives them (none in an archive)
     const archiveQuestions = archiveWaitingItems(tree, sharedDir, () => claudeHere(ctx, tree.config));
+    // the work off the lines of a research of several (spec 038 K7): how it is taken, how much, the branches that grow
+    const off = actsAsArchive(tree) ? undefined : offLineView(tree, ctx.settings);
+    const grows = off?.branches.filter((b) => b.grows) ?? [];
+    const offLines =
+      off && (off.tasks || off.branches.length)
+        ? [
+            ui(lang, "ui.status.offline", { tasks: off.tasks, mode: ui(lang, `ui.alone.offline.${off.mode}` as UIKey), branches: off.branches.length }),
+            ...grows.map((b) => {
+              const p = tree.get<Person>(b.person);
+              return `  ${ui(lang, "ui.waiting.branch", { who: p ? displayName(p) : b.person, tasks: b.tasks.length, persons: b.persons.length })} → strom offline answer ${b.id} line|keep|never`;
+            }),
+          ]
+        : [];
     const text = lines(
       `${tree.config.name} — ${langName(tree.config.lang, lang)} (${tree.config.lang}) — ${ctx.display(tree.root)}`,
       ui(lang, "ui.status.data", { persons: tree.countLive("person"), families: tree.countLive("family") }) + (archive ? "" : ui(lang, "ui.status.directions", { n: researches.length })),
       (errors.length ? ui(lang, "ui.status.check.errors", { n: errors.length }) : ui(lang, "ui.status.check.ok")) + (warnings ? ui(lang, "ui.status.check.warnings", { n: warnings }) : ""),
-      researches.length && !archive ? ui(lang, "ui.status.dirs") + "\n" + table(researches.map((r) => [`  ${r.id}`, r.name, `[${ui(lang, `ui.dirs.${r.state === "done" || r.state === "paused" ? r.state : "active"}`)}]`])) : undefined,
+      researches.length && !archive ? ui(lang, "ui.status.dirs") + "\n" + table(researches.map((r, i) => [`  ${i + 1}.`, r.id, r.name, `[${ui(lang, `ui.dirs.${r.state === "done" || r.state === "paused" ? r.state : "active"}`)}]`])) : undefined,
+      ...offLines,
       ui(lang, "ui.status.disk", { research: mb(disk.size.research, lang), strom: mb(disk.size.strom, lang) }) + (disk.frees >= TIDY_SAID ? ui(lang, "ui.status.disk.frees", { size: mb(disk.frees, lang) }) : ""),
       waitingLines(tree, { shared: ctx.settings.shared()?.value, display: (p) => ctx.display(p) }),
       // an archive that refused strom's client: left alone until the person lifts it — said while it lasts
@@ -341,12 +359,14 @@ register({
       data: {
         tree: { name: tree.config.name, root: tree.root, lang: tree.config.lang },
         counts: { persons: tree.count("person"), families: tree.count("family"), researches: researches.length },
-        researches: researches.map((r) => ({ id: r.id, name: r.name, state: r.state })),
+        researches: researches.map((r, i) => ({ id: r.id, name: r.name, state: r.state, order: i + 1 })),
         findings,
         recent,
         disk: { research: disk.size.research, strom: disk.size.strom, frees: disk.frees },
         ...(refused.length ? { refused } : {}),
         ...(archiveQuestions.length ? { archiveQuestions } : {}),
+        // the work off the lines (two lines or more): as strom offline list --json, and the branches that grow
+        ...(off ? { offLine: { ...offLineJson(off, (t) => t.what), grows: grows.map((b) => b.id) } } : {}),
       },
     };
   },

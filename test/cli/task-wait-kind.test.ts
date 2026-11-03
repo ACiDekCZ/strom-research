@@ -172,3 +172,38 @@ test("task edit gives a waiting task its kind, whom, text and site — an older 
   assert.match((await w.run(["task", "edit", t, "--on", "Pošlete prosím odkaz"])).err, /--on speaks to the user/);
   w.cleanup();
 });
+
+// --images and --check say the kind themselves: a --kind repeating it is taken as said, a contrary one refused
+test("task wait: --kind repeating what --images or --check says is taken; a contrary --kind is refused", opts, async () => {
+  const w = new World();
+  try {
+    await w.withTree("Lhotákovi");
+    await w.ok(["research", "new", "Předci Jana Lhotáka", "--new-person", "Jan /Lhoták/", "--sex", "M", "--born", "ABT 1905", "--born-place", "Lhota"]);
+    await w.ok(["recordset", "add", "Lhota N 1903–1920", "--kinds", "baptism", "--places", "Lhota", "--years", "1903-1920", "--url", "https://archive.example.org/book/5359"]); // B1
+    for (const what of ["Křest Jana", "Křest Anny", "Křest Petra"])
+      await w.ok(["task", "add", what, "--level", "link", "--where", "B1", "--why", "rodiče", "--done-when", "zápis", "--about", "P1"]);
+
+    // --kind images with --images: as if left out (also in another case)
+    await w.ok(["task", "wait", "T1", "--images", "B1:1-2", "--on", "snímky 1–2 knihy narozených", "--kind", "Images"]);
+    const t1 = (await w.ok(["task", "show", "T1", "--json"])).json.task;
+    assert.equal(t1.state, "waiting");
+    assert.equal(t1.wait?.kind, undefined, "nothing of --kind stored: --images says it");
+
+    // --kind check with --check: as if left out (after another way, as --check asks)
+    await w.ok(["search", "add", "kniha narozených Lhota", "--method", "web", "--result", "inconclusive", "--task", "T2", "--note", "archive.example.org refused automated access; tried instead: the parish's index"]);
+    await w.ok(["task", "wait", "T2", "--check", "https://archive.example.org/book/5359", "--on", "zda je kniha vidět i se snímky", "--kind", "check"]);
+    assert.equal((await w.ok(["task", "show", "T2", "--json"])).json.task.state, "waiting");
+
+    // a contrary --kind is refused, nothing changes
+    const bad = await w.run(["task", "wait", "T3", "--images", "B1:3", "--on", "snímek 3 knihy narozených", "--kind", "letter"]);
+    assert.equal(bad.code, 2, bad.out + bad.err);
+    assert.match(bad.err, /--images says the kind itself/);
+    assert.match(bad.err, /leave out --kind/);
+    const bad2 = await w.run(["task", "wait", "T3", "--check", "https://archive.example.org/book/5359", "--on", "zda je kniha vidět", "--kind", "images"]);
+    assert.equal(bad2.code, 2, bad2.out + bad2.err);
+    assert.match(bad2.err, /--check says the kind itself/);
+    assert.equal((await w.ok(["task", "show", "T3", "--json"])).json.task.state, "open");
+  } finally {
+    w.cleanup();
+  }
+});

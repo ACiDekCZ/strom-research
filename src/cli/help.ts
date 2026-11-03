@@ -215,7 +215,7 @@ export function helpFor(input: string[], archive: boolean, appUrl: ShownAppUrl, 
 export const HUMAN_COMMANDS = [
   "menu", "status", "setup", "doctor", "update", "uninstall", "shortcut",
   "init", "trees", "trees use", "trees remove", "lang", "mode",
-  "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "review",
+  "chat", "run", "session finish", "research new", "research pause", "research resume", "research done", "research edit", "research order", "research move", "review",
   "intake", "sync", "sync undo", "sync discard", "conflict list", "conflict resolve", "task list", "task wake", "story approve", "story discard",
   "stats", "recent", "plan", "history", "history back", "person card", "person list", "pedigree", "find",
   "app", "app install", "live", "live start", "live stop", "phone", "phone on", "phone qr", "phone off", "export gedcom", "pack", "unpack", "backup", "tidy", "check", "media calibrate",

@@ -4,11 +4,13 @@
 
 import { dateYears } from "./gdate.ts";
 import type { Person, Place, RecordSet, Research, Task } from "./model.ts";
-import { ancestorGenerations, birthEvent, displayName, familiesAsChild, familiesAsPartner, isBirthFamily, lifespan } from "./people.ts";
+import { ancestorGenerations, birthEvent, descendantGenerations, displayName, familiesAsChild, familiesAsPartner, isBirthFamily, lifespan } from "./people.ts";
 import { foldText } from "./text.ts";
 import { phrase } from "./phrases.ts";
 import type { Tree } from "./tree.ts";
 import { parseYears } from "./years.ts";
+import { neverPeople } from "./offline.ts";
+
 
 export interface FrontierItem {
   person: Person;
@@ -181,6 +183,16 @@ export function researchPeople(tree: Tree, research: Research): Map<string, numb
   return out;
 }
 
+/**
+ * The people of a line as the person sees it (the app's GET /directions/people, strom research show): those of
+ * researchPeople, and for a line of descendants — of which researchPeople proposes nothing — the descendants of its
+ * person within its generations (the person 1, the children 2, …). The queue and the stories keep researchPeople.
+ */
+export function linePeople(tree: Tree, research: Research): Map<string, number> {
+  if (research.direction === "descendants") return tree.get(research.focus) ? descendantGenerations(tree, research.focus, research.limits?.generations ?? 50) : new Map();
+  return researchPeople(tree, research);
+}
+
 export function frontier(tree: Tree, research: Research): FrontierItem[] {
   // their parents are what the frontier looks for: the children of a family have theirs
   const gens = [...researchPeople(tree, research)].filter(([, g]) => g >= 1);
@@ -188,9 +200,11 @@ export function frontier(tree: Tree, research: Research): FrontierItem[] {
   const tasks = all.filter((t) => FRONTIER_LEVELS.has(t.level));
   const lang = tree.lang;
   const out: FrontierItem[] = [];
+  // a branch off the lines the person chose not to research (strom offline set … --mode never): nothing proposed there
+  const never = neverPeople(tree).people;
   for (const [id, generation] of gens) {
     const p = tree.get<Person>(id);
-    if (!p || p.retracted) continue;
+    if (!p || p.retracted || never.has(id)) continue;
     const est = birthEstimate(tree, p, lang);
     const year = est.year;
     if (research.limits?.generations && generation >= research.limits.generations) continue;

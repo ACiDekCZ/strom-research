@@ -1,7 +1,8 @@
 // What a paired phone's page shows of a tree of the research (strom phone): who works on what now, what waits for the
 // person, the last 24 hours and the progress — what the bridge's /status and /log give the Strom app, worked out by the
 // same functions and cut to what the page shows: never a path, a record's ID, a spend, a model or a link, nothing the
-// phone could answer or start. Each answer is kept per tree longer than the page waits between two asks (a new change
+// phone could answer or start — but the lines' order and their pause and resume, each line by a key of its own (never
+// its ID; phone-send.ts takes it back). Each answer is kept per tree longer than the page waits between two asks (a new change
 // or an agent coming or going asks it anew), so a phone asking every 10 s never reads the whole research each time
 // and a big tree never holds up the photos the phone's server takes.
 
@@ -11,7 +12,10 @@ import { Tree } from "./tree.ts";
 import { actsAsArchive } from "./state.ts";
 import { liveWorkers } from "./workers.ts";
 import { openSessions } from "./session.ts";
+import crypto from "node:crypto";
 import { directionOf, scopes, type Scope } from "./directions.ts";
+import { lineOf } from "./offline.ts";
+import { workOrder } from "./order.ts";
 import { waitingFor, type Waiting } from "./waiting.ts";
 import { recentNow } from "./recent.ts";
 import { runGit } from "./git.ts";
@@ -62,6 +66,8 @@ export interface NowLine {
 
 export interface Overview {
   now: NowLine[];
+  /** The lines of the research in the order of work (none in an archive). */
+  lines?: PhoneLine[];
   /** When anybody worked on it last (nobody at work now). */
   lastWorked?: string;
   waiting: { n: number; items: WaitingLine[] };
@@ -69,6 +75,41 @@ export interface Overview {
   day?: { persons: number; sources: number; saves: number };
   /** The newest change: the page asks for the progress again when it is another. */
   latest?: string;
+}
+
+/** A line of the research as the phone shows it: its place in the order of work, how it goes, its tasks. */
+export interface PhoneLine {
+  /** Its key on the phone (never its ID): what the page names it by when it moves or pauses it. */
+  key: string;
+  n: number;
+  name: string;
+  state: Research["state"];
+  tasks: number;
+  way: NowLine["way"];
+}
+
+/** A line's key on the phone: the same for the same line of the same tree, no ID in it. */
+export function phoneLineKey(tree: Tree, id: string): string {
+  return crypto.createHash("sha256").update(`${tree.config.id}:${id}`).digest("hex").slice(0, 12);
+}
+
+/** The lines in the order of work, each with its tasks not finished (its own and those that help it). */
+function phoneLines(tree: Tree, all: Scope[]): PhoneLine[] {
+  const line = lineOf(tree, all);
+  const tasks = new Map<string, number>();
+  for (const t of tree.list<Task>("task")) {
+    if (!["open", "doing", "parked", "waiting"].includes(t.state)) continue;
+    const id = line(t);
+    if (id) tasks.set(id, (tasks.get(id) ?? 0) + 1);
+  }
+  return workOrder(all.map((s) => s.research).filter((r) => !r.retracted)).map((r, i) => ({
+    key: phoneLineKey(tree, r.id),
+    n: i + 1,
+    name: forPhone(r.name) || String(i + 1),
+    state: r.state,
+    tasks: tasks.get(r.id) ?? 0,
+    way: r.direction === "ancestors" ? "up" : r.direction === "descendants" ? "down" : "other",
+  }));
 }
 
 /** One of what waits for the person, its texts whole. */
@@ -231,7 +272,7 @@ export function treeOverview(root: string, env: Env): Overview {
   const kept = overviewKept.get(root);
   if (kept && kept.key === key && Date.now() - kept.at < OVERVIEW_MS) return { ...kept.value, ...day, ...latest };
   const tree = Tree.open(root, env);
-  let value: Pick<Overview, "now" | "lastWorked" | "waiting">;
+  let value: Pick<Overview, "now" | "lastWorked" | "waiting" | "lines">;
   let waits: Waiting[] = [];
   if (actsAsArchive(tree)) value = { now: [], waiting: { n: 0, items: [] } };
   else {
@@ -262,7 +303,8 @@ export function treeOverview(root: string, env: Env): Overview {
     const last = sessions.map((s) => s.ended ?? s.started).sort().at(-1);
     waits = waitingOf(tree, env, all);
     const items = waits.slice(0, WAITING_SHOWN).map((w) => waitingLine(tree, w));
-    value = { now, ...(!now.length && last ? { lastWorked: last } : {}), waiting: { n: waits.length, items } };
+    const lines = phoneLines(tree, all);
+    value = { now, ...(!now.length && last ? { lastWorked: last } : {}), waiting: { n: waits.length, items }, ...(lines.length ? { lines } : {}) };
     marksKept.set(root, { at: Date.now(), value: { working: now.some((l) => !l.paused), waiting: waits.length } });
   }
   overviewKept.set(root, { at: Date.now(), key, value, tree, waits });

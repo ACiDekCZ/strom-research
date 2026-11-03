@@ -123,10 +123,14 @@ conversation opened anywhere, a bot on its own server)
   The user names a research (G…) to work on: its tasks only — strom session start --research G….
   A side of the family no direction reaches (a spouse's line) is a direction of its own: strom research
   new --person <them>. A task on a side branch no line reaches (an ancestor's sibling and their family)
-  waits until the lines have nothing to do (setting queue.offLine) unless it says how it helps a line:
-  strom task add … --helps "<how it helps G…>" (godparent or witness of an ancestor, the same house, a
-  surname for an ancestor). The user wants a direction to wait or to end: strom research pause|done G…
-  (its tasks leave the queue, nothing is deleted; strom research resume G… brings them back).
+  comes now and then or after the lines' work (setting queue.offLine; each branch's own choice: strom
+  offline list) unless it says how it helps a line: strom task add … --helps "<how it helps G…>" (godparent
+  or witness of an ancestor, the same house, a surname for an ancestor). A branch the user chose not to
+  research gets no new task. The user wants a task next or at the end: strom task order T… --next|--last;
+  a branch added to a line or not researched: strom offline set B-… --line G…|--mode never. The user wants a direction to wait or to end: strom research pause|done G…
+  (its tasks leave the queue, nothing is deleted; strom research resume G… brings them back). The order
+  of work of the directions is the user's too: strom research order G… G… / move G… --up|--down|--first;
+  a name, question or limit changed: strom research edit G….
   In a conversation the next task is best begun in a fresh context (Claude Code: /clear) — suggest
   it to the user; many tasks waiting: the agent working on its own (strom run, the user starts it
   from strom's menu), every task in a fresh session. A strom command that says ⏳ finish (the user asked, or

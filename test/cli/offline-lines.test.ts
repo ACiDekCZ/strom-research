@@ -1,6 +1,7 @@
-// Work off the lines (spec 036): in a research of several lines, a task about a side branch none of them reaches waits
-// until the lines have nothing to do — unless it helps a line (a hypothesis of the line, joining people to the tree, the
-// agent's --helps); queue.offLine last (default) / normal (as before) / never. Judged afresh, nothing written.
+// Work off the lines (spec 036, 038 K7): in a research of several lines, a task about a side branch none of them reaches
+// comes now and then, else after the lines' work — unless it helps a line (a hypothesis of the line, joining people to
+// the tree, the agent's --helps); queue.offLine occasional (default) / last / normal (as before) / never. Judged afresh,
+// nothing written.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -37,24 +38,31 @@ const task = (w: World, what: string, about: string[], ...more: string[]) =>
 const queue = async (w: World, ...more: string[]) => ((await w.ok(["task", "list", "--json", ...more])).json.tasks as { id: string; why: string; offLine?: string; helps?: { by: string; research?: string } }[]);
 const order = async (w: World, ...more: string[]) => (await queue(w, ...more)).map((t) => t.id);
 
-test("off the lines: a side branch waits until the lines have nothing to do — whatever its priority; normal as before; never not taken", opts, async () => {
+test("off the lines: a side branch comes after the lines' work — whatever its priority; normal as before; never not taken", opts, async () => {
   const w = await world();
   const line = (await task(w, "Křest Josefa", ["P2"])).json; // T1, p3, line G0001
   assert.equal(line.task.research, "G0001");
   assert.equal(line.offLine, undefined);
   const side = await task(w, "Oddavky Anny", ["P4"], "--priority", "5"); // T2, p5, no line
   assert.equal(side.json.task.research, undefined);
-  assert.equal(side.json.offLine, "last");
-  assert.match((await w.ok(["task", "edit", "T2", "--priority", "5", "--helps", ""])).out, /T0002 is off the lines: .* it waits until the lines have nothing to do \(queue\.offLine last\)\. If it helps a line .* strom task edit T0002 --helps "<how it helps G…>"/);
+  assert.equal(side.json.offLine, "occasional");
+  assert.equal(side.json.branch, "B-P0004");
+  assert.match((await w.ok(["task", "edit", "T2", "--priority", "5", "--helps", ""])).out, /T0002 is off the lines \(branch B-P0004\): .* it comes now and then, one in 10 sessions, else after the lines' work \(queue\.offLine occasional\)\. If it helps a line .* strom task edit T0002 --helps "<how it helps G…>"/);
   assert.deepEqual(await order(w), ["T0001", "T0002"], "after the lines' work, though p5");
   const off = (await queue(w))[1]!;
-  assert.equal(off.offLine, "last");
-  assert.match(off.why, /^off the lines, helping none: after the lines' work/);
+  assert.equal(off.offLine, "occasional");
+  assert.match(off.why, /^off the lines \(branch B-P0004\), helping none: after the lines' work, one in 10 sessions/);
+  // last: the same order, said so
+  await w.ok(["config", "set", "queue.offLine", "last", "--for-tree"]);
+  assert.deepEqual(await order(w), ["T0001", "T0002"]);
+  assert.equal((await queue(w))[1]!.offLine, "last");
+  await w.ok(["config", "unset", "queue.offLine", "--for-tree"]);
   // the lines' work done: the side branch is next
   await w.ok(["task", "drop", "T1", "--reason", "nalezeno jinde"]);
   const next = await w.ok(["task", "next", "--json"]);
   assert.equal(next.json.task.id, "T0002");
-  assert.equal(next.json.offLine, "last");
+  assert.equal(next.json.offLine, "occasional");
+  assert.deepEqual(next.json.reason, { kind: "off", mode: "occasional", branch: "B-P0004" });
   await w.ok(["task", "add", "Křest Marie", "--level", "locate", "--where", "Lhota", "--why", "a", "--done-when", "b", "--about", "P3"]); // T3, p3
   // normal: by priority, as before
   await w.ok(["config", "set", "queue.offLine", "normal", "--for-tree"]);
@@ -67,13 +75,13 @@ test("off the lines: a side branch waits until the lines have nothing to do — 
     await w.ok(["config", "set", "queue.strategy", strategy, "--for-tree"]);
     assert.deepEqual(await order(w), ["T0003"], strategy);
   }
-  assert.match((await w.ok(["task", "list"])).out, /1 more off the lines are not taken \(queue\.offLine never\)/);
+  assert.match((await w.ok(["task", "list"])).out, /1 more off the lines are not taken \(queue\.offLine never or their branch's/);
   // a session at work on it goes on
   await w.ok(["session", "start", "T2"]);
   assert.deepEqual(await order(w), ["T0002", "T0003"]);
   await w.ok(["session", "close", "--continue", "--summary", "nic", "--next", "dál"]);
   assert.deepEqual(await order(w), ["T0003"]);
-  // last again (the default): every strategy puts it after the lines' work
+  // occasional again (the default): its session just ended, so every strategy puts it after the lines' work
   await w.ok(["config", "unset", "queue.offLine", "--for-tree"]);
   for (const strategy of ["balanced", "depth", "priority"]) {
     await w.ok(["config", "set", "queue.strategy", strategy, "--for-tree"]);
@@ -116,18 +124,18 @@ test("helps a line: a hypothesis of the line, joining people to the tree, the ag
   // the agent's word without a line named: the nearest line by family links (Anna's father is Václav of G0001)
   const d = await task(w, "Anna jako kmotra", ["P4"], "--helps", "Ａnna kmotrou dětí předka, NFD: Ánna", "--priority", "1");
   assert.deepEqual(d.json.helps, { by: "agent", research: "G0001" });
-  // none of them waits: the queue by priority, each with its line
+  // none of them waits: the queue by the lines' order of work, then priority, each with its line
   const q = await queue(w);
-  assert.deepEqual(q.map((t) => t.id), ["T0002", "T0003", "T0004", "T0001", "T0005"]);
+  assert.deepEqual(q.map((t) => t.id), ["T0002", "T0003", "T0001", "T0005", "T0004"]);
   assert.ok(q.every((t) => !t.offLine));
-  assert.match(q[2]!.why, /helps G0002: the agent's reason \(--helps\)/);
+  assert.match(q[4]!.why, /helps G0002: the agent's reason \(--helps\)/);
   // one line's work: its own and what helps it — never another line's, never work off the lines
   assert.deepEqual((await order(w, "--research", "G0002")).sort(), ["T0004"]);
   assert.deepEqual((await order(w, "--research", "G0001")).sort(), ["T0001", "T0002", "T0003", "T0005"]);
   // the word taken back: off the lines again, to the end
   const e = await w.ok(["task", "edit", "T5", "--helps", "", "--json"]);
   assert.equal(e.json.task.helps, undefined);
-  assert.equal(e.json.offLine, "last");
+  assert.equal(e.json.offLine, "occasional");
   assert.deepEqual((await order(w)).at(-1), "T0005");
   assert.ok(!(await order(w, "--research", "G0001")).includes("T0005"));
   await w.ok(["task", "edit", "T5", "--helps", "kmotra předka G0001"]);
@@ -144,16 +152,16 @@ test("off the lines in the overviews: strom plan says it waits at the end, the b
   await task(w, "Křest Josefa", ["P2"]);
   await task(w, "Oddavky Anny", ["P4"], "--priority", "5");
   const plan = await w.ok(["plan", "--json"]);
-  assert.deepEqual(plan.json.tasks.map((t: { id: string; offLine?: string }) => [t.id, t.offLine]), [["T0001", undefined], ["T0002", "last"]]);
+  assert.deepEqual(plan.json.tasks.map((t: { id: string; offLine?: string }) => [t.id, t.offLine]), [["T0001", undefined], ["T0002", "occasional"]]);
   assert.match((await w.ok(["plan"])).out, /2\. +Oddavky Anny \(mimo linie: až po práci na liniích\)/);
   // the brief of a research of several lines: a task off them only with --helps
   assert.match((await w.ok(["brief", "T1"])).out, /a task none of whose people is in a line \(a side branch\): only with --helps "<how it helps G…>"/);
   assert.match((await w.ok(["guide"])).out, /--helps "<how it helps G…>"/);
   // the menu: settings → the agent working alone → work off the lines: never
-  const set = await w.ok([], { tty: true, answers: ["8", "2", "6", "3", "0", "0", "0"] });
-  assert.match(set.out, /Práce mimo linie: na konci, až po liniích/);
+  const set = await w.ok([], { tty: true, answers: ["8", "2", "6", "1", "4", "0", "0", "0", "0"] });
+  assert.match(set.out, /Práce mimo linie: občas, jednou za čas/);
   assert.match(set.out, /Mimo linie: práce na vedlejší větvi/);
-  assert.match(set.out, /1 {2}na konci, až po liniích\n +2 {2}normálně, jako práce linií\n +3 {2}nikdy/);
+  assert.match(set.out, /1 {2}občas, jednou za čas – [^\n]*\n +2 {2}na konci, až po liniích – [^\n]*\n +3 {2}normálně, jako práce linií – [^\n]*\n +4 {2}nikdy – /);
   assert.equal((await w.ok(["config", "get", "queue.offLine", "--json"])).json.value, "never");
   assert.match((await w.ok(["plan"])).out, /Mimo linie, nebere se: 1 \(nastavení queue\.offLine\)/);
   assert.deepEqual((await w.ok(["plan", "--json"])).json.tasks.map((t: { id: string }) => t.id), ["T0001"]);
@@ -175,7 +183,7 @@ test("the Strom app: a queue item off the lines says when it comes, one that hel
       [
         ["T0001", "G0001", undefined, undefined],
         ["T0003", "G0002", undefined, "agent"],
-        ["T0002", undefined, "last", undefined],
+        ["T0002", undefined, "occasional", undefined],
       ],
     );
     assert.deepEqual(status.researches.map((r) => [r.id, r.tasks]), [["G0001", 1], ["G0002", 1]]);
@@ -200,14 +208,14 @@ test("after an update: tasks written before are ordered by the default at once �
   // the order before (as an older strom ranked them)
   await w.ok(["config", "set", "queue.offLine", "normal"]);
   const before = await order(w);
-  assert.deepEqual(before, ["T0001", "T0003", "T0005", "T0002", "T0004"]);
+  assert.deepEqual(before, ["T0003", "T0002", "T0005", "T0001", "T0004"]);
   await w.ok(["config", "unset", "queue.offLine"]);
   const git = (...args: string[]) => spawnSync("git", args, { cwd: w.cwd, encoding: "utf8" }).stdout;
   const head = git("rev-parse", "HEAD");
   const ops = fs.readdirSync(path.join(w.cwd, "data"), { recursive: true }).length;
   // after: the side branches at the end, the line's and the helping work in the order they had
   const after = await order(w);
-  assert.deepEqual(after, ["T0003", "T0005", "T0002", "T0001", "T0004"]);
+  assert.deepEqual(after, ["T0003", "T0002", "T0005", "T0001", "T0004"]);
   assert.deepEqual(after.filter((id) => !["T0001", "T0004"].includes(id)), before.filter((id) => !["T0001", "T0004"].includes(id)));
   await w.ok(["task", "next"]);
   await w.ok(["plan"]);

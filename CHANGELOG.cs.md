@@ -7,7 +7,26 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.26.0
 
-*Připravuje se: bety do 1.26.0-beta.2. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.26.0-beta.4. Oddíl bude úplný s vydáním.*
+
+- **Linie výzkumu z aplikace Strom: založit, upravit, pozastavit, seřadit.** Linii jde v aplikaci založit nebo upravit
+  (osoba, směr, otázka, meze), pozastavit, ukončit nebo znovu spustit; pořadí linií je pořadí práce a stránka telefonu
+  linii posune nahoru nebo dolů a pozastaví. Práce mimo linie – vedlejší větev, kam žádná linie nesahá, třeba sestra
+  předka a její rodina – teď přijde občas, jeden úkol z deseti sezení, místo jen na konci. Každá taková větev může mít
+  vlastní volbu (občas, na konci, normálně jako práce linií, nikdy, nebo přidat k linii) a u větve, která roste, se
+  v Co čeká navrhne linie: přidat k linii, založit pro ni linii, nechat, jak je, nebo nezkoumat. Manžel nebo manželka
+  předka patří k linii předka. Kterýkoli úkol jde udělat hned nebo dát na konec a každý úkol ve frontě říká, proč stojí
+  tam, kde stojí. V terminálu: Nastavení → Samostatná práce agenta → Práce mimo linie, `strom offline`,
+  `strom task order`.
+
+- **Přepsané vyprávění nic neztratí.** Když výzkum vyprávění napíše znovu – víc údajů, lepší čtení, vyprávění
+  převzaté ze staršího výzkumu – každý údaj, pramen a odkaz předchozí verze zůstane, nebo odejde jen záměrně
+  s důvodem, který se uloží k vyprávění. Prameny, o které se vyprávění opírá, jsou u něj vidět, u každého údaje název
+  a adresa, i když je text nejmenuje, a aplikace Strom je dostane s vyprávěním. Údaj z vodítka v textu říká, odkud je.
+
+## 1.25.2
+
+*3. 11. 2026 · patří k aplikaci Strom 3.21.2.*
 
 - **Brána týdne předplatného už neukončí běh kvůli jedné nepřečtené odpovědi.** Zeptá se znovu, pak čtvrt hodiny počká
   a řekne, co dostala. Nepřihlášený agent se ohlásí už před prvním sezením i s postupem přihlášení; výchozí složka

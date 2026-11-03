@@ -19,7 +19,7 @@ import { humanTask } from "../cli/human.ts";
 export { humanTask };
 import { lacksImages, waitsForArchive } from "../core/queue.ts";
 import { scopes } from "../core/directions.ts";
-import { placer } from "../core/offline.ts";
+import { notTakenBy } from "../core/offline.ts";
 import { clockUp } from "../core/net.ts";
 import { forStory } from "../core/stories.ts";
 import { forGaps, forHistory, gapsOfTask, gapText, HISTORY_PLACES_ORIGIN, historyOn, historyTurn, readCatalog, regionName, regionOfTask, regionPeriod, searchedSpans, type HistoryTurn } from "../core/pastevents.ts";
@@ -217,7 +217,9 @@ register(
       const ranked = rankedQueue(tree, { strategy: ctx.settings.strategy(tree.config) });
       const queue = ranked.map((r) => r.task);
       // work off the lines, helping none: after the lines' work (core/offline.ts) — said on its row
-      const offLines = new Set(ranked.filter((r) => r.offLine).map((r) => r.task.id));
+      const offLines = new Map(ranked.filter((r) => r.offLine).map((r) => [r.task.id, r]));
+      // the person's own turn (strom task order) is why it stands where it does, not the lines' work
+      const offLabel = (r: (typeof ranked)[number]): UIKey => (r.own === "next" ? "ui.plan.offline.next" : r.own === "last" ? "ui.plan.offline.end" : r.turn ? "ui.plan.offline.turn" : "ui.plan.offline");
       // the stories, with the searches beyond the registers before them
       const work = queue.filter((t) => !forStory(t));
       const stories = queue.filter(forStory);
@@ -234,7 +236,7 @@ register(
         .filter((t) => !inQueue.has(t.id) && !forStory(t))
         .flatMap((t) => ((a) => (a ? [{ t, a }] : []))(held(t)));
       const rows = [
-        ...shown.map((t) => [`  ${t.state === "doing" ? ui(lang, "ui.plan.now") : `${++n}.`}`, `${truncate(humanTask(tree, t.what, lang), 110)}${lacksImages(tree, t) ? ui(lang, "ui.plan.images") : ""}${offLines.has(t.id) ? ui(lang, "ui.plan.offline") : ""}`]),
+        ...shown.map((t) => [`  ${t.state === "doing" ? ui(lang, "ui.plan.now") : `${++n}.`}`, `${truncate(humanTask(tree, t.what, lang), 110)}${lacksImages(tree, t) ? ui(lang, "ui.plan.images") : ""}${offLines.has(t.id) ? ui(lang, offLabel(offLines.get(t.id)!)) : ""}`]),
         ...later.slice(0, 5).map(({ t, a }) => [`  ${ui(lang, "ui.plan.later")}`, `${truncate(humanTask(tree, t.what, lang), 110)}${ui(lang, "ui.plan.asleep", { at: clockUp(a.until), host: a.host })}`]),
       ];
       // whose story: a person's, or a couple's (strom story set F…: the partners' names)
@@ -271,15 +273,22 @@ register(
             ].join(" · "),
           }),
         );
-      // queue.offLine never: the work off the lines not taken, how much of it
-      const never = ctx.settings.offLine(tree.config) === "never" ? ((place) => tree.list<Task>("task").filter((t) => t.state === "open" && place(t).off).length)(placer(tree, scopes(tree))) : 0;
-      if (never) out.push(ui(lang, "ui.plan.offline.never", { n: never }));
+      // never (the tree's queue.offLine, or a branch's own choice): the work off the lines not taken, how much of it
+      const neverBy = notTakenBy(tree, ctx.settings.offLine(tree.config));
+      const never = neverBy.tree + neverBy.branch;
+      // said by its cause: the tree's setting, the person's choice for a branch, or both with their counts
+      if (never)
+        out.push(
+          neverBy.tree && neverBy.branch
+            ? ui(lang, "ui.plan.offline.never.both", { n: never, tree: neverBy.tree, branch: neverBy.branch })
+            : ui(lang, neverBy.branch ? "ui.plan.offline.never.branch" : "ui.plan.offline.never", { n: never }),
+        );
       if (waiting) out.push(waitingLine(lang, waits, "ui.plan.waiting"));
       if (queue.length) out.push("", ui(lang, "ui.plan.steer"));
-      const item = (t: Task) => ({ id: t.id, what: humanTask(tree, t.what, lang), level: t.level, state: t.state, needsImages: lacksImages(tree, t), ...(offLines.has(t.id) ? { offLine: "last" } : {}) });
+      const item = (t: Task) => ({ id: t.id, what: humanTask(tree, t.what, lang), level: t.level, state: t.state, needsImages: lacksImages(tree, t), ...(offLines.has(t.id) ? { offLine: offLines.get(t.id)!.offLine, ...(offLines.get(t.id)!.turn ? { turn: true } : {}), ...(offLines.get(t.id)!.own ? { own: offLines.get(t.id)!.own } : {}) } : {}) });
       return {
         text: lines(...out),
-        data: { tasks: work.map(item), stories: stories.map(item), waiting, ...(never ? { offLineNever: never } : {}), ...(history ? { history: { ...item(history.task), pace: history.turn.pace, now: history.turn.now, ...(history.turn.in !== undefined ? { in: history.turn.in } : {}), ...(history.prefer ? { prefer: history.prefer } : {}), ...(history.asked ? { asked: history.asked } : {}), regions: history.regions, left: history.left } } : {}), ...(later.length ? { later: later.map(({ t, a }) => ({ ...item(t), until: new Date(a.until).toISOString(), host: a.host })) } : {}) },
+        data: { tasks: work.map(item), stories: stories.map(item), waiting, ...(never ? { offLineNever: never, offLineNeverBy: neverBy } : {}), ...(history ? { history: { ...item(history.task), pace: history.turn.pace, now: history.turn.now, ...(history.turn.in !== undefined ? { in: history.turn.in } : {}), ...(history.prefer ? { prefer: history.prefer } : {}), ...(history.asked ? { asked: history.asked } : {}), regions: history.regions, left: history.left } } : {}), ...(later.length ? { later: later.map(({ t, a }) => ({ ...item(t), until: new Date(a.until).toISOString(), host: a.host })) } : {}) },
       };
     },
   },

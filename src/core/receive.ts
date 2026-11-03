@@ -315,6 +315,39 @@ export function receiveOriginal(r: Receiver, req: http.IncomingMessage, res: htt
 /** Batches being closed now, by tree and mark (a bridge and a phone's server never close one twice at once in a process). */
 const closing = new Set<string>();
 
+/**
+ * A strom command of the person's run by a server (the phone's page: a line moved, paused, resumed), --json: 200 with its
+ * data and the research's head, 503 research.busy while another strom holds the research, 507 disk.full, else its
+ * refusal (400, its code) — 409 for a research nobody researches (archive, agent.missing).
+ */
+export function stromBy(r: Receiver, argv: string[], reply: (code: number, body: Record<string, unknown>) => void): void {
+  const { command, args } = stromLauncher();
+  const child = spawn(command, [...args, ...argv, "--json"], { cwd: r.root, env: forApp(r.env, r.root), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  r.track(child);
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (d: Buffer) => (stdout += d.toString("utf8")));
+  child.stderr.on("data", (d: Buffer) => (stderr += d.toString("utf8")));
+  child.on("error", (e) => reply(500, refusal(errorText(e), "phone.failed")));
+  child.on("close", (code) => {
+    let data: Record<string, unknown> = {};
+    try {
+      data = JSON.parse(stdout) as Record<string, unknown>;
+    } catch {
+      // said by the exit code
+    }
+    if (code === 0) {
+      const c = committed(data, () => r.head?.());
+      return reply(200, { ...c.data, head: c.head, ...(c.parent !== undefined ? { parent: c.parent } : {}) });
+    }
+    const why = String(data.message ?? stderr.trim().split("\n").find((l) => l.startsWith("error:"))?.slice(6).trim() ?? `exit ${code}`);
+    r.note(`${argv.slice(0, 2).join(" ")} was not written (exit ${code}): ${why}`);
+    if (code === EXIT.locked) return reply(503, { ...refusal(why, "research.busy"), retry: 5 });
+    if (data.code === DISK_FULL || isDiskFull(why)) return reply(507, diskFullSaid(langOf(r.root, r.env), fullWhere(data, r.root)));
+    reply(data.code === "archive" || data.code === "agent.missing" ? 409 : 400, refusalOf(why, data, "phone.refused"));
+  });
+}
+
 /** Close a batch by a strom of its own (strom input batch done): its files become sorting tasks. */
 export function closeBatchBy(r: Receiver, id: string, extra: string[], reply: (code: number, body: Record<string, unknown>) => void): void {
   const key = `${r.root}\0${id}`;
