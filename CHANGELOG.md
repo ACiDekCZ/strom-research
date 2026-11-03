@@ -7,7 +7,7 @@ The changes of each version in short. The full notes and the install lines are o
 
 ## 1.26.0
 
-*In preparation: the betas up to 1.26.0-beta.5. The section is complete with the release.*
+*In preparation: the betas up to 1.26.0-beta.6. The section is complete with the release.*
 
 - **The lines of the research from the Strom app: created, changed, paused, put in order.** A line is created or changed
   in the app (its person, direction, question, limits), paused, ended or taken up again; the order of the lines is the
@@ -25,6 +25,9 @@ The changes of each version in short. The full notes and the install lines are o
   reason, kept with the story. The sources a story rests on are shown with it, title and address under each fact, also
   where the text does not name them, and a source the text names only by its code among them; the Strom app receives
   them with the story. A fact told from a lead names in the text where it comes from.
+
+- A big family tree taken in on Windows (some 1 500 people and more) no longer fails in git over a command line too long
+  (ENAMETOOLONG) with nothing of it kept: everything taken in is written.
 
 ## 1.25.2
 

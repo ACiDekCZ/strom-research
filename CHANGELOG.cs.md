@@ -7,7 +7,7 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
 
 ## 1.26.0
 
-*Připravuje se: bety do 1.26.0-beta.5. Oddíl bude úplný s vydáním.*
+*Připravuje se: bety do 1.26.0-beta.6. Oddíl bude úplný s vydáním.*
 
 - **Linie výzkumu z aplikace Strom: založit, upravit, pozastavit, seřadit.** Linii jde v aplikaci založit nebo upravit
   (osoba, směr, otázka, meze), pozastavit, ukončit nebo znovu spustit; pořadí linií je pořadí práce a stránka telefonu
@@ -24,6 +24,9 @@ Změny každé verze ve zkratce. Úplné poznámky a instalační řádky jsou n
   uloží k vyprávění. Prameny, o které se vyprávění opírá, jsou u něj vidět, u každého údaje název a adresa, i když je
   text nejmenuje, i pramen, který text jmenuje jen kódem; aplikace Strom je dostane s vyprávěním. Údaj z vodítka v textu
   říká, odkud je.
+
+- Velký rodokmen převzatý ve Windows (zhruba 1 500 osob a víc) už neskončí chybou gitu o příliš dlouhém příkazu
+  (ENAMETOOLONG) bez jediného zapsaného údaje: vše převzaté se zapíše.
 
 ## 1.25.2
 

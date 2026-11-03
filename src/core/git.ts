@@ -55,6 +55,33 @@ function withStdin<T>(input: string | undefined, run: (stdin: number | "ignore")
   }
 }
 
+/**
+ * How many characters the paths of one git command line may take. Windows starts a program with a command line of at
+ * most 32 767 characters (spawnSync: ENAMETOOLONG — found: a family tree of 1 450 people taken in on Windows, its
+ * commit's `git add` naming every file, nothing of it kept); a longer list reaches git in parts, well within that.
+ * Not `--pathspec-from-file`: a git before 2.25 (older macOS command line tools, older Linux) knows none.
+ */
+const ARGS_ROOM = 8000;
+
+/** The paths in parts, in their order, each part within `room` characters on a command line (a path, quotes, a space). */
+export function pathParts(paths: string[], room = ARGS_ROOM): string[][] {
+  const parts: string[][] = [];
+  let part: string[] = [];
+  let used = 0;
+  for (const p of paths) {
+    const size = p.length + 3;
+    if (part.length && used + size > room) {
+      parts.push(part);
+      part = [];
+      used = 0;
+    }
+    part.push(p);
+    used += size;
+  }
+  if (part.length) parts.push(part);
+  return parts;
+}
+
 /** A git that did not finish in time: stopped (SIGKILL by spawnSync), said. */
 function gitTimedOut(args: string[], error: Error | undefined): StromError | undefined {
   if ((error as NodeJS.ErrnoException | undefined)?.code !== "ETIMEDOUT") return undefined;
@@ -286,7 +313,7 @@ export function ignoredOf(dir: string, paths: string[]): Set<string> {
 
 /** Which of these paths (files or folders) git knows — one process for all of them. */
 function trackedOf(dir: string, paths: string[]): Set<string> {
-  const files = runGit(dir, ["ls-files", "-z", "--", ...paths]).stdout.split("\0").filter(Boolean);
+  const files = pathParts(paths).flatMap((part) => runGit(dir, ["ls-files", "-z", "--", ...part]).stdout.split("\0").filter(Boolean));
   return new Set(paths.filter((p) => {
     const rel = p.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/$/, "");
     return files.some((f) => f === rel || f.startsWith(`${rel}/`));
@@ -327,7 +354,8 @@ export function commitAll(
   const missing = pathspec.filter((p) => p !== "." && !fs.existsSync(path.join(dir, p)));
   const known = missing.length ? trackedOf(dir, missing) : new Set<string>();
   const specs = pathspec.filter((p) => !missing.includes(p) || known.has(p));
-  if (specs.length) git(dir, ["add", "-A", "--", ...specs]);
+  // in parts: a commit of a big family tree names thousands of files (pathParts)
+  for (const part of pathParts(specs)) git(dir, ["add", "-A", "--", ...part]);
   const tree = git(dir, ["write-tree"]).trim();
   const parent = headInfo(dir);
   if (parent && parent.tree === tree && !always) return undefined;
@@ -403,14 +431,18 @@ export interface Change {
 
 /** Uncommitted changes with their status codes. */
 export function changes(dir: string, pathspec: string[] = []): Change[] {
-  const out = git(dir, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ...pathspec]);
-  const items = out.split("\0").filter(Boolean);
   const list: Change[] = [];
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i]!;
-    const code = item.slice(0, 2);
-    list.push({ path: item.slice(3), code });
-    if (code.startsWith("R") || code.startsWith("C")) i++;
+  const seen = new Set<string>();
+  for (const part of pathspec.length ? pathParts(pathspec) : [[]]) {
+    const items = git(dir, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--", ...part]).split("\0").filter(Boolean);
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]!;
+      const code = item.slice(0, 2);
+      // a path two parts name (a folder and a file in it) once
+      if (!seen.has(item.slice(3))) list.push({ path: item.slice(3), code });
+      seen.add(item.slice(3));
+      if (code.startsWith("R") || code.startsWith("C")) i++;
+    }
   }
   return list;
 }

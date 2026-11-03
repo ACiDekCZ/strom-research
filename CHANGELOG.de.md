@@ -7,7 +7,7 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
 
 ## 1.26.0
 
-*In Vorbereitung: die Betas bis 1.26.0-beta.5. Der Abschnitt ist mit dem Release vollständig.*
+*In Vorbereitung: die Betas bis 1.26.0-beta.6. Der Abschnitt ist mit dem Release vollständig.*
 
 - **Die Linien der Forschung aus der Strom-App: anlegen, ändern, pausieren, ordnen.** Eine Linie lässt sich in der App
   anlegen oder ändern (Person, Richtung, Frage, Grenzen), pausieren, beenden oder wieder aufnehmen; die Reihenfolge der
@@ -27,6 +27,9 @@ Die Änderungen jeder Version in Kürze. Die vollständigen Hinweise und die Ins
   sich eine Erzählung stützt, stehen bei ihr, Titel und Adresse unter jeder Angabe, auch wenn der Text sie nicht nennt,
   auch eine Quelle, die der Text nur mit ihrem Kürzel nennt; die Strom-App erhält sie mit der Erzählung. Eine Angabe aus
   einem Hinweis nennt im Text ihre Herkunft.
+
+- Ein großer Stammbaum, unter Windows übernommen (etwa 1 500 Personen und mehr), scheitert nicht mehr in git an einer zu
+  langen Befehlszeile (ENAMETOOLONG), ohne dass etwas davon bleibt: alles Übernommene wird geschrieben.
 
 ## 1.25.2
 

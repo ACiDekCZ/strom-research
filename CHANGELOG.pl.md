@@ -7,7 +7,7 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
 
 ## 1.26.0
 
-*W przygotowaniu: bety do 1.26.0-beta.5. Sekcja będzie kompletna z wydaniem.*
+*W przygotowaniu: bety do 1.26.0-beta.6. Sekcja będzie kompletna z wydaniem.*
 
 - **Linie badania z aplikacji Strom: założyć, zmienić, wstrzymać, uporządkować.** Linię można w aplikacji założyć lub
   zmienić (osoba, kierunek, pytanie, granice), wstrzymać, zakończyć lub wznowić; kolejność linii to kolejność pracy, a
@@ -25,6 +25,9 @@ Zmiany każdej wersji w skrócie. Pełne informacje o wydaniach i polecenia inst
   celowo z powodem, zapisanym przy opowieści. Źródła, na których opiera się opowieść, są przy niej widoczne, tytuł i
   adres pod każdą daną, także gdy tekst ich nie wymienia, również źródło, które tekst wymienia tylko kodem; aplikacja
   Strom dostaje je z opowieścią. Dana z poszlaki mówi w tekście, skąd pochodzi.
+
+- Duże drzewo przejęte w systemie Windows (około 1500 osób i więcej) nie kończy się już błędem gita o zbyt długim
+  poleceniu (ENAMETOOLONG) bez żadnej zapisanej danej: wszystko, co przejęte, zostaje zapisane.
 
 ## 1.25.2
 
